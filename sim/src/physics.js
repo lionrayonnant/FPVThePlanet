@@ -75,6 +75,7 @@ export class Physics {
 		this._aglEvery = 10;
 		this._aglCounter = 0;
 		this._agl = null;
+		this.airspeed = 0;
 
 		// castRay only sees colliders once the query pipeline has been built.
 		this.world.step();
@@ -91,6 +92,7 @@ export class Physics {
 		this.propulsion.reset();
 		this._agl = null;
 		this._aglCounter = 0;
+		this.airspeed = 0;
 	}
 
 	get position() { return this.body.translation(); }
@@ -124,7 +126,11 @@ export class Physics {
 
 		// Airspeed, not ground speed: the aerodynamics only ever see the air.
 		const wind = this.propulsion.updateWind(this.meanWind, dt);
-		const vBody = unrotateVec(q, v.x - wind.x, v.y - wind.y, v.z - wind.z);
+		const ax = v.x - wind.x, ay = v.y - wind.y, az = v.z - wind.z;
+		const vBody = unrotateVec(q, ax, ay, az);
+		// Kept around because the wind rush the pilot hears follows the air, not
+		// the ground: with a tailwind a fast quad can be nearly silent.
+		this.airspeed = Math.hypot(ax, ay, az);
 
 		const { force, torque } = this.propulsion.step(motors, vBody, this._agl, dt);
 

@@ -26,6 +26,8 @@ export const QUAD = {
 
 	propRadius: 0.0635,         // m, 5 inch
 	propInertia: 4.0e-6,        // kg*m^2 per prop, tri-blade
+	bladeCount: 3,              // blades per prop — sets the blade-pass frequency
+	                            // the audio synthesis sings at (rpm/60 * blades)
 
 	maxThrustPerMotor: 10.0,    // N at full throttle on a fresh 4S (~1.02 kgf)
 	maxOmega: 3140,             // rad/s (~30000 rpm loaded)

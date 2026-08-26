@@ -4,7 +4,8 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud } from './hud.js';
+import { Hud, loadVolume } from './hud.js';
+import { EngineAudio } from './audio.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -53,6 +54,8 @@ document.body.appendChild(renderer.domElement);
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'), input);
 const controller = new FlightController();
+// Inert until start(): no AudioContext exists before the user's first gesture.
+const audio = new EngineAudio();
 
 let physics = null;
 let freeCam = null;
@@ -162,6 +165,8 @@ async function boot() {
 
 	hud.setWind((mean, gusts) => physics.setWind(mean, gusts));
 
+	hud.setAudio(loadVolume(), (v) => audio.setVolume(v));
+
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
@@ -173,7 +178,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline,
+		physics, controller, camera, renderer, scene, input, timeline, audio,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWind({x,y,z} m/s, gustStrength m/s).
@@ -242,6 +247,9 @@ input.onAction = (key, event) => {
 };
 
 renderer.domElement.addEventListener('click', () => {
+	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
+	// only other user gesture we get. start() is idempotent.
+	audio.start();
 	if (!freeCamOn && !hud.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
@@ -257,6 +265,9 @@ function toggleFreeCam() {
 	if (!freeCam) return;
 	freeCamOn = !freeCamOn;
 	freeCam.enabled = freeCamOn;
+	// Physics does not advance in free camera, so the motor speeds freeze. A
+	// held drone note would be worse than silence.
+	audio.setMuted(freeCamOn);
 	if (freeCamOn) {
 		document.exitPointerLock();
 		const p = physics.position;
@@ -276,6 +287,7 @@ function frame() {
 
 	const sticks = window.__simInput ?? input.update(dt);
 
+	let peakImpact = 0;
 	if (!freeCamOn) {
 		accumulator += dt;
 		let steps = 0;
@@ -283,6 +295,7 @@ function frame() {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
 			const impact = physics.step(motors, FIXED_STEP);
 			if (impact > CRASH_IMPULSE) crashed = true;
+			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;
 			steps++;
 		}
@@ -318,6 +331,19 @@ function frame() {
 		crashed,
 		usingGamepad: input.usingGamepad,
 	});
+
+	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
+	// wasted work, and setTargetAtTime interpolates between frames anyway.
+	if (!freeCamOn) {
+		const prop = physics.propulsion;
+		audio.update({
+			omega: prop.omega,
+			thrust: prop.thrust,
+			airspeed: physics.airspeed,
+			propwash: prop.propwash,
+		});
+		if (peakImpact > 0) audio.playImpact(peakImpact);
+	}
 }
 
 // Picks which prepared map to fly before doing any of the heavy loading work.
@@ -338,6 +364,9 @@ async function chooseScene() {
 
 chooseScene()
 	.then((slug) => {
+		// Still inside the menu button's click, which is the user gesture the
+		// browser's autoplay policy demands before an AudioContext will run.
+		audio.start();
 		setScene(slug);
 		return boot();
 	})

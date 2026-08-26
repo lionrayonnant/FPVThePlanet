@@ -286,6 +286,24 @@ Vent et rafales se règlent dans le panneau `Tab` (par défaut à zéro). La
 direction est tirée au sort au démarrage, pour ne pas toujours avoir le même
 vent arrière dans la même rue.
 
+### Le son
+
+Rien n'est chargé : `src/audio.js` synthétise tout en Web Audio depuis les
+quatre régimes moteur. Chaque moteur a ses propres oscillateurs, accordés sur sa
+fréquence de passage de pale (≈ 530 Hz au stationnaire, ≈ 1420 Hz à fond), plus
+ses harmoniques et du bruit large bande ; les quatre sont panoramiqués selon
+leur position sur la cellule. Les régimes divergent dès qu'on met du manche, et
+c'est ce battement entre eux qui fait le son d'un quad en virage — les fusionner
+en un seul oscillateur perdrait exactement ce qui vaut le coup.
+
+S'y ajoutent le souffle aérodynamique (indexé sur la vitesse *air*, donc plus
+discret vent arrière), le propwash en descente, et un bruit d'impact dont le
+niveau suit la force de contact.
+
+Volume dans le panneau `Tab`, retenu d'une session à l'autre ; coupé en caméra
+libre. Le son démarre au clic du menu de choix de carte : les navigateurs
+refusent de faire du bruit avant un geste de l'utilisateur.
+
 ### Régler le PID
 
 ```bash

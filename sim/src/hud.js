@@ -1,5 +1,21 @@
 import { CHANNELS } from './input.js';
 
+const VOLUME_KEY = 'fpvmaps.audioVolume';
+const DEFAULT_VOLUME = 0.6;
+
+// Volume survives reloads. Anything unparseable falls back to the default
+// rather than throwing: a corrupt key must not stop the sim from booting.
+export function loadVolume() {
+	try {
+		// Note the null check: Number(null) is 0, which would silently turn a
+		// first run into a muted one.
+		const raw = localStorage.getItem(VOLUME_KEY);
+		const saved = raw === null ? NaN : Number(raw);
+		if (Number.isFinite(saved) && saved >= 0 && saved <= 100) return saved / 100;
+	} catch { }
+	return DEFAULT_VOLUME;
+}
+
 export class Hud {
 	constructor(root, input) {
 		this.input = input;
@@ -54,6 +70,8 @@ export class Hud {
 					<h2>Air</h2>
 					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
 					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
+					<h2>Son</h2>
+					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 					<button id="close-settings">Fermer (Tab)</button>
 				</div>
 			</div>`;
@@ -81,6 +99,8 @@ export class Hud {
 			windVal: root.querySelector('#wind-val'),
 			gust: root.querySelector('#gust'),
 			gustVal: root.querySelector('#gust-val'),
+			vol: root.querySelector('#vol'),
+			volVal: root.querySelector('#vol-val'),
 			thr: root.querySelector('#thr-fill'),
 			crash: root.querySelector('#crash'),
 			reticle: root.querySelector('#reticle'),
@@ -184,6 +204,21 @@ export class Hud {
 		this.el.gust.value = 0;
 		this.el.wind.oninput = emit;
 		this.el.gust.oninput = emit;
+		emit();
+	}
+
+	// Volume is the one setting worth remembering across reloads: nobody wants
+	// the sim to come back at full blast every time. Same localStorage shape as
+	// the gamepad map in input.js.
+	setAudio(initial, onChange) {
+		const emit = () => {
+			const pct = Number(this.el.vol.value);
+			this.el.volVal.textContent = pct;
+			try { localStorage.setItem(VOLUME_KEY, String(pct)); } catch { }
+			onChange(pct / 100);
+		};
+		this.el.vol.value = Math.round(initial * 100);
+		this.el.vol.oninput = emit;
 		emit();
 	}
 

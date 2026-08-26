@@ -185,6 +185,70 @@ beaucoup plus vif, lacet ~2× plus lent que le roulis au lieu d'identique,
 décélération qui dépend du régime, batterie qui s'épuise en ~2,5 min de vol
 soutenu, et propwash qui secoue en descente verticale.
 
+## Son : synthèse depuis les quatre moteurs (ajouté 2026-08-26)
+
+`src/audio.js` synthétise tout le son du sim en Web Audio à partir de
+`physics.propulsion` — aucun fichier audio n'est chargé.
+
+Le principe qui compte : **un jeu d'oscillateurs par moteur**, pas un pour
+l'ensemble. Les quatre régimes divergent dès qu'on touche un manche, et le
+battement entre eux est précisément ce qui fait qu'un quad sonne comme un quad.
+Chacun chante sa fréquence de passage de pale (`omega/2π × QUAD.bladeCount`,
+constante ajoutée dans `quad.js`) plus ses 2e et 3e harmoniques, et du bruit
+passe-bande centré sur cette même fréquence.
+
+- Le **niveau suit la poussée** (`propulsion.thrust[i]`), pas la commande
+  moteur : un moteur déchargé en piqué est plus discret que la même commande en
+  montée, ce qui est la moitié de la raison pour laquelle un punch-out s'entend.
+- **Panoramique** ±0,5 selon le signe de `MOTORS[i].x`.
+- **Souffle** : bruit passe-bande dont le centre et le niveau suivent
+  `physics.airspeed` — la vitesse *air*, nouvellement exposée par `physics.js`,
+  parce qu'avec du vent arrière un quad rapide est presque silencieux.
+- **Propwash** : le même bruit, passe-bas, piloté par `propulsion.propwash`.
+- **Impacts** : one-shots déclenchés par la force de contact que `physics.step()`
+  renvoyait déjà et que `main.js` jetait ; loi logarithmique sur le niveau,
+  un impact au plus toutes les 80 ms.
+
+Contraintes de mise en œuvre, toutes vérifiées :
+
+- Le graphe est construit une seule fois dans `start()`. `update()` ne bouge que
+  des `AudioParam` via `setTargetAtTime` — aucune allocation par image. Les
+  seuls nœuds créés après coup sont les trois d'un impact, qui se déconnectent
+  dans `onended`.
+- `update()` est appelé une fois par image, pas à 250 Hz.
+- L'`AudioContext` naît au clic du menu (le geste utilisateur exigé par la
+  politique d'autoplay), avec un filet sur le clic du canvas pour le chemin
+  `?scene=<slug>` qui saute le menu.
+- Silence en caméra libre : la physique n'y avance pas, donc les régimes gèlent
+  et une note tenue serait pire que rien.
+
+### Vérifications navigateur (chrome-devtools MCP, scène Tour Eiffel)
+
+- `AudioContext` en `running` après le clic du menu, 48 kHz.
+- Fréquences fondamentales : **528 Hz à 20 % de gaz**, **1419 Hz à fond**
+  (cohérent avec le sag du pack), harmoniques exactement à 2f. Les quatre sont
+  identiques en ligne droite et **divergent** (921–956 Hz) manche de roulis à
+  fond — c'est le point de tout l'exercice.
+- Panoramiques à `[+0.5, +0.5, -0.5, -0.5]`, conformes à l'ordre Betaflight.
+- **Zéro nœud alloué sur 3 s de vol stationnaire** ; une chute de 12 m produit
+  3 one-shots d'impact, la limite anti-spam tient.
+- Souffle : gain 0,0003 au stationnaire, 0,145 à 586 Hz en piqué à 13,6 m/s ;
+  propwash au maximum gaz coupés en descente.
+- `C` coupe le son (gain maître → 0) et le rétablit au retour en FPV.
+- Volume : curseur dans le panneau `Tab`, persisté dans `localStorage`
+  (`fpvmaps.audioVolume`) et bien relu après rechargement. Aucune erreur console.
+
+**Non vérifié** : le rendu à l'oreille. Aucun agent ne peut écouter ; la
+structure, les fréquences et l'absence de fuite sont garanties, le jugement
+« est-ce que ça sonne comme un quad » reste à l'utilisateur. Les niveaux
+relatifs (harmoniques, bruit moteur, souffle) sont des points de départ
+raisonnables, pas des valeurs mesurées — c'est le seul endroit du projet où
+« choisi plutôt que mesuré » est assumé, faute de référence audio.
+
+Un piège rencontré et corrigé au passage : `Number(localStorage.getItem(k))`
+vaut `0` quand la clé est absente, ce qui transformait silencieusement un
+premier lancement en sim muet. La lecture teste maintenant `null` d'abord.
+
 ## Bugs trouvés et corrigés cette session
 
 Par ordre de découverte — plusieurs ont nécessité de mesurer plutôt que
@@ -347,4 +411,4 @@ réellement en vol.
   `?mipmaps=0` (coupe la génération de mipmaps), `?chunks=N` (charge N
   chunks au lieu de 5), `?aniso=0`, `?collision=0`.
 - `window.__sim` dans la console navigateur : `.debug()`, `.teleport(x,y,z)`,
-  `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`.
+  `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`, `.audio`.
