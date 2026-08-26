@@ -291,6 +291,26 @@ relatifs (harmoniques, bruit moteur, souffle) sont des points de départ
 raisonnables, pas des valeurs mesurées — c'est le seul endroit du projet où
 « choisi plutôt que mesuré » est assumé, faute de référence audio.
 
+**Verdict de vol sur la correction (2026-08-27)** : « pas mal, mais un peu
+étouffé ». Donc le sens de la correction était bon et son amplitude est allée
+un cran trop loin. C'est cohérent avec les mesures : au stationnaire il ne reste
+plus *rien* au-dessus de 2 kHz (le fondamental est à ~530 Hz et la 3e
+harmonique à ~1590 Hz passe encore, mais le bruit moteur est coupé net), et
+c'est là qu'on perd la présence. À reprendre à tête reposée, dans l'ordre de ce
+qui est le plus probablement en cause :
+
+1. Remonter `motorTone` (2600 Hz), qui est la coupure la plus agressive des
+   deux ; 3200–3600 Hz rendrait de la présence sans revenir dans 4–8 kHz.
+2. Puis `airCut` (6000 Hz), plus haut, qui ne sert que de filet.
+3. En dernier recours seulement, remonter `harmonics[2]` (0,14) — c'est le
+   levier qui rouvre le plus vite le problème de fatigue.
+
+Le curseur **Timbre** permet de chercher le point avant de figer une constante :
+s'il faut le mettre franchement au-dessus de « neutre » pour que ce soit bien,
+c'est la constante qu'il faut bouger, pas le curseur. Ne pas revenir à la
+`sawtooth` ni supprimer le désaccord entre moteurs : ce sont eux qui causaient
+la fatigue, pas le manque de brillance. Suivi dans #11.
+
 Deux pièges rencontrés et corrigés au passage. `Number(localStorage.getItem(k))`
 vaut `0` quand la clé est absente, ce qui transformait silencieusement un
 premier lancement en sim muet ; la lecture teste maintenant `null` d'abord. Et
