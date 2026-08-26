@@ -1,0 +1,128 @@
+import * as THREE from 'three';
+import { createTileMaterial, createArrayTexture } from './TileMaterial.js';
+
+// Absolute, because the worker resolves relative URLs against /src/, not the
+// page. import.meta.env.BASE_URL keeps this correct under a deployed subpath.
+// Which scene's data to load; picked from the in-app menu before boot().
+let BASE = null;
+
+export function setScene(slug) {
+	BASE = `${import.meta.env.BASE_URL}scenes/${slug}/`;
+}
+
+// Lists maps prepared with tools/add-map.mjs, for the pre-flight menu.
+export async function loadSceneList() {
+	const res = await fetch(`${import.meta.env.BASE_URL}scenes.json`);
+	if (!res.ok) throw new Error(`scenes.json: HTTP ${res.status} — run "npm run add-map" first`);
+	return res.json();
+}
+
+export async function loadManifest() {
+	const res = await fetch(BASE + 'manifest.json');
+	if (!res.ok) throw new Error(`manifest.json: HTTP ${res.status} — run "npm run add-map" (or "npm run prep") first`);
+	return res.json();
+}
+
+// Chunk downloads run in workers so fetching and JPEG decoding overlap. Each
+// worker holds ~135MB while unpacking its sheet, so only a few run at once.
+const MAX_CONCURRENT = 3;
+
+export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {
+	const { cellSize, cellsPerRow } = manifest;
+	const chunks = manifest.chunks.slice(0, maxChunks);
+	const meshes = new Array(chunks.length);
+	const timings = new Array(chunks.length);
+	const totalBytes = chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0);
+	let bytes = 0;
+	let done = 0;
+	let decoding = 0;
+
+	const report = () => onProgress?.({
+		bytes, totalBytes, done, total: chunks.length, decoding,
+	});
+
+	const loadOne = (chunk, index) => new Promise((resolve, reject) => {
+		const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+		worker.onerror = (e) => { worker.terminate(); reject(new Error(`chunk ${index}: ${e.message}`)); };
+		worker.onmessage = (e) => {
+			const msg = e.data;
+			if (msg.progress) { bytes += msg.progress; report(); return; }
+			if (msg.stage === 'decoding') { decoding++; report(); return; }
+
+			worker.terminate();
+			decoding--;
+			if (!msg.ok) return reject(new Error(`chunk ${index}: ${msg.error}`));
+
+			const g = msg.geometry;
+			const geometry = new THREE.BufferGeometry();
+			geometry.setAttribute('position', new THREE.BufferAttribute(g.positions, 3));
+			geometry.setAttribute('uv', new THREE.BufferAttribute(g.uvs, 2));
+			geometry.setAttribute('aLayer', new THREE.BufferAttribute(g.layers, 1));
+			geometry.setIndex(new THREE.BufferAttribute(g.indices, 1));
+
+			const b = chunk.bbox;
+			geometry.boundingBox = new THREE.Box3(
+				new THREE.Vector3(...b.min), new THREE.Vector3(...b.max));
+			geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
+
+			const texture = createArrayTexture(msg.pixels, msg.cell, g.layerCount, { mipmaps, anisotropy });
+			const mesh = new THREE.Mesh(geometry, createTileMaterial(texture, fogColor, fogDensity));
+			mesh.frustumCulled = true;
+			mesh.name = `chunk${index}`;
+			meshes[index] = mesh;
+			timings[index] = msg.timing;
+
+			done++;
+			report();
+			resolve();
+		};
+		worker.postMessage({
+			index, baseUrl: BASE,
+			geo: chunk.geo, tex: chunk.tex,
+			cell: cellSize, cellsPerRow,
+		});
+	});
+
+	// Simple pool: keep MAX_CONCURRENT workers busy until every chunk is done.
+	let next = 0;
+	const runners = Array.from({ length: Math.min(MAX_CONCURRENT, chunks.length) }, async () => {
+		for (;;) {
+			const i = next++;
+			if (i >= chunks.length) return;
+			await loadOne(chunks[i], i);
+		}
+	});
+	return Promise.all(runners).then(() => ({ meshes, timings }));
+}
+
+export async function loadCollision(manifest, onProgress) {
+	const res = await fetch(BASE + manifest.collision.file);
+	if (!res.ok) throw new Error(`${manifest.collision.file}: HTTP ${res.status}`);
+
+	// ~90MB: stream it so the loading screen can show real progress.
+	const total = Number(res.headers.get('content-length')) || 0;
+	const reader = res.body.getReader();
+	const parts = [];
+	let received = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		parts.push(value);
+		received += value.length;
+		if (total) onProgress?.(received / total, received);
+	}
+	const buf = new Uint8Array(received);
+	let off = 0;
+	for (const p of parts) { buf.set(p, off); off += p.length; }
+
+	const head = new DataView(buf.buffer);
+	const magic = String.fromCharCode(head.getUint8(0), head.getUint8(1), head.getUint8(2), head.getUint8(3));
+	if (magic !== 'FPVC') throw new Error(`bad collision magic: ${magic}`);
+	const vertexCount = head.getUint32(8, true);
+	const indexCount = head.getUint32(12, true);
+
+	return {
+		vertices: new Float32Array(buf.buffer, 16, vertexCount * 3),
+		indices: new Uint32Array(buf.buffer, 16 + vertexCount * 12, indexCount),
+	};
+}

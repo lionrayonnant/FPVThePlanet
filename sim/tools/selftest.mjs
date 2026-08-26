@@ -1,0 +1,197 @@
+// Headless checks on the generated scene: geodesy, ground queries, flight
+// envelope, and the collision behaviour the sim depends on.
+//
+//   node tools/selftest.mjs [sceneDir]
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { initPhysics, Physics, MAX_THRUST, DRONE } from '../src/physics.js';
+import { FlightController } from '../src/flightController.js';
+
+const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
+const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
+const raw = fs.readFileSync(path.join(sceneDir, 'collision.bin'));
+const vc = raw.readUInt32LE(8), ic = raw.readUInt32LE(12);
+const collision = {
+	vertices: new Float32Array(raw.buffer, raw.byteOffset + 16, vc * 3),
+	indices: new Uint32Array(raw.buffer, raw.byteOffset + 16 + vc * 12, ic),
+};
+
+await initPhysics();
+// One world only: several 3.7M-triangle trimeshes at once exhausts the wasm heap.
+const phys = new Physics(collision, manifest.spawn);
+const fc = new FlightController();
+const HOVER = (DRONE.mass * 9.81) / MAX_THRUST;
+
+let failures = 0;
+function check(label, ok, detail) {
+	console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`);
+	if (!ok) failures++;
+}
+
+function simulate({ seconds, sticks, at, velocity, mode = 'acro' }) {
+	phys.reset();
+	fc.setMode(mode);
+	if (at) phys.body.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
+	if (velocity) phys.body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
+	let maxImpact = 0;
+	for (let i = 0; i < Math.round(seconds * 250); i++) {
+		const s = typeof sticks === 'function' ? sticks(i / 250) : sticks;
+		maxImpact = Math.max(maxImpact, phys.step(fc.update(s, phys)));
+	}
+	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
+	return { p, v, w, speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
+}
+
+console.log(`scene: ${sceneDir}`);
+console.log(`origin ${manifest.origin.latitude.toFixed(5)}, ${manifest.origin.longitude.toFixed(5)}`);
+
+console.log('\ngeometry & geodesy');
+const size = manifest.bbox.max.map((v, i) => v - manifest.bbox.min[i]);
+check('tile is roughly 1.2km square', size[0] > 1000 && size[0] < 1600 && size[2] > 1000 && size[2] < 1600,
+	`${size[0].toFixed(0)} x ${size[2].toFixed(0)} m`);
+check('origin is the Eiffel Tower area', Math.abs(manifest.origin.latitude - 48.8583) < 0.01 && Math.abs(manifest.origin.longitude - 2.297) < 0.01);
+
+// The tallest structure in this tile is the tower; ~300m above local ground.
+let top = -Infinity, tx = 0, tz = 0;
+for (let i = 0; i < vc; i++) {
+	const y = collision.vertices[i * 3 + 1];
+	if (y > top) { top = y; tx = collision.vertices[i * 3]; tz = collision.vertices[i * 3 + 2]; }
+}
+const groundNearTower = phys.groundBelow(tx + 120, 350, tz + 120);
+const towerHeight = top - groundNearTower;
+check('Eiffel Tower is ~300m tall', towerHeight > 270 && towerHeight < 350, `${towerHeight.toFixed(0)} m`);
+
+console.log('\nground queries');
+check('ray finds ground at spawn', phys.groundBelow(manifest.spawn.x, 350, manifest.spawn.z) !== null);
+check('ray finds the tower structure', (phys.groundBelow(tx, 350, tz) ?? 0) > 200,
+	`${(phys.groundBelow(tx, 350, tz) ?? 0).toFixed(0)} m`);
+let misses = 0, samples = 0;
+for (let x = -600; x <= 600; x += 100) for (let z = -600; z <= 600; z += 100) {
+	samples++; if (phys.groundBelow(x, 350, z) === null) misses++;
+}
+check('ground coverage across the tile', misses === 0, `${samples - misses}/${samples} hits`);
+
+console.log('\nflight envelope');
+const rest = simulate({ seconds: 2, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 } });
+check('sits still on the ground at zero throttle', rest.speed < 0.5, `${rest.speed.toFixed(2)} m/s`);
+
+const hover = simulate({ seconds: 4, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
+check('holds altitude at hover throttle', Math.abs(hover.p.y - 150) < 3, `drifted ${(hover.p.y - 150).toFixed(2)} m in 4s`);
+
+const climb = simulate({ seconds: 5, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 50, 300] });
+check('climbs at full throttle', climb.p.y - 50 > 100, `+${(climb.p.y - 50).toFixed(0)} m in 5s`);
+
+const roll = simulate({ seconds: 1, sticks: { throttle: HOVER, roll: 1, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
+check('reaches commanded roll rate (~800 deg/s)', roll.spin > 700 && roll.spin < 900, `${roll.spin.toFixed(0)} deg/s`);
+
+console.log('\ncollision');
+const towerX = tx, towerZ = tz;
+const fast = simulate({ seconds: 2, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 },
+	at: [towerX + 45, 120, towerZ], velocity: [-60, 0, 0] });
+check('60 m/s impact does not tunnel through the tower (CCD)', fast.p.x > towerX - 25,
+	`stopped at x=${fast.p.x.toFixed(1)}, tower at x=${towerX.toFixed(1)}`);
+check('high-speed impact registers as a crash', fast.maxImpact > 1500, `${fast.maxImpact.toFixed(0)} N`);
+
+const land = simulate({ seconds: 3, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 },
+	at: [manifest.spawn.x, manifest.spawn.y + 0.3, manifest.spawn.z] });
+check('a gentle landing is not a crash', land.maxImpact < 1500, `${land.maxImpact.toFixed(0)} N`);
+
+console.log('\ntextures');
+// The UV convention is the one thing here a screenshot reads as merely "a bit
+// odd": OBJ puts the V origin at the bottom-left, DataArrayTexture at the top.
+// Both checks below failed hard before prep.mjs started converting it.
+{
+	const tileDir = manifest.source;
+	const mtlPath = tileDir ? path.join(tileDir, 'exp_model.mtl') : null;
+	if (!mtlPath || !fs.existsSync(mtlPath)) {
+		console.log(`  SKIP  needs the source tile — ${mtlPath ?? 'no manifest.source'} is not on disk`);
+	} else {
+		const sharp = (await import('sharp')).default;
+
+		// Declaration order in the MTL is the layer order prep.mjs assigns.
+		const jpgs = [];
+		for (const line of fs.readFileSync(mtlPath, 'latin1').split('\n')) {
+			const t = line.trim();
+			if (t.startsWith('newmtl ')) jpgs.push(null);
+			else if (t.startsWith('map_Kd ') && jpgs.length) jpgs[jpgs.length - 1] = t.slice(7).trim();
+		}
+
+		const chunk = manifest.chunks[0];
+		const g = fs.readFileSync(path.join(sceneDir, chunk.geo));
+		const gv = g.readUInt32LE(8), gi = g.readUInt32LE(12), layerBase = g.readUInt32LE(16);
+		let o = 32;
+		const pos = new Float32Array(g.buffer, g.byteOffset + o, gv * 3); o += gv * 12;
+		const uv = new Float32Array(g.buffer, g.byteOffset + o, gv * 2); o += gv * 8;
+		const lay = new Uint16Array(g.buffer, g.byteOffset + o, gv); o += (gv * 2 + 3) & ~3;
+		const ind = new Uint32Array(g.buffer, g.byteOffset + o, gi);
+
+		// A contiguous block of layers: neighbouring indices are neighbours on the
+		// ground, which is what gives the seam check something to compare.
+		const SAMPLED = Math.min(80, chunk.layerCount);
+		const tex = new Map();
+		for (let l = 0; l < SAMPLED; l++) {
+			const img = sharp(path.join(tileDir, jpgs[layerBase + l]));
+			const { width, height } = await img.metadata();
+			tex.set(l, { data: await img.removeAlpha().raw().toBuffer(), w: width, h: height });
+		}
+		// prep.mjs bakes V top-origin, matching DataArrayTexture's flipY = false,
+		// so the stored UV indexes the source JPEG's rows directly.
+		const sample = (l, u, v) => {
+			const t = tex.get(l);
+			const x = Math.min(t.w - 1, Math.max(0, Math.round(u * (t.w - 1))));
+			const y = Math.min(t.h - 1, Math.max(0, Math.round(v * (t.h - 1))));
+			const i = (y * t.w + x) * 3;
+			return [t.data[i], t.data[i + 1], t.data[i + 2]];
+		};
+
+		// Two materials meeting at one world point must agree on the colour there.
+		// Measured 14.8 with V converted, 42.4 with it left as the OBJ wrote it.
+		const byPos = new Map();
+		for (let i = 0; i < gv; i++) {
+			if (lay[i] >= SAMPLED) continue;
+			const k = `${pos[i * 3]},${pos[i * 3 + 1]},${pos[i * 3 + 2]}`;
+			let a = byPos.get(k); if (!a) { a = []; byPos.set(k, a); } a.push(i);
+		}
+		let diff = 0, pairs = 0;
+		for (const a of byPos.values()) {
+			for (let x = 0; x < a.length; x++) for (let y = x + 1; y < a.length; y++) {
+				if (lay[a[x]] === lay[a[y]]) continue;
+				const p = sample(lay[a[x]], uv[a[x] * 2], uv[a[x] * 2 + 1]);
+				const q = sample(lay[a[y]], uv[a[y] * 2], uv[a[y] * 2 + 1]);
+				diff += (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2])) / 3;
+				pairs++;
+			}
+		}
+		const meanDiff = pairs ? diff / pairs : Infinity;
+		check('neighbouring materials agree where they meet (UV convention)',
+			pairs > 200 && meanDiff < 25,
+			`${meanDiff.toFixed(1)} mean |dRGB| over ${pairs} shared vertices`);
+
+		// Flyover pads the unused part of every patch with flat grey 128. Any real
+		// quantity of it on screen means the UVs are landing in that padding.
+		let grey = 0, area = 0;
+		for (let t = 0; t < gi; t += 3) {
+			const a = ind[t], b = ind[t + 1], c = ind[t + 2];
+			if (lay[a] >= SAMPLED) continue;
+			const ex = pos[b * 3] - pos[a * 3], ey = pos[b * 3 + 1] - pos[a * 3 + 1], ez = pos[b * 3 + 2] - pos[a * 3 + 2];
+			const fx = pos[c * 3] - pos[a * 3], fy = pos[c * 3 + 1] - pos[a * 3 + 1], fz = pos[c * 3 + 2] - pos[a * 3 + 2];
+			const w = 0.5 * Math.hypot(ey * fz - ez * fy, ez * fx - ex * fz, ex * fy - ey * fx) / 4;
+			for (let s = 0; s < 4; s++) {
+				let r1 = Math.random(), r2 = Math.random();
+				if (r1 + r2 > 1) { r1 = 1 - r1; r2 = 1 - r2; }
+				const u = uv[a * 2] + r1 * (uv[b * 2] - uv[a * 2]) + r2 * (uv[c * 2] - uv[a * 2]);
+				const v = uv[a * 2 + 1] + r1 * (uv[b * 2 + 1] - uv[a * 2 + 1]) + r2 * (uv[c * 2 + 1] - uv[a * 2 + 1]);
+				const [r, gg, bl] = sample(lay[a], u, v);
+				area += w;
+				if (Math.max(r, gg, bl) - Math.min(r, gg, bl) <= 6 && Math.abs((r + gg + bl) / 3 - 128) <= 8) grey += w;
+			}
+		}
+		const greyPct = 100 * grey / area;
+		check('visible surface is not sampling the grey padding', greyPct < 5,
+			`${greyPct.toFixed(1)}% grey over ${area.toFixed(0)} m² sampled`);
+	}
+}
+
+console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
+process.exit(failures === 0 ? 0 : 1);

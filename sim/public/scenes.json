@@ -1,0 +1,14 @@
+[
+	{
+		"slug": "tour-eiffel",
+		"name": "Tour Eiffel",
+		"lat": 48.8582,
+		"lon": 2.297
+	},
+	{
+		"slug": "ile-de-la-cite-et-ile-saint-louis",
+		"name": "Île de la Cité et Île Saint-Louis",
+		"lat": 48.8534,
+		"lon": 2.351
+	}
+]

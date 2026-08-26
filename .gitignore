@@ -1,0 +1,5 @@
+# sim/.gitignore and flyover-reverse-engineering/.gitignore cover their own
+# build artifacts, downloaded data, and secrets — this only covers what's
+# specific to consolidating the two into one repo.
+flyover-reverse-engineering/.git-upstream-backup/
+.claude/
