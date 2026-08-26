@@ -155,7 +155,6 @@ function readFloats(text, from, to, out, max) {
 // ---------------------------------------------------------------- main
 
 const opts = parseArgs(process.argv.slice(2));
-fs.mkdirSync(opts.outDir, { recursive: true });
 
 // A chunk's 1024 layers are packed into square sheets. Capping a sheet at
 // MAX_SHEET rather than always fitting all 1024 keeps the viewer's peak memory
@@ -171,6 +170,14 @@ const objFile = path.join(opts.tileDir, 'exp_model.obj');
 const mtlFile = path.join(opts.tileDir, 'exp_model.mtl');
 for (const f of [objFile, mtlFile]) {
 	if (!fs.existsSync(f)) { console.error(`missing ${f}`); process.exit(1); }
+	// The Go exporter creates both files up front and only then streams tiles
+	// into them, so a scan that found nothing leaves them at zero bytes. Catch
+	// that here rather than three passes later, where an empty trimesh makes
+	// Rapier abort with an opaque `RuntimeError: unreachable`.
+	if (fs.statSync(f).size === 0) {
+		console.error(`${f} est vide — aucune tuile n'a été téléchargée pour cet endroit.`);
+		process.exit(1);
+	}
 }
 
 const t0 = Date.now();
@@ -273,6 +280,15 @@ streamObj(objFile, (text, from, to) => {
 const vertCount = vx.length;
 console.log(`${stamp()}   ${vertCount.toLocaleString()} vertices, ${tu.length.toLocaleString()} uvs, ${faceCount.toLocaleString()} triangles`);
 console.log(`${stamp()}   ${polyFaces} non-triangular faces, ${unmatchedPairs} v/vt index mismatches`);
+
+if (vertCount === 0 || faceCount === 0) {
+	console.error(`\n${objFile} ne contient aucune géométrie — rien à convertir.`);
+	process.exit(1);
+}
+
+// Only now that the input is known good: creating the scene directory earlier
+// would leave a half-written scene behind on a failed run.
+fs.mkdirSync(opts.outDir, { recursive: true });
 
 // ---- ECEF -> local ENU metres -----------------------------------------
 

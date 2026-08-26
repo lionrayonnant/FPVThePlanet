@@ -72,8 +72,15 @@ function run(cmd, args, cwd) {
 	});
 }
 
-function dirHasFiles(dir) {
-	try { return fs.readdirSync(dir).length > 0; } catch { return false; }
+// The Go exporter creates exp_model.obj/.mtl before it knows whether the scan
+// will find anything, so "the directory exists" is not the same as "the tile
+// was downloaded". Only a non-empty OBJ counts — otherwise a first run over an
+// area with no Flyover coverage poisons the cache and every later run silently
+// skips the download.
+function tileIsUsable(dir) {
+	try {
+		return ['exp_model.obj', 'exp_model.mtl'].every((f) => fs.statSync(path.join(dir, f)).size > 0);
+	} catch { return false; }
 }
 
 async function main() {
@@ -88,9 +95,12 @@ async function main() {
 	console.log(`Carte : ${name}  (slug: ${slug})`);
 	console.log(`Centre : ${lat}, ${lon}  zoom ${zoom}  rayon ${radius}  altitudes ${altitude}`);
 
-	if (!force && dirHasFiles(tileDir)) {
+	if (!force && tileIsUsable(tileDir)) {
 		console.log(`\nTuile déjà téléchargée (${tileDir}), téléchargement sauté (--force pour refaire).`);
 	} else {
+		// Drop any empty leftover from a previous failed scan so the exporter
+		// starts clean and the check below can't be fooled by stale files.
+		fs.rmSync(tileDir, { recursive: true, force: true });
 		await run('go', [
 			'run', 'cmd/export-obj/main.go',
 			String(lat), String(lon), String(zoom), String(radius), String(altitude),
@@ -98,8 +108,15 @@ async function main() {
 		], FLYOVER_ROOT);
 	}
 
-	if (!dirHasFiles(tileDir)) {
-		throw new Error(`aucune tuile trouvée à cet endroit (${tileDir} est vide) — vérifie les coordonnées`);
+	if (!tileIsUsable(tileDir)) {
+		fs.rmSync(tileDir, { recursive: true, force: true });
+		throw new Error(
+			`aucune tuile 3D à ${lat}, ${lon} (zoom ${zoom}).\n` +
+			"  Apple Flyover ne couvre en photogrammétrie qu'une liste de villes : quand le scan\n" +
+			'  affiche « 0 exported », ce lieu n\'en fait probablement pas partie. Vérifie les\n' +
+			'  coordonnées, puis essaie un rayon plus large (--radius) ou un zoom plus bas\n' +
+			'  (--zoom 19/18) avant de conclure ; un lieu couvert renvoie des tuiles dès --radius 1.'
+		);
 	}
 
 	await run('node', [

@@ -48,6 +48,25 @@ npm run add-map -- "Sacré-Cœur" 48.8867 2.3431
    apparaît dans le menu au prochain `npm run dev` (pas besoin de relancer le
    serveur s'il tourne déjà, un simple rechargement de page suffit).
 
+### Toutes les villes ne sont pas couvertes
+
+Apple Flyover ne propose de la photogrammétrie 3D que sur une liste de villes.
+Ailleurs, l'API répond quand même (une « région » existe presque partout), mais
+le scan ne trouve aucune tuile et affiche `0 exported` : `add-map` s'arrête
+alors avec un message explicite plutôt que d'écrire une carte vide. Reims, par
+exemple, ne renvoie rien, à aucun zoom entre 16 et 20.
+
+Pour tester rapidement si un endroit est couvert, sans lancer un
+téléchargement complet :
+
+```bash
+cd ../flyover-reverse-engineering
+go run cmd/export-obj/main.go <lat> <lon> 20 1 20 --parallel
+```
+
+Un lieu couvert renvoie des lignes `Exporting ...` dès ce rayon de 1 ; sinon
+c'est `0 exported`.
+
 Chaque étape s'affiche en direct dans le terminal (le téléchargement peut
 prendre plusieurs minutes selon la taille de la zone).
 
