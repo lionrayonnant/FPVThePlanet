@@ -24,16 +24,20 @@ export class Hud {
 				</div>
 				<div class="corner tr">
 					<div id="mode">ACRO</div>
+					<div id="preset">freestyle</div>
 					<div id="src">clavier</div>
 					<div id="fps">–</div>
 				</div>
 				<div class="corner bl">
 					<div class="throttle"><div id="thr-fill"></div></div>
 					<div class="label">gaz</div>
+					<div id="batt"><span id="volts">16.8</span><small>V</small>
+						<div class="battbar"><i id="batt-fill"></i></div>
+						<span id="amps">0</span><small>A</small></div>
 				</div>
 				<div class="corner br" id="help">
 					<b>W/S</b> gaz · <b>A/D</b> lacet · <b>flèches</b>/souris roulis-tangage<br>
-					<b>R</b> respawn · <b>M</b> mode · <b>C</b> caméra libre · <b>Tab</b> réglages
+					<b>R</b> respawn · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Tab</b> réglages
 				</div>
 				<div id="crash" hidden>CRASH<small>R pour repartir</small></div>
 				<div id="reticle"></div>
@@ -47,6 +51,9 @@ export class Hud {
 					<h2>Caméra</h2>
 					<label>FOV <input id="fov" type="range" min="80" max="150" step="1"> <span id="fov-val"></span>°</label>
 					<label>Uptilt <input id="tilt" type="range" min="0" max="50" step="1"> <span id="tilt-val"></span>°</label>
+					<h2>Air</h2>
+					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
+					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
 					<button id="close-settings">Fermer (Tab)</button>
 				</div>
 			</div>`;
@@ -65,8 +72,18 @@ export class Hud {
 			mode: root.querySelector('#mode'),
 			src: root.querySelector('#src'),
 			fps: root.querySelector('#fps'),
+			preset: root.querySelector('#preset'),
+			volts: root.querySelector('#volts'),
+			amps: root.querySelector('#amps'),
+			battFill: root.querySelector('#batt-fill'),
+			batt: root.querySelector('#batt'),
+			wind: root.querySelector('#wind'),
+			windVal: root.querySelector('#wind-val'),
+			gust: root.querySelector('#gust'),
+			gustVal: root.querySelector('#gust-val'),
 			thr: root.querySelector('#thr-fill'),
 			crash: root.querySelector('#crash'),
+			reticle: root.querySelector('#reticle'),
 			settings: root.querySelector('#settings'),
 			padName: root.querySelector('#pad-name'),
 			padMap: root.querySelector('#pad-map'),
@@ -152,6 +169,24 @@ export class Hud {
 		this.el.tilt.oninput = emit;
 	}
 
+	// Wind is a single speed plus a gust amplitude; the direction is picked once,
+	// at random, so it is not always a convenient tailwind down the same street.
+	setWind(onChange) {
+		const heading = Math.random() * Math.PI * 2;
+		const emit = () => {
+			const speed = Number(this.el.wind.value);
+			const gust = Number(this.el.gust.value);
+			this.el.windVal.textContent = speed.toFixed(1);
+			this.el.gustVal.textContent = gust.toFixed(1);
+			onChange({ x: Math.cos(heading) * speed, y: 0, z: Math.sin(heading) * speed }, gust);
+		};
+		this.el.wind.value = 0;
+		this.el.gust.value = 0;
+		this.el.wind.oninput = emit;
+		this.el.gust.oninput = emit;
+		emit();
+	}
+
 	toggleSettings(force) {
 		const show = force ?? this.el.settings.hidden;
 		this.el.settings.hidden = !show;
@@ -197,13 +232,29 @@ export class Hud {
 		}
 	}
 
-	update({ altitude, speed, throttle, mode, crashed, usingGamepad }) {
+	update({ altitude, speed, throttle, mode, preset, crashed, usingGamepad,
+	         voltage, soc, amps, propwash }) {
 		this.el.alt.textContent = altitude === null ? '–' : altitude.toFixed(0);
 		this.el.spd.textContent = (speed * 3.6).toFixed(0);
 		this.el.mode.textContent = mode.toUpperCase();
+		if (preset) this.el.preset.textContent = preset;
 		this.el.src.textContent = usingGamepad ? 'manette' : 'clavier';
 		this.el.thr.style.height = `${throttle * 100}%`;
 		this.el.crash.hidden = !crashed;
+
+		if (voltage !== undefined) {
+			this.el.volts.textContent = voltage.toFixed(1);
+			this.el.amps.textContent = amps.toFixed(0);
+			this.el.battFill.style.width = `${soc * 100}%`;
+			// Per-cell voltage under load is what a pilot actually watches; 3.5 V
+			// is where you land and 3.3 V is where you have damaged the pack.
+			const cell = voltage / 4;
+			this.el.batt.dataset.level = cell < 3.4 ? 'empty' : cell < 3.6 ? 'low' : 'ok';
+		}
+		// Propwash is invisible on a still HUD, so the reticle shivers with it.
+		if (propwash !== undefined && this.el.reticle) {
+			this.el.reticle.style.opacity = propwash > 0.05 ? String(1 - 0.4 * propwash) : '1';
+		}
 
 		this._frames++;
 		const now = performance.now();

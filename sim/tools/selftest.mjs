@@ -5,8 +5,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { initPhysics, Physics, MAX_THRUST, DRONE } from '../src/physics.js';
-import { FlightController } from '../src/flightController.js';
+import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
+import { FlightController, RATE_PRESETS } from '../src/flightController.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -21,7 +21,12 @@ await initPhysics();
 // One world only: several 3.7M-triangle trimeshes at once exhausts the wasm heap.
 const phys = new Physics(collision, manifest.spawn);
 const fc = new FlightController();
-const HOVER = (DRONE.mass * 9.81) / MAX_THRUST;
+const STEP = 1 / 250;
+
+// Thrust is not linear in throttle (rpm goes with cmd^0.65, thrust with rpm^2),
+// so the hover stick position has to be inverted through that curve rather than
+// read off a ratio. It lands around 25%, which is where a real 5" quad hovers.
+const HOVER = ((QUAD.mass * 9.81) / MAX_THRUST) ** (1 / (2 * QUAD.rpmCurve));
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -34,13 +39,19 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro' }) {
 	fc.setMode(mode);
 	if (at) phys.body.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
 	if (velocity) phys.body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
+	fc.reset();
 	let maxImpact = 0;
+	let peakSpin = 0;
 	for (let i = 0; i < Math.round(seconds * 250); i++) {
-		const s = typeof sticks === 'function' ? sticks(i / 250) : sticks;
-		maxImpact = Math.max(maxImpact, phys.step(fc.update(s, phys)));
+		const s = typeof sticks === 'function' ? sticks(i * STEP) : sticks;
+		const { motors } = fc.update(s, phys, STEP);
+		maxImpact = Math.max(maxImpact, phys.step(motors, STEP));
+		const a = phys.angularVelocity;
+		peakSpin = Math.max(peakSpin, Math.hypot(a.x, a.y, a.z) * 180 / Math.PI);
 	}
 	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
-	return { p, v, w, speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
+	return { p, v, w, peakSpin, battery: phys.battery,
+		speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
 }
 
 console.log(`scene: ${sceneDir}`);
@@ -82,8 +93,52 @@ check('holds altitude at hover throttle', Math.abs(hover.p.y - 150) < 3, `drifte
 const climb = simulate({ seconds: 5, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 50, 300] });
 check('climbs at full throttle', climb.p.y - 50 > 100, `+${(climb.p.y - 50).toFixed(0)} m in 5s`);
 
-const roll = simulate({ seconds: 1, sticks: { throttle: HOVER, roll: 1, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
-check('reaches commanded roll rate (~800 deg/s)', roll.spin > 700 && roll.spin < 900, `${roll.spin.toFixed(0)} deg/s`);
+// The stick has to start centred: the controller's RC smoothing primes on its
+// first sample, so a stick already at the stop means no smoothing ever happens.
+const commanded = RATE_PRESETS[fc.preset].roll.max;
+const roll = simulate({ seconds: 1.2, at: [0, 150, 300],
+	sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+check(`reaches the commanded roll rate (${commanded} deg/s)`,
+	roll.spin > commanded * 0.93 && roll.peakSpin < commanded * 1.15,
+	`${roll.spin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
+
+console.log('\npropulsion');
+check('hovers at a realistic stick position', HOVER > 0.18 && HOVER < 0.32, `${(HOVER * 100).toFixed(0)}% throttle`);
+
+// Airmode: the same flick must produce the same rate with the throttle shut,
+// which is the whole point of sliding throttle instead of clipping the mix.
+const rollIdle = simulate({ seconds: 1.2, at: [0, 200, 300],
+	sticks: (t) => ({ throttle: 0, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+check('airmode keeps roll authority at zero throttle',
+	rollIdle.spin > commanded * 0.9,
+	`${rollIdle.spin.toFixed(0)} deg/s vs ${roll.spin.toFixed(0)} at hover`);
+
+// Anisotropic inertia: yaw carries nearly twice pitch's, against an eighth of
+// the torque, so it has to be visibly the slow axis. Sampled 80 ms into the
+// flick, before either axis has arrived — at 300 ms both are simply at their
+// commanded rate and the difference has vanished. If this ever passes with the
+// two equal, the inertia tensor has been lost somewhere.
+const SAMPLE_AT = 0.15 + 0.08;
+const yawRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
+	sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: 0, yaw: t > 0.15 ? 1 : 0 }) });
+const pitchRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
+	sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: t > 0.15 ? 1 : 0, yaw: 0 }) });
+const yawFrac = Math.abs(yawRun.w.y * 180 / Math.PI) / RATE_PRESETS[fc.preset].yaw.max;
+const pitchFrac = Math.abs(pitchRun.w.x * 180 / Math.PI) / RATE_PRESETS[fc.preset].pitch.max;
+check('yaw builds rate more slowly than pitch',
+	yawFrac < 0.65 * pitchFrac,
+	`80 ms in: yaw at ${(yawFrac * 100).toFixed(0)}% of command, pitch at ${(pitchFrac * 100).toFixed(0)}%`);
+
+// Terminal velocity with the props stopped: a quad falling flat is a plate,
+// and this is the check that the anisotropic body drag survived.
+const drop = simulate({ seconds: 12, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 }, at: [0, 400, 300] });
+check('terminal velocity falling flat is 15-25 m/s', drop.speed > 15 && drop.speed < 25, `${drop.speed.toFixed(1)} m/s`);
+
+// A pack has to drain, and it has to sag under load rather than sit at 16.8 V.
+const punch = simulate({ seconds: 6, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 100, 300] });
+check('the pack sags under a full-throttle pull',
+	punch.battery.voltage < 16.2 && punch.battery.voltage > 13.5, `${punch.battery.voltage.toFixed(2)} V at ${punch.battery.current.toFixed(0)} A`);
+check('the pack drains', punch.battery.soc < 0.95 && punch.battery.soc > 0.5, `${(punch.battery.soc * 100).toFixed(0)}% left after 6 s flat out`);
 
 console.log('\ncollision');
 const towerX = tx, towerZ = tz;

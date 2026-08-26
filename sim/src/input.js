@@ -55,7 +55,7 @@ export class Input {
 			if (e.repeat) return;
 			const k = e.key.toLowerCase();
 			this.keys.add(k);
-			if (['r', 'm', 'c', 'tab', 'escape'].includes(k)) this.onAction(k, e);
+			if (['r', 'm', 'p', 'c', 'tab', 'escape'].includes(k)) this.onAction(k, e);
 			if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
 		});
 		window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));

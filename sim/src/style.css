@@ -140,3 +140,16 @@ canvas { display: block; }
 	min-height: 1.3em;
 }
 #loading-clock { margin-top: .2em; font-variant-numeric: tabular-nums; }
+
+/* Battery: voltage, a state-of-charge bar and live current, under the throttle
+   gauge. Colour follows per-cell voltage under load, not state of charge —
+   that is the number a pilot flies by. */
+#batt { margin-top: 10px; font: 600 15px/1.2 ui-monospace, monospace; color: #dfe8f0; }
+#batt small { font-size: 10px; opacity: .6; margin: 0 6px 0 1px; }
+#batt .battbar { width: 76px; height: 5px; margin: 4px 0; background: #0006; border-radius: 3px; overflow: hidden; }
+#batt .battbar i { display: block; height: 100%; width: 100%; background: #6fdc8c; transition: width .3s linear; }
+#batt[data-level="low"] .battbar i { background: #f5c451; }
+#batt[data-level="empty"] .battbar i { background: #f2714f; }
+#batt[data-level="empty"] { color: #f2714f; }
+
+#preset { opacity: .65; font-size: 12px; letter-spacing: .04em; }

@@ -27,9 +27,11 @@ npm run dev            # http://localhost:5173, vite dev server
 npm run build           # vite build
 npm run add-map -- "Name" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256]
                          # download (via the Go exporter) + convert + register a new map
-npm run selftest [sceneDir]   # headless checks: geodesy, flight envelope, collision, UV
-                               # convention — no browser, no test framework; default scene
-                               # is public/scenes/tour-eiffel
+npm run selftest [sceneDir]   # headless checks: geodesy, flight envelope, propulsion,
+                               # collision, UV convention — no browser, no test framework;
+                               # default scene is public/scenes/tour-eiffel
+npm run tune                    # rate-loop step-response bench (no scene needed)
+npm run tune -- --sweep roll    # search P/D for one axis and rank by cost
 node tools/selftest.mjs public/scenes/<slug>   # run selftest against a specific scene
 ```
 
@@ -72,17 +74,36 @@ into the loader. `?scene=<slug>` in the URL skips the menu.
 
 ### Physics / flight / input contract
 
-- Rapier (WASM) trimesh collision at **full resolution** on whatever scene is
-  loaded, with CCD enabled — needed so fast movement can't tunnel through
-  thin structures.
-- `src/flightController.js` exposes a deliberately narrow
-  `update(sticks, state) -> {thrust, torque}` interface, kept substitutable by
-  a future Betaflight SITL bridge. Don't widen this interface without reason.
+Three files, one direction of flow — sticks → controller → four motor
+commands → airframe → Rapier:
+
 - `src/input.js` normalizes gamepad/keyboard to
   `{throttle 0..1, roll/pitch/yaw -1..1}`. Per-device axis mapping is
   auto-detected (EdgeTX/Radiomaster regex vs. generic gamepad default) and
   user-overridable via the in-app settings panel (`Tab`), persisted to
   `localStorage`.
+- `src/flightController.js` is Betaflight-shaped and nothing else: actual
+  rates, PID with iterm-relax/TPA/feedforward, RC smoothing, airmode mixer.
+  `update(sticks, state, dt) -> {motors[4], throttle, axes}`. **This interface
+  is narrower than it looks** — four motor outputs is exactly what a real
+  Betaflight SITL bridge speaks, so a bridge can replace this file without
+  touching anything else. Don't put airframe knowledge in here.
+- `src/quad.js` is the airframe and the air: motor lag, thrust and prop drag
+  torque, axial-inflow and rotor drag, anisotropic body drag, ground effect,
+  propwash, battery sag and drain. No Rapier, no DOM — deliberately, so it can
+  be benched headlessly. Don't put controller knowledge in here.
+- `src/physics.js` is the Rapier glue: full-resolution trimesh collision on
+  whatever scene is loaded with CCD enabled (so fast movement can't tunnel
+  through thin structures), plus the body whose mass properties come from
+  `quad.js`.
+
+**Gains and thresholds in these files are measured, not chosen.**
+`npm run tune` (`tools/tune-pid.mjs`) runs step responses against the real
+inertia tensor and motor lag and reports rise/overshoot/settle/bounce, with
+`--sweep <axis>` to search P/D. Its pass thresholds are themselves derived from
+the airframe's measured angular acceleration, so a preset is never failed for
+commanding more rate than the quad can physically build. Retune there; never
+hand-edit `PID` and call it done.
 
 ### Non-obvious constraints worth knowing before touching related code
 
@@ -91,6 +112,15 @@ into the loader. `?scene=<slug>` in the URL skips the menu.
   plain meters. Don't reach for the upstream repo's
   `scripts/center_scale_obj.js`; it normalizes to 10 arbitrary units and isn't
   used here.
+- The drone's collider stays a **sphere of radius 0.15** even though the
+  airframe model is a flat X with motors at ±0.078 m. `camera.near` is pinned
+  to that radius, so any collider that could get closer to the camera would
+  put geometry inside the near plane. The realism lives in the mass properties
+  (`setAdditionalMassProperties` with the anisotropic inertia tensor from
+  `quad.js`), not in the collision shape.
+- Linear and angular damping on the drone body are **zero on purpose**. Every
+  force it feels is a real one computed in `quad.js`; a Rapier damping term on
+  top would be the same drag counted twice.
 - `camera.near` is pinned to the drone collider's radius (0.15), not a
   smaller "safe-looking" value — photogrammetry has near-coplanar surfaces
   that z-fight badly if `near` quantizes the depth buffer too coarsely at the

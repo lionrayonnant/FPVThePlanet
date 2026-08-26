@@ -263,3 +263,39 @@ Eiffel) :
 | V retourné | **0,9 %** | 0,9 % | 1,0 % |
 
 Les façades ne sont pas moins bien texturées que les toits.
+
+## Le modèle de vol
+
+Le drone n'est pas une sphère avec une poussée : c'est un 5 pouces modélisé
+moteur par moteur. `src/quad.js` tient la cellule et l'air (retard moteur,
+poussée ∝ ω², couple de traînée d'hélice, traînée de rotor, effet de sol,
+propwash, batterie 4S qui s'affaisse sous charge et se vide) ;
+`src/flightController.js` tient la partie Betaflight (actual rates, PID avec
+i-term relax, TPA, feedforward, lissage RC, mixeur airmode) et ne sort que
+quatre commandes moteur.
+
+Trois presets de rates, touche `P` : **cinéma** (380 °/s), **freestyle**
+(820 °/s), **race** (1100 °/s).
+
+Le HUD affiche la tension pack, l'état de charge et le courant : la couleur
+suit la tension *par cellule sous charge*, pas l'état de charge, parce que
+c'est le chiffre au ratio duquel on pilote. Sous 3,6 V/cellule elle passe à
+l'orange, sous 3,4 V au rouge.
+
+Vent et rafales se règlent dans le panneau `Tab` (par défaut à zéro). La
+direction est tirée au sort au démarrage, pour ne pas toujours avoir le même
+vent arrière dans la même rue.
+
+### Régler le PID
+
+```bash
+npm run tune                  # temps de montée / dépassement / stabilisation / rebond
+npm run tune -- --sweep roll  # balaye P et D sur un axe et classe par coût
+```
+
+Le banc intègre les équations d'Euler avec le vrai tenseur d'inertie et le vrai
+retard moteur, sans Rapier ni navigateur : une passe complète prend une
+seconde. Ses seuils de réussite sont dérivés de l'accélération angulaire
+soutenue que la cellule peut réellement produire, pas de constantes écrites à
+la main — un preset ne peut donc pas « échouer » simplement parce qu'il demande
+plus de taux qu'un autre.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
-import { FlightController } from './flightController.js';
+import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 
@@ -160,6 +160,8 @@ async function boot() {
 	freeCam.enabled = false;
 	freeCam.target.set(0, 0, 0);
 
+	hud.setWind((mean, gusts) => physics.setWind(mean, gusts));
+
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
@@ -174,6 +176,8 @@ async function boot() {
 		physics, controller, camera, renderer, scene, input, timeline,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
+		// Wind is off by default. setWind({x,y,z} m/s, gustStrength m/s).
+		setWind: (mean, gusts) => physics.setWind(mean, gusts),
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -203,6 +207,15 @@ async function boot() {
 				groundBelow: ground === null ? null : +ground.toFixed(2),
 				altitudeAGL: ground === null ? null : +(p.y - ground).toFixed(2),
 				mode: controller.mode,
+				preset: controller.preset,
+				motors: [...controller.motors].map((m) => +m.toFixed(3)),
+				rpm: physics.propulsion.rpm.map((r) => Math.round(r)),
+				battery: {
+					volts: +physics.battery.voltage.toFixed(2),
+					amps: +physics.battery.current.toFixed(1),
+					soc: +physics.battery.soc.toFixed(3),
+				},
+				propwash: +physics.propulsion.propwash.toFixed(2),
 				crashed,
 			};
 		},
@@ -221,6 +234,7 @@ function nextPaint() {
 
 input.onAction = (key, event) => {
 	if (key === 'r') respawn();
+	else if (key === 'p') controller.cyclePreset();
 	else if (key === 'm') controller.cycleMode();
 	else if (key === 'c') toggleFreeCam();
 	else if (key === 'tab') { event.preventDefault(); hud.toggleSettings(); }
@@ -234,7 +248,7 @@ renderer.domElement.addEventListener('click', () => {
 function respawn() {
 	if (!physics) return;
 	physics.reset();
-	controller.setMode(controller.mode);
+	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
 }
@@ -266,8 +280,8 @@ function frame() {
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
-			const command = controller.update(sticks, physics);
-			const impact = physics.step(command);
+			const { motors } = controller.update(sticks, physics, FIXED_STEP);
+			const impact = physics.step(motors, FIXED_STEP);
 			if (impact > CRASH_IMPULSE) crashed = true;
 			accumulator -= FIXED_STEP;
 			steps++;
@@ -290,11 +304,17 @@ function frame() {
 	const v = physics.velocity;
 	const p = physics.position;
 	const ground = physics.groundBelow(p.x, p.y, p.z);
+	const bat = physics.battery;
 	hud.update({
 		altitude: ground === null ? null : p.y - ground,
 		speed: Math.hypot(v.x, v.y, v.z),
 		throttle: sticks.throttle,
 		mode: freeCamOn ? 'caméra libre' : controller.mode,
+		preset: RATE_PRESETS[controller.preset].label,
+		voltage: bat.voltage,
+		soc: bat.soc,
+		amps: bat.current,
+		propwash: physics.propulsion.propwash,
 		crashed,
 		usingGamepad: input.usingGamepad,
 	});
