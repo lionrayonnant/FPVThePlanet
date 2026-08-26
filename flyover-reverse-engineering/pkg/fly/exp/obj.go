@@ -9,14 +9,14 @@ import (
 	"path"
 	"runtime/debug"
 
-	"github.com/retroplasma/flyover-reverse-engineering/pkg/fly/c3m"
+	c3mpkg "github.com/retroplasma/flyover-reverse-engineering/pkg/fly/c3m"
 	"github.com/retroplasma/flyover-reverse-engineering/pkg/oth"
 )
 
 var transform = true
 
 type Export interface {
-	Next(c3m c3m.C3M, subPfx string) error
+	Next(c3m c3mpkg.C3M, subPfx string) error
 	Close() error
 }
 
@@ -56,7 +56,7 @@ type OBJExport struct {
 	mtlWriter writer
 }
 
-func (e *OBJExport) Next(c3m c3m.C3M, subPfx string) (err error) {
+func (e *OBJExport) Next(c3m c3mpkg.C3M, subPfx string) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = errors.New(fmt.Sprintln(e, string(debug.Stack())))
@@ -66,7 +66,13 @@ func (e *OBJExport) Next(c3m c3m.C3M, subPfx string) (err error) {
 	dir, fnPfx := e.dir, e.fnPfx
 
 	for i, material := range c3m.Materials {
-		oth.CheckPanic(ioutil.WriteFile(path.Join(dir, fmt.Sprintf("%s%s_%d.jpg", fnPfx, subPfx, i)), material.JPEG, 0655))
+		jpg := material.Texture
+		if material.Format == c3mpkg.TextureHEIC {
+			var err error
+			jpg, err = heicToJPEG(jpg)
+			oth.CheckPanic(err)
+		}
+		oth.CheckPanic(ioutil.WriteFile(path.Join(dir, fmt.Sprintf("%s%s_%d.jpg", fnPfx, subPfx, i)), jpg, 0655))
 		nxt := fmt.Sprintf(`
 newmtl mtl_%s_%d
 Kd 1.000 1.000 1.000

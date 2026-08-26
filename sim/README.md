@@ -48,13 +48,18 @@ npm run add-map -- "Sacré-Cœur" 48.8867 2.3431
    apparaît dans le menu au prochain `npm run dev` (pas besoin de relancer le
    serveur s'il tourne déjà, un simple rechargement de page suffit).
 
-### Toutes les villes ne sont pas couvertes
+### Quand une zone ne renvoie rien
 
 Apple Flyover ne propose de la photogrammétrie 3D que sur une liste de villes.
-Ailleurs, l'API répond quand même (une « région » existe presque partout), mais
-le scan ne trouve aucune tuile et affiche `0 exported` : `add-map` s'arrête
-alors avec un message explicite plutôt que d'écrire une carte vide. Reims, par
-exemple, ne renvoie rien, à aucun zoom entre 16 et 20.
+Ailleurs, l'API répond quand même — une « région » existe presque partout — mais
+le scan ne trouve aucune tuile et affiche `0 exported` ; `add-map` s'arrête
+alors avec un message explicite plutôt que d'écrire une carte vide.
+
+Attention au faux négatif : `0 exported` a longtemps *aussi* été ce que
+produisait une ville parfaitement couverte dont les tuiles n'étaient pas
+décodables (voir « Textures HEIC » ci-dessous). Une tuile reçue mais non
+décodée est désormais signalée explicitement en fin de scan — si ce message
+n'apparaît pas, l'absence de couverture est réelle.
 
 Pour tester rapidement si un endroit est couvert, sans lancer un
 téléchargement complet :
@@ -64,8 +69,30 @@ cd ../flyover-reverse-engineering
 go run cmd/export-obj/main.go <lat> <lon> 20 1 20 --parallel
 ```
 
-Un lieu couvert renvoie des lignes `Exporting ...` dès ce rayon de 1 ; sinon
-c'est `0 exported`.
+Un lieu couvert renvoie des lignes `Exporting ...` dès ce rayon de 1.
+
+### Textures HEIC : un décodeur système est requis
+
+Les régions capturées récemment (les triggers `Reg_z9_*` auto-générés, par
+opposition aux villes historiques nommées comme `'paris'`) servent leurs
+textures en **HEIC** — du HEVC dans un conteneur HEIF — au lieu de JPEG. Le
+format du reste de la tuile est identique ; seul l'octet de format du matériau
+change (0 → 13).
+
+Rien en aval ne sait lire du HEVC : le `sharp` embarqué dans `prep.mjs` a un
+libheif compilé en AV1 uniquement, et Go n'a pas de décodeur utilisable. Le
+programme Go transcode donc en JPEG au moment de l'export, ce qui garde le
+contrat sur disque inchangé (OBJ + MTL + JPEG). Il lui faut pour ça **un** de
+ces binaires dans le `PATH`, le premier trouvé gagne :
+
+| Binaire | Paquet |
+| --- | --- |
+| `heif-convert` | `libheif` |
+| `magick` | `imagemagick` |
+| `ffmpeg` | `ffmpeg` |
+
+Sans aucun des trois, l'export s'arrête avec un message le disant. Les villes
+historiques (Paris, etc.) restent en JPEG et n'ont besoin de rien.
 
 Chaque étape s'affiche en direct dans le terminal (le téléchargement peut
 prendre plusieurs minutes selon la taille de la zone).

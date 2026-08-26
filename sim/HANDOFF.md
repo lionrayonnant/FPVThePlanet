@@ -417,6 +417,56 @@ optique. Les valeurs par défaut (objectif 60 %, vignettage 50 %, obturation
   Un vrai calibrage (mire, `k1`/`k2` ajustés sur une Runcam ou une DJI O3)
   serait l'étape suivante si le rendu paraît faux.
 
+## Couverture Flyover : les régions récentes servent du HEIC (ajouté 2026-08-27)
+
+`npm run add-map` sur la cathédrale de Reims échouait, et le diagnostic
+naturel — « Apple Flyover ne couvre pas Reims » — était **faux** : Flyover
+fonctionne sur place depuis un iPhone. Trois couches d'erreur se masquaient
+l'une l'autre.
+
+1. **Le parseur C3M lisait le mauvais octet de version.** `pkg/fly/c3m`
+   faisait son `switch` sur `data[4]`, alors que l'octet de version est
+   `data[3]` — celui-là même que `parseC3Mv3` vérifie deux lignes plus bas.
+   `data[4]` est un octet de drapeaux qui vaut *aussi* 0x03 sur les régions
+   anciennes contre lesquelles l'amont a été écrit, d'où l'illusion que ça
+   marchait. Les régions récentes y mettent 0x07 : toutes leurs tuiles étaient
+   classées « C3M v1, parseur non implémenté ».
+
+2. **Les textures ont changé de format.** Une fois l'en-tête lu correctement,
+   les matériaux annoncent `textureFormat 13` = HEIC (HEVC dans un conteneur
+   HEIF) au lieu de 0 = JPEG. L'enregistrement du matériau est identique par
+   ailleurs : 16 octets, seul l'octet de format change. Le partage se fait sur
+   l'âge de la capture, pas sur la géographie : les villes historiques nommées
+   (`'paris'`, région 48) restent en JPEG, les triggers de grille
+   auto-générés (`Reg_z9_261_175` pour Reims, région 8522415) sont en HEIC.
+
+   Rien en aval ne décode du HEVC — le `sharp` embarqué a un libheif AV1
+   seulement (il lit les métadonnées, `512x512`, puis échoue au décodage), et
+   Go n'a pas de décodeur utilisable. L'export transcode donc en JPEG en
+   sortant vers un binaire système (`heif-convert`, `magick` ou `ffmpeg`,
+   premier trouvé), ~15 ms par tuile, ce qui disparaît dans le parallélisme
+   16 voies de l'exporteur. Le contrat sur disque reste OBJ + MTL + JPEG et
+   `prep.mjs` n'a pas bougé.
+
+3. **L'échec était silencieux.** `cmd/export-obj` traitait *toute* erreur de
+   `getTile` comme « pas de tuile ici », donc 52 000 échecs de décodage
+   ressemblaient exactement à 52 000 absences de couverture : `0 exported`.
+   Un corps vide vaut maintenant `errNoTile` (vrai « rien ici ») ; un corps
+   qui commence par la magie `C3M` et échoue quand même est un trou dans
+   *notre* parseur et est signalé, avec un compte en fin de scan.
+
+Vérifié : Reims renvoie des tuiles à tous les zooms, textures conformes
+(maçonnerie gothique, contreforts, statuaire), carte complète construite et
+jouable. Corollaire à garder en tête : **`0 exported` ne prouve plus rien à
+lui seul** — sans le message « tuile reçue mais non décodée », alors seulement
+l'absence de couverture est réelle.
+
+Chemin de diagnostic, si un cas semblable revient : comparer les octets bruts
+d'une tuile de la zone qui échoue avec ceux d'une tuile de Paris. C'est ce qui
+a rendu les trois bugs évidents en quelques minutes — `43 33 4d 03 **03** 03`
+contre `43 33 4d 03 **07** 03` — après une demi-heure passée à tirer la mauvaise
+conclusion depuis la seule sortie `0 exported`.
+
 ## Bugs trouvés et corrigés cette session
 
 Par ordre de découverte — plusieurs ont nécessité de mesurer plutôt que

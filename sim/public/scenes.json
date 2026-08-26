@@ -10,5 +10,11 @@
 		"name": "Île de la Cité et Île Saint-Louis",
 		"lat": 48.8534,
 		"lon": 2.351
+	},
+	{
+		"slug": "cathedrale-de-reims",
+		"name": "Cathédrale de Reims",
+		"lat": 49.253828,
+		"lon": 4.033897
 	}
 ]

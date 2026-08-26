@@ -35,7 +35,12 @@ func parse(data []byte) (c3m C3M) {
 	if len(data) < 4 || data[0] != 'C' || data[1] != '3' || data[2] != 'M' {
 		panic("Invalid C3M header")
 	}
-	switch data[4] {
+	// The version byte is data[3] -- the same one parseC3Mv3 asserts on -- not
+	// data[4], which upstream switched on. data[4] is a flags byte that merely
+	// happens to also be 0x03 on the older regions upstream was tested against;
+	// newer ones send 0x07 there and were misread as "C3M v1", so every tile of
+	// a recently captured city looked like "no tile here" (Reims, for one).
+	switch data[3] {
 	case 0x03:
 		l.Println("C3M v3")
 		c3m = parseC3Mv3(data)
@@ -140,16 +145,20 @@ func parseMaterial(data []byte, offset *int) []Material {
 			l.Printf("- Material type: %d", materialType)
 			l.SetPrefix(l.Prefix() + "    ")
 
-			textureFormat := data[*offset+3]
+			textureFormat := TextureFormat(data[*offset+3])
 			textureOffset := bin.ReadInt32(data, *offset+4)
 			textureLength := bin.ReadInt32(data, *offset+8)
 			textureLength2 := bin.ReadInt32(data, *offset+12)
 
 			l.Printf("texOff: %d, texLen1: %d, texLen2: %d", textureOffset, textureLength, textureLength2)
 			switch textureFormat {
-			case 0:
-				l.Printf("Format: JPEG")
-				materials[processedItems].JPEG = data[textureOffset : textureOffset+textureLength2]
+			// The record layout is identical either way -- 16 bytes, only the
+			// format byte changes. Regions captured recently ship HEIC (HEVC)
+			// where the older ones shipped JPEG.
+			case TextureJPEG, TextureHEIC:
+				l.Printf("Format: %s", textureFormat)
+				materials[processedItems].Texture = data[textureOffset : textureOffset+textureLength2]
+				materials[processedItems].Format = textureFormat
 				*offset += 16
 			default:
 				panic(fmt.Sprintf("Unsupported textureFormat %d", textureFormat))
@@ -314,7 +323,8 @@ type Header struct {
 }
 
 type Material struct {
-	JPEG []byte
+	Texture []byte
+	Format  TextureFormat
 }
 
 type Mesh struct {

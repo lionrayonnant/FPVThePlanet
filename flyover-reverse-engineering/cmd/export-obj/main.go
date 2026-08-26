@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/retroplasma/flyover-reverse-engineering/pkg/fly"
 	"github.com/retroplasma/flyover-reverse-engineering/pkg/fly/c3m"
@@ -157,10 +158,11 @@ func main() {
 				// v1 metadata format. Newer regions (auto-generated grid triggers
 				// instead of legacy named cities) serve C3MM v2, which isn't parsed
 				// here yet, so we skip the pre-check and probe each tile directly.
-				// A missing tile responds with HTTP 200 but a plain jpeg or a body
-				// that isn't valid C3M, instead of a 404 - that's an expected "no
-				// tile here" outcome. A non-200 http status, however, means the
-				// request itself failed (bad auth, network, ...) and stays fatal.
+				// A missing tile responds with HTTP 200 but a plain jpeg or an
+				// empty body, instead of a 404 - that's the expected "no tile
+				// here" outcome (errNoTile). A non-200 http status, however, means
+				// the request itself failed (bad auth, network, ...) and stays
+				// fatal.
 				sem <- 1
 				wg.Add(1)
 				dx, dy, h := dx, dy, h
@@ -171,6 +173,15 @@ func main() {
 						<-sem
 						if strings.HasPrefix(err.Error(), "http status") {
 							panic(err)
+						}
+						if err != errNoTile {
+							// Real C3M data we failed to decode. Don't let it
+							// pass for "nothing here" - report it.
+							undecodable.Add(1)
+							undecodableOnce.Do(func() {
+								l.Printf("Attention : tuile C3M reçue mais non décodée (%d/%d h=%d) : %.200v",
+									xn, yn, h, err)
+							})
 						}
 						return
 					}
@@ -185,7 +196,15 @@ func main() {
 	close(ex) // no more tiles sent to exporter
 	<-exDone  // wait till all tiles are exported
 	l.Println(xp, "exported")
+	if n := undecodable.Load(); n > 0 {
+		l.Printf("%d tuile(s) reçues mais non décodées — le parseur C3M ne couvre pas ce que sert cette région.", n)
+	}
 }
+
+var (
+	undecodable     atomic.Int64
+	undecodableOnce sync.Once
+)
 
 func (ctx *context) checkTile(p fly.Trigger, z, y, x, h int) (bool, error) {
 
@@ -283,6 +302,13 @@ func (ctx *context) checkTile(p fly.Trigger, z, y, x, h int) (bool, error) {
 	return false, nil
 }
 
+// errNoTile means the server answered normally but there is simply nothing at
+// these coordinates. It is distinct on purpose from a decode failure: an empty
+// body is "no tile here", whereas a body that starts with the C3M magic and
+// still fails to parse is a gap in *our* parser, and silently counting that as
+// "no tile" is what once made a fully covered city look uncovered.
+var errNoTile = errors.New("no tile")
+
 func (ctx *context) getTile(p fly.Trigger, z, y, x, h int) (c3m.C3M, error) {
 	yn := mth.TileCountPerAxis(z) - 1 - y // invert y
 	url := fmt.Sprintf("%s?style=%d&v=%d&region=%d&x=%d&y=%d&z=%d&h=%d",
@@ -290,7 +316,10 @@ func (ctx *context) getTile(p fly.Trigger, z, y, x, h int) (c3m.C3M, error) {
 
 	data, err := ctx.get(url)
 	if err != nil {
-		return c3m.C3M{}, err
+		return c3m.C3M{}, errNoTile // jpeg placeholder: no tile here
+	}
+	if len(data) < 3 || data[0] != 'C' || data[1] != '3' || data[2] != 'M' {
+		return c3m.C3M{}, errNoTile
 	}
 	return c3m.Parse(data)
 }
