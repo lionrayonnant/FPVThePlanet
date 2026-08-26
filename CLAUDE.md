@@ -120,25 +120,34 @@ not part of this repo's history) rather than lost.
 token — it's gitignored; `config.json.example` shows the expected shape.
 Never remove it from `.gitignore` or add a filled-in `config.json`.
 
-**The roadmap lives in GitHub Issues on that repo, not in a markdown file.**
-This is deliberate — it's meant to survive across sessions (and across
-different Claude instances) as the shared source of truth for what's done,
-in progress, blocked, or abandoned. Conventions:
+**The roadmap lives in GitHub Issues + a GitHub Project (kanban board) on
+that repo, not in a markdown file.** This is deliberate — it's meant to
+survive across sessions (and across different Claude instances) as the
+shared source of truth for what's done, in progress, blocked, or abandoned.
+Board: `gh project view 2 --owner lionrayonnant` (or
+`https://github.com/users/lionrayonnant/projects/2`), `Status` field =
+Todo / In Progress / Blocked / Done. Conventions:
 
-- An open, unlabeled issue is backlog (to do).
-- Label `in-progress` while actively working an issue this session; remove
-  the label if you stop before finishing (so the next session doesn't think
-  it's actively being worked when it isn't).
-- Label `blocked` when stalled on a decision or missing info from the user —
-  say what's needed in a comment.
-- If an approach is tried and dropped, **close the issue with a comment
-  explaining why** and add the `abandoned` label — don't just close it
-  silently, and don't leave a dead approach undocumented in code comments
-  instead.
-- File a new issue for follow-up work discovered mid-session rather than
-  leaving it as a TODO comment in code or a passing mention in a doc.
-- At the start of substantive work, check open issues
-  (`gh issue list --repo lionrayonnant/FPVMaps`) before assuming there's no
+- Every piece of work is an issue on the board, in one of those four
+  columns. The column is the source of truth for status — don't also
+  maintain `in-progress`/`blocked` labels in parallel, that just invites
+  drift between the two.
+- Move an issue to `In Progress` when you start it this session; move it
+  back to `Todo` if you stop before finishing (so the next session doesn't
+  think it's actively being worked when it isn't). Move to `Blocked` when
+  stalled on a decision or missing info from the user — say what's needed in
+  a comment.
+  `gh project item-edit 2 --owner lionrayonnant --url <issue-url> --field Status --value "In Progress"`
+- Closing an issue (GitHub's close, not just moving the card) is what marks
+  it `Done` on the board. If an approach is tried and dropped instead of
+  finished, **close the issue with a comment explaining why** and add the
+  `abandoned` label — a closed issue defaults to reading as "done", and
+  without the label + comment an abandoned attempt looks like a success.
+- File a new issue (and add it to the board) for follow-up work discovered
+  mid-session rather than leaving it as a TODO comment in code or a passing
+  mention in a doc.
+- At the start of substantive work, check the board
+  (`gh project item-list 2 --owner lionrayonnant`) before assuming there's no
   prior context or plan.
 
 Commit and push when you reach a good checkpoint — don't let work pile up
