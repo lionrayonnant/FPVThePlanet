@@ -2,6 +2,10 @@ import { CHANNELS } from './input.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
+const LENS_KEY = 'fpvmaps.lens';
+const VIGNETTE_KEY = 'fpvmaps.lensVignette';
+const SHUTTER_KEY = 'fpvmaps.lensShutter';
+const LENS_ON_KEY = 'fpvmaps.lensOn';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -18,6 +22,23 @@ function loadPercent(key, fallback) {
 
 export const loadVolume = () => loadPercent(VOLUME_KEY, 0.6);
 export const loadBrightness = () => loadPercent(BRIGHTNESS_KEY, 0.5);
+
+// The FPV look is on by default — a clean rectilinear camera is the thing this
+// is here to stop looking like. Every part of it is a slider away from off, and
+// the master checkbox is one click away, which is what makes A/B comparison
+// possible at all.
+export function loadLens() {
+	let on = true;
+	try { on = localStorage.getItem(LENS_ON_KEY) !== '0'; } catch { }
+	return {
+		on,
+		lens: loadPercent(LENS_KEY, 0.6),
+		vignette: loadPercent(VIGNETTE_KEY, 0.5),
+		// 8 ms is 1/125 s: a plausible daylight shutter on an FPV camera, and long
+		// enough that a fast roll visibly smears.
+		shutter: loadPercent(SHUTTER_KEY, 0.4) * 20,
+	};
+}
 
 export class Hud {
 	constructor(root, input) {
@@ -70,6 +91,11 @@ export class Hud {
 					<h2>Caméra</h2>
 					<label>FOV <input id="fov" type="range" min="80" max="150" step="1"> <span id="fov-val"></span>°</label>
 					<label>Uptilt <input id="tilt" type="range" min="0" max="50" step="1"> <span id="tilt-val"></span>°</label>
+					<h2>Objectif</h2>
+					<label class="check"><input id="lens-on" type="checkbox"> Rendu FPV</label>
+					<label>Objectif <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
+					<label>Vignettage <input id="vig" type="range" min="0" max="100" step="1"> <span id="vig-val"></span> %</label>
+					<label>Obturation <input id="shut" type="range" min="0" max="20" step="0.5"> <span id="shut-val"></span></label>
 					<h2>Air</h2>
 					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
 					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
@@ -117,6 +143,13 @@ export class Hud {
 			fovVal: root.querySelector('#fov-val'),
 			tilt: root.querySelector('#tilt'),
 			tiltVal: root.querySelector('#tilt-val'),
+			lensOn: root.querySelector('#lens-on'),
+			lens: root.querySelector('#lens'),
+			lensVal: root.querySelector('#lens-val'),
+			vig: root.querySelector('#vig'),
+			vigVal: root.querySelector('#vig-val'),
+			shut: root.querySelector('#shut'),
+			shutVal: root.querySelector('#shut-val'),
 		};
 		root.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 
@@ -193,6 +226,40 @@ export class Hud {
 		};
 		this.el.fov.oninput = emit;
 		this.el.tilt.oninput = emit;
+	}
+
+	// One slider for the lens as a whole — barrel, chromatic aberration and edge
+	// softness are the same piece of glass, so splitting them into three controls
+	// would only let you build an optic that cannot exist. Shutter is separate
+	// because it belongs to the sensor, and because it is the first thing to turn
+	// off if the frame rate drops.
+	setLens({ on, lens, vignette, shutter }, onChange) {
+		const emit = () => {
+			const enabled = this.el.lensOn.checked;
+			const l = Number(this.el.lens.value);
+			const v = Number(this.el.vig.value);
+			const ms = Number(this.el.shut.value);
+			this.el.lensVal.textContent = l;
+			this.el.vigVal.textContent = v;
+			this.el.shutVal.textContent = ms === 0 ? 'aucune' : `${ms.toFixed(1)} ms`;
+			for (const el of [this.el.lens, this.el.vig, this.el.shut]) el.disabled = !enabled;
+			try {
+				localStorage.setItem(LENS_ON_KEY, enabled ? '1' : '0');
+				localStorage.setItem(LENS_KEY, String(l));
+				localStorage.setItem(VIGNETTE_KEY, String(v));
+				localStorage.setItem(SHUTTER_KEY, String(ms / 20 * 100));
+			} catch { }
+			onChange({ on: enabled, lens: l / 100, vignette: v / 100, shutter: ms / 1000 });
+		};
+		this.el.lensOn.checked = on;
+		this.el.lens.value = Math.round(lens * 100);
+		this.el.vig.value = Math.round(vignette * 100);
+		this.el.shut.value = shutter;
+		this.el.lensOn.onchange = emit;
+		this.el.lens.oninput = emit;
+		this.el.vig.oninput = emit;
+		this.el.shut.oninput = emit;
+		emit();
 	}
 
 	// Wind is a single speed plus a gust amplitude; the direction is picked once,

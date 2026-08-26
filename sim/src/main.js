@@ -4,8 +4,9 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness } from './hud.js';
+import { Hud, loadVolume, loadBrightness, loadLens } from './hud.js';
 import { EngineAudio } from './audio.js';
+import { FpvLens } from './lens.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -56,6 +57,9 @@ const hud = new Hud(document.getElementById('ui'), input);
 const controller = new FlightController();
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
+// Everything the render pipeline does beyond renderer.render(). Falls back to a
+// plain render when it is switched off, so the clean image stays one click away.
+const lens = new FpvLens(renderer, scene);
 
 let physics = null;
 let freeCam = null;
@@ -69,6 +73,7 @@ function resize() {
 	camera.aspect = innerWidth / innerHeight;
 	camera.updateProjectionMatrix();
 	renderer.setSize(innerWidth, innerHeight);
+	lens.setSize(innerWidth, innerHeight);
 }
 addEventListener('resize', resize);
 resize();
@@ -156,7 +161,9 @@ async function boot() {
 	hud.detail('');
 	await nextPaint();
 	camera.position.set(manifest.spawn.x, manifest.spawn.y, manifest.spawn.z);
-	renderer.render(scene, camera);
+	// Through the composer, not the renderer: otherwise the lens pass compiles its
+	// shader on the first frame of flight instead of behind the loading screen.
+	lens.render(camera, 1 / 60);
 
 	stage('done');
 	freeCam = new OrbitControls(camera, renderer.domElement);
@@ -170,6 +177,11 @@ async function boot() {
 		audio.setBrightness(brightness);
 	});
 
+	hud.setLens(loadLens(), (p) => {
+		lens.setEnabled(p.on);
+		lens.setParams(p);
+	});
+
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
@@ -181,7 +193,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWind({x,y,z} m/s, gustStrength m/s).
@@ -315,7 +327,7 @@ function frame() {
 		freeCam.update();
 	}
 
-	renderer.render(scene, camera);
+	lens.render(camera, dt);
 
 	const v = physics.velocity;
 	const p = physics.position;

@@ -318,6 +318,105 @@ le milieu d'un curseur à échelle logarithmique n'est le neutre que si la plage
 est centrée géométriquement : `[0,5 ; 2,4]` mettait « neutre » à ×1,095, donc
 6573 Hz au lieu des 6000 Hz mesurés.
 
+## Rendu FPV : l'optique de l'objectif (ajouté 2026-08-27)
+
+`src/lens.js`, une seule passe plein écran entre la scène et l'écran. Barillet,
+aberration chromatique latérale, mollesse des bords, vignettage et flou de
+mouvement, tous ensemble. Ferme #10, moins la partie « dégradation du lien
+vidéo » qui part dans #12.
+
+Une passe et pas quatre : les quatre effets d'objectif ont la même cause
+physique et s'expriment tous comme une fonction du rayon depuis le centre de
+l'image. C'est **une** décision d'échantillonnage, pas quatre. Une chaîne de
+quatre `ShaderPass` paierait quatre allers-retours plein écran pour les mêmes
+pixels.
+
+### Le flou de mouvement n'a pas besoin de la profondeur
+
+C'est le point qui rendait l'issue plus facile qu'elle n'en avait l'air. Le
+monde est statique et la caméra est le seul objet qui bouge, donc le flou de
+rotation — le seul qui compte à 800 °/s — se reconstruit **exactement** en
+reprojetant les rayons de vue à travers la rotation faite pendant la pose. Aucun
+tampon de profondeur, donc la contrainte `camera.near = 0,15` ne s'applique
+même pas. Ce que l'approximation laisse tomber, c'est la parallaxe de
+translation.
+
+La rotation est prise sur la pose de la caméra (`q_prev⁻¹ · q_cur`, slerpée vers
+l'identité par `obturation/dt`) et non sur `physics.angularVelocity` : ça marche
+aussi en caméra libre, où le pas de physique est sauté. Vérifié : pas de NaN
+dans `uReproj` après un passage en `C`.
+
+### Le barillet ne demande aucun survol de champ
+
+Le plan prévoyait d'élargir `camera.fov` pour éviter des coins noirs. Inutile :
+il suffit de **normaliser le barillet au coin**, `q · (1 + k1r² + k2r⁴) / (1 + k1
++ k2)`. Le coin échantillonne alors exactement le coin rendu, tout le champ
+survit à la déformation, et rien ne sort de l'image. Ce que la distorsion coûte
+réellement, ce n'est pas du champ, c'est un grossissement du centre — ×1,26 au
+réglage par défaut. `camera.fov` n'est pas touché, donc le curseur FOV garde son
+sens et la culling reste juste.
+
+### Ce qui a été mesuré plutôt que choisi
+
+Fenêtre 2560×1265, RX 9060 XT, scène Tour Eiffel, `readPixels` synchrone comme
+pour les mesures précédentes :
+
+| | ms/frame |
+|---|---|
+| sans la passe (référence) | 1,17 |
+| passe complète, 16 taps | 2,31 |
+| passe à 1 tap (objectif à 0, obturation à 0) | 1,84 |
+
+La passe coûte **1,14 ms** sur un budget de 10 ms. Deux choses que la mesure
+contredit :
+
+- **Couper le flou de mouvement ne récupère presque rien.** Les 15 taps
+  supplémentaires coûtent 0,47 ms ; le reste (0,67 ms) est la passe elle-même
+  plus la résolution MSAA, et se paie que le flou soit actif ou non. L'issue le
+  désignait comme « le premier candidat à couper si les images chutent » —
+  c'est le mauvais levier, le vrai serait de couper la passe entière.
+- **8 taps ne suffisaient pas.** Un roulis à 800 °/s étale le coin sur ~160 px ;
+  8 échantillons là-dedans laissent 20 px de trou et donnent des stries, pas du
+  flou (capture faite, c'était net). 16 taps plus un dither par pixel
+  transforment le reste en grain — ce qui, sur un retour vidéo, est la bonne
+  erreur à faire.
+
+`k1 = 0,30`, `k2 = 0,10`, aberration 0,006, mollesse 0,0035 uv et vignettage
+0,55 à pleine échelle sont **choisis à l'œil**, pas mesurés sur une vraie
+optique. Les valeurs par défaut (objectif 60 %, vignettage 50 %, obturation
+8 ms = 1/125 s) le sont aussi.
+
+### Vérifications navigateur (chrome-devtools MCP, scène Tour Eiffel)
+
+- **Couleur.** Un pixel de ciel ressort à `#9fb8cc` exactement avec la passe en
+  mode neutre, comme sans la passe. C'était la régression à ne pas rouvrir : la
+  cible de rendu est en `UnsignedByteType` + `LinearSRGBColorSpace` et il n'y a
+  **pas** d'`OutputPass` — voir bug #10 plus bas.
+- **Antialiasing.** La cible est construite avec `samples: 4`. Rendre hors écran
+  contourne le `antialias: true` du renderer, et les arêtes de toit crénelées
+  qui en résultent se lisent comme un bug de shader alors que c'est une cible
+  mal déclarée.
+- **Barillet.** Capture avant/après sur l'horizon et le fût de la Tour : la
+  ligne se courbe, les coins restent remplis, le contenu des coins est le même.
+- **Flou.** Roulis de 800 °/s tenu sur deux frames : traînée en arc autour de
+  l'axe de roulis, centre lisible, bords étalés.
+- **Panneau `Tab`.** Case maîtresse coupe la passe et grise les trois curseurs ;
+  les quatre réglages reviennent après rechargement.
+- `__sim.debug()` : 6 draw calls (5 scène + 1 quad), 3 742 192 triangles.
+
+### Dette connue
+
+- `renderer.info.autoReset` est passé à `false` et `lens.render()` fait le reset
+  une fois par frame. Sans ça, `info` ne décrivait plus que le quad plein écran
+  (1 draw call, 1 triangle) parce qu'il se remet à zéro à chaque appel de
+  `render()` et qu'il y en a deux maintenant. Tout code futur qui appelle
+  `renderer.render()` hors de `lens.render()` faussera les compteurs.
+- Le flou ignore la translation. À 25 m/s le long d'une façade proche, la
+  parallaxe devrait baver et ne bave pas. **Non vérifié** que ça se voie en vol.
+- Les coefficients d'objectif ne correspondent à aucune caméra réelle mesurée.
+  Un vrai calibrage (mire, `k1`/`k2` ajustés sur une Runcam ou une DJI O3)
+  serait l'étape suivante si le rendu paraît faux.
+
 ## Bugs trouvés et corrigés cette session
 
 Par ordre de découverte — plusieurs ont nécessité de mesurer plutôt que

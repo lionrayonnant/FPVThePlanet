@@ -177,6 +177,7 @@ src/TileMaterial.js     shader GLSL3 sampler2DArray + brouillard
 src/physics.js          monde Rapier, trimesh statique, corps du drone
 src/flightController.js rates acro -> couple
 src/input.js            Gamepad + clavier/souris
+src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou)
 src/hud.js              overlay + menu de sélection de carte
 ```
 
@@ -312,6 +313,41 @@ Volume et **timbre** dans le panneau `Tab`, retenus d'une session à l'autre ;
 le timbre déplace les deux coupures de ×0,5 à ×2 autour du réglage mesuré, à
 régler selon le casque. Son coupé en caméra libre. Le son démarre au clic du menu de choix de carte : les navigateurs
 refusent de faire du bruit avant un geste de l'utilisateur.
+
+### Le rendu FPV
+
+Une caméra rectilinéaire parfaite ne ressemble pas à un retour vidéo FPV, et
+c'est ce que corrige `src/lens.js` : une seule passe plein écran qui fait le
+barillet, l'aberration chromatique latérale, la mollesse des bords, le
+vignettage et le flou de mouvement.
+
+Trois réglages dans le panneau `Tab`, section **Objectif**, retenus d'une
+session à l'autre :
+
+| réglage | par défaut | ce qu'il fait |
+|---|---|---|
+| **Rendu FPV** | activé | l'interrupteur maître : décoché, l'image redevient celle d'avant, ce qui est la seule façon honnête de comparer |
+| **Objectif** | 60 % | barillet, aberration chromatique et mollesse des bords ensemble — c'est le même bout de verre, les séparer laisserait construire une optique qui n'existe pas |
+| **Vignettage** | 50 % | l'assombrissement des coins |
+| **Obturation** | 8 ms | le temps de pose, donc la longueur de la traînée ; 0 coupe le flou |
+
+Le barillet est normalisé au coin : il ne mange pas de champ de vision, il
+grossit le centre (×1,26 par défaut). Le curseur FOV garde donc exactement le
+sens qu'il avait.
+
+Le flou de mouvement ne lit pas la profondeur. Le monde est statique et la
+caméra est la seule chose qui bouge, donc le flou de rotation se reconstruit en
+reprojetant les rayons de vue à travers la rotation faite pendant la pose — ce
+qui rend le flou juste sans toucher à `camera.near`. La parallaxe de translation
+est la part qui manque.
+
+Coût mesuré sur la Tour Eiffel en 2560×1265 : **1,14 ms/frame** sur un budget de
+10 ms. Contrairement à ce qu'on pourrait croire, baisser l'obturation ne
+récupère que 0,47 ms de ce total ; si les images chutent, c'est la case
+**Rendu FPV** qu'il faut décocher, pas le flou.
+
+La partie « dégradation du lien vidéo » (bruit RF ou macroblocs selon la
+distance et l'occlusion) n'est pas faite — elle est suivie séparément.
 
 ### Régler le PID
 
