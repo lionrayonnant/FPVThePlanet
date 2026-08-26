@@ -300,8 +300,17 @@ S'y ajoutent le souffle aérodynamique (indexé sur la vitesse *air*, donc plus
 discret vent arrière), le propwash en descente, et un bruit d'impact dont le
 niveau suit la force de contact.
 
-Volume dans le panneau `Tab`, retenu d'une session à l'autre ; coupé en caméra
-libre. Le son démarre au clic du menu de choix de carte : les navigateurs
+Le spectre est borné volontairement : sinus plutôt que dents de scie, passe-bas
+par moteur et passe-bas général, et un limiteur au-dessus de tout. Une synthèse
+qui laisse filer son énergie dans 2–8 kHz est épuisante au bout de dix minutes,
+et c'est précisément la bande où l'oreille est la plus sensible. Les quatre
+moteurs sont aussi légèrement désaccordés entre eux : à commande égale le modèle
+leur donne le même régime exact, et quatre oscillateurs rigoureusement cohérents
+sonnent comme un synthé, pas comme un quad.
+
+Volume et **timbre** dans le panneau `Tab`, retenus d'une session à l'autre ;
+le timbre déplace les deux coupures de ×0,5 à ×2 autour du réglage mesuré, à
+régler selon le casque. Son coupé en caméra libre. Le son démarre au clic du menu de choix de carte : les navigateurs
 refusent de faire du bruit avant un geste de l'utilisateur.
 
 ### Régler le PID

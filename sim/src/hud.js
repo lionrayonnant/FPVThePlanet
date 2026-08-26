@@ -1,20 +1,23 @@
 import { CHANNELS } from './input.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
-const DEFAULT_VOLUME = 0.6;
+const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
 
-// Volume survives reloads. Anything unparseable falls back to the default
-// rather than throwing: a corrupt key must not stop the sim from booting.
-export function loadVolume() {
+// Audio settings survive reloads. Anything unparseable falls back to the
+// default rather than throwing: a corrupt key must not stop the sim booting.
+// Note the null check — Number(null) is 0, which would silently turn a first
+// run into a muted one.
+function loadPercent(key, fallback) {
 	try {
-		// Note the null check: Number(null) is 0, which would silently turn a
-		// first run into a muted one.
-		const raw = localStorage.getItem(VOLUME_KEY);
+		const raw = localStorage.getItem(key);
 		const saved = raw === null ? NaN : Number(raw);
 		if (Number.isFinite(saved) && saved >= 0 && saved <= 100) return saved / 100;
 	} catch { }
-	return DEFAULT_VOLUME;
+	return fallback;
 }
+
+export const loadVolume = () => loadPercent(VOLUME_KEY, 0.6);
+export const loadBrightness = () => loadPercent(BRIGHTNESS_KEY, 0.5);
 
 export class Hud {
 	constructor(root, input) {
@@ -72,6 +75,7 @@ export class Hud {
 					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
 					<h2>Son</h2>
 					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
+					<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
 					<button id="close-settings">Fermer (Tab)</button>
 				</div>
 			</div>`;
@@ -101,6 +105,8 @@ export class Hud {
 			gustVal: root.querySelector('#gust-val'),
 			vol: root.querySelector('#vol'),
 			volVal: root.querySelector('#vol-val'),
+			tone: root.querySelector('#tone'),
+			toneVal: root.querySelector('#tone-val'),
 			thr: root.querySelector('#thr-fill'),
 			crash: root.querySelector('#crash'),
 			reticle: root.querySelector('#reticle'),
@@ -207,18 +213,28 @@ export class Hud {
 		emit();
 	}
 
-	// Volume is the one setting worth remembering across reloads: nobody wants
-	// the sim to come back at full blast every time. Same localStorage shape as
+	// Both audio settings are worth remembering across reloads: nobody wants the
+	// sim to come back at full blast every time, and where "bright enough but
+	// not tiring" sits depends on the headphones. Same localStorage shape as
 	// the gamepad map in input.js.
-	setAudio(initial, onChange) {
+	setAudio(volume, brightness, onChange) {
 		const emit = () => {
-			const pct = Number(this.el.vol.value);
-			this.el.volVal.textContent = pct;
-			try { localStorage.setItem(VOLUME_KEY, String(pct)); } catch { }
-			onChange(pct / 100);
+			const vol = Number(this.el.vol.value);
+			const tone = Number(this.el.tone.value);
+			this.el.volVal.textContent = vol;
+			// Signed, because what the slider does is move away from the tuning
+			// the spectrum was measured at, in both directions.
+			this.el.toneVal.textContent = tone === 50 ? 'neutre' : (tone > 50 ? '+' : '') + (tone - 50);
+			try {
+				localStorage.setItem(VOLUME_KEY, String(vol));
+				localStorage.setItem(BRIGHTNESS_KEY, String(tone));
+			} catch { }
+			onChange(vol / 100, tone / 100);
 		};
-		this.el.vol.value = Math.round(initial * 100);
+		this.el.vol.value = Math.round(volume * 100);
+		this.el.tone.value = Math.round(brightness * 100);
 		this.el.vol.oninput = emit;
+		this.el.tone.oninput = emit;
 		emit();
 	}
 

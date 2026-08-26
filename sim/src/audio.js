@@ -22,13 +22,67 @@ const AUDIO = {
 	// Relative level of the fundamental and its first two harmonics. A lone
 	// fundamental sounds like a synth test tone; the 2nd and 3rd are what make
 	// it read as a machine.
-	harmonics: [1.0, 0.45, 0.2],
+	//
+	// All three are sine waves, and that is the whole point: the fundamental
+	// used to be a sawtooth, which already carries every harmonic up to Nyquist
+	// at 1/n — so adding an explicit 2nd and 3rd on top doubled the series and
+	// sprayed energy from 3 kHz to 20 kHz with nothing bounding it. Measured on
+	// the master bus, 43% of the output sat in 2-4 kHz in a turn, which is the
+	// peak of the ear's sensitivity curve and exactly what makes a sound
+	// tiring over a session rather than merely loud. Sines give the spectrum
+	// back to us: what is written here is what comes out.
+	harmonics: [1.0, 0.4, 0.14],
 
 	// Broadband hiss riding along with each motor's tones, band-passed around
 	// its own blade-pass frequency so it tracks the motor instead of sitting
 	// underneath as a static shhh.
-	motorNoise: 0.35,
+	motorNoise: 0.3,
 	motorNoiseQ: 1.6,
+
+	// Per-motor lowpass. As the quad spools up the harmonics climb into the
+	// harsh band, so a fixed corner is what keeps the absolute amount of energy
+	// up there bounded no matter the throttle. It also has a physical excuse:
+	// air absorption and the foam of a pair of goggles both roll off long
+	// before this.
+	motorTone: 2600,        // Hz
+	motorToneQ: 0.5,        // no resonant peak at the corner, that would defeat it
+
+	// Final safety net on the whole mix, above every branch.
+	airCut: 6000,           // Hz
+	airQ: 0.5,
+
+	// Ceiling. The loudest thing the sim can produce — full throttle, full wind
+	// rush, an impact on top — measures 0.83 at volume 1, so there is only
+	// ~1.6 dB of headroom, and four detuned oscillators drifting against each
+	// other will eventually line up in phase and eat it. Clipping at the
+	// destination is the single most unpleasant thing a synth can do, so a
+	// limiter sits above everything. It does nothing at all below the
+	// threshold, which is where the sim normally lives.
+	limitThreshold: -3,     // dB
+	limitRatio: 20,
+	limitAttack: 0.003,     // s
+	limitRelease: 0.1,      // s
+
+	// The brightness control multiplies both corners above. How dark is too
+	// dark is the one thing no measurement here can settle — it depends on the
+	// headphones and on the ear — so it is a slider rather than a constant.
+	// 1.0 is what the spectral measurements above were taken at, so the range
+	// is centred on it *geometrically* — sqrt(0.5 * 2.0) == 1 — otherwise the
+	// middle of the slider quietly sits somewhere other than the tuning.
+	brightnessRange: [0.5, 2.0],
+
+	// Manufacturing spread, in cents. Four motors given the same command settle
+	// at the *same* speed in this model, so their oscillators land on exactly
+	// the same frequency and sum coherently into one pure loud tone. Real
+	// motors and props never match to better than a fraction of a percent.
+	// Detuning them turns that tone back into a chorus — the beating this is
+	// all about is between near-identical frequencies, not identical ones.
+	detune: [7, -5, 4, -8],
+
+	// Slow wander on top, so a hover is not a dead-static drone. One LFO per
+	// motor, at deliberately unrelated rates so they never lock into a pattern.
+	wanderCents: 5,
+	wanderHz: [0.23, 0.31, 0.19, 0.27],
 
 	// How hard the pan is pushed. Not ±1: the pilot's ears are at the camera,
 	// 8 cm from every motor, not out in the field listening to a flyby.
@@ -85,6 +139,7 @@ export class EngineAudio {
 	constructor() {
 		this.ctx = null;
 		this.volume = 1;
+		this.brightness = 0.5;     // 0..1 slider position, 0.5 == neutral
 		this.muted = false;
 		this.nodesCreated = 0;     // watched in the browser to prove nothing leaks
 		this._masterTarget = 0;
@@ -115,7 +170,23 @@ export class EngineAudio {
 	_build(ctx) {
 		this.master = ctx.createGain();
 		this.master.gain.value = 0;             // faded in on the first update
-		this.master.connect(ctx.destination);
+
+		// Everything leaves through here. Nothing in a real cockpit reaches the
+		// pilot with its top octave intact, and a synthesis that does is the
+		// one that gives you a headache.
+		this.air = ctx.createBiquadFilter();
+		this.air.type = 'lowpass';
+		this.air.frequency.value = AUDIO.airCut;
+		this.air.Q.value = AUDIO.airQ;
+
+		this.limiter = ctx.createDynamicsCompressor();
+		this.limiter.threshold.value = AUDIO.limitThreshold;
+		this.limiter.knee.value = 0;
+		this.limiter.ratio.value = AUDIO.limitRatio;
+		this.limiter.attack.value = AUDIO.limitAttack;
+		this.limiter.release.value = AUDIO.limitRelease;
+
+		this.master.connect(this.air).connect(this.limiter).connect(ctx.destination);
 
 		this.noiseBuffer = makeNoiseBuffer(ctx, 2);
 		this.impactBuffer = makeImpactBuffer(ctx, 0.15);
@@ -133,13 +204,33 @@ export class EngineAudio {
 			pan.pan.value = Math.sign(MOTORS[i].x) * AUDIO.pan;
 			out.connect(pan).connect(this.master);
 
+			// The tones go through their own lowpass; the noise band below is
+			// already band-limited around the blade-pass frequency and does not
+			// need it.
+			const tone = ctx.createBiquadFilter();
+			tone.type = 'lowpass';
+			tone.frequency.value = AUDIO.motorTone;
+			tone.Q.value = AUDIO.motorToneQ;
+			tone.connect(out);
+
+			// One wander LFO per motor, feeding every harmonic's detune so they
+			// drift together and the harmonic ratios stay exact.
+			const lfo = ctx.createOscillator();
+			lfo.frequency.value = AUDIO.wanderHz[i];
+			const lfoGain = ctx.createGain();
+			lfoGain.gain.value = AUDIO.wanderCents;
+			lfo.connect(lfoGain);
+			lfo.start();
+
 			const oscs = AUDIO.harmonics.map((level, h) => {
 				const osc = ctx.createOscillator();
-				osc.type = h === 0 ? 'sawtooth' : 'sine';
+				osc.type = 'sine';
 				osc.frequency.value = 1;
+				osc.detune.value = AUDIO.detune[i];
+				lfoGain.connect(osc.detune);
 				const g = ctx.createGain();
 				g.gain.value = level;
-				osc.connect(g).connect(out);
+				osc.connect(g).connect(tone);
 				osc.start();
 				return osc;
 			});
@@ -152,7 +243,7 @@ export class EngineAudio {
 			bandGain.gain.value = AUDIO.motorNoise;
 			this.noise.connect(band).connect(bandGain).connect(out);
 
-			this._motors.push({ out, oscs, band, pan });
+			this._motors.push({ out, oscs, band, pan, tone });
 		}
 
 		// Wind rush.
@@ -180,6 +271,7 @@ export class EngineAudio {
 
 		this.noise.start();
 		this.nodesCreated++;                    // the looping noise source
+		this.setBrightness(this.brightness);    // a value may have been set pre-start()
 	}
 
 	// Once per rendered frame — not per physics step. Reading the speeds at
@@ -243,6 +335,21 @@ export class EngineAudio {
 		src.onended = () => { src.disconnect(); lp.disconnect(); g.disconnect(); };
 		src.start();
 		this.nodesCreated += 3;
+	}
+
+	// Slider position 0..1 to a multiplier on every lowpass corner. Log-spaced,
+	// because pitch and brightness are both perceived that way: a linear sweep
+	// would do nothing for half its travel and everything in the last quarter.
+	setBrightness(b) {
+		this.brightness = Math.min(Math.max(b, 0), 1);
+		if (!this.ctx) return;
+		const [lo, hi] = AUDIO.brightnessRange;
+		const k = lo * Math.pow(hi / lo, this.brightness);
+		const t = this.ctx.currentTime;
+		this.air.frequency.setTargetAtTime(AUDIO.airCut * k, t, AUDIO.tauGain);
+		for (const m of this._motors) {
+			m.tone.frequency.setTargetAtTime(AUDIO.motorTone * k, t, AUDIO.tauGain);
+		}
 	}
 
 	setVolume(v) {

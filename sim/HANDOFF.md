@@ -238,6 +238,52 @@ Contraintes de mise en œuvre, toutes vérifiées :
 - Volume : curseur dans le panneau `Tab`, persisté dans `localStorage`
   (`fpvmaps.audioVolume`) et bien relu après rechargement. Aucune erreur console.
 
+### Correction de la fatigue auditive (session suivante)
+
+L'utilisateur a volé et a confirmé que ça marche, mais que **c'était désagréable
+sur la durée d'une session**. Mesuré au lieu d'être deviné, avec un
+`AnalyserNode` branché sur le bus master et une répartition de l'énergie par
+bande :
+
+| état | 2–4 kHz | 4–8 kHz | >8 kHz |
+|---|---|---|---|
+| avant, en virage | **43 %** | 14 % | 6 % |
+| avant, plein gaz | 21 % | 12 % | 7 % |
+| après, en virage | **11,6 %** | 0,1 % | 0 % |
+| après, plein gaz | 14,2 % | 2,5 % | 0,1 % |
+
+2–4 kHz est le sommet de la courbe d'isosonie : c'est là que l'oreille est la
+plus sensible, et donc là que se fabrique la fatigue. Deux causes, toutes deux
+dans le code et pas dans le réglage :
+
+1. **La fondamentale était une `sawtooth`.** Une dent de scie porte déjà toute
+   la série harmonique en 1/n jusqu'à Nyquist — et on ajoutait 2f et 3f
+   explicitement par-dessus. Série doublée, énergie de 3 à 20 kHz, rien pour la
+   borner. Les trois oscillateurs sont maintenant des sinus : ce qui est écrit
+   dans `harmonics` est ce qui sort.
+2. **Les quatre moteurs tombaient sur exactement la même fréquence** à commande
+   égale (1419,0 Hz pour les quatre à plein gaz), donc quatre oscillateurs
+   cohérents s'additionnant en une seule sinusoïde forte — la signature même du
+   son de synthé. Des vrais moteurs ne s'accordent jamais mieux qu'à une
+   fraction de pour cent près. Un désaccord fixe par moteur (`detune`, en cents)
+   plus une lente dérive (un LFO par moteur, à des taux volontairement sans
+   rapport) rend le chœur : le battement recherché est entre fréquences
+   *presque* identiques, pas identiques.
+
+S'y ajoutent un passe-bas par moteur (2600 Hz) qui borne l'énergie dans la bande
+dure quel que soit le régime, un passe-bas général (6000 Hz) — rien n'atteint un
+pilote avec son octave supérieure intacte — et un **limiteur** au-dessus de
+tout : le pire cas mesuré (plein gaz + souffle + impact) atteignait 0,83 à
+volume 1, soit 1,6 dB de marge, que quatre oscillateurs désaccordés finissent
+par manger en s'alignant en phase. Le limiteur ne réduit rien au stationnaire
+(0 dB), −0,27 dB en virage, −1,33 dB à plein gaz.
+
+Enfin, un curseur **Timbre** dans le panneau `Tab` (persisté), parce que « trop
+sombre » contre « trop agressif » dépend du casque et de l'oreille et qu'aucune
+mesure ici ne peut le trancher. Il multiplie les deux coupures, de ×0,5 à ×2,0,
+centré *géométriquement* sur 1,0 pour que le milieu du curseur soit exactement
+le réglage auquel les spectres ci-dessus ont été mesurés.
+
 **Non vérifié** : le rendu à l'oreille. Aucun agent ne peut écouter ; la
 structure, les fréquences et l'absence de fuite sont garanties, le jugement
 « est-ce que ça sonne comme un quad » reste à l'utilisateur. Les niveaux
@@ -245,9 +291,12 @@ relatifs (harmoniques, bruit moteur, souffle) sont des points de départ
 raisonnables, pas des valeurs mesurées — c'est le seul endroit du projet où
 « choisi plutôt que mesuré » est assumé, faute de référence audio.
 
-Un piège rencontré et corrigé au passage : `Number(localStorage.getItem(k))`
+Deux pièges rencontrés et corrigés au passage. `Number(localStorage.getItem(k))`
 vaut `0` quand la clé est absente, ce qui transformait silencieusement un
-premier lancement en sim muet. La lecture teste maintenant `null` d'abord.
+premier lancement en sim muet ; la lecture teste maintenant `null` d'abord. Et
+le milieu d'un curseur à échelle logarithmique n'est le neutre que si la plage
+est centrée géométriquement : `[0,5 ; 2,4]` mettait « neutre » à ×1,095, donc
+6573 Hz au lieu des 6000 Hz mesurés.
 
 ## Bugs trouvés et corrigés cette session
 

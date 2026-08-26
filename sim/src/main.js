@@ -4,7 +4,7 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume } from './hud.js';
+import { Hud, loadVolume, loadBrightness } from './hud.js';
 import { EngineAudio } from './audio.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -165,7 +165,10 @@ async function boot() {
 
 	hud.setWind((mean, gusts) => physics.setWind(mean, gusts));
 
-	hud.setAudio(loadVolume(), (v) => audio.setVolume(v));
+	hud.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
+		audio.setVolume(volume);
+		audio.setBrightness(brightness);
+	});
 
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
