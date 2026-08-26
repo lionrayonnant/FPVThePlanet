@@ -102,6 +102,7 @@ export class Hud {
 					<h2>Son</h2>
 					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 					<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
+					<button id="reset-settings">Réinitialiser les réglages</button>
 					<button id="close-settings">Fermer (Tab)</button>
 				</div>
 			</div>`;
@@ -152,6 +153,15 @@ export class Hud {
 			shutVal: root.querySelector('#shut-val'),
 		};
 		root.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
+		root.querySelector('#reset-settings').onclick = () => {
+			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, son) ?')) return;
+			try {
+				for (const key of Object.keys(localStorage)) {
+					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
+				}
+			} catch { }
+			location.reload();
+		};
 
 		this._frames = 0;
 		this._fpsAt = performance.now();
