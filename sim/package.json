@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "selftest": "node tools/selftest.mjs",
-    "prep:light": "node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/48.858200-2.297000-20-25-20 --out public/scenes/tour-eiffel --cell 128"
+    "prep:light": "node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/48.858200-2.297000-20-25-20 --out public/scenes/tour-eiffel --cell 128",
+    "export-glb": "node --max-old-space-size=8192 tools/export-glb.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",

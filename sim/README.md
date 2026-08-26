@@ -128,6 +128,43 @@ dossier `public/scenes/<slug>/`.
 (Cette table peut se désynchroniser de `public/scenes.json` au fil des ajouts —
 ce dernier fait foi.)
 
+## Exporter une scène en `.glb` (pour la partager)
+
+Les binaires de `public/scenes/<slug>/` ne servent qu'au moteur d'ici. Pour
+donner une scène à quelqu'un d'autre — ou l'utiliser dans Blender, Godot,
+Unity (via glTFast), Unreal, three.js — il y a un exporteur vers un `.glb`
+unique et autonome (géométrie + textures embarquées, aucun fichier à côté) :
+
+```bash
+npm run export-glb -- public/scenes/tour-eiffel
+npm run export-glb -- public/scenes/tour-eiffel --max-tex 2048   # textures réduites
+npm run export-glb -- public/scenes/tour-eiffel --unlit          # KHR_materials_unlit
+```
+
+Le `.glb` atterrit dans le dossier de la scène (donc gitignoré) sauf `--out`.
+
+| Scène | `.glb` | Triangles | Primitives |
+|---|---|---|---|
+| Tour Eiffel | 203 Mo (148 Mo en `--max-tex 2048`) | 3,74 M | 19 |
+| Île de la Cité | 408 Mo | 7,58 M | 38 |
+
+`--max-tex` ne gagne que ~55 Mo parce que la géométrie domine (~120 Mo sur la
+Tour Eiffel) : descendre nettement plus bas demanderait de la compression
+Draco/meshopt ou de la décimation, ce que l'exporteur ne fait pas.
+
+Ce qu'il traduit, et le seul point non trivial : `prep.mjs` empile 1024
+textures de patch par chunk dans des sheets de `DataArrayTexture` et range
+`(uv, layer)` par sommet. glTF n'a pas de texture-array — chaque sheet devient
+donc une texture 2D ordinaire et l'index de layer est replié dans l'UV
+(cellule `(col,row)` d'une grille `cellsPerRow`). C'est sans perte uniquement
+parce que tous les UV sources tiennent dans `[0,1]` — aucun patch ne déborde
+de sa cellule (vérifié : 0 coordonnée hors bornes sur 1,4 M).
+
+Les coordonnées, elles, passent telles quelles : `prep.mjs` sort déjà des
+mètres ENU en X=est, Y=haut, Z=sud, soit exactement le repère de glTF
+(main droite, Y up). Pas de conversion d'axes, donc pas d'échelle ni de
+rotation à corriger à l'import — 1 unité = 1 mètre.
+
 ## Architecture
 
 ```
