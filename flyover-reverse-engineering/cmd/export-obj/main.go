@@ -146,18 +146,27 @@ func main() {
 		exDone <- 1
 	}()
 
+	// meta_region on the trigger gives the tile bounding box its octree
+	// actually covers (see #15) - pruning HTTP probes to it is a cheap
+	// stand-in for the real octree pre-check (checkTile), which only
+	// understands the v1 metadata format while recent grid triggers serve
+	// v2. Legacy triggers without meta_region leave box.Ok false, so
+	// Contains() never prunes for them.
+	box := p.Box()
+	skipped := 0
+
 	// loop over area and altitude
 	for dx := -tryXY; dx <= tryXY; dx++ {
 		for dy := -tryXY; dy <= tryXY; dy++ {
+			xn := x + int(dx)
+			yn := y + int(dy)
+			if !box.Contains(z, yn, xn) {
+				skipped++
+				continue
+			}
 			for h := 0; h < int(tryH); h++ {
-				xn := x + int(dx)
-				yn := y + int(dy)
 
 				// async get tile
-				// note: the C3MM octree pre-check (checkTile) only understands the
-				// v1 metadata format. Newer regions (auto-generated grid triggers
-				// instead of legacy named cities) serve C3MM v2, which isn't parsed
-				// here yet, so we skip the pre-check and probe each tile directly.
 				// A missing tile responds with HTTP 200 but a plain jpeg or an
 				// empty body, instead of a 404 - that's the expected "no tile
 				// here" outcome (errNoTile). A non-200 http status, however, means
@@ -196,6 +205,9 @@ func main() {
 	close(ex) // no more tiles sent to exporter
 	<-exDone  // wait till all tiles are exported
 	l.Println(xp, "exported")
+	if box.Ok {
+		l.Printf("%d colonne(s) élaguée(s) via meta_region avant toute requête HTTP", skipped)
+	}
 	if n := undecodable.Load(); n > 0 {
 		l.Printf("%d tuile(s) reçues mais non décodées — le parseur C3M ne couvre pas ce que sert cette région.", n)
 	}
