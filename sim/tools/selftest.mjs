@@ -9,7 +9,7 @@ import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
 import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
-import { RainField, dropDrift, fogRange, MAX_RATE, GRAVITY } from '../src/rain.js';
+import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -681,6 +681,86 @@ console.log('\nrain');
 		const accel = d(still, { x: m * 8, y: m * GRAVITY, z: 0 });
 		check('accelerating right leaves the water to the left', accel.x < -0.5,
 			`${accel.x.toFixed(2)} g`);
+	}
+
+	// What that water looks like once it is on the glass. The count is the
+	// surprise of this section and the thing the rendering hangs off: a ten
+	// millimetre window divided by a three millimetre bead is single digits, so
+	// a wet lens is a handful of fat drops and never a field of them.
+	{
+		const dry = lensDrops(0, 1.6);
+		check('a dry lens has no drops on it', dry.count === 0 && dry.beadMm === 0);
+
+		const light = lensDrops(0.2, 1.6);
+		const soaked = lensDrops(0.86, 1.6);
+		check('a wet lens is a handful of drops, not a field',
+			soaked.count > 4 && soaked.count < 16 && light.count < soaked.count,
+			`${light.count.toFixed(1)} at 0.2 wet, ${soaked.count.toFixed(1)} at 0.86`);
+		// They coalesce: the wetter it gets the bigger each bead, which is why
+		// the count grows far more slowly than the water does.
+		check('drops merge as the glass gets wetter',
+			soaked.beadMm > light.beadMm * 1.2 && soaked.count < light.count * 4.3,
+			`${light.beadMm.toFixed(2)} -> ${soaked.beadMm.toFixed(2)} mm`);
+
+		// And what one bead does to the picture. The footprint is set by the
+		// entrance pupil at least as much as by the drop, which is the whole
+		// reason a millimetre of water blots out tens of degrees of view and why
+		// no image of the world can survive it.
+		const big = dropFootprint(3.2), small = dropFootprint(0.5);
+		check('a bead blots out tens of degrees whatever its size',
+			big.angle > 0.3 && small.angle > 0.15 && big.angle < small.angle * 3,
+			`6x the drop, ${(big.angle / small.angle).toFixed(1)}x the footprint: `
+			+ `${(big.angle * 57.3).toFixed(0)} deg for 3.2 mm, ${(small.angle * 57.3).toFixed(0)} for 0.5`);
+		// The one that is geometry rather than taste: a drop narrower than the
+		// pupil can only ever clip part of the cone, so it is never opaque, and
+		// it has no flat core at all.
+		check('a drop smaller than the pupil is never opaque',
+			small.peak < 0.3 && small.core === 0 && big.peak === 1 && big.core > 0.4,
+			`peak ${small.peak.toFixed(2)} small, ${big.peak.toFixed(2)} big`);
+	}
+
+	// The population on the glass: how many there are, and where they run.
+	{
+		const dryPop = new LensDrops(3);
+		for (let i = 0; i < 500; i++) dryPop.update({ wetness: 0, dropDiameterMm: 0, dt: 1 / 50 });
+		check('a dry lens draws nothing at all', dryPop.count === 0 && dryPop.drops.length === 0);
+
+		// Hovering: the beads sit where they landed. A bead only breaks away
+		// when the force beats the contact line holding it, and one g does not,
+		// which is what "la majorité restent presque fixes" is in this model.
+		const hover = new LensDrops(5);
+		const hoverDrift = { x: 0, y: -1 };
+		for (let i = 0; i < 900; i++) {
+			hover.update({ wetness: 0.86, dropDiameterMm: 1.65, drift: hoverDrift, dt: 1 / 50 });
+		}
+		const onFrame = hover.drops.filter((d) => Math.abs(d.x) <= 1 && Math.abs(d.y) <= 1);
+		check('a hovering lens holds a handful of drops in frame',
+			hover.count >= 5 && hover.count <= 12 && onFrame.length >= 3,
+			`${hover.count} drops, ${onFrame.length} in frame`);
+
+		// And flying: the air pushes the water UP the picture. Same sign as the
+		// dropDrift checks above, but now it has to actually move the beads.
+		const fast = new LensDrops(5);
+		const up = { x: 0, y: 6.2 };
+		fast.update({ wetness: 0.4, dropDiameterMm: 1.65, drift: up, dt: 1 / 50 });
+		const before = fast.drops.map((d) => d.y);
+		for (let i = 0; i < 25; i++) {
+			fast.update({ wetness: 0.4, dropDiameterMm: 1.65, drift: up, dt: 1 / 50 });
+		}
+		const rose = fast.drops.slice(0, before.length).filter((d, i) => d.y > before[i]).length;
+		check('the water runs up the frame in fast flight',
+			before.length > 0 && rose === before.length,
+			`${rose}/${before.length} beads rose`);
+
+		// A frozen picture is a picture the water is in, so dt = 0 has to stop
+		// it dead. This is the trap #24 left behind, and the reason the drops
+		// are a population with a dt rather than a clock in the shader.
+		const held = new LensDrops(5);
+		for (let i = 0; i < 200; i++) held.update({ wetness: 0.6, dropDiameterMm: 1.65, drift: up, dt: 1 / 50 });
+		const frame = held.drops.map((d) => `${d.x},${d.y},${d.fade}`).join('|');
+		for (let i = 0; i < 200; i++) held.update({ wetness: 0.6, dropDiameterMm: 1.65, drift: up, dt: 0 });
+		check('a held frame holds the water still',
+			held.drops.map((d) => `${d.x},${d.y},${d.fade}`).join('|') === frame);
 	}
 
 	// Deterministic, like the wind: the same seed replays the same weather, and

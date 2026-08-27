@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
+import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
 import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain } from './hud.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
-import { RainField } from './rain.js';
+import { RainField, dropDrift } from './rain.js';
 import { Rainfall } from './rainfall.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -316,6 +317,11 @@ async function boot() {
 					// rainfall.js, and it is worth being able to see it.
 					streaks: rainfall ? rainfall.drops : 0,
 					perM3: Math.round(rain.dropsPerM3),
+					// Water on the lens: how many beads the field looks through,
+					// how wide they are, and which way they are being pushed.
+					lensDrops: lens.dropCount,
+					beadMm: +lens.beadMm.toFixed(2),
+					drift: { x: +drift.x.toFixed(2), y: +drift.y.toFixed(2) },
 					visibility: Math.round(Math.min(rain.visibility, 1e6)),
 				},
 				link: {
@@ -426,6 +432,11 @@ function rainSky(fogScale) {
 	// fogScale is 1 in the clear and about 2 in a downpour.
 	return _sky.copy(CLEAR_SKY).lerp(RAIN_SKY, Math.min(1, (fogScale - 1) * 1.2));
 }
+// Where a bead sitting on the front element is being pushed, in g and in the
+// plane of the lens. Written once a frame into the same object rather than
+// allocated, like every other per-frame vector here.
+const drift = { x: 0, y: 0 };
+
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
 
@@ -482,6 +493,21 @@ function frame() {
 	rainfall.update({
 		rain, wind: physics.wind.out, velocity: physics.velocity,
 		shutter: lensShutter, dt: frozen ? 0 : dt, camera,
+	});
+
+	// And the water that landed on the glass rather than falling past it. Where
+	// a bead on the lens runs is not "down the screen": it is the apparent
+	// gravity — exactly minus the propulsion over the mass, since real gravity
+	// and the pseudo-force cancel — plus the airflow over the glass, which wins
+	// above about 6 m/s and sends the water *up* the frame. rain.js:dropDrift
+	// does that; here it is only handed the drone's own state.
+	dropDrift(physics.airVelocity, physics.propulsion.force, QUAD.mass,
+		cameraTilt * Math.PI / 180, drift);
+	lens.setRain({
+		wetness: rain.wetness,
+		dropMm: rain.dropDiameter,
+		drift,
+		dt: frozen ? 0 : dt,
 	});
 
 	// Before the render, not after: the picture this frame draws is the picture

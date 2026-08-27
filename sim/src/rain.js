@@ -261,3 +261,222 @@ export function dropDrift(air, force, mass, tiltRad, out = { x: 0, y: 0 }) {
 	out.y = (fy * c + fz * s) / GRAVITY;
 	return out;
 }
+
+// ---------------------------------------------------------------------------
+// Water on the front element, as something you can see
+//
+// An FPV camera has a flat protective window a few millimetres ahead of the
+// lens proper, and that window is what the water actually lands on. Two of the
+// camera's own numbers then decide everything about how a drop on it looks —
+// and, notably, the weather decides almost none of it:
+const APERTURE_MM = 1.0;    // entrance pupil; f = 2.1 mm at f/2 is about a mm
+const STANDOFF_MM = 8.0;    // window to entrance pupil
+const WINDOW_MM = 10.0;     // how much of the window the field looks through
+
+// A drop that lands and beads up is wider than the drop that fell: the same
+// water spread as a hemisphere instead of a sphere. Volume conservation gives
+// the factor and nothing is fitted — (pi/6)d^3 = (pi/12)D^3, so D = 2^(1/3) d.
+const BEAD_SPREAD = Math.cbrt(2);
+
+// And it keeps growing, because the next drop to land on it joins it. This is
+// the one number in here fitted rather than derived, and it is what makes a
+// soaked lens read as a few fat blobs instead of a hundred small ones.
+const MERGE_GAIN = 0.6;
+
+// What the window holds at a given wetness. `wetness` is already the wetted
+// fraction — that is what it means, since the deposition term in update() is
+// proportional to the bare glass left — so the count is just that fraction of
+// the window's area divided by the area one bead covers.
+//
+// The result is a small number, and that is the finding: you see a handful of
+// drops, not a field of them, because the window is ten millimetres across.
+// A procedural drop field would be solving a problem this does not have.
+export function lensDrops(wetness, dropDiameterMm) {
+	if (!(wetness > 0) || !(dropDiameterMm > 0)) return { count: 0, beadMm: 0 };
+	const beadMm = dropDiameterMm * BEAD_SPREAD * (1 + MERGE_GAIN * wetness);
+	const windowArea = Math.PI * WINDOW_MM * WINDOW_MM / 4;
+	const beadArea = Math.PI * beadMm * beadMm / 4;
+	return { count: (wetness * windowArea) / beadArea, beadMm };
+}
+
+// What one bead does to the picture. This is the whole reason the two failed
+// attempts failed, so it is worth stating plainly.
+//
+// A bead sitting on the window is nowhere near focus, and "how out of focus" is
+// not the question — the question is which rays it touches. Every point of the
+// window is crossed by the whole cone that the entrance pupil accepts, so a
+// bead of diameter D at standoff s interferes with the picture over the
+// convolution of the bead with the pupil: an angular disc of diameter
+// (D + A)/s, with a flat core of (D - A)/s where the bead covers the pupil
+// completely and a soft skirt out to the rim where it only clips it.
+//
+// Three things fall straight out of that and all three were asked for:
+//
+//   - the footprint is *large* and barely depends on the drop's size, because
+//     the aperture term is comparable to D. Millimetre of water, tens of
+//     degrees of picture;
+//   - a drop bigger than the pupil is opaque at its centre; one smaller than
+//     the pupil never is, whatever its size, because it can only ever clip part
+//     of the cone. That is "certaines presque invisibles, d'autres beaucoup
+//     plus présentes", and it is geometry rather than a random opacity;
+//   - the edge is soft for free, and the softness is the pupil's diameter.
+//
+// And the content of the disc is not an image of anything: it is every
+// direction the pupil can see through that bead, averaged. Which is why the
+// honest way to draw it is a very wide blur, and why refraction — a *sharp*
+// image, merely displaced — could never have looked right.
+export function dropFootprint(beadMm) {
+	const sum = beadMm + APERTURE_MM;
+	return {
+		angle: sum / STANDOFF_MM,                                  // radians
+		core: Math.max(0, (beadMm - APERTURE_MM) / sum),           // 0..1 of the radius
+		peak: Math.min(1, (beadMm / APERTURE_MM) ** 2),            // opacity at the centre
+	};
+}
+
+// A bead does not slide until the driving force beats the contact line holding
+// it: rho V a > k gamma w, i.e. a threshold that goes as 1/D^2. Big drops run,
+// small ones never do, and that is the whole of "la majorité restent presque
+// fixes" — no random "is this one mobile" flag is needed. Set so a 3 mm bead
+// breaks away at one g, which puts a 1 mm bead at nine and therefore out of
+// reach of anything this quad can pull.
+const PIN_G_MM2 = 9.0;
+
+// Once it is running: viscous, so speed goes as the excess force times the
+// bead's cross-section. A 3 mm bead at one g of excess runs at 20 mm/s, which
+// is what water does on a windscreen.
+const RUN_MM_S = 2.2;       // mm/s per mm^2 per g of excess
+
+// The line above is a near-threshold expansion and stops meaning anything a few
+// g past the break-away point: a bead pushed that hard sheds and atomises
+// rather than accelerating, and what leaves the glass is already accounted for
+// in RainField.wetness. So the speed is capped at crossing the frame in about a
+// second, which is also as fast as anything can be followed by eye.
+const MAX_RUN_UNITS = 2.0;  // position units per second
+
+// It re-pins on the next defect it meets, roughly one bead-width along, which
+// is why a running drop stutters instead of gliding. Nothing here draws a
+// trail: a trail is what made the last attempt read as a scratch.
+const REPIN_SPREAD = 0.7;   // how much the pinning strength varies, +/- fraction
+
+// Long enough not to pop, short enough not to lag the rain.
+const FADE_S = 0.8;
+
+// The population is single digits, so this is a list and not a field.
+const MAX_LENS_DROPS = 24;
+
+export class LensDrops {
+	constructor(seed = 0x2b17) {
+		this.seed = seed >>> 0;
+		this.rng = mulberry32(this.seed);
+		// x, y in [-1,1] over the frame; one unit is half the window.
+		this.drops = [];
+		this.count = 0;
+		this.target = 0;
+		this.beadMm = 0;
+	}
+
+	reset() {
+		this.rng = mulberry32(this.seed);
+		this.drops.length = 0;
+		this.count = 0;
+		this.target = 0;
+		this.beadMm = 0;
+	}
+
+	// wetness/dropDiameterMm come from RainField; drift is dropDrift()'s answer,
+	// a specific force in the plane of the glass in units of g. dt is zero when
+	// the sim is frozen, which is all it takes to stop the water dead.
+	update({ wetness = 0, dropDiameterMm = 0, drift = null, dt = 0 } = {}) {
+		const { count, beadMm } = lensDrops(wetness, dropDiameterMm);
+		this.target = count;
+		this.beadMm = beadMm;
+
+		// Dry is inert, strictly: no drop, no filter, no random number drawn.
+		// Same promise the rest of this file makes.
+		if (this.drops.length === 0 && count <= 0) { this.count = 0; return this; }
+
+		const want = Math.min(MAX_LENS_DROPS, Math.round(count));
+		const live = this.drops.filter((d) => !d.dying).length;
+		// The direction water is running, if it is running at all. Drops that
+		// leave come back in on the upwind edge, because that is where the ones
+		// being pushed across the glass come from.
+		const gx = drift ? drift.x : 0, gy = drift ? drift.y : -1;
+		const g = Math.hypot(gx, gy);
+		for (let i = live; i < want; i++) this._spawn(beadMm, gx, gy, g);
+		for (let i = want; i < live; i++) {
+			// The oldest still-living drop goes: it is the one that has had the
+			// longest to be blown off.
+			let oldest = null;
+			for (const d of this.drops) if (!d.dying && (!oldest || d.age > oldest.age)) oldest = d;
+			if (oldest) oldest.dying = true;
+		}
+
+		if (dt > 0) for (const d of this.drops) this._step(d, dt, gx, gy, g);
+		for (let i = this.drops.length - 1; i >= 0; i--) {
+			if (this.drops[i].fade <= 0 && this.drops[i].dying) this.drops.splice(i, 1);
+		}
+		this.count = this.drops.length;
+		return this;
+	}
+
+	_spawn(beadMm, gx, gy, g) {
+		if (this.drops.length >= MAX_LENS_DROPS) return;
+		// Sizes are a distribution: a lens with six identical beads on it reads
+		// as a screen effect, which is the trap the last attempt fell into.
+		const jitter = Math.exp(0.35 * gauss(this.rng) - 0.5 * 0.35 * 0.35);
+		const drop = {
+			x: this.rng() * 2 - 1,
+			y: this.rng() * 2 - 1,
+			bead: beadMm * jitter,
+			pin: 1 + REPIN_SPREAD * (this.rng() * 2 - 1),
+			slid: 0,
+			age: 0,
+			fade: 0,
+			dying: false,
+		};
+		// A drop appearing mid-frame is a new drop landing, which is right; a
+		// drop appearing mid-frame while the rest are visibly streaming across
+		// is not, so once the water is actually running — g past what holds a
+		// bead of this size — they come in from the edge it runs from instead.
+		// Testing the threshold and not merely g matters: in a hover g is one
+		// and only the odd bead creeps, so edge spawning there would park most
+		// of the population just off frame and leave the lens far too clean.
+		// Half again past the threshold, so it takes hold when the water is
+		// plainly running rather than the moment the biggest bead twitches.
+		if (g > 1.5 * PIN_G_MM2 / (beadMm * beadMm)) {
+			const t = this.rng() * 2 - 1;
+			drop.x = -gx / g * 1.1 + (-gy / g) * t;
+			drop.y = -gy / g * 1.1 + (gx / g) * t;
+		}
+		this.drops.push(drop);
+	}
+
+	_step(d, dt, gx, gy, g) {
+		d.age += dt;
+		d.fade = d.dying
+			? Math.max(0, d.fade - dt / FADE_S)
+			: Math.min(1, d.fade + dt / FADE_S);
+
+		if (g > 1e-4) {
+			const crit = (PIN_G_MM2 / (d.bead * d.bead)) * d.pin;
+			const excess = g - crit;
+			if (excess > 0) {
+				// mm/s on the glass; one position unit is half the window.
+				const v = Math.min(MAX_RUN_UNITS,
+					(RUN_MM_S * d.bead * d.bead * excess) / (WINDOW_MM / 2));
+				const step = v * dt;
+				d.x += (gx / g) * step;
+				d.y += (gy / g) * step;
+				d.slid += step;
+				// Re-pinned on the next defect, about a bead-width along.
+				if (d.slid > d.bead / (WINDOW_MM / 2)) {
+					d.slid = 0;
+					d.pin = 1 + REPIN_SPREAD * (this.rng() * 2 - 1);
+				}
+			}
+		}
+		// Off the window: blown clear, and it does not come back.
+		if (Math.abs(d.x) > 1.25 || Math.abs(d.y) > 1.25) d.dying = true;
+	}
+}

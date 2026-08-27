@@ -426,7 +426,8 @@ absolu, c'est de quel côté ça pousse.
 
 `src/rain.js` est le modèle, `src/rainfall.js` le rendu — même découpe que le
 vent, et pour la même raison : la moitié modèle n'importe ni THREE ni le DOM, ce
-qui la rend vérifiable dans `tools/selftest.mjs`.
+qui la rend vérifiable dans `tools/selftest.mjs`. Trois choses en sortent : les
+stries dans l'air, la baisse de visibilité, et les gouttes sur la lentille.
 
 Le curseur va de 0 à 25 mm/h, parce que toutes les relations utilisées sont
 publiées dans cette unité. Le diamètre médian suit Laws & Parsons
@@ -472,6 +473,51 @@ la surface d'écran couverte reste celle que la concentration demande.
 
 Les gouttes **sur** la lentille ne sont pas là : voir issue #28. Le modèle l'est
 déjà (`RainField.wetness`, `dropDrift`), c'est le rendu qui reste à trouver.
+
+
+#### Les gouttes sur la lentille
+
+Une caméra FPV a un hublot plat quelques millimètres devant l'objectif, et c'est
+là que l'eau se pose. Deux nombres de la **caméra** — pas de la météo — décident
+alors presque tout : la pupille d'entrée (≈ 1 mm) et ce recul (≈ 8 mm).
+
+Ce qui compte n'est pas la mise au point mais **quels rayons la bille touche**.
+Chaque point du hublot est traversé par tout le cône que la pupille accepte, donc
+une bille de diamètre `D` à un recul `s` intervient sur la convolution de la
+bille par la pupille : un disque angulaire de `(D + A)/s`, à cœur plat sur
+`(D − A)/s`. Il en découle, sans rien ajuster, que l'empreinte est **grande et
+presque indépendante de la taille de la goutte** (six fois la goutte, 2,8 fois
+l'empreinte), qu'une goutte **plus petite que la pupille n'est jamais opaque**
+puisqu'elle ne peut que rogner une partie du cône, et que le bord est doux de la
+largeur de la pupille. C'est aussi pourquoi la réfraction — une image nette,
+seulement déplacée — ne pouvait pas ressembler à quoi que ce soit.
+
+Le compte tombe de la même chaîne : `wetness` **est** la fraction mouillée (le
+dépôt dans `RainField.update()` est proportionnel au verre nu restant), donc le
+nombre de billes est cette fraction du hublot divisée par l'aire d'une bille.
+Dix millimètres de hublot sur trois de bille, cela fait **moins d'une dizaine de
+gouttes** : une lentille mouillée, ce sont sept ou huit grosses taches. C'est la
+raison pour laquelle `LensDrops` est une liste d'uniformes et pas un champ
+procédural — et donc pourquoi rien ne lit comme une grille.
+
+Ce que la goutte **montre** est une autre taille que ce qu'elle **couvre** : la
+première vient du cône entier où la bille diffuse, bien plus large que le disque,
+et biaisée vers le haut du cadre parce que dehors c'est le ciel qui domine ce
+cône. D'où le comportement voulu : pâle devant une façade, invisible devant le
+ciel. Cette moyenne large est prise dans la chaîne de mips de la cible du
+composer — c'est le seul changement que les gouttes imposent au reste de la
+passe, et il est là parce qu'une poignée de taps sur autant d'image donne du
+grain et pas de l'eau.
+
+Le **ruissellement** suit `dropDrift()`, qui n'est pas « vers le bas » : c'est la
+pesanteur apparente (exactement `-force/masse`) plus la traînée du flux d'air,
+qui l'emporte dès ~6 m/s — l'eau remonte donc le cadre en vol rapide. Une bille
+ne part que quand la force bat la ligne de contact qui la retient, un seuil en
+`1/D²` : les grosses courent, les petites ne bougent jamais, sans aucun drapeau
+« celle-ci est mobile ». Elle se réaccroche au défaut suivant environ une largeur
+de bille plus loin, ce qui donne le mouvement saccadé. **Rien ne dessine de
+traînée** : c'est la traînée qui faisait lire l'ancienne tentative comme une
+rayure sur l'objectif.
 
 ### Le son
 

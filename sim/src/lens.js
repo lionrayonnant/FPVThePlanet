@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { LensDrops, dropFootprint } from './rain.js';
 
 // Barrel distortion, lateral chromatic aberration, edge softness, vignetting,
 // motion blur and video-link degradation all in one fullscreen pass.
@@ -39,6 +40,49 @@ const VIGNETTE = 0.55;  // how dark the corner gets at full strength
 // 16 is also 4x4, which is what the digital mode averages a macroblock with.
 const MAX_TAPS = 16;
 
+// Water on the front element. The physics is all in rain.js (see lensDrops and
+// dropFootprint there, which is where the argument lives); these are the three
+// numbers that are about drawing it rather than about optics.
+//
+// Two different sizes, and conflating them is what made the first pass of this
+// read as a local smear instead of as water:
+//
+//   - how far across the picture the bead reaches is the pupil convolution, and
+//     that is the disc's radius, which rain.js works out;
+//   - what the bead *shows* comes from every direction it scatters into, which
+//     is far wider than that — a bead is a ball of water, it collects most of a
+//     hemisphere. So the content is averaged over a good multiple of the disc.
+//
+// Sample only the disc and you get the picture behind it, blurred, which is a
+// smudge. Sample the cone and you get the pale, low-contrast wash that a drop
+// actually is. Not much further than this, though: taken to the whole frame the
+// average stops being local at all and a drop on the sky comes out *darker*
+// than the sky, because it has swallowed the city.
+const DROP_BLUR = 2.0;
+// And that cone is dominated by whatever is brightest in it, which outdoors is
+// the sky. So the average is taken from higher up the frame — and by a fraction
+// of the *frame*, not of the disc, because the bead's reach is a hemisphere and
+// has nothing to do with how big its footprint happens to be. That one choice
+// is the whole look: pale against a facade, because it is holding sky; nothing
+// at all against the sky, because there it is holding more of the same.
+const DROP_SKY = 0.18;      // fraction of the picture height, upwards
+// The bead's rim is where rays graze it, so it turns through the largest angles
+// and collects from the widest cone of all. That is what puts a bright ring
+// round a drop — and it is a *wider average*, not a gain: brightening what is
+// already there would draw a ring on a uniform sky, where concentrating light
+// that is the same in every direction changes nothing. Written this way the
+// rim is bright against a facade, because it reaches further into the sky, and
+// exactly invisible against the sky, because there is nothing else to reach.
+const DROP_RIM = 1.1;      // extra collection radius at the rim, as a fraction
+
+// The drop count is single digits (rain.js: a ten-millimetre window), so the
+// population is a list of uniforms and not a procedural field — no cells, and
+// therefore none of the grid the last attempt read as. The loop bound has to be
+// a compile-time constant, so it is bucketed and recompiles only on a crossing,
+// the same rule TAPS and LINK_MODE follow.
+const DROP_BUCKETS = [0, 4, 8, 12, 16, 24];
+const MAX_DROPS = DROP_BUCKETS[DROP_BUCKETS.length - 1];
+
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
 // on-the-crossing rule. LINK_OFF must render byte-identically to the pass as it
@@ -48,7 +92,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -63,6 +107,10 @@ const LensShader = {
 		uSeverity: { value: 1 },
 		uTime: { value: 0 },
 		uResolution: { value: new THREE.Vector2(1, 1) },
+		// x, y in the same square space as `base`; z the footprint radius there;
+		// w the flat core as a fraction of that radius.
+		uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
+		uDropAlpha: { value: new Float32Array(MAX_DROPS) },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -81,6 +129,14 @@ const LensShader = {
 		uniform float uTime;
 		uniform vec2 uResolution;
 		varying vec2 vUv;
+
+		#if DROPS > 0
+			#define DROP_BLUR ${DROP_BLUR.toFixed(2)}
+			#define DROP_SKY ${DROP_SKY.toFixed(2)}
+			#define DROP_RIM ${DROP_RIM.toFixed(2)}
+			uniform vec4 uDrops[DROPS];
+			uniform float uDropAlpha[DROPS];
+		#endif
 
 		#if LINK_MODE != 0
 			float hash12(vec2 p) {
@@ -249,6 +305,74 @@ const LensShader = {
 			}
 			vec3 c = sum / float(TAPS);
 
+			// ---- water on the front element -----------------------------------
+			// Before the vignette and before everything the link does, because the
+			// bead is glass in front of the sensor and both of those happen after
+			// it. Evaluated in base and not in q: the drop sits ahead of the
+			// whole optic, so it is barrel-distorted along with the world behind
+			// it — it grows at the centre and squeezes at the edge with the
+			// picture, rather than floating on top of it.
+			#if DROPS > 0
+			{
+				float mask = 0.0;    // how much of this pixel is water
+				float rim = 0.0;     // and how much of it is the bead's bright edge
+				float blur = 0.0;    // radius of the widest bead covering it
+				vec2 push = vec2(0.0);
+				for (int i = 0; i < DROPS; i++) {
+					vec4 d = uDrops[i];
+					vec2 rel = base - vec2(d.x * uAspect, d.y);
+					float t = length(rel) / max(d.z, 1e-5);
+					// The convolution of the bead with the entrance pupil: flat and
+					// opaque out to the core, then a skirt to the rim. rain.js's
+					// dropFootprint() is where that shape comes from, and the soft
+					// edge is the pupil's diameter rather than a taste decision.
+					float a = uDropAlpha[i] * (1.0 - smoothstep(d.w, 1.0, t));
+					// The grazing band just inside the rim, where the bead turns
+					// rays through the biggest angles.
+					rim = max(rim, uDropAlpha[i]
+						* smoothstep(0.70, 0.94, t) * (1.0 - smoothstep(0.94, 1.0, t)));
+					// Over, not add: two beads overlapping are still one thickness of
+					// water as far as the picture is concerned.
+					mask += a - mask * a;
+					blur = max(blur, d.z * step(0.004, a));
+					// The bead is a weak lens as well as a diffuser. Kept tiny on
+					// purpose: refraction is a detail here, not the mechanism. Treated
+					// as the mechanism it made soap bubbles.
+					push += rel * (a * 0.06);
+				}
+				if (mask > 0.003) {
+					// Square space to uv. The half in each is ndc to uv; the aspect is
+					// there because x was stretched to make the lens radially
+					// symmetric on the sensor and has to be unstretched to sample.
+					vec2 toUv = vec2(0.5 / uAspect, 0.5);
+					// No image of the world survives the trip through a bead a
+					// millimetre from the glass — it shows every direction the pupil
+					// can see through it, averaged. So the content is a very wide
+					// blur, biased towards the bright half of that cone, and never a
+					// displaced copy of the picture.
+					// Wider at the rim than in the middle, which is the ring.
+					float wide = 1.0 + DROP_RIM * rim;
+					vec2 cuv = uvHere + push * toUv + vec2(0.0, DROP_SKY * wide);
+					// One mip level per collection radius: the level whose texels are
+					// that wide already holds the average of everything inside them,
+					// correctly weighted and for one tap. Four of them rather than one
+					// so the disc is not a single flat colour — a bead does have
+					// structure, it is just very low contrast.
+					float radUv = 0.5 * blur * DROP_BLUR * wide;
+					float lod = log2(max(radUv * uResolution.y, 1.0));
+					vec3 acc = vec3(0.0);
+					for (int k = 0; k < 4; k++) {
+						float ang = (float(k) + dither) * 1.5707963;
+						acc += texture2D(tDiffuse,
+							clamp(cuv + vec2(cos(ang), sin(ang)) * radUv * toUv,
+							      vec2(0.002), vec2(0.998)), lod).rgb;
+					}
+					acc *= 0.25;
+					c = mix(c, acc, min(mask, 1.0));
+				}
+			}
+			#endif
+
 			c *= 1.0 - uVignette * pow(r, 2.5);
 
 			// ---- and what it does to the picture itself -----------------------
@@ -358,7 +482,15 @@ export class FpvLens {
 		const target = new THREE.WebGLRenderTarget(1, 1, {
 			type: THREE.UnsignedByteType,
 			colorSpace: THREE.LinearSRGBColorSpace,
-			minFilter: THREE.LinearFilter,
+			// A mip chain, for one reason: the drops. What a bead shows is an
+			// average over most of a hemisphere, and a handful of taps spread
+			// over that much picture is a noisy estimate of it — it came out as
+			// grain rather than as water. A mip level *is* that average, and
+			// three regenerates the chain after every render into this target.
+			// Nothing else in the pass asks for a biased level, so nothing else
+			// changes.
+			generateMipmaps: true,
+			minFilter: THREE.LinearMipmapLinearFilter,
 			magFilter: THREE.LinearFilter,
 			wrapS: THREE.ClampToEdgeWrapping,
 			wrapT: THREE.ClampToEdgeWrapping,
@@ -394,8 +526,21 @@ export class FpvLens {
 		this._hasRendered = false;
 		this.frozen = false;
 
+		// The water on the front element. The population lives in rain.js, is
+		// pure JS and is checked at the bench; this end only draws it. Pooled
+		// because the uniform array is resized on a bucket crossing and there is
+		// no reason to hand the GC a new set of vectors when that happens.
+		this._drops = new LensDrops();
+		this._dropPool = Array.from({ length: MAX_DROPS }, () => new THREE.Vector4());
+		this._dropBucket = 0;
+		this._rain = { wetness: 0, dropMm: 0, drift: null, dt: 0 };
+
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
 	}
+
+	// For __sim.debug(): what the pilot is actually looking through.
+	get dropCount() { return this._drops.count; }
+	get beadMm() { return this._drops.beadMm; }
 
 	setEnabled(on) {
 		this.enabled = on;
@@ -425,6 +570,58 @@ export class FpvLens {
 		this._updateDefines();
 	}
 
+	// The weather on the glass: wetness and the fallen drop's diameter from
+	// RainField, `drift` from dropDrift() — a specific force in the plane of the
+	// lens, in g. dt is the caller's, already zeroed when the sim is frozen; the
+	// digital freeze is applied on top of it in render(), where it is known.
+	//
+	// No clock uniform is involved, and that is deliberate: #24 lost time to
+	// uTime running on under a held frame. Here the drops are a CPU population
+	// advanced by a dt, so a dt of zero stops them dead — there is no second
+	// clock that can be forgotten.
+	setRain({ wetness = 0, dropMm = 0, drift = null, dt = 0 } = {}) {
+		this._rain.wetness = wetness;
+		this._rain.dropMm = dropMm;
+		this._rain.drift = drift;
+		this._rain.dt = dt;
+	}
+
+	// Advance the population and pack it into the uniforms. tanHalf is the
+	// camera's, and is what turns an angular footprint into the square space the
+	// shader evaluates the field in.
+	_updateDrops(dt) {
+		const drops = this._drops.update({
+			wetness: this._rain.wetness,
+			dropDiameterMm: this._rain.dropMm,
+			drift: this._rain.drift,
+			dt,
+		}).drops;
+
+		const bucket = DROP_BUCKETS.find((b) => b >= drops.length) ?? MAX_DROPS;
+		if (bucket !== this._dropBucket) {
+			this._dropBucket = bucket;
+			this._u.uDrops.value = this._dropPool.slice(0, bucket);
+			this._u.uDropAlpha.value = new Float32Array(bucket);
+			this._updateDefines();
+		}
+		if (bucket === 0) return;
+
+		const tanHalf = this._u.uTanHalf.value;
+		const alpha = this._u.uDropAlpha.value;
+		for (let i = 0; i < bucket; i++) {
+			const d = drops[i];
+			if (!d) { alpha[i] = 0; this._dropPool[i].set(0, 0, 0, 0); continue; }
+			const f = dropFootprint(d.bead);
+			// Angle to the square space the shader works in: y = 1 there is the
+			// tangent of the half field of view, so a half-angle becomes a radius
+			// by the same tangent.
+			const radius = Math.tan(0.5 * f.angle) / tanHalf;
+			this._dropPool[i].set(d.x, d.y, radius, f.core);
+			alpha[i] = f.peak * d.fade;
+		}
+		this._u.uDropAlpha.needsUpdate = true;
+	}
+
 	// Recompiling the shader is only worth it on a crossing, never on every drag
 	// of a slider — so both defines are decided here and written only when they
 	// actually change.
@@ -435,10 +632,12 @@ export class FpvLens {
 		const taps = (this._shutter > 0 || this._u.uSoft.value > 0 || this._linkMode === LINK_DIGITAL)
 			? MAX_TAPS : 1;
 		const defines = this.pass.material.defines;
-		if (taps === this._taps && defines.LINK_MODE === this._linkMode) return;
+		if (taps === this._taps && defines.LINK_MODE === this._linkMode
+			&& defines.DROPS === this._dropBucket) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
+		defines.DROPS = this._dropBucket;
 		this.pass.material.needsUpdate = true;
 	}
 
@@ -480,6 +679,11 @@ export class FpvLens {
 		const frozen = this._linkMode === LINK_DIGITAL && !!(link && link.frozen) && this._hasRendered;
 		this.renderPass.enabled = !frozen;
 		this.frozen = frozen;
+
+		// A held frame is a picture that stopped arriving, so the water on the
+		// glass has to stop with it — it is *in* that picture. The RF snow is
+		// not, and keeps crawling, which is why uTime above is not gated here.
+		this._updateDrops(frozen ? 0 : this._rain.dt);
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
 		// so it still works in free camera, where the physics step is skipped. A

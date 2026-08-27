@@ -939,10 +939,6 @@ sur une vraie vidéo, ne sont pas modélisés.
 
 **Pas fait, et pourquoi** :
 
-- les **gouttes sur la lentille** → issue #28. Deux tentatives, réfraction puis
-  taches opaques, rejetées à l'œil. Le modèle reste (`RainField.wetness`,
-  `dropDrift`, `Physics.airVelocity`, tous testés) et n'est **pas** utilisé par
-  l'application pour l'instant — c'est délibéré ;
 - **sol mouillé, réflexions, éclairage d'averse** → issue #29, bloquée par le
   même arbitrage éclairage que #22 et #23 ;
 - la pluie **n'attaque pas le lien vidéo** : à 5,8 GHz l'atténuation sur 500 m
@@ -951,3 +947,72 @@ sur une vraie vidéo, ne sont pas modélisés.
 **Pas vérifié** : le ressenti. Voler dans une averse est-il difficile de la
 bonne façon, et la baisse de visibilité est-elle gênante au bon endroit — ça ne
 se mesure pas ici.
+
+
+## Les gouttes sur la lentille (issue #28)
+
+Le troisième volet de la pluie, sorti de #24 après deux rendus rejetés à l'œil
+(réfraction, puis taches blanches opaques). `lensDrops()`, `dropFootprint()` et
+`LensDrops` dans `src/rain.js` ; le rendu dans le bloc `#if DROPS` de
+`src/lens.js`.
+
+**Ce qui a débloqué la chose**, et qui explique du même coup pourquoi les deux
+tentatives précédentes ne pouvaient pas marcher : ce n'est pas une question de
+mise au point mais de **quels rayons la bille touche**. Chaque point du hublot
+est traversé par tout le cône que la pupille d'entrée accepte, donc une bille de
+diamètre D à un recul s intervient sur la convolution de la bille par la
+pupille — un disque angulaire de (D + A)/s, à cœur plat sur (D − A)/s. Trois
+conséquences, et les trois étaient demandées dans #28 :
+
+- l'empreinte est **grande et ne dépend presque pas de la taille de la goutte** :
+  six fois la goutte donne 2,8 fois l'empreinte. Un millimètre d'eau, trente
+  degrés d'image ;
+- une goutte **plus petite que la pupille n'est jamais opaque**, quelle que soit
+  sa taille, parce qu'elle ne peut que rogner une partie du cône. C'est
+  « certaines presque invisibles, d'autres beaucoup plus présentes », et c'est
+  de la géométrie, pas une opacité tirée au hasard ;
+- le bord doux vient gratuitement, et sa douceur est le diamètre de la pupille.
+
+**Le nombre qui surprend** : un hublot de dix millimètres divisé par une bille
+de trois en fait **moins d'une dizaine**. Une lentille mouillée, ce sont sept ou
+huit grosses taches, jamais un champ. D'où une liste d'uniformes et pas un champ
+procédural — et donc aucune grille, qui était le défaut de la tentative 2.
+
+**Les deux erreurs faites en route**, notées parce qu'elles se ressemblent :
+
+1. **échantillonner le disque au lieu du cône.** L'étendue du disque est la
+   convolution ci-dessus ; son *contenu* vient de tout ce que la bille diffuse,
+   qui est bien plus large. Sampler le disque donne l'image de derrière, floue,
+   c'est-à-dire une bavure. C'est `DROP_BLUR` et `DROP_SKY` ;
+2. **le bord lumineux écrit comme un gain.** Multiplier ce qui est déjà là
+   dessine un anneau bien visible sur un ciel uniforme, alors que concentrer une
+   lumière identique dans toutes les directions ne change rien. Le rim est donc
+   écrit comme une **collecte plus large** : lumineux devant une façade parce
+   qu'il va chercher plus loin dans le ciel, exactement invisible devant le ciel.
+
+**Une chaîne de mips sur la cible du composer**, et c'est le seul changement que
+les gouttes imposent au reste : la moyenne large est bruitée si on la prend avec
+une poignée de taps — ça sortait en grain, pas en eau. Un niveau de mip *est*
+cette moyenne, pondérée correctement et pour un tap. Rien d'autre dans la passe
+ne demande de niveau biaisé.
+
+**Le piège de #24 est dissous plutôt que corrigé** : la population est en JS et
+avance sur un `dt`, donc un `dt` nul l'arrête net. Il n'y a pas de seconde
+horloge à oublier, et `uDropTime` n'existe pas.
+
+**Vérifié au banc** — 10 checks de plus dans la section `pluie` : compte et
+taille contre l'humidité, coalescence, les deux propriétés de l'empreinte,
+lentille sèche inerte, stationnaire qui garde ses gouttes en cadre, eau qui
+remonte le cadre en vol rapide, image gelée qui fige l'eau.
+
+**Vérifié en vol** (`?scene=tour-eiffel`, chrome-devtools, DOM en direct) :
+100 fps et 7 draw calls sous l'averse ; huit gouttes à 0,63 d'humidité pour des
+billes de 2,9 mm ; la pause fige les gouttes et le `Espace` les relance ; en
+numérique, **345 images gelées d'affilée sans que l'eau bouge d'un pixel** ;
+couper la pluie ramène `DROPS` à 0, donc au shader d'avant, octet pour octet.
+
+**Pas vérifié, et c'est la seule spec qui compte** : l'œil du pilote. La densité,
+la distribution de tailles et la durée de vie sont exactement ce que #28 disait
+qu'il resterait à trouver, et les constantes de `lens.js` sont groupées en haut
+du fichier pour être bougées ensemble.
+
