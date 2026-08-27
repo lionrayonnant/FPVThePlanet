@@ -17,28 +17,36 @@ const D0 = 10;
 // Where the picture starts to go, and where it is gone. The gap between them is
 // the whole fade, so it is what sets how gradual the degradation looks.
 //
-// Calibrated so that distance alone is never really the problem inside a 1.2 km
-// tile — which is honest, a 5.8 GHz link with a clear line of sight goes for
-// kilometres — and occlusion is. At 900 m clear (corner to corner) the loss is
-// 39 dB, i.e. quality 0.6: visibly noisy, entirely flyable. Four metres of
-// building at 100 m is 52 dB, i.e. quality 0.24. That asymmetry is the point of
-// the issue: a reason not to go behind a building, not a punishment for range.
-const LOSS_CLEAN = 26;
-const LOSS_DEAD = 60;
+// Calibrated for a continuous slide rather than a cliff. Two things follow from
+// that, and both were wrong in the first version:
+//
+// The fade is deliberately WIDE (58 dB between the first visible degradation and
+// no picture at all). A narrow fade makes every dB matter, and since the
+// geometry hands us large steps — you round a corner and a whole building
+// appears on the path — a narrow fade turns those steps into an on/off switch.
+//
+// And it starts EARLY, at 18 dB, which is about 80 m. There is then always some
+// degradation to read, sliding with distance the whole time you fly, instead of
+// a perfect picture right up to the moment it is gone. That is what makes the
+// link legible: you are told you are running out of margin before you run out.
+const LOSS_CLEAN = 18;
+const LOSS_DEAD = 76;
 
 // Blocked at all, before any depth is counted. A ridge line or a thin roof is
 // a single sheet of geometry with no far face, so its measured depth is
 // honestly zero — and yet standing behind a hill costs you the link. This is
 // the diffraction term: the signal bends around the edge and arrives weakened.
-const KNIFE_EDGE_DB = 12;
+const KNIFE_EDGE_DB = 8;
 
-// Per metre of material on the path, on top of the edge term. A concrete wall
-// runs 10-20 dB at 5.8 GHz, so a couple of metres of Paris facade should
-// already hurt badly and a whole building should be fatal. Capped because the
-// two-sided raycast can report hundreds of metres through a city block, and
-// past a point dead is dead.
-const OBSTRUCTION_DB_PER_M = 8;
-const OBSTRUCTION_CAP = 60;
+// Depth of material, saturating rather than linear. A flat dB-per-metre was the
+// single biggest source of "fine, fine, gone": rounding a corner takes the span
+// from 0 to 10+ m between one frame and the next, and at 8 dB/m that is 80 dB
+// in one step — every building an instant kill, no matter how far away or how
+// thin. Saturating means the first few metres carry most of the cost, which is
+// also closer to the truth: the signal is already deep in the noise after one
+// wall, and the ninth wall cannot take much more away than the second did.
+const OBSTRUCTION_DB = 38;    // asymptote, for a span much deeper than the scale
+const OBSTRUCTION_SCALE = 14; // metres at which 63% of it has been paid
 
 // Received power at D0 with nothing in the way. Only used to report a number
 // that looks like an RSSI; it plays no part in the quality calculation. Puts
@@ -48,8 +56,13 @@ const RSSI_REF_DBM = -35;
 // Asymmetric, because that is what a diversity receiver does: it loses lock
 // almost immediately and takes its time coming back. Symmetric smoothing makes
 // flying back out from behind a building feel instant and wrong.
-const TAU_FALL = 0.05;
-const TAU_RISE = 0.35;
+// Slow enough to read as a fade. These are doing more work than they look like:
+// the geometry is a step function — the wall is either on the path or it is not
+// — so these time constants are the only thing standing between "a link that
+// fades" and "a switch". At 0.05 s the drop was over in three frames, which is
+// exactly the "pouf" it felt like.
+const TAU_FALL = 0.30;
+const TAU_RISE = 0.70;
 
 // Amplitude of the idle wander, in dB. Without it the RSSI readout is perfectly
 // still in a hover, which no radio ever is.
@@ -59,8 +72,8 @@ const NOISE_TAU = 0.25;
 // Digital receivers do not fade, they hold the last good frame and then drop
 // it. Two thresholds and not one: at a single threshold the picture strobes
 // between frozen and clean while you hover on the boundary.
-const FREEZE_ENTER = 0.35;
-const FREEZE_LEAVE = 0.45;
+const FREEZE_ENTER = 0.18;
+const FREEZE_LEAVE = 0.28;
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -106,7 +119,7 @@ export class VideoLink {
 	update({ distance, blocked, span, dt }) {
 		const spread = 20 * Math.log10(Math.max(distance, D0) / D0);
 		const shadow = blocked
-			? Math.min(KNIFE_EDGE_DB + span * OBSTRUCTION_DB_PER_M, OBSTRUCTION_CAP)
+			? KNIFE_EDGE_DB + OBSTRUCTION_DB * (1 - Math.exp(-span / OBSTRUCTION_SCALE))
 			: 0;
 		const target = (spread + shadow) * this.severity;
 

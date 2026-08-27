@@ -204,8 +204,48 @@ console.log('\nvideo link');
 	// The whole point of the raycast: distance alone must not be what kills the
 	// picture, or there was no reason to cast a ray at all.
 	check('a clear link across the whole tile is still flyable', far > 0.4, far.toFixed(2));
-	check('a building costs far more than the distance to it', behind < 0.05,
+	check('a building costs far more than the distance to it', behind < far / 3,
 		`${far.toFixed(2)} clear vs ${behind.toFixed(2)} behind 12 m of building`);
+
+	// Degraded, not dead. One building between you and the pilot has to be
+	// something you can fly back out of — the first calibration killed the
+	// picture outright and made the whole feature unplayable.
+	const oneBuilding = settle({ distance: 80, blocked: true, span: 12 });
+	check('one building degrades the picture without killing it',
+		oneBuilding > 0.25 && oneBuilding < 0.75, oneBuilding.toFixed(2));
+	// Clipping the corner of a roof is not the same event as flying behind a
+	// block, and the two-sided raycast exists so the model can tell them apart.
+	const clipped = settle({ distance: 80, blocked: true, span: 0 });
+	check('clipping an edge costs much less than going behind a building',
+		clipped > oneBuilding + 0.2, `${clipped.toFixed(2)} clipped vs ${oneBuilding.toFixed(2)} behind`);
+
+	// The anti-cliff check, and the reason most of the constants are what they
+	// are. The geometry is a step function — the wall is on the path or it is
+	// not — so nothing but the time constants stands between a fade and a
+	// switch. Fly from clear into shadow and watch every frame.
+	link.reset();
+	for (let i = 0; i < 600; i++) link.update({ dt: 1 / 60, distance: 80, blocked: false, span: 0 });
+	const walk = [];
+	for (let i = 0; i < 240; i++) {
+		walk.push(link.update({ dt: 1 / 60, distance: 80, blocked: true, span: 12 }).quality);
+	}
+	let biggestStep = 0;
+	for (let i = 1; i < walk.length; i++) biggestStep = Math.max(biggestStep, Math.abs(walk[i] - walk[i - 1]));
+	// Frames spent anywhere between the two settled levels, i.e. how much of the
+	// transition you actually get to see.
+	const inTransition = walk.filter((q) => q > oneBuilding + 0.03 && q < walk[0] - 0.03).length;
+	check('rounding a corner is a slide, not a switch', biggestStep < 0.06,
+		`biggest single-frame change ${biggestStep.toFixed(3)}`);
+	check('the transition is visible for long enough to read', inTransition > 12,
+		`${inTransition} frames (${(inTransition / 60 * 1000).toFixed(0)} ms) in transition`);
+
+	// And the same in the other direction: distance has to give a continuous
+	// gradient rather than a plateau followed by an edge.
+	const ladder = [50, 150, 300, 450, 600, 750, 900].map((d) => settle({ distance: d, blocked: false, span: 0 }));
+	let biggestRung = 0;
+	for (let i = 1; i < ladder.length; i++) biggestRung = Math.max(biggestRung, ladder[i - 1] - ladder[i]);
+	check('quality slides continuously with distance', biggestRung < 0.2,
+		ladder.map((q) => q.toFixed(2)).join(' → '));
 
 	// Reacquisition is deliberately slower than loss, the way a diversity
 	// receiver behaves. Measured as time-to-halfway in each direction.

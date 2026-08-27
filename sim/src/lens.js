@@ -60,6 +60,7 @@ const LensShader = {
 		uSoft: { value: 0 },
 		uVignette: { value: 0 },
 		uLink: { value: 1 },
+		uSeverity: { value: 1 },
 		uTime: { value: 0 },
 		uResolution: { value: new THREE.Vector2(1, 1) },
 	},
@@ -76,6 +77,7 @@ const LensShader = {
 		uniform mat3 uReproj;
 		uniform float uK1, uK2, uCA, uSoft, uVignette;
 		uniform float uLink;
+		uniform float uSeverity;
 		uniform float uTime;
 		uniform vec2 uResolution;
 		varying vec2 vUv;
@@ -99,6 +101,15 @@ const LensShader = {
 
 		// Macroblocks are 16 px, like the codecs this is imitating.
 		#define BLOCK_PX 16.0
+
+		// Rec.601: the weights the analog chain itself uses to build luma, which
+		// is the right basis here precisely because it is what is being imitated.
+		#define LUMA vec3(0.299, 0.587, 0.114)
+
+		// Chroma smear width, as a fraction of picture width. Composite chroma
+		// bandwidth is roughly an eighth of luma's, so colour carries about that
+		// much less horizontal detail.
+		#define CHROMA_W 0.008
 
 		void main() {
 			vec2 ndc = vUv * 2.0 - 1.0;
@@ -164,34 +175,44 @@ const LensShader = {
 				// of genuinely per-line noise on top.
 				float wobble = sin(row * 0.03 + uTime * 9.0) + sin(row * 0.011 - uTime * 5.3);
 				float lineNoise = hash12(vec2(row, floor(uTime * 60.0))) - 0.5;
-				float jitter = (wobble * 0.0022 + lineNoise * 0.0009) * fade * fade;
+				// A thin vertical structure is the worst case for this: the tower
+				// reads as visibly bending at displacements of two or three pixels,
+				// so the coefficient is set from how it looks on the tower, not
+				// from how it looks on the city.
+				float jitter = (wobble * 0.0015 + lineNoise * 0.0009) * fade * fade;
 				// Whole lines losing sync outright, rather than merely running late.
 				// Rare, large, and only once the link is genuinely going: at half
 				// quality there are none at all.
-				float torn = smoothstep(0.5, 0.0, uLink);
+				float torn = smoothstep(0.35, 0.0, uLink);
 				float tn = hash12(vec2(row * 0.37, floor(uTime * 15.0)));
 				float tear = step(1.0 - 0.07 * torn, tn) * (hash12(vec2(row, 7.0)) - 0.5) * 0.5 * torn;
 				// The rolling sync bar: a band that scrolls up the frame, drags the
 				// lines inside it sideways and dims them.
 				float d = abs(fract(vUv.y - fract(uTime * 0.23) + 0.5) - 0.5);
-				bar = smoothstep(0.045, 0.0, d) * fade;
+				// Quadratic like the rest: in flat sky the bar is the most visible
+				// artifact of the lot, so it has to stay out of the healthy half of
+				// the range entirely.
+				bar = smoothstep(0.045, 0.0, d) * fade * fade;
 				linkOff.x = jitter + tear + bar * 0.02;
 			#endif
 
 			#if LINK_MODE == 2
 				// Digital does not fade, it holds together and then shatters. The
 				// threshold curve is what makes it read as "fine, fine, gone".
-				dfade = smoothstep(0.7, 0.15, uLink);
+				dfade = smoothstep(0.6, 0.05, uLink);
 				vec2 blockId = floor(gl_FragCoord.xy / BLOCK_PX);
 				// Errors persist for several frames, the way a macroblock error
 				// survives until the next keyframe. Re-rolling them at 60 Hz would
 				// look like noise, not like compression.
 				float bn = hash12(blockId + floor(uTime * 8.0) * 37.0);
-				blocky = step(1.0 - dfade * dfade, bn);
+				// Never quite every block at once: a decoder that has lost
+				// everything freezes instead, and the freeze is handled on the JS
+				// side by simply not rendering the frame.
+				blocky = step(1.0 - dfade * dfade * 0.85, bn);
 				// A failed block shows a block from somewhere else — the decoder
 				// following a motion vector it never received a correction for.
 				vec2 disp = (vec2(hash12(blockId + 11.0), hash12(blockId + 29.0)) - 0.5)
-					* BLOCK_PX * 8.0 * dfade / uResolution;
+					* BLOCK_PX * 5.0 * dfade / uResolution;
 				// Snapping to the block centre is what flattens the block; the lens
 				// warp is re-added so the macroblocks still sit under the barrel
 				// distortion instead of floating on top of it.
@@ -232,38 +253,83 @@ const LensShader = {
 
 			// ---- and what it does to the picture itself -----------------------
 			#if LINK_MODE == 1
-				// Colour goes before luminance: the chroma subcarrier sits at the top
-				// of the video band and is the first thing the noise floor eats. That
-				// slide to black and white is the signature of a dying analog link.
-				float luma = dot(c, vec3(0.299, 0.587, 0.114));
-				c = mix(c, vec3(luma), smoothstep(0.6, 0.05, uLink));
+				// ---- what analog looks like when the link is perfect ----------
+				// This is the half the first version missed. A composite feed is
+				// not a clean picture that later breaks: it is soft, washed and
+				// colour-smeared from the very first frame, and that baseline is
+				// what makes it read as an FPV feed rather than as a renderer
+				// with a bug. Everything below this is what failure adds ON TOP.
+				//
+				// Chroma bandwidth is a fraction of luma's, so colour bleeds
+				// sideways while edges stay where they are. Four taps outside the
+				// main loop: this is a property of the signal, not of the lens, so
+				// it has no business riding the lens's sampling pattern.
+				// Jittered by the same per-pixel dither the tap loop uses, and for
+				// the same reason: four evenly spaced samples across 25 px are a
+				// comb, not a blur, and on a hard chroma edge like the tower
+				// against the sky that comb reads as a ghosted double image. The
+				// dither turns what is left of it into grain, which on a composite
+				// feed is the right kind of wrong.
+				vec3 ch = texture2D(tDiffuse, WRAPX(uvHere + vec2((-1.5 + dither) * CHROMA_W, 0.0))).rgb
+				        + texture2D(tDiffuse, WRAPX(uvHere + vec2((-0.5 + dither) * CHROMA_W, 0.0))).rgb
+				        + texture2D(tDiffuse, WRAPX(uvHere + vec2(( 0.5 + dither) * CHROMA_W, 0.0))).rgb
+				        + texture2D(tDiffuse, WRAPX(uvHere + vec2(( 1.5 + dither) * CHROMA_W, 0.0))).rgb;
+				ch *= 0.25;
+				float chLuma = dot(ch, LUMA);
+				// Luma keeps nearly all of its detail — only chroma is starved of
+				// bandwidth. Softening luma much at all reads as a lens that is out
+				// of focus rather than as a transmission that is band-limited.
+				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15)) + (ch - chLuma), 0.0, 1.0);
+				// Lifted blacks and less contrast. An analog feed is never as deep
+				// as the picture that went into the transmitter.
+				composite = composite * 0.90 + 0.045;
+				// A little grain is always there, even on a strong link.
+				float hiss = hash12(gl_FragCoord.xy + uTime * 53.1);
+				composite += (hiss - 0.5) * 0.045;
+				c = mix(c, composite, uSeverity);
+
+				// ---- and what the link failing adds on top --------------------
+				// Scaled by uLink alone, never by uSeverity: the severity slider
+				// already moved the link budget in link.js, so scaling here too
+				// would count it twice.
+				//
+				// Colour goes before luminance: the chroma subcarrier sits at the
+				// top of the video band and is the first thing the noise floor
+				// eats. That slide to black and white is the signature of a dying
+				// analog link. It stops short of fully grey — a little colour
+				// survives right down to the breakup.
+				c = mix(c, vec3(dot(c, LUMA)), 0.85 * smoothstep(0.85, 0.05, uLink));
 
 				// RF grain, mostly on luminance with a little chroma left over.
+				// Quadratic in the fade, so the healthy half of the range stays
+				// genuinely calm instead of already crawling.
 				float n = hash12(gl_FragCoord.xy + uTime * 131.7);
 				vec3 chroma = vec3(hash12(gl_FragCoord.xy + uTime * 71.3),
 				                   hash12(gl_FragCoord.xy + uTime * 43.1),
 				                   hash12(gl_FragCoord.xy + uTime * 97.9));
-				c += (vec3(n) - 0.5) * 0.7 * fade * fade;
-				c += (chroma - 0.5) * 0.18 * fade * fade;
+				float grain = fade * fade;
+				c += (vec3(n) - 0.5) * 0.30 * grain;
+				c += (chroma - 0.5) * 0.10 * grain;
 
 				// The sync bar dims what it drags.
-				c *= 1.0 - bar * 0.45;
+				c *= 1.0 - bar * 0.30;
 
-				// Snow: past the point where there is any picture left, all that
-				// comes out of the receiver is the noise floor.
-				c = mix(c, vec3(n), smoothstep(0.22, 0.0, uLink));
+				// Snow. Held short of a full wipe so there is always a ghost of
+				// the world left to point the quad at, and reached only in the
+				// last few percent rather than as the second half of the fade.
+				c = mix(c, vec3(n), 0.92 * smoothstep(0.12, 0.0, uLink));
 			#endif
 
 			#if LINK_MODE == 2
 				// Fewer levels inside a broken block, and a seam around it. Blocking
 				// artifacts are visible precisely because the quantiser lands on
 				// different levels either side of a boundary the picture never had.
-				float levels = mix(64.0, 5.0, dfade);
+				float levels = mix(64.0, 12.0, dfade);
 				vec3 quant = floor(c * levels + 0.5) / levels;
 				c = mix(c, quant, blocky);
 				vec2 inBlock = fract(gl_FragCoord.xy / BLOCK_PX);
 				float seam = max(step(inBlock.x, 1.0 / BLOCK_PX), step(inBlock.y, 1.0 / BLOCK_PX));
-				c *= 1.0 - seam * blocky * 0.25;
+				c *= 1.0 - seam * blocky * 0.18;
 			#endif
 
 			gl_FragColor = vec4(c, 1.0);
@@ -349,9 +415,12 @@ export class FpvLens {
 		this._updateDefines();
 	}
 
-	// mode is LINK_OFF / LINK_ANALOG / LINK_DIGITAL.
-	setLinkMode(mode) {
+	// mode is LINK_OFF / LINK_ANALOG / LINK_DIGITAL. severity is the slider: it
+	// scales the analog mode's baseline look, and nothing else here — the fade
+	// itself is already scaled where it is computed, in link.js.
+	setLink({ mode, severity }) {
 		this._linkMode = mode;
+		this._u.uSeverity.value = severity;
 		if (mode === LINK_OFF) this._u.uLink.value = 1;
 		this._updateDefines();
 	}

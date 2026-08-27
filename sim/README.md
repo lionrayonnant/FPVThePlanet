@@ -399,33 +399,49 @@ immeubles. `src/link.js` calcule un bilan de liaison en dB entre le drone et le
 pilote — qui se tient au point de décollage — et `src/lens.js` en fait une
 image dégradée, en fin de chaîne, après l'objectif.
 
+**L'analogique a un aspect même à plein signal.** C'est le point le plus
+important et le moins évident : un retour composite n'est pas une image propre
+qui casse ensuite, il est dès la première trame mou, lavé et bavé en couleur.
+La bande passante de chrominance vaut une fraction de celle de luminance, donc
+la couleur déborde latéralement pendant que les contours restent nets. C'est ça
+qui fait « retour FPV » plutôt que « moteur de rendu qui bugue » — la
+dégradation vient **par-dessus**. Le mode numérique, lui, est propre : à lien
+parfait il rend un pixel de ciel à `#9fb8cc` exact, comme sans l'effet.
+
 Ce qui pilote la dégradation est **la distance et l'occlusion**, la seconde
-comptant beaucoup plus que la première : une ligne de vue dégagée d'un bout à
-l'autre de la tuile reste volable (62 % à 880 m), tandis que quelques mètres de
-façade suffisent à tuer l'image. C'est le comportement réel du 5,8 GHz, et
-c'est ce qui donne une vraie raison de ne pas passer derrière un bâtiment.
+comptant plus que la première. La qualité glisse continûment avec la distance
+(1,00 à 50 m → 0,80 à 300 m → 0,64 à 900 m) : il y a donc toujours quelque
+chose à lire, plutôt qu'une image parfaite jusqu'à l'instant où elle disparaît.
+Un immeuble entre vous et le pilote descend à ~0,50 — nettement dégradé,
+parfaitement volable. Seul un vol bas et lointain à travers tout un quartier
+coupe vraiment le lien.
 
 L'occlusion est mesurée par **deux raycasts**, un depuis chaque bout : le
 premier impact à l'aller dit où la matière commence, le premier impact au
 retour dit où elle finit, et l'écart est l'épaisseur à traverser. Un seul rayon
-ne dirait que « quelque chose bloque », et effleurer l'angle d'un toit
-deviendrait aussi grave que traverser un pâté de maisons. Coût mesuré : 0,002 à
-0,016 ms par frame selon ce que le rayon traverse.
+ne dirait que « quelque chose bloque », et effleurer l'angle d'un toit (0,86)
+deviendrait aussi grave que passer derrière un pâté de maisons (0,50). Coût
+mesuré : 0,002 à 0,016 ms par frame selon ce que le rayon traverse.
+
+L'atténuation par la profondeur **sature** au lieu d'être linéaire, et les
+constantes de temps sont lentes (0,30 s à la chute, 0,70 s à la remontée). Les
+deux servent la même chose : la géométrie est une marche d'escalier — le mur
+est sur le trajet ou il n'y est pas — donc sans ça le lien est un interrupteur
+et pas un fondu. Passer un angle prend maintenant ~780 ms à l'écran.
 
 Deux réglages dans le panneau `Tab`, section **Lien vidéo** :
 
 | réglage | par défaut | ce qu'il fait |
 |---|---|---|
-| **Rendu** | Analogique | *Analogique* : grain RF, désaturation vers le noir et blanc, lignes qui décrochent, barre de synchro qui roule, puis neige. On voit le lien s'affaiblir. *Numérique* (DJI/HDZero) : net jusqu'au seuil, puis macroblocs, quantification et gel d'image. Ça tient, puis ça tombe d'un coup |
-| **Dégradation** | 100 % | l'agressivité de la chute ; à 100 % le lien peut disparaître complètement, à 0 % l'effet est compilé hors du shader |
+| **Rendu** | Analogique | *Analogique* : bave de chrominance et image lavée en permanence, puis grain, désaturation, décrochage de lignes, barre de synchro et enfin neige. On voit le lien s'affaiblir. *Numérique* (DJI/HDZero) : net jusqu'au seuil, puis macroblocs, quantification et gel d'image. Ça tient, puis ça tombe |
+| **Dégradation** | 100 % | à la fois l'agressivité de la chute et la force de l'aspect analogique de base ; à 0 % l'effet est compilé hors du shader |
 
 Le RSSI est affiché en haut à droite, sinon une image qui se désagrège se lit
 comme un bug de rendu plutôt que comme une information.
 
-Coût mesuré : **au plus 0,2 ms/frame**, et rigoureusement zéro quand le lien va
-bien — un pixel de ciel ressort à `#9fb8cc` exact dans les deux modes à
-qualité 1, comme sans l'effet. Une image gelée coûte 0,59 ms au lieu de 1,4 :
-elle n'est pas rendue du tout, seulement réaffichée.
+Coût mesuré : **1,0 ms/frame au pire** sur un budget de 10, dont 0,12 ms pour
+les quatre taps de chrominance de l'analogique. Une image gelée coûte 0,60 ms
+au lieu de 1,41 : elle n'est pas rendue du tout, seulement réaffichée.
 
 ### Régler le PID
 

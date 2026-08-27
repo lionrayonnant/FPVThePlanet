@@ -478,51 +478,132 @@ pixel de bruit réellement par ligne, les déchirures franches étant réservée
 ### Ce qui a été mesuré
 
 Fenêtre 2560×1265, RX 9060 XT, Tour Eiffel, `readPixels` synchrone, cinq
-tournées entrelacées, médiane (l'écart intra-config va jusqu'à 0,5 ms, donc les
-deltas sous ~0,2 ms sont dans le bruit) :
+tournées entrelacées, médiane :
 
 | | ms/frame | delta |
 |---|---|---|
-| sans la passe (référence) | 1,42 | — |
-| passe, lien coupé (`LINK_MODE 0`) | 2,36 | +0,94 |
-| passe + analogique, lien parfait | 2,33 | +0,91 |
-| passe + analogique, lien qui lâche | 2,54 | +1,11 |
-| passe + numérique, lien parfait | 2,32 | +0,90 |
-| passe + numérique, macroblocs | 2,27 | +0,84 |
-| passe + numérique, image gelée | 0,59 | −0,83 |
+| sans la passe (référence) | 1,41 | — |
+| passe, lien coupé (`LINK_MODE 0`) | 2,28 | +0,87 |
+| passe + analogique, lien parfait | 2,40 | +0,99 |
+| passe + analogique, q=0,50 | 2,35 | +0,95 |
+| passe + numérique, lien parfait | 2,29 | +0,88 |
+| passe + numérique, q=0,30 | 2,29 | +0,88 |
+| passe + numérique, image gelée | 0,60 | −0,80 |
 
-Le lien coûte donc **au plus 0,2 ms** sur un budget de 10, et rien du tout quand
-il va bien. Les raycasts : 0,0018 ms en vue dégagée, 0,016 ms au pire à travers
-125 m de ville — six fois un `groundBelow()`, que la boucle de rendu payait
-déjà chaque frame. **Aucune cadence réduite n'était nécessaire** ; le
-`_aglEvery` prévu dans le plan n'existe pas.
+Le lien coûte donc **au plus 0,12 ms**, entièrement dus aux quatre taps de
+chrominance de l'aspect analogique de base ; le numérique est gratuit. Les
+raycasts : 0,0018 ms en vue dégagée, 0,016 ms au pire à travers 125 m de ville
+— six fois un `groundBelow()`, que la boucle de rendu payait déjà chaque frame.
+**Aucune cadence réduite n'était nécessaire** ; le `_aglEvery` prévu dans le
+plan n'existe pas.
 
 ### Vérifications navigateur
 
 - **Couleur.** Un pixel de ciel ressort à `#9fb8cc` *exactement* sans la passe,
-  avec la passe et lien coupé, et avec l'un ou l'autre mode à qualité 1. Un lien
-  en bonne santé est donc bit à bit l'image d'avant. C'est la régression de #10
-  à ne pas rouvrir.
+  avec la passe et lien coupé, à sévérité 0, et en **numérique** à qualité 1.
+  C'est la régression de #10 à ne pas rouvrir. L'**analogique** à qualité 1 rend
+  `#95acbe` — délibérément, c'est l'image lavée — et à sévérité 0,5 rend
+  `#9cb4c7`, exactement le milieu, donc le curseur est bien linéaire.
 - **Gel.** Tient la dernière image, la tient encore sur une deuxième frame
   gelée, reprend en direct ensuite. Test fait obturation fermée : avec le flou
   de mouvement, une même pose ne rend pas deux fois le même pixel et la
   comparaison ne veut rien dire.
-- **Comportement.** 149 m au-dessus du pilote : 100 %. 300 m au niveau de la rue
-  avec 125 m de ville en travers : 0 %. Retour en vue dégagée : 100 %. Coin de
-  la tuile à 884 m en vue directe : 62 %, volable. Chute en ~50 ms, remontée en
-  ~1 s.
+- **Comportement.** 149 m au-dessus du pilote : 100 %. Coin de la tuile à 884 m
+  en vue directe : 62 %. Un immeuble : ~50 %. 300 m au niveau de la rue avec
+  125 m de ville en travers : 0 %.
 - **Panneau `Tab`.** Section « Lien vidéo » ; le sélecteur bascule bien le
   `#define`, le curseur à 0 compile l'effet hors du shader, la case maîtresse
   « Rendu FPV » grise les deux, et les deux clés survivent au rechargement. Le
   balayage `fpvmaps.` du bouton de réinitialisation les couvre déjà.
 - Aucun message d'erreur ni d'avertissement en console.
 
+## Lien vidéo : la première calibration était injouable (corrigé 2026-08-27)
+
+Le premier jet passait les tests et rendait le sim désagréable. Retour de
+l'utilisateur, avec des captures de vrais retours analogique et numérique à
+l'appui : « trop fort et injouable » par défaut, et « on a rien et d'un coup
+pouf c'est brouillé ». Les deux critiques portaient sur des choses différentes
+et les deux étaient justes.
+
+### L'analogique n'a pas seulement un mode dégradé, il a un aspect
+
+C'est la moitié qui manquait, et aucun test ne pouvait l'attraper : le premier
+jet partait d'une image *parfaite* et y ajoutait du bruit quand le lien
+faiblissait. Un vrai retour composite est mou, lavé et bavé en couleur **dès la
+première trame** — la bande passante de chrominance vaut une fraction de celle
+de luminance, donc la couleur déborde latéralement pendant que les contours
+restent nets. Sans cette base, le mode analogique à plein signal était
+littéralement identique au mode numérique, ce qui vide de son sens le choix
+entre les deux.
+
+Quatre taps horizontaux, hors de la boucle principale : c'est une propriété du
+signal, pas de l'objectif, donc ça n'a rien à faire sur le motif
+d'échantillonnage de l'objectif. Piège rencontré : quatre taps régulièrement
+espacés sur 25 px forment un **peigne**, pas un flou, et sur une arête de
+chrominance franche comme la Tour Eiffel contre le ciel ce peigne se lit comme
+une image dédoublée. Corrigé avec le même `dither` par pixel que la boucle de
+taps — exactement le remède déjà employé pour le banding du flou de mouvement.
+
+### Le « pouf » venait du modèle, pas du shader
+
+`8 dB/m` linéaire était la cause unique et suffisante : contourner un angle
+fait passer l'épaisseur de 0 à 10+ m d'une frame à l'autre, soit **80 dB en une
+marche**. Tout immeuble tuait le lien instantanément, quelle que soit sa
+distance ou sa finesse. Trois changements, tous dans `link.js` :
+
+| | avant | après |
+|---|---|---|
+| profondeur | 8 dB/m linéaire, plafond 60 | saturante, 38 dB d'asymptote sur 14 m |
+| plage du fondu | 26 → 60 dB (34 de large) | 18 → 76 dB (58 de large) |
+| constantes de temps | 0,05 s / 0,35 s | 0,30 s / 0,70 s |
+
+La saturation fait payer l'essentiel par les premiers mètres, ce qui est aussi
+plus juste : après un mur le signal est déjà dans le bruit, et le neuvième mur
+ne peut plus enlever grand-chose que le deuxième n'ait déjà pris. Le fondu large
+absorbe les marches que la géométrie fournit forcément. Et les constantes de
+temps sont la seule chose qui sépare un fondu d'un interrupteur, puisque la
+géométrie, elle, est binaire.
+
+Résultat mesuré : contourner un angle prend **783 ms** avec un changement
+maximal de **0,025 par frame** (contre trois frames avant), et la distance seule
+donne une échelle continue 1,00 → 0,90 → 0,80 → 0,73 → 0,69 → 0,66 → 0,64.
+
+Le fondu commence aussi **plus tôt** (18 dB, soit ~80 m) : il y a alors toujours
+un peu de dégradation à lire, qui glisse pendant tout le vol, au lieu d'une
+image parfaite jusqu'à la seconde où il n'y a plus rien. C'est ça qui rend le
+lien lisible — on est prévenu qu'on manque de marge avant d'en manquer.
+
+### Ce que les tests ne voyaient pas, et le voient maintenant
+
+Les 11 vérifications d'origine passaient toutes sur la calibration injouable :
+elles décrivaient les propriétés du modèle sans jamais décrire son **allure**.
+Cinq ajouts, dont **trois échouent** sur l'ancienne calibration (vérifié en la
+remettant en place, pas supposé) :
+
+| vérification | ancienne | nouvelle |
+|---|---|---|
+| un immeuble dégrade sans tuer (0,25 < q < 0,75) | **0,00** | 0,49 |
+| contourner un angle est un glissement (< 0,06 par frame) | **0,358** | 0,025 |
+| la transition dure assez pour être lue (> 12 frames) | **2 frames** | 47 frames |
+| effleurer une arête coûte moins que passer derrière | 0,88 vs 0,00 | 0,86 vs 0,49 |
+| la qualité glisse continûment avec la distance | passe | passe |
+
+Les deux dernières passaient déjà, et c'est cohérent : la falaise était
+entièrement dans le terme d'occlusion, jamais dans celui de distance. Il faut
+donc lire ce tableau comme disant que **trois** de ces tests auraient attrapé le
+problème et que deux ne pouvaient pas.
+
+Et le test « un immeuble coûte bien plus que la distance » a dû être **corrigé** :
+son seuil (`< 0,05`) encodait précisément le comportement à supprimer. Un test
+qui passe ne prouve pas que le seuil est le bon.
+
 ### Dette connue
 
-- Les constantes du bilan de liaison (26 dB pour le début de la chute, 60 dB
-  pour la rupture, 12 dB d'arête, 8 dB/m) sont **calibrées à l'intention**, pas
-  mesurées sur un vrai lien : elles produisent le comportement voulu (la
-  distance ne tue pas, l'occlusion tue) mais ne viennent d'aucune mesure.
+- Les constantes du bilan de liaison (18 dB pour le début de la chute, 76 dB
+  pour la rupture, 8 dB d'arête, 38 dB d'asymptote de profondeur sur 14 m) sont
+  **calibrées à l'œil sur des captures**, pas mesurées sur un vrai lien : elles
+  produisent le comportement voulu mais ne viennent d'aucune mesure. Idem pour
+  la largeur de bave de chrominance (0,008 uv) et le contraste analogique.
 - **Pas de diagramme d'antenne.** Un dipôle a un creux dans l'axe, donc voler
   juste au-dessus du pilote devrait coûter quelque chose et ne coûte rien ici.
   Suivi séparément.

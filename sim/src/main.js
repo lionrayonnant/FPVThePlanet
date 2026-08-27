@@ -204,8 +204,11 @@ async function boot() {
 
 	hud.setLink(loadLink(), (p) => {
 		link.setSeverity(p.severity);
-		lens.setLinkMode(p.severity === 0 ? LINK_OFF
-			: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG);
+		lens.setLink({
+			mode: p.severity === 0 ? LINK_OFF
+				: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG,
+			severity: p.severity,
+		});
 	});
 
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
