@@ -72,6 +72,7 @@ let physics = null;
 let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
+let paused = false;
 let crashed = false;
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
@@ -296,6 +297,7 @@ function nextPaint() {
 
 input.onAction = (key, event) => {
 	if (key === 'r') respawn();
+	else if (key === ' ') { event.preventDefault(); togglePause(); }
 	else if (key === 'p') controller.cyclePreset();
 	else if (key === 'm') controller.cycleMode();
 	else if (key === 'c') toggleFreeCam();
@@ -323,9 +325,6 @@ function toggleFreeCam() {
 	if (!freeCam) return;
 	freeCamOn = !freeCamOn;
 	freeCam.enabled = freeCamOn;
-	// Physics does not advance in free camera, so the motor speeds freeze. A
-	// held drone note would be worse than silence.
-	audio.setMuted(freeCamOn);
 	if (freeCamOn) {
 		document.exitPointerLock();
 		const p = physics.position;
@@ -334,6 +333,18 @@ function toggleFreeCam() {
 		freeCam.update();
 	}
 }
+
+function togglePause(force) {
+	paused = force ?? !paused;
+	// Coming back should not replay the wall-clock gap as one giant physics step.
+	if (!paused) { accumulator = 0; lastTime = performance.now(); }
+	hud.setPaused(paused);
+}
+
+// Physics does not advance when the free camera is on, the sim is paused, or the
+// settings panel is up — so the motor speeds freeze and a held drone note would
+// be worse than silence.
+function simFrozen() { return freeCamOn || paused || hud.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -347,8 +358,11 @@ function frame() {
 
 	const sticks = window.__simInput ?? input.update(dt);
 
+	const frozen = simFrozen();
+	audio.setMuted(frozen);
+
 	let peakImpact = 0;
-	if (!freeCamOn) {
+	if (!frozen) {
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
@@ -368,7 +382,7 @@ function frame() {
 		// Camera uptilt, applied in the drone's own frame.
 		_tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraTilt * Math.PI / 180);
 		camera.quaternion.copy(_q).multiply(_tilt);
-	} else {
+	} else if (freeCamOn) {
 		freeCam.update();
 	}
 
@@ -408,7 +422,7 @@ function frame() {
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
 	// wasted work, and setTargetAtTime interpolates between frames anyway.
-	if (!freeCamOn) {
+	if (!frozen) {
 		const prop = physics.propulsion;
 		audio.update({
 			omega: prop.omega,

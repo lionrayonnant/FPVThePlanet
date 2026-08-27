@@ -16,5 +16,29 @@
 		"name": "Cathédrale de Reims",
 		"lat": 49.253828,
 		"lon": 4.033897
+	},
+	{
+		"slug": "time-square",
+		"name": "Time Square",
+		"lat": 40.7581,
+		"lon": -73.9855
+	},
+	{
+		"slug": "periph",
+		"name": "Periph",
+		"lat": 48.873774,
+		"lon": 2.401996
+	},
+	{
+		"slug": "notre-dame-de-la-croix",
+		"name": "Notre-Dame-de-la-Croix",
+		"lat": 48.868668,
+		"lon": 2.387519
+	},
+	{
+		"slug": "lmsc",
+		"name": "LMSC",
+		"lat": 48.802132,
+		"lon": 2.066834
 	}
 ]

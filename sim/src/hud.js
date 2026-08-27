@@ -93,9 +93,10 @@ export class Hud {
 				</div>
 				<div class="corner br" id="help">
 					<b>W/S</b> gaz · <b>A/D</b> lacet · <b>flèches</b>/souris roulis-tangage<br>
-					<b>R</b> respawn · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Tab</b> réglages
+					<b>R</b> respawn · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Espace</b> pause · <b>Tab</b> réglages
 				</div>
 				<div id="crash" hidden>CRASH<small>R pour repartir</small></div>
+					<div id="pause" hidden>PAUSE<small>Espace pour reprendre</small></div>
 				<div id="reticle"></div>
 			</div>
 
@@ -163,6 +164,7 @@ export class Hud {
 			toneVal: root.querySelector('#tone-val'),
 			thr: root.querySelector('#thr-fill'),
 			crash: root.querySelector('#crash'),
+			pause: root.querySelector('#pause'),
 			reticle: root.querySelector('#reticle'),
 			settings: root.querySelector('#settings'),
 			padName: root.querySelector('#pad-name'),
@@ -379,6 +381,10 @@ export class Hud {
 		this.el.vol.oninput = emit;
 		this.el.tone.oninput = emit;
 		emit();
+	}
+
+	setPaused(paused) {
+		this.el.pause.hidden = !paused;
 	}
 
 	toggleSettings(force) {

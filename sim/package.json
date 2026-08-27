@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "add-map": "node tools/add-map.mjs",
+    "remove-map": "node tools/remove-map.mjs",
     "prep": "node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/48.858200-2.297000-20-25-20 --out public/scenes/tour-eiffel",
     "dev": "vite",
     "build": "vite build",

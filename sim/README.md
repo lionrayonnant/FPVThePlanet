@@ -48,6 +48,26 @@ npm run add-map -- "Sacré-Cœur" 48.8867 2.3431
    apparaît dans le menu au prochain `npm run dev` (pas besoin de relancer le
    serveur s'il tourne déjà, un simple rechargement de page suffit).
 
+## Supprimer une carte
+
+```bash
+npm run remove-map -- <slug>
+```
+
+Le `slug` est celui dans `public/scenes.json` (ex. `sacre-coeur`). Ça retire
+l'entrée de `scenes.json` (donc la carte disparaît du menu au prochain
+`npm run dev`/rechargement) et supprime `public/scenes/<slug>/`.
+
+La tuile brute téléchargée sous
+`flyover-reverse-engineering/downloaded_files/obj/` n'est **pas** supprimée
+par défaut — c'est la partie lente à retélécharger, donc `add-map` peut la
+réutiliser telle quelle si la carte est rajoutée plus tard. Ajouter `--raw`
+pour la supprimer aussi :
+
+```bash
+npm run remove-map -- <slug> --raw
+```
+
 ### Quand une zone ne renvoie rien
 
 Apple Flyover ne propose de la photogrammétrie 3D que sur une liste de villes.
