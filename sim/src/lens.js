@@ -65,7 +65,17 @@ const DROP_BLUR = 2.0;
 // has nothing to do with how big its footprint happens to be. That one choice
 // is the whole look: pale against a facade, because it is holding sky; nothing
 // at all against the sky, because there it is holding more of the same.
-const DROP_SKY = 0.18;      // fraction of the picture height, upwards
+const DROP_SKY = 0.12;      // fraction of the picture height, upwards
+
+// And then the honest version of the same statement. Offsetting the sample
+// upwards only reaches the sky when there is sky just above; a bead's collecting
+// hemisphere is dominated by the sky wherever the camera happens to be pointing.
+// So the average is mixed towards the scene's own sky colour — the one
+// loader.setFog() and scene.background are already using, so nothing is invented
+// and a drop can never be brighter than the sky it is holding. That is what
+// takes the drops from grey to a dull white, and it is the same argument
+// rainfall.js makes for colouring the streaks with the sky.
+const DROP_SKY_MIX = 0.6;   // how much of the bead's hemisphere is sky
 // The bead's rim is where rays graze it, so it turns through the largest angles
 // and collects from the widest cone of all. That is what puts a bright ring
 // round a drop — and it is a *wider average*, not a gain: brightening what is
@@ -111,6 +121,7 @@ const LensShader = {
 		// w the flat core as a fraction of that radius.
 		uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
 		uDropAlpha: { value: new Float32Array(MAX_DROPS) },
+		uDropSky: { value: new THREE.Color(0x9fb8cc) },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -131,11 +142,13 @@ const LensShader = {
 		varying vec2 vUv;
 
 		#if DROPS > 0
+			#define DROP_SKY_MIX ${DROP_SKY_MIX.toFixed(2)}
 			#define DROP_BLUR ${DROP_BLUR.toFixed(2)}
 			#define DROP_SKY ${DROP_SKY.toFixed(2)}
 			#define DROP_RIM ${DROP_RIM.toFixed(2)}
 			uniform vec4 uDrops[DROPS];
 			uniform float uDropAlpha[DROPS];
+			uniform vec3 uDropSky;
 		#endif
 
 		#if LINK_MODE != 0
@@ -368,6 +381,12 @@ const LensShader = {
 							      vec2(0.002), vec2(0.998)), lod).rgb;
 					}
 					acc *= 0.25;
+					// Most of what the bead collects is sky, whichever way the
+					// camera is pointing — and it is the scene's own sky, so this
+					// cannot brighten a drop past the sky behind it. Wider at the
+					// rim, which is what makes the ring: more sky there, and
+					// nothing at all when the sky is what is behind it anyway.
+					acc = mix(acc, uDropSky, clamp(DROP_SKY_MIX * wide, 0.0, 1.0));
 					c = mix(c, acc, min(mask, 1.0));
 				}
 			}
@@ -579,7 +598,8 @@ export class FpvLens {
 	// uTime running on under a held frame. Here the drops are a CPU population
 	// advanced by a dt, so a dt of zero stops them dead — there is no second
 	// clock that can be forgotten.
-	setRain({ wetness = 0, dropMm = 0, drift = null, dt = 0 } = {}) {
+	setRain({ wetness = 0, dropMm = 0, drift = null, dt = 0, sky = null } = {}) {
+		if (sky) this._u.uDropSky.value.copy(sky);
 		this._rain.wetness = wetness;
 		this._rain.dropMm = dropMm;
 		this._rain.drift = drift;

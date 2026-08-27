@@ -508,6 +508,9 @@ function frame() {
 		dropMm: rain.dropDiameter,
 		drift,
 		dt: frozen ? 0 : dt,
+		// The sky the scene is actually using this frame, rain included: a bead
+		// is a diffuser, and most of what it diffuses is that.
+		sky: scene.background,
 	});
 
 	// Before the render, not after: the picture this frame draws is the picture

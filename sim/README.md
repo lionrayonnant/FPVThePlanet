@@ -495,8 +495,8 @@ seulement déplacée — ne pouvait pas ressembler à quoi que ce soit.
 Le compte tombe de la même chaîne : `wetness` **est** la fraction mouillée (le
 dépôt dans `RainField.update()` est proportionnel au verre nu restant), donc le
 nombre de billes est cette fraction du hublot divisée par l'aire d'une bille.
-Dix millimètres de hublot sur trois de bille, cela fait **moins d'une dizaine de
-gouttes** : une lentille mouillée, ce sont sept ou huit grosses taches. C'est la
+Dix millimètres de hublot sur quatre de bille, cela fait **une poignée de
+gouttes** : une lentille mouillée, ce sont cinq grosses taches. C'est la
 raison pour laquelle `LensDrops` est une liste d'uniformes et pas un champ
 procédural — et donc pourquoi rien ne lit comme une grille.
 

@@ -281,7 +281,7 @@ const BEAD_SPREAD = Math.cbrt(2);
 // And it keeps growing, because the next drop to land on it joins it. This is
 // the one number in here fitted rather than derived, and it is what makes a
 // soaked lens read as a few fat blobs instead of a hundred small ones.
-const MERGE_GAIN = 0.6;
+const MERGE_GAIN = 1.2;
 
 // What the window holds at a given wetness. `wetness` is already the wetted
 // fraction — that is what it means, since the deposition term in update() is
@@ -337,10 +337,15 @@ export function dropFootprint(beadMm) {
 // A bead does not slide until the driving force beats the contact line holding
 // it: rho V a > k gamma w, i.e. a threshold that goes as 1/D^2. Big drops run,
 // small ones never do, and that is the whole of "la majorité restent presque
-// fixes" — no random "is this one mobile" flag is needed. Set so a 3 mm bead
-// breaks away at one g, which puts a 1 mm bead at nine and therefore out of
-// reach of anything this quad can pull.
-const PIN_G_MM2 = 9.0;
+// fixes" — no random "is this one mobile" flag is needed.
+//
+// Anchored on what a hover has to look like: the four-millimetre beads a soaked
+// lens carries hold at one g and let go as soon as you push. That puts the
+// threshold at 1.6 g for four millimetres, so only a five millimetre bead creeps
+// in a hover, a three millimetre one needs 2.9 g and a millimetre one is never
+// going anywhere. An FPV lens is coated, and a coating is exactly what raises
+// the hysteresis holding the water on it.
+const PIN_G_MM2 = 26.0;
 
 // Once it is running: viscous, so speed goes as the excess force times the
 // bead's cross-section. A 3 mm bead at one g of excess runs at 20 mm/s, which
@@ -357,7 +362,7 @@ const MAX_RUN_UNITS = 2.0;  // position units per second
 // It re-pins on the next defect it meets, roughly one bead-width along, which
 // is why a running drop stutters instead of gliding. Nothing here draws a
 // trail: a trail is what made the last attempt read as a scratch.
-const REPIN_SPREAD = 0.7;   // how much the pinning strength varies, +/- fraction
+const REPIN_SPREAD = 0.35;   // how much the pinning strength varies, +/- fraction
 
 // Long enough not to pop, short enough not to lag the rain.
 const FADE_S = 0.8;

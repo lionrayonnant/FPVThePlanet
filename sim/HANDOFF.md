@@ -984,7 +984,16 @@ procédural — et donc aucune grille, qui était le défaut de la tentative 2.
    convolution ci-dessus ; son *contenu* vient de tout ce que la bille diffuse,
    qui est bien plus large. Sampler le disque donne l'image de derrière, floue,
    c'est-à-dire une bavure. C'est `DROP_BLUR` et `DROP_SKY` ;
-2. **le bord lumineux écrit comme un gain.** Multiplier ce qui est déjà là
+2. **le blanc écrit comme du blanc.** Le retour du pilote après la première
+   passe était « trop grise, blanc terne mais blanc ». Décaler l'échantillon
+   vers le haut ne va chercher le ciel que s'il y en a juste au-dessus, alors
+   que l'hémisphère de collecte d'une bille est dominé par le ciel où que la
+   caméra pointe. La moyenne est donc mélangée vers **la couleur de ciel que la
+   scène utilise déjà** (`rainSky()`, celle du fond et du brouillard) : rien
+   n'est inventé, une goutte ne peut pas être plus claire que le ciel qu'elle
+   tient, et devant le ciel elle reste exactement invisible. Même argument que
+   le `LIFT` de `rainfall.js` ;
+3. **le bord lumineux écrit comme un gain.** Multiplier ce qui est déjà là
    dessine un anneau bien visible sur un ciel uniforme, alors que concentrer une
    lumière identique dans toutes les directions ne change rien. Le rim est donc
    écrit comme une **collecte plus large** : lumineux devant une façade parce
@@ -1006,8 +1015,8 @@ lentille sèche inerte, stationnaire qui garde ses gouttes en cadre, eau qui
 remonte le cadre en vol rapide, image gelée qui fige l'eau.
 
 **Vérifié en vol** (`?scene=tour-eiffel`, chrome-devtools, DOM en direct) :
-100 fps et 7 draw calls sous l'averse ; huit gouttes à 0,63 d'humidité pour des
-billes de 2,9 mm ; la pause fige les gouttes et le `Espace` les relance ; en
+100 fps et 7 draw calls sous l'averse ; cinq gouttes à 0,64 d'humidité pour des
+billes de 3,7 mm ; la pause fige les gouttes et le `Espace` les relance ; en
 numérique, **345 images gelées d'affilée sans que l'eau bouge d'un pixel** ;
 couper la pluie ramène `DROPS` à 0, donc au shader d'avant, octet pour octet.
 
