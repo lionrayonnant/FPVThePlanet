@@ -141,6 +141,10 @@ canvas { display: block; }
 	font: inherit; cursor: pointer;
 }
 .panel button:hover { border-color: var(--accent); color: var(--accent); }
+.panel .presets { display: flex; gap: .5em; margin: .5em 0; }
+.panel .presets button { margin-top: 0; padding: 5px; font-size: 11px; }
+.panel .presets button.on { border-color: var(--accent); color: var(--accent); }
+.panel .presets button:disabled { opacity: .3; cursor: default; }
 
 #loading-detail, #loading-clock {
 	margin: .9em 0 0;

@@ -118,6 +118,11 @@ export class Hud {
 						<option value="digital">Numérique</option>
 					</select></label>
 					<label>Dégradation <input id="link" type="range" min="0" max="100" step="1"> <span id="link-val"></span> %</label>
+					<div id="link-presets" class="presets">
+						<button type="button" data-v="30">Faible</button>
+						<button type="button" data-v="60">Moyen</button>
+						<button type="button" data-v="100">Élevé</button>
+					</div>
 					<h2>Air</h2>
 					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
 					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
@@ -176,6 +181,7 @@ export class Hud {
 			linkMode: root.querySelector('#link-mode'),
 			link: root.querySelector('#link'),
 			linkVal: root.querySelector('#link-val'),
+			linkPresets: root.querySelector('#link-presets'),
 			rssi: root.querySelector('#rssi'),
 		};
 		root.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
@@ -281,7 +287,8 @@ export class Hud {
 			// The link lives in the same pass, so the master switch has to reach it
 			// too — otherwise its controls stay live while doing nothing.
 			for (const el of [this.el.lens, this.el.vig, this.el.shut,
-			                  this.el.linkMode, this.el.link]) el.disabled = !enabled;
+			                  this.el.linkMode, this.el.link,
+			                  ...this.el.linkPresets.children]) el.disabled = !enabled;
 			try {
 				localStorage.setItem(LENS_ON_KEY, enabled ? '1' : '0');
 				localStorage.setItem(LENS_KEY, String(l));
@@ -310,6 +317,8 @@ export class Hud {
 			const pct = Number(this.el.link.value);
 			const m = this.el.linkMode.value;
 			this.el.linkVal.textContent = pct;
+			for (const b of this.el.linkPresets.children)
+				b.classList.toggle('on', Number(b.dataset.v) === pct);
 			try {
 				localStorage.setItem(LINK_KEY, String(pct));
 				localStorage.setItem(LINK_MODE_KEY, m);
@@ -320,6 +329,12 @@ export class Hud {
 		this.el.link.value = Math.round(severity * 100);
 		this.el.linkMode.onchange = emit;
 		this.el.link.oninput = emit;
+		this.el.linkPresets.onclick = (e) => {
+			const b = e.target.closest('button');
+			if (!b) return;
+			this.el.link.value = b.dataset.v;
+			emit();
+		};
 		emit();
 	}
 
