@@ -82,6 +82,10 @@ export class Physics {
 		this.reset();
 
 		this._ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+		// Its own Ray: groundBelow() mutates _ray on every physics step, and the
+		// link query runs from the render loop, in between.
+		this._linkRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+		this._obstruction = { blocked: false, span: 0 };
 	}
 
 	reset() {
@@ -152,6 +156,54 @@ export class Physics {
 		this._ray.origin.x = x; this._ray.origin.y = y; this._ray.origin.z = z;
 		const hit = this.world.castRay(this._ray, maxDistance, true, undefined, undefined, this.collider);
 		return hit ? y - hit.timeOfImpact : null;
+	}
+
+	// What sits on the straight line between two points: whether anything does at
+	// all, and how many metres deep it is. Returns a reused object — this runs at
+	// frame rate.
+	//
+	// Two rays, one from each end: the first hit going out is where the material
+	// starts, the first hit coming back is where it ends, so the span between
+	// them is how much of it the signal has to cross. One ray would only ever say
+	// "something is in the way", and a link that switches off the instant a roof
+	// edge clips the line is a switch, not an attenuation — clipping the corner
+	// of a roof and having a whole building in between are not the same event.
+	//
+	// `blocked` is separate from `span` because a photogrammetry mesh is a
+	// surface soup, not a solid: a building shell has a near wall and a far wall
+	// and reports its real depth, but terrain and a thin roof are a single sheet
+	// with no far face at all, so their span is legitimately zero. Zero span is
+	// not a clear path, and only the flag can tell the two apart.
+	obstructionBetween(ax, ay, az, bx, by, bz) {
+		const r = this._obstruction;
+		r.blocked = false;
+		r.span = 0;
+
+		const dx = bx - ax, dy = by - ay, dz = bz - az;
+		const distance = Math.hypot(dx, dy, dz);
+		if (distance < 1e-3) return r;
+
+		// Normalised, so times of impact come back in metres like groundBelow's.
+		const nx = dx / distance, ny = dy / distance, nz = dz / distance;
+		const ray = this._linkRay;
+
+		ray.origin.x = ax; ray.origin.y = ay; ray.origin.z = az;
+		ray.dir.x = nx; ray.dir.y = ny; ray.dir.z = nz;
+		// The drone's own sphere contains the origin; without excluding it the
+		// answer would be "blocked by yourself, always".
+		const out = this.world.castRay(ray, distance, true, undefined, undefined, this.collider);
+		if (!out) return r;
+		r.blocked = true;
+
+		ray.origin.x = bx; ray.origin.y = by; ray.origin.z = bz;
+		ray.dir.x = -nx; ray.dir.y = -ny; ray.dir.z = -nz;
+		const back = this.world.castRay(ray, distance, true, undefined, undefined, this.collider);
+		// No return hit means the two casts disagree; take the far endpoint as the
+		// far face rather than reporting a negative depth.
+		r.span = back
+			? Math.max(0, distance - out.timeOfImpact - back.timeOfImpact)
+			: Math.max(0, distance - out.timeOfImpact);
+		return r;
 	}
 }
 

@@ -4,9 +4,10 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness, loadLens } from './hud.js';
+import { Hud, loadVolume, loadBrightness, loadLens, loadLink } from './hud.js';
 import { EngineAudio } from './audio.js';
-import { FpvLens } from './lens.js';
+import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
+import { VideoLink } from './link.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -23,6 +24,9 @@ const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stall
 // 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
 // slamming into something a crash.
 const CRASH_IMPULSE = 1500;
+// The ground station's antenna, above whatever the pilot is standing on. The
+// pilot is at the spawn point, because that is where you took off from.
+const ANTENNA_HEIGHT = 1.2;
 
 // near matters a lot here: photogrammetry is full of near-coplanar surfaces, and
 // at near=0.05 the depth buffer quantises to ~40cm at the far side of the tile,
@@ -60,8 +64,12 @@ const audio = new EngineAudio();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
 // plain render when it is switched off, so the clean image stays one click away.
 const lens = new FpvLens(renderer, scene);
+// The RF side of the same picture: how much of the video link survives the trip
+// back to the pilot. Knows nothing about rendering, and nothing about Rapier.
+const link = new VideoLink();
 
 let physics = null;
+let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let crashed = false;
@@ -133,6 +141,18 @@ async function boot() {
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn);
 
+	// Where the pilot is standing, plus antenna height. A spawn under a bridge
+	// or an arch would put the ground station inside geometry and leave the link
+	// dead from the first frame, so look for a ceiling first and stand on top of
+	// it if there is one.
+	const sp = physics.spawn;
+	const ceiling = physics.groundBelow(sp.x, sp.y + 40, sp.z, 40);
+	emitter = {
+		x: sp.x,
+		y: (ceiling !== null && ceiling > sp.y + 2 ? ceiling : sp.y) + ANTENNA_HEIGHT,
+		z: sp.z,
+	};
+
 	// Textures only reach the GPU on first use. Doing it here, one chunk at a
 	// time, turns an invisible multi-second freeze into visible progress.
 	stage('gpu-upload');
@@ -182,6 +202,12 @@ async function boot() {
 		lens.setParams(p);
 	});
 
+	hud.setLink(loadLink(), (p) => {
+		link.setSeverity(p.severity);
+		lens.setLinkMode(p.severity === 0 ? LINK_OFF
+			: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG);
+	});
+
 	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
@@ -193,7 +219,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWind({x,y,z} m/s, gustStrength m/s).
@@ -236,6 +262,19 @@ async function boot() {
 					soc: +physics.battery.soc.toFixed(3),
 				},
 				propwash: +physics.propulsion.propwash.toFixed(2),
+				link: {
+					quality: +link.out.quality.toFixed(3),
+					rssiDbm: +link.out.rssiDbm.toFixed(1),
+					lossDb: +link.out.lossDb.toFixed(1),
+					distance: +linkState.distance.toFixed(1),
+					blocked: linkState.blocked,
+					span: +linkState.span.toFixed(1),
+					// Whether the last frame was held rather than rendered. When it
+					// was, the renderer.info counters above describe the lens pass
+					// alone — there was no scene render to count.
+					frozen: lens.frozen,
+					rayMs: +linkState.rayMs.toFixed(3),
+				},
 				crashed,
 			};
 		},
@@ -271,6 +310,7 @@ renderer.domElement.addEventListener('click', () => {
 function respawn() {
 	if (!physics) return;
 	physics.reset();
+	link.reset();
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
@@ -294,6 +334,8 @@ function toggleFreeCam() {
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
+// What the last link measurement cost and what it found, for __sim.debug().
+const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
 
 function frame() {
 	const now = performance.now();
@@ -327,10 +369,23 @@ function frame() {
 		freeCam.update();
 	}
 
-	lens.render(camera, dt);
+	// Before the render, not after: the picture this frame draws is the picture
+	// the link delivered this frame.
+	const p = physics.position;
+	const t0 = performance.now();
+	const shadow = physics.obstructionBetween(emitter.x, emitter.y, emitter.z, p.x, p.y, p.z);
+	linkState.rayMs = performance.now() - t0;
+	linkState.distance = Math.hypot(p.x - emitter.x, p.y - emitter.y, p.z - emitter.z);
+	linkState.blocked = shadow.blocked;
+	linkState.span = shadow.span;
+	link.update({ distance: linkState.distance, blocked: shadow.blocked, span: shadow.span, dt });
+
+	// Free camera is not looking down the drone's video feed, so it gets a clean
+	// picture — same reasoning as muting the motors there. The model keeps
+	// running, so coming back does not start from a stale RSSI.
+	lens.render(camera, dt, freeCamOn ? null : link.out);
 
 	const v = physics.velocity;
-	const p = physics.position;
 	const ground = physics.groundBelow(p.x, p.y, p.z);
 	const bat = physics.battery;
 	hud.update({
@@ -343,6 +398,7 @@ function frame() {
 		soc: bat.soc,
 		amps: bat.current,
 		propwash: physics.propulsion.propwash,
+		link: link.out,
 		crashed,
 		usingGamepad: input.usingGamepad,
 	});

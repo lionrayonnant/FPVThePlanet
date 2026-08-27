@@ -6,6 +6,8 @@ const LENS_KEY = 'fpvmaps.lens';
 const VIGNETTE_KEY = 'fpvmaps.lensVignette';
 const SHUTTER_KEY = 'fpvmaps.lensShutter';
 const LENS_ON_KEY = 'fpvmaps.lensOn';
+const LINK_KEY = 'fpvmaps.link';
+const LINK_MODE_KEY = 'fpvmaps.linkMode';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -40,6 +42,19 @@ export function loadLens() {
 	};
 }
 
+// The link degradation is on at full strength by default: the point of the
+// feature is that going behind a building costs you the picture, and a version
+// that never quite breaks would not be that. The slider is what makes it an
+// argument rather than a decree — 0 % turns the whole thing off.
+export function loadLink() {
+	let mode = 'analog';
+	try {
+		const saved = localStorage.getItem(LINK_MODE_KEY);
+		if (saved === 'analog' || saved === 'digital') mode = saved;
+	} catch { }
+	return { mode, severity: loadPercent(LINK_KEY, 1) };
+}
+
 export class Hud {
 	constructor(root, input) {
 		this.input = input;
@@ -67,6 +82,7 @@ export class Hud {
 					<div id="preset">freestyle</div>
 					<div id="src">clavier</div>
 					<div id="fps">–</div>
+					<div id="rssi">–</div>
 				</div>
 				<div class="corner bl">
 					<div class="throttle"><div id="thr-fill"></div></div>
@@ -96,6 +112,12 @@ export class Hud {
 					<label>Objectif <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
 					<label>Vignettage <input id="vig" type="range" min="0" max="100" step="1"> <span id="vig-val"></span> %</label>
 					<label>Obturation <input id="shut" type="range" min="0" max="20" step="0.5"> <span id="shut-val"></span></label>
+					<h2>Lien vidéo</h2>
+					<label>Rendu <select id="link-mode">
+						<option value="analog">Analogique</option>
+						<option value="digital">Numérique</option>
+					</select></label>
+					<label>Dégradation <input id="link" type="range" min="0" max="100" step="1"> <span id="link-val"></span> %</label>
 					<h2>Air</h2>
 					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
 					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
@@ -151,6 +173,10 @@ export class Hud {
 			vigVal: root.querySelector('#vig-val'),
 			shut: root.querySelector('#shut'),
 			shutVal: root.querySelector('#shut-val'),
+			linkMode: root.querySelector('#link-mode'),
+			link: root.querySelector('#link'),
+			linkVal: root.querySelector('#link-val'),
+			rssi: root.querySelector('#rssi'),
 		};
 		root.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		root.querySelector('#reset-settings').onclick = () => {
@@ -252,7 +278,10 @@ export class Hud {
 			this.el.lensVal.textContent = l;
 			this.el.vigVal.textContent = v;
 			this.el.shutVal.textContent = ms === 0 ? 'aucune' : `${ms.toFixed(1)} ms`;
-			for (const el of [this.el.lens, this.el.vig, this.el.shut]) el.disabled = !enabled;
+			// The link lives in the same pass, so the master switch has to reach it
+			// too — otherwise its controls stay live while doing nothing.
+			for (const el of [this.el.lens, this.el.vig, this.el.shut,
+			                  this.el.linkMode, this.el.link]) el.disabled = !enabled;
 			try {
 				localStorage.setItem(LENS_ON_KEY, enabled ? '1' : '0');
 				localStorage.setItem(LENS_KEY, String(l));
@@ -269,6 +298,28 @@ export class Hud {
 		this.el.lens.oninput = emit;
 		this.el.vig.oninput = emit;
 		this.el.shut.oninput = emit;
+		emit();
+	}
+
+	// Two controls and not four: which receiver you are pretending to fly, and how
+	// hard it bites. Everything else about the link — where it breaks, how fast it
+	// recovers — is a consequence of the geometry and belongs in link.js, not on a
+	// slider.
+	setLink({ mode, severity }, onChange) {
+		const emit = () => {
+			const pct = Number(this.el.link.value);
+			const m = this.el.linkMode.value;
+			this.el.linkVal.textContent = pct;
+			try {
+				localStorage.setItem(LINK_KEY, String(pct));
+				localStorage.setItem(LINK_MODE_KEY, m);
+			} catch { }
+			onChange({ mode: m, severity: pct / 100 });
+		};
+		this.el.linkMode.value = mode;
+		this.el.link.value = Math.round(severity * 100);
+		this.el.linkMode.onchange = emit;
+		this.el.link.oninput = emit;
 		emit();
 	}
 
@@ -361,7 +412,7 @@ export class Hud {
 	}
 
 	update({ altitude, speed, throttle, mode, preset, crashed, usingGamepad,
-	         voltage, soc, amps, propwash }) {
+	         voltage, soc, amps, propwash, link }) {
 		this.el.alt.textContent = altitude === null ? '–' : altitude.toFixed(0);
 		this.el.spd.textContent = (speed * 3.6).toFixed(0);
 		this.el.mode.textContent = mode.toUpperCase();
@@ -378,6 +429,14 @@ export class Hud {
 			// is where you land and 3.3 V is where you have damaged the pack.
 			const cell = voltage / 4;
 			this.el.batt.dataset.level = cell < 3.4 ? 'empty' : cell < 3.6 ? 'low' : 'ok';
+		}
+		// Without a readout, a picture falling apart reads as a rendering bug
+		// rather than as the link telling you something. Real goggles show it as a
+		// percentage, so this does too.
+		if (link && this.el.rssi) {
+			const pct = Math.round(link.quality * 100);
+			this.el.rssi.textContent = `RSSI ${pct} %`;
+			this.el.rssi.dataset.level = pct < 25 ? 'empty' : pct < 55 ? 'low' : 'ok';
 		}
 		// Propwash is invisible on a still HUD, so the reticle shivers with it.
 		if (propwash !== undefined && this.el.reticle) {

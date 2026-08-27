@@ -323,7 +323,7 @@ est centrée géométriquement : `[0,5 ; 2,4]` mettait « neutre » à ×1,095, 
 `src/lens.js`, une seule passe plein écran entre la scène et l'écran. Barillet,
 aberration chromatique latérale, mollesse des bords, vignettage et flou de
 mouvement, tous ensemble. Ferme #10, moins la partie « dégradation du lien
-vidéo » qui part dans #12.
+vidéo », partie depuis dans #12 et faite (section plus bas).
 
 Une passe et pas quatre : les quatre effets d'objectif ont la même cause
 physique et s'expriment tous comme une fonction du rayon depuis le centre de
@@ -416,6 +416,120 @@ optique. Les valeurs par défaut (objectif 60 %, vignettage 50 %, obturation
 - Les coefficients d'objectif ne correspondent à aucune caméra réelle mesurée.
   Un vrai calibrage (mire, `k1`/`k2` ajustés sur une Runcam ou une DJI O3)
   serait l'étape suivante si le rendu paraît faux.
+
+## Rendu du lien vidéo : RSSI par raycast (ajouté 2026-08-27)
+
+Ferme #12, la moitié de #10 qui avait été mise de côté. Trois fichiers, une
+direction de dépendance : `src/physics.js` mesure la géométrie, `src/link.js`
+en fait des dB (aucune dépendance : ni Rapier, ni three, ni DOM — donc testable
+dans `tools/selftest.mjs`), `src/lens.js` en fait une image. Arbitrage tranché
+avec l'utilisateur : **les deux rendus**, analogique et numérique, au choix dans
+`Tab`, et un curseur de sévérité réglé par défaut sur « rupture possible ».
+
+### Un seul rayon ne suffisait pas, et deux non plus
+
+Le plan disait « deux raycasts, un depuis chaque bout, l'écart est l'épaisseur
+de matière ». C'est juste, et ça a quand même échoué à la première mesure : un
+tir vers un point **sous le sol** rendait une épaisseur de **zéro**. Le maillage
+de collision est une soupe de surfaces, pas un solide — le terrain est une
+feuille unique, avec une face avant et aucune face arrière. Sa profondeur est
+donc honnêtement nulle, alors même qu'il bloque tout.
+
+D'où la forme finale : `obstructionBetween()` rend `{ blocked, span }` et pas un
+seul nombre. Un immeuble a bien deux murs et rend sa vraie profondeur ; une
+crête ou un toit fin rendent `blocked: true, span: 0`. Côté modèle, `blocked`
+paie un terme fixe de **12 dB** — la diffraction par l'arête, qui est le vrai
+mécanisme physique quand le signal contourne un obstacle sans épaisseur — et
+`span` paie 8 dB/m par-dessus. Sans ce terme, voler derrière une colline
+n'aurait rien coûté.
+
+### Le gel d'image, et le piège du swapBuffers
+
+En mode numérique, une trame sautée se fait en **ne rendant pas la scène** :
+`renderPass.enabled = false`, et la passe d'objectif relit la dernière image
+dans le `readBuffer` du composer. Une frame gelée coûte donc *moins* qu'une
+frame normale (0,59 ms contre 1,42), ce qui est aussi vrai du vrai matériel.
+
+Sauf que `RenderPass` écrit dans le `readBuffer` sans échanger, mais le
+`ShaderPass` final a `needsSwap = true` et `EffectComposer.render()` échange
+même après la dernière passe. Le `readBuffer` alterne donc d'une frame sur
+l'autre, et un gel naïf rejoue l'**avant**-dernière image. Mesuré, pas déduit :
+
+| | image tenue |
+|---|---|
+| `needsSwap = true` (trois.js par défaut) | l'avant-dernière |
+| `needsSwap = false` (ce qu'on fait) | la dernière |
+
+La passe finale rend à l'écran et personne ne consomme son `writeBuffer`, donc
+la mettre à `false` est sans effet de bord. **Toute passe ajoutée après elle
+casserait ça.**
+
+### Le bruit analogique par ligne shredde l'image
+
+Première version : un décalage horizontal aléatoire et indépendant par ligne.
+Capture faite à qualité 0,5 — l'image était illisible, réduite en confettis,
+alors que 0,5 doit être « bruité mais parfaitement volable ». La gigue de
+synchro réelle est **corrélée** d'une ligne à l'autre : l'oscillateur ligne
+dérive, il ne se retire pas aux dés à chaque ligne. La version qui marche est
+une ondulation lente que toute l'image partage (±0,0022 uv) plus environ un
+pixel de bruit réellement par ligne, les déchirures franches étant réservées à
+`uLink < 0,5`.
+
+### Ce qui a été mesuré
+
+Fenêtre 2560×1265, RX 9060 XT, Tour Eiffel, `readPixels` synchrone, cinq
+tournées entrelacées, médiane (l'écart intra-config va jusqu'à 0,5 ms, donc les
+deltas sous ~0,2 ms sont dans le bruit) :
+
+| | ms/frame | delta |
+|---|---|---|
+| sans la passe (référence) | 1,42 | — |
+| passe, lien coupé (`LINK_MODE 0`) | 2,36 | +0,94 |
+| passe + analogique, lien parfait | 2,33 | +0,91 |
+| passe + analogique, lien qui lâche | 2,54 | +1,11 |
+| passe + numérique, lien parfait | 2,32 | +0,90 |
+| passe + numérique, macroblocs | 2,27 | +0,84 |
+| passe + numérique, image gelée | 0,59 | −0,83 |
+
+Le lien coûte donc **au plus 0,2 ms** sur un budget de 10, et rien du tout quand
+il va bien. Les raycasts : 0,0018 ms en vue dégagée, 0,016 ms au pire à travers
+125 m de ville — six fois un `groundBelow()`, que la boucle de rendu payait
+déjà chaque frame. **Aucune cadence réduite n'était nécessaire** ; le
+`_aglEvery` prévu dans le plan n'existe pas.
+
+### Vérifications navigateur
+
+- **Couleur.** Un pixel de ciel ressort à `#9fb8cc` *exactement* sans la passe,
+  avec la passe et lien coupé, et avec l'un ou l'autre mode à qualité 1. Un lien
+  en bonne santé est donc bit à bit l'image d'avant. C'est la régression de #10
+  à ne pas rouvrir.
+- **Gel.** Tient la dernière image, la tient encore sur une deuxième frame
+  gelée, reprend en direct ensuite. Test fait obturation fermée : avec le flou
+  de mouvement, une même pose ne rend pas deux fois le même pixel et la
+  comparaison ne veut rien dire.
+- **Comportement.** 149 m au-dessus du pilote : 100 %. 300 m au niveau de la rue
+  avec 125 m de ville en travers : 0 %. Retour en vue dégagée : 100 %. Coin de
+  la tuile à 884 m en vue directe : 62 %, volable. Chute en ~50 ms, remontée en
+  ~1 s.
+- **Panneau `Tab`.** Section « Lien vidéo » ; le sélecteur bascule bien le
+  `#define`, le curseur à 0 compile l'effet hors du shader, la case maîtresse
+  « Rendu FPV » grise les deux, et les deux clés survivent au rechargement. Le
+  balayage `fpvmaps.` du bouton de réinitialisation les couvre déjà.
+- Aucun message d'erreur ni d'avertissement en console.
+
+### Dette connue
+
+- Les constantes du bilan de liaison (26 dB pour le début de la chute, 60 dB
+  pour la rupture, 12 dB d'arête, 8 dB/m) sont **calibrées à l'intention**, pas
+  mesurées sur un vrai lien : elles produisent le comportement voulu (la
+  distance ne tue pas, l'occlusion tue) mais ne viennent d'aucune mesure.
+- **Pas de diagramme d'antenne.** Un dipôle a un creux dans l'axe, donc voler
+  juste au-dessus du pilote devrait coûter quelque chose et ne coûte rien ici.
+  Suivi séparément.
+- Le sol est un émetteur ponctuel sans multitrajet : pas de réflexions, pas de
+  zone de Fresnel. Une arête franche donne une transition franche.
+- La contrainte `needsSwap = false` de la passe finale est silencieuse : rien ne
+  la vérifie au démarrage, et l'ajouter une passe après casserait le gel.
 
 ## Couverture Flyover : les régions récentes servent du HEIC (ajouté 2026-08-27)
 

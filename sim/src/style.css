@@ -68,7 +68,11 @@ canvas { display: block; }
 .big small { font-size: 12px; font-weight: 400; opacity: .6; margin-left: .35em; }
 
 #mode { font-size: 17px; font-weight: 600; letter-spacing: .1em; color: var(--accent); }
-#src, #fps { font-size: 12px; opacity: .6; }
+#src, #fps, #rssi { font-size: 12px; opacity: .6; }
+/* Same three levels as the battery, and the same two colours: on this HUD
+   yellow means "watch it" and orange means "it is happening now". */
+#rssi[data-level="low"] { color: #f5c451; opacity: 1; }
+#rssi[data-level="empty"] { color: #f2714f; opacity: 1; }
 
 .throttle {
 	width: 10px; height: 110px;
@@ -120,7 +124,9 @@ canvas { display: block; }
 #pad-name { margin: 0 0 1em; font-size: 12px; opacity: .7; word-break: break-all; }
 #pad-map { width: 100%; border-collapse: collapse; font-size: 12px; }
 #pad-map td { padding: 4px 6px 4px 0; }
-#pad-map select { background: #0d1218; color: var(--ink); border: 1px solid rgba(255, 255, 255, .2); padding: 2px 4px; font: inherit; }
+#pad-map select, .panel select { background: #0d1218; color: var(--ink); border: 1px solid rgba(255, 255, 255, .2); padding: 2px 4px; font: inherit; }
+.panel select { flex: 1; }
+.panel select:disabled { opacity: .3; }
 .axisbar { position: relative; height: 4px; background: rgba(255, 255, 255, .12); width: 100%; min-width: 90px; }
 .axisbar i { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--accent); }
 .panel label { display: flex; align-items: center; gap: .7em; margin: .5em 0; font-size: 12px; }

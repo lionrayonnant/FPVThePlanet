@@ -392,8 +392,40 @@ Coût mesuré sur la Tour Eiffel en 2560×1265 : **1,14 ms/frame** sur un budget
 récupère que 0,47 ms de ce total ; si les images chutent, c'est la case
 **Rendu FPV** qu'il faut décocher, pas le flou.
 
-La partie « dégradation du lien vidéo » (bruit RF ou macroblocs selon la
-distance et l'occlusion) n'est pas faite — elle est suivie séparément.
+### Le lien vidéo
+
+Le retour vidéo arrive par la radio, et la radio ne passe pas à travers les
+immeubles. `src/link.js` calcule un bilan de liaison en dB entre le drone et le
+pilote — qui se tient au point de décollage — et `src/lens.js` en fait une
+image dégradée, en fin de chaîne, après l'objectif.
+
+Ce qui pilote la dégradation est **la distance et l'occlusion**, la seconde
+comptant beaucoup plus que la première : une ligne de vue dégagée d'un bout à
+l'autre de la tuile reste volable (62 % à 880 m), tandis que quelques mètres de
+façade suffisent à tuer l'image. C'est le comportement réel du 5,8 GHz, et
+c'est ce qui donne une vraie raison de ne pas passer derrière un bâtiment.
+
+L'occlusion est mesurée par **deux raycasts**, un depuis chaque bout : le
+premier impact à l'aller dit où la matière commence, le premier impact au
+retour dit où elle finit, et l'écart est l'épaisseur à traverser. Un seul rayon
+ne dirait que « quelque chose bloque », et effleurer l'angle d'un toit
+deviendrait aussi grave que traverser un pâté de maisons. Coût mesuré : 0,002 à
+0,016 ms par frame selon ce que le rayon traverse.
+
+Deux réglages dans le panneau `Tab`, section **Lien vidéo** :
+
+| réglage | par défaut | ce qu'il fait |
+|---|---|---|
+| **Rendu** | Analogique | *Analogique* : grain RF, désaturation vers le noir et blanc, lignes qui décrochent, barre de synchro qui roule, puis neige. On voit le lien s'affaiblir. *Numérique* (DJI/HDZero) : net jusqu'au seuil, puis macroblocs, quantification et gel d'image. Ça tient, puis ça tombe d'un coup |
+| **Dégradation** | 100 % | l'agressivité de la chute ; à 100 % le lien peut disparaître complètement, à 0 % l'effet est compilé hors du shader |
+
+Le RSSI est affiché en haut à droite, sinon une image qui se désagrège se lit
+comme un bug de rendu plutôt que comme une information.
+
+Coût mesuré : **au plus 0,2 ms/frame**, et rigoureusement zéro quand le lien va
+bien — un pixel de ciel ressort à `#9fb8cc` exact dans les deux modes à
+qualité 1, comme sans l'effet. Une image gelée coûte 0,59 ms au lieu de 1,4 :
+elle n'est pas rendue du tout, seulement réaffichée.
 
 ### Régler le PID
 

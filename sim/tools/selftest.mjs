@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
+import { VideoLink } from '../src/link.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -151,6 +152,100 @@ check('high-speed impact registers as a crash', fast.maxImpact > 1500, `${fast.m
 const land = simulate({ seconds: 3, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 },
 	at: [manifest.spawn.x, manifest.spawn.y + 0.3, manifest.spawn.z] });
 check('a gentle landing is not a crash', land.maxImpact < 1500, `${land.maxImpact.toFixed(0)} N`);
+
+console.log('\nvideo link');
+// The link has two halves and both are checkable without a browser: the
+// geometry query in physics.js, and the pure dB model in link.js.
+{
+	const s = manifest.spawn;
+	const ex = s.x, ey = s.y + 1.2, ez = s.z;
+
+	// Straight up out of the spawn there is nothing but sky. If this one fails,
+	// the ground station is buried and every other link reading is meaningless.
+	check('clear line of sight straight up from the transmitter',
+		!phys.obstructionBetween(ex, ey, ez, ex, ey + 200, ez).blocked);
+
+	// A single sheet of terrain has a near face and no far face, so its measured
+	// depth is legitimately zero — but it is still in the way. The flag and the
+	// span are separate precisely so this case is not read as a clear path.
+	const under = phys.obstructionBetween(ex, ey, ez, ex, ey - 30, ez);
+	check('the ground counts as blocked even with no measurable depth',
+		under.blocked, `span ${under.span.toFixed(1)} m`);
+
+	// Somewhere across the tile at head height there has to be city in the way,
+	// or the whole feature has nothing to react to.
+	let blockedSamples = 0, deep = 0, total = 0;
+	for (let a = 0; a < 8; a++) {
+		const x = ex + Math.cos(a / 8 * Math.PI * 2) * 400;
+		const z = ez + Math.sin(a / 8 * Math.PI * 2) * 400;
+		const o = phys.obstructionBetween(ex, ey, ez, x, ey + 2, z);
+		total++;
+		if (o.blocked) blockedSamples++;
+		if (o.span > 5) deep++;
+	}
+	check('street-level paths across the tile are obstructed', blockedSamples === total,
+		`${blockedSamples}/${total} blocked`);
+	check('obstruction is measured as a depth, not just a flag', deep >= total / 2,
+		`${deep}/${total} deeper than 5 m`);
+
+	// The model itself. All of these are properties, not magic numbers, so they
+	// survive a retune of the dB constants.
+	const link = new VideoLink();
+	const settle = (opts, seconds = 10) => {
+		link.reset();
+		for (let i = 0; i < seconds * 60; i++) link.update({ dt: 1 / 60, ...opts });
+		return link.out.quality;
+	};
+	const near = settle({ distance: 20, blocked: false, span: 0 });
+	const far = settle({ distance: 900, blocked: false, span: 0 });
+	const behind = settle({ distance: 900, blocked: true, span: 12 });
+	check('a clear link close in is perfect', near > 0.99, near.toFixed(3));
+	check('quality falls with distance', far < near, `${near.toFixed(2)} at 20 m, ${far.toFixed(2)} at 900 m`);
+	// The whole point of the raycast: distance alone must not be what kills the
+	// picture, or there was no reason to cast a ray at all.
+	check('a clear link across the whole tile is still flyable', far > 0.4, far.toFixed(2));
+	check('a building costs far more than the distance to it', behind < 0.05,
+		`${far.toFixed(2)} clear vs ${behind.toFixed(2)} behind 12 m of building`);
+
+	// Reacquisition is deliberately slower than loss, the way a diversity
+	// receiver behaves. Measured as time-to-halfway in each direction.
+	const halfway = (from, to) => {
+		// Where it ends up first — settle() resets, so it cannot run after the
+		// starting state has been established.
+		const target = settle(to);
+		link.reset();
+		for (let i = 0; i < 600; i++) link.update({ dt: 1 / 60, ...from });
+		const start = link.out.quality;
+		let frames = 0;
+		while (frames < 600 && Math.abs(link.out.quality - start) < Math.abs(target - start) / 2) {
+			link.update({ dt: 1 / 60, ...to });
+			frames++;
+		}
+		return frames;
+	};
+	const clear = { distance: 120, blocked: false, span: 0 };
+	const shadow = { distance: 120, blocked: true, span: 3 };
+	const drop = halfway(clear, shadow);
+	const recover = halfway(shadow, clear);
+	check('the link is lost faster than it comes back', recover > drop * 2,
+		`${(drop / 60 * 1000).toFixed(0)} ms to drop, ${(recover / 60 * 1000).toFixed(0)} ms to recover`);
+
+	// Severity is the slider, and 0 has to mean genuinely nothing.
+	link.setSeverity(0);
+	const off = settle({ distance: 2000, blocked: true, span: 200 });
+	check('severity 0 leaves the picture untouched', off === 1, off.toFixed(3));
+	link.setSeverity(1);
+
+	// Bounded whatever it is fed: the shader multiplies by this.
+	let outOfRange = 0;
+	link.reset();
+	for (let i = 0; i < 2000; i++) {
+		const o = link.update({ dt: 1 / 60, distance: Math.random() * 3000,
+			blocked: Math.random() > 0.5, span: Math.random() * 300 });
+		if (!(o.quality >= 0 && o.quality <= 1)) outOfRange++;
+	}
+	check('quality stays inside 0..1 under any input', outOfRange === 0);
+}
 
 console.log('\ntextures');
 // The UV convention is the one thing here a screenshot reads as merely "a bit
