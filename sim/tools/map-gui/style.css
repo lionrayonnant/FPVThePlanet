@@ -1,0 +1,195 @@
+/* La console de préparation : le pendant au sol de l'OSD de vol. Mêmes jetons que
+   src/style.css — fond #0d1218, accent #6cf, monospace, filets d'1px, aucun
+   arrondi — pour que jaune = « surveille » et orange = « ça se produit » veuillent
+   dire ici exactement ce qu'ils veulent dire en vol. */
+
+:root {
+	--void: #0d1218;
+	--panel: #101720;
+	--rule: rgba(255, 255, 255, .13);
+	--ink: #eaf2f8;
+	--dim: rgba(234, 242, 248, .55);
+	--faint: rgba(234, 242, 248, .32);
+	--accent: #6cf;
+	--warn: #f5c451;
+	--alarm: #f2714f;
+	--ok: #7ddc9a;
+	--rail: 340px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+	margin: 0; height: 100%; overflow: hidden;
+	background: var(--void); color: var(--ink);
+	font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	-webkit-font-smoothing: antialiased;
+}
+
+#app { display: grid; grid-template-columns: var(--rail) 1fr; height: 100%; }
+
+/* ---------- rail ---------- */
+
+#rail {
+	background: var(--panel);
+	border-right: 1px solid var(--rule);
+	display: flex; flex-direction: column;
+	overflow: hidden;
+}
+#rail > header {
+	padding: 18px 18px 14px;
+	border-bottom: 1px solid var(--rule);
+}
+#rail h1 {
+	margin: 0; font-size: 13px; font-weight: 600;
+	letter-spacing: .22em; text-transform: uppercase;
+}
+#rail h1 span { color: var(--accent); }
+#rail header p { margin: 4px 0 0; font-size: 11px; color: var(--faint); }
+
+.scroll { overflow-y: auto; flex: 1; }
+.scroll::-webkit-scrollbar { width: 8px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--rule); }
+
+/* Les blocs ne sont pas numérotés : ils ne se suivent pas, ils se mettent tous à
+   jour ensemble à chaque geste sur la carte. */
+.block { padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+.block > h2 {
+	margin: 0 0 10px; font-size: 10px; font-weight: 600;
+	letter-spacing: .2em; text-transform: uppercase; color: var(--faint);
+	display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.block[data-empty="1"] .readout { opacity: .3; }
+
+.readout { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
+.readout dt { color: var(--dim); font-size: 11px; }
+.readout dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.readout dd .range { display: block; font-size: 10px; color: var(--faint); }
+
+.figure { font-size: 21px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.figure small { font-size: 11px; font-weight: 400; color: var(--faint); margin-left: .4em; }
+
+/* ---------- controls ---------- */
+
+label.field, p.field { display: block; margin-bottom: 10px; }
+label.field > span, p.field > span {
+	display: block; font-size: 10px; letter-spacing: .16em;
+	text-transform: uppercase; color: var(--faint); margin-bottom: 4px;
+}
+input[type=text], input[type=search], input[type=number], select {
+	width: 100%; padding: 7px 9px;
+	background: var(--void); color: var(--ink);
+	border: 1px solid var(--rule); border-radius: 0;
+	font: inherit;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, .seg label:focus-within {
+	outline: 2px solid var(--accent); outline-offset: 1px;
+}
+input::placeholder { color: var(--faint); }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Le zoom se choisit par la taille de tuile au sol, pas par son numéro. */
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.seg label {
+	border: 1px solid var(--rule); margin-left: -1px; padding: 6px 4px;
+	text-align: center; cursor: pointer; font-size: 11px;
+}
+.seg label:first-child { margin-left: 0; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label small { display: block; font-size: 9px; color: var(--faint); }
+.seg label:hover { color: var(--accent); }
+.seg label:has(:checked) { border-color: var(--accent); color: var(--accent); }
+.seg label:has(:checked) small { color: var(--accent); opacity: .7; }
+
+button {
+	width: 100%; padding: 9px 12px; margin-top: 8px;
+	background: transparent; color: var(--ink);
+	border: 1px solid var(--rule); border-radius: 0;
+	font: inherit; cursor: pointer;
+	letter-spacing: .1em; text-transform: uppercase; font-size: 11px;
+}
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+/* Un bouton désactivé doit LE PARAÎTRE, y compris en variante primaire :
+   sinon « Extraire » a l'air prêt alors qu'aucune zone n'est dessinée. */
+button:disabled { color: var(--faint); border-color: var(--rule); cursor: not-allowed; }
+button.primary:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button.primary:hover:not(:disabled) { background: var(--accent); color: var(--void); }
+button.danger:hover:not(:disabled) { border-color: var(--alarm); color: var(--alarm); }
+
+.note { margin: 8px 0 0; font-size: 11px; color: var(--faint); }
+.note.warn { color: var(--warn); }
+.note.alarm { color: var(--alarm); }
+.note.ok { color: var(--ok); }
+
+/* ---------- verdict de couverture ---------- */
+
+.verdict { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.45; }
+.verdict::before { content: "■"; line-height: 1.2; }
+.verdict[data-status=ok] { color: var(--ok); }
+.verdict[data-status=none] { color: var(--alarm); }
+.verdict[data-status=undecodable] { color: var(--warn); }
+.verdict[data-status=pending] { color: var(--faint); }
+.verdict[data-status=pending]::before { content: "…"; }
+
+/* ---------- job ---------- */
+
+#job { display: flex; flex-direction: column; height: 100%; }
+.bar { height: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; position: relative; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease; }
+/* Le balayage dit « ça travaille » quand la barre ne peut pas dire « où on en est » :
+   le nombre de tuiles trouvées n'est pas connu d'avance. */
+.bar[data-indeterminate="1"]::after {
+	content: ""; position: absolute; inset: 0; width: 30%;
+	background: linear-gradient(90deg, transparent, var(--accent), transparent);
+	animation: sweep 1.6s linear infinite; opacity: .8;
+}
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(400%); } }
+
+#log {
+	flex: 1; overflow-y: auto; margin: 0; padding: 12px 18px;
+	font-size: 11px; line-height: 1.45; color: var(--dim);
+	white-space: pre-wrap; word-break: break-word;
+}
+#log b { color: var(--ink); font-weight: 600; display: block; margin-top: 6px; }
+#log i { color: var(--warn); font-style: normal; }
+
+/* ---------- map ---------- */
+
+#map { height: 100%; background: var(--void); }
+.leaflet-container { background: var(--void); font: inherit; }
+.leaflet-control-attribution {
+	background: rgba(13, 18, 24, .8) !important; color: var(--faint) !important;
+	font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: var(--dim) !important; }
+.leaflet-bar, .leaflet-bar a {
+	background: var(--panel); color: var(--ink);
+	border-color: var(--rule) !important; border-radius: 0 !important;
+}
+.leaflet-bar a:hover { background: var(--void); color: var(--accent); }
+.leaflet-touch .leaflet-bar a:first-child, .leaflet-touch .leaflet-bar a:last-child { border-radius: 0 !important; }
+
+/* Étiquette flottante des dimensions, accrochée à la zone. */
+.dim-label {
+	background: rgba(13, 18, 24, .88); border: 1px solid var(--accent);
+	color: var(--accent); padding: 2px 6px; font-size: 11px;
+	white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.dim-label::before { display: none; }
+
+.scene-pin {
+	background: rgba(13, 18, 24, .85); border: 1px solid var(--rule);
+	color: var(--dim); padding: 1px 5px; font-size: 10px; white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+	#app { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+	#rail { border-right: 0; border-bottom: 1px solid var(--rule); order: 2; }
+	#map { order: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.bar > i { transition: none; }
+	.bar[data-indeterminate="1"]::after { animation: none; opacity: .35; }
+}

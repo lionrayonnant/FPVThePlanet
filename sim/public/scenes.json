@@ -3,7 +3,14 @@
 		"slug": "tour-eiffel",
 		"name": "Tour Eiffel",
 		"lat": 48.8582,
-		"lon": 2.297
+		"lon": 2.297,
+		"radius": 25,
+		"zoom": 20,
+		"altitude": 20,
+		"cell": 256,
+		"quality": 85,
+		"bytes": 651618077,
+		"createdAt": "2026-08-27T21:47:47.960Z"
 	},
 	{
 		"slug": "ile-de-la-cite-et-ile-saint-louis",

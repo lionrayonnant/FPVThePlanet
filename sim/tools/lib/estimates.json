@@ -1,0 +1,65 @@
+{
+	"_comment": [
+		"Constantes MESURÉES, pas devinées. Elles alimentent les estimations de poids et",
+		"de durée affichées par la GUI d'ajout de cartes (sim/add-map.html).",
+		"",
+		"Recalcul : node tools/lib/estimates.mjs --recalibrate",
+		"(mesure les cartes déjà présentes dans downloaded_files/obj + public/scenes).",
+		"",
+		"Relevé du 2026-08-27 sur 7 cartes (Paris x5, Reims, Times Square) plus un export",
+		"neuf de contrôle à Montmartre (304 colonnes, 6080 sondes, 497 tuiles, 85 Mo, 7 s)."
+	],
+
+	"tilesPerColumn": {
+		"_comment": "Tuiles exportées / colonnes sondées. Une colonne rend plusieurs niveaux h.",
+		"min": 1.06,
+		"typical": 1.6,
+		"max": 3.3,
+		"_samples": "lmsc 1.06, reims 1.15, tour-eiffel 1.50, ndc 1.56, periph 1.61, montmartre 1.63, île 1.65, times-square 3.28"
+	},
+
+	"bytesPerColumnZ20": {
+		"_comment": [
+			"Octets par COLONNE de tuiles sondée, au zoom 20. On mesure par colonne et non",
+			"par tuile parce que la hauteur du bâti fait varier ensemble le nombre de tuiles",
+			"ET leur poids : la grandeur par colonne est celle qu'on observe directement.",
+			"L'écart va du simple au quadruple entre un lotissement et Manhattan — la GUI",
+			"doit afficher la fourchette, pas seulement la médiane.",
+			"Une tuile z19 couvre 4x l'aire : voir zoomAreaFactor."
+		],
+		"raw":  { "min": 190000, "typical": 276000, "max": 795000 },
+		"prep": { "min":  92000, "typical": 138000, "max": 252000 },
+		"_samples": "raw ko/col : lmsc 191, île 255, periph 258, ndc 273, montmartre 279, reims 403, tour-eiffel 438, times-square 794"
+	},
+
+	"bytesPerTileZ20": {
+		"_comment": "Informatif : sert à expliquer les chiffres, pas au calcul (voir bytesPerColumnZ20).",
+		"raw":  { "min": 151000, "typical": 175000, "max": 343000 },
+		"prep": { "min":  74000, "typical":  85000, "max": 163000 }
+	},
+
+	"probesPerSecond": {
+		"_comment": "Requêtes de tuiles par seconde avec --parallel (16 en vol). Mesuré : 6080 sondes en 7 s.",
+		"value": 870
+	},
+
+	"downloadBytesPerSecond": {
+		"_comment": "Débit utile observé sur le même run (85 Mo en 7 s). C'est souvent CE terme qui domine, pas le nombre de sondes.",
+		"value": 12000000
+	},
+
+	"prepSecondsPerTile": {
+		"_comment": "prep.mjs est linéaire et bon marché : 497 tuiles en 1,8 s, 3910 tuiles en 13 s.",
+		"value": 0.0035
+	},
+
+	"zoomAreaFactor": {
+		"_comment": "Une tuile au zoom z couvre 4^(20-z) fois l'aire d'une tuile z20, et pèse d'autant plus.",
+		"base": 20
+	},
+
+	"warnAboveTiles": {
+		"_comment": "Au-delà, la GUI avertit : ~1,7 Go bruts et ~850 Mo préparés, soit deux fois la Tour Eiffel.",
+		"value": 10000
+	}
+}

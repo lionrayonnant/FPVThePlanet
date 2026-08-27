@@ -1,6 +1,6 @@
 # Handoff — POC simulateur de drone FPV (Paris / Tour Eiffel)
 
-État au 2026-08-26. Écrit pour reprendre le travail sans redériver le contexte.
+État au 2026-08-27. Écrit pour reprendre le travail sans redériver le contexte.
 
 ## Statut : ça vole
 
@@ -12,6 +12,51 @@ Les textures étaient fausses (motifs retournés, larges plaques grises) : c'ét
 un seul bug, l'axe V des UV, corrigé — voir le n°9. **La « limite connue » sur
 les façades grises que décrivait une version précédente de ce document n'existe
 pas** ; c'était ce bug.
+
+## GUI d'ajout de cartes (issue #26) — vérifié
+
+`npm run dev` sert désormais `/add-map.html` : recherche de lieu, carte satellite,
+rectangle, estimations, sonde de couverture, extraction avec logs en direct.
+
+**Ce qui est vérifié :**
+
+- Non-régression du CLI : `npm run add-map -- "Tour Eiffel" 48.8582 2.2970` produit
+  exactement les mêmes phases et les mêmes tailles qu'avant la refonte (diff des
+  logs de prep : identique), et `selftest` sur `tour-eiffel` passe ses 15 checks.
+- Mode bbox du Go exporter : `--bbox s,w,n,e` extrait un rectangle asymétrique
+  (mesuré : 41 x 17 tuiles = 1031 x 427 m). L'appel positionnel historique est
+  inchangé, même dossier d'export, même comportement.
+- `--plan` : JSON sur stdout en 0,8 s, zéro requête de tuile. Sur une zone hors
+  couverture il rend `columns: 0` — un verdict « pas de données ici » gratuit.
+- Sonde de couverture : 735 ms, verdicts corrects sur Tour Eiffel (couvert),
+  Brest et plein Atlantique (non couvert), Antarctique (aucune région).
+- Extraction complète depuis le navigateur : 143 colonnes → 192 tuiles → 17 Mo,
+  SSE de bout en bout, scène jouable dans le simu.
+- `npm run build` ne contient ni la page, ni l'API, ni Leaflet.
+
+**Les estimations sont mesurées, pas devinées.** `tools/lib/estimates.json` tient
+les constantes relevées sur les 7 cartes existantes plus un export neuf de contrôle
+(304 colonnes, 6080 sondes, 497 tuiles, 85 Mo, 7 s ; prep 1,8 s). Les huit
+échantillons tombent tous dans les fourchettes rendues par `estimateCost()`. Pour
+recalibrer après avoir ajouté des cartes, refaire le relevé `du -sb` par dossier
+brut et par scène et mettre à jour le fichier — les valeurs y sont commentées avec
+leur provenance.
+
+**Ce qui est volontairement grossier :** entre un lotissement et Manhattan, le même
+nombre de colonnes rend du simple au quadruple de données (191 vs 795 ko/colonne
+mesurés). L'interface affiche donc une fourchette et un ordre de grandeur de durée,
+jamais un chiffre unique. Ne pas « améliorer » ça en affichant une valeur précise :
+elle serait fausse.
+
+**Non vérifié :** l'extraction d'une grosse zone (> 5000 colonnes) depuis la GUI —
+seuls des exports de quelques centaines de colonnes ont été menés au bout par
+l'interface. Le chemin est le même, mais la barre de progression s'appuie sur
+l'estimation du nombre de tuiles, donc son échelle n'a pas été éprouvée en grand.
+L'annulation en cours de téléchargement n'a été testée que par l'API, pas par le
+bouton.
+
+**Reporté en issues de suivi :** polygone libre, multi-zones, import GeoJSON/KML/GPX,
+prévisualisation 3D avant extraction.
 
 ## Comment reprendre
 

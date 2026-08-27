@@ -5,25 +5,24 @@
 //   node tools/add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25]
 //                           [--altitude 20] [--cell 256] [--quality 85]
 //                           [--slug custom-slug] [--force]
+//                           [--bbox <south>,<west>,<north>,<east>]
 //
 // radius (tryXY) and altitude (tryH) are the export-obj scan parameters — see
 // ../flyover-reverse-engineering/README.md. Bigger radius = more area, at
 // the cost of a longer download. 25 covers roughly the area used for the
 // Tour Eiffel POC; widen it for elongated sites.
+//
+// --bbox extracts an explicit lat/lon rectangle instead of the radius square,
+// which is what the GUI (npm run dev, /add-map.html) uses. lat/lon are still
+// required — they select the Flyover region — so pass the box centre.
+//
+// All the work lives in lib/add-map-core.mjs; this file is only the CLI.
 
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
-import path from 'node:path';
-
-const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const FLYOVER_ROOT = path.resolve(SIM_ROOT, '../flyover-reverse-engineering');
-const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
+import { addMap, Cancelled, slugify } from './lib/add-map-core.mjs';
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false };
+	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false, bbox: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--zoom') opts.zoom = parseInt(argv[++i], 10);
@@ -33,10 +32,11 @@ function parseArgs(argv) {
 		else if (a === '--quality') opts.quality = parseInt(argv[++i], 10);
 		else if (a === '--slug') opts.slug = argv[++i];
 		else if (a === '--force') opts.force = true;
+		else if (a === '--bbox') opts.bbox = parseBox(argv[++i]);
 		else positional.push(a);
 	}
 	if (positional.length !== 3) {
-		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force]');
+		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--bbox s,w,n,e]');
 		process.exit(1);
 	}
 	const [name, latStr, lonStr] = positional;
@@ -52,90 +52,30 @@ function parseArgs(argv) {
 	return opts;
 }
 
-function slugify(name) {
-	return name
-		.normalize('NFD').replace(/[̀-ͯ]/g, '') // strip accents
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '');
-}
-
-function run(cmd, args, cwd) {
-	return new Promise((resolve, reject) => {
-		console.log(`\n$ ${cmd} ${args.join(' ')}\n  (cwd: ${cwd})\n`);
-		const child = spawn(cmd, args, { cwd, stdio: 'inherit' });
-		child.on('error', reject);
-		child.on('close', (code) => {
-			if (code === 0) resolve();
-			else reject(new Error(`${cmd} exited with code ${code}`));
-		});
-	});
-}
-
-// The Go exporter creates exp_model.obj/.mtl before it knows whether the scan
-// will find anything, so "the directory exists" is not the same as "the tile
-// was downloaded". Only a non-empty OBJ counts — otherwise a first run over an
-// area with no Flyover coverage poisons the cache and every later run silently
-// skips the download.
-function tileIsUsable(dir) {
-	try {
-		return ['exp_model.obj', 'exp_model.mtl'].every((f) => fs.statSync(path.join(dir, f)).size > 0);
-	} catch { return false; }
-}
-
-async function main() {
-	const opts = parseArgs(process.argv.slice(2));
-	const { name, lat, lon, zoom, radius, altitude, cell, quality, slug, force } = opts;
-
-	// Must match the Go exporter's fmt.Sprintf("%f-%f-%d-%d-%d", ...): %f is 6 decimals.
-	const tileDirName = `${lat.toFixed(6)}-${lon.toFixed(6)}-${zoom}-${radius}-${altitude}`;
-	const tileDir = path.join(FLYOVER_ROOT, 'downloaded_files/obj', tileDirName);
-	const outDir = path.join(SCENES_DIR, slug);
-
-	console.log(`Carte : ${name}  (slug: ${slug})`);
-	console.log(`Centre : ${lat}, ${lon}  zoom ${zoom}  rayon ${radius}  altitudes ${altitude}`);
-
-	if (!force && tileIsUsable(tileDir)) {
-		console.log(`\nTuile déjà téléchargée (${tileDir}), téléchargement sauté (--force pour refaire).`);
-	} else {
-		// Drop any empty leftover from a previous failed scan so the exporter
-		// starts clean and the check below can't be fooled by stale files.
-		fs.rmSync(tileDir, { recursive: true, force: true });
-		await run('go', [
-			'run', 'cmd/export-obj/main.go',
-			String(lat), String(lon), String(zoom), String(radius), String(altitude),
-			'--parallel',
-		], FLYOVER_ROOT);
+function parseBox(v) {
+	const n = String(v ?? '').split(',').map(Number);
+	if (n.length !== 4 || !n.every(Number.isFinite)) {
+		console.error('--bbox expects <south>,<west>,<north>,<east> in degrees');
+		process.exit(1);
 	}
-
-	if (!tileIsUsable(tileDir)) {
-		fs.rmSync(tileDir, { recursive: true, force: true });
-		throw new Error(
-			`aucune tuile 3D à ${lat}, ${lon} (zoom ${zoom}).\n` +
-			"  Apple Flyover ne couvre en photogrammétrie qu'une liste de villes : quand le scan\n" +
-			'  affiche « 0 exported », ce lieu n\'en fait probablement pas partie. Vérifie les\n' +
-			'  coordonnées, puis essaie un rayon plus large (--radius) ou un zoom plus bas\n' +
-			'  (--zoom 19/18) avant de conclure ; un lieu couvert renvoie des tuiles dès --radius 1.'
-		);
-	}
-
-	await run('node', [
-		'tools/prep.mjs', tileDir,
-		'--out', outDir,
-		'--cell', String(cell),
-		'--quality', String(quality),
-	], SIM_ROOT);
-
-	const scenes = fs.existsSync(SCENES_JSON) ? JSON.parse(fs.readFileSync(SCENES_JSON, 'utf8')) : [];
-	const entry = { slug, name, lat, lon };
-	const i = scenes.findIndex((s) => s.slug === slug);
-	if (i >= 0) scenes[i] = entry; else scenes.push(entry);
-	fs.writeFileSync(SCENES_JSON, JSON.stringify(scenes, null, '\t') + '\n');
-
-	console.log(`\n✓ "${name}" prêt — disponible dans le menu au prochain "npm run dev".`);
+	return {
+		south: Math.min(n[0], n[2]), west: Math.min(n[1], n[3]),
+		north: Math.max(n[0], n[2]), east: Math.max(n[1], n[3]),
+	};
 }
 
-main().catch((err) => {
-	console.error('\nÉchec :', err.message);
+const opts = parseArgs(process.argv.slice(2));
+
+// The CLI keeps the old behaviour of showing everything the subprocesses print;
+// the library streams the same lines to the GUI instead.
+addMap(opts, {
+	onLog: ({ stream, line }) => {
+		if (stream === 'progress' || stream === 'phase') return;
+		if (stream === 'meta') console.log(line);
+		else if (stream === 'stderr') console.error(line);
+		else console.log(line);
+	},
+}).catch((err) => {
+	console.error(err instanceof Cancelled ? '\nAnnulé.' : `\nÉchec : ${err.message}`);
 	process.exit(1);
 });

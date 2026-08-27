@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -31,7 +32,7 @@ func printUsage(msg string) {
 	if msg != "" {
 		l.Println("Error:", msg)
 	}
-	l.Println("Usage", os.Args[0], "[lat] [lon] [zoom] [tryXY] [tryH] [[--parallel]]")
+	l.Println("Usage", os.Args[0], "[lat] [lon] [zoom] [tryXY] [tryH] [--parallel] [--bbox s,w,n,e] [--plan]")
 	l.Println()
 	l.Println("  Name    Description       Example")
 	l.Println("  --------------------------------------")
@@ -42,6 +43,14 @@ func printUsage(msg string) {
 	l.Println("  tryXY   Area scan        ", ex[3])
 	l.Println("  tryH    Altitude scan    ", ex[4])
 	l.Println("Example:", os.Args[0], ex[0], ex[1], ex[2], ex[3], ex[4])
+	l.Println()
+	l.Println("Options:")
+	l.Println("  --parallel        16 concurrent tile requests instead of 1")
+	l.Println("  --bbox s,w,n,e    scan this lat/lon rectangle instead of the tryXY square")
+	l.Println("                    around lat/lon; tryXY is then ignored (lat/lon still")
+	l.Println("                    select the Flyover region, so pass the box centre)")
+	l.Println("  --plan            print a JSON scan plan on stdout and exit without")
+	l.Println("                    downloading a single tile")
 	os.Exit(1)
 }
 
@@ -50,12 +59,23 @@ func main() {
 	var err error
 	aReq := make([]string, 0)
 	aOpt := make([]string, 0)
-	for _, a := range os.Args[1:] {
+	// --bbox is the only option taking a value; accept both "--bbox v" and
+	// "--bbox=v" so its value never lands in the positional list.
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		if !strings.HasPrefix(a, "--") {
 			aReq = append(aReq, a)
-		} else {
-			aOpt = append(aOpt, a)
+			continue
 		}
+		if a == "--bbox" {
+			if i+1 >= len(args) {
+				printUsage("--bbox needs a value")
+			}
+			i++
+			a = "--bbox=" + args[i]
+		}
+		aOpt = append(aOpt, a)
 	}
 	if len(os.Args) == 1 {
 		printUsage("")
@@ -84,10 +104,19 @@ func main() {
 		printUsage("Invalid tryH")
 	}
 	parallel := false
+	planOnly := false
+	bbox := latLonBox{}
 	for _, a := range aOpt {
-		switch a {
-		case "--parallel":
+		switch {
+		case a == "--parallel":
 			parallel = true
+		case a == "--plan":
+			planOnly = true
+		case strings.HasPrefix(a, "--bbox="):
+			bbox, err = parseBox(strings.TrimPrefix(a, "--bbox="))
+			if err != nil {
+				printUsage("Invalid --bbox: " + err.Error())
+			}
 		default:
 			printUsage("Unknown param: " + a)
 		}
@@ -115,7 +144,37 @@ func main() {
 	err = os.MkdirAll(fmt.Sprintf("./cache/c3mm/%d_%d", p.Region, p.Version), 0755)
 	oth.CheckPanic(err)
 
+	// meta_region on the trigger gives the tile bounding box its octree
+	// actually covers (see #15) - pruning HTTP probes to it is a cheap
+	// stand-in for the real octree pre-check (checkTile), which only
+	// understands the v1 metadata format while recent grid triggers serve
+	// v2. Legacy triggers without meta_region leave box.Ok false, so
+	// Contains() never prunes for them.
+	box := p.Box()
+
+	// The scan area is either the tryXY square centred on the tile containing
+	// lat/lon, or the explicit lat/lon rectangle given by --bbox.
+	xMin, xMax := x-int(tryXY), x+int(tryXY)
+	yMin, yMax := y-int(tryXY), y+int(tryXY)
 	exportDir := fmt.Sprintf("./downloaded_files/obj/%f-%f-%d-%d-%d", lat, lon, zoom, tryXY, tryH)
+	if bbox.Ok {
+		// TMS y grows northwards while lat does too, but don't rely on it:
+		// take the corners and sort.
+		x1, y1 := mth.LatLonToTileTMS(z, bbox.South, bbox.West)
+		x2, y2 := mth.LatLonToTileTMS(z, bbox.North, bbox.East)
+		xMin, xMax = minMax(x1, x2)
+		yMin, yMax = minMax(y1, y2)
+		exportDir = fmt.Sprintf("./downloaded_files/obj/bbox-%f-%f-%f-%f-%d-%d",
+			bbox.South, bbox.West, bbox.North, bbox.East, zoom, tryH)
+	}
+
+	// --plan answers "what would this scan cost, and can this region serve it
+	// at all" without a single tile request, so a UI can show the cost up front.
+	if planOnly {
+		printPlan(z, xMin, xMax, yMin, yMax, int(tryH), p, box, exportDir)
+		return
+	}
+
 	err = os.MkdirAll(exportDir, 0755)
 	oth.CheckPanic(err)
 
@@ -146,20 +205,12 @@ func main() {
 		exDone <- 1
 	}()
 
-	// meta_region on the trigger gives the tile bounding box its octree
-	// actually covers (see #15) - pruning HTTP probes to it is a cheap
-	// stand-in for the real octree pre-check (checkTile), which only
-	// understands the v1 metadata format while recent grid triggers serve
-	// v2. Legacy triggers without meta_region leave box.Ok false, so
-	// Contains() never prunes for them.
-	box := p.Box()
 	skipped := 0
 
 	// loop over area and altitude
-	for dx := -tryXY; dx <= tryXY; dx++ {
-		for dy := -tryXY; dy <= tryXY; dy++ {
-			xn := x + int(dx)
-			yn := y + int(dy)
+	for xn := xMin; xn <= xMax; xn++ {
+		for yn := yMin; yn <= yMax; yn++ {
+			dx, dy := xn-x, yn-y
 			if !box.Contains(z, yn, xn) {
 				skipped++
 				continue
@@ -211,6 +262,117 @@ func main() {
 	if n := undecodable.Load(); n > 0 {
 		l.Printf("%d tuile(s) reçues mais non décodées — le parseur C3M ne couvre pas ce que sert cette région.", n)
 	}
+}
+
+// latLonBox is a --bbox value: a lat/lon rectangle in degrees.
+type latLonBox struct {
+	South, West, North, East float64
+	Ok                       bool
+}
+
+// parseBox parses "south,west,north,east" in degrees. Corners are sorted, so
+// the caller can pass the two opposite corners in any order.
+func parseBox(v string) (latLonBox, error) {
+	f := strings.Split(v, ",")
+	if len(f) != 4 {
+		return latLonBox{}, errors.New("expected south,west,north,east")
+	}
+	n := make([]float64, 4)
+	for i, p := range f {
+		x, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
+		if err != nil {
+			return latLonBox{}, fmt.Errorf("%q is not a number", p)
+		}
+		n[i] = x
+	}
+	b := latLonBox{South: math.Min(n[0], n[2]), West: math.Min(n[1], n[3]),
+		North: math.Max(n[0], n[2]), East: math.Max(n[1], n[3]), Ok: true}
+	if b.South < -85 || b.North > 85 || b.West < -180 || b.East > 180 {
+		return latLonBox{}, errors.New("out of range")
+	}
+	if b.South == b.North || b.West == b.East {
+		return latLonBox{}, errors.New("box has zero area")
+	}
+	return b, nil
+}
+
+func minMax(a, b int) (int, int) {
+	if a > b {
+		return b, a
+	}
+	return a, b
+}
+
+// planBox is a lat/lon rectangle in a --plan JSON document.
+type planBox struct {
+	South float64 `json:"south"`
+	West  float64 `json:"west"`
+	North float64 `json:"north"`
+	East  float64 `json:"east"`
+}
+
+type planScan struct {
+	planBox
+	XMin int `json:"xMin"`
+	XMax int `json:"xMax"`
+	YMin int `json:"yMin"`
+	YMax int `json:"yMax"`
+}
+
+type planCoverage struct {
+	planBox
+	// Ok is false for legacy triggers with no meta_region: the region's
+	// extent is then simply unknown, which is not the same as "empty".
+	Ok bool `json:"ok"`
+}
+
+type scanPlan struct {
+	Zoom      int          `json:"zoom"`
+	Trigger   string       `json:"trigger"`
+	Region    int          `json:"region"`
+	Version   int          `json:"version"`
+	Scan      planScan     `json:"scan"`
+	Coverage  planCoverage `json:"coverage"`
+	Columns   int          `json:"columns"`
+	Pruned    int          `json:"pruned"`
+	Probes    int          `json:"probes"`
+	ExportDir string       `json:"exportDir"`
+}
+
+// printPlan writes the scan plan as JSON on stdout. Everything else this
+// command prints goes to stderr, so stdout stays parseable.
+func printPlan(z, xMin, xMax, yMin, yMax, tryH int, p fly.Trigger, box fly.RegionBox, exportDir string) {
+	columns, pruned := 0, 0
+	for xn := xMin; xn <= xMax; xn++ {
+		for yn := yMin; yn <= yMax; yn++ {
+			if box.Contains(z, yn, xn) {
+				columns++
+			} else {
+				pruned++
+			}
+		}
+	}
+
+	plan := scanPlan{
+		Zoom: z, Trigger: p.Name, Region: p.Region, Version: p.Version,
+		Columns: columns, Pruned: pruned, Probes: columns * tryH, ExportDir: exportDir,
+	}
+	plan.Scan.XMin, plan.Scan.XMax = xMin, xMax
+	plan.Scan.YMin, plan.Scan.YMax = yMin, yMax
+	// The scanned tiles span from the SW corner of (xMin,yMin) to the SW
+	// corner of the tile just past (xMax,yMax) - that's the outer edge.
+	plan.Scan.South, plan.Scan.West = mth.TileTMSToLatLon(z, xMin, yMin)
+	plan.Scan.North, plan.Scan.East = mth.TileTMSToLatLon(z, xMax+1, yMax+1)
+
+	if box.Ok {
+		plan.Coverage.Ok = true
+		plan.Coverage.South, plan.Coverage.West = mth.TileTMSToLatLon(box.Z, box.X, box.Y)
+		plan.Coverage.North, plan.Coverage.East = mth.TileTMSToLatLon(box.Z, box.X+box.W, box.Y+box.H)
+	}
+
+	out, err := json.Marshal(plan)
+	oth.CheckPanic(err)
+	fmt.Println(string(out))
 }
 
 var (

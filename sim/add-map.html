@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E%F0%9F%97%BA%3C/text%3E%3C/svg%3E">
+	<title>FPV Maps — extraction</title>
+	<link rel="stylesheet" href="/tools/map-gui/style.css">
+</head>
+<body>
+<div id="app">
+	<aside id="rail">
+		<header>
+			<h1>FPV<span>Maps</span> — extraction</h1>
+			<p>Dessine la zone à survoler.</p>
+		</header>
+
+		<!-- Vue « composer » : visible tant qu'aucune extraction ne tourne. -->
+		<div id="compose" class="scroll">
+			<div class="block">
+				<label class="field">
+					<span>Lieu ou coordonnées</span>
+					<input id="search" type="search" autocomplete="off" placeholder="Cathédrale de Reims — ou 49.2538, 4.0339">
+				</label>
+				<div id="results"></div>
+				<p class="note" id="search-note" hidden></p>
+			</div>
+
+			<div class="block" id="b-zone" data-empty="1">
+				<h2>Zone <span id="zone-hint">aucune</span></h2>
+				<p class="figure"><span id="z-area">—</span><small>km²</small></p>
+				<dl class="readout">
+					<dt>Dimensions</dt><dd id="z-dims">—</dd>
+					<dt>Sud-ouest</dt><dd id="z-sw">—</dd>
+					<dt>Nord-est</dt><dd id="z-ne">—</dd>
+				</dl>
+				<button id="clear" hidden>Effacer la zone</button>
+			</div>
+
+			<div class="block" id="b-grid" data-empty="1">
+				<h2>Grille de tuiles</h2>
+				<dl class="readout">
+					<dt>Colonnes</dt><dd id="g-cols">—</dd>
+					<dt>Côté d'une tuile</dt><dd id="g-tile">—</dd>
+					<dt>Requêtes</dt><dd id="g-probes">—</dd>
+				</dl>
+			</div>
+
+			<div class="block" id="b-cost" data-empty="1">
+				<h2>Coût estimé</h2>
+				<dl class="readout">
+					<dt>Tuiles</dt><dd id="c-tiles">—</dd>
+					<dt>Téléchargement</dt><dd id="c-raw">—</dd>
+					<dt>Sur disque</dt><dd id="c-prep">—</dd>
+					<dt>Durée</dt><dd id="c-time">—</dd>
+				</dl>
+				<p class="note" id="cost-note" hidden></p>
+			</div>
+
+			<div class="block">
+				<h2>Couverture Flyover</h2>
+				<p class="verdict" id="verdict" data-status="pending">Vérifie avant de lancer : Flyover ne fait de la photogrammétrie que sur une liste de villes.</p>
+				<button id="check" disabled>Vérifier la couverture</button>
+			</div>
+
+			<div class="block">
+				<h2>Extraction</h2>
+				<label class="field">
+					<span>Nom de la carte</span>
+					<input id="name" type="text" autocomplete="off" placeholder="Cathédrale de Reims">
+				</label>
+				<p class="note" id="slug-note" hidden></p>
+
+				<p class="field"><span>Détail</span></p>
+				<div class="seg" id="zoom">
+					<label><input type="radio" name="zoom" value="18">Basse<small>100 m/tuile</small></label>
+					<label><input type="radio" name="zoom" value="19">Moyenne<small>50 m/tuile</small></label>
+					<label><input type="radio" name="zoom" value="20" checked>Haute<small>25 m/tuile</small></label>
+				</div>
+
+				<details style="margin-top:12px">
+					<summary style="cursor:pointer;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)">Réglages avancés</summary>
+					<div style="margin-top:10px">
+						<div class="row">
+							<label class="field"><span>Cellule px</span><input id="cell" type="number" value="256" min="64" max="512" step="64"></label>
+							<label class="field"><span>Qualité JPEG</span><input id="quality" type="number" value="85" min="40" max="100"></label>
+						</div>
+						<label class="field"><span>Niveaux d'altitude sondés</span><input id="altitude" type="number" value="20" min="1" max="60"></label>
+						<label style="font-size:11px;color:var(--dim)"><input type="checkbox" id="force"> Re-télécharger même si la tuile est en cache</label>
+					</div>
+				</details>
+
+				<button id="launch" class="primary" disabled>Extraire</button>
+				<p class="note" id="launch-note" hidden></p>
+			</div>
+
+			<div class="block" id="b-scenes">
+				<h2>Cartes installées <span id="scenes-total"></span></h2>
+				<dl class="readout" id="scenes"></dl>
+			</div>
+		</div>
+
+		<!-- Vue « job » : prend le rail pendant l'extraction, la carte reste visible. -->
+		<div id="job" hidden>
+			<div class="block">
+				<h2>Extraction <span id="j-phase">—</span></h2>
+				<p class="figure"><span id="j-count">0</span><small>tuiles trouvées</small></p>
+				<div class="bar" id="j-bar" data-indeterminate="1"><i></i></div>
+				<dl class="readout" style="margin-top:10px">
+					<dt>Carte</dt><dd id="j-name">—</dd>
+					<dt>Écoulé</dt><dd id="j-elapsed">0 s</dd>
+				</dl>
+				<p class="note" id="j-note" hidden></p>
+				<button id="cancel" class="danger">Annuler</button>
+				<button id="back" hidden>Revenir à la carte</button>
+				<button id="fly" class="primary" hidden>Voler sur cette carte</button>
+			</div>
+			<pre id="log"></pre>
+		</div>
+	</aside>
+
+	<main id="map"></main>
+</div>
+<script type="module" src="/tools/map-gui/main.js"></script>
+</body>
+</html>

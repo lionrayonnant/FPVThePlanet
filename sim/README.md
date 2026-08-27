@@ -21,7 +21,37 @@ dans **Tab** avec des barres de niveau en direct pour identifier chaque axe.
 ## Ajouter une carte
 
 Une carte = une zone téléchargée depuis Apple Flyover puis convertie pour le
-moteur. Tout le pipeline tient en une commande :
+moteur.
+
+### Par l'interface (voie principale)
+
+```bash
+npm run dev        # puis http://localhost:5173/add-map.html
+```
+
+On cherche un lieu, on dessine la zone au rectangle sur la carte satellite, et le
+panneau affiche avant de lancer : dimensions, surface, grille de tuiles, nombre de
+requêtes, poids estimé (brut et sur disque) et durée. Le bouton **Vérifier la
+couverture** interroge la région Flyover puis télécharge un échantillon au centre —
+c'est la seule preuve fiable qu'il y a de la photogrammétrie ici. **Extraire** lance
+le pipeline avec les logs en direct, et propose à la fin d'aller voler dessus.
+
+Deux choses valent d'être comprises :
+
+- **La zone est quantifiée.** Flyover est servi en tuiles d'environ 25 m de côté au
+  zoom 20 ; la zone réellement extraite est celle dessinée arrondie au treillis. La
+  carte affiche ce treillis, et le rectangle dessiné reste en pointillé à côté.
+- **Les estimations sont des fourchettes, pas des chiffres.** À nombre de colonnes
+  égal, un lotissement et un quartier de tours rendent du simple au quadruple de
+  données. Les constantes viennent de mesures sur les cartes existantes
+  (`tools/lib/estimates.json`), pas d'un doigt mouillé.
+
+L'interface et son API (`/__map-api`) n'existent que sous `npm run dev` : elles ne
+partent pas dans `npm run build`.
+
+### En ligne de commande
+
+Tout le pipeline tient en une commande :
 
 ```bash
 npm run add-map -- "Nom affiché dans le menu" <lat> <lon>
@@ -261,12 +291,20 @@ sur l'erreur de rate avec τ = 30 ms qui tient lieu de PID + dynamique moteur.
 `npm run selftest` accepte un chemin de scène en argument
 (`node tools/selftest.mjs public/scenes/<slug>`, défaut `tour-eiffel`), et la
 plupart des checks (vol, sol, collision/CCD, convention UV) sont génériques et
-passent sur n'importe quelle carte. Trois vérifications, en revanche, sont
-codées en dur pour la Tour Eiffel et échoueront ailleurs par construction :
-« tile is roughly 1.2km square », « origin is the Eiffel Tower area », et
-« Eiffel Tower is ~300m tall ». À généraliser (bornes en fonction du
-`--radius` utilisé, sans dépendance à un monument précis) si `selftest` doit
-devenir un vrai gate multi-cartes.
+passent sur n'importe quelle carte. **Cinq** vérifications, en revanche, sont
+codées en dur pour la Tour Eiffel et échouent ailleurs par construction (relevé
+du 2026-08-27 sur une carte de 328 x 276 m) :
+
+- « tile is roughly 1.2km square »
+- « Eiffel Tower is ~300m tall »
+- « ray finds the tower structure »
+- « ground coverage across the tile » (grille de sondage dimensionnée pour 1,2 km)
+- « high-speed impact registers as a crash » (le point d'impact vise la tour)
+
+À généraliser (bornes déduites de la zone réellement extraite, sans dépendance à
+un monument précis) si `selftest` doit devenir un vrai gate multi-cartes — voir
+l'issue #4. En attendant, sur une carte autre que la Tour Eiffel, seuls ces cinq
+échecs sont attendus : tout autre échec est un vrai problème.
 
 ## Détails techniques du pré-traitement
 

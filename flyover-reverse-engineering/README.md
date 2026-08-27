@@ -77,7 +77,7 @@ Here are some command line programs that use code from [pkg](./pkg):
 
 Usage:
 ```
-go run cmd/export-obj/main.go [lat] [lon] [zoom] [tryXY] [tryH]
+go run cmd/export-obj/main.go [lat] [lon] [zoom] [tryXY] [tryH] [options]
 
 Parameter   Description       Example
 --------------------------------------
@@ -86,6 +86,32 @@ lon         Longitude         -118.499741
 zoom        Zoom (~ 13-20)    20
 tryXY       Area scan         3
 tryH        Altitude scan     40
+
+Option            Description
+-------------------------------------------------------------------------
+--parallel        16 concurrent tile requests instead of 1
+--bbox s,w,n,e    scan this lat/lon rectangle instead of the tryXY square
+                  around lat/lon. tryXY is then ignored, but lat/lon are
+                  still required (they select the Flyover region), so pass
+                  the box centre. Exports to a `bbox-...` directory.
+--plan            print a JSON scan plan on stdout and exit without
+                  downloading a single tile: which region serves this area,
+                  how many tile columns and HTTP probes the scan would cost,
+                  and the region's declared coverage box. Everything else
+                  this command prints goes to stderr, so stdout stays
+                  parseable.
+```
+
+`--bbox` and `--plan` back the map-adding GUI in `../sim` (`npm run dev`, then
+`/add-map.html`), which needs to extract an arbitrary rectangle and to show the
+cost of a selection before committing to it.
+
+Scan an explicit rectangle, and cost it first:
+```
+go run cmd/export-obj/main.go 48.8582 2.2970 20 1 20 --plan \
+    --bbox 48.8564,2.2900,48.8600,2.3037
+go run cmd/export-obj/main.go 48.8582 2.2970 20 1 20 --parallel \
+    --bbox 48.8564,2.2900,48.8600,2.3037
 ```
 
 This exports Santa Monica Pier to `./downloaded_files/obj/...`:

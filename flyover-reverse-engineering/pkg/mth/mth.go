@@ -44,6 +44,18 @@ func LatLonToTileTMS(zoom int, lat, lon float64) (x, y int) {
 	return
 }
 
+// TileTMSToLatLon is the inverse of LatLonToTileTMS: it returns the south-west
+// corner of TMS tile (x, y). Tile (x, y) therefore spans latitudes
+// [TileTMSToLatLon(z,x,y).lat, TileTMSToLatLon(z,x,y+1).lat] and longitudes
+// [TileTMSToLatLon(z,x,y).lon, TileTMSToLatLon(z,x+1,y).lon].
+func TileTMSToLatLon(zoom int, x, y int) (lat, lon float64) {
+	n := float64(pow2(zoom))
+	lon = float64(x)/n*360 - 180
+	latRad := 2*math.Atan(math.Exp((float64(y)/n-0.5)*2*math.Pi)) - math.Pi/2
+	lat = latRad / math.Pi * 180
+	return
+}
+
 // TileCountPerAxis gives the number of tiles per axis X or Y for zoom level
 func TileCountPerAxis(zoom int) int {
 	return pow2(zoom)
