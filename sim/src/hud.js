@@ -1,5 +1,6 @@
 import { CHANNELS } from './input.js';
 import { WIND_PRESETS, compassPoint } from './wind.js';
+import { RAIN_PRESETS, MAX_RATE } from './rain.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
@@ -17,6 +18,8 @@ const WIND_KEY = 'fpvmaps.windSpeed';
 const WIND_DIR_KEY = 'fpvmaps.windDir';
 const GUST_KEY = 'fpvmaps.windGust';
 const TURB_KEY = 'fpvmaps.windTurb';
+const RAIN_KEY = 'fpvmaps.rain';
+const RAIN_VAR_KEY = 'fpvmaps.rainVar';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -81,6 +84,17 @@ export function loadWeather() {
 		direction: dir,
 		gust: loadPercent(GUST_KEY, 0),
 		turbulence: loadPercent(TURB_KEY, 0.5) * 2,
+	};
+}
+
+// Dry by default, for the same reason the wind starts calm: every check in
+// tools/selftest.mjs assumes a neutral world, and a sim that opens under a
+// downpour looks broken rather than atmospheric. Variability starts at 50 %,
+// which is where rain stops being a constant and starts being weather.
+export function loadRain() {
+	return {
+		intensity: loadPercent(RAIN_KEY, 0),
+		variability: loadPercent(RAIN_VAR_KEY, 0.5),
 	};
 }
 
@@ -179,6 +193,15 @@ export class Hud {
 						<button type="button" data-v="frais">Vent frais</button>
 						<button type="button" data-v="tempete">Tempête</button>
 					</div>
+					<h2>Météo — pluie</h2>
+					<label>Pluie <input id="rain" type="range" min="0" max="100" step="1"> <span id="rain-val"></span></label>
+					<label title="de combien l'averse va et vient">Variabilité <input id="rain-var" type="range" min="0" max="100" step="1"> <span id="rain-var-val"></span> %</label>
+					<div id="rain-presets" class="presets">
+						<button type="button" data-v="sec">Sec</button>
+						<button type="button" data-v="bruine">Bruine</button>
+						<button type="button" data-v="pluie">Pluie</button>
+						<button type="button" data-v="averse">Averse</button>
+					</div>
 					<h2>Son</h2>
 					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 					<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
@@ -217,6 +240,11 @@ export class Hud {
 			turbVal: root.querySelector('#turb-val'),
 			windPresets: root.querySelector('#wind-presets'),
 			windHud: root.querySelector('#wind-hud'),
+			rain: root.querySelector('#rain'),
+			rainVal: root.querySelector('#rain-val'),
+			rainVar: root.querySelector('#rain-var'),
+			rainVarVal: root.querySelector('#rain-var-val'),
+			rainPresets: root.querySelector('#rain-presets'),
 			vol: root.querySelector('#vol'),
 			volVal: root.querySelector('#vol-val'),
 			tone: root.querySelector('#tone'),
@@ -456,6 +484,46 @@ export class Hud {
 			this.el.wind.value = w.speed;
 			this.el.gust.value = Math.round(w.gust * 100);
 			this.el.turb.value = Math.round(w.turbulence * 100);
+			emit();
+		};
+		emit();
+	}
+
+	setRain({ intensity, variability }, onChange) {
+		const emit = () => {
+			const p = {
+				intensity: Number(this.el.rain.value) / 100,
+				variability: Number(this.el.rainVar.value) / 100,
+			};
+			// Millimetres per hour, not a percentage: "12 mm/h" is a number a
+			// pilot can picture and "48 %" is not.
+			const mm = p.intensity * MAX_RATE;
+			this.el.rainVal.textContent = p.intensity === 0 ? 'sec'
+				: `${mm < 1 ? mm.toFixed(1) : Math.round(mm)} mm/h`;
+			this.el.rainVarVal.textContent = Math.round(p.variability * 100);
+			// A preset lights up only when the whole bundle matches, same rule
+			// as the wind ones.
+			for (const b of this.el.rainPresets.children) {
+				const r = RAIN_PRESETS[b.dataset.v];
+				b.classList.toggle('on', !!r && Math.abs(r.intensity - p.intensity) < 0.005
+					&& Math.abs(r.variability - p.variability) < 0.005);
+			}
+			try {
+				localStorage.setItem(RAIN_KEY, String(Math.round(p.intensity * 100)));
+				localStorage.setItem(RAIN_VAR_KEY, String(Math.round(p.variability * 100)));
+			} catch { }
+			onChange(p);
+		};
+		this.el.rain.value = Math.round(intensity * 100);
+		this.el.rainVar.value = Math.round(variability * 100);
+		this.el.rain.oninput = emit;
+		this.el.rainVar.oninput = emit;
+		this.el.rainPresets.onclick = (e) => {
+			const b = e.target.closest('button');
+			if (!b || !RAIN_PRESETS[b.dataset.v]) return;
+			const r = RAIN_PRESETS[b.dataset.v];
+			this.el.rain.value = Math.round(r.intensity * 100);
+			this.el.rainVar.value = Math.round(r.variability * 100);
 			emit();
 		};
 		emit();

@@ -226,6 +226,12 @@ export class Physics {
 	// than the six the ground-effect query is capped at.
 	get windAgl() { return this.wind.agl; }
 
+	// The drone's velocity through the air, in the body frame — what the
+	// airframe and anything stuck to it actually feel. Zero before the first
+	// step, rather than null: the render side reads this every frame and a null
+	// there would be a branch in every caller for one frame of the whole run.
+	get airVelocity() { return this._air.v ?? ZERO; }
+
 	// Height of the surface directly below a point, or null if nothing is there.
 	groundBelow(x, y, z, maxDistance = 500) {
 		this._ray.origin.x = x; this._ray.origin.y = y; this._ray.origin.z = z;

@@ -825,7 +825,8 @@ réellement en vol.
   chunks au lieu de 5), `?aniso=0`, `?collision=0`.
 - `window.__sim` dans la console navigateur : `.debug()`, `.teleport(x,y,z)`,
   `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`, `.audio`,
-  `.setWeather({speed, direction, gust, turbulence})`.
+  `.setWeather({speed, direction, gust, turbulence})`,
+  `.setRain({intensity, variability})` (0..1 chacun ; intensité 1 = 25 mm/h).
 
 ## Le vent (issue #20)
 
@@ -888,3 +889,65 @@ voler dans une tempête est difficile de la bonne façon » ne se mesure pas ici
 brouillard (#21), nuages (#22), soleil (#23). Le fait transverse qui décidera
 des deux derniers : la photogrammétrie est **non éclairée**, son ombrage est
 cuit dans les textures, et un soleil mobile double-ombrerait la ville.
+
+## La pluie (issue #24)
+
+`src/rain.js` (modèle pur, sans THREE) + `src/rainfall.js` (les stries) +
+`loader.setFog()` pour la visibilité. Voir `README.md` pour le modèle.
+
+**Vérifié au banc** — 17 checks, section `pluie` de `tools/selftest.mjs` :
+
+- le temps sec est **inerte**, au sens strict : aucun filtre n'avance, aucun
+  nombre aléatoire n'est tiré, `fogScale` vaut exactement 1. Même promesse que
+  l'air calme pour le vent, et pour la même raison ;
+- couper la pluie **rend l'image** : `fogScale` revient à 1 et la lentille
+  sèche. C'est le bug qu'un `return` trop tôt aurait laissé passer ;
+- variabilité 0 → le taux vaut **exactement** le réglage ; variabilité 75 % →
+  0,94 fois le réglage en moyenne d'ensemble sur 16 graines. Le déficit est réel
+  et va dans le bon sens : la correction lognormale suppose un bruit gaussien et
+  le nôtre est borné à 3 σ ;
+- relations publiées vérifiées à 5 mm/h : 1,25 mm à 4,4 m/s, 338 gouttes/m³,
+  5,7 km de visibilité, et les extinctions s'ajoutent bien en parallèle ;
+- la lentille se couvre en stationnaire (0,83) et se dégage en vol (0,24 à
+  18 m/s) ;
+- les quatre signes de `dropDrift`, qui sont la seule chose ici qui pouvait être
+  exactement à l'envers en ayant l'air normale.
+
+**Vérifié en vol** (`?scene=tour-eiffel`, chrome-devtools, DOM en direct) :
+100 fps, **+1 draw call**, 5 200 stries à 12,5 mm/h ; le vent de #20 incline
+bien les stries et allonge la strie (0,030 → 0,051 m à 18 m/s) ; la pause
+**arrête la pluie net** (`uOffset` figé) et la reprise repart ; le ciel passe de
+`#9FB8CC` à `#8D99A2` et le brouillard de 0,00085 à 0,00186 sous l'averse, puis
+revient exactement à ses valeurs claires — donc pas de retour du bug #10.
+
+**Le bug qui a coûté le plus de temps, et qui est silencieux** : la strie est un
+billboard reconstruit intégralement en espace vue dans le vertex shader, donc
+son enroulement dépend du sens dans lequel la goutte passe devant la caméra. Il
+sort **dos à la caméra**, et avec le `FrontSide` par défaut *chaque* strie est
+culled — sans erreur, sans warning, avec le draw call bien émis et les 56 000
+triangles bien comptés dans `renderer.info`. Un `side: DoubleSide` le corrige.
+Une géométrie qui se compte mais ne se voit pas, c'est le culling de faces, pas
+le shader.
+
+**Assumé et non physique** : `STREAK_WIDTH_GAIN` dans `rainfall.js`. À taille
+réelle, la profondeur optique du champ proche est sous le pourcent et une strie
+fait un tiers de pixel — le résultat honnête est qu'on ne voit rien. Seule la
+largeur est exagérée, jamais l'opacité, et le nombre est divisé par le même
+facteur. Le PSF du capteur, le flou de mise au point à un mètre et le glint de
+la goutte, qui sont les trois vraies raisons pour lesquelles on voit la pluie
+sur une vraie vidéo, ne sont pas modélisés.
+
+**Pas fait, et pourquoi** :
+
+- les **gouttes sur la lentille** → issue #28. Deux tentatives, réfraction puis
+  taches opaques, rejetées à l'œil. Le modèle reste (`RainField.wetness`,
+  `dropDrift`, `Physics.airVelocity`, tous testés) et n'est **pas** utilisé par
+  l'application pour l'instant — c'est délibéré ;
+- **sol mouillé, réflexions, éclairage d'averse** → issue #29, bloquée par le
+  même arbitrage éclairage que #22 et #23 ;
+- la pluie **n'attaque pas le lien vidéo** : à 5,8 GHz l'atténuation sur 500 m
+  est négligeable, et l'inventer serait faux.
+
+**Pas vérifié** : le ressenti. Voler dans une averse est-il difficile de la
+bonne façon, et la baisse de visibilité est-elle gênante au bon endroit — ça ne
+se mesure pas ici.

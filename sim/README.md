@@ -422,6 +422,57 @@ sort de la géométrie sans qu'aucun coefficient ait été inventé. Le HUD affi
 le vent **relatif au nez** : ce qu'on veut savoir en ligne, ce n'est pas un cap
 absolu, c'est de quel côté ça pousse.
 
+### La pluie
+
+`src/rain.js` est le modèle, `src/rainfall.js` le rendu — même découpe que le
+vent, et pour la même raison : la moitié modèle n'importe ni THREE ni le DOM, ce
+qui la rend vérifiable dans `tools/selftest.mjs`.
+
+Le curseur va de 0 à 25 mm/h, parce que toutes les relations utilisées sont
+publiées dans cette unité. Le diamètre médian suit Laws & Parsons
+(`D = 0,89 R^0,21` mm), la vitesse de chute Atlas & Ulbrich
+(`v = 3,78 D^0,67` m/s) et la concentration se déduit du contenu en eau liquide
+de Marshall-Palmer. À 5 mm/h cela donne 1,25 mm tombant à 4,4 m/s, 340 gouttes
+par mètre cube — ce qui est la bonne réponse, et ce qui rend l'intensité lisible
+en mm/h dans le panneau plutôt qu'en pourcents.
+
+L'intensité **respire** : le taux de pluie est lognormal, avec la correction
+`exp(-k²/2)` qui garantit que monter la variabilité fait aller et venir l'averse
+sans la rendre plus forte en moyenne. Deux bandes, une de 70 s et une de 14 s :
+un grain à l'intérieur d'une averse.
+
+La **visibilité** vient du coefficient d'extinction `σ = 0,21 R^0,74` par km et
+de Koschmieder — 5,6 km à 5 mm/h, 1,7 km à 25. Les extinctions s'ajoutent, donc
+la portée finale est celle-là en parallèle avec le brouillard que la scène a
+déjà : `loader.setFog()` bouge densité et couleur à chaud, et l'issue #21
+reprendra ce même point d'entrée plutôt que d'en créer un second.
+
+Les **stries** sont de la géométrie dans la scène, pas un calque : une
+`InstancedBufferGeometry` de quads dans une boîte de 4 m qui suit la caméra,
+donc dessinée par le `RenderPass` et donc soumise au barillet, au vignettage, au
+flou et à la dégradation du lien comme le reste — et occultée par la ville. Les
+positions sont enroulées modulo la boîte dans le vertex shader : rien n'est
+jamais réengendré, le CPU écrit un `vec3` par frame. La strie s'oriente sur la
+vitesse de la goutte **relative au drone** et sa longueur est cette vitesse fois
+le temps d'exposition, le même curseur d'obturation que le HUD règle déjà : le
+flou de translation est précisément celui que la passe lens ne reconstruit pas,
+et une strie de pluie est ce flou-là.
+
+Quatre mètres et pas plus, parce qu'au-delà une goutte est plus fine qu'un pixel
+et cesse d'être une strie : ce qui lui arrive est de l'extinction, et
+l'extinction c'est le brouillard ci-dessus. Le près en géométrie, le loin en
+brouillard, et aucun des deux ne fait le travail de l'autre.
+
+Un point est **assumé et non physique**, `STREAK_WIDTH_GAIN` : à taille réelle,
+la profondeur optique du champ proche est sous le pourcent et une strie fait un
+tiers de pixel de large — la réponse est juste et inutilisable. La largeur
+dessinée est donc exagérée, l'opacité **jamais** (elle se calcule toujours sur le
+vrai diamètre), et le nombre de stries est divisé par le même facteur pour que
+la surface d'écran couverte reste celle que la concentration demande.
+
+Les gouttes **sur** la lentille ne sont pas là : voir issue #28. Le modèle l'est
+déjà (`RainField.wetness`, `dropDrift`), c'est le rendu qui reste à trouver.
+
 ### Le son
 
 Rien n'est chargé : `src/audio.js` synthétise tout en Web Audio depuis les

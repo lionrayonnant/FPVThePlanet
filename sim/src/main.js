@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather } from './hud.js';
+import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain } from './hud.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
+import { RainField } from './rain.js';
+import { Rainfall } from './rainfall.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -67,6 +69,11 @@ const lens = new FpvLens(renderer, scene);
 // The RF side of the same picture: how much of the video link survives the trip
 // back to the pilot. Knows nothing about rendering, and nothing about Rapier.
 const link = new VideoLink();
+// The weather that lands on the camera rather than on the airframe: how hard it
+// is falling, how wet the front element is, how far you can see. Pure model,
+// same as the two above; rainfall draws it and lens.js refracts through it.
+const rain = new RainField(undefined, FOG_DENSITY);
+let rainfall = null;
 
 let physics = null;
 let emitter = null;
@@ -83,6 +90,10 @@ function resize() {
 	camera.updateProjectionMatrix();
 	renderer.setSize(innerWidth, innerHeight);
 	lens.setSize(innerWidth, innerHeight);
+	// Device pixels and the live FOV: the streaks' minimum width is measured in
+	// pixels, and a CSS-pixel height would make it the wrong size on a HiDPI
+	// display — the same trap uResolution has in lens.js.
+	rainfall?.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
 }
 addEventListener('resize', resize);
 resize();
@@ -129,6 +140,12 @@ async function boot() {
 		});
 	for (const m of meshes) scene.add(m);
 	console.log('chunk timings (ms):', JSON.stringify(timings));
+
+	// In the scene, not over it: the streaks go through the RenderPass, so the
+	// lens distorts, vignettes, smears and breaks them up like everything else,
+	// and the city occludes them.
+	rainfall = new Rainfall(scene, { sky: SKY });
+	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
 
 	stage('collision-download');
 	const collision = await loadCollision(manifest, (f, received) => {
@@ -192,6 +209,7 @@ async function boot() {
 	freeCam.target.set(0, 0, 0);
 
 	hud.setWeather(loadWeather(), (w) => physics.setWeather(w));
+	hud.setRain(loadRain(), (r) => rain.setParams(r));
 
 	hud.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
 		audio.setVolume(volume);
@@ -201,6 +219,7 @@ async function boot() {
 	hud.setLens(loadLens(), (p) => {
 		lens.setEnabled(p.on);
 		lens.setParams(p);
+		lensShutter = p.shutter;
 	});
 
 	hud.setLink(loadLink(), (p) => {
@@ -216,6 +235,7 @@ async function boot() {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
 		camera.updateProjectionMatrix();
+		rainfall?.setSize(innerHeight * renderer.getPixelRatio(), fov);
 	});
 
 	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
@@ -223,7 +243,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -234,6 +254,9 @@ async function boot() {
 		// The old vector form, kept for console muscle memory.
 		setWind: (mean, gusts) => physics.setWind(mean, gusts),
 		wind: () => physics.wind,
+		// Dry by default. setRain({intensity, variability}), both 0..1;
+		// intensity 1 is 25 mm/h, which is a downpour.
+		setRain: (r) => rain.setParams(r),
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -283,6 +306,18 @@ async function boot() {
 					soc: +physics.battery.soc.toFixed(3),
 				},
 				propwash: +physics.propulsion.propwash.toFixed(2),
+				rain: {
+					mmPerHour: +rain.mmPerHour.toFixed(2),
+					wetness: +rain.wetness.toFixed(3),
+					dropMm: +rain.dropDiameter.toFixed(2),
+					fallSpeed: +rain.fallSpeed.toFixed(2),
+					// How many streaks are actually being drawn, against how many
+					// the concentration asks for: the gap is the cap in
+					// rainfall.js, and it is worth being able to see it.
+					streaks: rainfall ? rainfall.drops : 0,
+					perM3: Math.round(rain.dropsPerM3),
+					visibility: Math.round(Math.min(rain.visibility, 1e6)),
+				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
 					rssiDbm: +link.out.rssiDbm.toFixed(1),
@@ -372,6 +407,25 @@ function simFrozen() { return freeCamOn || paused || hud.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
+// The fog uniform lives on every chunk material, so it is written only when it
+// has actually moved rather than five times a frame for no change.
+let lastFogScale = 1;
+// The lens exposure, mirrored here because the streak length is that exposure
+// times the relative speed — the translational half of the motion blur that the
+// lens pass, which only reprojects rotation, cannot reconstruct.
+let lensShutter = 0;
+
+// Rain does not only take contrast away, it takes the blue out of the sky: the
+// light is coming through cloud and water rather than through air. Interpolated
+// on the raw bytes, because the whole colour pipeline is pass-through and a
+// linear round trip here would land the sky back on HANDOFF bug #10.
+const CLEAR_SKY = new THREE.Color(SKY);
+const RAIN_SKY = new THREE.Color(0x8d99a2);
+const _sky = new THREE.Color();
+function rainSky(fogScale) {
+	// fogScale is 1 in the clear and about 2 in a downpour.
+	return _sky.copy(CLEAR_SKY).lerp(RAIN_SKY, Math.min(1, (fogScale - 1) * 1.2));
+}
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
 
@@ -409,6 +463,26 @@ function frame() {
 	} else if (freeCamOn) {
 		freeCam.update();
 	}
+
+	// The weather on the camera. Advanced on the frame clock rather than the
+	// physics step because nothing in it feeds back into the flight model — the
+	// water is on the lens, not on the airframe — and because the streaks and
+	// the drops are drawn once per frame whatever the physics did.
+	if (!frozen) {
+		rain.update(physics.airspeed, dt);
+		const fogScale = rain.fogScale;
+		if (fogScale !== lastFogScale) {
+			lastFogScale = fogScale;
+			setFog(rainSky(fogScale), FOG_DENSITY * fogScale);
+			scene.background.set(rainSky(fogScale));
+		}
+	}
+	// Zero dt while the sim is frozen, which is all it takes to stop the rain
+	// dead on a picture that is not moving.
+	rainfall.update({
+		rain, wind: physics.wind.out, velocity: physics.velocity,
+		shutter: lensShutter, dt: frozen ? 0 : dt, camera,
+	});
 
 	// Before the render, not after: the picture this frame draws is the picture
 	// the link delivered this frame.

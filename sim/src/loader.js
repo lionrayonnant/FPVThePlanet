@@ -27,6 +27,23 @@ export async function loadManifest() {
 // worker holds ~135MB while unpacking its sheet, so only a few run at once.
 const MAX_CONCURRENT = 3;
 
+// One material per chunk, all sharing the same fog. Kept so the weather can
+// move it after load: the rain (#24) scales the density with the intensity, and
+// the fog instalment (#21) will take the same handle rather than growing a
+// second one.
+const tileMaterials = [];
+
+// color is a THREE.Color or a hex; density is the exp-squared coefficient in
+// TileMaterial.js. Both are written straight through — the whole colour pipeline
+// is pass-through (main.js, HANDOFF bug #10), so anything converted here comes
+// out wrong.
+export function setFog(color, density) {
+	for (const m of tileMaterials) {
+		if (color !== undefined) m.uniforms.uFogColor.value.set(color);
+		if (density !== undefined) m.uniforms.uFogDensity.value = density;
+	}
+}
+
 export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {
 	const { cellSize, cellsPerRow } = manifest;
 	const chunks = manifest.chunks.slice(0, maxChunks);
@@ -66,7 +83,9 @@ export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinit
 			geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
 
 			const texture = createArrayTexture(msg.pixels, msg.cell, g.layerCount, { mipmaps, anisotropy });
-			const mesh = new THREE.Mesh(geometry, createTileMaterial(texture, fogColor, fogDensity));
+			const material = createTileMaterial(texture, fogColor, fogDensity);
+			tileMaterials.push(material);
+			const mesh = new THREE.Mesh(geometry, material);
 			mesh.frustumCulled = true;
 			mesh.name = `chunk${index}`;
 			meshes[index] = mesh;

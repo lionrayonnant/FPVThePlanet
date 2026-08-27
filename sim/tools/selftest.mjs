@@ -9,6 +9,7 @@ import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
 import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
+import { RainField, dropDrift, fogRange, MAX_RATE, GRAVITY } from '../src/rain.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -534,6 +535,165 @@ console.log('\nwind');
 		for (let i = 0; i < 200; i++) phys.probeWind(manifest.spawn.x, manifest.spawn.y + 30, manifest.spawn.z);
 		const per = (performance.now() - t0) / 200;
 		check('a ten-ray probe is cheap enough for 20 Hz', per < 2, `${per.toFixed(3)} ms per probe`);
+	}
+}
+
+console.log('\nrain');
+// Everything here is the pure model in src/rain.js. What it cannot check is
+// whether the drops look like water — that is a browser job, and HANDOFF says
+// so. What it can check is that dry is really dry, that the intensity slider
+// means what it says, and that the drops run the right way, which is the one
+// thing in here that could be exactly backwards while looking perfectly normal.
+{
+	const FOG = 0.00085;
+	const run = (field, seconds, airspeed = 0, dt = 1 / 50) => {
+		let sum = 0, sumSq = 0, n = 0;
+		for (let i = 0; i < Math.round(seconds / dt); i++) {
+			field.update(airspeed, dt);
+			sum += field.rate; sumSq += field.rate * field.rate; n++;
+		}
+		const mean = sum / n;
+		return { mean, sd: Math.sqrt(Math.max(0, sumSq / n - mean * mean)) };
+	};
+
+	// Dry has to be bit-identical to there being no rain model at all, for the
+	// same reason calm air does in the wind section: everything above this line
+	// assumes a neutral world, and an epsilon here would be something added and
+	// then subtracted, and that something drifts.
+	{
+		const dry = new RainField(1, FOG);
+		let moved = false;
+		for (let i = 0; i < 2000; i++) {
+			dry.update(12, 1 / 50);
+			if (dry.rate !== 0 || dry.wetness !== 0 || dry.fogScale !== 1) moved = true;
+		}
+		check('dry weather is inert', !moved && dry.visibility === Infinity);
+		// And it stays inert after a shower has been and gone.
+		const stopped = new RainField(1, FOG).setParams({ intensity: 0.6, variability: 0 });
+		for (let i = 0; i < 1000; i++) stopped.update(0, 1 / 50);
+		const wasWet = stopped.wetness;
+		stopped.setParams({ intensity: 0 });
+		for (let i = 0; i < 6000; i++) stopped.update(6, 1 / 50);
+		check('turning the rain off gives the picture back',
+			wasWet > 0.5 && stopped.wetness === 0 && stopped.fogScale === 1,
+			`${wasWet.toFixed(2)} wet during, dry after`);
+	}
+
+	// The slider says an intensity and the model has to deliver it on average.
+	// Averaged over seeds, not over one: the rate is correlated over a minute or
+	// so, and a single run of even an hour is a handful of independent samples.
+	{
+		const meanOver = (variability) => {
+			let acc = 0;
+			for (let seed = 1; seed <= 16; seed++) {
+				acc += run(new RainField(seed * 7919, FOG).setParams({ intensity: 0.1, variability }), 3000).mean;
+			}
+			return acc / 16 / 0.1;
+		};
+		const flat = meanOver(0);
+		const wobbly = meanOver(0.75);
+		check('a steady setting delivers exactly that rate', Math.abs(flat - 1) < 1e-9,
+			`${flat.toFixed(6)} of the setting`);
+		// Lognormal with the exp(-k^2/2) correction, so making the weather breathe
+		// must not quietly make it rainier. It comes out a few percent under
+		// because the noise is bounded at 3 sigma and the correction assumes it
+		// is not — an error in the safe direction.
+		check('variability moves the rate about without moving its mean',
+			wobbly > 0.9 && wobbly <= 1.0, `${wobbly.toFixed(3)} of the setting at 75% variability`);
+	}
+	{
+		const spread = (variability) => run(
+			new RainField(4242, FOG).setParams({ intensity: 0.2, variability }), 6000);
+		const calm = spread(0), gusty = spread(1);
+		// The tolerance is the variance formula's, not the model's: at zero
+		// variability every sample is the same float, and sumSq/n - mean^2
+		// cancels down to its own rounding error rather than to zero.
+		check('variability is what widens the spread',
+			calm.sd / calm.mean < 1e-5 && gusty.sd / gusty.mean > 0.4,
+			`cv ${(gusty.sd / gusty.mean).toFixed(2)} at full variability, ${(calm.sd / calm.mean).toExponential(1)} at none`);
+	}
+
+	// The published relations, spot-checked at a rate whose numbers are known:
+	// 5 mm/h is a bit over a millimetre of drop falling at about 4.5 m/s, and
+	// leaves you a few kilometres of visibility.
+	{
+		const r = new RainField(9, FOG).setParams({ intensity: 5 / MAX_RATE, variability: 0 });
+		r.update(0, 1 / 50);
+		check('drop size and fall speed at 5 mm/h',
+			r.dropDiameter > 1.1 && r.dropDiameter < 1.4 && r.fallSpeed > 4 && r.fallSpeed < 5,
+			`${r.dropDiameter.toFixed(2)} mm at ${r.fallSpeed.toFixed(2)} m/s`);
+		check('concentration is hundreds of drops per cubic metre',
+			r.dropsPerM3 > 150 && r.dropsPerM3 < 800, `${r.dropsPerM3.toFixed(0)} /m³`);
+		check('5 mm/h leaves a few km of visibility',
+			r.visibility > 3000 && r.visibility < 9000, `${(r.visibility / 1000).toFixed(1)} km`);
+		// Extinctions add, so the range the pilot actually gets is the two in
+		// parallel — and it has to be shorter than either.
+		const combined = fogRange(FOG * r.fogScale);
+		check('rain and the scene fog combine as extinctions',
+			combined < fogRange(FOG) && combined < r.visibility
+			&& Math.abs(1 / combined - (1 / fogRange(FOG) + 1 / r.visibility)) < 1e-9,
+			`${Math.round(fogRange(FOG))} m clear + ${Math.round(r.visibility)} m rain = ${Math.round(combined)} m`);
+	}
+
+	// The lens covers itself when you sit in it and clears when you fly. This is
+	// the whole reason wetness is a state and not a copy of the rate.
+	{
+		const hoverField = new RainField(11, FOG).setParams({ intensity: 0.8, variability: 0 });
+		for (let i = 0; i < 3000; i++) hoverField.update(0, 1 / 50);
+		const hovering = hoverField.wetness;
+		for (let i = 0; i < 3000; i++) hoverField.update(18, 1 / 50);
+		const cruising = hoverField.wetness;
+		check('the lens fogs up hovering in the rain', hovering > 0.7, hovering.toFixed(2));
+		check('and clears again when you fly', cruising < hovering * 0.6,
+			`${hovering.toFixed(2)} -> ${cruising.toFixed(2)} at 18 m/s`);
+	}
+
+	// Where the water runs. Every sign below could be exactly backwards while
+	// looking perfectly plausible, which is what happened to the updraft in the
+	// wind section, so each one is stated as the thing a pilot would see.
+	{
+		const m = QUAD.mass, tilt = 25 * Math.PI / 180;
+		const still = { x: 0, y: 0, z: 0 };
+		const hover = { x: 0, y: m * GRAVITY, z: 0 };
+		const d = (air, force) => dropDrift(air, force, m, tilt);
+
+		const h = d(still, hover);
+		check('a drop runs down the frame in a hover', h.y < -0.8 && Math.abs(h.x) < 1e-9,
+			`(${h.x.toFixed(2)}, ${h.y.toFixed(2)}) g`);
+
+		const fall = d(still, { x: 0, y: 0, z: 0 });
+		check('and floats in free fall', Math.hypot(fall.x, fall.y) < 1e-9);
+
+		// The one that is not obvious, and the reason this is not just "down":
+		// the airflow over the glass beats gravity from a few m/s upwards, so a
+		// quad on a line has the water running UP the picture.
+		const slow = d({ x: 0, y: 0, z: -3 }, hover);
+		const fast = d({ x: 0, y: 0, z: -15 }, hover);
+		check('the airflow carries the water up the frame at speed',
+			slow.y < 0 && fast.y > 1, `${slow.y.toFixed(2)} g at 3 m/s, ${fast.y.toFixed(2)} g at 15 m/s`);
+
+		// Sideways: air coming from the drone's right pushes the water left.
+		const cross = d({ x: 8, y: 0, z: 0 }, hover);
+		check('a crosswind pushes the water across the glass', cross.x < -1,
+			`${cross.x.toFixed(2)} g`);
+
+		// And acceleration: shoving the quad to the right leaves the water behind.
+		const accel = d(still, { x: m * 8, y: m * GRAVITY, z: 0 });
+		check('accelerating right leaves the water to the left', accel.x < -0.5,
+			`${accel.x.toFixed(2)} g`);
+	}
+
+	// Deterministic, like the wind: the same seed replays the same weather, and
+	// reset() really goes back to the start.
+	{
+		const a = new RainField(0xbeef, FOG).setParams({ intensity: 0.4, variability: 0.8 });
+		const b = new RainField(0xbeef, FOG).setParams({ intensity: 0.4, variability: 0.8 });
+		const trace = (f) => { const out = []; for (let i = 0; i < 1500; i++) { f.update(5, 1 / 50); out.push(f.rate); } return out; };
+		const first = trace(a), second = trace(b);
+		a.reset();
+		const replay = trace(a);
+		check('same seed, same weather; reset returns to the start',
+			first.every((v, i) => v === second[i]) && first.every((v, i) => v === replay[i]));
 	}
 }
 
