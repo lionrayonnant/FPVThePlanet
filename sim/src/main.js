@@ -4,7 +4,7 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene } from
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness, loadLens, loadLink } from './hud.js';
+import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather } from './hud.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -191,7 +191,7 @@ async function boot() {
 	freeCam.enabled = false;
 	freeCam.target.set(0, 0, 0);
 
-	hud.setWind((mean, gusts) => physics.setWind(mean, gusts));
+	hud.setWeather(loadWeather(), (w) => physics.setWeather(w));
 
 	hud.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
 		audio.setVolume(volume);
@@ -226,8 +226,14 @@ async function boot() {
 		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
-		// Wind is off by default. setWind({x,y,z} m/s, gustStrength m/s).
+		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
+		// with speed in m/s at 10 m and direction in degrees the wind comes from;
+		// gustPeak / gustDuration / gustRate can be passed too, for anyone who
+		// wants the three gust properties apart rather than on the one slider.
+		setWeather: (w) => physics.setWeather(w),
+		// The old vector form, kept for console muscle memory.
 		setWind: (mean, gusts) => physics.setWind(mean, gusts),
+		wind: () => physics.wind,
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -256,6 +262,17 @@ async function boot() {
 				speed: +Math.hypot(v.x, v.y, v.z).toFixed(2),
 				groundBelow: ground === null ? null : +ground.toFixed(2),
 				altitudeAGL: ground === null ? null : +(p.y - ground).toFixed(2),
+				wind: {
+					speed: +Math.hypot(physics.wind.out.x, physics.wind.out.z).toFixed(2),
+					vertical: +physics.wind.out.y.toFixed(2),
+					local: +physics.wind.local.toFixed(2),
+					agl: +physics.wind.agl.toFixed(1),
+					shelter: +physics.wind.shelter.toFixed(2),
+					channel: +physics.wind.channel.toFixed(2),
+					updraft: +physics.wind.updraft.toFixed(2),
+					roughness: +physics.wind.roughness.toFixed(2),
+					intensity: +physics.wind.intensity.toFixed(3),
+				},
 				mode: controller.mode,
 				preset: controller.preset,
 				motors: [...controller.motors].map((m) => +m.toFixed(3)),
@@ -344,6 +361,13 @@ function togglePause(force) {
 // Physics does not advance when the free camera is on, the sim is paused, or the
 // settings panel is up — so the motor speeds freeze and a held drone note would
 // be worse than silence.
+// Heading of the nose about +Y, for the HUD's relative wind arrow. Only the yaw
+// matters here: the arrow answers "which side is it pushing me from", and that
+// question does not change when the quad is banked.
+function yawOf(q) {
+	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
+}
+
 function simFrozen() { return freeCamOn || paused || hud.settingsOpen; }
 
 const _q = new THREE.Quaternion();
@@ -416,6 +440,8 @@ function frame() {
 		amps: bat.current,
 		propwash: physics.propulsion.propwash,
 		link: link.out,
+		wind: physics.wind.out,
+		heading: yawOf(physics.rotation),
 		crashed,
 		usingGamepad: input.usingGamepad,
 	});

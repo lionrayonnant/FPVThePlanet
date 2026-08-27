@@ -92,6 +92,12 @@ commands → airframe → Rapier:
   torque, axial-inflow and rotor drag, anisotropic body drag, ground effect,
   propwash, battery sag and drain. No Rapier, no DOM — deliberately, so it can
   be benched headlessly. Don't put controller knowledge in here.
+- `src/wind.js` is the air itself: a wind field (boundary-layer profile,
+  wander, Poisson gusts, Dryden turbulence, terrain interaction) in world ENU
+  metres. Pure model — no Rapier, no DOM — on the same pattern as `link.js`:
+  it says which rays to cast and what the distances mean, `physics.js` casts
+  them. Seeded, so `selftest` can assert properties of turbulence rather than
+  sample them.
 - `src/physics.js` is the Rapier glue: full-resolution trimesh collision on
   whatever scene is loaded with CCD enabled (so fast movement can't tunnel
   through thin structures), plus the body whose mass properties come from
@@ -125,6 +131,12 @@ hand-edit `PID` and call it done.
   smaller "safe-looking" value — photogrammetry has near-coplanar surfaces
   that z-fight badly if `near` quantizes the depth buffer too coarsely at the
   tile's far edge.
+- **Every raycast user gets its own `RAPIER.Ray`.** There are three
+  (`_ray` for ground effect, `_linkRay` for the video link, `_windRay` for the
+  wind rosette) because the objects are mutated in place and the three queries
+  interleave — ground effect runs inside `step()`, the link query runs from the
+  render loop in between. A fourth caller reusing an existing one corrupts the
+  other silently.
 - Physics forces must be reset every step (`resetForces()`/`resetTorques()`)
   — Rapier accumulates applied force across steps otherwise.
 - Texture UV V-axis is flipped in `prep.mjs`, not left as the OBJ exports it —

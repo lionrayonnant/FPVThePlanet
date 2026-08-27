@@ -824,4 +824,67 @@ réellement en vol.
   `?mipmaps=0` (coupe la génération de mipmaps), `?chunks=N` (charge N
   chunks au lieu de 5), `?aniso=0`, `?collision=0`.
 - `window.__sim` dans la console navigateur : `.debug()`, `.teleport(x,y,z)`,
-  `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`, `.audio`.
+  `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`, `.audio`,
+  `.setWeather({speed, direction, gust, turbulence})`.
+
+## Le vent (issue #20)
+
+`src/wind.js`, sur le moule de `link.js` : modèle pur, `physics.js` lance les
+rayons, `main.js` câble. Voir `README.md` pour le modèle lui-même.
+
+**Vérifié** — 28 checks dans `tools/selftest.mjs`, section `vent` :
+
+- l'air calme est **bit-à-bit identique** à l'absence de modèle de vent. Ce
+  n'est pas de la coquetterie : les checks « tenue d'altitude », « vitesse
+  terminale » et « immobilité au sol » en dépendent, et un epsilon voudrait
+  dire qu'on ajoute puis retranche quelque chose, et ce quelque chose dérive ;
+- convention d'axes : vent de nord → souffle vers +Z, vent d'est → vers −X.
+  C'est la seule chose ici qui pouvait être exactement à l'envers en ayant
+  l'air parfaitement normale ;
+- profil monotone, plafonné au-dessus de 300 m, 30 % du vent au ras du sol,
+  ×2 entre 10 m et 100 m ;
+- rapports de Dryden **mesurés** sur 600 s : σv/σu = 0,72 et σw/σu = 0,53
+  (cibles 0,78 et 0,52 ; ~10 % d'erreur d'échantillonnage attendue) ;
+- les trois boutons de rafale sont bien trois : doubler la fréquence double les
+  arrivées sans changer l'amplitude, allonger la durée ne change pas la
+  fréquence ;
+- déterminisme : même graine, même météo, et `reset()` revient au départ ;
+- sillage réel contre la Tour Eiffel, moyenné sur huit azimuts ;
+- coût : 0,008 ms par sonde de dix rayons.
+
+**Mesuré au banc** (`npm run tune`, avant/après le terme ω×r et le couple
+`r × F` par moteur) — tous les axes restent dans les cibles :
+
+| | dépassement roulis freestyle | rebond lacet race | stabilisation lacet race |
+| --- | --- | --- | --- |
+| avant | 0,9 % | 44,1 % | 554 ms |
+| après | 0,3 % | 35,7 % | 498 ms |
+
+`BENCH_OMEGA=0 npm run tune` rejoue l'ancien comportement pour refaire la
+comparaison.
+
+**Vérifié en vol** (`?scene=tour-eiffel`, chrome-devtools) : profil 3,2 / 11,1 /
+17,4 m/s à 2 / 30 / 150 m pour un réglage à 9 m/s ; abri 0,27 et −19 % de
+vitesse sous le vent de la tour contre 0,01 au vent ; ascendance +5,2 m/s le
+long de la face au vent ; gigue de 0,15 m/s sur une demi-seconde, donc pas de
+clignotement ; 100 fps, 6 draw calls, aucune erreur console.
+
+**Deux bugs trouvés en vol et pas au banc**, tous deux invisibles en test
+synthétique :
+
+1. un rayon vers le bas qui ne touche rien était lu comme « 400 m d'altitude »,
+   ce qui servait le vent de gradient au ras du sol dès qu'on sortait de la
+   tuile ou qu'on passait sous la coque. Remplacé par une navigation à
+   l'estime depuis la dernière hauteur connue ;
+2. l'ascendance se déclenchait **sous le vent** au lieu de la face au vent. Le
+   mur qu'un drone est sur le point de heurter est sous le vent de lui, donc
+   c'est le rayon 4 qui le trouve, pas le rayon 0.
+
+**Pas vérifié** : le ressenti manche en main. Le banc dit que le modèle est
+cohérent et le navigateur dit que les nombres sont les bons, mais « est-ce que
+voler dans une tempête est difficile de la bonne façon » ne se mesure pas ici.
+
+**Reste ouvert** : l'issue chapeau #19 garde quatre volets — pluie (#24),
+brouillard (#21), nuages (#22), soleil (#23). Le fait transverse qui décidera
+des deux derniers : la photogrammétrie est **non éclairée**, son ombrage est
+cuit dans les textures, et un soleil mobile double-ombrerait la ville.

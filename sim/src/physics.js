@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { QUAD, GRAVITY, Propulsion, HOVER_THRUST } from './quad.js';
+import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
 export { QUAD, HOVER_THRUST };
 
@@ -65,9 +66,11 @@ export class Physics {
 		);
 		this.events = new RAPIER.EventQueue(true);
 
-		this.propulsion = new Propulsion();
-		this.meanWind = options.wind ? { ...options.wind } : { x: 0, y: 0, z: 0 };
-		this.propulsion.gustStrength = options.gusts ?? 0;
+		this.propulsion = new Propulsion(options.seed);
+		this.wind = new WindField(options.windSeed);
+		if (options.weather) this.wind.setParams(options.weather);
+		// Reused, so the per-step call into quad.js does not allocate.
+		this._air = { v: null, omega: null, agl: null, shake: 0 };
 
 		// Ground effect only reaches a rotor diameter or so, and a raycast at the
 		// full 250 Hz against 3.7M triangles is wasted work. 25 Hz is far faster
@@ -77,6 +80,18 @@ export class Physics {
 		this._agl = null;
 		this.airspeed = 0;
 
+		// The wind probe. Ten rays instead of one, so a lower rate — 20.8 Hz,
+		// about what the video link already spends against the same mesh, and
+		// nine of the ten stop at 30 m so they leave the BVH far sooner than the
+		// link's kilometre-long casts do. The counter starts offset from the AGL
+		// one so the two never fire on the same step: the worst case should be
+		// one probe, not one probe plus a ground query.
+		this._windEvery = 11;
+		this._windCounter = 6;
+		this._probe = new Float32Array(PROBE_COUNT);
+		this._probeDir = { x: 0, y: 0, z: 0 };
+		this._probed = false;
+
 		// castRay only sees colliders once the query pipeline has been built.
 		this.world.step();
 		this.reset();
@@ -85,6 +100,9 @@ export class Physics {
 		// Its own Ray: groundBelow() mutates _ray on every physics step, and the
 		// link query runs from the render loop, in between.
 		this._linkRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+		// And a third, for the same reason again: the wind rosette fires inside
+		// step() between the ground query and the world step.
+		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 		this._obstruction = { blocked: false, span: 0 };
 	}
 
@@ -94,8 +112,11 @@ export class Physics {
 		this.body.setLinvel(ZERO, true);
 		this.body.setAngvel(ZERO, true);
 		this.propulsion.reset();
+		this.wind.reset();
 		this._agl = null;
 		this._aglCounter = 0;
+		this._windCounter = 6;
+		this._probed = false;
 		this.airspeed = 0;
 	}
 
@@ -105,9 +126,42 @@ export class Physics {
 	get angularVelocity() { return this.body.angvel(); }
 	get battery() { return this.propulsion.battery; }
 
+	// speed m/s at 10 m, direction in degrees the wind comes from, gust and
+	// turbulence 0..1. See wind.js for what each one does.
+	setWeather(params) {
+		this.wind.setParams(params);
+	}
+
+	// The old vector API. Kept because window.__sim.setWind({x,y,z}, gust) is in
+	// HANDOFF.md and in people's console history; it converts to a bearing and
+	// hands over to setWeather.
 	setWind(mean, gusts) {
-		if (mean) this.meanWind = { ...mean };
-		if (gusts !== undefined) this.propulsion.gustStrength = gusts;
+		const params = {};
+		if (mean) {
+			params.speed = Math.hypot(mean.x, mean.z);
+			// atan2 back out of (-sin, cos) — see the axis note in wind.js.
+			params.direction = (Math.atan2(-mean.x, mean.z) * 180) / Math.PI;
+		}
+		if (gusts !== undefined) params.gust = Math.min(1, gusts / 6);
+		this.setWeather(params);
+	}
+
+	// Ten rays around the drone, aimed by the wind. wind.js says which way each
+	// one points and what its answer means; this end only knows how to cast.
+	probeWind(x, y, z) {
+		const ray = this._windRay;
+		const d = this.wind.dirH;
+		for (let i = 0; i < PROBE_COUNT; i++) {
+			probeDirection(i, d.x, d.z, this._probeDir);
+			ray.origin.x = x; ray.origin.y = y; ray.origin.z = z;
+			ray.dir.x = this._probeDir.x; ray.dir.y = this._probeDir.y; ray.dir.z = this._probeDir.z;
+			const range = PROBE_RANGE[i];
+			// Excluding the drone's own sphere, which contains every origin.
+			const hit = this.world.castRay(ray, range, true, undefined, undefined, this.collider);
+			this._probe[i] = hit ? hit.timeOfImpact : range;
+		}
+		this._probed = true;
+		return this._probe;
 	}
 
 	// One fixed step. `motors` is four commands in 0..1 straight from the mixer.
@@ -128,15 +182,32 @@ export class Physics {
 			this._agl = g === null ? null : p.y - g;
 		}
 
+		if (this.wind.active && this._windCounter-- <= 0) {
+			this._windCounter = this._windEvery;
+			this.probeWind(p.x, p.y, p.z);
+		}
+
 		// Airspeed, not ground speed: the aerodynamics only ever see the air.
-		const wind = this.propulsion.updateWind(this.meanWind, dt);
+		// The airspeed handed to the wind field is the previous step's, because
+		// this step's is what the wind field is about to decide — 4 ms of lag on
+		// a quantity that only sets a turbulence time constant.
+		const wind = this.wind.update(p.y, this._probed ? this._probe : null, this.airspeed, dt);
 		const ax = v.x - wind.x, ay = v.y - wind.y, az = v.z - wind.z;
-		const vBody = unrotateVec(q, ax, ay, az);
 		// Kept around because the wind rush the pilot hears follows the air, not
 		// the ground: with a tailwind a fast quad can be nearly silent.
 		this.airspeed = Math.hypot(ax, ay, az);
 
-		const { force, torque } = this.propulsion.step(motors, vBody, this._agl, dt);
+		const air = this._air;
+		air.v = unrotateVec(q, ax, ay, az);
+		// Rapier reports angular velocity in the WORLD frame, and quad.js is
+		// body-frame only. Skip this and the rotor damping becomes an
+		// attitude-dependent invention that only misbehaves inverted.
+		const w = this.body.angvel();
+		air.omega = unrotateVec(q, w.x, w.y, w.z);
+		air.agl = this._agl;
+		air.shake = this.wind.intensity * this.wind.local;
+
+		const { force, torque } = this.propulsion.step(motors, air, dt);
 
 		const fw = rotateVec(q, force.x, force.y, force.z);
 		this.body.addForce(fw, true);
@@ -150,6 +221,10 @@ export class Physics {
 		});
 		return impact;
 	}
+
+	// Height above ground as the wind probe sees it — hundreds of metres rather
+	// than the six the ground-effect query is capped at.
+	get windAgl() { return this.wind.agl; }
 
 	// Height of the surface directly below a point, or null if nothing is there.
 	groundBelow(x, y, z, maxDistance = 500) {

@@ -9,6 +9,8 @@
 // the most ordinary freestyle setup there is. Where a coefficient was fitted
 // rather than looked up, the observation it was fitted to is in the comment.
 
+import { Turbulence, mulberry32 } from './wind.js';
+
 const AIR_DENSITY = 1.225;
 export const GRAVITY = 9.81;
 
@@ -133,35 +135,25 @@ export class Battery {
 }
 
 // ---------------------------------------------------------------------------
-// Band-limited noise, used for propwash and gusts. Two cascaded first-order
-// filters on white noise give something that looks like turbulence instead of
-// the per-step hash that raw Math.random() would produce.
-
-class Turbulence {
-	constructor(cutoffHz) {
-		this.cutoff = cutoffHz;
-		this.a = 0; this.b = 0;
-	}
-	next(dt) {
-		const k = 1 - Math.exp(-2 * Math.PI * this.cutoff * dt);
-		this.a += k * ((Math.random() * 2 - 1) - this.a);
-		this.b += k * (this.a - this.b);
-		return this.b * 3.2;      // the two poles cost most of the amplitude
-	}
-}
-
-// ---------------------------------------------------------------------------
 
 export class Propulsion {
-	constructor() {
+	// Seeded rather than left on Math.random: the shake below is the only
+	// nondeterminism in the flight model, and without a seed two runs of
+	// tools/selftest.mjs differ from each other, which makes a regression
+	// indistinguishable from noise.
+	constructor(seed = 0x5eed) {
+		this.seed = seed >>> 0;
+		this._rng = mulberry32(this.seed);
 		this.battery = new Battery();
 		this.omega = [0, 0, 0, 0];
 		this.thrust = [0, 0, 0, 0];
 		this.propwash = 0;
-		this._wash = [new Turbulence(14), new Turbulence(14), new Turbulence(14)];
-		this._gust = [new Turbulence(0.4), new Turbulence(0.4), new Turbulence(0.4)];
-		this.wind = { x: 0, y: 0, z: 0 };
-		this.gustStrength = 0;
+		// Band-limited noise for the two things that shake the airframe without
+		// the pilot asking: its own downwash, and the air it is flying through.
+		// The wind that produces the second one is not modelled here — quad.js
+		// has no world frame — it arrives as `shake` in step().
+		this._wash = [new Turbulence(14, this._rng), new Turbulence(14, this._rng), new Turbulence(14, this._rng)];
+		this._buffet = [new Turbulence(6, this._rng), new Turbulence(6, this._rng), new Turbulence(6, this._rng)];
 		// Filled in by step(); read by the HUD and the tests.
 		this.force = { x: 0, y: 0, z: 0 };
 		this.torque = { x: 0, y: 0, z: 0 };
@@ -172,16 +164,28 @@ export class Propulsion {
 		this.omega.fill(0);
 		this.thrust.fill(0);
 		this.propwash = 0;
+		// Filter state and the noise stream too: without this a respawn lands in
+		// the middle of whatever the airframe was doing when it hit the ground,
+		// and no two runs of the same test are comparable.
+		this._rng = mulberry32(this.seed);
+		for (const t of [...this._wash, ...this._buffet]) { t.rng = this._rng; t.reset(); }
 	}
 
 	get rpm() { return this.omega.map((w) => (w * 60) / (2 * Math.PI)); }
 
 	// motors: four commands in 0..1, straight from the mixer.
-	// vBody:   velocity through the air in the body frame, m/s.
-	// agl:     height above whatever is directly below, m (null when unknown).
+	// air:    what the airframe is flying through, all in the body frame —
+	//           v      velocity through the air, m/s (NOT ground speed)
+	//           omega  body rates, rad/s, used for the per-motor inflow below
+	//           agl    height above whatever is directly below, m, null if unknown
+	//           shake  size of the air's own fluctuation, m/s, 0 in still air
 	//
 	// Returns body-frame {force, torque}; the caller rotates them into the world.
-	step(motors, vBody, agl, dt) {
+	step(motors, air, dt) {
+		const vBody = air.v;
+		const omega = air.omega ?? ZERO_RATE;
+		const agl = air.agl ?? null;
+		const shake = air.shake ?? 0;
 		const bat = this.battery;
 		const omegaMax = QUAD.maxOmega * bat.thrustScale;
 
@@ -204,6 +208,15 @@ export class Propulsion {
 		for (let i = 0; i < 4; i++) {
 			const m = MOTORS[i];
 
+			// Each rotor sees its own air, not the centre of gravity's. Rolling
+			// right, the left motors are climbing and the right ones descending,
+			// so the left disc gets extra inflow and loses thrust while the right
+			// gains it — a moment opposing the roll that no coefficient had to be
+			// invented for. v_i = v + omega x r, with r = (m.x, 0, m.z).
+			const vx = vBody.x + omega.y * m.z;
+			const vy = vBody.y + omega.z * m.x - omega.x * m.z;
+			const vz = vBody.z - omega.y * m.x;
+
 			// Command -> steady-state rpm, then a first-order lag toward it. The
 			// lag is the single biggest contributor to how a quad feels: it is
 			// what separates "snappy" from "floaty", and making spin-down slower
@@ -218,7 +231,7 @@ export class Propulsion {
 			// Thrust: static term minus what the axial inflow takes away. Clamped
 			// at zero rather than allowed to go negative — a prop windmilling
 			// backwards is outside anything this model claims to cover.
-			let t = kThrust * w * w - QUAD.kAxial * w * vBody.y;
+			let t = kThrust * w * w - QUAD.kAxial * w * vy;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
@@ -234,9 +247,17 @@ export class Propulsion {
 			// quad despite yaw having the most inertia.
 			ty += -m.spin * (QUAD.torqueRatio * t + QUAD.propInertia * dOmega);
 
-			// Rotor drag: the disc resists translation in proportion to rpm.
-			dragX -= QUAD.kLateral * w * vBody.x;
-			dragZ -= QUAD.kLateral * w * vBody.z;
+			// Rotor drag: the disc resists translation in proportion to rpm. Once
+			// the four discs see different air, their drag forces differ too, and
+			// four different horizontal forces at four different places is a yaw
+			// moment: tau_y = r_z*F_x - r_x*F_z. Under yaw rate it comes out
+			// opposing the rotation, which is the aerodynamic yaw damping a real
+			// quad has and this model did not.
+			const dx = -QUAD.kLateral * w * vx;
+			const dz = -QUAD.kLateral * w * vz;
+			dragX += dx;
+			dragZ += dz;
+			ty += m.z * dx - m.x * dz;
 
 			load += (w / QUAD.maxOmega) ** 3;
 		}
@@ -263,19 +284,25 @@ export class Propulsion {
 			tz += this._wash[2].next(dt) * s;
 		}
 
+		if (shake > 0.05) {
+			// An eddy smaller than the disc does not arrive at all four rotors at
+			// once, so the same fluctuation that pushes the quad sideways also
+			// twists it. The amplitude is not a taste constant: a velocity
+			// difference dv across one rotor changes its thrust by kAxial*w*dv,
+			// and that acts on the arm — so the torque is that product, and it
+			// grows with rpm exactly like the thrust it perturbs does.
+			const wMean = (this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4;
+			const s = QUAD.kAxial * wMean * shake * QUAD.armZ;
+			tx += this._buffet[0].next(dt) * s;
+			ty += this._buffet[1].next(dt) * s * 0.4;
+			tz += this._buffet[2].next(dt) * s;
+		}
+
 		this.torque.x = tx; this.torque.y = ty; this.torque.z = tz;
 		return this;
-	}
-
-	// Wind in the world frame: a steady component plus slow gusts. Called once
-	// per step by Physics; kept here so the whole air model lives in one file.
-	updateWind(mean, dt) {
-		const g = this.gustStrength;
-		this.wind.x = mean.x + (g ? this._gust[0].next(dt) * g : 0);
-		this.wind.y = mean.y + (g ? this._gust[1].next(dt) * g * 0.4 : 0);
-		this.wind.z = mean.z + (g ? this._gust[2].next(dt) * g : 0);
-		return this.wind;
 	}
 }
 
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+const ZERO_RATE = { x: 0, y: 0, z: 0 };

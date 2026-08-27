@@ -1,4 +1,5 @@
 import { CHANNELS } from './input.js';
+import { WIND_PRESETS, compassPoint } from './wind.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
@@ -8,11 +9,31 @@ const SHUTTER_KEY = 'fpvmaps.lensShutter';
 const LENS_ON_KEY = 'fpvmaps.lensOn';
 const LINK_KEY = 'fpvmaps.link';
 const LINK_MODE_KEY = 'fpvmaps.linkMode';
+// Where the wind is pushing you, in the drone's own frame: index 0 is straight
+// ahead (world +Z at zero yaw, which is south — see the axis note in wind.js).
+const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+
+const WIND_KEY = 'fpvmaps.windSpeed';
+const WIND_DIR_KEY = 'fpvmaps.windDir';
+const GUST_KEY = 'fpvmaps.windGust';
+const TURB_KEY = 'fpvmaps.windTurb';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
 // Note the null check — Number(null) is 0, which would silently turn a first
 // run into a muted one.
+// loadPercent's 0..100 range is wrong for a bearing and for a wind speed, and
+// storing "60% of 20 m/s" instead of "12 m/s" would make the saved value depend
+// on the slider's range. Physical units, and the bounds come from the caller.
+function loadNumber(key, fallback, min, max) {
+	try {
+		const raw = localStorage.getItem(key);
+		const saved = raw === null ? NaN : Number(raw);
+		if (Number.isFinite(saved) && saved >= min && saved <= max) return saved;
+	} catch { }
+	return fallback;
+}
+
 function loadPercent(key, fallback) {
 	try {
 		const raw = localStorage.getItem(key);
@@ -39,6 +60,27 @@ export function loadLens() {
 		// 8 ms is 1/125 s: a plausible daylight shutter on an FPV camera, and long
 		// enough that a fast roll visibly smears.
 		shutter: loadPercent(SHUTTER_KEY, 0.4) * 20,
+	};
+}
+
+// Wind is off by default, and that is not timidity: three of the checks in
+// tools/selftest.mjs — holds altitude at hover, terminal velocity falling flat,
+// sits still on the ground — only mean anything in calm air, and a sim that
+// starts by pushing you sideways before you have touched a slider is a sim that
+// looks broken. The direction is drawn once, on first run, and then kept: the
+// randomness exists so it is not always a convenient tailwind down the same
+// street, which is a reason to vary it between pilots, not between reloads.
+export function loadWeather() {
+	let dir = loadNumber(WIND_DIR_KEY, -1, 0, 355);
+	if (dir < 0) {
+		dir = Math.floor(Math.random() * 72) * 5;
+		try { localStorage.setItem(WIND_DIR_KEY, String(dir)); } catch { }
+	}
+	return {
+		speed: loadNumber(WIND_KEY, 0, 0, 25),
+		direction: dir,
+		gust: loadPercent(GUST_KEY, 0),
+		turbulence: loadPercent(TURB_KEY, 0.5) * 2,
 	};
 }
 
@@ -83,6 +125,7 @@ export class Hud {
 					<div id="src">clavier</div>
 					<div id="fps">–</div>
 					<div id="rssi">–</div>
+					<div id="wind-hud" hidden>–</div>
 				</div>
 				<div class="corner bl">
 					<div class="throttle"><div id="thr-fill"></div></div>
@@ -124,9 +167,18 @@ export class Hud {
 						<button type="button" data-v="60">Moyen</button>
 						<button type="button" data-v="100">Élevé</button>
 					</div>
-					<h2>Air</h2>
-					<label>Vent <input id="wind" type="range" min="0" max="12" step="0.5"> <span id="wind-val"></span> m/s</label>
-					<label>Rafales <input id="gust" type="range" min="0" max="6" step="0.5"> <span id="gust-val"></span> m/s</label>
+					<h2>Météo — vent</h2>
+					<label>Vent <input id="wind" type="range" min="0" max="25" step="0.5"> <span id="wind-val"></span> m/s</label>
+					<label title="direction d'où vient le vent">Direction <input id="wind-dir" type="range" min="0" max="355" step="5"> <span id="wind-dir-val"></span>
+						<button type="button" id="wind-dir-rand" title="au hasard">↻</button></label>
+					<label>Rafales <input id="gust" type="range" min="0" max="100" step="1"> <span id="gust-val"></span> %</label>
+					<label>Turbulences <input id="turb" type="range" min="0" max="200" step="5"> <span id="turb-val"></span> %</label>
+					<div id="wind-presets" class="presets">
+						<button type="button" data-v="calme">Calme</button>
+						<button type="button" data-v="brise">Brise</button>
+						<button type="button" data-v="frais">Vent frais</button>
+						<button type="button" data-v="tempete">Tempête</button>
+					</div>
 					<h2>Son</h2>
 					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 					<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
@@ -156,8 +208,15 @@ export class Hud {
 			batt: root.querySelector('#batt'),
 			wind: root.querySelector('#wind'),
 			windVal: root.querySelector('#wind-val'),
+			windDir: root.querySelector('#wind-dir'),
+			windDirVal: root.querySelector('#wind-dir-val'),
+			windDirRand: root.querySelector('#wind-dir-rand'),
 			gust: root.querySelector('#gust'),
 			gustVal: root.querySelector('#gust-val'),
+			turb: root.querySelector('#turb'),
+			turbVal: root.querySelector('#turb-val'),
+			windPresets: root.querySelector('#wind-presets'),
+			windHud: root.querySelector('#wind-hud'),
 			vol: root.querySelector('#vol'),
 			volVal: root.querySelector('#vol-val'),
 			tone: root.querySelector('#tone'),
@@ -188,7 +247,7 @@ export class Hud {
 		};
 		root.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		root.querySelector('#reset-settings').onclick = () => {
-			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, son) ?')) return;
+			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, météo, son) ?')) return;
 			try {
 				for (const key of Object.keys(localStorage)) {
 					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
@@ -340,21 +399,65 @@ export class Hud {
 		emit();
 	}
 
-	// Wind is a single speed plus a gust amplitude; the direction is picked once,
-	// at random, so it is not always a convenient tailwind down the same street.
-	setWind(onChange) {
-		const heading = Math.random() * Math.PI * 2;
+	// Four controls, and one of them is a gust knob standing in for three. The
+	// issue asks for gust intensity, duration and frequency separately and it is
+	// right to — they are genuinely independent — but three gust sliders on a
+	// flight panel is three sliders nobody ever moves. The one knob walks a line
+	// through all three (see wind.js), because that is how weather gets worse:
+	// gustier air means gusts that are bigger, sharper AND more frequent. The
+	// full triple is still reachable from window.__sim for anyone tuning it.
+	//
+	// Everything else about the wind — how it grows with height, where it is
+	// sheltered, where it is channelled — is a consequence of the scene and
+	// belongs in wind.js, not on a slider. Same argument as setLink.
+	setWeather({ speed, direction, gust, turbulence }, onChange) {
 		const emit = () => {
-			const speed = Number(this.el.wind.value);
-			const gust = Number(this.el.gust.value);
-			this.el.windVal.textContent = speed.toFixed(1);
-			this.el.gustVal.textContent = gust.toFixed(1);
-			onChange({ x: Math.cos(heading) * speed, y: 0, z: Math.sin(heading) * speed }, gust);
+			const p = {
+				speed: Number(this.el.wind.value),
+				direction: Number(this.el.windDir.value),
+				gust: Number(this.el.gust.value) / 100,
+				turbulence: Number(this.el.turb.value) / 100,
+			};
+			this.el.windVal.textContent = p.speed.toFixed(1);
+			this.el.windDirVal.textContent = `${p.direction}° ${compassPoint(p.direction)}`;
+			this.el.gustVal.textContent = Math.round(p.gust * 100);
+			this.el.turbVal.textContent = Math.round(p.turbulence * 100);
+			// A preset lights up only when the whole bundle matches, not one
+			// number of it — otherwise three of the four buttons glow at once.
+			for (const b of this.el.windPresets.children) {
+				const w = WIND_PRESETS[b.dataset.v];
+				b.classList.toggle('on', !!w && w.speed === p.speed
+					&& Math.abs(w.gust - p.gust) < 0.005 && Math.abs(w.turbulence - p.turbulence) < 0.005);
+			}
+			try {
+				localStorage.setItem(WIND_KEY, String(p.speed));
+				localStorage.setItem(WIND_DIR_KEY, String(p.direction));
+				localStorage.setItem(GUST_KEY, String(Math.round(p.gust * 100)));
+				localStorage.setItem(TURB_KEY, String(Math.round(p.turbulence * 50)));
+			} catch { }
+			onChange(p);
 		};
-		this.el.wind.value = 0;
-		this.el.gust.value = 0;
+		this.el.wind.value = speed;
+		this.el.windDir.value = direction;
+		this.el.gust.value = Math.round(gust * 100);
+		this.el.turb.value = Math.round(turbulence * 100);
 		this.el.wind.oninput = emit;
+		this.el.windDir.oninput = emit;
 		this.el.gust.oninput = emit;
+		this.el.turb.oninput = emit;
+		this.el.windDirRand.onclick = () => {
+			this.el.windDir.value = Math.floor(Math.random() * 72) * 5;
+			emit();
+		};
+		this.el.windPresets.onclick = (e) => {
+			const b = e.target.closest('button');
+			if (!b || !WIND_PRESETS[b.dataset.v]) return;
+			const w = WIND_PRESETS[b.dataset.v];
+			this.el.wind.value = w.speed;
+			this.el.gust.value = Math.round(w.gust * 100);
+			this.el.turb.value = Math.round(w.turbulence * 100);
+			emit();
+		};
 		emit();
 	}
 
@@ -433,7 +536,7 @@ export class Hud {
 	}
 
 	update({ altitude, speed, throttle, mode, preset, crashed, usingGamepad,
-	         voltage, soc, amps, propwash, link }) {
+	         voltage, soc, amps, propwash, link, wind, heading }) {
 		this.el.alt.textContent = altitude === null ? '–' : altitude.toFixed(0);
 		this.el.spd.textContent = (speed * 3.6).toFixed(0);
 		this.el.mode.textContent = mode.toUpperCase();
@@ -454,6 +557,23 @@ export class Hud {
 		// Without a readout, a picture falling apart reads as a rendering bug
 		// rather than as the link telling you something. Real goggles show it as a
 		// percentage, so this does too.
+		// The wind, relative to where the nose is pointing. An absolute bearing
+		// would be the honest number and the useless one: what a pilot needs to
+		// know mid-line is whether the next thing to happen is a headwind or a
+		// push from the left, and that is a question about the drone's frame.
+		// Hidden entirely in calm air rather than showing a zero.
+		if (wind && this.el.windHud) {
+			const speedW = Math.hypot(wind.x, wind.z);
+			this.el.windHud.hidden = speedW < 0.5;
+			if (speedW >= 0.5) {
+				// Bearing of where the wind is blowing TO, minus the nose.
+				const rel = Math.atan2(wind.x, wind.z) - (heading ?? 0);
+				const arrow = ARROWS[((Math.round((rel / (Math.PI * 2)) * 8) % 8) + 8) % 8];
+				this.el.windHud.textContent = `VENT ${speedW.toFixed(0)} ${arrow}`;
+				this.el.windHud.dataset.level = speedW > 12 ? 'empty' : speedW > 6 ? 'low' : 'ok';
+			}
+		}
+
 		if (link && this.el.rssi) {
 			const pct = Math.round(link.quality * 100);
 			this.el.rssi.textContent = `RSSI ${pct} %`;

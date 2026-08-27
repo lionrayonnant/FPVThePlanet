@@ -349,9 +349,78 @@ suit la tension *par cellule sous charge*, pas l'état de charge, parce que
 c'est le chiffre au ratio duquel on pilote. Sous 3,6 V/cellule elle passe à
 l'orange, sous 3,4 V au rouge.
 
-Vent et rafales se règlent dans le panneau `Tab` (par défaut à zéro). La
-direction est tirée au sort au démarrage, pour ne pas toujours avoir le même
-vent arrière dans la même rue.
+### Le vent
+
+`src/wind.js` — un champ de vent, pas un vecteur. Quatre réglages dans le
+panneau `Tab`, section **Météo — vent**, plus quatre préréglages calés sur
+l'échelle de Beaufort :
+
+| réglage | par défaut | ce qu'il fait |
+| --- | --- | --- |
+| Vent | 0 m/s | vitesse **à 10 m**, la hauteur à laquelle une station météo mesure — pas la vitesse au drone |
+| Direction | tirée une fois | secteur d'**où vient** le vent, convention météo. Le bouton `↻` retire au sort |
+| Rafales | 0 % | un curseur pour trois propriétés — intensité, durée, fréquence — voir plus bas |
+| Turbulences | 100 % | multiplicateur sur l'intensité que le profil implique déjà, pas l'intensité elle-même |
+
+Par défaut le vent est nul, et pas par timidité : trois vérifications de
+`tools/selftest.mjs` (tenue d'altitude au stationnaire, vitesse terminale à
+plat, immobilité au sol) n'ont de sens qu'en air calme, et un simulateur qui
+pousse le drone de côté avant qu'on ait touché un curseur a l'air cassé. La
+direction, elle, est tirée au sort **une fois** puis conservée : le hasard est
+là pour qu'on n'ait pas toujours le même vent arrière dans la même rue, ce qui
+est une raison de varier d'un pilote à l'autre, pas d'un rechargement au
+suivant.
+
+**Quatre couches**, chacune dans sa bande de fréquence, parce qu'elles ont des
+causes différentes : le **moyen** (le gradient de pression), la **dérive** lente
+sur des dizaines de secondes, les **rafales** discrètes de quelques secondes, et
+la **turbulence** au dixième de seconde. La version précédente repliait les
+trois dernières sur un seul passe-bas, ce qui ne sait exprimer que « à quel
+point » et jamais « à quelle fréquence » ni « pendant combien de temps ».
+
+**Le profil de couche limite** est la loi logarithmique, avec une longueur de
+rugosité de 1 m (classe Davenport « centre-ville »). Conséquence directe en
+vol : à 2 m du sol il ne reste que 30 % du vent annoncé, à 100 m il y en a le
+double. Monter change la donne. La loi log est préférée à la loi puissance
+parce qu'elle donne **gratuitement** l'intensité turbulente — σu/U = 1/ln(z/z0),
+soit 0,43 à 10 m et 0,22 à 100 m — au lieu de la faire choisir.
+
+**La turbulence** est un modèle de Dryden : trois axes générés dans un repère
+lié au vent puis tournés dans le monde, avec les rapports mesurés en couche de
+surface σu:σv:σw = 1:0,78:0,52. La constante de temps est L/V où V est la
+vitesse d'advection — l'hypothèse de turbulence gelée de Taylor, sans laquelle
+le champ se figerait dès qu'on s'arrête en stationnaire. Elle donne aussi, sans
+qu'on l'ait demandé, « l'air est plus sale quand on va vite » : les mêmes
+tourbillons arrivent plus tôt.
+
+**Les rafales** sont des arrivées de Poisson avec l'enveloppe en 1−cosinus de
+la MIL-F-8785C. Intensité, durée et fréquence sont trois paramètres réellement
+indépendants ; le curseur unique parcourt une ligne à travers les trois, parce
+que c'est ainsi que le temps se dégrade — de l'air plus agité veut dire des
+rafales plus fortes, plus sèches **et** plus fréquentes. Le triplet complet reste
+accessible via `window.__sim.setWeather({gustPeak, gustDuration, gustRate})`.
+
+**L'interaction avec le relief** est une rosette de dix rayons lancée à 20,8 Hz
+depuis `physics.js` — l'ordre de grandeur que le lien vidéo dépense déjà contre
+le même maillage. Le rayon 0 pointe toujours au vent, ce qui fait que « est-ce
+que quelque chose m'abrite » est toujours la même question sur le même rayon.
+En sortent quatre grandeurs : l'**abri** derrière un obstacle (jusqu'à −70 %,
+jamais 100 % — le sillage d'un bâtiment n'est pas de l'air immobile), la
+**canalisation** dans une rue alignée avec le vent (+45 %), l'**ascendance** le
+long d'une façade au vent (soaring dynamique compris), et la **rugosité** qui
+monte l'intensité turbulente près de la géométrie. Rien n'est un drapeau :
+chaque rayon donne une rampe `1 − d/R` et le tout est lissé sur 0,8 s, pour la
+même raison que dans `link.js` — la photogrammétrie est une soupe de surfaces,
+les rayons scintillent, et un drapeau transformerait ce scintillement en
+interrupteur.
+
+Le vent agit **par les hélices**, pas comme une force unique sur le châssis :
+chaque rotor voit sa propre vitesse air, `v + ω × r`. Rouler vers la droite
+fait monter les moteurs de gauche, qui voient donc plus d'air et perdent de la
+poussée — un amortissement aérodynamique que le modèle n'avait pas, et qui
+sort de la géométrie sans qu'aucun coefficient ait été inventé. Le HUD affiche
+le vent **relatif au nez** : ce qu'on veut savoir en ligne, ce n'est pas un cap
+absolu, c'est de quel côté ça pousse.
 
 ### Le son
 

@@ -23,6 +23,11 @@
 // twice its inertia — would fail permanently no matter how it were tuned.
 
 import { Propulsion, QUAD } from '../src/quad.js';
+
+const ZERO = { x: 0, y: 0, z: 0 };
+// Set BENCH_OMEGA=0 to bench the airframe without the per-motor inflow damping,
+// which is how its cost was measured against the old model.
+const BENCH_OMEGA = process.env.BENCH_OMEGA !== '0';
 import { FlightController, RATE_PRESETS, PID, setGains } from '../src/flightController.js';
 
 const DT = 1 / 250;
@@ -46,7 +51,10 @@ function run({ axis, seconds = 1.2, stick, throttle = 0.35, preset = 'freestyle'
 
 		const state = { rotation: q, angularVelocity: w, position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 } };
 		const { motors } = fc.update(s, state, DT);
-		const { torque } = prop.step(motors, { x: 0, y: 0, z: 0 }, null, DT);
+		// The bench frame is the body frame, so `w` is already what quad.js wants.
+		// BENCH_OMEGA lets the per-motor inflow damping be switched off, which is
+		// how the before/after in the commit message was measured.
+		const { torque } = prop.step(motors, { v: ZERO, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
 
 		// I*wdot = tau - w x (I*w)
 		const Iw = { x: I.x * w.x, y: I.y * w.y, z: I.z * w.z };
@@ -139,7 +147,7 @@ function sustainedAccel(axis) {
 	const full = { roll: [1, 1, -1, -1], pitch: [-1, 1, -1, 1], yaw: [-1, 1, 1, -1] }[axis];
 	const motors = full.map((m) => Math.max(0.055, Math.min(1, 0.5 + m * 0.5)));
 	let torque = null;
-	for (let i = 0; i < 500; i++) ({ torque } = prop.step(motors, { x: 0, y: 0, z: 0 }, null, DT));
+	for (let i = 0; i < 500; i++) ({ torque } = prop.step(motors, { v: ZERO, omega: ZERO, agl: null, shake: 0 }, DT));
 	return Math.abs(torque[comp]) / QUAD.inertia[comp];      // rad/s^2
 }
 
@@ -195,7 +203,7 @@ function kickTest() {
 		for (let i = 0; i < 250; i++) {
 			const state = { rotation: q, angularVelocity: w, position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 } };
 			const { motors } = fc.update({ throttle: 0.35, roll: 0, pitch: 0, yaw: 0 }, state, DT);
-			const { torque } = prop.step(motors, { x: 0, y: 0, z: 0 }, null, DT);
+			const { torque } = prop.step(motors, { v: ZERO, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
 			w = { x: w.x + (torque.x / I.x) * DT, y: w.y + (torque.y / I.y) * DT, z: w.z + (torque.z / I.z) * DT };
 			if (stopped === null && Math.abs(w[comp]) < 10 * DEG) stopped = i * DT;
 		}

@@ -68,11 +68,11 @@ canvas { display: block; }
 .big small { font-size: 12px; font-weight: 400; opacity: .6; margin-left: .35em; }
 
 #mode { font-size: 17px; font-weight: 600; letter-spacing: .1em; color: var(--accent); }
-#src, #fps, #rssi { font-size: 12px; opacity: .6; }
+#src, #fps, #rssi, #wind-hud { font-size: 12px; opacity: .6; }
 /* Same three levels as the battery, and the same two colours: on this HUD
    yellow means "watch it" and orange means "it is happening now". */
-#rssi[data-level="low"] { color: #f5c451; opacity: 1; }
-#rssi[data-level="empty"] { color: #f2714f; opacity: 1; }
+#rssi[data-level="low"], #wind-hud[data-level="low"] { color: #f5c451; opacity: 1; }
+#rssi[data-level="empty"], #wind-hud[data-level="empty"] { color: #f2714f; opacity: 1; }
 
 .throttle {
 	width: 10px; height: 110px;
@@ -146,6 +146,9 @@ canvas { display: block; }
 .panel .presets button { margin-top: 0; padding: 5px; font-size: 11px; }
 .panel .presets button.on { border-color: var(--accent); color: var(--accent); }
 .panel .presets button:disabled { opacity: .3; cursor: default; }
+/* Inline with its slider rather than on its own line, unlike every other
+   button in the panel. */
+#wind-dir-rand { margin-top: 0; width: auto; padding: 1px 7px; }
 
 #loading-detail, #loading-clock {
 	margin: .9em 0 0;

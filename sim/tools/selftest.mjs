@@ -8,6 +8,7 @@ import path from 'node:path';
 import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
 import { VideoLink } from '../src/link.js';
+import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -35,8 +36,15 @@ function check(label, ok, detail) {
 	if (!ok) failures++;
 }
 
-function simulate({ seconds, sticks, at, velocity, mode = 'acro' }) {
+const CALM = { speed: 0, gust: 0, turbulence: 0 };
+
+function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	phys.reset();
+	// Explicit rather than remembered. There is one Physics instance for the
+	// whole file (see above), so weather left on by one section would silently
+	// move every check after it — including "holds altitude at hover throttle"
+	// and "terminal velocity falling flat", which only mean anything in calm air.
+	phys.setWeather(weather ?? CALM);
 	fc.setMode(mode);
 	if (at) phys.body.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
 	if (velocity) phys.body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
@@ -285,6 +293,248 @@ console.log('\nvideo link');
 		if (!(o.quality >= 0 && o.quality <= 1)) outOfRange++;
 	}
 	check('quality stays inside 0..1 under any input', outOfRange === 0);
+}
+
+console.log('\nwind');
+// Two halves again, and both checkable without a browser: the pure field model
+// in wind.js, and the ray geometry physics.js feeds it.
+{
+	const hoverSticks = { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 };
+	const high = [manifest.spawn.x, manifest.spawn.y + 150, manifest.spawn.z];
+
+	// Calm has to be the absence of a force, not a very small one. Every
+	// envelope check above depends on it, so pin it exactly rather than within
+	// an epsilon: an epsilon here means something is being added and subtracted,
+	// and that something drifts.
+	const noWeather = simulate({ seconds: 3, sticks: hoverSticks, at: high });
+	const explicitCalm = simulate({ seconds: 3, sticks: hoverSticks, at: high, weather: CALM });
+	check('calm is bit-identical to no wind at all',
+		noWeather.p.x === explicitCalm.p.x && noWeather.p.y === explicitCalm.p.y
+		&& noWeather.p.z === explicitCalm.p.z);
+
+	// Hands off in a steady wind, the only horizontal force is drag, and drag
+	// vanishes as the airspeed does — so ground speed asymptotes to the wind.
+	// The time constant is m/(4*kLateral*omega) = 0.65/(4*5e-5*1254) = 2.6 s, so
+	// 20 s is 7.7 of them: the bracket below is that convergence, not a taste.
+	const drift = simulate({ seconds: 20, sticks: hoverSticks, at: high,
+		weather: { speed: 8, direction: 270, gust: 0, turbulence: 0 } });
+	const horiz = Math.hypot(drift.v.x, drift.v.z);
+	// Against the LOCAL wind, not the 10 m figure: the quad drifted a few
+	// hundred metres downwind while this ran, and the profile means the wind it
+	// ends up in is not the wind it started in.
+	const local = phys.wind.local;
+	check('a quad hands-off drifts downwind at very nearly the wind speed',
+		horiz > local * 0.85 && horiz < local * 1.1,
+		`${horiz.toFixed(1)} m/s against a local ${local.toFixed(1)}`);
+	check('and it drifts the way the wind is going, not against it',
+		drift.v.x > 0 && Math.abs(drift.v.z) < horiz * 0.35,
+		`v = (${drift.v.x.toFixed(1)}, ${drift.v.z.toFixed(1)})`);
+
+	// The whole reason `airspeed` exists rather than reusing ground speed: the
+	// wind rush in audio.js follows the air. Having reached the wind's own
+	// speed, the quad is standing still relative to it.
+	// Not zero: the wander keeps moving the air by a couple of m/s over tens of
+	// seconds and the quad chases it with a 2.6 s time constant, so a small
+	// residual is the model working, not failing. An order of magnitude down on
+	// the ground speed is the property that matters.
+	check('airspeed follows the air and not the ground',
+		phys.airspeed < horiz * 0.15 && horiz > 7,
+		`${phys.airspeed.toFixed(2)} m/s air, ${horiz.toFixed(1)} m/s ground`);
+
+	// The axis convention, which is the single thing here that could be exactly
+	// backwards while looking completely fine. Z is SOUTH, so a north wind
+	// (direction 0) blows towards +Z.
+	{
+		const w = new WindField(1).setParams({ speed: 10, direction: 0, gust: 0, turbulence: 0 });
+		check('a north wind blows south', w.nominal.z > 9.9 && Math.abs(w.nominal.x) < 0.01);
+		w.setParams({ direction: 90 });
+		check('an east wind blows west', w.nominal.x < -9.9 && Math.abs(w.nominal.z) < 0.01);
+	}
+
+	// The boundary layer, as properties rather than as numbers: the bracket on
+	// the 100/10 ratio is the plausible Davenport roughness range (0.5 to 2 m
+	// gives 1.77 to 2.43), so it survives a change of z0.
+	{
+		const h = [2, 5, 10, 30, 100, 300, 400].map(shearFactor);
+		let rising = true;
+		for (let i = 1; i < 6; i++) if (h[i] <= h[i - 1]) rising = false;
+		check('wind grows with height, all the way up', rising);
+		check('and stops growing above the surface layer', h[6] === h[5]);
+		check('street level is genuinely sheltered', h[0] < 0.45, `${(h[0] * 100).toFixed(0)}% of the 10 m wind`);
+		const ratio = h[4] / h[2];
+		check('100 m carries about twice the wind of 10 m', ratio > 1.7 && ratio < 2.5, ratio.toFixed(2));
+		const i10 = turbulenceIntensity(10), i100 = turbulenceIntensity(100), i300 = turbulenceIntensity(300);
+		check('turbulence intensity falls with height', i10 > i100 && i100 > i300,
+			`${i10.toFixed(2)} / ${i100.toFixed(2)} / ${i300.toFixed(2)}`);
+		check('and is the city value at 10 m', i10 > 0.35 && i10 < 0.55, i10.toFixed(3));
+	}
+
+	// The Dryden axis ratios. These are the numbers that replaced an unsourced
+	// 0.4, so they get measured rather than asserted from a comment. Over 600 s
+	// with a longitudinal time constant of ~12 s there are only ~50 independent
+	// samples, so the relative error on a standard deviation is 1/sqrt(2*50),
+	// about 10% — which is where the brackets come from.
+	{
+		const w = new WindField(7).setParams({ speed: 10, direction: 270, gust: 0, turbulence: 1 });
+		const dt = 1 / 250;
+		let su = 0, sv = 0, sw = 0, sl = 0, n = 0;
+		for (let i = 0; i < 250 * 600; i++) {
+			const o = w.update(50, null, 0, dt);
+			if (i < 250 * 20) continue;      // let the filters forget their zero start
+			const dx = w.dirH.x, dz = w.dirH.z, L = w.local;
+			const mx = o.x - dx * L, mz = o.z - dz * L;
+			const u = mx * dx + mz * dz, v = -mx * dz + mz * dx;
+			su += u * u; sv += v * v; sw += o.y * o.y; sl += L; n++;
+		}
+		su = Math.sqrt(su / n); sv = Math.sqrt(sv / n); sw = Math.sqrt(sw / n); sl /= n;
+		check('turbulence is as strong as the profile says it should be',
+			su / sl > 0.20 && su / sl < 0.31, `sigma_u/U = ${(su / sl).toFixed(3)}, expected ${turbulenceIntensity(50).toFixed(3)}`);
+		check('lateral turbulence is 0.78 of longitudinal', sv / su > 0.65 && sv / su < 0.90, (sv / su).toFixed(3));
+		check('vertical turbulence is 0.52 of longitudinal', sw / su > 0.40 && sw / su < 0.65, (sw / su).toFixed(3));
+	}
+
+	// Three gust knobs have to be three knobs: if turning one moves another's
+	// measurement, they are one knob wearing three labels.
+	{
+		const sample = ({ rate, len, peak }) => {
+			const w = new WindField(11).setParams({ speed: 10, direction: 270, turbulence: 0,
+				gustRate: rate, gustDuration: len, gustPeak: peak });
+			const dt = 1 / 50;
+			// Arrivals are counted at the source rather than by thresholding the
+			// output: at higher rates gusts overlap, and a threshold crossing then
+			// counts two of them as one. The width is still measured from the
+			// signal, which is the half of it a threshold does answer honestly.
+			let above = false, width = 0, run = 0, events = 0, peakSeen = 0;
+			const base = 10 * shearFactor(10);
+			for (let i = 0; i < 50 * 600; i++) {
+				const o = w.update(10, null, 0, dt);
+				const extra = Math.hypot(o.x, o.z) - w.local;
+				peakSeen = Math.max(peakSeen, extra);
+				const on = extra > base * peak * 0.25;
+				if (on && !above) run = 0;
+				if (on) run += dt;
+				if (!on && above) { width += run; events++; }
+				above = on;
+			}
+			return { perMin: w.gusts / 10, meanWidth: events ? width / events : 0, peak: peakSeen };
+		};
+		const a = sample({ rate: 12, len: 3, peak: 0.5 });
+		const b = sample({ rate: 12, len: 6, peak: 0.5 });
+		const c = sample({ rate: 24, len: 3, peak: 0.5 });
+		const d = sample({ rate: 12, len: 3, peak: 1.0 });
+		// Poisson counting noise over N = rate*10 events is 1/sqrt(N); at 12/min
+		// that is 13% at one sigma, so +/-40% is three of them.
+		check('gusts arrive at the rate asked for', a.perMin > 7 && a.perMin < 17, `${a.perMin.toFixed(1)}/min`);
+		check('doubling the rate doubles the arrivals', c.perMin > a.perMin * 1.5, `${c.perMin.toFixed(1)}/min`);
+		check('a longer gust lasts longer', b.meanWidth > a.meanWidth * 1.5,
+			`${a.meanWidth.toFixed(2)} s -> ${b.meanWidth.toFixed(2)} s`);
+		check('and does not change how often they come', Math.abs(b.perMin - a.perMin) < a.perMin * 0.4,
+			`${a.perMin.toFixed(1)} vs ${b.perMin.toFixed(1)}/min`);
+		check('doubling the intensity doubles the peak', d.peak > a.peak * 1.6 && d.peak < a.peak * 2.5,
+			`${a.peak.toFixed(1)} -> ${d.peak.toFixed(1)} m/s`);
+		check('and does not change how often they come', Math.abs(d.perMin - a.perMin) < a.perMin * 0.4,
+			`${a.perMin.toFixed(1)} vs ${d.perMin.toFixed(1)}/min`);
+	}
+
+	// Determinism. Without it none of the checks above are checks — they are
+	// samples of a distribution that happens to have passed once.
+	{
+		const mk = () => new WindField(0xabc).setParams({ speed: 9, direction: 200, gust: 0.7, turbulence: 1 });
+		const one = mk(), two = mk();
+		let same = true;
+		for (let i = 0; i < 5000; i++) {
+			const a = one.update(40, null, 5, 1 / 250);
+			const b = two.update(40, null, 5, 1 / 250);
+			if (a.x !== b.x || a.y !== b.y || a.z !== b.z) { same = false; break; }
+		}
+		check('the same seed replays the same weather', same);
+		one.reset();
+		const three = mk();
+		const a = one.update(40, null, 5, 1 / 250), b = three.update(40, null, 5, 1 / 250);
+		check('and reset really does go back to the start', a.x === b.x && a.y === b.y && a.z === b.z);
+	}
+
+	// Nothing may run away, whatever the geometry says. Same shape as the link's
+	// "quality stays inside 0..1" check above.
+	{
+		const w = new WindField(3);
+		// Seeded, like everything else here: an adversarial sweep drawn fresh
+		// every run reports a different worst case each time, and a bound that
+		// moves is not a bound. This is the same argument that put a seed in
+		// WindField in the first place.
+		const rnd = mulberry32(0x9e37);
+		const probe = new Float32Array(PROBE_COUNT);
+		let bad = 0, worst = 0;
+		for (let i = 0; i < 20000; i++) {
+			if (i % 100 === 0) {
+				w.setParams({ speed: rnd() * 25, direction: rnd() * 360,
+					gust: rnd(), turbulence: rnd() * 2 });
+			}
+			for (let k = 0; k < PROBE_COUNT; k++) probe[k] = rnd() * PROBE_RANGE[k];
+			const o = w.update(rnd() * 300, probe, rnd() * 40, 1 / 250);
+			const m = Math.hypot(o.x, o.y, o.z);
+			worst = Math.max(worst, m / Math.max(1, w.speed));
+			if (!Number.isFinite(m)) bad++;
+		}
+		// The arithmetic worst case: the profile at 300 m (x2.48) times the
+		// wander at 3 sigma (x1.15) times the terrain clamp (x1.6) is a mean of
+		// 4.6, and on top of that a full gust (x1.26) and three sigma of
+		// turbulence at the slider's maximum (2 x 0.8 x 3 = x4.8) — about 32 if
+		// every one of them peaks on the same step on all three axes, which is
+		// why the ceiling is well above what a run actually reaches. It is a
+		// runaway guard, not a calibration: a feedback loop leaves it decades
+		// behind, and nothing legitimate approaches it.
+		check('the field stays finite and bounded under any geometry',
+			bad === 0 && worst < 32, `worst |w| was ${worst.toFixed(1)}x the nominal`);
+	}
+
+	// The rays, against real geometry, through the same path the sim uses.
+	// Photogrammetry of the tower is lacy, so a single ray can go straight
+	// through it — average over eight bearings, the way the video link section
+	// above does.
+	{
+		const ring = (r, y) => {
+			let shelter = 0;
+			for (let a = 0; a < 8; a++) {
+				const ang = (a / 8) * Math.PI * 2;
+				const x = tx + Math.cos(ang) * r, z = tz + Math.sin(ang) * r;
+				// The sample point sits at bearing `ang` from the tower, so for the
+				// tower to be upwind the air has to be blowing outward from it:
+				// blowing direction (cos, sin), which is the bearing below. See the
+				// (-sin, cos) convention in wind.js.
+				const dir = (Math.atan2(-Math.cos(ang), Math.sin(ang)) * 180) / Math.PI;
+				phys.setWeather({ speed: 10, direction: dir, gust: 0, turbulence: 0 });
+				phys.wind.reset();
+				// 3 s, comfortably past the 0.8 s the terrain scalars are smoothed
+				// over, with the probe on its real 11-step period.
+				for (let i = 0; i < 750; i++) {
+					const probe = i % 11 === 0 ? phys.probeWind(x, y, z) : phys._probe;
+					phys.wind.update(y, probe, 0, 1 / 250);
+				}
+				shelter += phys.wind.shelter;
+			}
+			return shelter / 8;
+		};
+		const lee = ring(25, groundNearTower + 60);
+		const open = ring(400, groundNearTower + 60);
+		phys.setWeather(CALM);
+		check('the tower shelters the air behind it', lee > 0.15, `shelter ${lee.toFixed(2)} at 25 m`);
+		check('and 400 m out over the Champ-de-Mars it does not', open < lee * 0.7,
+			`shelter ${open.toFixed(2)} at 400 m`);
+		// A wake is not a vacuum: the lee of a building is never still air, and a
+		// model that says it is reads as a bug rather than as shelter.
+		check('a wake still has air moving in it', 1 - 0.7 * lee > 0.2,
+			`${((1 - 0.7 * lee) * 100).toFixed(0)}% of the free stream left`);
+	}
+
+	// Cost, measured rather than assumed. The video link already casts two rays
+	// per rendered frame against this same 3.7M-triangle mesh.
+	{
+		const t0 = performance.now();
+		for (let i = 0; i < 200; i++) phys.probeWind(manifest.spawn.x, manifest.spawn.y + 30, manifest.spawn.z);
+		const per = (performance.now() - t0) / 200;
+		check('a ten-ray probe is cheap enough for 20 Hz', per < 2, `${per.toFixed(3)} ms per probe`);
+	}
 }
 
 console.log('\ntextures');
