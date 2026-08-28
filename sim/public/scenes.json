@@ -47,5 +47,59 @@
 		"name": "LMSC",
 		"lat": 48.802132,
 		"lon": 2.066834
+	},
+	{
+		"slug": "triomphe",
+		"name": "Triomphe",
+		"lat": 48.87374443545335,
+		"lon": 2.2950965166091923,
+		"bbox": {
+			"south": 48.87203321593059,
+			"west": 2.2921943664550786,
+			"north": 48.87545565497611,
+			"east": 2.297998666763306
+		},
+		"zoom": 20,
+		"altitude": 20,
+		"cell": 256,
+		"quality": 85,
+		"bytes": 30877328,
+		"createdAt": "2026-08-27T22:07:07.664Z"
+	},
+	{
+		"slug": "chateau-des-ducs-de-bretagne",
+		"name": "Château des Ducs de Bretagne",
+		"lat": 47.21477271957039,
+		"lon": -1.5489435195922854,
+		"bbox": {
+			"south": 47.20843252114406,
+			"west": -1.5660667419433596,
+			"north": 47.22111291799671,
+			"east": -1.5318202972412112
+		},
+		"zoom": 20,
+		"altitude": 20,
+		"cell": 256,
+		"quality": 85,
+		"bytes": 737396246,
+		"createdAt": "2026-08-27T22:22:21.966Z"
+	},
+	{
+		"slug": "martignas-sur-jalle",
+		"name": "Martignas-sur-Jalle",
+		"lat": 44.85900182908891,
+		"lon": -0.7886660099029542,
+		"bbox": {
+			"south": 44.852598352560264,
+			"west": -0.8043193817138673,
+			"north": 44.86540530561755,
+			"east": -0.7730126380920411
+		},
+		"zoom": 20,
+		"altitude": 20,
+		"cell": 256,
+		"quality": 85,
+		"bytes": 645342830,
+		"createdAt": "2026-08-27T22:39:23.308Z"
 	}
 ]

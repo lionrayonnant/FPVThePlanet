@@ -12,6 +12,19 @@ Ce document est une source de vérité au même titre que `README.md` (pipeline)
 
 ---
 
+## Sommaire
+
+1. Décisions transverses
+2. Le schéma cible
+3. Inventaire de l'existant (chargement de scène · pipeline d'acquisition ·
+   pile de vol · météo/optique/lien · interface · crash et respawn · stockage)
+4. Ce que le navigateur sait réellement (mesurable · doit rester `UNKNOWN` · stockage)
+5. Ce qui change vraiment
+6. Contraintes qui survivent à la refonte
+7. Où sont les choses
+
+---
+
 ## 1. Décisions transverses
 
 Arrêtées le 2026-08-29 avec l'auteur du projet. Elles conditionnent toutes les

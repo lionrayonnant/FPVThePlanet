@@ -23,6 +23,42 @@ Les mécanismes de hacking doivent rester des **abstractions de gameplay inspir�
 
 ---
 
+## Sommaire
+
+Document long. `grep -n '^#' "docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md"`
+donne la ligne de chaque phase ; lire ensuite la plage voulue plutôt que tout le fichier.
+
+- PHASE 0 — Audit et architecture
+- PHASE 1 — Operator / local-first state
+- PHASE 2 — Operator Terminal / Home
+- PHASE 3 — Global Scanner
+- PHASE 4 — Persistent world / weather
+- PHASE 5 — Terrain acquisition / cache
+- PHASE 6 — Session model
+- PHASE 7 — Target generation
+- PHASE 8 — Target scan / choix de cible
+- PHASE 9 — Documentary hacking system
+- PHASE 10 — Control Vector + QTE
+- PHASE 11 — Entry State
+- PHASE 12 — Double HUD
+- PHASE 13 — First-second flight experience
+- PHASE 14 — Flight / crash / termination
+- PHASE 15 — Session Complete
+- PHASE 16 — Photos
+- PHASE 17 — Session Log / Target Log
+- PHASE 18 — Audio final
+- PHASE 19 — Visual language pass
+- PHASE 20 — ASCII / Pixel / Demo Scene
+- PHASE 21 — Lore / RTC v0
+- PHASE 22 — Open-source lore hooks
+- PHASE 23 — Multiplayer / shared server operator isolation
+- PHASE 24 — Performance / persistence / cleanup
+- PHASE 25 — Cohérence finale
+- Ordre de priorité recommandé (P0 → P3)
+- Critère de réussite global
+
+---
+
 # PHASE 0 — Audit et architecture
 
 ### Objectif

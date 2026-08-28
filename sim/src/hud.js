@@ -133,10 +133,11 @@ export class Hud {
 			<div id="menu" hidden><div class="panel">
 				<h2>Choisir une carte</h2>
 				<div id="menu-list"></div>
+				<a id="add-map-link" href="/add-map.html">+ Ajouter une carte</a>
 			</div></div>
 
 			<div id="loading" hidden><div class="box">
-				<h1>FPV Paris</h1>
+				<h1>FPVThePlanet!</h1>
 				<p id="loading-status">chargement…</p>
 				<div class="bar"><div id="loading-bar"></div></div>
 				<p id="loading-detail"></p>

@@ -4,6 +4,28 @@
 
 ---
 
+## Sommaire
+
+Ce document est long. Pour lire une section sans charger tout le fichier :
+`grep -n '^#' "docs/FPVThePlanet! — Art Direction & Experience Bible.md"` donne
+le numéro de ligne de chaque titre, puis lire la plage voulue.
+
+1. Vision · 2. Piliers de l'expérience · 3. La boucle fondamentale ·
+4. Global Scanner · 5. Informations météo · 6. Activité drone · 7. Terrain local ·
+8. Acquire Area · 9. Logs RTC · 10. Le Crew · 11. Language · 12. Operator ·
+13. Premier lancement — Bootstrapping · 14. Control Vector · 15. Acquisition d'une cible ·
+16. Hacking · 17. Types de hacks · 18. Rituels d'acquisition · 19. Demo Scene · 20. Entry State ·
+21. Profils de drones · 22. Ce qui est connu du drone · 23. Double HUD ·
+24. Perte du signal et crash · 25. Fin propre d'une session · 26. Randomart · 27. Photos ·
+28. Session Log · 29. Terrain et mémoire · 30. Home — Operator Terminal · 31. Settings ·
+32. Avatar opérateur — futur · 33. Comptes / local-first · 34. Son ·
+35. Signature sonore du boot · 36. Son des rituels · 37. Voix ·
+38. Direction visuelle · 39. Typographie · 40. ASCII · 41. Pixel art · 42. CRT et image ·
+43. Le double système de rendu · 44. Principes anti-dérive · 45. La règle maîtresse ·
+46. État actuel / priorités · 47. La phrase qui résume FPVThePlanet!
+
+---
+
 ## 1. Vision
 
 **FPVThePlanet!** est un simulateur FPV libre présenté comme un **outil clandestin de reverse engineering permettant d'intercepter et de prendre le contrôle de drones à travers le monde**.

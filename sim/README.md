@@ -1,4 +1,4 @@
-# FPV Paris — simulateur de drone
+# FPVThePlanet! — simulateur de drone basé sur des données photogramétriques
 
 Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques Apple
 Flyover. Plusieurs cartes peuvent être téléchargées et se choisissent au
@@ -9,6 +9,23 @@ npm install
 npm run dev       # http://localhost:5173 — choisis une carte dans le menu
 npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
 ```
+
+## Sommaire
+
+`grep -n '^#' README.md` pour la ligne exacte d'une section.
+
+- Contrôles
+- Ajouter une carte — par l'interface · en ligne de commande · prérequis ·
+  options · dimensionner `--radius` · retoucher une carte
+- Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
+- Le menu
+- Cartes disponibles
+- Exporter une scène en `.glb`
+- Architecture
+- Limite connue : `selftest` spécifique à la Tour Eiffel
+- Détails techniques du pré-traitement — trois réglages qui comptent · sur le gris
+- Le modèle de vol — le vent · la pluie · le brouillard · le son · le rendu FPV ·
+  le lien vidéo · régler le PID
 
 ## Contrôles
 
