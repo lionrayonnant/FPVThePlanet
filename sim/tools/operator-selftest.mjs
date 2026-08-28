@@ -66,4 +66,42 @@ t('migrate refuse une version future', () => {
 	assert.throws(() => migrate({ schemaVersion: 99, id: 'x-1', name: 'X' }), /trop récent/);
 });
 
+// --- E/S disque : on pointe le store sur un tmpdir jetable ---
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const tmp = mkdtempSync(join(tmpdir(), 'op-store-'));
+process.env.FPV_OPERATOR_DIR = tmp;                       // lu par map-api-plugin
+const store = await import('./map-api-plugin.mjs');
+
+t('write + read round-trip', () => {
+	const s = freshState({ id: 'neo-aaaa', name: 'Neo' });
+	store._writeOperator(s);
+	const back = store._readOperator('neo-aaaa');
+	assert.equal(back.name, 'Neo');
+	assert.equal(back.schemaVersion, SCHEMA_VERSION);
+});
+
+t('read inconnu renvoie null', () => {
+	assert.equal(store._readOperator('nope-0000'), null);
+});
+
+t('read migre un fichier v0 sur disque', () => {
+	store._writeOperator({ id: 'old-bbbb', name: 'Old', controlVector: ['up', 'up', 'up', 'up'] });
+	const back = store._readOperator('old-bbbb');
+	assert.equal(back.schemaVersion, SCHEMA_VERSION);
+	assert.deepEqual(back.sessions, []);
+});
+
+t('list trie par createdAt', () => {
+	const a = freshState({ id: 'a-0001', name: 'A' }); a.createdAt = '2020-01-01T00:00:00.000Z';
+	const b = freshState({ id: 'b-0002', name: 'B' }); b.createdAt = '2021-01-01T00:00:00.000Z';
+	store._writeOperator(b); store._writeOperator(a);
+	const ids = store._listOperators().map((o) => o.id);
+	assert.ok(ids.indexOf('a-0001') < ids.indexOf('b-0002'));
+});
+
+rmSync(tmp, { recursive: true, force: true });
+
 console.log(`\n${n} tests OK`);
