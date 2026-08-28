@@ -273,7 +273,8 @@ src/TileMaterial.js     shader GLSL3 sampler2DArray + brouillard
 src/physics.js          monde Rapier, trimesh statique, corps du drone
 src/flightController.js rates acro -> couple
 src/input.js            Gamepad + clavier/souris
-src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou)
+src/fog.js              modèle de visibilité : densité, respiration, voile, couleur de l'air
+src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou, voile)
 src/hud.js              overlay + menu de sélection de carte
 ```
 
@@ -482,9 +483,9 @@ un grain à l'intérieur d'une averse.
 
 La **visibilité** vient du coefficient d'extinction `σ = 0,21 R^0,74` par km et
 de Koschmieder — 5,6 km à 5 mm/h, 1,7 km à 25. Les extinctions s'ajoutent, donc
-la portée finale est celle-là en parallèle avec le brouillard que la scène a
-déjà : `loader.setFog()` bouge densité et couleur à chaud, et l'issue #21
-reprendra ce même point d'entrée plutôt que d'en créer un second.
+la portée finale est celle-là en parallèle avec le brouillard de l'air, décrit
+plus bas : `loader.setFog()` bouge densité et couleur à chaud, et le brouillard
+a repris ce même point d'entrée plutôt que d'en créer un second.
 
 Les **stries** sont de la géométrie dans la scène, pas un calque : une
 `InstancedBufferGeometry` de quads dans une boîte de 4 m qui suit la caméra,
@@ -556,6 +557,62 @@ ne part que quand la force bat la ligne de contact qui la retient, un seuil en
 de bille plus loin, ce qui donne le mouvement saccadé. **Rien ne dessine de
 traînée** : c'est la traînée qui faisait lire l'ancienne tentative comme une
 rayure sur l'objectif.
+
+### Le brouillard
+
+`src/fog.js` — le modèle, sans THREE ni DOM comme le vent et la pluie ; le
+shader de tuile fait l'extinction, `loader.setFog()` la pose sur les N matériaux
+de chunk, `src/lens.js` dessine le voile.
+
+L'unité est une **distance**, parce que c'est celle dans laquelle un pilote
+pense : le panneau affiche « 500 m », pas « 33 % ». La densité exp² que
+`TileMaterial.js` attend s'en déduit par `fogRange()` / `fogDensity()`
+(`src/rain.js`), jamais l'inverse. La correspondance est **géométrique** entre
+l'air clair de la scène et 30 m :
+
+```
+R(i) = R0 · (30 / R0)^i          R0 = fogRange(0,00085) ≈ 2035 m
+```
+
+C'est la seule échelle sur laquelle « un peu plus de brouillard » veut dire la
+même chose à 2 km et à 50 m, et elle rend `i = 0` **exactement** la densité que
+la scène chargeait déjà. Les présets sont résolus à l'envers depuis les classes
+de visibilité de l'OMM — brume 1200 m, brouillard 500 m, purée de pois 50 m —
+et ne tombent donc pas sur des positions rondes du curseur.
+
+Comme la pluie, le brouillard **respire** : deux bandes d'Ornstein-Uhlenbeck de
+120 s et 25 s (un banc de brouillard bouge en minutes, pas en secondes) et la
+même correction lognormale `exp(-k²/2)`, appliquée à **l'extinction ajoutée** et
+non à la portée — les extinctions sont ce qui s'additionne. Monter la
+variabilité fait donc aller et venir la visibilité sans épaissir l'air en
+moyenne, ce que `tools/selftest.mjs` vérifie sur six graines et dix heures
+cumulées : sur vingt minutes une seule graine se balade entre 0,8 et 1,2 de la
+moyenne alors que le modèle est non biaisé.
+
+Brouillard et pluie **s'additionnent en extinctions**, ce qui est une
+généralisation stricte de ce que #24 avait posé : `FOG_DENSITY × rain.fogScale`
+est par définition `FOG_DENSITY + l'extinction de la pluie`, donc curseur
+brouillard à zéro l'image est celle d'avant, au bit près.
+
+Le **ciel** suit, sinon le bord de tuile cesse de se dissoudre dans le fond. Il
+part du bleu-gris clair, s'assombrit sous la pluie (la lumière traverse de l'eau
+et du nuage) puis blanchit sous le brouillard (ce qu'on regarde *est* la lumière
+diffusée) — dans cet ordre, pour qu'à cinquante mètres de visibilité le ciel
+soit le brouillard et rien d'autre. Interpolé sur les octets bruts : voir le
+bug #10 du HANDOFF.
+
+La **diffusion de la lumière** est rendue comme un **voile d'objectif** dans
+`src/lens.js` : six taps sur une spirale large, au niveau de mip correspondant,
+mélangés au ciel, ajoutés puis renormalisés par `1 + k`. Ajoutés et non fondus,
+parce que le voile est de la lumière qui arrive — c'est ce qui lève les noirs,
+et c'est pourquoi une photo prise dans le brouillard n'a pas de noir. La
+division est l'exposition que la caméra aurait reprise, et elle empêche le ciel
+d'écrêter. `uGlare` à zéro **compile l'effet hors du shader**, comme `LINK_OFF`.
+
+Deux choses ne sont **pas** ici et sont des issues à part : la brume au sol et la
+variation avec l'altitude, qui demandent une position monde dans le fragment
+shader de `TileMaterial.js`, et le halo directionnel autour du soleil, qui
+demande un soleil (#23).
 
 ### Le son
 

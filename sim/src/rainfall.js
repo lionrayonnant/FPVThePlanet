@@ -224,6 +224,15 @@ export class Rainfall {
 	// those, not on CSS pixels, and getting it wrong makes the minimum-width
 	// clamp the wrong size on a HiDPI display — the same trap uResolution has
 	// in lens.js.
+	// The streaks are lit by the sky, so when the sky moves — rain darkening it,
+	// fog whitening it — they have to move with it. Baked once at construction
+	// until #21, which is why a downpour used to keep clear-sky streaks.
+	setSky(sky) {
+		const c = this.material.uniforms.uColor.value;
+		c.copy(sky);
+		c.r += LIFT; c.g += LIFT; c.b += LIFT;
+	}
+
 	setSize(heightPx, fovDeg) {
 		this._pxScale = (2 * Math.tan((fovDeg * Math.PI) / 360)) / heightPx;
 		this.material.uniforms.uPxScale.value = this._pxScale;

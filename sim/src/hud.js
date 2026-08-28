@@ -1,6 +1,7 @@
 import { CHANNELS } from './input.js';
 import { WIND_PRESETS, compassPoint } from './wind.js';
 import { RAIN_PRESETS, MAX_RATE } from './rain.js';
+import { FOG_PRESETS, rangeFor } from './fog.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
@@ -20,6 +21,8 @@ const GUST_KEY = 'fpvmaps.windGust';
 const TURB_KEY = 'fpvmaps.windTurb';
 const RAIN_KEY = 'fpvmaps.rain';
 const RAIN_VAR_KEY = 'fpvmaps.rainVar';
+const FOG_KEY = 'fpvmaps.fog';
+const FOG_VAR_KEY = 'fpvmaps.fogVar';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -95,6 +98,18 @@ export function loadRain() {
 	return {
 		intensity: loadPercent(RAIN_KEY, 0),
 		variability: loadPercent(RAIN_VAR_KEY, 0.5),
+	};
+}
+
+// Clear air by default, and for the same reason the wind starts calm and the
+// rain dry: every check in tools/selftest.mjs assumes a neutral world, and the
+// #9fb8cc sky pixel that HANDOFF calls the regression not to reopen is the sky
+// of a scene whose fog slider is at zero. Variability starts at 50 %, which is
+// where fog stops being a filter and starts being weather.
+export function loadFog() {
+	return {
+		intensity: loadPercent(FOG_KEY, 0),
+		variability: loadPercent(FOG_VAR_KEY, 0.5),
 	};
 }
 
@@ -202,6 +217,15 @@ export class Hud {
 						<button type="button" data-v="pluie">Pluie</button>
 						<button type="button" data-v="averse">Averse</button>
 					</div>
+					<h2>Météo — brouillard</h2>
+					<label title="jusqu'où on voit">Brouillard <input id="fog" type="range" min="0" max="100" step="1"> <span id="fog-val"></span></label>
+					<label title="de combien la nappe va et vient">Variabilité <input id="fog-var" type="range" min="0" max="100" step="1"> <span id="fog-var-val"></span> %</label>
+					<div id="fog-presets" class="presets">
+						<button type="button" data-v="clair">Clair</button>
+						<button type="button" data-v="brume">Brume</button>
+						<button type="button" data-v="brouillard">Brouillard</button>
+						<button type="button" data-v="puree">Purée de pois</button>
+					</div>
 					<h2>Son</h2>
 					<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 					<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
@@ -245,6 +269,11 @@ export class Hud {
 			rainVar: root.querySelector('#rain-var'),
 			rainVarVal: root.querySelector('#rain-var-val'),
 			rainPresets: root.querySelector('#rain-presets'),
+			fog: root.querySelector('#fog'),
+			fogVal: root.querySelector('#fog-val'),
+			fogVar: root.querySelector('#fog-var'),
+			fogVarVal: root.querySelector('#fog-var-val'),
+			fogPresets: root.querySelector('#fog-presets'),
 			vol: root.querySelector('#vol'),
 			volVal: root.querySelector('#vol-val'),
 			tone: root.querySelector('#tone'),
@@ -524,6 +553,48 @@ export class Hud {
 			const r = RAIN_PRESETS[b.dataset.v];
 			this.el.rain.value = Math.round(r.intensity * 100);
 			this.el.rainVar.value = Math.round(r.variability * 100);
+			emit();
+		};
+		emit();
+	}
+
+	setFog({ intensity, variability }, onChange) {
+		const emit = () => {
+			const p = {
+				intensity: Number(this.el.fog.value) / 100,
+				variability: Number(this.el.fogVar.value) / 100,
+			};
+			// A distance, not a percentage — same argument as the rain showing
+			// mm/h. "250 m" is the only form of this number a pilot can fly by.
+			const r = rangeFor(p.intensity);
+			this.el.fogVal.textContent = p.intensity === 0 ? 'air clair'
+				: r >= 1000 ? `${(r / 1000).toFixed(1).replace('.', ',')} km`
+				: `${Math.round(r / 5) * 5} m`;
+			this.el.fogVarVal.textContent = Math.round(p.variability * 100);
+			// A preset lights up only when the whole bundle matches. The margin is
+			// wider than the rain's because these intensities are solved back from
+			// a visibility in metres and do not land on whole percent.
+			for (const b of this.el.fogPresets.children) {
+				const f = FOG_PRESETS[b.dataset.v];
+				b.classList.toggle('on', !!f && Math.abs(f.intensity - p.intensity) < 0.006
+					&& Math.abs(f.variability - p.variability) < 0.006);
+			}
+			try {
+				localStorage.setItem(FOG_KEY, String(Math.round(p.intensity * 100)));
+				localStorage.setItem(FOG_VAR_KEY, String(Math.round(p.variability * 100)));
+			} catch { }
+			onChange(p);
+		};
+		this.el.fog.value = Math.round(intensity * 100);
+		this.el.fogVar.value = Math.round(variability * 100);
+		this.el.fog.oninput = emit;
+		this.el.fogVar.oninput = emit;
+		this.el.fogPresets.onclick = (e) => {
+			const b = e.target.closest('button');
+			if (!b || !FOG_PRESETS[b.dataset.v]) return;
+			const f = FOG_PRESETS[b.dataset.v];
+			this.el.fog.value = Math.round(f.intensity * 100);
+			this.el.fogVar.value = Math.round(f.variability * 100);
 			emit();
 		};
 		emit();

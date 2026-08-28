@@ -157,7 +157,7 @@ function gauss(rng) {
 // because the sim steps at 1/250 while the benches and the property tests step
 // at whatever they like; the `1 - exp(...)` form used for the propwash shake
 // does not preserve variance across a change of rate.
-class Ou {
+export class Ou {
 	constructor(rng) { this.rng = rng; this.x = 0; }
 	reset() { this.x = 0; }
 	next(dt, tau) {

@@ -10,6 +10,7 @@ import { FlightController, RATE_PRESETS } from '../src/flightController.js';
 import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
+import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -774,6 +775,137 @@ console.log('\nrain');
 		const replay = trace(a);
 		check('same seed, same weather; reset returns to the start',
 			first.every((v, i) => v === second[i]) && first.every((v, i) => v === replay[i]));
+	}
+}
+
+console.log('\nbrouillard');
+// The scene's clear-air fog, the floor everything below starts from.
+{
+	const FOG = 0.00085;
+
+	// Clear air has to be the world as it was before the fog model existed: the
+	// #9fb8cc sky pixel HANDOFF calls the regression not to reopen is the sky of
+	// a scene whose slider is at zero.
+	{
+		const f = new FogField(3, FOG);
+		for (let i = 0; i < 1000; i++) f.update(1 / 50);
+		check('clear air leaves the scene fog exactly where it was',
+			f.density === FOG && f.range === fogRange(FOG) && f.glare === 0 && f.skyMix === 0,
+			`${f.density} at ${Math.round(f.range)} m`);
+		// And it does it without drawing a single random number, so a session
+		// spent in clear air is bit-identical to one with no fog model in it.
+		const untouched = new FogField(3, FOG);
+		f.setParams({ intensity: 0.5, variability: 0.8 });
+		untouched.setParams({ intensity: 0.5, variability: 0.8 });
+		let same = true;
+		for (let i = 0; i < 500; i++) {
+			f.update(1 / 50); untouched.update(1 / 50);
+			if (f.density !== untouched.density) same = false;
+		}
+		check('and consumes no randomness while it is off', same);
+	}
+
+	// The mapping is geometric in the range: that is the only scale on which
+	// "a bit more fog" means the same thing at 2 km and at 50 m.
+	{
+		const r0 = rangeFor(0, FOG), r1 = rangeFor(1, FOG), rh = rangeFor(0.5, FOG);
+		check('the slider spans clear air to RANGE_MIN',
+			Math.abs(r0 - fogRange(FOG)) < 1e-9 && Math.abs(r1 - RANGE_MIN) < 1e-9,
+			`${Math.round(r0)} m -> ${r1.toFixed(1)} m`);
+		check('and it is geometric, so half the slider is the geometric mean',
+			Math.abs(rh * rh - r0 * r1) < 1e-6 * r0 * r1, `${Math.round(rh)} m`);
+		let monotone = true;
+		for (let i = 1; i <= 100; i++) if (rangeFor(i / 100, FOG) >= rangeFor((i - 1) / 100, FOG)) monotone = false;
+		check('visibility only ever shortens as the slider goes up', monotone);
+	}
+
+	// The presets are solved back from published visibility classes rather than
+	// picked as round slider positions, so this is what pins them.
+	{
+		const named = { brume: 1200, brouillard: 500, puree: 50 };
+		const off = Object.entries(named)
+			.map(([k, m]) => Math.abs(rangeFor(FOG_PRESETS[k].intensity, FOG) - m) / m);
+		check('the presets land on the visibilities they are named for',
+			off.every(e => e < 0.01) && FOG_PRESETS.clair.intensity === 0,
+			Object.entries(named).map(([k, m]) =>
+				`${k} ${Math.round(rangeFor(FOG_PRESETS[k].intensity, FOG))}/${m} m`).join(', '));
+	}
+
+	// Breathing must not be thickening. Same lognormal correction as the rain,
+	// and the same reason to check it: the mean is what the pilot set.
+	{
+		const still = new FogField(5, FOG).setParams({ intensity: 0.6, variability: 0 });
+		let flat = true;
+		for (let i = 0; i < 2000; i++) { still.update(1 / 50); if (still.density !== still.baseDensity * Math.pow(still.span, 0.6)) flat = false; }
+		check('no variability, no breathing', flat, `${Math.round(still.range)} m`);
+
+		// Pooled over six seeds and a hundred minutes each. That is not padding:
+		// the slow band has a two-minute memory, so twenty minutes is barely ten
+		// independent samples and a single seed lands anywhere between 0.8 and
+		// 1.2 of the mean while the model itself is unbiased.
+		const target = FOG * Math.pow(fogRange(FOG) / RANGE_MIN, 0.6) - FOG;
+		let sum = 0, n = 0, min = Infinity, max = 0;
+		for (const seed of [7, 11, 23, 99, 131, 257]) {
+			const breathing = new FogField(seed, FOG).setParams({ intensity: 0.6, variability: 1 });
+			for (let i = 0; i < 300000; i++) {
+				breathing.update(1 / 50);
+				sum += breathing.density - FOG; n++;
+				if (breathing.range < min) min = breathing.range;
+				if (breathing.range > max) max = breathing.range;
+			}
+		}
+		check('variability moves the fog without thickening it',
+			Math.abs(sum / n - target) / target < 0.03,
+			`mean extinction ${(sum / n / target).toFixed(3)} of the setting`);
+		check('and it does move it', max / min > 1.5,
+			`${Math.round(min)} m to ${Math.round(max)} m around a ${Math.round(rangeFor(0.6, FOG))} m setting`);
+	}
+
+	// Fog and rain are two extinctions in the same air.
+	{
+		const f = new FogField(13, FOG).setParams({ intensity: 0.5, variability: 0 }).update(1 / 50);
+		const r = new RainField(9, FOG).setParams({ intensity: 10 / MAX_RATE, variability: 0 });
+		r.update(0, 1 / 50);
+		const total = fogRange(f.density + extinctionOf(r.visibility));
+		check('fog and rain combine as extinctions',
+			total < f.range && total < r.visibility
+			&& Math.abs(1 / total - (1 / f.range + 1 / r.visibility)) < 1e-9,
+			`${Math.round(f.range)} m fog + ${Math.round(r.visibility)} m rain = ${Math.round(total)} m`);
+		// And with the fog off, that sum is exactly the rain-only expression the
+		// previous instalment shipped.
+		const off = new FogField(13, FOG).update(1 / 50);
+		check('fog off reproduces the rain-only density to the bit',
+			off.density + extinctionOf(r.visibility) === FOG * r.fogScale);
+	}
+
+	// Turning it back down gives the picture back, and the same seed gives the
+	// same weather twice.
+	{
+		const f = new FogField(0xf0f, FOG).setParams({ intensity: 0.8, variability: 0.7 });
+		for (let i = 0; i < 1000; i++) f.update(1 / 50);
+		f.setParams({ intensity: 0 }).update(1 / 50);
+		check('the slider back at zero returns the scene fog exactly',
+			f.density === FOG && f.glare === 0 && f.skyMix === 0);
+
+		const a = new FogField(0x2b, FOG).setParams({ intensity: 0.5, variability: 0.9 });
+		const b = new FogField(0x2b, FOG).setParams({ intensity: 0.5, variability: 0.9 });
+		const trace = (g) => { const out = []; for (let i = 0; i < 1500; i++) { g.update(1 / 50); out.push(g.density); } return out; };
+		const first = trace(a), second = trace(b);
+		a.reset(); a.setParams({ intensity: 0.5, variability: 0.9 });
+		const replay = trace(a);
+		check('same seed, same fog; reset returns to the start',
+			first.every((v, i) => v === second[i]) && first.every((v, i) => v === replay[i]));
+	}
+
+	// The veil and the colour hang off the same log scale as the visibility, so
+	// they can never disagree with how far you can actually see.
+	{
+		const thin = new FogField(21, FOG).setParams({ intensity: 0.2, variability: 0 }).update(1 / 50);
+		const thick = new FogField(21, FOG).setParams({ intensity: 0.9, variability: 0 }).update(1 / 50);
+		check('veil and sky follow the visibility, both bounded',
+			thin.glare > 0 && thin.glare < thick.glare && thick.glare <= 1
+			&& thin.skyMix < thick.skyMix && thick.skyMix <= 1,
+			`glare ${thin.glare.toFixed(2)} -> ${thick.glare.toFixed(2)}, ciel ${thin.skyMix.toFixed(2)} -> ${thick.skyMix.toFixed(2)}`);
 	}
 }
 

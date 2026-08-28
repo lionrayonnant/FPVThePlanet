@@ -93,6 +93,19 @@ const DROP_RIM = 1.1;      // extra collection radius at the rim, as a fraction
 const DROP_BUCKETS = [0, 4, 8, 12, 16, 24];
 const MAX_DROPS = DROP_BUCKETS[DROP_BUCKETS.length - 1];
 
+// Veiling glare, the other half of what fog does. The tile shader takes the
+// contrast away with distance; this puts light back that never came from the
+// subject at all — scattered by the air, into the barrel, over the whole frame.
+// It is why a photograph into fog has no black in it.
+//
+// Radius, spread and strength are chosen by eye, like K1/K2/CA above: there is
+// no measurement of this optic to fit them to. What is not by eye is that they
+// are driven by fog.js's `glare`, which rides the same log scale as the
+// visibility, so the veil can never disagree with how far you can see.
+const GLARE_R = 0.06;     // sampling radius, fraction of the picture height
+const GLARE_MIX = 0.35;   // how much veil at the thickest fog
+const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than picture
+
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
 // on-the-crossing rule. LINK_OFF must render byte-identically to the pass as it
@@ -102,7 +115,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0 },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -121,7 +134,10 @@ const LensShader = {
 		// w the flat core as a fraction of that radius.
 		uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
 		uDropAlpha: { value: new Float32Array(MAX_DROPS) },
-		uDropSky: { value: new THREE.Color(0x9fb8cc) },
+		uGlare: { value: 0 },
+		// The sky the scene is actually using: what a bead diffuses, and what
+		// the fog veil is made of. One colour for both, because it is one sky.
+		uSky: { value: new THREE.Color(0x9fb8cc) },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -139,6 +155,9 @@ const LensShader = {
 		uniform float uSeverity;
 		uniform float uTime;
 		uniform vec2 uResolution;
+		// The scene's own sky. Shared by the beads and by the fog veil, and
+		// declared outside both guards because either one alone can want it.
+		uniform vec3 uSky;
 		varying vec2 vUv;
 
 		#if DROPS > 0
@@ -148,7 +167,13 @@ const LensShader = {
 			#define DROP_RIM ${DROP_RIM.toFixed(2)}
 			uniform vec4 uDrops[DROPS];
 			uniform float uDropAlpha[DROPS];
-			uniform vec3 uDropSky;
+		#endif
+
+		#if GLARE
+			#define GLARE_R ${GLARE_R.toFixed(3)}
+			#define GLARE_MIX ${GLARE_MIX.toFixed(2)}
+			#define GLARE_SKY ${GLARE_SKY.toFixed(2)}
+			uniform float uGlare;
 		#endif
 
 		#if LINK_MODE != 0
@@ -318,6 +343,39 @@ const LensShader = {
 			}
 			vec3 c = sum / float(TAPS);
 
+			// ---- veiling glare --------------------------------------------------
+			// Before the beads, because the fog is in the air and the water is on
+			// the glass: a drop diffuses a picture that has already been veiled.
+			//
+			// Six taps on a spiral wide enough to come back with the picture's low
+			// frequencies rather than with the picture, at the mip level whose
+			// texels are that wide — so six taps really do average their
+			// neighbourhoods instead of point-sampling six pixels. Half of what
+			// they find is replaced by the sky itself, which is where most of the
+			// scattered light in fog comes from and what keeps the veil from
+			// simply being a blurry copy of the city.
+			//
+			// Added and then renormalised rather than mixed in: glare is light
+			// arriving, so it has to lift the blacks. Dividing by (1 + k) is the
+			// exposure the camera would have pulled back, and it is what stops a
+			// bright sky from clipping the moment the fog rolls in.
+			#if GLARE
+			{
+				float k = uGlare * GLARE_MIX;
+				vec3 wideSum = vec3(0.0);
+				float lodG = log2(max(GLARE_R * uResolution.y, 1.0));
+				for (int i = 0; i < 6; i++) {
+					float ang = (float(i) + dither) * 1.0471976;
+					vec2 o = vec2(cos(ang), sin(ang)) * GLARE_R * (0.4 + 0.12 * float(i));
+					wideSum += texture2D(tDiffuse,
+						clamp(uvHere + vec2(o.x / uAspect, o.y), vec2(0.002), vec2(0.998)),
+						lodG).rgb;
+				}
+				vec3 veil = mix(wideSum / 6.0, uSky, GLARE_SKY);
+				c = (c + veil * k) / (1.0 + k);
+			}
+			#endif
+
 			// ---- water on the front element -----------------------------------
 			// Before the vignette and before everything the link does, because the
 			// bead is glass in front of the sensor and both of those happen after
@@ -386,7 +444,7 @@ const LensShader = {
 					// cannot brighten a drop past the sky behind it. Wider at the
 					// rim, which is what makes the ring: more sky there, and
 					// nothing at all when the sky is what is behind it anyway.
-					acc = mix(acc, uDropSky, clamp(DROP_SKY_MIX * wide, 0.0, 1.0));
+					acc = mix(acc, uSky, clamp(DROP_SKY_MIX * wide, 0.0, 1.0));
 					c = mix(c, acc, min(mask, 1.0));
 				}
 			}
@@ -553,6 +611,7 @@ export class FpvLens {
 		this._dropPool = Array.from({ length: MAX_DROPS }, () => new THREE.Vector4());
 		this._dropBucket = 0;
 		this._rain = { wetness: 0, dropMm: 0, drift: null, dt: 0 };
+		this._glare = 0;
 
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
 	}
@@ -599,11 +658,24 @@ export class FpvLens {
 	// advanced by a dt, so a dt of zero stops them dead — there is no second
 	// clock that can be forgotten.
 	setRain({ wetness = 0, dropMm = 0, drift = null, dt = 0, sky = null } = {}) {
-		if (sky) this._u.uDropSky.value.copy(sky);
+		if (sky) this._u.uSky.value.copy(sky);
 		this._rain.wetness = wetness;
 		this._rain.dropMm = dropMm;
 		this._rain.drift = drift;
 		this._rain.dt = dt;
+	}
+
+	// How much the air is scattering into the optic, 0..1, straight from
+	// FogField.glare. Zero compiles the veil out of the shader entirely, so
+	// clear air renders byte-identically to the pass as it stood before the fog
+	// existed — the same promise LINK_OFF makes.
+	setGlare(glare) {
+		const g = glare > 0 ? (glare > 1 ? 1 : glare) : 0;
+		// Only the crossing recompiles, not every frame the fog breathes.
+		const crossed = (g > 0) !== (this._glare > 0);
+		this._glare = g;
+		this._u.uGlare.value = g;
+		if (crossed) this._updateDefines();
 	}
 
 	// Advance the population and pack it into the uniforms. tanHalf is the
@@ -652,12 +724,14 @@ export class FpvLens {
 		const taps = (this._shutter > 0 || this._u.uSoft.value > 0 || this._linkMode === LINK_DIGITAL)
 			? MAX_TAPS : 1;
 		const defines = this.pass.material.defines;
+		const glare = this._glare > 0 ? 1 : 0;
 		if (taps === this._taps && defines.LINK_MODE === this._linkMode
-			&& defines.DROPS === this._dropBucket) return;
+			&& defines.DROPS === this._dropBucket && defines.GLARE === glare) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
 		defines.DROPS = this._dropBucket;
+		defines.GLARE = glare;
 		this.pass.material.needsUpdate = true;
 	}
 

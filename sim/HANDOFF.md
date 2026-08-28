@@ -101,6 +101,7 @@ tools/selftest.mjs      vérifications géodésie / vol / collision, sans naviga
 src/loader.js            fetch + pool de workers -> BufferGeometry & DataArrayTexture, setScene(slug)
 src/worker.js            parse le binaire, découpe la planche en layers, progress bytes
 src/TileMaterial.js      shader GLSL3 sampler2DArray + brouillard
+src/fog.js               modèle de visibilité : densité, respiration, voile, couleur de l'air
 src/physics.js           monde Rapier (WASM), trimesh statique 3,7M tris, corps du drone
 src/flightController.js  rates acro -> couple, interface étroite (substituable par SITL)
 src/input.js             Gamepad + clavier/souris, sélection par mouvement, mapping EdgeTX
@@ -434,7 +435,9 @@ optique. Les valeurs par défaut (objectif 60 %, vignettage 50 %, obturation
 ### Vérifications navigateur (chrome-devtools MCP, scène Tour Eiffel)
 
 - **Couleur.** Un pixel de ciel ressort à `#9fb8cc` exactement avec la passe en
-  mode neutre, comme sans la passe. C'était la régression à ne pas rouvrir : la
+  mode neutre, comme sans la passe. Depuis #21 cette valeur est celle de l'air
+  clair, c'est-à-dire du curseur brouillard à zéro — qui reste le défaut.
+  C'était la régression à ne pas rouvrir : la
   cible de rendu est en `UnsignedByteType` + `LinearSRGBColorSpace` et il n'y a
   **pas** d'`OutputPass` — voir bug #10 plus bas.
 - **Antialiasing.** La cible est construite avec `samples: 4`. Rendre hors écran
@@ -546,6 +549,7 @@ plan n'existe pas.
 
 - **Couleur.** Un pixel de ciel ressort à `#9fb8cc` *exactement* sans la passe,
   avec la passe et lien coupé, à sévérité 0, et en **numérique** à qualité 1.
+  Depuis #21, à condition que le curseur brouillard soit à zéro — son défaut.
   C'est la régression de #10 à ne pas rouvrir. L'**analogique** à qualité 1 rend
   `#95acbe` — délibérément, c'est l'image lavée — et à sévérité 0,5 rend
   `#9cb4c7`, exactement le milieu, donc le curseur est bien linéaire.
@@ -930,10 +934,10 @@ synthétique :
 cohérent et le navigateur dit que les nombres sont les bons, mais « est-ce que
 voler dans une tempête est difficile de la bonne façon » ne se mesure pas ici.
 
-**Reste ouvert** : l'issue chapeau #19 garde quatre volets — pluie (#24),
-brouillard (#21), nuages (#22), soleil (#23). Le fait transverse qui décidera
-des deux derniers : la photogrammétrie est **non éclairée**, son ombrage est
-cuit dans les textures, et un soleil mobile double-ombrerait la ville.
+**Reste ouvert** : l'issue chapeau #19 garde deux volets — nuages (#22) et
+soleil (#23). Le fait transverse qui les décide : la photogrammétrie est **non
+éclairée**, son ombrage est cuit dans les textures, et un soleil mobile
+double-ombrerait la ville.
 
 ## La pluie (issue #24)
 
@@ -1070,3 +1074,95 @@ la distribution de tailles et la durée de vie sont exactement ce que #28 disait
 qu'il resterait à trouver, et les constantes de `lens.js` sont groupées en haut
 du fichier pour être bougées ensemble.
 
+
+
+## Le brouillard (issue #21)
+
+`src/fog.js` (modèle pur, sans THREE) + `loader.setFog()` pour la densité et la
+couleur + le voile d'objectif dans `src/lens.js`. Voir `README.md` pour le
+modèle. `TileMaterial.js` **n'a pas été touché** : l'extinction exp² qui y était
+déjà suffit tant qu'il n'y a pas de terme d'altitude.
+
+Le choix qui structure tout le reste : l'unité exposée est une **distance**, et
+la correspondance curseur → portée est **géométrique** entre l'air clair de la
+scène (≈ 2035 m) et 30 m. C'est ce qui rend `i = 0` exactement la densité que la
+scène chargeait déjà, donc l'air clair bit-identique à un monde sans modèle de
+brouillard — la même promesse que l'air calme et le temps sec, et la raison pour
+laquelle la régression `#9fb8cc` tient telle quelle.
+
+Deuxième choix : brouillard et pluie **s'additionnent en extinctions** plutôt
+que de se multiplier en facteurs. `FOG_DENSITY × rain.fogScale` est par
+définition `FOG_DENSITY + extinction de la pluie`, donc le bloc de #24 est
+remplacé par une généralisation stricte et le check « les extinctions
+s'ajoutent » de la section `pluie` reste vrai sans être touché.
+
+**Vérifié au banc** — 14 checks, section `brouillard` de `tools/selftest.mjs`,
+et surtout : **toutes les sections existantes sortent octet pour octet
+identiques** à `HEAD` (diff contre un worktree propre). C'est le vrai test de la
+neutralité, plus que les checks eux-mêmes.
+
+- l'air clair ne bouge rien et **ne tire aucun nombre aléatoire** ;
+- la loi est géométrique (la moitié du curseur est la moyenne géométrique) et
+  monotone sur les 101 positions ;
+- les présets tombent à 1 % près sur les visibilités dont ils portent le nom ;
+- variabilité 0 → densité rigoureusement constante ; variabilité 1 → moyenne
+  d'extinction à 1,005 du réglage sur six graines × 100 min ;
+- fog off reproduit `FOG_DENSITY × rain.fogScale` **au bit** ;
+- redescendre le curseur rend l'image, et la même graine rejoue le même temps.
+
+Le check de moyenne a d'abord échoué à 0,825 sur **une** graine × 20 min. Ce
+n'était pas un biais : la bande lente a deux minutes de mémoire, donc vingt
+minutes font une dizaine d'échantillons indépendants et une graine seule se
+balade entre 0,8 et 1,2. Mesuré sur 4 graines × 200 min : 1,04 / 0,96 / 1,12 /
+0,99. Le modèle est non biaisé, c'était le test qui était sous-échantillonné.
+
+**Vérifié en vol** (`?scene=tour-eiffel`, chrome-devtools, DOM en direct, aucune
+erreur ni warning console) :
+
+- curseur à 0, passe neutre, lien coupé : `#9fb8cc` **exact**, trois lectures
+  d'affilée, et `GLARE` vaut 0 dans les `defines` — le voile est compilé dehors ;
+- 500 m : la ville lointaine se dissout, l'horizon rejoint le fond **sans
+  couture au bord de tuile**, la Tour proche reste nette ;
+- 162 m à 52 m AGL : la Tour s'efface vers le haut, le sol sous elle reste
+  lisible, et il n'y a de noir nulle part dans l'image — c'est ce que le voile
+  fait ;
+- 50 m : ciel `#c9d0d4`, pixel rendu `#c4cbcd` ;
+- retour à 0 : `#9fb8cc` exact et `GLARE` revenu à 0 ;
+- brouillard 500 m + averse 3390 m → 436 m, soit exactement les deux en
+  parallèle, et le ciel s'arrête entre le gris de pluie et le blanc de
+  brouillard ;
+- panneau : les quatre présets s'allument bien, l'étiquette affiche « air clair
+  / 1,2 km / 505 m / 50 m », et les réglages sont retenus.
+
+**Choisi à l'œil et non mesuré** : `GLARE_R = 0,06`, `GLARE_MIX = 0,35`,
+`GLARE_SKY = 0,45` dans `lens.js`, et `FOG_SKY = #c9d0d4` dans `main.js`. Il n'y
+a pas d'optique réelle à laquelle les caler, exactement comme `K1`/`K2`/`CA`.
+Ce qui n'est **pas** à l'œil : le voile et la couleur sont pilotés par la même
+échelle log que la visibilité, donc ils ne peuvent pas raconter autre chose que
+ce qu'on voit.
+
+**Deux effets de bord assumés, hors du périmètre de l'issue mais dans son
+chemin** :
+
+- `rainfall.setSky()` — les stries gardaient la couleur de ciel dégagé quelle
+  que soit la météo, parce que `uColor` était figé à la construction. Le
+  brouillard rendait le défaut criant ;
+- `respawn()` appelait `physics.reset()` et `link.reset()` mais ni
+  `rain.reset()` ni `fog.reset()`, alors que les deux modèles documentent dans
+  leur propre commentaire qu'un respawn ne doit pas vous relâcher dans le grain
+  qui vient de vous aveugler. Les deux sont appelés maintenant.
+
+**Pas fait, et c'est une issue à part** : la **brume au sol**, le brouillard de
+vallée et la variation de visibilité avec l'altitude. Ils demandent une position
+monde en varying dans le fragment shader de `TileMaterial.js` et l'intégrale
+analytique du brouillard de hauteur — c'est un travail de shader, pas de
+modèle. Le halo directionnel autour du soleil attend #23 : la scène est non
+éclairée, il n'y a pas de source à laquelle accrocher un halo.
+
+**Pas vérifié** : le ressenti, comme pour la pluie. Que 500 m soit le bon
+« brouillard » et 50 m la bonne « purée » vient des classes OMM, pas d'un vol.
+Un point à surveiller : à variabilité élevée la respiration peut passer sous les
+30 m nominaux (mesuré : 28 m autour d'un réglage à 162 m). C'est physique — un
+banc plus épais que la moyenne — mais à intensité 1 **et** variabilité 1 ça
+devient injouable. Aucun garde-fou n'a été mis : les deux curseurs sont un choix
+du pilote.

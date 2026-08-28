@@ -5,11 +5,12 @@ import { initPhysics, Physics } from './physics.js';
 import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain } from './hud.js';
+import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain, loadFog } from './hud.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
-import { RainField, dropDrift } from './rain.js';
+import { RainField, dropDrift, fogRange } from './rain.js';
+import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -74,6 +75,10 @@ const link = new VideoLink();
 // is falling, how wet the front element is, how far you can see. Pure model,
 // same as the two above; rainfall draws it and lens.js refracts through it.
 const rain = new RainField(undefined, FOG_DENSITY);
+// And the weather that is simply in the way: how far you can see. Owns the
+// scene's fog density rather than sharing it — FOG_DENSITY is the clear-air
+// floor it starts from and never goes below.
+const fog = new FogField(undefined, FOG_DENSITY);
 let rainfall = null;
 
 let physics = null;
@@ -211,6 +216,7 @@ async function boot() {
 
 	hud.setWeather(loadWeather(), (w) => physics.setWeather(w));
 	hud.setRain(loadRain(), (r) => rain.setParams(r));
+	hud.setFog(loadFog(), (f) => fog.setParams(f));
 
 	hud.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
 		audio.setVolume(volume);
@@ -244,7 +250,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -324,6 +330,14 @@ async function boot() {
 					drift: { x: +drift.x.toFixed(2), y: +drift.y.toFixed(2) },
 					visibility: Math.round(Math.min(rain.visibility, 1e6)),
 				},
+				fog: {
+					// The range the air alone gives you, the range once the rain is
+					// in it too, and how much of that is coming back as veil.
+					range: Math.round(fog.range),
+					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
+					density: +(fog.density).toFixed(6),
+					glare: +fog.glare.toFixed(3),
+				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
 					rssiDbm: +link.out.rssiDbm.toFixed(1),
@@ -374,6 +388,11 @@ function respawn() {
 	if (!physics) return;
 	physics.reset();
 	link.reset();
+	// Neither model was being reset here, and both say in their own comments
+	// that they should be: a respawn should not drop you back into the squall
+	// or the bank that just blinded you.
+	rain.reset();
+	fog.reset();
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
@@ -413,24 +432,36 @@ function simFrozen() { return freeCamOn || paused || hud.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
-// The fog uniform lives on every chunk material, so it is written only when it
-// has actually moved rather than five times a frame for no change.
-let lastFogScale = 1;
+// The fog uniforms live on every chunk material, so they are written only when
+// they have actually moved rather than five times a frame for no change. Both
+// halves are watched: the fog can thicken without the sky changing colour once
+// the mix has saturated, and the rain can recolour the sky at a density the
+// fog has already settled on.
+let lastDensity = -1;
+let lastSkyHex = -1;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
 let lensShutter = 0;
 
-// Rain does not only take contrast away, it takes the blue out of the sky: the
-// light is coming through cloud and water rather than through air. Interpolated
+// Weather does not only take contrast away, it takes the blue out of the sky.
+// Rain darkens it: the light is coming through cloud and water rather than
+// through air. Fog does the opposite — it is bright, and it is neutral, because
+// what you are looking at is the scattered light itself.
+//
+// The two are applied in that order, rain then fog, so that thick fog wins: at
+// fifty metres of visibility the sky is the fog and nothing else. Interpolated
 // on the raw bytes, because the whole colour pipeline is pass-through and a
 // linear round trip here would land the sky back on HANDOFF bug #10.
 const CLEAR_SKY = new THREE.Color(SKY);
 const RAIN_SKY = new THREE.Color(0x8d99a2);
+const FOG_SKY = new THREE.Color(0xc9d0d4);
 const _sky = new THREE.Color();
-function rainSky(fogScale) {
-	// fogScale is 1 in the clear and about 2 in a downpour.
-	return _sky.copy(CLEAR_SKY).lerp(RAIN_SKY, Math.min(1, (fogScale - 1) * 1.2));
+function weatherSky(rainScale, fogMix) {
+	// rainScale is 1 in the clear and about 2 in a downpour.
+	return _sky.copy(CLEAR_SKY)
+		.lerp(RAIN_SKY, Math.min(1, (rainScale - 1) * 1.2))
+		.lerp(FOG_SKY, fogMix);
 }
 // Where a bead sitting on the front element is being pushed, in g and in the
 // plane of the lens. Written once a frame into the same object rather than
@@ -481,12 +512,27 @@ function frame() {
 	// the drops are drawn once per frame whatever the physics did.
 	if (!frozen) {
 		rain.update(physics.airspeed, dt);
-		const fogScale = rain.fogScale;
-		if (fogScale !== lastFogScale) {
-			lastFogScale = fogScale;
-			setFog(rainSky(fogScale), FOG_DENSITY * fogScale);
-			scene.background.set(rainSky(fogScale));
+		fog.update(dt);
+		// Extinctions add, so densities add. This is a strict generalisation of
+		// the rain-only version it replaces: FOG_DENSITY * rain.fogScale is by
+		// definition FOG_DENSITY + the rain's own extinction, so with the fog
+		// slider at zero the picture is the one #24 left behind, to the bit.
+		const density = fog.density + extinctionOf(rain.visibility);
+		const sky = weatherSky(rain.fogScale, fog.skyMix);
+		const skyHex = sky.getHex();
+		if (density !== lastDensity || skyHex !== lastSkyHex) {
+			lastDensity = density;
+			lastSkyHex = skyHex;
+			setFog(sky, density);
+			// Mutated, not replaced: lens.js reads this very object every frame.
+			scene.background.set(sky);
+			// The streaks are lit by the sky too, and used to keep the clear-sky
+			// colour whatever the weather did.
+			rainfall?.setSky(scene.background);
 		}
+		// Light the air scatters into the barrel rather than onto the subject.
+		// Zero compiles it out of the lens shader entirely.
+		lens.setGlare(fog.glare);
 	}
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
