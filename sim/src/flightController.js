@@ -209,6 +209,14 @@ export class FlightController {
 		this.armed = true;
 	}
 
+	// Désarmement Betaflight (PHASE 06). Coupe les moteurs — le mixer met déjà
+	// tout à zéro quand `!armed`. Rien ne sait ici ce qu'est une session : c'est
+	// main.js qui, après ça, regarde si le drone est posé (→ LANDED) ou en l'air
+	// (→ chute → impact → CRASHED).
+	disarm() { this.armed = false; }
+
+	arm() { this.armed = true; }
+
 	setMode(mode) {
 		this.mode = mode;
 		this.holdAltitude = null;

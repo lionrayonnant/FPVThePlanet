@@ -94,6 +94,21 @@ export async function keepTerrain(slug) {
 	return cache;
 }
 
+// Sessions (PHASE 06). Le cycle de vie complet vit dans src/session.js ; ici on
+// n'expose que les deux appels réseau, parce que c'est cette couche qui connaît
+// l'id de l'opérateur courant.
+export async function postSession(body) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('POST', `/${cache.id}/sessions`, body)).session;
+}
+
+export async function patchSession(sid, body) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('PATCH', `/${cache.id}/sessions/${sid}`, body)).session;
+}
+
+export function operatorBase() { return OP_BASE; }
+
 export async function flush() {
 	if (timer) { clearTimeout(timer); timer = null; }
 	if (!cache || pending.size === 0) return;

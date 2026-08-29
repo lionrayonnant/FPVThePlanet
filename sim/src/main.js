@@ -17,6 +17,7 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
+import * as session from './session.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -52,6 +53,8 @@ export const OPTS = {
 	maxChunks: params.has('chunks') ? Number(params.get('chunks')) : Infinity,
 	skipCollision: params.get('collision') === '0',
 	scene: params.get('scene'),
+	// ?resume=<sessionId> : ré-ouvre une session LANDED (posé par le terminal).
+	resume: params.get('resume'),
 };
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
@@ -95,6 +98,11 @@ let freeCam = null;
 let freeCamOn = false;
 let paused = false;
 let crashed = false;
+// La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
+// l'altitude du spawn, pour la session.
+let flyArea = null;
+let resumeId = null;
+let spawnY = 0;
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
 let lastTime = performance.now();
@@ -293,6 +301,8 @@ async function boot() {
 		setFog: (f) => fog.setParams(f),
 		// What the world said about this zone today, and what it became.
 		weather: () => weather,
+		// La session de vol en cours (PHASE 06), ou null.
+		session: () => session.current(),
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -405,6 +415,7 @@ function nextPaint() {
 
 input.onAction = (key, event) => {
 	if (key === 'r') respawn();
+	else if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
 	else if (key === 'p') controller.cyclePreset();
 	else if (key === 'm') controller.cycleMode();
@@ -420,8 +431,26 @@ renderer.domElement.addEventListener('click', () => {
 	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
+// Désarmement Betaflight (PHASE 06). Au sol et à l'arrêt → pose propre → LANDED,
+// le drone est conservé, la session ré-ouvrable. En l'air → la chute suit son
+// cours et c'est l'impact qui fermera la session en CRASHED.
+function doDisarm() {
+	if (!physics || !controller.armed) return;
+	controller.disarm();
+	const p = physics.position;
+	const g = physics.groundBelow(p.x, p.y, p.z);
+	const v = physics.velocity;
+	const onGround = g !== null && (p.y - g) < 0.4;
+	const still = Math.hypot(v.x, v.y, v.z) < 0.6;
+	if (onGround && still) session.end('LANDED');
+}
+
 function respawn() {
 	if (!physics) return;
+	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
+	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
+	// on garde le respawn local pour ne pas casser le flow de debug.
+	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
 	physics.reset();
 	link.reset();
 	// Neither model was being reset here, and both say in their own comments
@@ -524,7 +553,12 @@ function frame() {
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
 			const impact = physics.step(motors, FIXED_STEP);
-			if (impact > CRASH_IMPULSE) crashed = true;
+			if (impact > CRASH_IMPULSE && !crashed) {
+				crashed = true;
+				// Le drone est détruit. La session se ferme sur CRASHED — le
+				// terrain, lui, reste. terrain persistent, flights ephemeral.
+				session.end('CRASHED');
+			}
 			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;
 			steps++;
@@ -614,6 +648,20 @@ function frame() {
 	const v = physics.velocity;
 	const ground = physics.groundBelow(p.x, p.y, p.z);
 	const bat = physics.battery;
+
+	// Télémétrie agrégée de la session (PHASE 06) : des maxima et des cumuls,
+	// pas un enregistrement image par image. dt=0 quand la sim est gelée, pour
+	// ne pas gonfler la durée pendant une pause.
+	const av = physics.angularVelocity;
+	session.feed({
+		speed: Math.hypot(v.x, v.y, v.z),
+		horizontalSpeed: Math.hypot(v.x, v.z),
+		rateDps: Math.max(Math.abs(av.x), Math.abs(av.y), Math.abs(av.z)) * 180 / Math.PI,
+		altitudeAboveSpawn: p.y - spawnY,
+		dt: frozen ? 0 : dt,
+		armed: controller.armed,
+	});
+
 	hud.update({
 		altitude: ground === null ? null : p.y - ground,
 		speed: Math.hypot(v.x, v.y, v.z),
@@ -659,7 +707,7 @@ async function chooseScene() {
 		await operator.ensureDevOperator();
 		const scenes = await loadSceneList();
 		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
-		return OPTS.scene;
+		return { slug: OPTS.scene, resume: OPTS.resume || undefined };
 	}
 
 	const { needsBootstrap, choices } = await operator.loadOperator();
@@ -684,15 +732,41 @@ if (OPTS.scene) {
 }
 
 chooseScene()
-	.then((slug) => {
+	.then(({ slug, resume }) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
 		hud.show();
+		flyArea = slug;
+		resumeId = resume || null;
 		setScene(slug);
 		return boot();
 	})
+	.then(openFlightSession)
 	.catch((err) => {
 		console.error(err);
 		hud.fail(err.message);
 	});
+
+// Ouvre la session dès que la première image de vol est prête (PHASE 06). La
+// météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
+// vol — la session est du décor, pas une dépendance du moteur.
+async function openFlightSession() {
+	spawnY = physics.position.y;
+	try {
+		await session.open({
+			area: flyArea,
+			weatherSnapshot: session.snapshotWeather(weather),
+			resume: resumeId || OPTS.resume || undefined,
+		});
+	} catch (e) {
+		console.warn('[session] ouverture échouée, ce vol ne sera pas enregistré', e);
+	}
+}
+
+// Onglet fermé en plein vol : best-effort pour matérialiser le CRASHED. Si ça
+// rate (vrai crash navigateur), la réconciliation serveur s'en charge au
+// prochain chargement du terminal.
+window.addEventListener('beforeunload', () => {
+	if (session.current()?.result === 'PENDING') session.beacon('CRASHED');
+});

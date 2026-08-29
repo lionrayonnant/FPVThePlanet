@@ -165,6 +165,7 @@ export class Input {
 					'm',
 					'p',
 					'c',
+					'j',
 					'tab',
 					'escape',
 					' ',
@@ -466,7 +467,22 @@ export class Input {
 			this.readKeyboard(dt);
 		}
 
+		this.checkDisarmGesture(dt);
+
 		return this.sticks;
+	}
+
+	// Désarmement Betaflight : throttle au plancher + yaw plein gauche tenus
+	// ~0,5 s. La touche `j` fait la même chose au clavier, où il n'y a pas de
+	// throttle analogique à maintenir. Émet l'action une seule fois par maintien.
+	checkDisarmGesture(dt) {
+		const held = this.sticks.throttle < 0.05 && this.sticks.yaw < -0.9;
+		if (!held) { this._disarmHold = 0; this._disarmFired = false; return; }
+		this._disarmHold = (this._disarmHold ?? 0) + dt;
+		if (this._disarmHold >= 0.5 && !this._disarmFired) {
+			this._disarmFired = true;
+			this.onAction('disarm');
+		}
 	}
 
 	// ---------------------------------------------------------------------------

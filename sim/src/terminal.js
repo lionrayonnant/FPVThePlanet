@@ -182,7 +182,7 @@ ${shown}</pre>`;
 
 // ---------- LAST SESSION ----------
 
-// Résout un slug (REVISIT AREA) ou undefined.
+// Résout undefined, un slug (REVISIT AREA) ou { slug, resume } (RESUME SESSION).
 function lastSessionScreen(root, model) {
 	const s = screen(root);
 	return new Promise((resolve) => {
@@ -193,15 +193,23 @@ function lastSessionScreen(root, model) {
 			return;
 		}
 		const area = ls.area ?? ls.slug ?? null;
-		const when = ls.endedAt ?? ls.startedAt ?? ls.at ?? '';
+		const when = ls.end ?? ls.endedAt ?? ls.start ?? ls.startedAt ?? ls.at ?? '';
 		s.box.innerHTML = `<pre>LAST SESSION
 
 AREA     ${area ?? 'UNKNOWN'}
-WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}</pre>`;
+WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
+RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
 			await stub(root, 'VIEW SESSION', 'Session detail screen lands in PHASE 15.');
 		}, 'terminal-cta'));
-		if (area && model.areas.some((a) => a.slug === area)) {
+		const areaKnown = area && model.areas.some((a) => a.slug === area);
+		// terrain persistent, flights ephemeral : seule une session LANDED garde
+		// son drone, donc seule elle se reprend. Un CRASHED est terminal.
+		if (ls.result === 'LANDED' && areaKnown) {
+			s.box.appendChild(button('RESUME SESSION',
+				() => { s.remove(); resolve({ slug: area, resume: ls.id }); }, 'terminal-cta'));
+		}
+		if (areaKnown) {
 			s.box.appendChild(button('REVISIT AREA', () => { s.remove(); resolve(area); }, 'terminal-cta'));
 		}
 		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
@@ -263,7 +271,11 @@ export async function runTerminal(root, { settings, api = operatorApi } = {}) {
 OPERATOR // ${model.operatorName}</pre>`;
 
 		s.box.appendChild(navRow([
-			['LAST SESSION', async () => { const slug = await lastSessionScreen(root, model); if (slug) fly(slug); }],
+			['LAST SESSION', async () => {
+				const r = await lastSessionScreen(root, model);
+				if (typeof r === 'string') fly(r);
+				else if (r) fly(r.slug, r.resume);
+			}],
 			['LOCAL TERRAIN', async () => { const slug = await localTerrain(root, scenes); if (slug) fly(slug); }],
 			['CONTROL VECTOR', async () => { await controlVectorScreen(root, api); render(); }],
 		]));
@@ -292,7 +304,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 		s.box.appendChild(foot);
 	};
 
-	const fly = (slug) => { s.remove(); resolveFly(slug); };
+	const fly = (slug, resume) => { s.remove(); resolveFly({ slug, resume }); };
 	render();
 	return new Promise((resolve) => { resolveFly = resolve; });
 }

@@ -19,6 +19,10 @@ import {
 	newId, validateName, validateControlVector,
 	freshState, migrate,
 } from './operator-store.mjs';
+import {
+	openSession, resumeSession, closeSession, validateSession,
+	reconcileStaleSessions, sanitizeWeatherSnapshot,
+} from './session-model.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
 
@@ -112,7 +116,11 @@ const opRoutes = [
 			return json(res, opReadErrorStatus(e), { error: e.message });
 		}
 		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
-		json(res, 200, { operator: state });
+		// Le terminal recharge l'opérateur à chaque retour au menu : c'est le
+		// moment où l'on rattrape les sessions dont l'onglet est mort en vol.
+		const rec = reconcileStaleSessions(state);
+		if (rec.changed) _writeOperator(rec.state);
+		json(res, 200, { operator: rec.state });
 	}],
 
 	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -191,7 +199,71 @@ const opRoutes = [
 		_writeOperator(state);
 		json(res, 200, { operator: state });
 	}],
+
+	// Ouvre une session (squelette PENDING sur disque) ou ré-ouvre une session
+	// LANDED. Deux écritures réseau par vol : ce POST à l'ouverture, un PATCH à
+	// la clôture. Rien pendant le vol.
+	['POST', /^\/([^/]+)\/sessions$/, async (req, res, [id]) => {
+		const b = await readBody(req);
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+
+		let session;
+		try {
+			if (b.resume) {
+				const i = state.sessions.findIndex((s) => s.id === b.resume);
+				if (i < 0) return json(res, 404, { error: `aucune session "${b.resume}"` });
+				session = validateSession(resumeSession(state.sessions[i]));
+				state.sessions[i] = session;
+			} else {
+				session = validateSession(openSession({
+					operatorId: state.id,
+					area: b.area,
+					weatherSnapshot: sanitizeWeatherSnapshot(b.weatherSnapshot ?? null),
+				}));
+				state.sessions.push(session);
+			}
+		} catch (e) { return json(res, 400, { error: e.message }); }
+
+		_writeOperator(state);
+		json(res, 201, { session });
+	}],
+
+	// Clôture : pose end, result et la télémétrie agrégée. La reprise passe
+	// obligatoirement par le POST .../sessions ci-dessus, jamais par ici.
+	// POST est accepté en plus de PATCH pour navigator.sendBeacon (qui ne sait
+	// faire que POST) au moment où l'onglet se ferme.
+	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
+	['POST', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
 ];
+
+async function closeSessionRoute(req, res, [id, sid]) {
+	const b = await readBody(req);
+	let state;
+	try { state = _readOperator(id); }
+	catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+	if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+
+	const i = state.sessions.findIndex((s) => s.id === sid);
+	if (i < 0) return json(res, 404, { error: `aucune session "${sid}"` });
+	if (state.sessions[i].result !== 'PENDING') {
+		return json(res, 409, { error: `session "${sid}" déjà ${state.sessions[i].result}` });
+	}
+
+	let session;
+	try {
+		session = validateSession(closeSession(state.sessions[i], {
+			result: b.result,
+			telemetry: b.telemetry,
+		}));
+	} catch (e) { return json(res, 400, { error: e.message }); }
+
+	state.sessions[i] = session;
+	_writeOperator(state);
+	json(res, 200, { session });
+}
 
 // Un seul job à la fois : télécharger deux cartes en parallèle sature la même
 // liaison et ne va pas plus vite, mais rend la progression illisible.

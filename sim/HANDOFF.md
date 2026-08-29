@@ -115,6 +115,26 @@ Plan d'origine (contexte de la décision d'architecture) :
     encore `quality`/`cell`/`--force`, que le scanner n'expose pas — à trancher
     avec l'utilisateur avant de les retirer.
 
+- **PHASE 06 — modèle de session** (issue #43), vérifié sans navigateur :
+  `npm run selftest` reste vert (« all checks passed »), `selftest:operator`
+  passe 11 tests session en plus des précédents, `npm run build` OK.
+  - une session est tenue en mémoire client pendant le vol (`src/session.js`),
+    deux écritures réseau : `POST /__operator/:id/sessions` (squelette PENDING) à
+    l'ouverture, `PATCH .../sessions/:sid` (verdict + télémétrie agrégée +
+    randomart) à la clôture ;
+  - verdicts : `LANDED` (désarmement Betaflight `throttle` bas + `yaw` plein
+    gauche 0,5 s, ou touche `j`, alors que le drone est au sol et immobile —
+    drone conservé, session ré-ouvrable via LAST SESSION → RESUME SESSION) ;
+    `CRASHED` (impact > `CRASH_IMPULSE`, ou désarmement en vol → chute → impact,
+    ou onglet mort → réconciliation `PENDING`→`CRASHED` au `GET /__operator/:id`) ;
+  - après un `CRASHED`, `r` renvoie au terminal au lieu de respawn en place
+    (sauf `?scene=` dev) ;
+  - logique pure dans `tools/session-model.mjs` + `tools/randomart.mjs`
+    (drunken-bishop déterministe sur `sha256(sessionId)`).
+  - **Non vérifié en vol réel** : ouverture/clôture de session et agrégats de
+    télémétrie jamais éprouvés dans le navigateur avec un vrai vol ; le geste de
+    désarmement à la manette non plus.
+
 ## Non vérifié / à faire
 
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
