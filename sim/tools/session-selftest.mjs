@@ -7,6 +7,7 @@ import {
 	validateSession, reconcileStaleSessions, sanitizeWeatherSnapshot,
 	freshTelemetry, newSessionId, SESSION_ID_RE,
 	sanitizeComment, annotateSession,
+	sanitizePhoto, addPhoto,
 } from './session-model.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
 import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
@@ -204,6 +205,49 @@ t('annotateSession : peut annoter une session déjà LANDED (pas de restriction 
 	assert.doesNotThrow(() => validateSession(noted));
 });
 
+const GOOD_PHOTO = { dataUrl: 'data:image/jpeg;base64,/9j/AAA=', w: 480, h: 360 };
+
+t('sanitizePhoto : forme connue gardée, ts posé par le serveur (ignore celui du client)', () => {
+	const p = sanitizePhoto({ ...GOOD_PHOTO, ts: '2000-01-01T00:00:00.000Z', extra: 'x' });
+	assert.equal(p.dataUrl, GOOD_PHOTO.dataUrl);
+	assert.equal(p.w, 480);
+	assert.equal(p.h, 360);
+	assert.notEqual(p.ts, '2000-01-01T00:00:00.000Z');
+	assert.ok(new Date(p.ts).toISOString() === p.ts);
+});
+
+t('sanitizePhoto : rejette dataUrl absente/non-image, w/h non entiers ou <= 0', () => {
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: undefined }), /dataUrl invalide/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: 'not-a-data-url' }), /dataUrl invalide/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 0 }), /w invalide/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 4.5 }), /w invalide/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, h: -1 }), /h invalide/);
+});
+
+t('addPhoto : ajoute au tableau existant sans le muter, plusieurs captures par session', () => {
+	const s = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const s1 = addPhoto(s, GOOD_PHOTO);
+	assert.deepEqual(s.photos, []); // pas de mutation de l'original
+	assert.equal(s1.photos.length, 1);
+	const s2 = addPhoto(s1, { ...GOOD_PHOTO, w: 640, h: 480 });
+	assert.equal(s2.photos.length, 2);
+	assert.equal(s2.photos[0].w, 480);
+	assert.equal(s2.photos[1].w, 640);
+	assert.doesNotThrow(() => validateSession(s2));
+});
+
+t('validateSession : rejette une session dont un élément de photos[] est malformé', () => {
+	const good = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	assert.throws(
+		() => validateSession({ ...good, photos: [{ w: 480, h: 360 }] }),
+		/photo/,
+	);
+	assert.throws(
+		() => validateSession({ ...good, photos: 'nope' }),
+		/photos/,
+	);
+});
+
 // ---------------------------------------------------------------------------
 // randomart
 
@@ -236,6 +280,10 @@ function stubOperator(calls) {
 				? { id: body.resume, result: 'PENDING', resumeCount: 1 }
 				: { id: 'paris-0000', result: 'PENDING', resumeCount: 0 };
 			return json({ session: s });
+		}
+		if (/\/sessions\/[^/]+\/photos$/.test(url)) {
+			calls._photos = (calls._photos ?? 0) + 1;
+			return json({ session: { id: 'paris-0000', result: 'PENDING', photos: Array(calls._photos).fill({}) } });
 		}
 		if (/\/sessions\/[^/]+$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: body.result, flightTelemetry: body.telemetry } });
@@ -299,6 +347,36 @@ await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex, pas 
 	assert.equal(post.body.targetCount, 4);
 	assert.equal(post.body.targetIndex, 1);
 	assert.ok(!('resume' in post.body));
+});
+
+await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur local', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	assert.equal(session.photoCount(), 0);
+
+	const n1 = await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,AAA=', w: 480, h: 360 });
+	assert.equal(n1, 1);
+	assert.equal(session.photoCount(), 1);
+	const post = calls.find((c) => c.method === 'POST' && /\/photos$/.test(c.url));
+	assert.ok(post);
+	assert.equal(post.body.dataUrl, 'data:image/jpeg;base64,AAA=');
+	assert.equal(post.body.w, 480);
+
+	const n2 = await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,BBB=', w: 480, h: 360 });
+	assert.equal(n2, 2);
+});
+
+await ta('capturePhoto : sans session ouverte, ne fait rien et rend 0', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	const n = await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,AAA=', w: 1, h: 1 });
+	assert.equal(n, 0);
+	assert.equal(calls.filter((c) => /\/photos$/.test(c.url)).length, 0);
 });
 
 console.log(`\n${n} tests session OK`);

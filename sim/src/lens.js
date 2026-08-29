@@ -1137,4 +1137,49 @@ export class FpvLens {
 		this.composer.render(dt);
 		this._hasRendered = true;
 	}
+
+	// PHASE 16 : une capture, à la résolution et au ratio du capteur cible, pas
+	// ceux de la fenêtre. `composer.setSize()` ne redimensionne que ses cibles
+	// internes (un render target explicite a été passé au constructeur), jamais
+	// le canvas — c'est ce qui garde la vue de vol pleine fenêtre pendant qu'un
+	// mauvais capteur dégrade quand même l'image qui s'y affiche. Pour une
+	// vraie sortie fichier, on redimensionne aussi le renderer, on redessine
+	// cette même frame (aucun uniform ne change, seule la taille de sortie
+	// change — ni `_time`, ni les gouttes, ni l'OSD ne sont ré-avancés), puis on
+	// remet tout en l'état. `updateStyle=false` garde la taille CSS du canvas
+	// intacte pendant le bref changement de résolution du tampon.
+	async capture() {
+		const canvas = this.renderer.domElement;
+		if (this._camAspect == null) {
+			// Pas de cible piratée (chemin dev `?scene=`) : rien à raconter sur une
+			// caméra qui n'existe pas, la fenêtre est la seule résolution qui a un sens.
+			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+			return blob ? { blob, w: canvas.width, h: canvas.height } : null;
+		}
+
+		const ratio = this.renderer.getPixelRatio();
+		const viewW = this._viewW ?? 1;
+		const viewH = this._viewH ?? 1;
+		// Même calcul que _applySize(), mais sans la contrainte « tient dans la
+		// fenêtre » : ici c'est la vraie sortie, pas un rectangle affiché dedans.
+		const viewAspect = viewW / viewH;
+		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
+		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
+		const sensorW = Math.max(1, Math.round(sensorH * this._camAspect));
+
+		this.renderer.setSize(sensorW / ratio, sensorH / ratio, false);
+		this.composer.setSize(sensorW, sensorH);
+		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
+		this.composer.render(0);
+
+		const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+
+		// Restaure l'état d'affichage pour la frame suivante — _applySize() relit
+		// _viewW/_viewH, jamais touchés ci-dessus, donc revient exactement là où
+		// la prochaine frame l'aurait de toute façon remis.
+		this.renderer.setSize(viewW, viewH, false);
+		this._applySize();
+
+		return blob ? { blob, w: sensorW, h: sensorH } : null;
+	}
 }

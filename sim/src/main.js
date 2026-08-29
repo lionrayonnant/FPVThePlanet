@@ -160,6 +160,12 @@ let crashed = false;
 // deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
 let exiting = false;
 
+// PHASE 16 : levé par la touche capture, consommé une fois par frame juste
+// après lens.render() — c'est cette frame-là, déjà rendue, que lens.capture()
+// redessine à la résolution du capteur cible. L'OSD FPVTP! (overlay DOM
+// séparé, jamais dans le canvas) n'y figure jamais.
+let pendingCapture = false;
+
 // `landing` est une copie privée de LANDING (pas la constante partagée) : son
 // THR_IDLE est réécrit par boot() une fois la famille de l'appareil connue
 // (idleThrottle, src/quad.js) — muter la constante exportée contaminerait les
@@ -607,6 +613,7 @@ input.onAction = (key, event) => {
 	else if (key === 'p') controller?.cyclePreset();
 	else if (key === 'm') controller?.cycleMode();
 	else if (key === 'c') toggleFreeCam();
+	else if (key === 'f') pendingCapture = true;
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
 	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place, et rien
@@ -637,6 +644,22 @@ renderer.domElement.addEventListener('click', () => {
 	audio.start();
 	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
+
+// PHASE 16 : lit le canvas du composer tel qu'il vient d'être peint —
+// résolution/ratio du capteur cible, OSD drone, dégradation du lien, pluie et
+// brouillard tous déjà dedans, l'overlay DOM FPVTP! jamais dedans. `toBlob`
+// lit le buffer au moment de l'appel, pas besoin de `preserveDrawingBuffer` :
+// appelé synchrone dans la même frame que le rendu, avant tout autre dessin.
+async function capturePhoto() {
+	const cap = await lens.capture();
+	if (!cap) return;
+	const reader = new FileReader();
+	reader.onload = () => {
+		session.capturePhoto({ dataUrl: reader.result, w: cap.w, h: cap.h })
+			.then((count) => fpvtpOsd.flashCaptured(count));
+	};
+	reader.readAsDataURL(cap.blob);
+}
 
 // Désarmement Betaflight. Le geste reste celui du joueur ; c'est la machine de
 // fin de vol qui sait si le drone était posé. Désarmer en l'air est permis : la
@@ -1075,6 +1098,16 @@ if (!frozen) {
 	const linkOut = flightEnd.out.linkDead ? DEAD_LINK : link.out;
 	lens.render(camera, dt, freeCamOn ? null : linkOut);
 
+	// Disponible seulement quand ce que montre le canvas est vraiment le flux
+	// de la cible : armé, en vol, pas en caméra libre, pas pendant l'agonie du
+	// lien. Consommé tout de suite après le rendu — c'est ce buffer précis, pas
+	// celui d'une frame suivante, qui devient la photo.
+	const photoReady = controller.armed && !frozen && !freeCamOn && !flightEnd.out.linkDead;
+	if (pendingCapture) {
+		pendingCapture = false;
+		if (photoReady) capturePhoto();
+	}
+
 	const v = physics.velocity;
 	const bat = physics.battery;
 
@@ -1142,6 +1175,7 @@ if (!frozen) {
 		propwash: physics.propulsion.propwash,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
+	fpvtpOsd.setPhotoReady(photoReady);
 	settings.updateAxisBars();
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be

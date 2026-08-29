@@ -61,6 +61,23 @@ export function feed({ speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAbov
 	if (altitudeAboveSpawn > t.maxAltitudeM) t.maxAltitudeM = altitudeAboveSpawn;
 }
 
+// Nombre de captures prises pendant la session en cours (PHASE 16).
+export function photoCount() { return live?.session?.photos?.length ?? 0; }
+
+// Envoie une capture au serveur, qui fait autorité sur le compte final (rendu
+// via la session mise à jour). Rend 0 sans rien envoyer si aucune session
+// n'est ouverte ou déjà close — pas de photo orpheline.
+export async function capturePhoto({ dataUrl, w, h }) {
+	if (!live || live.closed) return 0;
+	try {
+		live.session = await operator.postPhoto(live.id, { dataUrl, w, h });
+		return photoCount();
+	} catch (e) {
+		console.warn('[session] capture échouée', e);
+		return photoCount();
+	}
+}
+
 // `LANDED` ou `CRASHED`. Idempotent : le premier verdict gagne.
 export async function end(result) {
 	if (!live || live.closed) return null;

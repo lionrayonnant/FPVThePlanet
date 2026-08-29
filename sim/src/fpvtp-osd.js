@@ -33,6 +33,7 @@ export class FpvtpOsd {
 				</div>
 				<div class="corner bl">
 					<div id="fo-env">WIND — · VIS — · LINK —</div>
+					<div id="fo-photo"></div>
 				</div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
@@ -50,6 +51,7 @@ export class FpvtpOsd {
 			input: q('#fo-input'),
 			fps: q('#fo-fps'),
 			env: q('#fo-env'),
+			photo: q('#fo-photo'),
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
 			flightEnd: q('#flight-end'),
@@ -64,10 +66,40 @@ export class FpvtpOsd {
 		// sont tenus ici, et un seul est peint.
 		this._paused = false;
 		this._status = null;
+		// PHASE 16 : disponibilité de la capture, compteur et flash bref au clic.
+		this._photoReady = false;
+		this._photoCount = 0;
+		this._flashUntil = 0;
 	}
 
 	show() { this.el.root.hidden = false; }
 	setPaused(paused) { this._paused = !!paused; this._refreshCentre(); }
+
+	// Disponibilité de la capture (PHASE 16) : vrai seulement quand ce qu'on
+	// verrait à l'écran est vraiment le flux de la cible (en vol, armé, pas en
+	// caméra libre, pas pendant l'agonie du lien).
+	setPhotoReady(ready) { this._photoReady = !!ready; this._renderPhoto(); }
+
+	// `count` est celui que le serveur a renvoyé — il fait autorité, pas un
+	// compteur client optimiste qui pourrait diverger d'un échec réseau silencieux.
+	flashCaptured(count) {
+		this._photoCount = count;
+		this._flashUntil = performance.now() + 900;
+		this._renderPhoto();
+	}
+
+	_renderPhoto() {
+		const e = this.el.photo;
+		if (performance.now() < this._flashUntil) {
+			e.textContent = `CAPTURED · CAPTURES ${this._photoCount}`;
+			e.dataset.flash = '1';
+			return;
+		}
+		delete e.dataset.flash;
+		e.textContent = this._photoReady
+			? `PHOTO READY${this._photoCount ? ` · CAPTURES ${this._photoCount}` : ''}`
+			: '';
+	}
 
 	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
 	setSessionStatus(text, kind = null) {
@@ -136,6 +168,9 @@ export class FpvtpOsd {
 		if (Number.isFinite(visibilityM)) parts.push(`VIS ${(visibilityM / 1000).toFixed(1)} km`);
 		if (Number.isFinite(rssiDbm)) parts.push(`LINK ${Math.round(rssiDbm)} dBm`);
 		this.el.env.textContent = parts.join(' · ');
+		// Rafraîchi ici aussi pour que le flash de capture (PHASE 16) s'éteigne
+		// de lui-même, sans minuteur séparé : cette fonction tourne déjà à 60 Hz.
+		this._renderPhoto();
 
 		// Le propwash est invisible sur un HUD immobile, donc le réticule
 		// frissonne avec (repris tel quel de hud.js).
