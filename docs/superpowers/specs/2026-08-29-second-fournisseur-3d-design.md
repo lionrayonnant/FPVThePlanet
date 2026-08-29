@@ -117,10 +117,15 @@ octet, lignes ~100-280) devient `decoders/obj.mjs`, **déplacé sans être
 réécrit**. Un `decoders/gltf.mjs` le rejoint au Stage 3.
 
 `prep.mjs` choisit le décodeur en appelant `sniff()` sur le `tileDir`, et prend
-le premier qui reconnaît le dossier. Conséquence voulue : `prep.mjs` garde sa
-signature CLI actuelle et n'a **pas** besoin d'un drapeau `--provider`. Le
-fournisseur et le décodeur restent découplés — si un jour un fournisseur sert de
-l'OBJ, il réutilise le décodeur OBJ sans rien déclarer.
+le premier qui reconnaît le dossier — **aucun drapeau ne sélectionne le
+décodeur**. Le fournisseur et le format d'entrée restent ainsi découplés : si un
+jour un fournisseur sert de l'OBJ, il réutilise le décodeur OBJ sans rien
+déclarer.
+
+À distinguer de l'*identité* du fournisseur, que `prep.mjs` reçoit bien en
+argument (`--provider`, `--provider-label`, `--attribution`, `--fetched-at`)
+parce qu'il doit l'inscrire dans le manifest. Recevoir « qui a fourni les
+données » et déduire « comment les lire » sont deux choses séparées.
 
 **D'où vient l'attribution, précisément.** Trois niveaux, du plus faible au plus
 fort, chacun écrasant le précédent :
