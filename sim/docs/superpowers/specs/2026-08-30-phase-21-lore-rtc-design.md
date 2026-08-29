@@ -199,7 +199,10 @@ corpus qui n'a pas passé `validate.mjs`, donc en développement.
   promesse de suite), événements connus, rareté connue.
 - `dedupe.mjs` : quasi-doublons par trigrammes normalisés (Jaccard). Aucune
   dépendance, aucun embedding — les doublons d'un LLM se ressemblent
-  lexicalement, c'est suffisant et ça reste vérifiable à la main.
+  lexicalement, c'est suffisant et ça reste vérifiable à la main. À l'échelle
+  visée, la comparaison naïve de toutes les paires est trop chère : un **index
+  inversé de trigrammes** ne compare que les entrées qui partagent au moins un
+  trigramme, ce qui ramène le coût au voisinage réel de chaque entrée.
 - `inspect.mjs` : rend N tirages avec des contextes factices, pour la relecture
   humaine par échantillonnage. `--review` marque les entrées relues.
 
@@ -230,9 +233,28 @@ qui est la condition pour que le pipeline soit lui-même open source.
 Chaîne obligatoire : `generate → validate → dedupe → inspect`. Rien n'entre dans
 `public/dialogue/` sans passer les trois.
 
-**Volume visé en v1 : 800 à 1200 entrées** sur les événements câblés, soit
-150-250 par catégorie. Assez pour que la variation se sente (critère 12) sans
-une semaine de relecture. Le runtime ne bouge pas si le corpus décuple ensuite.
+**Volume visé en v1 : 3000 à 5000 entrées** sur les événements câblés, soit
+400 à 800 par catégorie. À ce volume un joueur ne fait pas le tour du corpus,
+et c'est précisément l'objectif : la nouveauté doit tenir des heures, pas une
+soirée. Le runtime ne bouge pas si le corpus décuple encore.
+
+**Politique de relecture humaine.** À cette échelle, relire chaque entrée n'a
+pas de sens ; relire au hasard non plus, parce que toutes les entrées ne
+coûtent pas la même chose quand elles sont ratées. La règle :
+
+- **100 % des `RARE` et `VERY_RARE`**, et **100 % des répliques de jensen** —
+  petit volume, impact maximal. Ce sont les lignes qu'un joueur remarque, celles
+  qui donnent l'impression d'avoir vu quelque chose ; une seule qui sonne faux
+  ou qui promet une suite abîme tout le dispositif (D5, critère d'acceptation
+  de l'issue).
+- **échantillon de 10 % des `COMMON` et `UNCOMMON`**, tiré par `inspect.mjs`.
+  Si le taux de rejet d'un échantillon dépasse 5 %, le lot entier est jeté et
+  regénéré plutôt que rapiécé : un lot mauvais l'est pour une raison de prompt,
+  pas entrée par entrée.
+
+`validate.mjs` et `dedupe.mjs` restent exhaustifs, eux — c'est ce qui rend la
+relecture par échantillon défendable : tout ce qui est mécaniquement
+vérifiable l'est sur 100 % du corpus, et l'humain ne juge que le ton.
 
 ### `src/dialogue.js` (nouveau) — colle navigateur
 
@@ -288,7 +310,8 @@ navigation du terminal, dans le style des écrans existants.
 5. chaque `speaker` du corpus appartient au crew ;
 6. la distribution de rareté observée suit les poids déclarés ;
 7. `select()` rend `null` à une fréquence cohérente avec `silenceWeight` ;
-8. le corpus livré passe `validate.mjs` et `dedupe.mjs` en intégralité ;
+8. le corpus livré passe `validate.mjs` et `dedupe.mjs` en intégralité, et
+   `dedupe.mjs` termine en un temps raisonnable sur le corpus complet ;
 9. `public/dialogue/` ne contient que des données, et aucun module de `src/`
    n'importe `tools/dialogue/generate.mjs` (D1) ;
 10. BUILD NOTES : monotonie des déblocages, aucune promesse de suite,
