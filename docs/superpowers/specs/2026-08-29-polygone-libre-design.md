@@ -54,10 +54,10 @@ Nouveau `pkg/mth/poly.go`, et les mêmes fonctions dans `sim/tools/lib/tiles.mjs
 | `segmentsIntersect(a, b, c, d)` | croisement de deux segments |
 | `tileIntersectsPolygon(ring, tileBox)` | un sommet dans la tuile, ou un coin dans le tracé, ou une arête qui croise |
 | `polygonBounds(ring)` | emprise, d'où découle le rectangle balayé |
-| `polygonTileMask(grid, zoom, ring)` | masque des tuiles retenues + `columns` |
+| `polygonGrid(ring, zoom)` | la grille de l'emprise + masque des tuiles retenues + `columns` |
 | `polygonArea(ring)` | shoelace en projection équirectangulaire locale |
 
-`maskOutline(grid, zoom, mask)` (JS seulement, c'est du dessin) rend l'escalier
+`maskOutline(grid, zoom)` (JS seulement, c'est du dessin) rend l'escalier
 des tuiles retenues : les arêtes qu'une tuile gardée ne partage pas avec une
 autre tuile gardée.
 
