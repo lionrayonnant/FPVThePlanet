@@ -6,7 +6,8 @@
 // Écran client pur : look terminal (screen/button de terminal.js), AUCUNE
 // dépendance Three/Rapier/physics. Jamais importé par le moteur.
 //
-// Règle de sécurité (spec PHASE 09) : le log est deux lignes fixes, les motifs
+// Règle de sécurité (spec PHASE 09) : le log est un texte fixe de quatre lignes
+// (deux lignes de statut, une ligne vide, la sommation MANUAL OVERRIDE), les motifs
 // sont des animations décoratives. Aucune trame, aucun outil, aucune séquence
 // exploitable.
 import { screen, button } from './terminal.js';
@@ -40,6 +41,7 @@ export function runHack(root, { hackType, family } = {}) {
 
 	return new Promise((resolve) => {
 		let raf = 0;
+		let timer = 0;
 		let done = false;
 		const t0 = performance.now();
 
@@ -53,9 +55,9 @@ export function runHack(root, { hackType, family } = {}) {
 				logEl.classList.add('hack-log-armed'); // met MANUAL OVERRIDE en valeur (CSS)
 				return;
 			}
-			setTimeout(tick, LINE_MS);
+			timer = setTimeout(tick, LINE_MS);
 		};
-		setTimeout(tick, LINE_MS);
+		timer = setTimeout(tick, LINE_MS);
 
 		// Boucle d'animation unique du motif.
 		const loop = (now) => {
@@ -69,6 +71,7 @@ export function runHack(root, { hackType, family } = {}) {
 			if (done) return;
 			done = true;
 			cancelAnimationFrame(raf);
+			clearTimeout(timer);
 			window.removeEventListener('keydown', onKey);
 			s.remove();
 			resolve();
