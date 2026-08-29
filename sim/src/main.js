@@ -17,6 +17,7 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
+import { SunField, SKY_REF } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
@@ -36,6 +37,11 @@ THREE.ColorManagement.enabled = false;
 
 // SKY = sky.js's CLEAR_HORIZON, re-exported under its historical name: one
 // definition of 0x9fb8cc instead of two.
+// sun.js:skyColor() calibrates itself against SKY_REF so that a high sun,
+// clear air and no cloud reproduce this exact value — importing it here
+// (rather than repeating the literal) is what keeps that calibration honest:
+// if this ever changes, sun.js's own bench check would start failing loudly
+// instead of comparing itself to a stale copy of itself.
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
@@ -115,6 +121,11 @@ const fog = new FogField(undefined, FOG_DENSITY);
 // Et le ciel au-dessus : quelle fraction est couverte, à quelle hauteur, et de
 // combien le sol s'assombrit. Le monde le décide (#41), pas un réglage.
 const cloud = new CloudField();
+// Et la lumière : où est le soleil, ce que l'atmosphère lui fait, et ce que la
+// caméra en fait. Construit dans boot(), une fois le manifest lu — il lui faut
+// la lat/lon de la scène, et sans elle il n'existe pas plutôt que d'inventer un
+// soleil. Modèle pur : il ne ré-éclaire RIEN, l'imagerie reste non éclairée.
+let sun = null;
 let rainfall = null;
 // Le snapshot météo de la zone survolée, pour le HUD et __sim.debug().
 let weather = null;
@@ -273,8 +284,13 @@ async function boot() {
 	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
 	// de zone que celle vue par le terminal avant le décollage.
 	const o = manifest.origin ?? {};
+	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
+	// météo, et la seule chose dont la position du soleil a besoin en plus de
+	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
+	// fonction de l'instant UTC et du lieu, point.
+	sun = SunField.forOrigin(o);
 	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog, cloud }) ?? CALM;
+	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
 	if (weather) {
 		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
 			+ `${headline(weather.days[0])}`, applied);
@@ -284,6 +300,7 @@ async function boot() {
 		rain.setParams(CALM.rain);
 		fog.setParams(CALM.fog);
 		cloud.setParams(CALM.cloud);
+		sun?.setWeather(CALM.sun);
 	}
 
 	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
@@ -318,7 +335,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -435,6 +452,19 @@ async function boot() {
 					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
 					// qu'un whiteout arrive au bon moment.
 					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
+				// Ce qui permet de vérifier le soleil dans le vrai navigateur
+				// plutôt que de regarder une capture et d'y croire.
+				sun: sun && {
+					elevation: +sun.elevation.toFixed(2),
+					azimuth: +sun.azimuth.toFixed(2),
+					dir: { x: +sun.dir.x.toFixed(3), y: +sun.dir.y.toFixed(3), z: +sun.dir.z.toFixed(3) },
+					amount: +sun.sunAmount.toFixed(3),
+					visible: +sunVisible.toFixed(3),
+					inFrame: +sunInFrame.toFixed(3),
+					exposure: +sun.exposure.toFixed(3),
+					ambient: +sun.ambient.toFixed(3),
+					sky: '#' + scene.background.getHexString(),
+					active: sun.active,
 				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
@@ -589,6 +619,15 @@ let lensShutter = 0;
 // plane of the lens. Written once a frame into the same object rather than
 // allocated, like every other per-frame vector here.
 const drift = { x: 0, y: 0 };
+// L'état du soleil entre deux frames, et les vecteurs réutilisés plutôt que
+// réalloués — même règle que `drift` juste au-dessus.
+let sunVisible = 1;    // 0..1, occlusion lissée
+let sunInFrame = 0;    // 0..1, ce que le posemètre voit du disque
+const _sunWorld = new THREE.Vector3();
+const _sunView = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
+const _camInv = new THREE.Quaternion();
+const _sunColor = new THREE.Color();
 
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
@@ -657,50 +696,147 @@ function frame() {
 	// physics step because nothing in it feeds back into the flight model — the
 	// water is on the lens, not on the airframe — and because the streaks and
 	// the drops are drawn once per frame whatever the physics did.
-	if (!frozen) {
-		rain.update(physics.airspeed, dt);
-		fog.update(dt);
-		cloud.update(dt);
-		// L'altitude au-dessus du sol, pour le plafond. Prise par rapport au
-		// spawn plutôt que par un raycast : la base des nuages est à des
-		// centaines de mètres, le relief local est du bruit devant, et le
-		// raycast de plus bas dans cette frame n'a pas encore eu lieu.
-		const altitudeAGL = physics.position.y - spawnY;
-		skyDome.setState({
-			cover: cloud.cover, base: cloud.base, altitudeAGL,
-			windDir: physics.wind.direction, windSpeed: physics.wind.speed,
-			rainScale: rain.fogScale, fogMix: fog.skyMix,
-		});
-		// Les extinctions s'additionnent, donc les densités s'additionnent. Le
-		// plafond est le troisième terme, après l'air et la pluie : entrer dans
-		// un nuage EST un voile uniforme, il n'y a pas de gradient à voir depuis
-		// l'intérieur, donc le piloter par l'altitude de la caméra plutôt que
-		// par fragment est juste ici — et gratuit, puisque ce terme est déjà
-		// poussé une fois par frame.
-		const density = fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(altitudeAGL);
-		// La couleur que le dôme peint réellement cette frame : c'est elle que
-		// les tuiles doivent rejoindre, et pas une autre.
-		const sky = skyDome.horizon;
-		const skyHex = sky.getHex();
-		if (density !== lastDensity || skyHex !== lastSkyHex) {
-			lastDensity = density;
-			lastSkyHex = skyHex;
-			setFog(sky, density);
-			// Mutated, not replaced: lens.js reads this very object every frame.
-			scene.background.set(sky);
-			// The streaks are lit by the sky too, and used to keep the clear-sky
-			// colour whatever the weather did.
-			rainfall?.setSky(scene.background);
-		}
-		// Même motif que le fondu : on ne retouche pas chaque matériau de chunk
-		// à chaque frame pour une valeur qui bouge sur des minutes.
-		if (cloud.dim !== lastDim) {
-			lastDim = cloud.dim;
-			setDim(cloud.dim);
-		}
+if (!frozen) {
+	rain.update(physics.airspeed, dt);
+	fog.update(dt);
+	cloud.update(dt);
+
+	// Altitude au-dessus du sol, utilisée pour le plafond nuageux.
+	// On la prend par rapport au spawn plutôt que via un raycast :
+	// le relief local est négligeable devant l'altitude de la base des nuages,
+	// et le raycast plus bas dans cette frame n'a pas encore eu lieu.
+	const float altitudeAGL = physics.position.y - spawnY;
+
+	skyDome.setState({
+		cover: cloud.cover,
+		base: cloud.base,
+		altitudeAGL,
+		windDir: physics.wind.direction,
+		windSpeed: physics.wind.speed,
+		rainScale: rain.fogScale,
+		fogMix: fog.skyMix,
+	});
+
+	// Les extinctions s'additionnent :
+	// - brouillard
+	// - pluie
+	// - plafond nuageux
+	//
+	// Entrer dans un nuage produit ici un voile uniforme piloté par
+	// l'altitude de la caméra, plutôt qu'un calcul par fragment.
+	const density =
+		fog.density +
+		extinctionOf(rain.visibility) +
+		cloud.extinctionAt(altitudeAGL);
+
+	// Couleur réellement produite par le dôme cette frame.
+	const sky = skyDome.horizon;
+	const skyHex = sky.getHex();
+
+	// Le soleil avance avec l'horloge de la frame, comme la pluie et
+	// le brouillard. Rien de ce calcul ne redescend dans le modèle de vol.
+	if (sun) {
+		// Le soleil est-il masqué par un bâtiment ?
+		// Un seul rayon suffit ici : la sonde de vent effectue déjà
+		// plusieurs tests à ~20,8 Hz.
+		const sp = physics.position;
+		const far = 2000;
+
+		const blocked = physics.obstructionBetween(
+			sp.x,
+			sp.y,
+			sp.z,
+			sp.x + sun.dir.x * far,
+			sp.y + sun.dir.y * far,
+			sp.z + sun.dir.z * far,
+		).blocked ? 1 : 0;
+
+		// Lissage pour éviter le clignotement lorsque le rayon frôle
+		// l'arête d'un bâtiment.
+		sunVisible +=
+			((1 - blocked) - sunVisible) *
+			(1 - Math.exp(-dt / 0.08));
+
+		// Direction du soleil dans l'espace caméra.
+		_sunWorld.set(
+			sun.dir.x,
+			sun.dir.y,
+			sun.dir.z,
+		);
+
+		const axis = _camDir
+			.set(0, 0, -1)
+			.applyQuaternion(camera.quaternion);
+
+		const cosAngle = axis.dot(_sunWorld);
+
+		// Fraction de présence du soleil dans le champ de vision.
+		const halfFov =
+			(camera.fov * Math.PI / 180) / 2;
+
+		const cosHalfFov = Math.cos(halfFov);
+
+		const inFrame = Math.max(
+			0,
+			(cosAngle - cosHalfFov) /
+			(1 - cosHalfFov),
+		);
+
+		sunInFrame = inFrame * sunVisible;
+
+		sun.update(dt, { sunInFrame });
+	}
+
+	if (density !== lastDensity || skyHex !== lastSkyHex) {
+		lastDensity = density;
+		lastSkyHex = skyHex;
+
+		setFog(sky, density);
+
+		// Muté, pas remplacé : lens.js lit cet objet à chaque frame.
+		scene.background.set(sky);
+
+		// Les streaks sont eux aussi éclairés par le ciel.
+		rainfall?.setSky(scene.background);
+	}
+
+	// Même principe que pour le fondu : on ne retouche pas tous les
+	// matériaux de chunk à chaque frame pour une valeur qui évolue
+	// sur plusieurs minutes.
+	if (cloud.dim !== lastDim) {
+		lastDim = cloud.dim;
+		setDim(cloud.dim);
+	}
+}
 		// Light the air scatters into the barrel rather than onto the subject.
 		// Zero compiles it out of the lens shader entirely.
 		lens.setGlare(fog.glare);
+		// Et la lumière qui vient d'une direction plutôt que de partout. La
+		// projection est faite ici parce que main.js est le seul à connaître la
+		// caméra ; lens.js ne reçoit que des nombres, comme pour setGlare().
+		if (sun) {
+			_sunView.copy(_sunWorld).applyQuaternion(_camInv.copy(camera.quaternion).invert());
+			// Espace carré de la passe : x est étiré par l'aspect, exactement
+			// comme `base` dans le shader.
+			// L'espace `base` du shader, et pas un espace écran inventé ici.
+			// lens.js:226-227 le définit : base.x = ndc.x · uAspect et
+			// dir = (base.xy · uTanHalf, −1), avec uTanHalf = tan(fovY/2)
+			// (lens.js:761). Donc base = (v.x/−v.z, v.y/−v.z) / tan(fovY/2) —
+			// SANS facteur 0,5 et SANS multiplier une seconde fois par l'aspect,
+			// qui est déjà porté par l'amplitude de base.x. La caméra regarde
+			// vers −Z, d'où le signe.
+			const front = _sunView.z < 0;
+			const tanHalf = Math.tan(camera.fov * Math.PI / 360);
+			const invZ = 1 / Math.max(1e-4, -_sunView.z);
+			lens.setSun({
+				x: (_sunView.x * invZ) / tanHalf,
+				y: (_sunView.y * invZ) / tanHalf,
+				front,
+				color: _sunColor.setRGB(sun.sunColor.r, sun.sunColor.g, sun.sunColor.b),
+				amount: sun.sunAmount * sunVisible,
+				exposure: sun.exposure,
+			});
+		}
 	}
 	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain

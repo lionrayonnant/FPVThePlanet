@@ -472,6 +472,11 @@ export function toSimParams(day) {
 		rain: { intensity: rainIntensity, variability: rainVariability(d) },
 		fog: { intensity: fogIntensity, variability: fogVariability },
 		cloud: { cover, variability: cloudVariability },
+		// Le soleil (#23) prend la couverture telle quelle, et la MÊME visibilité
+		// hors pluie que fog.js : c'est l'extinction de l'air, et l'averse a déjà
+		// la sienne. Lui passer la visibilité totale ferait compter deux fois la
+		// même pluie — une fois dans le brouillard, une fois sur le disque.
+		sun: { cloudPct: d.cloudPct, visibilityM: airVis },
 	};
 }
 
