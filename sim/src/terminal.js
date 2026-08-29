@@ -5,6 +5,7 @@
 import * as operatorApi from './operator.js';
 import { captureControlVector, bootstrap } from './bootstrap.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
+import { worldWeather, formatForecast, headline, today as weatherToday } from './weather.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -81,6 +82,26 @@ async function globalScanner(root) {
 	}
 }
 
+// ---------- FORECAST ----------
+
+// La prévision 7 jours d'une zone (PHASE 04, Bible §5). Rien à régler ici :
+// c'est un bulletin, pas un panneau. La météo appartient au monde.
+async function forecastScreen(root, scene) {
+	const s = screen(root);
+	s.box.innerHTML = `<pre>FORECAST // ${scene.name.toUpperCase()}\n\nQUERYING WORLD STATE…</pre>`;
+	const back = new Promise((resolve) => {
+		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+	});
+	const snapshot = await worldWeather({ lat: scene.lat, lon: scene.lon });
+	// L'écran peut avoir été fermé pendant la requête.
+	if (s.el.isConnected) {
+		s.box.querySelector('pre').textContent = snapshot
+			? formatForecast(snapshot, { title: `FORECAST // ${scene.name}` })
+			: `FORECAST // ${scene.name.toUpperCase()}\n\nNO COORDINATES FOR THIS AREA`;
+	}
+	return back;
+}
+
 // ---------- LOCAL TERRAIN ----------
 
 // Résout un slug (→ vol) ou undefined (→ retour au terminal).
@@ -109,7 +130,20 @@ function localTerrain(root, scenes) {
 			const size = document.createElement('span');
 			size.className = 'terminal-area-size';
 			size.textContent = formatBytes(sc.bytes);
-			row.append(name, size, button('OPEN', () => { s.remove(); resolve(sc.slug); }, 'terminal-cta'));
+			// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit
+			// quand le world state répond, et reste vide s'il ne répond pas.
+			const sky = document.createElement('span');
+			sky.className = 'terminal-area-weather';
+			sky.textContent = '…';
+			worldWeather({ lat: sc.lat, lon: sc.lon })
+				.then((snap) => {
+					const t = snap && weatherToday(snap);
+					sky.textContent = t ? headline(t) : '';
+				})
+				.catch(() => { sky.textContent = ''; });
+			row.append(name, size, sky,
+				button('FORECAST', () => forecastScreen(root, sc)),
+				button('OPEN', () => { s.remove(); resolve(sc.slug); }, 'terminal-cta'));
 			list.appendChild(row);
 		}
 		s.box.appendChild(list);

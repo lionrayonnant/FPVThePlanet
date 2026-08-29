@@ -171,6 +171,16 @@ export function rangeFor(intensity, baseFogDensity = 0.00085) {
 	return base / Math.pow(base / RANGE_MIN, i);
 }
 
+// The slider position that a visibility in metres corresponds to — the exact
+// inverse of rangeFor(). The world state needs this direction: a forecast
+// speaks in metres of visibility, and fog.js takes a 0..1 intensity. Anything
+// clearer than the scene's clear air is 0, anything thicker than RANGE_MIN is 1.
+export function intensityForRange(rangeM, baseFogDensity = 0.00085) {
+	const base = fogRange(baseFogDensity);
+	if (!(rangeM > 0) || rangeM >= base) return 0;
+	return clamp01(Math.log(base / rangeM) / Math.log(base / RANGE_MIN));
+}
+
 // The extinction a visibility in metres contributes to the tile shader, in the
 // shader's own units. Infinity gives exactly zero, which is what lets main.js
 // add the rain term unconditionally.

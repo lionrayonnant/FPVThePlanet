@@ -210,7 +210,10 @@ canvas { display: block; }
 .terminal-areas { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
 .terminal-area { display: flex; align-items: baseline; gap: 14px; }
 .terminal-area > span:first-child { min-width: 180px; }
-.terminal-area-size { opacity: .55; font-size: 12px; flex: 1; }
+.terminal-area-size { opacity: .55; font-size: 12px; }
+/* Le temps qu'il fait sur la zone. Discret : c'est une information du monde,
+   pas une commande — rien ici n'est cliquable. */
+.terminal-area-weather { opacity: .7; font-size: 12px; flex: 1; letter-spacing: .06em; }
 .terminal-area button { margin: 0; }
 
 /* ---------- global scanner (PHASE 03) ---------- */

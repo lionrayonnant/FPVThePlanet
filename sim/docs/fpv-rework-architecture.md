@@ -139,12 +139,20 @@ Ces quatre modèles sont purs (pas de THREE, pas de DOM, pas de Rapier) et
 testables headless. **Ils ne sont pas réimplémentés : le world state écrit leurs
 paramètres au lieu des sliders.**
 
+Pour la météo c'est fait (PHASE 4). L'unique point de contact est
+`toSimParams()` dans `tools/lib/weather.mjs` : un bulletin (m/s, mm/h, mètres de
+visibilité) y devient les entrées de `wind.js` / `rain.js` / `fog.js`, en
+important leurs propres constantes (`MAX_RATE`, `rainVisibility`,
+`intensityForRange`) plutôt qu'en recopiant leurs relations. `src/weather.js`
+pose le résultat, `tools/weather-source.mjs` interroge Open-Meteo et snapshote
+par zone et par jour dans `worldState.weather`.
+
 | Fichier | Ce qu'il modélise | Piloté aujourd'hui par | Demain |
 |---|---|---|---|
-| `src/wind.js` | moyenne, wander, rafales, turbulence, couche limite, abri, canalisation | slider `Météo — vent` | snapshot météo de la zone |
-| `src/rain.js` | mm/h, taille de goutte, visibilité, eau sur la lentille, dérive des billes | slider `Météo — pluie` | snapshot météo |
+| `src/wind.js` | moyenne, wander, rafales, turbulence, couche limite, abri, canalisation | ~~slider `Météo — vent`~~ → snapshot météo de la zone **(fait, PHASE 4)** | — |
+| `src/rain.js` | mm/h, taille de goutte, visibilité, eau sur la lentille, dérive des billes | ~~slider `Météo — pluie`~~ → snapshot météo **(fait, PHASE 4)** | — |
 | `src/rainfall.js` | les stries visibles, dans la scène (donc dans le pipeline lentille) | — | idem |
-| `src/fog.js` | portée visuelle, voile, couleur de l'air | slider `Météo — brouillard` | snapshot météo |
+| `src/fog.js` | portée visuelle, voile, couleur de l'air | ~~slider `Météo — brouillard`~~ → snapshot météo **(fait, PHASE 4)** | — |
 | `src/link.js` | bilan de liaison 5,8 GHz en dB, RSSI, qualité | slider `Lien vidéo` | qualité du link de la cible (PHASE 7/8) |
 | `src/lens.js` | barillet, aberration, vignettage, flou de rotation, dégradation analogique/numérique | sliders `Objectif` | propriétés caméra de la cible |
 
@@ -159,7 +167,7 @@ plutôt que d'en construire un second.
 | Menu « Choisir une carte » | `Hud.showMenu()` dans `src/hud.js` | **remplacé** par l'Operator Terminal (PHASE 2) |
 | Écran de chargement (étapes + horloge) | `src/hud.js` + `stage()` dans `src/main.js` | **conservé** dans l'esprit — il doit passer **derrière** le TARGET SCAN (PHASE 13) |
 | HUD de vol (alt, spd, mode, batterie, RSSI, vent) | `src/hud.js` | **scindé** en OSD drone / OSD FPVTP! (PHASE 12) |
-| Panneau de réglages (Tab) | `src/hud.js` | **réduit** : manette, souris, audio, accessibilité, vidéo/perf, opérateur. Les six blocs météo/link disparaissent (PHASE 4) |
+| Panneau de réglages (Tab) | `src/settings.js` (scindé en PHASE 2) | **réduit** : les six blocs météo ont disparu (PHASE 4) ; restent manette, caméra, objectif, lien vidéo, son. Le bloc lien reste à sortir |
 | `?scene=<slug>` | `src/main.js` (`OPTS.scene`) | **conservé** comme raccourci de dev |
 | `window.__sim` | `src/main.js` | **conservé et étendu** — c'est ce qui rend le jeu auditable depuis la console |
 

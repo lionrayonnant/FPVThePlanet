@@ -37,6 +37,7 @@ npm install          # si node_modules absent
 npm run dev           # http://localhost:5173 — terminal opérateur (PHASE 02), puis vol
                       #   ?scene=<slug> saute le terminal (dev)
 npm run selftest      # 15 vérifications sans navigateur (scène tour-eiffel par défaut)
+npm run selftest:operator  # état opérateur, terminal, météo du monde — pur, sans réseau
 ```
 
 Deux cartes prêtes à l'emploi dans `public/scenes/` (gitignored, ~900 Mo à
@@ -66,6 +67,20 @@ Plan d'origine (contexte de la décision d'architecture) :
   `ACQUIRE AREA` (pipeline complet, 100 tuiles, 9 Mo sur disque), puis `[ FLY ]`
   qui charge la carte fraîchement acquise (3 draw calls, 118 011 triangles,
   100 fps). La carte d'essai a été supprimée après coup.
+- **PHASE 04 — monde persistant / météo** (issue #41), vérifié en headless
+  (chromium isolé + CDP, le profil du MCP étant pris par une autre session) :
+  - `npm run selftest` reste vert (« all checks passed »), `selftest:operator`
+    passe 30 tests météo + les précédents ;
+  - vraie acquisition Open-Meteo sur Tokyo et Paris, snapshotée dans
+    `worldState.weather[zone]` ; le second appel sur la même zone le même jour
+    relit le fichier sans toucher au réseau (même `fetchedAt`) ;
+  - le panneau `Tab` ne contient plus que manette / caméra / objectif / lien
+    vidéo / son — aucun contrôle météo, aucune clé `fpvmaps.wind*|rain|fog` ;
+  - vol sur `?scene=triomphe` : `__sim.debug().world` rend
+    `{zone 48.87,2.30, open-meteo, LIGHT RAIN, confiance 0,96}`, le vent à 10 m
+    vaut 6,85 m/s et la pluie 0,66 mm/h, la visibilité passe de 2035 m à 1883 m ;
+  - repli hors ligne : `worldWeather()` rend un bulletin `procedural`
+    déterministe, identique entre deux instances du module.
 - Captures MCP chrome-devtools au ras du sol (piste d'athlétisme du stade Émile
   Anthoine, Champ-de-Mars, façades) : textures à l'endroit, lisibles, aucune
   plaque grise. `take_screenshot` du MCP capture bien le canvas WebGL, contrairement
@@ -84,6 +99,14 @@ Plan d'origine (contexte de la décision d'architecture) :
   construction du code, pas en vol piloté.
 - L'état opérateur (`/__operator`) n'existe que sous le serveur de dev ; exposer
   ce serveur (p. ex. via `vite.ngrok.config.js`) expose aussi l'état opérateur.
+- **Météo : ressenti en vol jamais éprouvé.** La chaîne est vérifiée bout en
+  bout, mais personne n'a encore volé un jour de vent fort ou de brouillard réel
+  pour dire si les valeurs qu'Open-Meteo renvoie donnent une expérience juste.
+  C'est un arbitrage de ressenti, pas un bug — il se règle dans
+  `toSimParams()` (`tools/lib/weather.mjs`), un seul endroit.
+- Le bloc **Lien vidéo** est resté dans le panneau `Tab`. La Bible §31 le range
+  avec la météo du côté du monde, mais l'issue #41 ne le demande pas : à sortir
+  dans une phase ultérieure.
 
 ## Le seul arbitrage restant : la résolution
 
@@ -111,5 +134,8 @@ réellement en vol.
 - `window.__sim` dans la console navigateur : `.debug()`, `.teleport(x,y,z)`,
   `.lookAt(x,y,z)`, `.timeline`, `.physics`, `.controller`, `.input`, `.audio`,
   `.setWeather({speed, direction, gust, turbulence})`,
-  `.setRain({intensity, variability})` (0..1 chacun ; intensité 1 = 25 mm/h).
+  `.setRain({intensity, variability})` (0..1 chacun ; intensité 1 = 25 mm/h),
+  `.setFog({intensity, variability})`, `.weather()` (le snapshot du monde).
+  Depuis PHASE 04 ce sont les **seuls** moyens de changer le temps qu'il fait :
+  les curseurs ont disparu, le monde décide.
 

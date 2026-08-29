@@ -8,7 +8,7 @@ lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
 npm install
 npm run dev       # http://localhost:5173 — terminal opérateur, puis vol
 npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
-npm run selftest:operator  # état opérateur, modèle du terminal, modèle du scanner
+npm run selftest:operator  # état opérateur, terminal, scanner, météo du monde
 ```
 
 ## Sommaire
@@ -320,12 +320,15 @@ src/input.js            Gamepad + clavier/souris
 src/fog.js              modèle de visibilité : densité, respiration, voile, couleur de l'air
 src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou, voile)
 src/hud.js              OSD de vol + écran de chargement
-src/settings.js         panneau de réglages (Tab) : manette, caméra, objectif, lien, météo, son
-src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, CONTROL VECTOR, souches
+src/settings.js         panneau de réglages (Tab) : manette, caméra, objectif, lien, son
+src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, FORECAST, CONTROL VECTOR, souches
 src/scanner.js          GLOBAL SCANNER : Leaflet + Geoman, recherche, zone, sonde, acquisition
+src/weather.js          la météo du monde côté client : lit le snapshot, écrit vent/pluie/brouillard
 tools/terminal-model.mjs logique pure du terminal (formatBytes, footer) — testée par selftest:operator
 tools/scanner-model.mjs logique pure du scanner (analyse de zone, densité de signal, couverture)
 tools/lib/tiles.mjs     géométrie des tuiles Flyover, partagée navigateur/Node (portage du Go)
+tools/lib/weather.mjs   modèle météo pur (zones, jours, régimes, garde-fous) — navigateur ET Node
+tools/weather-source.mjs acquisition Open-Meteo + cache par zone/jour dans le world state (serveur)
 ```
 
 **Physique : Rapier** (Rust/WASM). Corps rigide, collision trimesh **en pleine
@@ -438,27 +441,116 @@ suit la tension *par cellule sous charge*, pas l'état de charge, parce que
 c'est le chiffre au ratio duquel on pilote. Sous 3,6 V/cellule elle passe à
 l'orange, sous 3,4 V au rouge.
 
+### La météo du monde
+
+Depuis PHASE 04 (issue #41), le temps qu'il fait n'est **pas un réglage**. Il n'y
+a plus de curseur vent / pluie / brouillard dans le panneau `Tab` : la météo
+appartient au monde et à la session, et chaque zone a sa propre évolution sur
+sept jours glissants.
+
+```
+tools/lib/weather.mjs    le modèle pur — zones, jours, régimes, garde-fous,
+                         traduction vers wind.js / rain.js / fog.js
+tools/weather-source.mjs Open-Meteo + cache par (zone, jour) dans le world state
+src/weather.js           le client : demande le snapshot, écrit les paramètres
+```
+
+**Une zone, un jour, un bulletin.** La clé de zone est la lat/lon arrondie à
+0,01° (~1,1 km) : deux emprises dessinées sur le même quartier partagent leur
+météo, deux villes jamais. Le bulletin du jour est écrit dans
+`worldState.weather[zone]` de l'opérateur, sur disque. **Relancer une
+acquisition ne rejoue donc aucun tirage** : le serveur relit le fichier, sans
+même toucher au réseau.
+
+**La source est une vraie API.** Open-Meteo, gratuite, sans clé — l'URL ne
+contient que la latitude et la longitude, il n'y a aucun secret à committer. On
+lui demande `weather_code`, `precipitation_sum`, `precipitation_hours`, les
+vents max et les rafales en daily, plus `visibility` et `cloud_cover` en hourly,
+qu'on moyenne par jour. Le cumul quotidien divisé par le nombre d'heures de
+pluie donne le **débit** en mm/h, qui est ce que `rain.js` attend — un cumul de
+24 mm sur la journée n'est pas 24 mm/h.
+
+**Trois replis, dans cet ordre**, tous testés par `tools/weather-selftest.mjs` :
+
+1. le snapshot du jour déjà en world state — relu, jamais retiré au sort ;
+2. Open-Meteo ;
+3. le dernier snapshot connu, re-daté, annoncé `stale` et avec une confiance
+   abaissée ;
+4. une génération procédurale déterministe sur `(zone, jour)`.
+
+Le procédural n'est pas du bruit lissé au hasard. Trois uniformes voisines dans
+le temps donnent une quasi-normale ; on repasse par sa fonction de répartition
+pour retrouver une **vraie** uniforme, faute de quoi 7 % des jours se collent
+sur la borne et Tokyo prend une tempête par semaine. Les lois sont ensuite
+calées sur leurs fréquences réelles :
+
+| grandeur | loi | résultat mesuré sur 14 400 jours-zones |
+| --- | --- | --- |
+| vent quotidien max | Weibull de forme 2 (Rayleigh), échelle 3,5 à 9 selon la zone | médiane 5,7 m/s, p90 10,9, p99 15,0 |
+| pluie | seuil + cumul exponentiel, étalé sur un nombre d'heures tiré à part | ~30 % de jours pluvieux |
+| brouillard | seuil rare, 2 à 18 % des jours selon la zone | FOG 2,5 %, MIST 2,9 % |
+| coups de vent | conséquence des deux premiers | GALE + STORM 0,7 % |
+
+La continuité temporelle vient de l'indexation sur le **jour absolu** : chaque
+jour dépend de ses deux voisins, donc le « +1 » d'aujourd'hui est exactement le
+« TODAY » de demain, et la prévision ne se dément jamais le lendemain.
+
+**Les garde-fous** (`sanitize()`) tournent avant toute classification, sur les
+données de l'API comme sur celles du générateur, parce que les deux produisent
+des combinaisons que l'atmosphère ne produit pas : une rafale plus faible que le
+vent moyen, ou trois fois plus forte ; de la purée de pois sous une tempête (au
+delà de 8 m/s le brassage mécanique décolle le brouillard en stratus) ; de la
+pluie sous un ciel bleu ; une visibilité de 30 km sous 25 mm/h, alors que
+`rain.js` n'en laisse que 1,7. La visibilité annoncée ne peut jamais contredire
+le moteur qui va la rendre.
+
+**La prévision** s'affiche depuis `LOCAL TERRAIN` → `FORECAST` :
+
+```
+FORECAST // TOUR EIFFEL
+
+2026-08-29 · OPEN-METEO
+
+TODAY  LIGHT RAIN / MODERATE WIND
++1     CLOUD / MODERATE WIND
+...
++6     CLOUD / LOW WIND
+
+WIND   7.1 m/s  G 15.1  SSW
+VIS    26 km
+RAIN   0.6 mm/h
+FOG    NONE
+
+CONFIDENCE ███████████░
+```
+
+L'ordre des conditions n'est pas fixe et diffère d'une zone à l'autre. La
+confiance décroît avec l'échéance et part de plus bas quand la source est un
+repli : une prévision inventée ne s'annonce pas aussi sûre qu'un relevé, et la
+barre n'est jamais pleine.
+
+**Pour le debug**, `window.__sim.setWeather / setRain / setFog` restent
+ouverts et sont désormais le seul moyen de forcer le temps qu'il fait ;
+`window.__sim.weather()` rend le snapshot en cours. `tools/selftest.mjs` suppose
+un monde neutre et n'a pas changé.
+
 ### Le vent
 
-`src/wind.js` — un champ de vent, pas un vecteur. Quatre réglages dans le
-panneau `Tab`, section **Météo — vent**, plus quatre préréglages calés sur
-l'échelle de Beaufort :
+`src/wind.js` — un champ de vent, pas un vecteur. Quatre entrées, écrites par
+le monde et non par un curseur (voir « La météo du monde ») :
 
-| réglage | par défaut | ce qu'il fait |
+| entrée | unité | ce que c'est |
 | --- | --- | --- |
-| Vent | 0 m/s | vitesse **à 10 m**, la hauteur à laquelle une station météo mesure — pas la vitesse au drone |
-| Direction | tirée une fois | secteur d'**où vient** le vent, convention météo. Le bouton `↻` retire au sort |
-| Rafales | 0 % | un curseur pour trois propriétés — intensité, durée, fréquence — voir plus bas |
-| Turbulences | 100 % | multiplicateur sur l'intensité que le profil implique déjà, pas l'intensité elle-même |
+| `speed` | m/s | vitesse **à 10 m**, la hauteur à laquelle une station météo mesure — pas la vitesse au drone |
+| `direction` | ° | secteur d'**où vient** le vent, convention météo |
+| `gust` | 0..1 | un nombre pour trois propriétés — intensité, durée, fréquence — voir plus bas |
+| `turbulence` | 0..2 | multiplicateur sur l'intensité que le profil implique déjà, pas l'intensité elle-même |
 
-Par défaut le vent est nul, et pas par timidité : trois vérifications de
-`tools/selftest.mjs` (tenue d'altitude au stationnaire, vitesse terminale à
-plat, immobilité au sol) n'ont de sens qu'en air calme, et un simulateur qui
-pousse le drone de côté avant qu'on ait touché un curseur a l'air cassé. La
-direction, elle, est tirée au sort **une fois** puis conservée : le hasard est
-là pour qu'on n'ait pas toujours le même vent arrière dans la même rue, ce qui
-est une raison de varier d'un pilote à l'autre, pas d'un rechargement au
-suivant.
+Ces quatre valeurs se règlent encore à la main depuis la console
+(`window.__sim.setWeather({...})`), ce qui est l'accès de debug et le banc de
+mesure — pas un panneau caché. `tools/selftest.mjs` s'en sert pour tenir ses
+trois vérifications en air calme (tenue d'altitude au stationnaire, vitesse
+terminale à plat, immobilité au sol), qui n'ont de sens qu'à vent nul.
 
 **Quatre couches**, chacune dans sa bande de fréquence, parce qu'elles ont des
 causes différentes : le **moyen** (le gradient de pression), la **dérive** lente
@@ -518,13 +610,13 @@ vent, et pour la même raison : la moitié modèle n'importe ni THREE ni le DOM,
 qui la rend vérifiable dans `tools/selftest.mjs`. Trois choses en sortent : les
 stries dans l'air, la baisse de visibilité, et les gouttes sur la lentille.
 
-Le curseur va de 0 à 25 mm/h, parce que toutes les relations utilisées sont
-publiées dans cette unité. Le diamètre médian suit Laws & Parsons
+L'intensité va de 0 à 25 mm/h (`MAX_RATE`), parce que toutes les relations
+utilisées sont publiées dans cette unité. Le diamètre médian suit Laws & Parsons
 (`D = 0,89 R^0,21` mm), la vitesse de chute Atlas & Ulbrich
 (`v = 3,78 D^0,67` m/s) et la concentration se déduit du contenu en eau liquide
 de Marshall-Palmer. À 5 mm/h cela donne 1,25 mm tombant à 4,4 m/s, 340 gouttes
 par mètre cube — ce qui est la bonne réponse, et ce qui rend l'intensité lisible
-en mm/h dans le panneau plutôt qu'en pourcents.
+en mm/h dans la prévision plutôt qu'en pourcents.
 
 L'intensité **respire** : le taux de pluie est lognormal, avec la correction
 `exp(-k²/2)` qui garantit que monter la variabilité fait aller et venir l'averse
@@ -615,7 +707,7 @@ shader de tuile fait l'extinction, `loader.setFog()` la pose sur les N matériau
 de chunk, `src/lens.js` dessine le voile.
 
 L'unité est une **distance**, parce que c'est celle dans laquelle un pilote
-pense : le panneau affiche « 500 m », pas « 33 % ». La densité exp² que
+pense : la prévision affiche « 500 m », pas « 33 % ». La densité exp² que
 `TileMaterial.js` attend s'en déduit par `fogRange()` / `fogDensity()`
 (`src/rain.js`), jamais l'inverse. La correspondance est **géométrique** entre
 l'air clair de la scène et 30 m :
@@ -626,9 +718,10 @@ R(i) = R0 · (30 / R0)^i          R0 = fogRange(0,00085) ≈ 2035 m
 
 C'est la seule échelle sur laquelle « un peu plus de brouillard » veut dire la
 même chose à 2 km et à 50 m, et elle rend `i = 0` **exactement** la densité que
-la scène chargeait déjà. Les présets sont résolus à l'envers depuis les classes
-de visibilité de l'OMM — brume 1200 m, brouillard 500 m, purée de pois 50 m —
-et ne tombent donc pas sur des positions rondes du curseur.
+la scène chargeait déjà. `intensityForRange()` est l'inverse exact, et c'est par
+là que la météo du monde entre : elle parle en mètres de visibilité, `fog.js`
+prend une intensité. Les présets restent résolus à l'envers depuis les classes
+de visibilité de l'OMM — brume 1200 m, brouillard 500 m, purée de pois 50 m.
 
 Comme la pluie, le brouillard **respire** : deux bandes d'Ornstein-Uhlenbeck de
 120 s et 25 s (un banc de brouillard bouge en minutes, pas en secondes) et la
