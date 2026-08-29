@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
+import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadLens, loadLink } from './settings.js';
@@ -16,7 +17,6 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
-import * as session from './session.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -52,7 +52,15 @@ export const OPTS = {
 	maxChunks: params.has('chunks') ? Number(params.get('chunks')) : Infinity,
 	skipCollision: params.get('collision') === '0',
 	scene: params.get('scene'),
+	// Dev-only until PHASE 08 wires target selection: ?family=race5 flies that
+	// drone family instead of the default 5" freestyle. One of:
+	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
+	family: params.get('family'),
 };
+if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
+	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
+}
+const PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
@@ -68,7 +76,7 @@ document.body.appendChild(renderer.domElement);
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'));
 const settings = new Settings(document.getElementById('ui'), input);
-const controller = new FlightController();
+const controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
@@ -171,8 +179,9 @@ async function boot() {
 	hud.progress('construction de l’arbre de collision…', 0.76);
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
-	physics = new Physics(collision, manifest.spawn);
+	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
 	audio.setProfile(physics.profile);
+	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -333,6 +342,7 @@ async function boot() {
 					roughness: +physics.wind.roughness.toFixed(2),
 					intensity: +physics.wind.intensity.toFixed(3),
 				},
+				family: physics.profile.family,
 				mode: controller.mode,
 				preset: controller.preset,
 				motors: [...controller.motors].map((m) => +m.toFixed(3)),
