@@ -72,6 +72,7 @@ export class Physics {
 		);
 		this.events = new RAPIER.EventQueue(true);
 
+		this._seed = options.seed;
 		this.propulsion = new Propulsion({ profile: this.profile, seed: options.seed });
 		this.wind = new WindField(options.windSeed);
 		if (options.weather) this.wind.setParams(options.weather);
@@ -110,6 +111,19 @@ export class Physics {
 		// step() between the ground query and the world step.
 		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 		this._obstruction = { blocked: false, span: 0 };
+	}
+
+	// Swap the airframe family without rebuilding the trimesh world — the wasm
+	// heap only has room for one. Used by tools/selftest.mjs to run the flight
+	// checks across every family. The collider stays a 0.15 m sphere.
+	setProfile(profile) {
+		this.profile = profile;
+		this.propulsion = new Propulsion({ profile, seed: this._seed });
+		this.body.setAdditionalMassProperties(
+			profile.mass, ZERO,
+			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },
+			IDENTITY, true,
+		);
 	}
 
 	reset() {

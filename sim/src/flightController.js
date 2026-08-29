@@ -60,7 +60,7 @@ export const RATE_PRESETS = {
 		label: 'micro',
 		roll:  { centre: 120, max: 420, expo: 0.50 },
 		pitch: { centre: 120, max: 420, expo: 0.50 },
-		yaw:   { centre: 110, max: 300, expo: 0.45 },
+		yaw:   { centre: 90, max: 240, expo: 0.45 },
 	},
 };
 
@@ -235,11 +235,16 @@ export class FlightController {
 		this.preset = opts.preset ?? this.profile.rates ?? 'freestyle';
 		this.holdAltitude = null;
 		this.gains = buildGains(this.profile);
+		// filterScale only touches roll and pitch. Those loops are gyro-noise /
+		// filter-delay limited, and a fast micro airframe needs them opened up.
+		// Yaw is limited by how fast the motors can spin up and down to unbalance
+		// prop-drag torque — opening its filters just lets the loop outrun the
+		// motors and hunt, so yaw keeps the reference chain on every family.
 		const fs = this.profile.filterScale ?? 1;
 		this.pid = {
 			roll: new AxisPid(this.gains.roll, fs),
 			pitch: new AxisPid(this.gains.pitch, fs),
-			yaw: new AxisPid(this.gains.yaw, fs),
+			yaw: new AxisPid(this.gains.yaw, 1),
 		};
 		this._mix = mixOf(this.profile);
 		this.motors = [0, 0, 0, 0];

@@ -222,7 +222,7 @@ export const PROFILES = {
 		// The rate loop's filter chain is a 5" assumption; a whoop's rotational
 		// dynamics are several times faster, so its filters run several times
 		// higher, exactly as a real micro build's do.
-		filterScale: 2.8,
+		filterScale: 2.2,
 		mass: 0.034,
 		radius: 0.15,
 		armX: 0.026,
@@ -231,7 +231,7 @@ export const PROFILES = {
 		// and roll inertia are within a couple of percent. Yaw is a little under
 		// twice that — the motors and ducts are the mass and they all sit in the
 		// disc plane.
-		inertia: { x: 1.72e-5, y: 3.4e-5, z: 1.70e-5 },
+		inertia: { x: 1.72e-5, y: 4.0e-5, z: 1.70e-5 },
 		propRadius: 0.0200,
 		propInertia: 3.0e-8,
 		bladeCount: 3,
@@ -240,16 +240,16 @@ export const PROFILES = {
 		rpmCurve: 0.60,
 		tauSpinUp: 0.016,
 		tauSpinDown: 0.034,
-		torqueRatio: 0.021,         // 40 mm whoop props are steep, lots of yaw bite
+		torqueRatio: 0.019,         // tiny 40 mm props are lightly loaded: soft yaw
 		kAxial: 3.5e-5,
 		kLateral: 6.0e-5,
 		bodyDrag: { x: 0.0006, y: 0.0011, z: 0.0006 },
 		battery: { cells: 1, capacityMah: 300, internalOhm: 0.080, maxCurrent: 9 },
 		pid: {
-			roll:  { p: 0.26, d: 1.90e-3 },
-			pitch: { p: 0.26, d: 1.90e-3 },
+			roll:  { p: 0.32, d: 1.90e-3 },
+			pitch: { p: 0.32, d: 1.90e-3 },
 			yaw:   { p: 0.32, d: 0 },
-			torquePerMix: { roll: 0.020, pitch: 0.020, yaw: 0.016 },
+			torquePerMix: { roll: 0.020, pitch: 0.020, yaw: 0.014 },
 		},
 	},
 
@@ -264,7 +264,7 @@ export const PROFILES = {
 		family: 'toothpick',
 		label: 'TOOTHPICK',
 		rates: 'micro',
-		filterScale: 2.4,
+		filterScale: 2.0,
 		mass: 0.090,
 		radius: 0.15,
 		armX: 0.038,
@@ -272,7 +272,7 @@ export const PROFILES = {
 		// x within ~2% of z: see the microwhoop note — a wider pitch/roll split
 		// makes pitch the intermediate axis and a held high rate about it goes
 		// unstable on its own.
-		inertia: { x: 5.7e-5, y: 1.05e-4, z: 5.6e-5 },
+		inertia: { x: 5.7e-5, y: 1.3e-4, z: 5.6e-5 },
 		propRadius: 0.0318,
 		propInertia: 3.0e-7,
 		bladeCount: 2,
@@ -281,7 +281,7 @@ export const PROFILES = {
 		rpmCurve: 0.62,
 		tauSpinUp: 0.014,
 		tauSpinDown: 0.030,
-		torqueRatio: 0.018,
+		torqueRatio: 0.014,        // bi-blade 2.5" props: modest prop-drag torque, loose yaw
 		kAxial: 3.0e-5,
 		kLateral: 4.4e-5,
 		bodyDrag: { x: 0.0018, y: 0.0050, z: 0.0018 },
@@ -289,8 +289,8 @@ export const PROFILES = {
 		pid: {
 			roll:  { p: 0.15, d: 1.00e-3 },
 			pitch: { p: 0.15, d: 1.00e-3 },
-			yaw:   { p: 0.24, d: 0 },
-			torquePerMix: { roll: 0.099, pitch: 0.099, yaw: 0.047 },
+			yaw:   { p: 0.32, d: 5.00e-4 },
+			torquePerMix: { roll: 0.099, pitch: 0.099, yaw: 0.036 },
 		},
 	},
 };
