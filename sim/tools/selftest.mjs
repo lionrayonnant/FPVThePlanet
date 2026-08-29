@@ -16,6 +16,12 @@ import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
+import {
+	sunPosition, sunVector, refracted, airMass,
+	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX,
+} from '../src/sun.js';
+import { toSimParams as weatherToSimParams, sanitize as weatherSanitize } from './lib/weather.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1276,6 +1282,417 @@ console.log('\nentry state — sampleCandidate');
 		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
 
 	phys.reset();
+}
+
+console.log('\nsoleil — position');
+{
+	const R2D = 180 / Math.PI;
+	// L'obliquité de l'écliptique : ce qui rend les attentes ci-dessous
+	// analytiques et non des sorties du code recopiées.
+	const OBLIQUITY = 23.44;
+
+	// Balaye une journée UTC minute par minute et rend le maximum d'élévation.
+	// C'est le midi solaire, sans avoir à connaître le fuseau du lieu.
+	function noon(lat, lon, dayISO) {
+		let best = -Infinity, at = null;
+		for (let m = 0; m < 1440; m++) {
+			const d = new Date(`${dayISO}T00:00:00Z`);
+			d.setUTCMinutes(m);
+			const p = sunPosition({ lat, lon, date: d });
+			if (p.elevation > best) { best = p.elevation; at = d; }
+		}
+		return { elevationDeg: best * R2D, at };
+	}
+
+	const PARIS = { lat: 48.8566, lon: 2.3522 };
+	const TOKYO = { lat: 35.6762, lon: 139.6503 };
+	const SYDNEY = { lat: -33.8688, lon: 151.2093 };
+
+	// Au solstice, l'élévation méridienne vaut 90° − |latitude − déclinaison|,
+	// et la déclinaison vaut ±l'obliquité. Aucune table à consulter.
+	const cases = [
+		['Paris, solstice d\'été', PARIS, '2026-06-21', 90 - Math.abs(PARIS.lat - OBLIQUITY)],
+		['Paris, solstice d\'hiver', PARIS, '2026-12-21', 90 - Math.abs(PARIS.lat + OBLIQUITY)],
+		['Tokyo, solstice d\'été', TOKYO, '2026-06-21', 90 - Math.abs(TOKYO.lat - OBLIQUITY)],
+		['Sydney, solstice de décembre', SYDNEY, '2026-12-21', 90 - Math.abs(SYDNEY.lat + OBLIQUITY)],
+	];
+	for (const [label, place, day, expected] of cases) {
+		const n = noon(place.lat, place.lon, day);
+		check(`${label} : élévation méridienne`, Math.abs(n.elevationDeg - expected) < 0.3,
+			`${n.elevationDeg.toFixed(2)}° vs ${expected.toFixed(2)}°`);
+	}
+
+	// À l'équinoxe la déclinaison est nulle, donc l'élévation méridienne vaut
+	// 90° − latitude quelle que soit la longitude.
+	const eq = noon(PARIS.lat, PARIS.lon, '2026-03-20');
+	check('Paris, équinoxe : élévation méridienne = 90° − latitude',
+		Math.abs(eq.elevationDeg - (90 - PARIS.lat)) < 0.3,
+		`${eq.elevationDeg.toFixed(2)}° vs ${(90 - PARIS.lat).toFixed(2)}°`);
+
+	// LE piège de l'issue. Z est le SUD après prep.mjs : au midi solaire dans
+	// l'hémisphère nord le soleil est plein sud, donc z > 0 et x ≈ 0. Se
+	// tromper de signe ici mettrait silencieusement le soleil dans le mauvais
+	// demi-ciel, et rien d'autre ne l'attraperait.
+	{
+		const p = sunPosition({ lat: PARIS.lat, lon: PARIS.lon, date: eq.at });
+		const v = sunVector(p.azimuth, p.elevation);
+		check('convention d\'axes : midi solaire au nord ⇒ le soleil est au sud (z > 0)',
+			v.z > 0.5 && Math.abs(v.x) < 0.05, `z=${v.z.toFixed(3)} x=${v.x.toFixed(3)}`);
+		check('azimut au midi solaire ≈ 180° (plein sud)',
+			Math.abs(p.azimuth * R2D - 180) < 1, `${(p.azimuth * R2D).toFixed(2)}°`);
+		check('le vecteur solaire est unitaire',
+			Math.abs(Math.hypot(v.x, v.y, v.z) - 1) < 1e-9);
+	}
+	{
+		const n = noon(SYDNEY.lat, SYDNEY.lon, '2026-12-21');
+		const p = sunPosition({ lat: SYDNEY.lat, lon: SYDNEY.lon, date: n.at });
+		const v = sunVector(p.azimuth, p.elevation);
+		check('hémisphère sud : midi solaire ⇒ le soleil est au nord (z < 0)',
+			v.z < -0.05, `z=${v.z.toFixed(3)}`);
+	}
+
+	// Réfraction : elle relève le soleil, d'environ un demi-degré à l'horizon,
+	// et de presque rien au zénith.
+	check('la réfraction relève le soleil à l\'horizon d\'environ 0,5°',
+		refracted(0) - 0 > 0.4 && refracted(0) - 0 < 0.7, `${(refracted(0)).toFixed(3)}°`);
+	check('la réfraction est négligeable au zénith',
+		Math.abs(refracted(90) - 90) < 0.01, `${refracted(90).toFixed(4)}°`);
+
+	// Masse d'air : 1 au zénith par définition, ~2 à 30°, et FINIE à l'horizon —
+	// c'est tout l'intérêt de Kasten & Young sur 1/sin h, qui y diverge.
+	check('masse d\'air = 1 au zénith', Math.abs(airMass(90) - 1) < 0.002, airMass(90).toFixed(4));
+	check('masse d\'air ≈ 2 à 30° d\'élévation', Math.abs(airMass(30) - 2) < 0.02, airMass(30).toFixed(3));
+	check('masse d\'air finie et < 40 à l\'horizon',
+		Number.isFinite(airMass(0)) && airMass(0) > 30 && airMass(0) < 40, airMass(0).toFixed(2));
+	check('la masse d\'air croît quand le soleil descend',
+		airMass(10) > airMass(30) && airMass(30) > airMass(60));
+}
+
+console.log('\nsoleil — atmosphère et couleur du ciel');
+{
+	const byte = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+	const hex = (c) => (byte(c.r) << 16) | (byte(c.g) << 8) | byte(c.b);
+	const CLEAR = REF_VIS;
+
+	// LE check de non-régression visuelle. Le modèle mono-diffusion ne retombe
+	// pas spontanément sur la couleur que le sim utilise depuis toujours : une
+	// balance des blancs constante l'y ramène, et c'est ce qui garantit que ce
+	// ticket ne change RIEN dans les conditions où le sim tournait déjà.
+	const ref = skyColor(REF_ELEV, CLEAR, 0);
+	check('calibrage : soleil haut, ciel clair, sans nuage ⇒ exactement SKY',
+		hex(ref) === SKY_REF,
+		`#${hex(ref).toString(16).padStart(6, '0')} vs #${SKY_REF.toString(16)}`);
+	check('la référence n\'est pas saturée (il reste de la marge en haut)',
+		ref.r < 1 && ref.g < 1 && ref.b < 1);
+
+	// Régression du 2e passage de revue : `rel` (le rapport ciel/sol comprimé)
+	// est un facteur SCALAIRE, donc un clamp01 par canal après coup était ce
+	// qui faisait déraper la teinte — chaque canal saturait à une élévation
+	// différente selon sa magnitude de départ. Une élévation de mi-journée
+	// d'hiver plausible (17,7°, le zénith de solstice à Paris) et une
+	// élévation basse mais franchement diurne (15°) doivent donc encore lire
+	// bleu, pas vert : c'est un contrôle en OCTETS, pas en ratio, parce que
+	// c'est au niveau de l'octet que le bug se voyait.
+	{
+		const mid1 = skyColor(17.7, CLEAR, 0), mid2 = skyColor(15, CLEAR, 0);
+		check('17,7° (solstice d\'hiver à Paris) : le bleu n\'est pas sous le rouge',
+			mid1.b >= mid1.r, `${mid1.r.toFixed(3)} ${mid1.g.toFixed(3)} ${mid1.b.toFixed(3)}`);
+		check('15° : le bleu n\'est pas sous le rouge',
+			mid2.b >= mid2.r, `${mid2.r.toFixed(3)} ${mid2.g.toFixed(3)} ${mid2.b.toFixed(3)}`);
+	}
+	{
+		const glow = skyColor(5, CLEAR, 0);
+		const byte5 = [byte(glow.r), byte(glow.g), byte(glow.b)];
+		check('5° : aucun canal ne sature à 0 ni à 255 (pas de clamp dur)',
+			byte5.every((v) => v > 0 && v < 255), byte5.join(' '));
+	}
+
+	// À midi le ciel est bleu : c'est Rayleigh, et ça doit sortir du modèle et
+	// non d'une couleur choisie.
+	check('soleil haut : le ciel est bleu (b > g > r)',
+		ref.b > ref.g && ref.g > ref.r,
+		`${ref.r.toFixed(3)} ${ref.g.toFixed(3)} ${ref.b.toFixed(3)}`);
+
+	// Et au ras de l'horizon il ne l'est plus : la lumière qui atteint le volume
+	// diffusant a traversé 30 masses d'air et n'a plus de bleu à donner.
+	const low = skyColor(2, CLEAR, 0);
+	check('soleil rasant : le ciel bascule au chaud (r > b)', low.r > low.b,
+		`${low.r.toFixed(3)} ${low.g.toFixed(3)} ${low.b.toFixed(3)}`);
+	check('la bascule est monotone entre 60° et 2°', (() => {
+		// La chaleur doit DÉCROÎTRE quand le soleil monte, donc en balayant les
+		// élévations croissantes chaque valeur doit être sous la précédente.
+		let prev = Infinity, ok = true;
+		for (const e of [2, 5, 10, 20, 40, 60]) {
+			const c = skyColor(e, CLEAR, 0);
+			const warmth = c.r / Math.max(1e-6, c.b);
+			if (warmth > prev) ok = false;
+			prev = warmth;
+		}
+		return ok;
+	})());
+
+	// Transmittance : le disque rougit parce que le bleu part en premier.
+	{
+		const high = transmittance(airMass(refracted(60)), CLEAR);
+		const graze = transmittance(airMass(refracted(2)), CLEAR);
+		check('la transmittance décroît quand le soleil descend', graze[1] < high[1],
+			`${graze[1].toFixed(4)} < ${high[1].toFixed(4)}`);
+		check('le rougissement croît quand le soleil descend',
+			graze[0] / graze[2] > high[0] / high[2],
+			`${(graze[0] / graze[2]).toFixed(1)} > ${(high[0] / high[2]).toFixed(2)}`);
+		check('la transmittance reste dans 0..1', high.concat(graze).every((v) => v >= 0 && v <= 1));
+	}
+
+	// Niveaux : 1 à la référence, décroissants, jamais nuls (le plancher de nuit
+	// est ce qui rend la nuit jouable, et il est assumé comme tel).
+	check('les niveaux valent 1 à la référence',
+		Math.abs(ambientLevel(REF_ELEV, 0) - 1) < 1e-9 && Math.abs(skyLevel(REF_ELEV, 0) - 1) < 1e-9);
+	check('l\'ambiance décroît quand le soleil descend',
+		ambientLevel(60, 0) > ambientLevel(20, 0) && ambientLevel(20, 0) > ambientLevel(2, 0));
+	check('l\'ambiance atteint un plancher sous l\'horizon et n\'y descend plus',
+		ambientLevel(-20, 0) === ambientLevel(-40, 0) && ambientLevel(-20, 0) > 0,
+		ambientLevel(-20, 0).toFixed(4));
+	check('le ciel reste plus lumineux que le sol quand le soleil est bas',
+		skyLevel(5, 0) / ambientLevel(5, 0) > 1.5,
+		(skyLevel(5, 0) / ambientLevel(5, 0)).toFixed(2));
+
+	// Nuit : le ciel repasse au bleu profond, il n'est ni noir ni orange.
+	const night = skyChroma(-20, CLEAR, 0);
+	check('nuit pleine : le ciel est bleu, pas orange', night[2] > night[0],
+		`${night[0].toFixed(3)} ${night[1].toFixed(3)} ${night[2].toFixed(3)}`);
+	check('nuit pleine : le ciel n\'est pas noir', skyLevel(-20, 0) > 0.02);
+
+	// Couplages exigés par l'issue : le soleil ne peut pas contredire le régime
+	// météo affiché au joueur.
+	const clearDisc = sunDisc(40, CLEAR, 0);
+	check('ciel couvert à 100 % : plus de disque du tout', sunDisc(40, CLEAR, 100).amount === 0);
+	check('ciel couvert à 40 % (régime CLOUD) : le soleil est atténué sans disparaître', (() => {
+		const a = sunDisc(40, CLEAR, 40).amount;
+		return a > 0.1 * clearDisc.amount && a < 0.8 * clearDisc.amount;
+	})(), `${sunDisc(40, CLEAR, 40).amount.toFixed(3)} vs ${clearDisc.amount.toFixed(3)}`);
+	check('brouillard à 500 m : le disque est éteint',
+		sunDisc(40, 500, 0).amount < 0.02 * clearDisc.amount,
+		sunDisc(40, 500, 0).amount.toExponential(2));
+	check('le disque rougit quand le soleil descend', (() => {
+		const h = sunDisc(60, CLEAR, 0).color, l = sunDisc(3, CLEAR, 0).color;
+		return l.r / Math.max(1e-6, l.b) > h.r / Math.max(1e-6, h.b);
+	})());
+	check('sous l\'horizon il n\'y a plus de disque', sunDisc(-1, CLEAR, 0).amount === 0);
+
+	// Le brouillard blanchit le ciel : c'est la diffusion multiple, et c'est ce
+	// qui empêche le modèle mono-diffusion de rendre un ciel noir dans la purée.
+	{
+		const c = skyChroma(40, 300, 0);
+		const spread = Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
+		check('purée de pois : le ciel devient neutre, pas noir', spread < 0.05, spread.toFixed(4));
+	}
+
+	// Déterminisme : aucun état caché, aucun PRNG. Deux appels identiques
+	// rendent la même chose au bit près.
+	check('skyColor est pur', (() => {
+		const a = skyColor(17, 8000, 33), b = skyColor(17, 8000, 33);
+		return a.r === b.r && a.g === b.g && a.b === b.b;
+	})());
+
+	// skyColor reste dans 0..1 sur toute une plage de conditions : soleil haut,
+	// rasant, nuit pleine, avec couverture nuageuse ou brouillard.
+	check('skyColor reste dans 0..1 sur tous les régimes', (() => {
+		const testCases = [
+			// [élévation, visibilité, couverture nuageuse]
+			[60, REF_VIS, 0],     // soleil haut, clair, sans nuage
+			[2, REF_VIS, 0],      // soleil rasant, clair (celui qui débordait avant)
+			[-20, REF_VIS, 0],    // nuit pleine
+			[40, 500, 0],         // brouillard épais
+			[20, REF_VIS, 100],   // très couvert
+			[5, 500, 80],         // combinaison : brouillard + couverture
+		];
+		for (const [elev, vis, cloud] of testCases) {
+			const c = skyColor(elev, vis, cloud);
+			if (!(c.r >= 0 && c.r <= 1 && c.g >= 0 && c.g <= 1 && c.b >= 0 && c.b <= 1)) {
+				return false;
+			}
+		}
+		return true;
+	})());
+}
+
+console.log('\nsoleil — exposition (AGC) et SunField');
+{
+	const PARIS = { lat: 48.8566, lon: 2.3522 };
+	// Un midi d'équinoxe à Paris : soleil haut, ciel clair. C'est le point de
+	// calibrage, et le seul instant où le sim doit rendre EXACTEMENT l'image
+	// qu'il rendait avant ce ticket.
+	const NOON = new Date('2026-06-21T11:52:00Z');
+	const MIDNIGHT = new Date('2026-06-21T23:52:00Z');
+
+	const settle = (field, date, sunInFrame, seconds = 20) => {
+		for (let t = 0; t < seconds; t += 1 / 60) field.update(1 / 60, { date, sunInFrame });
+		return field;
+	};
+
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('midi d\'été à Paris : le soleil est haut', sun.elevation > 55,
+			`${sun.elevation.toFixed(1)}°`);
+		check('et au sud : le vecteur pointe vers +Z', sun.dir.z > 0.3, sun.dir.z.toFixed(3));
+		check('l\'exposition au repos par ciel clair et soleil haut est ~1',
+			Math.abs(sun.exposure - 1) < 0.02, sun.exposure.toFixed(4));
+	}
+
+	// L'asymétrie de l'AGC : c'est ELLE, et rien d'autre, qui produit la
+	// mécanique que l'issue met en avant — on passe face au soleil, la ville
+	// s'éteint, et elle met une seconde à revenir.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		const before = sun.exposure;
+
+		// Fermeture : le soleil entre dans le cadre.
+		let closeTime = null;
+		for (let t = 0; t < 5; t += 1 / 60) {
+			sun.update(1 / 60, { date: NOON, sunInFrame: 1 });
+			if (closeTime === null && sun.exposure < before * 0.5) closeTime = t;
+		}
+		const closed = sun.exposure;
+		check('le soleil dans le cadre ferme l\'exposition', closed < before * 0.4,
+			`${closed.toFixed(3)} vs ${before.toFixed(3)}`);
+		check('la fermeture est rapide (moins de 0,5 s pour perdre la moitié)',
+			closeTime !== null && closeTime < 0.5, `${closeTime?.toFixed(2)} s`);
+
+		// Réouverture : le soleil sort du cadre.
+		let openTime = null;
+		for (let t = 0; t < 10; t += 1 / 60) {
+			sun.update(1 / 60, { date: NOON, sunInFrame: 0 });
+			if (openTime === null && sun.exposure > before * 0.5) openTime = t;
+		}
+		check('la réouverture est lente (plus de 0,5 s pour reprendre la moitié)',
+			openTime !== null && openTime > 0.5, `${openTime?.toFixed(2)} s`);
+		check('la caméra ferme nettement plus vite qu\'elle ne rouvre',
+			openTime > closeTime * 3, `${openTime?.toFixed(2)} s vs ${closeTime?.toFixed(2)} s`);
+		check('et elle finit par revenir là où elle était',
+			Math.abs(sun.exposure - before) < 0.02);
+	}
+
+	// La nuit sort de l'AGC arrivé en butée, pas d'un facteur « nuit ». Le
+	// critère est de jouabilité : une image sombre qu'on peut encore piloter.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, MIDNIGHT, 0, 60);
+		check('minuit : le soleil est sous l\'horizon', sun.elevation < 0,
+			`${sun.elevation.toFixed(1)}°`);
+		check('minuit : le disque est éteint', sun.sunAmount === 0);
+		check('nuit pleine : l\'image est sombre mais pilotable (15 à 35 %)',
+			sun.exposure > 0.15 && sun.exposure < 0.35, sun.exposure.toFixed(3));
+		check('nuit pleine : le ciel reste bleu', sun.sky.b > sun.sky.r,
+			`${sun.sky.r.toFixed(3)} ${sun.sky.g.toFixed(3)} ${sun.sky.b.toFixed(3)}`);
+	}
+
+	// dt = 0 fige le modèle. Même règle que setRain() dans lens.js : il n'y a
+	// pas d'horloge interne qu'on pourrait oublier d'arrêter (#24).
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		const held = sun.exposure;
+		for (let i = 0; i < 100; i++) sun.update(0, { date: NOON, sunInFrame: 1 });
+		check('dt = 0 fige l\'AGC', sun.exposure === held);
+	}
+
+	// L'exposition reste bornée quoi qu'on lui envoie : elle multiplie l'image
+	// entière, un débordement serait un écran blanc.
+	{
+		const sun = new SunField(PARIS);
+		let outOfRange = 0;
+		for (const cloud of [0, 50, 100]) {
+			for (const vis of [200, 5000, 25000]) {
+				sun.setWeather({ cloudPct: cloud, visibilityM: vis });
+				for (const h of [0, 6, 12, 18]) {
+					const d = new Date(`2026-06-21T${String(h).padStart(2, '0')}:00:00Z`);
+					for (const f of [0, 0.3, 1]) {
+						settle(sun, d, f, 5);
+						if (!(sun.exposure > 0) || sun.exposure > E_MAX) outOfRange++;
+					}
+				}
+			}
+		}
+		check('l\'exposition reste bornée sur toute la combinatoire', outOfRange === 0,
+			`${outOfRange} débordement(s)`);
+	}
+
+	// Le no-op. Attention à ce qui est testé ici : `active` dit « le soleil
+	// change quelque chose à l'image », et il est VRAI dès que le soleil est
+	// levé, caméra ou pas — SunField ne connaît pas la caméra. Le vrai test de
+	// no-op du shader vit dans lens.setSun(), qui seul sait si le soleil est
+	// devant l'objectif.
+	//
+	// Ce qui doit être exact ici, c'est le calibrage de l'exposition : par ciel
+	// clair, soleil haut et hors cadre, le gain vaut 1 et l'image est celle que
+	// le sim rendait avant ce ticket.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('calibrage : soleil haut, ciel clair, hors cadre ⇒ gain exactement 1',
+			sun.exposure === 1, sun.exposure.toFixed(6));
+		check('mais il y a bien un soleil dans le ciel', sun.sunAmount > 0.5,
+			sun.sunAmount.toFixed(3));
+
+		// Le seul cas où le bloc est vraiment un no-op : plus de disque du tout,
+		// et un gain encore à 1.
+		sun.setWeather({ cloudPct: 100, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('couvert total, soleil haut : le bloc est un no-op',
+			sun.active === false, `expo=${sun.exposure.toFixed(4)} amount=${sun.sunAmount}`);
+
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, MIDNIGHT, 0, 60);
+		check('la nuit, le bloc reste actif (sinon la nuit ne s\'assombrirait pas)',
+			sun.active === true && sun.sunAmount === 0);
+	}
+
+	// Sans coordonnées, pas de soleil inventé.
+	check('une zone sans lat/lon ne construit pas de soleil',
+		SunField.forOrigin({}) === null && SunField.forOrigin({ latitude: 1, longitude: 2 }) !== null);
+}
+
+console.log('\nsoleil — traduction depuis le bulletin');
+{
+	// La couverture passe telle quelle : c'est déjà la grandeur que sun.js veut.
+	const overcast = weatherToSimParams(weatherSanitize({
+		windSpeed: 2, windGust: 3, windDir: 180, rateMmH: 0, visibilityM: 20000, cloudPct: 95,
+	}));
+	check('la couverture nuageuse arrive jusqu\'au soleil', overcast.sun.cloudPct === 95,
+		String(overcast.sun.cloudPct));
+
+	// LA règle : la visibilité passée au soleil est celle de l'air HORS pluie,
+	// exactement celle que fog.js reçoit. Sinon la même averse compterait deux
+	// fois — une fois dans le brouillard, une fois dans l'extinction du disque.
+	const rainy = weatherToSimParams(weatherSanitize({
+		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
+		visibilityM: 3000, cloudPct: 90,
+	}));
+	// L'air seul voit plus loin que l'air + la pluie : si les deux sont égaux,
+	// c'est que l'averse a été comptée deux fois.
+	const rainyTotal = weatherSanitize({
+		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
+		visibilityM: 3000, cloudPct: 90,
+	}).visibilityM;
+	check('sous la pluie, le soleil reçoit la visibilité de l\'air, meilleure que la totale',
+		rainy.sun.visibilityM > rainyTotal * 1.05,
+		`air ${Math.round(rainy.sun.visibilityM)} m vs totale ${Math.round(rainyTotal)} m`);
+	check('la visibilité transmise est finie et positive',
+		Number.isFinite(rainy.sun.visibilityM) && rainy.sun.visibilityM > 0);
+
+	// Le brouillard, lui, arrive bien jusqu'au soleil.
+	const foggy = weatherToSimParams(weatherSanitize({
+		windSpeed: 1, windGust: 1, windDir: 0, rateMmH: 0, visibilityM: 400, cloudPct: 80,
+	}));
+	check('un vrai brouillard réduit la visibilité vue par le soleil',
+		foggy.sun.visibilityM < 1000, `${Math.round(foggy.sun.visibilityM)} m`);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);

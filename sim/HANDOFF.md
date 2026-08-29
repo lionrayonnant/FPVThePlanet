@@ -339,6 +339,59 @@ Plan d'origine (contexte de la décision d'architecture) :
     télémétrie jamais éprouvés dans le navigateur avec un vrai vol ; le geste de
     désarmement à la manette non plus.
 
+- **Le soleil** (issue #23) : `src/sun.js` (position + couleur du ciel + AGC
+  `SunField`), `src/lens.js` (bloc `#if SUN` : disque, halo, voile, gain
+  d'exposition), câblage `src/main.js` (occlusion via
+  `physics.obstructionBetween()`, projection écran, `weatherSky()` dérive
+  maintenant du soleil, `window.__sim.debug().sun`).
+  - **Vérifié au banc** : `npm run selftest` — 57 checks dédiés répartis en
+    quatre sections (`soleil — position`, `soleil — atmosphère et couleur du
+    ciel`, `soleil — exposition (AGC) et SunField`, `soleil — traduction
+    depuis le bulletin`), 258/258 au total sur la scène `tour-eiffel`.
+  - **Vérifié en vol, navigateur (CDP direct sur un Chromium headless dédié,
+    dev server sur le worktree `issue-23-soleil`, `?scene=tour-eiffel`,
+    heure réelle 2026-08-29 ~15h40 CEST)** :
+    - `window.__sim.debug().sun` existe et ses champs sont plausibles pour
+      Paris à l'heure réelle : élévation ~44,8° puis en baisse au fil du test
+      (cohérent avec une fin d'après-midi), `dir.z > 0` (soleil au sud), ciel
+      `#a3c2e2`-`#a7c9ee` (bleu clair, cohérent avec une élévation proche
+      mais pas égale à la référence de calibrage 60°).
+    - **Passage 1 — soleil dans le cadre** : caméra pointée droit sur le
+      soleil (rotation du corps Rapier forcée), `inFrame` monte à 0,81,
+      `exposure` chute de 1 à 0,562 en ~1,5 s ; en la retournant à 180°,
+      l'exposition remonte (0,562 → 0,846 → 0,90 sur les secondes
+      suivantes), plus lentement que la fermeture — la mécanique décrite par
+      l'issue est bien observable dans le vrai rendu.
+    - **Passage 2 — soleil occulté par un bâtiment** : position/orientation
+      choisies par balayage de `physics.obstructionBetween()` pour couper le
+      rayon soleil sur un immeuble ; `visible` tombe de 1 à 0, `inFrame`
+      retombe à 0 avec lui, et `exposure` reste quasi immobile (0,992 →
+      0,995) — un soleil caché ne ferme pas le diaphragme, confirmé.
+    - **Passage 3 — ciel couvert** : `window.__sim.sun.setWeather({cloudPct:
+      100, visibilityM: 20000})` → `amount` tombe à 0, `active` passe à
+      `false`, ciel gris clair `#cde0e4`, plus de disque.
+    - **Non-régression** : à l'heure réelle du test l'élévation solaire
+      (~44°) n'était pas celle du point de calibrage (`REF_ELEV = 60`), donc
+      la reproduction *exacte* de `#9fb8cc` n'a pas pu être observée en
+      direct (c'est couvert au banc par `soleil — exposition (AGC) et
+      SunField` : `sun.exposure === 1` exactement à `REF_ELEV`/`REF_VIS`).
+      Ce qui a été observé en direct : ciel clair, soleil hors cadre ⇒
+      `exposure` revient à 1 et le ciel calculé (`#9eb2c0` à 44° d'élévation)
+      s'approche de `#9fb8cc` dans le sens attendu par la formule. Ciel
+      totalement couvert ⇒ `active` bien `false` dans le vrai rendu — le cas
+      de non-régression que le code documente réellement (voir le
+      commentaire au-dessus de `SunField.active` dans `sun.js` : `active` est
+      vrai dès que le soleil est levé, caméra ou pas — un ciel clair de midi
+      NE rend PAS `active` faux, seul un ciel totalement bouché, ou la nuit
+      avec un gain resté à 1, le fait).
+    - Aucune erreur console pendant le test.
+  - **Non vérifié** : le ressenti d'un vol complet du lever au coucher (ça
+    demande de laisser tourner des heures réelles, il n'y a délibérément
+    aucun réglage d'heure) ; le pilotage manette réel des trois passages (ils
+    ont été reproduits par script CDP — orientation de la caméra forcée via
+    Rapier — plutôt qu'au stick, faute d'accès manette dans cet
+    environnement).
+
 ## Non vérifié / à faire
 
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/

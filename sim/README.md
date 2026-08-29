@@ -496,10 +496,17 @@ sept jours glissants.
 
 ```
 tools/lib/weather.mjs    le modèle pur — zones, jours, régimes, garde-fous,
-                         traduction vers wind.js / rain.js / fog.js
+                         traduction vers wind.js / rain.js / fog.js / sun.js
 tools/weather-source.mjs Open-Meteo + cache par (zone, jour) dans le world state
 src/weather.js           le client : demande le snapshot, écrit les paramètres
 ```
+
+Le soleil (issue #23, `src/sun.js`) suit la même logique : ni panneau ni
+curseur. Sa position vient de la lat/lon de la scène et de **l'heure UTC
+réelle** au moment où la page tourne — il n'y a **aucun réglage d'heure**
+nulle part dans l'UI, et c'est délibéré : forcer un lever ou un coucher de
+soleil casserait la promesse « ce que vous voyez, c'est ce qu'il y a
+maintenant » qui porte déjà la météo.
 
 **Une zone, un jour, un bulletin.** La clé de zone est la lat/lon arrondie à
 0,01° (~1,1 km) : deux emprises dessinées sur le même quartier partagent leur
