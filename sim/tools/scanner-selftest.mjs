@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
 	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands,
 	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
-	latticeEdges, tileGrid, intersectBox,
+	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline,
 } from './scanner-model.mjs';
 import { slugify as coreSlugify, parsePrepLine } from './lib/add-map-core.mjs';
 import { tileGrid as estimatesTileGrid, estimateCost } from './lib/estimates.mjs';
@@ -290,6 +290,36 @@ t('phaseLabel : les trois phases réelles', () => {
 	assert.equal(phaseLabel('download'), 'FETCH');
 	assert.equal(phaseLabel('decode'), 'DECODE');
 	assert.equal(phaseLabel('rebuild'), 'REBUILD');
+});
+
+// Le SCANNER dessine la zone RÉELLEMENT retenue, pas le tracé lissé : sur un
+// polygone c'est un escalier, et il vient du même masque que le coût annoncé.
+t('maskOutline : le SCANNER a accès à l\'escalier via scanner-model', () => {
+	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
+	const g = polygonGrid(TRI, 20);
+	assert.ok(maskOutline(g, 20).length > 0);
+	assert.ok(g.columns < g.cols * g.rows, 'un triangle masque des colonnes');
+});
+
+t('areaAnalysis : une réponse de polygone se lit comme une réponse de rectangle', () => {
+	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
+	const g = polygonGrid(TRI, 20);
+	const a = areaAnalysis({
+		grid: g,
+		dimensions: { width: 730, height: 1112, area: 406175 },
+		tileMeters: 25.4,
+		estimate: {
+			probes: g.columns * 20, tiles: 100, prepBytes: 5e6, prepBytesRange: [2e6, 9e6],
+			rawBytes: 2e7, totalSeconds: 300, warn: false,
+		},
+	});
+	assert.equal(a.columns, new Intl.NumberFormat('en-US').format(g.columns));
+	// TILES doit dire ce qui est RÉELLEMENT balayé. Sur un tracé, « 30 × 45 »
+	// (l'emprise) laisserait croire à 1350 tuiles quand on n'en demande que 732 —
+	// et masquerait l'économie qui est toute la raison d'être du polygone.
+	assert.equal(a.tiles, `${new Intl.NumberFormat('en-US').format(g.columns)} / ${new Intl.NumberFormat('en-US').format(g.cols * g.rows)}`);
+	// L'aire vient du tracé : 0.41 km², pas les 0.81 de son emprise.
+	assert.equal(a.surface, '0.41 km²');
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

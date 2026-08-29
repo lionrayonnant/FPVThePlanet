@@ -6,6 +6,7 @@
 // en découle. Les coordonnées ne sont qu'une lecture parmi d'autres.
 
 import L from 'leaflet';
+import { maskOutline } from '../lib/tiles.mjs';
 import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
@@ -14,7 +15,7 @@ const API = '/__map-api';
 const $ = (id) => document.getElementById(id);
 
 const state = {
-	box: null,        // le rectangle dessiné
+	zone: null,       // { bbox } ou { poly } — la zone dessinée, brute
 	describe: null,   // dernière réponse /describe
 	coverage: null,   // dernier verdict de couverture
 	zoom: 20,
@@ -37,7 +38,7 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 map.pm.addControls({
 	position: 'topleft',
 	drawMarker: false, drawCircle: false, drawCircleMarker: false,
-	drawPolyline: false, drawPolygon: false, drawText: false,
+	drawPolyline: false, drawPolygon: true, drawText: false,
 	cutPolygon: false, rotateMode: false, dragMode: true,
 	drawRectangle: true, editMode: true, removalMode: true,
 });
@@ -45,6 +46,7 @@ map.pm.setLang('fr');
 
 let zoneLayer = null;
 const lattice = L.layerGroup().addTo(map);   // le treillis de tuiles
+const outline = L.layerGroup().addTo(map);   // l'escalier des tuiles retenues
 const snapped = L.rectangle([[0, 0], [0, 0]], {
 	color: '#6cf', weight: 1, fill: false, dashArray: null, interactive: false,
 });
@@ -57,8 +59,18 @@ function setZone(layer) {
 	// Le rectangle dessiné est un fantôme : ce qui compte, et ce qu'on remplit,
 	// c'est la zone alignée sur les tuiles.
 	layer.setStyle({ color: '#eaf2f8', weight: 1, dashArray: '3 4', fill: false, opacity: .5 });
-	const b = layer.getBounds();
-	state.box = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+
+	// Geoman rend un L.Rectangle pour le rectangle et un L.Polygon pour le tracé
+	// libre ; le rectangle EST un polygone, donc on teste le plus spécifique
+	// d'abord.
+	if (layer instanceof L.Rectangle) {
+		const b = layer.getBounds();
+		state.zone = { bbox: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() } };
+	} else {
+		const ring = [];
+		for (const ll of layer.getLatLngs()[0]) ring.push(ll.lat, ll.lng);
+		state.zone = { poly: ring };
+	}
 	state.coverage = null;
 	renderVerdict({ status: 'pending', message: 'Zone modifiée — vérifie la couverture avant de lancer.' });
 	describe();
@@ -66,14 +78,16 @@ function setZone(layer) {
 
 map.on('pm:create', (e) => {
 	setZone(e.layer);
+	e.layer.pm.enable({ allowSelfIntersection: false });
 	e.layer.on('pm:edit pm:dragend', () => setZone(e.layer));
 });
 map.on('pm:remove', clearZone);
 
 function clearZone() {
 	if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
-	state.box = null; state.describe = null; state.coverage = null;
+	state.zone = null; state.describe = null; state.coverage = null;
 	lattice.clearLayers();
+	outline.clearLayers();
 	map.removeLayer(snapped);
 	if (dimLabel) { map.removeLayer(dimLabel); dimLabel = null; }
 	for (const b of ['b-zone', 'b-grid', 'b-cost']) $(b).dataset.empty = '1';
@@ -93,10 +107,20 @@ function clearZone() {
 
 function drawLattice(grid) {
 	lattice.clearLayers();
+	outline.clearLayers();
 	if (!grid) return;
 
 	const s = grid.snapped;
-	snapped.setBounds([[s.south, s.west], [s.north, s.east]]).addTo(map);
+	// Un tracé libre ne se résume pas à son emprise : la zone retenue est
+	// l'escalier des tuiles qu'il touche. Contrairement au treillis, il reste
+	// dessiné à toute échelle — c'est la seule chose qui dise ce qui sera extrait.
+	if (grid.keep) {
+		map.removeLayer(snapped);
+		outline.addLayer(L.polyline(maskOutline({ ...grid, keep: Uint8Array.from(grid.keep) }, state.zoom),
+			{ color: '#6cf', weight: 1, interactive: false }));
+	} else {
+		snapped.setBounds([[s.south, s.west], [s.north, s.east]]).addTo(map);
+	}
 
 	// Sous ~7 px la grille devient un aplat illisible : on ne dessine alors que
 	// l'emprise. La règle vaut mieux qu'un plafond arbitraire sur le nombre de traits.
@@ -137,9 +161,9 @@ let describeTimer = null;
 function describe() {
 	clearTimeout(describeTimer);
 	describeTimer = setTimeout(async () => {
-		if (!state.box) return;
+		if (!state.zone) return;
 		try {
-			const d = await post('/describe', { bbox: state.box, zoom: state.zoom, altitude: Number($('altitude').value) || 20 });
+			const d = await post('/describe', { ...state.zone, zoom: state.zoom, altitude: Number($('altitude').value) || 20 });
 			state.describe = d;
 			renderZone(d);
 		} catch (e) {
@@ -179,7 +203,11 @@ function renderZone(d) {
 		'z-dims': `${nf.format(Math.round(dim.width))} × ${nf.format(Math.round(dim.height))} m`,
 		'z-sw': `${deg(grid.snapped.south)}, ${deg(grid.snapped.west)}`,
 		'z-ne': `${deg(grid.snapped.north)}, ${deg(grid.snapped.east)}`,
-		'g-cols': `${grid.cols} × ${grid.rows} = ${nf.format(grid.columns)}`,
+		// Sur un tracé, « cols × rows = columns » serait faux : le produit est
+		// l'emprise, pas ce qu'on balaie. On montre la soustraction.
+		'g-cols': grid.masked
+			? `${grid.cols} × ${grid.rows} − ${nf.format(grid.masked)} = ${nf.format(grid.columns)}`
+			: `${grid.cols} × ${grid.rows} = ${nf.format(grid.columns)}`,
 		'g-tile': `${tileMeters.toFixed(1)} m`,
 		'g-probes': nf.format(e.probes),
 		'c-time': fmtDur(e.totalSeconds),
@@ -221,9 +249,9 @@ function renderVerdict(v) {
 }
 
 function updateButtons() {
-	const hasBox = !!state.box;
-	$('check').disabled = !hasBox;
-	$('launch').disabled = !hasBox || !$('name').value.trim();
+	const hasZone = !!state.zone;
+	$('check').disabled = !hasZone;
+	$('launch').disabled = !hasZone || !$('name').value.trim();
 	const slug = slugify($('name').value);
 	const existing = state.scenes?.find((s) => s.slug === slug);
 	note('slug-note', slug
@@ -323,7 +351,7 @@ $('check').onclick = async () => {
 	renderVerdict({ status: 'pending', message: 'Interrogation de la région Flyover…' });
 	try {
 		const zoom = state.zoom, altitude = Number($('altitude').value) || 20;
-		const { plan, ...d } = await post('/plan', { bbox: state.box, zoom, altitude });
+		const { plan, ...d } = await post('/plan', { ...state.zone, zoom, altitude });
 		state.describe = d; renderZone(d);
 
 		// columns === 0 : la région existe mais son emprise déclarée ne recouvre
@@ -334,12 +362,12 @@ $('check').onclick = async () => {
 		}
 
 		renderVerdict({ status: 'pending', message: `Région « ${plan.trigger} ». Téléchargement d'un échantillon au centre…` });
-		const p = await post('/probe', { bbox: state.box, zoom, altitude });
+		const p = await post('/probe', { ...state.zone, zoom, altitude });
 		renderVerdict(p);
 	} catch (e) {
 		renderVerdict({ status: 'none', message: e.message });
 	} finally {
-		btn.disabled = !state.box;
+		btn.disabled = !state.zone;
 	}
 };
 
@@ -364,7 +392,7 @@ $('launch').onclick = async () => {
 	try {
 		const { jobId } = await post('/jobs', {
 			name: $('name').value.trim(),
-			bbox: state.box,
+			...state.zone,
 			zoom: state.zoom,
 			altitude: Number($('altitude').value) || 20,
 			cell: Number($('cell').value) || 256,

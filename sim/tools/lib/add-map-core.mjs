@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import { polyHash, polygonProbePoint } from './tiles.mjs';
 
 export const SIM_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 export const FLYOVER_ROOT = path.resolve(SIM_ROOT, '../flyover-reverse-engineering');
@@ -34,7 +35,12 @@ export function slugify(name) {
 // Doit rester en phase avec les fmt.Sprintf de cmd/export-obj/main.go — c'est ce
 // nom qui sert de cache : si les deux divergent, chaque run re-télécharge tout.
 // %f en Go, c'est 6 décimales.
-export function tileDirName({ lat, lon, zoom, radius, altitude, bbox }) {
+//
+// Asynchrone depuis le polygone : son nom est un sha256 de la chaîne canonique
+// des sommets, et crypto.subtle — le seul digest disponible aussi dans le
+// navigateur, où tiles.mjs doit rester importable — est asynchrone.
+export async function tileDirName({ lat, lon, zoom, radius, altitude, bbox, poly }) {
+	if (poly) return `poly-${await polyHash(poly)}-${zoom}-${altitude}`;
 	if (bbox) {
 		const { south, west, north, east } = bbox;
 		return `bbox-${south.toFixed(6)}-${west.toFixed(6)}-${north.toFixed(6)}-${east.toFixed(6)}-${zoom}-${altitude}`;
@@ -42,8 +48,8 @@ export function tileDirName({ lat, lon, zoom, radius, altitude, bbox }) {
 	return `${lat.toFixed(6)}-${lon.toFixed(6)}-${zoom}-${radius}-${altitude}`;
 }
 
-export function tileDirPath(opts) {
-	return path.join(FLYOVER_ROOT, 'downloaded_files/obj', tileDirName(opts));
+export async function tileDirPath(opts) {
+	return path.join(FLYOVER_ROOT, 'downloaded_files/obj', await tileDirName(opts));
 }
 
 // Le Go exporter crée exp_model.obj/.mtl avant de savoir si le scan trouvera
@@ -117,9 +123,10 @@ function run(cmd, args, cwd, { onLog, signal }) {
 
 // Interroge `export-obj --plan` : combien de colonnes, quelle région Flyover,
 // quelle emprise de couverture — sans émettre une seule requête de tuile.
-export async function planScan({ lat, lon, zoom = 20, radius = 25, altitude = 20, bbox }, { signal } = {}) {
+export async function planScan({ lat, lon, zoom = 20, radius = 25, altitude = 20, bbox, poly }, { signal } = {}) {
 	const args = ['run', 'cmd/export-obj/main.go', String(lat), String(lon), String(zoom), String(radius), String(altitude), '--plan'];
-	if (bbox) args.push('--bbox', `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`);
+	if (poly) args.push('--poly', poly.join(','));
+	else if (bbox) args.push('--bbox', `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`);
 
 	let out = '', err = '';
 	await run('go', args, FLYOVER_ROOT, {
@@ -197,10 +204,15 @@ export function parsePrepLine(line) {
 //
 // Le verdict a trois états, pas deux : « 0 exported » seul ne prouve rien tant
 // qu'on n'a pas regardé le compteur de tuiles non décodées (cf. HANDOFF #15).
-export async function probeCoverage({ lat, lon, zoom = 20, altitude = 20, bbox }, { signal } = {}) {
-	const centre = bbox
-		? { lat: (bbox.south + bbox.north) / 2, lon: (bbox.west + bbox.east) / 2 }
-		: { lat, lon };
+export async function probeCoverage({ lat, lon, zoom = 20, altitude = 20, bbox, poly }, { signal } = {}) {
+	// Sur un tracé en L ou en croissant, le centre de l'emprise tombe HORS du
+	// tracé : sonder là rendrait un verdict sur une zone qu'on n'extrait pas.
+	// polygonProbePoint vise le centre d'une tuile réellement retenue.
+	const centre = poly
+		? polygonProbePoint(poly, zoom)
+		: bbox
+			? { lat: (bbox.south + bbox.north) / 2, lon: (bbox.west + bbox.east) / 2 }
+			: { lat, lon };
 
 	// Une boîte de ~3x3 tuiles autour du centre : assez pour tomber sur du bâti,
 	// assez petit pour répondre en une poignée de secondes.
@@ -238,7 +250,7 @@ export async function probeCoverage({ lat, lon, zoom = 20, altitude = 20, bbox }
 		throw new Error(err.trim() || e.message);
 	} finally {
 		// La sonde est jetable : on ne laisse pas un dossier par clic dans le cache.
-		fs.rmSync(tileDirPath({ zoom, altitude, bbox: probeBox }), { recursive: true, force: true });
+		fs.rmSync(await tileDirPath({ zoom, altitude, bbox: probeBox }), { recursive: true, force: true });
 	}
 
 	if (res.exported > 0) {
@@ -256,20 +268,22 @@ export async function probeCoverage({ lat, lon, zoom = 20, altitude = 20, bbox }
 // ligne des sous-processus, et {stream:'phase'|'progress'|'meta'} pour l'avancement.
 export async function addMap(opts, { onLog, signal } = {}) {
 	const {
-		name, lat, lon, bbox,
+		name, lat, lon, bbox, poly,
 		zoom = 20, radius = 25, altitude = 20, cell = 256, quality = 85,
 		force = false,
 	} = opts;
 	const slug = opts.slug ?? slugify(name);
 
-	const tileDir = tileDirPath({ lat, lon, zoom, radius, altitude, bbox });
+	const tileDir = await tileDirPath({ lat, lon, zoom, radius, altitude, bbox, poly });
 	const outDir = path.join(SCENES_DIR, slug);
 
 	const log = (line) => onLog?.({ stream: 'meta', line });
 	log(`Carte : ${name}  (slug: ${slug})`);
-	log(bbox
-		? `Zone : ${bbox.south}, ${bbox.west} → ${bbox.north}, ${bbox.east}  zoom ${zoom}  altitudes ${altitude}`
-		: `Centre : ${lat}, ${lon}  zoom ${zoom}  rayon ${radius}  altitudes ${altitude}`);
+	log(poly
+		? `Tracé : ${poly.length / 2} sommets  zoom ${zoom}  altitudes ${altitude}`
+		: bbox
+			? `Zone : ${bbox.south}, ${bbox.west} → ${bbox.north}, ${bbox.east}  zoom ${zoom}  altitudes ${altitude}`
+			: `Centre : ${lat}, ${lon}  zoom ${zoom}  rayon ${radius}  altitudes ${altitude}`);
 
 	const stats = { exported: 0, undecodable: 0 };
 
@@ -283,7 +297,8 @@ export async function addMap(opts, { onLog, signal } = {}) {
 		onLog?.({ stream: 'phase', line: 'download' });
 
 		const args = ['run', 'cmd/export-obj/main.go', String(lat), String(lon), String(zoom), String(radius), String(altitude), '--parallel'];
-		if (bbox) args.push('--bbox', `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`);
+		if (poly) args.push('--poly', poly.join(','));
+		else if (bbox) args.push('--bbox', `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`);
 
 		let hits = 0;
 		await run('go', args, FLYOVER_ROOT, {
@@ -315,7 +330,7 @@ export async function addMap(opts, { onLog, signal } = {}) {
 			? `zone couverte mais illisible : ${stats.undecodable} tuile(s) C3M reçues et non décodées par le parseur.\n` +
 			  '  Ce n\'est pas un problème de coordonnées — cette région sert un format que\n' +
 			  '  flyover-reverse-engineering ne sait pas encore lire.'
-			: `aucune tuile 3D à ${lat}, ${lon} (zoom ${zoom}).\n` +
+			: `aucune tuile 3D ${poly ? 'dans le tracé' : `à ${lat}, ${lon}`} (zoom ${zoom}).\n` +
 			  "  Apple Flyover ne couvre en photogrammétrie qu'une liste de villes : quand le scan\n" +
 			  '  affiche « 0 exported », ce lieu n\'en fait probablement pas partie. Vérifie les\n' +
 			  '  coordonnées, puis essaie une zone plus large ou un zoom plus bas (19/18) avant\n' +
@@ -349,7 +364,7 @@ export async function addMap(opts, { onLog, signal } = {}) {
 	const scenes = readScenes();
 	const entry = {
 		slug, name, lat, lon,
-		...(bbox ? { bbox } : { radius }),
+		...(poly ? { poly } : bbox ? { bbox } : { radius }),
 		zoom, altitude, cell, quality,
 		bytes: dirSize(outDir),
 		createdAt: new Date().toISOString(),

@@ -94,17 +94,46 @@ Option            Description
                   around lat/lon. tryXY is then ignored, but lat/lon are
                   still required (they select the Flyover region), so pass
                   the box centre. Exports to a `bbox-...` directory.
+--poly lat,lon,...  scan only the tiles a free polygon touches, instead of a
+                  whole rectangle. At least 3 vertices; the ring closes
+                  implicitly. Mutually exclusive with --bbox. lat/lon are
+                  still required (they select the Flyover region), so pass a
+                  point inside the shape. Exports to a `poly-<hash>-...`
+                  directory, the hash covering the vertex list.
 --plan            print a JSON scan plan on stdout and exit without
                   downloading a single tile: which region serves this area,
                   how many tile columns and HTTP probes the scan would cost,
                   and the region's declared coverage box. Everything else
                   this command prints goes to stderr, so stdout stays
-                  parseable.
+                  parseable. `pruned` and `masked` are deliberately separate:
+                  `pruned` means the region does not declare that ground (a
+                  fact about Flyover), `masked` means the drawn polygon
+                  excludes it (the user's own decision). Summing them would
+                  report a perfectly covered area as partly uncovered.
 ```
 
-`--bbox` and `--plan` back the map-adding GUI in `../sim` (`npm run dev`, then
-`/add-map.html`), which needs to extract an arbitrary rectangle and to show the
-cost of a selection before committing to it.
+`--bbox`, `--poly` and `--plan` back the map-adding screens in `../sim`
+(`npm run dev`: the in-game GLOBAL SCANNER, and `/add-map.html`), which need to
+extract an arbitrary shape and to show the cost of a selection before committing
+to it.
+
+A tile is kept as soon as the outline touches it, even at a corner, so the
+scanned area is always a **superset** of the drawn shape - the same rule that
+already rounds a drawn rectangle outwards onto the tile lattice. A corridor
+narrower than one tile therefore still yields columns.
+
+The predicate lives twice: `pkg/mth/poly.go` here, and the polygon block at the
+end of `../sim/tools/lib/tiles.mjs` for the map display. Both name the cache
+directory, so a drift would cost a silent multi-gigabyte re-download.
+`testdata/poly-cases.json` is read from both sides to catch it at test time:
+
+```
+go test ./pkg/mth/                       # the Go port against the fixture
+cd ../sim && node tools/map-poly-selftest.mjs   # the JS port against the same
+```
+
+Regenerate the fixture with `cd ../sim && node tools/gen-poly-fixture.mjs` - but
+never to silence a failing test: if the two ports disagree, one of them is wrong.
 
 Scan an explicit rectangle, and cost it first:
 ```
@@ -112,6 +141,13 @@ go run cmd/export-obj/main.go 48.8582 2.2970 20 1 20 --plan \
     --bbox 48.8564,2.2900,48.8600,2.3037
 go run cmd/export-obj/main.go 48.8582 2.2970 20 1 20 --parallel \
     --bbox 48.8564,2.2900,48.8600,2.3037
+```
+
+Follow a corridor instead of a rectangle - here a diagonal strip that costs 123
+columns where its bounding box would cost 840:
+```
+go run cmd/export-obj/main.go 48.853 2.300 20 1 20 --plan \
+    --poly 48.8500,2.2950,48.8505,2.2950,48.8560,2.3050,48.8555,2.3050
 ```
 
 This exports Santa Monica Pier to `./downloaded_files/obj/...`:

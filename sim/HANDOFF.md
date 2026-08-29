@@ -617,6 +617,53 @@ Plan d'origine (contexte de la décision d'architecture) :
     Rapier — plutôt qu'au stick, faute d'accès manette dans cet
     environnement).
 
+- **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
+  SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
+  `npm run add-map`.
+  - **La règle** : une tuile est retenue dès que le tracé la touche, même d'un
+    coin. La zone extraite est donc toujours un sur-ensemble du tracé, comme le
+    rectangle l'est déjà du fait de l'arrondi sur le treillis. Un corridor plus
+    fin qu'une tuile reste extractible.
+  - **Deux ports, une fixture.** Le prédicat vit dans `pkg/mth/poly.go` et dans
+    le bloc polygone de `tools/lib/tiles.mjs`. Les deux nomment le dossier de
+    cache : une divergence coûterait un re-téléchargement silencieux de
+    plusieurs gigaoctets. `flyover-reverse-engineering/testdata/poly-cases.json`
+    est lu des deux côtés (`go test ./pkg/mth/`, `node tools/map-poly-selftest.mjs`),
+    10 cas, 15 872 décisions de tuile, hash compris. Les deux ports s'accordent.
+  - **Vérifié à travers le vrai binaire Go** (`--plan`, aucune requête de tuile) :
+    sur le corridor en diagonale de la fixture, `columns 123`, `masked 717`,
+    `pruned 0`, et `exportDir` nommé `poly-4b6f9117e786-20-20` — exactement le
+    hash calculé par le port JS. `--bbox` inchangé (1350 colonnes, `masked 0`,
+    même nom de dossier).
+  - **Vérifié dans Chromium** (CDP, `runScanner()` monté sur une page de sonde,
+    puis `add-map.html` de même), sur un tracé en L au-dessus de Paris : les deux
+    écrans posent le même escalier de 504 segments, annoncent 4,87 km² et ~4 min
+    pour le tracé contre 9,75 km² et ~8 min pour son emprise, et le treillis
+    disparaît sous 7 px pendant que le contour reste dessiné.
+  - **Deux mensonges d'écran corrigés au passage**, tous deux invisibles aux
+    tests unitaires : `TILES` affichait `cols × rows`, c'est-à-dire l'emprise
+    (15 812) et non ce qui est demandé (8 069) — l'économie, seule raison d'être
+    du polygone, n'apparaissait nulle part ; et `surveyCentre()` interrogeait
+    Nominatim au centre de l'emprise, qui sur un L tombe dans l'encoche, donc on
+    décrivait un quartier qu'on n'extrait pas. La sonde de couverture avait le
+    même travers et vise désormais une tuile réellement retenue.
+  - **Extraction réelle faite** : `seine-iena-alma`, un corridor du pont d'Iéna
+    au pont de l'Alma, 4 sommets. 134 colonnes retenues sur 696, `153 exported`,
+    `562 colonne(s) hors du polygone, non balayées`, 7,3 s, 9 Mo préparés. La
+    seconde acquisition du même tracé a répondu « Tuile déjà téléchargée
+    (…/poly-98b6e26043ec-20-20) » et le port JS calcule `98b6e26043ec` : le
+    hash du Go et celui de Node concordent en conditions réelles, pas seulement
+    sur la fixture.
+  - **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
+    scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
+    pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
+    réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
+    manifeste, or un corridor n'occupe que 19 % de la sienne. Mesuré : 315
+    tirages sur 400 tombent hors terrain (0/400 sur `bastille`), et 2 sessions
+    sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
+    de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
+    replis. La génération de cibles est peut-être logée à la même enseigne.
+
 ## Non vérifié / à faire
 
 - **PHASE 18 — Audio final** (issue #55). Langage sonore de trois familles à

@@ -100,10 +100,70 @@ function groundAt(physics, manifest, x, z) {
 	return physics.groundBelow(x, top, z, span);
 }
 
+// Où, dans cette scène, y a-t-il du sol ?
+//
+// Le tirage prenait un point n'importe où dans la bbox du manifeste. Une scène
+// rectangulaire remplit la sienne, donc ça marchait. Une scène tracée au
+// polygone (issue #30) ne la remplit pas : sur un corridor de fleuve, 315
+// tirages sur 400 tombaient dans le vide, et generateEntryState() finissait par
+// se rabattre sur un spawn au repos — exactement ce que PHASE 13 existe pour
+// éviter.
+//
+// On balaie donc une grille grossière une seule fois, et on ne tire plus que
+// dans les cellules qui ont du sol. Le balayage coûte quelques milliers de
+// rayons ; il remplace des milliers de tirages perdus.
+//
+// La taille de cellule suit la tuile Flyover (~25 m au zoom 20) : assez fine
+// pour épouser un corridor, assez grossière pour que le balayage reste court.
+const OCCUPANCY_CELL_M = 25;
+const OCCUPANCY_MAX_SIDE = 64;
+
+// Clé sur l'instance Physics : c'est le maillage qui décide de l'occupation, et
+// une WeakMap laisse le tout partir avec la scène.
+const occupancyCache = new WeakMap();
+
+export function occupancyOf(physics, manifest) {
+	const cached = occupancyCache.get(physics);
+	if (cached) return cached;
+
+	const x0 = manifest.bbox.min[0] + EDGE_MARGIN, x1 = manifest.bbox.max[0] - EDGE_MARGIN;
+	const z0 = manifest.bbox.min[2] + EDGE_MARGIN, z1 = manifest.bbox.max[2] - EDGE_MARGIN;
+	const cols = Math.max(1, Math.min(OCCUPANCY_MAX_SIDE, Math.round((x1 - x0) / OCCUPANCY_CELL_M)));
+	const rows = Math.max(1, Math.min(OCCUPANCY_MAX_SIDE, Math.round((z1 - z0) / OCCUPANCY_CELL_M)));
+	const dx = (x1 - x0) / cols, dz = (z1 - z0) / rows;
+
+	const cells = [];
+	for (let j = 0; j < rows; j++) {
+		for (let i = 0; i < cols; i++) {
+			// Le centre de la cellule : un point par cellule suffit à dire
+			// « il y a du terrain par ici », et le tirage repique ensuite au hasard
+			// dans la cellule retenue.
+			if (groundAt(physics, manifest, x0 + (i + 0.5) * dx, z0 + (j + 0.5) * dz) !== null) {
+				cells.push(j * cols + i);
+			}
+		}
+	}
+
+	// Aucune cellule touchée : soit la scène est vide, soit elle est plus fine
+	// que la grille. On rend alors toute l'emprise plutôt qu'une liste vide, ce
+	// qui ramène exactement au comportement d'avant — le tirage rejette, et
+	// generateEntryState() garde son repli.
+	const grid = cells.length
+		? { x0, z0, dx, dz, cols, rows, cells, cellSize: Math.min(dx, dz), full: cells.length === cols * rows }
+		: { x0, z0, dx: x1 - x0, dz: z1 - z0, cols: 1, rows: 1, cells: [0], cellSize: Math.min(dx, dz), full: true };
+
+	occupancyCache.set(physics, grid);
+	return grid;
+}
+
 export function sampleCandidate(category, manifest, physics, rand) {
 	const ranges = RANGES[category];
-	const x = lerp(rand, [manifest.bbox.min[0] + EDGE_MARGIN, manifest.bbox.max[0] - EDGE_MARGIN]);
-	const z = lerp(rand, [manifest.bbox.min[2] + EDGE_MARGIN, manifest.bbox.max[2] - EDGE_MARGIN]);
+	// Sur une scène pleine, toutes les cellules sont occupées et le tirage
+	// redevient uniforme dans la bbox : le comportement historique, intact.
+	const grid = occupancyOf(physics, manifest);
+	const cell = grid.cells[Math.min(grid.cells.length - 1, Math.floor(rand() * grid.cells.length))];
+	const x = grid.x0 + (cell % grid.cols + rand()) * grid.dx;
+	const z = grid.z0 + (Math.floor(cell / grid.cols) + rand()) * grid.dz;
 	const ground = groundAt(physics, manifest, x, z);
 	if (ground === null) return null;
 	const y = ground + lerp(rand, ranges.aglM);
