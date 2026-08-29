@@ -9,7 +9,7 @@ import { worldWeather, formatForecast, headline, today as weatherToday } from '.
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
-function screen(root, cls = '') {
+export function screen(root, cls = '') {
 	const el = document.createElement('div');
 	el.className = `bootstrap terminal ${cls}`.trim();
 	el.innerHTML = '<div class="bootstrap-box terminal-box"></div>';
@@ -17,7 +17,7 @@ function screen(root, cls = '') {
 	return { el, box: el.querySelector('.terminal-box'), remove: () => el.remove() };
 }
 
-function button(label, onClick, cls = 'terminal-link') {
+export function button(label, onClick, cls = 'terminal-link') {
 	const b = document.createElement('button');
 	b.type = 'button';
 	b.className = cls;
