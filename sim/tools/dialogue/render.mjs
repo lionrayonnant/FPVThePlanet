@@ -5,11 +5,11 @@
 // donc en développement — le runtime, lui, n'appelle render() que sur des
 // entrées déjà déclarées éligibles par engine.mjs. Mieux vaut une exception
 // bruyante au banc qu'un « {wind} meters per second » affiché au joueur.
-import { SLOTS, resolvePath } from './catalog.mjs';
+import { SLOTS, SLOT_RE, resolvePath } from './catalog.mjs';
 
 export function render(entry, ctx) {
 	return (entry?.lines ?? []).map((line) => {
-		const text = String(line.text ?? '').replace(/\{([a-z_]+)\}/g, (whole, name) => {
+		const text = String(line.text ?? '').replace(SLOT_RE, (whole, name) => {
 			const slot = SLOTS[name];
 			if (!slot) throw new Error(`slot inconnu du catalogue : {${name}} (entrée ${entry?.id})`);
 			const raw = resolvePath(ctx, slot.path);

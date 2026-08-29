@@ -86,7 +86,11 @@ export function resolvePath(ctx, path) {
 	return v;
 }
 
-const SLOT_RE = /\{([a-z_]+)\}/g;
+// Regex pour détecter les slots. Partagée entre slotsUsed() et render().
+// ATTENTION : c'est un regex /g avec état lastIndex mutable, mais replace() et
+// matchAll() le réinitialisent automatiquement. Ne pas l'utiliser avec .test(),
+// .exec(), ou d'autres méthodes qui ne le réinitialisent pas.
+export const SLOT_RE = /\{([a-z_]+)\}/g;
 
 export function slotsUsed(entry) {
 	const found = new Set();
