@@ -81,7 +81,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     `freestyle5` `race5` `cinewhoop` `longrange` `heavy5` `toothpick`. Une
     famille par chargement de page (pas de bascule en vol). `__sim.debug().family`
     confirme laquelle est chargée.
-- **PHASE 08 — target scan (implémenté, vérif navigateur en attente)**, branche
+- **PHASE 08 — target scan (issue #45), vérifié**, branche
   `phase-08-target-scan` = `main` + merge `phase-06-impl` + merge
   `phase-07-generation-cibles`.
   - Conflit de tuning révélé par le merge : le collider de PHASE 06 (`restitution
@@ -97,10 +97,28 @@ Plan d'origine (contexte de la décision d'architecture) :
     ∈ `PROFILES`, 5 seeds × 5 candidats). `selftest:operator` +
     `selftest.mjs` (158 checks, 6 familles) + `build` tous verts sur la
     branche mergée.
-  - **Non vérifié** : le run navigateur (scan → sélection → vol de la famille
-    choisie, `RESUME SESSION`, `?scene=`) — Task 8 Step 3, fait par le
-    contrôleur. Le ressenti de vol par famille en pilotage reste non validé
-    (déjà noté PHASE 07).
+  - Vérifié navigateur (MCP chrome-devtools, GPU réel, serveur de dev) :
+    - `LOCAL TERRAIN` → `[ OPEN ]` : **TARGET SCAN** s'affiche, 4 signaux
+      (fallback sans densité persistée), triés RSSI décroissant
+      (-53/-65/-71/-72). `↑`/`↓` déplacent le curseur ; `Enter` → fiche
+      pré-hack `TARGET 03 · LOCATION KNOWN · SIGNAL -71 dBm · DEVICE PARTIAL
+      (EST. 5") · VIDEO PARTIAL (EST. ANALOG) · CONTROL/FLIGHT STATE UNKNOWN`
+      — **aucune** famille / caméra / rates / batterie.
+    - Fiche ouverte : l'écran liste passe en `display:none`, ses touches
+      deviennent inertes, pas d'empilement (correctif Task 5).
+    - `CONFIRM` → vol : `__sim.debug().family` = `heavy5` (candidat choisi),
+      `__sim.session().target` = descripteur complet régénéré côté serveur
+      (`heavy5`, signal -71 dBm ANALOG, intel figé), `__sim.debug().link.rssiDbm`
+      passe de -35 (sans cible) à -56,7 — le RSSI annoncé décale bien le lien.
+    - Session `LANDED` → terminal `LAST SESSION` → `RESUME SESSION` :
+      **pas** de nouveau TARGET SCAN, `family` = `heavy5` (relu depuis
+      `operator.sessions`), lien ré-armé à -56,6, `resumeCount` = 1.
+    - `?scene=tour-eiffel` (dev) : pas de TARGET SCAN, `__sim.session().target`
+      = `null`, `linkRssi` = -35. Console sans erreur ni warning sur les trois
+      parcours.
+  - **Non vérifié** : le ressenti de vol par famille en pilotage réel
+    (déjà noté PHASE 07). Densité→count non exercée au navigateur (aucun
+    terrain acquis n'avait de `signalDensity` ; fallback 4 confirmé).
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
