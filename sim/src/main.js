@@ -19,7 +19,7 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
-import { SkyDome } from './sky.js';
+import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
@@ -34,7 +34,8 @@ import { normalizeHackType } from '../tools/hack-model.mjs';
 // instead of #9FB8CC and dragging the fog toward the same dark blue.
 THREE.ColorManagement.enabled = false;
 
-const SKY = 0x9fb8cc;
+// SKY = sky.js's CLEAR_HORIZON, re-exported under its historical name: one
+// definition of 0x9fb8cc instead of two.
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
@@ -79,7 +80,7 @@ scene.background = new THREE.Color(SKY);
 // Le dôme. scene.background reste posé au-dessus : il n'est plus jamais vu —
 // le dôme couvre l'écran — mais il porte désormais la couleur d'HORIZON, que
 // rainfall.js, lens.js et les tuiles lisent tous. Une seule couleur d'air.
-const skyDome = new SkyDome(scene, { sky: SKY });
+const skyDome = new SkyDome(scene);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -418,7 +419,12 @@ async function boot() {
 					// The range the air alone gives you, the range once the rain is
 					// in it too, and how much of that is coming back as veil.
 					range: Math.round(fog.range),
-					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
+					// La densité réellement poussée au shader inclut aussi le
+					// plafond (cf. cloud.extinctionAt dans frame()) : l'ajouter ici
+					// pour que la portée affichée corresponde à ce que l'image
+					// montre une fois qu'on approche le plafond. p et spawnY sont
+					// déjà en main plus haut, pas besoin d'un nouveau raycast.
+					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(p.y - spawnY))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
 				},

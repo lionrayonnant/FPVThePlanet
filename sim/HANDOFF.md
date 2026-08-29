@@ -280,8 +280,13 @@ Plan d'origine (contexte de la décision d'architecture) :
     `setFog()` pousse sur les tuiles, et le zénith est délibérément plus
     profond. Vérifié en vol.
   - **Non vérifié** : le coût en fill rate du dôme à FOV 120 sur un GPU
-    modeste — la vérification a tourné en rendu logiciel. Le sens de dérive
-    du vent : vérifié par le calcul, jamais observé à l'œil.
+    modeste — la vérification a tourné en rendu logiciel.
+  - Le sens de dérive du vent était inversé (`_drift` accumulé avec le bon
+    signe, mais le shader échantillonne `vnoise(p + uDrift·…)`, ce qui
+    translate le motif à *moins* le vecteur ajouté : les nuages remontaient
+    le vent). Corrigé après la revue finale, vérifié par un calcul numérique
+    sur un portage JS du fbm (maximum local suivi sous un vent de nord).
+    Toujours **non vérifié à l'œil**.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

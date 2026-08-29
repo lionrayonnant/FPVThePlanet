@@ -50,8 +50,8 @@ const CLOUD_DARK = 0x9aa1a8;
 const FEATURE_SCALE = 420;
 
 export class SkyDome {
-	constructor(scene, { sky = CLEAR_HORIZON } = {}) {
-		this._horizon = new THREE.Color(sky);
+	constructor(scene) {
+		this._horizon = new THREE.Color(CLEAR_HORIZON);
 		this._zenith = new THREE.Color(CLEAR_ZENITH);
 		this._drift = new THREE.Vector2(0, 0);
 		this._windDir = 0;
@@ -115,9 +115,16 @@ export class SkyDome {
 				float fbm(vec2 p) {
 					float v = 0.0, a = 0.5;
 					for (int i = 0; i < 5; i++) {
-						// Chaque octave dérive un peu plus que la précédente, donc
-						// la couche se DÉFORME au lieu de glisser comme une plaque
-						// rigide. C'est le seul endroit où les nuages vivent.
+						// L'offset de dérive croît un peu avec i (1 + 0.35·i) en
+						// unités de bruit, mais p a déjà été multiplié par 2.03 à
+						// chaque octave précédente : en mètres monde, l'octave i
+						// dérive donc de (1+0.35i)/2.03^i, soit de MOINS en moins
+						// vite — environ 14 % de la vitesse du vent à l'octave 4.
+						// Les grandes formes suivent le vent, le détail fin reste
+						// presque immobile au sol, et c'est ce différentiel de
+						// vitesse qui DÉFORME la couche au lieu de la glisser comme
+						// une plaque rigide. C'est le seul endroit où les nuages
+						// vivent.
 						v += a * vnoise(p + uDrift * uScale * (1.0 + float(i) * 0.35));
 						// 2.03 et pas 2.0 : un doublement exact réaligne les octaves
 						// sur le même réseau et imprime une grille visible.
@@ -138,8 +145,12 @@ export class SkyDome {
 					float dy = (uHeight >= 0.0) ? d.y : -d.y;
 
 					// Sous l'horizon du bon côté, il n'y a rien à dessiner : les
-					// tuiles couvrent cette zone de toute façon.
-					if (dy > 0.001) {
+					// tuiles couvrent cette zone de toute façon. uCover == 0.0 sort
+					// aussi du bloc : D5 (un ciel clair doit être bit-identique à
+					// l'absence de modèle) vaut pour le coût autant que pour le
+					// résultat — la densité y est déjà garantie exactement nulle,
+					// inutile de payer ~20 hash21 par fragment pour y arriver.
+					if (uCover > 0.0 && dy > 0.001) {
 						// Intersection du rayon de vue avec le plan horizontal de
 						// la base. C'est ça qui fait converger les nuages à
 						// l'horizon sans qu'on ait à le programmer.
@@ -224,10 +235,14 @@ export class SkyDome {
 		// La dérive, en mètres parcourus. Convention d'axes de wind.js : un vent
 		// de secteur `dir` SOUFFLE vers (-sin, cos) — voir la note d'axes de
 		// wind.js, et le check « un vent de nord souffle vers le sud » de
-		// selftest.mjs qui la verrouille.
+		// selftest.mjs qui la verrouille. Le vecteur ci-dessous EST bien celui du
+		// vent — mais le shader l'ajoute à la coordonnée d'échantillonnage
+		// (vnoise(p + uDrift·…)), et translater l'échantillonnage de +drift
+		// translate le MOTIF de -drift. Il faut donc le SOUSTRAIRE ici pour que
+		// le motif visible avance dans le sens du vent, pas contre.
 		const a = (this._windDir * Math.PI) / 180;
-		this._drift.x += -Math.sin(a) * this._windSpeed * dt;
-		this._drift.y += Math.cos(a) * this._windSpeed * dt;
+		this._drift.x -= -Math.sin(a) * this._windSpeed * dt;
+		this._drift.y -= Math.cos(a) * this._windSpeed * dt;
 		return this;
 	}
 
