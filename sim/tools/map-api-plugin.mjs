@@ -21,7 +21,7 @@ import {
 } from './operator-store.mjs';
 import {
 	openSession, resumeSession, closeSession, validateSession,
-	reconcileStaleSessions, sanitizeWeatherSnapshot,
+	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession,
 } from './session-model.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
@@ -264,6 +264,28 @@ const opRoutes = [
 	// faire que POST) au moment où l'onglet se ferme.
 	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
 	['POST', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
+
+	// OPERATOR NOTE (PHASE 15) : texte libre, attaché à une session qu'elle soit
+	// encore PENDING ou déjà LANDED/CRASHED — contrairement à la clôture
+	// ci-dessus, une note n'est pas un verdict, elle peut s'ajouter après coup.
+	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)\/comment$/, async (req, res, [id, sid]) => {
+		const b = await readBody(req);
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+
+		const i = state.sessions.findIndex((s) => s.id === sid);
+		if (i < 0) return json(res, 404, { error: `aucune session "${sid}"` });
+
+		let session;
+		try { session = validateSession(annotateSession(state.sessions[i], b.comment)); }
+		catch (e) { return json(res, 400, { error: e.message }); }
+
+		state.sessions[i] = session;
+		_writeOperator(state);
+		json(res, 200, { session });
+	}],
 ];
 
 async function closeSessionRoute(req, res, [id, sid]) {

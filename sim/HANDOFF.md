@@ -217,6 +217,59 @@ Plan d'origine (contexte de la décision d'architecture) :
     testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
     réel).
   - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
+- **PHASE 15 — Session Complete (issue #52)**, branche `phase-15-post-flight`.
+  - `tools/post-flight-model.mjs` (`analyzeFlight()`) : logique pure de
+    déduction, dont l'entrée est le `flightTelemetry` OBSERVÉ pendant la
+    session (PHASE 06) — **jamais** `session.target.family` (règle de
+    l'issue). PROFILE : tout candidat dont le plafond de rates
+    (`RATE_PRESETS` de `flightController.js`) est sous le pic observé est
+    physiquement exclu (un contrôleur ne dépasse pas son propre preset) ;
+    parmi les survivants, le plafond le plus serré + un signal de vitesse
+    (rang par poussée/masse, `drone-profiles.js`) départagent, confidence =
+    part du score du gagnant sur le total des survivants. ESTIMATED
+    (mass/FOV/response) n'apparaît qu'au-delà de `MIN_ESTIMATE_S` (30 s —
+    règle de l'issue : « un vol de 20 s n'estime pas la masse ») ; en dessous
+    de `MIN_SIGNAL_S` (3 s), PROFILE lui-même reste `UNKNOWN`. Masse et
+    RESPONSE sont réels (`mass`/`tauSpinUp` de la famille devinée) ; FOV est
+    une table narrative documentée comme telle (jamais simulée — CAMERA MODEL
+    reste `UNKNOWN`, le jeu ne modélise pas la caméra d'une cible).
+  - `src/post-flight.js` (`runPostFlightAnalysis`), gabarit calqué sur
+    `target-scan.js` : écran 1 = rapport + Randomart (déjà posé par
+    `openSession`, PHASE 06) + `OPERATOR NOTE` (texte libre, sauvegardé via
+    une nouvelle route `PATCH .../sessions/:id/comment` — distincte de la
+    clôture, qui exige `PENDING` ; `annotateSession`/`sanitizeComment` dans
+    `session-model.mjs`, plafond 400 caractères) ; écran 2 = `LOCAL TERRAIN`
+    `KEEP`/`REMOVE` (Bible §29) si la zone a un terrain préparé sur disque —
+    `KEEP` ne fait rien (le terrain reste tel quel), `REMOVE` appelle le
+    `DELETE /__map-api/scenes/:slug` déjà existant ; la session, elle,
+    n'est jamais touchée (« supprimer le terrain ne supprime pas le souvenir »).
+  - Câblé dans `main.js` : à l'`[ESC] DISCONNECT` (`flightEnd.out.exitArmed`),
+    `finishSession()` regarde `session.current().result` — `LANDED` ouvre le
+    rapport avant le reload, `CRASHED` recharge directement (Bible §24 : pas
+    de grand écran de mort). Un flag `exiting` rend la sortie idempotente.
+  - **Vérifié en headless** : `tools/post-flight-selftest.mjs` (8 tests :
+    seuils, exclusion physique d'un rate hors plafond, déterminisme,
+    isolement à 100 % quand un seul candidat survit) ; extension de
+    `session-selftest.mjs` (`sanitizeComment`/`annotateSession`, dont
+    l'annotation d'une session déjà `LANDED`) ; `npm run selftest`,
+    `npm run selftest:operator`, `npm run build` tous verts.
+  - **Vérifié navigateur** (Chromium headless piloté en CDP brut, hors
+    chrome-devtools MCP — profil déjà pris par une session sœur ; scène
+    tour-eiffel réelle) : rapport rendu avec le texte exact attendu (PROFILE
+    + CONFIDENCE, OBSERVED, ESTIMATED, RANDOMART), un vol de 12 s montre
+    `ESTIMATED UNKNOWN` mais garde un PROFILE deviné (LONG RANGE 22 %), une
+    session `CRASHED` ne remplit pas la condition d'ouverture du rapport,
+    `OPERATOR NOTE` persistée côté serveur (relue via `/__operator/:id`)
+    après clic `CONTINUE`, écran `LOCAL TERRAIN` affiché avec le nom/poids
+    réels de la scène (652 MB), `KEEP` referme proprement sans effet — `REMOVE`
+    n'a pas été cliqué en vrai (destructeur sur les ~900 Mo de scènes locales
+    de l'utilisateur), seulement lu en revue de code (un seul `fetch DELETE`
+    déjà couvert par la route existante). Aucune erreur console.
+  - **Non vérifié** : le clic `REMOVE TERRAIN` réel (raison ci-dessus) ; le
+    déclenchement de `finishSession()` par un vrai `[ESC]` en fin de vol
+    piloté (vérifié uniquement par lecture de code + la même condition
+    rejouée en console) ; le ressenti (longueur du texte à l'écran, lisibilité
+    du Randomart en jeu).
 - **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #51).
   - Machine à états pure `FlightEnd` (`src/flight-end.js`, sans DOM/Three/Rapier),
     câblée dans `main.js:frame()` **hors** du bloc gelé (`if (!frozen)`) : appelée

@@ -32,6 +32,7 @@ import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
 import { FlightEnd, LANDING } from './flight-end.js';
+import { runPostFlightAnalysis } from './post-flight.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -154,6 +155,11 @@ let paused = false;
 let introFrozen = false;
 let crashed = false;
 
+// Garde le [ESC] DISCONNECT (PHASE 15) idempotent : exitArmed reste vrai une
+// fois posé, une touche maintenue ou un second événement ne doit pas ouvrir
+// deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
+let exiting = false;
+
 // `landing` est une copie privée de LANDING (pas la constante partagée) : son
 // THR_IDLE est réécrit par boot() une fois la famille de l'appareil connue
 // (idleThrottle, src/quad.js) — muter la constante exportée contaminerait les
@@ -241,7 +247,12 @@ function stage(name) {
 	return t;
 }
 
-async function boot() {
+// The network-bound, family-independent half of boot(): manifest, physics
+// WASM, geometry/texture chunks, collision mesh. Nothing here reads PROFILE,
+// so it can start the moment a scene's slug is known — well before a target
+// (and its family) has been picked — and run underneath TARGET SCAN and the
+// hack ritual instead of underneath its own loading screen (PHASE 13).
+async function preloadScene() {
 	const t0 = performance.now();
 	hud.startClock();
 
@@ -281,6 +292,18 @@ async function boot() {
 		hud.progress('maillage de collision…', 0.47 + 0.28 * f);
 		hud.detail(`${(received / 1e6).toFixed(0)} / ${(manifest.collision.bytes / 1e6).toFixed(0)} Mo`);
 	});
+
+	return { manifest, meshes, collision, t0 };
+}
+
+// The rest of boot(): needs PROFILE (the target's family, resolved by TARGET
+// SCAN) to build the right airframe, but everything in here is local compute
+// — no network — so it stays cheap enough to hide behind the hack/ritual
+// hold that already follows TARGET SCAN. Takes preloadScene()'s return value
+// (or its promise — awaited here, not by the caller) so the two stages chain
+// without the caller needing to know boot() is split in two.
+async function finishBoot(preloading) {
+	const { manifest, meshes, collision, t0 } = await preloading;
 
 	stage('collision-build');
 	hud.progress('construction de l’arbre de collision…', 0.76);
@@ -564,6 +587,13 @@ async function boot() {
 	renderer.setAnimationLoop(frame);
 }
 
+// Convenience wrapper for callers with nothing to hide the load behind
+// (?scene=, resume, dev ?family=): runs both halves back to back, same as
+// before the PHASE 13 split.
+async function boot() {
+	return finishBoot(preloadScene());
+}
+
 // Yields long enough for the loading screen to actually repaint.
 function nextPaint() {
 	return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -581,8 +611,25 @@ input.onAction = (key, event) => {
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
 	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place, et rien
 	// d'autre n'est proposé.
-	else if (key === 'escape' && flightEnd.out.exitArmed) location.href = location.pathname;
+	else if (key === 'escape' && flightEnd.out.exitArmed) finishSession();
 };
+
+// POST-FLIGHT ANALYSIS (PHASE 15, Bible §25) avant de rendre la main au
+// terminal — seulement pour une session posée (LANDED) : un crash n'a pas de
+// grand écran (Bible §24). `session.current()` porte déjà le verdict fermé :
+// par construction `exitArmed` n'apparaît qu'après la séquence de fin de vol
+// (1,4-4,6 s selon LANDING_TIMELINE/TIMELINE dans flight-end.js), largement
+// assez pour que le PATCH de clôture ait eu le temps de revenir du serveur
+// de dev local.
+async function finishSession() {
+	if (exiting) return;
+	exiting = true;
+	const s = session.current();
+	if (s?.result === 'LANDED') {
+		await runPostFlightAnalysis(document.getElementById('ui'), s);
+	}
+	location.href = location.pathname;
+}
 
 renderer.domElement.addEventListener('click', () => {
 	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
@@ -1169,7 +1216,15 @@ async function chooseScene() {
 	}
 
 	// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte
-	// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat.
+	// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat. Le slug
+	// est déjà connu ici (le TARGET SCAN choisit une cible dans cette carte, pas
+	// la carte elle-même) : preloadScene() démarre tout de suite, pour courir
+	// derrière le TARGET SCAN entier et pas seulement derrière l'attente de
+	// l'AUTOMATED ANALYSIS (PHASE 13, issue #50).
+	setScene(slug);
+	introFrozen = true;
+	const preloading = preloadScene();
+
 	const seed = Math.random().toString(16).slice(2, 12);
 	const count = signalCountFor(slug);
 	const scan = generateTargetScan({ seed, count });
@@ -1187,9 +1242,7 @@ async function chooseScene() {
 	PROFILE = PROFILES[cand._family];
 	controller = new FlightController({ profile: PROFILE });
 	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
-	setScene(slug);
-	introFrozen = true;
-	const booting = boot();
+	const booting = finishBoot(preloading);
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
 	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 	// pendant le hack comme un unique pas de physique géant.

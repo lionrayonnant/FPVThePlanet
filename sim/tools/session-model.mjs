@@ -145,6 +145,25 @@ export function closeSession(session, { result, telemetry } = {}) {
 	};
 }
 
+// OPERATOR NOTE (PHASE 15, Bible §25) : texte libre, attaché à une session déjà
+// close aussi bien qu'à une session PENDING — contrairement à closeSession, qui
+// exige PENDING (un verdict ne se rouvre pas), une note s'ajoute à tout moment.
+const COMMENT_MAX_LEN = 400;
+
+export function sanitizeComment(raw) {
+	if (raw == null) return null;
+	if (typeof raw !== 'string') throw new Error('comment invalide');
+	const trimmed = raw.trim();
+	if (!trimmed) return null;
+	if (trimmed.length > COMMENT_MAX_LEN) throw new Error(`COMMENT TOO LONG (max ${COMMENT_MAX_LEN})`);
+	return trimmed;
+}
+
+export function annotateSession(session, comment) {
+	if (!session || typeof session !== 'object') throw new Error('session illisible');
+	return { ...session, comment: sanitizeComment(comment) };
+}
+
 // Garde-fou serveur : rejette tout ce qui n'a pas la forme attendue.
 export function validateSession(s) {
 	if (!s || typeof s !== 'object') throw new Error('session illisible');

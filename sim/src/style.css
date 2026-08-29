@@ -194,11 +194,12 @@ canvas { display: block; }
 .bootstrap-vec { font-size: 30px; letter-spacing: .12em; }
 .bootstrap-row { display: flex; align-items: center; gap: 12px; }
 .bootstrap-err { color: var(--accent); min-height: 1.4em; }
-.bootstrap input {
+.bootstrap input, .bootstrap textarea {
 	background: #0d1218; color: var(--ink);
 	border: 1px solid rgba(255, 255, 255, .25);
 	padding: 15px 18px; font: inherit; letter-spacing: .1em;
 }
+.bootstrap textarea { resize: vertical; min-height: 4.5em; }
 .bootstrap-btn, .bootstrap button {
 	align-self: flex-start;
 	padding: 15px 21px;

@@ -6,6 +6,7 @@ import {
 	openSession, resumeSession, closeSession, mergeTelemetry,
 	validateSession, reconcileStaleSessions, sanitizeWeatherSnapshot,
 	freshTelemetry, newSessionId, SESSION_ID_RE,
+	sanitizeComment, annotateSession,
 } from './session-model.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
 import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
@@ -183,6 +184,24 @@ t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent tolé
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'NOPE' },
 	}), /hackType de cible inconnu/);
+});
+
+t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur', () => {
+	assert.equal(sanitizeComment(null), null);
+	assert.equal(sanitizeComment(''), null);
+	assert.equal(sanitizeComment('   '), null);
+	assert.equal(sanitizeComment('  ras, cible calme  '), 'ras, cible calme');
+	assert.throws(() => sanitizeComment('x'.repeat(401)), /COMMENT TOO LONG/);
+	assert.throws(() => sanitizeComment(42), /comment invalide/);
+});
+
+t('annotateSession : peut annoter une session déjà LANDED (pas de restriction PENDING)', () => {
+	const opened = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
+	const closed = closeSession(opened, { result: 'LANDED', telemetry: freshTelemetry() });
+	const noted = annotateSession(closed, 'cible posée sans encombre');
+	assert.equal(noted.comment, 'cible posée sans encombre');
+	assert.equal(noted.result, 'LANDED'); // pas touché
+	assert.doesNotThrow(() => validateSession(noted));
 });
 
 // ---------------------------------------------------------------------------

@@ -109,6 +109,13 @@ export async function patchSession(sid, body) {
 	return (await req('PATCH', `/${cache.id}/sessions/${sid}`, body)).session;
 }
 
+// OPERATOR NOTE (PHASE 15) : distincte de patchSession — s'applique aussi à une
+// session déjà close, que closeSessionRoute (PENDING seulement) refuserait.
+export async function patchSessionComment(sid, comment) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('PATCH', `/${cache.id}/sessions/${sid}/comment`, { comment })).session;
+}
+
 export function operatorBase() { return OP_BASE; }
 
 export async function flush() {
