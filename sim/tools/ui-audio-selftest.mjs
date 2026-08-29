@@ -417,7 +417,7 @@ t('aucun appel play() hors du vocabulaire clos dans src/', () => {
 
 t('aucun play() dynamique dans src/ : le vocabulaire doit rester vérifiable', () => {
 	// uiAudio.play(someVariable) échapperait au test ci-dessus. Interdit : les
-	// sept événements sont écrits en toutes lettres sur le site d'appel.
+	// huit événements sont écrits en toutes lettres sur le site d'appel.
 	const dir = new URL('../src/', import.meta.url);
 	const bad = [];
 	for (const f of readdirSync(dir).filter((x) => x.endsWith('.js'))) {

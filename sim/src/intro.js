@@ -64,7 +64,14 @@ export function runIntro(root) {
 
 		let skipped = false;
 
-		function onSkip() {
+		function onSkip(e) {
+			// Un keydown répété (touche tenue, auto-repeat de l'OS) n'est pas un
+			// geste — input.js applique déjà cette règle (e.repeat) pour les
+			// commandes de vol. Sans elle, tenir Enter au PRESS ANY KEY passe le
+			// gate PUIS déclenche ce même skip ~250-500ms plus tard : le cracktro
+			// mourrait à mi-course sous la répétition du clic qui vient de le lancer.
+			// `e` est absent pour un clic : `e?.repeat` reste alors undefined (faux).
+			if (e?.repeat) return;
 			if (!started || finished || skipped) return;
 			// Retrait SYNCHRONE, comme onGate() plus bas : un skip se martèle en
 			// pratique (touche tenue, double clic), et finish() ne tourne qu'après
@@ -136,7 +143,12 @@ export function runIntro(root) {
 			raf = requestAnimationFrame(loop);
 		}
 
-		function onGate() {
+		function onGate(e) {
+			// Symétrique du filtre de onSkip ci-dessus. `{ once: true }` le rend
+			// déjà moot en pratique (le navigateur ne redéclenche pas un écouteur
+			// qu'il vient de désinscrire), mais le garder ici évite qu'un futur
+			// retrait de `once` ne réintroduise le même bug côté gate.
+			if (e?.repeat) return;
 			// `{ once: true }` ne désinscrit QUE l'écouteur qui a déclenché : sans
 			// ce retrait manuel de l'autre, un clic après un passage au clavier (ou
 			// l'inverse) relancerait startCracktro() une seconde fois en pleine
