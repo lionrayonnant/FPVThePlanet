@@ -25,7 +25,10 @@ import {
 	stripPhotoData, stripOperatorPhotoData, deleteSession,
 } from './session-model.mjs';
 import { targetLogEntries } from './session-log-model.mjs';
-import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
+import {
+	estimateCost, tileGrid, boxDimensions, tileSizeMeters,
+	polygonBounds, polygonGrid, polygonArea,
+} from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 
@@ -427,26 +430,61 @@ function requireBox(b) {
 	return box;
 }
 
+// Un tracé venu du navigateur n'est pas de confiance : les bornes ici sont les
+// mêmes que celles de parseRing() dans cmd/export-obj/main.go, pour qu'un tracé
+// accepté ici ne se fasse pas refuser trois appels plus loin par le Go.
+function requirePoly(p) {
+	if (!Array.isArray(p) || p.length % 2 !== 0) throw new Error('tracé manquant ou invalide');
+	if (p.length < 6) throw new Error('un polygone a au moins 3 sommets');
+	if (p.length > 400) throw new Error('au plus 200 sommets');
+	if (!p.every(Number.isFinite)) throw new Error('tracé : coordonnée non numérique');
+	const b = polygonBounds(p);
+	if (b.south < -85 || b.north > 85 || b.west < -180 || b.east > 180) throw new Error('tracé hors limites');
+	if (b.south === b.north || b.west === b.east) throw new Error('tracé d\'aire nulle');
+	if (b.east - b.west >= 180) throw new Error('tracé à cheval sur l\'antiméridien');
+	return p;
+}
+
+// Les routes acceptent l'une OU l'autre forme de zone. Rendre les deux serait
+// ambigu ; n'en rendre aucune est l'erreur habituelle d'un appelant.
+function requireZone(b) {
+	if (b.poly && b.bbox) throw new Error('bbox et poly sont exclusifs');
+	if (b.poly) return { poly: requirePoly(b.poly) };
+	return { bbox: requireBox(b.bbox) };
+}
+
 function intIn(v, lo, hi, dflt) {
 	const n = Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt;
 	return Math.min(hi, Math.max(lo, n));
 }
 
-function centreOf(box) {
-	return { lat: (box.south + box.north) / 2, lon: (box.west + box.east) / 2 };
+function centreOf(zone) {
+	const b = zone.poly ? polygonBounds(zone.poly) : (zone.bbox ?? zone);
+	return { lat: (b.south + b.north) / 2, lon: (b.west + b.east) / 2 };
 }
 
 // Décrit une zone : géométrie exacte + estimations. `columns` vient du plan Go
 // quand il est fourni (il a élagué les colonnes hors couverture), sinon de la
 // grille calculée localement.
-function describe(box, zoom, altitude, planColumns) {
-	const c = centreOf(box);
-	const grid = tileGrid(box, zoom);
+function describe(zone, zoom, altitude, planColumns) {
+	const c = centreOf(zone);
+	const box = zone.poly ? polygonBounds(zone.poly) : zone.bbox;
+	const grid = zone.poly ? polygonGrid(zone.poly, zoom) : tileGrid(box, zoom);
 	const columns = Number.isFinite(planColumns) ? planColumns : grid.columns;
+
+	// L'aire du TRACÉ, pas celle de son emprise : sur un corridor le long d'un
+	// fleuve les deux diffèrent d'un facteur deux ou trois, et c'est cette
+	// valeur-là que l'écran présente comme « surface de la zone ».
+	const dimensions = boxDimensions(box);
+	if (zone.poly) dimensions.area = polygonArea(zone.poly);
+
 	return {
 		box, centre: c,
-		dimensions: boxDimensions(box),
-		grid,
+		...(zone.poly ? { poly: zone.poly } : {}),
+		dimensions,
+		// Uint8Array ne survit pas à JSON.stringify : la carte a besoin du masque
+		// pour dessiner l'escalier, on le rend donc en tableau ordinaire.
+		grid: { ...grid, keep: grid.keep ? Array.from(grid.keep) : undefined, masked: grid.masked ?? 0 },
 		tileMeters: tileSizeMeters(zoom, c.lat),
 		estimate: estimateCost({ columns, zoom, altitude }),
 	};
@@ -535,11 +573,11 @@ const routes = [
 		fs.rmSync(path.join(SCENES_DIR, slug), { recursive: true, force: true });
 		let raw = false;
 		if (url.searchParams.get('raw') === '1') {
-			// Même logique que remove-map.mjs : on retrouve la tuile brute par son
-			// nom, qu'elle soit au format « centre » ou « bbox ».
-			const dir = entry.bbox
-				? tileDirPath({ ...entry, bbox: entry.bbox })
-				: tileDirPath({ lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 });
+			// On retrouve la tuile brute par son nom, quelle que soit la forme de
+			// la zone : « centre + rayon », « bbox », ou « poly ».
+			const dir = await tileDirPath(entry.poly || entry.bbox
+				? entry
+				: { lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 });
 			if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); raw = true; }
 		}
 		json(res, 200, { removed: slug, raw });
@@ -549,27 +587,29 @@ const routes = [
 	// chaque déplacement de la souris.
 	['POST', /^\/describe$/, async (req, res) => {
 		const b = await readBody(req);
-		const box = requireBox(b.bbox);
-		json(res, 200, describe(box, intIn(b.zoom, 13, 20, 20), intIn(b.altitude, 1, 60, 20)));
+		const zone = requireZone(b);
+		json(res, 200, describe(zone, intIn(b.zoom, 13, 20, 20), intIn(b.altitude, 1, 60, 20)));
 	}],
 
 	// Plan réel : interroge la région Flyover, élague les colonnes hors emprise,
 	// et rend l'emprise de couverture — sans télécharger une seule tuile.
 	['POST', /^\/plan$/, async (req, res) => {
 		const b = await readBody(req);
-		const box = requireBox(b.bbox);
+		const zone = requireZone(b);
 		const zoom = intIn(b.zoom, 13, 20, 20), altitude = intIn(b.altitude, 1, 60, 20);
-		const c = centreOf(box);
-		const plan = await planScan({ lat: c.lat, lon: c.lon, zoom, altitude, bbox: box });
-		json(res, 200, { plan, ...describe(box, zoom, altitude, plan.columns) });
+		const c = centreOf(zone);
+		const plan = await planScan({ lat: c.lat, lon: c.lon, zoom, altitude, ...zone });
+		json(res, 200, { plan, ...describe(zone, zoom, altitude, plan.columns) });
 	}],
 
 	// Sonde : la seule preuve qu'il y a vraiment de la photogrammétrie ici.
 	['POST', /^\/probe$/, async (req, res) => {
 		const b = await readBody(req);
-		const box = requireBox(b.bbox);
+		const zone = requireZone(b);
+		const c = centreOf(zone);
 		json(res, 200, await probeCoverage({
-			bbox: box, zoom: intIn(b.zoom, 13, 20, 20), altitude: intIn(b.altitude, 1, 60, 20),
+			lat: c.lat, lon: c.lon, ...zone,
+			zoom: intIn(b.zoom, 13, 20, 20), altitude: intIn(b.altitude, 1, 60, 20),
 		}));
 	}],
 
@@ -581,15 +621,15 @@ const routes = [
 	['POST', /^\/jobs$/, async (req, res) => {
 		if (current) return json(res, 409, { error: 'une extraction est déjà en cours', jobId: current.id });
 		const b = await readBody(req);
-		const box = requireBox(b.bbox);
+		const zone = requireZone(b);
 		const name = String(b.name ?? '').trim();
 		if (!name) return json(res, 400, { error: 'nom manquant' });
 		const slug = (b.slug ? slugify(b.slug) : slugify(name));
 		if (!slug) return json(res, 400, { error: 'le nom ne donne aucun identifiant utilisable' });
 
-		const c = centreOf(box);
+		const c = centreOf(zone);
 		const job = startJob({
-			name, slug, bbox: box, lat: c.lat, lon: c.lon,
+			name, slug, ...zone, lat: c.lat, lon: c.lon,
 			zoom: intIn(b.zoom, 13, 20, 20), altitude: intIn(b.altitude, 1, 60, 20),
 			cell: intIn(b.cell, 64, 512, 256), quality: intIn(b.quality, 40, 100, 85),
 			force: b.force === true,

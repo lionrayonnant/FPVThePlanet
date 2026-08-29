@@ -16,7 +16,7 @@ import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
-	pipelineBars, pipelineStats, latticeEdges, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
+	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 } from '../tools/scanner-model.mjs';
 import { rtcScript } from '../tools/rtc-model.mjs';
 import * as operatorApi from './operator.js';
@@ -70,7 +70,7 @@ const PANEL = `
 
 <section class="sc-block">
 	<pre class="sc-h">AREA ANALYSIS</pre>
-	<pre class="sc-hint">NO AREA — DRAW A RECTANGLE</pre>
+	<pre class="sc-hint">NO AREA — DRAW A BOX OR A SHAPE</pre>
 	<dl class="sc-readout" hidden>
 		<dt>TILES</dt><dd class="sc-tiles">—</dd>
 		<dt>REQUESTS</dt><dd class="sc-requests">—</dd>
@@ -80,7 +80,8 @@ const PANEL = `
 	</dl>
 	<pre class="sc-note sc-heavy" hidden></pre>
 	<div class="sc-row">
-		<button type="button" class="sc-btn sc-draw">DRAW AREA</button>
+		<button type="button" class="sc-btn sc-draw">DRAW BOX</button>
+		<button type="button" class="sc-btn sc-draw-poly">DRAW SHAPE</button>
 		<button type="button" class="sc-btn sc-clear" hidden>CLEAR</button>
 	</div>
 </section>
@@ -197,7 +198,7 @@ export function runScanner(root) {
 	const panel = $('.scanner-panel');
 
 	const state = {
-		box: null,          // rectangle dessiné (bbox brute)
+		zone: null,         // { bbox } ou { poly } — la zone dessinée, brute
 		describe: null,     // dernière réponse /describe
 		plan: null,         // dernière réponse /plan
 		probe: null,        // dernier verdict de sonde
@@ -226,6 +227,7 @@ export function runScanner(root) {
 	const lattice = L.layerGroup().addTo(map);
 	const pruned = L.layerGroup().addTo(map);
 	const pins = L.layerGroup().addTo(map);
+	const outline = L.layerGroup().addTo(map);
 	const snapped = L.rectangle([[0, 0], [0, 0]], { color: '#6cf', weight: 1, fill: false, interactive: false });
 	let zoneLayer = null;
 
@@ -236,10 +238,23 @@ export function runScanner(root) {
 	// nombre de traits.
 	function drawLattice() {
 		lattice.clearLayers();
+		outline.clearLayers();
 		const grid = state.describe?.grid;
 		if (!grid) return;
 		const s = grid.snapped;
-		snapped.setBounds([[s.south, s.west], [s.north, s.east]]).addTo(map);
+
+		// Un tracé libre ne se résume pas à son emprise : la zone retenue est
+		// l'escalier des tuiles que le tracé touche, et c'est lui qu'on montre.
+		// Contrairement au treillis, il reste dessiné à toute échelle — c'est la
+		// seule chose qui dise ce qui sera réellement extrait.
+		if (grid.keep) {
+			map.removeLayer(snapped);
+			outline.addLayer(L.polyline(
+				maskOutline({ ...grid, keep: Uint8Array.from(grid.keep) }, state.zoom),
+				{ color: '#6cf', weight: 1, interactive: false }));
+		} else {
+			snapped.setBounds([[s.south, s.west], [s.north, s.east]]).addTo(map);
+		}
 
 		const a = map.latLngToLayerPoint([s.south, s.west]);
 		const b = map.latLngToLayerPoint([s.north, s.east]);
@@ -273,11 +288,21 @@ export function runScanner(root) {
 	function setZone(layer) {
 		if (zoneLayer && zoneLayer !== layer) map.removeLayer(zoneLayer);
 		zoneLayer = layer;
-		// Le rectangle dessiné est un fantôme : ce qui compte, c'est la zone
-		// alignée sur les tuiles.
+		// Le tracé dessiné est un fantôme : ce qui compte, c'est la zone alignée
+		// sur les tuiles — un rectangle snappé, ou l'escalier d'un polygone.
 		layer.setStyle({ color: '#eaf2f8', weight: 1, dashArray: '3 4', fill: false, opacity: .5 });
-		const b = layer.getBounds();
-		state.box = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+
+		// Geoman rend un L.Rectangle pour la boîte et un L.Polygon pour le tracé
+		// libre ; le rectangle EST un polygone, donc on teste le plus spécifique
+		// d'abord.
+		if (layer instanceof L.Rectangle) {
+			const b = layer.getBounds();
+			state.zone = { bbox: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() } };
+		} else {
+			const ring = [];
+			for (const ll of layer.getLatLngs()[0]) ring.push(ll.lat, ll.lng);
+			state.zone = { poly: ring };
+		}
 		state.plan = null; state.probe = null;
 		pruned.clearLayers();
 		renderCoverage();
@@ -294,8 +319,8 @@ export function runScanner(root) {
 
 	function clearZone() {
 		if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
-		state.box = state.describe = state.plan = state.probe = null;
-		lattice.clearLayers(); pruned.clearLayers(); map.removeLayer(snapped);
+		state.zone = state.describe = state.plan = state.probe = null;
+		lattice.clearLayers(); pruned.clearLayers(); outline.clearLayers(); map.removeLayer(snapped);
 		$('.sc-hint').hidden = false;
 		$('.sc-readout').hidden = true;
 		$('.sc-clear').hidden = true;
@@ -310,9 +335,9 @@ export function runScanner(root) {
 	function describe() {
 		clearTimeout(describeTimer);
 		describeTimer = setTimeout(async () => {
-			if (!state.box) return;
+			if (!state.zone) return;
 			try {
-				state.describe = await post('/describe', { bbox: state.box, zoom: state.zoom, altitude: 20 });
+				state.describe = await post('/describe', { ...state.zone, zoom: state.zoom, altitude: 20 });
 				renderAnalysis();
 			} catch (e) {
 				note('.sc-heavy', `SCANNER OFFLINE — ${e.message}`, 'alarm');
@@ -359,8 +384,13 @@ export function runScanner(root) {
 	let surveyTimer = null;
 	function surveyCentre() {
 		clearTimeout(surveyTimer);
-		if (!state.box) return;
-		const lat = (state.box.south + state.box.north) / 2, lon = (state.box.west + state.box.east) / 2;
+		if (!state.zone) return;
+		// Sur un tracé en L, le centre de l'emprise tombe dans l'encoche : on
+		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde.
+		const { lat, lon } = state.zone.poly
+			? polygonProbePoint(state.zone.poly, state.zoom)
+			: { lat: (state.zone.bbox.south + state.zone.bbox.north) / 2,
+			    lon: (state.zone.bbox.west + state.zone.bbox.east) / 2 };
 		const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
 		if (surveyCache.has(key)) { state.place = surveyCache.get(key); return renderDensity(); }
 		surveyTimer = setTimeout(async () => {
@@ -396,7 +426,7 @@ export function runScanner(root) {
 		$('.sc-verdict').textContent = 'PROBING';
 		$('.sc-detail').textContent = 'Querying the Flyover region…';
 		try {
-			const { plan, ...d } = await post('/plan', { bbox: state.box, zoom: state.zoom, altitude: 20 });
+			const { plan, ...d } = await post('/plan', { ...state.zone, zoom: state.zoom, altitude: 20 });
 			state.describe = d; state.plan = plan; state.probe = null;
 			renderAnalysis(); drawPruned(); renderCoverage();
 			if (plan.columns === 0) return;
@@ -404,13 +434,13 @@ export function runScanner(root) {
 			$('.sc-verdict').dataset.status = 'busy';
 			$('.sc-verdict').textContent = 'SAMPLING';
 			$('.sc-detail').textContent = `Region "${plan.trigger}" — downloading a photogrammetry sample at the centre…`;
-			state.probe = await post('/probe', { bbox: state.box, zoom: state.zoom, altitude: 20 });
+			state.probe = await post('/probe', { ...state.zone, zoom: state.zoom, altitude: 20 });
 			renderCoverage();
 		} catch (e) {
 			state.probe = { status: 'none', message: e.message };
 			renderCoverage();
 		} finally {
-			btn.disabled = !state.box;
+			btn.disabled = !state.zone;
 		}
 	};
 
@@ -490,10 +520,14 @@ export function runScanner(root) {
 	}
 
 	// ------------------------------------------------------------ commandes
-	$('.sc-draw').onclick = () => {
+	const startDraw = (shape) => {
 		if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
-		map.pm.enableDraw('Rectangle', { snappable: false });
+		map.pm.enableDraw(shape, { snappable: false, allowSelfIntersection: false });
 	};
+	$('.sc-draw').onclick = () => startDraw('Rectangle');
+	// Le tracé libre suit un fleuve, une avenue, un contour de quartier — ce
+	// qu'un rectangle ne sait faire qu'en embarquant les blocs voisins.
+	$('.sc-draw-poly').onclick = () => startDraw('Polygon');
 	$('.sc-clear').onclick = () => { map.pm.disableDraw(); clearZone(); };
 
 	$('.sc-name').addEventListener('input', () => { state.nameEdited = true; updateButtons(); });
@@ -501,8 +535,8 @@ export function runScanner(root) {
 	function updateButtons() {
 		const name = $('.sc-name').value.trim();
 		const slug = slugify(name);
-		$('.sc-probe').disabled = !state.box;
-		$('.sc-acquire').disabled = !state.box || !slug;
+		$('.sc-probe').disabled = !state.zone;
+		$('.sc-acquire').disabled = !state.zone || !slug;
 		const existing = state.scenes.find((s) => s.slug === slug);
 		note('.sc-slug', slug ? (existing ? `ID ${slug} — ALREADY IN CACHE, ACQUIRING OVERWRITES IT` : `ID ${slug}`) : null, existing ? 'warn' : null);
 	}
@@ -567,7 +601,7 @@ export function runScanner(root) {
 		try {
 			const { jobId } = await post('/jobs', {
 				name: $('.sc-name').value.trim(),
-				bbox: state.box, zoom: state.zoom, altitude: 20, cell: 256, quality: 85,
+				...state.zone, zoom: state.zoom, altitude: 20, cell: 256, quality: 85,
 			});
 			watchJob(jobId, $('.sc-name').value.trim(), state.describe?.estimate?.tiles ?? 0);
 		} catch (e) {

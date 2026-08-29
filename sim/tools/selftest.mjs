@@ -128,29 +128,100 @@ console.log(`origin ${manifest.origin.latitude.toFixed(5)}, ${manifest.origin.lo
 
 console.log('\ngeometry & geodesy');
 const size = manifest.bbox.max.map((v, i) => v - manifest.bbox.min[i]);
-check('tile is roughly 1.2km square', size[0] > 1000 && size[0] < 1600 && size[2] > 1000 && size[2] < 1600,
-	`${size[0].toFixed(0)} x ${size[2].toFixed(0)} m`);
-check('origin is the Eiffel Tower area', Math.abs(manifest.origin.latitude - 48.8583) < 0.01 && Math.abs(manifest.origin.longitude - 2.297) < 0.01);
 
-// The tallest structure in this tile is the tower; ~300m above local ground.
+// Everything below used to be written in metres sized for the 1.2 km Tour
+// Eiffel tile: a -600..600 sweep, a 400 m obstruction ring, a 120 m impact run.
+// On a smaller map those distances aim outside the scene and the checks fail on
+// nothing — bastille (328 m across) reported 9/169 ground hits because most of
+// the sweep was off the map. Radii are therefore expressed as fractions of the
+// scene, and only the numbers that are genuinely about the Tour Eiffel stay
+// behind REFERENCE_SCENE.
+const HALF = Math.min(size[0], size[2]) / 2;
+const CENTRE = { x: (manifest.bbox.min[0] + manifest.bbox.max[0]) / 2,
+                 z: (manifest.bbox.min[2] + manifest.bbox.max[2]) / 2 };
+// Par le NOM de la scène, pas par ses coordonnées : le corridor de Seine passe
+// à 400 m de la Tour Eiffel et tombait dans un rayon en degrés.
+const REFERENCE_SCENE = path.basename(sceneDir) === 'tour-eiffel';
+const skipped = [];
+// A check that only means something on the reference tile. Recorded rather than
+// silently dropped, so the tail of the run says what was not exercised.
+function checkRef(label, ok, detail) {
+	if (!REFERENCE_SCENE) { skipped.push(label); return; }
+	check(label, ok, detail);
+}
+console.log(REFERENCE_SCENE
+	? '  (reference scene: Tour Eiffel — site-specific checks enabled)'
+	: '  (not the reference scene: site-specific checks will be skipped)');
+
+check('tile has plausible extents', size[0] > 100 && size[0] < 5000 && size[2] > 100 && size[2] < 5000,
+	`${size[0].toFixed(0)} x ${size[2].toFixed(0)} m`);
+checkRef('tile is roughly 1.2km square', size[0] > 1000 && size[0] < 1600 && size[2] > 1000 && size[2] < 1600,
+	`${size[0].toFixed(0)} x ${size[2].toFixed(0)} m`);
+checkRef('origin is the Eiffel Tower area',
+	Math.abs(manifest.origin.latitude - 48.8583) < 0.01 && Math.abs(manifest.origin.longitude - 2.297) < 0.01);
+
+// The tallest structure in the tile, whatever it is — the tower here, a roof
+// elsewhere. Every check that needs something to fly into or hide behind aims
+// at it.
 let top = -Infinity, tx = 0, tz = 0;
 for (let i = 0; i < vc; i++) {
 	const y = collision.vertices[i * 3 + 1];
 	if (y > top) { top = y; tx = collision.vertices[i * 3]; tz = collision.vertices[i * 3 + 2]; }
 }
-const groundNearTower = phys.groundBelow(tx + 120, 350, tz + 120);
-const towerHeight = top - groundNearTower;
-check('Eiffel Tower is ~300m tall', towerHeight > 270 && towerHeight < 350, `${towerHeight.toFixed(0)} m`);
+// Local ground around the landmark, not under it — under it IS the landmark.
+// A ring, scaled to the scene, with the offsets that land outside discarded:
+// a fixed 120 m offset falls off a 328 m map entirely.
+const landmarkGround = (() => {
+	const r = Math.min(120, HALF * 0.35);
+	const hits = [];
+	for (let a = 0; a < 8; a++) {
+		const g = phys.groundBelow(tx + Math.cos(a / 8 * Math.PI * 2) * r, top + 50,
+			tz + Math.sin(a / 8 * Math.PI * 2) * r, (top - manifest.bbox.min[1]) + 100);
+		if (g !== null) hits.push(g);
+	}
+	if (!hits.length) return manifest.bbox.min[1];
+	hits.sort((a, b) => a - b);
+	return hits[Math.floor(hits.length / 2)];
+})();
+const landmarkHeight = top - landmarkGround;
+check('the tile has a tallest structure standing above its ground',
+	landmarkHeight > 5, `${landmarkHeight.toFixed(0)} m`);
+checkRef('Eiffel Tower is ~300m tall', landmarkHeight > 270 && landmarkHeight < 350, `${landmarkHeight.toFixed(0)} m`);
+// Kept under its historical name for the checks further down that read it.
+const groundNearTower = landmarkGround;
 
 console.log('\nground queries');
 check('ray finds ground at spawn', phys.groundBelow(manifest.spawn.x, 350, manifest.spawn.z) !== null);
-check('ray finds the tower structure', (phys.groundBelow(tx, 350, tz) ?? 0) > 200,
+// Un rayon tiré d'au-dessus du point le plus haut doit retomber sur la
+// structure elle-même, pas sur le sol qui l'entoure.
+check('ray finds the tallest structure',
+	(phys.groundBelow(tx, top + 50, tz) ?? -Infinity) > landmarkGround + landmarkHeight * 0.5,
+	`${(phys.groundBelow(tx, top + 50, tz) ?? 0).toFixed(0)} m, ground ${landmarkGround.toFixed(0)} m`);
+checkRef('ray finds the tower structure', (phys.groundBelow(tx, 350, tz) ?? 0) > 200,
 	`${(phys.groundBelow(tx, 350, tz) ?? 0).toFixed(0)} m`);
+// 13x13 points RÉPARTIS SUR L'EMPRISE, et non un balayage de -600 à 600 m qui
+// tombait presque entièrement hors d'une petite carte. Une scène tracée au
+// polygone (#30) est creuse par construction : on demande donc une couverture
+// large, pas totale, et on la compare à l'occupation réelle du terrain.
 let misses = 0, samples = 0;
-for (let x = -600; x <= 600; x += 100) for (let z = -600; z <= 600; z += 100) {
-	samples++; if (phys.groundBelow(x, 350, z) === null) misses++;
+{
+	const top_ = manifest.bbox.max[1] + 50;
+	const span = (manifest.bbox.max[1] - manifest.bbox.min[1]) + 100;
+	for (let i = 0; i < 13; i++) for (let j = 0; j < 13; j++) {
+		const x = manifest.bbox.min[0] + ((i + 0.5) / 13) * size[0];
+		const z = manifest.bbox.min[2] + ((j + 0.5) / 13) * size[2];
+		samples++; if (phys.groundBelow(x, top_, z, span) === null) misses++;
+	}
 }
-check('ground coverage across the tile', misses === 0, `${samples - misses}/${samples} hits`);
+const coverage = (samples - misses) / samples;
+// Ce que ce test attrape, c'est un maillage de collision absent ou mal placé,
+// pas un terrain clairsemé : une scène tracée au polygone est creuse par
+// construction (le corridor de Seine couvre 20 % de son emprise, et c'est
+// exactement ce qu'on lui a demandé). Le seuil dit « il y a du terrain, réparti
+// sur la carte », et la tuile de référence garde son exigence de couverture
+// totale juste en dessous.
+check('ground coverage across the tile', coverage > 0.05, `${samples - misses}/${samples} hits`);
+checkRef('the reference tile is fully covered', misses === 0, `${samples - misses}/${samples} hits`);
 
 // Flight envelope + propulsion, run for every drone family (PHASE 07). The
 // thresholds are derived from each family's profile, not written flat, so a
@@ -310,11 +381,17 @@ useFamily('freestyle5');
 
 console.log('\ncollision');
 const towerX = tx, towerZ = tz;
+// On lance le drone à MI-HAUTEUR du repère, pas à 120 m : sur une carte dont la
+// plus haute structure fait 3 m, voler à 120 m passait au-dessus de tout et
+// l'impact ne se produisait jamais. Le point de départ suit la même échelle.
+const impactY = landmarkGround + Math.max(2, landmarkHeight * 0.5);
+const impactRun = Math.min(45, HALF * 0.3);
 const fast = simulate({ seconds: 2, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 },
-	at: [towerX + 45, 120, towerZ], velocity: [-60, 0, 0] });
-check('60 m/s impact does not tunnel through the tower (CCD)', fast.p.x > towerX - 25,
-	`stopped at x=${fast.p.x.toFixed(1)}, tower at x=${towerX.toFixed(1)}`);
-check('high-speed impact registers as a crash', fast.maxImpact > 1500, `${fast.maxImpact.toFixed(0)} N`);
+	at: [towerX + impactRun, impactY, towerZ], velocity: [-60, 0, 0] });
+check('60 m/s impact does not tunnel through the tallest structure (CCD)', fast.p.x > towerX - 25,
+	`stopped at x=${fast.p.x.toFixed(1)}, structure at x=${towerX.toFixed(1)}`);
+check('high-speed impact registers as a crash', fast.maxImpact > 1500,
+	`${fast.maxImpact.toFixed(0)} N at y=${impactY.toFixed(0)} m`);
 
 const land = simulate({ seconds: 3, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 },
 	at: [manifest.spawn.x, manifest.spawn.y + 0.3, manifest.spawn.z] });
@@ -341,18 +418,33 @@ console.log('\nvideo link');
 
 	// Somewhere across the tile at head height there has to be city in the way,
 	// or the whole feature has nothing to react to.
+	// Rayon relatif à la scène : 400 m en dur sortait d'une carte de 328 m, et
+	// les rayons partaient alors dans le vide.
+	const ringR = Math.min(400, HALF * 0.6);
 	let blockedSamples = 0, deep = 0, total = 0;
 	for (let a = 0; a < 8; a++) {
-		const x = ex + Math.cos(a / 8 * Math.PI * 2) * 400;
-		const z = ez + Math.sin(a / 8 * Math.PI * 2) * 400;
+		const x = ex + Math.cos(a / 8 * Math.PI * 2) * ringR;
+		const z = ez + Math.sin(a / 8 * Math.PI * 2) * ringR;
 		const o = phys.obstructionBetween(ex, ey, ez, x, ey + 2, z);
 		total++;
 		if (o.blocked) blockedSamples++;
 		if (o.span > 5) deep++;
 	}
-	check('street-level paths across the tile are obstructed', blockedSamples === total,
+	// Une scène tracée au polygone est creuse : certaines directions sortent du
+	// terrain et ne rencontrent rien, légitimement. On demande donc que la
+	// majorité des chemins soient barrés, et l'unanimité sur la tuile de
+	// référence, qui est un morceau de ville plein.
+	// L'anneau est centré DANS le terrain, donc un rayon part toujours dans de
+	// la géométrie : au moins la moitié des directions doit rencontrer quelque
+	// chose. Sur une scène tracée au polygone, les autres sortent du tracé et ne
+	// rencontrent légitimement rien — le corridor de Seine donne 4/8.
+	check('street-level paths across the tile are obstructed', blockedSamples >= total / 2,
 		`${blockedSamples}/${total} blocked`);
-	check('obstruction is measured as a depth, not just a flag', deep >= total / 2,
+	checkRef('every street-level path across the reference tile is obstructed', blockedSamples === total,
+		`${blockedSamples}/${total} blocked`);
+	check('obstruction is measured as a depth, not just a flag', deep >= 1,
+		`${deep}/${total} deeper than 5 m`);
+	checkRef('most reference-tile paths are deep obstructions', deep >= total / 2,
 		`${deep}/${total} deeper than 5 m`);
 
 	// The model itself. All of these are properties, not magic numbers, so they
@@ -773,12 +865,26 @@ console.log('\nwind');
 			}
 			return shelter / 8;
 		};
-		const lee = ring(25, groundNearTower + 60);
-		const open = ring(400, groundNearTower + 60);
+		// Rayons et altitude relatifs au repère : à 60 m au-dessus du sol, un
+		// bâtiment de 3 m n'abrite rien, et un anneau de 400 m sort d'une petite
+		// carte. On sonde à mi-hauteur du repère, près puis loin.
+		const leeR = Math.max(15, Math.min(25, landmarkHeight * 0.15));
+		const openR = Math.min(400, HALF * 0.8);
+		const probeY = groundNearTower + Math.max(5, landmarkHeight * 0.2);
+		const lee = ring(leeR, probeY);
+		const open = ring(openR, probeY);
 		phys.setWeather(CALM);
-		check('the tower shelters the air behind it', lee > 0.15, `shelter ${lee.toFixed(2)} at 25 m`);
-		check('and 400 m out over the Champ-de-Mars it does not', open < lee * 0.7,
-			`shelter ${open.toFixed(2)} at 400 m`);
+		// Un repère trop bas n'a pas de sillage à montrer : l'assertion ne veut
+		// alors rien dire, et la sauter est plus honnête que la faire échouer.
+		if (landmarkHeight > 25) {
+			check('the tallest structure shelters the air behind it', lee > 0.15,
+				`shelter ${lee.toFixed(2)} at ${leeR.toFixed(0)} m`);
+			check('and far out in the open it does not', open < lee * 0.7,
+				`shelter ${open.toFixed(2)} at ${openR.toFixed(0)} m`);
+		} else {
+			skipped.push('the tallest structure shelters the air behind it (no structure tall enough)');
+			skipped.push('and far out in the open it does not (no structure tall enough)');
+		}
 		// A wake is not a vacuum: the lee of a building is never still air, and a
 		// model that says it is reads as a bug rather than as shelter.
 		check('a wake still has air moving in it', 1 - 0.7 * lee > 0.2,
@@ -2200,5 +2306,12 @@ console.log('\nsoleil — traduction depuis le bulletin');
 		foggy.sun.visibilityM < 1000, `${Math.round(foggy.sun.visibilityM)} m`);
 }
 
+// Ce qui n'a pas été exercé se dit : un test sauté en silence se lit comme un
+// test réussi, et c'est précisément ce qui rendait ce banc trompeur ailleurs
+// que sur la Tour Eiffel.
+if (skipped.length) {
+	console.log(`\n${skipped.length} check(s) skipped — not the reference scene:`);
+	for (const label of skipped) console.log(`  SKIP  ${label}`);
+}
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

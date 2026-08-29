@@ -3,6 +3,7 @@
 // déjà rempli ce conteneur. Tout le texte visible est en anglais (D5).
 import * as operatorApi from './operator.js';
 import { readGamepadDir } from './gamepad-dir.js';
+import { uiAudio } from './ui-audio.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -299,6 +300,7 @@ async function flushOrRetry(root, api) {
 	while (true) {
 		try { await api.flush(); return; }
 		catch {
+			uiAudio.play('ERROR');
 			const s = screen(root);
 			const ok = await new Promise((resolve) => {
 				s.box.innerHTML = '<pre>VECTOR NOT SAVED — RETRY</pre>';
