@@ -115,7 +115,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0 },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0, OSD: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -147,6 +147,9 @@ const LensShader = {
 		// Arbitre entre les deux façons de mourir d'un décodeur composite :
 		// 0 tout au gris, 1 tout au cross-color. N'existe que sous LINK_MODE == 1.
 		uCrossColor: { value: 0 },
+		// L'OSD de la cible : un canvas 2D peint par DroneOsd, échantillonné aux
+		// UV déjà distordues par le barillet. null quand aucun OSD n'est actif.
+		uOsd: { value: null },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -173,6 +176,10 @@ const LensShader = {
 		uniform vec3 uSensor2;
 		uniform float uCrossColor;
 		varying vec2 vUv;
+
+		#if OSD
+			uniform sampler2D uOsd;
+		#endif
 
 		#if DROPS > 0
 			#define DROP_SKY_MIX ${DROP_SKY_MIX.toFixed(2)}
@@ -474,6 +481,24 @@ const LensShader = {
 			}
 			#endif
 
+			// ---- l'OSD de la cible ---------------------------------------------
+			// Échantillonné à uvHere, la coordonnée déjà distordue par le
+			// barillet : l'OSD subit donc l'optique gratuitement. Pas d'aberration
+			// chromatique dessus — c'est une incrustation monochrome, séparer les
+			// canaux n'aurait pas de sens.
+			//
+			// Ici et pas ailleurs : après le flou, parce que l'OSD est collé au
+			// capteur et ne smeare pas quand la caméra tourne ; après les gouttes,
+			// parce que l'eau est sur le verre en amont ; avant le vignettage, le
+			// capteur et la liaison, parce que c'est ce qui fait que perdre le
+			// lien coûte de l'information.
+			#if OSD
+			{
+				vec4 osd = texture2D(uOsd, uvHere);
+				c = mix(c, osd.rgb, osd.a);
+			}
+			#endif
+
 			c *= 1.0 - uVignette * pow(r, 2.5);
 
 			#if SENSOR
@@ -720,6 +745,8 @@ export class FpvLens {
 		// Éteint tant que setSensor() n'a jamais fait passer un réglage à une
 		// valeur non neutre — un capteur inactif ne doit rien coûter au GPU.
 		this._sensorActive = 0;
+		// L'OSD n'existe pas tant que main.js (Task 9) n'en a pas fourni un.
+		this._osd = null;
 
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
 	}
@@ -797,6 +824,16 @@ export class FpvLens {
 		if (crossed) this._updateDefines();
 	}
 
+	// L'OSD est donné une fois, pas à chaque image : c'est lens qui sait quelle
+	// image est gelée, donc c'est lens qui a le droit d'appeler commit().
+	// setOsd(null) recompile le shader sans l'OSD — c'est le levier du A/B de
+	// mesure et le repli si le coût est mauvais.
+	setOsd(osd) {
+		this._osd = osd ?? null;
+		this._u.uOsd.value = osd ? osd.texture : null;
+		this._updateDefines();
+	}
+
 	// How much the air is scattering into the optic, 0..1, straight from
 	// FogField.glare. Zero compiles the veil out of the shader entirely, so
 	// clear air renders byte-identically to the pass as it stood before the fog
@@ -857,15 +894,17 @@ export class FpvLens {
 			? MAX_TAPS : 1;
 		const defines = this.pass.material.defines;
 		const glare = this._glare > 0 ? 1 : 0;
+		const osd = this._osd ? 1 : 0;
 		if (taps === this._taps && defines.LINK_MODE === this._linkMode
 			&& defines.DROPS === this._dropBucket && defines.GLARE === glare
-			&& defines.SENSOR === this._sensorActive) return;
+			&& defines.SENSOR === this._sensorActive && defines.OSD === osd) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
 		defines.DROPS = this._dropBucket;
 		defines.GLARE = glare;
 		defines.SENSOR = this._sensorActive;
+		defines.OSD = osd;
 		this.pass.material.needsUpdate = true;
 	}
 
@@ -962,6 +1001,12 @@ export class FpvLens {
 		// glass has to stop with it — it is *in* that picture. The RF snow is
 		// not, and keeps crawling, which is why uTime above is not gated here.
 		this._updateDrops(frozen ? 0 : this._rain.dt);
+
+		// L'OSD a traversé la même liaison que l'image : sur une image perdue il
+		// gèle avec elle. Le laisser se rafraîchir afficherait des chiffres à
+		// jour par-dessus un monde figé — l'inverse exact de ce que le lien
+		// raconte.
+		if (this._osd && !frozen) this._osd.commit();
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
 		// so it still works in free camera, where the physics step is skipped. A
