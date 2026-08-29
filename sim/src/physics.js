@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { QUAD, GRAVITY, Propulsion, HOVER_THRUST, hoverThrust } from './quad.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
+import { hoverThrottle } from './flightController.js';
 import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
 export { QUAD, HOVER_THRUST, hoverThrust };
@@ -144,6 +145,7 @@ export class Physics {
 		this.body.setLinvel(ZERO, true);
 		this.body.setAngvel(ZERO, true);
 		this.propulsion.reset();
+		this.propulsion.primeFor(hoverThrottle(this.profile, IDENTITY));
 		this.wind.reset();
 		this._agl = null;
 		this._aglCounter = 0;
@@ -164,6 +166,7 @@ export class Physics {
 		this.body.setLinvel(linvel, true);
 		this.body.setAngvel(angvel, true);
 		this.propulsion.reset();
+		this.propulsion.primeFor(hoverThrottle(this.profile, quaternion));
 		this.wind.reset();
 		this._agl = null;
 		this._aglCounter = 0;

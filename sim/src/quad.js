@@ -181,6 +181,22 @@ export class Propulsion {
 		for (const t of [...this._wash, ...this._buffet]) { t.rng = this._rng; t.reset(); }
 	}
 
+	// Sets omega/thrust straight to their steady-state value for a throttle
+	// command, skipping the motor-lag ramp step() normally applies — so a
+	// drone that starts (or respawns) already in flight doesn't show stopped
+	// props and silent audio on its first frame (PHASE 13). Ground effect and
+	// axial inflow are left out on purpose: those need real airspeed/agl, and
+	// the very next step() call folds them in anyway.
+	primeFor(cmd) {
+		const omegaMax = this.profile.maxOmega * this.battery.thrustScale;
+		const w = omegaMax * Math.pow(clamp01(cmd), this.profile.rpmCurve);
+		const t = Math.max(0, this._kThrust * w * w);
+		for (let i = 0; i < 4; i++) {
+			this.omega[i] = w;
+			this.thrust[i] = t;
+		}
+	}
+
 	get rpm() { return this.omega.map((w) => (w * 60) / (2 * Math.PI)); }
 
 	// motors: four commands in 0..1, straight from the mixer.
