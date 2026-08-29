@@ -44,7 +44,11 @@ export async function open({ area, weatherSnapshot, resume } = {}) {
 export function feed({ speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAboveSpawn = 0, dt = 0, armed = false } = {}) {
 	if (!live || live.closed) return;
 	const t = live.tel;
-	if (armed && dt > 0) {
+	// Rien ne compte quand le drone est désarmé : ni la durée, ni la distance,
+	// ni les pics — un drone posé qui rebondit sur sa sphère de collision n'est
+	// pas en train de « voler à 2000 °/s ».
+	if (!armed) return;
+	if (dt > 0) {
 		t.durationS += dt;
 		t.distanceM += Math.max(0, horizontalSpeed) * dt;
 	}

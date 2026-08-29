@@ -58,8 +58,11 @@ export class Physics {
 		this.collider = this.world.createCollider(
 			RAPIER.ColliderDesc.ball(QUAD.radius)
 				.setDensity(0)
-				.setRestitution(0.35)
-				.setFriction(0.8)
+				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
+				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
+				// toute pose impossible. 0.05 = il touche et il reste.
+				.setRestitution(0.05)
+				.setFriction(1.0)
 				.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
 				.setContactForceEventThreshold(30),
 			this.body,

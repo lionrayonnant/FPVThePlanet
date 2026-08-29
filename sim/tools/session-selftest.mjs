@@ -177,8 +177,8 @@ await ta('feed n\'accumule durée/distance que si armed ; open+end = 1 POST + 1 
 	session._reset();
 
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
-	// désarmé : pas de durée ni de distance, mais les maxima montent
-	session.feed({ speed: 5, horizontalSpeed: 4, rateDps: 100, altitudeAboveSpawn: 2, dt: 1, armed: false });
+	// désarmé : rien ne compte, pas même les pics (rebond au sol de la sphère)
+	session.feed({ speed: 999, horizontalSpeed: 999, rateDps: 9999, altitudeAboveSpawn: 999, dt: 1, armed: false });
 	// armé : tout compte
 	session.feed({ speed: 20, horizontalSpeed: 15, rateDps: 300, altitudeAboveSpawn: 40, dt: 2, armed: true });
 	session.feed({ speed: 12, horizontalSpeed: 10, rateDps: 250, altitudeAboveSpawn: 18, dt: 1, armed: true });

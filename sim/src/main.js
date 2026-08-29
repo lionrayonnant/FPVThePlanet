@@ -440,10 +440,16 @@ function doDisarm() {
 	const p = physics.position;
 	const g = physics.groundBelow(p.x, p.y, p.z);
 	const v = physics.velocity;
-	const onGround = g !== null && (p.y - g) < 0.5;
-	const still = Math.hypot(v.x, v.y, v.z) < 0.8;
-	console.log(`[session] désarmement — sol:${onGround} immobile:${still} (h=${g === null ? '?' : (p.y - g).toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
-	if (onGround && still) {
+	// Au sol = à portée de contact du sol, pas « parfaitement immobile » : une
+	// pose sur une sphère de collision est toujours un peu vivante. On rejette
+	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
+	const height = g === null ? Infinity : p.y - g;
+	const onGround = height < 1.2 && Math.hypot(v.x, v.y, v.z) < 4;
+	console.log(`[session] désarmement — sol:${onGround} (h=${height === Infinity ? '?' : height.toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
+	if (onGround) {
+		// Le drone est posé : on le fige, il ne roule pas et ne dérive pas.
+		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 		hud.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
 		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
 	} else {
