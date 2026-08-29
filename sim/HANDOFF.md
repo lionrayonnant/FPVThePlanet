@@ -217,6 +217,47 @@ Plan d'origine (contexte de la décision d'architecture) :
     testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
     réel).
   - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
+- **PHASE 11 — Entry State (issue #48)**, branche `phase-11-entry-state`,
+  mergée dans `main`.
+  - Après `JACK IN` (et à chaque respawn en session), le drone démarre déjà en
+    vol : `src/entry-state.js` (`generateEntryState()`) tire une catégorie
+    pondérée (COMFORTABLE 60 / ACTIVE 25 / CHALLENGING 12 / HOLY_SHIT 3 %),
+    échantillonne position/assiette/vitesse/rotation n'importe où dans le bbox
+    de la scène, puis valide le tirage en deux temps : géométrique
+    (`groundBelow`/`obstructionBetween`, réutilisés tels quels) et un rollout
+    physique headless d'1 s (sticks neutres, throttle hover via
+    `hoverThrottle()`, mêmes `Physics`/`FlightController` que le jeu — aucun
+    second moteur physique). 20 tirages max, puis repli garanti sur l'ancien
+    spawn fixe au repos.
+  - `Physics.applyEntryState()` (nouveau, à côté de `reset()`) pose le corps à
+    un état cinématique arbitraire ; `physics.spawn` (position du pilote au
+    sol, antenne) reste inchangé — seul le point d'entrée du drone bouge.
+  - `main.js` : `boot()` et `respawn()` appellent
+    `physics.applyEntryState(generateEntryState({physics, manifest, seed}))` ;
+    `spawnY` (télémétrie PHASE 06) reste ancré à `physics.spawn.y`, pas à la
+    position d'entrée aléatoire.
+  - **Vérifié headless** : `tools/entry-state-selftest.mjs` (tirage de
+    catégorie pur, chaîné dans `selftest:operator`, distribution mesurée à
+    ±3 points sur 20 000 tirages) ; nouvelle section `entry state` dans
+    `tools/selftest.mjs` sur la scène réelle tour-eiffel (100 tirages : aucun
+    ne crashe dans la seconde de grâce rejouée, aucun sous le terrain, chaque
+    résultat dans la plage de sa catégorie ; repli `maxAttempts=0` vérifié).
+    `npm run selftest`, `selftest:operator`, `npm run build` verts.
+  - **Vérifié navigateur** (MCP chrome-devtools) : première frame de session
+    et respawns répétés (`r`) atterrissent en vol (altitude/vitesse/assiette
+    variées, moteurs actifs), aucun `NaN`, aucune erreur console.
+  - **Non vérifié / connu, hors périmètre de cette phase** : les plages de
+    valeurs par catégorie (`RANGES` dans `entry-state.js`) sont un premier
+    jet tapé à la main, pas mesuré au banc — à ajuster au ressenti en vol. Le
+    rollout de validation suppose un throttle hover pendant la seconde de
+    grâce ; si le vrai jeu démarre au throttle 0 (position par défaut du
+    stick dans `input.js`), un joueur qui ne touche pas les gaz immédiatement
+    peut chuter en CHALLENGING/HOLY_SHIT (basse altitude) avant la fin de la
+    seconde — tension déjà documentée dans la spec, à traiter par PHASE 10
+    (rituel JACK IN) ou `input.js`, pas par ce module. Le contrôle de sécurité
+    géométrique ne regarde pas la viabilité du lien vidéo au point d'entrée
+    (l'émetteur reste fixe à `physics.spawn`) — un spawn éloigné avec un
+    bâtiment sur la ligne de vue peut ouvrir une session sur un lien dégradé.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
