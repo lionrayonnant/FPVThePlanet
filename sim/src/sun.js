@@ -344,3 +344,119 @@ export function sunDisc(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const k = 1 / Math.max(1e-6, lum(n));
 	return { color: { r: n[0] * k, g: n[1] * k, b: n[2] * k }, amount };
 }
+
+
+// ---------------------------------------------------------------------------
+// L'AGC
+//
+// Une caméra FPV a un gain automatique, et c'est lui qu'on modélise — pas un
+// correcteur de gamma. Côté CPU, sans aucun readback GPU : le posemètre est
+// estimé analytiquement depuis l'état du ciel et l'angle au soleil, ce qui rend
+// tout ceci déterministe et vérifiable au banc.
+
+// Les bornes du gain. E_MAX est ce qui produit la nuit : arrivée en butée, la
+// caméra ne compense plus et l'image s'assombrit — exactement ce que fait une
+// vraie caméra. Le couple (E_MAX, planchers de nuit) est calibré pour que la
+// nuit pleine rende entre 15 et 35 % de la luminance de jour, et c'est le banc
+// qui le vérifie.
+export const E_MIN = 0.15;
+export const E_MAX = 4.0;
+// Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Grand : un
+// soleil couvre une fraction dérisoire de l'image et domine pourtant la mesure.
+const SUN_METER_WEIGHT = 6.0;
+// Les caméras ferment vite et rouvrent lentement. Cette asymétrie EST la
+// mécanique que l'issue #23 met en avant ; symétrique, l'effet ne se remarque
+// même pas.
+export const TAU_CLOSE = 0.15;
+export const TAU_OPEN = 1.2;
+// En dessous, l'écart à 1 n'est plus visible et le bloc shader peut être
+// compilé dehors. Un demi-niveau sur 255 : ce qui ne peut pas changer un octet.
+const NOOP_EPS = 1 / 512;
+
+export class SunField {
+	// null plutôt qu'un soleil inventé quand la scène n'a pas d'origine
+	// géodésique — la même règle que la météo, qui se rabat sur CALM.
+	static forOrigin(origin = {}) {
+		const lat = origin.latitude, lon = origin.longitude;
+		if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+		return new SunField({ lat, lon });
+	}
+
+	constructor({ lat, lon }) {
+		this.lat = lat;
+		this.lon = lon;
+		this.cloudPct = 0;
+		this.visibilityM = REF_VIS;
+
+		this.elevation = 0;          // degrés, géométrique
+		this.azimuth = 0;            // degrés, horaire depuis le nord
+		this.dir = { x: 0, y: 1, z: 0 };
+		this.sky = { r: 0, g: 0, b: 0 };
+		this.sunColor = { r: 1, g: 1, b: 1 };
+		this.sunAmount = 0;
+		this.ambient = 1;
+		// Démarrée à sa valeur d'équilibre plutôt qu'à 1 : sinon la première
+		// seconde de chaque vol est une rampe d'exposition que personne n'a
+		// demandée.
+		this.exposure = 1;
+		this._settled = false;
+	}
+
+	// Écrit par weather.js. Le bulletin du jour, pas une série horaire : le
+	// soleil lit la météo comme wind/rain/fog, il ne la réinvente pas.
+	setWeather({ cloudPct = 0, visibilityM = REF_VIS } = {}) {
+		this.cloudPct = clamp(Number(cloudPct) || 0, 0, 100);
+		this.visibilityM = Number.isFinite(visibilityM) ? Math.max(1, visibilityM) : REF_VIS;
+		this._settled = false;
+		return this;
+	}
+
+	// dt vient de l'appelant et vaut ZÉRO quand le sim est gelé — même règle et
+	// même piège que FpvLens.setRain() : pas d'horloge interne qu'on pourrait
+	// oublier d'arrêter sur une image figée.
+	//
+	// sunInFrame est 0..1 : combien le disque, occlusion comprise, pèse dans ce
+	// que le posemètre voit. main.js le calcule, parce que lui seul connaît la
+	// caméra et la géométrie.
+	update(dt, { date = new Date(), sunInFrame = 0 } = {}) {
+		const p = sunPosition({ lat: this.lat, lon: this.lon, date });
+		this.elevation = p.elevation * R2D;
+		this.azimuth = p.azimuth * R2D;
+		this.dir = sunVector(p.azimuth, p.elevation);
+
+		const c = skyColor(this.elevation, this.visibilityM, this.cloudPct);
+		this.sky.r = c.r; this.sky.g = c.g; this.sky.b = c.b;
+
+		const disc = sunDisc(this.elevation, this.visibilityM, this.cloudPct);
+		this.sunColor = disc.color;
+		this.sunAmount = disc.amount;
+
+		this.ambient = ambientLevel(this.elevation, this.cloudPct);
+		// Ce que le posemètre voit : l'ambiance, plus le disque s'il est dans le
+		// cadre. Le disque est pondéré par sa propre force, donc un soleil déjà
+		// mangé par les nuages ne ferme pas le diaphragme.
+		const metered = this.ambient + SUN_METER_WEIGHT * clamp01(sunInFrame) * this.sunAmount;
+		// Le gain que la caméra cherche, puis l'exposition finale : l'ambiance
+		// EST la luminance de la scène, le gain la corrige, et c'est le produit
+		// qui multiplie l'image. À la référence les deux valent 1.
+		const target = this.ambient * clamp(1 / metered, E_MIN, E_MAX);
+
+		if (!this._settled) {
+			// Premier pas : on part à l'équilibre, sans rampe d'ouverture.
+			this.exposure = target;
+			this._settled = true;
+		} else if (dt > 0) {
+			const tau = target < this.exposure ? TAU_CLOSE : TAU_OPEN;
+			this.exposure += (target - this.exposure) * (1 - Math.exp(-dt / tau));
+		}
+		return this;
+	}
+
+	// Faux uniquement quand le bloc shader serait rigoureusement un no-op :
+	// aucun disque, et une exposition indiscernable de 1. C'est plus étroit
+	// qu'il n'y paraît — la nuit, sunAmount est nul mais l'AGC est en butée,
+	// donc le bloc doit rester compilé, sans quoi la nuit ne s'assombrirait pas.
+	get active() {
+		return this.sunAmount > 0 || Math.abs(this.exposure - 1) > NOOP_EPS;
+	}
+}

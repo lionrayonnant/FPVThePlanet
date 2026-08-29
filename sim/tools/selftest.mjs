@@ -19,7 +19,7 @@ import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generat
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
-	REF_ELEV, REF_VIS, SKY_REF,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MIN, E_MAX,
 } from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
@@ -1491,6 +1491,149 @@ console.log('\nsoleil — atmosphère et couleur du ciel');
 		}
 		return true;
 	})());
+}
+
+console.log('\nsoleil — exposition (AGC) et SunField');
+{
+	const PARIS = { lat: 48.8566, lon: 2.3522 };
+	// Un midi d'équinoxe à Paris : soleil haut, ciel clair. C'est le point de
+	// calibrage, et le seul instant où le sim doit rendre EXACTEMENT l'image
+	// qu'il rendait avant ce ticket.
+	const NOON = new Date('2026-06-21T11:52:00Z');
+	const MIDNIGHT = new Date('2026-06-21T23:52:00Z');
+
+	const settle = (field, date, sunInFrame, seconds = 20) => {
+		for (let t = 0; t < seconds; t += 1 / 60) field.update(1 / 60, { date, sunInFrame });
+		return field;
+	};
+
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('midi d\'été à Paris : le soleil est haut', sun.elevation > 55,
+			`${sun.elevation.toFixed(1)}°`);
+		check('et au sud : le vecteur pointe vers +Z', sun.dir.z > 0.3, sun.dir.z.toFixed(3));
+		check('l\'exposition au repos par ciel clair et soleil haut est ~1',
+			Math.abs(sun.exposure - 1) < 0.02, sun.exposure.toFixed(4));
+	}
+
+	// L'asymétrie de l'AGC : c'est ELLE, et rien d'autre, qui produit la
+	// mécanique que l'issue met en avant — on passe face au soleil, la ville
+	// s'éteint, et elle met une seconde à revenir.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		const before = sun.exposure;
+
+		// Fermeture : le soleil entre dans le cadre.
+		let closeTime = null;
+		for (let t = 0; t < 5; t += 1 / 60) {
+			sun.update(1 / 60, { date: NOON, sunInFrame: 1 });
+			if (closeTime === null && sun.exposure < before * 0.5) closeTime = t;
+		}
+		const closed = sun.exposure;
+		check('le soleil dans le cadre ferme l\'exposition', closed < before * 0.4,
+			`${closed.toFixed(3)} vs ${before.toFixed(3)}`);
+		check('la fermeture est rapide (moins de 0,5 s pour perdre la moitié)',
+			closeTime !== null && closeTime < 0.5, `${closeTime?.toFixed(2)} s`);
+
+		// Réouverture : le soleil sort du cadre.
+		let openTime = null;
+		for (let t = 0; t < 10; t += 1 / 60) {
+			sun.update(1 / 60, { date: NOON, sunInFrame: 0 });
+			if (openTime === null && sun.exposure > before * 0.5) openTime = t;
+		}
+		check('la réouverture est lente (plus de 0,5 s pour reprendre la moitié)',
+			openTime !== null && openTime > 0.5, `${openTime?.toFixed(2)} s`);
+		check('la caméra ferme nettement plus vite qu\'elle ne rouvre',
+			openTime > closeTime * 3, `${openTime?.toFixed(2)} s vs ${closeTime?.toFixed(2)} s`);
+		check('et elle finit par revenir là où elle était',
+			Math.abs(sun.exposure - before) < 0.02);
+	}
+
+	// La nuit sort de l'AGC arrivé en butée, pas d'un facteur « nuit ». Le
+	// critère est de jouabilité : une image sombre qu'on peut encore piloter.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, MIDNIGHT, 0, 60);
+		check('minuit : le soleil est sous l\'horizon', sun.elevation < 0,
+			`${sun.elevation.toFixed(1)}°`);
+		check('minuit : le disque est éteint', sun.sunAmount === 0);
+		check('nuit pleine : l\'image est sombre mais pilotable (15 à 35 %)',
+			sun.exposure > 0.15 && sun.exposure < 0.35, sun.exposure.toFixed(3));
+		check('nuit pleine : le ciel reste bleu', sun.sky.b > sun.sky.r,
+			`${sun.sky.r.toFixed(3)} ${sun.sky.g.toFixed(3)} ${sun.sky.b.toFixed(3)}`);
+	}
+
+	// dt = 0 fige le modèle. Même règle que setRain() dans lens.js : il n'y a
+	// pas d'horloge interne qu'on pourrait oublier d'arrêter (#24).
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		const held = sun.exposure;
+		for (let i = 0; i < 100; i++) sun.update(0, { date: NOON, sunInFrame: 1 });
+		check('dt = 0 fige l\'AGC', sun.exposure === held);
+	}
+
+	// L'exposition reste bornée quoi qu'on lui envoie : elle multiplie l'image
+	// entière, un débordement serait un écran blanc.
+	{
+		const sun = new SunField(PARIS);
+		let outOfRange = 0;
+		for (const cloud of [0, 50, 100]) {
+			for (const vis of [200, 5000, 25000]) {
+				sun.setWeather({ cloudPct: cloud, visibilityM: vis });
+				for (const h of [0, 6, 12, 18]) {
+					const d = new Date(`2026-06-21T${String(h).padStart(2, '0')}:00:00Z`);
+					for (const f of [0, 0.3, 1]) {
+						settle(sun, d, f, 5);
+						if (!(sun.exposure > 0) || sun.exposure > E_MAX) outOfRange++;
+					}
+				}
+			}
+		}
+		check('l\'exposition reste bornée sur toute la combinatoire', outOfRange === 0,
+			`${outOfRange} débordement(s)`);
+	}
+
+	// Le no-op. Attention à ce qui est testé ici : `active` dit « le soleil
+	// change quelque chose à l'image », et il est VRAI dès que le soleil est
+	// levé, caméra ou pas — SunField ne connaît pas la caméra. Le vrai test de
+	// no-op du shader vit dans lens.setSun(), qui seul sait si le soleil est
+	// devant l'objectif.
+	//
+	// Ce qui doit être exact ici, c'est le calibrage de l'exposition : par ciel
+	// clair, soleil haut et hors cadre, le gain vaut 1 et l'image est celle que
+	// le sim rendait avant ce ticket.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('calibrage : soleil haut, ciel clair, hors cadre ⇒ gain exactement 1',
+			sun.exposure === 1, sun.exposure.toFixed(6));
+		check('mais il y a bien un soleil dans le ciel', sun.sunAmount > 0.5,
+			sun.sunAmount.toFixed(3));
+
+		// Le seul cas où le bloc est vraiment un no-op : plus de disque du tout,
+		// et un gain encore à 1.
+		sun.setWeather({ cloudPct: 100, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('couvert total, soleil haut : le bloc est un no-op',
+			sun.active === false, `expo=${sun.exposure.toFixed(4)} amount=${sun.sunAmount}`);
+
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, MIDNIGHT, 0, 60);
+		check('la nuit, le bloc reste actif (sinon la nuit ne s\'assombrirait pas)',
+			sun.active === true && sun.sunAmount === 0);
+	}
+
+	// Sans coordonnées, pas de soleil inventé.
+	check('une zone sans lat/lon ne construit pas de soleil',
+		SunField.forOrigin({}) === null && SunField.forOrigin({ latitude: 1, longitude: 2 }) !== null);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
