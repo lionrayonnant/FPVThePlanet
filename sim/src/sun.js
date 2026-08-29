@@ -246,7 +246,7 @@ const AMBIENT_DECADE = 6;
 const SKY_DECADE = 9;
 // Les deux planchers de nuit. C'est LE seul endroit où la jouabilité l'emporte
 // sur la physique : le vrai rapport jour/nuit est de l'ordre de 10^7, et une
-// ville à 10^-7 serait un écran noir. Le couple (plancher, E_MAX) est calibré
+// ville à 10^-7 serait un écran noir. Le couple (plancher, E_MAX_NIGHT) est calibré
 // pour que la nuit pleine rende une image sombre mais pilotable — le banc le
 // vérifie, plutôt que de faire confiance à ces deux nombres.
 const NIGHT_AMBIENT = 0.05;
@@ -390,17 +390,21 @@ export function sunDisc(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 // estimé analytiquement depuis l'état du ciel et l'angle au soleil, ce qui rend
 // tout ceci déterministe et vérifiable au banc.
 
-// Les bornes du gain. E_MAX est ce qui produit la nuit : arrivée en butée, la
-// caméra ne compense plus et l'image s'assombrit — exactement ce que fait une
-// vraie caméra. Le couple (E_MAX, planchers de nuit) est calibré pour que la
-// nuit pleine rende entre 15 et 35 % de la luminance de jour, et c'est le banc
-// qui le vérifie.
+// Les bornes du gain. E_MAX est la fin du régime PROPRE : au-delà, la caméra
+// ne s'arrête plus (c'est une starlight, issue #111) mais chaque cran
+// supplémentaire se paie en grain — `gain` ci-dessous mesure cette profondeur
+// et lens.js la rend. E_MAX_NIGHT est la vraie butée : le couple
+// (E_MAX_NIGHT, planchers de nuit) est calibré pour que la nuit pleine rende
+// entre 45 et 60 % de la luminance de jour — sombre, granuleuse, mais
+// pilotable — et c'est le banc qui le vérifie. Avant #111 la butée était
+// E_MAX et la nuit rendait 15-35 % : injouable, retour terrain.
 // E_MIN était à 0,15 : face au soleil, plein cadre, l'image tombait à 15 % de
 // sa luminance nominale — trop sombre pour rester jouable, retour terrain
 // après l'issue #23 (nerf : issue #92). Remonté pour que la fermeture reste
 // sensible mais ne noie plus l'image.
 export const E_MIN = 0.35;
 export const E_MAX = 4.0;
+export const E_MAX_NIGHT = 11.0;
 // Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Grand : un
 // soleil couvre une fraction dérisoire de l'image et domine pourtant la
 // mesure. Réduit avec E_MIN ci-dessus : `inFrame` grandit linéairement dès
@@ -415,6 +419,28 @@ const TAU_OPEN = 1.2;
 // En dessous, l'écart à 1 n'est plus visible et le bloc shader peut être
 // compilé dehors. Un demi-niveau sur 255 : ce qui ne peut pas changer un octet.
 const NOOP_EPS = 1 / 512;
+
+// Ce que le haut gain fait à l'image, exprimé dans le vocabulaire du bloc
+// capteur de lens.js (setSensor) : du grain, des noirs qui montent, de la
+// couleur qui s'en va. Composé PAR-DESSUS le capteur de la cible plutôt que
+// substitué : une bouse de toothpick reste une bouse, la nuit l'empire.
+// Les trois pentes sont choisies à l'œil (comme SKY_SLANT) — le banc ne
+// vérifie que leur sens et leurs ordres de grandeur.
+const NIGHT_GRAIN = 0.14;   // s'ajoute : à fond, domine même un bon capteur
+const NIGHT_LIFT = 0.05;    // les noirs d'un ampli poussé ne sont plus noirs
+const NIGHT_DESAT = 0.45;   // fraction de la couleur mangée à gain plein
+
+export function nightSensor(gain, base = {}) {
+	const g = clamp01(gain);
+	const { grain = 0, lift = 0, saturation = 1, ...rest } = base;
+	if (g === 0) return { grain, lift, saturation, ...rest };
+	return {
+		grain: grain + NIGHT_GRAIN * g,
+		lift: lift + NIGHT_LIFT * g,
+		saturation: saturation * (1 - NIGHT_DESAT * g),
+		...rest,
+	};
+}
 
 export class SunField {
 	// null plutôt qu'un soleil inventé quand la scène n'a pas d'origine
@@ -442,6 +468,11 @@ export class SunField {
 		// seconde de chaque vol est une rampe d'exposition que personne n'a
 		// demandée.
 		this.exposure = 1;
+		// 0..1 : profondeur dans le régime haut gain (starlight, #111). 0 tant
+		// que l'AGC tient sous E_MAX ; 1 en butée E_MAX_NIGHT. C'est le prix du
+		// gain — main.js le pousse vers le bloc capteur de lens.js (grain,
+		// noirs levés, désaturation).
+		this.gain = 0;
 		this._settled = false;
 	}
 
@@ -483,7 +514,7 @@ export class SunField {
 		// Le gain que la caméra cherche, puis l'exposition finale : l'ambiance
 		// EST la luminance de la scène, le gain la corrige, et c'est le produit
 		// qui multiplie l'image. À la référence les deux valent 1.
-		const target = this.ambient * clamp(1 / metered, E_MIN, E_MAX);
+		const target = this.ambient * clamp(1 / metered, E_MIN, E_MAX_NIGHT);
 
 		if (!this._settled) {
 			// Premier pas : on part à l'équilibre, sans rampe d'ouverture.
@@ -493,6 +524,9 @@ export class SunField {
 			const tau = target < this.exposure ? TAU_CLOSE : TAU_OPEN;
 			this.exposure += (target - this.exposure) * (1 - Math.exp(-dt / tau));
 		}
+		// Dérivé de l'exposition LISSÉE, pas de la cible : le grain suit la
+		// même constante de temps que l'image, sans pompage propre.
+		this.gain = clamp01((this.exposure / this.ambient - E_MAX) / (E_MAX_NIGHT - E_MAX));
 		return this;
 	}
 

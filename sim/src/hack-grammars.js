@@ -9,10 +9,11 @@
 // avant le rituel. Écrit dans el.textContent. Pas d'état module — tout dérive
 // de (t, seed, lock).
 //
-// Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number }).
+// Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number, dur?: number }).
 // Même toolkit ASCII, pas de `lock` — la couleur (cyan/magenta/violet/bleu
 // électrique, Bible §19) est appliquée par le conteneur (src/ritual.js), pas
 // par la primitive : le rendu reste du texte brut, une seule teinte à la fois.
+// `dur` (PHASE 20) est optionnel, défaut 4 — voir le contrat étendu plus bas.
 
 const W = 44; // largeur du champ ASCII
 const H = 12; // hauteur
@@ -299,14 +300,23 @@ export const GRAMMARS = {
 };
 
 // ============================================================================
-// Primitives de culmination du rituel (PHASE 10, Bible §18-19). 8 blocs
-// composables, communs aux 6 familles ; seul le sous-ensemble pondéré par
-// famille (FAMILY_PRIMITIVES) et le nombre de battements (variante V1-V4,
-// tools/ritual-model.mjs) changent — pas 24 animations écrites à la main.
+// Primitives de culmination du rituel (PHASE 10, Bible §18-19 ; PHASE 20,
+// Bible §40). 11 blocs composables, communs aux 6 familles ; seul le
+// sous-ensemble pondéré par famille (FAMILY_PRIMITIVES) et le nombre de
+// battements (variante V1-V4, tools/ritual-model.mjs) changent — pas 24+
+// animations écrites à la main.
+//
+// Contrat étendu (PHASE 20) : draw(el, { t: number, seed: number, dur?: number = 4 }).
+// `dur` est la fenêtre visible d'un battement en secondes (aujourd'hui
+// toujours 1 s, `variant.ms / variant.beats` dans src/ritual.js), pas la
+// durée totale de la culmination — seules les primitives dont le cycle
+// interne dépasserait cette fenêtre en tiennent compte (pulseRing,
+// vectorSweep) ; les autres l'ignorent sans casser.
 
 // Vocabulaire d'ambiance déjà en liste blanche (hack-model.mjs) : réutilisé
 // tel quel, aucun nouveau mot de "procédure" n'est introduit ici.
 import { HACK_VOCAB } from '../tools/hack-model.mjs';
+import { bigText } from './ascii.js';
 const VOCAB = [...HACK_VOCAB];
 
 // --- scanBurst : défilement rapide de tokens du vocabulaire d'ambiance ------
@@ -347,11 +357,11 @@ function glitchShift(el, { t, seed }) {
 
 // --- pulseRing : anneau ASCII qui s'étend depuis le centre -----------------
 
-function pulseRing(el, { t, seed }) {
+function pulseRing(el, { t, seed, dur = 4 }) {
 	const g = blank();
 	const cx = W / 2;
 	const cy = H / 2;
-	const period = 1.4;
+	const period = Math.min(1.4, dur * 0.45); // au moins 2 pulsations par battement
 	const phase = (t + seed * period) % period;
 	const radius = (phase / period) * (W / 2 + 2);
 	const glyphs = ['·', 'o', 'O', '#'];
@@ -401,9 +411,9 @@ function waveformSpike(el, { t, seed }) {
 
 // --- vectorSweep : flèche/ligne qui balaie l'écran de bas à droite --------
 
-function vectorSweep(el, { t, seed }) {
+function vectorSweep(el, { t, seed, dur = 4 }) {
 	const g = blank();
-	const period = 1.2;
+	const period = Math.min(1.2, dur * 0.4); // au moins 2 balayages par battement
 	const phase = ((t + seed * period) % period) / period;
 	const x0 = -4 + phase * (W + 8);
 	const y0 = H - 1 - phase * (H - 1);
@@ -441,20 +451,70 @@ function chromaSplit(el, { t, seed }) {
 	el.textContent = frame(lines(g));
 }
 
+// --- colorFlash : plein champ qui strobe — la teinte (cyan/magenta/…) est
+// appliquée par le conteneur, la primitive ne fait que remplir/vider ---------
+
+function colorFlash(el, { t, seed, dur = 4 }) {
+	const g = blank();
+	const hz = 9;
+	const step = Math.floor(t * hz + seed * 3);
+	if (step % 3 !== 0) { // 2 frames pleines, 1 noire : le flash, pas un aplat
+		const fill = step % 2 ? '█' : '▓';
+		for (let y = 0; y < H; y++) {
+			for (let x = 0; x < W; x++) {
+				if (noise(x, y, step, seed) > 0.15) g[y][x] = fill;
+			}
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- textWarp : lignes du vocabulaire d'ambiance déformées par une sinusoïde -
+
+function textWarp(el, { t, seed, dur = 4 }) {
+	const g = blank();
+	for (let y = 1; y < H; y += 2) {
+		const word = VOCAB[(Math.floor(noise(0, y, 0, seed) * VOCAB.length) + y) % VOCAB.length];
+		const line = `${word} `.repeat(Math.ceil(W / (word.length + 1)) + 2);
+		const shift = Math.round(Math.sin(t * 6 + y * 0.9 + seed * 6.28) * 5) + y * 3;
+		for (let x = 0; x < W; x++) {
+			const c = line[(((x + shift) % line.length) + line.length) % line.length];
+			if (c !== ' ') g[y][x] = c;
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- bannerBurst : gros ASCII art d'un mot du vocabulaire (Bible §40 : le
+// gros ASCII n'existe QUE pendant les événements), jitter horizontal ---------
+
+function bannerBurst(el, { t, seed, dur = 4 }) {
+	const g = blank();
+	const word = VOCAB[Math.floor(noise(1, 2, 3, seed) * VOCAB.length)];
+	const rows = bigText(word.slice(0, 10));
+	const y0 = Math.floor((H - rows.length) / 2);
+	const jx = Math.floor(noise(Math.floor(t * 12), 0, 0, seed) * 3) - 1;
+	const x0 = Math.max(0, Math.floor((W - rows[0].length) / 2) + jx);
+	rows.forEach((r, i) => text(g, x0, y0 + i, r));
+	el.textContent = frame(lines(g));
+}
+
 export const RITUAL_PRIMITIVES = {
 	scanBurst, glitchShift, pulseRing, gridSwarm,
 	waveformSpike, vectorSweep, memoryScroll, chromaSplit,
+	colorFlash, textWarp, bannerBurst,
 };
 
-// 2-3 primitives pondérées par famille : mêmes 8 fonctions pour toutes, seul
-// le sous-ensemble + l'ordre changent (grammaire, pas 24 séquences à la main).
-// Une famille absente retomberait sur un générique — en pratique HACK_TYPES
-// (6) couvre toutes les entrées, testé par ritual-selftest.mjs.
+// 2-4 primitives pondérées par famille : mêmes 11 fonctions pour toutes, seul
+// le sous-ensemble + l'ordre changent (grammaire, pas des dizaines de
+// séquences écrites à la main). Une famille absente retomberait sur un
+// générique — en pratique HACK_TYPES (6) couvre toutes les entrées, testé
+// par ritual-selftest.mjs.
 export const FAMILY_PRIMITIVES = {
-	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift'],
-	'LINK HIJACK': ['pulseRing', 'waveformSpike'],
-	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit'],
-	'GNSS SPOOF': ['vectorSweep', 'chromaSplit'],
-	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing'],
-	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst'],
+	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift', 'colorFlash'],
+	'LINK HIJACK': ['pulseRing', 'waveformSpike', 'colorFlash'],
+	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit', 'textWarp'],
+	'GNSS SPOOF': ['vectorSweep', 'chromaSplit', 'bannerBurst'],
+	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing', 'bannerBurst'],
+	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst', 'textWarp'],
 };

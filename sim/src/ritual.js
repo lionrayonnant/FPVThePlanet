@@ -13,6 +13,7 @@
 import { readGamepadDir } from './gamepad-dir.js';
 import { cosmeticSeed, RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from './hack-grammars.js';
 import { pickVariant, checkInput } from '../tools/ritual-model.mjs';
+import { uiAudio } from './ui-audio.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 const KEY_TO_DIR = { ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left' };
@@ -53,6 +54,7 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			const r = checkInput(vector, typed, dir);
 			if (r.status === 'mismatch') {
 				typed = [];
+				uiAudio.play('ERROR');
 				renderPrompt();
 				wrap.classList.remove('ritual-shake');
 				// force le replay de l'animation même sur des erreurs consécutives
@@ -84,6 +86,9 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			stage = 'burst';
 			promptEl.classList.add('ritual-prompt-done');
 			wrap.classList.add('ritual-live');
+			// Programmée d'un coup sur l'horloge audio : le rythme ne doit pas
+			// dépendre des frames, que le chargement de la carte peut faire sauter.
+			uiAudio.playRitual(hackType, variant.ms);
 			raf = requestAnimationFrame(loop);
 		}
 
@@ -94,7 +99,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			const beatIdx = Math.min(variant.beats - 1, Math.floor(elapsed / beatMs));
 			const primitive = RITUAL_PRIMITIVES[primitives[beatIdx % primitives.length]];
 			burstEl.className = `ritual-burst ritual-burst--${RITUAL_COLORS[beatIdx % RITUAL_COLORS.length]}`;
-			primitive(burstEl, { t: elapsed / 1000, seed: numSeed });
+			// `dur` = fenêtre visible du battement (beatMs), pas la culmination
+			// entière : chaque primitive n'est affichée qu'un battement à la
+			// fois, pulseRing/vectorSweep bouclent leur période sur cette base.
+			primitive(burstEl, { t: elapsed / 1000, seed: numSeed, dur: beatMs / 1000 });
 			if (beatIdx !== lastBeatIdx) {
 				// Un coup à chaque battement : le rituel doit frapper l'écran, pas
 				// juste changer de motif dessus (retour utilisateur PR #80).
