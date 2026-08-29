@@ -136,6 +136,10 @@ let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
+// Le hack + le rituel (vector code, demo scene) tournent devant un monde déjà
+// chargé et physiquement actif (#22) : sans ce gel, le drone tombe pendant que
+// le joueur regarde encore l'écran d'analyse, avant d'avoir touché les sticks.
+let introFrozen = false;
 let crashed = false;
 // La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
 // l'altitude du spawn, pour la session.
@@ -598,7 +602,7 @@ function yawOf(q) {
 	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
 }
 
-function simFrozen() { return freeCamOn || paused || settings.settingsOpen; }
+function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -1006,8 +1010,14 @@ async function chooseScene() {
 	controller = new FlightController({ profile: PROFILE });
 	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
 	setScene(slug);
+	introFrozen = true;
 	const booting = boot();
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
+	// pendant le hack comme un unique pas de physique géant.
+	introFrozen = false;
+	accumulator = 0;
+	lastTime = performance.now();
 	return { prepared: true };
 }
 
