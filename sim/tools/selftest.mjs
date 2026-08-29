@@ -1275,7 +1275,7 @@ console.log('\nnuages');
 		check('et le zénith clair est plus profond que son horizon',
 			lum(CLEAR_ZENITH) < lum(CLEAR_HORIZON));
 		check('un ciel couvert est plus terne qu\'un ciel clair',
-			lum(OVERCAST_HORIZON) < lum(CLEAR_HORIZON) * 1.05);
+			lum(OVERCAST_HORIZON) < lum(CLEAR_HORIZON));
 	}
 }
 

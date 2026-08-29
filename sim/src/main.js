@@ -421,6 +421,8 @@ async function boot() {
 					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
+				},
+				cloud: {
 					cloudCover: +cloud.cover.toFixed(3),
 					cloudBase: Math.round(cloud.base),
 					// Négatif tant qu'on est sous le plafond, positif une fois dedans

@@ -30,13 +30,24 @@ const EDGE = 60;                     // m
 // s'appelle « purée de pois » ; dedans c'est un peu pire.
 export const DECK_RANGE = 25;        // m
 
-// D6 — PROVISOIRE, à calibrer en vol (tâche 7) avant d'être figé.
-// La radiométrie dit qu'un ciel couvert laisse passer 15 à 30 % de
-// l'éclairement du ciel clair. On ne peut pas l'appliquer : la photogrammétrie
-// est cuite avec un éclairage ensoleillé, on ne peut pas la ré-éclairer, et on
-// vole *à* cette texture. La contrainte réelle est la lisibilité, pas
-// l'éclairement, donc ce nombre se mesure à l'œil dans le simulateur.
-export const DIM_MAX = 0.72;
+// Mesuré, pas choisi. La radiométrie dit qu'un ciel couvert laisse passer 15 à
+// 30 % de l'éclairement du ciel clair ; l'appliquer casserait l'image, parce
+// que la photogrammétrie est cuite avec un éclairage ensoleillé, qu'on ne peut
+// pas la ré-éclairer, et qu'on vole *à* cette texture. La contrainte n'est donc
+// pas l'éclairement mais la lisibilité.
+//
+// Mesuré en vol, caméra figée, sur tour-eiffel — luminance moyenne du sol et
+// contraste local (écart-type) en fonction du facteur :
+//
+//   1.00 -> lum 106.8, contraste 33.3      0.58 -> lum 69.7, contraste 25.0
+//   0.72 -> lum  81.5, contraste 26.6      0.45 -> lum 57.6, contraste 23.6
+//
+// La perte de contraste est concentrée sur le premier palier (-20 % de 1.00 à
+// 0.72, puis seulement -11 % jusqu'à 0.45) : assombrir coûte de moins en moins
+// cher. À 0.45 les obstacles restent distinguables sur tour-eiffel comme sur
+// notre-dame-de-la-croix, donc 0.55 garde de la marge sans être timide — à 0.72
+// un ciel couvert ne se lisait pas comme couvert.
+export const DIM_MAX = 0.55;
 
 // Une couverture évolue sur des dizaines de minutes, pas sur des secondes.
 // fog.js utilise 120 / 25 s pour une nappe ; une couche nuageuse est bien plus
