@@ -1,8 +1,10 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { QUAD, GRAVITY, Propulsion, HOVER_THRUST } from './quad.js';
+import { QUAD, GRAVITY, Propulsion, HOVER_THRUST, hoverThrust } from './quad.js';
+import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
-export { QUAD, HOVER_THRUST };
+export { QUAD, HOVER_THRUST, hoverThrust };
+export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 
 // Kept for callers that still want a single "how hard can it push" number.
 export const MAX_THRUST = 4 * QUAD.maxThrustPerMotor;
@@ -17,6 +19,9 @@ const ZERO = { x: 0, y: 0, z: 0 };
 
 export class Physics {
 	constructor(collision, spawn, options = {}) {
+		// The airframe family (src/drone-profiles.js). Defaults to the 5"
+		// freestyle build; a session (PHASE 06+) passes its target's profile.
+		this.profile = options.profile ?? DEFAULT_PROFILE;
 		this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
 		this.world.timestep = 1 / 250;
 
@@ -44,8 +49,8 @@ export class Physics {
 				// that asymmetry is most of the difference between "this handles
 				// like a quad" and "this handles like a thrown rock".
 				.setAdditionalMassProperties(
-					QUAD.mass, ZERO,
-					{ x: QUAD.inertia.x, y: QUAD.inertia.y, z: QUAD.inertia.z },
+					this.profile.mass, ZERO,
+					{ x: this.profile.inertia.x, y: this.profile.inertia.y, z: this.profile.inertia.z },
 					IDENTITY,
 				),
 		);
@@ -55,8 +60,9 @@ export class Physics {
 		// shape that can get closer to the camera than 0.15 m would put geometry
 		// inside the near plane; and a 5" quad with its props is closer to a disc
 		// than to a box anyway. Density 0 so only the mass properties above count.
+		// Always 0.15 m, every family: camera.near is pinned to it.
 		this.collider = this.world.createCollider(
-			RAPIER.ColliderDesc.ball(QUAD.radius)
+			RAPIER.ColliderDesc.ball(0.15)
 				.setDensity(0)
 				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
 				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
@@ -69,7 +75,8 @@ export class Physics {
 		);
 		this.events = new RAPIER.EventQueue(true);
 
-		this.propulsion = new Propulsion(options.seed);
+		this._seed = options.seed;
+		this.propulsion = new Propulsion({ profile: this.profile, seed: options.seed });
 		this.wind = new WindField(options.windSeed);
 		if (options.weather) this.wind.setParams(options.weather);
 		// Reused, so the per-step call into quad.js does not allocate.
@@ -107,6 +114,19 @@ export class Physics {
 		// step() between the ground query and the world step.
 		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 		this._obstruction = { blocked: false, span: 0 };
+	}
+
+	// Swap the airframe family without rebuilding the trimesh world — the wasm
+	// heap only has room for one. Used by tools/selftest.mjs to run the flight
+	// checks across every family. The collider stays a 0.15 m sphere.
+	setProfile(profile) {
+		this.profile = profile;
+		this.propulsion = new Propulsion({ profile, seed: this._seed });
+		this.body.setAdditionalMassProperties(
+			profile.mass, ZERO,
+			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },
+			IDENTITY, true,
+		);
 	}
 
 	reset() {

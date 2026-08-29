@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
-import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
+import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadLens, loadLink } from './settings.js';
@@ -58,7 +58,15 @@ export const OPTS = {
 	scene: params.get('scene'),
 	// ?resume=<sessionId> : ré-ouvre une session LANDED (posé par le terminal).
 	resume: params.get('resume'),
+	// Dev-only override: ?family=race5 flies that drone family regardless of the
+	// TARGET SCAN choice (PHASE 08). One of:
+	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
+	family: params.get('family'),
 };
+if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
+	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
+}
+const PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
@@ -74,7 +82,7 @@ document.body.appendChild(renderer.domElement);
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'));
 const settings = new Settings(document.getElementById('ui'), input);
-const controller = new FlightController();
+const controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
@@ -182,7 +190,9 @@ async function boot() {
 	hud.progress('construction de l’arbre de collision…', 0.76);
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
-	physics = new Physics(collision, manifest.spawn);
+	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	audio.setProfile(physics.profile);
+	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -345,6 +355,7 @@ async function boot() {
 					roughness: +physics.wind.roughness.toFixed(2),
 					intensity: +physics.wind.intensity.toFixed(3),
 				},
+				family: physics.profile.family,
 				mode: controller.mode,
 				preset: controller.preset,
 				motors: [...controller.motors].map((m) => +m.toFixed(3)),
@@ -660,7 +671,7 @@ function frame() {
 	// and the pseudo-force cancel — plus the airflow over the glass, which wins
 	// above about 6 m/s and sends the water *up* the frame. rain.js:dropDrift
 	// does that; here it is only handed the drone's own state.
-	dropDrift(physics.airVelocity, physics.propulsion.force, QUAD.mass,
+	dropDrift(physics.airVelocity, physics.propulsion.force, physics.profile.mass,
 		cameraTilt * Math.PI / 180, drift);
 	lens.setRain({
 		wetness: rain.wetness,
