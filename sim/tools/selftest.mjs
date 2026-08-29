@@ -1470,6 +1470,27 @@ console.log('\nsoleil — atmosphère et couleur du ciel');
 		const a = skyColor(17, 8000, 33), b = skyColor(17, 8000, 33);
 		return a.r === b.r && a.g === b.g && a.b === b.b;
 	})());
+
+	// skyColor reste dans 0..1 sur toute une plage de conditions : soleil haut,
+	// rasant, nuit pleine, avec couverture nuageuse ou brouillard.
+	check('skyColor reste dans 0..1 sur tous les régimes', (() => {
+		const testCases = [
+			// [élévation, visibilité, couverture nuageuse]
+			[60, REF_VIS, 0],     // soleil haut, clair, sans nuage
+			[2, REF_VIS, 0],      // soleil rasant, clair (celui qui débordait avant)
+			[-20, REF_VIS, 0],    // nuit pleine
+			[40, 500, 0],         // brouillard épais
+			[20, REF_VIS, 100],   // très couvert
+			[5, 500, 80],         // combinaison : brouillard + couverture
+		];
+		for (const [elev, vis, cloud] of testCases) {
+			const c = skyColor(elev, vis, cloud);
+			if (!(c.r >= 0 && c.r <= 1 && c.g >= 0 && c.g <= 1 && c.b >= 0 && c.b <= 1)) {
+				return false;
+			}
+		}
+		return true;
+	})());
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);

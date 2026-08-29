@@ -307,7 +307,11 @@ export function skyColor(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const rel = Math.pow(skyLevel(elevationDeg, cloudPct) / ambientLevel(elevationDeg, cloudPct),
 		SKY_COMPRESS);
 	const c = skyChroma(elevationDeg, visibilityM, cloudPct);
-	return { r: c[0] * WHITE_BALANCE[0] * rel, g: c[1] * WHITE_BALANCE[1] * rel, b: c[2] * WHITE_BALANCE[2] * rel };
+	return {
+		r: clamp01(c[0] * WHITE_BALANCE[0] * rel),
+		g: clamp01(c[1] * WHITE_BALANCE[1] * rel),
+		b: clamp01(c[2] * WHITE_BALANCE[2] * rel),
+	};
 }
 
 // ---------------------------------------------------------------------------
