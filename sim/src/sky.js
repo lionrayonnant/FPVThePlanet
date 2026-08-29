@@ -91,12 +91,82 @@ export class SkyDome {
 				in vec3 vDir;
 				out vec4 outColor;
 
+				float hash21(vec2 p) {
+					p = fract(p * vec2(123.34, 456.21));
+					p += dot(p, p + 45.32);
+					return fract(p.x * p.y);
+				}
+
+				float vnoise(vec2 p) {
+					vec2 i = floor(p), f = fract(p);
+					vec2 u = f * f * (3.0 - 2.0 * f);
+					float a = hash21(i);
+					float b = hash21(i + vec2(1.0, 0.0));
+					float c = hash21(i + vec2(0.0, 1.0));
+					float d = hash21(i + vec2(1.0, 1.0));
+					return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+				}
+
+				// Somme des amplitudes 0.5 + 0.25 + ... sur cinq octaves.
+				// Diviser par elle ramène le FBM dans [0, 1], donc le seuil de
+				// couverture plus bas peut être exact plutôt qu'approché.
+				const float FBM_NORM = 0.96875;
+
+				float fbm(vec2 p) {
+					float v = 0.0, a = 0.5;
+					for (int i = 0; i < 5; i++) {
+						// Chaque octave dérive un peu plus que la précédente, donc
+						// la couche se DÉFORME au lieu de glisser comme une plaque
+						// rigide. C'est le seul endroit où les nuages vivent.
+						v += a * vnoise(p + uDrift * uScale * (1.0 + float(i) * 0.35));
+						// 2.03 et pas 2.0 : un doublement exact réaligne les octaves
+						// sur le même réseau et imprime une grille visible.
+						p = p * 2.03 + 17.1;
+						a *= 0.5;
+					}
+					return v / FBM_NORM;
+				}
+
 				void main() {
 					vec3 d = normalize(vDir);
-					// Dégradé. La racine tasse le dégradé vers l'horizon, où
-					// l'épaisseur d'air traversée change vite ; en haut il est
-					// presque uniforme, comme un vrai ciel.
 					vec3 col = mix(uHorizon, uZenith, sqrt(clamp(d.y, 0.0, 1.0)));
+
+					// De quel côté est la couche. uHeight est signé : positif tant
+					// qu'elle est au-dessus, négatif une fois qu'on l'a percée — et
+					// alors on la regarde vers le BAS. Ça coûte un signe, et c'est
+					// la récompense d'un plafond traversable.
+					float dy = (uHeight >= 0.0) ? d.y : -d.y;
+
+					// Sous l'horizon du bon côté, il n'y a rien à dessiner : les
+					// tuiles couvrent cette zone de toute façon.
+					if (dy > 0.001) {
+						// Intersection du rayon de vue avec le plan horizontal de
+						// la base. C'est ça qui fait converger les nuages à
+						// l'horizon sans qu'on ait à le programmer.
+						vec2 p = uCamXZ + d.xz * (abs(uHeight) / dy);
+
+						// Le seuil de couverture. Les bornes sont choisies pour que
+						// les deux extrémités soient EXACTES : à uCover = 0 le bord
+						// est à 1.18 et aucune valeur du FBM ne peut le franchir
+						// (D5, ciel clair = rien du tout) ; à uCover = 1 il est à
+						// -0.18 et tout le franchit.
+						float w = 0.18;
+						float edge = mix(1.0 + w, -w, uCover);
+						float density = smoothstep(edge - w, edge + w, fbm(p * uScale));
+
+						// Quand dy tend vers 0 le point d'échantillonnage part à
+						// l'infini. On fond sur les derniers degrés — ce qui est
+						// aussi ce que fait l'atmosphère, les nuages se compriment
+						// en bande à l'horizon. La dégénérescence numérique et le
+						// rendu juste sont le même geste.
+						density *= smoothstep(0.0, 0.14, dy);
+
+						// Pas d'éclairage, pas de normale : les paquets épais sont
+						// plus sombres, et cette seule corrélation suffit à les
+						// lire comme volumiques.
+						col = mix(col, mix(uCloudLit, uCloudDark, density), density);
+					}
+
 					outColor = vec4(col, 1.0);
 				}
 			`,
