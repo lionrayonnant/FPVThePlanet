@@ -258,6 +258,35 @@ Plan d'origine (contexte de la décision d'architecture) :
     géométrique ne regarde pas la viabilité du lien vidéo au point d'entrée
     (l'émetteur reste fixe à `physics.spawn`) — un spawn éloigné avec un
     bâtiment sur la ligne de vue peut ouvrir une session sur un lien dégradé.
+- **Ciel et nuages (issue #22)**, branche `issue-22-nuages-ciel`.
+  - Le ciel est un dôme dégradé avec une couche nuageuse procédurale
+    (`src/sky.js`, `src/cloud.js`) ; la couverture vient de `cloudPct` du world
+    state (météo), pas d'un réglage manuel.
+  - Plafond traversable : whiteout à l'approche, on ressort au-dessus de la
+    couche. Profil d'extinction mesuré en vol à couverture 0,95 (base 136 m) :
+    nul jusqu'à 50 m, 0,0068 à 100 m, 0,0658 en saturation entre 200 et 300 m,
+    retombé à 0,0217 à 400 m.
+  - Assombrissement global du sol **sans motif** : décision de conception, pas
+    une simplification — la géométrie n'a pas de normales et les tuiles
+    portent déjà l'ombrage cuit d'Apple. `DIM_MAX = 0,55`, mesuré en vol sur
+    `tour-eiffel` et `notre-dame-de-la-croix`.
+  - Vérifié en vol : `uHorizon`, `scene.background` et le `uFogColor` des
+    matériaux de chunk portent tous exactement la même couleur — c'est ce qui
+    empêche la ligne d'horizon de se dédoubler.
+  - **L'invariant historique change de forme.** Il ne dit plus que le pixel de
+    ciel sort à `#9fb8cc` : un dégradé change forcément le pixel du zénith,
+    et c'est l'objet même de cette issue. L'invariant devient : **la couleur
+    d'horizon par ciel clair vaut exactement `#9fb8cc`**, c'est elle que
+    `setFog()` pousse sur les tuiles, et le zénith est délibérément plus
+    profond. Vérifié en vol.
+  - **Non vérifié** : le coût en fill rate du dôme à FOV 120 sur un GPU
+    modeste — la vérification a tourné en rendu logiciel.
+  - Le sens de dérive du vent était inversé (`_drift` accumulé avec le bon
+    signe, mais le shader échantillonne `vnoise(p + uDrift·…)`, ce qui
+    translate le motif à *moins* le vecteur ajouté : les nuages remontaient
+    le vent). Corrigé après la revue finale, vérifié par un calcul numérique
+    sur un portage JS du fbm (maximum local suivi sous un vent de nord).
+    Toujours **non vérifié à l'œil**.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

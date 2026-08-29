@@ -58,13 +58,14 @@ export async function worldWeather({ lat, lon }) {
 
 // Écrit les paramètres du jour dans les quatre modèles. Aucun d'eux n'est
 // réimplémenté ici : on ne fait que poser leurs entrées.
-export function applyWeather(snapshot, { physics, rain, fog, sun } = {}) {
+export function applyWeather(snapshot, { physics, rain, fog, cloud, sun } = {}) {
 	const d = model.today(snapshot);
 	if (!d) return null;
 	const p = model.toSimParams(d);
 	physics?.setWeather(p.wind);
 	rain?.setParams(p.rain);
 	fog?.setParams(p.fog);
+	cloud?.setParams(p.cloud);
 	sun?.setWeather(p.sun);
 	return p;
 }
@@ -75,6 +76,7 @@ export const CALM = {
 	wind: { speed: 0, direction: 0, gust: 0, turbulence: 0.5 },
 	rain: { intensity: 0, variability: 0.5 },
 	fog: { intensity: 0, variability: 0.5 },
+	cloud: { cover: 0, variability: 0.5 },
 	// Ciel dégagé, air clair : le soleil n'est pas neutralisé pour autant, il
 	// est simplement au-dessus d'une zone sans météo connue.
 	sun: { cloudPct: 0, visibilityM: 25000 },

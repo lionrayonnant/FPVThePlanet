@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -19,6 +19,8 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { SunField, SKY_REF } from './sun.js';
 import { Rainfall } from './rainfall.js';
+import { CloudField } from './cloud.js';
+import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
@@ -33,12 +35,13 @@ import { normalizeHackType } from '../tools/hack-model.mjs';
 // instead of #9FB8CC and dragging the fog toward the same dark blue.
 THREE.ColorManagement.enabled = false;
 
+// SKY = sky.js's CLEAR_HORIZON, re-exported under its historical name: one
+// definition of 0x9fb8cc instead of two.
 // sun.js:skyColor() calibrates itself against SKY_REF so that a high sun,
 // clear air and no cloud reproduce this exact value — importing it here
 // (rather than repeating the literal) is what keeps that calibration honest:
 // if this ever changes, sun.js's own bench check would start failing loudly
 // instead of comparing itself to a stale copy of itself.
-const SKY = SKY_REF;
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
@@ -80,6 +83,10 @@ let PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
+// Le dôme. scene.background reste posé au-dessus : il n'est plus jamais vu —
+// le dôme couvre l'écran — mais il porte désormais la couleur d'HORIZON, que
+// rainfall.js, lens.js et les tuiles lisent tous. Une seule couleur d'air.
+const skyDome = new SkyDome(scene);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -111,6 +118,9 @@ const rain = new RainField(undefined, FOG_DENSITY);
 // scene's fog density rather than sharing it — FOG_DENSITY is the clear-air
 // floor it starts from and never goes below.
 const fog = new FogField(undefined, FOG_DENSITY);
+// Et le ciel au-dessus : quelle fraction est couverte, à quelle hauteur, et de
+// combien le sol s'assombrit. Le monde le décide (#41), pas un réglage.
+const cloud = new CloudField();
 // Et la lumière : où est le soleil, ce que l'atmosphère lui fait, et ce que la
 // caméra en fait. Construit dans boot(), une fois le manifest lu — il lui faut
 // la lat/lon de la scène, et sans elle il n'existe pas plutôt que d'inventer un
@@ -280,7 +290,7 @@ async function boot() {
 	// fonction de l'instant UTC et du lieu, point.
 	sun = SunField.forOrigin(o);
 	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog, sun }) ?? CALM;
+	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
 	if (weather) {
 		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
 			+ `${headline(weather.days[0])}`, applied);
@@ -289,6 +299,7 @@ async function boot() {
 		physics.setWeather(CALM.wind);
 		rain.setParams(CALM.rain);
 		fog.setParams(CALM.fog);
+		cloud.setParams(CALM.cloud);
 		sun?.setWeather(CALM.sun);
 	}
 
@@ -324,7 +335,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, sun,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -425,10 +436,22 @@ async function boot() {
 					// The range the air alone gives you, the range once the rain is
 					// in it too, and how much of that is coming back as veil.
 					range: Math.round(fog.range),
-					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
+					// La densité réellement poussée au shader inclut aussi le
+					// plafond (cf. cloud.extinctionAt dans frame()) : l'ajouter ici
+					// pour que la portée affichée corresponde à ce que l'image
+					// montre une fois qu'on approche le plafond. p et spawnY sont
+					// déjà en main plus haut, pas besoin d'un nouveau raycast.
+					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(p.y - spawnY))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
 				},
+				cloud: {
+					cloudCover: +cloud.cover.toFixed(3),
+					cloudBase: Math.round(cloud.base),
+					// Négatif tant qu'on est sous le plafond, positif une fois dedans
+					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
+					// qu'un whiteout arrive au bon moment.
+					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
 				// Ce qui permet de vérifier le soleil dans le vrai navigateur
 				// plutôt que de regarder une capture et d'y croire.
 				sun: sun && {
@@ -539,6 +562,7 @@ function respawn() {
 	// or the bank that just blinded you.
 	rain.reset();
 	fog.reset();
+	cloud.reset();
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
@@ -585,37 +609,12 @@ const _tilt = new THREE.Quaternion();
 // fog has already settled on.
 let lastDensity = -1;
 let lastSkyHex = -1;
+let lastDim = 1;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
 let lensShutter = 0;
 
-// Weather does not only take contrast away, it takes the blue out of the sky.
-// Rain darkens it: the light is coming through cloud and water rather than
-// through air. Fog does the opposite — it is bright, and it is neutral, because
-// what you are looking at is the scattered light itself.
-//
-// The two are applied in that order, rain then fog, so that thick fog wins: at
-// fifty metres of visibility the sky is the fog and nothing else. Interpolated
-// on the raw bytes, because the whole colour pipeline is pass-through and a
-// linear round trip here would land the sky back on HANDOFF bug #10.
-const CLEAR_SKY = new THREE.Color(SKY);
-const RAIN_SKY = new THREE.Color(0x8d99a2);
-const FOG_SKY = new THREE.Color(0xc9d0d4);
-const _sky = new THREE.Color();
-// Réutilisée plutôt que réallouée : weatherSky() tourne à chaque frame.
-const _sunSky = new THREE.Color();
-function weatherSky(rainScale, fogMix) {
-	// Le ciel clair n'est plus une constante : c'est celui que sun.js dérive de
-	// la hauteur du soleil, de la visibilité de l'air et de la couverture. Sans
-	// soleil (scène sans origine géodésique), CLEAR_SKY reste la constante
-	// d'origine et cette fonction rend exactement ce qu'elle rendait.
-	const base = sun ? _sunSky.setRGB(sun.sky.r, sun.sky.g, sun.sky.b) : CLEAR_SKY;
-	// rainScale is 1 in the clear and about 2 in a downpour.
-	return _sky.copy(base)
-		.lerp(RAIN_SKY, Math.min(1, (rainScale - 1) * 1.2))
-		.lerp(FOG_SKY, fogMix);
-}
 // Where a bead sitting on the front element is being pushed, in g and in the
 // plane of the lens. Written once a frame into the same object rather than
 // allocated, like every other per-frame vector here.
@@ -697,59 +696,118 @@ function frame() {
 	// physics step because nothing in it feeds back into the flight model — the
 	// water is on the lens, not on the airframe — and because the streaks and
 	// the drops are drawn once per frame whatever the physics did.
-	if (!frozen) {
-		rain.update(physics.airspeed, dt);
-		fog.update(dt);
-		// Extinctions add, so densities add. This is a strict generalisation of
-		// the rain-only version it replaces: FOG_DENSITY * rain.fogScale is by
-		// definition FOG_DENSITY + the rain's own extinction, so with the fog
-		// slider at zero the picture is the one #24 left behind, to the bit.
-		const density = fog.density + extinctionOf(rain.visibility);
-		// Le soleil. Avancé sur l'horloge de la frame comme la pluie et le
-		// brouillard, et pour la même raison : rien de ce qu'il fait ne
-		// redescend dans le modèle de vol.
-		if (sun) {
-			// Le soleil traverse-t-il un bâtiment ? Sans cette question, le
-			// disque se dessine à travers la Tour Eiffel et tout l'effet
-			// s'effondre. Un seul rayon, la méthode existe déjà (elle sert au
-			// lien vidéo) — la sonde de vent en tire dix à 20,8 Hz, donc le coût
-			// est dans le bruit.
-			const sp = physics.position;
-			const far = 2000;
-			const blocked = physics.obstructionBetween(
-				sp.x, sp.y, sp.z,
-				sp.x + sun.dir.x * far, sp.y + sun.dir.y * far, sp.z + sun.dir.z * far,
-			).blocked ? 1 : 0;
-			// Lissé : un rayon unique bascule 0/1 d'une frame à l'autre en
-			// frôlant une arête, et un disque qui clignote est pire qu'aucun
-			// disque. 80 ms, assez court pour qu'un immeuble le coupe net.
-			sunVisible += ((1 - blocked) - sunVisible) * (1 - Math.exp(-dt / 0.08));
+if (!frozen) {
+	rain.update(physics.airspeed, dt);
+	fog.update(dt);
+	cloud.update(dt);
 
-			// Où le soleil tombe dans le cadre. Une caméra à 120° de champ voit
-			// un demi-ciel : « dans le cadre » n'est donc pas un booléen mais la
-			// place que le disque prend dans ce que le posemètre moyenne.
-			_sunWorld.set(sun.dir.x, sun.dir.y, sun.dir.z);
-			const axis = _camDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
-			const cosAngle = axis.dot(_sunWorld);
-			// 1 quand le soleil est pile dans l'axe, 0 au bord du champ.
-			const halfFov = (camera.fov * Math.PI / 180) / 2;
-			const inFrame = Math.max(0, (cosAngle - Math.cos(halfFov)) / (1 - Math.cos(halfFov)));
-			sunInFrame = inFrame * sunVisible;
+	// Altitude au-dessus du sol, utilisée pour le plafond nuageux.
+	// On la prend par rapport au spawn plutôt que via un raycast :
+	// le relief local est négligeable devant l'altitude de la base des nuages,
+	// et le raycast plus bas dans cette frame n'a pas encore eu lieu.
+	const float altitudeAGL = physics.position.y - spawnY;
 
-			sun.update(dt, { sunInFrame });
-		}
-		const sky = weatherSky(rain.fogScale, fog.skyMix);
-		const skyHex = sky.getHex();
-		if (density !== lastDensity || skyHex !== lastSkyHex) {
-			lastDensity = density;
-			lastSkyHex = skyHex;
-			setFog(sky, density);
-			// Mutated, not replaced: lens.js reads this very object every frame.
-			scene.background.set(sky);
-			// The streaks are lit by the sky too, and used to keep the clear-sky
-			// colour whatever the weather did.
-			rainfall?.setSky(scene.background);
-		}
+	skyDome.setState({
+		cover: cloud.cover,
+		base: cloud.base,
+		altitudeAGL,
+		windDir: physics.wind.direction,
+		windSpeed: physics.wind.speed,
+		rainScale: rain.fogScale,
+		fogMix: fog.skyMix,
+	});
+
+	// Les extinctions s'additionnent :
+	// - brouillard
+	// - pluie
+	// - plafond nuageux
+	//
+	// Entrer dans un nuage produit ici un voile uniforme piloté par
+	// l'altitude de la caméra, plutôt qu'un calcul par fragment.
+	const density =
+		fog.density +
+		extinctionOf(rain.visibility) +
+		cloud.extinctionAt(altitudeAGL);
+
+	// Couleur réellement produite par le dôme cette frame.
+	const sky = skyDome.horizon;
+	const skyHex = sky.getHex();
+
+	// Le soleil avance avec l'horloge de la frame, comme la pluie et
+	// le brouillard. Rien de ce calcul ne redescend dans le modèle de vol.
+	if (sun) {
+		// Le soleil est-il masqué par un bâtiment ?
+		// Un seul rayon suffit ici : la sonde de vent effectue déjà
+		// plusieurs tests à ~20,8 Hz.
+		const sp = physics.position;
+		const far = 2000;
+
+		const blocked = physics.obstructionBetween(
+			sp.x,
+			sp.y,
+			sp.z,
+			sp.x + sun.dir.x * far,
+			sp.y + sun.dir.y * far,
+			sp.z + sun.dir.z * far,
+		).blocked ? 1 : 0;
+
+		// Lissage pour éviter le clignotement lorsque le rayon frôle
+		// l'arête d'un bâtiment.
+		sunVisible +=
+			((1 - blocked) - sunVisible) *
+			(1 - Math.exp(-dt / 0.08));
+
+		// Direction du soleil dans l'espace caméra.
+		_sunWorld.set(
+			sun.dir.x,
+			sun.dir.y,
+			sun.dir.z,
+		);
+
+		const axis = _camDir
+			.set(0, 0, -1)
+			.applyQuaternion(camera.quaternion);
+
+		const cosAngle = axis.dot(_sunWorld);
+
+		// Fraction de présence du soleil dans le champ de vision.
+		const halfFov =
+			(camera.fov * Math.PI / 180) / 2;
+
+		const cosHalfFov = Math.cos(halfFov);
+
+		const inFrame = Math.max(
+			0,
+			(cosAngle - cosHalfFov) /
+			(1 - cosHalfFov),
+		);
+
+		sunInFrame = inFrame * sunVisible;
+
+		sun.update(dt, { sunInFrame });
+	}
+
+	if (density !== lastDensity || skyHex !== lastSkyHex) {
+		lastDensity = density;
+		lastSkyHex = skyHex;
+
+		setFog(sky, density);
+
+		// Muté, pas remplacé : lens.js lit cet objet à chaque frame.
+		scene.background.set(sky);
+
+		// Les streaks sont eux aussi éclairés par le ciel.
+		rainfall?.setSky(scene.background);
+	}
+
+	// Même principe que pour le fondu : on ne retouche pas tous les
+	// matériaux de chunk à chaque frame pour une valeur qui évolue
+	// sur plusieurs minutes.
+	if (cloud.dim !== lastDim) {
+		lastDim = cloud.dim;
+		setDim(cloud.dim);
+	}
+}
 		// Light the air scatters into the barrel rather than onto the subject.
 		// Zero compiles it out of the lens shader entirely.
 		lens.setGlare(fog.glare);
@@ -780,6 +838,7 @@ function frame() {
 			});
 		}
 	}
+	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
 	rainfall.update({
