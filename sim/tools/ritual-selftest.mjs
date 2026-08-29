@@ -1,5 +1,6 @@
 // Selftest des helpers purs du rituel CONTROL VECTOR (PHASE 10). Aucune E/S,
 // aucun DOM. Lancer : node tools/ritual-selftest.mjs
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { HACK_TYPES } from './target-model.mjs';
 import {
@@ -112,6 +113,16 @@ t('FAMILY_PRIMITIVES : les nouvelles primitives PHASE 20 sont composées', () =>
 	const used = new Set(Object.values(FAMILY_PRIMITIVES).flat());
 	for (const name of ['colorFlash', 'textWarp', 'bannerBurst']) {
 		assert.ok(used.has(name), `${name} n'est composé par aucune famille`);
+	}
+});
+
+t('acceptation #57 : aucune primitive demo scene hors événement (seul ritual.js les importe)', () => {
+	const dir = new URL('../src/', import.meta.url);
+	for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+		if (f === 'ritual.js' || f === 'hack-grammars.js') continue;
+		const src = fs.readFileSync(new URL(f, dir), 'utf8');
+		assert.doesNotMatch(src, /RITUAL_PRIMITIVES|FAMILY_PRIMITIVES/,
+			`${f} référence les primitives demo scene hors rituel`);
 	}
 });
 
