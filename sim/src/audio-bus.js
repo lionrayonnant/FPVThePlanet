@@ -58,7 +58,7 @@ function defaultFactory() {
 // le navigateur a suspendu dans notre dos (changement d'onglet, autoplay).
 export function ensureContext() {
 	if (ctx) {
-		if (ctx.state === 'suspended') ctx.resume();
+		resumeQuietly();
 		return ctx;
 	}
 	ctx = (factory ?? defaultFactory)();
@@ -83,8 +83,18 @@ export function ensureContext() {
 	ui.connect(limiter);
 	limiter.connect(volume).connect(ctx.destination);
 
-	if (ctx.state === 'suspended') ctx.resume();
+	resumeQuietly();
 	return ctx;
+}
+
+// resume() rend une promesse, et le navigateur la REJETTE quand on la demande
+// hors d'un geste utilisateur — ce qui arrive à chaque chargement, puisque
+// armBoot() tente sa chance avant le premier clic. Sans ce catch, chaque
+// démarrage laisse une « unhandled rejection » dans la console : du bruit qui
+// masquerait une vraie erreur le jour où il y en aura une.
+function resumeQuietly() {
+	if (!ctx || ctx.state !== 'suspended') return;
+	try { ctx.resume()?.catch?.(() => {}); } catch { /* rien à faire, on reste muet */ }
 }
 
 export function context() { return ctx; }
