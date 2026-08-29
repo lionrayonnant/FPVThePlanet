@@ -817,14 +817,24 @@ async function chooseScene() {
 		return { slug, resume: undefined, target: undefined, family: OPTS.family };
 	}
 
-	// Session fraîche → TARGET SCAN puis AUTOMATED ANALYSIS avant boot().
+	// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte
+	// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat.
 	const seed = Math.random().toString(16).slice(2, 12);
 	const count = signalCountFor(slug);
 	const scan = generateTargetScan({ seed, count });
 	const choice = await runTargetScan(ui, { seed, count }); // { seed, count, index }
 	const cand = scan.candidates[choice.index];
-	await runHack(ui, { hackType: cand._hackType, family: cand._family });
-	return { slug, resume: undefined, target: choice, family: cand._family };
+
+	audio.start();
+	flyArea = slug;
+	flyTarget = choice;
+	PROFILE = PROFILES[cand._family];
+	controller = new FlightController({ profile: PROFILE });
+	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
+	setScene(slug);
+	const booting = boot();
+	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	return { prepared: true };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -836,11 +846,15 @@ if (OPTS.scene) {
 }
 
 chooseScene()
-	.then(({ slug, resume, target, family }) => {
+	.then((choice) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
+		// Session fraîche : PROFILE / controller / setScene / boot() ont déjà été
+		// lancés dans chooseScene() et le hack a couvert le chargement.
+		if (choice.prepared) return;
 		hud.show();
+		const { slug, resume, target, family } = choice;
 		flyArea = slug;
 		resumeId = resume || null;
 		flyTarget = target || null;
@@ -854,6 +868,7 @@ chooseScene()
 	.then(openFlightSession)
 	.catch((err) => {
 		console.error(err);
+		hud.show();
 		hud.fail(err.message);
 	});
 

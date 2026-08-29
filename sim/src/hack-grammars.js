@@ -3,8 +3,10 @@
 // d'acceptation). Purement décoratif : la seule donnée qui entre est un `seed`
 // cosmétique et un temps `t` en secondes.
 //
-// Contrat d'un motif : draw(el: HTMLPreElement, { t: number, seed: number }).
-// Écrit dans el.textContent. Pas d'état module — tout dérive de (t, seed).
+// Contrat d'un motif : draw(el, { t: number, seed: number, lock?: number }).
+// `lock` va de 0 (recherche) à 1 (verrouillé) : la culmination du hack juste
+// avant [ JACK IN ]. Écrit dans el.textContent. Pas d'état module — tout dérive
+// de (t, seed, lock).
 
 const W = 44; // largeur du champ ASCII
 const H = 12; // hauteur
@@ -73,24 +75,27 @@ function packetTrack(y, seed) {
 	return s;
 }
 
-function drawPackets(el, { t, seed }) {
+function drawPackets(el, { t, seed, lock = 0 }) {
 	const g = blank();
+	const col = Math.round(W * 0.68); // fenêtre sur laquelle les paquets s'alignent
 	for (let y = 0; y < H; y += 2) { // une ligne sur deux : respiration
 		const track = packetTrack(y, seed);
 		const P = track.length;
-		const speed = 9 + Math.floor(noise(0, y, 2, seed) * 16); // colonnes/s
+		// À la culmination le défilement se fige : les bursts se calent.
+		const speed = (9 + Math.floor(noise(0, y, 2, seed) * 16)) * (1 - 0.92 * lock);
 		const off = Math.floor(t * speed);
 		for (let x = 0; x < W; x++) {
 			const c = track[(((x + off) % P) + P) % P];
 			if (c !== ' ') g[y][x] = c;
 		}
+		if (lock > 0.6) g[y][col] = '|';
 	}
 	el.textContent = frame(lines(g));
 }
 
 // --- LINK HIJACK : porteuse sinusoïdale + marqueur qui se cale sur une crête -
 
-function drawCarrier(el, { t, seed }) {
+function drawCarrier(el, { t, seed, lock = 0 }) {
 	const g = blank();
 	const k = 0.30;      // rad/colonne
 	const w = 1.6;       // rad/s
@@ -100,19 +105,23 @@ function drawCarrier(el, { t, seed }) {
 
 	for (let x = 0; x < W; x++) stroke(g, x, carrier(x), carrier(x + 1), '~', ':');
 
-	// Marqueur : glisse 3 s de gauche à droite, puis se verrouille sur la crête
-	// la plus proche du 2/3 de l'écran et la suit (« sync »).
-	const ph = (t + seed * 4.5) % 4.5;
+	// Crête la plus proche du 2/3 de l'écran, suivie une fois « synchronisé ».
+	const target = W * 0.66;
+	const n = Math.round((target * k - t * w - Math.PI / 2) / (2 * Math.PI));
+	const lockedX = clamp(Math.round((Math.PI / 2 + 2 * n * Math.PI + t * w) / k), 0, W - 1);
+
+	// Marqueur : glisse 3 s de gauche à droite, puis se verrouille. `lock` force
+	// le verrouillage immédiat et épaissit le marqueur à la culmination.
 	let mx;
-	if (ph < 3) {
-		mx = Math.round((ph / 3) * (W - 1));
+	if (lock > 0.05) {
+		mx = lockedX;
 	} else {
-		const target = W * 0.66;
-		const n = Math.round((target * k - t * w - Math.PI / 2) / (2 * Math.PI));
-		mx = Math.round((Math.PI / 2 + 2 * n * Math.PI + t * w) / k);
+		const ph = (t + seed * 4.5) % 4.5;
+		mx = ph < 3 ? Math.round((ph / 3) * (W - 1)) : lockedX;
 	}
 	mx = clamp(mx, 0, W - 1);
-	for (let y = 0; y < H; y++) g[y][mx] = (Math.round(carrier(mx)) === y) ? '#' : '|';
+	const mark = lock > 0.6 ? '#' : '|';
+	for (let y = 0; y < H; y++) g[y][mx] = (Math.round(carrier(mx)) === y) ? '#' : mark;
 	el.textContent = frame(lines(g));
 }
 
@@ -128,7 +137,7 @@ function scopeBox(g) {
 	for (let y = 2; y < H - 1; y += 3) for (let x = 3; x < W - 1; x += 6) g[y][x] = '.';
 }
 
-function drawScope(el, { t, seed }) {
+function drawScope(el, { t, seed, lock = 0 }) {
 	const g = blank();
 	scopeBox(g);
 	const x0 = 1;
@@ -142,7 +151,8 @@ function drawScope(el, { t, seed }) {
 	const sample = (x, n) => {
 		const inj = x >= INJ_X0 && x <= INJ_X1;
 		const ph = n * 1.7 + seed * 6.3;
-		const a = inj ? 4.3 : 1.6;
+		// À la culmination le segment façonné rejoint l'amplitude de la trace.
+		const a = inj ? 4.3 - 2.9 * lock : 1.6;
 		const base = inj
 			? Math.sin(x * 0.34 + ph)
 			: Math.sin(x * 0.55 + ph) * (0.7 + 0.5 * Math.sin(x * 0.17 + ph));
@@ -172,7 +182,7 @@ function driftAt(u, seed) {
 	];
 }
 
-function drawVectors(el, { t, seed }) {
+function drawVectors(el, { t, seed, lock = 0 }) {
 	const g = blank();
 	for (let y = 1; y < H; y += 4) for (let x = 3; x < W; x += 7) g[y][x] = '.';
 
@@ -181,16 +191,21 @@ function drawVectors(el, { t, seed }) {
 		put(g, x, y, k > 7 ? ',' : '.');
 	}
 
-	const [px, py] = driftAt(t, seed);
+	const [dx, dy] = driftAt(t, seed);
 	const [qx, qy] = driftAt(t - 0.6, seed);
-	const ang = Math.atan2(py - qy, px - qx);
+	// À la culmination le réticule revient se caler sur l'origine (2/3, 5).
+	const px = dx + (22 - dx) * lock;
+	const py = dy + (5 - dy) * lock;
+	const ang = Math.atan2(dy - qy, dx - qx);
 	const arrow = ARROWS[((Math.round((ang / Math.PI) * 4) % 8) + 8) % 8];
 
 	text(g, 21, 5, '[o]'); // position d'origine, fixe
 	put(g, px, py, '+');
 	put(g, px - 1, py, '-'); put(g, px + 1, py, '-');
 	put(g, px, py - 1, '|'); put(g, px, py + 1, '|');
-	for (let i = 1; i <= 3; i++) put(g, px + Math.cos(ang) * i * 2.4, py + Math.sin(ang) * i * 1.2, arrow);
+	if (lock < 0.5) {
+		for (let i = 1; i <= 3; i++) put(g, px + Math.cos(ang) * i * 2.4, py + Math.sin(ang) * i * 1.2, arrow);
+	}
 	el.textContent = frame(lines(g));
 }
 
@@ -207,13 +222,14 @@ function edge(g, a, b) {
 	for (let i = 1; i < n; i++) put(g, a[0] + (dx * i) / n, a[1] + (dy * i) / n, ch);
 }
 
-function drawNodes(el, { t, seed }) {
+function drawNodes(el, { t, seed, lock = 0 }) {
 	const g = blank();
 	for (const [a, b] of EDGES) edge(g, NODES[a], NODES[b]);
 
-	// Front d'illumination : se propage de nœud en nœud puis se réamorce.
+	// Front d'illumination : se propage de nœud en nœud puis se réamorce. À la
+	// culmination tous les nœuds sont tenus.
 	const cycle = NODES.length + 2;
-	const front = (t * 1.1 + seed * cycle) % cycle;
+	const front = lock > 0.5 ? cycle : (t * 1.1 + seed * cycle) % cycle;
 	for (let i = 0; i < NODES.length; i++) {
 		const [x, y] = NODES[i];
 		const lit = front > i;
@@ -236,15 +252,17 @@ function hexRow(y, page, seed) {
 	return s;
 }
 
-function drawMemory(el, { t, seed }) {
+function drawMemory(el, { t, seed, lock = 0 }) {
 	const g = blank();
 	const span = H + 3;
 	const page = Math.floor((t * 4) / span);
 	const flip = Math.floor((t * 4) % span);
+	const frozen = lock > 0.9; // à la culmination le balayage s'arrête, l'image est stable
 	for (let y = 0; y < H; y++) {
 		const addr = ((page * H + y) * BYTES_PER_ROW) & 0xffff;
 		let body;
-		if (y < flip) body = '·· '.repeat(BYTES_PER_ROW).trim();
+		if (frozen) body = hexRow(y, page, seed);
+		else if (y < flip) body = '·· '.repeat(BYTES_PER_ROW).trim();
 		else if (y === flip) body = '## '.repeat(BYTES_PER_ROW).trim();
 		else body = hexRow(y, page, seed);
 		text(g, 0, y, `0x${addr.toString(16).padStart(4, '0')}: ${body}`);
