@@ -574,11 +574,24 @@ function frame() {
 		const touchdown = controller.armed && sticks.throttle < 0.06
 			&& gb !== null && (pp.y - gb) < 0.45;
 
+		// Une sphère de collision qui a de la vitesse angulaire roule sans fin :
+		// au contact d'un point il n'y a pas de glissement, donc la friction ne
+		// la freine pas. Pendant le touchdown on saigne linvel et angvel vers
+		// zéro (constante de temps ~0,2 s) — le drone posé s'immobilise au lieu
+		// de rouler comme une bille.
+		const TD_DECAY = Math.exp(-FIXED_STEP / 0.2);
+
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
-			if (touchdown) motors.fill(0);
+			if (touchdown) {
+				motors.fill(0);
+				const lv = physics.body.linvel();
+				const av = physics.body.angvel();
+				physics.body.setLinvel({ x: lv.x * TD_DECAY, y: lv.y, z: lv.z * TD_DECAY }, true);
+				physics.body.setAngvel({ x: av.x * TD_DECAY, y: av.y * TD_DECAY, z: av.z * TD_DECAY }, true);
+			}
 			const impact = physics.step(motors, FIXED_STEP);
 			if (impact > CRASH_IMPULSE && !crashed) {
 				crashed = true;
