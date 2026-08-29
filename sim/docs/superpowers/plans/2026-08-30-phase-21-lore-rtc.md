@@ -425,7 +425,6 @@ C'est le cœur de la phase. Tout le reste est de la plomberie autour.
   - `rngFrom(seed: string|number) => () => number` — xorshift32, même primitive que `entry-state.js:19`
   - `emptyMemory() => { ring: string[], seen: Record<string, number>, buckets: Record<string, number>, seq: number }`
   - `eligible(entry: object, ctx: object) => boolean`
-  - `sinceEvent(memory: object, event: string) => number` (`Infinity` si jamais)
   - `select({ event, pool, ctx, memory, rng }) => { entry: object|null, memory: object }`
   - `PAIR_COOLDOWN = 3`
 - **`select()` ne mute jamais la mémoire reçue** : elle rend une nouvelle mémoire. C'est ce qui rend les tests de distribution possibles (on rejoue avec une mémoire fraîche).
@@ -436,7 +435,7 @@ Ajouter à `sim/tools/dialogue-selftest.mjs` :
 
 ```js
 import {
-	rngFrom, emptyMemory, eligible, sinceEvent, select, PAIR_COOLDOWN,
+	rngFrom, emptyMemory, eligible, select, PAIR_COOLDOWN,
 } from './dialogue/engine.mjs';
 import { JENSEN_COOLDOWN as JC } from './dialogue/catalog.mjs';
 ```
@@ -568,17 +567,6 @@ t('select : l\'anneau et la liste des vus restent bornés', () => {
 	assert.ok(Object.keys(mem.seen).length <= 512, `vus non bornés : ${Object.keys(mem.seen).length}`);
 });
 
-t('sinceEvent : distance depuis la dernière prise de parole d\'un événement', () => {
-	let mem = emptyMemory();
-	assert.equal(sinceEvent(mem, 'ACQUIRE_AREA'), Infinity);
-	const rng = rngFrom('f');
-	for (let i = 0; i < 5; i++) {
-		mem = select({ event: 'ACQUIRE_AREA', pool: pool(20), ctx: {}, memory: mem, rng }).memory;
-	}
-	assert.ok(sinceEvent(mem, 'ACQUIRE_AREA') < Infinity);
-	assert.equal(sinceEvent(mem, 'HACK'), Infinity);
-});
-
 t('PAIR_COOLDOWN : la même paire ne monopolise pas la conversation', () => {
 	// Deux paires disponibles, la première bien plus nombreuse : sans pénalité de
 	// paire elle raflerait presque tout. On vérifie que l'autre respire.
@@ -657,11 +645,6 @@ export function eligible(entry, ctx) {
 	return (entry?.requires ?? []).every((path) => resolvePath(ctx, path) !== null);
 }
 
-export function sinceEvent(memory, event) {
-	const at = memory?.buckets?.[`event:${event}`];
-	return at == null ? Infinity : (memory.seq - at);
-}
-
 const pairKey = (entry) => `pair:${[...new Set(entry.characters ?? [])].sort().join('|')}`;
 
 // Le compteur avance à CHAQUE tirage, y compris silencieux : les refroidissements
@@ -670,7 +653,7 @@ function bump(memory) {
 	return { ...memory, seq: memory.seq + 1 };
 }
 
-function commit(memory, event, entry) {
+function commit(memory, entry) {
 	const ring = [...memory.ring, entry.id].slice(-MEMORY_RING);
 	const seen = { ...memory.seen, [entry.id]: memory.seq };
 	// Élagage des « vus » : on garde les MEMORY_SEEN plus récents, sinon l'objet
@@ -680,11 +663,7 @@ function commit(memory, event, entry) {
 		keys.sort((a, b) => seen[a] - seen[b]);
 		for (const k of keys.slice(0, keys.length - MEMORY_SEEN)) delete seen[k];
 	}
-	const buckets = {
-		...memory.buckets,
-		[pairKey(entry)]: memory.seq,
-		[`event:${event}`]: memory.seq,
-	};
+	const buckets = { ...memory.buckets, [pairKey(entry)]: memory.seq };
 	if ((entry.characters ?? []).includes('jensen')) buckets.jensen = memory.seq;
 	return { ring, seen, buckets, seq: memory.seq + 1 };
 }
@@ -720,7 +699,7 @@ export function select({ event, pool = [], ctx = {}, memory = emptyMemory(), rng
 	let r = rng() * total;
 	for (const c of candidates) {
 		r -= c.w;
-		if (r < 0) return { entry: c.entry, memory: commit(memory, event, c.entry) };
+		if (r < 0) return { entry: c.entry, memory: commit(memory, c.entry) };
 	}
 	return { entry: null, memory: bump(memory) };
 }
@@ -732,7 +711,7 @@ export function select({ event, pool = [], ctx = {}, memory = emptyMemory(), rng
 cd sim && node tools/dialogue-selftest.mjs
 ```
 
-Attendu : 25 vérifications, tout passe. Si le test de distribution de rareté sort de la fourchette, **ne pas élargir la fourchette** : c'est le signe que les pénalités s'appliquent là où le test croit les avoir neutralisées — vérifier que la mémoire est bien fraîche à chaque tirage.
+Attendu : 24 vérifications, tout passe. Si le test de distribution de rareté sort de la fourchette, **ne pas élargir la fourchette** : c'est le signe que les pénalités s'appliquent là où le test croit les avoir neutralisées — vérifier que la mémoire est bien fraîche à chaque tirage.
 
 - [ ] **Step 5: Commit**
 
@@ -955,7 +934,7 @@ export function validateCorpus(entries) {
 cd sim && node tools/dialogue-selftest.mjs && npm run selftest:operator
 ```
 
-Attendu : 36 vérifications au selftest dialogue, chaîne `selftest:operator` verte.
+Attendu : 35 vérifications au selftest dialogue, chaîne `selftest:operator` verte.
 
 - [ ] **Step 5: Commit**
 
@@ -1107,7 +1086,7 @@ export function findDuplicates(entries, { threshold = 0.6 } = {}) {
 cd sim && node tools/dialogue-selftest.mjs
 ```
 
-Attendu : 42 vérifications, tout passe, et le test des 5000 entrées bien en deçà de sa borne.
+Attendu : 41 vérifications, tout passe, et le test des 5000 entrées bien en deçà de sa borne.
 
 - [ ] **Step 5: Commit**
 
@@ -1376,7 +1355,7 @@ export const FALLBACK = [
 cd sim && node tools/dialogue-selftest.mjs && npm run selftest:operator
 ```
 
-Attendu : 48 vérifications, chaîne verte. Le test « le corpus livré doit être irréprochable » est le premier à s'exécuter sur de vraies données : s'il échoue, corriger le corpus, **jamais** assouplir `validate.mjs`.
+Attendu : 47 vérifications, chaîne verte. Le test « le corpus livré doit être irréprochable » est le premier à s'exécuter sur de vraies données : s'il échoue, corriger le corpus, **jamais** assouplir `validate.mjs`.
 
 - [ ] **Step 7: Commit**
 
@@ -1748,7 +1727,7 @@ git commit -m "$(printf 'PHASE 21 : le scanner passe au moteur de dialogue (#58)
 - Modify: `sim/src/style.css`
 
 **Interfaces:**
-- Consumes: `mount`, `sayOnce` de `dialogue.js` · `scanContext` de `dialogue-context.js` · `sinceEvent` de `engine.mjs`.
+- Consumes: `mount`, `sayOnce` de `dialogue.js` · `scanContext` de `dialogue-context.js`.
 - Produces: aucune API nouvelle.
 
 **Contrainte D9, non négociable.** Dans `hack.js`, le crew parle **avant** l'armement du CONTROL VECTOR, jamais pendant. Le point de bascule est `arm()` (voir le commentaire ligne 12) : appeler `stop()` juste avant de l'armer.
@@ -1772,7 +1751,7 @@ const stopScan = mount(s.box.querySelector('.sc-rtc'), {
 
 - [ ] **Step 2: TARGET SCAN — la fiche, et WEATHER qui ne double pas**
 
-À l'ouverture de la fiche (`sheet(cursor)`, ligne 83), un seul échange `TARGET_SELECTED`. La météo est déjà affichée par `conditionsBlock` sur cet écran : pour éviter que le crew la commente juste après en avoir parlé, `WEATHER` n'est tiré **que si** `TARGET_SELECTED` n'a rien dit — c'est précisément le travail de `sinceEvent`.
+À l'ouverture de la fiche (`sheet(cursor)`, ligne 83), un seul échange `TARGET_SELECTED`. La météo est déjà affichée par `conditionsBlock` sur cet écran : pour éviter que le crew la commente juste après en avoir parlé, `WEATHER` n'est tiré **que si** `TARGET_SELECTED` n'a rien dit — une cascade sur le `null` que `sayOnce` rend déjà, sans exposer la mémoire hors de `src/dialogue.js`.
 
 ```js
 sayOnce('TARGET_SELECTED', scanContext({ scan, weather, candidate: scan.candidates[index] }))
