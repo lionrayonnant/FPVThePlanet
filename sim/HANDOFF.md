@@ -129,6 +129,36 @@ Plan d'origine (contexte de la décision d'architecture) :
     explorables hors-ligne. « Non falsifiable » vaut pour la cohérence des
     stats (le serveur fait autorité sur le candidat choisi), pas contre un
     joueur qui veut voir à travers le brouillard.
+- **PHASE 09 — hacking documentaire (issue #46)**, branche `phase-09-hacking`.
+  - `hackType` est une propriété de cible : `HACK_TYPES` (6 familles) dans
+    `tools/target-model.mjs`, `_hackType` tiré par candidat (seedé, **indépendant**
+    de la famille, du RSSI et de la difficulté du vol), sorti par `resolveTarget`
+    et validé/persisté par `sanitizeTarget` (`tools/session-model.mjs`).
+  - `src/hack.js` `runHack()` : écran AUTOMATED ANALYSIS, log fixe de 4 lignes
+    (`HACK_LOG_LINES`, Bible §18) affiché ligne à ligne, motif ASCII animé par
+    famille (`src/hack-grammars.js`, purement décoratif, aucun `Math.random`),
+    fige sur `MANUAL OVERRIDE REQUIRED` + `[ JACK IN ]` **placeholder** (Enter et
+    le bouton résolvent tous deux ; teardown complet). Câblé dans `chooseScene`
+    après `runTargetScan`, **session fraîche uniquement** (pas au `resume`).
+    Hook debug `?hack=<type>` sur les chemins `?scene=` / `?family=`.
+  - **Revue de sûreté (Step 1 de Task 7) faite** : `git diff 35a73dc..HEAD` relu
+    ligne à ligne. Log = exactement les 4 `HACK_LOG_LINES`, rien d'autre. Aucun
+    `draw*` ne décrit une étape réelle (rectangles / sinus / hex de bruit
+    déterministe ; les « adresses » du dump mémoire sont un compteur qui boucle à
+    0xffff, les zones « injectées » sont des segments de sinusoïde). Aucun outil
+    nommé, aucun CVE / exploit / payload, aucun commentaire-recette. RAS.
+  - **Vérifié** : `npm run selftest` (158 checks), `npm run selftest:operator`
+    (dont `hack-selftest.mjs`), `npm run build` — tous verts. Rendu headless des
+    6 motifs `?hack=` (controller, Task 6) : les six sont distincts au premier
+    coup d'œil, le log montre bien ses 4 lignes, aucune erreur console.
+  - **Non vérifié** : le ressenti subjectif (cadence du log, lisibilité des
+    motifs sur un vrai écran) ; le clic `[ JACK IN ]` → transition vol (non
+    exercé headless) ; `MANUAL OVERRIDE REQUIRED` n'a pas encore d'emphase
+    typographique ; l'espacement du motif `firmware-override` est plus lâche que
+    les autres (cosmétique) ; l'écran de hack n'est **pas rejoué au `resume`**
+    (le `hackType` est relu du disque pour le futur TARGET LOG, PHASE 17, mais
+    pas remis en scène).
+  - Le rituel réel (`CONTROL VECTOR` + QTE) est PHASE 10.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

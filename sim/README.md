@@ -461,6 +461,32 @@ suit la tension *par cellule sous charge*, pas l'état de charge, parce que
 c'est le chiffre au ratio duquel on pilote. Sous 3,6 V/cellule elle passe à
 l'orange, sous 3,4 V au rouge.
 
+### Le scan de cibles et les familles de hack (PHASE 08–09)
+
+Une session fraîche passe par le **TARGET SCAN** (PHASE 08) avant le vol :
+`tools/target-model.mjs` tire, de façon déterministe sur la graine de session,
+une liste de signaux (famille, RSSI, mode vidéo), le joueur en choisit un, et la
+cible résolue est persistée sur la session.
+
+Chaque candidat porte aussi un **`hackType`**, tiré à la génération dans
+`tools/target-model.mjs` (tirage dédié, seedé, **indépendant** de la famille, du
+signal et de la difficulté du vol). Six familles, concepts crédibles mais
+interaction purement abstraite (`HACK_TYPES`) :
+
+`COMMAND INJECTION` · `LINK HIJACK` · `TELEMETRY SPOOF` · `GNSS SPOOF` ·
+`NETWORK TAKEOVER` · `FIRMWARE OVERRIDE`.
+
+`sanitizeTarget` (`tools/session-model.mjs`) valide et persiste `hackType` sur la
+cible. Juste après le TARGET SCAN, `src/hack.js` joue l'écran **AUTOMATED
+ANALYSIS** : un log automatique fixe de quatre lignes (Bible §18) et un motif
+ASCII animé propre à la famille de hack (`src/hack-grammars.js`, purement
+décoratif). L'écran se fige sur `MANUAL OVERRIDE REQUIRED` + un bouton
+`[ JACK IN ]` **provisoire** — le rituel réel (`CONTROL VECTOR` + QTE) est
+PHASE 10.
+
+Hook de dev : `?hack=<type>` (ex. `?hack=gnss-spoof`) prévisualise un motif sur
+les chemins qui court-circuitent le TARGET SCAN (`?scene=`, `?family=`).
+
 ### La météo du monde
 
 Depuis PHASE 04 (issue #41), le temps qu'il fait n'est **pas un réglage**. Il n'y
