@@ -1,91 +1,63 @@
-// Physical model of a 5" freestyle quad: four motors, propeller aerodynamics,
-// airframe drag and a lithium pack. No Rapier in here on purpose — this is the
-// part worth testing headlessly and the part that decides how the thing feels.
+// Physical model of a multirotor: four motors, propeller aerodynamics, airframe
+// drag and a lithium pack. No Rapier in here on purpose — this is the part worth
+// testing headlessly and the part that decides how the thing feels.
 //
 // Everything is in SI units and in the body frame used by the rest of the sim
 // (X = right, Y = up, Z = back; forward is -Z).
 //
-// The numbers come from a 2207/2450KV on 4S with 5x4.3x3 tri-blades, which is
-// the most ordinary freestyle setup there is. Where a coefficient was fitted
-// rather than looked up, the observation it was fitted to is in the comment.
+// The airframe itself is a `profile` from src/drone-profiles.js — one of seven
+// families (PHASE 07). The default profile, `QUAD`, is the 5" freestyle build
+// (2207/2450KV on 4S, 5x4.3x3 tri-blades) that used to be hard-coded here, and
+// its numbers are byte-for-byte the same. Where a coefficient was fitted rather
+// than looked up, the observation it was fitted to is in that file's comments.
 
 import { Turbulence, mulberry32 } from './wind.js';
+import { DEFAULT_PROFILE } from './drone-profiles.js';
 
 const AIR_DENSITY = 1.225;
 export const GRAVITY = 9.81;
 
-export const QUAD = {
-	mass: 0.65,                 // kg all-up, 5" frame + 4S 1300 + camera
-	radius: 0.15,               // m, collision sphere — see physics.js
-	armX: 0.078,                // m, motor offset from CG along each axis
-	armZ: 0.078,                // (220mm diagonal frame => 0.110 m arm at 45 deg)
+// The default airframe. Callers that want a specific family pass its profile to
+// `new Propulsion({ profile })` / the FlightController / Physics instead.
+export const QUAD = DEFAULT_PROFILE;
 
-	// Roll and pitch inertia are close; yaw is nearly twice as much because the
-	// mass sits in the horizontal plane. The old model used one sphere inertia
-	// (0.0054) for all three axes, which made roll ~1.8x too sluggish and yaw
-	// too eager. This asymmetry is a large part of what a quad feels like.
-	inertia: { x: 0.0032, y: 0.0058, z: 0.0030 },   // pitch, yaw, roll
-
-	propRadius: 0.0635,         // m, 5 inch
-	propInertia: 4.0e-6,        // kg*m^2 per prop, tri-blade
-	bladeCount: 3,              // blades per prop — sets the blade-pass frequency
-	                            // the audio synthesis sings at (rpm/60 * blades)
-
-	maxThrustPerMotor: 10.0,    // N at full throttle on a fresh 4S (~1.02 kgf)
-	maxOmega: 3140,             // rad/s (~30000 rpm loaded)
-
-	// Thrust-stand data is much flatter than the naive T ~ cmd^2: 25% throttle
-	// already gives ~19% of max thrust, not 6%. That is because a loaded motor
-	// is nowhere near proportional in rpm to duty cycle. Fitting omega/omegaMax
-	// = cmd^0.65 reproduces the published curve within a few percent and, as a
-	// side effect, puts hover at ~25% throttle where a real quad sits.
-	rpmCurve: 0.65,
-
-	tauSpinUp: 0.022,           // s, first-order motor lag accelerating
-	tauSpinDown: 0.045,         // s, decelerating — only aero drag slows a prop,
-	                            // which is why a stalled recovery is so hard
-
-	torqueRatio: 0.019,         // m, prop drag torque per newton of thrust
-
-	// Blade-element style first-order corrections, both proportional to rpm:
-	// axial inflow eats thrust when climbing, and the disc drags sideways when
-	// translating. The lateral one dominates a quad's drag in fast flight and
-	// is why chopping throttle at speed stops decelerating you.
-	kAxial: 3.0e-5,             // N per (rad/s * m/s), fitted to ~15% thrust
-	                            // loss at full throttle climbing at 15 m/s
-	kLateral: 5.0e-5,           // N per (rad/s * m/s) per motor
-
-	// Cd*A in the body frame. Vertical is much larger than horizontal: a quad
-	// falling flat is a plate. Terminal velocity from these: ~19 m/s flat,
-	// which matches a dead quad tumbling down.
-	bodyDrag: { x: 0.010, y: 0.028, z: 0.010 },
-};
-
-export const HOVER_THRUST = QUAD.mass * GRAVITY;
+export function hoverThrust(profile = QUAD) { return profile.mass * GRAVITY; }
+export const HOVER_THRUST = hoverThrust(QUAD);
 
 // Motor layout in Betaflight order: 1 rear-right, 2 front-right, 3 rear-left,
 // 4 front-left. spin = +1 for counter-clockwise seen from above (a positive
 // rotation about body +Y), and diagonal pairs share a direction so the drag
 // torques cancel in a hover.
-export const MOTORS = [
-	{ x: +QUAD.armX, z: +QUAD.armZ, spin: +1 },   // rear right
-	{ x: +QUAD.armX, z: -QUAD.armZ, spin: -1 },   // front right
-	{ x: -QUAD.armX, z: +QUAD.armZ, spin: -1 },   // rear left
-	{ x: -QUAD.armX, z: -QUAD.armZ, spin: +1 },   // front left
-];
+export function motorsOf(profile = QUAD) {
+	return [
+		{ x: +profile.armX, z: +profile.armZ, spin: +1 },   // rear right
+		{ x: +profile.armX, z: -profile.armZ, spin: -1 },   // front right
+		{ x: -profile.armX, z: +profile.armZ, spin: -1 },   // rear left
+		{ x: -profile.armX, z: -profile.armZ, spin: +1 },   // front left
+	];
+}
 
-// Mixer coefficients, derived from the geometry above rather than written out,
+// Mixer coefficients, derived from the motor geometry rather than written out,
 // so moving a motor cannot silently desynchronise the controller from physics.
 //   roll  right = -omega.z   ->  right motors down, left motors up
 //   pitch up    = +omega.x   ->  front motors up, rear motors down
 //   yaw   left  = +omega.y   ->  spin-down motors up (reaction is opposed)
-export const MIX = MOTORS.map((m) => ({
-	roll: m.x / QUAD.armX,
-	pitch: -m.z / QUAD.armZ,
-	yaw: -m.spin,
-}));
+export function mixOf(profile = QUAD) {
+	return motorsOf(profile).map((m) => ({
+		roll: m.x / profile.armX,
+		pitch: -m.z / profile.armZ,
+		yaw: -m.spin,
+	}));
+}
 
-const kThrust = QUAD.maxThrustPerMotor / (QUAD.maxOmega * QUAD.maxOmega);
+export function kThrustOf(profile = QUAD) {
+	return profile.maxThrustPerMotor / (profile.maxOmega * profile.maxOmega);
+}
+
+// Compat exports for the handful of consumers that only ever want the default
+// airframe (audio.js panning, tools reporting).
+export const MOTORS = motorsOf(QUAD);
+export const MIX = mixOf(QUAD);
 
 // ---------------------------------------------------------------------------
 // Battery: a 4S 1300 mAh pack. Sag under load is not a detail — a punch-out
@@ -93,11 +65,11 @@ const kThrust = QUAD.maxThrustPerMotor / (QUAD.maxOmega * QUAD.maxOmega);
 // out of top end at the end of the pack" feeling.
 
 export class Battery {
-	constructor(cells = 4, capacityMah = 1300, internalOhm = 0.010) {
-		this.cells = cells;
-		this.capacityMah = capacityMah;
-		this.internalOhm = internalOhm;
-		this.maxCurrent = 100;          // A at four motors flat out
+	constructor(spec = QUAD.battery) {
+		this.cells = spec.cells;
+		this.capacityMah = spec.capacityMah;
+		this.internalOhm = spec.internalOhm;
+		this.maxCurrent = spec.maxCurrent;   // A at four motors flat out
 		this.reset();
 	}
 
@@ -141,10 +113,14 @@ export class Propulsion {
 	// nondeterminism in the flight model, and without a seed two runs of
 	// tools/selftest.mjs differ from each other, which makes a regression
 	// indistinguishable from noise.
-	constructor(seed = 0x5eed) {
+	constructor({ profile = QUAD, seed = 0x5eed } = {}) {
+		this.profile = profile;
+		this._motors = motorsOf(profile);
+		this._mix = mixOf(profile);
+		this._kThrust = kThrustOf(profile);
 		this.seed = seed >>> 0;
 		this._rng = mulberry32(this.seed);
-		this.battery = new Battery();
+		this.battery = new Battery(profile.battery);
 		this.omega = [0, 0, 0, 0];
 		this.thrust = [0, 0, 0, 0];
 		this.propwash = 0;
@@ -187,7 +163,8 @@ export class Propulsion {
 		const agl = air.agl ?? null;
 		const shake = air.shake ?? 0;
 		const bat = this.battery;
-		const omegaMax = QUAD.maxOmega * bat.thrustScale;
+		const P = this.profile;
+		const omegaMax = P.maxOmega * bat.thrustScale;
 
 		// Descending into your own downwash: the disc is eating turbulent air it
 		// already threw down, so it loses thrust and the airframe shakes. Moving
@@ -199,14 +176,17 @@ export class Propulsion {
 
 		// Ground effect: the disc pushes against a surface it cannot displace, so
 		// thrust rises. Roughly one rotor diameter of reach on a 5".
-		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - QUAD.propRadius) / 0.22);
+		// NOTE (PHASE 07): the 0.18 gain and 0.22 reach are still global, not
+		// per-profile. A ducted whoop has far stronger ground effect than an open
+		// 7"; making these per-family is deliberately left as follow-up.
+		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / 0.22);
 
 		let load = 0, thrustTotal = 0;
 		let tx = 0, ty = 0, tz = 0;
 		let dragX = 0, dragZ = 0;
 
 		for (let i = 0; i < 4; i++) {
-			const m = MOTORS[i];
+			const m = this._motors[i];
 
 			// Each rotor sees its own air, not the centre of gravity's. Rolling
 			// right, the left motors are climbing and the right ones descending,
@@ -221,8 +201,8 @@ export class Propulsion {
 			// lag is the single biggest contributor to how a quad feels: it is
 			// what separates "snappy" from "floaty", and making spin-down slower
 			// than spin-up is what makes an inverted save genuinely hard.
-			const target = omegaMax * Math.pow(clamp01(motors[i]), QUAD.rpmCurve);
-			const tau = target > this.omega[i] ? QUAD.tauSpinUp : QUAD.tauSpinDown;
+			const target = omegaMax * Math.pow(clamp01(motors[i]), P.rpmCurve);
+			const tau = target > this.omega[i] ? P.tauSpinUp : P.tauSpinDown;
 			const prev = this.omega[i];
 			this.omega[i] = prev + (target - prev) * (1 - Math.exp(-dt / tau));
 			const w = this.omega[i];
@@ -231,7 +211,7 @@ export class Propulsion {
 			// Thrust: static term minus what the axial inflow takes away. Clamped
 			// at zero rather than allowed to go negative — a prop windmilling
 			// backwards is outside anything this model claims to cover.
-			let t = kThrust * w * w - QUAD.kAxial * w * vy;
+			let t = this._kThrust * w * w - P.kAxial * w * vy;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
@@ -245,7 +225,7 @@ export class Propulsion {
 			// the reaction to spinning the prop up. That second term is small in
 			// steady state and dominant in a snap — it is why yaw is crisp on a
 			// quad despite yaw having the most inertia.
-			ty += -m.spin * (QUAD.torqueRatio * t + QUAD.propInertia * dOmega);
+			ty += -m.spin * (P.torqueRatio * t + P.propInertia * dOmega);
 
 			// Rotor drag: the disc resists translation in proportion to rpm. Once
 			// the four discs see different air, their drag forces differ too, and
@@ -253,22 +233,22 @@ export class Propulsion {
 			// moment: tau_y = r_z*F_x - r_x*F_z. Under yaw rate it comes out
 			// opposing the rotation, which is the aerodynamic yaw damping a real
 			// quad has and this model did not.
-			const dx = -QUAD.kLateral * w * vx;
-			const dz = -QUAD.kLateral * w * vz;
+			const dx = -P.kLateral * w * vx;
+			const dz = -P.kLateral * w * vz;
 			dragX += dx;
 			dragZ += dz;
 			ty += m.z * dx - m.x * dz;
 
-			load += (w / QUAD.maxOmega) ** 3;
+			load += (w / P.maxOmega) ** 3;
 		}
 
 		bat.update(load, dt);
 
 		// Airframe drag, quadratic and anisotropic in the body frame.
 		const q = 0.5 * AIR_DENSITY;
-		const bx = -q * QUAD.bodyDrag.x * Math.abs(vBody.x) * vBody.x;
-		const by = -q * QUAD.bodyDrag.y * Math.abs(vBody.y) * vBody.y;
-		const bz = -q * QUAD.bodyDrag.z * Math.abs(vBody.z) * vBody.z;
+		const bx = -q * P.bodyDrag.x * Math.abs(vBody.x) * vBody.x;
+		const by = -q * P.bodyDrag.y * Math.abs(vBody.y) * vBody.y;
+		const bz = -q * P.bodyDrag.z * Math.abs(vBody.z) * vBody.z;
 
 		this.force.x = dragX + bx;
 		this.force.y = thrustTotal + by;
@@ -292,7 +272,7 @@ export class Propulsion {
 			// and that acts on the arm — so the torque is that product, and it
 			// grows with rpm exactly like the thrust it perturbs does.
 			const wMean = (this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4;
-			const s = QUAD.kAxial * wMean * shake * QUAD.armZ;
+			const s = P.kAxial * wMean * shake * P.armZ;
 			tx += this._buffet[0].next(dt) * s;
 			ty += this._buffet[1].next(dt) * s * 0.4;
 			tz += this._buffet[2].next(dt) * s;

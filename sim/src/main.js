@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
-import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
@@ -17,6 +16,7 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
+import * as session from './session.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -172,6 +172,7 @@ async function boot() {
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn);
+	audio.setProfile(physics.profile);
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -583,7 +584,7 @@ function frame() {
 	// and the pseudo-force cancel — plus the airflow over the glass, which wins
 	// above about 6 m/s and sends the water *up* the frame. rain.js:dropDrift
 	// does that; here it is only handed the drone's own state.
-	dropDrift(physics.airVelocity, physics.propulsion.force, QUAD.mass,
+	dropDrift(physics.airVelocity, physics.propulsion.force, physics.profile.mass,
 		cameraTilt * Math.PI / 180, drift);
 	lens.setRain({
 		wetness: rain.wetness,
