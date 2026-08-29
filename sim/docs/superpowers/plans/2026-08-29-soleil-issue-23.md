@@ -361,11 +361,13 @@ console.log('\nsoleil — atmosphère et couleur du ciel');
 	check('soleil rasant : le ciel bascule au chaud (r > b)', low.r > low.b,
 		`${low.r.toFixed(3)} ${low.g.toFixed(3)} ${low.b.toFixed(3)}`);
 	check('la bascule est monotone entre 60° et 2°', (() => {
-		let prev = -Infinity, ok = true;
+		// La chaleur doit DÉCROÎTRE quand le soleil monte, donc en balayant les
+		// élévations croissantes chaque valeur doit être sous la précédente.
+		let prev = Infinity, ok = true;
 		for (const e of [2, 5, 10, 20, 40, 60]) {
 			const c = skyColor(e, CLEAR, 0);
 			const warmth = c.r / Math.max(1e-6, c.b);
-			if (warmth > prev) ok = false;   // la chaleur doit DÉCROÎTRE avec l'élévation
+			if (warmth > prev) ok = false;
 			prev = warmth;
 		}
 		return ok;
@@ -826,19 +828,35 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 			`${outOfRange} débordement(s)`);
 	}
 
-	// Le no-op : dans le cas de référence exact, le bloc shader doit pouvoir
-	// être compilé dehors, et l'image sortir identique au bit près.
+	// Le no-op. Attention à ce qui est testé ici : `active` dit « le soleil
+	// change quelque chose à l'image », et il est VRAI dès que le soleil est
+	// levé, caméra ou pas — SunField ne connaît pas la caméra. Le vrai test de
+	// no-op du shader vit dans lens.setSun(), qui seul sait si le soleil est
+	// devant l'objectif.
+	//
+	// Ce qui doit être exact ici, c'est le calibrage de l'exposition : par ciel
+	// clair, soleil haut et hors cadre, le gain vaut 1 et l'image est celle que
+	// le sim rendait avant ce ticket.
 	{
 		const sun = new SunField(PARIS);
 		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
 		settle(sun, NOON, 0);
-		check('sans soleil dans le cadre et à la référence, le bloc est un no-op',
+		check('calibrage : soleil haut, ciel clair, hors cadre ⇒ gain exactement 1',
+			sun.exposure === 1, sun.exposure.toFixed(6));
+		check('mais il y a bien un soleil dans le ciel', sun.sunAmount > 0.5,
+			sun.sunAmount.toFixed(3));
+
+		// Le seul cas où le bloc est vraiment un no-op : plus de disque du tout,
+		// et un gain encore à 1.
+		sun.setWeather({ cloudPct: 100, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('couvert total, soleil haut : le bloc est un no-op',
 			sun.active === false, `expo=${sun.exposure.toFixed(4)} amount=${sun.sunAmount}`);
-		settle(sun, NOON, 1, 2);
-		check('dès que le soleil entre dans le cadre, le bloc redevient actif', sun.active === true);
+
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
 		settle(sun, MIDNIGHT, 0, 60);
 		check('la nuit, le bloc reste actif (sinon la nuit ne s\'assombrirait pas)',
-			sun.active === true);
+			sun.active === true && sun.sunAmount === 0);
 	}
 
 	// Sans coordonnées, pas de soleil inventé.
@@ -1254,7 +1272,10 @@ Et après la méthode `setGlare()` :
 	// l'image qu'elle rendait avant ce ticket.
 	setSun({ x = 0, y = 0, front = 0, color = null, amount = 0, exposure = 1 } = {}) {
 		const a = amount > 0 ? (amount > 1 ? 1 : amount) : 0;
-		const on = a > 0 || Math.abs(exposure - 1) > 1 / 512;
+		// `front` compte : le shader ne dessine rien quand le soleil est derrière
+		// la caméra, donc le bloc serait compilé pour rien. Reste l'exposition,
+		// qui multiplie l'image entière et n'a pas d'orientation.
+		const on = (a > 0 && front) || Math.abs(exposure - 1) > 1 / 512;
 		this._u.uSunPos.value.set(x, y, front ? 1 : 0);
 		if (color) this._u.uSunColor.value.copy(color);
 		this._u.uSunAmount.value = a;
@@ -1269,14 +1290,32 @@ Et après la méthode `setGlare()` :
 
 - [ ] **Step 5 : déclarer le define**
 
-Dans `_updateDefines()`, ajouter la ligne qui manque, à côté de celles de `GLARE` et `DROPS` (garder exactement le style du voisinage) :
+`_updateDefines()` (`src/lens.js:720`) ne travaille pas avec un drapeau : il compare
+chaque define et sort tôt si rien n'a bougé. Il faut donc toucher **les deux** endroits.
+
+Calculer la valeur à côté de `glare` :
 
 ```js
+		const glare = this._glare > 0 ? 1 : 0;
 		const sun = this._sunOn ? 1 : 0;
-		if (d.SUN !== sun) { d.SUN = sun; dirty = true; }
 ```
 
-*(le nom de la variable locale `d` et du drapeau `dirty` doit être aligné sur ce que `_updateDefines()` utilise déjà — lire la méthode avant d'écrire cette ligne.)*
+L'ajouter à la garde de sortie anticipée :
+
+```js
+		if (taps === this._taps && defines.LINK_MODE === this._linkMode
+			&& defines.DROPS === this._dropBucket && defines.GLARE === glare
+			&& defines.SUN === sun) return;
+```
+
+Et à l'affectation, à côté de `defines.GLARE = glare;` :
+
+```js
+		defines.SUN = sun;
+```
+
+Oublier la garde ferait recompiler le shader à chaque frame ; oublier l'affectation
+laisserait le bloc soleil éteint pour toujours.
 
 - [ ] **Step 6 : vérifier que rien n'a bougé**
 
@@ -1433,12 +1472,19 @@ Puis, juste après le `lens.setGlare(fog.glare);` existant :
 			_sunView.copy(_sunWorld).applyQuaternion(_camInv.copy(camera.quaternion).invert());
 			// Espace carré de la passe : x est étiré par l'aspect, exactement
 			// comme `base` dans le shader.
+			// L'espace `base` du shader, et pas un espace écran inventé ici.
+			// lens.js:226-227 le définit : base.x = ndc.x · uAspect et
+			// dir = (base.xy · uTanHalf, −1), avec uTanHalf = tan(fovY/2)
+			// (lens.js:761). Donc base = (v.x/−v.z, v.y/−v.z) / tan(fovY/2) —
+			// SANS facteur 0,5 et SANS multiplier une seconde fois par l'aspect,
+			// qui est déjà porté par l'amplitude de base.x. La caméra regarde
+			// vers −Z, d'où le signe.
 			const front = _sunView.z < 0;
-			const tanHalf = Math.tan((camera.fov * Math.PI / 180) / 2);
-			const invZ = 1 / Math.max(1e-4, Math.abs(_sunView.z));
+			const tanHalf = Math.tan(camera.fov * Math.PI / 360);
+			const invZ = 1 / Math.max(1e-4, -_sunView.z);
 			lens.setSun({
-				x: (_sunView.x * invZ / tanHalf) * 0.5 * (innerWidth / innerHeight),
-				y: (_sunView.y * invZ / tanHalf) * 0.5,
+				x: (_sunView.x * invZ) / tanHalf,
+				y: (_sunView.y * invZ) / tanHalf,
 				front,
 				color: _sunColor.setRGB(sun.sunColor.r, sun.sunColor.g, sun.sunColor.b),
 				amount: sun.sunAmount * sunVisible,
