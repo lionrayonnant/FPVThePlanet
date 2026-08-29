@@ -17,7 +17,7 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
-import { SunField } from './sun.js';
+import { SunField, SKY_REF } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
@@ -33,7 +33,12 @@ import { normalizeHackType } from '../tools/hack-model.mjs';
 // instead of #9FB8CC and dragging the fog toward the same dark blue.
 THREE.ColorManagement.enabled = false;
 
-const SKY = 0x9fb8cc;
+// sun.js:skyColor() calibrates itself against SKY_REF so that a high sun,
+// clear air and no cloud reproduce this exact value — importing it here
+// (rather than repeating the literal) is what keeps that calibration honest:
+// if this ever changes, sun.js's own bench check would start failing loudly
+// instead of comparing itself to a stale copy of itself.
+const SKY = SKY_REF;
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls

@@ -11,7 +11,7 @@
 // soleil mobile qui ré-éclairerait la ville la double-ombrerait avec les ombres
 // du survol d'Apple, et c'est la décision d'architecture de l'issue #23.
 
-export const D2R = Math.PI / 180;
+const D2R = Math.PI / 180;
 export const R2D = 180 / Math.PI;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -137,7 +137,7 @@ const LAMBDA = [0.610, 0.550, 0.470];
 // Épaisseur optique de Rayleigh au niveau de la mer, Hansen & Travis (1974) :
 // tau = 0,008735 · lambda^(−4,08). Soit 0,066 / 0,100 / 0,190 — le bleu est
 // diffusé trois fois plus que le rouge, et c'est là toute la couleur du ciel.
-export const TAU_RAYLEIGH = LAMBDA.map((l) => 0.008735 * Math.pow(l, -4.08));
+const TAU_RAYLEIGH = LAMBDA.map((l) => 0.008735 * Math.pow(l, -4.08));
 
 // Aérosols. Le bulletin météo donne une visibilité en mètres ; Koschmieder la
 // convertit en coefficient d'extinction horizontal à 550 nm, et une hauteur
@@ -148,7 +148,7 @@ const KOSCHMIEDER = 3.912;          // = ln(1/0.02), le contraste seuil de 2 %
 const AEROSOL_SCALE_HEIGHT = 1200;  // m, valeur des atmosphères de référence
 const ANGSTROM = 1.3;               // exposant continental standard
 
-export function tauAerosol(visibilityM) {
+function tauAerosol(visibilityM) {
 	const t550 = (KOSCHMIEDER / Math.max(1, visibilityM)) * AEROSOL_SCALE_HEIGHT;
 	return LAMBDA.map((l) => t550 * Math.pow(l / 0.550, -ANGSTROM));
 }
@@ -302,16 +302,52 @@ const WHITE_BALANCE = (() => {
 // loi de puissance : la variation reste lisible, la teinte survit.
 const SKY_COMPRESS = 0.35;
 
+// `rel` est un facteur SCALAIRE — le même pour r, g et b — donc à lui seul il
+// ne change jamais la teinte : multiplier un vecteur par un nombre préserve
+// ses proportions. Ce qui déformait la teinte, c'était de clamper CHAQUE
+// canal séparément après coup : selon sa magnitude de départ (fixée par
+// WHITE_BALANCE, qui n'est calibrée qu'au point de référence), un canal
+// saturait avant les autres, et les proportions qui en réchappaient n'avaient
+// plus rien à voir avec celles voulues par skyChroma().
+//
+// Le remède est donc un plafond appliqué au VECTEUR entier plutôt qu'à ses
+// canaux un par un : si le plus fort dépasserait 1, on réduit les trois dans
+// la même proportion, exactement comme une photo qui brûle en préservant sa
+// teinte plutôt qu'en virant au jaune. SKY_HEADROOM reste sous 1 pour que ce
+// plafond ne se confonde jamais avec un clamp dur à 1,0 — c'est un choix de
+// mise en scène (une photo qui vient de toucher son plafond, pas un pixel mort),
+// choisi à l'œil, comme SKY_SLANT.
+const SKY_HEADROOM = 0.97;
+
+// WHITE_BALANCE n'est honnête qu'au point de calibrage : en dessous, le
+// dégradé chaud de skyChroma() et ce gain fixe se composent et font basculer
+// le bleu sous le rouge plusieurs degrés avant que ce soit plausible — un
+// ciel de milieu de journée à 15-18° d'élévation (le zénith d'hiver à Paris)
+// ne devrait pas déjà lire comme un crépuscule. En dessous de DUSK_ELEV, la
+// bascule chaude est réelle et on la laisse faire ; au-dessus, on retient le
+// bleu au moins à hauteur du rouge — un plancher qui ne fait que RELEVER le
+// bleu, jamais baisser rouge/vert, donc sans effet là où le ciel est déjà
+// bleu (dont la référence de calibrage elle-même) et sans effet sous le seuil,
+// où c'est skyChroma() qui décide. Choisi à l'œil, comme SKY_SLANT.
+const DUSK_ELEV = 10;
+
 // La couleur que main.js pousse vers ses quatre consommateurs.
 export function skyColor(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const rel = Math.pow(skyLevel(elevationDeg, cloudPct) / ambientLevel(elevationDeg, cloudPct),
 		SKY_COMPRESS);
 	const c = skyChroma(elevationDeg, visibilityM, cloudPct);
-	return {
-		r: clamp01(c[0] * WHITE_BALANCE[0] * rel),
-		g: clamp01(c[1] * WHITE_BALANCE[1] * rel),
-		b: clamp01(c[2] * WHITE_BALANCE[2] * rel),
-	};
+	const wc = [c[0] * WHITE_BALANCE[0], c[1] * WHITE_BALANCE[1], c[2] * WHITE_BALANCE[2]];
+
+	const guard = smoothstep(0, DUSK_ELEV, elevationDeg);
+	wc[2] = wc[2] * (1 - guard) + Math.max(wc[2], wc[0]) * guard;
+
+	let r = wc[0] * rel, g = wc[1] * rel, b = wc[2] * rel;
+	const peak = Math.max(r, g, b);
+	if (peak > SKY_HEADROOM) {
+		const k = SKY_HEADROOM / peak;
+		r *= k; g *= k; b *= k;
+	}
+	return { r: clamp01(r), g: clamp01(g), b: clamp01(b) };
 }
 
 // ---------------------------------------------------------------------------
@@ -367,8 +403,8 @@ const SUN_METER_WEIGHT = 6.0;
 // Les caméras ferment vite et rouvrent lentement. Cette asymétrie EST la
 // mécanique que l'issue #23 met en avant ; symétrique, l'effet ne se remarque
 // même pas.
-export const TAU_CLOSE = 0.15;
-export const TAU_OPEN = 1.2;
+const TAU_CLOSE = 0.15;
+const TAU_OPEN = 1.2;
 // En dessous, l'écart à 1 n'est plus visible et le bloc shader peut être
 // compilé dehors. Un demi-niveau sur 255 : ce qui ne peut pas changer un octet.
 const NOOP_EPS = 1 / 512;
@@ -422,13 +458,14 @@ export class SunField {
 		const p = sunPosition({ lat: this.lat, lon: this.lon, date });
 		this.elevation = p.elevation * R2D;
 		this.azimuth = p.azimuth * R2D;
-		this.dir = sunVector(p.azimuth, p.elevation);
+		const v = sunVector(p.azimuth, p.elevation);
+		this.dir.x = v.x; this.dir.y = v.y; this.dir.z = v.z;
 
 		const c = skyColor(this.elevation, this.visibilityM, this.cloudPct);
 		this.sky.r = c.r; this.sky.g = c.g; this.sky.b = c.b;
 
 		const disc = sunDisc(this.elevation, this.visibilityM, this.cloudPct);
-		this.sunColor = disc.color;
+		this.sunColor.r = disc.color.r; this.sunColor.g = disc.color.g; this.sunColor.b = disc.color.b;
 		this.sunAmount = disc.amount;
 
 		this.ambient = ambientLevel(this.elevation, this.cloudPct);

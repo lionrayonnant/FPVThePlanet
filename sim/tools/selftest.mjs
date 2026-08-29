@@ -19,7 +19,7 @@ import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generat
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
-	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MIN, E_MAX,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX,
 } from '../src/sun.js';
 import { toSimParams as weatherToSimParams, sanitize as weatherSanitize } from './lib/weather.mjs';
 
@@ -1384,6 +1384,28 @@ console.log('\nsoleil — atmosphère et couleur du ciel');
 		`#${hex(ref).toString(16).padStart(6, '0')} vs #${SKY_REF.toString(16)}`);
 	check('la référence n\'est pas saturée (il reste de la marge en haut)',
 		ref.r < 1 && ref.g < 1 && ref.b < 1);
+
+	// Régression du 2e passage de revue : `rel` (le rapport ciel/sol comprimé)
+	// est un facteur SCALAIRE, donc un clamp01 par canal après coup était ce
+	// qui faisait déraper la teinte — chaque canal saturait à une élévation
+	// différente selon sa magnitude de départ. Une élévation de mi-journée
+	// d'hiver plausible (17,7°, le zénith de solstice à Paris) et une
+	// élévation basse mais franchement diurne (15°) doivent donc encore lire
+	// bleu, pas vert : c'est un contrôle en OCTETS, pas en ratio, parce que
+	// c'est au niveau de l'octet que le bug se voyait.
+	{
+		const mid1 = skyColor(17.7, CLEAR, 0), mid2 = skyColor(15, CLEAR, 0);
+		check('17,7° (solstice d\'hiver à Paris) : le bleu n\'est pas sous le rouge',
+			mid1.b >= mid1.r, `${mid1.r.toFixed(3)} ${mid1.g.toFixed(3)} ${mid1.b.toFixed(3)}`);
+		check('15° : le bleu n\'est pas sous le rouge',
+			mid2.b >= mid2.r, `${mid2.r.toFixed(3)} ${mid2.g.toFixed(3)} ${mid2.b.toFixed(3)}`);
+	}
+	{
+		const glow = skyColor(5, CLEAR, 0);
+		const byte5 = [byte(glow.r), byte(glow.g), byte(glow.b)];
+		check('5° : aucun canal ne sature à 0 ni à 255 (pas de clamp dur)',
+			byte5.every((v) => v > 0 && v < 255), byte5.join(' '));
+	}
 
 	// À midi le ciel est bleu : c'est Rayleigh, et ça doit sortir du modèle et
 	// non d'une couleur choisie.

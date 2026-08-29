@@ -496,6 +496,11 @@ const LensShader = {
 				if (uSunAmount > 0.0 && uSunPos.z > 0.5) {
 					// \`base\` est déjà l'espace carré, radialement symétrique — le
 					// même dans lequel les gouttes sont posées.
+					// Et surtout : \`base\` d'AVANT le barillet (uK1/uK2 n'ont pas encore
+					// joué à cette ligne). uSunPos est calculée à l'identique côté
+					// main.js, dans ce même espace non distordu — volontairement : la
+					// position écran du soleil ne doit pas bouger avec le curseur de
+					// barillet, seule l'image autour de lui doit se déformer.
 					float sd = length(base - uSunPos.xy);
 					// Voile : de la lumière qui n'est jamais venue du sujet, entrée
 					// de biais dans le barillet. Même argument que le voile de
@@ -757,12 +762,12 @@ export class FpvLens {
 	// no-op — la même promesse que LINK_OFF et que GLARE à zéro, et la raison
 	// pour laquelle une scène par ciel clair et soleil haut rend exactement
 	// l'image qu'elle rendait avant ce ticket.
-	setSun({ x = 0, y = 0, front = 0, color = null, amount = 0, exposure = 1 } = {}) {
+	setSun({ x = 0, y = 0, front = false, color = null, amount = 0, exposure = 1 } = {}) {
 		const a = amount > 0 ? (amount > 1 ? 1 : amount) : 0;
 		// `front` compte : le shader ne dessine rien quand le soleil est derrière
 		// la caméra, donc le bloc serait compilé pour rien. Reste l'exposition,
 		// qui multiplie l'image entière et n'a pas d'orientation.
-		const on = (a > 0 && front) || Math.abs(exposure - 1) > 1 / 512;
+		const on = (a > 0 && !!front) || Math.abs(exposure - 1) > 1 / 512;
 		this._u.uSunPos.value.set(x, y, front ? 1 : 0);
 		if (color) this._u.uSunColor.value.copy(color);
 		this._u.uSunAmount.value = a;
