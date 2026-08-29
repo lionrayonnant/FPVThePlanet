@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
+import { crashThreshold } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
@@ -34,13 +35,6 @@ const SKY = 0x9fb8cc;
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
-// Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
-// 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
-// slamming into something a crash.
-const CRASH_IMPULSE = 1500;
-// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
-// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
-const CRASH_IMPULSE_FLAT = 2800;
 // The ground station's antenna, above whatever the pilot is standing on. The
 // pilot is at the spawn point, because that is where you took off from.
 const ANTENNA_HEIGHT = 1.2;
@@ -615,9 +609,7 @@ function frame() {
 			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
 			// de crash suit donc l'assiette au moment du choc.
 			if (impact > 0 && !crashed) {
-				const r = physics.rotation;
-				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
-				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
+				if (impact > crashThreshold(physics.rotation)) {
 					crashed = true;
 					// Le drone est détruit. La session se ferme sur CRASHED — le
 					// terrain, lui, reste. terrain persistent, flights ephemeral.

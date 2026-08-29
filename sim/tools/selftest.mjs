@@ -13,6 +13,7 @@ import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, P
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
+import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1154,6 +1155,11 @@ console.log('\ntextures');
 			`${greyPct.toFixed(1)}% grey over ${area.toFixed(0)} m² sampled`);
 	}
 }
+
+console.log('\ncrash threshold');
+check('upright/flat rotation uses the flat threshold', crashThreshold({ x: 0, y: 0, z: 0, w: 1 }) === CRASH_IMPULSE_FLAT);
+check('nose-down rotation uses the tighter threshold',
+	crashThreshold({ x: 0.8, y: 0, z: 0, w: Math.sqrt(1 - 0.8 * 0.8) }) === CRASH_IMPULSE);
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

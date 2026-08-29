@@ -24,6 +24,22 @@ export const QUAD = DEFAULT_PROFILE;
 export function hoverThrust(profile = QUAD) { return profile.mass * GRAVITY; }
 export const HOVER_THRUST = hoverThrust(QUAD);
 
+// Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
+// 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
+// slamming into something a crash.
+export const CRASH_IMPULSE = 1500;
+// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
+// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+export const CRASH_IMPULSE_FLAT = 2800;
+
+// Un drone qui arrive à plat encaisse : bras et hélices absorbent. Nez en avant
+// ou sur le dos, il casse plus facilement — le seuil suit donc l'assiette au
+// moment du choc (upY proche de 1 = plat/dessus, proche de -1 = inversé).
+export function crashThreshold(rotation) {
+	const upY = 1 - 2 * (rotation.x * rotation.x + rotation.z * rotation.z);
+	return upY > 0.4 ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE;
+}
+
 // Motor layout in Betaflight order: 1 rear-right, 2 front-right, 3 rear-left,
 // 4 front-left. spin = +1 for counter-clockwise seen from above (a positive
 // rotation about body +Y), and diagonal pairs share a direction so the drag
