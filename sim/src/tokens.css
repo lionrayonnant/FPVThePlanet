@@ -1,0 +1,148 @@
+/* PHASE 19 — Le socle du langage visuel (issue #56, Bible §38-§45).
+   Source unique des couleurs, des graduations et de la typographie, partagée
+   par le jeu (src/style.css) et la console de préparation
+   (tools/map-gui/style.css). Aucun littéral de couleur ne doit exister ailleurs
+   que dans ce fichier — tools/palette-selftest.mjs le vérifie. */
+
+/* ---------- polices ----------
+   Deux familles embarquées, toutes deux SIL OFL 1.1, servies depuis
+   public/fonts/ : aucun CDN, le jeu s'installe et tourne hors ligne.
+   Licences intégrales dans public/fonts/OFL-*.txt.
+
+   Departure Mono (Helena Zhang, OFL 1.1) est une police *pixel* : sa grille
+   fait 50 unités sur 550 d'em, donc elle n'est nette qu'aux tailles multiples
+   de 11 px. C'est ce qui fixe l'échelle DISPLAY plus bas — un bitmap ne lit
+   comme un bitmap que s'il tombe sur la grille de l'écran.
+
+   IBM Plex Mono (IBM, OFL 1.1) porte l'interface et les données. Le sous-
+   ensemble latin ne contient AUCUN caractère de dessin de boîte (┌ ─ │), et sa
+   chasse (0,6 em) diffère de celle de Departure Mono (0,6364 em) : un repli
+   glyphe par glyphe désalignerait les cadres. D'où la règle absolue —
+   un bloc ASCII est en Departure Mono de bout en bout, jamais mélangé. */
+
+@font-face {
+	font-family: 'Departure Mono';
+	src: url('/fonts/DepartureMono-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	/* block plutôt que swap : tout démarre sur un écran noir, un remplacement de
+	   police à mi-chemin se verrait bien plus qu'une demi-seconde de vide. */
+	font-display: block;
+}
+@font-face {
+	font-family: 'IBM Plex Mono';
+	src: url('/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: block;
+}
+@font-face {
+	font-family: 'IBM Plex Mono';
+	src: url('/fonts/IBMPlexMono-Medium.woff2') format('woff2');
+	font-weight: 500;
+	font-style: normal;
+	font-display: block;
+}
+
+:root {
+	/* ---------- palette de base (Bible §38) ----------
+	   Neutre légèrement chaud : R > G > B sur toute l'échelle. Le WARM WHITE
+	   n'est pas qu'un nom, c'est l'axe de toute la rampe. */
+	--black: #0a0908;
+	--dark-grey: #121110;
+	--grey: #221f1c;
+	--light-grey: #8a827a;
+	--warm-white: #ece7dd;
+
+	/* Dérivés du WARM WHITE. Pas de nouveaux pigments : la hiérarchie du texte
+	   se fait par la quantité d'encre, pas par une couleur de plus. */
+	--ink: var(--warm-white);
+	--dim: rgba(236, 231, 221, .62);
+	--faint: rgba(236, 231, 221, .38);
+	--rule: rgba(236, 231, 221, .14);
+	--rule-strong: rgba(236, 231, 221, .28);
+
+	/* ---------- couleurs fonctionnelles (Bible §38) ----------
+	   « Uniquement lorsqu'elles transmettent une information. » Jamais
+	   décoratives, jamais un bouton vert parce que c'est le bouton valider.
+	   Désaturées à dessein : elles ne doivent pas concurrencer la palette demo. */
+	--green: #7aa96b;   /* nominal, acquis, lien bon */
+	--yellow: #d4b155;  /* surveille */
+	--orange: #cf7b3e;  /* ça se produit maintenant */
+	--red: #c8504a;     /* perdu, échec, crash */
+
+	/* ---------- palette demo (Bible §19) ----------
+	   JACK IN, hacks, rituels, reconnexions exceptionnelles. « Une à quatre
+	   secondes de folie, puis retour au calme. » Aucun écran quotidien n'a le
+	   droit d'y toucher ; palette-selftest.mjs échoue si l'un le fait. */
+	--cyan: #4dd8e8;
+	--magenta: #e34de0;
+	--violet: #8a5cf6;
+	--electric: #3b6cff;
+
+	/* ---------- typographie (Bible §39, trois niveaux maximum) ---------- */
+	--font-display: 'Departure Mono', ui-monospace, monospace;
+	--font-ui: 'IBM Plex Mono', ui-monospace, monospace;
+	--font-data: 'IBM Plex Mono', ui-monospace, monospace;
+	/* Les cadres ┌─┐, les grilles de hack et les bursts. Departure Mono seule :
+	   elle couvre le dessin de boîte, Plex Mono non. */
+	--font-ascii: 'Departure Mono', ui-monospace, monospace;
+
+	/* Échelle DISPLAY, calée sur la grille 11 px de Departure Mono. Ne pas
+	   introduire de valeur hors de ce pas : elle serait floue. */
+	--fs-display-s: 22px;
+	--fs-display-m: 33px;
+	--fs-display-l: 44px;
+	--fs-display-xl: 66px;
+
+	/* Échelle UI / DATA : libre, Plex Mono est vectorielle. */
+	--fs-micro: 11px;
+	--fs-data: 13px;
+	--fs-ui: 15px;
+	--fs-ui-l: 18px;
+
+	--track-display: .12em;
+	--track-ui: .16em;
+	--track-data: .02em;
+
+	/* ---------- graduations ---------- */
+	--space-1: 4px;
+	--space-2: 9px;
+	--space-3: 14px;
+	--space-4: 22px;
+	--space-5: 34px;
+
+	/* Traits fins, angles droits, très peu d'ombres (Bible §38). L'ombre ne
+	   sert qu'au texte posé sur l'image FPV, qui n'a aucun fond à lui. */
+	--rule-w: 1px;
+	--shadow: 0 1px 3px rgba(0, 0, 0, .9);
+
+	/* Deux voiles, tirés du BLACK. Le fort masque l'écran de vol derrière un
+	   panneau ; le doux garde seulement un texte lisible sur un ciel blanc. */
+	--scrim: rgba(10, 9, 8, .82);
+	--scrim-soft: rgba(10, 9, 8, .6);
+}
+
+/* ---------- les trois niveaux, en classes utilitaires ----------
+   DISPLAY est réservée aux moments forts — FPVTP!, TARGET ACQUIRED, JACK IN.
+   Elle ne doit jamais servir de corps de texte. */
+.t-display {
+	font-family: var(--font-display);
+	font-weight: 400;
+	letter-spacing: var(--track-display);
+	text-transform: uppercase;
+}
+.t-ui {
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	text-transform: uppercase;
+}
+.t-data {
+	font-family: var(--font-data);
+	font-weight: 400;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+}
