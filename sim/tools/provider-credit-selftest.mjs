@@ -27,6 +27,24 @@ t('provider sans attribution utilisable : retombe sur le défaut', () => {
 		LEGACY_PROVIDER.attribution);
 });
 
+// Retour de revue (issue #18) : le repli Apple était calculé sans jamais
+// regarder provider.id, donc un fournisseur non-legacy sans attribution se
+// faisait créditer à Apple. Un provider.id différent doit produire un repli
+// générique dérivé de son propre label — jamais « © Apple ».
+t('provider google sans attribution utilisable : repli générique, jamais Apple', () => {
+	const lines = creditLines({ version: 3, provider: { id: 'google', label: 'Google', attribution: [] } });
+	assert.ok(lines.length > 0, 'ne doit jamais rendre un tableau vide');
+	assert.ok(!lines.some((l) => /apple/i.test(l)), `ne doit pas citer Apple : ${lines}`);
+	assert.ok(lines.some((l) => /google/i.test(l)), `doit dériver du label du fournisseur : ${lines}`);
+});
+
+t('provider google sans label ni attribution : repli sur l\'id, toujours pas Apple', () => {
+	const lines = creditLines({ version: 3, provider: { id: 'google' } });
+	assert.ok(lines.length > 0);
+	assert.ok(!lines.some((l) => /apple/i.test(l)), `ne doit pas citer Apple : ${lines}`);
+	assert.ok(lines.some((l) => /google/i.test(l)), `doit dériver de l'id à défaut de label : ${lines}`);
+});
+
 t('jamais de crash sur une entrée absurde', () => {
 	for (const bad of [null, undefined, {}, { provider: null }, { provider: { attribution: 'nope' } }]) {
 		const out = creditLines(bad);

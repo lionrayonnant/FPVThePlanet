@@ -145,10 +145,17 @@ export async function fetch(opts, { onLog, signal } = {}) {
 	const { lat, lon, zoom = 20, radius = 25, altitude = 20, bbox, poly, force = false } = opts;
 	const tileDir = await tileDirPath({ lat, lon, zoom, radius, altitude, bbox, poly });
 	const stats = { exported: 0, undecodable: 0 };
+	let fetchedAt;
 
 	if (!force && tileIsUsable(tileDir)) {
 		onLog?.({ stream: 'meta', line: `\nTuile déjà téléchargée (${tileDir}), téléchargement sauté (--force pour refaire).` });
 		onLog?.({ stream: 'phase', line: 'download', done: true });
+		// Cache hit : ce run n'a rien téléchargé aujourd'hui. `fetchedAt` doit
+		// rester la date de la vraie acquisition (mtime d'exp_model.obj), pas
+		// l'instant de ce re-prep — sinon une tuile vieille de plusieurs mois se
+		// fait passer pour fraîche à chaque relecture, et une obligation de
+		// rafraîchissement future ne rafraîchirait jamais rien.
+		fetchedAt = fs.statSync(path.join(tileDir, 'exp_model.obj')).mtime.toISOString();
 	} else {
 		// Purge tout reliquat vide d'un scan précédent : l'exporter repart propre
 		// et le test ci-dessous ne peut pas être trompé par des fichiers périmés.
@@ -178,6 +185,8 @@ export async function fetch(opts, { onLog, signal } = {}) {
 				onLog?.(ev);
 			},
 		});
+		// Vraie acquisition : c'est bien maintenant que la tuile a été obtenue.
+		fetchedAt = new Date().toISOString();
 	}
 
 	if (!tileIsUsable(tileDir)) {
@@ -196,7 +205,5 @@ export async function fetch(opts, { onLog, signal } = {}) {
 			  '  de conclure ; un lieu couvert renvoie des tuiles dès une zone minuscule.');
 	}
 
-	return { tileDir, attribution, fetchedAt: new Date().toISOString(), stats };
+	return { tileDir, attribution, fetchedAt, stats };
 }
-
-export { Cancelled };

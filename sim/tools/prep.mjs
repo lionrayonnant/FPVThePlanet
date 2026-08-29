@@ -407,7 +407,13 @@ const manifest = {
 	provider: {
 		id: opts.provider,
 		label: opts.providerLabel,
-		attribution: attribution.length ? attribution : LEGACY_PROVIDER.attribution,
+		// Le repli sur le crédit Apple ne vaut QUE pour le fournisseur légataire
+		// — un fournisseur non-legacy sans attribution utilisable écrit un
+		// tableau vide plutôt que de citer Apple pour des tuiles qui n'en
+		// viennent pas ; c'est provider-credit.js qui invente, à l'affichage,
+		// un repli générique dérivé du label (issue #18, retour de revue).
+		attribution: attribution.length ? attribution
+			: (opts.provider === LEGACY_PROVIDER.id ? LEGACY_PROVIDER.attribution : []),
 		fetchedAt: opts.fetchedAt ?? new Date().toISOString(),
 	},
 	source: opts.tileDir, // the selftest reads the source JPEGs back from here

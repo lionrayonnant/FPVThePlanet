@@ -66,15 +66,16 @@ function readFloats(text, from, to, out, max) {
 	return n;
 }
 
-// Ne vérifie que la présence des fichiers, pas leur contenu : sniff() choisit
-// le FORMAT (c'est bien de l'OBJ/MTL), decode() valide l'USABILITÉ (ni
-// manquant, ni vide, ni vide de géométrie). Si sniff() rejetait aussi les
-// fichiers vides, pick() lèverait avant que decode() tourne, et les deux
-// diagnostics précis ci-dessous ne s'afficheraient jamais sur le chemin CLI
+// Ne vérifie que la présence du .obj — le fichier qui porte le format — pas du
+// .mtl compagnon ni du contenu de l'un ou l'autre : sniff() choisit le FORMAT,
+// decode() valide l'USABILITÉ (le .mtl est bien là, ni l'un ni l'autre n'est
+// vide, il y a de la géométrie). Exiger aussi le .mtl ici ferait lever pick()
+// avant que decode() tourne pour un tileDir où seul le .mtl manque, et le
+// diagnostic précis ci-dessous (`missing …/exp_model.mtl`) ne s'afficherait
+// jamais sur le chemin CLI — juste le message générique et muet de pick()
 // (issue #18, retour de revue).
 export function sniff(tileDir) {
-	return ['exp_model.obj', 'exp_model.mtl']
-		.every((f) => fs.existsSync(path.join(tileDir, f)));
+	return fs.existsSync(path.join(tileDir, 'exp_model.obj'));
 }
 
 // onLog reçoit des lignes NON horodatées, indentation comprise. C'est prep.mjs

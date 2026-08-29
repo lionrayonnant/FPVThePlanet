@@ -13,12 +13,23 @@ export const LEGACY_PROVIDER = Object.freeze({
 });
 
 export function creditLines(manifest) {
-	const raw = manifest?.provider?.attribution;
+	const provider = manifest?.provider;
+	const raw = provider?.attribution;
 	const lines = (Array.isArray(raw) ? raw : [])
 		.filter((s) => typeof s === 'string' && s.trim())
 		.map((s) => s.trim());
-	const source = lines.length ? lines : LEGACY_PROVIDER.attribution;
-	return [...new Set(source)];
+	if (lines.length) return [...new Set(lines)];
+
+	// Pas d'attribution utilisable dans le manifest. Un manifest version 2 (ou
+	// tout provider.id absent) vient forcément de Flyover et hérite du crédit
+	// Apple à bon droit ; un provider.id non-legacy sans attribution NE DOIT
+	// JAMAIS retomber sur Apple — ce serait créditer le mauvais fournisseur.
+	// On invente à la place un repli générique dérivé de son propre label :
+	// moins précis, mais honnête (issue #18, retour de revue).
+	const id = provider?.id;
+	if (!id || id === LEGACY_PROVIDER.id) return LEGACY_PROVIDER.attribution;
+	const label = typeof provider?.label === 'string' && provider.label.trim();
+	return [`© ${label || id}`];
 }
 
 export function creditText(manifest) {

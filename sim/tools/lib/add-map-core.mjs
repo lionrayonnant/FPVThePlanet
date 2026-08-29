@@ -1,6 +1,7 @@
-// Le pipeline d'ajout de carte, appelable depuis du code : téléchargement de la
-// tuile Flyover (Go exporter), conversion (prep.mjs), enregistrement dans
-// public/scenes.json.
+// Le pipeline d'ajout de carte, appelable depuis du code : récupération de la
+// tuile via le fournisseur choisi (tools/lib/providers/, délégué — voir
+// providers.get() plus bas ; aujourd'hui seul Flyover, Go exporter, est
+// inscrit), conversion (prep.mjs), enregistrement dans public/scenes.json.
 //
 // tools/add-map.mjs en est le wrapper CLI ; l'API dev de la GUI
 // (tools/map-api-plugin.mjs) appelle addMap() directement pour pouvoir streamer
@@ -52,9 +53,15 @@ export function writeScenes(scenes) {
 // Extrait les jalons réels de prep.mjs de son stdout, sans y toucher : c'est le
 // seul endroit qui sait que le pipeline passe par decode (lecture MTL/OBJ) puis
 // rebuild (ENU, chunks, sheets de textures, mesh de collision). Chaque motif
-// correspond à une ligne existante de prep.mjs (voir les console.log autour de
-// la parse OBJ et de la construction des chunks) : rien n'est deviné, tout est
-// lu. Le PHASE 05 en tire les barres FETCH/DECODE/REBUILD du scanner ; add-map.mjs
+// correspond à une ligne existante émise par prep.mjs, mais RE_MATERIALS et
+// RE_GEOMETRY en particulier dépendent maintenant du DÉCODEUR choisi par
+// tools/lib/decoders/index.mjs::pick() (aujourd'hui obj.mjs, cf. son contrat
+// onLog) plutôt que de prep.mjs lui-même : rien n'est deviné, tout est lu,
+// mais la source de vérité a bougé depuis l'extraction du seam décodeur
+// (issue #18). RE_GEOMETRY est celle qui fait basculer l'UI de DECODE à
+// REBUILD — un décodeur qui en change le libellé casse ce basculement en
+// silence, cf. la mise en garde symétrique dans decoders/index.mjs. Le
+// PHASE 05 tire les barres FETCH/DECODE/REBUILD de ces motifs ; add-map.mjs
 // (CLI) ignore ces événements et continue d'imprimer les lignes brutes.
 // prep.mjs groupe ses gros nombres avec toLocaleString() sans locale explicite :
 // le séparateur suit donc l'ICU du runtime qui l'exécute (virgule, espace,

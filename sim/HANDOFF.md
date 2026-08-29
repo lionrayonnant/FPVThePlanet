@@ -654,7 +654,17 @@ Plan d'origine (contexte de la décision d'architecture) :
     (…/poly-98b6e26043ec-20-20) » et le port JS calcule `98b6e26043ec` : le
     hash du Go et celui de Node concordent en conditions réelles, pas seulement
     sur la fixture.
-  - **Second fournisseur 3D — Stages 1 et 2 (issue #18)**, branche
+- **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
+    scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
+    pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
+    réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
+    manifeste, or un corridor n'occupe que 19 % de la sienne. Mesuré : 315
+    tirages sur 400 tombent hors terrain (0/400 sur `bastille`), et 2 sessions
+    sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
+    de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
+    replis. La génération de cibles est peut-être logée à la même enseigne.
+
+- **Second fournisseur 3D — Stages 1 et 2 (issue #18)**, branche
   `issue-18-providers`.
   - Deux seams distincts introduits dans le pipeline de préparation, à ne pas
     confondre : `tools/lib/providers/` (d'où viennent les octets — `plan`,
@@ -669,6 +679,17 @@ Plan d'origine (contexte de la décision d'architecture) :
     reniflage). `tools/lib/growable.mjs` (Growable) et `tools/lib/run.mjs`
     (runner de sous-process + `Cancelled`) sont les deux utilitaires partagés
     extraits au passage, neutres vis-à-vis des deux seams.
+  - **À faire par le Stage 3, pour ne pas être découvert tard** : aujourd'hui
+    seul `fetch` est réellement dispatché par fournisseur. `tileDirName`/
+    `tileDirPath`/`tileIsUsable`/`planScan`/`probeCoverage` restent liés en dur
+    à `providers.get('flyover')` dans `tools/lib/add-map-core.mjs:24-28` (shim
+    de compatibilité pour la surface historique), et `map-api-plugin.mjs` — la
+    GUI, la voie principale d'ajout de carte — importe exactement ces symboles.
+    Ni `add-map.mjs` ni la GUI ne savent positionner `opts.provider`. Donc dès
+    qu'un second fournisseur s'inscrira : `/plan` et `/probe` continueront
+    d'interroger Flyover quel que soit le fournisseur choisi, et
+    `DELETE /scenes/:slug?raw=1` calculera un chemin de cache Flyover pour des
+    tuiles d'un autre fournisseur — orphelinant silencieusement leur téléchargement.
   - `manifest.json` passe en `version: 3` et porte `provider: {id, label,
     attribution, fetchedAt}`. Les manifests `version: 2` existants se
     rechargent tels quels, avec repli sur l'attribution Apple Flyover — **pas
@@ -686,8 +707,12 @@ Plan d'origine (contexte de la décision d'architecture) :
     jonction de `creditText`), les deux chaînés dans `selftest:operator`.
     `npm run selftest:operator` (dont les deux nouveaux) et `npm run selftest`
     verts.
-  - **Non vérifié** : la ligne de crédit `#fo-credit` n'a pas été vue dans un
-    vrai navigateur — seulement construite et testée en pur.
+  - **Vérifié dans un vrai navigateur** : sur `seine-iena-alma` — manifest
+    `version: 2`, SANS champ `provider` (donc ce test prouve le repli sans
+    re-préparation, pas le chemin v3) — la ligne de crédit `#fo-credit` rend
+    « © Apple » en bas à droite, à 14 px du bord droit et 12 px du bas, les
+    mêmes marges que les coins tl/tr/bl existants du HUD. Absente du
+    `drone-osd` diégétique, visible seulement sur `fpvtp-osd`.
   - **Hors périmètre, à dessein** : le Stage 3 (le vrai fournisseur Google
     Photorealistic 3D Tiles — client 3D Tiles, clé API, décodeur glTF) n'est
     **pas fait** ; il attend un plan séparé une fois les inconnues wire levées
@@ -700,15 +725,6 @@ Plan d'origine (contexte de la décision d'architecture) :
     `exp_model.mtl` directement pour vérifier la convention UV — la dernière
     hypothèse OBJ vivant hors des décodeurs. À rendre agnostique du format
     avant qu'un décodeur glTF n'arrive.
-- **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
-    scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
-    pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
-    réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
-    manifeste, or un corridor n'occupe que 19 % de la sienne. Mesuré : 315
-    tirages sur 400 tombent hors terrain (0/400 sur `bastille`), et 2 sessions
-    sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
-    de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
-    replis. La génération de cibles est peut-être logée à la même enseigne.
 
 ## Non vérifié / à faire
 

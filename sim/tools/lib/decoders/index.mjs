@@ -14,11 +14,27 @@
 //     levées (jamais process.exit) : c'est une bibliothèque, pas un point
 //     d'entrée CLI.
 //
+//     ATTENTION, couplage à préserver : deux de ces lignes sont re-parsées en
+//     aval par `parsePrepLine()` (tools/lib/add-map-core.mjs), qui les
+//     détecte dans le stdout de `node tools/prep.mjs` pour piloter l'UI du
+//     scanner PHASE 05. Un décodeur DOIT les émettre au mot près (obj.mjs les
+//     produit actuellement) :
+//       "<N> materials, <N> without a texture"   — RE_MATERIALS
+//       "<N> vertices, <N> uvs, <N> triangles"    — RE_GEOMETRY, et c'est ELLE
+//         qui fait basculer l'écran de DECODE à REBUILD (rien après cette
+//         ligne ne relit plus l'entrée). Un futur décodeur qui reformule cette
+//         ligne laisse le scanner bloqué sur DECODE indéfiniment, sans qu'aucun
+//         test ne le détecte — voir parsePrepLine pour le contrat exact.
+//
 // DecodeResult = {
 //   materials    : [{ name, texture }] — texture est un chemin ABSOLU ou un
 //                  Buffer (textures embarquées), ou null si le matériau n'a
 //                  pas de texture.
-//   byName       : Map<name, index dans materials>
+//   byName       : Map<name, index dans materials> — OPTIONNEL, interne au
+//                  décodeur (usage propre à obj.mjs pendant son parsing).
+//                  prep.mjs ne le lit pas : voir la déstructuration `const {
+//                  materials, vx, vy, vz, tu, tv, triByMat, vertCount } =
+//                  decoded`. Un futur décodeur n'est pas obligé d'en produire un.
 //   vx, vy, vz   : Growable(Float64Array) — sommets en ECEF, mètres.
 //   tu, tv       : Growable(Float32Array) — UV en CONVENTION MOTEUR, c'est-à-
 //                  dire origine en haut-gauche (DataArrayTexture force
@@ -32,7 +48,13 @@
 //                  contrat, ni la mutualiser entre décodeurs.
 //   triByMat     : par matériau, Growable(Uint32Array) de paires (vIdx, uvIdx),
 //                  6 entrées par triangle, déjà fan-triangulé.
-//   vertCount, faceCount, polyFaces, unmatchedPairs : entiers, pour les logs.
+//   vertCount    : entier — REQUIS, lu par prep.mjs (voir la déstructuration
+//                  citée plus haut).
+//   faceCount, polyFaces, unmatchedPairs : entiers, OPTIONNELS. obj.mjs les
+//                  loggue lui-même avant de rendre (onLog), au moment où il
+//                  les connaît encore ; rien en aval ne les relit sur le
+//                  DecodeResult. Un futur décodeur n'est pas obligé de les
+//                  produire.
 //   attribution  : string[] — lignes de crédit lues DANS les tuiles décodées
 //                  (ex. asset.copyright glTF). Prime sur l'attribution annoncée
 //                  par le fournisseur, qui prime sur le défaut. Un décodeur qui
