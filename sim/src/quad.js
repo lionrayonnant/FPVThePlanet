@@ -47,7 +47,7 @@ export function idleThrottle(profile = QUAD) {
 export const CRASH_IMPULSE = 1500;
 
 // Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
- faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
 export const CRASH_IMPULSE_FLAT = 2800;
 
 // Un drone qui arrive à plat encaisse : bras et hélices absorbent. Nez en avant
