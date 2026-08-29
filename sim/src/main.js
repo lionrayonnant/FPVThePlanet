@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
-import { crashThreshold } from './quad.js';
+import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
@@ -27,8 +27,11 @@ import { runTargetScan } from './target-scan.js';
 import { generateTargetScan } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
+import { targetCamera } from '../tools/target-camera.mjs';
+import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
+import { DroneOsd } from './drone-osd.js';
+import { FpvtpOsd } from './fpvtp-osd.js';
 import { FlightEnd, LANDING } from './flight-end.js';
-import { idleThrottle } from './quad.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -100,6 +103,12 @@ document.body.appendChild(renderer.domElement);
 
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'));
+// Les deux couches du HUD (PHASE 12). Celle de la station existe dès le départ
+// et ne dépend d'aucune cible ; celle du drone appartient à la machine pilotée,
+// donc elle naît à l'ouverture de session, avec sa fiche caméra.
+const fpvtpOsd = new FpvtpOsd(document.getElementById('ui'));
+let droneOsd = null;
+let camSpec = null;
 const settings = new Settings(document.getElementById('ui'), input);
 // Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
 // Aucune ligne avant le gate ne l'utilise à l'exécution.
@@ -133,6 +142,7 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+// Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
 let sceneManifest = null;
 let emitter = null;
 let freeCam = null;
@@ -172,12 +182,23 @@ let flyArea = null;
 let resumeId = null;
 let flyTarget = null;
 let spawnY = 0;
+// Le point de départ complet, pas seulement son altitude : l'OSD drone affiche
+// une distance au point de décollage, donc il lui faut les trois coordonnées.
+let spawnX = 0;
+let spawnZ = 0;
+// L'horloge de vol, en horloge murale : elle continue de tourner pendant une
+// pause, comme sur du vrai matériel. Amorcée au chargement pour que les
+// premières images, avant l'ouverture de session, n'affichent pas 1970.
+let sessionStartedAt = Date.now();
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
 let lastTime = performance.now();
 
 function resize() {
-	camera.aspect = innerWidth / innerHeight;
+	// Le format vient de la caméra de la cible dès qu'on en a une : la cible du
+	// composer est dimensionnée au capteur, donc une scène rendue au format de
+	// la fenêtre y serait étirée, en plus des bandes noires.
+	camera.aspect = camSpec ? camSpec.aspect : innerWidth / innerHeight;
 	camera.updateProjectionMatrix();
 	renderer.setSize(innerWidth, innerHeight);
 	lens.setSize(innerWidth, innerHeight);
@@ -188,6 +209,22 @@ function resize() {
 }
 addEventListener('resize', resize);
 resize();
+
+// La caméra de la cible : appliquée une fois, au moment où l'on prend la main.
+// Elle touche le champ, l'inclinaison, le format, la définition et le capteur —
+// et rien d'autre : le vol n'en dépend pas.
+function applyTargetCamera(spec) {
+	camSpec = spec;
+	cameraFov = spec.fovDeg;
+	cameraTilt = spec.uptiltDeg;
+	camera.fov = spec.fovDeg;
+	camera.aspect = spec.aspect;
+	camera.updateProjectionMatrix();
+	lens.setCamera({ aspect: spec.aspect, resScale: spec.resScale });
+	lens.setSensor(spec.sensor);
+	rainfall?.setSize(innerHeight * renderer.getPixelRatio(), spec.fovDeg);
+	settings.setCameraSpec(spec);
+}
 
 // Stage-by-stage so a long load always shows what it is doing and how long that
 // step has taken. Timings are also logged, which is how you find the slow part.
@@ -250,6 +287,11 @@ async function boot() {
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
+	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
+	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
+	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
+	PROFILE = physics.profile;
 	audio.setProfile(physics.profile);
 	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
 	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
@@ -357,12 +399,6 @@ async function boot() {
 		lens.setLink({ mode: lensLinkMode, severity: p.severity });
 	});
 
-	settings.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
-		cameraFov = fov; cameraTilt = tilt;
-		camera.fov = fov;
-		camera.updateProjectionMatrix();
-		rainfall?.setSize(innerHeight * renderer.getPixelRatio(), fov);
-	});
 
 	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
 	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
@@ -418,7 +454,7 @@ async function boot() {
 				programs: renderer.info.programs.length,
 				textures: renderer.info.memory.textures,
 				geometries: renderer.info.memory.geometries,
-				fps: Number(hud.el.fps.textContent.replace(/\D/g, '')) || null,
+				fps: fpvtpOsd.fps || null,
 				position: { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) },
 				speed: +Math.hypot(v.x, v.y, v.z).toFixed(2),
 				groundBelow: ground === null ? null : +ground.toFixed(2),
@@ -584,12 +620,12 @@ function doDisarm() {
 		// Posé : on le fige, il ne roule pas et ne dérive pas.
 		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-		hud.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
+		fpvtpOsd.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
 		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
 	} else {
 		// Désarmé en l'air : moteurs coupés, la chute suivra son cours et
 		// l'impact fermera la session en CRASHED.
-		hud.setSessionStatus('DISARMED<small>en chute libre</small>', 'lost');
+		fpvtpOsd.setSessionStatus('DISARMED<small>FREE FALL</small>', 'lost');
 	}
 }
 
@@ -599,12 +635,8 @@ function respawn() {
 	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
 	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
 	// on garde le respawn local pour ne pas casser le flow de debug.
-	if (crashed && !OPTS.scene) {
-		location.href = location.pathname;
-		return;
-	}
-
-	hud.setSessionStatus(null);
+	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
+	fpvtpOsd.setSessionStatus(null);
 	controller.arm();
 	physics.applyEntryState(generateEntryState({
 		physics,
@@ -629,7 +661,7 @@ function togglePause(force) {
 	paused = force ?? !paused;
 	// Coming back should not replay the wall-clock gap as one giant physics step.
 	if (!paused) { accumulator = 0; lastTime = performance.now(); }
-	hud.setPaused(paused);
+	fpvtpOsd.setPaused(paused);
 }
 
 // Physics does not advance when the free camera is on, the sim is paused, or the
@@ -640,6 +672,28 @@ function togglePause(force) {
 // question does not change when the quad is banked.
 function yawOf(q) {
 	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
+}
+
+// Roulis et tangage, pour l'horizon artificiel de l'OSD drone. Même convention
+// de quaternion que yawOf juste au-dessus.
+function rollOf(q) {
+	return Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.z * q.z + q.x * q.x));
+}
+function pitchOf(q) {
+	return Math.asin(Math.max(-1, Math.min(1, 2 * (q.w * q.x - q.y * q.z))));
+}
+
+// Latitude/longitude affichées par l'OSD des cibles qui ont un GPS. Approximation
+// plate, ce qui est très largement suffisant sur une scène de deux kilomètres.
+// Une scène sans origine connue n'a pas de coordonnées : l'OSD affiche alors
+// des tirets plutôt qu'un point plausible au large de l'Afrique.
+function latLonOf(p) {
+	const o = sceneManifest?.origin;
+	if (!o || !Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) {
+		return { lat: NaN, lon: NaN };
+	}
+	const lat = o.latitude + (-p.z) / 111320;
+	return { lat, lon: o.longitude + p.x / (111320 * Math.cos(lat * Math.PI / 180)) };
 }
 
 function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen; }
@@ -712,23 +766,13 @@ function frame() {
 			const impact = physics.step(motors, FIXED_STEP);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
 				const r = physics.rotation;
-				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
-				// Un drone qui arrive à plat encaisse : les bras fléchissent, les
-				// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
-				// de crash suit donc l'assiette au moment du choc.
-				if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
-					const r = physics.rotation;
-
-					// Un drone qui arrive à plat encaisse : les bras fléchissent, les
-					// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
-					// de crash suit donc l'assiette au moment du choc.
-					if (impact > crashThreshold(r)) {
-						crashedThisFrame = true;
-						crashed = true;
-						// Le drone est détruit. La session se ferme sur CRASHED — le
-						// terrain, lui, reste. terrain persistent, flights ephemeral.
-						session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
-					}
+				if (impact > crashThreshold(r)) {
+					crashedThisFrame = true;
+					crashed = true;
+					// Le drone est détruit. La session se ferme sur CRASHED — le
+					// terrain, lui, reste. terrain persistent, flights ephemeral.
+					fpvtpOsd.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
+					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
 				}
 			}
 			if (impact > peakImpact) peakImpact = impact;
@@ -1000,22 +1044,56 @@ if (!frozen) {
 		armed: controller.armed,
 	});
 
-	hud.update({
-		altitude: groundY === null ? null : p.y - groundY,
-		speed: Math.hypot(v.x, v.y, v.z),
-		throttle: sticks.throttle,
-		mode: freeCamOn ? 'caméra libre' : controller.mode,
-		preset: RATE_PRESETS[controller.preset].label,
-		voltage: bat.voltage,
-		soc: bat.soc,
-		amps: bat.current,
-		propwash: physics.propulsion.propwash,
-		link: link.out,
-		wind: physics.wind.out,
-		heading: yawOf(physics.rotation),
-		usingGamepad: input.usingGamepad,
+	// Les deux couches, dans cet ordre : celle de la cible, qui traversera la
+	// liaison et le capteur, puis la nôtre, qui ne traverse rien.
+	const here = latLonOf(p);
+	droneOsd?.update({
+		voltageV: bat.voltage,
+		cellV: bat.voltage / PROFILE.battery.cells,
+		currentA: bat.current,
+		mahUsed: bat.usedMah,
+		altM: p.y - spawnY,
+		agiM: groundY === null ? null : p.y - groundY,
+		groundSpeedMs: Math.hypot(v.x, v.z),
+		verticalSpeedMs: v.y,
+		throttle01: sticks.throttle,
+		rssiDbm: link.out.rssiDbm,
+		linkQuality: link.out.quality,
+		sats: 12,
+		lat: here.lat,
+		lon: here.lon,
+		homeDistM: Math.hypot(p.x - spawnX, p.z - spawnZ),
+		homeBearingRad: Math.atan2(spawnX - p.x, spawnZ - p.z),
+		headingRad: yawOf(physics.rotation),
+		rollRad: rollOf(physics.rotation),
+		pitchRad: pitchOf(physics.rotation),
+		flightSeconds: (Date.now() - sessionStartedAt) / 1000,
+		// Normalisé sur la poussée de vol stationnaire et pas sur MAX_THRUST, qui
+		// n'est pas importé dans main.js : pas d'import nouveau pour un chiffre
+		// décoratif.
+		escTempC: 34 + 22 * physics.propulsion.thrust / (PROFILE.mass * 9.81),
+		vtxChan: 4,
+		// Les avertissements d'un OSD réel ne sont pas décoratifs : ils sont ce
+		// qui reste lisible quand tout le reste est bruité.
+		warning: bat.voltage / PROFILE.battery.cells < 3.4 ? 'LOW VOLTAGE'
+			: link.out.quality < 0.25 ? 'RXLOSS' : '',
 	});
-	hud.setFlightEnd(flightEnd.out);
+
+	fpvtpOsd.update({
+		mode: freeCamOn ? 'FREE CAM' : controller.mode,
+		rates: RATE_PRESETS[controller.preset].label,
+		usingGamepad: input.usingGamepad,
+		windMs: Math.hypot(physics.wind.out.x, physics.wind.out.z),
+		windRelRad: Math.atan2(physics.wind.out.x, physics.wind.out.z) - yawOf(physics.rotation),
+		// La visibilité réellement vue, brouillard ET pluie : le motif exact déjà
+		// employé en main.js:409, pour que les deux ne disent jamais deux choses.
+		visibilityM: fogRange(fog.density + extinctionOf(rain.visibility)),
+		rssiDbm: link.out.rssiDbm,
+		operator: operator.getOperator()?.name,
+		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,
+		propwash: physics.propulsion.propwash,
+	});
+	fpvtpOsd.setFlightEnd(flightEnd.out);
 	settings.updateAxisBars();
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
@@ -1160,6 +1238,12 @@ chooseScene()
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
 	spawnY = physics.spawn.y;
+	spawnX = physics.spawn.x;
+	spawnZ = physics.spawn.z;
+	sessionStartedAt = Date.now();
+	// Résolue dans le try, lue après : une ouverture de session ratée ne doit
+	// pas laisser le vol sans caméra ni sans OSD.
+	let tgt = null;
 	try {
 		await session.open({
 			area: flyArea,
@@ -1169,7 +1253,7 @@ async function openFlightSession() {
 		});
 		// La cible résolue (scan frais ou relue du disque au resume) arme le lien
 		// vidéo avec le RSSI du signal adverse.
-		const tgt = session.current()?.target;
+		tgt = session.current()?.target;
 		if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
 			console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
 		}
@@ -1180,6 +1264,20 @@ async function openFlightSession() {
 	} catch (e) {
 		console.warn('[session] ouverture échouée, ce vol ne sera pas enregistré', e);
 	}
+
+	// La graine : la cible si on en a une, la famille du profil sinon (mode dev,
+	// ?scene=). Il y a toujours une caméra et toujours un OSD.
+	const seed = session.current()?.id ?? `dev::${PROFILE.family}`;
+	const family = tgt?.family ?? PROFILE.family;
+	const mode = tgt?.signal?.mode === 'DIGITAL' ? 'DIGITAL' : 'ANALOG';
+
+	applyTargetCamera(targetCamera({ seed, family }));
+
+	droneOsd?.dispose();
+	droneOsd = new DroneOsd(droneOsdLayout({ seed, family, mode }));
+	lens.setOsd(droneOsd);
+	fpvtpOsd.show();
+	console.log(`[camera] ${camSpec.aspectName} ${Math.round(camSpec.fovDeg)}° uptilt ${Math.round(camSpec.uptiltDeg)}° res ${Math.round(camSpec.resScale * 100)}%`);
 }
 
 // Onglet fermé en plein vol : best-effort pour matérialiser le CRASHED. Si ça

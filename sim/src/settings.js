@@ -63,8 +63,12 @@ export function loadLink() {
 }
 
 // The Tab panel: gamepad mapping, camera, lens, video link, audio. It owns
-// #settings and nothing else — the flight OSD is in hud.js, the operator
-// terminal in terminal.js. PHASE 04 has taken the weather out: the six wind /
+// #settings and nothing else — l'OSD de vol s'est scindé en deux couches
+// (drone-osd.js et fpvtp-osd.js), le terminal opérateur est dans terminal.js.
+// PHASE 12 : le champ et l'inclinaison de la caméra appartiennent à la cible,
+// donc leurs deux sliders ont laissé la place à une fiche en lecture seule, et
+// l'aide clavier a quitté l'écran de vol pour ce panneau.
+// PHASE 04 has taken the weather out: the six wind /
 // rain / fog controls are gone, and nothing here can choose the weather any
 // more. The link block stays for now — it is not weather, and issue #41 does
 // not ask for it.
@@ -80,8 +84,13 @@ export class Settings {
 				<p id="pad-name">aucune manette détectée</p>
 				<table id="pad-map"></table>
 				<h2>Caméra</h2>
-				<label>FOV <input id="fov" type="range" min="80" max="150" step="1"> <span id="fov-val"></span>°</label>
-				<label>Uptilt <input id="tilt" type="range" min="0" max="50" step="1"> <span id="tilt-val"></span>°</label>
+				<div id="cam-spec" class="spec">—</div>
+				<h2>Commandes</h2>
+				<div id="keymap" class="spec">
+					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
+					<b>R</b> respawn · <b>J</b> disarm · <b>M</b> mode · <b>P</b> rates<br>
+					<b>C</b> free camera · <b>Space</b> pause · <b>Tab</b> settings
+				</div>
 				<h2>Objectif</h2>
 				<label class="check"><input id="lens-on" type="checkbox"> Rendu FPV</label>
 				<label>Objectif <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
@@ -114,10 +123,7 @@ export class Settings {
 			toneVal: el.querySelector('#tone-val'),
 			padName: el.querySelector('#pad-name'),
 			padMap: el.querySelector('#pad-map'),
-			fov: el.querySelector('#fov'),
-			fovVal: el.querySelector('#fov-val'),
-			tilt: el.querySelector('#tilt'),
-			tiltVal: el.querySelector('#tilt-val'),
+			camSpec: el.querySelector('#cam-spec'),
 			lensOn: el.querySelector('#lens-on'),
 			lens: el.querySelector('#lens'),
 			lensVal: el.querySelector('#lens-val'),
@@ -150,24 +156,16 @@ export class Settings {
 
 	hydrate() {
 		const noop = () => { };
-		this.setCamera(120, 25, noop);
 		this.setLens(loadLens(), noop);
 		this.setLink(loadLink(), noop);
 		this.setAudio(loadVolume(), loadBrightness(), noop);
 	}
 
-	setCamera(fov, tilt, onChange) {
-		this.el.fov.value = fov;
-		this.el.tilt.value = tilt;
-		this.el.fovVal.textContent = fov;
-		this.el.tiltVal.textContent = tilt;
-		const emit = () => {
-			this.el.fovVal.textContent = this.el.fov.value;
-			this.el.tiltVal.textContent = this.el.tilt.value;
-			onChange(Number(this.el.fov.value), Number(this.el.tilt.value));
-		};
-		this.el.fov.oninput = emit;
-		this.el.tilt.oninput = emit;
+	// La fiche de la caméra de la cible, en lecture seule. Le drone n'est pas le
+	// tien : son champ et son inclinaison ne se règlent pas.
+	setCameraSpec({ fovDeg, uptiltDeg, aspectName, resScale }) {
+		this.el.camSpec.textContent =
+			`${Math.round(fovDeg)}° FOV · ${Math.round(uptiltDeg)}° UPTILT · ${aspectName} · ${Math.round(resScale * 100)}%`;
 	}
 
 	// One slider for the lens as a whole — barrel, chromatic aberration and edge

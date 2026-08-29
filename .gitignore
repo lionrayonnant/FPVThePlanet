@@ -3,3 +3,10 @@
 # specific to consolidating the two into one repo.
 flyover-reverse-engineering/.git-upstream-backup/
 .claude/
+
+# Espace de travail des plans SDD (ledger, briefs, rapports) : du scratch.
+.superpowers/
+# Liens vers le dépôt principal dans un worktree : les motifs de sim/.gitignore
+# ont un slash final et ne matchent donc pas un lien symbolique.
+sim/node_modules
+sim/public/scenes

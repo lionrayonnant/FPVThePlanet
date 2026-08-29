@@ -40,56 +40,68 @@ canvas { display: block; }
 .err { color: #ff8080; }
 
 /* ---------- hud ---------- */
+/* L'OSD de vol s'est scindé en deux couches à la PHASE 12 : celle du drone est
+   peinte dans un canvas (drone-osd.js) et traverse la liaison, celle de la
+   station est ci-dessous. Les règles de l'ancien HUD unique n'ont plus de
+   cible dans le DOM et sont parties avec lui. */
 
-.corner { position: absolute; text-shadow: var(--shadow); }
-.tl { top: 20px; left: 24px; }
-.tr { top: 20px; right: 24px; text-align: right; }
-.bl { bottom: 24px; left: 24px; }
-.br { bottom: 24px; right: 24px; text-align: right; }
-
-.big { font-size: 30px; font-weight: 600; line-height: 1.1; }
-.big small { font-size: 12px; font-weight: 400; opacity: .6; margin-left: .35em; }
-
-#mode { font-size: 17px; font-weight: 600; letter-spacing: .1em; color: var(--accent); }
-#src, #fps, #rssi, #wind-hud { font-size: 12px; opacity: .6; }
-/* Same three levels as the battery, and the same two colours: on this HUD
-   yellow means "watch it" and orange means "it is happening now". */
-#rssi[data-level="low"], #wind-hud[data-level="low"] { color: #f5c451; opacity: 1; }
-#rssi[data-level="empty"], #wind-hud[data-level="empty"] { color: #f2714f; opacity: 1; }
-
-.throttle {
-	width: 10px; height: 110px;
-	border: 1px solid rgba(255, 255, 255, .35);
-	display: flex; align-items: flex-end;
-}
-#thr-fill { width: 100%; height: 0; background: var(--accent); }
-.bl .label { font-size: 11px; opacity: .6; margin-top: 4px; }
-
-#help { font-size: 11px; opacity: .5; line-height: 1.7; }
-#help b { color: var(--accent); font-weight: 600; }
-
-#reticle {
-	position: absolute; left: 50%; top: 50%;
-	width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, .5);
-	box-shadow: var(--shadow);
-}
-
-#pause, #session-status {
-	position: absolute; inset: 0;
-	display: flex; flex-direction: column; align-items: center; justify-content: center;
-	gap: .4em;
-	font-size: 46px; font-weight: 700; letter-spacing: .3em;
-	color: #ff5a5a;
-	background: rgba(20, 0, 0, .35);
+/* PHASE 12 — la couche locale. Au-dessus de tout, bandes noires comprises :
+   elle ne traverse pas la liaison, donc rien ne la dégrade. Le traitement
+   ci-dessous est purement décoratif — il empêche seulement la couche de
+   flotter au-dessus de l'image comme un overlay de navigateur. */
+#fpvtp-osd {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	font-size: 13px;
+	line-height: 1.6;
+	letter-spacing: .04em;
+	color: #e8f0f4;
 	text-shadow: var(--shadow);
+	/* Très doux, et sur la couche seule : ce n'est pas le vignettage de
+	   l'objectif, qui lui est dans le shader et deux boîtes plus haut. */
+	mask-image: radial-gradient(ellipse 120% 120% at 50% 50%, #000 60%, rgba(0, 0, 0, .82) 100%);
 }
-#pause small, #session-status small { font-size: 13px; letter-spacing: .1em; font-weight: 400; color: var(--ink); opacity: .8; }
-#pause { color: var(--ink); background: rgba(0, 0, 0, .45); }
-#session-status { font-size: 34px; color: var(--ink); background: rgba(0, 0, 0, .5); }
-#session-status[data-kind="landed"] { color: #7dff9b; }
-#session-status[data-kind="lost"] { color: #ff5a5a; }
+#fpvtp-osd .corner { position: absolute; }
+#fpvtp-osd .tl { top: 12px; left: 14px; }
+#fpvtp-osd .tr { top: 12px; right: 14px; text-align: right; }
+#fpvtp-osd .bl { bottom: 12px; left: 14px; }
+#fo-ident { color: var(--accent); }
+#fo-rates, #fo-input, #fo-fps { font-size: 12px; opacity: .6; }
+#fo-env { font-size: 12px; opacity: .8; }
+/* Les trois occupent la même place et un seul est visible à la fois
+   (fpvtp-osd.js : verdict > crash > pause). Le fond n'est pas décoratif :
+   sans lui le texte se pose sur n'importe quelle image, et un ciel blanc
+   l'efface. L'ancien HUD unique en avait un, celui-ci le garde. */
+#fo-pause, #fo-status {
+	position: absolute;
+	left: 50%;
+	top: 42%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	font-size: 28px;
+	letter-spacing: .18em;
+	padding: 14px 28px;
+	background: rgba(6, 10, 14, .55);
+}
+#fo-status[data-kind="landed"] { color: #7dff9b; }
+#fo-status[data-kind="lost"] { color: #ff5a5a; }
+#fo-pause small, #fo-status small {
+	display: block;
+	font-size: 12px;
+	letter-spacing: .1em;
+	opacity: .7;
+}
+#fo-reticle {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 14px;
+	height: 14px;
+	margin: -7px 0 0 -7px;
+	border: 1px solid rgba(232, 240, 244, .55);
+	border-radius: 50%;
+}
 
 /* Fin de vol (PHASE 14) : pas un écran de mort, un lien qui s'éteint. */
 #flight-end {
@@ -146,6 +158,9 @@ canvas { display: block; }
 .panel .presets button { margin-top: 0; padding: 5px; font-size: 11px; }
 .panel .presets button.on { border-color: var(--accent); color: var(--accent); }
 .panel .presets button:disabled { opacity: .3; cursor: default; }
+/* Bloc en lecture seule : la fiche caméra de la cible et l'aide clavier. */
+.panel .spec { font-size: 12px; opacity: .7; line-height: 1.7; margin-bottom: 10px; }
+.panel .spec b { color: var(--accent); font-weight: 600; }
 /* Inline with its slider rather than on its own line, unlike every other
    button in the panel. */
 #wind-dir-rand { margin-top: 0; width: auto; padding: 1px 7px; }
@@ -157,19 +172,6 @@ canvas { display: block; }
 	min-height: 1.3em;
 }
 #loading-clock { margin-top: .2em; font-variant-numeric: tabular-nums; }
-
-/* Battery: voltage, a state-of-charge bar and live current, under the throttle
-   gauge. Colour follows per-cell voltage under load, not state of charge —
-   that is the number a pilot flies by. */
-#batt { margin-top: 10px; font: 600 15px/1.2 ui-monospace, monospace; color: #dfe8f0; }
-#batt small { font-size: 10px; opacity: .6; margin: 0 6px 0 1px; }
-#batt .battbar { width: 76px; height: 5px; margin: 4px 0; background: #0006; border-radius: 3px; overflow: hidden; }
-#batt .battbar i { display: block; height: 100%; width: 100%; background: #6fdc8c; transition: width .3s linear; }
-#batt[data-level="low"] .battbar i { background: #f5c451; }
-#batt[data-level="empty"] .battbar i { background: #f2714f; }
-#batt[data-level="empty"] { color: #f2714f; }
-
-#preset { opacity: .65; font-size: 12px; letter-spacing: .04em; }
 
 /* ---------- bootstrap / operator screens (PHASE 01) ---------- */
 

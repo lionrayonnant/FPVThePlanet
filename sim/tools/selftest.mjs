@@ -17,6 +17,8 @@ import { toSimParams, sanitize } from './lib/weather.mjs';
 import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { createTileMaterial } from '../src/TileMaterial.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
+import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
+import { droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY } from './drone-osd-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
@@ -25,7 +27,6 @@ import {
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
 	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX,
 } from '../src/sun.js';
-import { toSimParams as weatherToSimParams, sanitize as weatherSanitize } from './lib/weather.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1381,6 +1382,150 @@ console.log('\ntextures');
 	}
 }
 
+console.log('\ncaméra de cible');
+{
+	const A = targetCamera({ seed: 'alpha', family: 'freestyle5' });
+	const A2 = targetCamera({ seed: 'alpha', family: 'freestyle5' });
+	check('même graine, même fiche', JSON.stringify(A) === JSON.stringify(A2));
+
+	const B = targetCamera({ seed: 'bravo', family: 'freestyle5' });
+	check('deux graines, deux fiches', JSON.stringify(A) !== JSON.stringify(B));
+
+	// 200 tirages par famille : les bornes de la table sont la cohérence
+	// promise, donc elles sont vérifiées et pas seulement commentées.
+	let inRange = true, sane = true;
+	for (const fam of Object.keys(CAMERA_FAMILIES)) {
+		const t = CAMERA_FAMILIES[fam];
+		for (let i = 0; i < 200; i++) {
+			const c = targetCamera({ seed: `${fam}::${i}`, family: fam });
+			if (c.fovDeg < t.fovDeg[0] || c.fovDeg > t.fovDeg[1]) inRange = false;
+			if (c.uptiltDeg < t.uptiltDeg[0] || c.uptiltDeg > t.uptiltDeg[1]) inRange = false;
+			if (c.resScale < t.resScale[0] || c.resScale > t.resScale[1]) inRange = false;
+			if (!t.aspects.includes(c.aspectName)) inRange = false;
+			if (Math.abs(c.aspect - (c.aspectName === '4:3' ? 4 / 3 : 16 / 9)) > 1e-9) sane = false;
+			for (const v of Object.values(c.sensor)) if (!(v >= 0 && v <= 1)) sane = false;
+		}
+	}
+	check('toutes les familles restent dans les bornes de leur table', inRange);
+	check('aspect cohérent avec aspectName, capteur borné [0,1]', sane);
+
+	// La cohérence demandée par la DA : une bonne famille n'a jamais une
+	// mauvaise caméra, et l'inverse.
+	let goodLow = false, badHigh = false;
+	for (let i = 0; i < 200; i++) {
+		for (const fam of ['cinewhoop', 'heavy5', 'longrange']) {
+			if (targetCamera({ seed: `q${i}`, family: fam }).resScale < RES_HIGH) goodLow = true;
+		}
+		if (targetCamera({ seed: `q${i}`, family: 'toothpick' }).resScale > RES_LOW) badHigh = true;
+	}
+	check('cinewhoop / heavy5 / longrange : jamais une définition basse', goodLow === false);
+	check('toothpick : jamais une définition haute', badHigh === false);
+
+	// Un toothpick est une mauvaise caméra : plus de bruit et plus de halo
+	// qu'un cinewhoop, toujours, pas en moyenne.
+	let worse = true;
+	for (let i = 0; i < 200; i++) {
+		const bad = targetCamera({ seed: `w${i}`, family: 'toothpick' }).sensor;
+		const good = targetCamera({ seed: `w${i}`, family: 'cinewhoop' }).sensor;
+		if (bad.grain <= good.grain || bad.ringing <= good.ringing) worse = false;
+	}
+	check('toothpick toujours plus bruité et plus halo qu\'un cinewhoop', worse);
+
+	const unknown = targetCamera({ seed: 'x', family: 'inconnue' });
+	check('famille inconnue : repli sur freestyle5 plutôt qu\'un plantage', unknown.fovDeg > 0);
+}
+
+console.log('\nOSD drone — layout');
+{
+	const A = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'ANALOG' });
+	const A2 = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'ANALOG' });
+	check('même graine, même layout', JSON.stringify(A) === JSON.stringify(A2));
+
+	const B = droneOsdLayout({ seed: 'bravo', family: 'freestyle5', mode: 'ANALOG' });
+	check('deux cibles, deux layouts', JSON.stringify(A) !== JSON.stringify(B));
+
+	const dig = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'DIGITAL' });
+	check('le style suit le mode vidéo de la cible, il ne se tire pas',
+		A.style === 'ANALOG' && dig.style === 'DIGITAL');
+
+	// Les grilles ne se recoupent pas : c'est ce qui rend la différence
+	// analogique/numérique visible au premier coup d'œil.
+	const gridKey = (g) => `${g.cols}x${g.rows}`;
+	const analogGrids = new Set(GRIDS.ANALOG.map((g) => `${g[0]}x${g[1]}`));
+	const digitalGrids = new Set(GRIDS.DIGITAL.map((g) => `${g[0]}x${g[1]}`));
+	let gridsOk = true, boundsOk = true, placedOk = true, noOverlap = true, staplesOk = true;
+	let gpsLeak = false, gpsPresent = false;
+	// `col`/`row` sont volontairement exclus de cette signature : ils portent une
+	// entropie de placement quasi continue et indépendante du contenu (25
+	// largeurs différentes, positions presque libres sur la grille), donc même un
+	// contenu figé produirait presque toujours des JSON distincts rien qu'avec le
+	// bruit de coordonnées. Ce qui rend un drone « visiblement différent » d'un
+	// autre, c'est le style, la grille, la police, les unités, le nom de machine
+	// et l'ensemble des éléments affichés — pas où chacun tombe au pixel près.
+	const visibleSignatures = new Set(), fieldSets = new Set();
+
+	for (let i = 0; i < 200; i++) {
+		for (const mode of ['ANALOG', 'DIGITAL']) {
+			const fam = ['freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5'][i % 5];
+			const l = droneOsdLayout({ seed: `v${i}`, family: fam, mode });
+			const set = mode === 'ANALOG' ? analogGrids : digitalGrids;
+			if (!set.has(gridKey(l.grid))) gridsOk = false;
+
+			const [lo, hi] = DENSITY[mode];
+			if (l.elements.length < lo || l.elements.length > hi) boundsOk = false;
+
+			// Occupation de la grille, ligne par ligne.
+			const rows = new Map();
+			for (const e of l.elements) {
+				if (!ELEMENTS.includes(e.key)) placedOk = false;
+				const w = ELEMENT_WIDTH[e.key];
+				if (e.col < 0 || e.row < 0 || e.row >= l.grid.rows || e.col + w > l.grid.cols) placedOk = false;
+				const occupied = rows.get(e.row) ?? [];
+				for (const [c0, c1] of occupied) if (e.col < c1 && c0 < e.col + w) noOverlap = false;
+				occupied.push([e.col, e.col + w]);
+				rows.set(e.row, occupied);
+			}
+
+			const keys = l.elements.map((e) => e.key);
+			if (!keys.includes('BAT_V')) staplesOk = false;
+			if (!keys.includes('TIMER_FLIGHT') && !keys.includes('TIMER_ON')) staplesOk = false;
+
+			visibleSignatures.add(JSON.stringify({
+				style: l.style, grid: l.grid, font: l.font, units: l.units,
+				craftName: l.craftName, keys: [...keys].sort(),
+			}));
+			fieldSets.add([...keys].sort().join(','));
+		}
+
+		// Les capteurs absents suivent la famille, pas le hasard.
+		const tp = droneOsdLayout({ seed: `g${i}`, family: 'toothpick', mode: 'ANALOG' });
+		if (tp.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsLeak = true;
+		const lr = droneOsdLayout({ seed: `g${i}`, family: 'longrange', mode: 'DIGITAL' });
+		if (lr.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsPresent = true;
+	}
+
+	check('chaque style reste dans ses grilles, et elles ne se recoupent pas', gridsOk);
+	check('la densité reste dans les bornes du style', boundsOk);
+	check('tous les éléments sont connus et tiennent dans la grille', placedOk);
+	check('jamais deux éléments superposés', noOverlap);
+	check('BAT_V et un chronomètre sont toujours là', staplesOk);
+	check('toothpick : aucun élément GPS (il n\'en a pas)', gpsLeak === false);
+	check('longrange : le GPS apparaît', gpsPresent === true);
+
+	// « Ce drone est encore différent » : mesuré, pas espéré. Sur 400 tirages,
+	// des paliers bas volontairement — c'est un plancher, pas une cible.
+	// Mesuré à 400/400 sur ce jeu de graines ; le plancher garde une marge
+	// honnête (12.5%) plutôt que de coller à la mesure.
+	check('la variété est réelle : signatures visibles distinctes (style, grille, police, unités, nom, éléments)', visibleSignatures.size > 350, `${visibleSignatures.size}/400`);
+	check('la variété est réelle : jeux d\'éléments distincts', fieldSets.size > 100, `${fieldSets.size}/400`);
+
+	let imperial = 0;
+	for (let i = 0; i < 400; i++) {
+		if (droneOsdLayout({ seed: `u${i}`, family: 'freestyle5', mode: 'ANALOG' }).units === 'IMPERIAL') imperial++;
+	}
+	check('les unités impériales existent sans dominer', imperial > 40 && imperial < 200, `${imperial}/400`);
+}
+
 console.log('\ncrash threshold');
 check('upright/flat rotation uses the flat threshold', crashThreshold({ x: 0, y: 0, z: 0, w: 1 }) === CRASH_IMPULSE_FLAT);
 check('nose-down rotation uses the tighter threshold',
@@ -1879,7 +2024,7 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 console.log('\nsoleil — traduction depuis le bulletin');
 {
 	// La couverture passe telle quelle : c'est déjà la grandeur que sun.js veut.
-	const overcast = weatherToSimParams(weatherSanitize({
+	const overcast = toSimParams(sanitize({
 		windSpeed: 2, windGust: 3, windDir: 180, rateMmH: 0, visibilityM: 20000, cloudPct: 95,
 	}));
 	check('la couverture nuageuse arrive jusqu\'au soleil', overcast.sun.cloudPct === 95,
@@ -1888,13 +2033,13 @@ console.log('\nsoleil — traduction depuis le bulletin');
 	// LA règle : la visibilité passée au soleil est celle de l'air HORS pluie,
 	// exactement celle que fog.js reçoit. Sinon la même averse compterait deux
 	// fois — une fois dans le brouillard, une fois dans l'extinction du disque.
-	const rainy = weatherToSimParams(weatherSanitize({
+	const rainy = toSimParams(sanitize({
 		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
 		visibilityM: 3000, cloudPct: 90,
 	}));
 	// L'air seul voit plus loin que l'air + la pluie : si les deux sont égaux,
 	// c'est que l'averse a été comptée deux fois.
-	const rainyTotal = weatherSanitize({
+	const rainyTotal = sanitize({
 		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
 		visibilityM: 3000, cloudPct: 90,
 	}).visibilityM;
@@ -1905,7 +2050,7 @@ console.log('\nsoleil — traduction depuis le bulletin');
 		Number.isFinite(rainy.sun.visibilityM) && rainy.sun.visibilityM > 0);
 
 	// Le brouillard, lui, arrive bien jusqu'au soleil.
-	const foggy = weatherToSimParams(weatherSanitize({
+	const foggy = toSimParams(sanitize({
 		windSpeed: 1, windGust: 1, windDir: 0, rateMmH: 0, visibilityM: 400, cloudPct: 80,
 	}));
 	check('un vrai brouillard réduit la visibilité vue par le soleil',

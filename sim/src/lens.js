@@ -130,7 +130,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SUN: 0 },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0, OSD: 0, SUN: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -145,6 +145,7 @@ const LensShader = {
 		uSeverity: { value: 1 },
 		uTime: { value: 0 },
 		uResolution: { value: new THREE.Vector2(1, 1) },
+		uFrame: { value: new THREE.Vector2(1, 1) },
 		// x, y in the same square space as `base`; z the footprint radius there;
 		// w the flat core as a fraction of that radius.
 		uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
@@ -153,6 +154,17 @@ const LensShader = {
 		// The sky the scene is actually using: what a bead diffuses, and what
 		// the fog veil is made of. One colour for both, because it is one sky.
 		uSky: { value: new THREE.Color(0x9fb8cc) },
+		// Le capteur de la cible : x grain, y noirs levés, z saturation,
+		// w ringing (halo de sur-accentuation).
+		uSensor: { value: new THREE.Vector4(0, 0, 1, 0) },
+		// x écrasement des hautes lumières, y teinte, z quantité de teinte.
+		uSensor2: { value: new THREE.Vector3(0, 0, 0) },
+		// Arbitre entre les deux façons de mourir d'un décodeur composite :
+		// 0 tout au gris, 1 tout au cross-color. N'existe que sous LINK_MODE == 1.
+		uCrossColor: { value: 0 },
+		// L'OSD de la cible : un canvas 2D peint par DroneOsd, échantillonné aux
+		// UV déjà distordues par le barillet. null quand aucun OSD n'est actif.
+		uOsd: { value: null },
 		// Le soleil : sa position dans l'espace carré de la passe (xy), s'il est
 		// devant la caméra (z = 1) ou derrière (z = 0), sa couleur, sa force
 		// (transmittance × nuages × occlusion) et le gain d'exposition.
@@ -176,6 +188,7 @@ const LensShader = {
 		uniform float uTanHalf;
 		uniform mat3 uReproj;
 		uniform float uK1, uK2, uCA, uSoft, uVignette;
+		uniform vec2 uFrame;
 		uniform float uLink;
 		uniform float uSeverity;
 		uniform float uTime;
@@ -183,7 +196,15 @@ const LensShader = {
 		// The scene's own sky. Shared by the beads and by the fog veil, and
 		// declared outside both guards because either one alone can want it.
 		uniform vec3 uSky;
+		// Le capteur de la cible, en amont du lien.
+		uniform vec4 uSensor;
+		uniform vec3 uSensor2;
+		uniform float uCrossColor;
 		varying vec2 vUv;
+
+		#if OSD
+			uniform sampler2D uOsd;
+		#endif
 
 		#if SUN
 			#define SUN_DISC ${SUN_DISC.toFixed(4)}
@@ -212,13 +233,14 @@ const LensShader = {
 			uniform float uGlare;
 		#endif
 
-		#if LINK_MODE != 0
-			float hash12(vec2 p) {
-				vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-				p3 += dot(p3, p3.yzx + 33.33);
-				return fract((p3.x + p3.y) * p3.z);
-			}
-		#endif
+		// Utilisé par le lien (LINK_MODE != 0) et, depuis le bloc capteur
+		// ci-dessous, par le grain du capteur lui-même — donc inconditionnel
+		// désormais : le grain du capteur existe même quand le lien est absent.
+		float hash12(vec2 p) {
+			vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+			p3 += dot(p3, p3.yzx + 33.33);
+			return fract((p3.x + p3.y) * p3.z);
+		}
 
 		// A torn line wraps around: the shift is a timing error in a continuous
 		// scan, not a translation of a bitmap, so what leaves one side comes back
@@ -242,7 +264,16 @@ const LensShader = {
 		#define CHROMA_W 0.008
 
 		void main() {
-			vec2 ndc = vUv * 2.0 - 1.0;
+			// Le capteur de la cible n'a pas forcément le format de l'écran. Une
+			// caméra 4:3 sur un moniteur 16:9 laisse deux bandes noires sur les
+			// côtés : c'est laid, c'est vrai, et c'est le signal le plus immédiat
+			// de « cette caméra est une bouse ». Encadré et non recadré — recadrer
+			// rendrait le champ, et le champ est justement ce que la cible impose.
+			vec2 ndc = (vUv * 2.0 - 1.0) / uFrame;
+			if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) {
+				gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+				return;
+			}
 			// Square-pixel space, so the lens is radially symmetric on the sensor
 			// rather than on a stretched viewport.
 			vec2 q = vec2(ndc.x * uAspect, ndc.y);
@@ -523,7 +554,87 @@ const LensShader = {
 				}
 			#endif
 
+			// ---- l'OSD de la cible ---------------------------------------------
+			// Échantillonné à uvHere, la coordonnée déjà distordue par le
+			// barillet : l'OSD subit donc l'optique gratuitement. Pas d'aberration
+			// chromatique dessus — c'est une incrustation monochrome, séparer les
+			// canaux n'aurait pas de sens.
+			//
+			// Après le soleil : le disque/halo sont un effet du verre, en amont du
+			// capteur ; l'OSD est incrusté par le flight controller de la cible, en
+			// aval du capteur — il se pose donc par-dessus. Ici et pas ailleurs :
+			// après le flou, parce que l'OSD est collé au capteur et ne smeare pas
+			// quand la caméra tourne ; après les gouttes, parce que l'eau est sur
+			// le verre en amont ; avant le vignettage, le capteur et la liaison,
+			// parce que c'est ce qui fait que perdre le lien coûte de l'information.
+			#if OSD
+			{
+				vec4 osd = texture2D(uOsd, uvHere);
+				c = mix(c, osd.rgb, osd.a);
+			}
+			#endif
+
 			c *= 1.0 - uVignette * pow(r, 2.5);
+
+			#if SENSOR
+			// ---- le capteur de la cible ---------------------------------------
+			// En amont de l'émetteur, parce que c'est l'ordre physique : ce que
+			// le capteur abîme, la liaison le transporte ensuite fidèlement.
+			// Une mauvaise caméra est déjà mauvaise sur un lien parfait.
+			{
+				float clipK = uSensor2.x;
+				if (clipK > 0.0) {
+					// Les hautes lumières s'écrasent tôt. Un ciel qui part en blanc
+					// pur au lieu de garder ses nuages : le défaut le plus
+					// reconnaissable des petites caméras.
+					float knee = mix(1.0, 0.55, clipK);
+					c = min(c, vec3(knee)) + (c - min(c, vec3(knee))) * (1.0 - clipK);
+					c /= max(knee + (1.0 - knee) * (1.0 - clipK), 1e-4);
+				}
+
+				float ring = uSensor.w;
+				if (ring > 0.0) {
+					// Halo de sur-accentuation : la caméra rehausse ses contours
+					// elle-même, et laisse un liseré clair d'un côté, sombre de
+					// l'autre. Horizontal seulement — c'est une accentuation de
+					// ligne, pas un filtre 2D.
+					vec2 px = vec2(1.0) / uResolution;
+					vec3 l = texture2D(tDiffuse, uvHere - vec2(px.x * 2.0, 0.0)).rgb;
+					vec3 rr = texture2D(tDiffuse, uvHere + vec2(px.x * 2.0, 0.0)).rgb;
+					c += (c - (l + rr) * 0.5) * ring * 1.6;
+				}
+
+				// Fadeur, puis dominante, puis noirs levés. Dans cet ordre : la
+				// dominante d'un capteur est dans sa matrice de couleur, donc
+				// avant le niveau de noir de son amplificateur.
+				float lum = dot(c, LUMA);
+				c = mix(vec3(lum), c, uSensor.z);
+
+				float amt = uSensor2.z;
+				if (amt > 0.0) {
+					// Teinte simple sans conversion HSV : deux caméras ne rendent
+					// pas le même vert, et une bascule vers une couleur suffit à
+					// le dire.
+					// Surtout pas nommée cast : c'est un mot réservé en GLSL ES,
+					// et le bloc capteur ne compilait pas du tout (constaté au
+					// premier vol avec un capteur non neutre, Task 9).
+					vec3 tint = 0.5 + 0.5 * cos(6.2831853 * (uSensor2.y + vec3(0.0, 0.33, 0.67)));
+					c = mix(c, c * tint * 2.0, amt);
+				}
+
+				c = c * (1.0 - uSensor.y) + uSensor.y;
+
+				float g = uSensor.x;
+				if (g > 0.0) {
+					// Bruit propre au capteur, présent même sur un lien parfait :
+					// c'est ce qui distingue une mauvaise caméra d'une bonne caméra
+					// mal reçue.
+					float sn = hash12(gl_FragCoord.xy + uTime * 17.7);
+					c += (sn - 0.5) * g;
+				}
+				c = clamp(c, 0.0, 1.0);
+			}
+			#endif
 
 			// ---- and what it does to the picture itself -----------------------
 			#if LINK_MODE == 1
@@ -572,7 +683,31 @@ const LensShader = {
 				// eats. That slide to black and white is the signature of a dying
 				// analog link. It stops short of fully grey — a little colour
 				// survives right down to the breakup.
-				c = mix(c, vec3(dot(c, LUMA)), 0.85 * smoothstep(0.85, 0.05, uLink));
+				// Les deux façons de mourir d'un décodeur composite, et chaque
+				// caméra tombe quelque part entre les deux. uCrossColor à 0 :
+				// la sous-porteuse est mangée, l'image part en gris. À 1 : le
+				// décodeur s'accroche et confond le détail avec de la couleur.
+				float fadeK = smoothstep(0.85, 0.05, uLink);
+				c = mix(c, vec3(dot(c, LUMA)), 0.85 * fadeK * (1.0 - uCrossColor));
+
+				// Cross-color. Passe-haut horizontal de la luma à l'échelle de la
+				// sous-porteuse : le décodeur prend ce détail pour une phase de
+				// chrominance. La couleur sort donc de l'image et pas d'un
+				// générateur de bruit — sur un ciel uni il ne se passe
+				// strictement rien, et c'est exactement ce qu'il faut.
+				if (uCrossColor > 0.0) {
+					vec2 sub = vec2(1.0 / uResolution.x, 0.0) * 1.5;
+					float l0 = dot(texture2D(tDiffuse, WRAPX(uvHere - sub)).rgb, LUMA);
+					float l1 = dot(texture2D(tDiffuse, WRAPX(uvHere)).rgb, LUMA);
+					float l2 = dot(texture2D(tDiffuse, WRAPX(uvHere + sub)).rgb, LUMA);
+					float hp = l1 - (l0 + l2) * 0.5;
+					// La phase rampe le long de la ligne et dérive dans le temps :
+					// c'est ce qui fait ramper les couleurs au lieu de les figer.
+					float phase = gl_FragCoord.x * 0.7 + gl_FragCoord.y * 1.7 + uTime * 6.0;
+					vec3 carrier = cos(phase + vec3(0.0, 2.094, 4.189));
+					c += carrier * hp * 14.0 * uCrossColor * (0.15 + 0.85 * fadeK);
+					c = clamp(c, 0.0, 1.0);
+				}
 
 				// RF grain, mostly on luminance with a little chroma left over.
 				// Quadratic in the fade, so the healthy half of the range stays
@@ -685,6 +820,11 @@ export class FpvLens {
 		this._dropBucket = 0;
 		this._rain = { wetness: 0, dropMm: 0, drift: null, dt: 0 };
 		this._glare = 0;
+		// Éteint tant que setSensor() n'a jamais fait passer un réglage à une
+		// valeur non neutre — un capteur inactif ne doit rien coûter au GPU.
+		this._sensorActive = 0;
+		// L'OSD n'existe pas tant que main.js (Task 9) n'en a pas fourni un.
+		this._osd = null;
 		this._sunOn = false;
 
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
@@ -737,6 +877,40 @@ export class FpvLens {
 		this._rain.dropMm = dropMm;
 		this._rain.drift = drift;
 		this._rain.dt = dt;
+	}
+
+	// Le capteur de la cible. Tout est à zéro par défaut, sauf la saturation :
+	// un uniform à zéro doit vouloir dire « rien à faire ».
+	setSensor({ grain = 0, lift = 0, saturation = 1, ringing = 0,
+	            clip = 0, tintHue = 0, tintAmount = 0, crossColor = 0 } = {}) {
+		this._u.uSensor.value.set(grain, lift, saturation, ringing);
+		this._u.uSensor2.value.set(clip, tintHue, tintAmount);
+		// uCrossColor n'entre PAS dans le calcul de `active` ci-dessous : il ne
+		// pilote rien sous #if SENSOR, seulement le bloc LINK_MODE == 1 (déjà
+		// compilé ou non selon le mode de lien). Le faire recompiler le
+		// capteur serait un couplage faux et une recompilation pour rien.
+		this._u.uCrossColor.value = crossColor;
+		// Actif dès qu'un seul réglage s'écarte du neutre. La saturation neutre
+		// vaut 1 et non 0 : un test « tout à zéro » la prendrait à tort pour
+		// active, et une saturation à 0 (désaturation totale, un réglage
+		// légitime) à tort pour neutre — donc comparaison explicite à 1 ici.
+		const active = (grain !== 0 || lift !== 0 || saturation !== 1 || ringing !== 0
+			|| clip !== 0 || tintHue !== 0 || tintAmount !== 0) ? 1 : 0;
+		// Comme uGlare : seule la traversée neutre <-> actif recompile, pas
+		// chaque appel — la Task 9 peut appeler setSensor() à chaque frame.
+		const crossed = active !== this._sensorActive;
+		this._sensorActive = active;
+		if (crossed) this._updateDefines();
+	}
+
+	// L'OSD est donné une fois, pas à chaque image : c'est lens qui sait quelle
+	// image est gelée, donc c'est lens qui a le droit d'appeler commit().
+	// setOsd(null) recompile le shader sans l'OSD — c'est le levier du A/B de
+	// mesure et le repli si le coût est mauvais.
+	setOsd(osd) {
+		this._osd = osd ?? null;
+		this._u.uOsd.value = osd ? osd.texture : null;
+		this._updateDefines();
 	}
 
 	// How much the air is scattering into the optic, 0..1, straight from
@@ -826,26 +1000,78 @@ export class FpvLens {
 			? MAX_TAPS : 1;
 		const defines = this.pass.material.defines;
 		const glare = this._glare > 0 ? 1 : 0;
+		const osd = this._osd ? 1 : 0;
 		const sun = this._sunOn ? 1 : 0;
 		if (taps === this._taps && defines.LINK_MODE === this._linkMode
 			&& defines.DROPS === this._dropBucket && defines.GLARE === glare
+			&& defines.SENSOR === this._sensorActive && defines.OSD === osd
 			&& defines.SUN === sun) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
 		defines.DROPS = this._dropBucket;
 		defines.GLARE = glare;
+		defines.SENSOR = this._sensorActive;
+		defines.OSD = osd;
 		defines.SUN = sun;
 		this.pass.material.needsUpdate = true;
 	}
 
+	// La fiche caméra de la cible : son format et sa définition interne. Le
+	// rendu se fait vraiment plus bas et remonte — une mauvaise caméra est
+	// réellement moins définie, et coûte réellement moins cher à rendre,
+	// exactement comme la vraie.
+	setCamera({ aspect = 16 / 9, resScale = 1 } = {}) {
+		this._camAspect = aspect;
+		this._resScale = resScale;
+		this._applySize();
+	}
+
 	setSize(width, height) {
+		this._viewW = width;
+		this._viewH = height;
+		this._applySize();
+	}
+
+	_applySize() {
+		const width = this._viewW ?? 1;
+		const height = this._viewH ?? 1;
 		const ratio = this.renderer.getPixelRatio();
+
+		// Tant qu'aucune cible n'a été piratée, il n'y a pas de capteur distant
+		// à raconter : l'image remplit la fenêtre exactement comme avant cette
+		// tâche, sans bandes. Les bandes ne sont légitimes qu'à partir du
+		// premier setCamera() — jamais par défaut, même pour un aspect qui
+		// vaudrait 16:9.
+		if (this._camAspect == null) {
+			this._u.uFrame.value.set(1, 1);
+			this.composer.setPixelRatio(ratio);
+			this.composer.setSize(width, height);
+			this._u.uResolution.value.set(width * ratio, height * ratio);
+			return;
+		}
+
+		const aspect = this._camAspect;
+		const resScale = this._resScale ?? 1;
+
+		// Le capteur tient dans la fenêtre sans la déborder : la dimension
+		// contrainte fixe l'autre. uFrame est ce rectangle en uv d'écran, et
+		// c'est lui qui produit les bandes.
+		const viewAspect = width / height;
+		const fitW = viewAspect > aspect ? aspect / viewAspect : 1;
+		const fitH = viewAspect > aspect ? 1 : viewAspect / aspect;
+		this._u.uFrame.value.set(fitW, fitH);
+
+		// Taille réelle des cibles du composer : le capteur, à sa définition.
+		const sensorH = Math.max(1, Math.round(height * fitH * resScale));
+		const sensorW = Math.max(1, Math.round(sensorH * aspect));
 		this.composer.setPixelRatio(ratio);
-		this.composer.setSize(width, height);
+		this.composer.setSize(sensorW, sensorH);
 		// gl_FragCoord counts device pixels, so this has to as well — otherwise the
-		// macroblock grid is the wrong size on a HiDPI display.
-		this._u.uResolution.value.set(width * ratio, height * ratio);
+		// macroblock grid is the wrong size on a HiDPI display. C'est la
+		// définition du CAPTEUR : un macrobloc appartient à la vidéo, pas au
+		// moniteur, donc il grossit à l'écran quand la caméra est mauvaise.
+		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
 	}
 
 	// Renders the frame, effect or not. dt is the real frame time: the smear has
@@ -861,7 +1087,9 @@ export class FpvLens {
 			return;
 		}
 
-		this._u.uAspect.value = camera.aspect;
+		// Le format du capteur, pas celui de la fenêtre : c'est le capteur qui
+		// doit être radialement symétrique sous le barillet, pas le moniteur.
+		this._u.uAspect.value = this._camAspect ?? camera.aspect;
 		this._u.uTanHalf.value = Math.tan(camera.fov * Math.PI / 360);
 		// Wrapped, because a float32 uniform that has been counting seconds all
 		// afternoon has no precision left for a 60 Hz flicker.
@@ -882,6 +1110,12 @@ export class FpvLens {
 		// glass has to stop with it — it is *in* that picture. The RF snow is
 		// not, and keeps crawling, which is why uTime above is not gated here.
 		this._updateDrops(frozen ? 0 : this._rain.dt);
+
+		// L'OSD a traversé la même liaison que l'image : sur une image perdue il
+		// gèle avec elle. Le laisser se rafraîchir afficherait des chiffres à
+		// jour par-dessus un monde figé — l'inverse exact de ce que le lien
+		// raconte.
+		if (this._osd && !frozen) this._osd.commit();
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
 		// so it still works in free camera, where the physics step is skipped. A
