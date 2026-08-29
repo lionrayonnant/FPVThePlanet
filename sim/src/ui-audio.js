@@ -8,7 +8,7 @@
 //
 // Aucune voix, aucun narrateur, aucune commande vocale (Bible §37).
 import { ensureContext, context, uiIn } from './audio-bus.js';
-import { UI_EVENTS, BOOT_SIGNATURE, scoreFor } from '../tools/ui-audio-model.mjs';
+import { UI_EVENTS, BOOT_SIGNATURE, scoreFor, RITUAL_TENSION, ritualTensionParams } from '../tools/ui-audio-model.mjs';
 
 // Au-delà de cette fenêtre, une signature de démarrage armée est ABANDONNÉE
 // plutôt que jouée : un son de boot qui part une minute après le boot n'est
@@ -31,6 +31,7 @@ const CARRIER_TAU = 0.25;     // lissage, du même ordre que link.js:NOISE_TAU
 export class UiAudio {
 	constructor() {
 		this._carrier = null;
+		this._tension = null;
 		this._noiseBuf = null;
 		this._noiseCtx = null;
 		this._bootArmedAt = null;
@@ -60,10 +61,22 @@ export class UiAudio {
 	// Un one-shot : construit ses nœuds, se démonte sur onended. C'est le seul
 	// endroit de ce fichier où un nœud naît après le montage, et jamais par
 	// frame — la porteuse, elle, est permanente.
-	_shot(ctx, at, durS, build) {
+	//
+	// `pan` (-1..1), optionnel : un StereoPannerNode inséré entre `out` et le
+	// bus d'interface. C'est ce qui fait qu'un shrapnel de l'explosion part
+	// d'un côté précis du champ stéréo plutôt que de rester centré comme tout
+	// le reste du langage sonore d'interface.
+	_shot(ctx, at, durS, build, pan) {
 		const out = ctx.createGain();
-		out.connect(uiIn());
 		const parts = [out];
+		if (pan != null) {
+			const panner = ctx.createStereoPanner();
+			panner.pan.value = pan;
+			out.connect(panner).connect(uiIn());
+			parts.push(panner);
+		} else {
+			out.connect(uiIn());
+		}
 		const src = build(out, parts);
 		if (!src) return;
 		src.start(at);
@@ -97,7 +110,7 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp);
 				return src;
-			});
+			}, ev.pan);
 			return;
 		}
 
@@ -124,7 +137,26 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp, ring, mod);
 				return src;
-			});
+			}, ev.pan);
+			return;
+		}
+
+		if (voice === 'blast') {
+			// Le souffle : la même mécanique que `impact`, mais sur du bruit plutôt
+			// qu'un oscillateur — un souffle n'a pas de hauteur. Simultané à l'impact
+			// dans la partition : deux couches de la même détonation.
+			this._shot(ctx, at, durS, (out, parts) => {
+				const lp = ctx.createBiquadFilter();
+				lp.type = 'lowpass';
+				lp.frequency.setValueAtTime(ev.freq ?? 4000, at);
+				lp.frequency.exponentialRampToValueAtTime(200, at + durS);
+				const src = ctx.createBufferSource();
+				src.buffer = this._noiseBuffer(ctx);
+				src.connect(lp).connect(out);
+				this._env(out.gain, at, durS, gain);
+				parts.push(lp);
+				return src;
+			}, ev.pan);
 			return;
 		}
 
@@ -147,7 +179,7 @@ export class UiAudio {
 				this._env(out.gain, at, total, gain * 1.4);
 				parts.push(lp);
 				return osc;
-			});
+			}, ev.pan);
 			return;
 		}
 
@@ -171,7 +203,7 @@ export class UiAudio {
 			this._env(out.gain, at, durS, gain);
 			parts.push(lp);
 			return osc;
-		});
+		}, ev.pan);
 	}
 
 	// --- API ----------------------------------------------------------------
@@ -281,6 +313,83 @@ export class UiAudio {
 		const ctx = context();
 		if (!ctx || !this._carrier) return;
 		this._carrier.gain.gain.setTargetAtTime(0, ctx.currentTime, CARRIER_TAU);
+	}
+
+	// --- tension du rituel ---------------------------------------------------
+
+	// Même idiome que _ensureCarrier pour la partie construction : une branche,
+	// des AudioParam qu'on bouge ensuite. Ce qui diffère de la porteuse, c'est
+	// la durée de vie — la porteuse dure tout le vol, la tension ne dure qu'UN
+	// rituel et killRitualTension() la démonte pour de vrai, sans quoi un
+	// rituel abandonné laisserait un riser tourner derrière l'écran suivant.
+	_ensureTension(ctx) {
+		if (this._tension) return this._tension;
+		const src = ctx.createBufferSource();
+		src.buffer = this._noiseBuffer(ctx);
+		src.loop = true;
+		const bp = ctx.createBiquadFilter();
+		bp.type = 'bandpass';
+		bp.frequency.value = RITUAL_TENSION.fMin;
+		bp.Q.value = 4;
+		const g = ctx.createGain();
+		g.gain.value = 0;
+		// La pulsation : un LFO module le gain de la bande filtrée. C'est lui,
+		// plus que le filtre, qui fait « monter la pression » à mesure que son
+		// tempo (bp.frequency ci-dessus module la couleur, lfo.frequency le
+		// rythme) accélère avec k.
+		const pulse = ctx.createGain();
+		pulse.gain.value = 1;
+		const lfo = ctx.createOscillator();
+		lfo.type = 'sine';
+		lfo.frequency.value = RITUAL_TENSION.rateMin;
+		const lfoDepth = ctx.createGain();
+		lfoDepth.gain.value = 0.5;
+		lfo.connect(lfoDepth).connect(pulse.gain);
+		lfo.start();
+		src.connect(bp).connect(pulse).connect(g).connect(uiIn());
+		src.start();
+		this.nodesCreated += 6;
+		this._tension = { src, bp, gain: g, pulse, lfo, lfoDepth, k: 0 };
+		return this._tension;
+	}
+
+	// k = progression 0..1 de la saisie du vecteur. Une flèche juste fait
+	// monter le riser ; un mismatch le fait retomber — audiblement, pas un
+	// mute sec, d'où le lissage plus lent (fallTau) à la descente qu'à la
+	// montée (tau). La branche naît paresseusement au premier appel avec k>0 :
+	// un rituel qui échoue sa toute première flèche ne construit jamais rien.
+	ritualTension(k) {
+		const c = Math.min(Math.max(k, 0), 1);
+		if (!this._tension && c === 0) return;
+		const ctx = context();
+		if (!ctx) return;
+		const tn = this._ensureTension(ctx);
+		const rising = c >= tn.k;
+		const tau = rising ? RITUAL_TENSION.tau : RITUAL_TENSION.fallTau;
+		const t = ctx.currentTime;
+		const p = ritualTensionParams(c);
+		tn.gain.gain.setTargetAtTime(p.gain, t, tau);
+		tn.bp.frequency.setTargetAtTime(p.freq, t, tau);
+		tn.lfo.frequency.setTargetAtTime(p.rate, t, tau);
+		tn.k = c;
+	}
+
+	// Coupe la branche pour de vrai : appelée par startBurst() (l'explosion
+	// prend le relais tout de suite, la tension n'a plus rien à préparer) et
+	// par le teardown du rituel, en garde-fou pour un rituel abandonné en
+	// cours de saisie. Sans effet si rien n'a jamais été construit.
+	killRitualTension() {
+		const tn = this._tension;
+		if (!tn) return;
+		tn.src.stop();
+		tn.lfo.stop();
+		tn.src.disconnect();
+		tn.bp.disconnect();
+		tn.pulse.disconnect();
+		tn.gain.disconnect();
+		tn.lfo.disconnect();
+		tn.lfoDepth.disconnect();
+		this._tension = null;
 	}
 
 	// --- boot ---------------------------------------------------------------

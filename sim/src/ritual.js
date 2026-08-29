@@ -55,6 +55,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			if (r.status === 'mismatch') {
 				typed = [];
 				uiAudio.play('ERROR');
+				// La tension retombe avec l'erreur : audible, pas un mute sec — la
+				// pénalité est dans l'oreille, jamais dans une remise à zéro brutale
+				// (Bible §14, issue #47 : pas de game over).
+				uiAudio.ritualTension(0);
 				renderPrompt();
 				wrap.classList.remove('ritual-shake');
 				// force le replay de l'animation même sur des erreurs consécutives
@@ -64,6 +68,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 				return;
 			}
 			typed.push(dir);
+			// Chaque flèche juste fait monter la tension d'un cran : le pilote doit
+			// sentir la pression grimper pendant qu'il tape, pas seulement au moment
+			// où l'explosion part.
+			uiAudio.ritualTension(typed.length / vector.length);
 			renderPrompt();
 			if (r.status === 'complete') startBurst();
 		};
@@ -86,6 +94,8 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			stage = 'burst';
 			promptEl.classList.add('ritual-prompt-done');
 			wrap.classList.add('ritual-live');
+			// L'explosion prend le relais : la tension n'a plus rien à préparer.
+			uiAudio.killRitualTension();
 			// Programmée d'un coup sur l'horloge audio : le rythme ne doit pas
 			// dépendre des frames, que le chargement de la carte peut faire sauter.
 			uiAudio.playRitual(hackType, variant.ms);
@@ -126,6 +136,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			cancelAnimationFrame(raf);
 			clearInterval(padPoll);
 			window.removeEventListener('keydown', onKey);
+			// Garde-fou : un rituel abandonné en pleine saisie (changement de scène,
+			// navigation) ne doit jamais laisser un riser tourner derrière l'écran
+			// suivant. Sans effet si l'explosion l'a déjà coupée dans startBurst().
+			uiAudio.killRitualTension();
 			wrap.remove();
 			resolve();
 		}
