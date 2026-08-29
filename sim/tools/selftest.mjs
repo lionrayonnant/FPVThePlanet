@@ -1575,7 +1575,27 @@ console.log('\napplyEntryState');
 	check('linear velocity applied', Math.hypot(v.x - state.linvel.x, v.y - state.linvel.y, v.z - state.linvel.z) < 1e-6);
 	check('angular velocity applied', Math.abs(w.z - state.angvel.z) < 1e-6);
 	check('battery reset to full', phys.battery.soc === 1);
+
+	// PHASE 13 — Première seconde de vol : le drone entre déjà en vol, les
+	// moteurs ne doivent pas repartir de zéro (props visuellement à l'arrêt,
+	// audio silencieux sur la première image malgré une vitesse déjà réelle).
+	const cmd = hoverThrottle(phys.profile, state.quaternion);
+	const expectedOmega = phys.profile.maxOmega * Math.pow(cmd, phys.profile.rpmCurve);
+	check('propulsion primed: omega matches hoverThrottle at the entry quaternion, not zero',
+		phys.propulsion.omega.every((w) => Math.abs(w - expectedOmega) < 1e-6),
+		`omega=${phys.propulsion.omega.map((x) => x.toFixed(1))}`);
+	check('propulsion primed: thrust is nonzero on every motor',
+		phys.propulsion.thrust.every((t) => t > 0),
+		`thrust=${phys.propulsion.thrust.map((x) => x.toFixed(1))}`);
+
 	phys.reset();
+	// Un respawn statique (retour à spawn, à l'identité) reprend aussi déjà en
+	// régime plutôt qu'à l'arrêt complet, pour la même raison.
+	const cmdReset = hoverThrottle(phys.profile, { x: 0, y: 0, z: 0, w: 1 });
+	const expectedOmegaReset = phys.profile.maxOmega * Math.pow(cmdReset, phys.profile.rpmCurve);
+	check('reset(): propulsion also primed at hover, not zeroed',
+		phys.propulsion.omega.every((w) => Math.abs(w - expectedOmegaReset) < 1e-6),
+		`omega=${phys.propulsion.omega.map((x) => x.toFixed(1))}`);
 }
 
 console.log('\nentry state — sampleCandidate');
