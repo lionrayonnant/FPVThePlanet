@@ -1,6 +1,8 @@
 // Logique pure de l'Operator Terminal (PHASE 02). Aucune E/S, aucun DOM :
 // importable par le terminal côté navigateur et par le selftest.
 
+import { targetLogEntries } from './session-log-model.mjs';
+
 // Taille lisible d'un répertoire de scène. Décimal (1 Go = 1e9) pour rester
 // cohérent avec bootstrap.js (storageString) et l'affichage système.
 export function formatBytes(n) {
@@ -17,7 +19,9 @@ export function formatBytes(n) {
 export function terminalModel({ operator, scenes }) {
 	const name = String(operator?.name ?? '').toUpperCase() || 'UNKNOWN';
 	const sessions = Array.isArray(operator?.sessions) ? operator.sessions : [];
-	const targets = Array.isArray(operator?.targetLog) ? operator.targetLog : [];
+	// Le Target Log est dérivé des sessions (PHASE 17, spec D1) : il n'y a plus
+	// de clé `targetLog` sur l'opérateur.
+	const targets = targetLogEntries(operator?.sessions);
 	const known = Array.isArray(scenes);
 
 	const areas = known

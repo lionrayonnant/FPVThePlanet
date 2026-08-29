@@ -299,8 +299,22 @@ OPERATOR // ${model.operatorName}</pre>`;
 		}, 'terminal-cta'));
 
 		s.box.appendChild(navRow([
-			['SESSION LOG', () => stub(root, 'SESSION LOG', 'NO SESSIONS YET — the session log lands in PHASE 17.')],
-			['TARGET LOG', () => stub(root, 'TARGET LOG', 'NO TARGETS LOGGED — the target log lands in PHASE 17.')],
+			['SESSION LOG', async () => {
+				s.el.hidden = true;
+				const { runSessionLog } = await import('./session-log.js');
+				const slug = await runSessionLog(root, { operator: api.getOperator(), scenes });
+				if (slug) return fly(slug);
+				s.el.hidden = false;
+				// Une suppression a pu changer les compteurs du footer.
+				render();
+			}],
+			['TARGET LOG', async () => {
+				s.el.hidden = true;
+				const { runTargetLog } = await import('./session-log.js');
+				await runTargetLog(root, { operator: api.getOperator() });
+				s.el.hidden = false;
+				render();
+			}],
 			['SETTINGS', () => settings?.toggleSettings(true)],
 			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
 		]));
