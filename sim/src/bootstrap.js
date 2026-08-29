@@ -79,7 +79,10 @@ export async function probeHardware() {
 		{ label: 'LANGUAGE', value: (navigator.language || 'UNKNOWN').toUpperCase() },
 		{ label: 'TIMEZONE', value: (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UNKNOWN').toUpperCase() },
 		// window.screen explicite : `screen` est shadowé par la fonction screen() de ce module.
-		{ label: 'DISPLAY', value: `${window.screen.width} × ${window.screen.height} @ ${window.devicePixelRatio}x` },
+		// Un écran à l'échelle produit un ratio comme 0.8999999761581421, qui
+		// passait à la ligne et cassait la colonne. Un relevé se lit, il ne se
+		// déverse pas : deux décimales, et pas de zéro inutile.
+		{ label: 'DISPLAY', value: `${window.screen.width} × ${window.screen.height} @ ${(+window.devicePixelRatio.toFixed(2))}x` },
 		{ label: 'REFRESH', value: hz ? `${hz} HZ` : 'UNKNOWN' },
 		{ label: 'RENDERER', value: renderer },
 		{ label: 'GPU', value: String(gpu).toUpperCase() },

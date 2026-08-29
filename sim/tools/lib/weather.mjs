@@ -535,6 +535,37 @@ export function formatForecast(snapshot, { title = '' } = {}) {
 // pilote y pense AVANT de voler, pas en découvrant la première rafale.
 const MARGINAL = new Set(['WINDY', 'GALE', 'STORM', 'HEAVY RAIN', 'RAIN', 'FOG']);
 
+// PHASE 19 (issue #56) — de quoi graduer la ligne météo de la Home. Retour
+// utilisateur du 2026-08-29 : « au lancement d'un vol on ne pense pas aux
+// conditions ». La Bible §38 n'autorise une couleur fonctionnelle que si elle
+// transmet une information : ici l'information est « est-ce que ça change ma
+// décision de voler ». Le classement est donc celui du pilote, pas celui du
+// météorologue — OVERCAST est laid mais se vole, MIST se vole mal.
+//
+//   nominal   rien à signaler, la ligne reste en encre neutre
+//   watch     ça se pilote, mais le vent ou l'eau se sentent
+//   marginal  vol dégradé : la visibilité ou le vent travaillent contre le drone
+//   nogo      on ne sort pas
+//
+// Chaque entrée de REGIMES a la sienne, et aucun régime de MARGINAL n'est
+// classé sous `marginal` : weather-selftest.mjs vérifie les deux.
+const SEVERITY = {
+	CLEAR: 'nominal', CLOUD: 'nominal', OVERCAST: 'nominal',
+	MIST: 'watch', 'LIGHT RAIN': 'watch',
+	FOG: 'marginal', RAIN: 'marginal', 'HEAVY RAIN': 'marginal', WINDY: 'marginal',
+	GALE: 'nogo', STORM: 'nogo',
+};
+
+export function severity(day) {
+	if (!day) return 'nominal';
+	const base = SEVERITY[day.regime] ?? 'nominal';
+	// Un ciel calme au-dessus d'un vent déjà soutenu reste une information : la
+	// force du vent décide autant que le régime, et `classify` ne bascule sur
+	// WINDY qu'à 9 m/s alors que ça se sent dès 6.
+	if (base === 'nominal' && day.windSpeed >= WIND_BREEZY) return 'watch';
+	return base;
+}
+
 // Le bloc CONDITIONS rendu au TARGET SCAN (issue #76). Trois lignes — vent
 // (force + direction + label), pluie, visibilité — précédées d'une alerte quand
 // le régime du jour est marginal. `null` si pas de snapshot : on n'invente pas

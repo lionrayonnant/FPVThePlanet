@@ -116,10 +116,16 @@ t('FAMILY_PRIMITIVES : les nouvelles primitives PHASE 20 sont composées', () =>
 	}
 });
 
-t('acceptation #57 : aucune primitive demo scene hors événement (seul ritual.js les importe)', () => {
+// Le cracktro de lancement (issue #106) rejoue les mêmes primitives que le
+// rituel : c'est un événement au sens de la Bible §19, pas un écran quotidien.
+// Le garde-fou n'avait pas été élargi quand la PR #118 a été mergée, et il
+// échouait donc sur `main` avant la PHASE 19.
+const EVENT_MODULES = new Set(['ritual.js', 'hack-grammars.js', 'intro.js']);
+
+t('acceptation #57 : aucune primitive demo scene hors événement (rituel et intro seuls)', () => {
 	const dir = new URL('../src/', import.meta.url);
 	for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
-		if (f === 'ritual.js' || f === 'hack-grammars.js') continue;
+		if (EVENT_MODULES.has(f)) continue;
 		const src = fs.readFileSync(new URL(f, dir), 'utf8');
 		assert.doesNotMatch(src, /RITUAL_PRIMITIVES|FAMILY_PRIMITIVES/,
 			`${f} référence les primitives demo scene hors rituel`);

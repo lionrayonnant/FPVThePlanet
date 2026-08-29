@@ -44,10 +44,16 @@ export function runHack(root, { hackType, family, ready } = {}) {
 	const steps = hackSequence(type);
 
 	const s = screen(root, 'hack');
+	// PHASE 19 : la reprise en main est sortie du corps du log. Tant qu'elle y
+	// était, le seul moment où l'analyse rend la main à l'opérateur passait dans
+	// la même graisse que les lignes de progression au-dessus (HANDOFF PHASE 09).
+	// Elle a maintenant son propre élément, au niveau DISPLAY.
 	s.box.innerHTML = `<pre class="hack-head">HACK // ${type}</pre>
 <pre class="hack-log"></pre>
+<pre class="hack-handover" hidden>${HACK_OVERRIDE}</pre>
 <pre class="hack-grammar" aria-hidden="true"></pre>`;
 	const logEl = s.box.querySelector('.hack-log');
+	const handoverEl = s.box.querySelector('.hack-handover');
 	const gramEl = s.box.querySelector('.hack-grammar');
 
 	return new Promise((resolve, reject) => {
@@ -89,10 +95,9 @@ export function runHack(root, { hackType, family, ready } = {}) {
 				// « recherche » : trois points qui pulsent, rien qui progresse.
 				const k = Math.floor(nowMs() / 350) % 4;
 				out += `\n${'.'.repeat(k)}`;
-			} else if (phase === 'lock' || phase === 'armed') {
-				out += `\n\n${HACK_OVERRIDE}`;
 			}
 			logEl.textContent = out;
+			handoverEl.hidden = !(phase === 'lock' || phase === 'armed');
 			logEl.classList.toggle('hack-log-armed', phase === 'armed');
 		};
 

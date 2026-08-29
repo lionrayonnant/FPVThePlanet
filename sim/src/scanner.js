@@ -20,6 +20,7 @@ import {
 } from '../tools/scanner-model.mjs';
 import { rtcScript } from '../tools/rtc-model.mjs';
 import * as operatorApi from './operator.js';
+import { token } from './palette.js';
 
 const API = '/__map-api';
 
@@ -228,7 +229,7 @@ export function runScanner(root) {
 	const pruned = L.layerGroup().addTo(map);
 	const pins = L.layerGroup().addTo(map);
 	const outline = L.layerGroup().addTo(map);
-	const snapped = L.rectangle([[0, 0], [0, 0]], { color: '#6cf', weight: 1, fill: false, interactive: false });
+	const snapped = L.rectangle([[0, 0], [0, 0]], { color: token('--warm-white'), weight: 1, fill: false, interactive: false });
 	let zoneLayer = null;
 
 	// ---------------------------------------------- la grille réellement scannée
@@ -251,7 +252,7 @@ export function runScanner(root) {
 			map.removeLayer(snapped);
 			outline.addLayer(L.polyline(
 				maskOutline({ ...grid, keep: Uint8Array.from(grid.keep) }, state.zoom),
-				{ color: '#6cf', weight: 1, interactive: false }));
+				{ color: token('--warm-white'), weight: 1, interactive: false }));
 		} else {
 			snapped.setBounds([[s.south, s.west], [s.north, s.east]]).addTo(map);
 		}
@@ -260,7 +261,7 @@ export function runScanner(root) {
 		const b = map.latLngToLayerPoint([s.north, s.east]);
 		if (Math.abs(b.x - a.x) / grid.cols < 7) return;
 
-		const style = { color: '#6cf', weight: 1, opacity: .22, interactive: false };
+		const style = { color: token('--warm-white'), weight: 1, opacity: .22, interactive: false };
 		const { lons, lats } = latticeEdges(grid, state.zoom);
 		for (let i = 1; i < lons.length - 1; i++) {
 			lattice.addLayer(L.polyline([[s.south, lons[i]], [s.north, lons[i]]], style));
@@ -279,7 +280,7 @@ export function runScanner(root) {
 		if (!p) return;
 		for (const b of p.bands) {
 			pruned.addLayer(L.rectangle([[b.south, b.west], [b.north, b.east]], {
-				color: '#f2714f', weight: 0, fillColor: '#f2714f', fillOpacity: .18, interactive: false,
+				color: token('--orange'), weight: 0, fillColor: token('--orange'), fillOpacity: .18, interactive: false,
 			}));
 		}
 	}
@@ -290,7 +291,7 @@ export function runScanner(root) {
 		zoneLayer = layer;
 		// Le tracé dessiné est un fantôme : ce qui compte, c'est la zone alignée
 		// sur les tuiles — un rectangle snappé, ou l'escalier d'un polygone.
-		layer.setStyle({ color: '#eaf2f8', weight: 1, dashArray: '3 4', fill: false, opacity: .5 });
+		layer.setStyle({ color: token('--warm-white'), weight: 1, dashArray: '3 4', fill: false, opacity: .5 });
 
 		// Geoman rend un L.Rectangle pour la boîte et un L.Polygon pour le tracé
 		// libre ; le rectangle EST un polygone, donc on teste le plus spécifique
