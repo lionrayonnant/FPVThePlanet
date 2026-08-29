@@ -529,9 +529,12 @@ t('stripPhotoData : retire dataUrl, garde w/h/ts, ne mute pas l’original', () 
 	assert.equal(light.photos[0].h, 360);
 	assert.equal(typeof light.photos[0].ts, 'string');
 	assert.equal(s.photos[0].dataUrl, 'data:image/jpeg;base64,AAA=');
-	// La session élidée reste valide : l'élision est un allègement, pas une
-	// corruption.
-	validateSession(light);
+	// Une session élidée est un FORMAT DE FIL, pas un état persistable : elle ne
+	// repasse jamais par validateSession, qui exige à raison une dataUrl sur
+	// chaque capture. L'élision n'a lieu que dans les `json(res, …)`, après
+	// `_writeOperator` — jamais avant une écriture disque. On asserte donc
+	// l'échec, pour que ce sens de lecture reste écrit quelque part.
+	assert.throws(() => validateSession(light), /dataUrl/);
 });
 
 t('stripOperatorPhotoData : élide toutes les sessions d’un état', () => {
