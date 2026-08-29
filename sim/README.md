@@ -8,7 +8,7 @@ lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
 npm install
 npm run dev       # http://localhost:5173 — terminal opérateur, puis vol
 npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
-npm run selftest:operator  # état opérateur (schéma, recall client) + modèle du terminal
+npm run selftest:operator  # état opérateur, modèle du terminal, modèle du scanner
 ```
 
 ## Sommaire
@@ -16,8 +16,9 @@ npm run selftest:operator  # état opérateur (schéma, recall client) + modèle
 `grep -n '^#' README.md` pour la ligne exacte d'une section.
 
 - Contrôles
-- Ajouter une carte — par l'interface · en ligne de commande · prérequis ·
-  options · dimensionner `--radius` · retoucher une carte
+- Ajouter une carte — depuis le jeu (GLOBAL SCANNER) · l'ancienne GUI ·
+  en ligne de commande · prérequis · options · dimensionner `--radius` ·
+  retoucher une carte
 - Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
 - Le terminal opérateur
 - Cartes disponibles
@@ -41,24 +42,41 @@ dans **Tab** avec des barres de niveau en direct pour identifier chaque axe.
 Une carte = une zone téléchargée depuis Apple Flyover puis convertie pour le
 moteur.
 
-### Par l'interface (voie principale)
+### Depuis le jeu — `GLOBAL SCANNER` (voie principale)
 
 ```bash
-npm run dev        # puis http://localhost:5173/add-map.html
+npm run dev        # puis http://localhost:5173 → [ GLOBAL SCANNER ]
 ```
 
-On cherche un lieu, on dessine la zone au rectangle sur la carte satellite, et le
-panneau affiche avant de lancer : dimensions, surface, grille de tuiles, nombre de
-requêtes, poids estimé (brut et sur disque) et durée. Le bouton **Vérifier la
-couverture** interroge la région Flyover puis télécharge un échantillon au centre —
-c'est la seule preuve fiable qu'il y a de la photogrammétrie ici. **Extraire** lance
-le pipeline avec les logs en direct, et propose à la fin d'aller voler dessus.
+Le scanner est le point d'entrée mondial du jeu (PHASE 03) : on cherche un lieu
+(`SEARCH LOCATION`, ou des coordonnées « lat, lon »), on cadre, on dessine la zone
+au rectangle, et `AREA ANALYSIS` affiche avant de lancer la grille de tuiles, le
+nombre de requêtes, la surface, le poids estimé et la durée. `PROBE AREA`
+interroge la région Flyover puis télécharge un échantillon au centre — c'est la
+seule preuve fiable qu'il y a de la photogrammétrie ici. `ACQUIRE AREA` lance le
+vrai pipeline avec les logs en direct, et propose `[ FLY ]` à la fin.
+
+Le fond est monochrome par défaut (`MONO`, OpenStreetMap inversé et désaturé) ;
+`SAT` et `TERRAIN` sont là quand reconnaître un bâtiment ou un relief aide à
+cadrer. `SIGNAL DENSITY` / `TARGETS EST.` sont des estimations d'activité radio
+(Bible §6) : elles partent de la catégorie OSM du centre de la zone et de sa
+surface, sans rien tirer au sort — la génération de cibles, elle, est PHASE 7.
+
+### L'ancienne GUI d'extraction
+
+`http://localhost:5173/add-map.html` fait toujours la même chose, en français et
+hors du jeu. Le scanner l'a absorbée ; elle disparaîtra avec la mise en scène de
+l'acquisition (PHASE 5).
 
 Deux choses valent d'être comprises :
 
 - **La zone est quantifiée.** Flyover est servi en tuiles d'environ 25 m de côté au
   zoom 20 ; la zone réellement extraite est celle dessinée arrondie au treillis. La
   carte affiche ce treillis, et le rectangle dessiné reste en pointillé à côté.
+  Ce treillis n'est pas un décor : il vient de `tileGrid()` (`tools/lib/tiles.mjs`),
+  portage du calcul de colonnes du Go — c'est exactement la grille que l'exporteur
+  balaiera. Après `PROBE AREA`, la part de la zone que la région Flyover déclare ne
+  pas couvrir est grisée, par intersection avec l'emprise rendue par `--plan`.
 - **Les estimations sont des fourchettes, pas des chiffres.** À nombre de colonnes
   égal, un lotissement et un quartier de tours rendent du simple au quadruple de
   données. Les constantes viennent de mesures sur les cartes existantes
@@ -227,8 +245,9 @@ node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/<dossier
 
 `npm run dev` ouvre l'Operator Terminal (PHASE 02). `LOCAL TERRAIN` liste tout
 ce qu'il y a dans `public/scenes.json` avec sa taille réelle sur disque ;
-`OPEN` lance le vol. `GLOBAL SCANNER`, `SESSION LOG`, `TARGET LOG` sont des
-souches jusqu'à leurs phases respectives.
+`OPEN` lance le vol. `GLOBAL SCANNER` ouvre le scanner mondial (PHASE 03, voir
+« Ajouter une carte »). `SESSION LOG` et `TARGET LOG` restent des souches
+jusqu'à leurs phases respectives.
 
 Pour sauter le terminal (lien direct, dev rapide) :
 
@@ -303,7 +322,10 @@ src/lens.js             passe plein écran : optique FPV (barillet, vignettage, 
 src/hud.js              OSD de vol + écran de chargement
 src/settings.js         panneau de réglages (Tab) : manette, caméra, objectif, lien, météo, son
 src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, CONTROL VECTOR, souches
+src/scanner.js          GLOBAL SCANNER : Leaflet + Geoman, recherche, zone, sonde, acquisition
 tools/terminal-model.mjs logique pure du terminal (formatBytes, footer) — testée par selftest:operator
+tools/scanner-model.mjs logique pure du scanner (analyse de zone, densité de signal, couverture)
+tools/lib/tiles.mjs     géométrie des tuiles Flyover, partagée navigateur/Node (portage du Go)
 ```
 
 **Physique : Rapier** (Rust/WASM). Corps rigide, collision trimesh **en pleine
