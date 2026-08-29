@@ -13,6 +13,7 @@ import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, P
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
+import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1153,6 +1154,59 @@ console.log('\ntextures');
 		check('visible surface is not sampling the grey padding', greyPct < 5,
 			`${greyPct.toFixed(1)}% grey over ${area.toFixed(0)} m² sampled`);
 	}
+}
+
+console.log('\ncaméra de cible');
+{
+	const A = targetCamera({ seed: 'alpha', family: 'freestyle5' });
+	const A2 = targetCamera({ seed: 'alpha', family: 'freestyle5' });
+	check('même graine, même fiche', JSON.stringify(A) === JSON.stringify(A2));
+
+	const B = targetCamera({ seed: 'bravo', family: 'freestyle5' });
+	check('deux graines, deux fiches', JSON.stringify(A) !== JSON.stringify(B));
+
+	// 200 tirages par famille : les bornes de la table sont la cohérence
+	// promise, donc elles sont vérifiées et pas seulement commentées.
+	let inRange = true, sane = true;
+	for (const fam of Object.keys(CAMERA_FAMILIES)) {
+		const t = CAMERA_FAMILIES[fam];
+		for (let i = 0; i < 200; i++) {
+			const c = targetCamera({ seed: `${fam}::${i}`, family: fam });
+			if (c.fovDeg < t.fovDeg[0] || c.fovDeg > t.fovDeg[1]) inRange = false;
+			if (c.uptiltDeg < t.uptiltDeg[0] || c.uptiltDeg > t.uptiltDeg[1]) inRange = false;
+			if (c.resScale < t.resScale[0] || c.resScale > t.resScale[1]) inRange = false;
+			if (!t.aspects.includes(c.aspectName)) inRange = false;
+			if (Math.abs(c.aspect - (c.aspectName === '4:3' ? 4 / 3 : 16 / 9)) > 1e-9) sane = false;
+			for (const v of Object.values(c.sensor)) if (!(v >= 0 && v <= 1)) sane = false;
+		}
+	}
+	check('toutes les familles restent dans les bornes de leur table', inRange);
+	check('aspect cohérent avec aspectName, capteur borné [0,1]', sane);
+
+	// La cohérence demandée par la DA : une bonne famille n'a jamais une
+	// mauvaise caméra, et l'inverse.
+	let goodLow = false, badHigh = false;
+	for (let i = 0; i < 200; i++) {
+		for (const fam of ['cinewhoop', 'heavy5', 'longrange']) {
+			if (targetCamera({ seed: `q${i}`, family: fam }).resScale < RES_HIGH) goodLow = true;
+		}
+		if (targetCamera({ seed: `q${i}`, family: 'toothpick' }).resScale > RES_LOW) badHigh = true;
+	}
+	check('cinewhoop / heavy5 / longrange : jamais une définition basse', goodLow === false);
+	check('toothpick : jamais une définition haute', badHigh === false);
+
+	// Un toothpick est une mauvaise caméra : plus de bruit et plus de halo
+	// qu'un cinewhoop, toujours, pas en moyenne.
+	let worse = true;
+	for (let i = 0; i < 200; i++) {
+		const bad = targetCamera({ seed: `w${i}`, family: 'toothpick' }).sensor;
+		const good = targetCamera({ seed: `w${i}`, family: 'cinewhoop' }).sensor;
+		if (bad.grain <= good.grain || bad.ringing <= good.ringing) worse = false;
+	}
+	check('toothpick toujours plus bruité et plus halo qu\'un cinewhoop', worse);
+
+	const unknown = targetCamera({ seed: 'x', family: 'inconnue' });
+	check('famille inconnue : repli sur freestyle5 plutôt qu\'un plantage', unknown.fovDeg > 0);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
