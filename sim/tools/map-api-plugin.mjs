@@ -25,6 +25,7 @@ import {
 } from './session-model.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
+import { generateTargetScan, resolveTarget } from './target-model.mjs';
 
 const BASE = '/__map-api';
 
@@ -218,10 +219,21 @@ const opRoutes = [
 				session = validateSession(resumeSession(state.sessions[i]));
 				state.sessions[i] = session;
 			} else {
+				let target = null;
+				if (b.targetSeed) {
+					const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount });
+					if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
+						return json(res, 400, { error: `targetIndex hors borne : ${b.targetIndex}` });
+					}
+					target = resolveTarget(scan, b.targetIndex);
+				} else {
+					console.warn('[session] ouverture sans TARGET SCAN — aucune cible (chemin dev)');
+				}
 				session = validateSession(openSession({
 					operatorId: state.id,
 					area: b.area,
 					weatherSnapshot: sanitizeWeatherSnapshot(b.weatherSnapshot ?? null),
+					target,
 				}));
 				state.sessions.push(session);
 			}
