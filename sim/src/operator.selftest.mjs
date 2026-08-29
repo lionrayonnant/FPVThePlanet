@@ -136,4 +136,31 @@ await t('flush jette si tout a échoué, puis retente avec succès', async () =>
 	assert.deepEqual(op.getOperator().controlVector, ['up', 'up', 'up', 'up']);
 });
 
+await t('keepTerrain : POST direct, pas un patch debounced', async () => {
+	const calls = [];
+	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setFetch(fakeFetch({
+		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', terrainCache: [] } }],
+		'POST /__operator/neo-1/terrain-cache': (opts) => {
+			calls.push(JSON.parse(opts.body));
+			return [200, { operator: { id: 'neo-1', name: 'Neo', terrainCache: [{ slug: 'tokyo' }] } }];
+		},
+	}));
+	await op.loadOperator();
+	const updated = await op.keepTerrain('tokyo');
+	assert.deepEqual(calls, [{ slug: 'tokyo' }]);
+	assert.deepEqual(updated.terrainCache, [{ slug: 'tokyo' }]);
+	assert.deepEqual(op.getOperator().terrainCache, [{ slug: 'tokyo' }]);
+});
+
+await t('keepTerrain : propage l\'erreur serveur', async () => {
+	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setFetch(fakeFetch({
+		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo' } }],
+		'POST /__operator/neo-1/terrain-cache': () => [404, { error: 'aucune carte "tokyo"' }],
+	}));
+	await op.loadOperator();
+	await assert.rejects(() => op.keepTerrain('tokyo'), /aucune carte/);
+});
+
 console.log(`\n${n} tests OK`);

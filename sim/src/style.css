@@ -337,6 +337,12 @@ canvas { display: block; }
 .sc-bar[data-indeterminate="1"] i { width: 100% !important; animation: sc-sweep 1.6s linear infinite; transform-origin: left; }
 @keyframes sc-sweep { 0% { transform: scaleX(0); } 50% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
 
+/* TERRAIN/FETCH/DECODE/REBUILD, puis RF ANALYSIS/TARGET SEARCH (PHASE 05,
+   Bible §8) : une rangée = un libellé fixe + la même `.sc-bar` qu'ailleurs. */
+.sc-bars { display: flex; flex-direction: column; gap: 6px; }
+.sc-bar-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 8px; }
+.sc-bar-label { font-size: 10px; letter-spacing: .1em; opacity: .55; }
+
 .sc-log-block { flex: 1; min-height: 120px; }
 .sc-log {
 	margin: 0; flex: 1; overflow-y: auto;
@@ -345,6 +351,10 @@ canvas { display: block; }
 	border: 1px solid rgba(255, 255, 255, .12); padding: 6px;
 	max-height: 40vh;
 }
+/* RTC (Bible §9) : la même vitrine que le log du pipeline, mais bien plus
+   discrète — c'est du décor, jamais une source d'information sur l'opération. */
+.sc-rtc-block { flex: 0 0 auto; }
+.sc-rtc { max-height: 18vh; opacity: .4; }
 
 @media (max-width: 900px) {
 	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }

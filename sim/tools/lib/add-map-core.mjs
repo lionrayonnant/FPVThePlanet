@@ -141,6 +141,55 @@ const RE_EXPORTING = /^Exporting /;
 const RE_EXPORTED = /^(\d+) exported$/;
 const RE_UNDECODABLE = /^(\d+) tuile\(s\) reçues mais non décodées/;
 
+// Extrait les jalons réels de prep.mjs de son stdout, sans y toucher : c'est le
+// seul endroit qui sait que le pipeline passe par decode (lecture MTL/OBJ) puis
+// rebuild (ENU, chunks, sheets de textures, mesh de collision). Chaque motif
+// correspond à une ligne existante de prep.mjs (voir les console.log autour de
+// la parse OBJ et de la construction des chunks) : rien n'est deviné, tout est
+// lu. Le PHASE 05 en tire les barres FETCH/DECODE/REBUILD du scanner ; add-map.mjs
+// (CLI) ignore ces événements et continue d'imprimer les lignes brutes.
+// prep.mjs groupe ses gros nombres avec toLocaleString() sans locale explicite :
+// le séparateur suit donc l'ICU du runtime qui l'exécute (virgule, espace,
+// espace fine insécable U+202F...), pas forcément celui de la machine de dev.
+// `N` capture n'importe lequel de ces styles ; int() ne garde que les chiffres.
+const N = String.raw`[\d\s,]+`;
+const RE_MATERIALS = new RegExp(`^(\\d+) materials, (\\d+) without a texture$`);
+const RE_CHUNKS_PLANNED = new RegExp(`^-> (\\d+) chunks? of up to \\d+ layers$`);
+const RE_GEOMETRY = new RegExp(`^(${N}) vertices, (${N}) uvs, (${N}) triangles$`);
+const RE_CHUNK_DONE = new RegExp(`^chunk \\d+: ${N} verts, ${N} tris, bbox .+ m, ([\\d.]+) MB$`);
+const RE_TEXTURE_SHEET = /^\S+\.jpg: (\d+) layers, ([\d.]+) MB$/;
+const RE_COLLISION = new RegExp(`^collision\\.bin: (${N}) verts, (${N}) tris, ([\\d.]+) MB$`);
+
+const int = (s) => Number(String(s).replace(/[^\d]/g, ''));
+
+// `line` est déjà débarrassée du timestamp `[X.Xs] ` par l'appelant. Rend
+// `{ phase }`, `{ stat }`, les deux, ou `null` si la ligne ne dit rien
+// d'exploitable pour l'affichage (elle part quand même en log brut).
+export function parsePrepLine(line) {
+	let m;
+	if ((m = line.match(RE_MATERIALS))) {
+		return { stat: { materials: Number(m[1]), materialsNoTexture: Number(m[2]) } };
+	}
+	if ((m = line.match(RE_CHUNKS_PLANNED))) {
+		return { stat: { chunksPlanned: Number(m[1]) } };
+	}
+	if ((m = line.match(RE_GEOMETRY))) {
+		// Le flux OBJ vient de finir : tout ce qui suit construit le résultat
+		// (ENU, chunks, textures, collision) plutôt que de lire l'entrée.
+		return { phase: 'rebuild', stat: { vertices: int(m[1]), triangles: int(m[3]) } };
+	}
+	if ((m = line.match(RE_CHUNK_DONE))) {
+		return { stat: { chunksDone: 1, chunkBytes: Math.round(Number(m[1]) * 1e6) } };
+	}
+	if ((m = line.match(RE_TEXTURE_SHEET))) {
+		return { stat: { textureSheets: 1, textureBytes: Math.round(Number(m[2]) * 1e6) } };
+	}
+	if ((m = line.match(RE_COLLISION))) {
+		return { stat: { collisionVerts: int(m[1]), collisionTris: int(m[2]), collisionBytes: Math.round(Number(m[3]) * 1e6) } };
+	}
+	return null;
+}
+
 // Sonde de couverture : télécharge pour de vrai une poignée de tuiles au centre
 // de la zone, et rien de plus. C'est la seule preuve fiable qu'Apple Flyover
 // couvre l'endroit — --plan ne connaît que l'emprise déclarée de la région, qui
@@ -273,13 +322,26 @@ export async function addMap(opts, { onLog, signal } = {}) {
 			  '  de conclure ; un lieu couvert renvoie des tuiles dès une zone minuscule.');
 	}
 
-	onLog?.({ stream: 'phase', line: 'prep' });
+	// « prep » commence par lire l'OBJ/MTL téléchargé (decode) avant de le
+	// reconstruire pour le moteur (rebuild) — voir parsePrepLine ci-dessus, qui
+	// détecte le vrai basculement dans le flux stdout de prep.mjs.
+	onLog?.({ stream: 'phase', line: 'decode' });
 	await run('node', [
 		'tools/prep.mjs', tileDir,
 		'--out', outDir,
 		'--cell', String(cell),
 		'--quality', String(quality),
-	], SIM_ROOT, { onLog, signal });
+	], SIM_ROOT, {
+		signal,
+		onLog: (ev) => {
+			onLog?.(ev);
+			if (ev.stream !== 'stdout') return;
+			const parsed = parsePrepLine(ev.line.replace(/^\[[\d.]+s\]\s*/, ''));
+			if (!parsed) return;
+			if (parsed.phase) onLog?.({ stream: 'phase', line: parsed.phase });
+			if (parsed.stat) onLog?.({ stream: 'stat', stat: parsed.stat });
+		},
+	});
 
 	// Schéma additif : les entrées historiques {slug,name,lat,lon} restent valides,
 	// et le simulateur ne lit toujours que slug/name. Les champs en plus servent à
