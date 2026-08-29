@@ -1230,7 +1230,14 @@ console.log('\nOSD drone — layout');
 	const digitalGrids = new Set(GRIDS.DIGITAL.map((g) => `${g[0]}x${g[1]}`));
 	let gridsOk = true, boundsOk = true, placedOk = true, noOverlap = true, staplesOk = true;
 	let gpsLeak = false, gpsPresent = false;
-	const layouts = new Set(), fieldSets = new Set();
+	// `col`/`row` sont volontairement exclus de cette signature : ils portent une
+	// entropie de placement quasi continue et indépendante du contenu (25
+	// largeurs différentes, positions presque libres sur la grille), donc même un
+	// contenu figé produirait presque toujours des JSON distincts rien qu'avec le
+	// bruit de coordonnées. Ce qui rend un drone « visiblement différent » d'un
+	// autre, c'est le style, la grille, la police, les unités, le nom de machine
+	// et l'ensemble des éléments affichés — pas où chacun tombe au pixel près.
+	const visibleSignatures = new Set(), fieldSets = new Set();
 
 	for (let i = 0; i < 200; i++) {
 		for (const mode of ['ANALOG', 'DIGITAL']) {
@@ -1258,7 +1265,10 @@ console.log('\nOSD drone — layout');
 			if (!keys.includes('BAT_V')) staplesOk = false;
 			if (!keys.includes('TIMER_FLIGHT') && !keys.includes('TIMER_ON')) staplesOk = false;
 
-			layouts.add(JSON.stringify(l));
+			visibleSignatures.add(JSON.stringify({
+				style: l.style, grid: l.grid, font: l.font, units: l.units,
+				craftName: l.craftName, keys: [...keys].sort(),
+			}));
 			fieldSets.add([...keys].sort().join(','));
 		}
 
@@ -1279,7 +1289,9 @@ console.log('\nOSD drone — layout');
 
 	// « Ce drone est encore différent » : mesuré, pas espéré. Sur 400 tirages,
 	// des paliers bas volontairement — c'est un plancher, pas une cible.
-	check('la variété est réelle : layouts distincts', layouts.size > 350, `${layouts.size}/400`);
+	// Mesuré à 400/400 sur ce jeu de graines ; le plancher garde une marge
+	// honnête (12.5%) plutôt que de coller à la mesure.
+	check('la variété est réelle : signatures visibles distinctes (style, grille, police, unités, nom, éléments)', visibleSignatures.size > 350, `${visibleSignatures.size}/400`);
 	check('la variété est réelle : jeux d\'éléments distincts', fieldSets.size > 100, `${fieldSets.size}/400`);
 
 	let imperial = 0;
