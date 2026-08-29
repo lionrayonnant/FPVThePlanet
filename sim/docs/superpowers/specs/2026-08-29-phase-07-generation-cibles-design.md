@@ -10,19 +10,23 @@ Issue : https://github.com/lionrayonnant/FPVMaps/issues/44
 ## Objectif
 
 Transformer `QUAD` — aujourd'hui une constante de module figée décrivant un seul
-5" freestyle — en un **profil paramétrable**, et livrer **7 familles**
+5" freestyle — en un **profil paramétrable**, et livrer **6 familles**
 d'appareils avec masses / inerties / hélices propres et **PID re-mesurés par
-famille**. `npm run selftest` doit rester vert pour les 7.
+famille**. `npm run selftest` doit rester vert pour les 6.
 
-## Écart assumé vs issue #44
+## Familles — le tinywhoop, tenté puis retiré
 
-L'issue fige **6** familles (`MICRO` unique). Sur demande, `MICRO` est scindé en
-**`microwhoop`** (tinywhoop 65-75 mm, 1S) et **`toothpick`** (2.5-3", 2S/3S) —
-deux caractères de vol réellement distincts. → **7 familles**. Le texte de
-l'issue est mis à jour à l'implémentation.
+La demande initiale était de scinder `MICRO` en tinywhoop 1S **et** toothpick
+2.5". Le tinywhoop (`microwhoop`, ~34 g) a été prototypé mais **retiré** : à
+cette masse les termes de couplage roll/pitch/yaw du modèle de vol
+(`quad.js` + intégration Rapier), négligeables sur un 5" de 650 g, ne sont pas
+calibrés — le tinywhoop ne tient pas un taux commandé (roll à +40 %, ~380 °/s de
+lacet induit en tonneau). Le banc `tune-pid` le voyait propre ; le vrai sim non.
+Calibrer les coefficients de couplage à l'échelle micro est un travail à part →
+**issue de suivi**. `MICRO` = le `toothpick` 2.5".
 
-Familles : `freestyle5` (référence, inchangée), `race5`, `cinewhoop`,
-`longrange`, `heavy5`, `microwhoop`, `toothpick`.
+Familles (6) : `freestyle5` (référence, inchangée), `race5`, `cinewhoop`,
+`longrange`, `heavy5`, `toothpick` (label `MICRO`).
 
 ## Architecture
 
@@ -110,9 +114,21 @@ comparant les `detail` numériques de `selftest` avant/après.
 - `run()` / `metrics()` / `sustainedAccel()` / `limitsFor()` prennent un profil.
   Les seuils rise/settle sont déjà dérivés de `sustainedAccel` — marchent tels
   quels par profil.
-- npm : `tune` inchangé (rapport), **`tune:write`** ajouté (`-- --write all`).
+- npm : `tune` inchangé (rapport). `--write` invoqué à la main, pas de script.
+- **`filterScale`** (champ profil optionnel, défaut 1) : multiplie les fréquences
+  de coupure des filtres roll/pitch (gyro, D, FF, lissage RC) pour un airframe
+  bien plus rapide que le 5" — le `toothpick` tourne à 2.0×, comme un vrai build
+  micro. **Le yaw garde la chaîne de référence** (boucle limitée par le temps
+  moteur, l'ouvrir la fait osciller).
+- **Bug du banc corrigé** : `run()` passait l'attitude intégrée au contrôleur
+  alors que le repère du banc EST le repère corps et `w` est déjà en corps — le
+  contrôleur dé-rotait un taux corps par un grand angle et poursuivait
+  l'oscillation fantôme. Bénin pour le 5", divergent pour une boucle micro.
+  Le banc passe maintenant `rotation: IDENTITY`.
+- Sweep en **2 passes** (les boucles inter-axes se couplent), garde de qualité
+  sur overshoot/settle/rise dans la sélection, préférence P bas à coût égal.
 
-### D6 — `tools/selftest.mjs` : 7 familles
+### D6 — `tools/selftest.mjs` : les 6 familles
 
 - Les checks **de vol** passent dans `for (const family of FAMILIES)`, préfixés
   par le nom de famille, seuils **dérivés du profil** :
@@ -128,7 +144,13 @@ comparant les `detail` numériques de `selftest` avant/après.
   lien vidéo, météo) restent uniques, sur `freestyle5`.
 - `npm run selftest` doit finir vert pour les 7 familles.
 
-## Familles — chiffres proposés (à relire)
+## Familles — chiffres
+
+> Table de **proposition initiale**. Les valeurs réellement livrées ont bougé
+> pendant l'implémentation (échelle des `kAxial`/`kLateral` sur l'aire du disque,
+> inerties micro quasi-symétriques pitch/roll, poussées ajustées, `microwhoop`
+> retiré). **`src/drone-profiles.js` fait foi** — chaque famille y est
+> documentée par un commentaire « setup réel ».
 
 Toutes : `radius = 0.15`. Inertie `{x:pitch, y:yaw, z:roll}`.
 
@@ -183,10 +205,28 @@ longrange 4.2 · heavy5 5.0 · microwhoop 2.0 · toothpick 3.9.
 7. Mettre à jour `issue #44` (écart 6→7), `HANDOFF.md`, `README.md` (section
    modèle de vol / familles), `docs/handoff-archive/modele-de-vol.md`.
 
+## État final d'implémentation (2026-08-29)
+
+- 6 familles dans `src/drone-profiles.js`. `freestyle5` = valeurs `quad.js`
+  d'origine au bit près, comportement `selftest` identique (hover 24 %, roll
+  822 °/s, vitesse terminale 15,4 m/s).
+- `npm run selftest` : **155/155 vert**, incluant la boucle enveloppe de vol /
+  propulsion sur les 6 familles.
+- `node tools/tune-pid.mjs` : 34/36 combos axe·famille dans les cibles strictes
+  du banc. Restent **longrange roll & pitch** à rise 74 ms vs limite 68-71 ms
+  (~9 % ; preset cruiseur calme à 360 °/s, imperceptible). PID des 5 familles
+  non-référence tous mesurés par `--write` et commités.
+- `microwhoop` (tinywhoop 1S) **retiré** — cf. section « Familles » plus haut.
+
 ## Hors périmètre (suites)
 
+- **Tinywhoop / échelle micro** : calibrer les termes de couplage
+  roll/pitch/yaw du modèle de vol pour une masse ~30-40 g, puis réintroduire
+  `microwhoop`. → issue de suivi.
 - Variation individuelle par cible (rates, caméra, FOV, vidéo, batterie, masse,
   qualité link) + vérification des plages de stabilité — dépend de PHASE 06.
 - Critère « deux 5" Race tirés au hasard = deux expériences distinctes » : le
   socle (profil clonable + plages vérifiables) est ici ; le tirage est en aval.
 - Effet de sol / propwash paramétrables par famille (caréné ≠ ouvert).
+- `longrange` rise : élargir la grille P du banc ou revoir l'autorité du profil
+  si le ressenti le demande.

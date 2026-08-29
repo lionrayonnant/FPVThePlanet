@@ -52,8 +52,29 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Vérifié
 
-- `npm run selftest` : 15/15 PASS (géodésie, sol, vol, collision/CCD, textures).
-  Les deux checks textures mesurent 14,7 |dRGB| et 0,8 % de gris.
+- `npm run selftest` : **155/155 PASS** (géodésie, sol, collision/CCD, textures,
+  lien vidéo, pluie/brouillard, météo, + la boucle enveloppe de vol / propulsion
+  sur les six familles PHASE 07). Les deux checks textures mesurent 14,7 |dRGB|
+  et 0,8 % de gris.
+- **PHASE 07 — génération des cibles (couche physique)**, branche
+  `phase-07-generation-cibles`, vérifié headless :
+  - `src/drone-profiles.js` : 6 familles (`freestyle5` = valeurs `quad.js`
+    d'origine au bit près ; `race5`, `cinewhoop`, `longrange`, `heavy5`,
+    `toothpick`/label `MICRO`). `QUAD` = profil par défaut ; `quad.js`,
+    `flightController.js`, `physics.js`, `audio.js`, `main.js` prennent le
+    profil en argument.
+  - PID **mesurés par famille** via `node tools/tune-pid.mjs --write all`
+    (jamais à la main) ; `npm run tune` : 34/36 combos axe·famille dans les
+    cibles strictes du banc, reste `longrange` roll/pitch à rise 74 vs
+    68-71 ms (~9 %, cruiseur calme à 360 °/s).
+  - `freestyle5` inchangé à la valeur près : `selftest` rend hover 24 %, roll
+    822 °/s, vitesse terminale 15,4 m/s comme avant.
+  - Bug du banc `tune-pid` corrigé (attitude intégrée passée au contrôleur →
+    oscillation fantôme, divergente pour une boucle micro) : le banc passe
+    `rotation: IDENTITY`.
+  - **Non vérifié en vol piloté** : le ressenti réel de chaque famille (voir
+    plus bas). Le tinywhoop 1S a été prototypé puis **retiré** — à ~34 g le
+    couplage roll/pitch/yaw du modèle n'est pas calibré ; issue de suivi.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

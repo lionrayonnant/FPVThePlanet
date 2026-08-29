@@ -5,7 +5,7 @@
 // Everything is in SI units and in the body frame used by the rest of the sim
 // (X = right, Y = up, Z = back; forward is -Z).
 //
-// The airframe itself is a `profile` from src/drone-profiles.js — one of seven
+// The airframe itself is a `profile` from src/drone-profiles.js — one of six
 // families (PHASE 07). The default profile, `QUAD`, is the 5" freestyle build
 // (2207/2450KV on 4S, 5x4.3x3 tri-blades) that used to be hard-coded here, and
 // its numbers are byte-for-byte the same. Where a coefficient was fitted rather
