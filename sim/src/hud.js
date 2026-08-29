@@ -41,9 +41,9 @@ export class Hud {
 				</div>
 				<div class="corner br" id="help">
 					<b>W/S</b> gaz · <b>A/D</b> lacet · <b>flèches</b>/souris roulis-tangage<br>
-					<b>R</b> respawn · <b>J</b> désarmer · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Espace</b> pause · <b>Tab</b> réglages
+					<b>J</b> désarmer · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Espace</b> pause · <b>Tab</b> réglages
 				</div>
-				<div id="crash" hidden>CRASH<small>R pour repartir</small></div>
+				<div id="flight-end" hidden></div>
 					<div id="pause" hidden>PAUSE<small>Espace pour reprendre</small></div>
 				<div id="session-status" hidden></div>
 				<div id="reticle"></div>
@@ -68,7 +68,7 @@ export class Hud {
 			batt: root.querySelector('#batt'),
 			windHud: root.querySelector('#wind-hud'),
 			thr: root.querySelector('#thr-fill'),
-			crash: root.querySelector('#crash'),
+			flightEnd: root.querySelector('#flight-end'),
 			pause: root.querySelector('#pause'),
 			sessionStatus: root.querySelector('#session-status'),
 			reticle: root.querySelector('#reticle'),
@@ -77,6 +77,7 @@ export class Hud {
 
 		this._frames = 0;
 		this._fpsAt = performance.now();
+		this._endLines = '';
 	}
 
 	progress(text, fraction) {
@@ -133,7 +134,31 @@ export class Hud {
 		e.hidden = false;
 	}
 
-	update({ altitude, speed, throttle, mode, preset, crashed, usingGamepad,
+	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre
+	// un lien qui s'éteint. `blackout` est l'opacité du noir qui recouvre la
+	// dernière image, `lines` ce qui s'écrit dessus, une ligne à la fois.
+	setFlightEnd({ lines, blackout }) {
+		const e = this.el.flightEnd;
+		if (!lines.length && blackout <= 0) {
+			if (!e.hidden) { e.hidden = true; e.textContent = ''; this._endLines = ''; }
+			return;
+		}
+		e.hidden = false;
+		e.style.background = `rgba(0, 0, 0, ${blackout})`;
+		// Le DOM n'est reconstruit que quand le texte change : ceci tourne à la
+		// fréquence d'affichage pendant toute la séquence.
+		const key = lines.join('\n');
+		if (key !== this._endLines) {
+			this._endLines = key;
+			e.replaceChildren(...lines.map((text) => {
+				const d = document.createElement('div');
+				d.textContent = text;
+				return d;
+			}));
+		}
+	}
+
+	update({ altitude, speed, throttle, mode, preset, usingGamepad,
 	         voltage, soc, amps, propwash, link, wind, heading }) {
 		this.el.alt.textContent = altitude === null ? '–' : altitude.toFixed(0);
 		this.el.spd.textContent = (speed * 3.6).toFixed(0);
@@ -141,7 +166,6 @@ export class Hud {
 		if (preset) this.el.preset.textContent = preset;
 		this.el.src.textContent = usingGamepad ? 'manette' : 'clavier';
 		this.el.thr.style.height = `${throttle * 100}%`;
-		this.el.crash.hidden = !crashed;
 
 		if (voltage !== undefined) {
 			this.el.volts.textContent = voltage.toFixed(1);
