@@ -32,7 +32,7 @@ func printUsage(msg string) {
 	if msg != "" {
 		l.Println("Error:", msg)
 	}
-	l.Println("Usage", os.Args[0], "[lat] [lon] [zoom] [tryXY] [tryH] [--parallel] [--bbox s,w,n,e] [--plan]")
+	l.Println("Usage", os.Args[0], "[lat] [lon] [zoom] [tryXY] [tryH] [--parallel] [--bbox s,w,n,e] [--poly lat,lon,...] [--plan]")
 	l.Println()
 	l.Println("  Name    Description       Example")
 	l.Println("  --------------------------------------")
@@ -49,6 +49,10 @@ func printUsage(msg string) {
 	l.Println("  --bbox s,w,n,e    scan this lat/lon rectangle instead of the tryXY square")
 	l.Println("                    around lat/lon; tryXY is then ignored (lat/lon still")
 	l.Println("                    select the Flyover region, so pass the box centre)")
+	l.Println("  --poly lat,lon,...  scan only the tiles a free polygon touches. The ring is")
+	l.Println("                    closed implicitly; at least 3 vertices. Mutually exclusive")
+	l.Println("                    with --bbox. A tile is kept as soon as the outline touches")
+	l.Println("                    it, so the scanned area is always a superset of the shape.")
 	l.Println("  --plan            print a JSON scan plan on stdout and exit without")
 	l.Println("                    downloading a single tile")
 	os.Exit(1)
@@ -59,8 +63,8 @@ func main() {
 	var err error
 	aReq := make([]string, 0)
 	aOpt := make([]string, 0)
-	// --bbox is the only option taking a value; accept both "--bbox v" and
-	// "--bbox=v" so its value never lands in the positional list.
+	// --bbox and --poly take a value; accept both "--opt v" and "--opt=v" so the
+	// value never lands in the positional list.
 	args := os.Args[1:]
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -68,12 +72,13 @@ func main() {
 			aReq = append(aReq, a)
 			continue
 		}
-		if a == "--bbox" {
+		if a == "--bbox" || a == "--poly" {
+			name := a
 			if i+1 >= len(args) {
-				printUsage("--bbox needs a value")
+				printUsage(name + " needs a value")
 			}
 			i++
-			a = "--bbox=" + args[i]
+			a = name + "=" + args[i]
 		}
 		aOpt = append(aOpt, a)
 	}
@@ -106,6 +111,7 @@ func main() {
 	parallel := false
 	planOnly := false
 	bbox := latLonBox{}
+	poly := mth.Ring(nil)
 	for _, a := range aOpt {
 		switch {
 		case a == "--parallel":
@@ -117,9 +123,19 @@ func main() {
 			if err != nil {
 				printUsage("Invalid --bbox: " + err.Error())
 			}
+		case strings.HasPrefix(a, "--poly="):
+			poly, err = parseRing(strings.TrimPrefix(a, "--poly="))
+			if err != nil {
+				printUsage("Invalid --poly: " + err.Error())
+			}
 		default:
 			printUsage("Unknown param: " + a)
 		}
+	}
+	// Two ways to say "scan this shape" would need a precedence rule, and a
+	// silent one is worse than an error.
+	if bbox.Ok && poly != nil {
+		printUsage("--bbox and --poly are mutually exclusive")
 	}
 
 	cache := mps.Cache{Enabled: true, Directory: "./cache"}
@@ -167,11 +183,19 @@ func main() {
 		exportDir = fmt.Sprintf("./downloaded_files/obj/bbox-%f-%f-%f-%f-%d-%d",
 			bbox.South, bbox.West, bbox.North, bbox.East, zoom, tryH)
 	}
+	if poly != nil {
+		south, west, north, east := poly.Bounds()
+		x1, y1 := mth.LatLonToTileTMS(z, south, west)
+		x2, y2 := mth.LatLonToTileTMS(z, north, east)
+		xMin, xMax = minMax(x1, x2)
+		yMin, yMax = minMax(y1, y2)
+		exportDir = fmt.Sprintf("./downloaded_files/obj/poly-%s-%d-%d", poly.Hash(), zoom, tryH)
+	}
 
 	// --plan answers "what would this scan cost, and can this region serve it
 	// at all" without a single tile request, so a UI can show the cost up front.
 	if planOnly {
-		printPlan(z, xMin, xMax, yMin, yMax, int(tryH), p, box, exportDir)
+		printPlan(z, xMin, xMax, yMin, yMax, int(tryH), p, box, poly, exportDir)
 		return
 	}
 
@@ -205,7 +229,7 @@ func main() {
 		exDone <- 1
 	}()
 
-	skipped := 0
+	skipped, masked := 0, 0
 
 	// loop over area and altitude
 	for xn := xMin; xn <= xMax; xn++ {
@@ -213,6 +237,12 @@ func main() {
 			dx, dy := xn-x, yn-y
 			if !box.Contains(z, yn, xn) {
 				skipped++
+				continue
+			}
+			// Outside the drawn shape: the user's own decision, not a fact about
+			// coverage. Counted apart from `skipped` so the two never read alike.
+			if poly != nil && !poly.TileKept(z, xn, yn) {
+				masked++
 				continue
 			}
 			for h := 0; h < int(tryH); h++ {
@@ -259,6 +289,9 @@ func main() {
 	if box.Ok {
 		l.Printf("%d colonne(s) élaguée(s) via meta_region avant toute requête HTTP", skipped)
 	}
+	if poly != nil {
+		l.Printf("%d colonne(s) hors du polygone, non balayées", masked)
+	}
 	if n := undecodable.Load(); n > 0 {
 		l.Printf("%d tuile(s) reçues mais non décodées — le parseur C3M ne couvre pas ce que sert cette région.", n)
 	}
@@ -296,6 +329,43 @@ func parseBox(v string) (latLonBox, error) {
 	return b, nil
 }
 
+// parseRing parses "lat,lon,lat,lon,..." in degrees into a closed ring. The
+// closing edge is implicit, so a repeated first vertex is not expected (and
+// harmlessly degenerate if given).
+func parseRing(v string) (mth.Ring, error) {
+	f := strings.Split(v, ",")
+	if len(f)%2 != 0 {
+		return nil, errors.New("expected an even number of lat,lon values")
+	}
+	if len(f) < 6 {
+		return nil, errors.New("a polygon needs at least 3 vertices")
+	}
+	if len(f) > 400 {
+		return nil, errors.New("at most 200 vertices")
+	}
+	r := make(mth.Ring, len(f))
+	for i, p := range f {
+		x, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a number", p)
+		}
+		r[i] = x
+	}
+	south, west, north, east := r.Bounds()
+	if south < -85 || north > 85 || west < -180 || east > 180 {
+		return nil, errors.New("out of range")
+	}
+	if south == north || west == east {
+		return nil, errors.New("polygon has zero area")
+	}
+	// A shape wider than half the globe is an antimeridian wrap dressed up as a
+	// giant polygon. Nothing downstream handles the seam, so refuse it plainly.
+	if east-west >= 180 {
+		return nil, errors.New("polygon spans more than 180 degrees of longitude")
+	}
+	return r, nil
+}
+
 func minMax(a, b int) (int, int) {
 	if a > b {
 		return b, a
@@ -326,6 +396,11 @@ type planCoverage struct {
 	Ok bool `json:"ok"`
 }
 
+// scanPlan reports why every column of the swept rectangle is or is not going
+// to be requested. Pruned and Masked must stay apart: Pruned is a fact about
+// the world (Flyover's region does not declare that ground), Masked is the
+// user's own decision (they drew a shape that excludes it). Summing them would
+// report a perfectly covered area as partly uncovered.
 type scanPlan struct {
 	Zoom      int          `json:"zoom"`
 	Trigger   string       `json:"trigger"`
@@ -335,27 +410,31 @@ type scanPlan struct {
 	Coverage  planCoverage `json:"coverage"`
 	Columns   int          `json:"columns"`
 	Pruned    int          `json:"pruned"`
+	Masked    int          `json:"masked"`
 	Probes    int          `json:"probes"`
 	ExportDir string       `json:"exportDir"`
 }
 
 // printPlan writes the scan plan as JSON on stdout. Everything else this
 // command prints goes to stderr, so stdout stays parseable.
-func printPlan(z, xMin, xMax, yMin, yMax, tryH int, p fly.Trigger, box fly.RegionBox, exportDir string) {
-	columns, pruned := 0, 0
+func printPlan(z, xMin, xMax, yMin, yMax, tryH int, p fly.Trigger, box fly.RegionBox, poly mth.Ring, exportDir string) {
+	columns, pruned, masked := 0, 0, 0
 	for xn := xMin; xn <= xMax; xn++ {
 		for yn := yMin; yn <= yMax; yn++ {
-			if box.Contains(z, yn, xn) {
-				columns++
-			} else {
+			switch {
+			case !box.Contains(z, yn, xn):
 				pruned++
+			case poly != nil && !poly.TileKept(z, xn, yn):
+				masked++
+			default:
+				columns++
 			}
 		}
 	}
 
 	plan := scanPlan{
 		Zoom: z, Trigger: p.Name, Region: p.Region, Version: p.Version,
-		Columns: columns, Pruned: pruned, Probes: columns * tryH, ExportDir: exportDir,
+		Columns: columns, Pruned: pruned, Masked: masked, Probes: columns * tryH, ExportDir: exportDir,
 	}
 	plan.Scan.XMin, plan.Scan.XMax = xMin, xMax
 	plan.Scan.YMin, plan.Scan.YMax = yMin, yMax
