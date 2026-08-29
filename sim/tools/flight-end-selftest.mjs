@@ -101,4 +101,110 @@ t('out est le même objet à chaque frame', () => {
 	assert.equal(fe.out, o);
 });
 
+// Une frame de drone posé : au contact, immobile, gaz coupés. Dérivée des
+// seuils plutôt qu'écrite en dur — la Tâche 3 les remplace par des valeurs
+// mesurées, et ces tests doivent suivre sans être réécrits.
+const SETTLED = {
+	dt: 1 / 60, armed: true, crashed: false,
+	height: LANDING.H_ON * 0.5,
+	speed: LANDING.V_ON * 0.1,
+	angularSpeed: LANDING.W_ON * 0.1,
+	throttle: 0,
+};
+const settled = (over = {}) => ({ ...SETTLED, ...over });
+
+function hold(fe, seconds, over = {}) {
+	const steps = Math.round(seconds * 60);
+	for (let i = 0; i < steps; i++) fe.update(settled({ ...over, dt: 1 / 60 }));
+}
+
+t('pose : rien avant T_HOLD, LANDING DETECTED après', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD - 0.2);
+	assert.equal(fe.phase, FLYING);
+	assert.deepEqual(fe.out.lines, []);
+	hold(fe, 0.4);
+	assert.equal(fe.phase, LANDING_READY);
+	assert.deepEqual(fe.out.lines, ['LANDING DETECTED']);
+});
+
+t('vol rasant : sous la hauteur mais trop vite → jamais de détection', () => {
+	const fe = new FlightEnd();
+	hold(fe, 5, { height: LANDING.H_ON * 0.5, speed: LANDING.V_ON + 5 });
+	assert.equal(fe.phase, FLYING);
+	assert.deepEqual(fe.out.lines, []);
+});
+
+t('gaz remis : la pose ne compte pas', () => {
+	const fe = new FlightEnd();
+	hold(fe, 5, { throttle: 0.4 });
+	assert.equal(fe.phase, FLYING);
+});
+
+t('sphère qui roule : la vitesse angulaire empêche la détection', () => {
+	const fe = new FlightEnd();
+	hold(fe, 5, { angularSpeed: LANDING.W_ON + 1 });
+	assert.equal(fe.phase, FLYING);
+});
+
+t('touchers successifs : le compteur repart de zéro à chaque rebond', () => {
+	const fe = new FlightEnd();
+	for (let i = 0; i < 6; i++) {
+		hold(fe, LANDING.T_HOLD * 0.6);
+		hold(fe, 0.2, { height: LANDING.H_OFF + 2, speed: 4 });
+	}
+	assert.equal(fe.phase, FLYING);
+});
+
+t('redécollage : LANDING_READY est perdu dès que le drone repart', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	assert.equal(fe.phase, LANDING_READY);
+	fe.update(settled({ height: LANDING.H_OFF + 1 }));
+	assert.equal(fe.phase, FLYING);
+	assert.deepEqual(fe.out.lines, []);
+});
+
+t('désarmement sur une pose : MOTORS DISARMED, END SESSION, LANDED une fois', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	assert.equal(fe.disarm(), true);
+	assert.equal(fe.phase, LANDED);
+	assert.deepEqual(fe.out.lines, ['LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION']);
+	assert.equal(fe.out.exitArmed, true);
+	fe.update(settled({ armed: false }));
+	assert.equal(fe.out.closes, 'LANDED');
+	fe.update(settled({ armed: false }));
+	assert.equal(fe.out.closes, null);
+});
+
+t('désarmement en vol : rien ne se ferme, la chute suit son cours', () => {
+	const fe = new FlightEnd();
+	fe.update(frame());
+	assert.equal(fe.disarm(), false);
+	assert.equal(fe.phase, FLYING);
+	fe.update(frame({ armed: false }));
+	assert.equal(fe.out.closes, null);
+	fe.update(frame({ armed: false, crashed: true }));
+	assert.equal(fe.out.closes, 'CRASHED');
+});
+
+t('crash pendant LANDING_READY : le crash gagne', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	assert.equal(fe.phase, LANDING_READY);
+	fe.update(settled({ crashed: true }));
+	assert.equal(fe.phase, CRASHING);
+	assert.equal(fe.out.closes, 'CRASHED');
+	assert.deepEqual(fe.out.lines, []);
+});
+
+t('une carcasse immobile au sol n\'est pas un atterrissage', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ crashed: true }));
+	hold(fe, 3, { crashed: true });
+	assert.equal(fe.phase, CRASHING);
+	assert.equal(fe.disarm(), false);
+});
+
 console.log(`\n${n} tests OK`);

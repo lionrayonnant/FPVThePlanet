@@ -81,6 +81,9 @@ export class FlightEnd {
 		// Consommé par le prochain update() : la fermeture de session sort ainsi
 		// toujours du même endroit, jamais du gestionnaire de touche.
 		this._pending = 'LANDED';
+		// Le geste du joueur ne passe pas par update(), donc on synchronise
+		// o.phase ici pour que le changement d'état soit visible immédiatement.
+		o.phase = this._phase;
 		return true;
 	}
 
@@ -123,7 +126,34 @@ export class FlightEnd {
 		}
 	}
 
-	_advanceLanding() {
-		// Tâche 2.
+	// La pose, mesurée dans le temps plutôt que devinée sur une frame. Le faux
+	// positif à écarter est le vol rasant : bas, mais rapide. C'est la vitesse
+	// qui sépare les deux, la durée qui écarte les rebonds, et la vitesse
+	// angulaire qui écarte la sphère de collision qui roule sans fin.
+	_advanceLanding({ dt, armed, height, speed, angularSpeed, throttle }) {
+		const o = this.out, L = this.landing;
+
+		if (this._phase === LANDING_READY) {
+			// Hystérésis : on sort de la pose plus facilement qu'on n'y entre. Un
+			// drone qui repart n'a pas à attendre T_HOLD pour cesser d'être posé.
+			if (height > L.H_OFF || speed > L.V_OFF || !armed) {
+				this._phase = FLYING;
+				this._hold = 0;
+				o.lines.length = 0;
+			}
+			return;
+		}
+
+		const stable = armed
+			&& height < L.H_ON
+			&& speed < L.V_ON
+			&& angularSpeed < L.W_ON
+			&& throttle < L.THR_IDLE;
+		this._hold = stable ? this._hold + dt : 0;
+		if (this._hold >= L.T_HOLD) {
+			this._phase = LANDING_READY;
+			o.lines.length = 0;
+			o.lines.push('LANDING DETECTED');
+		}
 	}
 }
