@@ -46,16 +46,8 @@ const TAU_SLOW = 600, TAU_FAST = 150;
 const BAND_MIX = 0.7;    // poids de la bande lente ; les deux sont renormalisées plus bas
 // Même argument lognormal que rain.js et fog.js : exp(k·n − k²/2) a une moyenne
 // unité pour un n de variance unité, donc monter la variabilité fait aller et
-// venir la couverture sans monter sa moyenne en douce — en théorie. En pratique
-// la bande lente a 600 s de mémoire, donc sur les quelques graines et les
-// quelques milliers de secondes que le selftest peut se permettre, elle ne
-// tourne jamais assez pour décorréler : une graine peut passer le plein test
-// sur une seule excursion. 0.5 amplifiait ce biais de réalisation assez pour
-// faire dériver la couverture moyenne mesurée hors de la tolérance du selftest
-// (nuages, « la respiration ne biaise pas la couverture moyenne ») ; retenu à
-// 0.3, mesuré sur les graines du selftest, pour que le biais reste sous 0,02
-// avec marge sans changer la promesse (la moyenne asymptotique reste 0,5).
-const VAR_GAIN = 0.3;
+// venir la couverture sans monter sa moyenne en douce.
+const VAR_GAIN = 0.5;
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smoothstep = (a, b, x) => {
