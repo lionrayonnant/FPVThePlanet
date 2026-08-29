@@ -728,7 +728,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     (…/poly-98b6e26043ec-20-20) » et le port JS calcule `98b6e26043ec` : le
     hash du Go et celui de Node concordent en conditions réelles, pas seulement
     sur la fixture.
-  - **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
+- **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
     scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
     pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
     réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
@@ -737,6 +737,68 @@ Plan d'origine (contexte de la décision d'architecture) :
     sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
     de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
     replis. La génération de cibles est peut-être logée à la même enseigne.
+
+- **Second fournisseur 3D — Stages 1 et 2 (issue #18)**, branche
+  `issue-18-providers`.
+  - Deux seams distincts introduits dans le pipeline de préparation, à ne pas
+    confondre : `tools/lib/providers/` (d'où viennent les octets — `plan`,
+    `probe`, `fetch`, `tileDirName`/`tileDirPath` async, `tileIsUsable`, id/
+    label/attribution) et `tools/lib/decoders/` (comment les lire — `sniff`/
+    `decode`). Le registre fournisseur (`tools/lib/providers/index.mjs`,
+    `DEFAULT_PROVIDER_ID`/`PROVIDERS`/`list()`/`get(id)`) et le sélecteur de
+    décodeur par reniflage (`tools/lib/decoders/index.mjs` `pick(tileDir)`)
+    existent tous les deux, mais **seul `flyover` est inscrit** comme
+    fournisseur — pas de second fournisseur réel pour l'instant, et aucun
+    drapeau `--provider` ne sélectionne le décodeur (il choisit seul par
+    reniflage). `tools/lib/growable.mjs` (Growable) et `tools/lib/run.mjs`
+    (runner de sous-process + `Cancelled`) sont les deux utilitaires partagés
+    extraits au passage, neutres vis-à-vis des deux seams.
+  - **À faire par le Stage 3, pour ne pas être découvert tard** : aujourd'hui
+    seul `fetch` est réellement dispatché par fournisseur. `tileDirName`/
+    `tileDirPath`/`tileIsUsable`/`planScan`/`probeCoverage` restent liés en dur
+    à `providers.get('flyover')` dans `tools/lib/add-map-core.mjs:24-28` (shim
+    de compatibilité pour la surface historique), et `map-api-plugin.mjs` — la
+    GUI, la voie principale d'ajout de carte — importe exactement ces symboles.
+    Ni `add-map.mjs` ni la GUI ne savent positionner `opts.provider`. Donc dès
+    qu'un second fournisseur s'inscrira : `/plan` et `/probe` continueront
+    d'interroger Flyover quel que soit le fournisseur choisi, et
+    `DELETE /scenes/:slug?raw=1` calculera un chemin de cache Flyover pour des
+    tuiles d'un autre fournisseur — orphelinant silencieusement leur téléchargement.
+  - `manifest.json` passe en `version: 3` et porte `provider: {id, label,
+    attribution, fetchedAt}`. Les manifests `version: 2` existants se
+    rechargent tels quels, avec repli sur l'attribution Apple Flyover — **pas
+    de re-préparation nécessaire**. `scenes.json` gagne `provider`/`fetchedAt`
+    par entrée (additif, les entrées déjà là restent valides).
+  - `src/provider-credit.js` (`creditLines`/`creditText`/`LEGACY_PROVIDER`) est
+    pur navigateur+Node ; une ligne de crédit discrète (`#fo-credit`) s'affiche
+    en bas à droite de l'OSD **`fpvtp-osd`** — jamais sur le `drone-osd`
+    diégétique.
+  - **Vérifié en headless** : `tools/provider-selftest.mjs` (5 tests : registre,
+    id inconnu, contrat de surface, `tileDirName` async, les trois modes de
+    zone) et `tools/provider-credit-selftest.mjs` (6 tests : manifest v3 avec
+    attribution, manifest v2 replié sur Flyover, fournisseur sans attribution
+    utilisable, jamais de crash sur une entrée absurde, dédup des lignes,
+    jonction de `creditText`), les deux chaînés dans `selftest:operator`.
+    `npm run selftest:operator` (dont les deux nouveaux) et `npm run selftest`
+    verts.
+  - **Vérifié dans un vrai navigateur** : sur `seine-iena-alma` — manifest
+    `version: 2`, SANS champ `provider` (donc ce test prouve le repli sans
+    re-préparation, pas le chemin v3) — la ligne de crédit `#fo-credit` rend
+    « © Apple » en bas à droite, à 14 px du bord droit et 12 px du bas, les
+    mêmes marges que les coins tl/tr/bl existants du HUD. Absente du
+    `drone-osd` diégétique, visible seulement sur `fpvtp-osd`.
+  - **Hors périmètre, à dessein** : le Stage 3 (le vrai fournisseur Google
+    Photorealistic 3D Tiles — client 3D Tiles, clé API, décodeur glTF) n'est
+    **pas fait** ; il attend un plan séparé une fois les inconnues wire levées
+    sur un vrai `root.json` (compression Draco, système de coordonnées des
+    transforms, structure exacte d'`asset.copyright`, paramètre de session,
+    calibration de `geometricError`). La sélection automatique de fournisseur
+    et le choix du fournisseur dans la GUI d'ajout de carte n'ont de sens
+    qu'avec un second fournisseur inscrit ; reportés au Stage 3 avec lui.
+  - **Gap connu, suivi en #110** : `tools/selftest.mjs` parse encore
+    `exp_model.mtl` directement pour vérifier la convention UV — la dernière
+    hypothèse OBJ vivant hors des décodeurs. À rendre agnostique du format
+    avant qu'un décodeur glTF n'arrive.
 
 ## Non vérifié / à faire
 

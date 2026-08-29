@@ -34,6 +34,7 @@ import { targetBuild } from '../tools/target-build.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
+import { creditText } from './provider-credit.js';
 import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 
@@ -281,6 +282,7 @@ async function preloadScene() {
 	hud.progress('lecture du manifest…', 0.01);
 	const manifest = await loadManifest();
 	sceneManifest = manifest;
+	fpvtpOsd.setCredit(creditText(manifest));
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;

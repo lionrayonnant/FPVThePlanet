@@ -1,8 +1,10 @@
-// Converts an Apple Flyover OBJ tile export into artifacts the viewer can load
-// directly: chunked binary geometry, texture-array sheets, and a Rapier-ready
-// collision mesh.
+// Converts a photogrammetry OBJ tile export (Apple Flyover by default) into
+// artifacts the viewer can load directly: chunked binary geometry,
+// texture-array sheets, and a Rapier-ready collision mesh.
 //
 //   node tools/prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85]
+//     [--provider <id>] [--provider-label <label>] [--attribution <line>]...
+//     [--fetched-at <iso8601>]
 //
 // The source is ~512MB of ASCII OBJ in ECEF coordinates with one 512x512 JPEG
 // per material (4732 of them). Naively that is 4732 draw calls and ~4.9GB of
@@ -12,6 +14,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { LEGACY_PROVIDER } from '../src/provider-credit.js';
+import { pick } from './lib/decoders/index.mjs';
+import { Growable } from './lib/growable.mjs';
 
 const LAYERS_PER_CHUNK = 1024; // below MAX_ARRAY_TEXTURE_LAYERS everywhere
 const MAX_SHEET = 4096;        // see CELLS_PER_ROW below
@@ -20,44 +25,28 @@ const MAX_SHEET = 4096;        // see CELLS_PER_ROW below
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { out: null, cell: 256, quality: 85 };
+	const opts = { out: null, cell: 256, quality: 85,
+		provider: LEGACY_PROVIDER.id, providerLabel: LEGACY_PROVIDER.label, attribution: [], fetchedAt: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--out') opts.out = argv[++i];
 		else if (a === '--cell') opts.cell = parseInt(argv[++i], 10);
 		else if (a === '--quality') opts.quality = parseInt(argv[++i], 10);
+		else if (a === '--provider') opts.provider = argv[++i];
+		else if (a === '--provider-label') opts.providerLabel = argv[++i];
+		// Répétable : une occurrence par ligne de crédit, pour ne pas avoir à
+		// choisir un séparateur qui n'apparaîtra jamais dans un copyright.
+		else if (a === '--attribution') opts.attribution.push(argv[++i]);
+		else if (a === '--fetched-at') opts.fetchedAt = argv[++i];
 		else positional.push(a);
 	}
 	if (positional.length !== 1 || !opts.out) {
-		console.error('usage: prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85]');
+		console.error('usage: prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85] [--provider <id>] [--provider-label <label>] [--attribution <line>]... [--fetched-at <iso8601>]');
 		process.exit(1);
 	}
 	opts.tileDir = path.resolve(positional[0]);
 	opts.outDir = path.resolve(opts.out);
 	return opts;
-}
-
-// ---------------------------------------------------------------- growable typed arrays
-
-class Growable {
-	constructor(Type, initial = 1 << 16) {
-		this.Type = Type;
-		this.buf = new Type(initial);
-		this.length = 0;
-	}
-	_room(n) {
-		if (this.length + n <= this.buf.length) return;
-		let cap = this.buf.length;
-		while (cap < this.length + n) cap *= 2;
-		const next = new this.Type(cap);
-		next.set(this.buf.subarray(0, this.length));
-		this.buf = next;
-	}
-	push(...vals) {
-		this._room(vals.length);
-		for (const v of vals) this.buf[this.length++] = v;
-	}
-	view() { return this.buf.subarray(0, this.length); }
 }
 
 // ---------------------------------------------------------------- geodesy
@@ -94,64 +83,6 @@ function enuBasis(lat, lon) {
 	};
 }
 
-// ---------------------------------------------------------------- MTL
-
-function parseMtl(file) {
-	const materials = [];       // [{ name, jpg }]
-	const byName = new Map();   // name -> global layer index
-	let current = null;
-	for (const raw of fs.readFileSync(file, 'latin1').split('\n')) {
-		const line = raw.trim();
-		if (line.startsWith('newmtl ')) {
-			current = { name: line.slice(7).trim(), jpg: null };
-			byName.set(current.name, materials.length);
-			materials.push(current);
-		} else if (line.startsWith('map_Kd ') && current) {
-			current.jpg = line.slice(7).trim();
-		}
-	}
-	return { materials, byName };
-}
-
-// ---------------------------------------------------------------- OBJ streaming
-
-// Reads the OBJ in large blocks rather than line-by-line; at 512MB the
-// per-line overhead of readline dominates otherwise.
-function streamObj(file, onLine) {
-	const fd = fs.openSync(file, 'r');
-	const CHUNK = 1 << 24; // 16MB
-	const buf = Buffer.allocUnsafe(CHUNK);
-	let tail = '';
-	let read;
-	while ((read = fs.readSync(fd, buf, 0, CHUNK, null)) > 0) {
-		const text = tail + buf.toString('latin1', 0, read);
-		let start = 0;
-		for (;;) {
-			const nl = text.indexOf('\n', start);
-			if (nl === -1) break;
-			onLine(text, start, nl);
-			start = nl + 1;
-		}
-		tail = text.slice(start);
-	}
-	fs.closeSync(fd);
-	if (tail.length) onLine(tail, 0, tail.length);
-}
-
-// Parses up to `max` whitespace-separated floats out of text[from..to).
-function readFloats(text, from, to, out, max) {
-	let n = 0, i = from;
-	while (i < to && n < max) {
-		while (i < to && text.charCodeAt(i) === 32) i++;
-		if (i >= to) break;
-		let j = i;
-		while (j < to && text.charCodeAt(j) !== 32) j++;
-		out[n++] = parseFloat(text.slice(i, j));
-		i = j;
-	}
-	return n;
-}
-
 // ---------------------------------------------------------------- main
 
 const opts = parseArgs(process.argv.slice(2));
@@ -166,125 +97,33 @@ const CELLS_PER_ROW = Math.min(32, Math.floor(MAX_SHEET / CELL));
 const CELLS_PER_SHEET = CELLS_PER_ROW * CELLS_PER_ROW;
 const SHEET = CELL * CELLS_PER_ROW;
 
-const objFile = path.join(opts.tileDir, 'exp_model.obj');
-const mtlFile = path.join(opts.tileDir, 'exp_model.mtl');
-for (const f of [objFile, mtlFile]) {
-	if (!fs.existsSync(f)) { console.error(`missing ${f}`); process.exit(1); }
-	// The Go exporter creates both files up front and only then streams tiles
-	// into them, so a scan that found nothing leaves them at zero bytes. Catch
-	// that here rather than three passes later, where an empty trimesh makes
-	// Rapier abort with an opaque `RuntimeError: unreachable`.
-	if (fs.statSync(f).size === 0) {
-		console.error(`${f} est vide — aucune tuile n'a été téléchargée pour cet endroit.`);
-		process.exit(1);
-	}
-}
-
 const t0 = Date.now();
 const stamp = () => `[${((Date.now() - t0) / 1000).toFixed(1)}s]`;
 
-console.log(`${stamp()} parsing ${path.basename(mtlFile)}`);
-const { materials, byName } = parseMtl(mtlFile);
-const missingTex = materials.filter(m => !m.jpg).length;
-console.log(`${stamp()}   ${materials.length} materials, ${missingTex} without a texture`);
+// Les lignes du décodeur arrivent nues ; c'est ici qu'elles reçoivent le stamp,
+// exactement comme quand le lecteur OBJ vivait dans ce fichier. pick()/decode()
+// lèvent (jamais process.exit) : c'est ici, à la frontière CLI, qu'on retombe
+// sur un message clair + exit 1 plutôt qu'une trace de pile brute (issue #18,
+// retour de revue — fichier manquant, tuile vide, ou dossier non reconnu).
+let decoded;
+try {
+	const decoder = pick(opts.tileDir);
+	decoded = await decoder.decode(opts.tileDir, {
+		onLog: (line) => console.log(`${stamp()} ${line}`),
+	});
+} catch (err) {
+	console.error(err.message);
+	process.exit(1);
+}
+const { materials, vx, vy, vz, tu, tv, triByMat, vertCount } = decoded;
 
 const chunkCount = Math.ceil(materials.length / LAYERS_PER_CHUNK);
 console.log(`${stamp()}   -> ${chunkCount} chunks of up to ${LAYERS_PER_CHUNK} layers`);
 
-// ---- pass over the OBJ ------------------------------------------------
-
-console.log(`${stamp()} streaming ${path.basename(objFile)} (~512MB)`);
-
-const vx = new Growable(Float64Array, 1 << 22);
-const vy = new Growable(Float64Array, 1 << 22);
-const vz = new Growable(Float64Array, 1 << 22);
-const tu = new Growable(Float32Array, 1 << 22);
-const tv = new Growable(Float32Array, 1 << 22);
-
-// Per material: flat list of (vertexIndex, uvIndex) pairs, 6 entries/triangle.
-const triByMat = materials.map(() => new Growable(Uint32Array, 1 << 10));
-
-let curMat = -1;
-let faceCount = 0, unmatchedPairs = 0, polyFaces = 0;
-const tmp = new Float64Array(4);
-const fv = new Int32Array(64), ft = new Int32Array(64);
-
-streamObj(objFile, (text, from, to) => {
-	if (to > from && text.charCodeAt(to - 1) === 13) to--; // CRLF
-	if (to <= from) return;
-	const c0 = text.charCodeAt(from);
-
-	if (c0 === 118 /* v */) {
-		const c1 = text.charCodeAt(from + 1);
-		if (c1 === 32) {
-			readFloats(text, from + 2, to, tmp, 3);
-			vx.push(tmp[0]); vy.push(tmp[1]); vz.push(tmp[2]);
-		} else if (c1 === 116 /* t */) {
-			readFloats(text, from + 3, to, tmp, 2);
-			// OBJ puts the UV origin at the bottom-left; DataArrayTexture forces
-			// flipY = false, so row 0 of the pixel data is the top of the image.
-			// Convert here, at the OBJ -> engine boundary, alongside ECEF -> ENU.
-			// Left unflipped, 21% of the visible surface samples the grey padding
-			// Flyover leaves outside each patch's used region.
-			tu.push(tmp[0]); tv.push(1 - tmp[1]);
-		}
-		return;
-	}
-
-	if (c0 === 117 /* u(semtl) */) {
-		const name = text.slice(from + 7, to).trim();
-		const idx = byName.get(name);
-		if (idx === undefined) throw new Error(`unknown material: ${name}`);
-		curMat = idx;
-		return;
-	}
-
-	if (c0 === 102 /* f */) {
-		if (curMat < 0) throw new Error('face before any usemtl');
-		// Collect the polygon's vertex/uv index pairs.
-		let n = 0, i = from + 1;
-		while (i < to && n < fv.length) {
-			while (i < to && text.charCodeAt(i) === 32) i++;
-			if (i >= to) break;
-			let j = i;
-			while (j < to && text.charCodeAt(j) !== 32) j++;
-			const slash = text.indexOf('/', i);
-			let vi, ti;
-			if (slash !== -1 && slash < j) {
-				vi = parseInt(text.slice(i, slash), 10);
-				let k = slash + 1, e = k;
-				while (e < j && text.charCodeAt(e) !== 47 /* / */) e++;
-				ti = e > k ? parseInt(text.slice(k, e), 10) : vi;
-			} else {
-				vi = parseInt(text.slice(i, j), 10);
-				ti = vi;
-			}
-			// OBJ is 1-based; negatives count back from the current end.
-			fv[n] = vi > 0 ? vi - 1 : vx.length + vi;
-			ft[n] = ti > 0 ? ti - 1 : tu.length + ti;
-			if (fv[n] !== ft[n]) unmatchedPairs++;
-			n++;
-			i = j;
-		}
-		if (n < 3) return;
-		if (n > 3) polyFaces++;
-		const dst = triByMat[curMat];
-		for (let k = 1; k + 1 < n; k++) { // fan-triangulate
-			dst.push(fv[0], ft[0], fv[k], ft[k], fv[k + 1], ft[k + 1]);
-			faceCount++;
-		}
-		return;
-	}
-});
-
-const vertCount = vx.length;
-console.log(`${stamp()}   ${vertCount.toLocaleString()} vertices, ${tu.length.toLocaleString()} uvs, ${faceCount.toLocaleString()} triangles`);
-console.log(`${stamp()}   ${polyFaces} non-triangular faces, ${unmatchedPairs} v/vt index mismatches`);
-
-if (vertCount === 0 || faceCount === 0) {
-	console.error(`\n${objFile} ne contient aucune géométrie — rien à convertir.`);
-	process.exit(1);
-}
+// Précédence d'attribution (issue #18) : ce que le décodeur a réellement lu
+// dans les tuiles prime sur ce que le fournisseur a annoncé, qui prime sur le
+// défaut. Le décodeur OBJ ne sait rien dire, donc Flyover s'arrête au niveau 2.
+const attribution = decoded.attribution?.length ? decoded.attribution : opts.attribution;
 
 // Only now that the input is known good: creating the scene directory earlier
 // would leave a half-written scene behind on a failed run.
@@ -439,10 +278,15 @@ for (const chunk of chunks) {
 
 		await mapLimit(Array.from({ length: count }, (_, i) => i), 8, async (cell) => {
 			const mat = materials[chunk.layerBase + first + cell];
-			if (!mat.jpg) return;
-			const src = path.join(opts.tileDir, mat.jpg);
-			if (!fs.existsSync(src)) return;
-			const cellBuf = await sharp(src)
+			if (!mat.texture) return;
+			// Un matériau déclaré avec une texture dont le fichier n'a en fait
+			// jamais été téléchargé laisse la cellule grise plutôt que de faire
+			// échouer tout le build (comportement d'origine, issue #18 retour de
+			// revue). Le test ne s'applique qu'à un chemin : sharp() accepte aussi
+			// un Buffer (texture embarquée d'un futur décodeur glTF), qui n'a pas
+			// de présence sur le disque à vérifier.
+			if (typeof mat.texture === 'string' && !fs.existsSync(mat.texture)) return;
+			const cellBuf = await sharp(mat.texture)
 				.resize(CELL, CELL, { fit: 'fill' })
 				.removeAlpha()
 				.raw()
@@ -556,7 +400,22 @@ if (buildMs > 10000) {
 // ---- manifest ----------------------------------------------------------
 
 const manifest = {
-	version: 2,
+	version: 3,
+	// Qui a fourni la photogrammétrie, et sous quel crédit. Les manifests
+	// version 2 n'ont pas ce champ : src/provider-credit.js les traite comme
+	// du Flyover plutôt que d'imposer une re-préparation (issue #18).
+	provider: {
+		id: opts.provider,
+		label: opts.providerLabel,
+		// Le repli sur le crédit Apple ne vaut QUE pour le fournisseur légataire
+		// — un fournisseur non-legacy sans attribution utilisable écrit un
+		// tableau vide plutôt que de citer Apple pour des tuiles qui n'en
+		// viennent pas ; c'est provider-credit.js qui invente, à l'affichage,
+		// un repli générique dérivé du label (issue #18, retour de revue).
+		attribution: attribution.length ? attribution
+			: (opts.provider === LEGACY_PROVIDER.id ? LEGACY_PROVIDER.attribution : []),
+		fetchedAt: opts.fetchedAt ?? new Date().toISOString(),
+	},
 	source: opts.tileDir, // the selftest reads the source JPEGs back from here
 	origin: {
 		latitude: origin.lat * 180 / Math.PI,
