@@ -81,16 +81,26 @@ Plan d'origine (contexte de la décision d'architecture) :
     `freestyle5` `race5` `cinewhoop` `longrange` `heavy5` `toothpick`. Une
     famille par chargement de page (pas de bascule en vol). `__sim.debug().family`
     confirme laquelle est chargée.
-- **PHASE 08 — target scan (en cours)**, branche `phase-08-target-scan` =
-  `main` + merge `phase-06-impl` + merge `phase-07-generation-cibles`.
+- **PHASE 08 — target scan (implémenté, vérif navigateur en attente)**, branche
+  `phase-08-target-scan` = `main` + merge `phase-06-impl` + merge
+  `phase-07-generation-cibles`.
   - Conflit de tuning révélé par le merge : le collider de PHASE 06 (`restitution
     0.05` / `friction 1.0`, mesuré sur `freestyle5` seul) croisé avec le sweep 6
     familles de PHASE 07 faisait déraper le `toothpick` à 1,55 m/s au sol
     (> seuil `sits still` de `selftest.mjs`). Re-balayé rest×fric contre le
     selftest tour-eiffel → **`restitution 0.15` / `friction 1.0`** : toothpick à
     0,99 m/s, toutes familles vertes, `a gentle landing` à 483 N. `physics.js`.
-  - `selftest.mjs` (6 familles) + `selftest:operator` (dont `session-selftest`)
-    verts sur la branche mergée.
+  - Vérifié headless : `target-selftest.mjs` (74 tests), les cas cible de
+    `session-selftest.mjs` (14 tests) et `session-route-selftest.mjs` (2),
+    le cas dégradation RSSI faible de `link.js` dans `selftest.mjs`, et le
+    nouveau cas `toute cible résolue pointe un profil de vol` (`resolveTarget().family`
+    ∈ `PROFILES`, 5 seeds × 5 candidats). `selftest:operator` +
+    `selftest.mjs` (158 checks, 6 familles) + `build` tous verts sur la
+    branche mergée.
+  - **Non vérifié** : le run navigateur (scan → sélection → vol de la famille
+    choisie, `RESUME SESSION`, `?scene=`) — Task 8 Step 3, fait par le
+    contrôleur. Le ressenti de vol par famille en pilotage reste non validé
+    (déjà noté PHASE 07).
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

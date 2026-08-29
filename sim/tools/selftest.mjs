@@ -12,6 +12,7 @@ import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
+import { generateTargetScan, resolveTarget } from './target-model.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -188,6 +189,18 @@ for (const fam of FAMILIES) {
 
 // Back to the default family for the scene-bound checks below.
 useFamily('freestyle5');
+
+// PHASE 08 : la cible résolue désigne toujours un profil de vol réel.
+{
+	let okAll = true;
+	for (const seed of ['t1', 't2', 't3', 't4', 't5']) {
+		const scan = generateTargetScan({ seed, count: 5 });
+		for (let i = 0; i < scan.candidates.length; i++) {
+			if (!PROFILES[resolveTarget(scan, i).family]) okAll = false;
+		}
+	}
+	check('toute cible résolue pointe un profil de vol', okAll);
+}
 
 console.log('\ncollision');
 const towerX = tx, towerZ = tz;
