@@ -22,7 +22,9 @@ import {
 import {
 	openSession, resumeSession, closeSession, validateSession,
 	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession, addPhoto,
+	stripPhotoData, stripOperatorPhotoData, deleteSession,
 } from './session-model.mjs';
+import { targetLogEntries } from './session-log-model.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
@@ -77,7 +79,8 @@ function operatorSummary(s) {
 		counts: {
 			areas: s.terrainCache.length,
 			sessions: s.sessions.length,
-			targets: s.targetLog.length,
+			// Le Target Log est dérivé des sessions (PHASE 17, spec D1).
+			targets: targetLogEntries(s.sessions).length,
 		},
 	};
 }
@@ -121,7 +124,11 @@ const opRoutes = [
 		// moment où l'on rattrape les sessions dont l'onglet est mort en vol.
 		const rec = reconcileStaleSessions(state);
 		if (rec.changed) _writeOperator(rec.state);
-		json(res, 200, { operator: rec.state });
+		// Les `dataUrl` des captures ne partent PAS ici (spec D4) : le terminal
+		// recharge l'opérateur à chaque retour au menu, et une trentaine de
+		// sessions photographiées pèseraient des dizaines de mégaoctets à chaque
+		// fois. VIEW SESSION va les chercher une par une sur la route dédiée.
+		json(res, 200, { operator: stripOperatorPhotoData(rec.state) });
 	}],
 
 	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -249,13 +256,20 @@ const opRoutes = [
 					area: b.area,
 					weatherSnapshot: sanitizeWeatherSnapshot(b.weatherSnapshot ?? null),
 					target,
+					// Numéros d'affichage (PHASE 17). Le serveur seul les attribue :
+					// lui seul connaît le compteur. On n'incrémente qu'APRÈS la
+					// validation, pour qu'une session refusée ne consomme rien.
+					seq: (state.sessionSeq ?? 0) + 1,
+					targetSeq: target ? (state.targetSeq ?? 0) + 1 : undefined,
 				}));
 				state.sessions.push(session);
+				state.sessionSeq = session.seq;
+				if (session.targetSeq) state.targetSeq = session.targetSeq;
 			}
 		} catch (e) { return json(res, 400, { error: e.message }); }
 
 		_writeOperator(state);
-		json(res, 201, { session });
+		json(res, 201, { session: stripPhotoData(session) });
 	}],
 
 	// Clôture : pose end, result et la télémétrie agrégée. La reprise passe
@@ -284,7 +298,7 @@ const opRoutes = [
 
 		state.sessions[i] = session;
 		_writeOperator(state);
-		json(res, 200, { session });
+		json(res, 200, { session: stripPhotoData(session) });
 	}],
 
 	// Capture (PHASE 16). Écrite tout de suite sur la session, pas attendue la
@@ -311,7 +325,35 @@ const opRoutes = [
 
 		state.sessions[i] = session;
 		_writeOperator(state);
-		json(res, 201, { session });
+		json(res, 201, { session: stripPhotoData(session) });
+	}],
+
+	// La session COMPLÈTE, captures comprises (PHASE 17, spec D4). Toutes les
+	// autres réponses élident les `dataUrl` ; seul l'écran VIEW SESSION paie le
+	// poids des images, une fois, à son ouverture.
+	['GET', /^\/([^/]+)\/sessions\/([^/]+)$/, async (req, res, [id, sid]) => {
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		const session = state.sessions.find((s) => s.id === sid);
+		if (!session) return json(res, 404, { error: `aucune session "${sid}"` });
+		json(res, 200, { session });
+	}],
+
+	// DELETE SESSION (PHASE 17, spec D3). Suppression franche : l'entrée et ses
+	// captures disparaissent, et sa cible quitte donc le Target Log, qui en est
+	// dérivé. Le terrain n'est jamais touché.
+	['DELETE', /^\/([^/]+)\/sessions\/([^/]+)$/, async (req, res, [id, sid]) => {
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		let next;
+		try { next = deleteSession(state, sid); }
+		catch (e) { return json(res, e.status ?? 400, { error: e.message }); }
+		_writeOperator(next);
+		json(res, 200, { removed: sid });
 	}],
 ];
 
@@ -338,7 +380,7 @@ async function closeSessionRoute(req, res, [id, sid]) {
 
 	state.sessions[i] = session;
 	_writeOperator(state);
-	json(res, 200, { session });
+	json(res, 200, { session: stripPhotoData(session) });
 }
 
 // Un seul job à la fois : télécharger deux cartes en parallèle sature la même
