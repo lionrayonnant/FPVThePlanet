@@ -33,6 +33,30 @@ export const TIMELINE = {
 	exitAt: 4.6,            // la sortie s'arme avec la dernière ligne
 };
 
+// Symétrique de TIMELINE, pour la pose plutôt que le crash. Mise en scène, pas
+// mesure, comme ci-dessus — mais une pose est un geste délibéré, pas une
+// agonie : la séquence est plus courte et plus calme (pas d'image morte à
+// laisser pourrir à l'écran, pas d'étapes intermédiaires façon LINK LOST /
+// TARGET LOST). Secondes depuis disarm().
+export const LANDING_TIMELINE = {
+	blackoutAt: 0.6,        // l'image vivante reste à l'écran jusque-là
+	blackoutFade: 0.4,      // puis le noir monte en autant de secondes
+	// LANDING DETECTED / MOTORS DISARMED sont déjà là à t=0 (disarm() les fait
+	// apparaître) ; les inclure ici aussi permet à la même _advanceTimeline()
+	// de reconstruire la liste complète à chaque frame, crash ou pose. La
+	// ligne vide partage l'horodatage de la ligne qui la suit, comme dans
+	// TIMELINE ci-dessus.
+	lines: [
+		[0, 'LANDING DETECTED'],
+		[0, 'MOTORS DISARMED'],
+		[1.4, ''],
+		[1.4, 'END SESSION'],
+		[2.2, ''],
+		[2.2, '[ESC] DISCONNECT'],
+	],
+	exitAt: 2.2,            // la sortie s'arme avec la dernière ligne
+};
+
 // Seuils de pose, mesurés par tools/landing-selftest.mjs sur
 // public/scenes/tour-eiffel le 2026-08-29 : quatre poses (1 m, 3 m, 8 m, vent
 // de travers 8 m/s) se stabilisent toutes sous h=0,1488 m / v=0,0050 m/s /
@@ -83,8 +107,9 @@ export const LANDING = {
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 export class FlightEnd {
-	constructor({ timeline = TIMELINE, landing = LANDING } = {}) {
+	constructor({ timeline = TIMELINE, landingTimeline = LANDING_TIMELINE, landing = LANDING } = {}) {
 		this.timeline = timeline;
+		this.landingTimeline = landingTimeline;
 		this.landing = landing;
 		// Muté chaque frame plutôt que recréé, comme link.out et wind.out : ceci
 		// tourne à la fréquence d'affichage.
@@ -99,9 +124,13 @@ export class FlightEnd {
 
 	reset() {
 		this._phase = FLYING;
-		this._t = 0;        // secondes depuis l'impact
+		this._t = 0;        // secondes depuis l'impact (ou depuis disarm(), en pose)
 		this._hold = 0;     // secondes de pose stable accumulées
 		this._pending = null;
+		// Quelle table _advanceTimeline() lit : posée à l'entrée en CRASHING ou en
+		// LANDED, et jamais changée ensuite — TERMINATED doit continuer à lire la
+		// table de celui qui l'y a mené, pas systématiquement celle du crash.
+		this._activeTimeline = null;
 		const o = this.out;
 		o.phase = FLYING;
 		o.lines.length = 0;
@@ -117,18 +146,26 @@ export class FlightEnd {
 	disarm() {
 		if (this._phase !== LANDING_READY) return false;
 		this._phase = LANDED;
-		const o = this.out;
-		o.lines.length = 0;
-		o.lines.push('LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION');
-		// exitArmed ne s'arme PAS ici : il s'arme dans update(), à la frame qui
-		// vidange réellement `_pending` vers `out.closes` (revue finale,
-		// correction 1). Sinon Échap pourrait sortir au terminal pendant que la
-		// requête de fermeture de session est encore en vol.
+		this._t = 0;
+		this._hold = 0;
+		this._activeTimeline = this.landingTimeline;
+		// t=0 : rejoue tout de suite ce que la table dit pour cet instant
+		// (LANDING DETECTED / MOTORS DISARMED), pour que le joueur les voie sans
+		// attendre le prochain update() — le geste du joueur ne passe pas par
+		// update(). _advanceTimeline(0) n'arme pas exitArmed : exitAt=2.2 > 0.
+		this._advanceTimeline(0);
+		// exitArmed ne s'arme PAS ici : il s'arme à la toute fin de la séquence
+		// de pose (voir _advanceTimeline), pas à la frame qui vidange `_pending`
+		// (ancien comportement, revue finale correction 1) ni ici — désormais il
+		// faut à la fois que la fermeture soit partie ET que la séquence soit
+		// terminée (revue finale correction 2), sans quoi Échap pourrait sortir
+		// au terminal pendant que le joueur regarde encore l'écran de pose.
 		// Consommé par le prochain update() : la fermeture de session sort ainsi
 		// toujours du même endroit, jamais du gestionnaire de touche.
 		this._pending = 'LANDED';
 		// Le geste du joueur ne passe pas par update(), donc on synchronise
 		// o.phase ici pour que le changement d'état soit visible immédiatement.
+		const o = this.out;
 		o.phase = this._phase;
 		return true;
 	}
@@ -139,26 +176,33 @@ export class FlightEnd {
 		// `closes` est un événement : visible une frame, jamais deux.
 		o.closes = this._pending;
 		this._pending = null;
-		// C'est ici, à la frame qui vidange réellement la fermeture 'LANDED',
-		// que la sortie s'arme — pas au moment de disarm() (correction 1) : un
-		// `update(dt=0)` (sim gelée) doit pouvoir vidanger `closes` sans jamais
-		// perdre l'événement, y compris quand aucune frame non gelée ne tourne
-		// entre le geste du joueur et Échap.
-		if (o.closes === 'LANDED') o.exitArmed = true;
+		// `closes` continue de se vidanger ici inconditionnellement, y compris à
+		// dt=0 (sim gelée) : un `update(dt=0)` doit pouvoir livrer l'événement
+		// sans jamais le perdre, même si aucune frame non gelée ne tourne entre
+		// le geste du joueur et Échap (revue finale, correction 1). L'armement
+		// d'exitArmed, lui, ne dépend plus de cet instant : voir
+		// _advanceTimeline, qui l'arme seul, à la fin de la séquence (correction
+		// 2) — il faut à la fois que la fermeture soit partie *et* que le
+		// joueur ait vu la séquence en entier.
 
 		if (crashed && this._phase !== CRASHING && this._phase !== TERMINATED
 			&& this._phase !== LANDED) {
 			this._phase = CRASHING;
 			this._t = 0;
 			this._hold = 0;
+			this._activeTimeline = this.timeline;
 			o.lines.length = 0;
 			// L'image meurt à l'instant du choc, avant tout texte.
 			o.linkDead = true;
 			o.closes = 'CRASHED';
 		}
 
-		if (this._phase === CRASHING || this._phase === TERMINATED) {
-			this._advanceCrash(dt);
+		// CRASHING/LANDED avancent tous deux la même horloge, juste sur une table
+		// différente (this._activeTimeline, posée à l'entrée dans l'une ou
+		// l'autre) ; TERMINATED doit continuer d'y lire une fois la séquence
+		// finie, plutôt que de retomber sur celle du crash par défaut.
+		if (this._phase === CRASHING || this._phase === LANDED || this._phase === TERMINATED) {
+			this._advanceTimeline(dt);
 		} else if (this._phase === FLYING || this._phase === LANDING_READY) {
 			this._advanceLanding({ dt, armed, height, speed, angularSpeed, throttle });
 		}
@@ -166,8 +210,12 @@ export class FlightEnd {
 		o.phase = this._phase;
 	}
 
-	_advanceCrash(dt) {
-		const o = this.out, tl = this.timeline;
+	// Partagée par le crash et la pose : seule la table (this._activeTimeline)
+	// change. Les deux causes qu'une timeline avance sont symétriques (une
+	// horloge, un fondu au noir, des lignes qui apparaissent), donc une seule
+	// fonction plutôt que deux copies presque identiques.
+	_advanceTimeline(dt) {
+		const o = this.out, tl = this._activeTimeline;
 		this._t += dt;
 		o.blackout = clamp01((this._t - tl.blackoutAt) / tl.blackoutFade);
 		o.lines.length = 0;

@@ -238,6 +238,17 @@ Plan d'origine (contexte de la décision d'architecture) :
     `T_HOLD` quasi nul le rebond reste écarté jusqu'à t=0,64 s et le roulé
     jusqu'à t=0,48 s) — c'est une marge de debounce choisie contre le bruit non
     modélisé, comme `TIMELINE`.
+  - Séquence de pose : symétrique de la séquence de crash, mais plus courte et
+    plus calme (un geste délibéré, pas une agonie). Table dédiée
+    `LANDING_TIMELINE` (`src/flight-end.js`), lue par la même fonction
+    d'avancement que le crash (`_advanceTimeline`, sur `this._activeTimeline`) :
+    `LANDING DETECTED`/`MOTORS DISARMED` à t=0, fondu au noir de 0,6 à 1,0 s
+    par-dessus l'image *vivante* (pas de `linkDead`), `END SESSION` à 1,4 s,
+    `[ESC] DISCONNECT` à 2,2 s avec `exitArmed`/`TERMINATED`. Avant, les quatre
+    lignes s'affichaient d'un coup et n'annonçaient jamais Échap ; `exitArmed`
+    s'armait dès la frame qui vidangeait `closes`, désormais il ne s'arme qu'à
+    la toute fin de cette séquence — il faut la fermeture de session partie *et*
+    la séquence vue en entier.
   - Séquence de crash : mise en scène assumée comme telle (pas une mesure),
     dans `TIMELINE` (`src/flight-end.js`) : image tenue jusqu'à 0,9 s, fondu au
     noir en 0,4 s, puis `LINK LOST` (1,6 s), `TARGET LOST` (2,8 s), `SESSION
@@ -248,12 +259,15 @@ Plan d'origine (contexte de la décision d'architecture) :
     `crashedThisFrame`) pour qu'un choc encaissé après un `LANDED` ne rejoue pas
     la mort d'image par-dessus l'écran `END SESSION`.
   - **Vérifié en headless** :
-    - `tools/flight-end-selftest.mjs` : 18 tests, sans DOM/Rapier — impact →
-      crash, timing des lignes (avec les deux lignes vides), `out.closes` émis
-      une seule fois, `exitArmed` faux avant la fin, crash pendant
+    - `tools/flight-end-selftest.mjs` : 20 tests, sans DOM/Rapier — impact →
+      crash, timing des lignes de crash et de pose (chacune avec ses lignes
+      vides horodatées avec la ligne qui suit), `out.closes` émis une seule
+      fois pour chaque cause, `exitArmed` faux juste après `disarm()`, encore
+      faux juste après la frame qui vidange `closes`, vrai seulement à la fin
+      de `LANDING_TIMELINE` (phase `TERMINATED`), crash pendant
       `LANDING_READY` gagne, désarmement en vol ne ferme rien,
       `update({dt:0})` après `disarm()` vidange `closes` sans avancer la
-      machine (le cas sim gelée), `reset()`.
+      séquence de pose ni armer `exitArmed` (le cas sim gelée), `reset()`.
     - `tools/landing-selftest.mjs` : Rapier réel sur tour-eiffel. Sept poses
       (1/3/8 m, vent de travers, rebond, roulé, **pose sur pente** — voir
       ci-dessous) toutes reconnues ; neuf rasants (3 hauteurs × 3 tangages) et
@@ -377,6 +391,11 @@ Plan d'origine (contexte de la décision d'architecture) :
   vérifiés : le ressenti (rythme de la séquence, lisibilité de `LANDING
   DETECTED` par-dessus l'image encore vivante) et le cas `LINK_OFF` (lien
   coupé par le joueur au moment du crash), non exercé en vol.
+  - La nouvelle séquence de pose temporisée (`LANDING_TIMELINE`, ordonnancement
+    et armement d'`exitArmed` en fin de séquence) n'est vérifiée qu'en headless
+    (`tools/flight-end-selftest.mjs`, 20 tests) ; pas encore rejouée dans le
+    navigateur — le rythme perçu (2,2 s, fondu à 0,6-1,0 s) et l'annonce
+    `[ESC] DISCONNECT` sur une pose réelle restent à éprouver en vol piloté.
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
   TEXTURES, les barres décoratives RF ANALYSIS/TARGET SEARCH, le flux RTC et
   l'écran TERRAIN ACQUIRED → KEEP/REMOVE ont été vérifiés côté logique pure

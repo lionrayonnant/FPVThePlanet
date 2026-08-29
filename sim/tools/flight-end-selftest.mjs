@@ -3,7 +3,7 @@
 // Lancer : node tools/flight-end-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	FlightEnd, TIMELINE, LANDING,
+	FlightEnd, TIMELINE, LANDING_TIMELINE, LANDING,
 	FLYING, LANDING_READY, LANDED, CRASHING, TERMINATED,
 } from '../src/flight-end.js';
 
@@ -169,24 +169,55 @@ t('redécollage : LANDING_READY est perdu dès que le drone repart', () => {
 	assert.deepEqual(fe.out.lines, []);
 });
 
-t('désarmement sur une pose : MOTORS DISARMED, END SESSION, LANDED une fois', () => {
+t('désarmement sur une pose : LANDING DETECTED / MOTORS DISARMED tout de suite, LANDED une fois', () => {
 	const fe = new FlightEnd();
 	hold(fe, LANDING.T_HOLD + 0.3);
 	assert.equal(fe.disarm(), true);
 	assert.equal(fe.out.phase, LANDED);
 	assert.equal(fe.phase, LANDED);
-	assert.deepEqual(fe.out.lines, ['LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION']);
-	// exitArmed ne s'arme qu'à la frame qui vidange réellement `closes`, pas au
-	// moment du geste (correction 1, revue finale) : sinon Échap pourrait
-	// sortir pendant que la fermeture de session est encore en vol.
+	// À t=0, seules les deux premières lignes de LANDING_TIMELINE sont dues —
+	// END SESSION et [ESC] DISCONNECT viennent plus tard (voir le test suivant).
+	assert.deepEqual(fe.out.lines, ['LANDING DETECTED', 'MOTORS DISARMED']);
+	// exitArmed ne s'arme qu'à la fin de la séquence de pose, pas au moment du
+	// geste ni à la frame qui vidange `closes` (correction 2, revue finale) :
+	// sinon Échap pourrait sortir pendant que la fermeture de session est
+	// encore en vol, ou avant que le joueur ait vu l'écran de fin.
 	assert.equal(fe.out.exitArmed, false);
 	assert.equal(fe.out.closes, null);
 	fe.update(settled({ armed: false }));
 	assert.equal(fe.out.closes, 'LANDED');
-	assert.equal(fe.out.exitArmed, true);
+	assert.equal(fe.out.exitArmed, false, 'closes est parti, mais la séquence de pose n\'est pas finie');
+});
+
+t('séquence de pose : les lignes apparaissent dans l\'ordre, aux instants attendus', () => {
+	// Même vérification que pour TIMELINE (le crash), sur LANDING_TIMELINE : des
+	// lignes qui partagent un horodatage (une ligne vide et le texte qui la
+	// suit) empêchent de tester une entrée à la fois.
+	const times = [...new Set(LANDING_TIMELINE.lines.map(([at]) => at))].sort((a, b) => a - b);
+	for (const at of times) {
+		const fresh = new FlightEnd();
+		hold(fresh, LANDING.T_HOLD + 0.3);
+		fresh.disarm();
+		advance(fresh, at + 0.05, { armed: false });
+		const expected = LANDING_TIMELINE.lines.filter(([lineAt]) => lineAt <= at + 0.05).map(([, text]) => text);
+		assert.deepEqual(fresh.out.lines, expected, `à t=${at}s`);
+	}
+});
+
+t('pose : exitArmed n\'est vrai qu\'à la toute fin de la séquence, TERMINATED avec', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	fe.disarm();
+	assert.equal(fe.out.exitArmed, false, 'juste après disarm()');
 	fe.update(settled({ armed: false }));
-	assert.equal(fe.out.closes, null);
+	assert.equal(fe.out.closes, 'LANDED');
+	assert.equal(fe.out.exitArmed, false, 'encore faux juste après la frame qui vide closes');
+	advance(fe, LANDING_TIMELINE.exitAt - 0.1, { armed: false });
+	assert.equal(fe.out.exitArmed, false);
+	assert.equal(fe.phase, LANDED);
+	advance(fe, 0.2, { armed: false });
 	assert.equal(fe.out.exitArmed, true);
+	assert.equal(fe.phase, TERMINATED);
 });
 
 t('LANDED : update(dt=0) vidange closes sans avancer la machine (sim gelée)', () => {
@@ -199,7 +230,10 @@ t('LANDED : update(dt=0) vidange closes sans avancer la machine (sim gelée)', (
 	assert.equal(fe.out.closes, null, 'pas encore vidangé avant le premier update()');
 	fe.update(settled({ dt: 0, armed: false }));
 	assert.equal(fe.out.closes, 'LANDED');
-	assert.equal(fe.out.exitArmed, true);
+	// dt=0 : la séquence n'a pas avancé, donc la sortie ne s'arme pas non plus
+	// (correction 2) — seul `closes` doit continuer d'être vidangé quoi qu'il
+	// arrive.
+	assert.equal(fe.out.exitArmed, false);
 	assert.equal(fe.phase, LANDED);
 	// Un second update(dt=0) ne rejoue pas la fermeture et n'avance rien.
 	fe.update(settled({ dt: 0, armed: false }));

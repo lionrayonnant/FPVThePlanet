@@ -23,13 +23,17 @@ SESSION TERMINATED
 [ESC] DISCONNECT
 ```
 
-Une pose propre est l'autre fin possible :
+Une pose propre est l'autre fin possible — plus courte et plus calme qu'un
+crash (un geste délibéré, pas une agonie), mais elle aussi séquencée dans le
+temps et terminée par la même affordance :
 
 ```text
 LANDING DETECTED
 MOTORS DISARMED
 
 END SESSION
+
+[ESC] DISCONNECT
 ```
 
 Le terrain reste dans les deux cas. `terrain persistent, flights ephemeral`.
@@ -150,7 +154,21 @@ le **vol rasant** : c'est lui qui définit la marge, et c'est lui que le
 harnais rejoue.
 
 `LANDING_READY` affiche `LANDING DETECTED`. Le désarmement reste un geste du
-joueur : `disarm()` → `MOTORS DISARMED` + `END SESSION`, `closes = 'LANDED'`.
+joueur : `disarm()` déclenche `closes = 'LANDED'` et une séquence de fin qui
+lui est propre (`LANDING_TIMELINE`, symétrique de `TIMELINE` — voir D3),
+plutôt que d'afficher les quatre lignes d'un coup :
+
+| t (s) | ce qui se passe |
+|---|---|
+| 0,0 | `LANDING DETECTED` et `MOTORS DISARMED` à l'écran. `closes = 'LANDED'` s'arme, vidangé à la prochaine frame (même gelée, `dt=0`). |
+| 0,6 | `blackout` monte à 1 en 0,4 s, par-dessus l'image *vivante* (pas de `linkDead` : la pose ne tue pas le lien). |
+| 1,4 | `END SESSION` |
+| 2,2 | `[ESC] DISCONNECT`, `exitArmed = true`, phase `TERMINATED` |
+
+`exitArmed` ne s'arme qu'à ce dernier instant : ni au moment de `disarm()`, ni
+à la frame qui vidange `closes` — il faut à la fois que la fermeture de
+session soit partie *et* que le joueur ait vu l'écran de fin en entier avant
+qu'Échap ne le ramène au terminal.
 
 Un `disarm()` hors `LANDING_READY` ne ferme rien : la machine reste en
 `FLYING`, les moteurs sont coupés côté contrôleur, la chute suit son cours, et
@@ -172,6 +190,16 @@ Ordre imposé par la Bible : l'**image** meurt avant le **texte**.
 Ces durées sont un choix de mise en scène, pas une mesure : elles vivent dans
 un objet `TIMELINE` exporté, en haut du module, et se relisent d'un coup
 d'œil. Elles sont injectables pour que les tests n'attendent pas 4,6 s.
+
+La pose (D2) a sa propre table, `LANDING_TIMELINE`, plus courte et sans palier
+intermédiaire (pas de `LINK LOST` / `TARGET LOST` : une pose ne fait pas
+mourir le lien). Les deux tables sont lues par une seule fonction
+d'avancement (`_advanceTimeline`, sur `this._activeTimeline`) : le mécanisme —
+horloge en secondes depuis l'origine de la séquence, fondu au noir borné entre
+`blackoutAt` et `blackoutAt + blackoutFade`, lignes reconstruites à chaque
+frame par filtrage temporel, `exitArmed`/`TERMINATED` posés au dernier
+instant — est strictement le même ; seules les valeurs et le nombre de lignes
+diffèrent.
 
 Interdits vérifiés par revue : pas de commentaire ironique, pas de musique,
 pas de score, pas de récompense, pas de `GAME OVER`.
