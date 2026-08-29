@@ -60,6 +60,12 @@ Plan d'origine (contexte de la décision d'architecture) :
   1,30 s, `gpu-upload` 0,24 s pour 1,65 Go.
 - Manette EdgeTX Radiomaster Pocket détectée et mappée correctement en
   conditions réelles.
+- **GLOBAL SCANNER (PHASE 03)**, vérifié en direct via MCP chrome-devtools sur
+  le serveur de dev : recherche Nominatim, cadrage, rectangle Geoman, grille de
+  tuiles réelle, `PROBE AREA` (plan Go + échantillon : « 27 tiles came back »),
+  `ACQUIRE AREA` (pipeline complet, 100 tuiles, 9 Mo sur disque), puis `[ FLY ]`
+  qui charge la carte fraîchement acquise (3 draw calls, 118 011 triangles,
+  100 fps). La carte d'essai a été supprimée après coup.
 - Captures MCP chrome-devtools au ras du sol (piste d'athlétisme du stade Émile
   Anthoine, Champ-de-Mars, façades) : textures à l'endroit, lisibles, aucune
   plaque grise. `take_screenshot` du MCP capture bien le canvas WebGL, contrairement
@@ -67,6 +73,9 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **Le scanner sur une zone hors couverture Flyover** : le chemin `columns === 0`
+  et le grisé des colonnes élaguées (`prunedBands`) sont testés unitairement,
+  jamais vus en vrai — toutes les zones sondées à la main étaient couvertes.
 - **Ressenti de pilotage réel** (l'utilisateur n'a pas encore volé "pour de
   vrai" avec retour subjectif sur l'acro, les rates, l'expo).
 - **Écran de réglages manette** (Tab, remapping avec barres de niveau) —

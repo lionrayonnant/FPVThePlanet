@@ -212,3 +212,138 @@ canvas { display: block; }
 .terminal-area > span:first-child { min-width: 180px; }
 .terminal-area-size { opacity: .55; font-size: 12px; flex: 1; }
 .terminal-area button { margin: 0; }
+
+/* ---------- global scanner (PHASE 03) ---------- */
+/* Même grammaire que le terminal : monospace, traits d'un pixel, angles droits,
+   aucun aplat de couleur. La carte est le seul élément « photographique » de
+   l'écran, et elle est passée en monochrome pour ne pas hurler. */
+
+.scanner {
+	position: fixed; inset: 0;
+	display: grid; grid-template-columns: 1fr 360px;
+	background: #0d1218;
+	z-index: 11;
+	pointer-events: auto;
+}
+.scanner-map { position: relative; height: 100%; background: #0d1218; }
+/* MONO : le filtre porte sur les tuiles de la couche seulement, pas sur les
+   vecteurs — la grille, la zone et les repères gardent l'accent du terminal.
+   Le fond OSM est inversé (blanc sur noir) ; les couches déjà sombres ou
+   photographiques sont seulement désaturées. */
+.scanner-map .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
+/* Un pixel de recouvrement entre tuiles. Sous filtre, le raccord de deux tuiles
+   voisines s'éclaircit et dessine un faux quadrillage de 256 px par-dessus le
+   vrai — mesuré ici à devicePixelRatio 0,9, et invisible sans filtre. Le décalage
+   d'un pixel, lui, ne se voit pas à l'échelle d'une carte. */
+.scanner-map .leaflet-tile { width: 257px !important; height: 257px !important; }
+.scanner-map .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
+.scanner-map .leaflet-container { background: #0d1218; font: inherit; }
+.scanner-map .leaflet-control-attribution {
+	background: rgba(13, 18, 24, .8); color: rgba(234, 242, 248, .5);
+	font-size: 10px; letter-spacing: .02em; border-radius: 0;
+}
+.scanner-map .leaflet-control-attribution a { color: rgba(234, 242, 248, .7); }
+.scanner-map .leaflet-bar,
+.scanner-map .leaflet-bar a {
+	border-radius: 0; border-color: rgba(255, 255, 255, .25);
+	background: #0d1218; color: var(--ink);
+}
+.scanner-map .leaflet-bar a:hover { background: #131a22; color: var(--accent); }
+/* Poignées Geoman : des carrés, pas des pastilles. */
+.scanner-map .leaflet-div-icon,
+.scanner-map .marker-icon {
+	border-radius: 0 !important; background: #0d1218; border: 1px solid var(--accent);
+	width: 8px; height: 8px; margin: -4px 0 0 -4px;
+}
+.sc-pin {
+	color: var(--ink); font-size: 10px; letter-spacing: .1em;
+	white-space: nowrap; text-shadow: var(--shadow); opacity: .75;
+}
+
+.scanner-panel {
+	border-left: 1px solid rgba(255, 255, 255, .18);
+	padding: 18px 18px 12px;
+	overflow-y: auto;
+	display: flex; flex-direction: column; gap: 14px;
+	font-size: 13px;
+}
+.sc-title { margin: 0; font-size: 15px; letter-spacing: .22em; }
+.sc-block { display: flex; flex-direction: column; gap: 8px; }
+.sc-h { margin: 0; font-size: 11px; letter-spacing: .18em; opacity: .55; }
+.sc-hint { margin: 0; font-size: 11px; letter-spacing: .1em; opacity: .4; }
+.sc-row { display: flex; gap: 8px; align-items: stretch; }
+
+.scanner input {
+	flex: 1; min-width: 0;
+	background: #0d1218; color: var(--ink);
+	border: 1px solid rgba(255, 255, 255, .25);
+	padding: 7px 9px; font: inherit; letter-spacing: .12em;
+}
+.scanner input:focus { outline: none; border-color: var(--accent); }
+
+.sc-btn, .sc-cta {
+	align-self: flex-start;
+	padding: 7px 10px;
+	background: transparent; color: var(--ink);
+	border: 1px solid rgba(255, 255, 255, .25);
+	font: inherit; letter-spacing: .1em; cursor: pointer;
+}
+.sc-cta { border: 0; padding: 6px 0; letter-spacing: .14em; }
+.sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
+
+.sc-results { display: flex; flex-direction: column; }
+.sc-result {
+	text-align: left; padding: 5px 0;
+	background: none; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .1);
+	color: var(--ink); font: inherit; font-size: 11px; opacity: .75; cursor: pointer;
+}
+.sc-result:hover { color: var(--accent); opacity: 1; }
+
+.sc-readout { display: grid; grid-template-columns: 112px 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
+.sc-readout dt { opacity: .5; letter-spacing: .1em; }
+.sc-readout dd { margin: 0; }
+
+.sc-density { margin: 0; letter-spacing: .06em; }
+.sc-verdict { margin: 0; letter-spacing: .14em; }
+.sc-verdict[data-status="ok"] { color: #7ddc8a; }
+.sc-verdict[data-status="planned"], .sc-verdict[data-status="busy"], .sc-verdict[data-status="undecodable"] { color: #f5c451; }
+.sc-verdict[data-status="none"] { color: #f2714f; }
+.sc-verdict[data-status="unprobed"] { opacity: .55; }
+.sc-detail { margin: 0; font-size: 11px; line-height: 1.5; opacity: .6; white-space: pre-wrap; }
+
+.sc-note { margin: 0; font-size: 11px; line-height: 1.5; opacity: .7; white-space: pre-wrap; }
+.sc-note[data-kind="warn"] { color: #f5c451; opacity: 1; }
+.sc-note[data-kind="alarm"] { color: #f2714f; opacity: 1; }
+.sc-note[data-kind="ok"] { color: #7ddc8a; opacity: 1; }
+
+.sc-switch { font-size: 11px; letter-spacing: .12em; opacity: .8; }
+.sc-switch button {
+	background: none; border: 0; padding: 0;
+	color: var(--ink); font: inherit; opacity: .45; cursor: pointer;
+}
+.sc-switch button[data-on="true"] { opacity: 1; color: var(--accent); }
+.sc-switch button:hover { opacity: 1; }
+
+.sc-foot { margin-top: auto; gap: 6px; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 10px; }
+
+.sc-bar { height: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.sc-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s linear; }
+/* Pendant la conversion le pipeline ne rend aucun compteur : la barre le dit
+   plutôt que d'inventer une progression. */
+.sc-bar[data-indeterminate="1"] i { width: 100% !important; animation: sc-sweep 1.6s linear infinite; transform-origin: left; }
+@keyframes sc-sweep { 0% { transform: scaleX(0); } 50% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+
+.sc-log-block { flex: 1; min-height: 120px; }
+.sc-log {
+	margin: 0; flex: 1; overflow-y: auto;
+	font-size: 10px; line-height: 1.45; opacity: .55;
+	white-space: pre-wrap; word-break: break-all;
+	border: 1px solid rgba(255, 255, 255, .12); padding: 6px;
+	max-height: 40vh;
+}
+
+@media (max-width: 900px) {
+	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
+	.scanner-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, .18); }
+}

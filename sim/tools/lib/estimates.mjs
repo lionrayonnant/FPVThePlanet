@@ -8,78 +8,19 @@
 // Le nombre de colonnes est exact (c'est de la géométrie). Le nombre de tuiles
 // ne l'est pas : il dépend de la hauteur du bâti, d'où la fourchette
 // tilesPerColumn min/typical/max plutôt qu'un chiffre unique.
+//
+// La géométrie pure vit dans ./tiles.mjs (importable par le navigateur, qui ne
+// peut pas lire estimates.json) et est ré-exportée ici pour les appelants Node.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export * from './tiles.mjs';
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export const estimates = JSON.parse(fs.readFileSync(path.join(HERE, 'estimates.json'), 'utf8'));
-
-// Rayon terrestre WGS84 par latitude — même formule que pkg/mth.EarthRadiusByLatitude,
-// pour que les mètres affichés par la GUI et ceux du Go exporter concordent.
-export function earthRadiusByLatitude(latDeg) {
-	const r1 = 6378137.0, r2 = 6356752.314245179;
-	const lat = (latDeg / 180) * Math.PI;
-	return Math.sqrt(
-		((r1 ** 2 * Math.cos(lat)) ** 2 + (r2 ** 2 * Math.sin(lat)) ** 2) /
-		((r1 * Math.cos(lat)) ** 2 + (r2 * Math.sin(lat)) ** 2)
-	);
-}
-
-// Portage de mth.LatLonToTileTMS. Doit rester identique au Go : c'est ce qui
-// garantit que les colonnes annoncées par la GUI sont celles réellement scannées.
-export function latLonToTileTMS(zoom, lat, lon) {
-	const n = 2 ** zoom;
-	const latRad = (lat / 180) * Math.PI;
-	return {
-		x: Math.floor(n * ((lon + 180) / 360)),
-		y: Math.floor((Math.log(Math.tan(latRad * 0.5 + Math.PI / 4)) / (2 * Math.PI) + 0.5) * n),
-	};
-}
-
-export function tileTMSToLatLon(zoom, x, y) {
-	const n = 2 ** zoom;
-	return {
-		lon: (x / n) * 360 - 180,
-		lat: ((2 * Math.atan(Math.exp((y / n - 0.5) * 2 * Math.PI)) - Math.PI / 2) / Math.PI) * 180,
-	};
-}
-
-// Dimensions au sol de la bbox, en mètres.
-export function boxDimensions({ south, west, north, east }) {
-	const R = earthRadiusByLatitude((south + north) / 2);
-	const height = ((north - south) / 180) * Math.PI * R;
-	const width = ((east - west) / 180) * Math.PI * R * Math.cos(((south + north) / 2 / 180) * Math.PI);
-	return { width, height, area: width * height };
-}
-
-// Grille de tuiles réellement balayée pour cette bbox à ce zoom (bornes incluses),
-// et la bbox « alignée sur les tuiles » qui en découle — c'est elle qu'il faut
-// afficher sur la carte, pas le rectangle dessiné : l'extraction est quantifiée.
-export function tileGrid(box, zoom) {
-	const a = latLonToTileTMS(zoom, box.south, box.west);
-	const b = latLonToTileTMS(zoom, box.north, box.east);
-	const xMin = Math.min(a.x, b.x), xMax = Math.max(a.x, b.x);
-	const yMin = Math.min(a.y, b.y), yMax = Math.max(a.y, b.y);
-	const sw = tileTMSToLatLon(zoom, xMin, yMin);
-	const ne = tileTMSToLatLon(zoom, xMax + 1, yMax + 1);
-	return {
-		xMin, xMax, yMin, yMax,
-		cols: xMax - xMin + 1,
-		rows: yMax - yMin + 1,
-		columns: (xMax - xMin + 1) * (yMax - yMin + 1),
-		snapped: { south: sw.lat, west: sw.lon, north: ne.lat, east: ne.lon },
-	};
-}
-
-// Côté d'une tuile au sol, en mètres — sert à expliquer le zoom à l'utilisateur
-// (« 25 m par tuile ») plutôt que de lui montrer un numéro de zoom nu.
-export function tileSizeMeters(zoom, lat) {
-	const R = earthRadiusByLatitude(lat);
-	return (2 * Math.PI * R * Math.cos((lat / 180) * Math.PI)) / 2 ** zoom;
-}
 
 // Estimation complète. `columns` peut venir de tileGrid (approximation locale,
 // instantanée) ou du champ `columns` de `export-obj --plan`, qui a en plus élagué

@@ -57,17 +57,28 @@ function stub(root, title, line) {
 	});
 }
 
-async function globalScannerStub(root) {
-	const s = screen(root);
-	s.box.innerHTML = `<pre>GLOBAL SCANNER — PHASE 3
+// ---------- GLOBAL SCANNER ----------
 
-Terrain acquisition is not wired into the terminal yet.
-Use the acquisition page for now.</pre>`;
-	return new Promise((resolve) => {
-		const open = button('OPEN ACQUISITION', () => { location.href = '/add-map.html'; }, 'terminal-cta');
-		s.box.appendChild(open);
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
-	});
+// Chargé à la demande : Leaflet et Geoman ne partent dans le navigateur que si
+// l'opérateur ouvre le scanner. Résout un slug (→ vol) ou undefined.
+//
+// Un seul scanner à la fois : la Home est masquée pendant l'opération, donc
+// l'utilisateur ne peut pas rouvrir le scanner — mais un second appel monterait
+// une deuxième carte Leaflet par-dessus la première, et deux acquisitions
+// concurrentes. Le verrou rend ce cas impossible plutôt qu'improbable.
+let scannerOpen = false;
+async function globalScanner(root) {
+	if (scannerOpen) return;
+	scannerOpen = true;
+	try {
+		const { runScanner } = await import('./scanner.js');
+		return await runScanner(root);
+	} catch (e) {
+		console.error(e);
+		await stub(root, 'GLOBAL SCANNER', `SCANNER UNAVAILABLE — ${e.message}`);
+	} finally {
+		scannerOpen = false;
+	}
 }
 
 // ---------- LOCAL TERRAIN ----------
@@ -83,7 +94,7 @@ function localTerrain(root, scenes) {
 		}
 		if (scenes.length === 0) {
 			s.box.innerHTML = '<pre>LOCAL TERRAIN\n\nNO LOCAL TERRAIN — ACQUIRE ONE</pre>';
-			s.box.appendChild(button('OPEN ACQUISITION', () => { location.href = '/add-map.html'; }, 'terminal-cta'));
+			// Pas de renvoi vers une page d'acquisition : le scanner EST l'entrée.
 			s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
 			return;
 		}
@@ -208,7 +219,7 @@ export async function operatorSelect(root, choices) {
 // `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
 // le même panneau que Tab en vol.
 export async function runTerminal(root, { settings, api = operatorApi } = {}) {
-	const scenes = await fetchScenes();
+	let scenes = await fetchScenes();
 	const s = screen(root, 'terminal-home');
 	let resolveFly;
 
@@ -223,7 +234,16 @@ OPERATOR // ${model.operatorName}</pre>`;
 			['CONTROL VECTOR', async () => { await controlVectorScreen(root, api); render(); }],
 		]));
 
-		s.box.appendChild(button('GLOBAL SCANNER', () => globalScannerStub(root), 'terminal-cta'));
+		s.box.appendChild(button('GLOBAL SCANNER', async () => {
+			// Le scanner masque le terminal le temps de l'opération ; au retour la
+			// Home est reconstruite, car une acquisition a pu changer le cache.
+			s.el.hidden = true;
+			const slug = await globalScanner(root);
+			if (slug) return fly(slug);
+			scenes = await fetchScenes();
+			s.el.hidden = false;
+			render();
+		}, 'terminal-cta'));
 
 		s.box.appendChild(navRow([
 			['SESSION LOG', () => stub(root, 'SESSION LOG', 'NO SESSIONS YET — the session log lands in PHASE 15.')],
