@@ -8,6 +8,7 @@ import {
 	VOICES, PERCUSSIVE, RITUAL_SCORES, scoreFor,
 } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
+import { fakeAudioContext } from './lib/fake-audio-ctx.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -250,6 +251,44 @@ t('scoreFor : les voix percussives gardent leur durée propre, les tenues s\'ét
 
 t('scoreFor : famille inconnue → partition vide plutôt qu\'un plantage', () => {
 	assert.deepEqual(scoreFor('PAS UNE FAMILLE', 2000), []);
+});
+
+// --- faux AudioContext ------------------------------------------------------
+
+t('fakeAudioContext : les nœuds créés sont recensés et connectables', () => {
+	const ctx = fakeAudioContext();
+	const g = ctx.createGain();
+	const o = ctx.createOscillator();
+	o.connect(g).connect(ctx.destination);
+	assert.equal(ctx._nodes.length, 3); // destination + gain + oscillateur
+	assert.ok(ctx._conns.some(([from, to]) => from === o.id && to === g.id));
+	assert.ok(ctx._conns.some(([from, to]) => from === g.id && to === ctx.destination.id));
+});
+
+t('fakeAudioContext : les AudioParam enregistrent leurs automations', () => {
+	const ctx = fakeAudioContext();
+	const g = ctx.createGain();
+	g.gain.setValueAtTime(0, 0);
+	g.gain.linearRampToValueAtTime(1, 0.5);
+	assert.equal(g.gain.calls.length, 2);
+	assert.equal(g.gain.calls[1][0], 'linearRampToValueAtTime');
+});
+
+t('fakeAudioContext : start/stop d\'une source sont horodatés', () => {
+	const ctx = fakeAudioContext();
+	const src = ctx.createBufferSource();
+	src.start(1.25);
+	src.stop(1.75);
+	assert.equal(src.started, 1.25);
+	assert.equal(src.stopped, 1.75);
+});
+
+t('fakeAudioContext : on peut connecter vers un AudioParam', () => {
+	const ctx = fakeAudioContext();
+	const o = ctx.createOscillator();
+	const g = ctx.createGain();
+	o.connect(g.gain);
+	assert.ok(ctx._conns.some(([from, to]) => from === o.id && to === 'param:gain'));
 });
 
 console.log(`\n${n} tests OK`);
