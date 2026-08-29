@@ -30,6 +30,7 @@ import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
 	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor, nightAmount,
+	skyNightDim,
 } from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
@@ -2228,6 +2229,36 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 			settle(s, MIDNIGHT, 0, 60);
 			return s.night === 1;
 		})());
+	}
+
+	// La nuit NOIRE (#112, retour de vol) : le ciel du soir descend, tient un
+	// plateau toute la nuit astronomique, et remonte à l'aube. La courbe est
+	// nightAmount() sur l'élévation solaire — pas une horloge : le plateau EST
+	// la nuit pleine, et sa longueur suit la saison toute seule. skyNightDim()
+	// la traduit en luminosité de dôme : 1 le jour, quasi noir sur le plateau.
+	{
+		const at = (iso) => {
+			const s = new SunField(PARIS);
+			s.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			settle(s, new Date(iso), 0, 30);
+			return s;
+		};
+		check('en soirée, le ciel descend : 21h30Z plus sombre que 20h30Z',
+			skyNightDim(at('2026-06-21T21:30:00Z').night)
+			< skyNightDim(at('2026-06-21T20:30:00Z').night));
+		// Le plateau : au cœur de la nuit, la luminosité ne bouge plus.
+		const plateau = ['22:45', '23:52', '01:00'].map(
+			(t) => skyNightDim(at(`2026-06-21T${t}:00Z`).night));
+		check('le plateau tient sur le cœur de la nuit',
+			Math.max(...plateau) - Math.min(...plateau) < 0.01,
+			plateau.map((d) => d.toFixed(3)).join(' '));
+		check('et il est quasi noir (moins de 8 % du jour)',
+			Math.max(...plateau) < 0.08, Math.max(...plateau).toFixed(3));
+		// L'aube : ça remonte, jusqu'à revenir exactement à 1 en plein jour.
+		check('à l\'aube, le ciel remonte',
+			skyNightDim(at('2026-06-22T03:40:00Z').night) > Math.max(...plateau));
+		check('et le jour plein revient à exactement 1',
+			skyNightDim(at('2026-06-22T11:52:00Z').night) === 1);
 	}
 
 	// La traduction du haut gain en capteur : c'est elle que main.js pousse

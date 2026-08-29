@@ -210,6 +210,17 @@ export function nightAmount(elevationDeg) {
 	return smoothstep(-2, -14, elevationDeg);
 }
 
+// La nuit NOIRE (#112, retour de vol) : la luminosité du dôme. 1 le jour ;
+// sur le plateau de nuit, un ciel quasi noir — le plancher n'existe que pour
+// que l'horizon ne soit pas un trou parfait. La forme de la courbe (descente
+// au crépuscule, plateau toute la nuit astronomique, remontée à l'aube) n'est
+// PAS une horloge : c'est nightAmount() sur l'élévation solaire, donc le
+// plateau s'allonge tout seul avec la saison.
+const NIGHT_DOME_FLOOR = 0.05;
+export function skyNightDim(night) {
+	return 1 - clamp01(night) * (1 - NIGHT_DOME_FLOOR);
+}
+
 export function skyChroma(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const m = airMass(refracted(elevationDeg));
 	const mSky = 1 + (m - 1) * SKY_SLANT;
