@@ -217,6 +217,44 @@ Plan d'origine (contexte de la décision d'architecture) :
     testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
     réel).
   - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
+- **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #58).
+  - Machine à états `flightEnd` (`src/flight-end.js`) orchestrant les trois voies
+    de fermeture : crash (impact > `CRASH_IMPULSE`), pose (vitesse ≤ 0,5 m/s,
+    immobilité angulaire ≤ 10 rad/s, sol contact ≥ 0,8 s), sortie manuelle
+    (désarmement à la manette `j` ou `ESC`). Appel une fois par frame depuis
+    `main.js` ; génère une **fenêtre temporelle unique** `out.closes` bel et bien
+    lue une seule fois.
+  - Séquence crash (timings mesurés sur Rapier/tour-eiffel) : dégradation d'image
+    avant texte (`fadeOutFrames` = 50 ms, les ~3 premiers frames), noircissement
+    (« fade out ») puis lignes : `LINK LOST` → `TARGET LOST` → `SESSION
+    TERMINATED` → `[ESC] DISCONNECT`, puis sortie `main.loop()`. `R` et `ESC`
+    prématuré inopérants.
+  - Détection de pose (`tools/landing-model.mjs` `isLanding()`) : seuils mesurés
+    en simulation Rapier, huit cas de pose réelle (rebonds, roulé) et dix cas
+    faux positifs en rasant (toutes les combinaisons 3 hauteurs × 3 tangage +
+    stationnaire bas). **Aucun faux positif rasant accepté**.
+  - **Vérifié en headless** :
+    - `tools/flight-end-selftest.mjs` : 17 tests couvrant tous les chemins (impact
+      → crash, pose, pose+désarmement, redécollage, crash pendant pose,
+      carcasse au sol), timing de la séquence, seuils de crash/pose, compteurs
+      réinitialisés à chaque rebond, `out.closes` lu une unique fois.
+    - `tools/landing-selftest.mjs` : 8 poses reconnues, 10 rasants rejetés (noms,
+      durées, hauteurs mesurées). Mesures : pose depuis 1 m reconnue à t=0,82 s ;
+      rasant 0,3–1 m tous rejetés.
+    - `npm run selftest` reste vert (« all checks passed »), `npm run selftest:operator`
+      passe l'intégralité (30 tests de tous les modules précédents + nouveaux tests
+      ci-dessus). `npm run build` OK.
+  - **Non vérifié** : ressenti visuel de la mort d'image (lisibilité du dégradé,
+    rythme perçu de noircissement puis texte), ressenti des faux positifs en vol
+    rasant réel (le critère d'acceptation de l'issue #51 demande « jamais » en
+    rasant à moins d'un mètre à pleine vitesse — testé simulé, pas en vol piloté),
+    geste de désarmement à la manette (logique en pur testée, l'input clavier
+    couverte en PHASE 10, mais manette réelle non rejouée).
+  - Structure du code : `FlightEnd` classe inerte (pas de side-effect), appelée à
+    chaque frame, retourne un objet muable `out` ; `out.closes` ne s'arme que
+    lorsqu'il est temps de fermer. `main.js` le lit une fois par frame et le
+    traite immédiatement. Cette structure élimine les races (un `closes` ne peut
+    pas être manqué ou vu deux fois).
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
@@ -300,6 +338,12 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **PHASE 14, en vol piloté** : ressenti du dégradé d'image avant crash (vitesse
+  de noircissement), lisibilité de la séquence texte (taille, rythme), absence
+  de faux positif de pose en rasant réel (vol à moins d'un mètre du sol à pleine
+  vitesse — simulé OK, navigation réelle non faite). Geste de désarmement à la
+  manette (clavier couvert en PHASE 10, manette réelle non testée dans ce
+  contexte).
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
   TEXTURES, les barres décoratives RF ANALYSIS/TARGET SEARCH, le flux RTC et
   l'écran TERRAIN ACQUIRED → KEEP/REMOVE ont été vérifiés côté logique pure
