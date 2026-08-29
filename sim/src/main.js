@@ -17,6 +17,7 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
+import { SunField } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
@@ -105,6 +106,11 @@ const rain = new RainField(undefined, FOG_DENSITY);
 // scene's fog density rather than sharing it — FOG_DENSITY is the clear-air
 // floor it starts from and never goes below.
 const fog = new FogField(undefined, FOG_DENSITY);
+// Et la lumière : où est le soleil, ce que l'atmosphère lui fait, et ce que la
+// caméra en fait. Construit dans boot(), une fois le manifest lu — il lui faut
+// la lat/lon de la scène, et sans elle il n'existe pas plutôt que d'inventer un
+// soleil. Modèle pur : il ne ré-éclaire RIEN, l'imagerie reste non éclairée.
+let sun = null;
 let rainfall = null;
 // Le snapshot météo de la zone survolée, pour le HUD et __sim.debug().
 let weather = null;
@@ -263,8 +269,13 @@ async function boot() {
 	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
 	// de zone que celle vue par le terminal avant le décollage.
 	const o = manifest.origin ?? {};
+	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
+	// météo, et la seule chose dont la position du soleil a besoin en plus de
+	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
+	// fonction de l'instant UTC et du lieu, point.
+	sun = SunField.forOrigin(o);
 	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog }) ?? CALM;
+	const applied = applyWeather(weather, { physics, rain, fog, sun }) ?? CALM;
 	if (weather) {
 		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
 			+ `${headline(weather.days[0])}`, applied);
@@ -273,6 +284,7 @@ async function boot() {
 		physics.setWeather(CALM.wind);
 		rain.setParams(CALM.rain);
 		fog.setParams(CALM.fog);
+		sun?.setWeather(CALM.sun);
 	}
 
 	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
@@ -307,7 +319,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -411,6 +423,20 @@ async function boot() {
 					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
+				},
+				// Ce qui permet de vérifier le soleil dans le vrai navigateur
+				// plutôt que de regarder une capture et d'y croire.
+				sun: sun && {
+					elevation: +sun.elevation.toFixed(2),
+					azimuth: +sun.azimuth.toFixed(2),
+					dir: { x: +sun.dir.x.toFixed(3), y: +sun.dir.y.toFixed(3), z: +sun.dir.z.toFixed(3) },
+					amount: +sun.sunAmount.toFixed(3),
+					visible: +sunVisible.toFixed(3),
+					inFrame: +sunInFrame.toFixed(3),
+					exposure: +sun.exposure.toFixed(3),
+					ambient: +sun.ambient.toFixed(3),
+					sky: '#' + scene.background.getHexString(),
+					active: sun.active,
 				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
@@ -572,9 +598,16 @@ const CLEAR_SKY = new THREE.Color(SKY);
 const RAIN_SKY = new THREE.Color(0x8d99a2);
 const FOG_SKY = new THREE.Color(0xc9d0d4);
 const _sky = new THREE.Color();
+// Réutilisée plutôt que réallouée : weatherSky() tourne à chaque frame.
+const _sunSky = new THREE.Color();
 function weatherSky(rainScale, fogMix) {
+	// Le ciel clair n'est plus une constante : c'est celui que sun.js dérive de
+	// la hauteur du soleil, de la visibilité de l'air et de la couverture. Sans
+	// soleil (scène sans origine géodésique), CLEAR_SKY reste la constante
+	// d'origine et cette fonction rend exactement ce qu'elle rendait.
+	const base = sun ? _sunSky.setRGB(sun.sky.r, sun.sky.g, sun.sky.b) : CLEAR_SKY;
 	// rainScale is 1 in the clear and about 2 in a downpour.
-	return _sky.copy(CLEAR_SKY)
+	return _sky.copy(base)
 		.lerp(RAIN_SKY, Math.min(1, (rainScale - 1) * 1.2))
 		.lerp(FOG_SKY, fogMix);
 }
@@ -582,6 +615,15 @@ function weatherSky(rainScale, fogMix) {
 // plane of the lens. Written once a frame into the same object rather than
 // allocated, like every other per-frame vector here.
 const drift = { x: 0, y: 0 };
+// L'état du soleil entre deux frames, et les vecteurs réutilisés plutôt que
+// réalloués — même règle que `drift` juste au-dessus.
+let sunVisible = 1;    // 0..1, occlusion lissée
+let sunInFrame = 0;    // 0..1, ce que le posemètre voit du disque
+const _sunWorld = new THREE.Vector3();
+const _sunView = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
+const _camInv = new THREE.Quaternion();
+const _sunColor = new THREE.Color();
 
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
@@ -658,6 +700,39 @@ function frame() {
 		// definition FOG_DENSITY + the rain's own extinction, so with the fog
 		// slider at zero the picture is the one #24 left behind, to the bit.
 		const density = fog.density + extinctionOf(rain.visibility);
+		// Le soleil. Avancé sur l'horloge de la frame comme la pluie et le
+		// brouillard, et pour la même raison : rien de ce qu'il fait ne
+		// redescend dans le modèle de vol.
+		if (sun) {
+			// Le soleil traverse-t-il un bâtiment ? Sans cette question, le
+			// disque se dessine à travers la Tour Eiffel et tout l'effet
+			// s'effondre. Un seul rayon, la méthode existe déjà (elle sert au
+			// lien vidéo) — la sonde de vent en tire dix à 20,8 Hz, donc le coût
+			// est dans le bruit.
+			const sp = physics.position;
+			const far = 2000;
+			const blocked = physics.obstructionBetween(
+				sp.x, sp.y, sp.z,
+				sp.x + sun.dir.x * far, sp.y + sun.dir.y * far, sp.z + sun.dir.z * far,
+			).blocked ? 1 : 0;
+			// Lissé : un rayon unique bascule 0/1 d'une frame à l'autre en
+			// frôlant une arête, et un disque qui clignote est pire qu'aucun
+			// disque. 80 ms, assez court pour qu'un immeuble le coupe net.
+			sunVisible += ((1 - blocked) - sunVisible) * (1 - Math.exp(-dt / 0.08));
+
+			// Où le soleil tombe dans le cadre. Une caméra à 120° de champ voit
+			// un demi-ciel : « dans le cadre » n'est donc pas un booléen mais la
+			// place que le disque prend dans ce que le posemètre moyenne.
+			_sunWorld.set(sun.dir.x, sun.dir.y, sun.dir.z);
+			const axis = _camDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
+			const cosAngle = axis.dot(_sunWorld);
+			// 1 quand le soleil est pile dans l'axe, 0 au bord du champ.
+			const halfFov = (camera.fov * Math.PI / 180) / 2;
+			const inFrame = Math.max(0, (cosAngle - Math.cos(halfFov)) / (1 - Math.cos(halfFov)));
+			sunInFrame = inFrame * sunVisible;
+
+			sun.update(dt, { sunInFrame });
+		}
 		const sky = weatherSky(rain.fogScale, fog.skyMix);
 		const skyHex = sky.getHex();
 		if (density !== lastDensity || skyHex !== lastSkyHex) {
@@ -673,6 +748,32 @@ function frame() {
 		// Light the air scatters into the barrel rather than onto the subject.
 		// Zero compiles it out of the lens shader entirely.
 		lens.setGlare(fog.glare);
+		// Et la lumière qui vient d'une direction plutôt que de partout. La
+		// projection est faite ici parce que main.js est le seul à connaître la
+		// caméra ; lens.js ne reçoit que des nombres, comme pour setGlare().
+		if (sun) {
+			_sunView.copy(_sunWorld).applyQuaternion(_camInv.copy(camera.quaternion).invert());
+			// Espace carré de la passe : x est étiré par l'aspect, exactement
+			// comme `base` dans le shader.
+			// L'espace `base` du shader, et pas un espace écran inventé ici.
+			// lens.js:226-227 le définit : base.x = ndc.x · uAspect et
+			// dir = (base.xy · uTanHalf, −1), avec uTanHalf = tan(fovY/2)
+			// (lens.js:761). Donc base = (v.x/−v.z, v.y/−v.z) / tan(fovY/2) —
+			// SANS facteur 0,5 et SANS multiplier une seconde fois par l'aspect,
+			// qui est déjà porté par l'amplitude de base.x. La caméra regarde
+			// vers −Z, d'où le signe.
+			const front = _sunView.z < 0;
+			const tanHalf = Math.tan(camera.fov * Math.PI / 360);
+			const invZ = 1 / Math.max(1e-4, -_sunView.z);
+			lens.setSun({
+				x: (_sunView.x * invZ) / tanHalf,
+				y: (_sunView.y * invZ) / tanHalf,
+				front,
+				color: _sunColor.setRGB(sun.sunColor.r, sun.sunColor.g, sun.sunColor.b),
+				amount: sun.sunAmount * sunVisible,
+				exposure: sun.exposure,
+			});
+		}
 	}
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
