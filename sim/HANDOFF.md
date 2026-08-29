@@ -303,6 +303,76 @@ Plan d'origine (contexte de la décision d'architecture) :
     joueur ayant coupé la modélisation du lien (`LINK_OFF`) — `main.js` force
     `severity: 1` au premier frame de `CRASHING` dans ce cas, mais le vol
     vérifié avait le lien actif ; ce chemin n'a pas été exercé en vol.
+- **PHASE 11 — Entry State (issue #48)**, branche `phase-11-entry-state`,
+  mergée dans `main`.
+  - Après `JACK IN` (et à chaque respawn en session), le drone démarre déjà en
+    vol : `src/entry-state.js` (`generateEntryState()`) tire une catégorie
+    pondérée (COMFORTABLE 60 / ACTIVE 25 / CHALLENGING 12 / HOLY_SHIT 3 %),
+    échantillonne position/assiette/vitesse/rotation n'importe où dans le bbox
+    de la scène, puis valide le tirage en deux temps : géométrique
+    (`groundBelow`/`obstructionBetween`, réutilisés tels quels) et un rollout
+    physique headless d'1 s (sticks neutres, throttle hover via
+    `hoverThrottle()`, mêmes `Physics`/`FlightController` que le jeu — aucun
+    second moteur physique). 20 tirages max, puis repli garanti sur l'ancien
+    spawn fixe au repos.
+  - `Physics.applyEntryState()` (nouveau, à côté de `reset()`) pose le corps à
+    un état cinématique arbitraire ; `physics.spawn` (position du pilote au
+    sol, antenne) reste inchangé — seul le point d'entrée du drone bouge.
+  - `main.js` : `boot()` et `respawn()` appellent
+    `physics.applyEntryState(generateEntryState({physics, manifest, seed}))` ;
+    `spawnY` (télémétrie PHASE 06) reste ancré à `physics.spawn.y`, pas à la
+    position d'entrée aléatoire.
+  - **Vérifié headless** : `tools/entry-state-selftest.mjs` (tirage de
+    catégorie pur, chaîné dans `selftest:operator`, distribution mesurée à
+    ±3 points sur 20 000 tirages) ; nouvelle section `entry state` dans
+    `tools/selftest.mjs` sur la scène réelle tour-eiffel (100 tirages : aucun
+    ne crashe dans la seconde de grâce rejouée, aucun sous le terrain, chaque
+    résultat dans la plage de sa catégorie ; repli `maxAttempts=0` vérifié).
+    `npm run selftest`, `selftest:operator`, `npm run build` verts.
+  - **Vérifié navigateur** (MCP chrome-devtools) : première frame de session
+    et respawns répétés (`r`) atterrissent en vol (altitude/vitesse/assiette
+    variées, moteurs actifs), aucun `NaN`, aucune erreur console.
+  - **Non vérifié / connu, hors périmètre de cette phase** : les plages de
+    valeurs par catégorie (`RANGES` dans `entry-state.js`) sont un premier
+    jet tapé à la main, pas mesuré au banc — à ajuster au ressenti en vol. Le
+    rollout de validation suppose un throttle hover pendant la seconde de
+    grâce ; si le vrai jeu démarre au throttle 0 (position par défaut du
+    stick dans `input.js`), un joueur qui ne touche pas les gaz immédiatement
+    peut chuter en CHALLENGING/HOLY_SHIT (basse altitude) avant la fin de la
+    seconde — tension déjà documentée dans la spec, à traiter par PHASE 10
+    (rituel JACK IN) ou `input.js`, pas par ce module. Le contrôle de sécurité
+    géométrique ne regarde pas la viabilité du lien vidéo au point d'entrée
+    (l'émetteur reste fixe à `physics.spawn`) — un spawn éloigné avec un
+    bâtiment sur la ligne de vue peut ouvrir une session sur un lien dégradé.
+- **Ciel et nuages (issue #22)**, branche `issue-22-nuages-ciel`.
+  - Le ciel est un dôme dégradé avec une couche nuageuse procédurale
+    (`src/sky.js`, `src/cloud.js`) ; la couverture vient de `cloudPct` du world
+    state (météo), pas d'un réglage manuel.
+  - Plafond traversable : whiteout à l'approche, on ressort au-dessus de la
+    couche. Profil d'extinction mesuré en vol à couverture 0,95 (base 136 m) :
+    nul jusqu'à 50 m, 0,0068 à 100 m, 0,0658 en saturation entre 200 et 300 m,
+    retombé à 0,0217 à 400 m.
+  - Assombrissement global du sol **sans motif** : décision de conception, pas
+    une simplification — la géométrie n'a pas de normales et les tuiles
+    portent déjà l'ombrage cuit d'Apple. `DIM_MAX = 0,55`, mesuré en vol sur
+    `tour-eiffel` et `notre-dame-de-la-croix`.
+  - Vérifié en vol : `uHorizon`, `scene.background` et le `uFogColor` des
+    matériaux de chunk portent tous exactement la même couleur — c'est ce qui
+    empêche la ligne d'horizon de se dédoubler.
+  - **L'invariant historique change de forme.** Il ne dit plus que le pixel de
+    ciel sort à `#9fb8cc` : un dégradé change forcément le pixel du zénith,
+    et c'est l'objet même de cette issue. L'invariant devient : **la couleur
+    d'horizon par ciel clair vaut exactement `#9fb8cc`**, c'est elle que
+    `setFog()` pousse sur les tuiles, et le zénith est délibérément plus
+    profond. Vérifié en vol.
+  - **Non vérifié** : le coût en fill rate du dôme à FOV 120 sur un GPU
+    modeste — la vérification a tourné en rendu logiciel.
+  - Le sens de dérive du vent était inversé (`_drift` accumulé avec le bon
+    signe, mais le shader échantillonne `vnoise(p + uDrift·…)`, ce qui
+    translate le motif à *moins* le vecteur ajouté : les nuages remontaient
+    le vent). Corrigé après la revue finale, vérifié par un calcul numérique
+    sur un portage JS du fbm (maximum local suivi sous un vent de nord).
+    Toujours **non vérifié à l'œil**.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
@@ -383,6 +453,59 @@ Plan d'origine (contexte de la décision d'architecture) :
   - **Non vérifié en vol réel** : ouverture/clôture de session et agrégats de
     télémétrie jamais éprouvés dans le navigateur avec un vrai vol ; le geste de
     désarmement à la manette non plus.
+
+- **Le soleil** (issue #23) : `src/sun.js` (position + couleur du ciel + AGC
+  `SunField`), `src/lens.js` (bloc `#if SUN` : disque, halo, voile, gain
+  d'exposition), câblage `src/main.js` (occlusion via
+  `physics.obstructionBetween()`, projection écran, `weatherSky()` dérive
+  maintenant du soleil, `window.__sim.debug().sun`).
+  - **Vérifié au banc** : `npm run selftest` — 57 checks dédiés répartis en
+    quatre sections (`soleil — position`, `soleil — atmosphère et couleur du
+    ciel`, `soleil — exposition (AGC) et SunField`, `soleil — traduction
+    depuis le bulletin`), 258/258 au total sur la scène `tour-eiffel`.
+  - **Vérifié en vol, navigateur (CDP direct sur un Chromium headless dédié,
+    dev server sur le worktree `issue-23-soleil`, `?scene=tour-eiffel`,
+    heure réelle 2026-08-29 ~15h40 CEST)** :
+    - `window.__sim.debug().sun` existe et ses champs sont plausibles pour
+      Paris à l'heure réelle : élévation ~44,8° puis en baisse au fil du test
+      (cohérent avec une fin d'après-midi), `dir.z > 0` (soleil au sud), ciel
+      `#a3c2e2`-`#a7c9ee` (bleu clair, cohérent avec une élévation proche
+      mais pas égale à la référence de calibrage 60°).
+    - **Passage 1 — soleil dans le cadre** : caméra pointée droit sur le
+      soleil (rotation du corps Rapier forcée), `inFrame` monte à 0,81,
+      `exposure` chute de 1 à 0,562 en ~1,5 s ; en la retournant à 180°,
+      l'exposition remonte (0,562 → 0,846 → 0,90 sur les secondes
+      suivantes), plus lentement que la fermeture — la mécanique décrite par
+      l'issue est bien observable dans le vrai rendu.
+    - **Passage 2 — soleil occulté par un bâtiment** : position/orientation
+      choisies par balayage de `physics.obstructionBetween()` pour couper le
+      rayon soleil sur un immeuble ; `visible` tombe de 1 à 0, `inFrame`
+      retombe à 0 avec lui, et `exposure` reste quasi immobile (0,992 →
+      0,995) — un soleil caché ne ferme pas le diaphragme, confirmé.
+    - **Passage 3 — ciel couvert** : `window.__sim.sun.setWeather({cloudPct:
+      100, visibilityM: 20000})` → `amount` tombe à 0, `active` passe à
+      `false`, ciel gris clair `#cde0e4`, plus de disque.
+    - **Non-régression** : à l'heure réelle du test l'élévation solaire
+      (~44°) n'était pas celle du point de calibrage (`REF_ELEV = 60`), donc
+      la reproduction *exacte* de `#9fb8cc` n'a pas pu être observée en
+      direct (c'est couvert au banc par `soleil — exposition (AGC) et
+      SunField` : `sun.exposure === 1` exactement à `REF_ELEV`/`REF_VIS`).
+      Ce qui a été observé en direct : ciel clair, soleil hors cadre ⇒
+      `exposure` revient à 1 et le ciel calculé (`#9eb2c0` à 44° d'élévation)
+      s'approche de `#9fb8cc` dans le sens attendu par la formule. Ciel
+      totalement couvert ⇒ `active` bien `false` dans le vrai rendu — le cas
+      de non-régression que le code documente réellement (voir le
+      commentaire au-dessus de `SunField.active` dans `sun.js` : `active` est
+      vrai dès que le soleil est levé, caméra ou pas — un ciel clair de midi
+      NE rend PAS `active` faux, seul un ciel totalement bouché, ou la nuit
+      avec un gain resté à 1, le fait).
+    - Aucune erreur console pendant le test.
+  - **Non vérifié** : le ressenti d'un vol complet du lever au coucher (ça
+    demande de laisser tourner des heures réelles, il n'y a délibérément
+    aucun réglage d'heure) ; le pilotage manette réel des trois passages (ils
+    ont été reproduits par script CDP — orientation de la caméra forcée via
+    Rapier — plutôt qu'au stick, faute d'accès manette dans cet
+    environnement).
 
 ## Non vérifié / à faire
 
