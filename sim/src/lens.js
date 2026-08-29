@@ -765,9 +765,23 @@ export class FpvLens {
 	_applySize() {
 		const width = this._viewW ?? 1;
 		const height = this._viewH ?? 1;
-		const aspect = this._camAspect ?? 16 / 9;
-		const resScale = this._resScale ?? 1;
 		const ratio = this.renderer.getPixelRatio();
+
+		// Tant qu'aucune cible n'a été piratée, il n'y a pas de capteur distant
+		// à raconter : l'image remplit la fenêtre exactement comme avant cette
+		// tâche, sans bandes. Les bandes ne sont légitimes qu'à partir du
+		// premier setCamera() — jamais par défaut, même pour un aspect qui
+		// vaudrait 16:9.
+		if (this._camAspect == null) {
+			this._u.uFrame.value.set(1, 1);
+			this.composer.setPixelRatio(ratio);
+			this.composer.setSize(width, height);
+			this._u.uResolution.value.set(width * ratio, height * ratio);
+			return;
+		}
+
+		const aspect = this._camAspect;
+		const resScale = this._resScale ?? 1;
 
 		// Le capteur tient dans la fenêtre sans la déborder : la dimension
 		// contrainte fixe l'autre. uFrame est ce rectangle en uv d'écran, et
