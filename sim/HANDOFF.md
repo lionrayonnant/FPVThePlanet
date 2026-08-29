@@ -616,6 +616,80 @@ Plan d'origine (contexte de la décision d'architecture) :
     ont été reproduits par script CDP — orientation de la caméra forcée via
     Rapier — plutôt qu'au stick, faute d'accès manette dans cet
     environnement).
+- **PHASE 20 — langage ASCII / pixel art / demo scene du rituel (issue #57),
+  vérifié headless + navigateur** :
+  - `src/ascii.js` : `asciiTag` (3 usages info `[+]`/`[!]`/`[*]` de la Bible
+    §40), `asciiChain`, `bigText`/`BIG_FONT` (police banner 5 lignes × 3
+    colonnes, A-Z + espace/!/-). `tools/ascii-selftest.mjs` : 7/7 OK.
+  - `src/pixel-icons.js` : 9 icônes 12×12 (`ICON_NAMES`, Bible §41), rendu
+    `iconSVG` en rects `crispEdges` (aucun emoji), `faviconDataURI` — le
+    favicon de `index.html` est désormais ce drone pixel art, plus l'ancien
+    emoji hélicoptère. `tools/pixel-icons-selftest.mjs` : 5/5 OK.
+  - `src/hack-grammars.js` / `src/ritual.js` : 3 primitives ajoutées
+    (`colorFlash`, `textWarp`, `bannerBurst`) aux 8 existantes → **11
+    primitives** `RITUAL_PRIMITIVES`, toutes sous contrat `{ t, seed, dur }`
+    (`dur` = fenêtre visible d'un battement, pas la durée V1-V4 de la
+    culmination entière ; absent, `dur` retombe sur l'ancien comportement,
+    compat PHASE 10).
+    `FAMILY_PRIMITIVES` couvre les 6 `HACK_TYPES`, chacune avec les nouvelles
+    primitives composées quelque part dans sa liste. `tools/ritual-selftest.mjs` :
+    14/14 OK, dont le garde-fou d'acceptation #57 (`RITUAL_PRIMITIVES` /
+    `FAMILY_PRIMITIVES` ne sont importés que par `ritual.js` et
+    `hack-grammars.js` — aucune fuite hors de l'événement de rituel).
+  - **Coût mesuré** (`tools/ritual-bench.mjs`, budget 2 ms/frame, 480 frames/
+    primitive) — pire cas rejoué dans ce même run : `glitchShift` à
+    **0,168 ms/frame** (8,4 % du budget) ; toutes les autres primitives sous
+    0,12 ms/frame. Un précédent passage (task 4) avait mesuré `scanBurst` à
+    0,093 ms/frame comme pire cas — l'ordre de grandeur (quelques % du
+    budget) est stable, la valeur exacte varie avec la charge machine au
+    moment du bench.
+  - `npm run selftest` (158/158) et `npm run selftest:operator` (chaîne
+    complète, `landing-selftest.mjs` inclus une fois le lien symbolique
+    `public/scenes` en place) : verts de bout en bout, PHASE 20 en queue de
+    chaîne.
+  - **Vérifié navigateur** (MCP indisponible — profil Chromium déjà
+    verrouillé par une autre session ; piloté à la place via CDP brut sur un
+    Chromium headless dédié, `--remote-debugging-port=9223`) :
+    - Favicon d'onglet : le drone pixel art (`data:image/svg+xml`, rects
+      `crispEdges`), plus d'emoji — vérifié sur l'écran d'accueil et pendant
+      un rituel.
+    - Rituel déroulé jusqu'à la culmination via `?scene=<slug>&hack=<type>`
+      (raccourci dev, `src/main.js`/`normalizeHackType`) + vecteur de secours
+      `FALLBACK_VECTOR` (`↑ → ↓ ← ↑ ←`) : `colorFlash` observé (fond plein qui
+      strobe, ex. violet/magenta), `textWarp` observé (lignes de vocabulaire
+      d'ambiance déformées en sinusoïde, ex. `OVERRIDE`/`TRACE`/`BYPASS`
+      défilant), `bannerBurst` observé (texte en gros caractères ASCII, ex.
+      motif `GNSS`) — les trois nouvelles primitives, chacune capturée en
+      screenshot pendant sa fenêtre de burst. Les 8 primitives PHASE 10
+      (`scanBurst`, `gridSwarm`, `pulseRing`, `vectorSweep`, etc.) revues au
+      passage sur d'autres familles/variantes.
+    - Point de méthode utile pour rejouer ceci : la variante (V1-V4, 1-4 s)
+      et l'ordre des primitives sont déterministes par `seed =
+      cosmeticSeed(family || hackType)` (`src/hack-grammars.js` /
+      `tools/ritual-model.mjs`) — passer `&family=<nom>` en plus de `&hack=`
+      change la variante sans changer le hack affiché, utile pour forcer un
+      V3/V4 et voir une primitive qui n'apparaît qu'au 3e/4e battement.
+      Le rituel interactif (`.ritual-prompt`) ne se monte qu'après la
+      séquence scriptée d'AUTOMATED ANALYSIS (`tools/hack-model.mjs` :
+      `HACK_LEAD` + 2 battements famille + `HACK_TAIL` + pauses + `HACK_HOLD_MS`
+      + `HACK_LOCK_MS`, ~5,6 s nominal, plus sous charge) — envoyer les
+      touches avant que `.ritual-prompt` affiche des `_` ne fait rien
+      (rituel pas encore monté, événement clavier perdu).
+    - Hors rituel (écran d'accueil `[ GLOBAL SCANNER ]`, vol avec `?scene=`
+      seul, sans `hack=`) : aucune couleur ni flash demo scene — HUD en
+      monochrome clair standard, seul artefact visible étant le liseré RGB du
+      lens/link existant (préexistant, sans rapport avec le rituel).
+  - **Non vérifié** : l'adoption des tags `[+]`/`[!]`/`[*]` et des icônes
+    pixel art sur les écrans existants (menu, terminal, scanner…) — c'est
+    la PHASE 19 (issue #56), le langage existe mais sa généralisation est
+    hors périmètre de la PHASE 20. La saisie manette du rituel (`gamepad-dir.js`)
+    n'a pas été rejouée en navigateur (pas d'accès manette dans cet
+    environnement, comme pour PHASE 08/13). Seules 4 des 6 `HACK_TYPES` ont
+    été rejouées individuellement en navigateur via `?hack=<type>`
+    (`COMMAND INJECTION`, `LINK HIJACK`, `TELEMETRY SPOOF`, `GNSS SPOOF`) ;
+    `NETWORK TAKEOVER` et `FIRMWARE OVERRIDE` n'ont pas été rejouées
+    elles-mêmes, seules leurs primitives ont été observées en passant par
+    d'autres familles.
 
 - **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
   SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
@@ -654,7 +728,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     (…/poly-98b6e26043ec-20-20) » et le port JS calcule `98b6e26043ec` : le
     hash du Go et celui de Node concordent en conditions réelles, pas seulement
     sur la fixture.
-  - **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
+- **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
     scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
     pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
     réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
@@ -663,6 +737,68 @@ Plan d'origine (contexte de la décision d'architecture) :
     sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
     de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
     replis. La génération de cibles est peut-être logée à la même enseigne.
+
+- **Second fournisseur 3D — Stages 1 et 2 (issue #18)**, branche
+  `issue-18-providers`.
+  - Deux seams distincts introduits dans le pipeline de préparation, à ne pas
+    confondre : `tools/lib/providers/` (d'où viennent les octets — `plan`,
+    `probe`, `fetch`, `tileDirName`/`tileDirPath` async, `tileIsUsable`, id/
+    label/attribution) et `tools/lib/decoders/` (comment les lire — `sniff`/
+    `decode`). Le registre fournisseur (`tools/lib/providers/index.mjs`,
+    `DEFAULT_PROVIDER_ID`/`PROVIDERS`/`list()`/`get(id)`) et le sélecteur de
+    décodeur par reniflage (`tools/lib/decoders/index.mjs` `pick(tileDir)`)
+    existent tous les deux, mais **seul `flyover` est inscrit** comme
+    fournisseur — pas de second fournisseur réel pour l'instant, et aucun
+    drapeau `--provider` ne sélectionne le décodeur (il choisit seul par
+    reniflage). `tools/lib/growable.mjs` (Growable) et `tools/lib/run.mjs`
+    (runner de sous-process + `Cancelled`) sont les deux utilitaires partagés
+    extraits au passage, neutres vis-à-vis des deux seams.
+  - **À faire par le Stage 3, pour ne pas être découvert tard** : aujourd'hui
+    seul `fetch` est réellement dispatché par fournisseur. `tileDirName`/
+    `tileDirPath`/`tileIsUsable`/`planScan`/`probeCoverage` restent liés en dur
+    à `providers.get('flyover')` dans `tools/lib/add-map-core.mjs:24-28` (shim
+    de compatibilité pour la surface historique), et `map-api-plugin.mjs` — la
+    GUI, la voie principale d'ajout de carte — importe exactement ces symboles.
+    Ni `add-map.mjs` ni la GUI ne savent positionner `opts.provider`. Donc dès
+    qu'un second fournisseur s'inscrira : `/plan` et `/probe` continueront
+    d'interroger Flyover quel que soit le fournisseur choisi, et
+    `DELETE /scenes/:slug?raw=1` calculera un chemin de cache Flyover pour des
+    tuiles d'un autre fournisseur — orphelinant silencieusement leur téléchargement.
+  - `manifest.json` passe en `version: 3` et porte `provider: {id, label,
+    attribution, fetchedAt}`. Les manifests `version: 2` existants se
+    rechargent tels quels, avec repli sur l'attribution Apple Flyover — **pas
+    de re-préparation nécessaire**. `scenes.json` gagne `provider`/`fetchedAt`
+    par entrée (additif, les entrées déjà là restent valides).
+  - `src/provider-credit.js` (`creditLines`/`creditText`/`LEGACY_PROVIDER`) est
+    pur navigateur+Node ; une ligne de crédit discrète (`#fo-credit`) s'affiche
+    en bas à droite de l'OSD **`fpvtp-osd`** — jamais sur le `drone-osd`
+    diégétique.
+  - **Vérifié en headless** : `tools/provider-selftest.mjs` (5 tests : registre,
+    id inconnu, contrat de surface, `tileDirName` async, les trois modes de
+    zone) et `tools/provider-credit-selftest.mjs` (6 tests : manifest v3 avec
+    attribution, manifest v2 replié sur Flyover, fournisseur sans attribution
+    utilisable, jamais de crash sur une entrée absurde, dédup des lignes,
+    jonction de `creditText`), les deux chaînés dans `selftest:operator`.
+    `npm run selftest:operator` (dont les deux nouveaux) et `npm run selftest`
+    verts.
+  - **Vérifié dans un vrai navigateur** : sur `seine-iena-alma` — manifest
+    `version: 2`, SANS champ `provider` (donc ce test prouve le repli sans
+    re-préparation, pas le chemin v3) — la ligne de crédit `#fo-credit` rend
+    « © Apple » en bas à droite, à 14 px du bord droit et 12 px du bas, les
+    mêmes marges que les coins tl/tr/bl existants du HUD. Absente du
+    `drone-osd` diégétique, visible seulement sur `fpvtp-osd`.
+  - **Hors périmètre, à dessein** : le Stage 3 (le vrai fournisseur Google
+    Photorealistic 3D Tiles — client 3D Tiles, clé API, décodeur glTF) n'est
+    **pas fait** ; il attend un plan séparé une fois les inconnues wire levées
+    sur un vrai `root.json` (compression Draco, système de coordonnées des
+    transforms, structure exacte d'`asset.copyright`, paramètre de session,
+    calibration de `geometricError`). La sélection automatique de fournisseur
+    et le choix du fournisseur dans la GUI d'ajout de carte n'ont de sens
+    qu'avec un second fournisseur inscrit ; reportés au Stage 3 avec lui.
+  - **Gap connu, suivi en #110** : `tools/selftest.mjs` parse encore
+    `exp_model.mtl` directement pour vérifier la convention UV — la dernière
+    hypothèse OBJ vivant hors des décodeurs. À rendre agnostique du format
+    avant qu'un décodeur glTF n'arrive.
 
 ## Non vérifié / à faire
 

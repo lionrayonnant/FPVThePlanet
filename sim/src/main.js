@@ -20,7 +20,7 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
-import { SunField, SKY_REF } from './sun.js';
+import { SunField, SKY_REF, nightSensor } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
@@ -35,6 +35,7 @@ import { targetBuild } from '../tools/target-build.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
+import { creditText } from './provider-credit.js';
 import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 
@@ -83,6 +84,13 @@ export const OPTS = {
 	// Dev-only : ?hack=gnss-spoof prévisualise le motif de ce type de hack
 	// avant le vol, sur les chemins qui sautent le TARGET SCAN (?scene=/?family=).
 	hack: params.get('hack'),
+	// Dev-only : ?date=2026-06-21T23:52:00Z fige le soleil à cet instant —
+	// c'est ce qui permet de vérifier la nuit (#111) en plein jour. Une date
+	// invalide donne un NaN silencieux dans sunPosition(), d'où le garde.
+	date: (() => {
+		const d = params.has('date') ? new Date(params.get('date')) : null;
+		return d && Number.isFinite(d.getTime()) ? d : null;
+	})(),
 };
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
@@ -114,6 +122,9 @@ const hud = new Hud(document.getElementById('ui'));
 const fpvtpOsd = new FpvtpOsd(document.getElementById('ui'));
 let droneOsd = null;
 let camSpec = null;
+// Dernier gain nuit poussé vers lens.setSensor() — pour ne pousser que les
+// changements, et pour que applyTargetCamera() recompose la nuit en cours.
+let lastNightGain = 0;
 const settings = new Settings(document.getElementById('ui'), input);
 // Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
 // Aucune ligne avant le gate ne l'utilise à l'exécution.
@@ -239,7 +250,7 @@ function applyTargetCamera(spec) {
 	camera.aspect = spec.aspect;
 	camera.updateProjectionMatrix();
 	lens.setCamera({ aspect: spec.aspect, resScale: spec.resScale });
-	lens.setSensor(spec.sensor);
+	lens.setSensor(nightSensor(lastNightGain, spec.sensor));
 	rainfall?.setSize(innerHeight * renderer.getPixelRatio(), spec.fovDeg);
 	settings.setCameraSpec(spec);
 }
@@ -272,6 +283,7 @@ async function preloadScene() {
 	hud.progress('lecture du manifest…', 0.01);
 	const manifest = await loadManifest();
 	sceneManifest = manifest;
+	fpvtpOsd.setCredit(creditText(manifest));
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;
@@ -571,6 +583,7 @@ async function finishBoot(preloading) {
 					visible: +sunVisible.toFixed(3),
 					inFrame: +sunInFrame.toFixed(3),
 					exposure: +sun.exposure.toFixed(3),
+				gain: +sun.gain.toFixed(3),
 					ambient: +sun.ambient.toFixed(3),
 					sky: '#' + scene.background.getHexString(),
 					active: sun.active,
@@ -1021,7 +1034,7 @@ if (!frozen) {
 
 		sunInFrame = inFrame * sunVisible;
 
-		sun.update(dt, { sunInFrame });
+		sun.update(dt, OPTS.date ? { sunInFrame, date: OPTS.date } : { sunInFrame });
 	}
 
 	if (density !== lastDensity || skyHex !== lastSkyHex) {
@@ -1073,6 +1086,14 @@ if (!frozen) {
 				amount: sun.sunAmount * sunVisible,
 				exposure: sun.exposure,
 			});
+			// Le prix du haut gain (starlight, #111) : grain, noirs levés,
+			// désaturation, composés PAR-DESSUS le capteur de la cible. Poussé
+			// seulement quand le gain bouge — le jour, l'appliquant de
+			// applyTargetCamera() reste le seul à parler à setSensor().
+			if (sun.gain !== lastNightGain) {
+				lastNightGain = sun.gain;
+				lens.setSensor(nightSensor(sun.gain, camSpec?.sensor));
+			}
 		}
 	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain

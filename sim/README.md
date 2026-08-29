@@ -426,6 +426,32 @@ Y = haut, Z = sud, donc −Z = nord = « devant »), ce qui rend la physique
 directement crédible. Le script `center_scale_obj.js` du dépôt amont normalise
 à 10 unités arbitraires et ne convient pas pour ça.
 
+### Fournisseurs et décodeurs
+
+Le pipeline a deux seams distincts, et les confondre est l'erreur à éviter :
+« d'où viennent les octets » et « comment on les décode » sont deux questions
+séparées.
+
+**`tools/lib/providers/`** — d'où viennent les octets. Chaque fournisseur expose
+`plan` (estimer sans télécharger), `probe` (y a-t-il vraiment de la donnée ici),
+`fetch` (télécharger et rendre un dossier de tuiles), plus `tileDirPath` et son
+attribution. `lib/add-map-core.mjs` ne fait plus qu'orchestrer. Seul
+`flyover` est inscrit aujourd'hui ; l'ordre de priorité visé est Google >
+Flyover > maillages sous licence ouverte (issue #18).
+
+**`tools/lib/decoders/`** — comment les lire. Chaque décodeur expose `sniff`
+(sais-tu lire ce dossier ?) et `decode` (rends matériaux, positions ECEF, UV et
+triangles). `prep.mjs` choisit par reniflage : **aucun drapeau ne sélectionne le
+décodeur**, si bien qu'un fournisseur servant de l'OBJ réutilise le décodeur OBJ
+sans rien déclarer. Tout ce qui suit le decode — rebase ENU, chunks, texture
+arrays, mesh de collision — ignore le format d'entrée.
+
+> **Attention.** L'inversion de l'axe V vit **dans le décodeur OBJ**, pas dans le
+> contrat partagé : OBJ met l'origine UV en bas à gauche, glTF en haut à gauche.
+> Un décodeur qui hérite de cette inversion sans la mériter produit les fameuses
+> « textures grises » — 21 % de la surface visible échantillonne le remplissage
+> gris hors patch. Chaque décodeur tranche pour son compte.
+
 ### Trois réglages qui comptent
 
 - **UV en V retourné dans `prep.mjs`** — l'OBJ place l'origine UV en bas à
