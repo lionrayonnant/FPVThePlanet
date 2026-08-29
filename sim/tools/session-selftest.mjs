@@ -245,4 +245,18 @@ await ta('open({ resume }) envoie { resume } et rien d\'autre', async () => {
 	assert.deepEqual(post.body, { resume: 'paris-abcd' });
 });
 
+await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex, pas de resume', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 1 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.area, 'kyiv');
+	assert.equal(post.body.targetSeed, 's');
+	assert.equal(post.body.targetCount, 4);
+	assert.equal(post.body.targetIndex, 1);
+	assert.ok(!('resume' in post.body));
+});
+
 console.log(`\n${n} tests session OK`);

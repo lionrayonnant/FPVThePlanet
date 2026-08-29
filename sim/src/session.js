@@ -32,8 +32,12 @@ function zeroTel() {
 
 export function current() { return live?.session ?? null; }
 
-export async function open({ area, weatherSnapshot, resume } = {}) {
-	const body = resume ? { resume } : { area, weatherSnapshot };
+export async function open({ area, weatherSnapshot, resume, target } = {}) {
+	// `target = { seed, count, index }` : la cible choisie au TARGET SCAN. Le
+	// serveur régénère la fiche complète depuis ces trois clés (PHASE 08).
+	const body = resume
+		? { resume }
+		: { area, weatherSnapshot, targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index };
 	const session = await operator.postSession(body);
 	live = { id: session.id, session, tel: zeroTel(), closed: false };
 	return session;

@@ -18,6 +18,8 @@ import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
+import { runTargetScan } from './target-scan.js';
+import { generateTargetScan } from '../tools/target-model.mjs';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -66,7 +68,9 @@ export const OPTS = {
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
 }
-const PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
+// Résolu tardivement (PHASE 08) : la famille sort du TARGET SCAN, dans le gate
+// de chooseScene(), avant boot(). L'override dev ?family= le pré-remplit ici.
+let PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
@@ -82,7 +86,9 @@ document.body.appendChild(renderer.domElement);
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'));
 const settings = new Settings(document.getElementById('ui'), input);
-const controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
+// Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
+// Aucune ligne avant le gate ne l'utilise à l'exécution.
+let controller;
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
@@ -113,6 +119,7 @@ let crashed = false;
 // l'altitude du spawn, pour la session.
 let flyArea = null;
 let resumeId = null;
+let flyTarget = null;
 let spawnY = 0;
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
@@ -754,6 +761,18 @@ function frame() {
 // Résout l'opérateur (bootstrapping au premier lancement), pose l'opérateur sur
 // la Home, puis rend la main au choix de carte existant. ?scene=<slug> saute
 // Home ET menu mais garde un opérateur en mémoire pour operator.getOperator().
+// Nombre de signaux du TARGET SCAN, cohérent avec la densité affichée par le
+// Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
+// milieu de fourchette, clampé [2,5]. Terrain sans densité (cache ancien,
+// terrain local) → 4.
+function signalCountFor(slug) {
+	const t = operator.getOperator()?.terrainCache?.find((e) => e.slug === slug);
+	const r = t?.signalDensity?.range;
+	if (!Array.isArray(r) || r.length !== 2) return 4;
+	const mid = Math.round((r[0] + r[1]) / 2);
+	return mid < 2 ? 2 : mid > 5 ? 5 : mid;
+}
+
 async function chooseScene() {
 	const ui = document.getElementById('ui');
 
@@ -761,7 +780,7 @@ async function chooseScene() {
 		await operator.ensureDevOperator();
 		const scenes = await loadSceneList();
 		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
-		return { slug: OPTS.scene, resume: OPTS.resume || undefined };
+		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
 	const { needsBootstrap, choices } = await operator.loadOperator();
@@ -774,7 +793,29 @@ async function chooseScene() {
 	}
 
 	// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
-	return runTerminal(ui, { settings });
+	const flyChoice = await runTerminal(ui, { settings });
+	const { slug, resume } = flyChoice;
+
+	if (resume) {
+		// terrain persistent, flights ephemeral : une session LANDED rejoue SA
+		// cible (le serveur la relit du disque). On récupère juste la famille pour
+		// le PROFILE de vol.
+		const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
+		return { slug, resume, target: undefined, family: prev?.target?.family ?? OPTS.family ?? undefined };
+	}
+
+	// Override dev ?family= : court-circuite le TARGET SCAN.
+	if (OPTS.family) {
+		return { slug, resume: undefined, target: undefined, family: OPTS.family };
+	}
+
+	// Session fraîche → TARGET SCAN avant boot().
+	const seed = Math.random().toString(16).slice(2, 12);
+	const count = signalCountFor(slug);
+	const scan = generateTargetScan({ seed, count });
+	const choice = await runTargetScan(ui, { seed, count }); // { seed, count, index }
+	const family = scan.candidates[choice.index]._family;
+	return { slug, resume: undefined, target: choice, family };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -786,13 +827,18 @@ if (OPTS.scene) {
 }
 
 chooseScene()
-	.then(({ slug, resume }) => {
+	.then(({ slug, resume, target, family }) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
 		hud.show();
 		flyArea = slug;
 		resumeId = resume || null;
+		flyTarget = target || null;
+		// Garde l'override ?family= si le scan/resume n'a pas donné de famille.
+		PROFILE = family ? PROFILES[family] : PROFILE;
+		controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
+		if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
 		setScene(slug);
 		return boot();
 	})
@@ -812,7 +858,15 @@ async function openFlightSession() {
 			area: flyArea,
 			weatherSnapshot: session.snapshotWeather(weather),
 			resume: resumeId || OPTS.resume || undefined,
+			target: flyTarget || undefined,
 		});
+		// La cible résolue (scan frais ou relue du disque au resume) arme le lien
+		// vidéo avec le RSSI du signal adverse.
+		const tgt = session.current()?.target;
+		if (tgt?.signal) {
+			link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
+			console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);
+		}
 	} catch (e) {
 		console.warn('[session] ouverture échouée, ce vol ne sera pas enregistré', e);
 	}
