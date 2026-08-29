@@ -15,7 +15,7 @@ import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
-import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, rngFrom } from '../src/entry-state.js';
+import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1243,6 +1243,30 @@ console.log('\nentry state — sampleCandidate');
 	};
 	check('rolloutSafe rejects a fast dive straight into the ground', rolloutSafe(divingIntoGround, phys) === false);
 	check('rolloutSafe accepts a normally-sampled COMFORTABLE candidate', rolloutSafe(onFloor, phys) === true);
+
+	// Acceptance criteria from issue #48: 100 automated draws, none crash
+	// unattended, none land under the terrain; category mix close to spec.
+	const drawCounts = Object.fromEntries(CATEGORIES.map((c) => [c, 0]));
+	let anyCrashed = false, anyUnderground = false;
+	for (let i = 0; i < 100; i++) {
+		const entry = generateEntryState({ physics: phys, manifest, seed: `draw-${i}` });
+		drawCounts[entry.category]++;
+		if (!rolloutSafe(entry, phys)) anyCrashed = true;
+		const ground = phys.groundBelow(entry.position.x, entry.position.y, entry.position.z);
+		if (ground === null || entry.position.y - ground < 1) anyUnderground = true;
+	}
+	check('100 draws: none crash within the grace second when replayed', !anyCrashed);
+	check('100 draws: none spawn under the terrain', !anyUnderground);
+	console.log(`    category mix over 100 draws: ${JSON.stringify(drawCounts)}`);
+
+	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
+	check('maxAttempts=0 falls back to the fixed spawn', fallback.category === 'COMFORTABLE'
+		&& fallback.position.x === manifest.spawn.x && fallback.position.y === manifest.spawn.y
+		&& fallback.position.z === manifest.spawn.z
+		&& fallback.quaternion.w === 1 && fallback.quaternion.x === 0
+		&& fallback.linvel.x === 0 && fallback.linvel.y === 0 && fallback.linvel.z === 0
+		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
+
 	phys.reset();
 }
 

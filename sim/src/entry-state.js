@@ -190,3 +190,30 @@ export function rolloutSafe(candidate, physics) {
 	}
 	return true;
 }
+
+const DEFAULT_MAX_ATTEMPTS = 20;
+
+function fallbackCandidate(manifest) {
+	return {
+		category: 'COMFORTABLE',
+		position: { ...manifest.spawn },
+		quaternion: { x: 0, y: 0, z: 0, w: 1 },
+		linvel: { x: 0, y: 0, z: 0 },
+		angvel: { x: 0, y: 0, z: 0 },
+	};
+}
+
+// Never returns null: after maxAttempts unsuccessful draws it falls back to
+// manifest.spawn at rest, which trivially satisfies both safety nets (it's
+// exactly what physics.reset() has always spawned into).
+export function generateEntryState({ physics, manifest, seed, maxAttempts = DEFAULT_MAX_ATTEMPTS }) {
+	const rand = rngFrom(seed);
+	const category = pickCategory(rand);
+	for (let i = 0; i < maxAttempts; i++) {
+		const candidate = sampleCandidate(category, manifest, physics, rand);
+		if (candidate && geometrySafe(candidate, physics) && rolloutSafe(candidate, physics)) {
+			return candidate;
+		}
+	}
+	return fallbackCandidate(manifest);
+}
