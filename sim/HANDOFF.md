@@ -72,9 +72,15 @@ Plan d'origine (contexte de la décision d'architecture) :
   - Bug du banc `tune-pid` corrigé (attitude intégrée passée au contrôleur →
     oscillation fantôme, divergente pour une boucle micro) : le banc passe
     `rotation: IDENTITY`.
-  - **Non vérifié en vol piloté** : le ressenti réel de chaque famille (voir
-    plus bas). Le tinywhoop 1S a été prototypé puis **retiré** — à ~34 g le
-    couplage roll/pitch/yaw du modèle n'est pas calibré ; issue de suivi.
+  - **Non vérifié en vol piloté** : le ressenti réel de chaque famille. Le
+    tinywhoop 1S a été prototypé puis **retiré** — à ~34 g le couplage
+    roll/pitch/yaw du modèle n'est pas calibré ; issue de suivi.
+  - **Pour tester une famille en vol** (en attendant la sélection de cible,
+    PHASE 08) : `npm run dev` puis
+    `http://localhost:5173/?scene=tour-eiffel&family=<nom>` avec `<nom>` =
+    `freestyle5` `race5` `cinewhoop` `longrange` `heavy5` `toothpick`. Une
+    famille par chargement de page (pas de bascule en vol). `__sim.debug().family`
+    confirme laquelle est chargée.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
