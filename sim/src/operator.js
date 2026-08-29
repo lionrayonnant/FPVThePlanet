@@ -88,11 +88,28 @@ export async function listOperators() {
 // Rattache un terrain déjà acquis à l'opérateur courant (PHASE 05, KEEP
 // TERRAIN). Contrairement à patch(), c'est un appel serveur direct plutôt
 // qu'un debounce : la décision est unique et son écran attend la confirmation.
-export async function keepTerrain(slug) {
+// `extra` optionnel : { signalDensity: { level, range } } — une estimation
+// d'écran du Global Scanner que le serveur ne peut pas recalculer (voir la route).
+export async function keepTerrain(slug, extra = {}) {
 	if (!cache) throw new Error('aucun opérateur chargé');
-	cache = (await req('POST', `/${cache.id}/terrain-cache`, { slug })).operator;
+	cache = (await req('POST', `/${cache.id}/terrain-cache`, { slug, ...extra })).operator;
 	return cache;
 }
+
+// Sessions (PHASE 06). Le cycle de vie complet vit dans src/session.js ; ici on
+// n'expose que les deux appels réseau, parce que c'est cette couche qui connaît
+// l'id de l'opérateur courant.
+export async function postSession(body) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('POST', `/${cache.id}/sessions`, body)).session;
+}
+
+export async function patchSession(sid, body) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('PATCH', `/${cache.id}/sessions/${sid}`, body)).session;
+}
+
+export function operatorBase() { return OP_BASE; }
 
 export async function flush() {
 	if (timer) { clearTimeout(timer); timer = null; }

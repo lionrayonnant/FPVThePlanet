@@ -345,6 +345,8 @@ export function runScanner(root) {
 	function renderDensity() {
 		const areaKm2 = (state.describe?.dimensions.area ?? 0) / 1e6;
 		const s = signalDensity({ place: state.place, areaKm2 });
+		// Mémorisé pour le KEEP : acquired() n'a pas accès proprement à l'aire.
+		state.lastDensity = s;
 		$('.sc-density').textContent = `LOW ${s.bar} HIGH`;
 		$('.sc-level').textContent = s.label;
 		$('.sc-targets').textContent = s.targets;
@@ -698,7 +700,9 @@ export function runScanner(root) {
 
 			panel.querySelector('.sc-keep').onclick = async () => {
 				try {
-					await operatorApi.keepTerrain(d.slug);
+					const dens = state.lastDensity;
+					await operatorApi.keepTerrain(d.slug,
+						dens && dens.known ? { signalDensity: { level: dens.level, range: dens.range } } : {});
 					reveal();
 				} catch (e) {
 					note('.sc-keep-note', e.message.toUpperCase(), 'alarm');

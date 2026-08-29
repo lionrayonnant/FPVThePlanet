@@ -58,6 +58,16 @@ const Z_FLOOR = 2 * Z0;
 
 const LOG_REF = Math.log(Z_REF / Z0);
 
+// Nerf global du vent ressenti. Les modèles de ce fichier (log-law, Dryden,
+// gusts MIL-F-8785C) sont justes, mais leur "juste" rend le vol en gymkhana
+// urbain trop punitif : ce qui se pilote en ligne droite devient ingérable
+// entre deux façades. Un seul facteur, appliqué à la vitesse moyenne dans
+// update(), donc rafales / turbulence / updraft suivent dans la même
+// proportion — rien de spécial-cased. Assumé loin du réel : le but est
+// l'expérience pilote, pas l'anémomètre. `nominal` n'est PAS touché : la
+// prévision de l'Operator Terminal reste la vraie météo.
+const WIND_GAIN = 0.75;
+
 // Fraction of the 10 m wind found at height z. Exactly 1 at 10 m.
 export function shearFactor(agl) {
 	const z = Math.min(Math.max(agl, Z_FLOOR), Z_TOP);
@@ -547,7 +557,7 @@ export class WindField {
 		this._terrain(probe, y, dt);
 
 		const height = this.agl;
-		let speed = this.speed * shearFactor(height);
+		let speed = this.speed * shearFactor(height) * WIND_GAIN;
 
 		// Wander: the direction swings and the strength breathes.
 		const bearing = this.direction + veer(height) + this._wanderDir.next(dt, 25) * 15;

@@ -159,7 +159,10 @@ export class Input {
 
 			this.keys.add(k);
 
-			if (
+			// `j` : équivalent clavier du geste de désarmement Betaflight.
+			if (k === 'j') {
+				this.onAction('disarm', e);
+			} else if (
 				[
 					'r',
 					'm',
@@ -466,7 +469,23 @@ export class Input {
 			this.readKeyboard(dt);
 		}
 
+		this.checkDisarmGesture(dt);
+
 		return this.sticks;
+	}
+
+	// Désarmement Betaflight : throttle au plancher + yaw plein gauche tenus
+	// ~0,5 s. La touche `j` fait la même chose au clavier, où il n'y a pas de
+	// throttle analogique à maintenir. Émet l'action une seule fois par maintien.
+	checkDisarmGesture(dt) {
+		const held = this.sticks.throttle < 0.08 && this.sticks.yaw < -0.85;
+		if (!held) { this._disarmHold = 0; this._disarmFired = false; return; }
+		this._disarmHold = (this._disarmHold ?? 0) + dt;
+		if (this._disarmHold >= 0.4 && !this._disarmFired) {
+			this._disarmFired = true;
+			console.log('[input] geste de désarmement');
+			this.onAction('disarm');
+		}
 	}
 
 	// ---------------------------------------------------------------------------
