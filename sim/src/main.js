@@ -885,7 +885,7 @@ chooseScene()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
-	spawnY = physics.position.y;
+	spawnY = physics.spawn.y;
 	try {
 		await session.open({
 			area: flyArea,

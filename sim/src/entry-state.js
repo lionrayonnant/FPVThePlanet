@@ -212,8 +212,11 @@ export function generateEntryState({ physics, manifest, seed, maxAttempts = DEFA
 	for (let i = 0; i < maxAttempts; i++) {
 		const candidate = sampleCandidate(category, manifest, physics, rand);
 		if (candidate && geometrySafe(candidate, physics) && rolloutSafe(candidate, physics)) {
+			physics.applyEntryState(candidate);
 			return candidate;
 		}
 	}
-	return fallbackCandidate(manifest);
+	const fallback = fallbackCandidate(manifest);
+	physics.applyEntryState(fallback);
+	return fallback;
 }

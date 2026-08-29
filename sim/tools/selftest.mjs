@@ -1247,16 +1247,24 @@ console.log('\nentry state — sampleCandidate');
 	// Acceptance criteria from issue #48: 100 automated draws, none crash
 	// unattended, none land under the terrain; category mix close to spec.
 	const drawCounts = Object.fromEntries(CATEGORIES.map((c) => [c, 0]));
-	let anyCrashed = false, anyUnderground = false;
+	let anyCrashed = false, anyUnderground = false, anyOutOfRange = false;
 	for (let i = 0; i < 100; i++) {
 		const entry = generateEntryState({ physics: phys, manifest, seed: `draw-${i}` });
 		drawCounts[entry.category]++;
 		if (!rolloutSafe(entry, phys)) anyCrashed = true;
 		const ground = phys.groundBelow(entry.position.x, entry.position.y, entry.position.z);
 		if (ground === null || entry.position.y - ground < 1) anyUnderground = true;
+		if (ground !== null) {
+			const agl = entry.position.y - ground;
+			const speed = Math.hypot(entry.linvel.x, entry.linvel.y, entry.linvel.z);
+			const [loAgl, hiAgl] = RANGES[entry.category].aglM;
+			const [loSpeed, hiSpeed] = RANGES[entry.category].speedMs;
+			if (agl < loAgl - 1e-6 || agl > hiAgl + 1e-6 || speed < loSpeed - 1e-6 || speed > hiSpeed + 1e-6) anyOutOfRange = true;
+		}
 	}
 	check('100 draws: none crash within the grace second when replayed', !anyCrashed);
 	check('100 draws: none spawn under the terrain', !anyUnderground);
+	check('100 draws: each returned entry matches its own category\'s AGL/speed range', !anyOutOfRange);
 	console.log(`    category mix over 100 draws: ${JSON.stringify(drawCounts)}`);
 
 	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
