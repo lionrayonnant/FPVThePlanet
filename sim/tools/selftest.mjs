@@ -1214,16 +1214,21 @@ console.log('\nentry state — sampleCandidate');
 	check('geometrySafe rejects a position far under the terrain', geometrySafe(buried, phys) === false);
 	check('geometrySafe accepts a normally-sampled COMFORTABLE candidate', geometrySafe(onFloor, phys) === true);
 
-	// A candidate with high altitude and forward velocity away from all geometry
-	// demonstrates geometrySafe accepting a genuinely safe condition.
-	const highSafe = {
-		category: 'COMFORTABLE',
-		position: { x: manifest.bbox.min[0] + 200, y: groundNearTower + 200, z: manifest.bbox.min[2] + 200 },
-		quaternion: { x: 0, y: 0, z: 0, w: 1 },
-		linvel: { x: 10, y: 0, z: 0 },
-		angvel: { x: 0, y: 0, z: 0 },
+	// geometrySafe's obstruction-rejection branch needs a real wall ahead to
+	// trigger — the tour-eiffel lattice is too thin/sparse to reliably produce
+	// one (see physics.js's own note on photogrammetry meshes being a "surface
+	// soup" with legitimately-zero span for thin structures). A stub isolates
+	// the branch logic from scene geometry.
+	const wallStub = {
+		groundBelow: () => onFloor.position.y - 5, // plenty of clearance
+		obstructionBetween: () => ({ blocked: true, span: 5 }),
 	};
-	check('geometrySafe accepts a high-altitude candidate away from structures', geometrySafe(highSafe, phys) === true);
+	const clipStub = {
+		groundBelow: () => onFloor.position.y - 5,
+		obstructionBetween: () => ({ blocked: true, span: 0.5 }),
+	};
+	check('geometrySafe rejects when a real wall (span > 2m) is ahead', geometrySafe(onFloor, wallStub) === false);
+	check('geometrySafe accepts a tangential clip (span <= 2m)', geometrySafe(onFloor, clipStub) === true);
 	phys.reset();
 }
 
