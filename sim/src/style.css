@@ -91,6 +91,56 @@ canvas { display: block; }
 #session-status[data-kind="landed"] { color: #7dff9b; }
 #session-status[data-kind="lost"] { color: #ff5a5a; }
 
+/* PHASE 12 — la couche locale. Au-dessus de tout, bandes noires comprises :
+   elle ne traverse pas la liaison, donc rien ne la dégrade. Le traitement
+   ci-dessous est purement décoratif — il empêche seulement la couche de
+   flotter au-dessus de l'image comme un overlay de navigateur. */
+#fpvtp-osd {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	font-size: 13px;
+	line-height: 1.6;
+	letter-spacing: .04em;
+	color: #e8f0f4;
+	text-shadow: var(--shadow);
+	/* Très doux, et sur la couche seule : ce n'est pas le vignettage de
+	   l'objectif, qui lui est dans le shader et deux boîtes plus haut. */
+	mask-image: radial-gradient(ellipse 120% 120% at 50% 50%, #000 60%, rgba(0, 0, 0, .82) 100%);
+}
+#fpvtp-osd .corner { position: absolute; }
+#fpvtp-osd .tl { top: 12px; left: 14px; }
+#fpvtp-osd .tr { top: 12px; right: 14px; text-align: right; }
+#fpvtp-osd .bl { bottom: 12px; left: 14px; }
+#fo-ident { color: var(--accent); }
+#fo-rates, #fo-input, #fo-fps { font-size: 12px; opacity: .6; }
+#fo-env { font-size: 12px; opacity: .8; }
+#fo-crash, #fo-pause, #fo-status {
+	position: absolute;
+	left: 50%;
+	top: 42%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	font-size: 28px;
+	letter-spacing: .18em;
+}
+#fo-crash small, #fo-pause small, #fo-status small {
+	display: block;
+	font-size: 12px;
+	letter-spacing: .1em;
+	opacity: .7;
+}
+#fo-reticle {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 14px;
+	height: 14px;
+	margin: -7px 0 0 -7px;
+	border: 1px solid rgba(232, 240, 244, .55);
+	border-radius: 50%;
+}
+
 /* ---------- settings ---------- */
 
 #settings {
