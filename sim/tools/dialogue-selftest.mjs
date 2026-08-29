@@ -5,6 +5,7 @@ import {
 	CREW, RARITY, EVENTS, SLOTS, JENSEN_COOLDOWN, MEMORY_RING, MEMORY_SEEN,
 	resolvePath, slotsUsed, pathsForSlots,
 } from './dialogue/catalog.mjs';
+import { render } from './dialogue/render.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -73,6 +74,34 @@ t('slotsUsed : extrait les slots des répliques, sans doublon', () => {
 t('pathsForSlots : traduit les noms de slots en chemins d\'état', () => {
 	assert.deepEqual(pathsForSlots(['wind']), [SLOTS.wind.path]);
 	assert.deepEqual(pathsForSlots(['nope']), []);
+});
+
+const ENTRY = { id: 'x/1', lines: [
+	{ speaker: 'root', text: '{wind} meters per second in {location}.' },
+	{ speaker: 'mikhail', text: 'not with the {drone_type}.' },
+] };
+const CTX = { weather: { windMs: 6.4 }, area: { name: 'tokyo' }, drone: { label: 'CINEWHOOP' } };
+
+t('render : interpole et formate chaque slot', () => {
+	assert.deepEqual(render(ENTRY, CTX), [
+		{ speaker: 'root', text: '6 meters per second in TOKYO.' },
+		{ speaker: 'mikhail', text: 'not with the cinewhoop.' },
+	]);
+});
+
+t('render : texte sans slot rendu tel quel', () => {
+	const plain = { id: 'x/2', lines: [{ speaker: 'mikhail', text: 'that is not the same thing' }] };
+	assert.deepEqual(render(plain, {}), [{ speaker: 'mikhail', text: 'that is not the same thing' }]);
+});
+
+t('render : jette plutôt que d\'afficher un slot non résolu', () => {
+	assert.throws(() => render(ENTRY, { area: { name: 'tokyo' } }), /wind/,
+		'un contexte incomplet doit exploser en développement, jamais s\'afficher au joueur');
+});
+
+t('render : jette sur un slot inconnu du catalogue', () => {
+	const bad = { id: 'x/3', lines: [{ speaker: 'root', text: 'hello {nonexistent}' }] };
+	assert.throws(() => render(bad, {}), /nonexistent/);
 });
 
 console.log(`\n${n} vérifications, tout passe.`);
