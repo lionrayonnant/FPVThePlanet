@@ -8,6 +8,7 @@ lancement dans un menu.
 npm install
 npm run dev       # http://localhost:5173 — choisis une carte dans le menu
 npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
+npm run selftest:operator  # schéma d'état opérateur + recall client local-first
 ```
 
 ## Sommaire
@@ -64,7 +65,10 @@ Deux choses valent d'être comprises :
   (`tools/lib/estimates.json`), pas d'un doigt mouillé.
 
 L'interface et son API (`/__map-api`) n'existent que sous `npm run dev` : elles ne
-partent pas dans `npm run build`.
+partent pas dans `npm run build`. Il en va de même pour la couche opérateur
+(`/__operator`), servie par le même plugin de dev. Comme `main.js` appelle
+désormais cette couche pendant le boot, un bundle issu de `vite build` n'est pas
+jouable en V1 — c'est voulu (décision D1 : `npm run dev` *est* le jeu).
 
 ### En ligne de commande
 

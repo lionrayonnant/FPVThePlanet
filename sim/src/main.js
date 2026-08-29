@@ -6,6 +6,9 @@ import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
 import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain, loadFog } from './hud.js';
+import * as operator from './operator.js';
+import { bootstrap } from './bootstrap.js';
+import { operatorSelect, home } from './home.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -612,17 +615,41 @@ function frame() {
 // Picks which prepared map to fly before doing any of the heavy loading work.
 // ?scene=<slug> skips the menu (handy for bookmarking/dev), otherwise the
 // menu is shown even with a single map so "choose from a menu" always holds.
+// Résout l'opérateur (bootstrapping au premier lancement), pose l'opérateur sur
+// la Home, puis rend la main au choix de carte existant. ?scene=<slug> saute
+// Home ET menu mais garde un opérateur en mémoire pour operator.getOperator().
 async function chooseScene() {
-	const scenes = await loadSceneList();
-	if (scenes.length === 0) throw new Error('aucune carte : lance "npm run add-map" d’abord');
+	const ui = document.getElementById('ui');
 
 	if (OPTS.scene) {
-		if (!scenes.some((s) => s.slug === OPTS.scene)) {
-			throw new Error(`carte inconnue: "${OPTS.scene}"`);
+		await operator.ensureDevOperator();
+	} else {
+		const { needsBootstrap, choices } = await operator.loadOperator();
+		if (needsBootstrap) {
+			await bootstrap(ui);
+		} else if (choices) {
+			const pick = await operatorSelect(ui, choices);
+			if (pick.create) await bootstrap(ui);
+			else await operator.selectOperator(pick.id);
 		}
+		await home(ui);            // résout au clic [ FLY ]
+	}
+
+	const scenes = await loadSceneList();
+	if (scenes.length === 0) throw new Error('aucune carte : lance "npm run add-map" d’abord');
+	if (OPTS.scene) {
+		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
 		return OPTS.scene;
 	}
 	return new Promise((resolve) => hud.showMenu(scenes, resolve));
+}
+
+// ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
+// L'AudioContext exige un geste — on l'attrape au premier input.
+if (OPTS.scene) {
+	const kick = () => { audio.start(); };
+	window.addEventListener('pointerdown', kick, { once: true });
+	window.addEventListener('keydown', kick, { once: true });
 }
 
 chooseScene()

@@ -176,3 +176,40 @@ canvas { display: block; }
 #batt[data-level="empty"] { color: #f2714f; }
 
 #preset { opacity: .65; font-size: 12px; letter-spacing: .04em; }
+
+/* ---------- bootstrap / operator screens (PHASE 01) ---------- */
+
+.bootstrap {
+	position: fixed; inset: 0;
+	display: grid; place-items: center;
+	background: #0d1218;
+	z-index: 11;
+}
+.bootstrap-box {
+	width: min(560px, 86vw);
+	display: flex; flex-direction: column; gap: 12px;
+}
+.bootstrap-box pre {
+	margin: 0;
+	white-space: pre-wrap;
+	color: var(--ink);
+}
+.bootstrap-vec { font-size: 20px; letter-spacing: .12em; }
+.bootstrap-row { display: flex; align-items: center; gap: 8px; }
+.bootstrap-err { color: var(--accent); min-height: 1.4em; }
+.bootstrap input {
+	background: #0d1218; color: var(--ink);
+	border: 1px solid rgba(255, 255, 255, .25);
+	padding: 10px 12px; font: inherit; letter-spacing: .1em;
+}
+.bootstrap-btn, .bootstrap button {
+	align-self: flex-start;
+	padding: 10px 14px;
+	background: transparent; color: var(--ink);
+	border: 1px solid rgba(255, 255, 255, .25);
+	font: inherit; cursor: pointer;
+}
+.bootstrap-btn:hover, .bootstrap button:hover:not(:disabled) {
+	border-color: var(--accent); color: var(--accent);
+}
+.bootstrap button:disabled { opacity: .4; cursor: default; }

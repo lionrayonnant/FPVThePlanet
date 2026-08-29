@@ -15,9 +15,126 @@ import {
 	addMap, planScan, probeCoverage, slugify, readScenes, writeScenes,
 	dirSize, tileDirPath, Cancelled, SCENES_DIR, FLYOVER_ROOT,
 } from './lib/add-map-core.mjs';
+import {
+	newId, validateName, validateControlVector,
+	freshState, migrate,
+} from './operator-store.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 
 const BASE = '/__map-api';
+
+const OP_BASE = '/__operator';
+
+// Répertoire de l'état opérateur : sibling de public/scenes/, hors bundle,
+// gitignored. FPV_OPERATOR_DIR permet au selftest de le rediriger.
+const OPERATOR_DIR = process.env.FPV_OPERATOR_DIR
+	|| path.resolve(SCENES_DIR, '..', '..', 'operator-state');
+
+function ensureOperatorDir() {
+	fs.mkdirSync(OPERATOR_DIR, { recursive: true });
+}
+
+const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function _readOperator(id) {
+	if (!ID_RE.test(id)) throw new Error('id invalide');
+	const file = path.join(OPERATOR_DIR, `${id}.json`);
+	if (!fs.existsSync(file)) return null;
+	return migrate(JSON.parse(fs.readFileSync(file, 'utf8')));
+}
+
+function _writeOperator(state) {
+	if (!ID_RE.test(state.id)) throw new Error('id invalide');
+	ensureOperatorDir();
+	const file = path.join(OPERATOR_DIR, `${state.id}.json`);
+	const tmp = `${file}.${process.pid}.tmp`;
+	fs.writeFileSync(tmp, JSON.stringify(state, null, '\t'));
+	fs.renameSync(tmp, file);
+	return state;
+}
+
+function _listOperators() {
+	ensureOperatorDir();
+	return fs.readdirSync(OPERATOR_DIR)
+		.filter((f) => f.endsWith('.json'))
+		.map((f) => {
+			try { return migrate(JSON.parse(fs.readFileSync(path.join(OPERATOR_DIR, f), 'utf8'))); }
+			catch { return null; }
+		})
+		.filter(Boolean)
+		.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+
+function operatorSummary(s) {
+	return {
+		id: s.id, name: s.name, createdAt: s.createdAt,
+		counts: {
+			areas: s.terrainCache.length,
+			sessions: s.sessions.length,
+			targets: s.targetLog.length,
+		},
+	};
+}
+
+const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings']);
+
+// Traduit une erreur de lecture d'opérateur en code HTTP : id malformé → 400,
+// fichier d'un schéma trop récent → 409, tout le reste (JSON corrompu, E/S) → 500.
+function opReadErrorStatus(e) {
+	if (e.message === 'id invalide') return 400;
+	if (e.message === 'schemaVersion trop récent') return 409;
+	return 500;
+}
+
+const opRoutes = [
+	['GET', /^\/$/, async (req, res) => {
+		json(res, 200, { operators: _listOperators().map(operatorSummary) });
+	}],
+
+	['POST', /^\/$/, async (req, res) => {
+		const b = await readBody(req);
+		let name;
+		try { name = validateName(b.name); }
+		catch (e) { return json(res, 400, { error: e.message }); }
+		// Garde contre la collision d'id à ~1/65536 : on retire jusqu'à un id libre.
+		let state;
+		do { state = freshState({ id: newId(name), name }); }
+		while (fs.existsSync(path.join(OPERATOR_DIR, state.id + '.json')));
+		_writeOperator(state);
+		json(res, 201, { operator: state });
+	}],
+
+	['GET', /^\/([^/]+)$/, async (req, res, [id]) => {
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) {
+			return json(res, opReadErrorStatus(e), { error: e.message });
+		}
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		json(res, 200, { operator: state });
+	}],
+
+	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
+		const b = await readBody(req);
+		if (!OP_WRITABLE_KEYS.has(b.key)) {
+			return json(res, 400, { error: `clé non modifiable : ${b.key}` });
+		}
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) {
+			return json(res, opReadErrorStatus(e), { error: e.message });
+		}
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		let value = b.value;
+		if (b.key === 'controlVector') {
+			try { value = validateControlVector(value); }
+			catch (e) { return json(res, 400, { error: e.message }); }
+		}
+		state[b.key] = value;
+		_writeOperator(state);
+		json(res, 200, { operator: state });
+	}],
+];
 
 // Un seul job à la fois : télécharger deux cartes en parallèle sature la même
 // liaison et ne va pas plus vite, mais rend la progression illisible.
@@ -252,6 +369,20 @@ export default function mapApiPlugin() {
 		apply: 'serve', // outil de dev : jamais dans le bundle de production
 		configureServer(server) {
 			server.middlewares.use(async (req, res, next) => {
+				if (req.url === OP_BASE || req.url?.startsWith(OP_BASE + '/') || req.url?.startsWith(OP_BASE + '?')) {
+					const url = new URL(req.url, 'http://localhost');
+					const p = url.pathname.slice(OP_BASE.length) || '/';
+					const onPath = opRoutes.filter(([, re]) => re.test(p));
+					if (!onPath.length) return json(res, 404, { error: `route inconnue : ${p}` });
+					const route = onPath.find(([method]) => method === req.method);
+					if (!route) return json(res, 405, { error: `${req.method} non supporté sur ${p}`, allow: onPath.map(([m]) => m) });
+					try {
+						return await route[2](req, res, route[1].exec(p).slice(1), url);
+					} catch (e) {
+						server.config.logger.error(`[operator] ${p}: ${e.stack ?? e.message}`);
+						return json(res, 400, { error: e.message });
+					}
+				}
 				if (!req.url?.startsWith(BASE)) return next();
 				const url = new URL(req.url, 'http://localhost');
 				const p = url.pathname.slice(BASE.length) || '/';
@@ -280,3 +411,4 @@ export default function mapApiPlugin() {
 }
 
 export { FLYOVER_ROOT };
+export { _readOperator, _writeOperator, _listOperators, OPERATOR_DIR };
