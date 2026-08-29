@@ -109,6 +109,12 @@ export function resolveTarget(scan, index) {
 		family: c._family,
 		classHint: c._classHint,
 		hackType: c._hackType,
+		// Graine de l'EXEMPLAIRE (PHASE 07, tools/target-build.mjs). Dérivée du
+		// scan et de l'index, donc reproductible par le serveur comme par le
+		// client, et relue telle quelle à un resume : le drone détourné hier est
+		// le même aujourd'hui. Distincte de l'id de session, qui n'existe pas
+		// encore au moment où le FlightController doit être construit.
+		buildSeed: `${scan.seed}::${index}`,
 		signal: { rssiDbm: c.rssiDbm, mode: c._videoHint },
 		scannedAt: new Date().toISOString(),
 		intel: {
