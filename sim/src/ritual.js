@@ -94,7 +94,7 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			const beatIdx = Math.min(variant.beats - 1, Math.floor(elapsed / beatMs));
 			const primitive = RITUAL_PRIMITIVES[primitives[beatIdx % primitives.length]];
 			burstEl.className = `ritual-burst ritual-burst--${RITUAL_COLORS[beatIdx % RITUAL_COLORS.length]}`;
-			primitive(burstEl, { t: elapsed / 1000, seed: numSeed });
+			primitive(burstEl, { t: elapsed / 1000, seed: numSeed, dur: variant.ms / 1000 });
 			if (beatIdx !== lastBeatIdx) {
 				// Un coup à chaque battement : le rituel doit frapper l'écran, pas
 				// juste changer de motif dessus (retour utilisateur PR #80).

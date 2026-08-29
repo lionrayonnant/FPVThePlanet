@@ -76,12 +76,42 @@ t('FAMILY_PRIMITIVES : chaque HACK_TYPES a une entrée dont les primitives exist
 	}
 });
 
-t('RITUAL_PRIMITIVES : au moins les 8 primitives documentées', () => {
+t('RITUAL_PRIMITIVES : les 11 primitives documentées', () => {
 	for (const name of [
 		'scanBurst', 'glitchShift', 'pulseRing', 'gridSwarm',
 		'waveformSpike', 'vectorSweep', 'memoryScroll', 'chromaSplit',
+		'colorFlash', 'textWarp', 'bannerBurst',
 	]) {
 		assert.equal(typeof RITUAL_PRIMITIVES[name], 'function', `manque ${name}`);
+	}
+});
+
+t('primitives : contrat (t, seed, dur) tenu de V1 à V4, sortie bornée 44×12', () => {
+	for (const [name, fn] of Object.entries(RITUAL_PRIMITIVES)) {
+		for (const dur of [1, 2, 3, 4]) {
+			for (const tt of [0, dur * 0.5, dur - 0.016]) {
+				const el = { textContent: '' };
+				fn(el, { t: tt, seed: 0.37, dur });
+				const rows = el.textContent.split('\n');
+				assert.equal(rows.length, 12, `${name} dur=${dur} : 12 lignes`);
+				for (const r of rows) assert.equal(r.length, 44, `${name} dur=${dur} : 44 colonnes`);
+			}
+		}
+	}
+});
+
+t('primitives : dur absent → comportement par défaut (compat PHASE 10)', () => {
+	for (const [name, fn] of Object.entries(RITUAL_PRIMITIVES)) {
+		const el = { textContent: '' };
+		fn(el, { t: 0.5, seed: 0.37 });
+		assert.ok(el.textContent.length > 0, name);
+	}
+});
+
+t('FAMILY_PRIMITIVES : les nouvelles primitives PHASE 20 sont composées', () => {
+	const used = new Set(Object.values(FAMILY_PRIMITIVES).flat());
+	for (const name of ['colorFlash', 'textWarp', 'bannerBurst']) {
+		assert.ok(used.has(name), `${name} n'est composé par aucune famille`);
 	}
 });
 
