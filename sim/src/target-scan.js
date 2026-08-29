@@ -84,7 +84,7 @@ ${list()}</pre>`;
 LOCATION       ${d.location}
 SIGNAL         ${d.signal}
 DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
-VIDEO          ${d.video}${d.videoHint ? `  (EST. ${d.videoHint})` : ''}
+VIDEO          ${d.video}
 CONTROL        ${d.control}
 FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}</pre>`;
 

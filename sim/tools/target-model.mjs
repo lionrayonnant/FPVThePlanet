@@ -86,6 +86,18 @@ export function generateTargetScan({ seed, count } = {}) {
 
 // Fiche pré-hack (Bible §15/§22). NE CONTIENT JAMAIS _family : on n'affiche que
 // ce qui est réellement connu avant le vol.
+//
+// Trois niveaux et rien d'autre (issue #45) : KNOWN réellement mesuré, EST.
+// déduction, UNKNOWN véritable inconnue. Un EST. n'est légitime que s'il DÉDUIT
+// sans donner la réponse — c'est le cas de deviceHint, un bucket grossier ('5"'
+// couvre trois familles) qui resserre le champ sans le fermer.
+//
+// Le mode vidéo n'a PAS d'EST. possible : il est binaire. Un « EST. DIGITAL »
+// toujours juste EST la valeur, quel que soit le mot devant — les trois niveaux
+// s'effondrent alors à deux et on révèle avant le vol ce qu'on est censé
+// découvrir à la première image. Quand il n'est pas mesuré il est donc UNKNOWN,
+// nu, comme dans l'exemple de fiche de la Bible. Le vrai mode arrive par
+// resolveTarget() et se découvre quand le retour vidéo s'allume.
 export function describeTarget(candidate) {
 	const known = candidate.mode !== 'UNKNOWN';
 	return {
@@ -93,8 +105,7 @@ export function describeTarget(candidate) {
 		signal: `${candidate.rssiDbm} dBm`,
 		device: 'PARTIAL',
 		deviceHint: candidate._classHint,   // EST. — le bucket, pas la famille
-		video: known ? candidate.mode : 'PARTIAL',
-		videoHint: known ? null : candidate._videoHint,
+		video: known ? candidate.mode : 'UNKNOWN',
 		control: 'UNKNOWN',
 		flightState: 'UNKNOWN',
 	};
@@ -117,9 +128,13 @@ export function resolveTarget(scan, index) {
 		buildSeed: `${scan.seed}::${index}`,
 		signal: { rssiDbm: c.rssiDbm, mode: c._videoHint },
 		scannedAt: new Date().toISOString(),
+		// Ce que le joueur savait AU MOMENT DE CHOISIR, pas ce qui est vrai : le
+		// post-flight relit ce bloc pour dire ce qui a été découvert en vol.
+		// `video` suit donc la fiche — mesuré ou pas — au lieu d'être figé.
 		intel: {
 			location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL',
-			video: 'EST.', control: 'UNKNOWN', flightState: 'UNKNOWN',
+			video: c.mode === 'UNKNOWN' ? 'UNKNOWN' : 'KNOWN',
+			control: 'UNKNOWN', flightState: 'UNKNOWN',
 		},
 	};
 }
