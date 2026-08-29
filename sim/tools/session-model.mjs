@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
 import { randomart } from './randomart.mjs';
+import { TARGET_FAMILIES } from './target-model.mjs';
 
 export const SESSION_SCHEMA_VERSION = 1;
 export const SESSION_RESULTS = ['PENDING', 'LANDED', 'CRASHED'];
@@ -60,7 +61,27 @@ export function sanitizeWeatherSnapshot(raw) {
 	};
 }
 
-export function openSession({ operatorId, area, weatherSnapshot }) {
+// Ne garde que la forme connue du descripteur de cible (PHASE 08). `null` est
+// licite : une session peut s'ouvrir sans cible (chemin dev ?scene=).
+export function sanitizeTarget(raw) {
+	if (raw == null) return null;
+	if (typeof raw !== 'object') throw new Error('target invalide');
+	if (!TARGET_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${raw.family}`);
+	const sig = raw.signal;
+	if (!sig || typeof sig !== 'object') throw new Error('target.signal manquant');
+	if (!Number.isFinite(sig.rssiDbm) || sig.rssiDbm >= 0) throw new Error('target.signal.rssiDbm invalide');
+	if (sig.mode !== 'ANALOG' && sig.mode !== 'DIGITAL') throw new Error('target.signal.mode invalide');
+	if (!raw.intel || typeof raw.intel !== 'object') throw new Error('target.intel manquant');
+	return {
+		family: raw.family,
+		classHint: raw.classHint ?? null,
+		signal: { rssiDbm: sig.rssiDbm, mode: sig.mode },
+		scannedAt: raw.scannedAt ?? null,
+		intel: { ...raw.intel },
+	};
+}
+
+export function openSession({ operatorId, area, weatherSnapshot, target }) {
 	if (!operatorId) throw new Error('operatorId requis');
 	const areaSlug = slugify(area);
 	if (!areaSlug) throw new Error('AREA UNUSABLE');
@@ -70,7 +91,7 @@ export function openSession({ operatorId, area, weatherSnapshot }) {
 		id,
 		operatorId,
 		area: areaSlug,
-		target: null,
+		target: sanitizeTarget(target),
 		weatherSnapshot: sanitizeWeatherSnapshot(weatherSnapshot),
 		start: new Date().toISOString(),
 		end: null,
@@ -128,6 +149,7 @@ export function validateSession(s) {
 	if (!s.operatorId) throw new Error('operatorId requis');
 	if (!slugify(s.area)) throw new Error('area invalide');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throw si malformé
+	if (s.target != null) sanitizeTarget(s.target); // throw si malformé
 	const t = s.flightTelemetry ?? {};
 	for (const k of Object.keys(ZERO_TELEMETRY)) {
 		const v = t[k];

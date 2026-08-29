@@ -8,6 +8,7 @@ import {
 	freshTelemetry, newSessionId, SESSION_ID_RE,
 } from './session-model.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
+import { TARGET_FAMILIES } from './target-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -127,6 +128,38 @@ t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => 
 
 	const stable = reconcileStaleSessions({ sessions: [fresh, landed] });
 	assert.equal(stable.changed, false);
+});
+
+const GOOD_TARGET = {
+	family: TARGET_FAMILIES[0],
+	classHint: '5"',
+	signal: { rssiDbm: -59, mode: 'ANALOG' },
+	scannedAt: new Date().toISOString(),
+	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'EST.', control: 'UNKNOWN', flightState: 'UNKNOWN' },
+};
+
+t('openSession : porte une cible validée, conservée au resume, null si absente', () => {
+	const s = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
+	assert.equal(s.target.family, GOOD_TARGET.family);
+	assert.equal(validateSession(s), s);
+	const landed = closeSession(s, { result: 'LANDED', telemetry: freshTelemetry() });
+	const resumed = resumeSession(landed);
+	assert.equal(resumed.target.family, GOOD_TARGET.family);
+
+	const noTarget = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
+	assert.equal(noTarget.target, null);
+});
+
+t('sanitizeTarget : rejette famille inconnue et rssi positif ; validateSession re-vérifie', () => {
+	assert.throws(() => openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: { family: 'not-a-family', signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} },
+	}), /famille de cible inconnue/);
+	const bad = {
+		...openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null }),
+		target: { family: TARGET_FAMILIES[0], signal: { rssiDbm: 5, mode: 'ANALOG' }, intel: {} },
+	};
+	assert.throws(() => validateSession(bad), /rssiDbm invalide/);
 });
 
 // ---------------------------------------------------------------------------
