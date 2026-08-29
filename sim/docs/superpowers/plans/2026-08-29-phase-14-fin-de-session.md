@@ -323,8 +323,16 @@ git commit -m "Fin de session : machine à états et séquence de crash (PHASE 1
 Ajouter dans `tools/flight-end-selftest.mjs`, **avant** la ligne `console.log(\`\n${n} tests OK\`)` :
 
 ```js
-// Une frame de drone posé : au contact, immobile, gaz coupés.
-const SETTLED = { dt: 1 / 60, armed: true, height: 0.16, speed: 0.02, angularSpeed: 0.05, throttle: 0, crashed: false };
+// Une frame de drone posé : au contact, immobile, gaz coupés. Dérivée des
+// seuils plutôt qu'écrite en dur — la Tâche 3 les remplace par des valeurs
+// mesurées, et ces tests doivent suivre sans être réécrits.
+const SETTLED = {
+	dt: 1 / 60, armed: true, crashed: false,
+	height: LANDING.H_ON * 0.5,
+	speed: LANDING.V_ON * 0.1,
+	angularSpeed: LANDING.W_ON * 0.1,
+	throttle: 0,
+};
 const settled = (over = {}) => ({ ...SETTLED, ...over });
 
 function hold(fe, seconds, over = {}) {
