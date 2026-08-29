@@ -15,6 +15,7 @@ import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src
 import { CloudField, baseFor, BASE_CLEAR, BASE_OVERCAST, DECK_THICKNESS, DIM_MAX } from '../src/cloud.js';
 import { toSimParams, sanitize } from './lib/weather.mjs';
 import { CALM as CALM_WEATHER } from '../src/weather.js';
+import { createTileMaterial } from '../src/TileMaterial.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
@@ -1248,6 +1249,15 @@ console.log('\nnuages');
 		for (let i = 0; i < 200; i++) calmField.update(1 / 50);
 		check('et un CloudField nourri par CALM n\'assombrit rien',
 			calmField.dim === 1 && calmField.extinctionAt(150) === 0);
+	}
+
+	// D5 côté rendu : un matériau de tuile qu'on vient de créer n'assombrit
+	// rien. Three tourne en node tant qu'on n'ouvre pas de contexte WebGL, donc
+	// ce défaut-là se vérifie ici et pas seulement à l'œil dans le navigateur.
+	{
+		const m = createTileMaterial(null, 0x9fb8cc, 0.00085);
+		check('un matériau de tuile neuf n\'assombrit rien', m.uniforms.uDim.value === 1);
+		m.dispose();
 	}
 }
 

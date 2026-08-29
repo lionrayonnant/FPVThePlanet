@@ -44,6 +44,12 @@ export function setFog(color, density) {
 	}
 }
 
+// L'assombrissement des nuages (#22). Même forme que setFog : le modèle vit
+// dans cloud.js, ce fichier ne fait que le pousser sur chaque chunk.
+export function setDim(dim) {
+	for (const m of tileMaterials) m.uniforms.uDim.value = dim;
+}
+
 export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {
 	const { cellSize, cellsPerRow } = manifest;
 	const chunks = manifest.chunks.slice(0, maxChunks);
