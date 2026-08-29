@@ -698,6 +698,39 @@ Plan d'origine (contexte de la décision d'architecture) :
     une chose unique — mais cela veut dire que l'équilibre perçu à un volume
     donné a pu bouger par rapport à avant PHASE 18.
 
+- **Intro demoscene au lancement** (issue #106) et **rituels : tension +
+  explosion stéréo** (issue #107), branche `intro-rituals-audio`.
+  - Intro : écran `FPVTP! // PRESS ANY KEY` (c'est lui qui débloque
+    l'`AudioContext`), puis ~7 s de cracktro — logo ASCII en sinus-scroll,
+    plasma/raster bars en palette demo, scrolltext greetings — et une partition
+    chiptune qui **se résout sur la signature de boot existante**, donc `BOOT`
+    reste joué une seule fois par chargement. Skippable à tout instant.
+    `?scene=` bypasse tout et garde `armBoot()` inchangé.
+  - Rituels : un riser monte pendant la saisie du vecteur
+    (`uiAudio.ritualTension(k)`, branche permanente à la manière de la
+    porteuse) et retombe sur une erreur ; la complétion déclenche une
+    détonation en couches (sub + nouvelle voix `blast`) suivie d'éclats
+    répartis dans le champ stéréo (champ `pan` → `StereoPannerNode`). La
+    première moitié de chaque partition de famille est intacte : l'identité
+    §36 tient, seule la queue devient explosive.
+  - **Vérifié en Node** : `npm run selftest:operator` vert, 417 lignes `ok`
+    (dont `intro-selftest.mjs` neuf, et le balayage du vocabulaire désormais
+    clos à **huit** entrées avec `INTRO`).
+  - **Vérifié dans le navigateur** (Chromium headless via CDP, port dev
+    dédié) : gate → intro → démontage complet → Home ; skip immédiat même en
+    martelant la touche (double `BOOT` impossible, garde aux deux niveaux) ;
+    touche **maintenue** au gate qui ne saute plus l'intro (`e.repeat`, même
+    convention que `src/input.js`) alors qu'une seconde frappe distincte la
+    saute toujours ; `?scene=` sans intro ; aucune erreur console imputable à
+    la branche.
+  - **Non vérifié — et c'est le critère d'acceptation** : *rien n'a été
+    écouté.* La montée de tension, la violence de l'explosion, le placement
+    stéréo des éclats et le niveau de l'intro (`LEVEL.intro = 0.28`, posé par
+    analogie et non mesuré) restent à juger à l'oreille, comme pour PHASE 18.
+  - Polissages différés en issue de suivi : `_introMaster` jamais déconnecté,
+    skip pendant la résolution qui rejoue la signature depuis la première
+    note, `killRitualTension()` qui coupe sec sur un rituel abandonné.
+
 - **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
   (tour-eiffel) — voir le détail dans le bloc PHASE 14 ci-dessus. Restent non
   vérifiés : le ressenti (rythme de la séquence, lisibilité de `LANDING
