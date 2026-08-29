@@ -666,6 +666,38 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **PHASE 18 — Audio final** (issue #55). Langage sonore de trois familles à
+  côté de la synthèse moteur, qui est conservée telle quelle.
+  - **Vérifié en Node** (`npm run selftest:operator`, 52 tests neufs répartis
+    sur quatre selftests) : le vocabulaire d'événements est clos à sept
+    entrées et un balayage de `src/` fait échouer le test si un huitième son
+    apparaît — garde-fou lui-même vérifié en y glissant un
+    `uiAudio.play('BUTTON_CLICK')`, qui a bien été attrapé. L'hystérésis du
+    lien ne produit ni doublon, ni rebond sur un plateau tenu à la frontière,
+    ni annonce de retour sans perte préalable. Les six partitions de rituel
+    sont réellement distinctes et leur impact final tombe dans les 10 derniers
+    pourcents de la variante, à V1 comme à V4.
+  - **Vérifié dans le navigateur** (Chromium via CDP, `?scene=tour-eiffel`) :
+    l'`AudioContext` passe bien à `running` au premier geste ; le graphe monte
+    21 nœuds au boot, ce qui est exactement 5 notes de signature + `TERRAIN
+    READY` + les 3 nœuds permanents de la porteuse ; **zéro nœud créé sur
+    ~150 frames de vol**, donc la porteuse ne fuit pas ; les six rituels et
+    les sept événements jouent sans exception ; aucune erreur console ni rejet
+    non géré après une session complète, crash compris.
+  - **Non vérifié — et c'est le cœur du critère d'acceptation** : *rien de
+    tout cela n'a été écouté.* Le timbre de la signature de boot, la
+    reconnaissabilité des six familles à l'oreille, et surtout l'équilibre du
+    mixage (issue #11) restent entièrement à juger. Les niveaux livrés
+    (`LEVEL` dans `src/ui-audio.js`, `UI_TRIM` dans `src/audio-bus.js`) sont un
+    point de départ raisonné, **pas une mesure**. La checklist d'écoute à
+    dérouler est la Tâche 7 du plan
+    (`docs/superpowers/plans/2026-08-29-phase-18-audio-final.md`).
+  - Changement de comportement à connaître : le volume est passé **après** le
+    limiteur (il était avant). Le seuil du limiteur ne dépend donc plus de la
+    position du curseur, ce qui est la condition pour que « le mixage » désigne
+    une chose unique — mais cela veut dire que l'équilibre perçu à un volume
+    donné a pu bouger par rapport à avant PHASE 18.
+
 - **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
   (tour-eiffel) — voir le détail dans le bloc PHASE 14 ci-dessus. Restent non
   vérifiés : le ressenti (rythme de la séquence, lisibilité de `LANDING
