@@ -13,6 +13,8 @@ import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
 import { EngineAudio } from './audio.js';
+import { uiAudio } from './ui-audio.js';
+import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
@@ -117,6 +119,8 @@ const settings = new Settings(document.getElementById('ui'), input);
 let controller;
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
+// L'état de l'hystérésis d'annonce du lien, conservé entre deux frames.
+const linkVoice = newLinkState();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
 // plain render when it is switched off, so the clean image stays one click away.
 const lens = new FpvLens(renderer, scene);
@@ -592,6 +596,7 @@ async function finishBoot(preloading) {
 	hud.ready();
 	lastTime = performance.now();
 	renderer.setAnimationLoop(frame);
+	uiAudio.play('TERRAIN_READY');
 }
 
 // Convenience wrapper for callers with nothing to hide the load behind
@@ -1203,6 +1208,18 @@ if (!frozen) {
 		});
 		if (peakImpact > 0) audio.playImpact(peakImpact);
 	}
+
+	// La liaison, en vol seulement : une porteuse continue dont le souffle suit
+	// la marge, et deux annonces sur franchissement de seuil. C'est le seul son
+	// d'interface qui vit pendant le vol.
+	if (flightEnd.phase === FLYING || flightEnd.phase === LANDING_READY) {
+		uiAudio.setLinkQuality(link.out.quality);
+		const ev = linkEvent(link.out.quality, dt, linkVoice);
+		if (ev === 'LINK_LOST') uiAudio.play('LINK_LOST');
+		else if (ev === 'LINK_RESTORED') uiAudio.play('LINK_RESTORED');
+	} else {
+		uiAudio.linkSilent();
+	}
 }
 
 // Picks which prepared map to fly before doing any of the heavy loading work.
@@ -1326,6 +1343,11 @@ async function chooseScene() {
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
 // L'AudioContext exige un geste — on l'attrape au premier input.
+// Le boot FPVTP!, une fois par chargement. Au premier chargement aucun geste
+// n'a encore eu lieu : armBoot() attend le premier, et renonce au-delà de sa
+// fenêtre plutôt que de jouer une signature de démarrage hors contexte.
+uiAudio.armBoot();
+
 if (OPTS.scene) {
 	const kick = () => { audio.start(); };
 	window.addEventListener('pointerdown', kick, { once: true });
@@ -1362,6 +1384,7 @@ chooseScene()
 	.catch((err) => {
 		console.error(err);
 		hud.show();
+		uiAudio.play('ERROR');
 		hud.fail(err.message);
 	});
 

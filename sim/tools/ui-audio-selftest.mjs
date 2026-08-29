@@ -1,6 +1,7 @@
 // Selftest du modèle sonore d'interface (PHASE 18). Aucune E/S, aucun DOM,
 // aucune Web Audio. Lancer : node tools/ui-audio-selftest.mjs
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
 	UI_EVENTS, UI_FAMILY, BOOT_SIGNATURE,
 	LINK_LOST_AT, LINK_BACK_AT, LINK_MIN_GAP_S,
@@ -289,6 +290,37 @@ t('fakeAudioContext : on peut connecter vers un AudioParam', () => {
 	const g = ctx.createGain();
 	o.connect(g.gain);
 	assert.ok(ctx._conns.some(([from, to]) => from === o.id && to === 'param:gain'));
+});
+
+// --- « le système ne bipe pas à chaque clic » -------------------------------
+
+t('aucun appel play() hors du vocabulaire clos dans src/', () => {
+	// La forme exécutable de Bible §34. Ajouter un son demande d'ajouter une
+	// entrée à UI_EVENTS — ce qui est exactement la friction voulue.
+	const dir = new URL('../src/', import.meta.url);
+	const files = readdirSync(dir).filter((f) => f.endsWith('.js'));
+	const bad = [];
+	for (const f of files) {
+		const text = readFileSync(new URL(f, dir), 'utf8');
+		for (const m of text.matchAll(/uiAudio\.play\(\s*(['"`])([^'"`]*)\1/g)) {
+			if (!UI_EVENTS.includes(m[2])) bad.push(`${f} : ${m[2]}`);
+		}
+	}
+	assert.deepEqual(bad, [], `appels hors vocabulaire :\n${bad.join('\n')}`);
+});
+
+t('aucun play() dynamique dans src/ : le vocabulaire doit rester vérifiable', () => {
+	// uiAudio.play(someVariable) échapperait au test ci-dessus. Interdit : les
+	// sept événements sont écrits en toutes lettres sur le site d'appel.
+	const dir = new URL('../src/', import.meta.url);
+	const bad = [];
+	for (const f of readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+		const text = readFileSync(new URL(f, dir), 'utf8');
+		for (const m of text.matchAll(/uiAudio\.play\(\s*([^'"`\s)])/g)) {
+			bad.push(`${f} : play(${m[1]}…)`);
+		}
+	}
+	assert.deepEqual(bad, [], `appels dynamiques :\n${bad.join('\n')}`);
 });
 
 console.log(`\n${n} tests OK`);

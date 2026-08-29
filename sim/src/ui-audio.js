@@ -313,3 +313,9 @@ export class UiAudio {
 		this._bootHandler = null;
 	}
 }
+
+// L'instance unique. Les écrans (ritual.js, target-scan.js, bootstrap.js)
+// l'importent directement plutôt que de se la faire passer : ce sont des
+// écrans clients, pas des sous-systèmes du moteur, et la faire circuler dans
+// six signatures n'achèterait rien.
+export const uiAudio = new UiAudio();

@@ -8,6 +8,7 @@
 import { screen, button } from './terminal.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
 import { conditionsBlock, conditionsLine } from './weather.js';
+import { uiAudio } from './ui-audio.js';
 
 // `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
 // scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
@@ -92,6 +93,7 @@ FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : '
 			sheetConfirm = () => {
 				if (done) return;
 				done = true;
+				uiAudio.play('TARGET_FOUND');
 				s2.remove();
 				finish(index);
 			};
