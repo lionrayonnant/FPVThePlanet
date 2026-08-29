@@ -21,6 +21,7 @@ import {
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
 	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MIN, E_MAX,
 } from '../src/sun.js';
+import { toSimParams as weatherToSimParams, sanitize as weatherSanitize } from './lib/weather.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1634,6 +1635,42 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 	// Sans coordonnées, pas de soleil inventé.
 	check('une zone sans lat/lon ne construit pas de soleil',
 		SunField.forOrigin({}) === null && SunField.forOrigin({ latitude: 1, longitude: 2 }) !== null);
+}
+
+console.log('\nsoleil — traduction depuis le bulletin');
+{
+	// La couverture passe telle quelle : c'est déjà la grandeur que sun.js veut.
+	const overcast = weatherToSimParams(weatherSanitize({
+		windSpeed: 2, windGust: 3, windDir: 180, rateMmH: 0, visibilityM: 20000, cloudPct: 95,
+	}));
+	check('la couverture nuageuse arrive jusqu\'au soleil', overcast.sun.cloudPct === 95,
+		String(overcast.sun.cloudPct));
+
+	// LA règle : la visibilité passée au soleil est celle de l'air HORS pluie,
+	// exactement celle que fog.js reçoit. Sinon la même averse compterait deux
+	// fois — une fois dans le brouillard, une fois dans l'extinction du disque.
+	const rainy = weatherToSimParams(weatherSanitize({
+		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
+		visibilityM: 3000, cloudPct: 90,
+	}));
+	// L'air seul voit plus loin que l'air + la pluie : si les deux sont égaux,
+	// c'est que l'averse a été comptée deux fois.
+	const rainyTotal = weatherSanitize({
+		windSpeed: 4, windGust: 6, windDir: 200, rateMmH: 6, precipMm: 12,
+		visibilityM: 3000, cloudPct: 90,
+	}).visibilityM;
+	check('sous la pluie, le soleil reçoit la visibilité de l\'air, meilleure que la totale',
+		rainy.sun.visibilityM > rainyTotal * 1.05,
+		`air ${Math.round(rainy.sun.visibilityM)} m vs totale ${Math.round(rainyTotal)} m`);
+	check('la visibilité transmise est finie et positive',
+		Number.isFinite(rainy.sun.visibilityM) && rainy.sun.visibilityM > 0);
+
+	// Le brouillard, lui, arrive bien jusqu'au soleil.
+	const foggy = weatherToSimParams(weatherSanitize({
+		windSpeed: 1, windGust: 1, windDir: 0, rateMmH: 0, visibilityM: 400, cloudPct: 80,
+	}));
+	check('un vrai brouillard réduit la visibilité vue par le soleil',
+		foggy.sun.visibilityM < 1000, `${Math.round(foggy.sun.visibilityM)} m`);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
