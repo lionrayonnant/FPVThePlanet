@@ -37,7 +37,7 @@ function navRow(entries) {
 	return row;
 }
 
-async function fetchScenes() {
+export async function fetchScenes() {
 	try {
 		const r = await fetch('/__map-api/scenes');
 		if (!r.ok) return null;
