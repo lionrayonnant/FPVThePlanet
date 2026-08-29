@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold } from './quad.js';
+import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
@@ -109,6 +110,7 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+let sceneManifest = null;
 let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
@@ -159,6 +161,7 @@ async function boot() {
 	stage('manifest');
 	hud.progress('lecture du manifest…', 0.01);
 	const manifest = await loadManifest();
+	sceneManifest = manifest;
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;
@@ -199,6 +202,11 @@ async function boot() {
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
 	audio.setProfile(physics.profile);
 	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -239,7 +247,7 @@ async function boot() {
 	hud.progress('premier rendu…', 0.98);
 	hud.detail('');
 	await nextPaint();
-	camera.position.set(manifest.spawn.x, manifest.spawn.y, manifest.spawn.z);
+	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
 	// Through the composer, not the renderer: otherwise the lens pass compiles its
 	// shader on the first frame of flight instead of behind the loading screen.
 	lens.render(camera, 1 / 60);
@@ -489,7 +497,11 @@ function respawn() {
 	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
 	hud.setSessionStatus(null);
 	controller.arm();
-	physics.reset();
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest: sceneManifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 	link.reset();
 	// Neither model was being reset here, and both say in their own comments
 	// that they should be: a respawn should not drop you back into the squall
