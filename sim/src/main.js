@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
-import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
+import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadLens, loadLink } from './settings.js';
@@ -17,6 +17,9 @@ import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
+import * as session from './session.js';
+import { runTargetScan } from './target-scan.js';
+import { generateTargetScan } from '../tools/target-model.mjs';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -33,6 +36,9 @@ const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stall
 // 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
 // slamming into something a crash.
 const CRASH_IMPULSE = 1500;
+// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
+// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+const CRASH_IMPULSE_FLAT = 2800;
 // The ground station's antenna, above whatever the pilot is standing on. The
 // pilot is at the spawn point, because that is where you took off from.
 const ANTENNA_HEIGHT = 1.2;
@@ -52,7 +58,19 @@ export const OPTS = {
 	maxChunks: params.has('chunks') ? Number(params.get('chunks')) : Infinity,
 	skipCollision: params.get('collision') === '0',
 	scene: params.get('scene'),
+	// ?resume=<sessionId> : ré-ouvre une session LANDED (posé par le terminal).
+	resume: params.get('resume'),
+	// Dev-only override: ?family=race5 flies that drone family regardless of the
+	// TARGET SCAN choice (PHASE 08). One of:
+	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
+	family: params.get('family'),
 };
+if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
+	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
+}
+// Résolu tardivement (PHASE 08) : la famille sort du TARGET SCAN, dans le gate
+// de chooseScene(), avant boot(). L'override dev ?family= le pré-remplit ici.
+let PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
@@ -68,7 +86,9 @@ document.body.appendChild(renderer.domElement);
 const input = new Input();
 const hud = new Hud(document.getElementById('ui'));
 const settings = new Settings(document.getElementById('ui'), input);
-const controller = new FlightController();
+// Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
+// Aucune ligne avant le gate ne l'utilise à l'exécution.
+let controller;
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
@@ -95,6 +115,12 @@ let freeCam = null;
 let freeCamOn = false;
 let paused = false;
 let crashed = false;
+// La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
+// l'altitude du spawn, pour la session.
+let flyArea = null;
+let resumeId = null;
+let flyTarget = null;
+let spawnY = 0;
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
 let lastTime = performance.now();
@@ -171,7 +197,9 @@ async function boot() {
 	hud.progress('construction de l’arbre de collision…', 0.76);
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
-	physics = new Physics(collision, manifest.spawn);
+	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	audio.setProfile(physics.profile);
+	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -293,6 +321,8 @@ async function boot() {
 		setFog: (f) => fog.setParams(f),
 		// What the world said about this zone today, and what it became.
 		weather: () => weather,
+		// La session de vol en cours (PHASE 06), ou null.
+		session: () => session.current(),
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -332,6 +362,7 @@ async function boot() {
 					roughness: +physics.wind.roughness.toFixed(2),
 					intensity: +physics.wind.intensity.toFixed(3),
 				},
+				family: physics.profile.family,
 				mode: controller.mode,
 				preset: controller.preset,
 				motors: [...controller.motors].map((m) => +m.toFixed(3)),
@@ -405,9 +436,10 @@ function nextPaint() {
 
 input.onAction = (key, event) => {
 	if (key === 'r') respawn();
+	else if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
-	else if (key === 'p') controller.cyclePreset();
-	else if (key === 'm') controller.cycleMode();
+	else if (key === 'p') controller?.cyclePreset();
+	else if (key === 'm') controller?.cycleMode();
 	else if (key === 'c') toggleFreeCam();
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
@@ -420,8 +452,44 @@ renderer.domElement.addEventListener('click', () => {
 	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
+// Désarmement Betaflight (PHASE 06). Au sol et à l'arrêt → pose propre → LANDED,
+// le drone est conservé, la session ré-ouvrable. En l'air → la chute suit son
+// cours et c'est l'impact qui fermera la session en CRASHED.
+function doDisarm() {
+	if (!physics || !controller.armed) return;
+	controller.disarm();
+	const p = physics.position;
+	const g = physics.groundBelow(p.x, p.y, p.z);
+	const v = physics.velocity;
+	// Au sol = à portée de contact du sol, pas « parfaitement immobile » : une
+	// pose sur une sphère de collision est toujours un peu vivante. On rejette
+	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
+	const height = g === null ? Infinity : p.y - g;
+	// Large : une pose par grand vent sur une sphère de collision n'est jamais
+	// parfaitement calme. On ne rejette qu'un désarmement franchement en l'air.
+	const onGround = height < 2 && Math.hypot(v.x, v.y, v.z) < 8;
+	console.log(`[session] désarmement — sol:${onGround} (h=${height === Infinity ? '?' : height.toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
+	if (onGround) {
+		// Le drone est posé : on le fige, il ne roule pas et ne dérive pas.
+		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+		hud.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
+		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
+	} else {
+		// Désarmé en l'air : moteurs coupés, la chute suivra son cours et
+		// l'impact fermera la session en CRASHED.
+		hud.setSessionStatus('DISARMED<small>en chute libre</small>', 'lost');
+	}
+}
+
 function respawn() {
 	if (!physics) return;
+	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
+	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
+	// on garde le respawn local pour ne pas casser le flow de debug.
+	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
+	hud.setSessionStatus(null);
+	controller.arm();
 	physics.reset();
 	link.reset();
 	// Neither model was being reset here, and both say in their own comments
@@ -519,12 +587,39 @@ function frame() {
 
 	let peakImpact = 0;
 	if (!frozen) {
+		// Touchdown : en airmode un quad ne se pose pas tout seul — les moteurs
+		// tournent au ralenti, la moindre inclinaison au contact le renvoie en
+		// l'air, et une sphère de collision qui a de la vitesse angulaire roule
+		// sans fin (pas de glissement au point de contact → la friction ne la
+		// freine pas). Le vent, lui, continue de le pousser. Quand le pilote a
+		// coupé les gaz et que le drone est au ras du sol, on coupe les moteurs
+		// et physics.setGroundHold fige le reste : plus de vent, plus de dérive.
+		const pp = physics.position;
+		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
+		const touchdown = controller.armed && sticks.throttle < 0.06
+			&& gb !== null && (pp.y - gb) < 0.6;
+		physics.setGroundHold(touchdown);
+
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
+			if (touchdown) motors.fill(0);
 			const impact = physics.step(motors, FIXED_STEP);
-			if (impact > CRASH_IMPULSE) crashed = true;
+			// Un drone qui arrive à plat encaisse : les bras fléchissent, les
+			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
+			// de crash suit donc l'assiette au moment du choc.
+			if (impact > 0 && !crashed) {
+				const r = physics.rotation;
+				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
+				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
+					crashed = true;
+					// Le drone est détruit. La session se ferme sur CRASHED — le
+					// terrain, lui, reste. terrain persistent, flights ephemeral.
+					hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
+					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+				}
+			}
 			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;
 			steps++;
@@ -583,7 +678,7 @@ function frame() {
 	// and the pseudo-force cancel — plus the airflow over the glass, which wins
 	// above about 6 m/s and sends the water *up* the frame. rain.js:dropDrift
 	// does that; here it is only handed the drone's own state.
-	dropDrift(physics.airVelocity, physics.propulsion.force, QUAD.mass,
+	dropDrift(physics.airVelocity, physics.propulsion.force, physics.profile.mass,
 		cameraTilt * Math.PI / 180, drift);
 	lens.setRain({
 		wetness: rain.wetness,
@@ -614,6 +709,20 @@ function frame() {
 	const v = physics.velocity;
 	const ground = physics.groundBelow(p.x, p.y, p.z);
 	const bat = physics.battery;
+
+	// Télémétrie agrégée de la session (PHASE 06) : des maxima et des cumuls,
+	// pas un enregistrement image par image. dt=0 quand la sim est gelée, pour
+	// ne pas gonfler la durée pendant une pause.
+	const av = physics.angularVelocity;
+	session.feed({
+		speed: Math.hypot(v.x, v.y, v.z),
+		horizontalSpeed: Math.hypot(v.x, v.z),
+		rateDps: Math.max(Math.abs(av.x), Math.abs(av.y), Math.abs(av.z)) * 180 / Math.PI,
+		altitudeAboveSpawn: p.y - spawnY,
+		dt: frozen ? 0 : dt,
+		armed: controller.armed,
+	});
+
 	hud.update({
 		altitude: ground === null ? null : p.y - ground,
 		speed: Math.hypot(v.x, v.y, v.z),
@@ -652,6 +761,17 @@ function frame() {
 // Résout l'opérateur (bootstrapping au premier lancement), pose l'opérateur sur
 // la Home, puis rend la main au choix de carte existant. ?scene=<slug> saute
 // Home ET menu mais garde un opérateur en mémoire pour operator.getOperator().
+// Nombre de signaux du TARGET SCAN, cohérent avec la densité affichée par le
+// Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
+// on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
+// Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
+function signalCountFor(slug) {
+	const t = operator.getOperator()?.terrainCache?.find((e) => e.slug === slug);
+	const lvl = t?.signalDensity?.level;
+	if (!Number.isFinite(lvl)) return 4;              // terrain sans densité (cache ancien, terrain local)
+	return 2 + Math.round(Math.max(0, Math.min(1, lvl)) * 3);   // 2..5, échelle du Global Scanner
+}
+
 async function chooseScene() {
 	const ui = document.getElementById('ui');
 
@@ -659,7 +779,7 @@ async function chooseScene() {
 		await operator.ensureDevOperator();
 		const scenes = await loadSceneList();
 		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
-		return OPTS.scene;
+		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
 	const { needsBootstrap, choices } = await operator.loadOperator();
@@ -672,7 +792,29 @@ async function chooseScene() {
 	}
 
 	// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
-	return runTerminal(ui, { settings });
+	const flyChoice = await runTerminal(ui, { settings });
+	const { slug, resume } = flyChoice;
+
+	if (resume) {
+		// terrain persistent, flights ephemeral : une session LANDED rejoue SA
+		// cible (le serveur la relit du disque). On récupère juste la famille pour
+		// le PROFILE de vol.
+		const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
+		return { slug, resume, target: undefined, family: prev?.target?.family ?? OPTS.family ?? undefined };
+	}
+
+	// Override dev ?family= : court-circuite le TARGET SCAN.
+	if (OPTS.family) {
+		return { slug, resume: undefined, target: undefined, family: OPTS.family };
+	}
+
+	// Session fraîche → TARGET SCAN avant boot().
+	const seed = Math.random().toString(16).slice(2, 12);
+	const count = signalCountFor(slug);
+	const scan = generateTargetScan({ seed, count });
+	const choice = await runTargetScan(ui, { seed, count }); // { seed, count, index }
+	const family = scan.candidates[choice.index]._family;
+	return { slug, resume: undefined, target: choice, family };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -684,15 +826,57 @@ if (OPTS.scene) {
 }
 
 chooseScene()
-	.then((slug) => {
+	.then(({ slug, resume, target, family }) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
 		hud.show();
+		flyArea = slug;
+		resumeId = resume || null;
+		flyTarget = target || null;
+		// Garde l'override ?family= si le scan/resume n'a pas donné de famille.
+		PROFILE = family ? PROFILES[family] : PROFILE;
+		controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
+		if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
 		setScene(slug);
 		return boot();
 	})
+	.then(openFlightSession)
 	.catch((err) => {
 		console.error(err);
 		hud.fail(err.message);
 	});
+
+// Ouvre la session dès que la première image de vol est prête (PHASE 06). La
+// météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
+// vol — la session est du décor, pas une dépendance du moteur.
+async function openFlightSession() {
+	spawnY = physics.position.y;
+	try {
+		await session.open({
+			area: flyArea,
+			weatherSnapshot: session.snapshotWeather(weather),
+			resume: resumeId || OPTS.resume || undefined,
+			target: flyTarget || undefined,
+		});
+		// La cible résolue (scan frais ou relue du disque au resume) arme le lien
+		// vidéo avec le RSSI du signal adverse.
+		const tgt = session.current()?.target;
+		if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
+			console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
+		}
+		if (tgt?.signal) {
+			link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
+			console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);
+		}
+	} catch (e) {
+		console.warn('[session] ouverture échouée, ce vol ne sera pas enregistré', e);
+	}
+}
+
+// Onglet fermé en plein vol : best-effort pour matérialiser le CRASHED. Si ça
+// rate (vrai crash navigateur), la réconciliation serveur s'en charge au
+// prochain chargement du terminal.
+window.addEventListener('beforeunload', () => {
+	if (session.current()?.result === 'PENDING') session.beacon('CRASHED');
+});

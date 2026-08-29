@@ -425,16 +425,36 @@ Les façades ne sont pas moins bien texturées que les toits.
 
 ## Le modèle de vol
 
-Le drone n'est pas une sphère avec une poussée : c'est un 5 pouces modélisé
+Le drone n'est pas une sphère avec une poussée : c'est un multirotor modélisé
 moteur par moteur. `src/quad.js` tient la cellule et l'air (retard moteur,
 poussée ∝ ω², couple de traînée d'hélice, traînée de rotor, effet de sol,
-propwash, batterie 4S qui s'affaisse sous charge et se vide) ;
+propwash, batterie qui s'affaisse sous charge et se vide) ;
 `src/flightController.js` tient la partie Betaflight (actual rates, PID avec
 i-term relax, TPA, feedforward, lissage RC, mixeur airmode) et ne sort que
 quatre commandes moteur.
 
-Trois presets de rates, touche `P` : **cinéma** (380 °/s), **freestyle**
-(820 °/s), **race** (1100 °/s).
+### Les six familles (PHASE 07)
+
+`src/drone-profiles.js` décrit six familles d'appareils — masse, inertie, bras,
+hélice, poussée, courbe rpm, retard moteur, coefficients aéro, pack — chacune
+documentée par un commentaire « setup réel » :
+
+`5" FREESTYLE` (référence) · `5" RACE` · `CINEWHOOP` · `LONG RANGE` ·
+`HEAVY 5"` · `MICRO` (toothpick 2.5").
+
+Le **PID est mesuré par famille**, jamais écrit à la main :
+`node tools/tune-pid.mjs --write <famille|all>` balaie P/D contre l'inertie et le
+retard moteur de la famille, mesure `torquePerMix`, et réécrit son bloc `pid`.
+`npm run tune` en fait le rapport pour les six. `npm run selftest` passe la
+boucle enveloppe de vol / propulsion sur chaque famille.
+
+Un airframe bien plus rapide qu'un 5" (le toothpick) porte un `filterScale` qui
+ouvre les filtres roll/pitch, comme un vrai build micro. `QUAD` reste le profil
+par défaut (5" freestyle, valeurs d'origine inchangées).
+
+Presets de rates, touche `P` : **cinéma** (380 °/s), **freestyle** (820 °/s),
+**race** (1100 °/s), **long range** (360 °/s), **micro** (420 °/s). Chaque
+famille démarre sur le sien.
 
 Le HUD affiche la tension pack, l'état de charge et le courant : la couleur
 suit la tension *par cellule sous charge*, pas l'état de charge, parce que
@@ -871,13 +891,17 @@ au lieu de 1,41 : elle n'est pas rendue du tout, seulement réaffichée.
 ### Régler le PID
 
 ```bash
-npm run tune                  # temps de montée / dépassement / stabilisation / rebond
-npm run tune -- --sweep roll  # balaye P et D sur un axe et classe par coût
+npm run tune                          # rapport pour les six familles
+npm run tune -- toothpick              # une seule famille
+npm run tune -- --sweep roll race5     # balaye P/D sur un axe d'une famille
+npm run tune -- --write <famille|all>  # sweep + mesure, réécrit le bloc pid
 ```
 
 Le banc intègre les équations d'Euler avec le vrai tenseur d'inertie et le vrai
 retard moteur, sans Rapier ni navigateur : une passe complète prend une
 seconde. Ses seuils de réussite sont dérivés de l'accélération angulaire
 soutenue que la cellule peut réellement produire, pas de constantes écrites à
-la main — un preset ne peut donc pas « échouer » simplement parce qu'il demande
-plus de taux qu'un autre.
+la main — ni un preset rapide ni une famille lente ne peut donc « échouer »
+juste parce qu'on lui demande plus qu'à une autre. `--write` est **le seul**
+moyen de poser un bloc `pid` dans `drone-profiles.js` : on ne tape pas de gains
+à la main.

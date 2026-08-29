@@ -1,8 +1,10 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { QUAD, GRAVITY, Propulsion, HOVER_THRUST } from './quad.js';
+import { QUAD, GRAVITY, Propulsion, HOVER_THRUST, hoverThrust } from './quad.js';
+import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
-export { QUAD, HOVER_THRUST };
+export { QUAD, HOVER_THRUST, hoverThrust };
+export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 
 // Kept for callers that still want a single "how hard can it push" number.
 export const MAX_THRUST = 4 * QUAD.maxThrustPerMotor;
@@ -17,6 +19,9 @@ const ZERO = { x: 0, y: 0, z: 0 };
 
 export class Physics {
 	constructor(collision, spawn, options = {}) {
+		// The airframe family (src/drone-profiles.js). Defaults to the 5"
+		// freestyle build; a session (PHASE 06+) passes its target's profile.
+		this.profile = options.profile ?? DEFAULT_PROFILE;
 		this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
 		this.world.timestep = 1 / 250;
 
@@ -44,8 +49,8 @@ export class Physics {
 				// that asymmetry is most of the difference between "this handles
 				// like a quad" and "this handles like a thrown rock".
 				.setAdditionalMassProperties(
-					QUAD.mass, ZERO,
-					{ x: QUAD.inertia.x, y: QUAD.inertia.y, z: QUAD.inertia.z },
+					this.profile.mass, ZERO,
+					{ x: this.profile.inertia.x, y: this.profile.inertia.y, z: this.profile.inertia.z },
 					IDENTITY,
 				),
 		);
@@ -55,18 +60,32 @@ export class Physics {
 		// shape that can get closer to the camera than 0.15 m would put geometry
 		// inside the near plane; and a 5" quad with its props is closer to a disc
 		// than to a box anyway. Density 0 so only the mass properties above count.
+		// Always 0.15 m, every family: camera.near is pinned to it.
 		this.collider = this.world.createCollider(
-			RAPIER.ColliderDesc.ball(QUAD.radius)
+			RAPIER.ColliderDesc.ball(0.15)
 				.setDensity(0)
-				.setRestitution(0.35)
-				.setFriction(0.8)
+				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
+				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
+				// toute pose impossible.
+				//
+				// PHASE 08 : PHASE 06 avait posé 0.05 / 1.0, mesuré sur freestyle5
+				// seul (06 précède les familles). Croisé avec le sweep 6 familles
+				// de PHASE 07, cette paire fait déraper le toothpick (ultra-léger)
+				// à 1.55 m/s sur le maillage penté, au-dessus du seuil « sits still »
+				// de tools/selftest.mjs. Re-balayé rest×fric contre ce selftest
+				// (tour-eiffel) : 0.15 / 1.0 remet le toothpick à 0.99 m/s, garde
+				// toutes les familles vertes et « a gentle landing » à 483 N (≪ 1500).
+				// 0.15 reste franchement sans rebond — loin des 0.35 qui ricochaient.
+				.setRestitution(0.15)
+				.setFriction(1.0)
 				.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
 				.setContactForceEventThreshold(30),
 			this.body,
 		);
 		this.events = new RAPIER.EventQueue(true);
 
-		this.propulsion = new Propulsion(options.seed);
+		this._seed = options.seed;
+		this.propulsion = new Propulsion({ profile: this.profile, seed: options.seed });
 		this.wind = new WindField(options.windSeed);
 		if (options.weather) this.wind.setParams(options.weather);
 		// Reused, so the per-step call into quad.js does not allocate.
@@ -106,6 +125,19 @@ export class Physics {
 		this._obstruction = { blocked: false, span: 0 };
 	}
 
+	// Swap the airframe family without rebuilding the trimesh world — the wasm
+	// heap only has room for one. Used by tools/selftest.mjs to run the flight
+	// checks across every family. The collider stays a 0.15 m sphere.
+	setProfile(profile) {
+		this.profile = profile;
+		this.propulsion = new Propulsion({ profile, seed: this._seed });
+		this.body.setAdditionalMassProperties(
+			profile.mass, ZERO,
+			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },
+			IDENTITY, true,
+		);
+	}
+
 	reset() {
 		this.body.setTranslation(this.spawn, true);
 		this.body.setRotation(IDENTITY, true);
@@ -117,6 +149,7 @@ export class Physics {
 		this._aglCounter = 0;
 		this._windCounter = 6;
 		this._probed = false;
+		this._groundHold = false;
 		this.airspeed = 0;
 	}
 
@@ -192,7 +225,14 @@ export class Physics {
 		// this step's is what the wind field is about to decide — 4 ms of lag on
 		// a quantity that only sets a turbulence time constant.
 		const wind = this.wind.update(p.y, this._probed ? this._probe : null, this.airspeed, dt);
-		const ax = v.x - wind.x, ay = v.y - wind.y, az = v.z - wind.z;
+		// Ground hold : le drone est posé, gaz coupés (décidé par main.js). Le
+		// vent ne le pousse plus — au sol on est à l'abri, et surtout un quad
+		// posé ne doit pas glisser tout seul — et on saigne sa vitesse résiduelle
+		// pour qu'une sphère de collision ne roule pas sans fin.
+		const wx = this._groundHold ? 0 : wind.x;
+		const wy = this._groundHold ? 0 : wind.y;
+		const wz = this._groundHold ? 0 : wind.z;
+		const ax = v.x - wx, ay = v.y - wy, az = v.z - wz;
 		// Kept around because the wind rush the pilot hears follows the air, not
 		// the ground: with a tailwind a fast quad can be nearly silent.
 		this.airspeed = Math.hypot(ax, ay, az);
@@ -219,8 +259,21 @@ export class Physics {
 		this.events.drainContactForceEvents((e) => {
 			impact = Math.max(impact, e.totalForceMagnitude());
 		});
+
+		if (this._groundHold) {
+			const k = Math.exp(-dt / 0.15);
+			const lv = this.body.linvel();
+			const av = this.body.angvel();
+			this.body.setLinvel({ x: lv.x * k, y: lv.y, z: lv.z * k }, true);
+			this.body.setAngvel({ x: av.x * k, y: av.y * k, z: av.z * k }, true);
+		}
 		return impact;
 	}
+
+	// Posé, gaz coupés : coupe le vent et amortit la vitesse résiduelle pour que
+	// le drone s'immobilise au lieu de rouler comme une bille. Décidé par
+	// main.js (qui seul connaît l'état de l'armement et des gaz).
+	setGroundHold(on) { this._groundHold = !!on; }
 
 	// Height above ground as the wind probe sees it — hundreds of metres rather
 	// than the six the ground-effect query is capped at.

@@ -1,4 +1,5 @@
-import { MIX, QUAD } from './quad.js';
+import { mixOf } from './quad.js';
+import { DEFAULT_PROFILE } from './drone-profiles.js';
 
 // Betaflight-shaped flight controller. The interface is
 //
@@ -43,14 +44,25 @@ export const RATE_PRESETS = {
 		pitch: { centre: 280, max: 1100, expo: 0.62 },
 		yaw:   { centre: 250, max: 780, expo: 0.55 },
 	},
+	// PHASE 07: baseline rates for two of the seven families. Long range is
+	// flown on deliberately calm rates — you are cruising, not throwing tricks.
+	longrange: {
+		label: 'long range',
+		roll:  { centre: 90, max: 360, expo: 0.35 },
+		pitch: { centre: 90, max: 360, expo: 0.35 },
+		yaw:   { centre: 90, max: 260, expo: 0.35 },
+	},
+	// Micro builds (whoop, toothpick) fly a moderate rate — quick to react but
+	// nowhere near a 5" freestyle quad's throw, and the fixed filter chain in
+	// this controller is a 5"-centric assumption that a much faster airframe
+	// cannot chase to a higher number anyway.
+	micro: {
+		label: 'micro',
+		roll:  { centre: 120, max: 420, expo: 0.50 },
+		pitch: { centre: 120, max: 420, expo: 0.50 },
+		yaw:   { centre: 90, max: 240, expo: 0.45 },
+	},
 };
-
-// One mixer unit is worth this much torque about each axis near a hover. The
-// mixer is nonlinear (thrust goes with rpm squared) so this is a local slope,
-// but it is what turns "I want 0.003 kg*m^2 * 500 deg/s^2" into a number the
-// mixer understands — which is how the feedforward gains below were derived
-// rather than guessed. Measured off quad.js by tools/tune-pid.mjs.
-const TORQUE_PER_MIX = { roll: 2.60, pitch: 2.60, yaw: 0.60 };
 
 // Integral time constant. I exists to trim out a bent arm, a heavy battery
 // strap or a steady crosswind — things that last seconds. Tying Ki to Kp
@@ -58,31 +70,44 @@ const TORQUE_PER_MIX = { roll: 2.60, pitch: 2.60, yaw: 0.60 };
 // rate loop, so it cannot contribute to a flick. Setting Ki independently is
 // what produced 56% overshoot on the bench before this was worked out; I was
 // reaching its clamp inside 50 ms and simply adding a bias to every step.
-const I_TIME = 0.35;            // s
+export const I_TIME = 0.35;     // s
 
-// Gains are in normalised mixer units per rad/s of error. P and D come from
-// tools/tune-pid.mjs, which sweeps them against the real inertia and motor lag
-// from quad.js and ranks by rise time, overshoot, settling and bounce-back.
-// Retune there, not here.
-//
-// F is not swept: feedforward has a correct value, namely the mix that produces
-// exactly the angular acceleration the stick is asking for, I * d(rate)/dt. Any
-// more and every flick overshoots; any less and the loop has to chase it.
-export const PID = {
-	roll:  { p: 0.062, i: 0.062 / I_TIME, d: 0.0014, f: QUAD.inertia.z / TORQUE_PER_MIX.roll },
-	// Pitch carries slightly more inertia than roll, so it gets the same tune
-	// scaled by the ratio rather than a separately guessed one.
-	pitch: { p: 0.066, i: 0.066 / I_TIME, d: 0.0015, f: QUAD.inertia.x / TORQUE_PER_MIX.pitch },
-	// Yaw saturates: past about P=0.22 the sweep reports identical responses,
-	// because prop drag torque, not the gain, is the limit. Anything higher is
-	// gain that only ever shows up as noise.
-	yaw:   { p: 0.220, i: 0.220 / I_TIME, d: 0.0005, f: QUAD.inertia.y / TORQUE_PER_MIX.yaw },
-};
+// The inertia each rate axis fights: roll about body Z, pitch about X, yaw about
+// Y (three.js body frame).
+const AXIS_INERTIA = { roll: 'z', pitch: 'x', yaw: 'y' };
+
+// Turn a family's measured tune (src/drone-profiles.js `pid`, written by
+// tools/tune-pid.mjs) into live gains in normalised mixer units per rad/s.
+//   P, D  — swept against that family's real inertia and motor lag.
+//   I     — tied to P through I_TIME, never set on its own.
+//   F     — not swept: feedforward has a correct value, the mix that produces
+//           exactly the angular acceleration the stick asks for, I * d(rate)/dt.
+//           torquePerMix is the local "one mixer unit -> this much torque near a
+//           hover" slope, also measured off quad.js by tools/tune-pid.mjs.
+export function buildGains(profile = DEFAULT_PROFILE) {
+	const pid = profile.pid;
+	const out = {};
+	for (const axis of ['roll', 'pitch', 'yaw']) {
+		const I = profile.inertia[AXIS_INERTIA[axis]];
+		out[axis] = {
+			p: pid[axis].p,
+			i: pid[axis].p / I_TIME,
+			d: pid[axis].d,
+			f: I / pid.torquePerMix[axis],
+		};
+	}
+	return out;
+}
+
+// Kept as a module export for callers that only ever want the default airframe.
+export const PID = buildGains(DEFAULT_PROFILE);
+
 const I_LIMIT = 0.35;           // mixer units of authority I may claim
 
-// Keeps Ki tied to Kp when a gain is changed at runtime (tools/tune-pid.mjs).
-export function setGains(axis, { p, d, f }) {
-	const g = PID[axis];
+// Rewrites one axis' gains in place, keeping Ki tied to Kp. Used by the sweep in
+// tools/tune-pid.mjs, which holds a live controller and its gains object.
+export function setGains(gains, axis, { p, d, f }) {
+	const g = gains[axis];
 	if (p !== undefined) { g.p = p; g.i = p / I_TIME; }
 	if (d !== undefined) g.d = d;
 	if (f !== undefined) g.f = f;
@@ -136,16 +161,21 @@ class PT1 {
 }
 
 class AxisPid {
-	constructor(gains) {
+	// filterScale raises every delay-adding cutoff (gyro, D-term, feedforward, RC
+	// smoothing) for airframes whose rotational dynamics are much faster than the
+	// 5" this chain was set for. A real FC does the same: micro builds run the
+	// filters two to four times higher. 1 == the reference 5" chain, untouched.
+	constructor(gains, filterScale = 1) {
 		this.g = gains;
 		this.i = 0;
 		this.prevGyro = 0;
 		this.prevSetpoint = 0;
 		this.setpoint = 0;
-		this.gyroLpf = new PT1(GYRO_CUTOFF);
-		this.dLpf = new PT1(DTERM_CUTOFF);
-		this.ffLpf = new PT1(FF_CUTOFF);
-		this.rcLpf = [new PT1(RC_SMOOTHING), new PT1(RC_SMOOTHING), new PT1(RC_SMOOTHING)];
+		this.gyroLpf = new PT1(GYRO_CUTOFF * filterScale);
+		this.dLpf = new PT1(DTERM_CUTOFF * filterScale);
+		this.ffLpf = new PT1(FF_CUTOFF * filterScale);
+		const rc = RC_SMOOTHING * filterScale;
+		this.rcLpf = [new PT1(rc), new PT1(rc), new PT1(rc)];
 		this.relaxLpf = new PT1(RELAX_CUTOFF);
 		this.first = true;
 	}
@@ -195,19 +225,40 @@ function actualRate(stick, r) {
 }
 
 export class FlightController {
-	constructor(preset = 'freestyle') {
+	// opts: { profile, preset }. A bare string is still accepted as the preset
+	// for the default airframe, which is how the bench and older callers use it.
+	constructor(opts = {}) {
+		if (typeof opts === 'string') opts = { preset: opts };
+		this.profile = opts.profile ?? DEFAULT_PROFILE;
 		this.mode = 'acro';
-		this.preset = preset;
+		// A family carries a baseline rates preset; an explicit preset wins.
+		this.preset = opts.preset ?? this.profile.rates ?? 'freestyle';
 		this.holdAltitude = null;
+		this.gains = buildGains(this.profile);
+		// filterScale only touches roll and pitch. Those loops are gyro-noise /
+		// filter-delay limited, and a fast micro airframe needs them opened up.
+		// Yaw is limited by how fast the motors can spin up and down to unbalance
+		// prop-drag torque — opening its filters just lets the loop outrun the
+		// motors and hunt, so yaw keeps the reference chain on every family.
+		const fs = this.profile.filterScale ?? 1;
 		this.pid = {
-			roll: new AxisPid(PID.roll),
-			pitch: new AxisPid(PID.pitch),
-			yaw: new AxisPid(PID.yaw),
+			roll: new AxisPid(this.gains.roll, fs),
+			pitch: new AxisPid(this.gains.pitch, fs),
+			yaw: new AxisPid(this.gains.yaw, 1),
 		};
+		this._mix = mixOf(this.profile);
 		this.motors = [0, 0, 0, 0];
 		this.axes = { roll: 0, pitch: 0, yaw: 0 };
 		this.armed = true;
 	}
+
+	// Désarmement Betaflight (PHASE 06). Coupe les moteurs — le mixer met déjà
+	// tout à zéro quand `!armed`. Rien ne sait ici ce qu'est une session : c'est
+	// main.js qui, après ça, regarde si le drone est posé (→ LANDED) ou en l'air
+	// (→ chute → impact → CRASHED).
+	disarm() { this.armed = false; }
+
+	arm() { this.armed = true; }
 
 	setMode(mode) {
 		this.mode = mode;
@@ -263,10 +314,10 @@ export class FlightController {
 			const demand = (sticks.throttle - 0.5) * 2;
 			if (Math.abs(demand) > 0.08 || this.holdAltitude === null) {
 				this.holdAltitude = state.position.y;
-				throttle = hoverThrottle(q) + demand * 0.35;
+				throttle = hoverThrottle(this.profile, q) + demand * 0.35;
 			} else {
 				const a = ALT_KP * (this.holdAltitude - state.position.y) - ALT_KD * state.velocity.y;
-				throttle = hoverThrottle(q) * (1 + a / GRAVITY);
+				throttle = hoverThrottle(this.profile, q) * (1 + a / GRAVITY);
 			}
 			throttle = clamp(throttle, 0, 1);
 		}
@@ -292,7 +343,7 @@ export class FlightController {
 	//   2. throttle is then slid to whatever keeps the scaled mix inside range,
 	//      so attitude authority survives at any stick position.
 	mix(roll, pitch, yaw, throttle) {
-		const raw = MIX.map((m) => roll * m.roll + pitch * m.pitch + yaw * m.yaw);
+		const raw = this._mix.map((m) => roll * m.roll + pitch * m.pitch + yaw * m.yaw);
 		let lo = Infinity, hi = -Infinity;
 		for (const v of raw) { if (v < lo) lo = v; if (v > hi) hi = v; }
 
@@ -312,12 +363,12 @@ export class FlightController {
 // Throttle that cancels gravity at the current tilt, inverted through the
 // thrust curve so it lands on the right stick position instead of assuming
 // thrust is linear in throttle.
-function hoverThrottle(q) {
+function hoverThrottle(profile, q) {
 	const up = rotate(q, 0, 1, 0);
-	const need = (QUAD.mass * GRAVITY) / Math.max(0.35, up.y);
-	const fraction = clamp(need / (4 * QUAD.maxThrustPerMotor), 0, 1);
+	const need = (profile.mass * GRAVITY) / Math.max(0.35, up.y);
+	const fraction = clamp(need / (4 * profile.maxThrustPerMotor), 0, 1);
 	// T/Tmax = cmd^(2*rpmCurve)  =>  cmd = (T/Tmax)^(1/(2*rpmCurve))
-	return fraction ** (1 / (2 * QUAD.rpmCurve));
+	return fraction ** (1 / (2 * profile.rpmCurve));
 }
 
 function rotate(q, x, y, z) {

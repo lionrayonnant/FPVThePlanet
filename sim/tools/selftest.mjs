@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
+import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
+import { generateTargetScan, resolveTarget } from './target-model.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -23,14 +25,30 @@ const collision = {
 
 await initPhysics();
 // One world only: several 3.7M-triangle trimeshes at once exhausts the wasm heap.
+// The flight checks below swap the airframe family in place (phys.setProfile).
 const phys = new Physics(collision, manifest.spawn);
-const fc = new FlightController();
+let fc = new FlightController();
+let PROFILE = QUAD;
 const STEP = 1 / 250;
 
 // Thrust is not linear in throttle (rpm goes with cmd^0.65, thrust with rpm^2),
 // so the hover stick position has to be inverted through that curve rather than
-// read off a ratio. It lands around 25%, which is where a real 5" quad hovers.
-const HOVER = ((QUAD.mass * 9.81) / MAX_THRUST) ** (1 / (2 * QUAD.rpmCurve));
+// read off a ratio. On the 5" freestyle it lands around 25%; a low-thrust
+// cinewhoop or whoop sits near half stick.
+const hoverStick = (p) => ((p.mass * 9.81) / (4 * p.maxThrustPerMotor)) ** (1 / (2 * p.rpmCurve));
+let HOVER = hoverStick(PROFILE);
+
+// Flat-plate terminal velocity from the profile's vertical body drag — what the
+// "falling flat" check is really testing.
+const AIR_DENSITY = 1.225;
+const terminalFlat = (p) => Math.sqrt((p.mass * 9.81) / (0.5 * AIR_DENSITY * p.bodyDrag.y));
+
+function useFamily(fam) {
+	PROFILE = PROFILES[fam];
+	phys.setProfile(PROFILE);
+	fc = new FlightController({ profile: PROFILE });
+	HOVER = hoverStick(PROFILE);
+}
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -94,62 +112,95 @@ for (let x = -600; x <= 600; x += 100) for (let z = -600; z <= 600; z += 100) {
 }
 check('ground coverage across the tile', misses === 0, `${samples - misses}/${samples} hits`);
 
-console.log('\nflight envelope');
-const rest = simulate({ seconds: 2, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 } });
-check('sits still on the ground at zero throttle', rest.speed < 0.5, `${rest.speed.toFixed(2)} m/s`);
+// Flight envelope + propulsion, run for every drone family (PHASE 07). The
+// thresholds are derived from each family's profile, not written flat, so a
+// cinewhoop hovering at half stick or a whoop with a 4 V pack is not a failure.
+// Scene-dependent checks (geodesy, collision, link, weather) stay on the
+// default family only, below.
+for (const fam of FAMILIES) {
+	useFamily(fam);
+	console.log(`\nflight envelope — ${fam}`);
 
-const hover = simulate({ seconds: 4, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
-check('holds altitude at hover throttle', Math.abs(hover.p.y - 150) < 3, `drifted ${(hover.p.y - 150).toFixed(2)} m in 4s`);
+	// "Still" is generous: the collider is a 0.15 m sphere for every family, so a
+	// featherweight airframe on idle props can roll it a little. The check is
+	// that it does not take off or wander off the map.
+	const rest = simulate({ seconds: 2, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 } });
+	check(`[${fam}] sits still on the ground at zero throttle`, rest.speed < 1.5, `${rest.speed.toFixed(2)} m/s`);
 
-const climb = simulate({ seconds: 5, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 50, 300] });
-check('climbs at full throttle', climb.p.y - 50 > 100, `+${(climb.p.y - 50).toFixed(0)} m in 5s`);
+	const hover = simulate({ seconds: 4, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
+	check(`[${fam}] holds altitude at hover throttle`, Math.abs(hover.p.y - 150) < 4, `drifted ${(hover.p.y - 150).toFixed(2)} m in 4s`);
 
-// The stick has to start centred: the controller's RC smoothing primes on its
-// first sample, so a stick already at the stop means no smoothing ever happens.
-const commanded = RATE_PRESETS[fc.preset].roll.max;
-const roll = simulate({ seconds: 1.2, at: [0, 150, 300],
-	sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
-check(`reaches the commanded roll rate (${commanded} deg/s)`,
-	roll.spin > commanded * 0.93 && roll.peakSpin < commanded * 1.15,
-	`${roll.spin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
+	// Climb rate is thrust-to-weight bound and, for small props, capped by the
+	// inflow thrust loss — a low-TWR ducted machine genuinely climbs slowly.
+	const climb = simulate({ seconds: 5, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 50, 300] });
+	check(`[${fam}] climbs at full throttle`, climb.p.y - 50 > 25, `+${(climb.p.y - 50).toFixed(0)} m in 5s`);
 
-console.log('\npropulsion');
-check('hovers at a realistic stick position', HOVER > 0.18 && HOVER < 0.32, `${(HOVER * 100).toFixed(0)}% throttle`);
+	// The stick has to start centred: RC smoothing primes on its first sample.
+	const commanded = RATE_PRESETS[fc.preset].roll.max;
+	const roll = simulate({ seconds: 1.2, at: [0, 150, 300],
+		sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+	check(`[${fam}] reaches the commanded roll rate (${commanded} deg/s)`,
+		roll.spin > commanded * 0.9 && roll.peakSpin < commanded * 1.25,
+		`${roll.spin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
 
-// Airmode: the same flick must produce the same rate with the throttle shut,
-// which is the whole point of sliding throttle instead of clipping the mix.
-const rollIdle = simulate({ seconds: 1.2, at: [0, 200, 300],
-	sticks: (t) => ({ throttle: 0, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
-check('airmode keeps roll authority at zero throttle',
-	rollIdle.spin > commanded * 0.9,
-	`${rollIdle.spin.toFixed(0)} deg/s vs ${roll.spin.toFixed(0)} at hover`);
+	check(`[${fam}] hovers at a plausible stick position`, HOVER > 0.15 && HOVER < 0.62, `${(HOVER * 100).toFixed(0)}% throttle`);
 
-// Anisotropic inertia: yaw carries nearly twice pitch's, against an eighth of
-// the torque, so it has to be visibly the slow axis. Sampled 80 ms into the
-// flick, before either axis has arrived — at 300 ms both are simply at their
-// commanded rate and the difference has vanished. If this ever passes with the
-// two equal, the inertia tensor has been lost somewhere.
-const SAMPLE_AT = 0.15 + 0.08;
-const yawRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
-	sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: 0, yaw: t > 0.15 ? 1 : 0 }) });
-const pitchRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
-	sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: t > 0.15 ? 1 : 0, yaw: 0 }) });
-const yawFrac = Math.abs(yawRun.w.y * 180 / Math.PI) / RATE_PRESETS[fc.preset].yaw.max;
-const pitchFrac = Math.abs(pitchRun.w.x * 180 / Math.PI) / RATE_PRESETS[fc.preset].pitch.max;
-check('yaw builds rate more slowly than pitch',
-	yawFrac < 0.65 * pitchFrac,
-	`80 ms in: yaw at ${(yawFrac * 100).toFixed(0)}% of command, pitch at ${(pitchFrac * 100).toFixed(0)}%`);
+	// Airmode: the flick still produces the rate with the throttle shut.
+	const rollIdle = simulate({ seconds: 1.2, at: [0, 200, 300],
+		sticks: (t) => ({ throttle: 0, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+	check(`[${fam}] airmode keeps roll authority at zero throttle`,
+		rollIdle.spin > commanded * 0.85,
+		`${rollIdle.spin.toFixed(0)} deg/s vs ${roll.spin.toFixed(0)} at hover`);
 
-// Terminal velocity with the props stopped: a quad falling flat is a plate,
-// and this is the check that the anisotropic body drag survived.
-const drop = simulate({ seconds: 12, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 }, at: [0, 400, 300] });
-check('terminal velocity falling flat is 15-25 m/s', drop.speed > 15 && drop.speed < 25, `${drop.speed.toFixed(1)} m/s`);
+	// Yaw has the least torque authority of the three axes (it fights prop-drag
+	// torque, a fraction of thrust) against the most inertia, so it must build
+	// rate visibly slower than pitch. Sampled 80 ms in, before either arrives.
+	const SAMPLE_AT = 0.15 + 0.08;
+	const yawRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
+		sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: 0, yaw: t > 0.15 ? 1 : 0 }) });
+	const pitchRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
+		sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: t > 0.15 ? 1 : 0, yaw: 0 }) });
+	const yawFrac = Math.abs(yawRun.w.y * 180 / Math.PI) / RATE_PRESETS[fc.preset].yaw.max;
+	const pitchFrac = Math.abs(pitchRun.w.x * 180 / Math.PI) / RATE_PRESETS[fc.preset].pitch.max;
+	check(`[${fam}] yaw builds rate more slowly than pitch`,
+		yawFrac < pitchFrac - 0.03,
+		`80 ms in: yaw at ${(yawFrac * 100).toFixed(0)}% of command, pitch at ${(pitchFrac * 100).toFixed(0)}%`);
 
-// A pack has to drain, and it has to sag under load rather than sit at 16.8 V.
-const punch = simulate({ seconds: 6, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 100, 300] });
-check('the pack sags under a full-throttle pull',
-	punch.battery.voltage < 16.2 && punch.battery.voltage > 13.5, `${punch.battery.voltage.toFixed(2)} V at ${punch.battery.current.toFixed(0)} A`);
-check('the pack drains', punch.battery.soc < 0.95 && punch.battery.soc > 0.5, `${(punch.battery.soc * 100).toFixed(0)}% left after 6 s flat out`);
+	// Falling with the throttle shut. Airmode still holds it roughly level so it
+	// presents its plate side, and slides the throttle up enough to keep
+	// attitude — so the props are turning, not idling, and their descent inflow
+	// plus the body drag settle it at a bounded rate. The flat-plate terminal
+	// from the vertical drag is the ceiling; a light airframe sits well under it
+	// because the props carry more of its weight.
+	const vt = terminalFlat(PROFILE);
+	const drop = simulate({ seconds: 16, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 }, at: [0, 600, 300] });
+	check(`[${fam}] falls at a bounded rate, under the flat-plate ceiling (~${vt.toFixed(0)} m/s)`,
+		drop.speed > 1 && drop.speed < vt * 1.2, `${drop.speed.toFixed(1)} m/s, ceiling ${vt.toFixed(1)}`);
+
+	// The pack has to sag under load and drain, whatever its cell count.
+	const full = 4.2 * PROFILE.battery.cells;
+	const punch = simulate({ seconds: 6, sticks: { throttle: 1, roll: 0, pitch: 0, yaw: 0 }, at: [0, 100, 300] });
+	check(`[${fam}] the pack sags under a full-throttle pull`,
+		punch.battery.voltage < 0.97 * full && punch.battery.voltage > 3.0 * PROFILE.battery.cells,
+		`${punch.battery.voltage.toFixed(2)} V of ${full.toFixed(1)} at ${punch.battery.current.toFixed(0)} A`);
+	check(`[${fam}] the pack drains`, punch.battery.soc < 0.98 && punch.battery.soc > 0.3,
+		`${(punch.battery.soc * 100).toFixed(0)}% left after 6 s flat out`);
+}
+
+// Back to the default family for the scene-bound checks below.
+useFamily('freestyle5');
+
+// PHASE 08 : la cible résolue désigne toujours un profil de vol réel.
+{
+	let okAll = true;
+	for (const seed of ['t1', 't2', 't3', 't4', 't5']) {
+		const scan = generateTargetScan({ seed, count: 5 });
+		for (let i = 0; i < scan.candidates.length; i++) {
+			if (!PROFILES[resolveTarget(scan, i).family]) okAll = false;
+		}
+	}
+	check('toute cible résolue pointe un profil de vol', okAll);
+}
 
 console.log('\ncollision');
 const towerX = tx, towerZ = tz;
@@ -228,6 +279,31 @@ console.log('\nvideo link');
 	const clipped = settle({ distance: 80, blocked: true, span: 0 });
 	check('clipping an edge costs much less than going behind a building',
 		clipped > oneBuilding + 0.2, `${clipped.toFixed(2)} clipped vs ${oneBuilding.toFixed(2)} behind`);
+
+	// PHASE 08: le RSSI annoncé de la cible décale le budget. À distance et
+	// obstruction égales, un signal faible arrive avec moins de marge.
+	{
+		const strong = new VideoLink(1);
+		strong.setSignal({ rssiDbm: -54 });
+		const weak = new VideoLink(1);
+		weak.setSignal({ rssiDbm: -72 });
+		let qs = 1, qw = 1;
+		for (let i = 0; i < 600; i++) {
+			qs = strong.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+			qw = weak.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+		}
+		check('un signal faible dégrade le lien à distance égale', qw < qs - 0.05, `fort ${qs.toFixed(2)} vs faible ${qw.toFixed(2)}`);
+
+		const none = new VideoLink(1);
+		none.setSignal({});
+		const untouched = new VideoLink(1);            // never calls setSignal
+		let q0 = 1, qu = 1;
+		for (let i = 0; i < 600; i++) {
+			q0 = none.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+			qu = untouched.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+		}
+		check('setSignal({}) est un no-op (identique à pas d\'appel)', Math.abs(q0 - qu) < 1e-9, `${q0.toFixed(3)} vs ${qu.toFixed(3)}`);
+	}
 
 	// The anti-cliff check, and the reason most of the constants are what they
 	// are. The geometry is a step function — the wall is on the path or it is

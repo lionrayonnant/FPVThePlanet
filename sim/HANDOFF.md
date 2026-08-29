@@ -52,8 +52,83 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Vérifié
 
-- `npm run selftest` : 15/15 PASS (géodésie, sol, vol, collision/CCD, textures).
-  Les deux checks textures mesurent 14,7 |dRGB| et 0,8 % de gris.
+- `npm run selftest` : **158/158 PASS** (géodésie, sol, collision/CCD, textures,
+  lien vidéo, pluie/brouillard, météo, + la boucle enveloppe de vol / propulsion
+  sur les six familles PHASE 07). Les deux checks textures mesurent 14,7 |dRGB|
+  et 0,8 % de gris.
+- **PHASE 07 — génération des cibles (couche physique)**, branche
+  `phase-07-generation-cibles`, vérifié headless :
+  - `src/drone-profiles.js` : 6 familles (`freestyle5` = valeurs `quad.js`
+    d'origine au bit près ; `race5`, `cinewhoop`, `longrange`, `heavy5`,
+    `toothpick`/label `MICRO`). `QUAD` = profil par défaut ; `quad.js`,
+    `flightController.js`, `physics.js`, `audio.js`, `main.js` prennent le
+    profil en argument.
+  - PID **mesurés par famille** via `node tools/tune-pid.mjs --write all`
+    (jamais à la main) ; `npm run tune` : 34/36 combos axe·famille dans les
+    cibles strictes du banc, reste `longrange` roll/pitch à rise 74 vs
+    68-71 ms (~9 %, cruiseur calme à 360 °/s).
+  - `freestyle5` inchangé à la valeur près : `selftest` rend hover 24 %, roll
+    822 °/s, vitesse terminale 15,4 m/s comme avant.
+  - Bug du banc `tune-pid` corrigé (attitude intégrée passée au contrôleur →
+    oscillation fantôme, divergente pour une boucle micro) : le banc passe
+    `rotation: IDENTITY`.
+  - **Non vérifié en vol piloté** : le ressenti réel de chaque famille. Le
+    tinywhoop 1S a été prototypé puis **retiré** — à ~34 g le couplage
+    roll/pitch/yaw du modèle n'est pas calibré ; issue de suivi.
+  - **Pour tester une famille en vol** (en attendant la sélection de cible,
+    PHASE 08) : `npm run dev` puis
+    `http://localhost:5173/?scene=tour-eiffel&family=<nom>` avec `<nom>` =
+    `freestyle5` `race5` `cinewhoop` `longrange` `heavy5` `toothpick`. Une
+    famille par chargement de page (pas de bascule en vol). `__sim.debug().family`
+    confirme laquelle est chargée.
+- **PHASE 08 — target scan (issue #45), vérifié**, branche
+  `phase-08-target-scan` = `main` + merge `phase-06-impl` + merge
+  `phase-07-generation-cibles`.
+  - Conflit de tuning révélé par le merge : le collider de PHASE 06 (`restitution
+    0.05` / `friction 1.0`, mesuré sur `freestyle5` seul) croisé avec le sweep 6
+    familles de PHASE 07 faisait déraper le `toothpick` à 1,55 m/s au sol
+    (> seuil `sits still` de `selftest.mjs`). Re-balayé rest×fric contre le
+    selftest tour-eiffel → **`restitution 0.15` / `friction 1.0`** : toothpick à
+    0,99 m/s, toutes familles vertes, `a gentle landing` à 483 N. `physics.js`.
+  - Vérifié headless : `target-selftest.mjs` (74 tests), les cas cible de
+    `session-selftest.mjs` (14 tests) et `session-route-selftest.mjs` (2),
+    le cas dégradation RSSI faible de `link.js` dans `selftest.mjs`, et le
+    nouveau cas `toute cible résolue pointe un profil de vol` (`resolveTarget().family`
+    ∈ `PROFILES`, 5 seeds × 5 candidats). `selftest:operator` +
+    `selftest.mjs` (158 checks, 6 familles) + `build` tous verts sur la
+    branche mergée.
+  - Vérifié navigateur (MCP chrome-devtools, GPU réel, serveur de dev) :
+    - `LOCAL TERRAIN` → `[ OPEN ]` : **TARGET SCAN** s'affiche, 4 signaux
+      (fallback sans densité persistée), triés RSSI décroissant
+      (-53/-65/-71/-72). `↑`/`↓` déplacent le curseur ; `Enter` → fiche
+      pré-hack `TARGET 03 · LOCATION KNOWN · SIGNAL -71 dBm · DEVICE PARTIAL
+      (EST. 5") · VIDEO PARTIAL (EST. ANALOG) · CONTROL/FLIGHT STATE UNKNOWN`
+      — **aucune** famille / caméra / rates / batterie.
+    - Fiche ouverte : l'écran liste passe en `display:none`, ses touches
+      deviennent inertes, pas d'empilement (correctif Task 5).
+    - `CONFIRM` → vol : `__sim.debug().family` = `heavy5` (candidat choisi),
+      `__sim.session().target` = descripteur complet régénéré côté serveur
+      (`heavy5`, signal -71 dBm ANALOG, intel figé), `__sim.debug().link.rssiDbm`
+      passe de -35 (sans cible) à -56,7 — le RSSI annoncé décale bien le lien.
+    - Session `LANDED` → terminal `LAST SESSION` → `RESUME SESSION` :
+      **pas** de nouveau TARGET SCAN, `family` = `heavy5` (relu depuis
+      `operator.sessions`), lien ré-armé à -56,6, `resumeCount` = 1.
+    - `?scene=tour-eiffel` (dev) : pas de TARGET SCAN, `__sim.session().target`
+      = `null`, `linkRssi` = -35. Console sans erreur ni warning sur les trois
+      parcours.
+  - **Non vérifié** : le ressenti de vol par famille en pilotage réel
+    (déjà noté PHASE 07). Densité→count non exercée au navigateur (aucun
+    terrain acquis n'avait de `signalDensity` ; fallback 4 confirmé).
+  - **Changement cassant** : renommer ou retirer une famille de
+    `drone-profiles.js` casse les sessions déjà stockées — `validateSession`
+    → `sanitizeTarget` rejette (400) un `RESUME` dont la `target.family`
+    n'existe plus, et un profil inconnu retombe silencieusement sur le
+    profil par défaut.
+  - **Plafond de l'archi A** : le modèle est bundlé côté client et la graine
+    est tirée côté client — `_family` est lisible en devtools, les graines
+    explorables hors-ligne. « Non falsifiable » vaut pour la cohérence des
+    stats (le serveur fait autorité sur le candidat choisi), pas contre un
+    joueur qui veut voir à travers le brouillard.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
@@ -114,6 +189,26 @@ Plan d'origine (contexte de la décision d'architecture) :
   - `add-map.html` / `tools/map-gui/` n'ont pas été supprimés : ils portent
     encore `quality`/`cell`/`--force`, que le scanner n'expose pas — à trancher
     avec l'utilisateur avant de les retirer.
+
+- **PHASE 06 — modèle de session** (issue #43), vérifié sans navigateur :
+  `npm run selftest` reste vert (« all checks passed »), `selftest:operator`
+  passe 11 tests session en plus des précédents, `npm run build` OK.
+  - une session est tenue en mémoire client pendant le vol (`src/session.js`),
+    deux écritures réseau : `POST /__operator/:id/sessions` (squelette PENDING) à
+    l'ouverture, `PATCH .../sessions/:sid` (verdict + télémétrie agrégée +
+    randomart) à la clôture ;
+  - verdicts : `LANDED` (désarmement Betaflight `throttle` bas + `yaw` plein
+    gauche 0,5 s, ou touche `j`, alors que le drone est au sol et immobile —
+    drone conservé, session ré-ouvrable via LAST SESSION → RESUME SESSION) ;
+    `CRASHED` (impact > `CRASH_IMPULSE`, ou désarmement en vol → chute → impact,
+    ou onglet mort → réconciliation `PENDING`→`CRASHED` au `GET /__operator/:id`) ;
+  - après un `CRASHED`, `r` renvoie au terminal au lieu de respawn en place
+    (sauf `?scene=` dev) ;
+  - logique pure dans `tools/session-model.mjs` + `tools/randomart.mjs`
+    (drunken-bishop déterministe sur `sha256(sessionId)`).
+  - **Non vérifié en vol réel** : ouverture/clôture de session et agrégats de
+    télémétrie jamais éprouvés dans le navigateur avec un vrai vol ; le geste de
+    désarmement à la manette non plus.
 
 ## Non vérifié / à faire
 

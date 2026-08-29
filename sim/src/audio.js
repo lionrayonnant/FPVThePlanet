@@ -1,5 +1,10 @@
 import { QUAD, MOTORS } from './quad.js';
 
+// The audio only needs two numbers off the airframe family: how many blades a
+// prop has (sets the blade-pass pitch) and full-thrust per motor (normalises
+// the noise level). Motor count and left/right placement are the same for every
+// family. main.js calls setProfile() once the airframe is known.
+
 // Engine sound, synthesised from the four motor speeds. Nothing is loaded: a
 // quad's noise is almost entirely blade-pass tones over broadband rush, and
 // both are cheaper to generate than to stream.
@@ -14,9 +19,9 @@ import { QUAD, MOTORS } from './quad.js';
 
 const TWO_PI = Math.PI * 2;
 
-// Blade-pass fundamental, in Hz, from a motor speed in rad/s. ~595 Hz at hover,
-// ~1500 Hz at full throttle with the current quad.js constants.
-const bladePass = (omega) => (omega / TWO_PI) * QUAD.bladeCount;
+// Blade-pass fundamental, in Hz, from a motor speed in rad/s and a blade count.
+// ~595 Hz at hover, ~1500 Hz at full throttle with the 5" freestyle constants.
+const bladePass = (omega, blades) => (omega / TWO_PI) * blades;
 
 const AUDIO = {
 	// Relative level of the fundamental and its first two harmonics. A lone
@@ -145,6 +150,14 @@ export class EngineAudio {
 		this._masterTarget = 0;
 		this._motors = [];
 		this._lastImpactAt = -1;
+		this._bladeCount = QUAD.bladeCount;
+		this._maxThrustPerMotor = QUAD.maxThrustPerMotor;
+	}
+
+	// Airframe family (src/drone-profiles.js). Safe to call before start().
+	setProfile(profile) {
+		this._bladeCount = profile.bladeCount;
+		this._maxThrustPerMotor = profile.maxThrustPerMotor;
 	}
 
 	get running() { return this.ctx !== null && this.ctx.state === 'running'; }
@@ -283,7 +296,7 @@ export class EngineAudio {
 
 		for (let i = 0; i < this._motors.length; i++) {
 			const m = this._motors[i];
-			const f = bladePass(omega[i]);
+			const f = bladePass(omega[i], this._bladeCount);
 
 			for (let h = 0; h < m.oscs.length; h++) {
 				m.oscs[h].frequency.setTargetAtTime(Math.max(f * (h + 1), 1), t, AUDIO.tauFreq);
@@ -293,7 +306,7 @@ export class EngineAudio {
 			// Level follows thrust, not the motor command: a motor unloaded in a
 			// dive is quieter than the same command in a climb, which is half of
 			// why a punch-out sounds like one.
-			const load = Math.min(thrust[i] / QUAD.maxThrustPerMotor, 1);
+			const load = Math.min(thrust[i] / this._maxThrustPerMotor, 1);
 			const spinning = omega[i] > 1 ? AUDIO.idleLevel : 0;
 			const level = Math.max(Math.pow(Math.max(load, 0), 0.6), spinning);
 			m.out.gain.setTargetAtTime(level / MOTORS.length, t, AUDIO.tauGain);
