@@ -15,7 +15,7 @@ import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
-import { CATEGORIES, RANGES, sampleCandidate, rngFrom } from '../src/entry-state.js';
+import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rngFrom } from '../src/entry-state.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1207,6 +1207,12 @@ console.log('\nentry state — sampleCandidate');
 		const qLenSq = c.quaternion.x ** 2 + c.quaternion.y ** 2 + c.quaternion.z ** 2 + c.quaternion.w ** 2;
 		check(`${category}: quaternion is normalised`, Math.abs(qLenSq - 1) < 1e-6);
 	}
+	// A candidate sitting exactly on the ground (no clearance) must fail; the
+	// same candidate lifted well clear of everything must pass.
+	const onFloor = sampleCandidate('COMFORTABLE', manifest, phys, rand);
+	const buried = { ...onFloor, position: { ...onFloor.position, y: onFloor.position.y - 1e3 } };
+	check('geometrySafe rejects a position far under the terrain', geometrySafe(buried, phys) === false);
+	check('geometrySafe accepts a normally-sampled COMFORTABLE candidate', geometrySafe(onFloor, phys) === true);
 	phys.reset();
 }
 

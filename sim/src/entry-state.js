@@ -136,3 +136,27 @@ export function sampleCandidate(category, manifest, physics, rand) {
 
 	return { category, position: { x, y, z }, quaternion, linvel, angvel };
 }
+
+// How far ahead along the velocity direction the obstruction check looks, and
+// how much of that stretch may legitimately be "material" (a roof edge
+// clipped tangentially) before it counts as a wall in the way.
+const LOOKAHEAD_M = 15;
+const BLOCK_SPAN_M = 2;
+
+export function geometrySafe(candidate, physics) {
+	const { position, linvel } = candidate;
+	const ground = physics.groundBelow(position.x, position.y, position.z);
+	if (ground === null || position.y - ground < 1) return false;
+
+	const speed = Math.hypot(linvel.x, linvel.y, linvel.z);
+	if (speed < 1e-6) return true;
+	const dir = { x: linvel.x / speed, y: linvel.y / speed, z: linvel.z / speed };
+	const ahead = {
+		x: position.x + dir.x * LOOKAHEAD_M,
+		y: position.y + dir.y * LOOKAHEAD_M,
+		z: position.z + dir.z * LOOKAHEAD_M,
+	};
+	const o = physics.obstructionBetween(position.x, position.y, position.z, ahead.x, ahead.y, ahead.z);
+	if (o.blocked && o.span > BLOCK_SPAN_M) return false;
+	return true;
+}
