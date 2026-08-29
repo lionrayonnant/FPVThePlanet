@@ -267,6 +267,31 @@ console.log('\nvideo link');
 	check('clipping an edge costs much less than going behind a building',
 		clipped > oneBuilding + 0.2, `${clipped.toFixed(2)} clipped vs ${oneBuilding.toFixed(2)} behind`);
 
+	// PHASE 08: le RSSI annoncé de la cible décale le budget. À distance et
+	// obstruction égales, un signal faible arrive avec moins de marge.
+	{
+		const strong = new VideoLink(1);
+		strong.setSignal({ rssiDbm: -54 });
+		const weak = new VideoLink(1);
+		weak.setSignal({ rssiDbm: -72 });
+		let qs = 1, qw = 1;
+		for (let i = 0; i < 600; i++) {
+			qs = strong.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+			qw = weak.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+		}
+		check('un signal faible dégrade le lien à distance égale', qw < qs - 0.05, `fort ${qs.toFixed(2)} vs faible ${qw.toFixed(2)}`);
+
+		const none = new VideoLink(1);
+		none.setSignal({});
+		const untouched = new VideoLink(1);            // never calls setSignal
+		let q0 = 1, qu = 1;
+		for (let i = 0; i < 600; i++) {
+			q0 = none.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+			qu = untouched.update({ distance: 120, blocked: false, span: 0, dt: 1 / 60 }).quality;
+		}
+		check('setSignal({}) est un no-op (identique à pas d\'appel)', Math.abs(q0 - qu) < 1e-9, `${q0.toFixed(3)} vs ${qu.toFixed(3)}`);
+	}
+
 	// The anti-cliff check, and the reason most of the constants are what they
 	// are. The geometry is a step function — the wall is on the path or it is
 	// not — so nothing but the time constants stands between a fade and a

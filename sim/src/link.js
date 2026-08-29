@@ -95,6 +95,12 @@ export class VideoLink {
 		// 0..1: scales the losses. The slider, so 0 means "no link modelling at
 		// all" and 1 means the link can genuinely break.
 		this.severity = 1;
+		// Décalage de perte dû au RSSI annoncé de la cible (PHASE 08). Le RSSI
+		// annoncé = niveau de lien propre de cette cible à D0 : un émetteur ou une
+		// antenne plus faibles démarrent le budget avec moins de marge. Additif en
+		// dB, comme spread et shadow. NON remis à zéro par reset() : c'est une
+		// propriété de la cible, elle survit à un respawn dans la session.
+		this._baseLoss = 0;
 		this.out = { quality: 1, rssiDbm: RSSI_REF_DBM, lossDb: 0, frozen: false };
 		this.reset();
 	}
@@ -113,6 +119,10 @@ export class VideoLink {
 		this.severity = clamp01(s);
 	}
 
+	setSignal({ rssiDbm } = {}) {
+		this._baseLoss = Number.isFinite(rssiDbm) ? Math.max(0, RSSI_REF_DBM - rssiDbm) : 0;
+	}
+
 	// distance in metres; blocked/span straight out of
 	// physics.obstructionBetween(). Mutates and returns the same object every
 	// frame — this runs at frame rate.
@@ -121,7 +131,7 @@ export class VideoLink {
 		const shadow = blocked
 			? KNIFE_EDGE_DB + OBSTRUCTION_DB * (1 - Math.exp(-span / OBSTRUCTION_SCALE))
 			: 0;
-		const target = (spread + shadow) * this.severity;
+		const target = (spread + shadow + this._baseLoss) * this.severity;
 
 		// Rising loss is the link failing, falling loss is it coming back.
 		const tau = target > this._loss ? TAU_FALL : TAU_RISE;
