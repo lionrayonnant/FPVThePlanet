@@ -239,6 +239,13 @@ Plan d'origine (contexte de la décision d'architecture) :
   pour dire si les valeurs qu'Open-Meteo renvoie donnent une expérience juste.
   C'est un arbitrage de ressenti, pas un bug — il se règle dans
   `toSimParams()` (`tools/lib/weather.mjs`), un seul endroit.
+  - 2026-08-29 : premier arbitrage posé — `WIND_GAIN = 0.75` dans `src/wind.js`
+    (vent ressenti à -25 %, tout suit : rafales, turbulence, updraft). La
+    prévision de l'Operator Terminal (`nominal`) n'est PAS nerfée, elle reste la
+    vraie météo. Valeur à réviser au premier vrai retour de pilotage.
+- **HUD météo trop discret** : au lancement d'un vol on ne pense pas aux
+  conditions. À rendre plus saillant sur la fiche opérateur (retour utilisateur
+  2026-08-29). Non fait.
 - Le bloc **Lien vidéo** est resté dans le panneau `Tab`. La Bible §31 le range
   avec la météo du côté du monde, mais l'issue #41 ne le demande pas : à sortir
   dans une phase ultérieure.
