@@ -58,19 +58,36 @@ export class FpvtpOsd {
 		this._frames = 0;
 		this._fpsAt = performance.now();
 		this._fps = 0;
+		// Les trois états centraux occupent la même place. Ils ne s'excluent pas
+		// dans le monde — on peut être en pause sur un drone détruit — donc ils
+		// sont tenus ici, et un seul est peint.
+		this._paused = false;
+		this._crashed = false;
+		this._status = null;
 	}
 
 	show() { this.el.root.hidden = false; }
-	setPaused(paused) { this.el.pause.hidden = !paused; }
-	setCrashed(crashed) { this.el.crash.hidden = !crashed; }
+	setPaused(paused) { this._paused = !!paused; this._refreshCentre(); }
+	setCrashed(crashed) { this._crashed = !!crashed; this._refreshCentre(); }
 
 	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
 	setSessionStatus(text, kind = null) {
+		this._status = text ? { text, kind } : null;
+		this._refreshCentre();
+	}
+
+	// Priorité explicite : verdict de session > crash > pause. Un seul visible,
+	// sans quoi les trois se superposent lettre sur lettre au même endroit.
+	_refreshCentre() {
 		const e = this.el.status;
-		if (!text) { e.hidden = true; return; }
-		e.innerHTML = text;
-		if (kind) e.dataset.kind = kind; else delete e.dataset.kind;
-		e.hidden = false;
+		if (this._status) {
+			e.innerHTML = this._status.text;
+			if (this._status.kind) e.dataset.kind = this._status.kind;
+			else delete e.dataset.kind;
+		}
+		e.hidden = !this._status;
+		this.el.crash.hidden = !!this._status || !this._crashed;
+		this.el.pause.hidden = !!this._status || this._crashed || !this._paused;
 	}
 
 	get fps() { return this._fps; }

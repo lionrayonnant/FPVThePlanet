@@ -540,8 +540,11 @@ const LensShader = {
 					// Teinte simple sans conversion HSV : deux caméras ne rendent
 					// pas le même vert, et une bascule vers une couleur suffit à
 					// le dire.
-					vec3 cast = 0.5 + 0.5 * cos(6.2831853 * (uSensor2.y + vec3(0.0, 0.33, 0.67)));
-					c = mix(c, c * cast * 2.0, amt);
+					// Surtout pas nommée cast : c'est un mot réservé en GLSL ES,
+					// et le bloc capteur ne compilait pas du tout (constaté au
+					// premier vol avec un capteur non neutre, Task 9).
+					vec3 tint = 0.5 + 0.5 * cos(6.2831853 * (uSensor2.y + vec3(0.0, 0.33, 0.67)));
+					c = mix(c, c * tint * 2.0, amt);
 				}
 
 				c = c * (1.0 - uSensor.y) + uSensor.y;
