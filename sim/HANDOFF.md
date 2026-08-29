@@ -85,8 +85,48 @@ Plan d'origine (contexte de la décision d'architecture) :
   Anthoine, Champ-de-Mars, façades) : textures à l'endroit, lisibles, aucune
   plaque grise. `take_screenshot` du MCP capture bien le canvas WebGL, contrairement
   au `page.screenshot()` de puppeteer utilisé lors de la session précédente.
+- **PHASE 05 — acquisition de terrain / cache** (issue #42), vérifié en direct
+  contre le vrai pipeline (petite bbox réelle, config Flyover copiée dans un
+  worktree dédié, jamais commitée — gitignorée) :
+  - `addMap()` découpe désormais la conversion en deux phases réelles, `decode`
+    puis `rebuild` (détectées dans le stdout de `prep.mjs`, sans y toucher —
+    voir `parsePrepLine` dans `tools/lib/add-map-core.mjs`) ; le scanner en
+    tire quatre barres honnêtes (TERRAIN/FETCH/DECODE/REBUILD — `pipelineBars`
+    dans `tools/scanner-model.mjs`), REBUILD ayant un vrai ratio de chunks,
+    DECODE restant indéterminé faute de jalon intermédiaire dans le flux actuel ;
+  - bug trouvé et corrigé pendant ce test : `prep.mjs` groupe ses grands nombres
+    avec `toLocaleString()` sans locale explicite, donc avec le séparateur ICU
+    du runtime qui l'exécute (ici une espace fine insécable U+202F, pas une
+    virgule) — les regex de `parsePrepLine` acceptent maintenant les deux ;
+  - deuxième bug trouvé et corrigé : une connexion SSE tardive sur un job déjà
+    terminé (rechargement de page après la fin de l'acquisition) rejouait un
+    `done` reconstruit à la main, sans `slug`/`bytes`/`stats` — l'écran TERRAIN
+    ACQUIRED n'avait alors plus de quoi proposer KEEP/REMOVE. Le job garde
+    maintenant son événement terminal réel (`job.final`) et le rejoue tel quel ;
+  - `POST /__operator/:id/terrain-cache` (KEEP TERRAIN) testé en direct : relit
+    `scenes.json` côté serveur (le client n'envoie que le slug), rejette un slug
+    inconnu (404), écrit dans `terrainCache` de l'opérateur ; `DELETE
+    /__map-api/scenes/:slug?raw=1` (REMOVE TERRAIN) réutilisé tel quel ;
+  - non fait dans cette phase : les logs RTC (`tools/rtc-model.mjs`) et le
+    bouton `LEAVE` (quitter l'écran d'acquisition sans l'annuler, le job
+    continue côté serveur) sont écrits et couverts par selftest, mais jamais
+    vus dans le navigateur — voir « Non vérifié » ci-dessous ;
+  - `add-map.html` / `tools/map-gui/` n'ont pas été supprimés : ils portent
+    encore `quality`/`cell`/`--force`, que le scanner n'expose pas — à trancher
+    avec l'utilisateur avant de les retirer.
 
 ## Non vérifié / à faire
+
+- **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
+  TEXTURES, les barres décoratives RF ANALYSIS/TARGET SEARCH, le flux RTC et
+  l'écran TERRAIN ACQUIRED → KEEP/REMOVE ont été vérifiés côté logique pure
+  (`scanner-selftest.mjs`, `rtc-selftest.mjs`) et côté API (`curl` + SSE brut),
+  jamais rendus à l'écran ni cliqués.
+- **PHASE 05, rechargement pendant la fenêtre KEEP/REMOVE** : si la page est
+  rechargée après `done` mais avant que l'opérateur choisisse KEEP ou REMOVE,
+  le scanner rouvert ne rejoue pas cet écran (il ne rattrape que les jobs
+  encore `running`) — le terrain reste sur disque et dans `scenes.json`, mais
+  hors de `terrainCache` tant qu'il n'est pas gardé explicitement.
 
 - **Le scanner sur une zone hors couverture Flyover** : le chemin `columns === 0`
   et le grisé des colonnes élaguées (`prunedBands`) sont testés unitairement,

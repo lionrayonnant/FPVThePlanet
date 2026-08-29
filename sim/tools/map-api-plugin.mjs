@@ -166,6 +166,31 @@ const opRoutes = [
 		if (changed) _writeOperator(state);
 		json(res, 200, { snapshot });
 	}],
+
+	// Rattache un terrain déjà acquis à l'opérateur (PHASE 05, écran « TERRAIN
+	// ACQUIRED » -> KEEP TERRAIN). Le client n'envoie que le slug : le reste
+	// (nom, coordonnées, poids) vient de public/scenes.json, jamais du client —
+	// mêmes garde-fous que pour worldState, sur des données différentes.
+	['POST', /^\/([^/]+)\/terrain-cache$/, async (req, res, [id]) => {
+		const b = await readBody(req);
+		const slug = String(b.slug ?? '').trim();
+		if (!slug) return json(res, 400, { error: 'slug manquant' });
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		const scene = readScenes().find((s) => s.slug === slug);
+		if (!scene) return json(res, 404, { error: `aucune carte "${slug}"` });
+		const entry = {
+			slug: scene.slug, name: scene.name, lat: scene.lat, lon: scene.lon,
+			bytes: scene.bytes ?? dirSize(path.join(SCENES_DIR, slug)),
+			keptAt: new Date().toISOString(),
+		};
+		state.terrainCache = (state.terrainCache ?? []).filter((t) => t.slug !== slug);
+		state.terrainCache.push(entry);
+		_writeOperator(state);
+		json(res, 200, { operator: state });
+	}],
 ];
 
 // Un seul job à la fois : télécharger deux cartes en parallèle sature la même
@@ -246,7 +271,7 @@ function startJob(opts) {
 	const ctrl = new AbortController();
 	const job = {
 		id, slug: opts.slug, name: opts.name,
-		state: 'running', phase: 'download', hits: 0,
+		state: 'running', phase: 'download', hits: 0, pipeline: {},
 		startedAt: Date.now(), endedAt: null, error: null,
 		log: [], listeners: new Set(), ctrl,
 	};
@@ -263,21 +288,39 @@ function startJob(opts) {
 		for (const send of job.listeners) send(event, data);
 	};
 
+	// Certains champs de parsePrepLine sont des compteurs qui s'accumulent
+	// (un événement par chunk/sheet), le reste est un dernier état connu.
+	const ACCUMULATED = new Set(['chunksDone', 'chunkBytes', 'textureSheets', 'textureBytes']);
+	const mergeStat = (stat) => {
+		for (const [k, v] of Object.entries(stat)) {
+			job.pipeline[k] = ACCUMULATED.has(k) ? (job.pipeline[k] ?? 0) + v : v;
+		}
+	};
+
 	addMap(opts, {
 		signal: ctrl.signal,
 		onLog: (ev) => {
 			if (ev.stream === 'progress') { job.hits = ev.hits; emit('progress', { hits: ev.hits, phase: job.phase }); return; }
-			if (ev.stream === 'phase') { job.phase = ev.done ? 'prep' : ev.line; emit('phase', { phase: job.phase }); return; }
+			// Après un skip (tuile déjà en cache), on saute directement à decode :
+			// prep tourne quand même, il n'y a simplement rien eu à télécharger.
+			if (ev.stream === 'phase') { job.phase = ev.done ? 'decode' : ev.line; emit('phase', { phase: job.phase }); return; }
+			if (ev.stream === 'stat') { mergeStat(ev.stat); emit('stat', { ...job.pipeline }); return; }
 			emit('log', { stream: ev.stream, line: ev.line });
 		},
 	}).then((r) => {
 		job.state = 'done'; job.endedAt = Date.now(); job.result = r;
-		emit('done', { slug: r.slug, bytes: dirSize(r.outDir), stats: r.stats });
+		// Rejoué tel quel à une connexion SSE tardive (voir la route /events plus
+		// bas) : sans ça, un rechargement de page après la fin du job ne recevait
+		// qu'un {message} vide — slug/bytes/stats disparaissaient, et l'écran
+		// TERRAIN ACQUIRED de PHASE 05 n'avait plus de quoi proposer KEEP/REMOVE.
+		job.final = { event: 'done', data: { slug: r.slug, bytes: dirSize(r.outDir), stats: r.stats } };
+		emit(job.final.event, job.final.data);
 	}).catch((e) => {
 		job.state = e instanceof Cancelled ? 'cancelled' : 'error';
 		job.endedAt = Date.now();
 		job.error = e instanceof Cancelled ? 'Annulé.' : e.message;
-		emit(job.state === 'cancelled' ? 'cancelled' : 'error', { message: job.error });
+		job.final = { event: job.state === 'cancelled' ? 'cancelled' : 'error', data: { message: job.error } };
+		emit(job.final.event, job.final.data);
 	}).finally(() => {
 		if (current === job) current = null;
 		for (const send of job.listeners) send('end', {});
@@ -381,14 +424,20 @@ const routes = [
 		const send = (event, data) => {
 			try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* client parti */ }
 		};
-		send('state', { state: job.state, phase: job.phase, hits: job.hits, error: job.error });
+		send('state', { state: job.state, phase: job.phase, hits: job.hits, pipeline: job.pipeline, error: job.error });
 		for (const l of job.log) send('log', l);
 		if (job.state === 'running') {
 			job.listeners.add(send);
 			const ka = setInterval(() => { try { res.write(': ka\n\n'); } catch { /* */ } }, 15000);
 			req.on('close', () => { job.listeners.delete(send); clearInterval(ka); });
 		} else {
-			send(job.state === 'done' ? 'done' : job.state, { message: job.error ?? '' });
+			// job.final porte le VRAI événement terminal (voir startJob) : une
+			// connexion tardive (rechargement après la fin du job) doit voir
+			// exactement ce qu'une connexion restée ouverte aurait reçue, slug et
+			// stats compris — pas une reconstruction générique.
+			const fallback = { event: job.state === 'done' ? 'done' : job.state, data: { message: job.error ?? '' } };
+			const { event, data } = job.final ?? fallback;
+			send(event, data);
 			send('end', {});
 			res.end();
 		}

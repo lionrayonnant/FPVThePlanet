@@ -16,8 +16,10 @@ import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
-	latticeEdges, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
+	pipelineBars, pipelineStats, latticeEdges, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 } from '../tools/scanner-model.mjs';
+import { rtcScript } from '../tools/rtc-model.mjs';
+import * as operatorApi from './operator.js';
 
 const API = '/__map-api';
 
@@ -114,6 +116,11 @@ const PANEL = `
 	<button type="button" class="sc-cta sc-back">[ BACK ]</button>
 </section>`;
 
+// Une rangée de barre : label fixe + `.sc-bar` que watchJob() pilote par sélecteur.
+const barRow = (cls, label) =>
+	`<div class="sc-bar-row"><span class="sc-bar-label">${label}</span>` +
+	`<div class="sc-bar ${cls}" data-indeterminate="1"><i></i></div></div>`;
+
 const JOB_PANEL = `
 <pre class="sc-title">AREA ACQUISITION</pre>
 <section class="sc-block">
@@ -123,15 +130,47 @@ const JOB_PANEL = `
 		<dt>TILES</dt><dd class="sc-job-tiles">—</dd>
 		<dt>ELAPSED</dt><dd class="sc-job-elapsed">0 S</dd>
 	</dl>
-	<div class="sc-bar" data-indeterminate="1"><i></i></div>
+	<div class="sc-bars">
+		${barRow('sc-bar-terrain', 'TERRAIN')}
+		${barRow('sc-bar-fetch', 'FETCH')}
+		${barRow('sc-bar-decode', 'DECODE')}
+		${barRow('sc-bar-rebuild', 'REBUILD')}
+	</div>
 	<pre class="sc-note sc-job-note" hidden></pre>
+</section>
+<section class="sc-block sc-job-stats" hidden>
+	<pre class="sc-h">GEOMETRY / TEXTURES</pre>
+	<dl class="sc-readout sc-stats-readout"></dl>
+</section>
+<section class="sc-block">
+	<pre class="sc-h">RF ANALYSIS / TARGET SEARCH</pre>
+	<!-- Décoratif (Bible §8) : aucune de ces deux barres ne conditionne quoi que
+	     ce soit — la génération de cibles réelle est PHASE 7. -->
+	<div class="sc-bars">
+		${barRow('sc-bar-rf', 'RF ANALYSIS')}
+		${barRow('sc-bar-target', 'TARGET SEARCH')}
+	</div>
 </section>
 <section class="sc-block sc-log-block">
 	<pre class="sc-h">PIPELINE</pre>
 	<pre class="sc-log"></pre>
 </section>
+<section class="sc-block sc-log-block sc-rtc-block">
+	<pre class="sc-h">RTC // INTERNAL</pre>
+	<pre class="sc-log sc-rtc"></pre>
+</section>
+<section class="sc-block sc-job-done" hidden>
+	<pre class="sc-h">TERRAIN ACQUIRED</pre>
+	<pre class="sc-job-done-line"></pre>
+	<div class="sc-row">
+		<button type="button" class="sc-cta sc-keep">[ KEEP TERRAIN ]</button>
+		<button type="button" class="sc-cta sc-discard">[ REMOVE TERRAIN ]</button>
+	</div>
+	<pre class="sc-note sc-keep-note" hidden></pre>
+</section>
 <section class="sc-block sc-foot">
 	<button type="button" class="sc-cta sc-abort">[ ABORT ]</button>
+	<button type="button" class="sc-cta sc-leave">[ LEAVE — KEEPS RUNNING ]</button>
 	<button type="button" class="sc-cta sc-fly" hidden>[ FLY ]</button>
 	<button type="button" class="sc-cta sc-job-back" hidden>[ BACK ]</button>
 </section>`;
@@ -535,30 +574,46 @@ export function runScanner(root) {
 	};
 
 	// Vue « acquisition » : le panneau change, la carte reste. Les chiffres
-	// affichés sont ceux du pipeline (phase, tuiles, log) — la mise en scène
-	// diégétique complète est PHASE 5.
+	// affichés sont ceux du pipeline (phase, tuiles, log, statistiques). RF
+	// ANALYSIS / TARGET SEARCH et le flux RTC sont décoratifs (PHASE 05, Bible
+	// §8/§9) : ils ne conditionnent jamais ABORT/LEAVE/FLY.
 	function watchJob(id, name, expected) {
 		state.jobId = id;
 		panel.innerHTML = JOB_PANEL;
 		panel.querySelector('.sc-job-name').textContent = name.toUpperCase();
-		const bar = panel.querySelector('.sc-bar');
-		const fill = bar.firstElementChild;
 		const log = panel.querySelector('.sc-log');
+
+		const setBar = (sel, b) => {
+			const el2 = panel.querySelector(sel);
+			el2.dataset.indeterminate = b.indeterminate ? '1' : '0';
+			el2.firstElementChild.style.width = `${b.ratio * 100}%`;
+		};
 
 		const t0 = Date.now();
 		const tick = setInterval(() => {
 			panel.querySelector('.sc-job-elapsed').textContent = elapsed(Date.now() - t0);
 		}, 1000);
 
-		let phase = 'download', hits = 0;
+		let phase = 'download', hits = 0, pipeline = {};
 		const renderProgress = () => {
 			const p = acquisitionProgress({ phase, hits, expected });
+			const bars = pipelineBars({ phase, hits, expected, pipeline });
 			panel.querySelector('.sc-job-phase').textContent = phaseLabel(phase);
 			panel.querySelector('.sc-job-tiles').textContent = p.text;
-			bar.dataset.indeterminate = p.indeterminate ? '1' : '0';
-			fill.style.width = `${p.ratio * 100}%`;
+			setBar('.sc-bar-terrain', bars.terrain);
+			setBar('.sc-bar-fetch', bars.fetch);
+			setBar('.sc-bar-decode', bars.decode);
+			setBar('.sc-bar-rebuild', bars.rebuild);
 		};
 		renderProgress();
+
+		const renderStats = () => {
+			const lines = pipelineStats(pipeline);
+			if (!lines.length) return;
+			panel.querySelector('.sc-job-stats').hidden = false;
+			panel.querySelector('.sc-stats-readout').innerHTML =
+				lines.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+		};
 
 		const append = (line) => {
 			// Collé au bas seulement si l'opérateur y était déjà.
@@ -568,18 +623,29 @@ export function runScanner(root) {
 			if (stuck) log.scrollTop = log.scrollHeight;
 		};
 
+		// RTC : de la couleur, jamais une source d'information sur le pipeline
+		// réel. Boucle si l'acquisition dure plus longtemps que le script.
+		const rtc = panel.querySelector('.sc-rtc');
+		const script = rtcScript({ name, tiles: expected });
+		let rtcAt = 0;
+		const rtcTimer = setInterval(() => {
+			const { speaker, line } = script[rtcAt % script.length];
+			rtc.appendChild(document.createTextNode(`\n> ${speaker}\n${line}\n`));
+			rtc.scrollTop = rtc.scrollHeight;
+			rtcAt++;
+		}, 4500);
+
 		const es = new EventSource(`${API}/jobs/${id}/events`);
-		es.addEventListener('state', (e) => { const d = JSON.parse(e.data); phase = d.phase ?? phase; hits = d.hits ?? 0; renderProgress(); });
+		es.addEventListener('state', (e) => {
+			const d = JSON.parse(e.data);
+			phase = d.phase ?? phase; hits = d.hits ?? 0; pipeline = d.pipeline ?? pipeline;
+			renderProgress(); renderStats();
+		});
 		es.addEventListener('log', (e) => append(JSON.parse(e.data).line));
 		es.addEventListener('phase', (e) => { phase = JSON.parse(e.data).phase; renderProgress(); });
 		es.addEventListener('progress', (e) => { hits = JSON.parse(e.data).hits; renderProgress(); });
-		es.addEventListener('done', (e) => {
-			const d = JSON.parse(e.data);
-			finish(`TERRAIN READY — ${num(d.stats?.exported ?? 0)} TILES, ${bytes(d.bytes)} ON DISK`, 'ok');
-			const fly = panel.querySelector('.sc-fly');
-			fly.hidden = false;
-			fly.onclick = () => done(d.slug);
-		});
+		es.addEventListener('stat', (e) => { pipeline = JSON.parse(e.data); renderProgress(); renderStats(); });
+		es.addEventListener('done', (e) => { finish(); acquired(JSON.parse(e.data)); });
 		es.addEventListener('error', (e) => finish(String(JSON.parse(e.data).message ?? '').toUpperCase(), 'alarm'));
 		es.addEventListener('cancelled', () => finish('ACQUISITION ABORTED — NOTHING WAS ADDED', 'warn'));
 		es.addEventListener('end', () => es.close());
@@ -592,17 +658,74 @@ export function runScanner(root) {
 			catch (e) { note('.sc-job-note', e.message.toUpperCase(), 'alarm'); b.disabled = false; }
 		};
 
+		// « Ce n'est pas un mini-jeu » (Bible §8) : quitter l'écran d'acquisition
+		// ne l'interrompt pas — le job continue côté serveur, et rouvrir le
+		// scanner s'y rattache (voir l'appel à /jobs au démarrage plus bas). Seuls
+		// les minuteurs et la connexion SSE de CETTE vue s'arrêtent.
+		panel.querySelector('.sc-leave').onclick = () => {
+			clearInterval(tick);
+			clearInterval(rtcTimer);
+			es.close();
+			done(undefined);
+		};
+
+		// Fin du flux SSE (succès, erreur ou annulation) : coupe le chrono et le
+		// RTC, sans toucher au log déjà affiché. `msg`/`kind` restent vides sur
+		// un succès — c'est acquired() qui prend le relais avec KEEP/REMOVE.
 		function finish(msg, kind) {
 			clearInterval(tick);
+			clearInterval(rtcTimer);
 			es.close();
 			state.jobId = null;
-			bar.dataset.indeterminate = '0';
-			fill.style.width = '100%';
-			note('.sc-job-note', msg, kind);
 			panel.querySelector('.sc-abort').hidden = true;
-			panel.querySelector('.sc-job-back').hidden = false;
-			panel.querySelector('.sc-job-back').onclick = () => done(undefined);
+			panel.querySelector('.sc-leave').hidden = true;
+			if (msg) {
+				note('.sc-job-note', msg, kind);
+				panel.querySelector('.sc-job-back').hidden = false;
+				panel.querySelector('.sc-job-back').onclick = () => done(undefined);
+			}
 			loadScenes();
+		}
+
+		// TERRAIN ACQUIRED -> KEEP/REMOVE (PHASE 05, issue #42 « Fin »). Le choix
+		// n'existait pas avant cette phase : jusqu'ici, tout ce qui atterrissait
+		// dans public/scenes/ y restait sans qu'on le demande.
+		function acquired(d) {
+			const box = panel.querySelector('.sc-job-done');
+			box.hidden = false;
+			panel.querySelector('.sc-job-done-line').textContent =
+				`${d.slug.toUpperCase()} — ${num(d.stats?.exported ?? 0)} TILES, ${bytes(d.bytes)} ON DISK`;
+
+			panel.querySelector('.sc-keep').onclick = async () => {
+				try {
+					await operatorApi.keepTerrain(d.slug);
+					reveal();
+				} catch (e) {
+					note('.sc-keep-note', e.message.toUpperCase(), 'alarm');
+				}
+			};
+			panel.querySelector('.sc-discard').onclick = async () => {
+				if (!confirm('Remove the downloaded terrain data? This cannot be undone.')) return;
+				try {
+					await api(`/scenes/${d.slug}?raw=1`, { method: 'DELETE' });
+					box.querySelector('.sc-row').remove();
+					panel.querySelector('.sc-job-done-line').textContent = 'TERRAIN REMOVED';
+					panel.querySelector('.sc-job-back').hidden = false;
+					panel.querySelector('.sc-job-back').onclick = () => done(undefined);
+					loadScenes();
+				} catch (e) {
+					note('.sc-keep-note', e.message.toUpperCase(), 'alarm');
+				}
+			};
+
+			function reveal() {
+				box.querySelector('.sc-row').remove();
+				const fly = panel.querySelector('.sc-fly');
+				fly.hidden = false;
+				fly.onclick = () => done(d.slug);
+				panel.querySelector('.sc-job-back').hidden = false;
+				panel.querySelector('.sc-job-back').onclick = () => done(undefined);
+			}
 		}
 	}
 

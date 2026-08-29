@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import {
 	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands,
-	acquisitionProgress, bytes, duration, elapsed, bar, designationFrom,
+	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
 	latticeEdges, tileGrid, intersectBox,
 } from './scanner-model.mjs';
-import { slugify as coreSlugify } from './lib/add-map-core.mjs';
+import { slugify as coreSlugify, parsePrepLine } from './lib/add-map-core.mjs';
 import { tileGrid as estimatesTileGrid, estimateCost } from './lib/estimates.mjs';
 
 let n = 0;
@@ -203,6 +203,93 @@ t('formats', () => {
 	assert.equal(bar(1, 4), '████');
 	assert.equal(bar(.5, 4), '██░░');
 	assert.equal(bar(2, 4), '████', 'clampé');
+});
+
+t('parsePrepLine : les jalons réels de prep.mjs (PHASE 05)', () => {
+	assert.equal(parsePrepLine('parsing exp_model.mtl'), null);
+	assert.deepEqual(parsePrepLine('142 materials, 3 without a texture'), { stat: { materials: 142, materialsNoTexture: 3 } });
+	assert.deepEqual(parsePrepLine('-> 12 chunks of up to 32 layers'), { stat: { chunksPlanned: 12 } });
+	assert.deepEqual(
+		parsePrepLine('1,234,567 vertices, 234 uvs, 456,789 triangles'),
+		{ phase: 'rebuild', stat: { vertices: 1234567, triangles: 456789 } },
+	);
+	assert.deepEqual(
+		parsePrepLine('chunk 0: 12,000 verts, 4,000 tris, bbox 100 x 50 x 20 m, 3.4 MB'),
+		{ stat: { chunksDone: 1, chunkBytes: 3400000 } },
+	);
+	assert.deepEqual(
+		parsePrepLine('chunk0.tex0.jpg: 32 layers, 2.1 MB'),
+		{ stat: { textureSheets: 1, textureBytes: 2100000 } },
+	);
+	assert.deepEqual(
+		parsePrepLine('collision.bin: 100,000 verts, 33,000 tris, 5.2 MB'),
+		{ stat: { collisionVerts: 100000, collisionTris: 33000, collisionBytes: 5200000 } },
+	);
+	assert.equal(parsePrepLine('geometry done'), null);
+	assert.equal(parsePrepLine(''), null);
+});
+
+// toLocaleString() sans locale explicite suit l'ICU du runtime qui exécute
+// prep.mjs, pas celui de la machine de dev : sur ce serveur ça groupe avec un
+// espace fine insécable (U+202F), jamais une virgule. Vu et corrigé en testant
+// une vraie acquisition (PHASE 05) — verrouillé ici pour ne pas régresser.
+t('parsePrepLine : les grands nombres au format ICU (espace, pas virgule)', () => {
+	assert.deepEqual(
+		parsePrepLine('17 601 vertices, 17 601 uvs, 15 763 triangles'),
+		{ phase: 'rebuild', stat: { vertices: 17601, triangles: 15763 } },
+	);
+	assert.deepEqual(
+		parsePrepLine('collision.bin: 17 601 verts, 15 763 tris, 0.4 MB'),
+		{ stat: { collisionVerts: 17601, collisionTris: 15763, collisionBytes: 400000 } },
+	);
+});
+
+t('pipelineBars : FETCH et REBUILD ont un vrai ratio, DECODE reste indéterminé', () => {
+	const fetching = pipelineBars({ phase: 'download', hits: 50, expected: 100, pipeline: {} });
+	assert.equal(fetching.fetch.ratio, .5);
+	assert.equal(fetching.decode.ratio, 0);
+	assert.equal(fetching.rebuild.ratio, 0);
+
+	const decoding = pipelineBars({ phase: 'decode', pipeline: {} });
+	assert.equal(decoding.fetch.ratio, 1, 'FETCH est derrière, donc plein');
+	assert.equal(decoding.decode.indeterminate, true, 'pas de jalon intermédiaire pour decode');
+
+	const rebuilding = pipelineBars({ phase: 'rebuild', pipeline: { chunksPlanned: 10, chunksDone: 4 } });
+	assert.equal(rebuilding.decode.ratio, 1);
+	assert.equal(rebuilding.rebuild.ratio, .4);
+	assert.equal(rebuilding.rebuild.indeterminate, false);
+
+	// Sans compteur de chunks encore connu, REBUILD reste honnêtement indéterminé.
+	assert.equal(pipelineBars({ phase: 'rebuild', pipeline: {} }).rebuild.indeterminate, true);
+
+	// TERRAIN est un composite [0,1] qui progresse avec chaque étape.
+	assert.ok(pipelineBars({ phase: 'download', hits: 0, expected: 100, pipeline: {} }).terrain.ratio
+		< pipelineBars({ phase: 'rebuild', pipeline: { chunksPlanned: 10, chunksDone: 9 } }).terrain.ratio);
+});
+
+t('pipelineStats : n\'affiche que ce qui est déjà connu', () => {
+	assert.deepEqual(pipelineStats(undefined), []);
+	assert.deepEqual(pipelineStats({ materials: 42 }), [['MATERIALS', '42']]);
+	const full = pipelineStats({
+		materials: 42, materialsNoTexture: 2,
+		vertices: 1_000_000, triangles: 500_000,
+		chunksPlanned: 10, chunksDone: 3,
+		textureSheets: 5, textureBytes: 12e6,
+		collisionTris: 500_000, collisionBytes: 8e6,
+	});
+	assert.deepEqual(full, [
+		['MATERIALS', '42 (2 untextured)'],
+		['GEOMETRY', '1,000,000 verts, 500,000 tris'],
+		['CHUNKS', '3 / 10'],
+		['TEXTURES', '5 sheets, 12 MB'],
+		['COLLISION', '500,000 tris, 8 MB'],
+	]);
+});
+
+t('phaseLabel : les trois phases réelles', () => {
+	assert.equal(phaseLabel('download'), 'FETCH');
+	assert.equal(phaseLabel('decode'), 'DECODE');
+	assert.equal(phaseLabel('rebuild'), 'REBUILD');
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

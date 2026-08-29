@@ -212,20 +212,84 @@ export function designationFrom(hit) {
 
 // ---------------------------------------------------------------- acquisition
 
-const PHASE_LABEL = { download: 'FETCH', prep: 'REBUILD' };
+// `prep` reste accepté pour compatibilité (anciens jobs déjà en vol avant le
+// découpage decode/rebuild), mais addMap() n'émet plus que decode/rebuild.
+const PHASE_LABEL = { download: 'FETCH', decode: 'DECODE', rebuild: 'REBUILD', prep: 'REBUILD' };
 export const phaseLabel = (p) => PHASE_LABEL[p] ?? String(p ?? '').toUpperCase();
 
 // Avancement de l'acquisition. Pendant le téléchargement on connaît le compteur
 // de tuiles et une estimation de la cible : le rapport est honnête tant qu'on ne
 // dépasse pas 99 %. Pendant la conversion, le pipeline ne rend pas de compteur —
 // la barre passe indéterminée plutôt que de mentir.
-export function acquisitionProgress({ phase, hits, expected }) {
-	if (phase === 'prep') return { indeterminate: true, ratio: 1, text: `${num(hits ?? 0)} TILES` };
+function fetchRatio(hits, expected) {
 	const e = Number(expected) > 0 ? Number(expected) : 0;
 	const h = Number(hits) || 0;
-	return {
-		indeterminate: e === 0,
-		ratio: e ? Math.min(.99, h / e) : 0,
-		text: e ? `${num(h)} / ~${num(e)} TILES` : `${num(h)} TILES`,
-	};
+	return { indeterminate: e === 0, ratio: e ? Math.min(.99, h / e) : 0 };
+}
+
+export function acquisitionProgress({ phase, hits, expected }) {
+	if (phase === 'prep') return { indeterminate: true, ratio: 1, text: `${num(hits ?? 0)} TILES` };
+	const { indeterminate, ratio } = fetchRatio(hits, expected);
+	const e = Number(expected) > 0 ? Number(expected) : 0;
+	const h = Number(hits) || 0;
+	return { indeterminate, ratio, text: e ? `${num(h)} / ~${num(e)} TILES` : `${num(h)} TILES` };
+}
+
+// ------------------------------------------------- barres FETCH/DECODE/REBUILD
+//
+// Les trois étapes réellement émises par addMap() (voir parsePrepLine dans
+// lib/add-map-core.mjs). FETCH a un vrai compteur de tuiles ; REBUILD a un vrai
+// compteur de chunks (chaque chunk loggue sa fin) ; DECODE, lui, n'a aucun
+// signal intermédiaire dans le flux actuel de prep.mjs — une seule passe de
+// lecture, sans jalon avant la fin — donc sa barre reste honnêtement
+// indéterminée, comme le fait déjà acquisitionProgress pour la conversion.
+const STAGES = ['download', 'decode', 'rebuild'];
+
+function stageBar(name, phase, pipeline) {
+	const i = STAGES.indexOf(name), at = STAGES.indexOf(phase);
+	if (at < 0) return { indeterminate: false, ratio: 0 };
+	if (i < at) return { indeterminate: false, ratio: 1 };     // étape passée
+	if (i > at) return { indeterminate: false, ratio: 0 };     // pas commencée
+	if (name === 'download') return fetchRatio(pipeline?.hits, pipeline?.expected);
+	if (name === 'rebuild') {
+		const planned = pipeline?.chunksPlanned ?? 0;
+		return planned ? { indeterminate: false, ratio: Math.min(.99, (pipeline?.chunksDone ?? 0) / planned) } : { indeterminate: true, ratio: 0 };
+	}
+	return { indeterminate: true, ratio: 0 };                  // decode : pas de jalon intermédiaire
+}
+
+// `pipeline` : accumulateur serveur (voir mergeStat dans map-api-plugin.mjs) —
+// chunksPlanned/chunksDone/etc. `hits`/`expected` restent séparés car ils
+// viennent du flux `progress`, pas de `stat`.
+export function pipelineBars({ phase, hits, expected, pipeline }) {
+	const p = { ...pipeline, hits, expected };
+	const fetch = stageBar('download', phase, p);
+	const decode = stageBar('decode', phase, p);
+	const rebuild = stageBar('rebuild', phase, p);
+	const at = STAGES.indexOf(phase);
+	// TERRAIN : composite honnête — une étape franchie compte pour 1, l'étape en
+	// cours compte pour sa propre fraction connue (ou une balayante indéterminée).
+	const active = at < 0 ? null : [fetch, decode, rebuild][at];
+	const terrain = at < 0
+		? { indeterminate: true, ratio: 0 }
+		: { indeterminate: false, ratio: Math.min(.99, (at + (active.indeterminate ? .5 : active.ratio)) / STAGES.length) };
+	return { terrain, fetch, decode, rebuild };
+}
+
+// ------------------------------------------------------------ statistiques
+//
+// Chiffres réels tirés du stdout de prep.mjs (voir parsePrepLine) : géométrie,
+// textures, collision. N'affiche que ce qui est déjà connu — rien n'est
+// pré-rempli à zéro tant que la ligne correspondante n'est pas encore sortie.
+export function pipelineStats(pipeline) {
+	const p = pipeline ?? {};
+	const lines = [];
+	if (p.materials != null) {
+		lines.push(['MATERIALS', p.materialsNoTexture ? `${num(p.materials)} (${num(p.materialsNoTexture)} untextured)` : num(p.materials)]);
+	}
+	if (p.vertices != null) lines.push(['GEOMETRY', `${num(p.vertices)} verts, ${num(p.triangles)} tris`]);
+	if (p.chunksPlanned != null) lines.push(['CHUNKS', `${num(p.chunksDone ?? 0)} / ${num(p.chunksPlanned)}`]);
+	if (p.textureBytes != null) lines.push(['TEXTURES', `${num(p.textureSheets ?? 0)} sheets, ${bytes(p.textureBytes)}`]);
+	if (p.collisionBytes != null) lines.push(['COLLISION', `${num(p.collisionTris ?? 0)} tris, ${bytes(p.collisionBytes)}`]);
+	return lines;
 }

@@ -70,7 +70,7 @@ const opts = parseArgs(process.argv.slice(2));
 // the library streams the same lines to the GUI instead.
 addMap(opts, {
 	onLog: ({ stream, line }) => {
-		if (stream === 'progress' || stream === 'phase') return;
+		if (stream === 'progress' || stream === 'phase' || stream === 'stat') return;
 		if (stream === 'meta') console.log(line);
 		else if (stream === 'stderr') console.error(line);
 		else console.log(line);
