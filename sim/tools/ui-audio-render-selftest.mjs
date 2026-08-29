@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { fakeAudioContext, reaches } from './lib/fake-audio-ctx.mjs';
 import * as bus from '../src/audio-bus.js';
-import { UI_EVENTS, scoreFor, BOOT_SIGNATURE, RITUAL_TENSION } from './ui-audio-model.mjs';
+import { UI_EVENTS, scoreFor, BOOT_SIGNATURE, INTRO_SCORE, INTRO_SCORE_MS, RITUAL_TENSION } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
 import { UiAudio } from '../src/ui-audio.js';
 
@@ -36,7 +36,7 @@ const audibleStarts = (ctx) => sources(ctx)
 	.map((s) => s.started)
 	.sort((a, b) => a - b);
 
-t('play : les sept événements produisent du son et atteignent la destination', () => {
+t('play : les huit événements produisent du son et atteignent la destination', () => {
 	for (const ev of UI_EVENTS) {
 		const { ctx, ui } = fresh();
 		ui.play(ev);
@@ -69,6 +69,8 @@ t('play : sans Web Audio, silencieux et sans exception', () => {
 	ui.ritualTension(0);
 	ui.killRitualTension();
 	ui.armBoot();
+	ui.playIntro();
+	ui.skipIntro();
 });
 
 t('BOOT : cinq notes, aux instants de BOOT_SIGNATURE', () => {
@@ -113,6 +115,58 @@ t('playRitual : famille inconnue → silence, pas de plantage', () => {
 	const { ctx, ui } = fresh();
 	ui.playRitual('PAS UNE FAMILLE', 2000);
 	assert.equal(sources(ctx).length, 0);
+});
+
+// --- intro (issue #106) -------------------------------------------------------
+
+t('playIntro : partition + résolution, programmées d\'un coup sur l\'horloge audio', () => {
+	const { ctx, ui } = fresh();
+	ctx.currentTime = 3;
+	ui.playIntro();
+	const starts = audibleStarts(ctx);
+	assert.equal(starts.length, INTRO_SCORE.length + BOOT_SIGNATURE.length);
+	// BOOT_SIGNATURE conclut au point de résolution : INTRO_SCORE_MS après le
+	// départ de la partition, pas avant, pas dépendant d'un timer séparé.
+	for (const note of BOOT_SIGNATURE) {
+		const want = 3 + (INTRO_SCORE_MS + note.atMs) / 1000;
+		assert.ok(starts.some((s) => Math.abs(s - want) < 1e-6),
+			`note de résolution manquante à ${want}`);
+	}
+});
+
+t('playIntro : sans Web Audio, silencieux et sans exception', () => {
+	bus._reset();
+	bus._setContextFactory(() => null);
+	const ui = new UiAudio();
+	ui.playIntro();
+	assert.equal(ui.nodesCreated, 0);
+});
+
+t('skipIntro : coupe le gain master de l\'intro et rejoue BOOT_SIGNATURE tout de suite', () => {
+	const { ctx, ui } = fresh();
+	ui.playIntro();
+	ctx.currentTime = 1; // en pleine partition, bien avant la résolution naturelle
+	ui.skipIntro();
+	const master = ctx._nodes.find((node) => node.type === 'gain'
+		&& node.gain.calls.some((c) => c[0] === 'linearRampToValueAtTime'));
+	assert.ok(master, 'aucun gain rampé au skip');
+	const ramp = master.gain.calls.at(-1);
+	assert.equal(ramp[0], 'linearRampToValueAtTime');
+	assert.ok(ramp[1] <= 0.001, 'le skip doit couper vers le silence, pas juste baisser');
+	assert.ok(ramp[2] > 1 && ramp[2] < 1.2, 'la coupure doit être rapide, ancrée à ctx.currentTime');
+	// Une signature de boot toute neuve part IMMÉDIATEMENT, à ctx.currentTime —
+	// pas à l'instant de résolution déjà programmé plus tôt par playIntro().
+	const starts = audibleStarts(ctx);
+	for (const note of BOOT_SIGNATURE) {
+		const want = 1 + note.atMs / 1000;
+		assert.ok(starts.some((s) => Math.abs(s - want) < 1e-6), `note de boot manquante à ${want}`);
+	}
+});
+
+t('skipIntro : sans intro en cours, joue quand même la signature de boot', () => {
+	const { ctx, ui } = fresh();
+	ui.skipIntro();
+	assert.equal(audibleStarts(ctx).length, BOOT_SIGNATURE.length);
 });
 
 t('les one-shots se démontent : onended débranche tout', () => {

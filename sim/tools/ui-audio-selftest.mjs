@@ -8,6 +8,7 @@ import {
 	newLinkState, linkEvent,
 	VOICES, PERCUSSIVE, RITUAL_SCORES, scoreFor,
 	RITUAL_TENSION, ritualTensionParams,
+	INTRO_SCORE, INTRO_SCORE_MS,
 } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
 import { fakeAudioContext } from './lib/fake-audio-ctx.mjs';
@@ -17,10 +18,10 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 // --- vocabulaire clos ------------------------------------------------------
 
-t('UI_EVENTS : exactement les sept événements de la spec', () => {
+t('UI_EVENTS : exactement les huit événements de la spec', () => {
 	assert.deepEqual(UI_EVENTS, [
 		'BOOT', 'TERRAIN_READY', 'TARGET_FOUND', 'ERROR',
-		'LINK_LOST', 'LINK_RESTORED', 'RITUAL',
+		'LINK_LOST', 'LINK_RESTORED', 'RITUAL', 'INTRO',
 	]);
 });
 
@@ -325,6 +326,38 @@ t('RITUAL_TENSION : la chute est plus lente que la montée (retombée audible, p
 	// on veut une retombée dans les 150-300 ms demandés, pas un mute en un tick.
 	const fallMs = RITUAL_TENSION.fallTau * 3 * 1000;
 	assert.ok(fallMs >= 150 && fallMs <= 300, `retombée hors fenêtre : ${fallMs} ms`);
+});
+
+// --- partition de l'intro ----------------------------------------------------
+
+t('INTRO_SCORE : non vide, voix connues, dans la fenêtre, chronologique', () => {
+	assert.ok(INTRO_SCORE.length > 0);
+	for (let i = 0; i < INTRO_SCORE.length; i++) {
+		const ev = INTRO_SCORE[i];
+		assert.ok(VOICES.includes(ev.voice), `voix inconnue : ${ev.voice}`);
+		assert.ok(ev.atMs >= 0 && ev.atMs <= INTRO_SCORE_MS, `atMs hors fenêtre : ${ev.atMs}`);
+		if (i) assert.ok(ev.atMs >= INTRO_SCORE[i - 1].atMs, 'atMs non croissant');
+	}
+});
+
+t('INTRO_SCORE : se termine avant que BOOT_SIGNATURE ne prenne le relais', () => {
+	const last = INTRO_SCORE[INTRO_SCORE.length - 1];
+	assert.ok(last.atMs + last.durS * 1000 <= INTRO_SCORE_MS,
+		`la partition déborde sur la résolution : ${last.atMs + last.durS * 1000}ms`);
+});
+
+t('INTRO_SCORE : prépare l\'oreille aux hauteurs de BOOT_SIGNATURE avant la coupure', () => {
+	// La dernière montée doit viser une hauteur de BOOT_SIGNATURE : c'est ce qui
+	// fait que la résolution se sent comme une conclusion, pas un cut arbitraire.
+	const sweeps = INTRO_SCORE.filter((e) => e.voice === 'sweep');
+	assert.ok(sweeps.length > 0, 'aucune montée avant la résolution');
+	const bootFreqs = BOOT_SIGNATURE.map((n) => n.freq);
+	assert.ok(sweeps.some((s) => bootFreqs.includes(s.to)),
+		'aucune montée ne vise une hauteur de BOOT_SIGNATURE');
+});
+
+t('INTRO_SCORE : au moins un événement panoramisé (optionnel, mais présent ici)', () => {
+	assert.ok(INTRO_SCORE.some((e) => typeof e.pan === 'number'));
 });
 
 // --- faux AudioContext ------------------------------------------------------

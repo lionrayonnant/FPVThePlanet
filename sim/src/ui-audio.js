@@ -8,7 +8,10 @@
 //
 // Aucune voix, aucun narrateur, aucune commande vocale (Bible §37).
 import { ensureContext, context, uiIn } from './audio-bus.js';
-import { UI_EVENTS, BOOT_SIGNATURE, scoreFor, RITUAL_TENSION, ritualTensionParams } from '../tools/ui-audio-model.mjs';
+import {
+	UI_EVENTS, BOOT_SIGNATURE, scoreFor, RITUAL_TENSION, ritualTensionParams,
+	INTRO_SCORE, INTRO_SCORE_MS,
+} from '../tools/ui-audio-model.mjs';
 
 // Au-delà de cette fenêtre, une signature de démarrage armée est ABANDONNÉE
 // plutôt que jouée : un son de boot qui part une minute après le boot n'est
@@ -22,16 +25,22 @@ const LEVEL = {
 	system: 0.22,
 	link: 0.26,
 	ritual: 0.34,
+	intro: 0.28,        // la partition du cracktro — sous ritual, elle accompagne, elle ne culmine pas
 	carrier: 0.06,      // un lit, pas un événement
 };
 
 const CARRIER_HZ = 320;       // bande de la porteuse : là où un récepteur siffle
 const CARRIER_TAU = 0.25;     // lissage, du même ordre que link.js:NOISE_TAU
 
+// Rampe de coupure au skip de l'intro : assez courte pour lire comme un cut
+// net, assez longue pour ne pas claquer (même souci que _env côté attaque).
+const INTRO_SKIP_FADE_S = 0.05;
+
 export class UiAudio {
 	constructor() {
 		this._carrier = null;
 		this._tension = null;
+		this._introMaster = null;
 		this._noiseBuf = null;
 		this._noiseCtx = null;
 		this._bootArmedAt = null;
@@ -63,19 +72,23 @@ export class UiAudio {
 	// frame — la porteuse, elle, est permanente.
 	//
 	// `pan` (-1..1), optionnel : un StereoPannerNode inséré entre `out` et le
-	// bus d'interface. C'est ce qui fait qu'un shrapnel de l'explosion part
+	// bus de sortie. C'est ce qui fait qu'un shrapnel de l'explosion part
 	// d'un côté précis du champ stéréo plutôt que de rester centré comme tout
 	// le reste du langage sonore d'interface.
-	_shot(ctx, at, durS, build, pan) {
+	//
+	// `dest`, optionnel : bus de sortie, uiIn() par défaut. playIntro() y
+	// branche son gain master dédié, pour pouvoir couper toute la partition
+	// d'un coup au skip sans avoir à traquer chaque nœud un par un.
+	_shot(ctx, at, durS, build, pan, dest = uiIn()) {
 		const out = ctx.createGain();
 		const parts = [out];
 		if (pan != null) {
 			const panner = ctx.createStereoPanner();
 			panner.pan.value = pan;
-			out.connect(panner).connect(uiIn());
+			out.connect(panner).connect(dest);
 			parts.push(panner);
 		} else {
-			out.connect(uiIn());
+			out.connect(dest);
 		}
 		const src = build(out, parts);
 		if (!src) return;
@@ -94,7 +107,8 @@ export class UiAudio {
 	}
 
 	// Une voix de la partition, à l'instant absolu `at` de l'horloge audio.
-	_voice(ctx, ev, at, level) {
+	// `dest`, optionnel : voir _shot — playIntro() y passe son gain master.
+	_voice(ctx, ev, at, level, dest = uiIn()) {
 		const { voice, durS } = ev;
 		const gain = level * (ev.gain ?? 1);
 
@@ -110,7 +124,7 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp);
 				return src;
-			}, ev.pan);
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -137,7 +151,7 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp, ring, mod);
 				return src;
-			}, ev.pan);
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -156,7 +170,7 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(lp);
 				return src;
-			}, ev.pan);
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -179,7 +193,7 @@ export class UiAudio {
 				this._env(out.gain, at, total, gain * 1.4);
 				parts.push(lp);
 				return osc;
-			}, ev.pan);
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -203,7 +217,7 @@ export class UiAudio {
 			this._env(out.gain, at, durS, gain);
 			parts.push(lp);
 			return osc;
-		}, ev.pan);
+		}, ev.pan, dest);
 	}
 
 	// --- API ----------------------------------------------------------------
@@ -256,8 +270,13 @@ export class UiAudio {
 		}
 		if (event === 'RITUAL') {
 			// Le rituel réel passe par playRitual() ; ce chemin n'existe que pour
-			// que les sept entrées du vocabulaire soient toutes jouables.
+			// que les huit entrées du vocabulaire soient toutes jouables.
 			this.playRitual('LINK HIJACK', 2000);
+			return;
+		}
+		if (event === 'INTRO') {
+			// L'intro réelle passe par playIntro() ; même raison que RITUAL ci-dessus.
+			this.playIntro();
 		}
 	}
 
@@ -272,6 +291,48 @@ export class UiAudio {
 		for (const ev of scoreFor(hackType, variantMs)) {
 			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.ritual);
 		}
+	}
+
+	// --- intro (issue #106) --------------------------------------------------
+
+	// Programmée D'UN COUP sur l'horloge de l'AudioContext, même raison que
+	// playRitual() : la partition ne doit pas dépendre du rAF qui anime
+	// l'écran, que le chargement du cracktro peut faire sauter.
+	//
+	// INTRO_SCORE ET la résolution (BOOT_SIGNATURE, à INTRO_SCORE_MS) passent
+	// toutes les deux par un gain master DÉDIÉ : c'est ce qui permet à
+	// skipIntro() de faire taire l'ensemble d'un coup, sans avoir à traquer
+	// individuellement des nœuds déjà programmés dans le futur.
+	playIntro() {
+		const ctx = ensureContext();
+		if (!ctx) return;
+		const t0 = ctx.currentTime;
+		const master = ctx.createGain();
+		master.gain.value = 1;
+		master.connect(uiIn());
+		this._introMaster = master;
+		for (const ev of INTRO_SCORE) {
+			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.intro, master);
+		}
+		for (const note of BOOT_SIGNATURE) {
+			this._voice(ctx, { voice: 'tone', freq: note.freq, durS: note.durS },
+				t0 + (INTRO_SCORE_MS + note.atMs) / 1000, LEVEL.boot, master);
+		}
+	}
+
+	// Skip : coupe le gain master de l'intro d'un coup — partition et
+	// résolution, déjà sonnantes ou encore programmées dans le futur — puis
+	// rejoue la signature de boot SEULE, immédiatement. C'est la sortie de
+	// l'intro, skip ou pas : un seul motif de conclusion, jamais deux.
+	skipIntro() {
+		const ctx = context();
+		if (ctx && this._introMaster) {
+			const t = ctx.currentTime;
+			this._introMaster.gain.cancelScheduledValues(t);
+			this._introMaster.gain.setValueAtTime(this._introMaster.gain.value, t);
+			this._introMaster.gain.linearRampToValueAtTime(0.0001, t + INTRO_SKIP_FADE_S);
+		}
+		this.play('BOOT');
 	}
 
 	// --- porteuse -----------------------------------------------------------

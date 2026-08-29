@@ -5,7 +5,7 @@
 // Règle de la phase, et raison d'être de ce fichier :
 //   An event that doesn't need to be heard doesn't need a sound.
 
-// Le vocabulaire est CLOS. Ces sept entrées sont tout ce que l'interface a le
+// Le vocabulaire est CLOS. Ces huit entrées sont tout ce que l'interface a le
 // droit de faire entendre. Il n'y a pas de son de clic, de survol, de
 // navigation, d'ouverture d'écran, de sélection ni de validation — c'est la
 // forme exécutable de « le système ne bipe pas à chaque clic » (Bible §34), et
@@ -18,6 +18,7 @@ export const UI_EVENTS = [
 	'LINK_LOST',       // LINK
 	'LINK_RESTORED',   // LINK
 	'RITUAL',          // RITUAL — la culmination, cf. scoreFor()
+	'INTRO',           // SYSTEM — le cracktro au lancement (issue #106), cf. INTRO_SCORE
 ];
 
 export const UI_FAMILY = {
@@ -28,6 +29,7 @@ export const UI_FAMILY = {
 	LINK_LOST: 'LINK',
 	LINK_RESTORED: 'LINK',
 	RITUAL: 'RITUAL',
+	INTRO: 'SYSTEM',
 };
 
 // --- signature de boot ------------------------------------------------------
@@ -296,3 +298,54 @@ export function ritualTensionParams(k) {
 		gain: RITUAL_TENSION.gain * c,
 	};
 }
+
+// --- partition de l'intro (issue #106) --------------------------------------
+
+// Durée de la partition, en ms : PILE reveal + plasma (tools/intro-model.mjs),
+// pour que la dernière note tombe au moment exact où l'écran entre en
+// résolution et où BOOT_SIGNATURE prend le relais. Les deux fichiers restent
+// indépendants (aucun import croisé) ; intro-selftest.mjs vérifie l'accord.
+export const INTRO_SCORE_MS = 5500;
+
+// Arpège chiptune/IDM qui MONTE vers do-mi-sol — les trois premières hauteurs
+// de BOOT_SIGNATURE, deux octaves plus bas. L'intro ne joue pas une mélodie
+// quelconque qui s'arrête : elle prépare littéralement l'oreille aux hauteurs
+// sur lesquelles la signature de boot va conclure, si bien que la coupure se
+// sent comme une RÉSOLUTION et non comme un simple cut.
+const ARP_NOTES = [261.63, 329.63, 392.00, 523.25]; // C4 E4 G4 C5
+const BASS_NOTE = 65.41;                            // C2 — fondamentale tenue en dessous
+const STEP_MS = 125;                                // huitième de note, ~120 bpm
+const TAIL_MS = 250;                                // réservé à la montée finale (sweep + stab)
+
+// Écrite une fois, pas par famille : contrairement à RITUAL_SCORES, l'intro ne
+// dépend d'aucun hackType, elle joue identiquement à chaque chargement de page.
+function buildIntroScore() {
+	const score = [];
+	const stepsTotal = Math.floor((INTRO_SCORE_MS - TAIL_MS) / STEP_MS);
+	for (let i = 0; i < stepsTotal; i++) {
+		const atMs = i * STEP_MS;
+		// L'arpège, une note par pas : boucle sur do-mi-sol-do.
+		score.push({ atMs, voice: 'tone', freq: ARP_NOTES[i % ARP_NOTES.length], durS: 0.09 });
+		// La pulsation grave, un pas sur deux : le socle rythmique.
+		if (i % 2 === 0) score.push({ atMs, voice: 'bass', freq: BASS_NOTE, durS: 0.10 });
+		// Un click décalé tous les 4 pas : la texture IDM, panoramisée pour ne
+		// pas rester plate au centre comme le reste du langage sonore d'interface.
+		if (i % 4 === 2) {
+			score.push({
+				atMs: atMs + STEP_MS / 2, voice: 'click', freq: 5200, durS: 0.02,
+				pan: (Math.floor(i / 4) % 2 === 0) ? -0.4 : 0.4,
+			});
+		}
+	}
+	const sweepAt = stepsTotal * STEP_MS;
+	// La montée finale : même grammaire que la détonation des rituels (une
+	// paire de sweeps qui s'accélère juste avant l'impact) mais une octave plus
+	// calme — ici on prépare une note, pas une explosion. Le sweep vise
+	// exactement la première hauteur de BOOT_SIGNATURE (do), le stab tient sa
+	// troisième (sol, la note longue du triolet).
+	score.push({ atMs: sweepAt, voice: 'sweep', freq: 440, to: BOOT_SIGNATURE[0].freq, durS: 0.18 });
+	score.push({ atMs: sweepAt + 90, voice: 'stab', freq: BOOT_SIGNATURE[2].freq, durS: 0.12 });
+	return score.sort((a, b) => a.atMs - b.atMs);
+}
+
+export const INTRO_SCORE = buildIntroScore();

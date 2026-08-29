@@ -483,3 +483,93 @@ canvas { display: block; }
 	80% { transform: translateX(2px); }
 }
 .ritual-shake { animation: ritual-shake .22s ease; }
+
+/* ---------- Intro demoscene au lancement (issue #106) ----------
+   PRESS ANY KEY est calme, même grammaire que .bootstrap : pas de couleur,
+   juste un clignotement discret pour lire comme une invite plutôt qu'un texte
+   figé. Le cracktro qui suit est, avec le rituel, le seul autre endroit du jeu
+   où la palette cyan/magenta/violet/bleu électrique apparaît (Bible §19) —
+   réservée aux moments spectaculaires, jamais en continu (DA §46). z-index
+   au-dessus de tout : c'est le tout premier écran du jeu. */
+.intro {
+	position: fixed; inset: 0;
+	z-index: 20;
+	display: flex; flex-direction: column; align-items: center; justify-content: center;
+	background: #05070a;
+	overflow: hidden;
+	text-align: center;
+	/* #ui met pointer-events:none et c'est hérité (règle générale, ligne 24) :
+	   sans ce reset, "n'importe quel clic" pour passer le gate ou sauter le
+	   cracktro n'atteindrait jamais wrap — seul le clavier fonctionnerait. */
+	pointer-events: auto;
+}
+.intro-gate {
+	margin: 0;
+	font-size: clamp(16px, 2.6vw, 26px);
+	letter-spacing: .1em;
+	color: var(--ink);
+	animation: intro-gate-blink 1.6s step-end infinite;
+}
+@keyframes intro-gate-blink {
+	0%, 100% { opacity: .85; }
+	50% { opacity: .35; }
+}
+
+.intro-logo {
+	position: relative; z-index: 2;
+	font-size: clamp(48px, 12vw, 160px);
+	font-weight: 700;
+	letter-spacing: .06em;
+	line-height: 1;
+	color: var(--ink);
+	opacity: 0;
+	transition: opacity .4s ease;
+}
+.intro-logo.intro-logo-in { opacity: 1; }
+/* Une span par colonne : c'est elle que le sinus-scroll (src/intro.js) déplace
+   verticalement, colonne par colonne, pour le déchirement classique du
+   "dot scroller" demoscene. */
+.intro-logo span { display: inline-block; will-change: transform; }
+
+.intro-scroll {
+	position: absolute; bottom: 8vh; left: 0; width: 100%;
+	z-index: 2;
+	white-space: nowrap;
+	font-size: clamp(14px, 2vw, 22px);
+	letter-spacing: .1em;
+	color: var(--ink);
+	opacity: .8;
+	transition: opacity .3s ease;
+}
+.intro-scroll span {
+	display: inline-block;
+	transform: translateX(100vw);
+	animation: intro-scroll-marquee 6s linear infinite;
+}
+@keyframes intro-scroll-marquee {
+	from { transform: translateX(100vw); }
+	to { transform: translateX(-100%); }
+}
+
+/* Grille ASCII des primitives de rituel (hack-grammars.js), réemployées telles
+   quelles pour le plasma/raster de la phase plasma — même idiome que .ritual-burst. */
+.intro-burst {
+	position: absolute; inset: 0; z-index: 1;
+	display: flex; align-items: center; justify-content: center;
+	line-height: 1.02;
+	white-space: pre;
+	font-size: clamp(14px, 3vw, 56px);
+	opacity: .8;
+}
+.intro-burst--cyan { color: #4dd8e8; }
+.intro-burst--magenta { color: #e34de0; }
+.intro-burst--violet { color: #8a5cf6; }
+.intro-burst--blue { color: #3b6cff; }
+
+/* Résolution : la plasma et le scrolltext s'effacent, le logo (déjà retombé à
+   plat par renderLogo()) reste seul, en phase avec BOOT_SIGNATURE. */
+.intro-resolution .intro-burst,
+.intro-resolution .intro-scroll {
+	opacity: 0;
+	transition: opacity .3s ease;
+}

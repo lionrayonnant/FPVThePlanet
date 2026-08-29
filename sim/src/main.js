@@ -14,6 +14,7 @@ import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
+import { runIntro } from './intro.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -1342,19 +1343,27 @@ async function chooseScene() {
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
-// L'AudioContext exige un geste — on l'attrape au premier input.
-// Le boot FPVTP!, une fois par chargement. Au premier chargement aucun geste
-// n'a encore eu lieu : armBoot() attend le premier, et renonce au-delà de sa
-// fenêtre plutôt que de jouer une signature de démarrage hors contexte.
-uiAudio.armBoot();
-
+// L'AudioContext exige un geste — on l'attrape au premier input. armBoot()
+// reste EXACTEMENT le chemin d'avant (PHASE 18) : ce bypass sert au dev et aux
+// bookmarks, il n'a pas à voir un cracktro de 7 s à chaque rechargement.
+//
+// Sans ?scene=, l'intro (issue #106) remplace armBoot() : c'est elle qui joue
+// BOOT_SIGNATURE à sa résolution (ou immédiatement, si skip), donc jamais les
+// deux — un seul motif de démarrage par chargement de page, jamais un
+// doublon. Elle passe AVANT la résolution de l'opérateur/Home.
 if (OPTS.scene) {
+	uiAudio.armBoot();
 	const kick = () => { audio.start(); };
 	window.addEventListener('pointerdown', kick, { once: true });
 	window.addEventListener('keydown', kick, { once: true });
 }
 
-chooseScene()
+async function startup() {
+	if (!OPTS.scene) await runIntro(document.getElementById('ui'));
+	return chooseScene();
+}
+
+startup()
 	.then((choice) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
