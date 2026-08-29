@@ -180,6 +180,13 @@ const opRoutes = [
 	// ACQUIRED » -> KEEP TERRAIN). Le client n'envoie que le slug : le reste
 	// (nom, coordonnées, poids) vient de public/scenes.json, jamais du client —
 	// mêmes garde-fous que pour worldState, sur des données différentes.
+	//
+	// Écart assumé au principe « slug only » (PHASE 08) : le client joint aussi
+	// `signalDensity`, l'estimation de densité de signal affichée par le Global
+	// Scanner. Elle dépend de `state.place` (réponse Nominatim runtime) et de
+	// l'aire dessinée — le serveur n'a pas de quoi la recalculer depuis
+	// scenes.json. C'est une estimation d'écran, pas une donnée de terrain
+	// autoritative : on se contente d'en contrôler la forme.
 	['POST', /^\/([^/]+)\/terrain-cache$/, async (req, res, [id]) => {
 		const b = await readBody(req);
 		const slug = String(b.slug ?? '').trim();
@@ -195,6 +202,14 @@ const opRoutes = [
 			bytes: scene.bytes ?? dirSize(path.join(SCENES_DIR, slug)),
 			keptAt: new Date().toISOString(),
 		};
+		// Estimation d'écran (densité de signal du Global Scanner), pas une donnée
+		// de terrain autoritative — on ne fait que contrôler la forme.
+		const d = b.signalDensity;
+		if (d && typeof d === 'object'
+			&& Number.isFinite(d.level)
+			&& Array.isArray(d.range) && d.range.length === 2 && d.range.every(Number.isFinite)) {
+			entry.signalDensity = { level: d.level, range: [d.range[0], d.range[1]] };
+		}
 		state.terrainCache = (state.terrainCache ?? []).filter((t) => t.slug !== slug);
 		state.terrainCache.push(entry);
 		_writeOperator(state);

@@ -88,9 +88,11 @@ export async function listOperators() {
 // Rattache un terrain déjà acquis à l'opérateur courant (PHASE 05, KEEP
 // TERRAIN). Contrairement à patch(), c'est un appel serveur direct plutôt
 // qu'un debounce : la décision est unique et son écran attend la confirmation.
-export async function keepTerrain(slug) {
+// `extra` optionnel : { signalDensity: { level, range } } — une estimation
+// d'écran du Global Scanner que le serveur ne peut pas recalculer (voir la route).
+export async function keepTerrain(slug, extra = {}) {
 	if (!cache) throw new Error('aucun opérateur chargé');
-	cache = (await req('POST', `/${cache.id}/terrain-cache`, { slug })).operator;
+	cache = (await req('POST', `/${cache.id}/terrain-cache`, { slug, ...extra })).operator;
 	return cache;
 }
 
