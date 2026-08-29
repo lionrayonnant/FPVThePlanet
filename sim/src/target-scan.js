@@ -29,9 +29,21 @@ ${list()}</pre>`;
 			s.box.appendChild(button('SELECT', () => sheet(cursor), 'terminal-cta'));
 		};
 
+		// Actions de la fiche : câblées à la fois aux boutons et au clavier (spec D5,
+		// « ↑/↓ + Entrée … Deux frappes, pas plus »). Réassignées à chaque ouverture
+		// de fiche pour capturer l'index et le handle d'écran courants.
+		let sheetConfirm = null;
+		let sheetBack = null;
+
 		const onKey = (e) => {
-			// Early return if sheet is active — prevent list mutations while sheet is shown
-			if (activeView === 'sheet') return;
+			if (activeView === 'sheet') {
+				// Fiche affichée : Entrée = CONFIRM, Échap/Retour = BACK, flèches inertes
+				// (mais preventDefault pour que la page ne défile pas).
+				if (e.key === 'Enter') { e.preventDefault(); sheetConfirm?.(); }
+				else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); sheetBack?.(); }
+				else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); }
+				return;
+			}
 
 			if (e.key === 'ArrowDown') {
 				e.preventDefault();
@@ -69,16 +81,26 @@ DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
 VIDEO          ${d.video}${d.videoHint ? `  (EST. ${d.videoHint})` : ''}
 CONTROL        ${d.control}
 FLIGHT STATE   ${d.flightState}</pre>`;
-			s2.box.appendChild(button('CONFIRM', () => {
+
+			let done = false;
+			sheetConfirm = () => {
+				if (done) return;
+				done = true;
 				s2.remove();
 				finish(index);
-			}, 'terminal-cta'));
-			s2.box.appendChild(button('BACK', () => {
+			};
+			sheetBack = () => {
+				if (done) return;
+				done = true;
 				s2.remove();
 				activeView = 'list'; // Switch back to list
 				s.el.style.display = ''; // Restore list visibility
+				sheetConfirm = null;
+				sheetBack = null;
 				draw();
-			}, 'terminal-cta'));
+			};
+			s2.box.appendChild(button('CONFIRM', () => sheetConfirm(), 'terminal-cta'));
+			s2.box.appendChild(button('BACK', () => sheetBack(), 'terminal-cta'));
 		};
 
 		draw();

@@ -52,7 +52,7 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Vérifié
 
-- `npm run selftest` : **155/155 PASS** (géodésie, sol, collision/CCD, textures,
+- `npm run selftest` : **158/158 PASS** (géodésie, sol, collision/CCD, textures,
   lien vidéo, pluie/brouillard, météo, + la boucle enveloppe de vol / propulsion
   sur les six familles PHASE 07). Les deux checks textures mesurent 14,7 |dRGB|
   et 0,8 % de gris.
@@ -119,6 +119,16 @@ Plan d'origine (contexte de la décision d'architecture) :
   - **Non vérifié** : le ressenti de vol par famille en pilotage réel
     (déjà noté PHASE 07). Densité→count non exercée au navigateur (aucun
     terrain acquis n'avait de `signalDensity` ; fallback 4 confirmé).
+  - **Changement cassant** : renommer ou retirer une famille de
+    `drone-profiles.js` casse les sessions déjà stockées — `validateSession`
+    → `sanitizeTarget` rejette (400) un `RESUME` dont la `target.family`
+    n'existe plus, et un profil inconnu retombe silencieusement sur le
+    profil par défaut.
+  - **Plafond de l'archi A** : le modèle est bundlé côté client et la graine
+    est tirée côté client — `_family` est lisible en devtools, les graines
+    explorables hors-ligne. « Non falsifiable » vaut pour la cohérence des
+    stats (le serveur fait autorité sur le candidat choisi), pas contre un
+    joueur qui veut voir à travers le brouillard.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

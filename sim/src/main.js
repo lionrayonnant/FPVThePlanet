@@ -438,8 +438,8 @@ input.onAction = (key, event) => {
 	if (key === 'r') respawn();
 	else if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
-	else if (key === 'p') controller.cyclePreset();
-	else if (key === 'm') controller.cycleMode();
+	else if (key === 'p') controller?.cyclePreset();
+	else if (key === 'm') controller?.cycleMode();
 	else if (key === 'c') toggleFreeCam();
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
@@ -763,14 +763,13 @@ function frame() {
 // Home ET menu mais garde un opérateur en mémoire pour operator.getOperator().
 // Nombre de signaux du TARGET SCAN, cohérent avec la densité affichée par le
 // Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
-// milieu de fourchette, clampé [2,5]. Terrain sans densité (cache ancien,
-// terrain local) → 4.
+// on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
+// Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
 function signalCountFor(slug) {
 	const t = operator.getOperator()?.terrainCache?.find((e) => e.slug === slug);
-	const r = t?.signalDensity?.range;
-	if (!Array.isArray(r) || r.length !== 2) return 4;
-	const mid = Math.round((r[0] + r[1]) / 2);
-	return mid < 2 ? 2 : mid > 5 ? 5 : mid;
+	const lvl = t?.signalDensity?.level;
+	if (!Number.isFinite(lvl)) return 4;              // terrain sans densité (cache ancien, terrain local)
+	return 2 + Math.round(Math.max(0, Math.min(1, lvl)) * 3);   // 2..5, échelle du Global Scanner
 }
 
 async function chooseScene() {
@@ -863,6 +862,9 @@ async function openFlightSession() {
 		// La cible résolue (scan frais ou relue du disque au resume) arme le lien
 		// vidéo avec le RSSI du signal adverse.
 		const tgt = session.current()?.target;
+		if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
+			console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
+		}
 		if (tgt?.signal) {
 			link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
 			console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);

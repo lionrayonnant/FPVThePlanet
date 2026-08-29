@@ -120,7 +120,7 @@ Candidate = {
 - `rssiDbm` : une base tirée par candidat dans `[-72, -52]`, liste triée
   décroissante (le plus fort en `01`, comme l'exemple Bible).
 - `mode` : ~50 % affiche `_videoHint`, ~50 % `UNKNOWN`.
-- `_family` : tirage pondéré sur `TARGET_FAMILIES` ; `_classHint = FAMILY_CLASS[_family]`.
+- `_family` : tirage uniforme sur `TARGET_FAMILIES` ; `_classHint = FAMILY_CLASS[_family]`. (Pondérer les familles serait le premier pas vers le système de rareté, explicitement hors périmètre.)
 
 ```text
 describeTarget(candidate) → fiche pré-hack, SANS _family :
