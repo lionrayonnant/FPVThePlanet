@@ -52,13 +52,15 @@ export const RATE_PRESETS = {
 		pitch: { centre: 90, max: 360, expo: 0.35 },
 		yaw:   { centre: 90, max: 260, expo: 0.35 },
 	},
-	// A whoop flies a fairly high rate for its size — it has almost no inertia
-	// to fight — but nowhere near a 5" race quad.
+	// Micro builds (whoop, toothpick) fly a moderate rate — quick to react but
+	// nowhere near a 5" freestyle quad's throw, and the fixed filter chain in
+	// this controller is a 5"-centric assumption that a much faster airframe
+	// cannot chase to a higher number anyway.
 	micro: {
 		label: 'micro',
-		roll:  { centre: 160, max: 650, expo: 0.50 },
-		pitch: { centre: 160, max: 650, expo: 0.50 },
-		yaw:   { centre: 150, max: 480, expo: 0.45 },
+		roll:  { centre: 120, max: 420, expo: 0.50 },
+		pitch: { centre: 120, max: 420, expo: 0.50 },
+		yaw:   { centre: 110, max: 300, expo: 0.45 },
 	},
 };
 
@@ -159,16 +161,21 @@ class PT1 {
 }
 
 class AxisPid {
-	constructor(gains) {
+	// filterScale raises every delay-adding cutoff (gyro, D-term, feedforward, RC
+	// smoothing) for airframes whose rotational dynamics are much faster than the
+	// 5" this chain was set for. A real FC does the same: micro builds run the
+	// filters two to four times higher. 1 == the reference 5" chain, untouched.
+	constructor(gains, filterScale = 1) {
 		this.g = gains;
 		this.i = 0;
 		this.prevGyro = 0;
 		this.prevSetpoint = 0;
 		this.setpoint = 0;
-		this.gyroLpf = new PT1(GYRO_CUTOFF);
-		this.dLpf = new PT1(DTERM_CUTOFF);
-		this.ffLpf = new PT1(FF_CUTOFF);
-		this.rcLpf = [new PT1(RC_SMOOTHING), new PT1(RC_SMOOTHING), new PT1(RC_SMOOTHING)];
+		this.gyroLpf = new PT1(GYRO_CUTOFF * filterScale);
+		this.dLpf = new PT1(DTERM_CUTOFF * filterScale);
+		this.ffLpf = new PT1(FF_CUTOFF * filterScale);
+		const rc = RC_SMOOTHING * filterScale;
+		this.rcLpf = [new PT1(rc), new PT1(rc), new PT1(rc)];
 		this.relaxLpf = new PT1(RELAX_CUTOFF);
 		this.first = true;
 	}
@@ -228,10 +235,11 @@ export class FlightController {
 		this.preset = opts.preset ?? this.profile.rates ?? 'freestyle';
 		this.holdAltitude = null;
 		this.gains = buildGains(this.profile);
+		const fs = this.profile.filterScale ?? 1;
 		this.pid = {
-			roll: new AxisPid(this.gains.roll),
-			pitch: new AxisPid(this.gains.pitch),
-			yaw: new AxisPid(this.gains.yaw),
+			roll: new AxisPid(this.gains.roll, fs),
+			pitch: new AxisPid(this.gains.pitch, fs),
+			yaw: new AxisPid(this.gains.yaw, fs),
 		};
 		this._mix = mixOf(this.profile);
 		this.motors = [0, 0, 0, 0];
