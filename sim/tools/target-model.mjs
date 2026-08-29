@@ -19,6 +19,20 @@ export const FAMILY_CLASS = {
 };
 export const TARGET_FAMILIES = Object.keys(FAMILY_CLASS);
 
+// HACK_TYPES : les six familles de hacking (PHASE 09, Bible §17). Ordre stable.
+// Le type de hack est une propriété de la cible, tirée à la génération ; il ne
+// détermine PAS la difficulté du vol (entry state indépendant, PHASE 11).
+// Concepts documentés et crédibles ; l'interaction est une abstraction (spec
+// PHASE 09, règle de sécurité).
+export const HACK_TYPES = [
+	'COMMAND INJECTION',
+	'LINK HIJACK',
+	'TELEMETRY SPOOF',
+	'GNSS SPOOF',
+	'NETWORK TAKEOVER',
+	'FIRMWARE OVERRIDE',
+];
+
 const MODES = ['ANALOG', 'DIGITAL'];
 const clampCount = (n) => {
 	const r = Math.round(Number.isFinite(n) ? n : 4);
@@ -59,7 +73,10 @@ export function generateTargetScan({ seed, count } = {}) {
 		const rssiDbm = -52 - Math.round(rand() * 20);
 		// ~50 % des signaux révèlent leur mode, le reste reste UNKNOWN.
 		const mode = rand() < 0.5 ? videoHint : 'UNKNOWN';
-		raw.push({ rssiDbm, mode, _family: family, _classHint: FAMILY_CLASS[family], _videoHint: videoHint });
+		// Tirage dédié, après `mode`, pour ne pas décaler les tirages RSSI/mode
+		// d'une graine déjà utilisée. Indépendant de la famille et du signal.
+		const hackType = pick(rand, HACK_TYPES);
+		raw.push({ rssiDbm, mode, _family: family, _classHint: FAMILY_CLASS[family], _videoHint: videoHint, _hackType: hackType });
 	}
 	raw.sort((a, b) => b.rssiDbm - a.rssiDbm);
 	const candidates = raw.map((c, i) => ({ id: String(i + 1).padStart(2, '0'), ...c }));
@@ -91,6 +108,7 @@ export function resolveTarget(scan, index) {
 	return {
 		family: c._family,
 		classHint: c._classHint,
+		hackType: c._hackType,
 		signal: { rssiDbm: c.rssiDbm, mode: c._videoHint },
 		scannedAt: new Date().toISOString(),
 		intel: {

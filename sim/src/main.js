@@ -20,6 +20,8 @@ import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan } from '../tools/target-model.mjs';
+import { runHack } from './hack.js';
+import { normalizeHackType } from '../tools/hack-model.mjs';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -64,6 +66,9 @@ export const OPTS = {
 	// TARGET SCAN choice (PHASE 08). One of:
 	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
 	family: params.get('family'),
+	// Dev-only : ?hack=gnss-spoof prévisualise le motif de ce type de hack
+	// avant le vol, sur les chemins qui sautent le TARGET SCAN (?scene=/?family=).
+	hack: params.get('hack'),
 };
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
@@ -779,6 +784,8 @@ async function chooseScene() {
 		await operator.ensureDevOperator();
 		const scenes = await loadSceneList();
 		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
+		const previewHack = normalizeHackType(OPTS.hack);
+		if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
 		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
@@ -805,10 +812,13 @@ async function chooseScene() {
 
 	// Override dev ?family= : court-circuite le TARGET SCAN.
 	if (OPTS.family) {
+		const previewHack = normalizeHackType(OPTS.hack);
+		if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
 		return { slug, resume: undefined, target: undefined, family: OPTS.family };
 	}
 
-	// Session fraîche → TARGET SCAN avant boot().
+	// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte
+	// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat.
 	const seed = Math.random().toString(16).slice(2, 12);
 	const count = signalCountFor(slug);
 	const scan = generateTargetScan({ seed, count });
@@ -818,8 +828,18 @@ async function chooseScene() {
 	const sc = (await loadSceneList()).find((s) => s.slug === slug);
 	const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
 	const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index }
-	const family = scan.candidates[choice.index]._family;
-	return { slug, resume: undefined, target: choice, family };
+	const cand = scan.candidates[choice.index];
+
+	audio.start();
+	flyArea = slug;
+	flyTarget = choice;
+	PROFILE = PROFILES[cand._family];
+	controller = new FlightController({ profile: PROFILE });
+	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
+	setScene(slug);
+	const booting = boot();
+	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	return { prepared: true };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -831,11 +851,15 @@ if (OPTS.scene) {
 }
 
 chooseScene()
-	.then(({ slug, resume, target, family }) => {
+	.then((choice) => {
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
+		// Session fraîche : PROFILE / controller / setScene / boot() ont déjà été
+		// lancés dans chooseScene() et le hack a couvert le chargement.
+		if (choice.prepared) return;
 		hud.show();
+		const { slug, resume, target, family } = choice;
 		flyArea = slug;
 		resumeId = resume || null;
 		flyTarget = target || null;
@@ -849,6 +873,7 @@ chooseScene()
 	.then(openFlightSession)
 	.catch((err) => {
 		console.error(err);
+		hud.show();
 		hud.fail(err.message);
 	});
 

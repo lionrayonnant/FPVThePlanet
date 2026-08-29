@@ -8,7 +8,7 @@ import {
 	freshTelemetry, newSessionId, SESSION_ID_RE,
 } from './session-model.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
-import { TARGET_FAMILIES } from './target-model.mjs';
+import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -133,6 +133,7 @@ t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => 
 const GOOD_TARGET = {
 	family: TARGET_FAMILIES[0],
 	classHint: '5"',
+	hackType: HACK_TYPES[0],
 	signal: { rssiDbm: -59, mode: 'ANALOG' },
 	scannedAt: new Date().toISOString(),
 	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'EST.', control: 'UNKNOWN', flightState: 'UNKNOWN' },
@@ -141,6 +142,7 @@ const GOOD_TARGET = {
 t('openSession : porte une cible validée, conservée au resume, null si absente', () => {
 	const s = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
 	assert.equal(s.target.family, GOOD_TARGET.family);
+	assert.equal(s.target.hackType, HACK_TYPES[0]);
 	assert.equal(validateSession(s), s);
 	const landed = closeSession(s, { result: 'LANDED', telemetry: freshTelemetry() });
 	const resumed = resumeSession(landed);
@@ -160,6 +162,27 @@ t('sanitizeTarget : rejette famille inconnue et rssi positif ; validateSession r
 		target: { family: TARGET_FAMILIES[0], signal: { rssiDbm: 5, mode: 'ANALOG' }, intel: {} },
 	};
 	assert.throws(() => validateSession(bad), /rssiDbm invalide/);
+});
+
+t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent toléré', () => {
+	const base = { family: TARGET_FAMILIES[0], signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} };
+
+	const withHack = openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: { ...base, hackType: 'GNSS SPOOF' },
+	});
+	assert.equal(withHack.target.hackType, 'GNSS SPOOF');
+
+	const noHack = openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: { ...base },
+	});
+	assert.equal(noHack.target.hackType, null);
+
+	assert.throws(() => openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: { ...base, hackType: 'NOPE' },
+	}), /hackType de cible inconnu/);
 });
 
 // ---------------------------------------------------------------------------

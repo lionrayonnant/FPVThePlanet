@@ -1,6 +1,6 @@
 import {
 	generateTargetScan, describeTarget, resolveTarget,
-	FAMILY_CLASS, TARGET_FAMILIES,
+	FAMILY_CLASS, TARGET_FAMILIES, HACK_TYPES,
 } from './target-model.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 
@@ -58,6 +58,50 @@ const check = (name, cond, detail = '') => {
 	let threw = false;
 	try { resolveTarget(scan, 9); } catch { threw = true; }
 	check('resolveTarget : index hors borne → throw', threw);
+}
+
+// --- hackType : propriété de cible (PHASE 09)
+{
+	check('HACK_TYPES : 6 familles, ordre Bible §17',
+		HACK_TYPES.join('|') === 'COMMAND INJECTION|LINK HIJACK|TELEMETRY SPOOF|GNSS SPOOF|NETWORK TAKEOVER|FIRMWARE OVERRIDE');
+
+	const a = generateTargetScan({ seed: 'hack-det', count: 5 });
+	const b = generateTargetScan({ seed: 'hack-det', count: 5 });
+	check('_hackType déterministe par graine',
+		a.candidates.map((c) => c._hackType).join(',') === b.candidates.map((c) => c._hackType).join(','));
+	check('_hackType toujours dans HACK_TYPES',
+		a.candidates.every((c) => HACK_TYPES.includes(c._hackType)));
+
+	// describeTarget ne fuite jamais le hackType
+	for (const cand of a.candidates) {
+		check(`describeTarget(${cand.id}) sans _hackType`,
+			!JSON.stringify(describeTarget(cand)).includes(cand._hackType));
+	}
+
+	// resolveTarget porte le hackType du candidat choisi
+	const t = resolveTarget(a, 2);
+	check('resolveTarget : hackType repris du candidat',
+		t.hackType === a.candidates[2]._hackType && HACK_TYPES.includes(t.hackType));
+
+	// indépendance famille × hackType : sur 250 graines, chaque hackType
+	// apparaît avec au moins 4 familles distinctes (pas de couplage fort)
+	const pairs = new Map(HACK_TYPES.map((h) => [h, new Set()]));
+	// distribution : chaque hackType entre 8 % et 25 % des tirages
+	const counts = new Map(HACK_TYPES.map((h) => [h, 0]));
+	let total = 0;
+	for (let i = 0; i < 250; i++) {
+		for (const c of generateTargetScan({ seed: `dist-${i}`, count: 5 }).candidates) {
+			pairs.get(c._hackType).add(c._family);
+			counts.set(c._hackType, counts.get(c._hackType) + 1);
+			total++;
+		}
+	}
+	check('hackType × famille : pas de couplage fort',
+		[...pairs.values()].every((set) => set.size >= 4),
+		[...pairs.entries()].map(([h, s]) => `${h}:${s.size}`).join(' '));
+	check('hackType : distribution ~uniforme (8–25 %)',
+		[...counts.values()].every((n) => n / total >= 0.08 && n / total <= 0.25),
+		[...counts.values()].map((n) => (100 * n / total).toFixed(0)).join(' '));
 }
 
 // --- garde-fou de dérive

@@ -363,3 +363,19 @@ canvas { display: block; }
 	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
 	.scanner-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, .18); }
 }
+
+/* ---------- AUTOMATED ANALYSIS / hack (PHASE 09) ---------- */
+/* Même grammaire que les autres écrans terminal : monospace, angles droits,
+   aucun aplat de couleur, pas de glow ni de néon (DA §46). Le motif ASCII est
+   purement décoratif — d'où l'opacité réduite. */
+.hack .terminal-box { width: min(560px, 88vw); }
+.hack .hack-head { font-weight: 700; letter-spacing: .08em; margin-bottom: .6em; }
+.hack .hack-log { min-height: 5em; white-space: pre; line-height: 1.5; }
+/* .hack-log-armed : hook d'état JS (le log est entièrement joué), pas de style. */
+.hack .hack-grammar {
+	margin-top: .8em;
+	line-height: 1.05;
+	opacity: .85;
+	white-space: pre;
+	font-size: .9em;
+}
