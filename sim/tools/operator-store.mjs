@@ -31,7 +31,7 @@ export function validateControlVector(v) {
 	if (!Array.isArray(v) || v.length < 4 || v.length > 8 || !v.every((d) => DIRS.has(d))) {
 		throw new Error('control vector invalide');
 	}
-	return v;
+	return v.slice();
 }
 
 export function freshState({ id, name }) {
@@ -50,6 +50,7 @@ export function freshState({ id, name }) {
 }
 
 export function migrate(state) {
+	if (!state || typeof state !== 'object') throw new Error('état opérateur illisible');
 	const v = state?.schemaVersion ?? 0;
 	if (v > SCHEMA_VERSION) throw new Error('schemaVersion trop récent');
 	// v absent / 0 / 1 : on normalise vers la forme courante sans rien perdre.

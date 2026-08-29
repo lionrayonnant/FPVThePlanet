@@ -72,6 +72,8 @@ Plan d'origine (contexte de la décision d'architecture) :
   code écrit, jamais testé interactivement par l'utilisateur.
 - Modes `angle` et `altitude` du contrôleur de vol — testés uniquement par
   construction du code, pas en vol piloté.
+- L'état opérateur (`/__operator`) n'existe que sous le serveur de dev ; exposer
+  ce serveur (p. ex. via `vite.ngrok.config.js`) expose aussi l'état opérateur.
 
 ## Le seul arbitrage restant : la résolution
 

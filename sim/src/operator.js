@@ -81,19 +81,38 @@ export function patch(key, value) {
 	if (!timer) timer = setTimeout(flush, DEBOUNCE_MS);
 }
 
+export async function listOperators() {
+	return (await req('GET', '')).operators;
+}
+
 export async function flush() {
 	if (timer) { clearTimeout(timer); timer = null; }
 	if (!cache || pending.size === 0) return;
 	const entries = [...pending.entries()];
 	pending.clear();
+	let successCount = 0;
+	let lastError = null;
 	for (const [key, value] of entries) {
-		try { await req('PATCH', `/${cache.id}`, { key, value }); }
-		catch (e) { console.warn('[operator] patch échoué, on retentera', e); pending.set(key, value); }
+		try { await req('PATCH', `/${cache.id}`, { key, value }); successCount++; }
+		catch (e) {
+			console.warn('[operator] patch échoué, on retentera', e);
+			lastError = e;
+			pending.set(key, value);
+			// Réarme le debounce : une panne non surveillée doit quand même retenter.
+			if (!timer) timer = setTimeout(flush, DEBOUNCE_MS);
+		}
 	}
+	// Rien n'a été écrit : on le signale à l'appelant plutôt que de mentir « sauvé ».
+	if (entries.length > 0 && successCount === 0) throw lastError;
 }
 
 export async function ensureDevOperator() {
 	if (cache) return cache;
+	const id = _store.getItem(KEY);
+	if (id) {
+		try { return await selectOperator(id); }
+		catch (e) { if (e.status !== 404) throw e; _store.removeItem(KEY); }
+	}
 	const { operators } = await req('GET', '');
 	return operators.length ? selectOperator(operators[0].id) : createOperator('dev');
 }

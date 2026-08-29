@@ -116,4 +116,24 @@ await t('patch + flush envoie un PATCH coalescé', async () => {
 	assert.deepEqual(op.getOperator().controlVector, ['down', 'down', 'down', 'down']);
 });
 
+await t('flush jette si tout a échoué, puis retente avec succès', async () => {
+	let fail = true;
+	const calls = [];
+	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setFetch(fakeFetch({
+		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: [] } }],
+		'PATCH /__operator/neo-1': (opts) => {
+			calls.push(JSON.parse(opts.body));
+			return fail ? [500, { error: 'disque plein' }] : [200, { operator: {} }];
+		},
+	}));
+	await op.loadOperator();
+	op.patch('controlVector', ['up', 'up', 'up', 'up']);
+	await assert.rejects(() => op.flush(), /disque plein/);
+	fail = false;
+	await op.flush();                       // la valeur re-queuée passe cette fois
+	assert.equal(calls.length, 2);
+	assert.deepEqual(op.getOperator().controlVector, ['up', 'up', 'up', 'up']);
+});
+
 console.log(`\n${n} tests OK`);

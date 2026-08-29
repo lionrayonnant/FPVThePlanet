@@ -9,7 +9,6 @@
 // Aucune dépendance serveur : on se greffe sur le connect que Vite expose déjà.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -17,7 +16,7 @@ import {
 	dirSize, tileDirPath, Cancelled, SCENES_DIR, FLYOVER_ROOT,
 } from './lib/add-map-core.mjs';
 import {
-	SCHEMA_VERSION, newId, validateName, validateControlVector,
+	newId, validateName, validateControlVector,
 	freshState, migrate,
 } from './operator-store.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
@@ -79,6 +78,14 @@ function operatorSummary(s) {
 
 const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings']);
 
+// Traduit une erreur de lecture d'opérateur en code HTTP : id malformé → 400,
+// fichier d'un schéma trop récent → 409, tout le reste (JSON corrompu, E/S) → 500.
+function opReadErrorStatus(e) {
+	if (e.message === 'id invalide') return 400;
+	if (e.message === 'schemaVersion trop récent') return 409;
+	return 500;
+}
+
 const opRoutes = [
 	['GET', /^\/$/, async (req, res) => {
 		json(res, 200, { operators: _listOperators().map(operatorSummary) });
@@ -89,7 +96,10 @@ const opRoutes = [
 		let name;
 		try { name = validateName(b.name); }
 		catch (e) { return json(res, 400, { error: e.message }); }
-		const state = freshState({ id: newId(name), name });
+		// Garde contre la collision d'id à ~1/65536 : on retire jusqu'à un id libre.
+		let state;
+		do { state = freshState({ id: newId(name), name }); }
+		while (fs.existsSync(path.join(OPERATOR_DIR, state.id + '.json')));
 		_writeOperator(state);
 		json(res, 201, { operator: state });
 	}],
@@ -98,7 +108,7 @@ const opRoutes = [
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) {
-			return json(res, e.message === 'id invalide' ? 400 : 409, { error: e.message });
+			return json(res, opReadErrorStatus(e), { error: e.message });
 		}
 		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
 		json(res, 200, { operator: state });
@@ -112,7 +122,7 @@ const opRoutes = [
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) {
-			return json(res, e.message === 'id invalide' ? 400 : 409, { error: e.message });
+			return json(res, opReadErrorStatus(e), { error: e.message });
 		}
 		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
 		let value = b.value;
@@ -359,7 +369,7 @@ export default function mapApiPlugin() {
 		apply: 'serve', // outil de dev : jamais dans le bundle de production
 		configureServer(server) {
 			server.middlewares.use(async (req, res, next) => {
-				if (req.url?.startsWith(OP_BASE)) {
+				if (req.url === OP_BASE || req.url?.startsWith(OP_BASE + '/') || req.url?.startsWith(OP_BASE + '?')) {
 					const url = new URL(req.url, 'http://localhost');
 					const p = url.pathname.slice(OP_BASE.length) || '/';
 					const onPath = opRoutes.filter(([, re]) => re.test(p));

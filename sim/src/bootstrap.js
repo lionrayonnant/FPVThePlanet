@@ -8,14 +8,18 @@ const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 // ---------- inventaire honnête (arch doc §4) ----------
 
 async function measureRefreshHz() {
+	// requestAnimationFrame est gelé dans un onglet caché : on court la mesure
+	// contre un timeout qui résout null (la ligne affiche déjà UNKNOWN pour null).
 	return new Promise((resolve) => {
+		const done = (v) => resolve(v);
+		setTimeout(() => done(null), 2000);
 		const t = [];
 		const tick = (now) => {
 			t.push(now);
 			if (t.length < 60) return requestAnimationFrame(tick);
 			const deltas = t.slice(1).map((v, i) => v - t[i]).sort((a, b) => a - b);
 			const median = deltas[deltas.length >> 1];
-			resolve(median > 0 ? Math.round(1000 / median) : null);
+			done(median > 0 ? Math.round(1000 / median) : null);
 		};
 		requestAnimationFrame(tick);
 	});
@@ -249,7 +253,7 @@ WRITE IT DOWN.</pre>
 	const onKey = (e) => {
 		const map = { ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left' };
 		if (map[e.key]) { e.preventDefault(); add(map[e.key]); }
-		if (e.key === 'Backspace') { vec = vec.slice(0, -1); render(); }
+		if (e.key === 'Backspace') { e.preventDefault(); vec = vec.slice(0, -1); render(); }
 	};
 	window.addEventListener('keydown', onKey);
 
@@ -296,7 +300,23 @@ export async function bootstrap(root, api = operatorApi) {
 	await nameScreen(root, api);
 	const vec = await captureControlVector(root, 6);
 	api.patch('controlVector', vec);
-	await api.flush();
+	await flushOrRetry(root, api);
 	await registeredScreen(root, vec);
 	return api.getOperator();
+}
+
+// flush() jette si rien n'a pu être écrit : on montre l'erreur sur l'écran
+// courant avec un bouton RETRY plutôt que d'annoncer « REGISTERED » à tort.
+async function flushOrRetry(root, api) {
+	while (true) {
+		try { await api.flush(); return; }
+		catch {
+			const s = screen(root);
+			const ok = await new Promise((resolve) => {
+				s.box.innerHTML = '<pre>VECTOR NOT SAVED — RETRY</pre>';
+				s.box.appendChild(button('RETRY', () => { s.remove(); resolve(true); }));
+			});
+			if (!ok) return;
+		}
+	}
 }

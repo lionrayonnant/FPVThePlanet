@@ -54,8 +54,7 @@ CONTROL VECTOR   ${vec}</pre>`;
 			render();
 		}));
 		s.box.appendChild(button('SWITCH OPERATOR', async () => {
-			const list = (await api.loadOperator()).choices
-				|| [{ id: op.id, name: op.name }];
+			const list = await api.listOperators();
 			const pick = await operatorSelect(root, list);
 			if (pick.create) await bootstrap(root);
 			else await api.selectOperator(pick.id);

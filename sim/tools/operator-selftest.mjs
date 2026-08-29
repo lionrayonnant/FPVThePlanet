@@ -62,6 +62,16 @@ t('migrate comble les clés manquantes', () => {
 	assert.deepEqual(m.worldState, {});
 });
 
+t('migrate préserve un createdAt existant', () => {
+	const m = migrate({ id: 'x-1', name: 'X', createdAt: '2019-07-04T12:00:00.000Z' });
+	assert.equal(m.createdAt, '2019-07-04T12:00:00.000Z');
+});
+
+t('migrate refuse un état illisible', () => {
+	assert.throws(() => migrate(null), /illisible/);
+	assert.throws(() => migrate('nope'), /illisible/);
+});
+
 t('migrate refuse une version future', () => {
 	assert.throws(() => migrate({ schemaVersion: 99, id: 'x-1', name: 'X' }), /trop récent/);
 });
