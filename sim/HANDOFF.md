@@ -647,12 +647,22 @@ Plan d'origine (contexte de la décision d'architecture) :
     Nominatim au centre de l'emprise, qui sur un L tombe dans l'encoche, donc on
     décrivait un quartier qu'on n'extrait pas. La sonde de couverture avait le
     même travers et vise désormais une tuile réellement retenue.
-  - **Non vérifié** : aucune extraction réelle par polygone n'a encore été
-    lancée. Tout ce qui précède est mesuré sans télécharger une seule tuile
-    (`--plan`) ou dans le navigateur. Il reste à sortir une vraie carte d'un
-    tracé, et à relancer la même acquisition pour voir le log dire « Tuile déjà
-    téléchargée » — la seule preuve en conditions réelles que le hash du Go et
-    celui de Node concordent.
+  - **Extraction réelle faite** : `seine-iena-alma`, un corridor du pont d'Iéna
+    au pont de l'Alma, 4 sommets. 134 colonnes retenues sur 696, `153 exported`,
+    `562 colonne(s) hors du polygone, non balayées`, 7,3 s, 9 Mo préparés. La
+    seconde acquisition du même tracé a répondu « Tuile déjà téléchargée
+    (…/poly-98b6e26043ec-20-20) » et le port JS calcule `98b6e26043ec` : le
+    hash du Go et celui de Node concordent en conditions réelles, pas seulement
+    sur la fixture.
+  - **Trouvé en vérifiant, et reporté en #102** : `tools/selftest.mjs` sur cette
+    scène rend 15 échecs. Dix sont pré-existants — le fichier est écrit en dur
+    pour `tour-eiffel`, `bastille` en rend les mêmes. Les cinq autres sont
+    réels : `sampleCandidate()` (`src/entry-state.js`) tire dans la **bbox** du
+    manifeste, or un corridor n'occupe que 19 % de la sienne. Mesuré : 315
+    tirages sur 400 tombent hors terrain (0/400 sur `bastille`), et 2 sessions
+    sur 100 se replient sur un spawn au repos. Supportable ici, mais le budget
+    de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
+    replis. La génération de cibles est peut-être logée à la même enseigne.
 
 ## Non vérifié / à faire
 
