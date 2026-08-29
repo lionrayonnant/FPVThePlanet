@@ -15,6 +15,7 @@ import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
+import { CATEGORIES, RANGES, sampleCandidate, rngFrom } from '../src/entry-state.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1180,6 +1181,32 @@ console.log('\napplyEntryState');
 	check('linear velocity applied', Math.hypot(v.x - state.linvel.x, v.y - state.linvel.y, v.z - state.linvel.z) < 1e-6);
 	check('angular velocity applied', Math.abs(w.z - state.angvel.z) < 1e-6);
 	check('battery reset to full', phys.battery.soc === 1);
+	phys.reset();
+}
+
+console.log('\nentry state — sampleCandidate');
+{
+	phys.setProfile(QUAD);
+	const rand = rngFrom('sample-candidate-check');
+	for (const category of CATEGORIES) {
+		const c = sampleCandidate(category, manifest, phys, rand);
+		check(`${category}: produced a candidate inside the scene bbox`,
+			c !== null
+			&& c.position.x >= manifest.bbox.min[0] && c.position.x <= manifest.bbox.max[0]
+			&& c.position.z >= manifest.bbox.min[2] && c.position.z <= manifest.bbox.max[2]);
+		if (!c) continue;
+		const ground = phys.groundBelow(c.position.x, c.position.y, c.position.z);
+		const agl = ground === null ? null : c.position.y - ground;
+		const [loAgl, hiAgl] = RANGES[category].aglM;
+		check(`${category}: altitude above ground within its range`,
+			agl !== null && agl >= loAgl - 1e-6 && agl <= hiAgl + 1e-6, `agl=${agl?.toFixed(2)}`);
+		const speed = Math.hypot(c.linvel.x, c.linvel.y, c.linvel.z);
+		const [loSpeed, hiSpeed] = RANGES[category].speedMs;
+		check(`${category}: speed within its range`, speed >= loSpeed - 1e-6 && speed <= hiSpeed + 1e-6,
+			`${speed.toFixed(1)} m/s`);
+		const qLenSq = c.quaternion.x ** 2 + c.quaternion.y ** 2 + c.quaternion.z ** 2 + c.quaternion.w ** 2;
+		check(`${category}: quaternion is normalised`, Math.abs(qLenSq - 1) < 1e-6);
+	}
 	phys.reset();
 }
 
