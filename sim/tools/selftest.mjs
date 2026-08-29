@@ -16,6 +16,7 @@ import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
+import { sunPosition, sunVector, refracted, airMass } from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1276,6 +1277,90 @@ console.log('\nentry state — sampleCandidate');
 		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
 
 	phys.reset();
+}
+
+console.log('\nsoleil — position');
+{
+	const R2D = 180 / Math.PI;
+	// L'obliquité de l'écliptique : ce qui rend les attentes ci-dessous
+	// analytiques et non des sorties du code recopiées.
+	const OBLIQUITY = 23.44;
+
+	// Balaye une journée UTC minute par minute et rend le maximum d'élévation.
+	// C'est le midi solaire, sans avoir à connaître le fuseau du lieu.
+	function noon(lat, lon, dayISO) {
+		let best = -Infinity, at = null;
+		for (let m = 0; m < 1440; m++) {
+			const d = new Date(`${dayISO}T00:00:00Z`);
+			d.setUTCMinutes(m);
+			const p = sunPosition({ lat, lon, date: d });
+			if (p.elevation > best) { best = p.elevation; at = d; }
+		}
+		return { elevationDeg: best * R2D, at };
+	}
+
+	const PARIS = { lat: 48.8566, lon: 2.3522 };
+	const TOKYO = { lat: 35.6762, lon: 139.6503 };
+	const SYDNEY = { lat: -33.8688, lon: 151.2093 };
+
+	// Au solstice, l'élévation méridienne vaut 90° − |latitude − déclinaison|,
+	// et la déclinaison vaut ±l'obliquité. Aucune table à consulter.
+	const cases = [
+		['Paris, solstice d\'été', PARIS, '2026-06-21', 90 - Math.abs(PARIS.lat - OBLIQUITY)],
+		['Paris, solstice d\'hiver', PARIS, '2026-12-21', 90 - Math.abs(PARIS.lat + OBLIQUITY)],
+		['Tokyo, solstice d\'été', TOKYO, '2026-06-21', 90 - Math.abs(TOKYO.lat - OBLIQUITY)],
+		['Sydney, solstice de décembre', SYDNEY, '2026-12-21', 90 - Math.abs(SYDNEY.lat + OBLIQUITY)],
+	];
+	for (const [label, place, day, expected] of cases) {
+		const n = noon(place.lat, place.lon, day);
+		check(`${label} : élévation méridienne`, Math.abs(n.elevationDeg - expected) < 0.3,
+			`${n.elevationDeg.toFixed(2)}° vs ${expected.toFixed(2)}°`);
+	}
+
+	// À l'équinoxe la déclinaison est nulle, donc l'élévation méridienne vaut
+	// 90° − latitude quelle que soit la longitude.
+	const eq = noon(PARIS.lat, PARIS.lon, '2026-03-20');
+	check('Paris, équinoxe : élévation méridienne = 90° − latitude',
+		Math.abs(eq.elevationDeg - (90 - PARIS.lat)) < 0.3,
+		`${eq.elevationDeg.toFixed(2)}° vs ${(90 - PARIS.lat).toFixed(2)}°`);
+
+	// LE piège de l'issue. Z est le SUD après prep.mjs : au midi solaire dans
+	// l'hémisphère nord le soleil est plein sud, donc z > 0 et x ≈ 0. Se
+	// tromper de signe ici mettrait silencieusement le soleil dans le mauvais
+	// demi-ciel, et rien d'autre ne l'attraperait.
+	{
+		const p = sunPosition({ lat: PARIS.lat, lon: PARIS.lon, date: eq.at });
+		const v = sunVector(p.azimuth, p.elevation);
+		check('convention d\'axes : midi solaire au nord ⇒ le soleil est au sud (z > 0)',
+			v.z > 0.5 && Math.abs(v.x) < 0.05, `z=${v.z.toFixed(3)} x=${v.x.toFixed(3)}`);
+		check('azimut au midi solaire ≈ 180° (plein sud)',
+			Math.abs(p.azimuth * R2D - 180) < 1, `${(p.azimuth * R2D).toFixed(2)}°`);
+		check('le vecteur solaire est unitaire',
+			Math.abs(Math.hypot(v.x, v.y, v.z) - 1) < 1e-9);
+	}
+	{
+		const n = noon(SYDNEY.lat, SYDNEY.lon, '2026-12-21');
+		const p = sunPosition({ lat: SYDNEY.lat, lon: SYDNEY.lon, date: n.at });
+		const v = sunVector(p.azimuth, p.elevation);
+		check('hémisphère sud : midi solaire ⇒ le soleil est au nord (z < 0)',
+			v.z < -0.05, `z=${v.z.toFixed(3)}`);
+	}
+
+	// Réfraction : elle relève le soleil, d'environ un demi-degré à l'horizon,
+	// et de presque rien au zénith.
+	check('la réfraction relève le soleil à l\'horizon d\'environ 0,5°',
+		refracted(0) - 0 > 0.4 && refracted(0) - 0 < 0.7, `${(refracted(0)).toFixed(3)}°`);
+	check('la réfraction est négligeable au zénith',
+		Math.abs(refracted(90) - 90) < 0.01, `${refracted(90).toFixed(4)}°`);
+
+	// Masse d'air : 1 au zénith par définition, ~2 à 30°, et FINIE à l'horizon —
+	// c'est tout l'intérêt de Kasten & Young sur 1/sin h, qui y diverge.
+	check('masse d\'air = 1 au zénith', Math.abs(airMass(90) - 1) < 0.002, airMass(90).toFixed(4));
+	check('masse d\'air ≈ 2 à 30° d\'élévation', Math.abs(airMass(30) - 2) < 0.02, airMass(30).toFixed(3));
+	check('masse d\'air finie et < 40 à l\'horizon',
+		Number.isFinite(airMass(0)) && airMass(0) > 30 && airMass(0) < 40, airMass(0).toFixed(2));
+	check('la masse d\'air croît quand le soleil descend',
+		airMass(10) > airMass(30) && airMass(30) > airMass(60));
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
