@@ -124,12 +124,17 @@ export async function addMap(opts, { onLog, signal } = {}) {
 	// reconstruire pour le moteur (rebuild) — voir parsePrepLine ci-dessus, qui
 	// détecte le vrai basculement dans le flux stdout de prep.mjs.
 	onLog?.({ stream: 'phase', line: 'decode' });
-	await run('node', [
+	const prepArgs = [
 		'tools/prep.mjs', tileDir,
 		'--out', outDir,
 		'--cell', String(cell),
 		'--quality', String(quality),
-	], SIM_ROOT, {
+		'--provider', provider.id,
+		'--provider-label', provider.label,
+		'--fetched-at', fetchedAt,
+	];
+	for (const line of attribution) prepArgs.push('--attribution', line);
+	await run('node', prepArgs, SIM_ROOT, {
 		signal,
 		onLog: (ev) => {
 			onLog?.(ev);
@@ -149,6 +154,10 @@ export async function addMap(opts, { onLog, signal } = {}) {
 		slug, name, lat, lon,
 		...(poly ? { poly } : bbox ? { bbox } : { radius }),
 		zoom, altitude, cell, quality,
+		// Le fournisseur et la date de fetch sont stockés pour rendre une
+		// éventuelle obligation de rafraîchissement mécanisable (issue #18).
+		provider: provider.id,
+		fetchedAt,
 		bytes: dirSize(outDir),
 		createdAt: new Date().toISOString(),
 	};

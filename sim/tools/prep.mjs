@@ -1,8 +1,10 @@
-// Converts an Apple Flyover OBJ tile export into artifacts the viewer can load
-// directly: chunked binary geometry, texture-array sheets, and a Rapier-ready
-// collision mesh.
+// Converts a photogrammetry OBJ tile export (Apple Flyover by default) into
+// artifacts the viewer can load directly: chunked binary geometry,
+// texture-array sheets, and a Rapier-ready collision mesh.
 //
 //   node tools/prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85]
+//     [--provider <id>] [--provider-label <label>] [--attribution <line>]...
+//     [--fetched-at <iso8601>]
 //
 // The source is ~512MB of ASCII OBJ in ECEF coordinates with one 512x512 JPEG
 // per material (4732 of them). Naively that is 4732 draw calls and ~4.9GB of
@@ -12,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { LEGACY_PROVIDER } from '../src/provider-credit.js';
 
 const LAYERS_PER_CHUNK = 1024; // below MAX_ARRAY_TEXTURE_LAYERS everywhere
 const MAX_SHEET = 4096;        // see CELLS_PER_ROW below
@@ -20,16 +23,23 @@ const MAX_SHEET = 4096;        // see CELLS_PER_ROW below
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { out: null, cell: 256, quality: 85 };
+	const opts = { out: null, cell: 256, quality: 85,
+		provider: LEGACY_PROVIDER.id, providerLabel: LEGACY_PROVIDER.label, attribution: [], fetchedAt: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--out') opts.out = argv[++i];
 		else if (a === '--cell') opts.cell = parseInt(argv[++i], 10);
 		else if (a === '--quality') opts.quality = parseInt(argv[++i], 10);
+		else if (a === '--provider') opts.provider = argv[++i];
+		else if (a === '--provider-label') opts.providerLabel = argv[++i];
+		// Répétable : une occurrence par ligne de crédit, pour ne pas avoir à
+		// choisir un séparateur qui n'apparaîtra jamais dans un copyright.
+		else if (a === '--attribution') opts.attribution.push(argv[++i]);
+		else if (a === '--fetched-at') opts.fetchedAt = argv[++i];
 		else positional.push(a);
 	}
 	if (positional.length !== 1 || !opts.out) {
-		console.error('usage: prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85]');
+		console.error('usage: prep.mjs <tileDir> --out <outDir> [--cell 256] [--quality 85] [--provider <id>] [--provider-label <label>] [--attribution <line>]... [--fetched-at <iso8601>]');
 		process.exit(1);
 	}
 	opts.tileDir = path.resolve(positional[0]);
@@ -556,7 +566,16 @@ if (buildMs > 10000) {
 // ---- manifest ----------------------------------------------------------
 
 const manifest = {
-	version: 2,
+	version: 3,
+	// Qui a fourni la photogrammétrie, et sous quel crédit. Les manifests
+	// version 2 n'ont pas ce champ : src/provider-credit.js les traite comme
+	// du Flyover plutôt que d'imposer une re-préparation (issue #18).
+	provider: {
+		id: opts.provider,
+		label: opts.providerLabel,
+		attribution: opts.attribution.length ? opts.attribution : LEGACY_PROVIDER.attribution,
+		fetchedAt: opts.fetchedAt ?? new Date().toISOString(),
+	},
 	source: opts.tileDir, // the selftest reads the source JPEGs back from here
 	origin: {
 		latitude: origin.lat * 180 / Math.PI,
