@@ -16,10 +16,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { LEGACY_PROVIDER } from '../src/provider-credit.js';
 import { pick } from './lib/decoders/index.mjs';
-// Growable est réutilisé ici pour les buffers de reconstruction (pos/uv/lay/idx
-// des chunks) : c'est un utilitaire générique, sans rapport avec le format
-// d'entrée, qui vit dans le décodeur OBJ faute d'un meilleur endroit neutre.
-import { Growable } from './lib/decoders/obj.mjs';
+import { Growable } from './lib/growable.mjs';
 
 const LAYERS_PER_CHUNK = 1024; // below MAX_ARRAY_TEXTURE_LAYERS everywhere
 const MAX_SHEET = 4096;        // see CELLS_PER_ROW below
@@ -103,13 +100,22 @@ const SHEET = CELL * CELLS_PER_ROW;
 const t0 = Date.now();
 const stamp = () => `[${((Date.now() - t0) / 1000).toFixed(1)}s]`;
 
-const decoder = pick(opts.tileDir);
 // Les lignes du décodeur arrivent nues ; c'est ici qu'elles reçoivent le stamp,
-// exactement comme quand le lecteur OBJ vivait dans ce fichier.
-const decoded = await decoder.decode(opts.tileDir, {
-	onLog: (line) => console.log(`${stamp()} ${line}`),
-});
-const { materials, byName, vx, vy, vz, tu, tv, triByMat, vertCount, faceCount } = decoded;
+// exactement comme quand le lecteur OBJ vivait dans ce fichier. pick()/decode()
+// lèvent (jamais process.exit) : c'est ici, à la frontière CLI, qu'on retombe
+// sur un message clair + exit 1 plutôt qu'une trace de pile brute (issue #18,
+// retour de revue — fichier manquant, tuile vide, ou dossier non reconnu).
+let decoded;
+try {
+	const decoder = pick(opts.tileDir);
+	decoded = await decoder.decode(opts.tileDir, {
+		onLog: (line) => console.log(`${stamp()} ${line}`),
+	});
+} catch (err) {
+	console.error(err.message);
+	process.exit(1);
+}
+const { materials, vx, vy, vz, tu, tv, triByMat, vertCount } = decoded;
 
 const chunkCount = Math.ceil(materials.length / LAYERS_PER_CHUNK);
 console.log(`${stamp()}   -> ${chunkCount} chunks of up to ${LAYERS_PER_CHUNK} layers`);
@@ -273,8 +279,13 @@ for (const chunk of chunks) {
 		await mapLimit(Array.from({ length: count }, (_, i) => i), 8, async (cell) => {
 			const mat = materials[chunk.layerBase + first + cell];
 			if (!mat.texture) return;
-			// sharp() accepte indifféremment un chemin et un Buffer : un décodeur
-			// à textures embarquées (glTF) n'aura donc rien à extraire sur disque.
+			// Un matériau déclaré avec une texture dont le fichier n'a en fait
+			// jamais été téléchargé laisse la cellule grise plutôt que de faire
+			// échouer tout le build (comportement d'origine, issue #18 retour de
+			// revue). Le test ne s'applique qu'à un chemin : sharp() accepte aussi
+			// un Buffer (texture embarquée d'un futur décodeur glTF), qui n'a pas
+			// de présence sur le disque à vérifier.
+			if (typeof mat.texture === 'string' && !fs.existsSync(mat.texture)) return;
 			const cellBuf = await sharp(mat.texture)
 				.resize(CELL, CELL, { fit: 'fill' })
 				.removeAlpha()
@@ -396,7 +407,7 @@ const manifest = {
 	provider: {
 		id: opts.provider,
 		label: opts.providerLabel,
-		attribution: attribution.length ? attribution : ['© Apple'],
+		attribution: attribution.length ? attribution : LEGACY_PROVIDER.attribution,
 		fetchedAt: opts.fetchedAt ?? new Date().toISOString(),
 	},
 	source: opts.tileDir, // the selftest reads the source JPEGs back from here

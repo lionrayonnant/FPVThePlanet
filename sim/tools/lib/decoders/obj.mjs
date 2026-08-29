@@ -4,31 +4,9 @@
 // prep.mjs et ne connaît pas le format d'entrée.
 import fs from 'node:fs';
 import path from 'node:path';
+import { Growable } from '../growable.mjs';
 
 export const id = 'obj';
-
-// ---------------------------------------------------------------- growable typed arrays
-
-export class Growable {
-	constructor(Type, initial = 1 << 16) {
-		this.Type = Type;
-		this.buf = new Type(initial);
-		this.length = 0;
-	}
-	_room(n) {
-		if (this.length + n <= this.buf.length) return;
-		let cap = this.buf.length;
-		while (cap < this.length + n) cap *= 2;
-		const next = new this.Type(cap);
-		next.set(this.buf.subarray(0, this.length));
-		this.buf = next;
-	}
-	push(...vals) {
-		this._room(vals.length);
-		for (const v of vals) this.buf[this.length++] = v;
-	}
-	view() { return this.buf.subarray(0, this.length); }
-}
 
 // ---------------------------------------------------------------- MTL
 
@@ -88,28 +66,37 @@ function readFloats(text, from, to, out, max) {
 	return n;
 }
 
+// Ne vérifie que la présence des fichiers, pas leur contenu : sniff() choisit
+// le FORMAT (c'est bien de l'OBJ/MTL), decode() valide l'USABILITÉ (ni
+// manquant, ni vide, ni vide de géométrie). Si sniff() rejetait aussi les
+// fichiers vides, pick() lèverait avant que decode() tourne, et les deux
+// diagnostics précis ci-dessous ne s'afficheraient jamais sur le chemin CLI
+// (issue #18, retour de revue).
 export function sniff(tileDir) {
 	return ['exp_model.obj', 'exp_model.mtl']
-		.every((f) => { try { return fs.statSync(path.join(tileDir, f)).size > 0; } catch { return false; } });
+		.every((f) => fs.existsSync(path.join(tileDir, f)));
 }
 
 // onLog reçoit des lignes NON horodatées, indentation comprise. C'est prep.mjs
 // qui préfixe avec son stamp() : le décodeur n'emporte pas l'horloge, sinon les
 // timings repartiraient à zéro et la sortie ne serait plus comparable.
+//
+// Les erreurs sont levées (jamais process.exit) : ce module est une bibliothèque
+// avec un appelant (prep.mjs), pas un point d'entrée CLI ; c'est à l'appelant de
+// décider comment terminer.
 export async function decode(tileDir, { onLog } = {}) {
 	const log = (line) => onLog?.(line);
 	const objFile = path.join(tileDir, 'exp_model.obj');
 	const mtlFile = path.join(tileDir, 'exp_model.mtl');
 
 	for (const f of [objFile, mtlFile]) {
-		if (!fs.existsSync(f)) { console.error(`missing ${f}`); process.exit(1); }
+		if (!fs.existsSync(f)) throw new Error(`missing ${f}`);
 		// The Go exporter creates both files up front and only then streams tiles
 		// into them, so a scan that found nothing leaves them at zero bytes. Catch
 		// that here rather than three passes later, where an empty trimesh makes
 		// Rapier abort with an opaque `RuntimeError: unreachable`.
 		if (fs.statSync(f).size === 0) {
-			console.error(`${f} est vide — aucune tuile n'a été téléchargée pour cet endroit.`);
-			process.exit(1);
+			throw new Error(`${f} est vide — aucune tuile n'a été téléchargée pour cet endroit.`);
 		}
 	}
 
@@ -207,8 +194,7 @@ export async function decode(tileDir, { onLog } = {}) {
 	log(`  ${polyFaces} non-triangular faces, ${unmatchedPairs} v/vt index mismatches`);
 
 	if (vertCount === 0 || faceCount === 0) {
-		console.error(`\n${objFile} ne contient aucune géométrie — rien à convertir.`);
-		process.exit(1);
+		throw new Error(`\n${objFile} ne contient aucune géométrie — rien à convertir.`);
 	}
 
 	// parseMtl rend { materials, byName } où chaque matériau porte un `.jpg`
