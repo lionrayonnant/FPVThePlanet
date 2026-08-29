@@ -285,7 +285,7 @@ function sweepAxis(profile, axis) {
 	// preference will happily pick a fragile corner that "won" a flat cost
 	// landscape by a rounding error.
 	const minCost = results[0].cost;
-	const clean = results.filter((r) => r.cost <= minCost + 0.5 && r.overshoot <= 10 && r.settle <= lim.settle * 1.15 && Number.isFinite(r.rise));
+	const clean = results.filter((r) => r.cost <= minCost + 0.5 && r.overshoot <= 10 && r.settle <= lim.settle * 1.15 && r.rise <= lim.rise * 1.05);
 	const pool = clean.length ? clean : [results[0]];
 	pool.sort((a, b) => a.p - b.p || a.d - b.d);
 	return { best: pool[0], results, lim, pRange, dRange };

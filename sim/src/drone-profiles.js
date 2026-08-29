@@ -122,13 +122,13 @@ export const PROFILES = {
 		tauSpinUp: 0.026,
 		tauSpinDown: 0.052,
 		torqueRatio: 0.024,          // ducted props run at higher blade loading
-		kAxial: 4.5e-5,
-		kLateral: 1.0e-4,            // ducts fight translation hard
+		kAxial: 2.0e-5,
+		kLateral: 3.5e-5,            // ducts fight translation hard
 		bodyDrag: { x: 0.030, y: 0.045, z: 0.030 },
 		battery: { cells: 4, capacityMah: 1100, internalOhm: 0.014, maxCurrent: 70 },
 		pid: {
 			roll:  { p: 0.084, d: 1.90e-3 },
-			pitch: { p: 0.084, d: 1.90e-3 },
+			pitch: { p: 0.054, d: 1.40e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 0.969, pitch: 0.969, yaw: 0.388 },
 		},
@@ -160,7 +160,7 @@ export const PROFILES = {
 		tauSpinDown: 0.068,
 		torqueRatio: 0.021,
 		kAxial: 5.5e-5,
-		kLateral: 8.0e-5,
+		kLateral: 9.0e-5,
 		bodyDrag: { x: 0.012, y: 0.040, z: 0.012 },
 		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90 },
 		pid: {
@@ -207,71 +207,32 @@ export const PROFILES = {
 	},
 
 	// -------------------------------------------------------------------------
-	// A 1S tinywhoop, 65-75 mm: 0802/22000KV, 40 mm ducted tri-blades, ~34 g
-	// all-up. Inertia is the four motor masses at a 26 mm arm plus the canopy
-	// and the two duct rings, which sit right out at the rim and matter more
-	// than the bare-frame estimate suggests (~1.7e-5 about roll). Cheap 0802
-	// motors on a sagging 1S pack are not instant — ~16 ms spin-up, longer than
-	// the absolute number on a 5" looks because everything else here is tiny
-	// too. Thrust-to-weight ~2:1 and the mass is so low that any real wind
-	// tosses it around.
-	microwhoop: {
-		family: 'microwhoop',
-		label: 'MICRO WHOOP',
-		rates: 'micro',
-		// The rate loop's filter chain is a 5" assumption; a whoop's rotational
-		// dynamics are several times faster, so its filters run several times
-		// higher, exactly as a real micro build's do.
-		filterScale: 2.2,
-		mass: 0.034,
-		radius: 0.15,
-		armX: 0.026,
-		armZ: 0.026,
-		// A whoop's frame is nearly symmetric in the horizontal plane, so pitch
-		// and roll inertia are within a couple of percent. Yaw is a little under
-		// twice that — the motors and ducts are the mass and they all sit in the
-		// disc plane.
-		inertia: { x: 1.72e-5, y: 4.0e-5, z: 1.70e-5 },
-		propRadius: 0.0200,
-		propInertia: 3.0e-8,
-		bladeCount: 3,
-		maxThrustPerMotor: 0.20,
-		maxOmega: 5200,
-		rpmCurve: 0.60,
-		tauSpinUp: 0.016,
-		tauSpinDown: 0.034,
-		torqueRatio: 0.019,         // tiny 40 mm props are lightly loaded: soft yaw
-		kAxial: 3.5e-5,
-		kLateral: 6.0e-5,
-		bodyDrag: { x: 0.0006, y: 0.0011, z: 0.0006 },
-		battery: { cells: 1, capacityMah: 300, internalOhm: 0.080, maxCurrent: 9 },
-		pid: {
-			roll:  { p: 0.32, d: 1.90e-3 },
-			pitch: { p: 0.32, d: 1.90e-3 },
-			yaw:   { p: 0.32, d: 0 },
-			torquePerMix: { roll: 0.020, pitch: 0.020, yaw: 0.014 },
-		},
-	},
-
-	// -------------------------------------------------------------------------
-	// A 2.5" toothpick: 1102/11000KV on 2S, bi-blade props, ~90 g with the
-	// pack. Open frame, so no duct drag — a scaled-down freestyle quad, quick
-	// and light on its feet, thrust-to-weight ~3:1. The long booms and the
-	// nose-mounted cam/vtx put more inertia on it than a bare 2.5" frame would
-	// (~6e-5 about roll). Bi-blade props: the audio blade-pass sits an octave
-	// lower per rpm than the tri-blade families.
+	// The MICRO family: a 2.5" toothpick, 1102/11000KV on 2S, bi-blade props,
+	// ~90 g with the pack. Open frame, so no duct drag — a scaled-down freestyle
+	// quad, quick and light on its feet, thrust-to-weight ~3:1. The long booms
+	// and the nose-mounted cam/vtx put more inertia on it than a bare 2.5" frame
+	// would (~6e-5 about roll). Bi-blade props: the audio blade-pass sits an
+	// octave lower per rpm than the tri-blade families.
+	//
+	// (A 1S 65 mm tinywhoop was prototyped too but pulled — at ~34 g the flight
+	// model's roll/pitch/yaw coupling terms, negligible on a 650 g 5", are not
+	// calibrated for that mass and it will not hold a commanded rate. Tracked as
+	// follow-up; see the PHASE 07 spec.)
 	toothpick: {
 		family: 'toothpick',
-		label: 'TOOTHPICK',
+		label: 'MICRO',
 		rates: 'micro',
+		// The rate loop's filter chain is a 5" assumption; a 2.5" airframe's
+		// rotational dynamics are twice as fast, so its filters (roll/pitch only,
+		// see flightController.js) run twice as high, as a real micro build's do.
 		filterScale: 2.0,
 		mass: 0.090,
 		radius: 0.15,
 		armX: 0.038,
 		armZ: 0.038,
-		// x within ~2% of z: see the microwhoop note — a wider pitch/roll split
-		// makes pitch the intermediate axis and a held high rate about it goes
-		// unstable on its own.
+		// x within ~2% of z: a wider pitch/roll split would make pitch the
+		// intermediate axis, and a held high rate about the intermediate axis is
+		// unstable on its own (tennis-racket theorem).
 		inertia: { x: 5.7e-5, y: 1.3e-4, z: 5.6e-5 },
 		propRadius: 0.0318,
 		propInertia: 3.0e-7,
@@ -282,13 +243,13 @@ export const PROFILES = {
 		tauSpinUp: 0.014,
 		tauSpinDown: 0.030,
 		torqueRatio: 0.014,        // bi-blade 2.5" props: modest prop-drag torque, loose yaw
-		kAxial: 3.0e-5,
-		kLateral: 4.4e-5,
+		kAxial: 7.5e-6,
+		kLateral: 1.3e-5,
 		bodyDrag: { x: 0.0018, y: 0.0050, z: 0.0018 },
 		battery: { cells: 2, capacityMah: 450, internalOhm: 0.045, maxCurrent: 18 },
 		pid: {
-			roll:  { p: 0.15, d: 1.00e-3 },
-			pitch: { p: 0.15, d: 1.00e-3 },
+			roll:  { p: 0.08, d: 1.00e-3 },
+			pitch: { p: 0.08, d: 1.00e-3 },
 			yaw:   { p: 0.32, d: 5.00e-4 },
 			torquePerMix: { roll: 0.099, pitch: 0.099, yaw: 0.036 },
 		},
@@ -297,7 +258,7 @@ export const PROFILES = {
 
 // Ordered so tools iterate the reference build first.
 export const FAMILIES = [
-	'freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5', 'microwhoop', 'toothpick',
+	'freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5', 'toothpick',
 ];
 
 export const DEFAULT_FAMILY = 'freestyle5';
