@@ -12,6 +12,7 @@ import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
+import { CloudField, baseFor, BASE_CLEAR, BASE_OVERCAST, DECK_THICKNESS, DIM_MAX } from '../src/cloud.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
@@ -1059,6 +1060,139 @@ console.log('\nbrouillard');
 			thin.glare > 0 && thin.glare < thick.glare && thick.glare <= 1
 			&& thin.skyMix < thick.skyMix && thick.skyMix <= 1,
 			`glare ${thin.glare.toFixed(2)} -> ${thick.glare.toFixed(2)}, ciel ${thin.skyMix.toFixed(2)} -> ${thick.skyMix.toFixed(2)}`);
+	}
+}
+
+console.log('\nnuages');
+{
+	// D5. Un ciel clair doit être le monde tel qu'il était avant que le modèle
+	// existe : la même promesse que wind.js fait au calme et fog.js à l'air
+	// clair, et ce qui garde un monde neutre neutre.
+	{
+		const c = new CloudField(7);
+		for (let i = 0; i < 1000; i++) c.update(1 / 50);
+		let allZero = true;
+		for (let agl = 0; agl <= 3000; agl += 25) if (c.extinctionAt(agl) !== 0) allZero = false;
+		check('ciel clair : aucun assombrissement, aucune extinction, à aucune altitude',
+			c.dim === 1 && c.cover === 0 && allZero, `dim ${c.dim}`);
+
+		// Et il le fait sans tirer un seul nombre aléatoire, donc une session
+		// par ciel clair est bit-identique à une session sans modèle de nuages.
+		const off = new CloudField(7);
+		const armed = new CloudField(7).setParams({ cover: 0.5, variability: 0.8 });
+		let untouched = true;
+		for (let i = 0; i < 500; i++) {
+			off.update(1 / 50); armed.update(1 / 50);
+			if (off.dim !== 1 || off.cover !== 0) untouched = false;
+		}
+		check('et il ne consomme aucune randomness tant qu\'il est éteint', untouched);
+	}
+
+	// D2. Le mapping est géométrique, comme celui de fog.js sur la portée : la
+	// seule échelle sur laquelle « un peu plus bas » veut dire la même chose à
+	// 1200 m et à 150 m.
+	{
+		check('le mapping va de BASE_CLEAR à BASE_OVERCAST',
+			Math.abs(baseFor(0) - BASE_CLEAR) < 1e-9 && Math.abs(baseFor(1) - BASE_OVERCAST) < 1e-9,
+			`${Math.round(baseFor(0))} m -> ${Math.round(baseFor(1))} m`);
+		check('et il est géométrique, donc la moitié est la moyenne géométrique',
+			Math.abs(baseFor(0.5) ** 2 - BASE_CLEAR * BASE_OVERCAST) < 1e-6 * BASE_CLEAR * BASE_OVERCAST,
+			`${Math.round(baseFor(0.5))} m`);
+		let monotone = true;
+		for (let i = 1; i <= 100; i++) if (baseFor(i / 100) >= baseFor((i - 1) / 100)) monotone = false;
+		check('le plafond ne fait que descendre quand la couverture monte', monotone);
+	}
+
+	// D1, la décision de conception que ce plan doit protéger : le plafond n'est
+	// atteignable QUE par mauvais temps. Un ciel épars a une base hors de portée
+	// d'un vol normal ; un ciel bouché en a une qu'on touche.
+	{
+		const scattered = baseFor(0.3), overcast = baseFor(0.92);
+		check('un ciel épars a un plafond hors d\'atteinte (> 500 m)', scattered > 500,
+			`${Math.round(scattered)} m`);
+		check('un ciel bouché a un plafond atteignable (< 250 m)', overcast < 250,
+			`${Math.round(overcast)} m`);
+	}
+
+	// Le whiteout. Nul loin sous la base, il mord en approche, sature dans la
+	// couche, et se rouvre au-dessus — c'est la récompense de D1.
+	{
+		const c = new CloudField(11).setParams({ cover: 1, variability: 0 }).update(1 / 50);
+		const base = c.base;
+		const inside = c.extinctionAt(base + DECK_THICKNESS * 0.5);
+		check('rien à voir loin sous la base', c.extinctionAt(base * 0.25) === 0);
+		check('ça mord dans la couche', inside > 0.05, inside.toFixed(4));
+		check('l\'approche est plus douce que l\'intérieur',
+			c.extinctionAt(base - 30) > 0 && c.extinctionAt(base - 30) < inside);
+		check('et on ressort au-dessus de la couche',
+			c.extinctionAt(base + DECK_THICKNESS * 3) === 0);
+
+		// Amplitude proportionnelle à la couverture, pas un seuil binaire.
+		const light = new CloudField(11).setParams({ cover: 0.3, variability: 0 }).update(1 / 50);
+		check('une couverture faible donne une laiteuse, pas un whiteout',
+			light.extinctionAt(light.base + DECK_THICKNESS * 0.5) < inside * 0.5);
+	}
+
+	// D0. L'assombrissement est un scalaire, borné par DIM_MAX, monotone.
+	{
+		const full = new CloudField(13).setParams({ cover: 1, variability: 0 }).update(1 / 50);
+		check('couvert plein : l\'assombrissement atteint DIM_MAX',
+			Math.abs(full.dim - DIM_MAX) < 1e-9, full.dim.toFixed(3));
+		let monotone = true, prev = 1;
+		for (let i = 1; i <= 100; i++) {
+			const f = new CloudField(13).setParams({ cover: i / 100, variability: 0 }).update(1 / 50);
+			if (f.dim > prev) monotone = false;
+			prev = f.dim;
+		}
+		check('et il ne fait que s\'assombrir quand la couverture monte', monotone);
+		check('il n\'assombrit jamais au point de rendre l\'image illisible', DIM_MAX > 0.5, `${DIM_MAX}`);
+	}
+
+	// D3. La respiration ne doit pas être un épaississement : même correction
+	// lognormale que rain.js et fog.js, et la même raison de la vérifier — la
+	// moyenne est ce que le monde a annoncé.
+	{
+		const still = new CloudField(17).setParams({ cover: 0.6, variability: 0 });
+		let flat = true;
+		for (let i = 0; i < 2000; i++) { still.update(1 / 50); if (Math.abs(still.cover - 0.6) > 1e-12) flat = false; }
+		check('pas de variabilité, pas de respiration', flat);
+
+		// Mis en commun sur six graines. La bande lente a une mémoire de dix
+		// minutes, donc une seule graine sur une heure ne fait qu'une poignée
+		// d'échantillons indépendants et atterrit n'importe où — ce n'est pas du
+		// remplissage, c'est ce qu'il faut pour que la mesure veuille dire
+		// quelque chose. Mesuré à 0,5 : la couverture est bornée à 1, donc près
+		// de 1 le clamp mord et biaise à juste titre (on n'est pas « plus que
+		// couvert »), ce qui n'est pas ce qu'on teste ici.
+		let sum = 0, n = 0;
+		for (const seed of [2, 3, 5, 7, 11, 13]) {
+			const f = new CloudField(seed).setParams({ cover: 0.5, variability: 1 });
+			for (let i = 0; i < 300000; i++) { f.update(1 / 50); sum += f.cover; n++; }
+		}
+		const mean = sum / n;
+		check('la respiration ne biaise pas la couverture moyenne',
+			Math.abs(mean - 0.5) < 0.02, `moyenne ${mean.toFixed(4)} pour 0.5`);
+	}
+
+	// Déterminisme : un respawn ne doit pas retomber au milieu du grain en
+	// cours, et les checks doivent être stables plutôt que seulement plausibles.
+	{
+		const a = new CloudField(19).setParams({ cover: 0.7, variability: 0.6 });
+		const b = new CloudField(19).setParams({ cover: 0.7, variability: 0.6 });
+		let same = true;
+		for (let i = 0; i < 400; i++) { a.update(1 / 50); b.update(1 / 50); if (a.cover !== b.cover) same = false; }
+		a.reset(); b.reset();
+		for (let i = 0; i < 400; i++) { a.update(1 / 50); b.update(1 / 50); if (a.cover !== b.cover) same = false; }
+		check('même graine, même trajectoire, avant et après reset()', same);
+	}
+
+	// La couverture est une fraction : elle ne peut pas sortir de [0, 1], quelle
+	// que soit la violence de la respiration.
+	{
+		const f = new CloudField(23).setParams({ cover: 0.95, variability: 1 });
+		let inRange = true;
+		for (let i = 0; i < 50000; i++) { f.update(1 / 50); if (f.cover < 0 || f.cover > 1) inRange = false; }
+		check('la couverture reste une fraction, quoi qu\'il arrive', inRange);
 	}
 }
 
