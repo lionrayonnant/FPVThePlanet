@@ -139,6 +139,11 @@ const LensShader = {
 		// The sky the scene is actually using: what a bead diffuses, and what
 		// the fog veil is made of. One colour for both, because it is one sky.
 		uSky: { value: new THREE.Color(0x9fb8cc) },
+		// Le capteur de la cible : x grain, y noirs levés, z saturation,
+		// w ringing (halo de sur-accentuation).
+		uSensor: { value: new THREE.Vector4(0, 0, 1, 0) },
+		// x écrasement des hautes lumières, y teinte, z quantité de teinte.
+		uSensor2: { value: new THREE.Vector3(0, 0, 0) },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -160,6 +165,9 @@ const LensShader = {
 		// The scene's own sky. Shared by the beads and by the fog veil, and
 		// declared outside both guards because either one alone can want it.
 		uniform vec3 uSky;
+		// Le capteur de la cible, en amont du lien.
+		uniform vec4 uSensor;
+		uniform vec3 uSensor2;
 		varying vec2 vUv;
 
 		#if DROPS > 0
@@ -178,13 +186,14 @@ const LensShader = {
 			uniform float uGlare;
 		#endif
 
-		#if LINK_MODE != 0
-			float hash12(vec2 p) {
-				vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-				p3 += dot(p3, p3.yzx + 33.33);
-				return fract((p3.x + p3.y) * p3.z);
-			}
-		#endif
+		// Utilisé par le lien (LINK_MODE != 0) et, depuis le bloc capteur
+		// ci-dessous, par le grain du capteur lui-même — donc inconditionnel
+		// désormais : le grain du capteur existe même quand le lien est absent.
+		float hash12(vec2 p) {
+			vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+			p3 += dot(p3, p3.yzx + 33.33);
+			return fract((p3.x + p3.y) * p3.z);
+		}
 
 		// A torn line wraps around: the shift is a timing error in a continuous
 		// scan, not a translation of a bitmap, so what leaves one side comes back
@@ -463,6 +472,61 @@ const LensShader = {
 
 			c *= 1.0 - uVignette * pow(r, 2.5);
 
+			// ---- le capteur de la cible ---------------------------------------
+			// En amont de l'émetteur, parce que c'est l'ordre physique : ce que
+			// le capteur abîme, la liaison le transporte ensuite fidèlement.
+			// Une mauvaise caméra est déjà mauvaise sur un lien parfait.
+			{
+				float clipK = uSensor2.x;
+				if (clipK > 0.0) {
+					// Les hautes lumières s'écrasent tôt. Un ciel qui part en blanc
+					// pur au lieu de garder ses nuages : le défaut le plus
+					// reconnaissable des petites caméras.
+					float knee = mix(1.0, 0.55, clipK);
+					c = min(c, vec3(knee)) + (c - min(c, vec3(knee))) * (1.0 - clipK);
+					c /= max(knee + (1.0 - knee) * (1.0 - clipK), 1e-4);
+				}
+
+				float ring = uSensor.w;
+				if (ring > 0.0) {
+					// Halo de sur-accentuation : la caméra rehausse ses contours
+					// elle-même, et laisse un liseré clair d'un côté, sombre de
+					// l'autre. Horizontal seulement — c'est une accentuation de
+					// ligne, pas un filtre 2D.
+					vec2 px = vec2(1.0) / uResolution;
+					vec3 l = texture2D(tDiffuse, uvHere - vec2(px.x * 2.0, 0.0)).rgb;
+					vec3 rr = texture2D(tDiffuse, uvHere + vec2(px.x * 2.0, 0.0)).rgb;
+					c += (c - (l + rr) * 0.5) * ring * 1.6;
+				}
+
+				// Fadeur, puis dominante, puis noirs levés. Dans cet ordre : la
+				// dominante d'un capteur est dans sa matrice de couleur, donc
+				// avant le niveau de noir de son amplificateur.
+				float lum = dot(c, LUMA);
+				c = mix(vec3(lum), c, uSensor.z);
+
+				float amt = uSensor2.z;
+				if (amt > 0.0) {
+					// Teinte simple sans conversion HSV : deux caméras ne rendent
+					// pas le même vert, et une bascule vers une couleur suffit à
+					// le dire.
+					vec3 cast = 0.5 + 0.5 * cos(6.2831853 * (uSensor2.y + vec3(0.0, 0.33, 0.67)));
+					c = mix(c, c * cast * 2.0, amt);
+				}
+
+				c = c * (1.0 - uSensor.y) + uSensor.y;
+
+				float g = uSensor.x;
+				if (g > 0.0) {
+					// Bruit propre au capteur, présent même sur un lien parfait :
+					// c'est ce qui distingue une mauvaise caméra d'une bonne caméra
+					// mal reçue.
+					float sn = hash12(gl_FragCoord.xy + uTime * 17.7);
+					c += (sn - 0.5) * g;
+				}
+				c = clamp(c, 0.0, 1.0);
+			}
+
 			// ---- and what it does to the picture itself -----------------------
 			#if LINK_MODE == 1
 				// ---- what analog looks like when the link is perfect ----------
@@ -674,6 +738,14 @@ export class FpvLens {
 		this._rain.dropMm = dropMm;
 		this._rain.drift = drift;
 		this._rain.dt = dt;
+	}
+
+	// Le capteur de la cible. Tout est à zéro par défaut, sauf la saturation :
+	// un uniform à zéro doit vouloir dire « rien à faire ».
+	setSensor({ grain = 0, lift = 0, saturation = 1, ringing = 0,
+	            clip = 0, tintHue = 0, tintAmount = 0 } = {}) {
+		this._u.uSensor.value.set(grain, lift, saturation, ringing);
+		this._u.uSensor2.value.set(clip, tintHue, tintAmount);
 	}
 
 	// How much the air is scattering into the optic, 0..1, straight from
