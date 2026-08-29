@@ -5,7 +5,7 @@
 // Règle de la phase, et raison d'être de ce fichier :
 //   An event that doesn't need to be heard doesn't need a sound.
 
-// Le vocabulaire est CLOS. Ces sept entrées sont tout ce que l'interface a le
+// Le vocabulaire est CLOS. Ces huit entrées sont tout ce que l'interface a le
 // droit de faire entendre. Il n'y a pas de son de clic, de survol, de
 // navigation, d'ouverture d'écran, de sélection ni de validation — c'est la
 // forme exécutable de « le système ne bipe pas à chaque clic » (Bible §34), et
@@ -18,6 +18,7 @@ export const UI_EVENTS = [
 	'LINK_LOST',       // LINK
 	'LINK_RESTORED',   // LINK
 	'RITUAL',          // RITUAL — la culmination, cf. scoreFor()
+	'INTRO',           // SYSTEM — le cracktro au lancement (issue #106), cf. INTRO_SCORE
 ];
 
 export const UI_FAMILY = {
@@ -28,6 +29,7 @@ export const UI_FAMILY = {
 	LINK_LOST: 'LINK',
 	LINK_RESTORED: 'LINK',
 	RITUAL: 'RITUAL',
+	INTRO: 'SYSTEM',
 };
 
 // --- signature de boot ------------------------------------------------------
@@ -94,7 +96,10 @@ export function linkEvent(quality, dtS, state) {
 
 // Les voix. Vocabulaire DÉCORATIF : ce sont des enveloppes et des fréquences,
 // rien qui encode une procédure — même règle de sécurité qu'en PHASE 09/10.
-export const VOICES = ['click', 'pulse', 'bass', 'glitch', 'sweep', 'stab', 'impact', 'tone'];
+// `blast` est le souffle large bande de l'explosion finale : là où `impact`
+// est un grave qui frappe, `blast` est le bruit qui l'accompagne — les deux
+// couches de la même détonation (Bible §36).
+export const VOICES = ['click', 'pulse', 'bass', 'glitch', 'sweep', 'stab', 'impact', 'tone', 'blast'];
 
 // Les voix dont l'enveloppe est fixée par le rendu et non par la partition : un
 // click dure ce que dure un click, à V1 comme à V4. Les autres s'étirent avec
@@ -110,6 +115,14 @@ export const PERCUSSIVE = ['click', 'glitch', 'stab'];
 // vingt-quatre partitions. scoreFor() les met à l'échelle de la variante.
 // Aucune n'est une chanson : pas de mesure régulière, pas de tonalité, pas de
 // boucle.
+//
+// La seconde moitié de chaque partition est la même anatomie pour les six
+// familles — montée qui s'accélère (deux `sweep`), détonation en couches
+// (`impact` grave + `blast` large bande, simultanés), puis des « shrapnels »
+// (`click`/`glitch`, au choix de la famille pour garder son timbre) qui
+// partent APRÈS l'impact avec un `pan` (-1..1) qui couvre tout le champ
+// stéréo : l'explosion « part dans tous les sens » (issue #107). La première
+// moitié, elle, reste l'identité de famille écrite en PHASE 18 — inchangée.
 export const RITUAL_SCORES = {
 	// paquets — rafales de clicks staccato, groupées irrégulièrement
 	'COMMAND INJECTION': [
@@ -127,8 +140,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.61, voice: 'click', freq: 4200 },
 		{ at: 0.64, voice: 'click', freq: 3700 },
 		{ at: 0.74, voice: 'stab', freq: 1400 },
-		{ at: 0.82, voice: 'sweep', freq: 220, to: 1800, dur: 0.11 },
-		{ at: 0.93, voice: 'impact', freq: 52, dur: 0.07 },
+		{ at: 0.78, voice: 'sweep', freq: 220, to: 1800, dur: 0.09 },
+		{ at: 0.85, voice: 'sweep', freq: 900, to: 3200, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 50, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1600, dur: 0.16 },
+		{ at: 0.92, voice: 'click', freq: 4700, pan: -0.9 },
+		{ at: 0.95, voice: 'click', freq: 4300, pan: 0.8 },
+		{ at: 0.97, voice: 'click', freq: 3900, pan: -0.5 },
+		{ at: 0.99, voice: 'click', freq: 4500, pan: 0.6 },
 	],
 	// porteuse — un ton qu'on plie, puis qu'on capture
 	'LINK HIJACK': [
@@ -138,8 +157,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.50, voice: 'glitch', freq: 1200 },
 		{ at: 0.56, voice: 'tone', freq: 660, to: 1320, dur: 0.22 },
 		{ at: 0.70, voice: 'pulse', freq: 70, dur: 0.09 },
-		{ at: 0.80, voice: 'sweep', freq: 300, to: 2200, dur: 0.13 },
-		{ at: 0.93, voice: 'impact', freq: 48, dur: 0.07 },
+		{ at: 0.78, voice: 'sweep', freq: 300, to: 2200, dur: 0.10 },
+		{ at: 0.85, voice: 'sweep', freq: 1000, to: 3400, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 46, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1400, dur: 0.16 },
+		{ at: 0.92, voice: 'glitch', freq: 2000, pan: -0.8 },
+		{ at: 0.95, voice: 'click', freq: 4200, pan: 0.7 },
+		{ at: 0.97, voice: 'glitch', freq: 1600, pan: -0.4 },
+		{ at: 0.99, voice: 'click', freq: 3800, pan: 0.9 },
 	],
 	// oscilloscope — pulses modulés, wobble de filtre
 	'TELEMETRY SPOOF': [
@@ -152,8 +177,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.55, voice: 'glitch', freq: 900 },
 		{ at: 0.62, voice: 'pulse', freq: 110, dur: 0.06 },
 		{ at: 0.68, voice: 'pulse', freq: 175, dur: 0.06 },
-		{ at: 0.78, voice: 'sweep', freq: 260, to: 1600, dur: 0.14 },
-		{ at: 0.93, voice: 'impact', freq: 50, dur: 0.07 },
+		{ at: 0.78, voice: 'sweep', freq: 260, to: 1600, dur: 0.10 },
+		{ at: 0.85, voice: 'sweep', freq: 950, to: 3000, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 49, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1500, dur: 0.16 },
+		{ at: 0.92, voice: 'click', freq: 4400, pan: 0.85 },
+		{ at: 0.94, voice: 'glitch', freq: 1100, pan: -0.7 },
+		{ at: 0.96, voice: 'click', freq: 3600, pan: 0.5 },
+		{ at: 0.99, voice: 'glitch', freq: 900, pan: -0.3 },
 	],
 	// position — paire désaccordée qui dérive, battement qui s'élargit
 	'GNSS SPOOF': [
@@ -164,8 +195,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.58, voice: 'bass', freq: 48, dur: 0.30 },
 		{ at: 0.66, voice: 'tone', freq: 440, dur: 0.26 },
 		{ at: 0.68, voice: 'tone', freq: 468, dur: 0.24 },
-		{ at: 0.80, voice: 'sweep', freq: 200, to: 1400, dur: 0.13 },
-		{ at: 0.93, voice: 'impact', freq: 44, dur: 0.07 },
+		{ at: 0.80, voice: 'sweep', freq: 200, to: 1400, dur: 0.10 },
+		{ at: 0.87, voice: 'sweep', freq: 850, to: 2800, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 42, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1300, dur: 0.16 },
+		{ at: 0.92, voice: 'glitch', freq: 1300, pan: 0.9 },
+		{ at: 0.94, voice: 'click', freq: 4100, pan: -0.6 },
+		{ at: 0.97, voice: 'glitch', freq: 900, pan: 0.4 },
+		{ at: 0.99, voice: 'click', freq: 3700, pan: -0.85 },
 	],
 	// nœuds — clicks en cascade, densité croissante
 	'NETWORK TAKEOVER': [
@@ -182,8 +219,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.58, voice: 'click', freq: 3400 },
 		{ at: 0.60, voice: 'click', freq: 4100 },
 		{ at: 0.70, voice: 'bass', freq: 44, dur: 0.30 },
-		{ at: 0.80, voice: 'sweep', freq: 180, to: 2000, dur: 0.13 },
-		{ at: 0.93, voice: 'impact', freq: 40, dur: 0.07 },
+		{ at: 0.78, voice: 'sweep', freq: 180, to: 2000, dur: 0.10 },
+		{ at: 0.85, voice: 'sweep', freq: 800, to: 3100, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 38, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1700, dur: 0.16 },
+		{ at: 0.92, voice: 'click', freq: 4800, pan: -0.7 },
+		{ at: 0.94, voice: 'click', freq: 4400, pan: 0.9 },
+		{ at: 0.96, voice: 'click', freq: 4000, pan: -0.4 },
+		{ at: 0.99, voice: 'click', freq: 4600, pan: 0.6 },
 	],
 	// mémoire — blocs glitchés, puis une écriture qui claque
 	'FIRMWARE OVERRIDE': [
@@ -195,8 +238,14 @@ export const RITUAL_SCORES = {
 		{ at: 0.52, voice: 'glitch', freq: 2100 },
 		{ at: 0.62, voice: 'stab', freq: 1900 },
 		{ at: 0.70, voice: 'glitch', freq: 1300 },
-		{ at: 0.82, voice: 'sweep', freq: 150, to: 2400, dur: 0.11 },
-		{ at: 0.93, voice: 'impact', freq: 36, dur: 0.07 },
+		{ at: 0.80, voice: 'sweep', freq: 150, to: 2400, dur: 0.09 },
+		{ at: 0.87, voice: 'sweep', freq: 750, to: 2900, dur: 0.05 },
+		{ at: 0.90, voice: 'impact', freq: 34, dur: 0.09, gain: 1.3 },
+		{ at: 0.90, voice: 'blast', freq: 1200, dur: 0.16 },
+		{ at: 0.92, voice: 'glitch', freq: 2000, pan: 0.8 },
+		{ at: 0.94, voice: 'glitch', freq: 1500, pan: -0.9 },
+		{ at: 0.97, voice: 'glitch', freq: 1000, pan: 0.5 },
+		{ at: 0.99, voice: 'glitch', freq: 700, pan: -0.6 },
 	],
 };
 
@@ -219,5 +268,84 @@ export function scoreFor(hackType, variantMs) {
 		freq: ev.freq,
 		to: ev.to,
 		gain: ev.gain,
+		pan: ev.pan,
 	}));
 }
+
+// --- tension du rituel (Bible §36 : la saisie doit se sentir monter) -------
+
+// Le mapping vit ici, pas dans le rendu, précisément pour rester testable
+// sans Web Audio : le rendu ne fait que lire ces bornes et les interpoler
+// linéairement sur k (progression 0..1 de la saisie du vecteur).
+export const RITUAL_TENSION = {
+	fMin: 220,      // Hz — bande filtrée au repos (k=0)
+	fMax: 2600,     // Hz — bord de rupture juste avant la dernière flèche
+	rateMin: 2,     // Hz — pulsation lente en début de saisie
+	rateMax: 9,     // Hz — pulsation qui s'affole juste avant la complétion
+	gain: 0.22,     // niveau plein à k=1 : un riser prépare, il ne doit jamais couvrir la détonation qui suit
+	tau: 0.05,      // lissage à la montée : une flèche juste doit se sentir tout de suite
+	fallTau: 0.09,  // lissage à la chute : ~270 ms (3τ), audible — pas un mute sec
+};
+
+// Pure : les trois paramètres du riser pour une progression k. C'est tout ce
+// que le rendu lui demande, et c'est ce qui rend le mapping testable pour sa
+// monotonie sans monter le moindre AudioContext.
+export function ritualTensionParams(k) {
+	const c = Math.min(Math.max(k, 0), 1);
+	return {
+		freq: RITUAL_TENSION.fMin + (RITUAL_TENSION.fMax - RITUAL_TENSION.fMin) * c,
+		rate: RITUAL_TENSION.rateMin + (RITUAL_TENSION.rateMax - RITUAL_TENSION.rateMin) * c,
+		gain: RITUAL_TENSION.gain * c,
+	};
+}
+
+// --- partition de l'intro (issue #106) --------------------------------------
+
+// Durée de la partition, en ms : PILE reveal + plasma (tools/intro-model.mjs),
+// pour que la dernière note tombe au moment exact où l'écran entre en
+// résolution et où BOOT_SIGNATURE prend le relais. Les deux fichiers restent
+// indépendants (aucun import croisé) ; intro-selftest.mjs vérifie l'accord.
+export const INTRO_SCORE_MS = 5500;
+
+// Arpège chiptune/IDM qui MONTE vers do-mi-sol — les trois premières hauteurs
+// de BOOT_SIGNATURE, deux octaves plus bas. L'intro ne joue pas une mélodie
+// quelconque qui s'arrête : elle prépare littéralement l'oreille aux hauteurs
+// sur lesquelles la signature de boot va conclure, si bien que la coupure se
+// sent comme une RÉSOLUTION et non comme un simple cut.
+const ARP_NOTES = [261.63, 329.63, 392.00, 523.25]; // C4 E4 G4 C5
+const BASS_NOTE = 65.41;                            // C2 — fondamentale tenue en dessous
+const STEP_MS = 125;                                // huitième de note, ~120 bpm
+const TAIL_MS = 250;                                // réservé à la montée finale (sweep + stab)
+
+// Écrite une fois, pas par famille : contrairement à RITUAL_SCORES, l'intro ne
+// dépend d'aucun hackType, elle joue identiquement à chaque chargement de page.
+function buildIntroScore() {
+	const score = [];
+	const stepsTotal = Math.floor((INTRO_SCORE_MS - TAIL_MS) / STEP_MS);
+	for (let i = 0; i < stepsTotal; i++) {
+		const atMs = i * STEP_MS;
+		// L'arpège, une note par pas : boucle sur do-mi-sol-do.
+		score.push({ atMs, voice: 'tone', freq: ARP_NOTES[i % ARP_NOTES.length], durS: 0.09 });
+		// La pulsation grave, un pas sur deux : le socle rythmique.
+		if (i % 2 === 0) score.push({ atMs, voice: 'bass', freq: BASS_NOTE, durS: 0.10 });
+		// Un click décalé tous les 4 pas : la texture IDM, panoramisée pour ne
+		// pas rester plate au centre comme le reste du langage sonore d'interface.
+		if (i % 4 === 2) {
+			score.push({
+				atMs: atMs + STEP_MS / 2, voice: 'click', freq: 5200, durS: 0.02,
+				pan: (Math.floor(i / 4) % 2 === 0) ? -0.4 : 0.4,
+			});
+		}
+	}
+	const sweepAt = stepsTotal * STEP_MS;
+	// La montée finale : même grammaire que la détonation des rituels (une
+	// paire de sweeps qui s'accélère juste avant l'impact) mais une octave plus
+	// calme — ici on prépare une note, pas une explosion. Le sweep vise
+	// exactement la première hauteur de BOOT_SIGNATURE (do), le stab tient sa
+	// troisième (sol, la note longue du triolet).
+	score.push({ atMs: sweepAt, voice: 'sweep', freq: 440, to: BOOT_SIGNATURE[0].freq, durS: 0.18 });
+	score.push({ atMs: sweepAt + 90, voice: 'stab', freq: BOOT_SIGNATURE[2].freq, durS: 0.12 });
+	return score.sort((a, b) => a.atMs - b.atMs);
+}
+
+export const INTRO_SCORE = buildIntroScore();

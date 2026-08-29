@@ -8,7 +8,10 @@
 //
 // Aucune voix, aucun narrateur, aucune commande vocale (Bible §37).
 import { ensureContext, context, uiIn } from './audio-bus.js';
-import { UI_EVENTS, BOOT_SIGNATURE, scoreFor } from '../tools/ui-audio-model.mjs';
+import {
+	UI_EVENTS, BOOT_SIGNATURE, scoreFor, RITUAL_TENSION, ritualTensionParams,
+	INTRO_SCORE, INTRO_SCORE_MS,
+} from '../tools/ui-audio-model.mjs';
 
 // Au-delà de cette fenêtre, une signature de démarrage armée est ABANDONNÉE
 // plutôt que jouée : un son de boot qui part une minute après le boot n'est
@@ -22,15 +25,23 @@ const LEVEL = {
 	system: 0.22,
 	link: 0.26,
 	ritual: 0.34,
+	intro: 0.28,        // la partition du cracktro — sous ritual, elle accompagne, elle ne culmine pas
 	carrier: 0.06,      // un lit, pas un événement
 };
 
 const CARRIER_HZ = 320;       // bande de la porteuse : là où un récepteur siffle
 const CARRIER_TAU = 0.25;     // lissage, du même ordre que link.js:NOISE_TAU
 
+// Rampe de coupure au skip de l'intro : assez courte pour lire comme un cut
+// net, assez longue pour ne pas claquer (même souci que _env côté attaque).
+const INTRO_SKIP_FADE_S = 0.05;
+
 export class UiAudio {
 	constructor() {
 		this._carrier = null;
+		this._tension = null;
+		this._introMaster = null;
+		this._introSkipped = false;
 		this._noiseBuf = null;
 		this._noiseCtx = null;
 		this._bootArmedAt = null;
@@ -60,10 +71,26 @@ export class UiAudio {
 	// Un one-shot : construit ses nœuds, se démonte sur onended. C'est le seul
 	// endroit de ce fichier où un nœud naît après le montage, et jamais par
 	// frame — la porteuse, elle, est permanente.
-	_shot(ctx, at, durS, build) {
+	//
+	// `pan` (-1..1), optionnel : un StereoPannerNode inséré entre `out` et le
+	// bus de sortie. C'est ce qui fait qu'un shrapnel de l'explosion part
+	// d'un côté précis du champ stéréo plutôt que de rester centré comme tout
+	// le reste du langage sonore d'interface.
+	//
+	// `dest`, optionnel : bus de sortie, uiIn() par défaut. playIntro() y
+	// branche son gain master dédié, pour pouvoir couper toute la partition
+	// d'un coup au skip sans avoir à traquer chaque nœud un par un.
+	_shot(ctx, at, durS, build, pan, dest = uiIn()) {
 		const out = ctx.createGain();
-		out.connect(uiIn());
 		const parts = [out];
+		if (pan != null) {
+			const panner = ctx.createStereoPanner();
+			panner.pan.value = pan;
+			out.connect(panner).connect(dest);
+			parts.push(panner);
+		} else {
+			out.connect(dest);
+		}
 		const src = build(out, parts);
 		if (!src) return;
 		src.start(at);
@@ -81,7 +108,8 @@ export class UiAudio {
 	}
 
 	// Une voix de la partition, à l'instant absolu `at` de l'horloge audio.
-	_voice(ctx, ev, at, level) {
+	// `dest`, optionnel : voir _shot — playIntro() y passe son gain master.
+	_voice(ctx, ev, at, level, dest = uiIn()) {
 		const { voice, durS } = ev;
 		const gain = level * (ev.gain ?? 1);
 
@@ -97,7 +125,7 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp);
 				return src;
-			});
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -124,7 +152,26 @@ export class UiAudio {
 				this._env(out.gain, at, durS, gain);
 				parts.push(bp, ring, mod);
 				return src;
-			});
+			}, ev.pan, dest);
+			return;
+		}
+
+		if (voice === 'blast') {
+			// Le souffle : la même mécanique que `impact`, mais sur du bruit plutôt
+			// qu'un oscillateur — un souffle n'a pas de hauteur. Simultané à l'impact
+			// dans la partition : deux couches de la même détonation.
+			this._shot(ctx, at, durS, (out, parts) => {
+				const lp = ctx.createBiquadFilter();
+				lp.type = 'lowpass';
+				lp.frequency.setValueAtTime(ev.freq ?? 4000, at);
+				lp.frequency.exponentialRampToValueAtTime(200, at + durS);
+				const src = ctx.createBufferSource();
+				src.buffer = this._noiseBuffer(ctx);
+				src.connect(lp).connect(out);
+				this._env(out.gain, at, durS, gain);
+				parts.push(lp);
+				return src;
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -147,7 +194,7 @@ export class UiAudio {
 				this._env(out.gain, at, total, gain * 1.4);
 				parts.push(lp);
 				return osc;
-			});
+			}, ev.pan, dest);
 			return;
 		}
 
@@ -171,7 +218,7 @@ export class UiAudio {
 			this._env(out.gain, at, durS, gain);
 			parts.push(lp);
 			return osc;
-		});
+		}, ev.pan, dest);
 	}
 
 	// --- API ----------------------------------------------------------------
@@ -224,8 +271,13 @@ export class UiAudio {
 		}
 		if (event === 'RITUAL') {
 			// Le rituel réel passe par playRitual() ; ce chemin n'existe que pour
-			// que les sept entrées du vocabulaire soient toutes jouables.
+			// que les huit entrées du vocabulaire soient toutes jouables.
 			this.playRitual('LINK HIJACK', 2000);
+			return;
+		}
+		if (event === 'INTRO') {
+			// L'intro réelle passe par playIntro() ; même raison que RITUAL ci-dessus.
+			this.playIntro();
 		}
 	}
 
@@ -240,6 +292,59 @@ export class UiAudio {
 		for (const ev of scoreFor(hackType, variantMs)) {
 			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.ritual);
 		}
+	}
+
+	// --- intro (issue #106) --------------------------------------------------
+
+	// Programmée D'UN COUP sur l'horloge de l'AudioContext, même raison que
+	// playRitual() : la partition ne doit pas dépendre du rAF qui anime
+	// l'écran, que le chargement du cracktro peut faire sauter.
+	//
+	// INTRO_SCORE ET la résolution (BOOT_SIGNATURE, à INTRO_SCORE_MS) passent
+	// toutes les deux par un gain master DÉDIÉ : c'est ce qui permet à
+	// skipIntro() de faire taire l'ensemble d'un coup, sans avoir à traquer
+	// individuellement des nœuds déjà programmés dans le futur.
+	playIntro() {
+		const ctx = ensureContext();
+		if (!ctx) return;
+		const t0 = ctx.currentTime;
+		const master = ctx.createGain();
+		master.gain.value = 1;
+		master.connect(uiIn());
+		this._introMaster = master;
+		// Réarme le skip : une intro toute neuve peut de nouveau être sautée.
+		this._introSkipped = false;
+		for (const ev of INTRO_SCORE) {
+			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.intro, master);
+		}
+		for (const note of BOOT_SIGNATURE) {
+			this._voice(ctx, { voice: 'tone', freq: note.freq, durS: note.durS },
+				t0 + (INTRO_SCORE_MS + note.atMs) / 1000, LEVEL.boot, master);
+		}
+	}
+
+	// Skip : coupe le gain master de l'intro d'un coup — partition et
+	// résolution, déjà sonnantes ou encore programmées dans le futur — puis
+	// rejoue la signature de boot SEULE, immédiatement. C'est la sortie de
+	// l'intro, skip ou pas : un seul motif de conclusion, jamais deux.
+	//
+	// IDEMPOTENT : un skip est un geste qu'on martèle en pratique (clavier ou
+	// clic répété), et src/intro.js retire ses propres écouteurs de façon
+	// SYNCHRONE au premier appel — mais l'invariant « BOOT une seule fois par
+	// chargement » (Bible §35) ne doit pas dépendre uniquement de la discipline
+	// de l'appelant. Un second appel, tant que playIntro() ne l'a pas réarmé,
+	// ne fait plus rien.
+	skipIntro() {
+		if (this._introSkipped) return;
+		this._introSkipped = true;
+		const ctx = context();
+		if (ctx && this._introMaster) {
+			const t = ctx.currentTime;
+			this._introMaster.gain.cancelScheduledValues(t);
+			this._introMaster.gain.setValueAtTime(this._introMaster.gain.value, t);
+			this._introMaster.gain.linearRampToValueAtTime(0.0001, t + INTRO_SKIP_FADE_S);
+		}
+		this.play('BOOT');
 	}
 
 	// --- porteuse -----------------------------------------------------------
@@ -281,6 +386,83 @@ export class UiAudio {
 		const ctx = context();
 		if (!ctx || !this._carrier) return;
 		this._carrier.gain.gain.setTargetAtTime(0, ctx.currentTime, CARRIER_TAU);
+	}
+
+	// --- tension du rituel ---------------------------------------------------
+
+	// Même idiome que _ensureCarrier pour la partie construction : une branche,
+	// des AudioParam qu'on bouge ensuite. Ce qui diffère de la porteuse, c'est
+	// la durée de vie — la porteuse dure tout le vol, la tension ne dure qu'UN
+	// rituel et killRitualTension() la démonte pour de vrai, sans quoi un
+	// rituel abandonné laisserait un riser tourner derrière l'écran suivant.
+	_ensureTension(ctx) {
+		if (this._tension) return this._tension;
+		const src = ctx.createBufferSource();
+		src.buffer = this._noiseBuffer(ctx);
+		src.loop = true;
+		const bp = ctx.createBiquadFilter();
+		bp.type = 'bandpass';
+		bp.frequency.value = RITUAL_TENSION.fMin;
+		bp.Q.value = 4;
+		const g = ctx.createGain();
+		g.gain.value = 0;
+		// La pulsation : un LFO module le gain de la bande filtrée. C'est lui,
+		// plus que le filtre, qui fait « monter la pression » à mesure que son
+		// tempo (bp.frequency ci-dessus module la couleur, lfo.frequency le
+		// rythme) accélère avec k.
+		const pulse = ctx.createGain();
+		pulse.gain.value = 1;
+		const lfo = ctx.createOscillator();
+		lfo.type = 'sine';
+		lfo.frequency.value = RITUAL_TENSION.rateMin;
+		const lfoDepth = ctx.createGain();
+		lfoDepth.gain.value = 0.5;
+		lfo.connect(lfoDepth).connect(pulse.gain);
+		lfo.start();
+		src.connect(bp).connect(pulse).connect(g).connect(uiIn());
+		src.start();
+		this.nodesCreated += 6;
+		this._tension = { src, bp, gain: g, pulse, lfo, lfoDepth, k: 0 };
+		return this._tension;
+	}
+
+	// k = progression 0..1 de la saisie du vecteur. Une flèche juste fait
+	// monter le riser ; un mismatch le fait retomber — audiblement, pas un
+	// mute sec, d'où le lissage plus lent (fallTau) à la descente qu'à la
+	// montée (tau). La branche naît paresseusement au premier appel avec k>0 :
+	// un rituel qui échoue sa toute première flèche ne construit jamais rien.
+	ritualTension(k) {
+		const c = Math.min(Math.max(k, 0), 1);
+		if (!this._tension && c === 0) return;
+		const ctx = context();
+		if (!ctx) return;
+		const tn = this._ensureTension(ctx);
+		const rising = c >= tn.k;
+		const tau = rising ? RITUAL_TENSION.tau : RITUAL_TENSION.fallTau;
+		const t = ctx.currentTime;
+		const p = ritualTensionParams(c);
+		tn.gain.gain.setTargetAtTime(p.gain, t, tau);
+		tn.bp.frequency.setTargetAtTime(p.freq, t, tau);
+		tn.lfo.frequency.setTargetAtTime(p.rate, t, tau);
+		tn.k = c;
+	}
+
+	// Coupe la branche pour de vrai : appelée par startBurst() (l'explosion
+	// prend le relais tout de suite, la tension n'a plus rien à préparer) et
+	// par le teardown du rituel, en garde-fou pour un rituel abandonné en
+	// cours de saisie. Sans effet si rien n'a jamais été construit.
+	killRitualTension() {
+		const tn = this._tension;
+		if (!tn) return;
+		tn.src.stop();
+		tn.lfo.stop();
+		tn.src.disconnect();
+		tn.bp.disconnect();
+		tn.pulse.disconnect();
+		tn.gain.disconnect();
+		tn.lfo.disconnect();
+		tn.lfoDepth.disconnect();
+		this._tension = null;
 	}
 
 	// --- boot ---------------------------------------------------------------

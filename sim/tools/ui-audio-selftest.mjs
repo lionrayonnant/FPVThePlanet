@@ -7,6 +7,8 @@ import {
 	LINK_LOST_AT, LINK_BACK_AT, LINK_MIN_GAP_S,
 	newLinkState, linkEvent,
 	VOICES, PERCUSSIVE, RITUAL_SCORES, scoreFor,
+	RITUAL_TENSION, ritualTensionParams,
+	INTRO_SCORE, INTRO_SCORE_MS,
 } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
 import { fakeAudioContext } from './lib/fake-audio-ctx.mjs';
@@ -16,10 +18,10 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 // --- vocabulaire clos ------------------------------------------------------
 
-t('UI_EVENTS : exactement les sept événements de la spec', () => {
+t('UI_EVENTS : exactement les huit événements de la spec', () => {
 	assert.deepEqual(UI_EVENTS, [
 		'BOOT', 'TERRAIN_READY', 'TARGET_FOUND', 'ERROR',
-		'LINK_LOST', 'LINK_RESTORED', 'RITUAL',
+		'LINK_LOST', 'LINK_RESTORED', 'RITUAL', 'INTRO',
 	]);
 });
 
@@ -151,6 +153,11 @@ t('linkEvent : ne garde aucun état de module — deux runs identiques', () => {
 
 const VARIANT_MS = [1000, 2000, 3000, 4000]; // V1..V4, cf. tools/ritual-model.mjs
 
+t('VOICES : blast (le souffle de l\'explosion) fait partie du vocabulaire', () => {
+	assert.ok(VOICES.includes('blast'), 'blast manquant');
+	assert.ok(!PERCUSSIVE.includes('blast'), 'blast doit s\'étirer avec la variante, pas rester fixe');
+});
+
 t('RITUAL_SCORES : une partition par famille de HACK_TYPES, et rien d\'autre', () => {
 	assert.deepEqual(Object.keys(RITUAL_SCORES).sort(), [...HACK_TYPES].sort());
 });
@@ -185,12 +192,28 @@ t('RITUAL_SCORES : les six sont réellement distinctes', () => {
 	}
 });
 
-t('RITUAL_SCORES : chacune finit par une montée puis l\'impact final (§36)', () => {
+t('RITUAL_SCORES : montée, détonation en couches, puis des shrapnels dispersés (§36)', () => {
 	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
 		const voices = score.map((e) => e.voice);
-		assert.equal(voices[voices.length - 1], 'impact', `${family} : pas d'impact final`);
 		assert.ok(voices.includes('sweep'), `${family} : pas de montée`);
-		assert.ok(voices.lastIndexOf('sweep') < voices.length - 1, `${family} : montée après l'impact`);
+		assert.ok(voices.includes('impact'), `${family} : pas d'impact`);
+		assert.ok(voices.includes('blast'), `${family} : pas de souffle`);
+		const impactIdx = voices.lastIndexOf('impact');
+		const blastIdx = voices.lastIndexOf('blast');
+		const lastSweepIdx = voices.lastIndexOf('sweep');
+		assert.ok(lastSweepIdx < impactIdx, `${family} : la montée doit précéder l'impact`);
+		assert.ok(lastSweepIdx < blastIdx, `${family} : la montée doit précéder le souffle`);
+		// Tout ce qui suit la détonation (impact + blast, simultanés ou non) est
+		// un éclat panoramisé : c'est la partie « ça part dans tous les sens ».
+		const after = score.slice(Math.max(impactIdx, blastIdx) + 1);
+		assert.ok(after.length >= 2, `${family} : pas assez de shrapnels après la détonation`);
+		for (const ev of after) {
+			assert.ok(['click', 'glitch'].includes(ev.voice), `${family} : shrapnel inattendu ${ev.voice}`);
+			assert.equal(typeof ev.pan, 'number', `${family} : shrapnel sans pan`);
+		}
+		const pans = after.map((e) => e.pan);
+		assert.ok(pans.some((p) => p < 0) && pans.some((p) => p > 0),
+			`${family} : les shrapnels ne couvrent pas tout le champ stéréo`);
 	}
 });
 
@@ -212,15 +235,35 @@ t('scoreFor : rien ne dépasse la durée de la variante', () => {
 	}
 });
 
-t('scoreFor : l\'impact final est ancré à la fin, quelle que soit la variante', () => {
+t('scoreFor : l\'impact est ancré près de la fin, les shrapnels ferment la partition', () => {
 	for (const family of HACK_TYPES) {
 		for (const ms of VARIANT_MS) {
 			const score = scoreFor(family, ms);
+			const impactEvents = score.filter((e) => e.voice === 'impact');
+			assert.ok(impactEvents.length > 0, `${family}/${ms} : pas d'impact`);
+			const impactAt = impactEvents[impactEvents.length - 1].atMs;
+			// Dans les 15 derniers pourcents : la détonation tombe avec la fin de
+			// la variante, elle ne flotte pas au milieu.
+			assert.ok(impactAt >= ms * 0.85, `${family}/${ms} : impact à ${impactAt}`);
 			const last = score[score.length - 1];
-			assert.equal(last.voice, 'impact', `${family}/${ms}`);
-			// Dans les 10 derniers pourcents : la culmination tombe avec la fin
-			// de la variante, elle ne flotte pas au milieu.
-			assert.ok(last.atMs >= ms * 0.90, `${family}/${ms} : impact à ${last.atMs}`);
+			assert.ok(last.atMs >= ms * 0.90, `${family}/${ms} : la partition ne finit pas près de la fin`);
+			assert.ok(['click', 'glitch'].includes(last.voice),
+				`${family}/${ms} : ne finit pas par un shrapnel (${last.voice})`);
+		}
+	}
+});
+
+t('scoreFor : transporte le pan des shrapnels', () => {
+	for (const family of HACK_TYPES) {
+		const raw = RITUAL_SCORES[family];
+		assert.ok(raw.some((e) => typeof e.pan === 'number'), `${family} : aucun événement panoramisé`);
+		const rendered = scoreFor(family, 2000);
+		for (let i = 0; i < raw.length; i++) {
+			if (typeof raw[i].pan === 'number') {
+				assert.equal(rendered[i].pan, raw[i].pan, `${family}[${i}] : pan non transporté`);
+			} else {
+				assert.equal(rendered[i].pan, undefined, `${family}[${i}] : pan fantôme`);
+			}
 		}
 	}
 });
@@ -252,6 +295,69 @@ t('scoreFor : les voix percussives gardent leur durée propre, les tenues s\'ét
 
 t('scoreFor : famille inconnue → partition vide plutôt qu\'un plantage', () => {
 	assert.deepEqual(scoreFor('PAS UNE FAMILLE', 2000), []);
+});
+
+// --- tension du rituel -------------------------------------------------------
+
+t('ritualTensionParams : mapping monotone croissant en k', () => {
+	const ks = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+	let prev = ritualTensionParams(0);
+	for (const k of ks.slice(1)) {
+		const cur = ritualTensionParams(k);
+		assert.ok(cur.freq >= prev.freq, `freq non monotone à k=${k}`);
+		assert.ok(cur.rate >= prev.rate, `rate non monotone à k=${k}`);
+		assert.ok(cur.gain >= prev.gain, `gain non monotone à k=${k}`);
+		prev = cur;
+	}
+	assert.equal(ritualTensionParams(0).gain, 0, 'k=0 doit être silencieux');
+	assert.equal(ritualTensionParams(1).freq, RITUAL_TENSION.fMax);
+	assert.equal(ritualTensionParams(1).rate, RITUAL_TENSION.rateMax);
+	assert.equal(ritualTensionParams(1).gain, RITUAL_TENSION.gain);
+});
+
+t('ritualTensionParams : k hors [0,1] est clampé', () => {
+	assert.deepEqual(ritualTensionParams(-1), ritualTensionParams(0));
+	assert.deepEqual(ritualTensionParams(2), ritualTensionParams(1));
+});
+
+t('RITUAL_TENSION : la chute est plus lente que la montée (retombée audible, pas un mute sec)', () => {
+	assert.ok(RITUAL_TENSION.fallTau > RITUAL_TENSION.tau);
+	// 3τ est le temps usuel pour qu'une exponentielle se juge « arrivée » :
+	// on veut une retombée dans les 150-300 ms demandés, pas un mute en un tick.
+	const fallMs = RITUAL_TENSION.fallTau * 3 * 1000;
+	assert.ok(fallMs >= 150 && fallMs <= 300, `retombée hors fenêtre : ${fallMs} ms`);
+});
+
+// --- partition de l'intro ----------------------------------------------------
+
+t('INTRO_SCORE : non vide, voix connues, dans la fenêtre, chronologique', () => {
+	assert.ok(INTRO_SCORE.length > 0);
+	for (let i = 0; i < INTRO_SCORE.length; i++) {
+		const ev = INTRO_SCORE[i];
+		assert.ok(VOICES.includes(ev.voice), `voix inconnue : ${ev.voice}`);
+		assert.ok(ev.atMs >= 0 && ev.atMs <= INTRO_SCORE_MS, `atMs hors fenêtre : ${ev.atMs}`);
+		if (i) assert.ok(ev.atMs >= INTRO_SCORE[i - 1].atMs, 'atMs non croissant');
+	}
+});
+
+t('INTRO_SCORE : se termine avant que BOOT_SIGNATURE ne prenne le relais', () => {
+	const last = INTRO_SCORE[INTRO_SCORE.length - 1];
+	assert.ok(last.atMs + last.durS * 1000 <= INTRO_SCORE_MS,
+		`la partition déborde sur la résolution : ${last.atMs + last.durS * 1000}ms`);
+});
+
+t('INTRO_SCORE : prépare l\'oreille aux hauteurs de BOOT_SIGNATURE avant la coupure', () => {
+	// La dernière montée doit viser une hauteur de BOOT_SIGNATURE : c'est ce qui
+	// fait que la résolution se sent comme une conclusion, pas un cut arbitraire.
+	const sweeps = INTRO_SCORE.filter((e) => e.voice === 'sweep');
+	assert.ok(sweeps.length > 0, 'aucune montée avant la résolution');
+	const bootFreqs = BOOT_SIGNATURE.map((n) => n.freq);
+	assert.ok(sweeps.some((s) => bootFreqs.includes(s.to)),
+		'aucune montée ne vise une hauteur de BOOT_SIGNATURE');
+});
+
+t('INTRO_SCORE : au moins un événement panoramisé (optionnel, mais présent ici)', () => {
+	assert.ok(INTRO_SCORE.some((e) => typeof e.pan === 'number'));
 });
 
 // --- faux AudioContext ------------------------------------------------------
@@ -311,7 +417,7 @@ t('aucun appel play() hors du vocabulaire clos dans src/', () => {
 
 t('aucun play() dynamique dans src/ : le vocabulaire doit rester vérifiable', () => {
 	// uiAudio.play(someVariable) échapperait au test ci-dessus. Interdit : les
-	// sept événements sont écrits en toutes lettres sur le site d'appel.
+	// huit événements sont écrits en toutes lettres sur le site d'appel.
 	const dir = new URL('../src/', import.meta.url);
 	const bad = [];
 	for (const f of readdirSync(dir).filter((x) => x.endsWith('.js'))) {
