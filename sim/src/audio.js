@@ -1,4 +1,5 @@
 import { QUAD, MOTORS } from './quad.js';
+import { ensureContext, engineIn, setVolume as setBusVolume } from './audio-bus.js';
 
 // The audio only needs two numbers off the airframe family: how many blades a
 // prop has (sets the blade-pass pitch) and full-thrust per motor (normalises
@@ -56,17 +57,8 @@ const AUDIO = {
 	airCut: 6000,           // Hz
 	airQ: 0.5,
 
-	// Ceiling. The loudest thing the sim can produce — full throttle, full wind
-	// rush, an impact on top — measures 0.83 at volume 1, so there is only
-	// ~1.6 dB of headroom, and four detuned oscillators drifting against each
-	// other will eventually line up in phase and eat it. Clipping at the
-	// destination is the single most unpleasant thing a synth can do, so a
-	// limiter sits above everything. It does nothing at all below the
-	// threshold, which is where the sim normally lives.
-	limitThreshold: -3,     // dB
-	limitRatio: 20,
-	limitAttack: 0.003,     // s
-	limitRelease: 0.1,      // s
+	// Le limiteur et le plafond vivent dans src/audio-bus.js : ils sont partagés
+	// avec la chaîne d'interface, pour que le mixage soit une chose unique.
 
 	// The brightness control multiplies both corners above. How dark is too
 	// dark is the one thing no measurement here can settle — it depends on the
@@ -170,12 +162,11 @@ export class EngineAudio {
 			if (this.ctx.state === 'suspended') this.ctx.resume();
 			return;
 		}
-		const Ctx = window.AudioContext ?? window.webkitAudioContext;
-		if (!Ctx) return;                       // no Web Audio: stay silent, don't throw
-		const ctx = this.ctx = new Ctx();
+		const ctx = ensureContext();
+		if (!ctx) return;                       // no Web Audio: stay silent, don't throw
+		this.ctx = ctx;
 		this._masterTarget = 0;
 		this._build(ctx);
-		if (ctx.state === 'suspended') ctx.resume();
 	}
 
 	// The whole graph, once. After this nothing is constructed per frame — only
@@ -192,14 +183,8 @@ export class EngineAudio {
 		this.air.frequency.value = AUDIO.airCut;
 		this.air.Q.value = AUDIO.airQ;
 
-		this.limiter = ctx.createDynamicsCompressor();
-		this.limiter.threshold.value = AUDIO.limitThreshold;
-		this.limiter.knee.value = 0;
-		this.limiter.ratio.value = AUDIO.limitRatio;
-		this.limiter.attack.value = AUDIO.limitAttack;
-		this.limiter.release.value = AUDIO.limitRelease;
-
-		this.master.connect(this.air).connect(this.limiter).connect(ctx.destination);
+		// Le limiteur et le volume sont en aval, dans le bus partagé.
+		this.master.connect(this.air).connect(engineIn());
 
 		this.noiseBuffer = makeNoiseBuffer(ctx, 2);
 		this.impactBuffer = makeImpactBuffer(ctx, 0.15);
@@ -367,7 +352,7 @@ export class EngineAudio {
 
 	setVolume(v) {
 		this.volume = Math.min(Math.max(v, 0), 1);
-		this._applyMaster();
+		setBusVolume(this.volume);
 	}
 
 	// Ramped rather than suspended: free camera is toggled often enough that a
@@ -381,17 +366,21 @@ export class EngineAudio {
 	// frame so the master still comes up if the volume was set before start(),
 	// and re-arming the same ramp 60 times a second would just pile up
 	// automation events for nothing.
+	// Ne porte plus que le mute : le volume est global et vit dans le bus, en
+	// aval du limiteur.
 	_applyMaster() {
 		if (!this.ctx || !this.master) return;
-		const target = this.muted ? 0 : this.volume;
+		const target = this.muted ? 0 : 1;
 		if (target === this._masterTarget) return;
 		this._masterTarget = target;
 		this.master.gain.setTargetAtTime(target, this.ctx.currentTime, AUDIO.tauMaster);
 	}
 
+	// Ne ferme PAS le contexte : il ne lui appartient plus, l'interface s'en
+	// sert encore. On se contente de débrancher la chaîne moteur.
 	dispose() {
 		if (!this.ctx) return;
-		this.ctx.close();
+		this.master?.disconnect();
 		this.ctx = null;
 		this._motors = [];
 	}
