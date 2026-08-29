@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -317,7 +317,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -421,6 +421,12 @@ async function boot() {
 					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
+					cloudCover: +cloud.cover.toFixed(3),
+					cloudBase: Math.round(cloud.base),
+					// Négatif tant qu'on est sous le plafond, positif une fois dedans
+					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
+					// qu'un whiteout arrive au bon moment.
+					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
 				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
@@ -565,6 +571,7 @@ const _tilt = new THREE.Quaternion();
 // fog has already settled on.
 let lastDensity = -1;
 let lastSkyHex = -1;
+let lastDim = 1;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
@@ -656,11 +663,13 @@ function frame() {
 			windDir: physics.wind.direction, windSpeed: physics.wind.speed,
 			rainScale: rain.fogScale, fogMix: fog.skyMix,
 		});
-		// Extinctions add, so densities add. This is a strict generalisation of
-		// the rain-only version it replaces: FOG_DENSITY * rain.fogScale is by
-		// definition FOG_DENSITY + the rain's own extinction, so with the fog
-		// slider at zero the picture is the one #24 left behind, to the bit.
-		const density = fog.density + extinctionOf(rain.visibility);
+		// Les extinctions s'additionnent, donc les densités s'additionnent. Le
+		// plafond est le troisième terme, après l'air et la pluie : entrer dans
+		// un nuage EST un voile uniforme, il n'y a pas de gradient à voir depuis
+		// l'intérieur, donc le piloter par l'altitude de la caméra plutôt que
+		// par fragment est juste ici — et gratuit, puisque ce terme est déjà
+		// poussé une fois par frame.
+		const density = fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(altitudeAGL);
 		// La couleur que le dôme peint réellement cette frame : c'est elle que
 		// les tuiles doivent rejoindre, et pas une autre.
 		const sky = skyDome.horizon;
@@ -674,6 +683,12 @@ function frame() {
 			// The streaks are lit by the sky too, and used to keep the clear-sky
 			// colour whatever the weather did.
 			rainfall?.setSky(scene.background);
+		}
+		// Même motif que le fondu : on ne retouche pas chaque matériau de chunk
+		// à chaque frame pour une valeur qui bouge sur des minutes.
+		if (cloud.dim !== lastDim) {
+			lastDim = cloud.dim;
+			setDim(cloud.dim);
 		}
 		// Light the air scatters into the barrel rather than onto the subject.
 		// Zero compiles it out of the lens shader entirely.
