@@ -22,6 +22,7 @@ import { runTargetScan } from './target-scan.js';
 import { generateTargetScan } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
+import { FlightEnd } from './flight-end.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -119,7 +120,15 @@ let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
-let crashed = false;
+const flightEnd = new FlightEnd();
+// Le lien vu par lens.js quand la machine est morte : quality 0 et frozen sont
+// exactement ce que le shader interprète déjà comme « plus rien n'arrive ».
+// Aucun code d'image nouveau, seulement le mode de dégradation le plus profond.
+const DEAD_LINK = { quality: 0, rssiDbm: -100, lossDb: 999, frozen: true };
+let linkForced = false;
+// Le mode choisi par le joueur dans les réglages du lien, mémorisé pour que la
+// séquence de crash puisse forcer une dégradation même s'il a coupé le modèle.
+let lensLinkMode = LINK_OFF;
 // La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
 // l'altitude du spawn, pour la session.
 let flyArea = null;
@@ -286,11 +295,11 @@ async function boot() {
 
 	settings.setLink(loadLink(), (p) => {
 		link.setSeverity(p.severity);
-		lens.setLink({
-			mode: p.severity === 0 ? LINK_OFF
-				: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG,
-			severity: p.severity,
-		});
+		// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
+		// même si le joueur a coupé la modélisation du lien.
+		lensLinkMode = p.severity === 0 ? LINK_OFF
+			: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
+		lens.setLink({ mode: lensLinkMode, severity: p.severity });
 	});
 
 	settings.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
@@ -332,7 +341,7 @@ async function boot() {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 			physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-			crashed = false;
+			flightEnd.reset();
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -423,7 +432,7 @@ async function boot() {
 					frozen: lens.frozen,
 					rayMs: +linkState.rayMs.toFixed(3),
 				},
-				crashed,
+				flightEnd: flightEnd.out.phase,
 			};
 		},
 	};
@@ -440,14 +449,18 @@ function nextPaint() {
 }
 
 input.onAction = (key, event) => {
-	if (key === 'r') respawn();
-	else if (key === 'disarm') doDisarm();
+	// Pas de respawn : on ne fait pas réapparaître un drone qu'on a perdu.
+	// terrain persistent, flights ephemeral.
+	if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
 	else if (key === 'p') controller?.cyclePreset();
 	else if (key === 'm') controller?.cycleMode();
 	else if (key === 'c') toggleFreeCam();
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
+	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place, et rien
+	// d'autre n'est proposé.
+	else if (key === 'escape' && flightEnd.out.exitArmed) location.href = location.pathname;
 };
 
 renderer.domElement.addEventListener('click', () => {
@@ -457,54 +470,16 @@ renderer.domElement.addEventListener('click', () => {
 	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
-// Désarmement Betaflight (PHASE 06). Au sol et à l'arrêt → pose propre → LANDED,
-// le drone est conservé, la session ré-ouvrable. En l'air → la chute suit son
-// cours et c'est l'impact qui fermera la session en CRASHED.
+// Désarmement Betaflight. Le geste reste celui du joueur ; c'est la machine de
+// fin de vol qui sait si le drone était posé. Désarmer en l'air est permis : la
+// chute suit son cours, et c'est l'impact qui conclut.
 function doDisarm() {
 	if (!physics || !controller.armed) return;
 	controller.disarm();
-	const p = physics.position;
-	const g = physics.groundBelow(p.x, p.y, p.z);
-	const v = physics.velocity;
-	// Au sol = à portée de contact du sol, pas « parfaitement immobile » : une
-	// pose sur une sphère de collision est toujours un peu vivante. On rejette
-	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
-	const height = g === null ? Infinity : p.y - g;
-	// Large : une pose par grand vent sur une sphère de collision n'est jamais
-	// parfaitement calme. On ne rejette qu'un désarmement franchement en l'air.
-	const onGround = height < 2 && Math.hypot(v.x, v.y, v.z) < 8;
-	console.log(`[session] désarmement — sol:${onGround} (h=${height === Infinity ? '?' : height.toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
-	if (onGround) {
-		// Le drone est posé : on le fige, il ne roule pas et ne dérive pas.
-		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-		hud.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
-		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
-	} else {
-		// Désarmé en l'air : moteurs coupés, la chute suivra son cours et
-		// l'impact fermera la session en CRASHED.
-		hud.setSessionStatus('DISARMED<small>en chute libre</small>', 'lost');
-	}
-}
-
-function respawn() {
-	if (!physics) return;
-	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
-	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
-	// on garde le respawn local pour ne pas casser le flow de debug.
-	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
-	hud.setSessionStatus(null);
-	controller.arm();
-	physics.reset();
-	link.reset();
-	// Neither model was being reset here, and both say in their own comments
-	// that they should be: a respawn should not drop you back into the squall
-	// or the bank that just blinded you.
-	rain.reset();
-	fog.reset();
-	controller.setMode(controller.mode);   // also clears the PID integrators
-	input.resetKeyboardThrottle();
-	crashed = false;
+	if (!flightEnd.disarm()) return;
+	// Posé : on le fige, il ne roule pas et ne dérive pas.
+	physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+	physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 }
 
 function toggleFreeCam() {
@@ -590,6 +565,7 @@ function frame() {
 	const frozen = simFrozen();
 	audio.setMuted(frozen);
 
+	let crashedThisFrame = false;
 	let peakImpact = 0;
 	if (!frozen) {
 		// Touchdown : en airmode un quad ne se pose pas tout seul — les moteurs
@@ -611,25 +587,49 @@ function frame() {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
 			if (touchdown) motors.fill(0);
 			const impact = physics.step(motors, FIXED_STEP);
-			// Un drone qui arrive à plat encaisse : les bras fléchissent, les
-			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
-			// de crash suit donc l'assiette au moment du choc.
-			if (impact > 0 && !crashed) {
+			if (impact > 0 && !flightEnd.out.linkDead) {
 				const r = physics.rotation;
 				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
-				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
-					crashed = true;
-					// Le drone est détruit. La session se ferme sur CRASHED — le
-					// terrain, lui, reste. terrain persistent, flights ephemeral.
-					hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
-					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
-				}
+				// Un drone qui arrive à plat encaisse : les bras fléchissent, les
+				// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
+				// de crash suit donc l'assiette au moment du choc.
+				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) crashedThisFrame = true;
 			}
 			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;
 			steps++;
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+
+		// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt,
+		// quand la session se ferme. main.js ne fait que l'alimenter et obéir.
+		const fp = physics.position;
+		const fg = physics.groundBelow(fp.x, fp.y, fp.z);
+		const fv = physics.velocity, fw = physics.angularVelocity;
+		flightEnd.update({
+			dt,
+			armed: controller.armed,
+			height: fg === null ? Infinity : fp.y - fg,
+			speed: Math.hypot(fv.x, fv.y, fv.z),
+			angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
+			throttle: sticks.throttle,
+			crashed: crashedThisFrame,
+		});
+		if (crashedThisFrame) {
+			// Le drone est détruit : les moteurs se taisent, donc le son aussi —
+			// audio.js suit le régime moteur, il n'y a rien à couper à la main.
+			controller.disarm();
+			// Si le joueur avait coupé la modélisation du lien, il ne verrait
+			// aucune dégradation. La mort de l'image ne se négocie pas.
+			if (!linkForced) {
+				linkForced = true;
+				lens.setLink({ mode: lensLinkMode === LINK_OFF ? LINK_ANALOG : lensLinkMode, severity: 1 });
+			}
+		}
+		const closes = flightEnd.out.closes;
+		if (closes) {
+			session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
+		}
 
 		const p = physics.position;
 		const r = physics.rotation;
@@ -709,7 +709,8 @@ function frame() {
 	// Free camera is not looking down the drone's video feed, so it gets a clean
 	// picture — same reasoning as muting the motors there. The model keeps
 	// running, so coming back does not start from a stale RSSI.
-	lens.render(camera, dt, freeCamOn ? null : link.out);
+	const linkOut = flightEnd.out.linkDead ? DEAD_LINK : link.out;
+	lens.render(camera, dt, freeCamOn ? null : linkOut);
 
 	const v = physics.velocity;
 	const ground = physics.groundBelow(p.x, p.y, p.z);
@@ -741,9 +742,9 @@ function frame() {
 		link: link.out,
 		wind: physics.wind.out,
 		heading: yawOf(physics.rotation),
-		crashed,
 		usingGamepad: input.usingGamepad,
 	});
+	hud.setFlightEnd(flightEnd.out);
 	settings.updateAxisBars();
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
