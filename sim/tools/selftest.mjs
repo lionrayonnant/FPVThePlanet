@@ -1213,6 +1213,17 @@ console.log('\nentry state — sampleCandidate');
 	const buried = { ...onFloor, position: { ...onFloor.position, y: onFloor.position.y - 1e3 } };
 	check('geometrySafe rejects a position far under the terrain', geometrySafe(buried, phys) === false);
 	check('geometrySafe accepts a normally-sampled COMFORTABLE candidate', geometrySafe(onFloor, phys) === true);
+
+	// A candidate with high altitude and forward velocity away from all geometry
+	// demonstrates geometrySafe accepting a genuinely safe condition.
+	const highSafe = {
+		category: 'COMFORTABLE',
+		position: { x: manifest.bbox.min[0] + 200, y: groundNearTower + 200, z: manifest.bbox.min[2] + 200 },
+		quaternion: { x: 0, y: 0, z: 0, w: 1 },
+		linvel: { x: 10, y: 0, z: 0 },
+		angvel: { x: 0, y: 0, z: 0 },
+	};
+	check('geometrySafe accepts a high-altitude candidate away from structures', geometrySafe(highSafe, phys) === true);
 	phys.reset();
 }
 
