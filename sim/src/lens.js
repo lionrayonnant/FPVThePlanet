@@ -130,6 +130,7 @@ const LensShader = {
 		uSeverity: { value: 1 },
 		uTime: { value: 0 },
 		uResolution: { value: new THREE.Vector2(1, 1) },
+		uFrame: { value: new THREE.Vector2(1, 1) },
 		// x, y in the same square space as `base`; z the footprint radius there;
 		// w the flat core as a fraction of that radius.
 		uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
@@ -151,6 +152,7 @@ const LensShader = {
 		uniform float uTanHalf;
 		uniform mat3 uReproj;
 		uniform float uK1, uK2, uCA, uSoft, uVignette;
+		uniform vec2 uFrame;
 		uniform float uLink;
 		uniform float uSeverity;
 		uniform float uTime;
@@ -206,7 +208,16 @@ const LensShader = {
 		#define CHROMA_W 0.008
 
 		void main() {
-			vec2 ndc = vUv * 2.0 - 1.0;
+			// Le capteur de la cible n'a pas forcément le format de l'écran. Une
+			// caméra 4:3 sur un moniteur 16:9 laisse deux bandes noires sur les
+			// côtés : c'est laid, c'est vrai, et c'est le signal le plus immédiat
+			// de « cette caméra est une bouse ». Encadré et non recadré — recadrer
+			// rendrait le champ, et le champ est justement ce que la cible impose.
+			vec2 ndc = (vUv * 2.0 - 1.0) / uFrame;
+			if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) {
+				gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+				return;
+			}
 			// Square-pixel space, so the lens is radially symmetric on the sensor
 			// rather than on a stretched viewport.
 			vec2 q = vec2(ndc.x * uAspect, ndc.y);
@@ -735,13 +746,47 @@ export class FpvLens {
 		this.pass.material.needsUpdate = true;
 	}
 
+	// La fiche caméra de la cible : son format et sa définition interne. Le
+	// rendu se fait vraiment plus bas et remonte — une mauvaise caméra est
+	// réellement moins définie, et coûte réellement moins cher à rendre,
+	// exactement comme la vraie.
+	setCamera({ aspect = 16 / 9, resScale = 1 } = {}) {
+		this._camAspect = aspect;
+		this._resScale = resScale;
+		this._applySize();
+	}
+
 	setSize(width, height) {
+		this._viewW = width;
+		this._viewH = height;
+		this._applySize();
+	}
+
+	_applySize() {
+		const width = this._viewW ?? 1;
+		const height = this._viewH ?? 1;
+		const aspect = this._camAspect ?? 16 / 9;
+		const resScale = this._resScale ?? 1;
 		const ratio = this.renderer.getPixelRatio();
+
+		// Le capteur tient dans la fenêtre sans la déborder : la dimension
+		// contrainte fixe l'autre. uFrame est ce rectangle en uv d'écran, et
+		// c'est lui qui produit les bandes.
+		const viewAspect = width / height;
+		const fitW = viewAspect > aspect ? aspect / viewAspect : 1;
+		const fitH = viewAspect > aspect ? 1 : viewAspect / aspect;
+		this._u.uFrame.value.set(fitW, fitH);
+
+		// Taille réelle des cibles du composer : le capteur, à sa définition.
+		const sensorH = Math.max(1, Math.round(height * fitH * resScale));
+		const sensorW = Math.max(1, Math.round(sensorH * aspect));
 		this.composer.setPixelRatio(ratio);
-		this.composer.setSize(width, height);
+		this.composer.setSize(sensorW, sensorH);
 		// gl_FragCoord counts device pixels, so this has to as well — otherwise the
-		// macroblock grid is the wrong size on a HiDPI display.
-		this._u.uResolution.value.set(width * ratio, height * ratio);
+		// macroblock grid is the wrong size on a HiDPI display. C'est la
+		// définition du CAPTEUR : un macrobloc appartient à la vidéo, pas au
+		// moniteur, donc il grossit à l'écran quand la caméra est mauvaise.
+		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
 	}
 
 	// Renders the frame, effect or not. dt is the real frame time: the smear has
@@ -757,7 +802,9 @@ export class FpvLens {
 			return;
 		}
 
-		this._u.uAspect.value = camera.aspect;
+		// Le format du capteur, pas celui de la fenêtre : c'est le capteur qui
+		// doit être radialement symétrique sous le barillet, pas le moniteur.
+		this._u.uAspect.value = this._camAspect ?? camera.aspect;
 		this._u.uTanHalf.value = Math.tan(camera.fov * Math.PI / 360);
 		// Wrapped, because a float32 uniform that has been counting seconds all
 		// afternoon has no precision left for a 60 Hz flicker.
