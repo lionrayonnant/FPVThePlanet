@@ -116,6 +116,24 @@ export async function patchSessionComment(sid, comment) {
 	return (await req('PATCH', `/${cache.id}/sessions/${sid}/comment`, { comment })).session;
 }
 
+// La session COMPLÈTE, captures comprises (PHASE 17). Les autres réponses
+// élident les `dataUrl` : seul VIEW SESSION paie le poids des images, et
+// seulement à son ouverture.
+export async function getSession(sid) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('GET', `/${cache.id}/sessions/${sid}`)).session;
+}
+
+// DELETE SESSION (PHASE 17). Le cache local est mis à jour tout de suite : la
+// Home se reconstruit derrière l'écran de détail, et son footer doit compter
+// juste sans refaire un GET complet.
+export async function deleteSession(sid) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	const { removed } = await req('DELETE', `/${cache.id}/sessions/${sid}`);
+	cache.sessions = (cache.sessions ?? []).filter((s) => s.id !== sid);
+	return removed;
+}
+
 // Une capture (PHASE 16). Écriture immédiate, pas attendue la clôture de
 // session : un onglet mort en vol ne doit pas perdre les photos déjà prises.
 export async function postPhoto(sid, body) {

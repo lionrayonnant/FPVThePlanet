@@ -200,7 +200,14 @@ AREA     ${area ?? 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
-			await stub(root, 'VIEW SESSION', 'Session detail screen lands in PHASE 17.');
+			s.el.style.display = 'none';
+			const { runSessionDetail } = await import('./session-log.js');
+			const r = await runSessionDetail(root, ls.id, { scenes: null });
+			// REVISIT et DELETE ferment LAST SESSION : dans les deux cas l'écran
+			// qu'on avait sous les yeux ne décrit plus l'état courant.
+			if (r?.revisit) { s.remove(); resolve(r.revisit); return; }
+			if (r?.deleted) { s.remove(); resolve(); return; }
+			s.el.style.display = '';
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
 		// terrain persistent, flights ephemeral : seule une session LANDED garde
