@@ -140,7 +140,7 @@ const GOOD_TARGET = {
 	hackType: HACK_TYPES[0],
 	signal: { rssiDbm: -59, mode: 'ANALOG' },
 	scannedAt: new Date().toISOString(),
-	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'EST.', control: 'UNKNOWN', flightState: 'UNKNOWN' },
+	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'KNOWN', control: 'UNKNOWN', flightState: 'UNKNOWN' },
 };
 
 t('openSession : porte une cible validée, conservée au resume, null si absente', () => {

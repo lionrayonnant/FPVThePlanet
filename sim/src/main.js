@@ -28,10 +28,11 @@ import { generateTargetScan } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
+import { targetBuild } from '../tools/target-build.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
-import { FlightEnd, LANDING } from './flight-end.js';
+import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -642,7 +643,11 @@ renderer.domElement.addEventListener('click', () => {
 	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
 	// only other user gesture we get. start() is idempotent.
 	audio.start();
-	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
+	// Une fois le vol fini, on ne reprend plus le curseur : le reverrouiller
+	// reconfisquerait Échap au navigateur (voir la sortie du pointer lock à la
+	// fermeture de session), et il n'y a plus rien à piloter.
+	const flying = flightEnd.phase === FLYING || flightEnd.phase === LANDING_READY;
+	if (flying && !freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
 // PHASE 16 : lit le canvas du composer tel qu'il vient d'être peint —
@@ -908,6 +913,14 @@ function frame() {
 	const closes = flightEnd.out.closes;
 	if (closes) {
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
+		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
+		// qui rend [ESC] DISCONNECT possible — en pointer lock (a fortiori en
+		// plein écran), le navigateur confisque Échap pour déverrouiller le
+		// curseur et ne délivre aucun keydown à la page. La seule sortie que
+		// l'écran de fin propose serait alors la seule touche qui n'arrive
+		// jamais. Le drone ne répond plus de toute façon : il n'y a plus rien à
+		// piloter à la souris.
+		document.exitPointerLock?.();
 	}
 
 	// The weather on the camera. Advanced on the frame clock rather than the
@@ -1202,6 +1215,18 @@ if (!frozen) {
 // Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
 // on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
 // Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
+// Une ligne de console par exemplaire. C'est du debug, pas de l'UI : le joueur
+// n'apprend la masse et le pack de sa cible qu'en vol (PHASE 08 : la fiche
+// pré-hack les donne UNKNOWN).
+function logBuild(build) {
+	const { spec, profile } = build;
+	console.log(
+		`[target] family ${profile.family} — ${profile.label} · ${spec.massG} g · `
+		+ `${spec.capacityMah} mAh ${spec.cells}S · TWR ${spec.twr.toFixed(1)} · `
+		+ `rates ${spec.rateMaxDeg} deg/s`,
+	);
+}
+
 function signalCountFor(slug) {
 	const t = operator.getOperator()?.terrainCache?.find((e) => e.slug === slug);
 	const lvl = t?.signalDensity?.level;
@@ -1239,13 +1264,22 @@ async function chooseScene() {
 		// cible (le serveur la relit du disque). On récupère juste la famille pour
 		// le PROFILE de vol.
 		const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
-		return { slug, resume, target: undefined, family: prev?.target?.family ?? OPTS.family ?? undefined };
+		return {
+			slug, resume, target: undefined,
+			family: prev?.target?.family ?? OPTS.family ?? undefined,
+			// L'exemplaire aussi est rejoué : reprendre une session, c'est
+			// reprendre CE drone, pas un autre de la même famille.
+			buildSeed: prev?.target?.buildSeed ?? undefined,
+		};
 	}
 
 	// Override dev ?family= : court-circuite le TARGET SCAN.
 	if (OPTS.family) {
 		const previewHack = normalizeHackType(OPTS.hack);
 		if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
+		// Pas de buildSeed : l'override dev vole le profil NOMINAL de la famille.
+		// C'est ce qui garde ?family=freestyle5 identique au banc et à la
+		// référence de tools/tune-pid.mjs.
 		return { slug, resume: undefined, target: undefined, family: OPTS.family };
 	}
 
@@ -1273,9 +1307,13 @@ async function chooseScene() {
 	audio.start();
 	flyArea = slug;
 	flyTarget = choice;
-	PROFILE = PROFILES[cand._family];
-	controller = new FlightController({ profile: PROFILE });
-	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
+	// L'exemplaire (PHASE 07). La graine est celle que le serveur reconstruira
+	// dans resolveTarget() — le drone que tu voles est celui que le monde a tiré,
+	// pas un que le client s'est inventé.
+	const build = targetBuild({ seed: `${seed}::${choice.index}`, family: cand._family });
+	PROFILE = build.profile;
+	controller = new FlightController({ profile: PROFILE, rates: build.rates });
+	logBuild(build);
 	const booting = finishBoot(preloading);
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
 	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
@@ -1303,14 +1341,20 @@ chooseScene()
 		// lancés dans chooseScene() et le hack a couvert le chargement.
 		if (choice.prepared) return;
 		hud.show();
-		const { slug, resume, target, family } = choice;
+		const { slug, resume, target, family, buildSeed } = choice;
 		flyArea = slug;
 		resumeId = resume || null;
 		flyTarget = target || null;
 		// Garde l'override ?family= si le scan/resume n'a pas donné de famille.
-		PROFILE = family ? PROFILES[family] : PROFILE;
-		controller = new FlightController(PROFILE ? { profile: PROFILE } : undefined);
-		if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
+		// Avec un buildSeed (resume) on rejoue l'exemplaire ; sans (override dev),
+		// c'est le profil nominal de la famille.
+		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
+		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
+		controller = new FlightController(
+			PROFILE ? { profile: PROFILE, rates: build?.rates } : undefined,
+		);
+		if (build) logBuild(build);
+		else if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label} (nominal)`);
 		setScene(slug);
 		return boot();
 	})
@@ -1344,6 +1388,12 @@ async function openFlightSession() {
 		tgt = session.current()?.target;
 		if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
 			console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
+		}
+		// Le serveur régénère le scan et donc le buildSeed. S'ils divergent, le
+		// drone volé n'est pas celui enregistré : ça ne casse pas le vol, mais le
+		// post-flight mentirait, donc on le dit.
+		if (tgt?.buildSeed && flyTarget && tgt.buildSeed !== `${flyTarget.seed}::${flyTarget.index}`) {
+			console.warn(`[target] buildSeed serveur ${tgt.buildSeed} ≠ client ${flyTarget.seed}::${flyTarget.index}`);
 		}
 		if (tgt?.signal) {
 			link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
