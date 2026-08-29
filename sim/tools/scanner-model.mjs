@@ -2,9 +2,15 @@
 // dépendance Node : importable par src/scanner.js (navigateur) et par le
 // selftest. Tout le texte rendu ici part à l'écran, donc en anglais (D5).
 
-import { latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters } from './lib/tiles.mjs';
+import {
+	latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters,
+	polygonGrid, maskOutline, polygonBounds, polygonArea, polygonProbePoint,
+} from './lib/tiles.mjs';
 
-export { latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters };
+export {
+	latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters,
+	polygonGrid, maskOutline, polygonBounds, polygonArea, polygonProbePoint,
+};
 
 // ---------------------------------------------------------------- formats
 
@@ -49,7 +55,12 @@ export function areaAnalysis(d) {
 	if (!d) return null;
 	const { grid, estimate: e, dimensions, tileMeters } = d;
 	return {
-		tiles: `${grid.cols} × ${grid.rows}`,
+		// Sur un tracé libre, « cols × rows » serait l'emprise, pas ce qu'on
+		// balaie : on annoncerait 1 350 tuiles là où on n'en demande que 732, et
+		// l'économie — toute la raison d'être du polygone — resterait invisible.
+		tiles: grid.masked
+			? `${num(grid.columns)} / ${num(grid.cols * grid.rows)}`
+			: `${grid.cols} × ${grid.rows}`,
 		columns: num(grid.columns),
 		requests: num(e.probes),
 		surface: `${(dimensions.area / 1e6).toFixed(2)} km²`,

@@ -50,7 +50,8 @@ npm run dev        # puis http://localhost:5173 → [ GLOBAL SCANNER ]
 
 Le scanner est le point d'entrée mondial du jeu (PHASE 03) : on cherche un lieu
 (`SEARCH LOCATION`, ou des coordonnées « lat, lon »), on cadre, on dessine la zone
-au rectangle, et `AREA ANALYSIS` affiche avant de lancer la grille de tuiles, le
+— `DRAW BOX` pour un rectangle, `DRAW SHAPE` pour un tracé libre — et
+`AREA ANALYSIS` affiche avant de lancer la grille de tuiles, le
 nombre de requêtes, la surface, le poids estimé et la durée. `PROBE AREA`
 interroge la région Flyover puis télécharge un échantillon au centre — c'est la
 seule preuve fiable qu'il y a de la photogrammétrie ici. `ACQUIRE AREA` lance le
@@ -59,8 +60,38 @@ vrai pipeline avec les logs en direct, et propose `[ FLY ]` à la fin.
 Le fond est monochrome par défaut (`MONO`, OpenStreetMap inversé et désaturé) ;
 `SAT` et `TERRAIN` sont là quand reconnaître un bâtiment ou un relief aide à
 cadrer. `SIGNAL DENSITY` / `TARGETS EST.` sont des estimations d'activité radio
-(Bible §6) : elles partent de la catégorie OSM du centre de la zone et de sa
+(Bible §6) : elles partent de la catégorie OSM d'un point de la zone et de sa
 surface, sans rien tirer au sort — la génération de cibles, elle, est PHASE 7.
+
+#### Le tracé libre
+
+Un fleuve, une avenue, un contour de quartier ne sont pas des rectangles : les
+suivre au rectangle oblige à embarquer les blocs voisins. `DRAW SHAPE` (issue #30)
+délimite la zone au polygone.
+
+**Une tuile est retenue dès que le tracé la touche, même d'un coin.** La zone
+extraite est donc toujours un *sur-ensemble* de ce qui est dessiné — même règle
+que le rectangle, déjà arrondi vers l'extérieur sur le treillis. Deux
+conséquences voulues : ce qu'on dessine est toujours entièrement couvert, et un
+corridor plus fin qu'une tuile (~25 m au zoom 20) reste extractible, là où une
+règle « centre dans le tracé » lui rendrait zéro colonne.
+
+La carte ne montre alors plus un rectangle bleu mais **l'escalier** des tuiles
+retenues : la forme réellement extraite, par opposition au tracé lissé qui reste
+en pointillé. Contrairement au treillis, il est dessiné à toute échelle.
+
+`TILES` annonce le nombre de colonnes réellement balayées sur celui de l'emprise
+(« 8,069 / 15,812 ») : sur un tracé, le produit `cols × rows` serait l'emprise et
+laisserait croire à deux fois plus de téléchargement qu'il n'y en a.
+
+Le prédicat « cette tuile touche-t-elle le tracé ? » existe en deux exemplaires —
+`pkg/mth/poly.go` pour l'extraction, `tools/lib/tiles.mjs` pour l'affichage. Ils
+nomment tous deux le dossier de cache, donc une divergence coûterait un
+re-téléchargement silencieux de plusieurs gigaoctets :
+`flyover-reverse-engineering/testdata/poly-cases.json` est lu des deux côtés
+(`go test ./pkg/mth/` et `node tools/map-poly-selftest.mjs`) pour qu'elle se voie
+au test. La fixture se régénère avec `node tools/gen-poly-fixture.mjs` — mais
+jamais pour faire taire un test rouge : si les deux ports divergent, l'un a un bug.
 
 ### L'ancienne GUI d'extraction
 
@@ -72,7 +103,8 @@ Deux choses valent d'être comprises :
 
 - **La zone est quantifiée.** Flyover est servi en tuiles d'environ 25 m de côté au
   zoom 20 ; la zone réellement extraite est celle dessinée arrondie au treillis. La
-  carte affiche ce treillis, et le rectangle dessiné reste en pointillé à côté.
+  carte affiche ce treillis, et le tracé dessiné reste en pointillé à côté. Sur un
+  polygone, l'emprise cède la place à l'escalier des tuiles retenues.
   Ce treillis n'est pas un décor : il vient de `tileGrid()` (`tools/lib/tiles.mjs`),
   portage du calcul de colonnes du Go — c'est exactement la grille que l'exporteur
   balaiera. Après `PROBE AREA`, la part de la zone que la région Flyover déclare ne
@@ -201,6 +233,8 @@ prendre plusieurs minutes selon la taille de la zone).
 npm run add-map -- "Nom" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20]
                                       [--cell 256] [--quality 85]
                                       [--slug identifiant] [--force]
+                                      [--bbox s,w,n,e]
+                                      [--poly "lat,lon lat,lon ..."]
 ```
 
 | Option | Défaut | Effet |
@@ -211,6 +245,8 @@ npm run add-map -- "Nom" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20]
 | `--cell` | 256 | Taille en pixels de chaque cellule de texture. Coûte cher : chaque doublement **quadruple** la VRAM. `128` = qualité réduite mais VRAM divisée par 4 (utile sur machine modeste). |
 | `--quality` | 85 | Qualité JPEG des planches de texture générées. |
 | `--slug` | dérivé du nom | Identifiant de dossier (`public/scenes/<slug>/`). Auto-généré depuis le nom (accents et espaces retirés) si omis. |
+| `--bbox` | — | Extrait un rectangle lat/lon explicite au lieu du carré centré. `--radius` est alors ignoré ; `lat`/`lon` servent toujours à choisir la région Flyover. |
+| `--poly` | — | Extrait un polygone libre : seules les tuiles que le tracé touche sont balayées. Au moins 3 sommets, l'anneau se referme tout seul, les paires se séparent par un espace ou une virgule. Exclusif avec `--bbox`. |
 | `--force` | off | Retélécharge même si la tuile existe déjà en local. Sans cette option, un second `add-map` sur les mêmes coordonnées/zoom/radius/altitude saute le téléchargement et ne fait que reconvertir. |
 
 ### Dimensionner `--radius`
