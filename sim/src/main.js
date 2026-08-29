@@ -5,10 +5,11 @@ import { initPhysics, Physics } from './physics.js';
 import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
-import { Hud, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain, loadFog } from './hud.js';
+import { Hud } from './hud.js';
+import { Settings, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain, loadFog } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, home } from './home.js';
+import { operatorSelect, runTerminal } from './terminal.js';
 import { EngineAudio } from './audio.js';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -64,7 +65,8 @@ renderer.toneMapping = THREE.NoToneMapping;
 document.body.appendChild(renderer.domElement);
 
 const input = new Input();
-const hud = new Hud(document.getElementById('ui'), input);
+const hud = new Hud(document.getElementById('ui'));
+const settings = new Settings(document.getElementById('ui'), input);
 const controller = new FlightController();
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
@@ -217,22 +219,22 @@ async function boot() {
 	freeCam.enabled = false;
 	freeCam.target.set(0, 0, 0);
 
-	hud.setWeather(loadWeather(), (w) => physics.setWeather(w));
-	hud.setRain(loadRain(), (r) => rain.setParams(r));
-	hud.setFog(loadFog(), (f) => fog.setParams(f));
+	settings.setWeather(loadWeather(), (w) => physics.setWeather(w));
+	settings.setRain(loadRain(), (r) => rain.setParams(r));
+	settings.setFog(loadFog(), (f) => fog.setParams(f));
 
-	hud.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
+	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
 		audio.setVolume(volume);
 		audio.setBrightness(brightness);
 	});
 
-	hud.setLens(loadLens(), (p) => {
+	settings.setLens(loadLens(), (p) => {
 		lens.setEnabled(p.on);
 		lens.setParams(p);
 		lensShutter = p.shutter;
 	});
 
-	hud.setLink(loadLink(), (p) => {
+	settings.setLink(loadLink(), (p) => {
 		link.setSeverity(p.severity);
 		lens.setLink({
 			mode: p.severity === 0 ? LINK_OFF
@@ -241,7 +243,7 @@ async function boot() {
 		});
 	});
 
-	hud.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
+	settings.setCamera(cameraFov, cameraTilt, (fov, tilt) => {
 		cameraFov = fov; cameraTilt = tilt;
 		camera.fov = fov;
 		camera.updateProjectionMatrix();
@@ -376,15 +378,15 @@ input.onAction = (key, event) => {
 	else if (key === 'p') controller.cyclePreset();
 	else if (key === 'm') controller.cycleMode();
 	else if (key === 'c') toggleFreeCam();
-	else if (key === 'tab') { event.preventDefault(); hud.toggleSettings(); }
-	else if (key === 'escape' && hud.settingsOpen) hud.toggleSettings(false);
+	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
+	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
 };
 
 renderer.domElement.addEventListener('click', () => {
 	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
 	// only other user gesture we get. start() is idempotent.
 	audio.start();
-	if (!freeCamOn && !hud.settingsOpen) renderer.domElement.requestPointerLock();
+	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
 function respawn() {
@@ -431,7 +433,7 @@ function yawOf(q) {
 	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
 }
 
-function simFrozen() { return freeCamOn || paused || hud.settingsOpen; }
+function simFrozen() { return freeCamOn || paused || settings.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -597,6 +599,7 @@ function frame() {
 		crashed,
 		usingGamepad: input.usingGamepad,
 	});
+	settings.updateAxisBars();
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
 	// wasted work, and setTargetAtTime interpolates between frames anyway.
@@ -623,25 +626,22 @@ async function chooseScene() {
 
 	if (OPTS.scene) {
 		await operator.ensureDevOperator();
-	} else {
-		const { needsBootstrap, choices } = await operator.loadOperator();
-		if (needsBootstrap) {
-			await bootstrap(ui);
-		} else if (choices) {
-			const pick = await operatorSelect(ui, choices);
-			if (pick.create) await bootstrap(ui);
-			else await operator.selectOperator(pick.id);
-		}
-		await home(ui);            // résout au clic [ FLY ]
-	}
-
-	const scenes = await loadSceneList();
-	if (scenes.length === 0) throw new Error('aucune carte : lance "npm run add-map" d’abord');
-	if (OPTS.scene) {
+		const scenes = await loadSceneList();
 		if (!scenes.some((s) => s.slug === OPTS.scene)) throw new Error(`carte inconnue: "${OPTS.scene}"`);
 		return OPTS.scene;
 	}
-	return new Promise((resolve) => hud.showMenu(scenes, resolve));
+
+	const { needsBootstrap, choices } = await operator.loadOperator();
+	if (needsBootstrap) {
+		await bootstrap(ui);
+	} else if (choices) {
+		const pick = await operatorSelect(ui, choices);
+		if (pick.create) await bootstrap(ui);
+		else await operator.selectOperator(pick.id);
+	}
+
+	// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
+	return runTerminal(ui, { settings });
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -657,6 +657,7 @@ chooseScene()
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
+		hud.show();
 		setScene(slug);
 		return boot();
 	})

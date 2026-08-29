@@ -34,7 +34,8 @@ pas** ; c'était ce bug.
 ```bash
 cd sim
 npm install          # si node_modules absent
-npm run dev           # http://localhost:5173 — menu de sélection de carte
+npm run dev           # http://localhost:5173 — terminal opérateur (PHASE 02), puis vol
+                      #   ?scene=<slug> saute le terminal (dev)
 npm run selftest      # 15 vérifications sans navigateur (scène tour-eiffel par défaut)
 ```
 

@@ -2,13 +2,13 @@
 
 Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques Apple
 Flyover. Plusieurs cartes peuvent être téléchargées et se choisissent au
-lancement dans un menu.
+lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
 
 ```bash
 npm install
-npm run dev       # http://localhost:5173 — choisis une carte dans le menu
+npm run dev       # http://localhost:5173 — terminal opérateur, puis vol
 npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
-npm run selftest:operator  # schéma d'état opérateur + recall client local-first
+npm run selftest:operator  # état opérateur (schéma, recall client) + modèle du terminal
 ```
 
 ## Sommaire
@@ -19,7 +19,7 @@ npm run selftest:operator  # schéma d'état opérateur + recall client local-fi
 - Ajouter une carte — par l'interface · en ligne de commande · prérequis ·
   options · dimensionner `--radius` · retoucher une carte
 - Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
-- Le menu
+- Le terminal opérateur
 - Cartes disponibles
 - Exporter une scène en `.glb`
 - Architecture
@@ -223,10 +223,14 @@ node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/<dossier
 
 (`npm run add-map` fait exactement ça en interne, avec le téléchargement en plus.)
 
-## Le menu
+## Le terminal opérateur
 
-`npm run dev` affiche un écran de sélection listant tout ce qu'il y a dans
-`public/scenes.json`. Pour sauter le menu (lien direct, dev rapide) :
+`npm run dev` ouvre l'Operator Terminal (PHASE 02). `LOCAL TERRAIN` liste tout
+ce qu'il y a dans `public/scenes.json` avec sa taille réelle sur disque ;
+`OPEN` lance le vol. `GLOBAL SCANNER`, `SESSION LOG`, `TARGET LOG` sont des
+souches jusqu'à leurs phases respectives.
+
+Pour sauter le terminal (lien direct, dev rapide) :
 
 ```
 http://localhost:5173/?scene=<slug>
@@ -296,7 +300,10 @@ src/flightController.js rates acro -> couple
 src/input.js            Gamepad + clavier/souris
 src/fog.js              modèle de visibilité : densité, respiration, voile, couleur de l'air
 src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou, voile)
-src/hud.js              overlay + menu de sélection de carte
+src/hud.js              OSD de vol + écran de chargement
+src/settings.js         panneau de réglages (Tab) : manette, caméra, objectif, lien, météo, son
+src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, CONTROL VECTOR, souches
+tools/terminal-model.mjs logique pure du terminal (formatBytes, footer) — testée par selftest:operator
 ```
 
 **Physique : Rapier** (Rust/WASM). Corps rigide, collision trimesh **en pleine
@@ -659,7 +666,8 @@ sonnent comme un synthé, pas comme un quad.
 
 Volume et **timbre** dans le panneau `Tab`, retenus d'une session à l'autre ;
 le timbre déplace les deux coupures de ×0,5 à ×2 autour du réglage mesuré, à
-régler selon le casque. Son coupé en caméra libre. Le son démarre au clic du menu de choix de carte : les navigateurs
+régler selon le casque. Son coupé en caméra libre. Le son démarre au clic sur `OPEN` dans le terminal
+(ou au premier geste quand `?scene=` saute le terminal) : les navigateurs
 refusent de faire du bruit avant un geste de l'utilisateur.
 
 ### Le rendu FPV
