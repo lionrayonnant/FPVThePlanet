@@ -150,18 +150,25 @@ LANDINGS.push({
 
 // Roulé au sol, spin résiduel au contact (section D5). Mesuré : quelle que
 // soit l'intensité du spin imposé (essayé jusqu'à 20 rad/s, bien au-delà
-// d'un impact réaliste), le roulis retombe sous W_ON en moins d'une seconde
-// — c'est le `setGroundHold` de physics.js qui l'amortit (constante de temps
-// 0.15 s), pas W_ON : ce n'est pas une pose qui « échappe » indéfiniment,
-// c'est un régime transitoire qui s'éteint vite. Reclassé ici en pose
-// retardée plutôt qu'en rasant : contrairement à la demande initiale, il n'y
-// a pas de configuration physique où ce roulis ne se pose « jamais » — je
-// n'ai pas trouvé de moyen honnête de forcer ce résultat sans désactiver le
-// damping que le jeu applique déjà. `notBefore` vérifie ce que W_ON doit
-// vraiment garantir : pas de détection tant que le spin est encore visible.
+// d'un impact réaliste), le roulis retombe sous W_ON très vite — c'est le
+// `setGroundHold` de physics.js qui l'amortit, pas W_ON : ce n'est pas une
+// pose qui « échappe » indéfiniment, c'est un régime transitoire qui
+// s'éteint. Reclassé ici en pose retardée plutôt qu'en rasant : il n'y a pas
+// de configuration physique où ce roulis ne se pose « jamais ».
+// `notBefore` vérifie ce que W_ON doit vraiment garantir : pas de détection
+// tant que le spin est encore visible.
+// Le plancher valait 0,45 s tant que le ground hold n'amortissait la
+// rotation qu'exponentiellement (le spin mettait ~0,5 s à passer sous W_ON).
+// Depuis que la friction statique l'annule au lieu de l'asymptoter (voir
+// physics.js), le même spin de 8 rad/s tombe à zéro en 0,07 s (mesuré
+// 2026-08-29 : 7,63 · 5,92 · 4,44 · 0,44 · 0,00 rad/s à 20 ms d'intervalle)
+// — un quad qui percute le sol sur ses pieds ne continue pas de tourner une
+// demi-seconde. La détection tombe donc à 0,31 s, soit l'extinction du spin
+// plus T_HOLD : c'est exactement l'invariant que ce plancher protège, et
+// c'est lui qu'on écrit, à 0,3 s.
 LANDINGS.push({
 	name: 'roulé au sol (spin résiduel 8 rad/s au contact)',
-	notBefore: 0.45,
+	notBefore: 0.3,
 	run: () => { place(0.16); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6, angvel: { x: 8, y: 0, z: 0 } }); },
 });
 
@@ -220,6 +227,41 @@ LANDINGS.push({
 	name: `pose sur pente (${SLOPE.angle.toFixed(1)}°, x=${SLOPE.x} z=${SLOPE.z})`,
 	run: () => { place(3, ZERO, SLOPE.x, SLOPE.z); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6 }); },
 });
+
+// --- poses réparties dans la scène (issue « pose impossible ») -------------
+// Un seul emplacement de pose ne dit rien : celui du spawn se trouve être
+// plat. Mesuré le 2026-08-29 sur une grille de 5 m autour du spawn de
+// tour-eiffel, 81 emplacements rejoués 12 s chacun : seulement 20 étaient
+// reconnus. Sur les 61 autres — des pentes de 1 à 3°, pas des falaises — la
+// vitesse angulaire se stabilisait entre 0,07 et 0,38 rad/s et n'en
+// redescendait jamais : la sphère de collision flue le long de la pente, et
+// l'amortissement exponentiel de setGroundHold l'amortit sans l'annuler.
+// C'est un régime permanent, pas un transitoire : attendre plus longtemps ne
+// sert à rien. En jeu, le joueur pose, appuie sur J, et rien ne se passe.
+//
+// Une pose doit être reconnue là où le joueur se pose, pas seulement sur la
+// dalle du spawn. La grille est plus lâche que celle de la mesure (25 points
+// au lieu de 81) pour tenir dans le temps du banc.
+const SPOTS = [];
+for (let dx = -20; dx <= 20; dx += 10) {
+	for (let dz = -20; dz <= 20; dz += 10) {
+		const x = SPAWN.x + dx, z = SPAWN.z + dz;
+		// Les emplacements sans sol sous eux (bord de scène) ne sont pas des
+		// emplacements de pose : on ne les compte pas.
+		if (phys.groundBelow(x, SPAWN.y + 200, z) === null) continue;
+		const angle = slopeAngleAt(x, z);
+		// Au-delà de la limite géométrique du raycast vertical (voir
+		// findSlope ci-dessus), ce n'est plus une pose mais une paroi.
+		if (angle === null || angle > 30) continue;
+		SPOTS.push({ x, z, angle });
+	}
+}
+for (const sp of SPOTS) {
+	LANDINGS.push({
+		name: `pose répartie (pente ${sp.angle.toFixed(1)}°, x=${sp.x.toFixed(0)} z=${sp.z.toFixed(0)})`,
+		run: () => { place(3, ZERO, sp.x, sp.z); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 8 }); },
+	});
+}
 
 // --- les rasants (faux positifs) -------------------------------------------
 // Passage bas et rapide : mode altitude pour tenir la hauteur, tangage plein

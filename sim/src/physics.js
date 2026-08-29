@@ -4,6 +4,15 @@ import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { hoverThrottle } from './flightController.js';
 import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
+// Rayon du collider sphérique. Toujours 0,15 m, toutes familles confondues
+// (camera.near y est épinglé) — nommé ici parce que la friction au sol en a
+// besoin pour passer du linéaire à l'angulaire.
+const COLLIDER_RADIUS = 0.15;
+
+// Coefficient de friction des pieds du drone sur le sol, utilisé par le ground
+// hold (voir step()). Justifié là-bas.
+const MU_GROUND = 0.6;
+
 export { QUAD, HOVER_THRUST, hoverThrust };
 export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 
@@ -63,7 +72,7 @@ export class Physics {
 		// than to a box anyway. Density 0 so only the mass properties above count.
 		// Always 0.15 m, every family: camera.near is pinned to it.
 		this.collider = this.world.createCollider(
-			RAPIER.ColliderDesc.ball(0.15)
+			RAPIER.ColliderDesc.ball(COLLIDER_RADIUS)
 				.setDensity(0)
 				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
 				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
@@ -287,8 +296,38 @@ export class Physics {
 			const k = Math.exp(-dt / 0.15);
 			const lv = this.body.linvel();
 			const av = this.body.angvel();
-			this.body.setLinvel({ x: lv.x * k, y: lv.y, z: lv.z * k }, true);
-			this.body.setAngvel({ x: av.x * k, y: av.y * k, z: av.z * k }, true);
+			// Deux amortissements, pas un : l'exponentiel saigne vite un
+			// transitoire violent (un roulis de 8 rad/s au contact retombe en
+			// moins d'une seconde), mais il ne l'annule jamais — il le divise.
+			// Or la gravité le long de la pente en réinjecte à chaque pas : sur
+			// un terrain réel, ces deux-là s'équilibrent à un fluage permanent
+			// (mesuré sur tour-eiffel : 0,07 à 0,38 rad/s sur des pentes de 1 à
+			// 3°, jamais décroissant). C'est ce fluage qui rendait la pose
+			// impossible à reconnaître — la sphère roule sans fin.
+			//
+			// Ce qui manque au modèle est la friction statique : un quad posé
+			// tient sur ses pieds, il ne roule pas comme une bille. On l'ajoute
+			// donc telle quelle, en Coulomb — une décélération constante mu*g
+			// qui, contrairement à un facteur exponentiel, ANNULE le mouvement
+			// au lieu de l'asymptoter, et qui tient l'appareil sur toute pente
+			// sous l'angle de friction atan(mu). mu = 0,6 : pieds plastique /
+			// caoutchouc sur pierre ou béton (0,5-0,8 en pratique), soit une
+			// tenue jusqu'à 31° — cohérent avec la limite déjà mesurée du
+			// modèle sphère (au-delà de ~33° la sphère glisse et quitte la
+			// pente, voir tools/landing-selftest.mjs).
+			const dv = MU_GROUND * GRAVITY * dt;
+			const sp = Math.hypot(lv.x, lv.z);
+			// `sp <= dv` : la friction avait de quoi tout arrêter dans ce pas.
+			// On s'arrête, on ne repart pas en arrière.
+			const fl = sp <= dv ? 0 : (sp - dv) / sp;
+			// Même friction vue en rotation : au point de contact, une sphère de
+			// rayon R qui roule à v tourne à v/R, donc la même décélération
+			// linéaire vaut dv/R en angulaire.
+			const dw = dv / COLLIDER_RADIUS;
+			const sw = Math.hypot(av.x, av.y, av.z);
+			const fa = sw <= dw ? 0 : (sw - dw) / sw;
+			this.body.setLinvel({ x: lv.x * k * fl, y: lv.y, z: lv.z * k * fl }, true);
+			this.body.setAngvel({ x: av.x * k * fa, y: av.y * k * fa, z: av.z * k * fa }, true);
 		}
 		return impact;
 	}

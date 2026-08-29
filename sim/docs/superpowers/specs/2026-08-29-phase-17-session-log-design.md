@@ -111,6 +111,11 @@ par Vite) comme par le selftest.
 | `stamp(iso)` | `28.08.26 / 21:42` |
 | `duration(seconds)` | `18m 42s` |
 | `pad(n, width)` | `00421` |
+| `areaLabel(slug)` | `tour-eiffel` → `TOUR EIFFEL` |
+
+`areaLabel` dérive le libellé du slug de la session plutôt que d'aller le
+chercher dans `scenes.json` ou `terrainCache` : une session doit rester lisible
+après la suppression de son terrain (Bible §29).
 
 `sessionRow` :
 
