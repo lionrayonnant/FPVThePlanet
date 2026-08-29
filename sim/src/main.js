@@ -138,19 +138,28 @@ let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
+// Le hack + le rituel (vector code, demo scene) tournent devant un monde déjà
+// chargé et physiquement actif (#22) : sans ce gel, le drone tombe pendant que
+// le joueur regarde encore l'écran d'analyse, avant d'avoir touché les sticks.
+let introFrozen = false;
+let crashed = false;
+
 // `landing` est une copie privée de LANDING (pas la constante partagée) : son
 // THR_IDLE est réécrit par boot() une fois la famille de l'appareil connue
 // (idleThrottle, src/quad.js) — muter la constante exportée contaminerait les
 // bancs headless qui importent LANDING pour leurs propres seuils de référence.
 const flightEnd = new FlightEnd({ landing: { ...LANDING } });
+
 // Le lien vu par lens.js quand la machine est morte : quality 0 et frozen sont
 // exactement ce que le shader interprète déjà comme « plus rien n'arrive ».
 // Aucun code d'image nouveau, seulement le mode de dégradation le plus profond.
 const DEAD_LINK = { quality: 0, rssiDbm: -100, lossDb: 999, frozen: true };
 let linkForced = false;
+
 // Le mode choisi par le joueur dans les réglages du lien, mémorisé pour que la
 // séquence de crash puisse forcer une dégradation même s'il a coupé le modèle.
 let lensLinkMode = LINK_OFF;
+
 // Le sol sous le drone, un seul raycast Rapier par frame — physics.groundBelow
 // est un test plein maillage, pas quelque chose à refaire deux fois pour la
 // même position. Recalculé uniquement quand la physique avance ; le gel (pause,
@@ -480,6 +489,7 @@ async function boot() {
 					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
 					// qu'un whiteout arrive au bon moment.
 					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
+					},
 				// Ce qui permet de vérifier le soleil dans le vrai navigateur
 				// plutôt que de regarder une capture et d'y croire.
 				sun: sun && {
@@ -632,7 +642,7 @@ function yawOf(q) {
 	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
 }
 
-function simFrozen() { return freeCamOn || paused || settings.settingsOpen; }
+function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -793,7 +803,7 @@ if (!frozen) {
 	// On la prend par rapport au spawn plutôt que via un raycast :
 	// le relief local est négligeable devant l'altitude de la base des nuages,
 	// et le raycast plus bas dans cette frame n'a pas encore eu lieu.
-	const float altitudeAGL = physics.position.y - spawnY;
+	const altitudeAGL = physics.position.y - spawnY;
 
 	skyDome.setState({
 		cover: cloud.cover,
@@ -1015,7 +1025,6 @@ if (!frozen) {
 		});
 		if (peakImpact > 0) audio.playImpact(peakImpact);
 	}
-}
 
 // Picks which prepared map to fly before doing any of the heavy loading work.
 // ?scene=<slug> skips the menu (handy for bookmarking/dev), otherwise the
@@ -1094,8 +1103,14 @@ async function chooseScene() {
 	controller = new FlightController({ profile: PROFILE });
 	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
 	setScene(slug);
+	introFrozen = true;
 	const booting = boot();
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
+	// pendant le hack comme un unique pas de physique géant.
+	introFrozen = false;
+	accumulator = 0;
+	lastTime = performance.now();
 	return { prepared: true };
 }
 
