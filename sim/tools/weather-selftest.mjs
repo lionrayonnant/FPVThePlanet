@@ -294,6 +294,52 @@ t('formatForecast montre les six champs demandés', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bloc CONDITIONS du TARGET SCAN (issue #76)
+
+const snapWith = (day) => W.makeSnapshot({
+	...TOKYO, day: '2026-08-29', source: 'procedural',
+	days: [W.sanitize({ ...W.proceduralForecast({ ...TOKYO, day: '2026-08-29' })[0], ...day })],
+});
+
+t('conditionsBlock : trois champs, pas d\'alerte par temps calme', () => {
+	const b = W.conditionsBlock(snapWith({
+		windSpeed: 2, windGust: 3, windDir: 315, rateMmH: 0, visibilityM: 40000,
+	}));
+	const txt = b.join('\n');
+	assert.equal(b[0], 'CONDITIONS');
+	assert.match(txt, /\nWIND +2\.0 m\/s +NW +LOW WIND/);
+	assert.match(txt, /\nRAIN +NONE/);
+	assert.match(txt, /\nVISIBILITY +40 km/);
+	assert.ok(!txt.includes('MARGINAL'), 'pas d\'alerte par temps calme');
+});
+
+t('conditionsBlock : alerte quand le régime est marginal', () => {
+	const b = W.conditionsBlock(snapWith({
+		windSpeed: 12, windGust: 18, windDir: 90, rateMmH: 0, visibilityM: 20000,
+	}));
+	const txt = b.join('\n');
+	assert.ok(txt.includes('>>> MARGINAL CONDITIONS'));
+	assert.match(txt, /STRONG WIND/);
+});
+
+t('conditionsBlock / conditionsLine : null sans snapshot', () => {
+	assert.equal(W.conditionsBlock(null), null);
+	assert.equal(W.conditionsLine(undefined), null);
+});
+
+t('conditionsLine : résumé d\'une ligne, préfixe si marginal', () => {
+	const calm = W.conditionsLine(snapWith({
+		windSpeed: 2, windGust: 3, rateMmH: 0, visibilityM: 40000,
+	}));
+	assert.equal(calm, 'LOW WIND · VIS 40 km');
+	const bad = W.conditionsLine(snapWith({
+		windSpeed: 12, windGust: 18, rateMmH: 3, visibilityM: 6000,
+	}));
+	assert.match(bad, /^>>> /);
+	assert.ok(bad.includes('RAIN'));
+});
+
+// ---------------------------------------------------------------------------
 // Résolution serveur : cache, repli, éviction
 
 const okFetch = (calls) => async () => {

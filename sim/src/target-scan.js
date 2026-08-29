@@ -7,9 +7,15 @@
 // bundlée par Vite.
 import { screen, button } from './terminal.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
+import { conditionsBlock, conditionsLine } from './weather.js';
 
-export function runTargetScan(root, { seed, count }) {
+// `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
+// scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
+// alors pas de météo, le bloc CONDITIONS est simplement absent.
+export function runTargetScan(root, { seed, count, weather = null }) {
 	const scan = generateTargetScan({ seed, count });
+	const condBlock = conditionsBlock(weather);
+	const condLine = conditionsLine(weather);
 	return new Promise((resolve) => {
 		let cursor = 0;
 		let activeView = 'list'; // Track which view is showing: 'list' or 'sheet'
@@ -23,7 +29,7 @@ export function runTargetScan(root, { seed, count }) {
 		const draw = () => {
 			s.box.innerHTML = `<pre>TARGET SCAN
 
-SIGNALS DETECTED
+${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED
 
 ${list()}</pre>`;
 			s.box.appendChild(button('SELECT', () => sheet(cursor), 'terminal-cta'));
@@ -80,7 +86,7 @@ SIGNAL         ${d.signal}
 DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
 VIDEO          ${d.video}${d.videoHint ? `  (EST. ${d.videoHint})` : ''}
 CONTROL        ${d.control}
-FLIGHT STATE   ${d.flightState}</pre>`;
+FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}</pre>`;
 
 			let done = false;
 			sheetConfirm = () => {

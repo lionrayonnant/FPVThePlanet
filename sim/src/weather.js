@@ -15,6 +15,7 @@ import { getOperator } from './operator.js';
 export const {
 	toSimParams, formatForecast, headline, today, dayRows,
 	confidenceBar, windLabel, compass, formatVisibility, zoneKey, dayKey,
+	conditionsBlock, conditionsLine,
 } = model;
 
 // Mémoire de l'onglet : rejouer LOCAL TERRAIN ne doit pas retaper le serveur
