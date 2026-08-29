@@ -5,6 +5,7 @@
 // ce port JS qui sert ensuite de référence à testdata/poly-cases.json, donc il
 // ne peut pas se valider sur sa propre sortie.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
 	polygonBounds, pointInPolygon, segmentsIntersect, tileIntersectsPolygon,
 	polygonGrid, maskKeys, polygonArea, canonicalPoly, polyHash,
@@ -189,6 +190,26 @@ t('polygonProbePoint : dans le tracé même quand le centroïde ne l\'est pas', 
 t('polygonProbePoint : déterministe', () => {
 	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
 	assert.deepEqual(polygonProbePoint(TRI, 20), polygonProbePoint(TRI, 20));
+});
+
+// La fixture est le procès-verbal du port JS validé ci-dessus. La relire ici
+// fait que toute modification de tiles.mjs qui change un résultat casse ce
+// selftest AVANT de casser le Go — et rappelle qu'il faut alors comprendre
+// pourquoi, pas régénérer.
+await at('fixture partagée : tiles.mjs est resté d\'accord avec elle', async () => {
+	const fixture = JSON.parse(
+		fs.readFileSync(new URL('../../flyover-reverse-engineering/testdata/poly-cases.json', import.meta.url), 'utf8'));
+	assert.ok(fixture.length >= 10, 'la fixture a des cas');
+	for (const c of fixture) {
+		const g = polygonGrid(c.ring, c.zoom);
+		assert.equal(g.columns, c.columns, `${c.name} : colonnes`);
+		assert.equal(g.masked, c.masked, `${c.name} : masquées`);
+		assert.deepEqual(maskKeys(g), c.keys, `${c.name} : tuiles retenues`);
+		assert.deepEqual(polygonBounds(c.ring), c.bounds, `${c.name} : emprise`);
+		assert.equal(canonicalPoly(c.ring), c.canonical, `${c.name} : chaîne canonique`);
+		assert.equal(await polyHash(c.ring), c.hash, `${c.name} : hash`);
+		assert.ok(Math.abs(polygonArea(c.ring) - c.areaM2) < 1e-6, `${c.name} : aire`);
+	}
 });
 
 console.log(`\n${n} vérifications, tout passe.`);
