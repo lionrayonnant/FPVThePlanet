@@ -253,4 +253,93 @@ t('PAIR_COOLDOWN : la même paire ne monopolise pas la conversation', () => {
 	assert.ok(PAIR_COOLDOWN >= 2);
 });
 
+// --- validation -----------------------------------------------------------------
+
+import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS } from './dialogue/validate.mjs';
+
+const GOOD = {
+	id: 'acquire_area/0001',
+	events: ['ACQUIRE_AREA'],
+	rarity: 'COMMON',
+	characters: ['root', 'mikhail'],
+	requires: ['weather.windMs'],
+	lines: [
+		{ speaker: 'root', text: '{wind} meters per second.' },
+		{ speaker: 'mikhail', text: 'not with that airframe.' },
+	],
+};
+
+t('validateEntry : une bonne entrée ne remonte aucun problème', () => {
+	assert.deepEqual(validateEntry(GOOD), []);
+});
+
+t('validateEntry : un slot utilisé dont le chemin manque à requires est refusé', () => {
+	// C'est LA règle qui rend un placeholder cassé impossible (D3).
+	const bad = { ...GOOD, requires: [] };
+	const problems = validateEntry(bad);
+	assert.equal(problems.length, 1);
+	assert.match(problems[0], /weather\.windMs/);
+});
+
+t('validateEntry : slot inconnu du catalogue', () => {
+	const bad = { ...GOOD, lines: [{ speaker: 'root', text: 'hello {banana}' }] };
+	assert.ok(validateEntry(bad).some((p) => /banana/.test(p)));
+});
+
+t('validateEntry : requires vers un chemin inconnu (faute de frappe qui rendrait l\'entrée morte)', () => {
+	const bad = { ...GOOD, requires: ['weather.windMS'] };
+	assert.ok(validateEntry(bad).some((p) => /windMS/.test(p)));
+});
+
+t('validateEntry : locuteur hors crew, y compris vex', () => {
+	assert.ok(validateEntry({ ...GOOD, characters: ['root', 'vex'],
+		lines: [{ speaker: 'vex', text: 'obviously' }] }).some((p) => /vex/.test(p)));
+});
+
+t('validateEntry : un locuteur de réplique doit figurer dans characters', () => {
+	const bad = { ...GOOD, lines: [{ speaker: 'cron', text: 'ok' }] };
+	assert.ok(validateEntry(bad).some((p) => /cron/.test(p)));
+});
+
+t('validateEntry : événement et rareté inconnus', () => {
+	assert.ok(validateEntry({ ...GOOD, events: ['NOPE'] }).some((p) => /NOPE/.test(p)));
+	assert.ok(validateEntry({ ...GOOD, rarity: 'SOMETIMES' }).some((p) => /SOMETIMES/.test(p)));
+});
+
+t('validateEntry : réplique vide, trop longue, ou échange trop long', () => {
+	assert.ok(validateEntry({ ...GOOD, lines: [{ speaker: 'root', text: '  ' }] }).length > 0);
+	assert.ok(validateEntry({ ...GOOD, lines: [{ speaker: 'root', text: 'x'.repeat(120) }] }).length > 0);
+	const long = { ...GOOD, lines: Array.from({ length: 9 }, () => ({ speaker: 'root', text: 'ok' })) };
+	assert.ok(validateEntry(long).length > 0);
+});
+
+t('style : les interdits de la Bible sont attrapés', () => {
+	const cases = [
+		'the player should know',      // adresse au joueur
+		'this is just a game',         // quatrième mur
+		'let me prompt the LLM',       // vocabulaire IA moderne
+		'to be continued',             // promesse de suite
+		'you will see, later',         // promesse de suite
+	];
+	for (const text of cases) {
+		const bad = { ...GOOD, requires: [], lines: [{ speaker: 'root', text }] };
+		assert.ok(validateEntry(bad).length > 0, `non attrapé : "${text}"`);
+	}
+	assert.ok(STYLE_BANS.length >= 5);
+	for (const b of STYLE_BANS) assert.ok(b.why && b.re instanceof RegExp);
+});
+
+t('KNOWN_PATHS : dérivé du catalogue, pas une seconde liste à maintenir', () => {
+	assert.ok(KNOWN_PATHS.has('weather.windMs'));
+	assert.ok(!KNOWN_PATHS.has('weather.windMS'));
+});
+
+t('validateCorpus : compte les bonnes et rejette les ids en double', () => {
+	const r = validateCorpus([GOOD, { ...GOOD, id: 'acquire_area/0002' }]);
+	assert.equal(r.ok, 2);
+	assert.equal(r.errors.length, 0);
+	const dup = validateCorpus([GOOD, GOOD]);
+	assert.ok(dup.errors.some((e) => /double/i.test(e.problem)));
+});
+
 console.log(`\n${n} vérifications, tout passe.`);
