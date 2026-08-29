@@ -49,7 +49,9 @@ t('freshState est complet', () => {
 	assert.deepEqual(s.settings, {});
 	assert.deepEqual(s.terrainCache, []);
 	assert.deepEqual(s.sessions, []);
-	assert.deepEqual(s.targetLog, []);
+	assert.equal('targetLog' in s, false);
+	assert.equal(s.sessionSeq, 0);
+	assert.equal(s.targetSeq, 0);
 	assert.deepEqual(s.worldState, {});
 	assert.ok(!Number.isNaN(Date.parse(s.createdAt)));
 });

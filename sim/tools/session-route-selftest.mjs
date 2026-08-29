@@ -6,7 +6,7 @@ const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, con
 
 const scan = generateTargetScan({ seed: 'route-seed', count: 4 });
 const target = resolveTarget(scan, 2);
-const s = validateSession(openSession({ operatorId: 'op-x', area: 'kyiv', weatherSnapshot: null, target }));
+const s = validateSession(openSession({ seq: 1, targetSeq: 1, operatorId: 'op-x', area: 'kyiv', weatherSnapshot: null, target }));
 check('la session serveur porte la cible régénérée', s.target.family === scan.candidates[2]._family);
 
 // régénération identique

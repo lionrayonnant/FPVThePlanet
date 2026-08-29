@@ -200,7 +200,14 @@ AREA     ${area ?? 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
-			await stub(root, 'VIEW SESSION', 'Session detail screen lands in PHASE 17.');
+			s.el.style.display = 'none';
+			const { runSessionDetail } = await import('./session-log.js');
+			const r = await runSessionDetail(root, ls.id, { scenes: null });
+			// REVISIT et DELETE ferment LAST SESSION : dans les deux cas l'écran
+			// qu'on avait sous les yeux ne décrit plus l'état courant.
+			if (r?.revisit) { s.remove(); resolve(r.revisit); return; }
+			if (r?.deleted) { s.remove(); resolve(); return; }
+			s.el.style.display = '';
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
 		// terrain persistent, flights ephemeral : seule une session LANDED garde
@@ -292,8 +299,22 @@ OPERATOR // ${model.operatorName}</pre>`;
 		}, 'terminal-cta'));
 
 		s.box.appendChild(navRow([
-			['SESSION LOG', () => stub(root, 'SESSION LOG', 'NO SESSIONS YET — the session log lands in PHASE 17.')],
-			['TARGET LOG', () => stub(root, 'TARGET LOG', 'NO TARGETS LOGGED — the target log lands in PHASE 17.')],
+			['SESSION LOG', async () => {
+				s.el.hidden = true;
+				const { runSessionLog } = await import('./session-log.js');
+				const slug = await runSessionLog(root, { operator: api.getOperator(), scenes });
+				if (slug) return fly(slug);
+				s.el.hidden = false;
+				// Une suppression a pu changer les compteurs du footer.
+				render();
+			}],
+			['TARGET LOG', async () => {
+				s.el.hidden = true;
+				const { runTargetLog } = await import('./session-log.js');
+				await runTargetLog(root, { operator: api.getOperator() });
+				s.el.hidden = false;
+				render();
+			}],
 			['SETTINGS', () => settings?.toggleSettings(true)],
 			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
 		]));

@@ -8,9 +8,11 @@ import {
 	freshTelemetry, newSessionId, SESSION_ID_RE,
 	sanitizeComment, annotateSession,
 	sanitizePhoto, addPhoto,
+	stripPhotoData, stripOperatorPhotoData, deleteSession,
 } from './session-model.mjs';
+import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
-import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
+import { TARGET_FAMILIES, HACK_TYPES, generateTargetScan, resolveTarget } from './target-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -34,7 +36,7 @@ t('newSessionId : slug de zone + 4 hex, conforme à la regex', () => {
 });
 
 t('openSession : forme PENDING complète, randomart posé, télémétrie à zéro', () => {
-	const s = openSession({ operatorId: 'neo-3f9c', area: 'tokyo-shibuya', weatherSnapshot: WEATHER });
+	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'tokyo-shibuya', weatherSnapshot: WEATHER });
 	assert.equal(s.result, 'PENDING');
 	assert.equal(s.operatorId, 'neo-3f9c');
 	assert.equal(s.area, 'tokyo-shibuya');
@@ -73,7 +75,7 @@ t('mergeTelemetry : max sur les pics, somme sur les cumuls, associatif', () => {
 });
 
 t('closeSession : pose end + result, fusionne la télémétrie', () => {
-	const s = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	s.flightTelemetry = { durationS: 40, distanceM: 100, maxSpeedMs: 12, maxRateDps: 200, maxAltitudeM: 8 };
 	const done = closeSession(s, {
 		result: 'LANDED',
@@ -89,7 +91,7 @@ t('closeSession : pose end + result, fusionne la télémétrie', () => {
 
 t('resumeSession : LANDED seulement, garde identité, incrémente resumeCount', () => {
 	const s = closeSession(
-		openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
+		openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
 		{ result: 'LANDED', telemetry: freshTelemetry() },
 	);
 	const again = resumeSession(s);
@@ -105,7 +107,7 @@ t('resumeSession : LANDED seulement, garde identité, incrémente resumeCount', 
 });
 
 t('validateSession : rejette id, result, weatherSnapshot, télémétrie non valides', () => {
-	const good = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const good = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	assert.throws(() => validateSession({ ...good, id: 'PAS BON' }), /id de session invalide/);
 	assert.throws(() => validateSession({ ...good, result: 'MEH' }), /result inconnu/);
 	assert.throws(() => validateSession({ ...good, weatherSnapshot: { zone: 'x' } }), /sans jour/);
@@ -114,11 +116,11 @@ t('validateSession : rejette id, result, weatherSnapshot, télémétrie non vali
 });
 
 t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => {
-	const old = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const old = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	old.start = new Date(Date.now() - 45 * 60 * 1000).toISOString();
-	const fresh = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const fresh = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	const landed = closeSession(
-		openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
+		openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
 		{ result: 'LANDED', telemetry: freshTelemetry() },
 	);
 	const { state, changed } = reconcileStaleSessions({ sessions: [old, fresh, landed] });
@@ -142,7 +144,7 @@ const GOOD_TARGET = {
 };
 
 t('openSession : porte une cible validée, conservée au resume, null si absente', () => {
-	const s = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
+	const s = openSession({ seq: 1, targetSeq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
 	assert.equal(s.target.family, GOOD_TARGET.family);
 	assert.equal(s.target.hackType, HACK_TYPES[0]);
 	assert.equal(validateSession(s), s);
@@ -150,17 +152,17 @@ t('openSession : porte une cible validée, conservée au resume, null si absente
 	const resumed = resumeSession(landed);
 	assert.equal(resumed.target.family, GOOD_TARGET.family);
 
-	const noTarget = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
+	const noTarget = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
 	assert.equal(noTarget.target, null);
 });
 
 t('sanitizeTarget : rejette famille inconnue et rssi positif ; validateSession re-vérifie', () => {
-	assert.throws(() => openSession({
+	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { family: 'not-a-family', signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} },
 	}), /famille de cible inconnue/);
 	const bad = {
-		...openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null }),
+		...openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null }),
 		target: { family: TARGET_FAMILIES[0], signal: { rssiDbm: 5, mode: 'ANALOG' }, intel: {} },
 	};
 	assert.throws(() => validateSession(bad), /rssiDbm invalide/);
@@ -169,19 +171,19 @@ t('sanitizeTarget : rejette famille inconnue et rssi positif ; validateSession r
 t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent toléré', () => {
 	const base = { family: TARGET_FAMILIES[0], signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} };
 
-	const withHack = openSession({
+	const withHack = openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'GNSS SPOOF' },
 	});
 	assert.equal(withHack.target.hackType, 'GNSS SPOOF');
 
-	const noHack = openSession({
+	const noHack = openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base },
 	});
 	assert.equal(noHack.target.hackType, null);
 
-	assert.throws(() => openSession({
+	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'NOPE' },
 	}), /hackType de cible inconnu/);
@@ -197,7 +199,7 @@ t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur
 });
 
 t('annotateSession : peut annoter une session déjà LANDED (pas de restriction PENDING)', () => {
-	const opened = openSession({ operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
+	const opened = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
 	const closed = closeSession(opened, { result: 'LANDED', telemetry: freshTelemetry() });
 	const noted = annotateSession(closed, 'cible posée sans encombre');
 	assert.equal(noted.comment, 'cible posée sans encombre');
@@ -225,7 +227,7 @@ t('sanitizePhoto : rejette dataUrl absente/non-image, w/h non entiers ou <= 0', 
 });
 
 t('addPhoto : ajoute au tableau existant sans le muter, plusieurs captures par session', () => {
-	const s = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	const s1 = addPhoto(s, GOOD_PHOTO);
 	assert.deepEqual(s.photos, []); // pas de mutation de l'original
 	assert.equal(s1.photos.length, 1);
@@ -237,7 +239,7 @@ t('addPhoto : ajoute au tableau existant sans le muter, plusieurs captures par s
 });
 
 t('validateSession : rejette une session dont un élément de photos[] est malformé', () => {
-	const good = openSession({ operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	const good = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	assert.throws(
 		() => validateSession({ ...good, photos: [{ w: 480, h: 360 }] }),
 		/photo/,
@@ -246,6 +248,168 @@ t('validateSession : rejette une session dont un élément de photos[] est malfo
 		() => validateSession({ ...good, photos: 'nope' }),
 		/photos/,
 	);
+});
+
+// --- PHASE 17 : numéros d'affichage, élision des captures, suppression ------
+
+t('openSession : pose seq et targetSeq tels que le serveur les attribue', () => {
+	const s = openSession({
+		operatorId: 'neo-3f9c', area: 'tokyo', weatherSnapshot: null,
+		target: null, seq: 421, targetSeq: null,
+	});
+	assert.equal(s.seq, 421);
+	assert.equal(s.targetSeq, null);
+	validateSession(s);
+});
+
+t('validateSession : exige un seq entier >= 1', () => {
+	const good = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
+	assert.throws(() => validateSession({ ...good, seq: 0 }), /seq/);
+	assert.throws(() => validateSession({ ...good, seq: 1.5 }), /seq/);
+	assert.throws(() => validateSession({ ...good, seq: undefined }), /seq/);
+});
+
+t('validateSession : targetSeq obligatoire avec une cible, absent sans', () => {
+	const scan = generateTargetScan({ seed: 'seq-seed', count: 3 });
+	const target = resolveTarget(scan, 1);
+	const withT = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, target, seq: 2, targetSeq: 7 });
+	assert.equal(withT.targetSeq, 7);
+	validateSession(withT);
+	assert.throws(() => validateSession({ ...withT, targetSeq: null }), /targetSeq/);
+	const noT = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 3 });
+	assert.throws(() => validateSession({ ...noT, targetSeq: 4 }), /targetSeq/);
+});
+
+t('resumeSession : les deux numeros survivent — c est la meme session', () => {
+	const s = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 9 });
+	const landed = closeSession(s, { result: 'LANDED' });
+	const again = resumeSession(landed);
+	assert.equal(again.seq, 9);
+	assert.equal(again.resumeCount, 1);
+});
+
+t('stripPhotoData : retire dataUrl, garde w/h/ts, ne mute pas l original', () => {
+	const s = addPhoto(
+		openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 }),
+		{ dataUrl: 'data:image/jpeg;base64,AAA=', w: 480, h: 360 },
+	);
+	const light = stripPhotoData(s);
+	assert.equal(light.photos[0].dataUrl, undefined);
+	assert.equal(light.photos[0].w, 480);
+	assert.equal(light.photos[0].h, 360);
+	assert.equal(typeof light.photos[0].ts, 'string');
+	assert.equal(s.photos[0].dataUrl, 'data:image/jpeg;base64,AAA=');
+	// Une session elidee est un FORMAT DE FIL, pas un etat persistable : elle ne
+	// repasse jamais par validateSession, qui exige a raison une dataUrl sur
+	// chaque capture. L'elision n'a lieu que dans les `json(res, ...)`, apres
+	// `_writeOperator` — jamais avant une ecriture disque. On asserte donc
+	// l'echec, pour que ce sens de lecture reste ecrit quelque part.
+	assert.throws(() => validateSession(light), /dataUrl/);
+});
+
+t('stripOperatorPhotoData : elide toutes les sessions d un etat', () => {
+	const s = addPhoto(
+		openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 }),
+		{ dataUrl: 'data:image/png;base64,BBB=', w: 8, h: 8 },
+	);
+	const light = stripOperatorPhotoData({ id: 'op', sessions: [s] });
+	assert.equal(light.sessions[0].photos[0].dataUrl, undefined);
+	assert.equal(s.photos[0].dataUrl, 'data:image/png;base64,BBB=');
+});
+
+t('deleteSession : retire l entree, ne touche a rien d autre', () => {
+	const a = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
+	const b = openSession({ operatorId: 'op', area: 'lviv', weatherSnapshot: null, seq: 2 });
+	const state = {
+		id: 'op', sessionSeq: 2, targetSeq: 0,
+		sessions: [closeSession(a, { result: 'LANDED' }), closeSession(b, { result: 'CRASHED' })],
+	};
+	const out = deleteSession(state, state.sessions[0].id);
+	assert.equal(out.sessions.length, 1);
+	assert.equal(out.sessions[0].area, 'lviv');
+	// Les compteurs ne reculent pas : un numero ne se recycle pas (spec D2).
+	assert.equal(out.sessionSeq, 2);
+	assert.equal(state.sessions.length, 2); // pas de mutation
+});
+
+t('deleteSession : 404 sur inconnue, 409 sur une session encore PENDING', () => {
+	const p = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
+	const state = { id: 'op', sessions: [p] };
+	assert.throws(() => deleteSession(state, 'nexiste-pas-0000'), (e) => e.status === 404);
+	assert.throws(() => deleteSession(state, p.id), (e) => e.status === 409);
+});
+
+// --- migration v1 -> v2 -----------------------------------------------------
+
+t('SCHEMA_VERSION vaut 2', () => {
+	assert.equal(SCHEMA_VERSION, 2);
+});
+
+t('freshState : deux compteurs a zero, plus de cle targetLog', () => {
+	const s = freshState({ id: 'neo-0000', name: 'neo' });
+	assert.equal(s.sessionSeq, 0);
+	assert.equal(s.targetSeq, 0);
+	assert.equal('targetLog' in s, false);
+});
+
+t('migrate v1 -> v2 : backfill des numeros dans l ordre, targetLog retire', () => {
+	const scan = generateTargetScan({ seed: 'mig-seed', count: 3 });
+	const withTarget = resolveTarget(scan, 0);
+	const v1 = {
+		schemaVersion: 1, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
+		controlVector: [], settings: {}, terrainCache: [], worldState: {},
+		targetLog: [],
+		sessions: [
+			{ id: 'a-0001', area: 'a', result: 'LANDED', target: null },
+			{ id: 'b-0002', area: 'b', result: 'CRASHED', target: withTarget },
+			{ id: 'c-0003', area: 'c', result: 'LANDED', target: withTarget },
+		],
+	};
+	const m = migrate(v1);
+	assert.equal(m.schemaVersion, 2);
+	assert.equal('targetLog' in m, false);
+	assert.deepEqual(m.sessions.map((s) => s.seq), [1, 2, 3]);
+	// Seules les sessions avec cible consomment un numero de cible.
+	assert.equal(m.sessions[0].targetSeq, undefined);
+	assert.equal(m.sessions[1].targetSeq, 1);
+	assert.equal(m.sessions[2].targetSeq, 2);
+	assert.equal(m.sessionSeq, 3);
+	assert.equal(m.targetSeq, 2);
+});
+
+t('migrate : idempotent — repasser un etat v2 ne renumerote rien', () => {
+	const scan = generateTargetScan({ seed: 'mig-seed-2', count: 3 });
+	const v1 = {
+		schemaVersion: 1, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
+		controlVector: [], settings: {}, terrainCache: [], worldState: {}, targetLog: [],
+		sessions: [
+			{ id: 'a-0001', area: 'a', result: 'LANDED', target: resolveTarget(scan, 0) },
+			{ id: 'b-0002', area: 'b', result: 'LANDED', target: null },
+		],
+	};
+	const once = migrate(v1);
+	const twice = migrate(once);
+	assert.deepEqual(twice.sessions.map((s) => s.seq), once.sessions.map((s) => s.seq));
+	assert.deepEqual(twice.sessions.map((s) => s.targetSeq), once.sessions.map((s) => s.targetSeq));
+	assert.equal(twice.sessionSeq, once.sessionSeq);
+	assert.equal(twice.targetSeq, once.targetSeq);
+});
+
+t('migrate : un trou de numerotation survit a la relecture', () => {
+	// Ce que devient un fichier v2 apres DELETE de la session 2 : les numeros
+	// restants ne bougent pas, et les compteurs ne reculent pas.
+	const v2 = {
+		schemaVersion: 2, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
+		controlVector: [], settings: {}, terrainCache: [], worldState: {},
+		sessionSeq: 3, targetSeq: 0,
+		sessions: [
+			{ id: 'a-0001', area: 'a', result: 'LANDED', target: null, seq: 1 },
+			{ id: 'c-0003', area: 'c', result: 'LANDED', target: null, seq: 3 },
+		],
+	};
+	const m = migrate(v2);
+	assert.deepEqual(m.sessions.map((s) => s.seq), [1, 3]);
+	assert.equal(m.sessionSeq, 3);
 });
 
 // ---------------------------------------------------------------------------

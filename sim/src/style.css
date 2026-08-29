@@ -233,6 +233,17 @@ canvas { display: block; }
 /* Le temps qu'il fait sur la zone. Discret : c'est une information du monde,
    pas une commande — rien ici n'est cliquable. */
 .terminal-area-weather { opacity: .7; font-size: 16px; flex: 1; letter-spacing: .06em; }
+
+/* ---------- session log (PHASE 17) ---------- */
+/* Vignettes des captures d'une session. Grille souple : le détail d'une session
+   ne doit jamais forcer un défilement horizontal. Même sobriété que la Home —
+   pas de coins arrondis, pas d'ombre. */
+.session-shots { display: flex; flex-wrap: wrap; gap: 9px; margin: 4px 0; }
+.session-shots img {
+	width: 180px; height: auto;
+	border: 1px solid rgba(255, 255, 255, .25);
+	image-rendering: pixelated;
+}
 .terminal-area button { margin: 0; }
 
 /* ---------- global scanner (PHASE 03) ---------- */

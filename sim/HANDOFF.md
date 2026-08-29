@@ -270,6 +270,63 @@ Plan d'origine (contexte de la décision d'architecture) :
     piloté (vérifié uniquement par lecture de code + la même condition
     rejouée en console) ; le ressenti (longueur du texte à l'écran, lisibilité
     du Randomart en jeu).
+- **PHASE 17 — Session Log / Target Log (issue #54)**, branche `phase-17-impl`.
+  - Cinq décisions (spec `docs/superpowers/specs/2026-08-29-phase-17-session-log-design.md`) :
+    **D1** le Target Log est **dérivé** des sessions (`targetLogEntries`,
+    `tools/session-log-model.mjs`) et la clé morte `state.targetLog` — jamais
+    écrite depuis PHASE 01, donc toujours vide — est retirée par la migration ;
+    **D2** deux compteurs persistés `sessionSeq`/`targetSeq`, attribués à
+    l'ouverture et jamais recyclés ; **D3** `DELETE SESSION` franc, `409` sur une
+    session encore `PENDING`, terrain jamais touché ; **D4** les `dataUrl` des
+    captures sont élidées de toutes les réponses sauf la nouvelle
+    `GET /__operator/:id/sessions/:sid` ; **D5** l'écran `TARGET LOG` ne reçoit
+    aucune fonction de navigation vers le vol.
+  - **Changement cassant** : `SCHEMA_VERSION` 1 → 2. Un fichier opérateur écrit
+    par cette branche est refusé par `main` (`409 schemaVersion trop récent`).
+    La migration est **paresseuse** : `_readOperator` migre en mémoire à chaque
+    lecture, le disque n'est réécrit qu'à la première mutation.
+  - **Vérifié en headless** : `tools/session-log-selftest.mjs` (17 tests :
+    filtres, formats, blocs omis quand la donnée manque, dérivation et ordre du
+    Target Log, numérotation) ; extension de `session-selftest.mjs` (36 tests,
+    dont `seq`/`targetSeq` posés à l'ouverture et conservés au `resume`,
+    migration v1→v2 idempotente, trou de numérotation qui survit à la relecture,
+    `stripPhotoData`, `deleteSession` 404/409) ; `terminal-selftest.mjs` (le
+    compte de cibles est dérivé — la clé morte affichait **toujours**
+    `0 TARGETS LOGGED`) ; **nouveau `npm run selftest:api`** (13 checks contre un
+    vrai serveur de dev Vite, état opérateur sandboxé par `FPV_OPERATOR_DIR`,
+    hors de la chaîne rapide car il démarre Vite). `npm run selftest`,
+    `selftest:operator` et `build` verts.
+  - **Vérifié sur les vraies données de l'utilisateur** (142 sessions, 63 avec
+    cible, 11 captures, 14 zones — copie de travail, fichier réel jamais écrit,
+    sauvegarde prise avant) :
+    - migration à blanc : 142 `seq` uniques (1→142), 63 `targetSeq` uniques,
+      aucune session sans cible ne porte de `targetSeq`, idempotente, et les
+      142 sessions migrées passent toutes `validateSession` ;
+    - **D4 mesuré** : `GET /__operator/:id` passe de **4,89 Mo à 174 Ko sur le
+      fil** (×29), à chaque ouverture du terminal. Une seule fiche ouverte
+      rapatrie 2,79 Mo — d'où la route dédiée.
+  - **Vérifié au navigateur** (MCP chrome-devtools, serveur de dev réel) :
+    footer `142 SESSIONS · 63 TARGETS LOGGED` là où la clé morte donnait `0` ;
+    les quatre filtres exacts (19 LANDED / 123 CRASHED / 3 WITH PHOTOS / 142
+    ALL) ; `↑`/`↓` et `Entrée` ; fiche complète (Randomart, météo, télémétrie)
+    avec les **deux vraies captures chargées** (2293×1290) ; `DELETE SESSION` →
+    retour à la liste sans elle, footer à `141 SESSIONS · 62 TARGETS LOGGED`,
+    `TARGET 052` disparu du Target Log (conséquence directe de D1), et le trou
+    de numérotation visible — `121, 120, 118, 117`, les voisins n'ont pas bougé ;
+    l'écran `TARGET LOG` n'expose **qu'un seul bouton, `[ BACK ]`** (D5 vérifié
+    par observation, pas seulement par construction) ; `REVISIT AREA` →
+    `TARGET SCAN` frais avec la **météo courante** et **zéro requête
+    d'acquisition** (`/__map-api/jobs|plan|probe` absents — second critère
+    d'acceptation de l'issue). Aucune erreur ni warning console sur tout le
+    parcours.
+  - **Non vérifié** : le ressenti (longueur des lignes de liste sur un écran
+    réel, lisibilité du détail au format du jeu) ; `409` sur une suppression de
+    session `PENDING` au navigateur (l'état réel n'en contenait aucune — couvert
+    par `selftest:api`) ; le parcours à la manette ; `REVISIT AREA` n'a pas été
+    poussé jusqu'au vol effectif (arrêté au `TARGET SCAN`, ce qui suffit au
+    critère d'acceptation : le terrain n'a pas été re-téléchargé) ; la migration
+    n'a **pas** été appliquée au vrai fichier opérateur de l'utilisateur, qui
+    reste en v1 jusqu'au merge.
 - **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #51).
   - Machine à états pure `FlightEnd` (`src/flight-end.js`, sans DOM/Three/Rapier),
     câblée dans `main.js:frame()` **hors** du bloc gelé (`if (!frozen)`) : appelée

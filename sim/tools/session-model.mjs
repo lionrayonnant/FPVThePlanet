@@ -106,17 +106,21 @@ export function addPhoto(session, raw) {
 	return { ...session, photos: [...(session.photos ?? []), photo] };
 }
 
-export function openSession({ operatorId, area, weatherSnapshot, target }) {
+export function openSession({ operatorId, area, weatherSnapshot, target, seq, targetSeq }) {
 	if (!operatorId) throw new Error('operatorId requis');
 	const areaSlug = slugify(area);
 	if (!areaSlug) throw new Error('AREA UNUSABLE');
 	const id = newSessionId(area);
-	return {
+	const resolved = sanitizeTarget(target);
+	const session = {
 		schemaVersion: SESSION_SCHEMA_VERSION,
 		id,
 		operatorId,
 		area: areaSlug,
-		target: sanitizeTarget(target),
+		// Numéro d'affichage (PHASE 17). Attribué par le serveur, qui seul connaît
+		// le compteur de l'opérateur ; figé pour toujours, y compris au `resume`.
+		seq,
+		target: resolved,
 		weatherSnapshot: sanitizeWeatherSnapshot(weatherSnapshot),
 		start: new Date().toISOString(),
 		end: null,
@@ -127,6 +131,11 @@ export function openSession({ operatorId, area, weatherSnapshot, target }) {
 		comment: null,
 		resumeCount: 0,
 	};
+	// Sans cible, la clé n'est posée que si l'appelant a dit quelque chose : une
+	// session ouverte sans TARGET SCAN n'a pas de `targetSeq` du tout, et un
+	// `null` explicite reste un `null` (ce que `validateSession` accepte).
+	if (resolved || targetSeq !== undefined) session.targetSeq = targetSeq;
+	return session;
 }
 
 // Ré-ouvre une session `LANDED` : on garde tout ce qui fait son identité
@@ -185,6 +194,52 @@ export function annotateSession(session, comment) {
 	return { ...session, comment: sanitizeComment(comment) };
 }
 
+// PHASE 17, spec D4 : les captures sont stockées en base64 DANS la session, et
+// le terminal recharge l'opérateur entier à chaque retour au menu. On élide les
+// `dataUrl` de toutes les réponses sauf celle de la route dédiée
+// `GET .../sessions/:sid`, seule à les rendre — et seule appelée par l'écran
+// VIEW SESSION. `w`/`h`/`ts` restent : ils suffisent au compte et au filtre
+// WITH PHOTOS.
+//
+// Le résultat est un FORMAT DE FIL, pas un état persistable : il ne repasse
+// jamais par `validateSession` (qui exige à raison une `dataUrl` par capture),
+// et l'élision n'a lieu qu'au moment de répondre, après l'écriture disque.
+export function stripPhotoData(session) {
+	if (!session || typeof session !== 'object') return session;
+	return {
+		...session,
+		photos: (session.photos ?? []).map(({ dataUrl, ...rest }) => rest),
+	};
+}
+
+export function stripOperatorPhotoData(state) {
+	if (!state || typeof state !== 'object') return state;
+	return { ...state, sessions: (state.sessions ?? []).map(stripPhotoData) };
+}
+
+// PHASE 17, spec D3 : suppression franche. L'entrée quitte `state.sessions`,
+// captures comprises ; le terrain n'est JAMAIS touché — symétrique de
+// « supprimer le terrain ne supprime pas le souvenir » (Bible §29).
+// Les compteurs ne reculent pas : un numéro ne se recycle pas, la suppression
+// laisse un trou visible dans le journal.
+export function deleteSession(state, sid) {
+	const sessions = state?.sessions ?? [];
+	const i = sessions.findIndex((s) => s.id === sid);
+	if (i < 0) {
+		const e = new Error(`aucune session "${sid}"`);
+		e.status = 404;
+		throw e;
+	}
+	if (sessions[i].result === 'PENDING') {
+		// Peut-être encore en vol dans un autre onglet : on ne supprime pas sous
+		// les pieds d'une session ouverte.
+		const e = new Error(`session "${sid}" encore en vol`);
+		e.status = 409;
+		throw e;
+	}
+	return { ...state, sessions: [...sessions.slice(0, i), ...sessions.slice(i + 1)] };
+}
+
 // Garde-fou serveur : rejette tout ce qui n'a pas la forme attendue.
 export function validateSession(s) {
 	if (!s || typeof s !== 'object') throw new Error('session illisible');
@@ -194,6 +249,17 @@ export function validateSession(s) {
 	if (!slugify(s.area)) throw new Error('area invalide');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throw si malformé
 	if (s.target != null) sanitizeTarget(s.target); // throw si malformé
+	// Numéros d'affichage (PHASE 17). Contrôlés APRÈS la forme de la cible : une
+	// cible malformée est une erreur plus fondamentale que sa numérotation, et
+	// c'est elle que l'appelant doit voir en premier.
+	if (!Number.isInteger(s.seq) || s.seq < 1) throw new Error('seq de session invalide');
+	if (s.target != null) {
+		if (!Number.isInteger(s.targetSeq) || s.targetSeq < 1) {
+			throw new Error('targetSeq requis pour une session avec cible');
+		}
+	} else if (s.targetSeq != null) {
+		throw new Error('targetSeq sans cible');
+	}
 	const t = s.flightTelemetry ?? {};
 	for (const k of Object.keys(ZERO_TELEMETRY)) {
 		const v = t[k];
