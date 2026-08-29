@@ -4,7 +4,9 @@
 //   node tools/landing-selftest.mjs --report      # imprime les distributions
 //
 // Deux familles de trajectoires sont rejouées dans le vrai Rapier :
-//   - des poses     : le drone doit être reconnu comme posé ;
+//   - des poses     : le drone doit être reconnu comme posé (dont un rebond
+//                     et un roulé à spin résiduel, qui doivent l'être aussi,
+//                     mais pas trop tôt — voir `notBefore` sur ces cas) ;
 //   - des rasants   : bas et rapides, ils ne doivent JAMAIS l'être. C'est le
 //                     faux positif que l'issue #51 interdit, et c'est lui qui
 //                     fixe la marge.
@@ -55,12 +57,15 @@ function heightNow() {
 }
 
 // Rejoue une trajectoire et rend la trace de ce que la machine à états verrait.
-// `sticks(t, state)` rend les manches ; `seconds` la durée simulée.
-function fly({ sticks, seconds, mode = 'acro', windless = true }) {
+// `sticks(t, state)` rend les manches ; `seconds` la durée simulée. `angvel`
+// impose une vitesse angulaire de départ (le cas « roulé » : un contact avec
+// du spin résiduel, pas une chute propre).
+function fly({ sticks, seconds, mode = 'acro', windless = true, angvel = null }) {
 	const fc = new FlightController();
 	fc.setMode(mode);
 	fc.arm();
 	if (windless) phys.setWind(ZERO, 0);
+	if (angvel) phys.body.setAngvel(angvel, true);
 	const trace = [];
 	const steps = Math.round(seconds / STEP);
 	for (let i = 0; i < steps; i++) {
@@ -106,6 +111,37 @@ LANDINGS.push({
 		phys.setWind(ZERO, 0);
 		return trace;
 	},
+});
+
+// Rebond (section D5 de la spec, absent du brief initial) : chute assez dure
+// pour que la restitution du sol (0.15, voir physics.js) fasse un contact
+// bref, un décollage, un re-contact, avant que ça s'immobilise pour de bon.
+// `notBefore` verrouille ce que le test doit prouver : la pose ne doit être
+// reconnue ni pendant le premier contact (t~0.26-0.30s, hauteur basse mais
+// vitesse encore >1 m/s) ni pendant l'arc du rebond (t~0.30-0.61s, hauteur
+// remontée au-dessus de H_ON) — seulement une fois le second contact
+// vraiment digéré, mesuré ici après t=0.6s.
+LANDINGS.push({
+	name: 'pose avec rebond (chute vy=-10 m/s depuis 3 m)',
+	notBefore: 0.6,
+	run: () => { place(3, { x: 0, y: -10, z: 0 }); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6 }); },
+});
+
+// Roulé au sol, spin résiduel au contact (section D5). Mesuré : quelle que
+// soit l'intensité du spin imposé (essayé jusqu'à 20 rad/s, bien au-delà
+// d'un impact réaliste), le roulis retombe sous W_ON en moins d'une seconde
+// — c'est le `setGroundHold` de physics.js qui l'amortit (constante de temps
+// 0.15 s), pas W_ON : ce n'est pas une pose qui « échappe » indéfiniment,
+// c'est un régime transitoire qui s'éteint vite. Reclassé ici en pose
+// retardée plutôt qu'en rasant : contrairement à la demande initiale, il n'y
+// a pas de configuration physique où ce roulis ne se pose « jamais » — je
+// n'ai pas trouvé de moyen honnête de forcer ce résultat sans désactiver le
+// damping que le jeu applique déjà. `notBefore` vérifie ce que W_ON doit
+// vraiment garantir : pas de détection tant que le spin est encore visible.
+LANDINGS.push({
+	name: 'roulé au sol (spin résiduel 8 rad/s au contact)',
+	notBefore: 0.45,
+	run: () => { place(0.16); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6, angvel: { x: 8, y: 0, z: 0 } }); },
 });
 
 // --- les rasants (faux positifs) -------------------------------------------
@@ -179,6 +215,13 @@ for (const c of LANDINGS) {
 	landStats.push({ name: c.name, h: maxOf(end, 'height'), v: maxOf(end, 'speed'), w: maxOf(end, 'angularSpeed') });
 	check(`${c.name} : reconnue`, at !== null,
 		at === null ? 'jamais détectée' : `à t=${at.toFixed(2)}s`);
+	// Cas à rebond/roulis : la reconnaissance doit aussi arriver assez tard,
+	// pas seulement finir par arriver — sinon le test ne prouve rien de plus
+	// que les descentes propres ci-dessus.
+	if (c.notBefore !== undefined && at !== null) {
+		check(`${c.name} : pas avant t=${c.notBefore}s`, at >= c.notBefore,
+			`détectée à t=${at.toFixed(2)}s`);
+	}
 }
 
 console.log('\nrasants (aucun ne doit être reconnu)');
