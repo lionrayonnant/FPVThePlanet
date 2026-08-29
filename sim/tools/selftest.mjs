@@ -13,6 +13,9 @@ import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, P
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
+import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
+import { hoverThrottle } from '../src/flightController.js';
+import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1153,6 +1156,126 @@ console.log('\ntextures');
 		check('visible surface is not sampling the grey padding', greyPct < 5,
 			`${greyPct.toFixed(1)}% grey over ${area.toFixed(0)} m² sampled`);
 	}
+}
+
+console.log('\ncrash threshold');
+check('upright/flat rotation uses the flat threshold', crashThreshold({ x: 0, y: 0, z: 0, w: 1 }) === CRASH_IMPULSE_FLAT);
+check('nose-down rotation uses the tighter threshold',
+	crashThreshold({ x: 0.8, y: 0, z: 0, w: Math.sqrt(1 - 0.8 * 0.8) }) === CRASH_IMPULSE);
+check('hoverThrottle(profile, identity) matches the local hoverStick reference',
+	Math.abs(hoverThrottle(PROFILE, { x: 0, y: 0, z: 0, w: 1 }) - hoverStick(PROFILE)) < 1e-9);
+
+console.log('\napplyEntryState');
+{
+	phys.setProfile(QUAD);
+	const state = {
+		position: { x: 10, y: 50, z: -20 },
+		quaternion: { x: 0, y: 0.3826834, z: 0, w: 0.9238795 }, // 45° yaw
+		linvel: { x: 3, y: -1, z: 2 },
+		angvel: { x: 0, y: 0, z: 1.5 },
+	};
+	phys.applyEntryState(state);
+	const p = phys.position, r = phys.rotation, v = phys.velocity, w = phys.angularVelocity;
+	check('position applied', Math.hypot(p.x - state.position.x, p.y - state.position.y, p.z - state.position.z) < 1e-6);
+	check('rotation applied', Math.abs(r.w - state.quaternion.w) < 1e-6 && Math.abs(r.z - state.quaternion.z) < 1e-6);
+	check('linear velocity applied', Math.hypot(v.x - state.linvel.x, v.y - state.linvel.y, v.z - state.linvel.z) < 1e-6);
+	check('angular velocity applied', Math.abs(w.z - state.angvel.z) < 1e-6);
+	check('battery reset to full', phys.battery.soc === 1);
+	phys.reset();
+}
+
+console.log('\nentry state — sampleCandidate');
+{
+	phys.setProfile(QUAD);
+	const rand = rngFrom('sample-candidate-check');
+	for (const category of CATEGORIES) {
+		const c = sampleCandidate(category, manifest, phys, rand);
+		check(`${category}: produced a candidate inside the scene bbox`,
+			c !== null
+			&& c.position.x >= manifest.bbox.min[0] && c.position.x <= manifest.bbox.max[0]
+			&& c.position.z >= manifest.bbox.min[2] && c.position.z <= manifest.bbox.max[2]);
+		if (!c) continue;
+		const ground = phys.groundBelow(c.position.x, c.position.y, c.position.z);
+		const agl = ground === null ? null : c.position.y - ground;
+		const [loAgl, hiAgl] = RANGES[category].aglM;
+		check(`${category}: altitude above ground within its range`,
+			agl !== null && agl >= loAgl - 1e-6 && agl <= hiAgl + 1e-6, `agl=${agl?.toFixed(2)}`);
+		const speed = Math.hypot(c.linvel.x, c.linvel.y, c.linvel.z);
+		const [loSpeed, hiSpeed] = RANGES[category].speedMs;
+		check(`${category}: speed within its range`, speed >= loSpeed - 1e-6 && speed <= hiSpeed + 1e-6,
+			`${speed.toFixed(1)} m/s`);
+		const qLenSq = c.quaternion.x ** 2 + c.quaternion.y ** 2 + c.quaternion.z ** 2 + c.quaternion.w ** 2;
+		check(`${category}: quaternion is normalised`, Math.abs(qLenSq - 1) < 1e-6);
+	}
+	// A candidate sitting exactly on the ground (no clearance) must fail; the
+	// same candidate lifted well clear of everything must pass.
+	const onFloor = sampleCandidate('COMFORTABLE', manifest, phys, rand);
+	const buried = { ...onFloor, position: { ...onFloor.position, y: onFloor.position.y - 1e3 } };
+	check('geometrySafe rejects a position far under the terrain', geometrySafe(buried, phys) === false);
+	check('geometrySafe accepts a normally-sampled COMFORTABLE candidate', geometrySafe(onFloor, phys) === true);
+
+	// geometrySafe's obstruction-rejection branch needs a real wall ahead to
+	// trigger — the tour-eiffel lattice is too thin/sparse to reliably produce
+	// one (see physics.js's own note on photogrammetry meshes being a "surface
+	// soup" with legitimately-zero span for thin structures). A stub isolates
+	// the branch logic from scene geometry.
+	const wallStub = {
+		groundBelow: () => onFloor.position.y - 5, // plenty of clearance
+		obstructionBetween: () => ({ blocked: true, span: 5 }),
+	};
+	const clipStub = {
+		groundBelow: () => onFloor.position.y - 5,
+		obstructionBetween: () => ({ blocked: true, span: 0.5 }),
+	};
+	check('geometrySafe rejects when a real wall (span > 2m) is ahead', geometrySafe(onFloor, wallStub) === false);
+	check('geometrySafe accepts a tangential clip (span <= 2m)', geometrySafe(onFloor, clipStub) === true);
+
+	// A HOLY_SHIT candidate close to the ground, pointed straight down, must
+	// fail the rollout even though geometrySafe alone might pass it (it only
+	// looks at the instant of spawn, not one second of unattended flight).
+	const groundUnderFloor = phys.groundBelow(onFloor.position.x, onFloor.position.y, onFloor.position.z);
+	const divingIntoGround = {
+		category: 'HOLY_SHIT',
+		position: { x: onFloor.position.x, y: groundUnderFloor + 3, z: onFloor.position.z },
+		quaternion: { x: 0.7071068, y: 0, z: 0, w: 0.7071068 }, // pitched straight down
+		linvel: { x: 0, y: -30, z: 0 },
+		angvel: { x: 0, y: 0, z: 0 },
+	};
+	check('rolloutSafe rejects a fast dive straight into the ground', rolloutSafe(divingIntoGround, phys) === false);
+	check('rolloutSafe accepts a normally-sampled COMFORTABLE candidate', rolloutSafe(onFloor, phys) === true);
+
+	// Acceptance criteria from issue #48: 100 automated draws, none crash
+	// unattended, none land under the terrain; category mix close to spec.
+	const drawCounts = Object.fromEntries(CATEGORIES.map((c) => [c, 0]));
+	let anyCrashed = false, anyUnderground = false, anyOutOfRange = false;
+	for (let i = 0; i < 100; i++) {
+		const entry = generateEntryState({ physics: phys, manifest, seed: `draw-${i}` });
+		drawCounts[entry.category]++;
+		if (!rolloutSafe(entry, phys)) anyCrashed = true;
+		const ground = phys.groundBelow(entry.position.x, entry.position.y, entry.position.z);
+		if (ground === null || entry.position.y - ground < 1) anyUnderground = true;
+		if (ground !== null) {
+			const agl = entry.position.y - ground;
+			const speed = Math.hypot(entry.linvel.x, entry.linvel.y, entry.linvel.z);
+			const [loAgl, hiAgl] = RANGES[entry.category].aglM;
+			const [loSpeed, hiSpeed] = RANGES[entry.category].speedMs;
+			if (agl < loAgl - 1e-6 || agl > hiAgl + 1e-6 || speed < loSpeed - 1e-6 || speed > hiSpeed + 1e-6) anyOutOfRange = true;
+		}
+	}
+	check('100 draws: none crash within the grace second when replayed', !anyCrashed);
+	check('100 draws: none spawn under the terrain', !anyUnderground);
+	check('100 draws: each returned entry matches its own category\'s AGL/speed range', !anyOutOfRange);
+	console.log(`    category mix over 100 draws: ${JSON.stringify(drawCounts)}`);
+
+	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
+	check('maxAttempts=0 falls back to the fixed spawn', fallback.category === 'COMFORTABLE'
+		&& fallback.position.x === manifest.spawn.x && fallback.position.y === manifest.spawn.y
+		&& fallback.position.z === manifest.spawn.z
+		&& fallback.quaternion.w === 1 && fallback.quaternion.x === 0
+		&& fallback.linvel.x === 0 && fallback.linvel.y === 0 && fallback.linvel.z === 0
+		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
+
+	phys.reset();
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);

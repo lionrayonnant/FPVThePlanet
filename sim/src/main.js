@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
+import { crashThreshold } from './quad.js';
+import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
@@ -34,13 +36,6 @@ const SKY = 0x9fb8cc;
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
-// Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
-// 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
-// slamming into something a crash.
-const CRASH_IMPULSE = 1500;
-// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
-// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
-const CRASH_IMPULSE_FLAT = 2800;
 // The ground station's antenna, above whatever the pilot is standing on. The
 // pilot is at the spawn point, because that is where you took off from.
 const ANTENNA_HEIGHT = 1.2;
@@ -115,6 +110,7 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+let sceneManifest = null;
 let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
@@ -165,6 +161,7 @@ async function boot() {
 	stage('manifest');
 	hud.progress('lecture du manifest…', 0.01);
 	const manifest = await loadManifest();
+	sceneManifest = manifest;
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;
@@ -205,6 +202,11 @@ async function boot() {
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
 	audio.setProfile(physics.profile);
 	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -245,7 +247,7 @@ async function boot() {
 	hud.progress('premier rendu…', 0.98);
 	hud.detail('');
 	await nextPaint();
-	camera.position.set(manifest.spawn.x, manifest.spawn.y, manifest.spawn.z);
+	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
 	// Through the composer, not the renderer: otherwise the lens pass compiles its
 	// shader on the first frame of flight instead of behind the loading screen.
 	lens.render(camera, 1 / 60);
@@ -495,7 +497,11 @@ function respawn() {
 	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
 	hud.setSessionStatus(null);
 	controller.arm();
-	physics.reset();
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest: sceneManifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 	link.reset();
 	// Neither model was being reset here, and both say in their own comments
 	// that they should be: a respawn should not drop you back into the squall
@@ -615,9 +621,7 @@ function frame() {
 			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
 			// de crash suit donc l'assiette au moment du choc.
 			if (impact > 0 && !crashed) {
-				const r = physics.rotation;
-				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
-				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
+				if (impact > crashThreshold(physics.rotation)) {
 					crashed = true;
 					// Le drone est détruit. La session se ferme sur CRASHED — le
 					// terrain, lui, reste. terrain persistent, flights ephemeral.
@@ -881,7 +885,7 @@ chooseScene()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
-	spawnY = physics.position.y;
+	spawnY = physics.spawn.y;
 	try {
 		await session.open({
 			area: flyArea,
