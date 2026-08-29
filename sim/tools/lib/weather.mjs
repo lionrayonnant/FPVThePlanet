@@ -458,10 +458,20 @@ export function toSimParams(day) {
 	// d'une nappe est plus forte quand elle est mince (elle se déchire).
 	const fogVariability = fogIntensity > 0 ? clamp01(0.65 - 0.35 * fogIntensity) : 0.5;
 
+	// Nuages. cloudPct est déjà produit, déjà borné et déjà rendu cohérent avec
+	// la pluie et la visibilité par sanitize() ; il n'y a rien à modéliser ici,
+	// seulement à convertir en fraction.
+	const cover = clamp01(d.cloudPct / 100);
+	// Un ciel épars s'agite — les cumulus se forment et se dissipent à vue —
+	// tandis qu'un couvercle de stratus est une couche stable qui ne bouge
+	// presque plus. Même forme et même raison que fogVariability juste au-dessus.
+	const cloudVariability = cover > 0 ? clamp01(0.7 - 0.45 * cover) : 0.5;
+
 	return {
 		wind: { speed, direction: d.windDir, gust, turbulence },
 		rain: { intensity: rainIntensity, variability: rainVariability(d) },
 		fog: { intensity: fogIntensity, variability: fogVariability },
+		cloud: { cover, variability: cloudVariability },
 	};
 }
 

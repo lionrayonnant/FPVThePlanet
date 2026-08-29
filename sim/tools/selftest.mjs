@@ -13,6 +13,8 @@ import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, P
 import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MAX_RATE, GRAVITY } from '../src/rain.js';
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 import { CloudField, baseFor, BASE_CLEAR, BASE_OVERCAST, DECK_THICKNESS, DIM_MAX } from '../src/cloud.js';
+import { toSimParams, sanitize } from './lib/weather.mjs';
+import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
@@ -1212,6 +1214,40 @@ console.log('\nnuages');
 		let inRange = true;
 		for (let i = 0; i < 50000; i++) { f.update(1 / 50); if (f.cover < 0 || f.cover > 1) inRange = false; }
 		check('la couverture reste une fraction, quoi qu\'il arrive', inRange);
+	}
+
+	// Le canal était déjà produit et déjà assaini ; cette partie ne fait que le
+	// router. Ce qui se teste est donc le routage, pas la météo.
+	{
+		const clear = toSimParams(sanitize({ cloudPct: 0, windSpeed: 0, rateMmH: 0, visibilityM: 60000 }));
+		check('un ciel à 0 % donne une couverture exactement nulle', clear.cloud.cover === 0);
+
+		const shut = toSimParams(sanitize({ cloudPct: 100, windSpeed: 0, rateMmH: 0, visibilityM: 60000 }));
+		check('un ciel à 100 % donne une couverture pleine', shut.cloud.cover === 1);
+
+		// La garde-fou de sanitize() qui existait déjà et que personne ne
+		// consommait : il ne pleut pas sous un ciel bleu. Maintenant qu'on le
+		// consomme, on le vérifie.
+		const wet = toSimParams(sanitize({ cloudPct: 0, windSpeed: 0, rateMmH: 4, visibilityM: 60000 }));
+		check('il ne peut pas pleuvoir sous un ciel dégagé', wet.cloud.cover >= 0.7,
+			wet.cloud.cover.toFixed(2));
+
+		// Et l'autre : un ciel bouché n'est pas dégagé.
+		const foggy = toSimParams(sanitize({ cloudPct: 0, windSpeed: 0, rateMmH: 0, visibilityM: 400 }));
+		check('un brouillard épais implique un ciel couvert', foggy.cloud.cover >= 0.6,
+			foggy.cloud.cover.toFixed(2));
+
+		// Un ciel épars s'agite, un couvercle d'overcast ne bouge presque plus.
+		check('un ciel épars respire plus qu\'un couvercle',
+			toSimParams(sanitize({ cloudPct: 30 })).cloud.variability
+			> toSimParams(sanitize({ cloudPct: 95 })).cloud.variability);
+
+		// Le monde neutre que selftest.mjs suppose doit rester neutre.
+		check('CALM est un ciel parfaitement dégagé', CALM_WEATHER.cloud.cover === 0);
+		const calmField = new CloudField(29).setParams(CALM_WEATHER.cloud);
+		for (let i = 0; i < 200; i++) calmField.update(1 / 50);
+		check('et un CloudField nourri par CALM n\'assombrit rien',
+			calmField.dim === 1 && calmField.extinctionAt(150) === 0);
 	}
 }
 
