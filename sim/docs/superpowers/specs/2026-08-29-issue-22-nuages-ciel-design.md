@@ -116,11 +116,29 @@ d'horizon ne se dédouble pas.
 
 ### D5 — Air clair bit-identique
 
-`cover === 0` doit être bit-identique à l'absence totale de modèle : `dim`
-exactement 1, extinction exactement 0, aucun tirage aléatoire, aucun filtre
-avancé, le dôme rendu avec sa couleur de ciel clair. C'est la promesse que
-`wind.js` fait au calme, `rain.js` au temps sec et `fog.js` à l'air clair, et
-c'est ce qui garde `tools/selftest.mjs` vert sur un monde neutre.
+`cover === 0` doit être bit-identique à l'absence totale de modèle **du côté du
+modèle** : `dim` exactement 1, `extinctionAt()` exactement 0 à toute altitude,
+aucun tirage aléatoire consommé, aucun filtre avancé, densité de nuage
+exactement 0 dans le shader. C'est la promesse que `wind.js` fait au calme,
+`rain.js` au temps sec et `fog.js` à l'air clair, et c'est ce qui garde
+`tools/selftest.mjs` vert sur un monde neutre.
+
+**Ce que D5 ne dit pas.** L'invariant historique « le pixel de ciel sort
+`#9fb8cc` » (HANDOFF, la régression à ne pas rouvrir) **ne peut pas** survivre
+tel quel : remplacer une couleur plate par un dégradé change le pixel du zénith,
+et c'est précisément l'objet de l'issue. L'invariant est donc reformulé, pas
+abandonné :
+
+> La couleur d'**horizon** par ciel clair reste exactement `#9fb8cc`. Le zénith
+> gagne de la profondeur.
+
+C'est la bonne lecture de la régression d'origine, qui portait sur l'accord
+entre le fondu des tuiles et le fond — des façades grises sur un fond qui ne
+leur correspond pas. Cet accord est ce que D4 protège explicitement, et il est
+**renforcé**, pas affaibli : `setFog()` et `scene.background` reçoivent tous les
+deux la couleur d'horizon du dôme. Un ciel clair a d'ailleurs son zénith plus
+profond que son horizon — garder le dégradé plat au ciel clair aurait été le
+seul cas où le rendu serait faux.
 
 ### D6 — Le nombre qui n'est pas décidé d'avance
 
@@ -324,8 +342,9 @@ TDD (tests d'abord) :
 Le rendu ne se teste pas en headless. Vérification dans le navigateur
 (chrome-devtools), et c'est là que se fait la calibration de D6 :
 
-- pas de régression sur un monde neutre : le pixel de ciel sort toujours
-  `#9fb8cc`, l'image au sol est inchangée ;
+- pas de régression sur un monde neutre : la couleur d'**horizon** sort toujours
+  `#9fb8cc` et l'image au sol est strictement inchangée (`dim === 1`). Le zénith
+  est plus profond — c'est voulu, voir D5 ;
 - la ligne d'horizon ne se dédouble pas — le fondu des tuiles et l'horizon du
   dôme se rejoignent (D4) ;
 - les nuages dérivent dans le sens du vent et se déforment ;
