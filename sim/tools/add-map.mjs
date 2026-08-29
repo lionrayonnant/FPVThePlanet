@@ -6,6 +6,7 @@
 //                           [--altitude 20] [--cell 256] [--quality 85]
 //                           [--slug custom-slug] [--force]
 //                           [--bbox <south>,<west>,<north>,<east>]
+//                           [--poly "<lat>,<lon> <lat>,<lon> ..."]
 //
 // radius (tryXY) and altitude (tryH) are the export-obj scan parameters — see
 // ../flyover-reverse-engineering/README.md. Bigger radius = more area, at
@@ -16,13 +17,18 @@
 // which is what the GUI (npm run dev, /add-map.html) uses. lat/lon are still
 // required — they select the Flyover region — so pass the box centre.
 //
+// --poly extracts a free polygon instead of a rectangle: only the tiles its
+// outline touches are scanned. A tile is kept as soon as the outline touches
+// it, so the extracted area is always a superset of the shape. lat/lon are
+// still required (they select the Flyover region); pass a point inside the shape.
+//
 // All the work lives in lib/add-map-core.mjs; this file is only the CLI.
 
 import { addMap, Cancelled, slugify } from './lib/add-map-core.mjs';
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false, bbox: null };
+	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false, bbox: null, poly: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--zoom') opts.zoom = parseInt(argv[++i], 10);
@@ -33,16 +39,21 @@ function parseArgs(argv) {
 		else if (a === '--slug') opts.slug = argv[++i];
 		else if (a === '--force') opts.force = true;
 		else if (a === '--bbox') opts.bbox = parseBox(argv[++i]);
+		else if (a === '--poly') opts.poly = parseRing(argv[++i]);
 		else positional.push(a);
 	}
 	if (positional.length !== 3) {
-		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--bbox s,w,n,e]');
+		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--bbox s,w,n,e] [--poly "lat,lon lat,lon ..."]');
 		process.exit(1);
 	}
 	const [name, latStr, lonStr] = positional;
 	const lat = Number(latStr), lon = Number(lonStr);
 	if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
 		console.error('lat/lon must be numbers');
+		process.exit(1);
+	}
+	if (opts.bbox && opts.poly) {
+		console.error('--bbox and --poly are mutually exclusive');
 		process.exit(1);
 	}
 	opts.name = name;
@@ -62,6 +73,17 @@ function parseBox(v) {
 		south: Math.min(n[0], n[2]), west: Math.min(n[1], n[3]),
 		north: Math.max(n[0], n[2]), east: Math.max(n[1], n[3]),
 	};
+}
+
+// Accepte "lat,lon lat,lon" comme "lat,lon,lat,lon" : à taper à la main les
+// paires espacées se relisent, et la forme plate est celle que le Go reçoit.
+function parseRing(v) {
+	const n = String(v ?? '').trim().split(/[\s,]+/).map(Number);
+	if (n.length < 6 || n.length % 2 !== 0 || !n.every(Number.isFinite)) {
+		console.error('--poly expects at least 3 "<lat>,<lon>" pairs in degrees');
+		process.exit(1);
+	}
+	return n;
 }
 
 const opts = parseArgs(process.argv.slice(2));
