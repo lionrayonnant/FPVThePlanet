@@ -535,11 +535,11 @@ const routes = [
 		fs.rmSync(path.join(SCENES_DIR, slug), { recursive: true, force: true });
 		let raw = false;
 		if (url.searchParams.get('raw') === '1') {
-			// Même logique que remove-map.mjs : on retrouve la tuile brute par son
-			// nom, qu'elle soit au format « centre » ou « bbox ».
-			const dir = entry.bbox
-				? tileDirPath({ ...entry, bbox: entry.bbox })
-				: tileDirPath({ lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 });
+			// On retrouve la tuile brute par son nom, quelle que soit la forme de
+			// la zone : « centre + rayon », « bbox », ou « poly ».
+			const dir = await tileDirPath(entry.poly || entry.bbox
+				? entry
+				: { lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 });
 			if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); raw = true; }
 		}
 		json(res, 200, { removed: slug, raw });

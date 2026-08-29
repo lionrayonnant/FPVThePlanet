@@ -12,6 +12,7 @@ import {
 	maskOutline, polygonProbePoint,
 	tileGrid, tileTMSToLatLon, latLonToTileTMS,
 } from './lib/tiles.mjs';
+import { tileDirName } from './lib/add-map-core.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -210,6 +211,26 @@ await at('fixture partagée : tiles.mjs est resté d\'accord avec elle', async (
 		assert.equal(await polyHash(c.ring), c.hash, `${c.name} : hash`);
 		assert.ok(Math.abs(polygonArea(c.ring) - c.areaM2) < 1e-6, `${c.name} : aire`);
 	}
+});
+
+await at('tileDirName : le nom du cache, en phase avec le Sprintf du Go', async () => {
+	const fixture = JSON.parse(
+		fs.readFileSync(new URL('../../flyover-reverse-engineering/testdata/poly-cases.json', import.meta.url), 'utf8'));
+	const c = fixture[0];
+	assert.equal(await tileDirName({ poly: c.ring, zoom: 20, altitude: 20 }), `poly-${c.hash}-20-20`);
+	// Les deux autres formes ne bougent pas.
+	assert.equal(await tileDirName({ lat: 48.8582, lon: 2.2945, zoom: 20, radius: 25, altitude: 20 }),
+		'48.858200-2.294500-20-25-20');
+	assert.equal(await tileDirName({ bbox: { south: 48.845, west: 2.295, north: 48.855, east: 2.305 }, zoom: 20, altitude: 20 }),
+		'bbox-48.845000-2.295000-48.855000-2.305000-20-20');
+});
+
+t('un tracé et son emprise ne partagent pas de cache', () => {
+	// Sinon un polygone reprendrait le téléchargement partiel d'un rectangle,
+	// et rendrait une carte trouée sans rien dire.
+	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
+	const g = polygonGrid(TRI, 20);
+	assert.notEqual(g.columns, g.cols * g.rows);
 });
 
 console.log(`\n${n} vérifications, tout passe.`);
