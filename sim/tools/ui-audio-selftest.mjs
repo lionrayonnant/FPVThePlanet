@@ -5,7 +5,9 @@ import {
 	UI_EVENTS, UI_FAMILY, BOOT_SIGNATURE,
 	LINK_LOST_AT, LINK_BACK_AT, LINK_MIN_GAP_S,
 	newLinkState, linkEvent,
+	VOICES, PERCUSSIVE, RITUAL_SCORES, scoreFor,
 } from './ui-audio-model.mjs';
+import { HACK_TYPES } from './target-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -141,6 +143,113 @@ t('linkEvent : le temps de garde étouffe une mitraillette', () => {
 t('linkEvent : ne garde aucun état de module — deux runs identiques', () => {
 	const trace = [...Array(60).fill(1), ...Array(300).fill(0.02), ...Array(300).fill(0.9)];
 	assert.deepEqual(run(trace), run(trace));
+});
+
+// --- partitions de rituel ---------------------------------------------------
+
+const VARIANT_MS = [1000, 2000, 3000, 4000]; // V1..V4, cf. tools/ritual-model.mjs
+
+t('RITUAL_SCORES : une partition par famille de HACK_TYPES, et rien d\'autre', () => {
+	assert.deepEqual(Object.keys(RITUAL_SCORES).sort(), [...HACK_TYPES].sort());
+});
+
+t('RITUAL_SCORES : chaque événement nomme une voix connue', () => {
+	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
+		for (const ev of score) {
+			assert.ok(VOICES.includes(ev.voice), `${family} : voix inconnue ${ev.voice}`);
+		}
+	}
+});
+
+t('RITUAL_SCORES : temps normalisé croissant, dans [0,1]', () => {
+	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
+		for (let i = 0; i < score.length; i++) {
+			assert.ok(score[i].at >= 0 && score[i].at <= 1, `${family} : at hors [0,1]`);
+			if (i) assert.ok(score[i].at >= score[i - 1].at, `${family} : at non croissant`);
+		}
+	}
+});
+
+t('RITUAL_SCORES : les six sont réellement distinctes', () => {
+	// La décision « six identités écrites à la main » est vérifiée, pas
+	// seulement déclarée : deux familles ne peuvent pas rendre la même suite
+	// de voix.
+	const shapes = Object.entries(RITUAL_SCORES)
+		.map(([f, s]) => [f, s.map((e) => e.voice).join('>')]);
+	for (let i = 0; i < shapes.length; i++) {
+		for (let j = i + 1; j < shapes.length; j++) {
+			assert.notEqual(shapes[i][1], shapes[j][1], `${shapes[i][0]} == ${shapes[j][0]}`);
+		}
+	}
+});
+
+t('RITUAL_SCORES : chacune finit par une montée puis l\'impact final (§36)', () => {
+	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
+		const voices = score.map((e) => e.voice);
+		assert.equal(voices[voices.length - 1], 'impact', `${family} : pas d'impact final`);
+		assert.ok(voices.includes('sweep'), `${family} : pas de montée`);
+		assert.ok(voices.lastIndexOf('sweep') < voices.length - 1, `${family} : montée après l'impact`);
+	}
+});
+
+t('scoreFor : rend une partition non vide pour les 6 familles × les 4 variantes', () => {
+	for (const family of HACK_TYPES) {
+		for (const ms of VARIANT_MS) {
+			assert.ok(scoreFor(family, ms).length > 0, `${family} / ${ms}ms`);
+		}
+	}
+});
+
+t('scoreFor : rien ne dépasse la durée de la variante', () => {
+	for (const family of HACK_TYPES) {
+		for (const ms of VARIANT_MS) {
+			for (const ev of scoreFor(family, ms)) {
+				assert.ok(ev.atMs >= 0 && ev.atMs <= ms, `${family}/${ms} : atMs=${ev.atMs}`);
+			}
+		}
+	}
+});
+
+t('scoreFor : l\'impact final est ancré à la fin, quelle que soit la variante', () => {
+	for (const family of HACK_TYPES) {
+		for (const ms of VARIANT_MS) {
+			const score = scoreFor(family, ms);
+			const last = score[score.length - 1];
+			assert.equal(last.voice, 'impact', `${family}/${ms}`);
+			// Dans les 10 derniers pourcents : la culmination tombe avec la fin
+			// de la variante, elle ne flotte pas au milieu.
+			assert.ok(last.atMs >= ms * 0.90, `${family}/${ms} : impact à ${last.atMs}`);
+		}
+	}
+});
+
+t('scoreFor : la variante change la durée, pas la construction', () => {
+	for (const family of HACK_TYPES) {
+		const shapes = VARIANT_MS.map((ms) => scoreFor(family, ms).map((e) => e.voice).join('>'));
+		assert.equal(new Set(shapes).size, 1, `${family} : la suite de voix change avec la variante`);
+	}
+	// Mais l'étalement, lui, change bien.
+	const spans = VARIANT_MS.map((ms) => {
+		const s = scoreFor('LINK HIJACK', ms);
+		return s[s.length - 1].atMs;
+	});
+	for (let i = 1; i < spans.length; i++) assert.ok(spans[i] > spans[i - 1]);
+});
+
+t('scoreFor : les voix percussives gardent leur durée propre, les tenues s\'étirent', () => {
+	const short = scoreFor('FIRMWARE OVERRIDE', 1000);
+	const long = scoreFor('FIRMWARE OVERRIDE', 4000);
+	for (let i = 0; i < short.length; i++) {
+		if (PERCUSSIVE.includes(short[i].voice)) {
+			assert.equal(short[i].durS, long[i].durS, 'un glitch dure autant à V1 qu\'à V4');
+		} else {
+			assert.ok(long[i].durS > short[i].durS, `${short[i].voice} devrait s'étirer`);
+		}
+	}
+});
+
+t('scoreFor : famille inconnue → partition vide plutôt qu\'un plantage', () => {
+	assert.deepEqual(scoreFor('PAS UNE FAMILLE', 2000), []);
 });
 
 console.log(`\n${n} tests OK`);
