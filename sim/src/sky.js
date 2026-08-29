@@ -13,6 +13,7 @@
 // ligne d'horizon ne se dédouble pas.
 
 import * as THREE from 'three';
+import { skyNightDim } from './sun.js';
 
 // ColorManagement est coupé et le rendu est en NoToneMapping (HANDOFF bug #10) :
 // ces valeurs sont du sRGB, elles sortent telles quelles, il n'y a rien à
@@ -38,6 +39,22 @@ export const OVERCAST_HORIZON = 0xa8adb1;
 // laissait les tuiles se fondre vers une couleur que le dôme ne montrait pas.
 const RAIN_SKY = 0x8d99a2;
 const FOG_SKY = 0xc9d0d4;
+// Le halo urbain (#112) : la nuit, l'horizon d'une ville n'est pas bleu, il
+// est mangé par un voile sodium — les lampadaires diffusés par l'air. Couleur
+// et dose choisies à l'œil ; l'exposition de nuit (lens.js, ~0,3) l'assombrit
+// ensuite comme tout le reste, donc elle est posée claire ici. Le zénith n'y
+// touche pas : le halo est un phénomène d'horizon.
+const URBAN_GLOW = 0xd8955a;
+const URBAN_GLOW_MIX = 0.65;
+// La nuit noire (#112, retour de vol) : le dôme descend vers le noir sur la
+// courbe skyNightDim() — descente, plateau nocturne, remontée — au lieu de
+// laisser la seule exposition de lens.js assombrir des palettes de jour, ce
+// qui rendait un ciel bleu marine en pleine nuit. L'horizon garde un plancher
+// plus haut que le zénith : c'est là que vit le halo urbain, et cette couleur
+// est aussi le voile de brouillard des tuiles — un voile strictement noir
+// mangerait les lumières de la ville au loin. Les nuages suivent l'horizon :
+// une couche au-dessus d'une ville éclairée est teintée par elle.
+const NIGHT_HORIZON_FLOOR = 0.15;
 
 // Les nuages eux-mêmes. Pas d'éclairage : la corrélation entre densité et
 // luminosité suffit à les lire comme volumiques, et c'est tout ce qu'on peut
@@ -203,14 +220,14 @@ export class SkyDome {
 	// remodélisé ici : cover et base viennent de CloudField, le vent de
 	// physics.wind, rainScale et fogMix des modèles existants.
 	setState({ cover = 0, base = 0, altitudeAGL = 0, windDir = 0, windSpeed = 0,
-		rainScale = 1, fogMix = 0 } = {}) {
+		rainScale = 1, fogMix = 0, night = 0 } = {}) {
 		this._windDir = windDir;
 		this._windSpeed = windSpeed;
 		this.material.uniforms.uCover.value = cover;
 		// Signé : positif quand la couche est au-dessus de nous, négatif quand
 		// on l'a percée. Le shader s'en sert pour savoir de quel côté regarder.
 		this.material.uniforms.uHeight.value = base - altitudeAGL;
-		this._applyColours(cover, rainScale, fogMix);
+		this._applyColours(cover, rainScale, fogMix, night);
 		return this;
 	}
 
@@ -218,12 +235,27 @@ export class SkyDome {
 	// puis la pluie, puis le brouillard — dans cet ordre, celui de l'ancien
 	// weatherSky(). Le zénith et l'horizon subissent le MÊME traitement, sinon
 	// une averse creuserait un dégradé qui n'existe pas sous la pluie.
-	_applyColours(cover, rainScale, fogMix) {
+	_applyColours(cover, rainScale, fogMix, night = 0) {
 		const wet = Math.min(1, (rainScale - 1) * 1.2);
+		const dimZ = skyNightDim(night);
+		const dimH = 1 - night * (1 - NIGHT_HORIZON_FLOOR);
 		this._zenith.setHex(CLEAR_ZENITH).lerp(_tmp.setHex(OVERCAST_ZENITH), cover)
-			.lerp(_tmp.setHex(RAIN_SKY), wet).lerp(_tmp.setHex(FOG_SKY), fogMix);
+			.lerp(_tmp.setHex(RAIN_SKY), wet).lerp(_tmp.setHex(FOG_SKY), fogMix)
+			.multiplyScalar(dimZ);
 		this._horizon.setHex(CLEAR_HORIZON).lerp(_tmp.setHex(OVERCAST_HORIZON), cover)
-			.lerp(_tmp.setHex(RAIN_SKY), wet).lerp(_tmp.setHex(FOG_SKY), fogMix);
+			.lerp(_tmp.setHex(RAIN_SKY), wet).lerp(_tmp.setHex(FOG_SKY), fogMix)
+			// Le halo urbain, posé par-dessus la météo du moment PUIS assombri
+			// avec elle : à pleine nuit l'horizon est une bande sombre et chaude
+			// au-dessus d'un zénith quasi noir, pas une couleur de jour teintée.
+			.lerp(_tmp.setHex(URBAN_GLOW), night * URBAN_GLOW_MIX)
+			.multiplyScalar(dimH);
+		// Les nuages reçoivent le traitement de l'horizon : de nuit, une couche
+		// nuageuse au-dessus d'une ville est éclairée par elle, en sodium — et
+		// surtout pas blanche comme ses constantes de jour.
+		this.material.uniforms.uCloudLit.value.setHex(CLOUD_LIT)
+			.lerp(_tmp.setHex(URBAN_GLOW), night * URBAN_GLOW_MIX).multiplyScalar(dimH);
+		this.material.uniforms.uCloudDark.value.setHex(CLOUD_DARK)
+			.lerp(_tmp.setHex(URBAN_GLOW), night * URBAN_GLOW_MIX).multiplyScalar(dimH);
 	}
 
 	update(camera, dt) {

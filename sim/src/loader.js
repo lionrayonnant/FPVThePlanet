@@ -44,6 +44,12 @@ export function setFog(color, density) {
 	}
 }
 
+// La profondeur de nuit (#112). Même forme que setDim : le modèle vit dans
+// sun.js (nightAmount), ce fichier ne fait que le pousser sur chaque chunk.
+export function setNight(night) {
+	for (const m of tileMaterials) m.uniforms.uNight.value = night;
+}
+
 // L'assombrissement des nuages (#22). Même forme que setFog : le modèle vit
 // dans cloud.js, ce fichier ne fait que le pousser sur chaque chunk.
 export function setDim(dim) {
