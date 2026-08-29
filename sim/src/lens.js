@@ -115,7 +115,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0 },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -472,6 +472,7 @@ const LensShader = {
 
 			c *= 1.0 - uVignette * pow(r, 2.5);
 
+			#if SENSOR
 			// ---- le capteur de la cible ---------------------------------------
 			// En amont de l'émetteur, parce que c'est l'ordre physique : ce que
 			// le capteur abîme, la liaison le transporte ensuite fidèlement.
@@ -526,6 +527,7 @@ const LensShader = {
 				}
 				c = clamp(c, 0.0, 1.0);
 			}
+			#endif
 
 			// ---- and what it does to the picture itself -----------------------
 			#if LINK_MODE == 1
@@ -687,6 +689,9 @@ export class FpvLens {
 		this._dropBucket = 0;
 		this._rain = { wetness: 0, dropMm: 0, drift: null, dt: 0 };
 		this._glare = 0;
+		// Éteint tant que setSensor() n'a jamais fait passer un réglage à une
+		// valeur non neutre — un capteur inactif ne doit rien coûter au GPU.
+		this._sensorActive = 0;
 
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
 	}
@@ -746,6 +751,17 @@ export class FpvLens {
 	            clip = 0, tintHue = 0, tintAmount = 0 } = {}) {
 		this._u.uSensor.value.set(grain, lift, saturation, ringing);
 		this._u.uSensor2.value.set(clip, tintHue, tintAmount);
+		// Actif dès qu'un seul réglage s'écarte du neutre. La saturation neutre
+		// vaut 1 et non 0 : un test « tout à zéro » la prendrait à tort pour
+		// active, et une saturation à 0 (désaturation totale, un réglage
+		// légitime) à tort pour neutre — donc comparaison explicite à 1 ici.
+		const active = (grain !== 0 || lift !== 0 || saturation !== 1 || ringing !== 0
+			|| clip !== 0 || tintHue !== 0 || tintAmount !== 0) ? 1 : 0;
+		// Comme uGlare : seule la traversée neutre <-> actif recompile, pas
+		// chaque appel — la Task 9 peut appeler setSensor() à chaque frame.
+		const crossed = active !== this._sensorActive;
+		this._sensorActive = active;
+		if (crossed) this._updateDefines();
 	}
 
 	// How much the air is scattering into the optic, 0..1, straight from
@@ -809,12 +825,14 @@ export class FpvLens {
 		const defines = this.pass.material.defines;
 		const glare = this._glare > 0 ? 1 : 0;
 		if (taps === this._taps && defines.LINK_MODE === this._linkMode
-			&& defines.DROPS === this._dropBucket && defines.GLARE === glare) return;
+			&& defines.DROPS === this._dropBucket && defines.GLARE === glare
+			&& defines.SENSOR === this._sensorActive) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
 		defines.DROPS = this._dropBucket;
 		defines.GLARE = glare;
+		defines.SENSOR = this._sensorActive;
 		this.pass.material.needsUpdate = true;
 	}
 
