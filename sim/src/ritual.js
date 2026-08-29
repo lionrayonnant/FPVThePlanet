@@ -99,7 +99,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			const beatIdx = Math.min(variant.beats - 1, Math.floor(elapsed / beatMs));
 			const primitive = RITUAL_PRIMITIVES[primitives[beatIdx % primitives.length]];
 			burstEl.className = `ritual-burst ritual-burst--${RITUAL_COLORS[beatIdx % RITUAL_COLORS.length]}`;
-			primitive(burstEl, { t: elapsed / 1000, seed: numSeed });
+			// `dur` = fenêtre visible du battement (beatMs), pas la culmination
+			// entière : chaque primitive n'est affichée qu'un battement à la
+			// fois, pulseRing/vectorSweep bouclent leur période sur cette base.
+			primitive(burstEl, { t: elapsed / 1000, seed: numSeed, dur: beatMs / 1000 });
 			if (beatIdx !== lastBeatIdx) {
 				// Un coup à chaque battement : le rituel doit frapper l'écran, pas
 				// juste changer de motif dessus (retour utilisateur PR #80).

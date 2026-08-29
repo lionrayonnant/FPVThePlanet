@@ -616,6 +616,80 @@ Plan d'origine (contexte de la décision d'architecture) :
     ont été reproduits par script CDP — orientation de la caméra forcée via
     Rapier — plutôt qu'au stick, faute d'accès manette dans cet
     environnement).
+- **PHASE 20 — langage ASCII / pixel art / demo scene du rituel (issue #57),
+  vérifié headless + navigateur** :
+  - `src/ascii.js` : `asciiTag` (3 usages info `[+]`/`[!]`/`[*]` de la Bible
+    §40), `asciiChain`, `bigText`/`BIG_FONT` (police banner 5 lignes × 3
+    colonnes, A-Z + espace/!/-). `tools/ascii-selftest.mjs` : 7/7 OK.
+  - `src/pixel-icons.js` : 9 icônes 12×12 (`ICON_NAMES`, Bible §41), rendu
+    `iconSVG` en rects `crispEdges` (aucun emoji), `faviconDataURI` — le
+    favicon de `index.html` est désormais ce drone pixel art, plus l'ancien
+    emoji hélicoptère. `tools/pixel-icons-selftest.mjs` : 5/5 OK.
+  - `src/hack-grammars.js` / `src/ritual.js` : 3 primitives ajoutées
+    (`colorFlash`, `textWarp`, `bannerBurst`) aux 8 existantes → **11
+    primitives** `RITUAL_PRIMITIVES`, toutes sous contrat `{ t, seed, dur }`
+    (`dur` = fenêtre visible d'un battement, pas la durée V1-V4 de la
+    culmination entière ; absent, `dur` retombe sur l'ancien comportement,
+    compat PHASE 10).
+    `FAMILY_PRIMITIVES` couvre les 6 `HACK_TYPES`, chacune avec les nouvelles
+    primitives composées quelque part dans sa liste. `tools/ritual-selftest.mjs` :
+    14/14 OK, dont le garde-fou d'acceptation #57 (`RITUAL_PRIMITIVES` /
+    `FAMILY_PRIMITIVES` ne sont importés que par `ritual.js` et
+    `hack-grammars.js` — aucune fuite hors de l'événement de rituel).
+  - **Coût mesuré** (`tools/ritual-bench.mjs`, budget 2 ms/frame, 480 frames/
+    primitive) — pire cas rejoué dans ce même run : `glitchShift` à
+    **0,168 ms/frame** (8,4 % du budget) ; toutes les autres primitives sous
+    0,12 ms/frame. Un précédent passage (task 4) avait mesuré `scanBurst` à
+    0,093 ms/frame comme pire cas — l'ordre de grandeur (quelques % du
+    budget) est stable, la valeur exacte varie avec la charge machine au
+    moment du bench.
+  - `npm run selftest` (158/158) et `npm run selftest:operator` (chaîne
+    complète, `landing-selftest.mjs` inclus une fois le lien symbolique
+    `public/scenes` en place) : verts de bout en bout, PHASE 20 en queue de
+    chaîne.
+  - **Vérifié navigateur** (MCP indisponible — profil Chromium déjà
+    verrouillé par une autre session ; piloté à la place via CDP brut sur un
+    Chromium headless dédié, `--remote-debugging-port=9223`) :
+    - Favicon d'onglet : le drone pixel art (`data:image/svg+xml`, rects
+      `crispEdges`), plus d'emoji — vérifié sur l'écran d'accueil et pendant
+      un rituel.
+    - Rituel déroulé jusqu'à la culmination via `?scene=<slug>&hack=<type>`
+      (raccourci dev, `src/main.js`/`normalizeHackType`) + vecteur de secours
+      `FALLBACK_VECTOR` (`↑ → ↓ ← ↑ ←`) : `colorFlash` observé (fond plein qui
+      strobe, ex. violet/magenta), `textWarp` observé (lignes de vocabulaire
+      d'ambiance déformées en sinusoïde, ex. `OVERRIDE`/`TRACE`/`BYPASS`
+      défilant), `bannerBurst` observé (texte en gros caractères ASCII, ex.
+      motif `GNSS`) — les trois nouvelles primitives, chacune capturée en
+      screenshot pendant sa fenêtre de burst. Les 8 primitives PHASE 10
+      (`scanBurst`, `gridSwarm`, `pulseRing`, `vectorSweep`, etc.) revues au
+      passage sur d'autres familles/variantes.
+    - Point de méthode utile pour rejouer ceci : la variante (V1-V4, 1-4 s)
+      et l'ordre des primitives sont déterministes par `seed =
+      cosmeticSeed(family || hackType)` (`src/hack-grammars.js` /
+      `tools/ritual-model.mjs`) — passer `&family=<nom>` en plus de `&hack=`
+      change la variante sans changer le hack affiché, utile pour forcer un
+      V3/V4 et voir une primitive qui n'apparaît qu'au 3e/4e battement.
+      Le rituel interactif (`.ritual-prompt`) ne se monte qu'après la
+      séquence scriptée d'AUTOMATED ANALYSIS (`tools/hack-model.mjs` :
+      `HACK_LEAD` + 2 battements famille + `HACK_TAIL` + pauses + `HACK_HOLD_MS`
+      + `HACK_LOCK_MS`, ~5,6 s nominal, plus sous charge) — envoyer les
+      touches avant que `.ritual-prompt` affiche des `_` ne fait rien
+      (rituel pas encore monté, événement clavier perdu).
+    - Hors rituel (écran d'accueil `[ GLOBAL SCANNER ]`, vol avec `?scene=`
+      seul, sans `hack=`) : aucune couleur ni flash demo scene — HUD en
+      monochrome clair standard, seul artefact visible étant le liseré RGB du
+      lens/link existant (préexistant, sans rapport avec le rituel).
+  - **Non vérifié** : l'adoption des tags `[+]`/`[!]`/`[*]` et des icônes
+    pixel art sur les écrans existants (menu, terminal, scanner…) — c'est
+    la PHASE 19 (issue #56), le langage existe mais sa généralisation est
+    hors périmètre de la PHASE 20. La saisie manette du rituel (`gamepad-dir.js`)
+    n'a pas été rejouée en navigateur (pas d'accès manette dans cet
+    environnement, comme pour PHASE 08/13). Seules 4 des 6 `HACK_TYPES` ont
+    été rejouées individuellement en navigateur via `?hack=<type>`
+    (`COMMAND INJECTION`, `LINK HIJACK`, `TELEMETRY SPOOF`, `GNSS SPOOF`) ;
+    `NETWORK TAKEOVER` et `FIRMWARE OVERRIDE` n'ont pas été rejouées
+    elles-mêmes, seules leurs primitives ont été observées en passant par
+    d'autres familles.
 
 - **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
   SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
