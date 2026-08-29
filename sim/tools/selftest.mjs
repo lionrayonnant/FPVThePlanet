@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { initPhysics, Physics, MAX_THRUST, QUAD } from '../src/physics.js';
-import { FlightController, RATE_PRESETS } from '../src/flightController.js';
+import { FlightController } from '../src/flightController.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { VideoLink } from '../src/link.js';
 import { WindField, mulberry32, shearFactor, turbulenceIntensity, PROBE_COUNT, PROBE_RANGE } from '../src/wind.js';
@@ -18,6 +18,7 @@ import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { createTileMaterial } from '../src/TileMaterial.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
+import { targetBuild, thrustToWeight } from './target-build.mjs';
 import {
 	droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY,
 	PANEL_MODES, ARCHETYPES, FIRMWARES, DIGITAL_TINTS, PATHOLOGIES,
@@ -67,6 +68,16 @@ function useFamily(fam) {
 	HOVER = hoverStick(PROFILE);
 }
 
+// Un EXEMPLAIRE tiré (PHASE 07, tools/target-build.mjs) plutôt que le profil
+// nominal de la famille : masse, moteurs, pack et rates déviés, sur le tune
+// mesuré de la famille — inchangé, c'est tout l'enjeu.
+function useBuild(build) {
+	PROFILE = build.profile;
+	phys.setProfile(PROFILE);
+	fc = new FlightController({ profile: PROFILE, rates: build.rates });
+	HOVER = hoverStick(PROFILE);
+}
+
 let failures = 0;
 function check(label, ok, detail) {
 	console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`);
@@ -88,15 +99,27 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	fc.reset();
 	let maxImpact = 0;
 	let peakSpin = 0;
+	// Le taux tenu, moyenné sur le dernier tiers du run plutôt que lu à l'instant
+	// final. Un bouclage qui ondule (MICRO ondule de 16 % au nominal, les 5" de
+	// 0 à 2 %) donne un échantillon instantané qui dépend de l'endroit où l'on
+	// tombe dans l'ondulation : 75 % ou 135 % du même vol. La moyenne mesure ce
+	// qu'on voulait mesurer, et elle est identique à l'instantané quand le
+	// bouclage est propre.
+	const tail = [];
+	const tailFrom = seconds * (2 / 3);
 	for (let i = 0; i < Math.round(seconds * 250); i++) {
-		const s = typeof sticks === 'function' ? sticks(i * STEP) : sticks;
+		const t = i * STEP;
+		const s = typeof sticks === 'function' ? sticks(t) : sticks;
 		const { motors } = fc.update(s, phys, STEP);
 		maxImpact = Math.max(maxImpact, phys.step(motors, STEP));
 		const a = phys.angularVelocity;
-		peakSpin = Math.max(peakSpin, Math.hypot(a.x, a.y, a.z) * 180 / Math.PI);
+		const mag = Math.hypot(a.x, a.y, a.z) * 180 / Math.PI;
+		peakSpin = Math.max(peakSpin, mag);
+		if (t >= tailFrom) tail.push(mag);
 	}
 	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
-	return { p, v, w, peakSpin, battery: phys.battery,
+	const heldSpin = tail.length ? tail.reduce((a, b) => a + b, 0) / tail.length : 0;
+	return { p, v, w, peakSpin, heldSpin, battery: phys.battery,
 		speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
 }
 
@@ -153,12 +176,12 @@ for (const fam of FAMILIES) {
 	check(`[${fam}] climbs at full throttle`, climb.p.y - 50 > 25, `+${(climb.p.y - 50).toFixed(0)} m in 5s`);
 
 	// The stick has to start centred: RC smoothing primes on its first sample.
-	const commanded = RATE_PRESETS[fc.preset].roll.max;
+	const commanded = fc.rates.roll.max;
 	const roll = simulate({ seconds: 1.2, at: [0, 150, 300],
 		sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
 	check(`[${fam}] reaches the commanded roll rate (${commanded} deg/s)`,
-		roll.spin > commanded * 0.9 && roll.peakSpin < commanded * 1.25,
-		`${roll.spin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
+		roll.heldSpin > commanded * 0.9 && roll.peakSpin < commanded * 1.25,
+		`${roll.heldSpin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
 
 	check(`[${fam}] hovers at a plausible stick position`, HOVER > 0.15 && HOVER < 0.62, `${(HOVER * 100).toFixed(0)}% throttle`);
 
@@ -166,8 +189,8 @@ for (const fam of FAMILIES) {
 	const rollIdle = simulate({ seconds: 1.2, at: [0, 200, 300],
 		sticks: (t) => ({ throttle: 0, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
 	check(`[${fam}] airmode keeps roll authority at zero throttle`,
-		rollIdle.spin > commanded * 0.85,
-		`${rollIdle.spin.toFixed(0)} deg/s vs ${roll.spin.toFixed(0)} at hover`);
+		rollIdle.heldSpin > commanded * 0.85,
+		`${rollIdle.heldSpin.toFixed(0)} deg/s vs ${roll.heldSpin.toFixed(0)} at hover`);
 
 	// Yaw has the least torque authority of the three axes (it fights prop-drag
 	// torque, a fraction of thrust) against the most inertia, so it must build
@@ -177,8 +200,8 @@ for (const fam of FAMILIES) {
 		sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: 0, yaw: t > 0.15 ? 1 : 0 }) });
 	const pitchRun = simulate({ seconds: SAMPLE_AT, at: [0, 200, 300],
 		sticks: (t) => ({ throttle: HOVER, roll: 0, pitch: t > 0.15 ? 1 : 0, yaw: 0 }) });
-	const yawFrac = Math.abs(yawRun.w.y * 180 / Math.PI) / RATE_PRESETS[fc.preset].yaw.max;
-	const pitchFrac = Math.abs(pitchRun.w.x * 180 / Math.PI) / RATE_PRESETS[fc.preset].pitch.max;
+	const yawFrac = Math.abs(yawRun.w.y * 180 / Math.PI) / fc.rates.yaw.max;
+	const pitchFrac = Math.abs(pitchRun.w.x * 180 / Math.PI) / fc.rates.pitch.max;
 	check(`[${fam}] yaw builds rate more slowly than pitch`,
 		yawFrac < pitchFrac - 0.03,
 		`80 ms in: yaw at ${(yawFrac * 100).toFixed(0)}% of command, pitch at ${(pitchFrac * 100).toFixed(0)}%`);
@@ -202,6 +225,72 @@ for (const fam of FAMILIES) {
 		`${punch.battery.voltage.toFixed(2)} V of ${full.toFixed(1)} at ${punch.battery.current.toFixed(0)} A`);
 	check(`[${fam}] the pack drains`, punch.battery.soc < 0.98 && punch.battery.soc > 0.3,
 		`${(punch.battery.soc * 100).toFixed(0)}% left after 6 s flat out`);
+}
+
+// Tout exemplaire tiré reste pilotable — PHASE 07, issue #44 : « les variations
+// qui touchent masse/inertie doivent rester dans une plage où la famille reste
+// stable — vérifié, pas supposé ».
+//
+// Ce que ce bloc prouve, et qui ne se prouve QUE sur un vrai pas de physique :
+// le tune PID de la famille, mesuré sur le plant nominal et laissé intact par
+// target-build.mjs, contrôle encore le plant dévié. Un tirage qui ne tiendrait
+// plus son taux commandé, ou qui overshooterait, voudrait dire que les bornes
+// de BUILD_BOUNDS sont trop larges — pas qu'il faut re-tuner à la volée.
+//
+// Échantillon volontairement petit (BUILD_SEEDS graines par famille) : chaque
+// graine coûte deux vols Rapier. Les bornes analytiques, elles, sont vérifiées
+// sur 500 graines par famille dans tools/target-build-selftest.mjs. Les graines
+// sont fixes, donc un échec est rejouable.
+const BUILD_SEEDS = 12;
+for (const fam of FAMILIES) {
+	console.log(`\nexemplaires tirés — ${fam}`);
+	const nominal = PROFILES[fam];
+	let worstHold = Infinity, worstPeak = 0, worstHoverDrift = 0;
+	let holdSeed = '', peakSeed = '', hoverSeed = '';
+	let minTwr = Infinity, maxTwr = -Infinity;
+
+	for (let i = 0; i < BUILD_SEEDS; i++) {
+		const seed = `selftest-build-${i}`;
+		const build = targetBuild({ seed, family: fam });
+		useBuild(build);
+		const twr = thrustToWeight(build.profile);
+		minTwr = Math.min(minTwr, twr); maxTwr = Math.max(maxTwr, twr);
+
+		// Il tient l'altitude au stick de hover calculé pour SA masse et SES
+		// moteurs : c'est le test que masse et poussée sont restées couplées.
+		const hover = simulate({ seconds: 4, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
+		const drift = Math.abs(hover.p.y - 150);
+		if (drift > worstHoverDrift) { worstHoverDrift = drift; hoverSeed = seed; }
+
+		// Il tient SON taux de roulis commandé, sur le tune de sa famille.
+		const commanded = fc.rates.roll.max;
+		const roll = simulate({ seconds: 1.2, at: [0, 150, 300],
+			sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+		const held = roll.heldSpin / commanded, peak = roll.peakSpin / commanded;
+		if (held < worstHold) { worstHold = held; holdSeed = seed; }
+		if (peak > worstPeak) { worstPeak = peak; peakSeed = seed; }
+	}
+
+	// Mêmes seuils que le test de la famille nominale plus haut : un exemplaire
+	// n'a droit à aucune tolérance supplémentaire.
+	check(`[${fam}] tout exemplaire atteint son taux commandé`,
+		worstHold > 0.9, `pire ${(worstHold * 100).toFixed(0)}% (${holdSeed})`);
+	check(`[${fam}] aucun exemplaire n'overshoote`,
+		worstPeak < 1.25, `pire pic ${(worstPeak * 100).toFixed(0)}% (${peakSeed})`);
+	check(`[${fam}] tout exemplaire tient l'altitude à son stick de hover`,
+		worstHoverDrift < 4, `pire dérive ${worstHoverDrift.toFixed(2)} m (${hoverSeed})`);
+	// La famille reste la famille : la fourchette de poussée/poids de ses
+	// exemplaires reste centrée sur son nominal. Une famille à variation nulle
+	// (MICRO, voir FAMILY_VARIATION) rend exactement le nominal — c'est ce qu'on
+	// vérifie alors, et le fait qu'elle y soit encore est le garde-fou : le jour
+	// où son tune est re-mesuré et sa variation rouverte, ce check bascule.
+	const twr0 = thrustToWeight(nominal);
+	const varies = (targetBuild({ seed: 'selftest-build-0', family: fam }).variation ?? 1) > 0;
+	check(`[${fam}] poussée/poids des exemplaires ${varies ? 'encadre le' : '= le'} nominal`,
+		varies
+			? (minTwr < twr0 && maxTwr > twr0 && minTwr > twr0 * 0.75 && maxTwr < twr0 * 1.35)
+			: (Math.abs(minTwr - twr0) < 1e-9 && Math.abs(maxTwr - twr0) < 1e-9),
+		`${minTwr.toFixed(2)}..${maxTwr.toFixed(2)} pour ${twr0.toFixed(2)}`);
 }
 
 // Back to the default family for the scene-bound checks below.

@@ -40,9 +40,18 @@ const check = (name, cond, detail = '') => {
 			const sheet = JSON.stringify(describeTarget(cand));
 			check(`describeTarget(${seed}/${cand.id}) sans _family`,
 				!sheet.includes(cand._family), sheet.includes(cand._family) ? sheet : '');
+			// La fiche reprend le mode mesuré, et UNKNOWN reste UNKNOWN : plus
+			// d'état intermédiaire qui laisserait passer la réponse.
 			check(`describeTarget(${seed}/${cand.id}) video cohérent`,
-				(cand.mode === 'UNKNOWN' && JSON.parse(sheet).video === 'PARTIAL')
-				|| (cand.mode !== 'UNKNOWN' && JSON.parse(sheet).video === cand.mode));
+				JSON.parse(sheet).video === cand.mode);
+			// Et surtout : quand le mode n'est pas mesuré, le VRAI mode ne doit
+			// apparaître nulle part sur la fiche. Un « EST. » toujours juste sur
+			// une valeur binaire est la valeur (issue #45 : UNKNOWN doit être une
+			// véritable inconnue).
+			if (cand.mode === 'UNKNOWN') {
+				check(`describeTarget(${seed}/${cand.id}) ne fuite pas le vrai mode vidéo`,
+					!sheet.includes(cand._videoHint), sheet);
+			}
 		}
 	}
 }

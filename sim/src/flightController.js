@@ -225,14 +225,22 @@ function actualRate(stick, r) {
 }
 
 export class FlightController {
-	// opts: { profile, preset }. A bare string is still accepted as the preset
-	// for the default airframe, which is how the bench and older callers use it.
+	// opts: { profile, preset, rates }. A bare string is still accepted as the
+	// preset for the default airframe, which is how the bench and older callers
+	// use it. `rates` is a RATE_PRESETS-shaped table that overrides the named
+	// preset: an individual target (PHASE 07, tools/target-build.mjs) flies its
+	// owner's rates, which are that family's preset scaled, not a preset.
 	constructor(opts = {}) {
 		if (typeof opts === 'string') opts = { preset: opts };
 		this.profile = opts.profile ?? DEFAULT_PROFILE;
 		this.mode = 'acro';
 		// A family carries a baseline rates preset; an explicit preset wins.
 		this.preset = opts.preset ?? this.profile.rates ?? 'freestyle';
+		// The live table the rate setpoints are read from. Normally the named
+		// preset; a target build hands over its own copy of it. Keeping the NAME
+		// alongside the table is what lets the HUD and the OSD still say "race"
+		// about a machine whose numbers are nobody else's.
+		this.rates = opts.rates ?? RATE_PRESETS[this.preset];
 		this.holdAltitude = null;
 		this.gains = buildGains(this.profile);
 		// filterScale only touches roll and pitch. Those loops are gyro-noise /
@@ -272,7 +280,9 @@ export class FlightController {
 	}
 
 	setPreset(name) {
-		if (RATE_PRESETS[name]) this.preset = name;
+		// Cycling presets by hand drops the target's own rates: an explicit choice
+		// wins over the build.
+		if (RATE_PRESETS[name]) { this.preset = name; this.rates = RATE_PRESETS[name]; }
 		return this.preset;
 	}
 
@@ -290,7 +300,7 @@ export class FlightController {
 	// state:  {rotation, angularVelocity, position, velocity}, world frame
 	update(sticks, state, dt) {
 		const q = state.rotation;
-		const rates = RATE_PRESETS[this.preset];
+		const rates = this.rates;
 
 		// Rate setpoints, in the body frame and in the sign convention above.
 		let sp = {
