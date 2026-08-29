@@ -217,44 +217,78 @@ Plan d'origine (contexte de la décision d'architecture) :
     testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
     réel).
   - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
-- **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #58).
-  - Machine à états `flightEnd` (`src/flight-end.js`) orchestrant les trois voies
-    de fermeture : crash (impact > `CRASH_IMPULSE`), pose (vitesse ≤ 0,5 m/s,
-    immobilité angulaire ≤ 10 rad/s, sol contact ≥ 0,8 s), sortie manuelle
-    (désarmement à la manette `j` ou `ESC`). Appel une fois par frame depuis
-    `main.js` ; génère une **fenêtre temporelle unique** `out.closes` bel et bien
-    lue une seule fois.
-  - Séquence crash (timings mesurés sur Rapier/tour-eiffel) : dégradation d'image
-    avant texte (`fadeOutFrames` = 50 ms, les ~3 premiers frames), noircissement
-    (« fade out ») puis lignes : `LINK LOST` → `TARGET LOST` → `SESSION
-    TERMINATED` → `[ESC] DISCONNECT`, puis sortie `main.loop()`. `R` et `ESC`
-    prématuré inopérants.
-  - Détection de pose (`tools/landing-model.mjs` `isLanding()`) : seuils mesurés
-    en simulation Rapier, huit cas de pose réelle (rebonds, roulé) et dix cas
-    faux positifs en rasant (toutes les combinaisons 3 hauteurs × 3 tangage +
-    stationnaire bas). **Aucun faux positif rasant accepté**.
+- **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #51).
+  - Machine à états pure `FlightEnd` (`src/flight-end.js`, sans DOM/Three/Rapier),
+    câblée dans `main.js:frame()` **hors** du bloc gelé (`if (!frozen)`) : appelée
+    à chaque frame avec `dt: frozen ? 0 : dt`, pour que `out.closes` (l'événement
+    à consommation unique qui déclenche `session.end()`) soit toujours vidangé
+    même si la sim se fige (pause, réglages, caméra libre) entre le geste du
+    joueur et sa sortie. `dt=0` fige la timeline et le compteur de pose sans
+    perdre l'événement.
+  - Trois voies de fermeture : crash (`crashed` déjà décidé par
+    `CRASH_IMPULSE`/`CRASH_IMPULSE_FLAT` de `main.js`, réutilisés tels quels),
+    pose tenue (`_advanceLanding`, hystérésis sur hauteur/vitesse/vitesse
+    angulaire/gaz, seuils dans `LANDING`), sortie manuelle (`disarm()`, qui ne
+    ferme la session que si la pose est reconnue — désarmer en l'air reste
+    permis et donne une chute).
+  - Seuils de pose mesurés (`tools/landing-selftest.mjs`, tour-eiffel,
+    2026-08-29) : `H_ON=0.2`, `H_OFF=0.4`, `V_ON=0.06`, `V_OFF=0.18`,
+    `W_ON=0.07`, `THR_IDLE=0.06`, `T_HOLD=0.25`. Le commentaire du code détaille
+    la mesure ; `T_HOLD` n'est *pas* ce qui sépare pose et rasant (mesuré : à
+    `T_HOLD` quasi nul le rebond reste écarté jusqu'à t=0,64 s et le roulé
+    jusqu'à t=0,48 s) — c'est une marge de debounce choisie contre le bruit non
+    modélisé, comme `TIMELINE`.
+  - Séquence de crash : mise en scène assumée comme telle (pas une mesure),
+    dans `TIMELINE` (`src/flight-end.js`) : image tenue jusqu'à 0,9 s, fondu au
+    noir en 0,4 s, puis `LINK LOST` (1,6 s), `TARGET LOST` (2,8 s), `SESSION
+    TERMINATED` (3,6 s), `[ESC] DISCONNECT` (4,6 s, `exitArmed`). Deux lignes
+    vides dans `TIMELINE.lines` (après `LINK LOST`, avant `[ESC] DISCONNECT`)
+    pour respirer comme l'écran de pose. `linkDead` force `DEAD_LINK` sur
+    `lens.render()` dans `main.js`, gardé sur `flightEnd.out.linkDead` (pas
+    `crashedThisFrame`) pour qu'un choc encaissé après un `LANDED` ne rejoue pas
+    la mort d'image par-dessus l'écran `END SESSION`.
   - **Vérifié en headless** :
-    - `tools/flight-end-selftest.mjs` : 17 tests couvrant tous les chemins (impact
-      → crash, pose, pose+désarmement, redécollage, crash pendant pose,
-      carcasse au sol), timing de la séquence, seuils de crash/pose, compteurs
-      réinitialisés à chaque rebond, `out.closes` lu une unique fois.
-    - `tools/landing-selftest.mjs` : 8 poses reconnues, 10 rasants rejetés (noms,
-      durées, hauteurs mesurées). Mesures : pose depuis 1 m reconnue à t=0,82 s ;
-      rasant 0,3–1 m tous rejetés.
-    - `npm run selftest` reste vert (« all checks passed »), `npm run selftest:operator`
-      passe l'intégralité (30 tests de tous les modules précédents + nouveaux tests
-      ci-dessus). `npm run build` OK.
-  - **Non vérifié** : ressenti visuel de la mort d'image (lisibilité du dégradé,
-    rythme perçu de noircissement puis texte), ressenti des faux positifs en vol
-    rasant réel (le critère d'acceptation de l'issue #51 demande « jamais » en
-    rasant à moins d'un mètre à pleine vitesse — testé simulé, pas en vol piloté),
-    geste de désarmement à la manette (logique en pur testée, l'input clavier
-    couverte en PHASE 10, mais manette réelle non rejouée).
-  - Structure du code : `FlightEnd` classe inerte (pas de side-effect), appelée à
-    chaque frame, retourne un objet muable `out` ; `out.closes` ne s'arme que
-    lorsqu'il est temps de fermer. `main.js` le lit une fois par frame et le
-    traite immédiatement. Cette structure élimine les races (un `closes` ne peut
-    pas être manqué ou vu deux fois).
+    - `tools/flight-end-selftest.mjs` : 18 tests, sans DOM/Rapier — impact →
+      crash, timing des lignes (avec les deux lignes vides), `out.closes` émis
+      une seule fois, `exitArmed` faux avant la fin, crash pendant
+      `LANDING_READY` gagne, désarmement en vol ne ferme rien,
+      `update({dt:0})` après `disarm()` vidange `closes` sans avancer la
+      machine (le cas sim gelée), `reset()`.
+    - `tools/landing-selftest.mjs` : Rapier réel sur tour-eiffel. Sept poses
+      (1/3/8 m, vent de travers, rebond, roulé, **pose sur pente** — voir
+      ci-dessous) toutes reconnues ; neuf rasants (3 hauteurs × 3 tangages) et
+      un stationnaire bas tous rejetés, chacun assorti d'un plancher de vitesse
+      et d'une bande de hauteur mesurés sur sa propre trace (pas seulement « pas
+      détecté »).
+    - Pose sur pente (D5 de la spec) : `height` est un raycast vertical depuis
+      le centre du collider sphérique (rayon 0,15 m), donc géométriquement
+      `0,15/cos θ` sous la sphère — la détection plafonnerait vers 41°
+      d'inclinaison rien que sur ce critère. Mesuré sur une facette réelle de
+      tour-eiffel à 30,0° : reconnue à t=2,75 s. Sondé au-delà (33-39°) : c'est
+      `setGroundHold` (amortissement exponentiel, pas `H_ON`) qui bloque en
+      pratique vers 30-33°, avant la limite géométrique de 41° — acté en
+      commentaire dans `landing-selftest.mjs`, `H_ON` n'a pas été remonté (ça
+      ne change rien au blocage réel, qui est sur `W_ON`).
+    - `npm run selftest` reste vert, `npm run build` OK.
+  - **Vérifié en vol piloté** (navigateur, scène tour-eiffel) :
+    - séquence de crash à l'écran : image tenue 0→0,9 s, fondu au noir 0,9→1,3 s,
+      `LINK LOST` 1,62 s, `TARGET LOST` 2,83 s, `SESSION TERMINATED` 3,64 s,
+      `[ESC] DISCONNECT` 4,65 s ;
+    - mort de l'image dès la première frame du crash : `uLink = 0`, sévérité
+      forcée à 1 alors que le réglage joueur était 0,6, moteurs à zéro,
+      contrôleur désarmé ;
+    - pose au repos → `LANDING DETECTED`, puis `J` → `MOTORS DISARMED` /
+      `END SESSION` ;
+    - désarmement en l'air (16 m, 13 m/s) : rien ne se ferme, la chute suit son
+      cours ;
+    - vol rasant réel à 0,25 m et 15,2 m/s : aucun faux positif ;
+    - `Échap` ramène au terminal depuis `TERMINATED` comme depuis `LANDED` ;
+      aucune erreur console.
+  - **Non vérifié** : le ressenti (rythme de la séquence de crash, lisibilité de
+    `LANDING DETECTED` affiché par-dessus l'image encore vivante), et le cas du
+    joueur ayant coupé la modélisation du lien (`LINK_OFF`) — `main.js` force
+    `severity: 1` au premier frame de `CRASHING` dans ce cas, mais le vol
+    vérifié avait le lien actif ; ce chemin n'a pas été exercé en vol.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
@@ -338,12 +372,11 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
-- **PHASE 14, en vol piloté** : ressenti du dégradé d'image avant crash (vitesse
-  de noircissement), lisibilité de la séquence texte (taille, rythme), absence
-  de faux positif de pose en rasant réel (vol à moins d'un mètre du sol à pleine
-  vitesse — simulé OK, navigation réelle non faite). Geste de désarmement à la
-  manette (clavier couvert en PHASE 10, manette réelle non testée dans ce
-  contexte).
+- **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
+  (tour-eiffel) — voir le détail dans le bloc PHASE 14 ci-dessus. Restent non
+  vérifiés : le ressenti (rythme de la séquence, lisibilité de `LANDING
+  DETECTED` par-dessus l'image encore vivante) et le cas `LINK_OFF` (lien
+  coupé par le joueur au moment du crash), non exercé en vol.
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
   TEXTURES, les barres décoratives RF ANALYSIS/TARGET SEARCH, le flux RTC et
   l'écran TERRAIN ACQUIRED → KEEP/REMOVE ont été vérifiés côté logique pure
