@@ -200,7 +200,7 @@ AREA     ${area ?? 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
-			await stub(root, 'VIEW SESSION', 'Session detail screen lands in PHASE 15.');
+			await stub(root, 'VIEW SESSION', 'Session detail screen lands in PHASE 17.');
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
 		// terrain persistent, flights ephemeral : seule une session LANDED garde
@@ -292,7 +292,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 		}, 'terminal-cta'));
 
 		s.box.appendChild(navRow([
-			['SESSION LOG', () => stub(root, 'SESSION LOG', 'NO SESSIONS YET — the session log lands in PHASE 15.')],
+			['SESSION LOG', () => stub(root, 'SESSION LOG', 'NO SESSIONS YET — the session log lands in PHASE 17.')],
 			['TARGET LOG', () => stub(root, 'TARGET LOG', 'NO TARGETS LOGGED — the target log lands in PHASE 17.')],
 			['SETTINGS', () => settings?.toggleSettings(true)],
 			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
