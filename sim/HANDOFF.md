@@ -134,30 +134,53 @@ Plan d'origine (contexte de la décision d'architecture) :
     `tools/target-model.mjs`, `_hackType` tiré par candidat (seedé, **indépendant**
     de la famille, du RSSI et de la difficulté du vol), sorti par `resolveTarget`
     et validé/persisté par `sanitizeTarget` (`tools/session-model.mjs`).
-  - `src/hack.js` `runHack()` : écran AUTOMATED ANALYSIS, log fixe de 4 lignes
-    (`HACK_LOG_LINES`, Bible §18) affiché ligne à ligne, motif ASCII animé par
-    famille (`src/hack-grammars.js`, purement décoratif, aucun `Math.random`),
-    fige sur `MANUAL OVERRIDE REQUIRED` + `[ JACK IN ]` **placeholder** (Enter et
-    le bouton résolvent tous deux ; teardown complet). Câblé dans `chooseScene`
-    après `runTargetScan`, **session fraîche uniquement** (pas au `resume`).
-    Hook debug `?hack=<type>` sur les chemins `?scene=` / `?family=`.
-  - **Revue de sûreté (Step 1 de Task 7) faite** : `git diff 35a73dc..HEAD` relu
-    ligne à ligne. Log = exactement les 4 `HACK_LOG_LINES`, rien d'autre. Aucun
-    `draw*` ne décrit une étape réelle (rectangles / sinus / hex de bruit
-    déterministe ; les « adresses » du dump mémoire sont un compteur qui boucle à
-    0xffff, les zones « injectées » sont des segments de sinusoïde). Aucun outil
-    nommé, aucun CVE / exploit / payload, aucun commentaire-recette. RAS.
+  - `src/hack.js` `runHack()` : écran AUTOMATED ANALYSIS, **phase automatique
+    progressive** (`tools/hack-model.mjs` `hackSequence()` : tête fixe +
+    2 beats propres à la famille + queue fixe, chacun avec un dwell où les
+    points se remplissent avant que le verdict claque), motif ASCII animé par
+    famille (`src/hack-grammars.js`, purement décoratif, aucun `Math.random`).
+    Fige sur `MANUAL OVERRIDE REQUIRED` + `[ JACK IN ]` **placeholder** (Enter
+    et le bouton résolvent tous deux ; armés seulement après la séquence ;
+    teardown complet). Câblé dans `chooseScene` après `runTargetScan`,
+    **session fraîche uniquement** (pas au `resume`). Hook debug
+    `?hack=<type>` sur les chemins `?scene=` / `?family=`.
+  - **Le hack couvre le chargement de fond** (retour utilisateur 2026-08-29) :
+    branche session fraîche, `boot()` est lancé sans être attendu dès que le
+    TARGET SCAN répond, et sa promesse passe à `runHack({ready})`. Le joueur
+    regarde la phase automatique (~6 s scriptées même cache chaud : tête 1,2 s
+    + 2 beats 0,85 s + queue 1,1 s + attente 0,5 s + culmination du motif
+    0,6 s) pendant que la carte charge derrière ; si le chargement traîne, le
+    log reste en état d'attente (points qui pulsent, motif en « recherche »)
+    jusqu'à ce qu'il finisse. Au `[ JACK IN ]`, le vol est déjà prêt. Si
+    `boot()` échoue pendant le hack, l'écran se démonte et l'erreur remonte à
+    `hud.fail` (comme avant). Chemins `?scene=`/`?family=`/`resume` : pas de
+    chargement de fond, séquence scriptée seule.
+  - **Revue de sûreté faite** (git diff relu ligne à ligne, deux fois : à
+    l'implémentation initiale et après l'ajout des beats). Log = uniquement les
+    labels/verdicts du `hackSequence()`, testés contre une liste blanche de
+    vocabulaire d'ambiance (`HACK_VOCAB`, `hack-selftest.mjs`). Aucun `draw*` ne
+    décrit une étape réelle (rectangles / sinus / hex de bruit déterministe ;
+    les « adresses » du dump mémoire sont un compteur qui boucle à 0xffff, les
+    zones « injectées » sont des segments de sinusoïde qui rejoignent la trace
+    à la culmination). Aucun outil nommé, aucun CVE / exploit / payload, aucun
+    commentaire-recette. RAS.
   - **Vérifié** : `npm run selftest` (158 checks), `npm run selftest:operator`
-    (dont `hack-selftest.mjs`), `npm run build` — tous verts. Rendu headless des
-    6 motifs `?hack=` (controller, Task 6) : les six sont distincts au premier
-    coup d'œil, le log montre bien ses 4 lignes, aucune erreur console.
-  - **Non vérifié** : le ressenti subjectif (cadence du log, lisibilité des
-    motifs sur un vrai écran) ; le clic `[ JACK IN ]` → transition vol (non
-    exercé headless) ; `MANUAL OVERRIDE REQUIRED` n'a pas encore d'emphase
-    typographique ; l'espacement du motif `firmware-override` est plus lâche que
-    les autres (cosmétique) ; l'écran de hack n'est **pas rejoué au `resume`**
-    (le `hackType` est relu du disque pour le futur TARGET LOG, PHASE 17, mais
-    pas remis en scène).
+    (dont `hack-selftest.mjs`, 8 tests), `npm run build` — tous verts. Rendu
+    headless de la séquence complète (screenshots à intervalles croissants) :
+    dots qui se remplissent étape par étape, verdicts qui claquent, motif qui
+    culmine à l'approche de `[ JACK IN ]` (paquets qui s'alignent, porteuse qui
+    verrouille en `#`, réticule GNSS qui revient à l'origine, dump mémoire qui
+    se stabilise, nœuds tous tenus), `[ JACK IN ]` qui n'apparaît qu'après la
+    séquence complète — les six familles vérifiées.
+  - **Non vérifié** : le ressenti subjectif (durée perçue, cadence des beats,
+    lisibilité sur un vrai écran) ; le clic `[ JACK IN ]` → transition vol (non
+    exercé headless, mais tracé par revue de code : chemin de résolution unique) ;
+    l'état d'attente (chargement plus long que la séquence scriptée) pas vu en
+    vrai — seulement tracé dans le code ; `MANUAL OVERRIDE REQUIRED` n'a pas
+    d'emphase typographique ; l'espacement du motif `firmware-override` est plus
+    lâche que les autres (cosmétique) ; l'écran de hack n'est **pas rejoué au
+    `resume`** (le `hackType` est relu du disque pour le futur TARGET LOG,
+    PHASE 17, mais pas remis en scène).
   - Le rituel réel (`CONTROL VECTOR` + QTE) est PHASE 10.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
