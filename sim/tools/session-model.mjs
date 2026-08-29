@@ -11,7 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
 import { randomart } from './randomart.mjs';
-import { TARGET_FAMILIES } from './target-model.mjs';
+import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
 
 export const SESSION_SCHEMA_VERSION = 1;
 export const SESSION_RESULTS = ['PENDING', 'LANDED', 'CRASHED'];
@@ -67,6 +67,9 @@ export function sanitizeTarget(raw) {
 	if (raw == null) return null;
 	if (typeof raw !== 'object') throw new Error('target invalide');
 	if (!TARGET_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${raw.family}`);
+	if (raw.hackType != null && !HACK_TYPES.includes(raw.hackType)) {
+		throw new Error(`hackType de cible inconnu : ${raw.hackType}`);
+	}
 	const sig = raw.signal;
 	if (!sig || typeof sig !== 'object') throw new Error('target.signal manquant');
 	if (!Number.isFinite(sig.rssiDbm) || sig.rssiDbm >= 0) throw new Error('target.signal.rssiDbm invalide');
@@ -75,6 +78,7 @@ export function sanitizeTarget(raw) {
 	return {
 		family: raw.family,
 		classHint: raw.classHint ?? null,
+		hackType: raw.hackType ?? null,
 		signal: { rssiDbm: sig.rssiDbm, mode: sig.mode },
 		scannedAt: raw.scannedAt ?? null,
 		intel: { ...raw.intel },
