@@ -16,7 +16,11 @@ import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
-import { sunPosition, sunVector, refracted, airMass } from '../src/sun.js';
+import {
+	sunPosition, sunVector, refracted, airMass,
+	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
+	REF_ELEV, REF_VIS, SKY_REF,
+} from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1361,6 +1365,111 @@ console.log('\nsoleil — position');
 		Number.isFinite(airMass(0)) && airMass(0) > 30 && airMass(0) < 40, airMass(0).toFixed(2));
 	check('la masse d\'air croît quand le soleil descend',
 		airMass(10) > airMass(30) && airMass(30) > airMass(60));
+}
+
+console.log('\nsoleil — atmosphère et couleur du ciel');
+{
+	const byte = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+	const hex = (c) => (byte(c.r) << 16) | (byte(c.g) << 8) | byte(c.b);
+	const CLEAR = REF_VIS;
+
+	// LE check de non-régression visuelle. Le modèle mono-diffusion ne retombe
+	// pas spontanément sur la couleur que le sim utilise depuis toujours : une
+	// balance des blancs constante l'y ramène, et c'est ce qui garantit que ce
+	// ticket ne change RIEN dans les conditions où le sim tournait déjà.
+	const ref = skyColor(REF_ELEV, CLEAR, 0);
+	check('calibrage : soleil haut, ciel clair, sans nuage ⇒ exactement SKY',
+		hex(ref) === SKY_REF,
+		`#${hex(ref).toString(16).padStart(6, '0')} vs #${SKY_REF.toString(16)}`);
+	check('la référence n\'est pas saturée (il reste de la marge en haut)',
+		ref.r < 1 && ref.g < 1 && ref.b < 1);
+
+	// À midi le ciel est bleu : c'est Rayleigh, et ça doit sortir du modèle et
+	// non d'une couleur choisie.
+	check('soleil haut : le ciel est bleu (b > g > r)',
+		ref.b > ref.g && ref.g > ref.r,
+		`${ref.r.toFixed(3)} ${ref.g.toFixed(3)} ${ref.b.toFixed(3)}`);
+
+	// Et au ras de l'horizon il ne l'est plus : la lumière qui atteint le volume
+	// diffusant a traversé 30 masses d'air et n'a plus de bleu à donner.
+	const low = skyColor(2, CLEAR, 0);
+	check('soleil rasant : le ciel bascule au chaud (r > b)', low.r > low.b,
+		`${low.r.toFixed(3)} ${low.g.toFixed(3)} ${low.b.toFixed(3)}`);
+	check('la bascule est monotone entre 60° et 2°', (() => {
+		// La chaleur doit DÉCROÎTRE quand le soleil monte, donc en balayant les
+		// élévations croissantes chaque valeur doit être sous la précédente.
+		let prev = Infinity, ok = true;
+		for (const e of [2, 5, 10, 20, 40, 60]) {
+			const c = skyColor(e, CLEAR, 0);
+			const warmth = c.r / Math.max(1e-6, c.b);
+			if (warmth > prev) ok = false;
+			prev = warmth;
+		}
+		return ok;
+	})());
+
+	// Transmittance : le disque rougit parce que le bleu part en premier.
+	{
+		const high = transmittance(airMass(refracted(60)), CLEAR);
+		const graze = transmittance(airMass(refracted(2)), CLEAR);
+		check('la transmittance décroît quand le soleil descend', graze[1] < high[1],
+			`${graze[1].toFixed(4)} < ${high[1].toFixed(4)}`);
+		check('le rougissement croît quand le soleil descend',
+			graze[0] / graze[2] > high[0] / high[2],
+			`${(graze[0] / graze[2]).toFixed(1)} > ${(high[0] / high[2]).toFixed(2)}`);
+		check('la transmittance reste dans 0..1', high.concat(graze).every((v) => v >= 0 && v <= 1));
+	}
+
+	// Niveaux : 1 à la référence, décroissants, jamais nuls (le plancher de nuit
+	// est ce qui rend la nuit jouable, et il est assumé comme tel).
+	check('les niveaux valent 1 à la référence',
+		Math.abs(ambientLevel(REF_ELEV, 0) - 1) < 1e-9 && Math.abs(skyLevel(REF_ELEV, 0) - 1) < 1e-9);
+	check('l\'ambiance décroît quand le soleil descend',
+		ambientLevel(60, 0) > ambientLevel(20, 0) && ambientLevel(20, 0) > ambientLevel(2, 0));
+	check('l\'ambiance atteint un plancher sous l\'horizon et n\'y descend plus',
+		ambientLevel(-20, 0) === ambientLevel(-40, 0) && ambientLevel(-20, 0) > 0,
+		ambientLevel(-20, 0).toFixed(4));
+	check('le ciel reste plus lumineux que le sol quand le soleil est bas',
+		skyLevel(5, 0) / ambientLevel(5, 0) > 1.5,
+		(skyLevel(5, 0) / ambientLevel(5, 0)).toFixed(2));
+
+	// Nuit : le ciel repasse au bleu profond, il n'est ni noir ni orange.
+	const night = skyChroma(-20, CLEAR, 0);
+	check('nuit pleine : le ciel est bleu, pas orange', night[2] > night[0],
+		`${night[0].toFixed(3)} ${night[1].toFixed(3)} ${night[2].toFixed(3)}`);
+	check('nuit pleine : le ciel n\'est pas noir', skyLevel(-20, 0) > 0.02);
+
+	// Couplages exigés par l'issue : le soleil ne peut pas contredire le régime
+	// météo affiché au joueur.
+	const clearDisc = sunDisc(40, CLEAR, 0);
+	check('ciel couvert à 100 % : plus de disque du tout', sunDisc(40, CLEAR, 100).amount === 0);
+	check('ciel couvert à 40 % (régime CLOUD) : le soleil est atténué sans disparaître', (() => {
+		const a = sunDisc(40, CLEAR, 40).amount;
+		return a > 0.1 * clearDisc.amount && a < 0.8 * clearDisc.amount;
+	})(), `${sunDisc(40, CLEAR, 40).amount.toFixed(3)} vs ${clearDisc.amount.toFixed(3)}`);
+	check('brouillard à 500 m : le disque est éteint',
+		sunDisc(40, 500, 0).amount < 0.02 * clearDisc.amount,
+		sunDisc(40, 500, 0).amount.toExponential(2));
+	check('le disque rougit quand le soleil descend', (() => {
+		const h = sunDisc(60, CLEAR, 0).color, l = sunDisc(3, CLEAR, 0).color;
+		return l.r / Math.max(1e-6, l.b) > h.r / Math.max(1e-6, h.b);
+	})());
+	check('sous l\'horizon il n\'y a plus de disque', sunDisc(-1, CLEAR, 0).amount === 0);
+
+	// Le brouillard blanchit le ciel : c'est la diffusion multiple, et c'est ce
+	// qui empêche le modèle mono-diffusion de rendre un ciel noir dans la purée.
+	{
+		const c = skyChroma(40, 300, 0);
+		const spread = Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
+		check('purée de pois : le ciel devient neutre, pas noir', spread < 0.05, spread.toFixed(4));
+	}
+
+	// Déterminisme : aucun état caché, aucun PRNG. Deux appels identiques
+	// rendent la même chose au bit près.
+	check('skyColor est pur', (() => {
+		const a = skyColor(17, 8000, 33), b = skyColor(17, 8000, 33);
+		return a.r === b.r && a.g === b.g && a.b === b.b;
+	})());
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
