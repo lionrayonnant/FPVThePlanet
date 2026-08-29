@@ -489,7 +489,7 @@ async function boot() {
 					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
 					// qu'un whiteout arrive au bon moment.
 					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
-					},
+				},
 				// Ce qui permet de vérifier le soleil dans le vrai navigateur
 				// plutôt que de regarder une capture et d'y croire.
 				sun: sun && {
@@ -716,13 +716,19 @@ function frame() {
 				// Un drone qui arrive à plat encaisse : les bras fléchissent, les
 				// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
 				// de crash suit donc l'assiette au moment du choc.
-				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
-					crashedThisFrame = true;
-					crashed = true;
-					// Le drone est détruit. La session se ferme sur CRASHED — le
-					// terrain, lui, reste. terrain persistent, flights ephemeral.
-					hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
-					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+				if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
+					const r = physics.rotation;
+
+					// Un drone qui arrive à plat encaisse : les bras fléchissent, les
+					// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
+					// de crash suit donc l'assiette au moment du choc.
+					if (impact > crashThreshold(r)) {
+						crashedThisFrame = true;
+						crashed = true;
+						// Le drone est détruit. La session se ferme sur CRASHED — le
+						// terrain, lui, reste. terrain persistent, flights ephemeral.
+						session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+					}
 				}
 			}
 			if (impact > peakImpact) peakImpact = impact;
@@ -935,7 +941,6 @@ if (!frozen) {
 				exposure: sun.exposure,
 			});
 		}
-	}
 	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
@@ -1025,6 +1030,7 @@ if (!frozen) {
 		});
 		if (peakImpact > 0) audio.playImpact(peakImpact);
 	}
+}
 
 // Picks which prepared map to fly before doing any of the heavy loading work.
 // ?scene=<slug> skips the menu (handy for bookmarking/dev), otherwise the
