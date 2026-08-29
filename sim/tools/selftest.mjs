@@ -29,7 +29,7 @@ import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generat
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
-	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor,
 } from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
@@ -2187,8 +2187,11 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 			Math.abs(sun.exposure - before) < 0.02);
 	}
 
-	// La nuit sort de l'AGC arrivé en butée, pas d'un facteur « nuit ». Le
-	// critère est de jouabilité : une image sombre qu'on peut encore piloter.
+	// La nuit sort de l'AGC arrivé en butée, pas d'un facteur « nuit ». Depuis
+	// l'issue #111, la caméra est une starlight : sous l'ancienne butée E_MAX,
+	// elle passe en régime haut gain — l'image de nuit remonte à une moitié de
+	// la luminance de jour, et le prix se paie en grain, via `gain` (0..1) que
+	// main.js pousse vers le bloc capteur de lens.js.
 	{
 		const sun = new SunField(PARIS);
 		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
@@ -2196,10 +2199,65 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 		check('minuit : le soleil est sous l\'horizon', sun.elevation < 0,
 			`${sun.elevation.toFixed(1)}°`);
 		check('minuit : le disque est éteint', sun.sunAmount === 0);
-		check('nuit pleine : l\'image est sombre mais pilotable (15 à 35 %)',
-			sun.exposure > 0.15 && sun.exposure < 0.35, sun.exposure.toFixed(3));
+		check('nuit pleine : l\'image est pilotable (45 à 60 % du jour)',
+			sun.exposure > 0.45 && sun.exposure < 0.60, sun.exposure.toFixed(3));
+		check('nuit pleine : le haut gain est à fond', sun.gain > 0.8,
+			sun.gain.toFixed(3));
 		check('nuit pleine : le ciel reste bleu', sun.sky.b > sun.sky.r,
 			`${sun.sky.r.toFixed(3)} ${sun.sky.g.toFixed(3)} ${sun.sky.b.toFixed(3)}`);
+	}
+
+	// La traduction du haut gain en capteur : c'est elle que main.js pousse
+	// vers lens.setSensor(). À gain nul elle rend le capteur de la cible tel
+	// quel (l'appel par frame ne change alors rien du tout) ; à gain plein le
+	// grain domine n'importe quel mauvais capteur, les noirs montent, la
+	// couleur s'en va en partie — le look starlight.
+	{
+		const base = { grain: 0.03, lift: 0.02, saturation: 0.9, ringing: 0.5,
+			clip: 0.4, tintHue: 0.3, tintAmount: 0.1, crossColor: 0.7 };
+		const same = nightSensor(0, base);
+		check('gain nul : le capteur de la cible passe tel quel',
+			Object.keys(base).every((k) => same[k] === base[k]));
+		const full = nightSensor(1, base);
+		check('gain plein : le grain domine un mauvais capteur (> 0,10)',
+			full.grain > 0.10, full.grain.toFixed(3));
+		check('gain plein : les noirs montent', full.lift > base.lift,
+			full.lift.toFixed(3));
+		check('gain plein : la couleur s\'éteint en partie mais pas toute',
+			full.saturation < base.saturation && full.saturation > 0.3,
+			full.saturation.toFixed(3));
+		check('le reste du capteur n\'est pas touché',
+			full.ringing === base.ringing && full.clip === base.clip
+			&& full.tintHue === base.tintHue && full.tintAmount === base.tintAmount
+			&& full.crossColor === base.crossColor);
+		check('sans capteur de base, le profil nuit tient seul',
+			nightSensor(1).grain > 0.10 && nightSensor(0).saturation === 1);
+	}
+
+	// Le haut gain est un régime de NUIT : nul en plein jour, et il monte de
+	// façon monotone pendant que le soir tombe — pas de pompage de grain.
+	{
+		const sun = new SunField(PARIS);
+		sun.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+		settle(sun, NOON, 0);
+		check('midi : aucun haut gain, donc aucun grain', sun.gain === 0,
+			sun.gain.toFixed(3));
+
+		// Le soir du solstice à Paris, du soleil encore levé à la nuit pleine.
+		const dusk = ['19:00', '20:30', '21:30', '22:30', '23:52'].map(
+			(t) => new Date(`2026-06-21T${t}:00Z`));
+		let prev = -1, monotone = true;
+		const gains = [];
+		for (const date of dusk) {
+			const s = new SunField(PARIS);
+			s.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			settle(s, date, 0, 60);
+			gains.push(s.gain);
+			if (s.gain < prev - 1e-9) monotone = false;
+			prev = s.gain;
+		}
+		check('le haut gain monte de façon monotone au crépuscule', monotone,
+			gains.map((g) => g.toFixed(2)).join(' → '));
 	}
 
 	// dt = 0 fige le modèle. Même règle que setRain() dans lens.js : il n'y a
