@@ -128,13 +128,17 @@ export function runHack(root, { hackType, family, ready } = {}) {
 		// `armed` ne protège plus qu'un double-déclenchement de `arm()` lui-même —
 		// runRitual gère sa propre saisie (clavier + manette) et sa propre
 		// culmination, `hack.js` ne fait qu'attendre sa résolution puis finir.
+		// Monté sur `root`, pas `s.box` : le rituel casse le cadre terminal
+		// étroit de l'AUTOMATED ANALYSIS pour prendre tout le viewport (Bible
+		// §18-19, retour utilisateur PR #80 — doit se sentir comme un vrai
+		// événement, pas un écran de plus dans la même boîte).
 		const arm = () => {
 			if (armed || done) return;
 			armed = true;
 			phase = 'armed';
 			paint();
 			const vector = ritualVector(getOperator()?.controlVector);
-			runRitual(s.box, { hackType: type, vector, seed }).then(finish, (err) => {
+			runRitual(root, { hackType: type, vector, seed }).then(finish, (err) => {
 				teardown();
 				reject(err instanceof Error ? err : new Error(String(err)));
 			});

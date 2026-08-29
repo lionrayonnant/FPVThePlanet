@@ -6,10 +6,10 @@
 // ACQUIRED ; puis coupure immédiate — aucun bouton, aucune touche à presser
 // pour cette dernière étape.
 //
-// Monté DANS le conteneur que lui passe hack.js (pas un nouvel écran plein
-// cadre via terminal.js:screen — le rituel prolonge l'écran AUTOMATED
-// ANALYSIS déjà à l'affichage). Écran client pur : aucune dépendance
-// Three/Rapier/physics. Jamais importé par le moteur.
+// Monté en overlay plein viewport DANS le conteneur que lui passe hack.js
+// (fixed, casse le cadre terminal étroit de l'écran AUTOMATED ANALYSIS
+// derrière lui). Écran client pur : aucune dépendance Three/Rapier/physics.
+// Jamais importé par le moteur.
 import { readGamepadDir } from './gamepad-dir.js';
 import { cosmeticSeed, RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from './hack-grammars.js';
 import { pickVariant, checkInput } from '../tools/ritual-model.mjs';
@@ -78,9 +78,12 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			if (d) { padPrev = d; onInput(d); } else { padPrev = null; }
 		}, 80);
 
+		let lastBeatIdx = -1;
+
 		function startBurst() {
 			stage = 'burst';
 			promptEl.classList.add('ritual-prompt-done');
+			wrap.classList.add('ritual-live');
 			raf = requestAnimationFrame(loop);
 		}
 
@@ -92,16 +95,25 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			const primitive = RITUAL_PRIMITIVES[primitives[beatIdx % primitives.length]];
 			burstEl.className = `ritual-burst ritual-burst--${RITUAL_COLORS[beatIdx % RITUAL_COLORS.length]}`;
 			primitive(burstEl, { t: elapsed / 1000, seed: numSeed });
+			if (beatIdx !== lastBeatIdx) {
+				// Un coup à chaque battement : le rituel doit frapper l'écran, pas
+				// juste changer de motif dessus (retour utilisateur PR #80).
+				lastBeatIdx = beatIdx;
+				wrap.classList.remove('ritual-boom');
+				void wrap.offsetWidth;
+				wrap.classList.add('ritual-boom');
+			}
 			raf = requestAnimationFrame(loop);
 		}
 
 		function finishBurst() {
 			cancelAnimationFrame(raf);
 			stage = 'acquired';
+			wrap.classList.remove('ritual-live', 'ritual-boom');
 			burstEl.textContent = '';
 			burstEl.className = 'ritual-burst';
 			promptEl.textContent = 'CONTROL ACQUIRED';
-			promptEl.classList.add('ritual-acquired');
+			promptEl.className = 'ritual-prompt ritual-acquired';
 			setTimeout(teardown, ACQUIRED_MS);
 		}
 
