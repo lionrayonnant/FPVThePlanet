@@ -164,7 +164,6 @@ export class Input {
 				this.onAction('disarm', e);
 			} else if (
 				[
-					'r',
 					'm',
 					'p',
 					'c',
