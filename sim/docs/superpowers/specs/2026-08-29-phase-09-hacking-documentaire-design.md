@@ -229,3 +229,66 @@ moteur, aucune constante physique touchée.
 8. **Vérif navigateur** bout en bout + les 6 motifs.
 9. **Revue de sûreté** : relire `git diff`, consigner dans HANDOFF.
 10. **Docs** : HANDOFF, README, issue #46.
+
+---
+
+## Addendum 2026-08-29 — phase automatique progressive, couvre le chargement
+
+Retour utilisateur après la première implémentation : la phase automatique
+résolvait en ~600 ms et `[ JACK IN ]` apparaissait tout de suite. Voulu : le
+joueur revient à sa chaise après l'acquisition du terrain, excité ; le piratage
+le fait **attendre quelques secondes de plus**, la tension monte, `[ JACK IN ]`
+apparaît, il tape (PHASE 10) et boum il vole.
+
+### D — le hack couvre `boot()`
+
+Aujourd'hui `chooseScene()` (dont `runHack`) **puis** `boot()` **puis** vol.
+Désormais, branche session fraîche : dès la réponse du TARGET SCAN, on résout
+`PROFILE` / `controller`, on appelle `setScene(slug)` et on lance **`boot()` en
+tâche de fond, non attendu**. Sa promesse est passée à `runHack({ ready })`.
+Le joueur regarde la phase automatique pendant que la carte charge derrière ;
+au `[ JACK IN ]`, le vol est déjà prêt — le contrôle est immédiat.
+
+- `runHack` n'arme `[ JACK IN ]` que quand **`ready` est résolu ET** la durée
+  scriptée minimale est écoulée (~5 s, garantie même cache chaud).
+- `ready` rejeté (échec de `boot`) → `runHack` démonte son écran et rejette →
+  `.catch` externe → `hud.fail`.
+- Chemins `?scene=` / `?family=` / `resume` : pas de `boot` de fond, `runHack`
+  sans `ready` joue la séquence scriptée puis arme `[ JACK IN ]`.
+- La barre `#loading` reste cachée derrière l'écran de hack — l'écran de hack
+  EST l'écran d'attente. `boot()` appelle `hud.ready()` en fin de course, ce qui
+  démarre déjà la boucle de rendu du vol **derrière** l'écran de hack ; le drone
+  est au spawn, désarmé (l'entry state est PHASE 11).
+
+### E — séquence progressive (`src/hack.js` + `tools/hack-model.mjs`)
+
+`hackSequence(hackType)` (pur, dans `hack-model.mjs`) : une liste d'étapes
+`{ label, verdict, dwellMs }`. Chaque étape affiche `LABEL ` puis des points qui
+se remplissent pendant `dwellMs`, puis `verdict` claque.
+
+- tête fixe : `AUTOMATED BYPASS … OK`
+- 2 beats par famille — **vocabulaire de la grammaire visuelle uniquement**,
+  aucune revendication de protocole, aucune procédure :
+  - COMMAND INJECTION : `PACKET WINDOW` / `SEQUENCE ALIGNED`
+  - LINK HIJACK : `CARRIER LOCK` / `TIMING SYNC`
+  - TELEMETRY SPOOF : `STREAM CAPTURE` / `TRACE SHAPED`
+  - GNSS SPOOF : `SOLUTION FORCED` / `POSITION HELD`
+  - NETWORK TAKEOVER : `ROUTE MAPPED` / `NODES HELD`
+  - FIRMWARE OVERRIDE : `REGION MAPPED` / `IMAGE STAGED`
+- queue fixe : `CONTROL CHANNEL … READY`
+- puis état d'attente (`…` qui pulse, motif en « recherche ») jusqu'à `ready`
+- puis **culmination du motif** (~600 ms) + `MANUAL OVERRIDE REQUIRED` + `[ JACK IN ]`
+
+### F — contrat des motifs
+
+`draw(el, { t, seed, lock = 0 })` — `lock` va de 0 (recherche) à 1 (verrouillé).
+Chaque `draw*` gagne une petite culmination (marqueur qui se fige, front qui
+atteint tous les nœuds, réticule qui revient à l'origine, trace qui se calme,
+paquets qui s'alignent, dump qui se stabilise). Déterministe : `lock` est un
+nombre, aucune source d'aléa.
+
+### G — sûreté
+
+Les nouveaux `label`/`verdict` sont du vocabulaire d'ambiance, testés contre une
+liste blanche de tokens dans `hack-selftest.mjs`. Aucune étape ne décrit une
+opération réelle. Revue `git diff` re-passée.
