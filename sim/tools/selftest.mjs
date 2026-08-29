@@ -1164,5 +1164,24 @@ check('nose-down rotation uses the tighter threshold',
 check('hoverThrottle(profile, identity) matches the local hoverStick reference',
 	Math.abs(hoverThrottle(PROFILE, { x: 0, y: 0, z: 0, w: 1 }) - hoverStick(PROFILE)) < 1e-9);
 
+console.log('\napplyEntryState');
+{
+	phys.setProfile(QUAD);
+	const state = {
+		position: { x: 10, y: 50, z: -20 },
+		quaternion: { x: 0, y: 0.3826834, z: 0, w: 0.9238795 }, // 45° yaw
+		linvel: { x: 3, y: -1, z: 2 },
+		angvel: { x: 0, y: 0, z: 1.5 },
+	};
+	phys.applyEntryState(state);
+	const p = phys.position, r = phys.rotation, v = phys.velocity, w = phys.angularVelocity;
+	check('position applied', Math.hypot(p.x - state.position.x, p.y - state.position.y, p.z - state.position.z) < 1e-6);
+	check('rotation applied', Math.abs(r.w - state.quaternion.w) < 1e-6 && Math.abs(r.z - state.quaternion.z) < 1e-6);
+	check('linear velocity applied', Math.hypot(v.x - state.linvel.x, v.y - state.linvel.y, v.z - state.linvel.z) < 1e-6);
+	check('angular velocity applied', Math.abs(w.z - state.angvel.z) < 1e-6);
+	check('battery reset to full', phys.battery.soc === 1);
+	phys.reset();
+}
+
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

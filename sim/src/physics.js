@@ -153,6 +153,26 @@ export class Physics {
 		this.airspeed = 0;
 	}
 
+	// Like reset(), but to an arbitrary kinematic state instead of this.spawn /
+	// identity / zero — used by the PHASE 11 entry-state generator so a session
+	// can start (or a respawn can land) already in flight. this.spawn itself is
+	// untouched: it stays the ground station's fixed position (see main.js's
+	// `emitter`), independent of where a flight actually begins.
+	applyEntryState({ position, quaternion, linvel, angvel }) {
+		this.body.setTranslation(position, true);
+		this.body.setRotation(quaternion, true);
+		this.body.setLinvel(linvel, true);
+		this.body.setAngvel(angvel, true);
+		this.propulsion.reset();
+		this.wind.reset();
+		this._agl = null;
+		this._aglCounter = 0;
+		this._windCounter = 6;
+		this._probed = false;
+		this._groundHold = false;
+		this.airspeed = 0;
+	}
+
 	get position() { return this.body.translation(); }
 	get rotation() { return this.body.rotation(); }
 	get velocity() { return this.body.linvel(); }
