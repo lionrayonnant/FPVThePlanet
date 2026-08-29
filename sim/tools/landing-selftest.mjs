@@ -39,10 +39,12 @@ const SPAWN = manifest.spawn;
 const ZERO = { x: 0, y: 0, z: 0 };
 const LEVEL = { x: 0, y: 0, z: 0, w: 1 };
 
-// Repose le corps à `height` mètres au-dessus du sol du spawn, à plat, immobile.
-function place(height, vel = ZERO) {
-	const g = phys.groundBelow(SPAWN.x, SPAWN.y + 200, SPAWN.z) ?? SPAWN.y;
-	phys.body.setTranslation({ x: SPAWN.x, y: g + height, z: SPAWN.z }, true);
+// Repose le corps à `height` mètres au-dessus du sol, à plat, immobile. Au
+// spawn par défaut ; x/z permettent de reposer ailleurs (pose sur pente,
+// correction 4 de la revue finale).
+function place(height, vel = ZERO, x = SPAWN.x, z = SPAWN.z) {
+	const g = phys.groundBelow(x, SPAWN.y + 200, z) ?? SPAWN.y;
+	phys.body.setTranslation({ x, y: g + height, z }, true);
 	phys.body.setRotation(LEVEL, true);
 	phys.body.setLinvel(vel, true);
 	phys.body.setAngvel(ZERO, true);
@@ -144,14 +146,91 @@ LANDINGS.push({
 	run: () => { place(0.16); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6, angvel: { x: 8, y: 0, z: 0 } }); },
 });
 
+// --- pose sur pente (D5, correction 4 de la revue finale) ------------------
+// La spec liste « posé sur pente » parmi les trajectoires à rejouer ; elle
+// manquait au banc. Ce n'est pas cosmétique : `height` est un raycast
+// vertical depuis le centre d'une sphère de rayon 0,15 m, donc une sphère
+// posée sur une pente d'angle θ mesure 0,15 / cos θ sous elle — 0,1488 m à
+// plat (voir plus haut), donc géométriquement au-delà d'environ 41° pour un
+// H_ON de 0,2 la détection ne peut plus déclencher.
+//
+// On cherche une vraie pente dans la scène plutôt que d'en deviner une :
+// balayage de `groundBelow` sur une grille autour du spawn, pente estimée
+// par différence finie centrée (pas 0,3 m) dans les deux directions
+// horizontales — la normale du terrain n'est jamais lue directement, mais sa
+// composante verticale se déduit de la hauteur sondée aux quatre voisins.
+function slopeAngleAt(x, z, d = 0.3) {
+	const xp = phys.groundBelow(x + d, SPAWN.y + 200, z);
+	const xm = phys.groundBelow(x - d, SPAWN.y + 200, z);
+	const zp = phys.groundBelow(x, SPAWN.y + 200, z + d);
+	const zm = phys.groundBelow(x, SPAWN.y + 200, z - d);
+	if (xp === null || xm === null || zp === null || zm === null) return null;
+	return Math.atan(Math.hypot((xp - xm) / (2 * d), (zp - zm) / (2 * d))) * 180 / Math.PI;
+}
+
+// Cherche, sur un carré de 60 m autour du spawn, la facette la plus proche de
+// `targetDeg`. Mesuré sur tour-eiffel (2026-08-29) : viser 30° trouve une
+// facette à 30,0° — c'est la pente la plus raide qui se stabilise dans les
+// seuils actuels. Sondé au-delà (33°, 35°, 37°, 39°, mêmes méthode et pas) :
+// à 33° la vitesse angulaire résiduelle ne redescend plus sous W_ON en 6 s
+// (0,37 rad/s en fin de trace) et à 35° la sphère quitte carrément la pente
+// (elle glisse et retombe 18 m plus bas). Ce n'est donc pas la hauteur qui
+// bloque ici (H_ON=0,2 reste large jusqu'à ~41° géométriquement) mais
+// `setGroundHold` : il amortit la vitesse par un facteur exp(-dt/0,15) sans
+// l'annuler, et la composante de la gravité le long d'une pente assez raide
+// entretient un fluage résiduel que cet amortissement ne rattrape jamais tout
+// à fait. La limite pratique de ce modèle (sphère + amortissement exponentiel)
+// est donc géométrique-dynamique, aux alentours de 30-33°, en-deçà du repli
+// optique à 41° — actée ici en commentaire plutôt que corrigée : relever
+// H_ON ne changerait rien, le blocage est sur W_ON, et le désarmer viderait
+// le critère « une sphère qui roule n'est pas posée » ailleurs sur le banc.
+function findSlope(targetDeg, radius = 60, step = 1) {
+	let best = null;
+	for (let x = SPAWN.x - radius; x <= SPAWN.x + radius; x += step) {
+		for (let z = SPAWN.z - radius; z <= SPAWN.z + radius; z += step) {
+			const angle = slopeAngleAt(x, z);
+			if (angle === null) continue;
+			if (!best || Math.abs(angle - targetDeg) < Math.abs(best.angle - targetDeg)) best = { x, z, angle };
+		}
+	}
+	return best;
+}
+
+const SLOPE = findSlope(30);
+LANDINGS.push({
+	name: `pose sur pente (${SLOPE.angle.toFixed(1)}°, x=${SLOPE.x} z=${SLOPE.z})`,
+	run: () => { place(3, ZERO, SLOPE.x, SLOPE.z); return fly({ sticks: () => stick({ throttle: 0 }), seconds: 6 }); },
+});
+
 // --- les rasants (faux positifs) -------------------------------------------
 // Passage bas et rapide : mode altitude pour tenir la hauteur, tangage plein
 // pot pour la vitesse.
+//
+// Un rasant qui rejette la détection ne prouve rien à lui seul (correction 5,
+// revue finale) : si un changement de physique le faisait décrocher, se
+// crasher, ou simplement ralentir jusqu'à quasi rien, il « rejetterait »
+// encore, pour la mauvaise raison. Chaque cas porte donc en plus un plancher
+// de vitesse et une bande de hauteur visée, tous deux mesurés sur les traces
+// mêmes que le banc rejoue (2026-08-29, tour-eiffel).
+//
+// La vitesse de croisière atteinte ne dépend quasiment que du tangage, pas de
+// la hauteur visée : minimum observé sur les trois hauteurs, 4,642 / 9,134 /
+// 15,974 m/s pour tangage 0,3 / 0,6 / 1. Les planchers ci-dessous gardent
+// ~15 % de marge — assez pour ne pas être un test fragile, assez peu pour
+// détecter une régression qui casserait la propulsion ou le contrôleur.
+const SPEED_FLOOR = { 0.3: 4.0, 0.6: 7.7, 1.0: 13.5 };
+
 const PASSES = [];
 for (const h of [0.3, 0.6, 1.0]) {
 	for (const push of [0.3, 0.6, 1.0]) {
 		PASSES.push({
 			name: `rasant ${h} m, tangage ${push}`,
+			speedFloor: SPEED_FLOOR[push],
+			// Bande de hauteur visée : mesurée à h+0,22 m dans le pire cas (0,3 m /
+			// tangage 1) et h-0,29 m dans l'autre (0,6 m / tangage 1). ±0,35 m
+			// garde de la marge sur ces deux extrêmes sans laisser passer un
+			// décrochage (hauteur qui s'effondre) ou un envol (hauteur qui dérive).
+			heightBand: [Math.max(0.05, h - 0.35), h + 0.35],
 			run: () => {
 				place(h + 0.2);
 				return fly({
@@ -230,8 +309,23 @@ for (const c of PASSES) {
 	const trace = c.run();
 	const at = detects(trace);
 	const flying = trace.filter((s) => s.t > 1);
+	const minH = Math.min(...flying.map((s) => s.height));
+	const maxH = Math.max(...flying.map((s) => s.height));
+	const maxV = Math.max(...flying.map((s) => s.speed));
 	passStats.push({ name: c.name, h: Math.min(...flying.map((s) => s.height)), v: Math.min(...flying.map((s) => s.speed)) });
 	check(`${c.name} : rejeté`, at === null, at === null ? '' : `faux positif à t=${at.toFixed(2)}s`);
+	// Un rasant qui ne rejette pas la détection pour la bonne raison (il vole
+	// toujours bas et vite) échoue quand même (correction 5) : la vitesse
+	// atteinte doit dépasser la cible mesurée, et la hauteur rester dans la
+	// bande visée du bout en bout.
+	if (c.speedFloor !== undefined) {
+		check(`${c.name} : vitesse atteinte >= ${c.speedFloor}m/s`, maxV >= c.speedFloor, `mesuré ${maxV.toFixed(2)}m/s`);
+	}
+	if (c.heightBand) {
+		const [lo, hi] = c.heightBand;
+		check(`${c.name} : hauteur dans [${lo.toFixed(2)}, ${hi.toFixed(2)}]m`, minH >= lo && maxH <= hi,
+			`mesuré [${minH.toFixed(3)}, ${maxH.toFixed(3)}]m`);
+	}
 }
 
 if (REPORT) {
