@@ -259,21 +259,22 @@ console.log('\nvideo link');
 	};
 	const near = settle({ distance: 20, blocked: false, span: 0 });
 	const far = settle({ distance: 900, blocked: false, span: 0 });
-	const behind = settle({ distance: 900, blocked: true, span: 12 });
+	const behind = settle({ distance: 900, blocked: true, span: 20 });
 	check('a clear link close in is perfect', near > 0.99, near.toFixed(3));
-	check('quality falls with distance', far < near, `${near.toFixed(2)} at 20 m, ${far.toFixed(2)} at 900 m`);
-	// The whole point of the raycast: distance alone must not be what kills the
-	// picture, or there was no reason to cast a ray at all.
-	check('a clear link across the whole tile is still flyable', far > 0.4, far.toFixed(2));
-	check('a building costs far more than the distance to it', behind < far / 3,
-		`${far.toFixed(2)} clear vs ${behind.toFixed(2)} behind 12 m of building`);
+	// Distance was removed from the quality budget (issue #79): flying to the far
+	// side of the tile in clear air has to look exactly like hovering over the
+	// pilot, so exploring the map is never punished. Distance still moves the
+	// RSSI readout — that check is further down.
+	check('distance alone does not degrade the picture', Math.abs(far - near) < 0.02,
+		`${near.toFixed(3)} at 20 m, ${far.toFixed(3)} at 900 m`);
+	check('a building is the only thing that degrades a clear-air link',
+		behind < near - 0.1, `${near.toFixed(2)} clear vs ${behind.toFixed(2)} behind 20 m of building`);
 
 	// Degraded, not dead. One building between you and the pilot has to be
-	// something you can fly back out of — the first calibration killed the
-	// picture outright and made the whole feature unplayable.
+	// something you can fly back out of.
 	const oneBuilding = settle({ distance: 80, blocked: true, span: 12 });
 	check('one building degrades the picture without killing it',
-		oneBuilding > 0.25 && oneBuilding < 0.75, oneBuilding.toFixed(2));
+		oneBuilding > 0.4 && oneBuilding < 0.9, oneBuilding.toFixed(2));
 	// Clipping the corner of a roof is not the same event as flying behind a
 	// block, and the two-sided raycast exists so the model can tell them apart.
 	const clipped = settle({ distance: 80, blocked: true, span: 0 });
@@ -325,13 +326,12 @@ console.log('\nvideo link');
 	check('the transition is visible for long enough to read', inTransition > 12,
 		`${inTransition} frames (${(inTransition / 60 * 1000).toFixed(0)} ms) in transition`);
 
-	// And the same in the other direction: distance has to give a continuous
-	// gradient rather than a plateau followed by an edge.
+	// And distance really has no effect anywhere along the tile — not even a
+	// gentle gradient (issue #79).
 	const ladder = [50, 150, 300, 450, 600, 750, 900].map((d) => settle({ distance: d, blocked: false, span: 0 }));
-	let biggestRung = 0;
-	for (let i = 1; i < ladder.length; i++) biggestRung = Math.max(biggestRung, ladder[i - 1] - ladder[i]);
-	check('quality slides continuously with distance', biggestRung < 0.2,
-		ladder.map((q) => q.toFixed(2)).join(' → '));
+	const spreadAcrossTile = Math.max(...ladder) - Math.min(...ladder);
+	check('distance has no effect on quality across the whole tile', spreadAcrossTile < 0.02,
+		ladder.map((q) => q.toFixed(3)).join(' → '));
 
 	// Reacquisition is deliberately slower than loss, the way a diversity
 	// receiver behaves. Measured as time-to-halfway in each direction.
@@ -349,10 +349,13 @@ console.log('\nvideo link');
 		}
 		return frames;
 	};
-	const clear = { distance: 120, blocked: false, span: 0 };
-	const shadow = { distance: 120, blocked: true, span: 3 };
-	const drop = halfway(clear, shadow);
-	const recover = halfway(shadow, clear);
+	// Neither state is a clean 0/1: sitting exactly at quality 1 is a plateau
+	// (the clamp itself), and a transition starting there measures the plateau,
+	// not the time constant. Two shadow depths instead, both off that edge.
+	const mildShadow = { distance: 120, blocked: true, span: 6 };
+	const heavyShadow = { distance: 120, blocked: true, span: 20 };
+	const drop = halfway(mildShadow, heavyShadow);
+	const recover = halfway(heavyShadow, mildShadow);
 	check('the link is lost faster than it comes back', recover > drop * 2,
 		`${(drop / 60 * 1000).toFixed(0)} ms to drop, ${(recover / 60 * 1000).toFixed(0)} ms to recover`);
 
@@ -371,6 +374,77 @@ console.log('\nvideo link');
 		if (!(o.quality >= 0 && o.quality <= 1)) outOfRange++;
 	}
 	check('quality stays inside 0..1 under any input', outOfRange === 0);
+
+	// --- brouillage: playability bounds (issue #79) -----------------------
+	// A fully jammed screen must not last, and must not re-arm straight away.
+	// Obstruction alone tops out around quality 0.5, so a genuine, sustained
+	// blackout needs a weak target signal stacked on top of it too — otherwise
+	// these checks would pass vacuously, without ever exercising the cap.
+	const jam = new VideoLink(1);
+	jam.setSignal({ rssiDbm: -95 });
+	const worst = { distance: 900, blocked: true, span: 300 };
+	const settleJam = (opts, seconds = 10) => {
+		jam.reset();
+		for (let i = 0; i < seconds * 60; i++) jam.update({ dt: 1 / 60, ...opts });
+		return jam.out.quality;
+	};
+
+	check('this geometry is a genuine blackout before the cap kicks in',
+		settleJam(worst, 1) < 0.1, settleJam(worst, 1).toFixed(3));
+
+	// Steady state under that worst case: the temporal cap forces a recovery, so
+	// 10 s in it is heavy glitch, never a dead screen.
+	check('worst-case geometry cannot hold a permanent blackout',
+		settleJam(worst) > 0.15, settleJam(worst).toFixed(2));
+
+	// Longest unbroken stretch below the blackout threshold while flying straight
+	// into the worst geometry and staying there.
+	jam.reset();
+	let maxRun = 0, run = 0;
+	for (let i = 0; i < 60 * 45; i++) {
+		const q = jam.update({ dt: 1 / 60, ...worst }).quality;
+		if (q < 0.1) { run++; maxRun = Math.max(maxRun, run); } else run = 0;
+	}
+	check('a full blackout never lasts more than a couple of seconds',
+		maxRun > 0 && maxRun < 60 * 3, `${(maxRun / 60).toFixed(1)} s`);
+
+	// After that forced recovery the picture stays flyable through the cooldown,
+	// even though the geometry still says worst-case.
+	jam.reset();
+	for (let i = 0; i < 60 * 5; i++) jam.update({ dt: 1 / 60, ...worst });
+	let minDuringCooldown = 1;
+	for (let i = 0; i < 60 * 15; i++) {
+		minDuringCooldown = Math.min(minDuringCooldown, jam.update({ dt: 1 / 60, ...worst }).quality);
+	}
+	check('after a blackout the link stays flyable through the cooldown',
+		minDuringCooldown > 0.2, minDuringCooldown.toFixed(2));
+
+	// A second blackout cannot follow straight after the first — exactly one in
+	// the window, not zero (the cap never engaged) and not several (it re-armed
+	// too soon).
+	jam.reset();
+	let blackouts = 0, wasBlack = false;
+	for (let i = 0; i < 60 * 20; i++) {
+		const q = jam.update({ dt: 1 / 60, ...worst }).quality;
+		if (q < 0.1 && !wasBlack) blackouts++;
+		wasBlack = q < 0.1;
+	}
+	check('blackouts cannot chain back-to-back', blackouts === 1, `${blackouts} in 20 s`);
+
+	// Distance still moves the RSSI readout, so the HUD stays believable even
+	// though the picture itself no longer cares about range.
+	link.reset();
+	let rNear = 0;
+	for (let i = 0; i < 600; i++) rNear = link.update({ dt: 1 / 60, distance: 20, blocked: false, span: 0 }).rssiDbm;
+	const qNear2 = link.out.quality;
+	link.reset();
+	let rFar = 0;
+	for (let i = 0; i < 600; i++) rFar = link.update({ dt: 1 / 60, distance: 1500, blocked: false, span: 0 }).rssiDbm;
+	const qFar2 = link.out.quality;
+	check('the RSSI readout still falls off with range', rFar < rNear - 8,
+		`${rNear.toFixed(0)} vs ${rFar.toFixed(0)} dBm`);
+	check('while the picture itself ignores the range', Math.abs(qFar2 - qNear2) < 0.02,
+		`${qNear2.toFixed(3)} vs ${qFar2.toFixed(3)}`);
 }
 
 console.log('\nwind');

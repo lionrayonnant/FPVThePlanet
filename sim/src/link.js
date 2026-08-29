@@ -75,6 +75,17 @@ const NOISE_TAU = 0.25;
 const FREEZE_ENTER = 0.18;
 const FREEZE_LEAVE = 0.28;
 
+// Playability bounds on the jamming (issue #79). Below BLACKOUT_Q the screen is
+// effectively dead; it may stay there at most BLACKOUT_MAX_S, after which the
+// link is pinned above COOLDOWN_FLOOR_Q (clear of FREEZE_LEAVE, so no freeze)
+// for COOLDOWN_S before another blackout can arm. SPREAD_COSMETIC_MAX caps the
+// distance term that now only decorates the RSSI readout.
+const BLACKOUT_Q = 0.10;
+const BLACKOUT_MAX_S = 2.0;
+const COOLDOWN_S = 25;
+const COOLDOWN_FLOOR_Q = 0.30;
+const SPREAD_COSMETIC_MAX = 30;
+
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // Small deterministic generator rather than Math.random, so a selftest run is
@@ -109,6 +120,10 @@ export class VideoLink {
 		this._loss = 0;
 		this._noise = 0;
 		this._frozen = false;
+		// Blackout budget and cooldown timer, both in seconds. Cleared on reset so
+		// a respawn never drops you straight back into a jammed screen.
+		this._blackoutT = 0;
+		this._cooldownT = 0;
 		this.out.quality = 1;
 		this.out.rssiDbm = RSSI_REF_DBM;
 		this.out.lossDb = 0;
@@ -127,11 +142,19 @@ export class VideoLink {
 	// physics.obstructionBetween(). Mutates and returns the same object every
 	// frame — this runs at frame rate.
 	update({ distance, blocked, span, dt }) {
-		const spread = 20 * Math.log10(Math.max(distance, D0) / D0);
+		// Distance no longer drives the picture (issue #79): flying to the far side
+		// of the map in clear air must look exactly like hovering over the pilot,
+		// so exploration is never punished. It still shifts the reported RSSI, so
+		// the HUD readout stays believable — capped, because that number is
+		// cosmetic and should not run away.
+		const spreadCosmetic = Math.min(
+			SPREAD_COSMETIC_MAX,
+			20 * Math.log10(Math.max(distance, D0) / D0),
+		);
 		const shadow = blocked
 			? KNIFE_EDGE_DB + OBSTRUCTION_DB * (1 - Math.exp(-span / OBSTRUCTION_SCALE))
 			: 0;
-		const target = (spread + shadow + this._baseLoss) * this.severity;
+		const target = (shadow + this._baseLoss) * this.severity;
 
 		// Rising loss is the link failing, falling loss is it coming back.
 		const tau = target > this._loss ? TAU_FALL : TAU_RISE;
@@ -143,8 +166,31 @@ export class VideoLink {
 		const kn = dt > 0 ? 1 - Math.exp(-dt / NOISE_TAU) : 1;
 		this._noise += ((this._rand() * 2 - 1) * NOISE_DB - this._noise) * kn;
 
+		const qualityOf = (l) => 1 - clamp01((l - LOSS_CLEAN) / (LOSS_DEAD - LOSS_CLEAN));
+		let quality = qualityOf(Math.max(0, this._loss + this._noise * this.severity));
+
+		// Playability bound (issue #79). A truly dead screen (quality < BLACKOUT_Q)
+		// may not last more than BLACKOUT_MAX_S; once that much has piled up the
+		// link is pinned to a heavy-glitch-but-flyable floor for COOLDOWN_S before
+		// another blackout can arm. Guarantees the player can always keep flying.
+		if (this._cooldownT > 0) {
+			this._cooldownT -= dt;
+			const flooredLoss = LOSS_CLEAN + (1 - COOLDOWN_FLOOR_Q) * (LOSS_DEAD - LOSS_CLEAN);
+			if (this._loss > flooredLoss) this._loss = flooredLoss;
+			if (quality < COOLDOWN_FLOOR_Q) quality = COOLDOWN_FLOOR_Q;
+			this._blackoutT = 0;
+		} else if (quality < BLACKOUT_Q) {
+			this._blackoutT += dt;
+			if (this._blackoutT >= BLACKOUT_MAX_S) {
+				this._cooldownT = COOLDOWN_S;
+				this._blackoutT = 0;
+			}
+		} else {
+			// Brief dips must not creep the budget toward a trigger over a long flight.
+			this._blackoutT = Math.max(0, this._blackoutT - dt * 0.5);
+		}
+
 		const loss = Math.max(0, this._loss + this._noise * this.severity);
-		const quality = 1 - clamp01((loss - LOSS_CLEAN) / (LOSS_DEAD - LOSS_CLEAN));
 
 		// Frame drops. Only the digital renderer uses this, but it belongs to the
 		// receiver rather than to the shader, so it is decided here. The
@@ -158,7 +204,7 @@ export class VideoLink {
 		this.out.lossDb = loss;
 		// Floored at the receiver's sensitivity: below that it reports nothing at
 		// all, not an ever more negative number.
-		this.out.rssiDbm = Math.max(-100, RSSI_REF_DBM - loss);
+		this.out.rssiDbm = Math.max(-100, RSSI_REF_DBM - loss - spreadCosmetic);
 		this.out.frozen = this._frozen;
 		return this.out;
 	}
