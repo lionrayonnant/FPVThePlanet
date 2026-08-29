@@ -22,7 +22,8 @@ import { runTargetScan } from './target-scan.js';
 import { generateTargetScan } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
-import { FlightEnd } from './flight-end.js';
+import { FlightEnd, LANDING } from './flight-end.js';
+import { idleThrottle } from './quad.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -120,7 +121,11 @@ let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
-const flightEnd = new FlightEnd();
+// `landing` est une copie privée de LANDING (pas la constante partagée) : son
+// THR_IDLE est réécrit par boot() une fois la famille de l'appareil connue
+// (idleThrottle, src/quad.js) — muter la constante exportée contaminerait les
+// bancs headless qui importent LANDING pour leurs propres seuils de référence.
+const flightEnd = new FlightEnd({ landing: { ...LANDING } });
 // Le lien vu par lens.js quand la machine est morte : quality 0 et frozen sont
 // exactement ce que le shader interprète déjà comme « plus rien n'arrive ».
 // Aucun code d'image nouveau, seulement le mode de dégradation le plus profond.
@@ -219,6 +224,11 @@ async function boot() {
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
 	audio.setProfile(physics.profile);
+	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
+	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
+	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
+	// pur) chaque fois que boot() fixe l'appareil pour la session.
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
 	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
@@ -584,9 +594,11 @@ function frame() {
 		// freine pas). Le vent, lui, continue de le pousser. Quand le pilote a
 		// coupé les gaz et que le drone est au ras du sol, on coupe les moteurs
 		// et physics.setGroundHold fige le reste : plus de vent, plus de dérive.
+		// Le seuil de « gaz coupés » (flightEnd.landing.THR_IDLE) est celui de la
+		// famille en vol, pas une constante : voir idleThrottle() dans quad.js.
 		const pp = physics.position;
 		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
-		const touchdown = controller.armed && sticks.throttle < 0.06
+		const touchdown = controller.armed && sticks.throttle < flightEnd.landing.THR_IDLE
 			&& gb !== null && (pp.y - gb) < 0.6;
 		physics.setGroundHold(touchdown);
 

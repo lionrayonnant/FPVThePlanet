@@ -17,6 +17,7 @@ import path from 'node:path';
 import { initPhysics, Physics } from '../src/physics.js';
 import { FlightController } from '../src/flightController.js';
 import { FlightEnd, LANDING, LANDING_READY } from '../src/flight-end.js';
+import { idleThrottle } from '../src/quad.js';
 
 const args = process.argv.slice(2);
 const REPORT = args.includes('--report');
@@ -35,6 +36,13 @@ await initPhysics();
 const phys = new Physics(collision, manifest.spawn);
 const STEP = 1 / 250;
 const SPAWN = manifest.spawn;
+
+// Le seuil de « gaz coupés » de la famille en vol ici (freestyle5, le profil
+// par défaut de Physics) — dérivé, pas les 0,06 en dur d'avant PHASE 14 (voir
+// idleThrottle, src/quad.js). Rejoué à la fois dans le garde `touchdown`
+// ci-dessous (fidèle à celui de main.js) et dans le `landing` passé à
+// `FlightEnd` par `detects()`.
+const THR_IDLE = idleThrottle(phys.profile);
 
 const ZERO = { x: 0, y: 0, z: 0 };
 const LEVEL = { x: 0, y: 0, z: 0, w: 1 };
@@ -75,8 +83,9 @@ function fly({ sticks, seconds, mode = 'acro', windless = true, angvel = null })
 		const h = heightNow();
 		const s = sticks(t, { height: h, velocity: phys.velocity });
 		// Même règle que main.js : gaz coupés au ras du sol → moteurs à zéro et
-		// groundHold, sinon une sphère de collision roule sans fin.
-		const touchdown = s.throttle < 0.06 && h < 0.6;
+		// groundHold, sinon une sphère de collision roule sans fin. THR_IDLE est
+		// le seuil dérivé de la famille en vol, pas 0,06 en dur.
+		const touchdown = s.throttle < THR_IDLE && h < 0.6;
 		phys.setGroundHold(touchdown);
 		const { motors } = fc.update(s, phys, STEP);
 		if (touchdown) motors.fill(0);
@@ -113,6 +122,16 @@ LANDINGS.push({
 		phys.setWind(ZERO, 0);
 		return trace;
 	},
+});
+
+// Gaz pas tout à fait coupés (issue « trop dur à poser », PHASE 14) : le
+// pilote descend avec un manche à mi-chemin entre 0 et THR_IDLE, pas à zéro
+// franc. C'est exactement la fenêtre que l'ancien seuil (0,06 en dur) fermait
+// à tort pour les familles peu chargées — sans ce cas, rien ne verrouille que
+// la fenêtre a bien été élargie plutôt que juste déplacée.
+LANDINGS.push({
+	name: `pose gaz mi-fenêtre (throttle=${(THR_IDLE / 2).toFixed(3)})`,
+	run: () => { place(3); return fly({ sticks: () => stick({ throttle: THR_IDLE / 2 }), seconds: 6 }); },
 });
 
 // Rebond (section D5 de la spec, absent du brief initial) : chute assez dure
@@ -263,7 +282,9 @@ PASSES.push({
 // --- mesure ----------------------------------------------------------------
 // Ce que la machine verrait sur cette trace : est-elle passée en LANDING_READY ?
 function detects(trace) {
-	const fe = new FlightEnd();
+	// Même THR_IDLE que le garde `touchdown` ci-dessus (main.js les fait
+	// coïncider en injectant la même valeur dérivée aux deux endroits).
+	const fe = new FlightEnd({ landing: { ...LANDING, THR_IDLE } });
 	for (let i = 1; i < trace.length; i++) {
 		const s = trace[i];
 		fe.update({ dt: STEP, armed: true, crashed: false, ...s });
