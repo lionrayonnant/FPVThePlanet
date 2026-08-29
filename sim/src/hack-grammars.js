@@ -1,17 +1,35 @@
-// Motifs visuels par famille de hacking (PHASE 09, Bible §17). Chaque motif
-// identifie sa famille SANS que le joueur ait à lire son nom (critère
-// d'acceptation). Purement décoratif : la seule donnée qui entre est un `seed`
-// cosmétique et un temps `t` en secondes.
+// Motifs visuels par famille de hacking (PHASE 09, Bible §17) + primitives de
+// culmination du rituel (PHASE 10, Bible §18-19). Chaque motif identifie sa
+// famille SANS que le joueur ait à lire son nom (critère d'acceptation).
+// Purement décoratif : la seule donnée qui entre est un `seed` cosmétique et
+// un temps `t` en secondes.
 //
-// Contrat d'un motif : draw(el, { t: number, seed: number, lock?: number }).
+// Contrat d'un motif d'analyse : draw(el, { t: number, seed: number, lock?: number }).
 // `lock` va de 0 (recherche) à 1 (verrouillé) : la culmination du hack juste
-// avant [ JACK IN ]. Écrit dans el.textContent. Pas d'état module — tout dérive
+// avant le rituel. Écrit dans el.textContent. Pas d'état module — tout dérive
 // de (t, seed, lock).
+//
+// Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number }).
+// Même toolkit ASCII, pas de `lock` — la couleur (cyan/magenta/violet/bleu
+// électrique, Bible §19) est appliquée par le conteneur (src/ritual.js), pas
+// par la primitive : le rendu reste du texte brut, une seule teinte à la fois.
 
 const W = 44; // largeur du champ ASCII
 const H = 12; // hauteur
 
 const frame = (rows) => rows.map((r) => r.padEnd(W).slice(0, W)).join('\n');
+
+// Petit hash déterministe chaîne -> graine cosmétique [0,1) (varie le bruit
+// d'un vol à l'autre, ne révèle jamais la famille au joueur). Partagé par
+// hack.js (motif d'analyse) et ritual.js (primitives de culmination, PHASE 10).
+export function cosmeticSeed(str) {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < String(str).length; i++) {
+		h ^= String(str).charCodeAt(i);
+		h = Math.imul(h, 0x01000193);
+	}
+	return (h >>> 0) / 4294967296;
+}
 
 // --- petits utilitaires de canevas ------------------------------------------
 
@@ -278,4 +296,165 @@ export const GRAMMARS = {
 	'GNSS SPOOF': drawVectors,
 	'NETWORK TAKEOVER': drawNodes,
 	'FIRMWARE OVERRIDE': drawMemory,
+};
+
+// ============================================================================
+// Primitives de culmination du rituel (PHASE 10, Bible §18-19). 8 blocs
+// composables, communs aux 6 familles ; seul le sous-ensemble pondéré par
+// famille (FAMILY_PRIMITIVES) et le nombre de battements (variante V1-V4,
+// tools/ritual-model.mjs) changent — pas 24 animations écrites à la main.
+
+// Vocabulaire d'ambiance déjà en liste blanche (hack-model.mjs) : réutilisé
+// tel quel, aucun nouveau mot de "procédure" n'est introduit ici.
+import { HACK_VOCAB } from '../tools/hack-model.mjs';
+const VOCAB = [...HACK_VOCAB];
+
+// --- scanBurst : défilement rapide de tokens du vocabulaire d'ambiance ------
+
+function scanBurst(el, { t, seed }) {
+	const g = blank();
+	for (let y = 0; y < H; y++) {
+		const row = [];
+		let x = 0;
+		let col = Math.floor(noise(0, y, 0, seed) * VOCAB.length);
+		while (x < W) {
+			const word = VOCAB[(col + Math.floor(t * 5 + y)) % VOCAB.length];
+			row.push(word);
+			x += word.length + 1;
+			col++;
+		}
+		text(g, -Math.floor((t * 30 + y * 3) % 20), y, row.join(' '));
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- glitchShift : bandes de texte qui se déchirent horizontalement --------
+
+function glitchShift(el, { t, seed }) {
+	const g = blank();
+	const base = Math.floor(t * 3);
+	for (let y = 0; y < H; y++) {
+		const tear = noise(base, y, 0, seed) > 0.72;
+		const shift = tear ? Math.floor((noise(base, y, 1, seed) - 0.5) * W * 0.6) : 0;
+		for (let x = 0; x < W; x++) {
+			const sx = ((x - shift) % W + W) % W;
+			const on = noise(sx, y, base * 0.3, seed) > 0.55;
+			if (on) g[y][x] = tear ? '#' : (noise(sx, y, base * 0.3 + 1, seed) > 0.5 ? '▓' : '░');
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- pulseRing : anneau ASCII qui s'étend depuis le centre -----------------
+
+function pulseRing(el, { t, seed }) {
+	const g = blank();
+	const cx = W / 2;
+	const cy = H / 2;
+	const period = 1.4;
+	const phase = (t + seed * period) % period;
+	const radius = (phase / period) * (W / 2 + 2);
+	const glyphs = ['·', 'o', 'O', '#'];
+	for (let y = 0; y < H; y++) {
+		for (let x = 0; x < W; x++) {
+			const d = Math.hypot((x - cx) / 1.9, y - cy);
+			const rim = Math.abs(d - radius);
+			if (rim < 1.4) g[y][x] = glyphs[clamp(Math.floor((1.4 - rim) * 2.4), 0, 3)];
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- gridSwarm : grille de cellules qui s'allument en cascade --------------
+
+const SWARM_CELL = 4;
+
+function gridSwarm(el, { t, seed }) {
+	const g = blank();
+	const cols = Math.floor(W / SWARM_CELL);
+	const rows = Math.floor(H / 2);
+	for (let cy = 0; cy < rows; cy++) {
+		for (let cx = 0; cx < cols; cx++) {
+			const delay = noise(cx, cy, 0, seed) * 1.6;
+			const on = ((t + seed * 3) % 1.6) > delay;
+			put(g, cx * SWARM_CELL + 1, cy * 2, on ? '#' : '.');
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- waveformSpike : onde façon oscilloscope avec un spike qui saute -------
+
+function waveformSpike(el, { t, seed }) {
+	const g = blank();
+	const mid = (H - 1) / 2;
+	const spikeX = Math.floor(noise(Math.floor(t * 6), 0, 0, seed) * W);
+	for (let x = 0; x < W; x++) {
+		const near = Math.abs(x - spikeX) < 2;
+		const y = near
+			? mid - (H / 2 - 1) * (1 - Math.abs(x - spikeX) / 2)
+			: mid - 1.6 * Math.sin(x * 0.5 + t * 9 + seed * 6);
+		put(g, x, clamp(y, 0, H - 1), near ? '#' : '·');
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- vectorSweep : flèche/ligne qui balaie l'écran de bas à droite --------
+
+function vectorSweep(el, { t, seed }) {
+	const g = blank();
+	const period = 1.2;
+	const phase = ((t + seed * period) % period) / period;
+	const x0 = -4 + phase * (W + 8);
+	const y0 = H - 1 - phase * (H - 1);
+	for (let i = 0; i < 10; i++) put(g, x0 - i * 0.8, clamp(y0 + i * 0.3, 0, H - 1), i === 0 ? '>' : '-');
+	el.textContent = frame(lines(g));
+}
+
+// --- memoryScroll : colonne d'offsets hexa qui défile vite -----------------
+
+function memoryScroll(el, { t, seed }) {
+	const g = blank();
+	const speed = 18; // lignes/s : nettement plus rapide que drawMemory
+	const off = Math.floor(t * speed);
+	for (let y = 0; y < H; y++) {
+		const addr = ((off + y) * BYTES_PER_ROW) & 0xffff;
+		text(g, 0, y, `0x${addr.toString(16).padStart(4, '0')}: ${hexRow(off + y, 0, seed)}`);
+	}
+	el.textContent = frame(lines(g));
+}
+
+// --- chromaSplit : dédoublement de glyphes, façon aberration chromatique ---
+
+function chromaSplit(el, { t, seed }) {
+	const g = blank();
+	const shift = 1 + Math.round(Math.sin(t * 7 + seed * 5) * 1.5);
+	for (let y = 0; y < H; y++) {
+		for (let x = 2; x < W - 2; x++) {
+			if (noise(x, y, Math.floor(t * 4), seed) > 0.82) {
+				put(g, x - shift, y, '[');
+				put(g, x, y, '#');
+				put(g, x + shift, y, ']');
+			}
+		}
+	}
+	el.textContent = frame(lines(g));
+}
+
+export const RITUAL_PRIMITIVES = {
+	scanBurst, glitchShift, pulseRing, gridSwarm,
+	waveformSpike, vectorSweep, memoryScroll, chromaSplit,
+};
+
+// 2-3 primitives pondérées par famille : mêmes 8 fonctions pour toutes, seul
+// le sous-ensemble + l'ordre changent (grammaire, pas 24 séquences à la main).
+// Une famille absente retomberait sur un générique — en pratique HACK_TYPES
+// (6) couvre toutes les entrées, testé par ritual-selftest.mjs.
+export const FAMILY_PRIMITIVES = {
+	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift'],
+	'LINK HIJACK': ['pulseRing', 'waveformSpike'],
+	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit'],
+	'GNSS SPOOF': ['vectorSweep', 'chromaSplit'],
+	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing'],
+	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst'],
 };

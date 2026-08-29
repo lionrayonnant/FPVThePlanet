@@ -379,3 +379,32 @@ canvas { display: block; }
 	white-space: pre;
 	font-size: .9em;
 }
+
+/* ---------- Rituel CONTROL VECTOR (PHASE 10) ----------
+   Cyan/magenta/violet/bleu électrique : réservées à ce seul moment
+   (Bible §19 « une à quatre secondes de folie, puis retour au calme »).
+   Nulle part ailleurs dans le jeu — pas de glow permanent (DA §46). */
+.ritual { margin-top: .8em; }
+.ritual-prompt { font-size: 20px; letter-spacing: .16em; min-height: 1.4em; }
+.ritual-prompt-done { opacity: .6; }
+.ritual-acquired { opacity: 1; font-weight: 700; letter-spacing: .1em; }
+.ritual-burst {
+	margin-top: .6em;
+	line-height: 1.05;
+	white-space: pre;
+	font-size: .9em;
+	min-height: calc(12 * 1.05em);
+}
+.ritual-burst--cyan { color: #4dd8e8; }
+.ritual-burst--magenta { color: #e34de0; }
+.ritual-burst--violet { color: #8a5cf6; }
+.ritual-burst--blue { color: #3b6cff; }
+
+@keyframes ritual-shake {
+	0%, 100% { transform: translateX(0); }
+	20% { transform: translateX(-6px); }
+	40% { transform: translateX(5px); }
+	60% { transform: translateX(-3px); }
+	80% { transform: translateX(2px); }
+}
+.ritual-shake { animation: ritual-shake .22s ease; }

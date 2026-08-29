@@ -1,0 +1,88 @@
+// Selftest des helpers purs du rituel CONTROL VECTOR (PHASE 10). Aucune E/S,
+// aucun DOM. Lancer : node tools/ritual-selftest.mjs
+import assert from 'node:assert/strict';
+import { HACK_TYPES } from './target-model.mjs';
+import {
+	RITUAL_VARIANTS, FALLBACK_VECTOR, pickVariant, ritualVector, checkInput,
+} from './ritual-model.mjs';
+import { RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from '../src/hack-grammars.js';
+
+let n = 0;
+const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
+
+t('pickVariant : déterministe pour un même seed', () => {
+	for (const seed of ['abc', 'gnss-spoof::1', '42']) {
+		const a = pickVariant(seed);
+		const b = pickVariant(seed);
+		assert.deepEqual(a, b);
+	}
+});
+
+t('pickVariant : couvre les 4 variantes sur un échantillon de seeds', () => {
+	const seen = new Set();
+	for (let i = 0; i < 200; i++) seen.add(pickVariant(`seed-${i}`).id);
+	assert.deepEqual([...seen].sort(), ['V1', 'V2', 'V3', 'V4']);
+});
+
+t('pickVariant : toujours un élément de RITUAL_VARIANTS', () => {
+	for (let i = 0; i < 50; i++) {
+		assert.ok(RITUAL_VARIANTS.includes(pickVariant(`x-${i}`)));
+	}
+});
+
+t('ritualVector : vecteur opérateur vide ou absent → FALLBACK_VECTOR', () => {
+	assert.deepEqual(ritualVector([]), FALLBACK_VECTOR);
+	assert.deepEqual(ritualVector(undefined), FALLBACK_VECTOR);
+	assert.deepEqual(ritualVector(null), FALLBACK_VECTOR);
+});
+
+t('ritualVector : vecteur opérateur non vide → renvoyé tel quel', () => {
+	const v = ['up', 'up', 'down', 'left'];
+	assert.deepEqual(ritualVector(v), v);
+});
+
+t('checkInput : préfixe correct avance puis complète au dernier', () => {
+	const vector = ['up', 'right', 'down'];
+	let typed = [];
+	let r = checkInput(vector, typed, 'up');
+	assert.equal(r.status, 'advance');
+	typed = ['up'];
+	r = checkInput(vector, typed, 'right');
+	assert.equal(r.status, 'advance');
+	typed = ['up', 'right'];
+	r = checkInput(vector, typed, 'down');
+	assert.equal(r.status, 'complete');
+});
+
+t('checkInput : mauvais input à n\'importe quel index → mismatch', () => {
+	const vector = ['up', 'right', 'down'];
+	assert.equal(checkInput(vector, [], 'down').status, 'mismatch');
+	assert.equal(checkInput(vector, ['up'], 'left').status, 'mismatch');
+	assert.equal(checkInput(vector, ['up', 'right'], 'up').status, 'mismatch');
+});
+
+t('checkInput : au-delà de la longueur du vecteur → mismatch', () => {
+	const vector = ['up'];
+	assert.equal(checkInput(vector, ['up'], 'up').status, 'mismatch');
+});
+
+t('FAMILY_PRIMITIVES : chaque HACK_TYPES a une entrée dont les primitives existent', () => {
+	for (const h of HACK_TYPES) {
+		const list = FAMILY_PRIMITIVES[h];
+		assert.ok(Array.isArray(list) && list.length >= 2, `${h} : au moins 2 primitives`);
+		for (const name of list) {
+			assert.ok(RITUAL_PRIMITIVES[name], `${h} : primitive inconnue "${name}"`);
+		}
+	}
+});
+
+t('RITUAL_PRIMITIVES : au moins les 8 primitives documentées', () => {
+	for (const name of [
+		'scanBurst', 'glitchShift', 'pulseRing', 'gridSwarm',
+		'waveformSpike', 'vectorSweep', 'memoryScroll', 'chromaSplit',
+	]) {
+		assert.equal(typeof RITUAL_PRIMITIVES[name], 'function', `manque ${name}`);
+	}
+});
+
+console.log(`\n${n} tests ritual OK`);

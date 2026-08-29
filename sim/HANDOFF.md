@@ -182,6 +182,41 @@ Plan d'origine (contexte de la décision d'architecture) :
     `resume`** (le `hackType` est relu du disque pour le futur TARGET LOG,
     PHASE 17, mais pas remis en scène).
   - Le rituel réel (`CONTROL VECTOR` + QTE) est PHASE 10.
+- **PHASE 10 — Control Vector + rituels (issue #47)**, branche
+  `phase-10-control-vector`.
+  - Remplace le `[ JACK IN ]` placeholder de PHASE 09 : `src/hack.js` `arm()`
+    appelle désormais `runRitual()` (`src/ritual.js`) avec le
+    `operator.controlVector` courant (`ritualVector()`,
+    `tools/ritual-model.mjs` — retombe sur un vecteur de secours fixe pour les
+    chemins dev sans opérateur, sans jamais toucher l'opérateur réel).
+  - Saisie clavier (flèches) + manette (`src/gamepad-dir.js`, extrait de
+    `bootstrap.js` — même fonction, plus dupliquée). Un mauvais input à
+    n'importe quel index vide le tampon et repart de zéro (`ritual-shake`,
+    aucune pénalité, conforme au critère d'acceptation).
+  - Culmination : `pickVariant(seed)` tire `V1..V4` (1-4 s, `tools/ritual-model.mjs`,
+    même seed que le motif d'analyse → rejeu stable via `?hack=`). 8 primitives
+    ASCII composables dans `src/hack-grammars.js` (`RITUAL_PRIMITIVES`),
+    2-3 pondérées par famille (`FAMILY_PRIMITIVES`) — pas 24 séquences écrites
+    à la main. Couleurs réservées cyan/magenta/violet/bleu électrique
+    (`.ritual-burst--*`, `src/style.css`), nulle part ailleurs dans le jeu.
+  - `CONTROL ACQUIRED` (400 ms fixe) puis résolution — `main.js` inchangé,
+    `runHack()` résolu = vol immédiat, déjà le cas depuis PHASE 09.
+  - **Vérifié** : `tools/ritual-selftest.mjs` (10 tests), `tools/hack-selftest.mjs`,
+    `npm run selftest`, `session-selftest.mjs`, `operator-selftest.mjs` — tous
+    verts. Vérif navigateur via MCP chrome-devtools sur les **six familles**
+    (`?hack=<type>&scene=`) : saisie clavier correcte → culmination →
+    `CONTROL ACQUIRED` → vol (HUD actif, sticks en main, aucun écran
+    intermédiaire), aucune erreur console ; un mauvais input vide bien le
+    tampon sans pénalité (vérifié sur `FIRMWARE OVERRIDE`).
+  - **Non vérifié** : manette réelle (logique partagée avec `bootstrap.js`,
+    déjà vérifiée en conditions réelles pour la définition du vecteur, mais pas
+    rejouée ici) ; ressenti subjectif du rythme des variantes (V1 vs V4) sur un
+    vrai écran ; un vrai `operator.controlVector` non vide (la vérif navigateur
+    a couru sur le vecteur de secours, faute d'opérateur bootstrappé sur
+    `?scene=` seul — le code passe par le même `ritualVector()`/`checkInput()`
+    testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
+    réel).
+  - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.

@@ -2,6 +2,7 @@
 // Écrans plein cadre montés en APPEND dans #ui — jamais innerHTML, le HUD a
 // déjà rempli ce conteneur. Tout le texte visible est en anglais (D5).
 import * as operatorApi from './operator.js';
+import { readGamepadDir } from './gamepad-dir.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -195,19 +196,6 @@ async function nameScreen(root, api) {
 }
 
 // ---------- écrans 3+4 : CONTROL VECTOR ----------
-
-function readGamepadDir(prev) {
-	const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
-	if (!pad) return null;
-	const [x, y] = pad.axes;
-	const b = pad.buttons;
-	let dir = null;
-	if (b[12]?.pressed || y < -0.5) dir = 'up';
-	else if (b[13]?.pressed || y > 0.5) dir = 'down';
-	else if (b[14]?.pressed || x < -0.5) dir = 'left';
-	else if (b[15]?.pressed || x > 0.5) dir = 'right';
-	return dir && dir !== prev ? dir : (dir ? '__hold' : null);
-}
 
 export async function captureControlVector(root, initialLength = 6) {
 	const s = screen(root);

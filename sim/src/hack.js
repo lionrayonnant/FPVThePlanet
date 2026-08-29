@@ -1,47 +1,41 @@
-// AUTOMATED ANALYSIS (PHASE 09, Bible §16–18). S'intercale entre le TARGET SCAN
-// (PHASE 08) et le vol. La carte se charge en tâche de fond pendant que le
-// joueur regarde la phase automatique : au [ JACK IN ] le contrôle est immédiat.
+// AUTOMATED ANALYSIS (PHASE 09, Bible §16–18) + rituel CONTROL VECTOR
+// (PHASE 10, Bible §18). S'intercale entre le TARGET SCAN (PHASE 08) et le
+// vol. La carte se charge en tâche de fond pendant que le joueur regarde la
+// phase automatique : au bout du rituel le contrôle est immédiat.
 //
 // Déroulé : un log qui se remplit étape par étape (chaque étape = un label, des
 // points qui se remplissent pendant son dwell, puis un verdict qui claque), un
 // motif visuel propre à la famille de hack, un état d'attente tant que le
 // chargement n'est pas fini, puis la culmination du motif + MANUAL OVERRIDE
-// REQUIRED + un bouton [ JACK IN ] PROVISOIRE (le rituel réel — CONTROL VECTOR
-// + QTE — est PHASE 10). Le bouton et la touche Entrée ne sont armés qu'une
-// fois la séquence jouée ET le chargement terminé.
+// REQUIRED + le rituel réel (ritual.js : saisie du CONTROL VECTOR de
+// l'opérateur, tolérante, puis 1-4 s de folie demo scene, puis CONTROL
+// ACQUIRED). `arm()` n'est déclenché qu'une fois la séquence jouée ET le
+// chargement terminé.
 //
-// Écran client pur : look terminal (screen/button de terminal.js), AUCUNE
+// Écran client pur : look terminal (screen de terminal.js), AUCUNE
 // dépendance Three/Rapier/physics. Jamais importé par le moteur.
 //
 // Règle de sécurité (spec PHASE 09) : les labels/verdicts sont du vocabulaire
 // d'ambiance (liste blanche dans hack-model.mjs), les motifs sont des animations
 // décoratives. Aucune trame, aucun outil, aucune séquence exploitable.
-import { screen, button } from './terminal.js';
+import { screen } from './terminal.js';
 import {
 	HACK_TYPES, HACK_OVERRIDE, hackSequence,
 	HACK_STEP_GAP_MS, HACK_HOLD_MS, HACK_LOCK_MS,
 } from '../tools/hack-model.mjs';
-import { GRAMMARS, drawNeutral } from './hack-grammars.js';
+import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
+import { runRitual } from './ritual.js';
+import { ritualVector } from '../tools/ritual-model.mjs';
+import { getOperator } from './operator.js';
 
 const DOT_MIN = 3;
 const DOT_MAX = 15;
-
-// Petit hash déterministe famille -> graine cosmétique (varie le bruit d'un vol
-// à l'autre, ne révèle jamais la famille au joueur).
-function cosmeticSeed(str) {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < String(str).length; i++) {
-		h ^= String(str).charCodeAt(i);
-		h = Math.imul(h, 0x01000193);
-	}
-	return (h >>> 0) / 4294967296;
-}
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const padLabel = (s) => s.padEnd(18);
 
 // `ready` : promesse du chargement de fond (main.js). Résolue -> on peut armer
-// [ JACK IN ] dès la fin de la séquence. Rejetée -> on démonte et on propage
+// le rituel dès la fin de la séquence. Rejetée -> on démonte et on propage
 // (échec de boot). Absente -> séquence scriptée seule (chemins ?scene=/?family=).
 export function runHack(root, { hackType, family, ready } = {}) {
 	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
@@ -130,18 +124,20 @@ export function runHack(root, { hackType, family, ready } = {}) {
 			after(HACK_LOCK_MS, arm);
 		};
 
-		let onKey = null;
+		// PHASE 10 : le rituel réel remplace le [ JACK IN ] provisoire de PHASE 09.
+		// `armed` ne protège plus qu'un double-déclenchement de `arm()` lui-même —
+		// runRitual gère sa propre saisie (clavier + manette) et sa propre
+		// culmination, `hack.js` ne fait qu'attendre sa résolution puis finir.
 		const arm = () => {
 			if (armed || done) return;
 			armed = true;
 			phase = 'armed';
 			paint();
-			onKey = (e) => {
-				if (e.repeat) return;                // ignore l'auto-repeat clavier
-				if (e.key === 'Enter') { e.preventDefault(); finish(); }
-			};
-			window.addEventListener('keydown', onKey);
-			s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
+			const vector = ritualVector(getOperator()?.controlVector);
+			runRitual(s.box, { hackType: type, vector, seed }).then(finish, (err) => {
+				teardown();
+				reject(err instanceof Error ? err : new Error(String(err)));
+			});
 		};
 
 		// --- boucle d'animation unique --------------------------------------
@@ -157,7 +153,6 @@ export function runHack(root, { hackType, family, ready } = {}) {
 			cancelAnimationFrame(raf);
 			timers.forEach(clearTimeout);
 			timers.clear();
-			if (onKey) window.removeEventListener('keydown', onKey);
 			s.remove();
 		};
 
