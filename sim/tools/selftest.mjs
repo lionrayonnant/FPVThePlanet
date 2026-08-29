@@ -14,6 +14,7 @@ import { RainField, dropDrift, fogRange, lensDrops, dropFootprint, LensDrops, MA
 import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src/fog.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
+import { droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY } from './drone-osd-model.mjs';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1207,6 +1208,85 @@ console.log('\ncaméra de cible');
 
 	const unknown = targetCamera({ seed: 'x', family: 'inconnue' });
 	check('famille inconnue : repli sur freestyle5 plutôt qu\'un plantage', unknown.fovDeg > 0);
+}
+
+console.log('\nOSD drone — layout');
+{
+	const A = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'ANALOG' });
+	const A2 = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'ANALOG' });
+	check('même graine, même layout', JSON.stringify(A) === JSON.stringify(A2));
+
+	const B = droneOsdLayout({ seed: 'bravo', family: 'freestyle5', mode: 'ANALOG' });
+	check('deux cibles, deux layouts', JSON.stringify(A) !== JSON.stringify(B));
+
+	const dig = droneOsdLayout({ seed: 'alpha', family: 'freestyle5', mode: 'DIGITAL' });
+	check('le style suit le mode vidéo de la cible, il ne se tire pas',
+		A.style === 'ANALOG' && dig.style === 'DIGITAL');
+
+	// Les grilles ne se recoupent pas : c'est ce qui rend la différence
+	// analogique/numérique visible au premier coup d'œil.
+	const gridKey = (g) => `${g.cols}x${g.rows}`;
+	const analogGrids = new Set(GRIDS.ANALOG.map((g) => `${g[0]}x${g[1]}`));
+	const digitalGrids = new Set(GRIDS.DIGITAL.map((g) => `${g[0]}x${g[1]}`));
+	let gridsOk = true, boundsOk = true, placedOk = true, noOverlap = true, staplesOk = true;
+	let gpsLeak = false, gpsPresent = false;
+	const layouts = new Set(), fieldSets = new Set();
+
+	for (let i = 0; i < 200; i++) {
+		for (const mode of ['ANALOG', 'DIGITAL']) {
+			const fam = ['freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5'][i % 5];
+			const l = droneOsdLayout({ seed: `v${i}`, family: fam, mode });
+			const set = mode === 'ANALOG' ? analogGrids : digitalGrids;
+			if (!set.has(gridKey(l.grid))) gridsOk = false;
+
+			const [lo, hi] = DENSITY[mode];
+			if (l.elements.length < lo || l.elements.length > hi) boundsOk = false;
+
+			// Occupation de la grille, ligne par ligne.
+			const rows = new Map();
+			for (const e of l.elements) {
+				if (!ELEMENTS.includes(e.key)) placedOk = false;
+				const w = ELEMENT_WIDTH[e.key];
+				if (e.col < 0 || e.row < 0 || e.row >= l.grid.rows || e.col + w > l.grid.cols) placedOk = false;
+				const occupied = rows.get(e.row) ?? [];
+				for (const [c0, c1] of occupied) if (e.col < c1 && c0 < e.col + w) noOverlap = false;
+				occupied.push([e.col, e.col + w]);
+				rows.set(e.row, occupied);
+			}
+
+			const keys = l.elements.map((e) => e.key);
+			if (!keys.includes('BAT_V')) staplesOk = false;
+			if (!keys.includes('TIMER_FLIGHT') && !keys.includes('TIMER_ON')) staplesOk = false;
+
+			layouts.add(JSON.stringify(l));
+			fieldSets.add([...keys].sort().join(','));
+		}
+
+		// Les capteurs absents suivent la famille, pas le hasard.
+		const tp = droneOsdLayout({ seed: `g${i}`, family: 'toothpick', mode: 'ANALOG' });
+		if (tp.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsLeak = true;
+		const lr = droneOsdLayout({ seed: `g${i}`, family: 'longrange', mode: 'DIGITAL' });
+		if (lr.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsPresent = true;
+	}
+
+	check('chaque style reste dans ses grilles, et elles ne se recoupent pas', gridsOk);
+	check('la densité reste dans les bornes du style', boundsOk);
+	check('tous les éléments sont connus et tiennent dans la grille', placedOk);
+	check('jamais deux éléments superposés', noOverlap);
+	check('BAT_V et un chronomètre sont toujours là', staplesOk);
+	check('toothpick : aucun élément GPS (il n\'en a pas)', gpsLeak === false);
+	check('longrange : le GPS apparaît', gpsPresent === true);
+
+	// « Ce drone est encore différent » : mesuré, pas espéré. Sur 400 tirages,
+	// des paliers bas volontairement — c'est un plancher, pas une cible.
+	check('la variété est réelle : layouts distincts', layouts.size > 350, `${layouts.size}/400`);
+	check('la variété est réelle : jeux d\'éléments distincts', fieldSets.size > 100, `${fieldSets.size}/400`);
+
+	let imperial = 0;
+	for (let i = 0; i < 400; i++) {
+		if (droneOsdLayout({ seed: `u${i}`, family: 'freestyle5', mode: 'ANALOG' }).units === 'IMPERIAL') imperial++;
+	}
+	check('les unités impériales existent sans dominer', imperial > 40 && imperial < 200, `${imperial}/400`);
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
