@@ -66,6 +66,10 @@ canvas { display: block; }
 #fpvtp-osd .tl { top: 12px; left: 14px; }
 #fpvtp-osd .tr { top: 12px; right: 14px; text-align: right; }
 #fpvtp-osd .bl { bottom: 12px; left: 14px; }
+#fpvtp-osd .br { bottom: 12px; right: 14px; text-align: right; }
+/* Le crédit fournisseur est une mention légale, pas une information de vol :
+   il se tient en retrait du reste de l'OSD. */
+#fo-credit { font-size: 10px; opacity: .45; letter-spacing: .04em; }
 #fo-ident { color: var(--accent); }
 #fo-rates, #fo-input, #fo-fps { font-size: 12px; opacity: .6; }
 #fo-env { font-size: 12px; opacity: .8; }

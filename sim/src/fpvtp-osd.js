@@ -35,6 +35,9 @@ export class FpvtpOsd {
 					<div id="fo-env">WIND — · VIS — · LINK —</div>
 					<div id="fo-photo"></div>
 				</div>
+				<div class="corner br">
+					<div id="fo-credit"></div>
+				</div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
 				<div id="flight-end" hidden></div>
@@ -52,6 +55,7 @@ export class FpvtpOsd {
 			fps: q('#fo-fps'),
 			env: q('#fo-env'),
 			photo: q('#fo-photo'),
+			credit: q('#fo-credit'),
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
 			flightEnd: q('#flight-end'),
@@ -74,6 +78,14 @@ export class FpvtpOsd {
 
 	show() { this.el.root.hidden = false; }
 	setPaused(paused) { this._paused = !!paused; this._refreshCentre(); }
+
+	// Crédit fournisseur. Discret et permanent : Google impose d'afficher les
+	// copyrights des tuiles rendues, et on applique la même règle à tous les
+	// fournisseurs. Sur la couche FPVTP!, jamais sur l'OSD du drone — c'est la
+	// station qui crédite, pas l'appareil (issue #18).
+	setCredit(text) {
+		this.el.credit.textContent = text ?? '';
+	}
 
 	// Disponibilité de la capture (PHASE 16) : vrai seulement quand ce qu'on
 	// verrait à l'écran est vraiment le flux de la cible (en vol, armé, pas en
