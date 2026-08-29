@@ -169,6 +169,7 @@ t('désarmement sur une pose : MOTORS DISARMED, END SESSION, LANDED une fois', (
 	const fe = new FlightEnd();
 	hold(fe, LANDING.T_HOLD + 0.3);
 	assert.equal(fe.disarm(), true);
+	assert.equal(fe.out.phase, LANDED);
 	assert.equal(fe.phase, LANDED);
 	assert.deepEqual(fe.out.lines, ['LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION']);
 	assert.equal(fe.out.exitArmed, true);
