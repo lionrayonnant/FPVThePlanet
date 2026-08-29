@@ -34,6 +34,9 @@ const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stall
 // 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
 // slamming into something a crash.
 const CRASH_IMPULSE = 1500;
+// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
+// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+const CRASH_IMPULSE_FLAT = 2800;
 // The ground station's antenna, above whatever the pilot is standing on. The
 // pilot is at the spawn point, because that is where you took off from.
 const ANTENNA_HEIGHT = 1.2;
@@ -444,7 +447,9 @@ function doDisarm() {
 	// pose sur une sphère de collision est toujours un peu vivante. On rejette
 	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
 	const height = g === null ? Infinity : p.y - g;
-	const onGround = height < 1.2 && Math.hypot(v.x, v.y, v.z) < 4;
+	// Large : une pose par grand vent sur une sphère de collision n'est jamais
+	// parfaitement calme. On ne rejette qu'un désarmement franchement en l'air.
+	const onGround = height < 2 && Math.hypot(v.x, v.y, v.z) < 8;
 	console.log(`[session] désarmement — sol:${onGround} (h=${height === Infinity ? '?' : height.toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
 	if (onGround) {
 		// Le drone est posé : on le fige, il ne roule pas et ne dérive pas.
@@ -564,41 +569,38 @@ function frame() {
 
 	let peakImpact = 0;
 	if (!frozen) {
-		// Touchdown cut : en airmode un quad ne se pose pas tout seul — les
-		// moteurs tournent au ralenti et la moindre inclinaison au contact du sol
-		// le renvoie en l'air, où il rebondit jusqu'à se retourner. Quand le
-		// pilote a coupé les gaz et que le drone est au ras du sol, on coupe
-		// vraiment les moteurs : il peut alors se poser et être désarmé.
+		// Touchdown : en airmode un quad ne se pose pas tout seul — les moteurs
+		// tournent au ralenti, la moindre inclinaison au contact le renvoie en
+		// l'air, et une sphère de collision qui a de la vitesse angulaire roule
+		// sans fin (pas de glissement au point de contact → la friction ne la
+		// freine pas). Le vent, lui, continue de le pousser. Quand le pilote a
+		// coupé les gaz et que le drone est au ras du sol, on coupe les moteurs
+		// et physics.setGroundHold fige le reste : plus de vent, plus de dérive.
 		const pp = physics.position;
 		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
 		const touchdown = controller.armed && sticks.throttle < 0.06
-			&& gb !== null && (pp.y - gb) < 0.45;
-
-		// Une sphère de collision qui a de la vitesse angulaire roule sans fin :
-		// au contact d'un point il n'y a pas de glissement, donc la friction ne
-		// la freine pas. Pendant le touchdown on saigne linvel et angvel vers
-		// zéro (constante de temps ~0,2 s) — le drone posé s'immobilise au lieu
-		// de rouler comme une bille.
-		const TD_DECAY = Math.exp(-FIXED_STEP / 0.2);
+			&& gb !== null && (pp.y - gb) < 0.6;
+		physics.setGroundHold(touchdown);
 
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
-			if (touchdown) {
-				motors.fill(0);
-				const lv = physics.body.linvel();
-				const av = physics.body.angvel();
-				physics.body.setLinvel({ x: lv.x * TD_DECAY, y: lv.y, z: lv.z * TD_DECAY }, true);
-				physics.body.setAngvel({ x: av.x * TD_DECAY, y: av.y * TD_DECAY, z: av.z * TD_DECAY }, true);
-			}
+			if (touchdown) motors.fill(0);
 			const impact = physics.step(motors, FIXED_STEP);
-			if (impact > CRASH_IMPULSE && !crashed) {
-				crashed = true;
-				// Le drone est détruit. La session se ferme sur CRASHED — le
-				// terrain, lui, reste. terrain persistent, flights ephemeral.
-				hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
-				session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+			// Un drone qui arrive à plat encaisse : les bras fléchissent, les
+			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
+			// de crash suit donc l'assiette au moment du choc.
+			if (impact > 0 && !crashed) {
+				const r = physics.rotation;
+				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
+				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
+					crashed = true;
+					// Le drone est détruit. La session se ferme sur CRASHED — le
+					// terrain, lui, reste. terrain persistent, flights ephemeral.
+					hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
+					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+				}
 			}
 			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;

@@ -120,6 +120,7 @@ export class Physics {
 		this._aglCounter = 0;
 		this._windCounter = 6;
 		this._probed = false;
+		this._groundHold = false;
 		this.airspeed = 0;
 	}
 
@@ -195,7 +196,14 @@ export class Physics {
 		// this step's is what the wind field is about to decide — 4 ms of lag on
 		// a quantity that only sets a turbulence time constant.
 		const wind = this.wind.update(p.y, this._probed ? this._probe : null, this.airspeed, dt);
-		const ax = v.x - wind.x, ay = v.y - wind.y, az = v.z - wind.z;
+		// Ground hold : le drone est posé, gaz coupés (décidé par main.js). Le
+		// vent ne le pousse plus — au sol on est à l'abri, et surtout un quad
+		// posé ne doit pas glisser tout seul — et on saigne sa vitesse résiduelle
+		// pour qu'une sphère de collision ne roule pas sans fin.
+		const wx = this._groundHold ? 0 : wind.x;
+		const wy = this._groundHold ? 0 : wind.y;
+		const wz = this._groundHold ? 0 : wind.z;
+		const ax = v.x - wx, ay = v.y - wy, az = v.z - wz;
 		// Kept around because the wind rush the pilot hears follows the air, not
 		// the ground: with a tailwind a fast quad can be nearly silent.
 		this.airspeed = Math.hypot(ax, ay, az);
@@ -222,8 +230,21 @@ export class Physics {
 		this.events.drainContactForceEvents((e) => {
 			impact = Math.max(impact, e.totalForceMagnitude());
 		});
+
+		if (this._groundHold) {
+			const k = Math.exp(-dt / 0.15);
+			const lv = this.body.linvel();
+			const av = this.body.angvel();
+			this.body.setLinvel({ x: lv.x * k, y: lv.y, z: lv.z * k }, true);
+			this.body.setAngvel({ x: av.x * k, y: av.y * k, z: av.z * k }, true);
+		}
 		return impact;
 	}
+
+	// Posé, gaz coupés : coupe le vent et amortit la vitesse résiduelle pour que
+	// le drone s'immobilise au lieu de rouler comme une bille. Décidé par
+	// main.js (qui seul connaît l'état de l'armement et des gaz).
+	setGroundHold(on) { this._groundHold = !!on; }
 
 	// Height above ground as the wind probe sees it — hundreds of metres rather
 	// than the six the ground-effect query is capped at.
