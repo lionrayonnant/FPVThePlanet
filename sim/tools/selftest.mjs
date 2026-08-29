@@ -1938,25 +1938,33 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 		settle(sun, NOON, 0);
 		const before = sun.exposure;
 
-		// Fermeture : le soleil entre dans le cadre.
-		let closeTime = null;
+		// Fermeture : le soleil entre dans le cadre. On enregistre la trajectoire
+		// pour mesurer le temps de mi-course une fois le palier connu — le seuil
+		// n'est plus un pourcentage fixe de `before` (le nerf de l'issue #92 a
+		// relevé le plancher E_MIN, donc le palier n'est plus assez loin de
+		// before/2 pour que ce seuil-là reste un repère fiable).
+		const closeTrace = [];
 		for (let t = 0; t < 5; t += 1 / 60) {
 			sun.update(1 / 60, { date: NOON, sunInFrame: 1 });
-			if (closeTime === null && sun.exposure < before * 0.5) closeTime = t;
+			closeTrace.push([t, sun.exposure]);
 		}
 		const closed = sun.exposure;
 		check('le soleil dans le cadre ferme l\'exposition', closed < before * 0.4,
 			`${closed.toFixed(3)} vs ${before.toFixed(3)}`);
-		check('la fermeture est rapide (moins de 0,5 s pour perdre la moitié)',
+		const closeMid = (before + closed) / 2;
+		const closeTime = (closeTrace.find(([, e]) => e < closeMid) || [])[0] ?? null;
+		check('la fermeture est rapide (moins de 0,5 s pour parcourir la moitié du palier)',
 			closeTime !== null && closeTime < 0.5, `${closeTime?.toFixed(2)} s`);
 
 		// Réouverture : le soleil sort du cadre.
-		let openTime = null;
+		const openTrace = [];
 		for (let t = 0; t < 10; t += 1 / 60) {
 			sun.update(1 / 60, { date: NOON, sunInFrame: 0 });
-			if (openTime === null && sun.exposure > before * 0.5) openTime = t;
+			openTrace.push([t, sun.exposure]);
 		}
-		check('la réouverture est lente (plus de 0,5 s pour reprendre la moitié)',
+		const openMid = (closed + before) / 2;
+		const openTime = (openTrace.find(([, e]) => e > openMid) || [])[0] ?? null;
+		check('la réouverture est lente (plus de 0,5 s pour parcourir la moitié du palier)',
 			openTime !== null && openTime > 0.5, `${openTime?.toFixed(2)} s`);
 		check('la caméra ferme nettement plus vite qu\'elle ne rouvre',
 			openTime > closeTime * 3, `${openTime?.toFixed(2)} s vs ${closeTime?.toFixed(2)} s`);

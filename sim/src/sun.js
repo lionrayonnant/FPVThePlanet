@@ -395,11 +395,18 @@ export function sunDisc(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 // vraie caméra. Le couple (E_MAX, planchers de nuit) est calibré pour que la
 // nuit pleine rende entre 15 et 35 % de la luminance de jour, et c'est le banc
 // qui le vérifie.
-export const E_MIN = 0.15;
+// E_MIN était à 0,15 : face au soleil, plein cadre, l'image tombait à 15 % de
+// sa luminance nominale — trop sombre pour rester jouable, retour terrain
+// après l'issue #23 (nerf : issue #92). Remonté pour que la fermeture reste
+// sensible mais ne noie plus l'image.
+export const E_MIN = 0.35;
 export const E_MAX = 4.0;
 // Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Grand : un
-// soleil couvre une fraction dérisoire de l'image et domine pourtant la mesure.
-const SUN_METER_WEIGHT = 6.0;
+// soleil couvre une fraction dérisoire de l'image et domine pourtant la
+// mesure. Réduit avec E_MIN ci-dessus : `inFrame` grandit linéairement dès
+// que le soleil touche le bord du FOV, donc un poids fort fermait le
+// diaphragme bien avant que le disque soit vraiment au centre du cadre.
+const SUN_METER_WEIGHT = 3.0;
 // Les caméras ferment vite et rouvrent lentement. Cette asymétrie EST la
 // mécanique que l'issue #23 met en avant ; symétrique, l'effet ne se remarque
 // même pas.
