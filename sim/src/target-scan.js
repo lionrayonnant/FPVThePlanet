@@ -12,6 +12,7 @@ export function runTargetScan(root, { seed, count }) {
 	const scan = generateTargetScan({ seed, count });
 	return new Promise((resolve) => {
 		let cursor = 0;
+		let activeView = 'list'; // Track which view is showing: 'list' or 'sheet'
 
 		const list = () => scan.candidates.map((c, i) => {
 			const mark = i === cursor ? '>' : ' ';
@@ -29,9 +30,22 @@ ${list()}</pre>`;
 		};
 
 		const onKey = (e) => {
-			if (e.key === 'ArrowDown') { cursor = (cursor + 1) % scan.candidates.length; draw(); }
-			else if (e.key === 'ArrowUp') { cursor = (cursor - 1 + scan.candidates.length) % scan.candidates.length; draw(); }
-			else if (e.key === 'Enter') { sheet(cursor); }
+			// Early return if sheet is active — prevent list mutations while sheet is shown
+			if (activeView === 'sheet') return;
+
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				cursor = (cursor + 1) % scan.candidates.length;
+				draw();
+			}
+			else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				cursor = (cursor - 1 + scan.candidates.length) % scan.candidates.length;
+				draw();
+			}
+			else if (e.key === 'Enter') {
+				sheet(cursor);
+			}
 		};
 		window.addEventListener('keydown', onKey);
 
@@ -42,6 +56,9 @@ ${list()}</pre>`;
 		};
 
 		const sheet = (index) => {
+			activeView = 'sheet';
+			s.el.style.display = 'none'; // Hide list screen while sheet is shown
+
 			const d = describeTarget(scan.candidates[index]);
 			const s2 = screen(root);
 			s2.box.innerHTML = `<pre>TARGET ${scan.candidates[index].id}
@@ -52,8 +69,16 @@ DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
 VIDEO          ${d.video}${d.videoHint ? `  (EST. ${d.videoHint})` : ''}
 CONTROL        ${d.control}
 FLIGHT STATE   ${d.flightState}</pre>`;
-			s2.box.appendChild(button('CONFIRM', () => { s2.remove(); finish(index); }, 'terminal-cta'));
-			s2.box.appendChild(button('BACK', () => { s2.remove(); draw(); }, 'terminal-cta'));
+			s2.box.appendChild(button('CONFIRM', () => {
+				s2.remove();
+				finish(index);
+			}, 'terminal-cta'));
+			s2.box.appendChild(button('BACK', () => {
+				s2.remove();
+				activeView = 'list'; // Switch back to list
+				s.el.style.display = ''; // Restore list visibility
+				draw();
+			}, 'terminal-cta'));
 		};
 
 		draw();
