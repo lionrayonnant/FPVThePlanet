@@ -49,6 +49,16 @@ const FOG_SHAPE = 1.73;
 export const fogRange = (density) => FOG_SHAPE / density;
 export const fogDensity = (rangeM) => FOG_SHAPE / rangeM;
 
+// How far you can see through rain alone, in metres, at R mm/h. Free function
+// because the world state (tools/lib/weather.mjs) has to know it without
+// stepping a field: a forecast that claims 20 km of visibility under a downpour
+// is a forecast that contradicts the sim it is about to drive. Dry is Infinity,
+// which is what lets the callers add extinctions unconditionally.
+export function rainVisibility(mmPerHour) {
+	if (!(mmPerHour > 0)) return Infinity;
+	return (KOSCHMIEDER / (EXT_A * Math.pow(mmPerHour, EXT_B))) * 1000;
+}
+
 // Rain rates are lognormally distributed — that is the standard result for a
 // rain gauge, and it is also the only shape that stays positive without a clamp
 // biasing the mean. exp(k*n - k^2/2) has unit mean for a unit-variance n, so
@@ -212,8 +222,7 @@ export class RainField {
 		// handed out as a multiplier on the fog the scene already has rather
 		// than as a second fog term, which keeps one exp-squared in the tile
 		// shader and leaves issue #21 a single knob to take over.
-		const sigma = EXT_A * Math.pow(R, EXT_B);        // per km
-		this.visibility = (KOSCHMIEDER / sigma) * 1000;  // metres
+		this.visibility = rainVisibility(R);             // metres
 		this.fogScale = 1 + this.baseRange / this.visibility;
 
 		this.wetness = clamp01(this.wetness

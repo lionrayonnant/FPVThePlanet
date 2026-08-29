@@ -6,7 +6,7 @@ import { QUAD } from './quad.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
-import { Settings, loadVolume, loadBrightness, loadLens, loadLink, loadWeather, loadRain, loadFog } from './settings.js';
+import { Settings, loadVolume, loadBrightness, loadLens, loadLink } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
@@ -16,6 +16,7 @@ import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
+import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -85,6 +86,8 @@ const rain = new RainField(undefined, FOG_DENSITY);
 // floor it starts from and never goes below.
 const fog = new FogField(undefined, FOG_DENSITY);
 let rainfall = null;
+// Le snapshot météo de la zone survolée, pour le HUD et __sim.debug().
+let weather = null;
 
 let physics = null;
 let emitter = null;
@@ -219,9 +222,23 @@ async function boot() {
 	freeCam.enabled = false;
 	freeCam.target.set(0, 0, 0);
 
-	settings.setWeather(loadWeather(), (w) => physics.setWeather(w));
-	settings.setRain(loadRain(), (r) => rain.setParams(r));
-	settings.setFog(loadFog(), (f) => fog.setParams(f));
+	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
+	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
+	// qu'écrire les paramètres des trois modèles, qui n'ont pas changé.
+	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
+	// de zone que celle vue par le terminal avant le décollage.
+	const o = manifest.origin ?? {};
+	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
+	const applied = applyWeather(weather, { physics, rain, fog }) ?? CALM;
+	if (weather) {
+		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
+			+ `${headline(weather.days[0])}`, applied);
+	} else {
+		// Scène sans origine connue : monde neutre plutôt que météo inventée.
+		physics.setWeather(CALM.wind);
+		rain.setParams(CALM.rain);
+		fog.setParams(CALM.fog);
+	}
 
 	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
 		audio.setVolume(volume);
@@ -269,6 +286,13 @@ async function boot() {
 		// Dry by default. setRain({intensity, variability}), both 0..1;
 		// intensity 1 is 25 mm/h, which is a downpour.
 		setRain: (r) => rain.setParams(r),
+		// Same for the fog: setFog({intensity, variability}), both 0..1.
+		// These three are now the ONLY way to change the weather by hand — the
+		// sliders are gone (PHASE 04) and the world decides. They exist for
+		// debugging and for tuning, not as a hidden settings panel.
+		setFog: (f) => fog.setParams(f),
+		// What the world said about this zone today, and what it became.
+		weather: () => weather,
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -334,6 +358,13 @@ async function boot() {
 					beadMm: +lens.beadMm.toFixed(2),
 					drift: { x: +drift.x.toFixed(2), y: +drift.y.toFixed(2) },
 					visibility: Math.round(Math.min(rain.visibility, 1e6)),
+				},
+				world: weather && {
+					zone: weather.zone,
+					day: weather.day,
+					source: weather.source,
+					regime: weather.days[0].regime,
+					confidence: +weather.days[0].confidence.toFixed(2),
 				},
 				fog: {
 					// The range the air alone gives you, the range once the rain is

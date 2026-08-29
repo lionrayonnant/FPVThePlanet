@@ -1,7 +1,4 @@
 import { CHANNELS } from './input.js';
-import { WIND_PRESETS, compassPoint } from './wind.js';
-import { RAIN_PRESETS, MAX_RATE } from './rain.js';
-import { FOG_PRESETS, rangeFor } from './fog.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
@@ -12,31 +9,10 @@ const LENS_ON_KEY = 'fpvmaps.lensOn';
 const LINK_KEY = 'fpvmaps.link';
 const LINK_MODE_KEY = 'fpvmaps.linkMode';
 
-const WIND_KEY = 'fpvmaps.windSpeed';
-const WIND_DIR_KEY = 'fpvmaps.windDir';
-const GUST_KEY = 'fpvmaps.windGust';
-const TURB_KEY = 'fpvmaps.windTurb';
-const RAIN_KEY = 'fpvmaps.rain';
-const RAIN_VAR_KEY = 'fpvmaps.rainVar';
-const FOG_KEY = 'fpvmaps.fog';
-const FOG_VAR_KEY = 'fpvmaps.fogVar';
-
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
 // Note the null check — Number(null) is 0, which would silently turn a first
 // run into a muted one.
-// loadPercent's 0..100 range is wrong for a bearing and for a wind speed, and
-// storing "60% of 20 m/s" instead of "12 m/s" would make the saved value depend
-// on the slider's range. Physical units, and the bounds come from the caller.
-function loadNumber(key, fallback, min, max) {
-	try {
-		const raw = localStorage.getItem(key);
-		const saved = raw === null ? NaN : Number(raw);
-		if (Number.isFinite(saved) && saved >= min && saved <= max) return saved;
-	} catch { }
-	return fallback;
-}
-
 function loadPercent(key, fallback) {
 	try {
 		const raw = localStorage.getItem(key);
@@ -66,49 +42,12 @@ export function loadLens() {
 	};
 }
 
-// Wind is off by default, and that is not timidity: three of the checks in
-// tools/selftest.mjs — holds altitude at hover, terminal velocity falling flat,
-// sits still on the ground — only mean anything in calm air, and a sim that
-// starts by pushing you sideways before you have touched a slider is a sim that
-// looks broken. The direction is drawn once, on first run, and then kept: the
-// randomness exists so it is not always a convenient tailwind down the same
-// street, which is a reason to vary it between pilots, not between reloads.
-export function loadWeather() {
-	let dir = loadNumber(WIND_DIR_KEY, -1, 0, 355);
-	if (dir < 0) {
-		dir = Math.floor(Math.random() * 72) * 5;
-		try { localStorage.setItem(WIND_DIR_KEY, String(dir)); } catch { }
-	}
-	return {
-		speed: loadNumber(WIND_KEY, 0, 0, 25),
-		direction: dir,
-		gust: loadPercent(GUST_KEY, 0),
-		turbulence: loadPercent(TURB_KEY, 0.5) * 2,
-	};
-}
-
-// Dry by default, for the same reason the wind starts calm: every check in
-// tools/selftest.mjs assumes a neutral world, and a sim that opens under a
-// downpour looks broken rather than atmospheric. Variability starts at 50 %,
-// which is where rain stops being a constant and starts being weather.
-export function loadRain() {
-	return {
-		intensity: loadPercent(RAIN_KEY, 0),
-		variability: loadPercent(RAIN_VAR_KEY, 0.5),
-	};
-}
-
-// Clear air by default, and for the same reason the wind starts calm and the
-// rain dry: every check in tools/selftest.mjs assumes a neutral world, and the
-// #9fb8cc sky pixel that HANDOFF calls the regression not to reopen is the sky
-// of a scene whose fog slider is at zero. Variability starts at 50 %, which is
-// where fog stops being a filter and starts being weather.
-export function loadFog() {
-	return {
-		intensity: loadPercent(FOG_KEY, 0),
-		variability: loadPercent(FOG_VAR_KEY, 0.5),
-	};
-}
+// La météo n'est plus ici (PHASE 04, Bible §31). Le vent, la pluie et le
+// brouillard appartiennent au monde et à la session : ils viennent du world
+// state de l'opérateur via src/weather.js, et aucun réglage utilisateur ne
+// permet plus de choisir le temps qu'il fait. Les modèles wind.js / rain.js /
+// fog.js n'ont pas bougé — seule la main qui écrit leurs paramètres a changé.
+// window.__sim.setWeather / setRain / setFog restent l'accès de debug.
 
 // The link degradation is on at full strength by default: the point of the
 // feature is that going behind a building costs you the picture, and a version
@@ -123,9 +62,12 @@ export function loadLink() {
 	return { mode, severity: loadPercent(LINK_KEY, 1) };
 }
 
-// The Tab panel: gamepad mapping, camera, lens, video link, weather, audio. It
-// owns #settings and nothing else — the flight OSD is in hud.js, the operator
-// terminal in terminal.js. PHASE 04 strips the weather/link blocks out of here.
+// The Tab panel: gamepad mapping, camera, lens, video link, audio. It owns
+// #settings and nothing else — the flight OSD is in hud.js, the operator
+// terminal in terminal.js. PHASE 04 has taken the weather out: the six wind /
+// rain / fog controls are gone, and nothing here can choose the weather any
+// more. The link block stays for now — it is not weather, and issue #41 does
+// not ask for it.
 export class Settings {
 	constructor(root, input) {
 		this.input = input;
@@ -156,36 +98,6 @@ export class Settings {
 					<button type="button" data-v="60">Moyen</button>
 					<button type="button" data-v="100">Élevé</button>
 				</div>
-				<h2>Météo — vent</h2>
-				<label>Vent <input id="wind" type="range" min="0" max="25" step="0.5"> <span id="wind-val"></span> m/s</label>
-				<label title="direction d'où vient le vent">Direction <input id="wind-dir" type="range" min="0" max="355" step="5"> <span id="wind-dir-val"></span>
-					<button type="button" id="wind-dir-rand" title="au hasard">↻</button></label>
-				<label>Rafales <input id="gust" type="range" min="0" max="100" step="1"> <span id="gust-val"></span> %</label>
-				<label>Turbulences <input id="turb" type="range" min="0" max="200" step="5"> <span id="turb-val"></span> %</label>
-				<div id="wind-presets" class="presets">
-					<button type="button" data-v="calme">Calme</button>
-					<button type="button" data-v="brise">Brise</button>
-					<button type="button" data-v="frais">Vent frais</button>
-					<button type="button" data-v="tempete">Tempête</button>
-				</div>
-				<h2>Météo — pluie</h2>
-				<label>Pluie <input id="rain" type="range" min="0" max="100" step="1"> <span id="rain-val"></span></label>
-				<label title="de combien l'averse va et vient">Variabilité <input id="rain-var" type="range" min="0" max="100" step="1"> <span id="rain-var-val"></span> %</label>
-				<div id="rain-presets" class="presets">
-					<button type="button" data-v="sec">Sec</button>
-					<button type="button" data-v="bruine">Bruine</button>
-					<button type="button" data-v="pluie">Pluie</button>
-					<button type="button" data-v="averse">Averse</button>
-				</div>
-				<h2>Météo — brouillard</h2>
-				<label title="jusqu'où on voit">Brouillard <input id="fog" type="range" min="0" max="100" step="1"> <span id="fog-val"></span></label>
-				<label title="de combien la nappe va et vient">Variabilité <input id="fog-var" type="range" min="0" max="100" step="1"> <span id="fog-var-val"></span> %</label>
-				<div id="fog-presets" class="presets">
-					<button type="button" data-v="clair">Clair</button>
-					<button type="button" data-v="brume">Brume</button>
-					<button type="button" data-v="brouillard">Brouillard</button>
-					<button type="button" data-v="puree">Purée de pois</button>
-				</div>
 				<h2>Son</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 				<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
@@ -196,26 +108,6 @@ export class Settings {
 
 		this.el = {
 			settings: el,
-			wind: el.querySelector('#wind'),
-			windVal: el.querySelector('#wind-val'),
-			windDir: el.querySelector('#wind-dir'),
-			windDirVal: el.querySelector('#wind-dir-val'),
-			windDirRand: el.querySelector('#wind-dir-rand'),
-			gust: el.querySelector('#gust'),
-			gustVal: el.querySelector('#gust-val'),
-			turb: el.querySelector('#turb'),
-			turbVal: el.querySelector('#turb-val'),
-			windPresets: el.querySelector('#wind-presets'),
-			rain: el.querySelector('#rain'),
-			rainVal: el.querySelector('#rain-val'),
-			rainVar: el.querySelector('#rain-var'),
-			rainVarVal: el.querySelector('#rain-var-val'),
-			rainPresets: el.querySelector('#rain-presets'),
-			fog: el.querySelector('#fog'),
-			fogVal: el.querySelector('#fog-val'),
-			fogVar: el.querySelector('#fog-var'),
-			fogVarVal: el.querySelector('#fog-var-val'),
-			fogPresets: el.querySelector('#fog-presets'),
 			vol: el.querySelector('#vol'),
 			volVal: el.querySelector('#vol-val'),
 			tone: el.querySelector('#tone'),
@@ -240,7 +132,7 @@ export class Settings {
 		};
 		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		el.querySelector('#reset-settings').onclick = () => {
-			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, météo, son) ?')) return;
+			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, lien vidéo, son) ?')) return;
 			try {
 				for (const key of Object.keys(localStorage)) {
 					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
@@ -261,9 +153,6 @@ export class Settings {
 		this.setCamera(120, 25, noop);
 		this.setLens(loadLens(), noop);
 		this.setLink(loadLink(), noop);
-		this.setWeather(loadWeather(), noop);
-		this.setRain(loadRain(), noop);
-		this.setFog(loadFog(), noop);
 		this.setAudio(loadVolume(), loadBrightness(), noop);
 	}
 
@@ -344,150 +233,6 @@ export class Settings {
 			const b = e.target.closest('button');
 			if (!b) return;
 			this.el.link.value = b.dataset.v;
-			emit();
-		};
-		emit();
-	}
-
-	// Four controls, and one of them is a gust knob standing in for three. The
-	// issue asks for gust intensity, duration and frequency separately and it is
-	// right to — they are genuinely independent — but three gust sliders on a
-	// flight panel is three sliders nobody ever moves. The one knob walks a line
-	// through all three (see wind.js), because that is how weather gets worse:
-	// gustier air means gusts that are bigger, sharper AND more frequent. The
-	// full triple is still reachable from window.__sim for anyone tuning it.
-	//
-	// Everything else about the wind — how it grows with height, where it is
-	// sheltered, where it is channelled — is a consequence of the scene and
-	// belongs in wind.js, not on a slider. Same argument as setLink.
-	setWeather({ speed, direction, gust, turbulence }, onChange) {
-		const emit = () => {
-			const p = {
-				speed: Number(this.el.wind.value),
-				direction: Number(this.el.windDir.value),
-				gust: Number(this.el.gust.value) / 100,
-				turbulence: Number(this.el.turb.value) / 100,
-			};
-			this.el.windVal.textContent = p.speed.toFixed(1);
-			this.el.windDirVal.textContent = `${p.direction}° ${compassPoint(p.direction)}`;
-			this.el.gustVal.textContent = Math.round(p.gust * 100);
-			this.el.turbVal.textContent = Math.round(p.turbulence * 100);
-			// A preset lights up only when the whole bundle matches, not one
-			// number of it — otherwise three of the four buttons glow at once.
-			for (const b of this.el.windPresets.children) {
-				const w = WIND_PRESETS[b.dataset.v];
-				b.classList.toggle('on', !!w && w.speed === p.speed
-					&& Math.abs(w.gust - p.gust) < 0.005 && Math.abs(w.turbulence - p.turbulence) < 0.005);
-			}
-			try {
-				localStorage.setItem(WIND_KEY, String(p.speed));
-				localStorage.setItem(WIND_DIR_KEY, String(p.direction));
-				localStorage.setItem(GUST_KEY, String(Math.round(p.gust * 100)));
-				localStorage.setItem(TURB_KEY, String(Math.round(p.turbulence * 50)));
-			} catch { }
-			onChange(p);
-		};
-		this.el.wind.value = speed;
-		this.el.windDir.value = direction;
-		this.el.gust.value = Math.round(gust * 100);
-		this.el.turb.value = Math.round(turbulence * 100);
-		this.el.wind.oninput = emit;
-		this.el.windDir.oninput = emit;
-		this.el.gust.oninput = emit;
-		this.el.turb.oninput = emit;
-		this.el.windDirRand.onclick = () => {
-			this.el.windDir.value = Math.floor(Math.random() * 72) * 5;
-			emit();
-		};
-		this.el.windPresets.onclick = (e) => {
-			const b = e.target.closest('button');
-			if (!b || !WIND_PRESETS[b.dataset.v]) return;
-			const w = WIND_PRESETS[b.dataset.v];
-			this.el.wind.value = w.speed;
-			this.el.gust.value = Math.round(w.gust * 100);
-			this.el.turb.value = Math.round(w.turbulence * 100);
-			emit();
-		};
-		emit();
-	}
-
-	setRain({ intensity, variability }, onChange) {
-		const emit = () => {
-			const p = {
-				intensity: Number(this.el.rain.value) / 100,
-				variability: Number(this.el.rainVar.value) / 100,
-			};
-			// Millimetres per hour, not a percentage: "12 mm/h" is a number a
-			// pilot can picture and "48 %" is not.
-			const mm = p.intensity * MAX_RATE;
-			this.el.rainVal.textContent = p.intensity === 0 ? 'sec'
-				: `${mm < 1 ? mm.toFixed(1) : Math.round(mm)} mm/h`;
-			this.el.rainVarVal.textContent = Math.round(p.variability * 100);
-			// A preset lights up only when the whole bundle matches, same rule
-			// as the wind ones.
-			for (const b of this.el.rainPresets.children) {
-				const r = RAIN_PRESETS[b.dataset.v];
-				b.classList.toggle('on', !!r && Math.abs(r.intensity - p.intensity) < 0.005
-					&& Math.abs(r.variability - p.variability) < 0.005);
-			}
-			try {
-				localStorage.setItem(RAIN_KEY, String(Math.round(p.intensity * 100)));
-				localStorage.setItem(RAIN_VAR_KEY, String(Math.round(p.variability * 100)));
-			} catch { }
-			onChange(p);
-		};
-		this.el.rain.value = Math.round(intensity * 100);
-		this.el.rainVar.value = Math.round(variability * 100);
-		this.el.rain.oninput = emit;
-		this.el.rainVar.oninput = emit;
-		this.el.rainPresets.onclick = (e) => {
-			const b = e.target.closest('button');
-			if (!b || !RAIN_PRESETS[b.dataset.v]) return;
-			const r = RAIN_PRESETS[b.dataset.v];
-			this.el.rain.value = Math.round(r.intensity * 100);
-			this.el.rainVar.value = Math.round(r.variability * 100);
-			emit();
-		};
-		emit();
-	}
-
-	setFog({ intensity, variability }, onChange) {
-		const emit = () => {
-			const p = {
-				intensity: Number(this.el.fog.value) / 100,
-				variability: Number(this.el.fogVar.value) / 100,
-			};
-			// A distance, not a percentage — same argument as the rain showing
-			// mm/h. "250 m" is the only form of this number a pilot can fly by.
-			const r = rangeFor(p.intensity);
-			this.el.fogVal.textContent = p.intensity === 0 ? 'air clair'
-				: r >= 1000 ? `${(r / 1000).toFixed(1).replace('.', ',')} km`
-				: `${Math.round(r / 5) * 5} m`;
-			this.el.fogVarVal.textContent = Math.round(p.variability * 100);
-			// A preset lights up only when the whole bundle matches. The margin is
-			// wider than the rain's because these intensities are solved back from
-			// a visibility in metres and do not land on whole percent.
-			for (const b of this.el.fogPresets.children) {
-				const f = FOG_PRESETS[b.dataset.v];
-				b.classList.toggle('on', !!f && Math.abs(f.intensity - p.intensity) < 0.006
-					&& Math.abs(f.variability - p.variability) < 0.006);
-			}
-			try {
-				localStorage.setItem(FOG_KEY, String(Math.round(p.intensity * 100)));
-				localStorage.setItem(FOG_VAR_KEY, String(Math.round(p.variability * 100)));
-			} catch { }
-			onChange(p);
-		};
-		this.el.fog.value = Math.round(intensity * 100);
-		this.el.fogVar.value = Math.round(variability * 100);
-		this.el.fog.oninput = emit;
-		this.el.fogVar.oninput = emit;
-		this.el.fogPresets.onclick = (e) => {
-			const b = e.target.closest('button');
-			if (!b || !FOG_PRESETS[b.dataset.v]) return;
-			const f = FOG_PRESETS[b.dataset.v];
-			this.el.fog.value = Math.round(f.intensity * 100);
-			this.el.fogVar.value = Math.round(f.variability * 100);
 			emit();
 		};
 		emit();

@@ -638,10 +638,13 @@ export class WindField {
 	}
 }
 
-// Compass points for the settings panel and the HUD. French, like the rest of
-// the interface — O for ouest, not W.
+// Compass points. English (W for west, not O): the weather panel this used to
+// label is gone since PHASE 04, and its only reader now is the world's forecast
+// in the Operator Terminal, whose interface text is English like the rest of
+// the game (D5). One table, so the sim never disagrees with itself about which
+// way the wind is coming from.
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-	'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+	'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
 export function compassPoint(deg) {
 	return POINTS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];

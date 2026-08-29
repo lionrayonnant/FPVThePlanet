@@ -20,6 +20,7 @@ import {
 	freshState, migrate,
 } from './operator-store.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
+import { resolveWeather } from './weather-source.mjs';
 
 const BASE = '/__map-api';
 
@@ -133,6 +134,37 @@ const opRoutes = [
 		state[b.key] = value;
 		_writeOperator(state);
 		json(res, 200, { operator: state });
+	}],
+
+	// Météo du monde pour une zone (PHASE 04). Lecture d'abord : si le world
+	// state connaît déjà le jour, on le relit sans toucher au réseau — c'est ce
+	// qui garantit que deux acquisitions rapprochées voient le même temps. La
+	// clé `worldState` n'est PAS dans OP_WRITABLE_KEYS : le monde n'est pas un
+	// réglage, le client ne l'écrit jamais, seul le serveur le remplit.
+	['GET', /^\/([^/]+)\/weather$/, async (req, res, [id], url) => {
+		// Number('') et Number(null) valent tous les deux 0 — une coordonnée
+		// parfaitement valide au milieu du golfe de Guinée. Sans ce garde-fou,
+		// un paramètre absent ou vide remplit le world state de zones fantômes
+		// « 0.00,0.00 » et sert une météo qui n'est celle de personne.
+		const num = (v) => (v === null || v.trim() === '' ? NaN : Number(v));
+		const lat = num(url.searchParams.get('lat'));
+		const lon = num(url.searchParams.get('lon'));
+		if (!Number.isFinite(lat) || !Number.isFinite(lon)
+			|| lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+			return json(res, 400, { error: 'lat/lon manquants ou hors limites' });
+		}
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+
+		const day = url.searchParams.get('day') || undefined;
+		const { snapshot, changed } = await resolveWeather(state.worldState ?? (state.worldState = {}), {
+			lat, lon, day,
+			onWarn: (e) => console.warn(`[weather] ${e.message} — repli`),
+		});
+		if (changed) _writeOperator(state);
+		json(res, 200, { snapshot });
 	}],
 ];
 
