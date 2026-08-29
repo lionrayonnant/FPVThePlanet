@@ -564,10 +564,21 @@ function frame() {
 
 	let peakImpact = 0;
 	if (!frozen) {
+		// Touchdown cut : en airmode un quad ne se pose pas tout seul — les
+		// moteurs tournent au ralenti et la moindre inclinaison au contact du sol
+		// le renvoie en l'air, où il rebondit jusqu'à se retourner. Quand le
+		// pilote a coupé les gaz et que le drone est au ras du sol, on coupe
+		// vraiment les moteurs : il peut alors se poser et être désarmé.
+		const pp = physics.position;
+		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
+		const touchdown = controller.armed && sticks.throttle < 0.06
+			&& gb !== null && (pp.y - gb) < 0.45;
+
 		accumulator += dt;
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
+			if (touchdown) motors.fill(0);
 			const impact = physics.step(motors, FIXED_STEP);
 			if (impact > CRASH_IMPULSE && !crashed) {
 				crashed = true;
