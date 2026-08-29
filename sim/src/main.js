@@ -440,9 +440,17 @@ function doDisarm() {
 	const p = physics.position;
 	const g = physics.groundBelow(p.x, p.y, p.z);
 	const v = physics.velocity;
-	const onGround = g !== null && (p.y - g) < 0.4;
-	const still = Math.hypot(v.x, v.y, v.z) < 0.6;
-	if (onGround && still) session.end('LANDED');
+	const onGround = g !== null && (p.y - g) < 0.5;
+	const still = Math.hypot(v.x, v.y, v.z) < 0.8;
+	console.log(`[session] désarmement — sol:${onGround} immobile:${still} (h=${g === null ? '?' : (p.y - g).toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
+	if (onGround && still) {
+		hud.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
+		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
+	} else {
+		// Désarmé en l'air : moteurs coupés, la chute suivra son cours et
+		// l'impact fermera la session en CRASHED.
+		hud.setSessionStatus('DISARMED<small>en chute libre</small>', 'lost');
+	}
 }
 
 function respawn() {
@@ -451,6 +459,8 @@ function respawn() {
 	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
 	// on garde le respawn local pour ne pas casser le flow de debug.
 	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
+	hud.setSessionStatus(null);
+	controller.arm();
 	physics.reset();
 	link.reset();
 	// Neither model was being reset here, and both say in their own comments
@@ -557,7 +567,8 @@ function frame() {
 				crashed = true;
 				// Le drone est détruit. La session se ferme sur CRASHED — le
 				// terrain, lui, reste. terrain persistent, flights ephemeral.
-				session.end('CRASHED');
+				hud.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
+				session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
 			}
 			if (impact > peakImpact) peakImpact = impact;
 			accumulator -= FIXED_STEP;

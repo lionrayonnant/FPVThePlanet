@@ -41,10 +41,11 @@ export class Hud {
 				</div>
 				<div class="corner br" id="help">
 					<b>W/S</b> gaz · <b>A/D</b> lacet · <b>flèches</b>/souris roulis-tangage<br>
-					<b>R</b> respawn · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Espace</b> pause · <b>Tab</b> réglages
+					<b>R</b> respawn · <b>J</b> désarmer · <b>M</b> mode · <b>P</b> rates · <b>C</b> caméra libre · <b>Espace</b> pause · <b>Tab</b> réglages
 				</div>
 				<div id="crash" hidden>CRASH<small>R pour repartir</small></div>
 					<div id="pause" hidden>PAUSE<small>Espace pour reprendre</small></div>
+				<div id="session-status" hidden></div>
 				<div id="reticle"></div>
 			</div>`);
 
@@ -69,6 +70,7 @@ export class Hud {
 			thr: root.querySelector('#thr-fill'),
 			crash: root.querySelector('#crash'),
 			pause: root.querySelector('#pause'),
+			sessionStatus: root.querySelector('#session-status'),
 			reticle: root.querySelector('#reticle'),
 			rssi: root.querySelector('#rssi'),
 		};
@@ -120,6 +122,15 @@ export class Hud {
 
 	setPaused(paused) {
 		this.el.pause.hidden = !paused;
+	}
+
+	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
+	setSessionStatus(text, kind = null) {
+		const e = this.el.sessionStatus;
+		if (!text) { e.hidden = true; return; }
+		e.innerHTML = text;
+		if (kind) e.dataset.kind = kind; else delete e.dataset.kind;
+		e.hidden = false;
 	}
 
 	update({ altitude, speed, throttle, mode, preset, crashed, usingGamepad,
