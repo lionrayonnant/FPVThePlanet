@@ -31,7 +31,7 @@ import { targetCamera } from '../tools/target-camera.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
-import { FlightEnd, LANDING } from './flight-end.js';
+import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -642,7 +642,11 @@ renderer.domElement.addEventListener('click', () => {
 	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
 	// only other user gesture we get. start() is idempotent.
 	audio.start();
-	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
+	// Une fois le vol fini, on ne reprend plus le curseur : le reverrouiller
+	// reconfisquerait Échap au navigateur (voir la sortie du pointer lock à la
+	// fermeture de session), et il n'y a plus rien à piloter.
+	const flying = flightEnd.phase === FLYING || flightEnd.phase === LANDING_READY;
+	if (flying && !freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
 // PHASE 16 : lit le canvas du composer tel qu'il vient d'être peint —
@@ -908,6 +912,14 @@ function frame() {
 	const closes = flightEnd.out.closes;
 	if (closes) {
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
+		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
+		// qui rend [ESC] DISCONNECT possible — en pointer lock (a fortiori en
+		// plein écran), le navigateur confisque Échap pour déverrouiller le
+		// curseur et ne délivre aucun keydown à la page. La seule sortie que
+		// l'écran de fin propose serait alors la seule touche qui n'arrive
+		// jamais. Le drone ne répond plus de toute façon : il n'y a plus rien à
+		// piloter à la souris.
+		document.exitPointerLock?.();
 	}
 
 	// The weather on the camera. Advanced on the frame clock rather than the
