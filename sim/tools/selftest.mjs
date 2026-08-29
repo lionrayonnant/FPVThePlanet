@@ -15,7 +15,7 @@ import { FogField, FOG_PRESETS, rangeFor, extinctionOf, RANGE_MIN } from '../src
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
-import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rngFrom } from '../src/entry-state.js';
+import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, rngFrom } from '../src/entry-state.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
@@ -1229,6 +1229,20 @@ console.log('\nentry state — sampleCandidate');
 	};
 	check('geometrySafe rejects when a real wall (span > 2m) is ahead', geometrySafe(onFloor, wallStub) === false);
 	check('geometrySafe accepts a tangential clip (span <= 2m)', geometrySafe(onFloor, clipStub) === true);
+
+	// A HOLY_SHIT candidate close to the ground, pointed straight down, must
+	// fail the rollout even though geometrySafe alone might pass it (it only
+	// looks at the instant of spawn, not one second of unattended flight).
+	const groundUnderFloor = phys.groundBelow(onFloor.position.x, onFloor.position.y, onFloor.position.z);
+	const divingIntoGround = {
+		category: 'HOLY_SHIT',
+		position: { x: onFloor.position.x, y: groundUnderFloor + 3, z: onFloor.position.z },
+		quaternion: { x: 0.7071068, y: 0, z: 0, w: 0.7071068 }, // pitched straight down
+		linvel: { x: 0, y: -30, z: 0 },
+		angvel: { x: 0, y: 0, z: 0 },
+	};
+	check('rolloutSafe rejects a fast dive straight into the ground', rolloutSafe(divingIntoGround, phys) === false);
+	check('rolloutSafe accepts a normally-sampled COMFORTABLE candidate', rolloutSafe(onFloor, phys) === true);
 	phys.reset();
 }
 

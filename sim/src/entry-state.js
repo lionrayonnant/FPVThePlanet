@@ -8,6 +8,9 @@
 // Runs both in the browser (bundled by Vite) and in Node (selftest) — no
 // browser-only API, no `node:` import.
 
+import { FlightController, hoverThrottle } from './flightController.js';
+import { crashThreshold } from './quad.js';
+
 export const CATEGORIES = ['COMFORTABLE', 'ACTIVE', 'CHALLENGING', 'HOLY_SHIT'];
 export const WEIGHTS = [60, 25, 12, 3];
 
@@ -158,5 +161,32 @@ export function geometrySafe(candidate, physics) {
 	};
 	const o = physics.obstructionBetween(position.x, position.y, position.z, ahead.x, ahead.y, ahead.z);
 	if (o.blocked && o.span > BLOCK_SPAN_M) return false;
+	return true;
+}
+
+const NEUTRAL_STICKS = { throttle: 0, roll: 0, pitch: 0, yaw: 0 };
+const ROLLOUT_SECONDS = 1.0;
+
+// Validates a candidate by living one second with it, unattended: sticks
+// neutral, throttle held at whatever cancels gravity at the current tilt (a
+// drone "already in flight" is already near its own trim, not at the
+// throttle floor — see the design doc's decision on this). If a contact
+// force ever exceeds the game's own crash threshold during that second, the
+// candidate is rejected. Reuses the real Physics/FlightController — no
+// second physics model.
+export function rolloutSafe(candidate, physics) {
+	physics.applyEntryState(candidate);
+	const profile = physics.profile;
+	const controller = new FlightController({ profile });
+	controller.setMode('acro');
+	const dt = physics.world.timestep;
+	const steps = Math.round(ROLLOUT_SECONDS / dt);
+	const sticks = { ...NEUTRAL_STICKS };
+	for (let i = 0; i < steps; i++) {
+		sticks.throttle = hoverThrottle(profile, physics.rotation);
+		const { motors } = controller.update(sticks, physics, dt);
+		const impact = physics.step(motors, dt);
+		if (impact > 0 && impact > crashThreshold(physics.rotation)) return false;
+	}
 	return true;
 }
