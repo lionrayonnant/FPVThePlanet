@@ -9,10 +9,11 @@
 // avant le rituel. Écrit dans el.textContent. Pas d'état module — tout dérive
 // de (t, seed, lock).
 //
-// Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number }).
+// Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number, dur?: number }).
 // Même toolkit ASCII, pas de `lock` — la couleur (cyan/magenta/violet/bleu
 // électrique, Bible §19) est appliquée par le conteneur (src/ritual.js), pas
 // par la primitive : le rendu reste du texte brut, une seule teinte à la fois.
+// `dur` (PHASE 20) est optionnel, défaut 4 — voir le contrat étendu plus bas.
 
 const W = 44; // largeur du champ ASCII
 const H = 12; // hauteur
@@ -306,9 +307,11 @@ export const GRAMMARS = {
 // animations écrites à la main.
 //
 // Contrat étendu (PHASE 20) : draw(el, { t: number, seed: number, dur?: number = 4 }).
-// `dur` est la durée totale de la culmination en secondes (V1≈1 … V4≈4) —
-// seules les primitives dont le cycle interne dépasserait 1 s en tiennent
-// compte (pulseRing, vectorSweep) ; les autres l'ignorent sans casser.
+// `dur` est la fenêtre visible d'un battement en secondes (aujourd'hui
+// toujours 1 s, `variant.ms / variant.beats` dans src/ritual.js), pas la
+// durée totale de la culmination — seules les primitives dont le cycle
+// interne dépasserait cette fenêtre en tiennent compte (pulseRing,
+// vectorSweep) ; les autres l'ignorent sans casser.
 
 // Vocabulaire d'ambiance déjà en liste blanche (hack-model.mjs) : réutilisé
 // tel quel, aucun nouveau mot de "procédure" n'est introduit ici.
@@ -358,7 +361,7 @@ function pulseRing(el, { t, seed, dur = 4 }) {
 	const g = blank();
 	const cx = W / 2;
 	const cy = H / 2;
-	const period = Math.min(1.4, dur * 0.45); // au moins 2 pulsations par culmination
+	const period = Math.min(1.4, dur * 0.45); // au moins 2 pulsations par battement
 	const phase = (t + seed * period) % period;
 	const radius = (phase / period) * (W / 2 + 2);
 	const glyphs = ['·', 'o', 'O', '#'];
@@ -410,7 +413,7 @@ function waveformSpike(el, { t, seed }) {
 
 function vectorSweep(el, { t, seed, dur = 4 }) {
 	const g = blank();
-	const period = Math.min(1.2, dur * 0.4); // au moins 2 balayages par culmination
+	const period = Math.min(1.2, dur * 0.4); // au moins 2 balayages par battement
 	const phase = ((t + seed * period) % period) / period;
 	const x0 = -4 + phase * (W + 8);
 	const y0 = H - 1 - phase * (H - 1);

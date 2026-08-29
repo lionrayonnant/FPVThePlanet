@@ -628,7 +628,9 @@ Plan d'origine (contexte de la décision d'architecture) :
   - `src/hack-grammars.js` / `src/ritual.js` : 3 primitives ajoutées
     (`colorFlash`, `textWarp`, `bannerBurst`) aux 8 existantes → **11
     primitives** `RITUAL_PRIMITIVES`, toutes sous contrat `{ t, seed, dur }`
-    (V1-V4, `dur` absent retombe sur l'ancien comportement, compat PHASE 10).
+    (`dur` = fenêtre visible d'un battement, pas la durée V1-V4 de la
+    culmination entière ; absent, `dur` retombe sur l'ancien comportement,
+    compat PHASE 10).
     `FAMILY_PRIMITIVES` couvre les 6 `HACK_TYPES`, chacune avec les nouvelles
     primitives composées quelque part dans sa liste. `tools/ritual-selftest.mjs` :
     14/14 OK, dont le garde-fou d'acceptation #57 (`RITUAL_PRIMITIVES` /
@@ -682,7 +684,12 @@ Plan d'origine (contexte de la décision d'architecture) :
     la PHASE 19 (issue #56), le langage existe mais sa généralisation est
     hors périmètre de la PHASE 20. La saisie manette du rituel (`gamepad-dir.js`)
     n'a pas été rejouée en navigateur (pas d'accès manette dans cet
-    environnement, comme pour PHASE 08/13).
+    environnement, comme pour PHASE 08/13). Seules 4 des 6 `HACK_TYPES` ont
+    été rejouées individuellement en navigateur via `?hack=<type>`
+    (`COMMAND INJECTION`, `LINK HIJACK`, `TELEMETRY SPOOF`, `GNSS SPOOF`) ;
+    `NETWORK TAKEOVER` et `FIRMWARE OVERRIDE` n'ont pas été rejouées
+    elles-mêmes, seules leurs primitives ont été observées en passant par
+    d'autres familles.
 
 ## Non vérifié / à faire
 
