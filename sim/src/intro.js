@@ -62,8 +62,19 @@ export function runIntro(root) {
 			resolve();
 		}
 
+		let skipped = false;
+
 		function onSkip() {
-			if (!started || finished) return;
+			if (!started || finished || skipped) return;
+			// Retrait SYNCHRONE, comme onGate() plus bas : un skip se martèle en
+			// pratique (touche tenue, double clic), et finish() ne tourne qu'après
+			// SKIP_WRAP_MS — sans ce retrait immédiat, une deuxième frappe dans cette
+			// fenêtre relancerait skipIntro() une deuxième fois. uiAudio.skipIntro()
+			// est lui-même devenu idempotent en défense en profondeur, mais l'écran
+			// ne doit pas compter dessus pour se comporter correctement.
+			skipped = true;
+			window.removeEventListener('keydown', onSkip);
+			wrap.removeEventListener('click', onSkip);
 			uiAudio.skipIntro();
 			// Un dénouement bref plutôt qu'un cut visuel à la milliseconde près :
 			// le temps que l'œil accroche la coupure, pas le temps de rejouer la

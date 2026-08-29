@@ -169,6 +169,44 @@ t('skipIntro : sans intro en cours, joue quand même la signature de boot', () =
 	assert.equal(audibleStarts(ctx).length, BOOT_SIGNATURE.length);
 });
 
+t('skipIntro : idempotent — un second appel (touche martelée, double clic) ne rejoue pas BOOT_SIGNATURE', () => {
+	// Un skip est un geste qu'on martèle en pratique (clavier ou clic répété) :
+	// un second appel avant que l'écran n'ait eu le temps de se démonter ne doit
+	// PAS programmer une deuxième signature de boot par-dessus la première —
+	// « une seule fois par chargement » (Bible §35) doit tenir même sous un
+	// skip répété, pas seulement pour un skip unique. Compte les NŒUDS créés
+	// plutôt que de faire correspondre des instants : à t=1s, INTRO_SCORE a
+	// elle-même des notes programmées (grille de 125 ms) qui coïncideraient
+	// avec un filtrage par horodatage et fausseraient le compte.
+	const { ctx, ui } = fresh();
+	ui.playIntro();
+	ctx.currentTime = 1;
+	ui.skipIntro();
+	const nodesAfterFirstSkip = ctx._nodes.length;
+	ctx.currentTime = 1.02; // quelques ms plus tard : la deuxième frappe du martelage
+	ui.skipIntro();
+	assert.equal(ctx._nodes.length, nodesAfterFirstSkip,
+		'un second skip ne doit construire strictement aucun nœud — donc ne rien rejouer');
+});
+
+t('skipIntro : idempotent même sans playIntro préalable', () => {
+	const { ctx, ui } = fresh();
+	ui.skipIntro();
+	ui.skipIntro();
+	assert.equal(audibleStarts(ctx).length, BOOT_SIGNATURE.length);
+});
+
+t('playIntro : réarme le skip — une nouvelle intro peut être sautée à nouveau', () => {
+	const { ctx, ui } = fresh();
+	ui.playIntro();
+	ui.skipIntro();
+	ui.playIntro();
+	const before = audibleStarts(ctx).length;
+	ui.skipIntro();
+	assert.equal(audibleStarts(ctx).length, before + BOOT_SIGNATURE.length,
+		'un skip après un nouveau playIntro() doit rejouer BOOT_SIGNATURE');
+});
+
 t('les one-shots se démontent : onended débranche tout', () => {
 	const { ctx, ui } = fresh();
 	// On ne regarde que les nœuds nés de CET appel : le bus a monté les siens

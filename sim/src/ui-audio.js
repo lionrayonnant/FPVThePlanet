@@ -41,6 +41,7 @@ export class UiAudio {
 		this._carrier = null;
 		this._tension = null;
 		this._introMaster = null;
+		this._introSkipped = false;
 		this._noiseBuf = null;
 		this._noiseCtx = null;
 		this._bootArmedAt = null;
@@ -311,6 +312,8 @@ export class UiAudio {
 		master.gain.value = 1;
 		master.connect(uiIn());
 		this._introMaster = master;
+		// Réarme le skip : une intro toute neuve peut de nouveau être sautée.
+		this._introSkipped = false;
 		for (const ev of INTRO_SCORE) {
 			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.intro, master);
 		}
@@ -324,7 +327,16 @@ export class UiAudio {
 	// résolution, déjà sonnantes ou encore programmées dans le futur — puis
 	// rejoue la signature de boot SEULE, immédiatement. C'est la sortie de
 	// l'intro, skip ou pas : un seul motif de conclusion, jamais deux.
+	//
+	// IDEMPOTENT : un skip est un geste qu'on martèle en pratique (clavier ou
+	// clic répété), et src/intro.js retire ses propres écouteurs de façon
+	// SYNCHRONE au premier appel — mais l'invariant « BOOT une seule fois par
+	// chargement » (Bible §35) ne doit pas dépendre uniquement de la discipline
+	// de l'appelant. Un second appel, tant que playIntro() ne l'a pas réarmé,
+	// ne fait plus rien.
 	skipIntro() {
+		if (this._introSkipped) return;
+		this._introSkipped = true;
 		const ctx = context();
 		if (ctx && this._introMaster) {
 			const t = ctx.currentTime;
