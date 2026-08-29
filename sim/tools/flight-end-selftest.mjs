@@ -61,13 +61,17 @@ t('séquence de crash : le noir avant le texte, puis les lignes dans l\'ordre', 
 	advance(fe, 0.1 + TIMELINE.blackoutFade + 0.05, { crashed: true });
 	assert.equal(fe.out.blackout, 1, 'noir complet après le fondu');
 
-	const seen = [];
-	for (const [at, text] of TIMELINE.lines) {
+	// Certaines lignes de TIMELINE.lines partagent un horodatage (une ligne
+	// vide et le texte qui la suit, correction 6) : on ne peut donc plus
+	// vérifier une entrée à la fois. On avance jusqu'à chaque instant distinct
+	// et on compare à tout ce qui doit être visible à cet instant.
+	const times = [...new Set(TIMELINE.lines.map(([at]) => at))].sort((a, b) => a - b);
+	for (const at of times) {
 		const fresh = new FlightEnd();
 		fresh.update(frame({ crashed: true }));
 		advance(fresh, at + 0.05, { crashed: true });
-		seen.push(text);
-		assert.deepEqual(fresh.out.lines, seen, `à t=${at}s`);
+		const expected = TIMELINE.lines.filter(([lineAt]) => lineAt <= at + 0.05).map(([, text]) => text);
+		assert.deepEqual(fresh.out.lines, expected, `à t=${at}s`);
 	}
 });
 
@@ -172,11 +176,35 @@ t('désarmement sur une pose : MOTORS DISARMED, END SESSION, LANDED une fois', (
 	assert.equal(fe.out.phase, LANDED);
 	assert.equal(fe.phase, LANDED);
 	assert.deepEqual(fe.out.lines, ['LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION']);
-	assert.equal(fe.out.exitArmed, true);
+	// exitArmed ne s'arme qu'à la frame qui vidange réellement `closes`, pas au
+	// moment du geste (correction 1, revue finale) : sinon Échap pourrait
+	// sortir pendant que la fermeture de session est encore en vol.
+	assert.equal(fe.out.exitArmed, false);
+	assert.equal(fe.out.closes, null);
 	fe.update(settled({ armed: false }));
 	assert.equal(fe.out.closes, 'LANDED');
+	assert.equal(fe.out.exitArmed, true);
 	fe.update(settled({ armed: false }));
 	assert.equal(fe.out.closes, null);
+	assert.equal(fe.out.exitArmed, true);
+});
+
+t('LANDED : update(dt=0) vidange closes sans avancer la machine (sim gelée)', () => {
+	// Chemin réel du bug (correction 1) : se poser, puis geler la sim (caméra
+	// libre / pause) avant qu'une frame non gelée n'ait lu `closes`. main.js
+	// appelle désormais flightEnd.update() même gelé, avec dt=0.
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	fe.disarm();
+	assert.equal(fe.out.closes, null, 'pas encore vidangé avant le premier update()');
+	fe.update(settled({ dt: 0, armed: false }));
+	assert.equal(fe.out.closes, 'LANDED');
+	assert.equal(fe.out.exitArmed, true);
+	assert.equal(fe.phase, LANDED);
+	// Un second update(dt=0) ne rejoue pas la fermeture et n'avance rien.
+	fe.update(settled({ dt: 0, armed: false }));
+	assert.equal(fe.out.closes, null);
+	assert.equal(fe.phase, LANDED);
 });
 
 t('désarmement en vol : rien ne se ferme, la chute suit son cours', () => {

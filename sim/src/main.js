@@ -610,35 +610,11 @@ function frame() {
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
 
-		// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt,
-		// quand la session se ferme. main.js ne fait que l'alimenter et obéir.
+		// Un seul raycast de sol par frame de physique. Gelé, rien n'a bougé :
+		// la dernière valeur de groundY reste correcte, inutile de refaire un
+		// test plein maillage pour rien.
 		const fp = physics.position;
 		groundY = physics.groundBelow(fp.x, fp.y, fp.z);
-		const fv = physics.velocity, fw = physics.angularVelocity;
-		flightEnd.update({
-			dt,
-			armed: controller.armed,
-			height: groundY === null ? Infinity : fp.y - groundY,
-			speed: Math.hypot(fv.x, fv.y, fv.z),
-			angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
-			throttle: sticks.throttle,
-			crashed: crashedThisFrame,
-		});
-		if (crashedThisFrame) {
-			// Le drone est détruit : les moteurs se taisent, donc le son aussi —
-			// audio.js suit le régime moteur, il n'y a rien à couper à la main.
-			controller.disarm();
-			// Si le joueur avait coupé la modélisation du lien, il ne verrait
-			// aucune dégradation. La mort de l'image ne se négocie pas.
-			if (!linkForced) {
-				linkForced = true;
-				lens.setLink({ mode: lensLinkMode === LINK_OFF ? LINK_ANALOG : lensLinkMode, severity: 1 });
-			}
-		}
-		const closes = flightEnd.out.closes;
-		if (closes) {
-			session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
-		}
 
 		const p = physics.position;
 		const r = physics.rotation;
@@ -649,6 +625,48 @@ function frame() {
 		camera.quaternion.copy(_q).multiply(_tilt);
 	} else if (freeCamOn) {
 		freeCam.update();
+	}
+
+	// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt, quand
+	// la session se ferme. main.js ne fait que l'alimenter et obéir.
+	//
+	// Appelé HORS du bloc gelé (revue finale, correction 1) : flightEnd.disarm()
+	// arme un événement `closes` que seul le prochain update() vidange. Si la
+	// sim se fige (C ou Espace) entre le désarmement et Échap, aucune frame
+	// non gelée ne tournait plus pour lire cet événement — une pose propre
+	// était alors comptée CRASHED par le beacon `beforeunload`. dt=0 fige la
+	// timeline et le compteur de pose (la décision « la séquence de fin se
+	// fige avec la sim » reste vraie), mais `closes` est désormais vidangé
+	// quoi qu'il arrive, dès la prochaine frame.
+	const fePos = physics.position;
+	const fv = physics.velocity, fw = physics.angularVelocity;
+	flightEnd.update({
+		dt: frozen ? 0 : dt,
+		armed: controller.armed,
+		height: groundY === null ? Infinity : fePos.y - groundY,
+		speed: Math.hypot(fv.x, fv.y, fv.z),
+		angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
+		throttle: sticks.throttle,
+		crashed: crashedThisFrame,
+	});
+	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
+	// crashedThisFrame (bonus, revue finale) : un choc encaissé après un
+	// LANDED (le vent repousse un drone désarmé) ne doit pas rejouer la mort
+	// de l'image par-dessus l'écran END SESSION.
+	if (flightEnd.out.linkDead) {
+		// Le drone est détruit : les moteurs se taisent, donc le son aussi —
+		// audio.js suit le régime moteur, il n'y a rien à couper à la main.
+		controller.disarm();
+		// Si le joueur avait coupé la modélisation du lien, il ne verrait
+		// aucune dégradation. La mort de l'image ne se négocie pas.
+		if (!linkForced) {
+			linkForced = true;
+			lens.setLink({ mode: lensLinkMode === LINK_OFF ? LINK_ANALOG : lensLinkMode, severity: 1 });
+		}
+	}
+	const closes = flightEnd.out.closes;
+	if (closes) {
+		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
 	}
 
 	// The weather on the camera. Advanced on the frame clock rather than the

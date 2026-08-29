@@ -16,10 +16,18 @@ export const TERMINATED = 'TERMINATED';         // la séquence est finie
 export const TIMELINE = {
 	blackoutAt: 0.9,        // l'image morte reste à l'écran jusque-là
 	blackoutFade: 0.4,      // puis le noir monte en autant de secondes
+	// Les lignes vides partagent l'horodatage de la ligne qui les suit (revue
+	// finale, correction 6) : une ligne vide qui apparaît seule, une frame
+	// avant son texte, romprait l'écart visuel qu'elle est censée créer. La
+	// spec écrit ces blocs avec un blanc après LINK LOST et un autre avant
+	// [ESC] DISCONNECT — c'est ce que hud.js#flight-end div:empty rend déjà
+	// pour l'écran de pose (MOTORS DISARMED / END SESSION).
 	lines: [
 		[1.6, 'LINK LOST'],
+		[2.8, ''],
 		[2.8, 'TARGET LOST'],
 		[3.6, 'SESSION TERMINATED'],
+		[4.6, ''],
 		[4.6, '[ESC] DISCONNECT'],
 	],
 	exitAt: 4.6,            // la sortie s'arme avec la dernière ligne
@@ -42,9 +50,17 @@ export const TIMELINE = {
 // H_ON = 0,1488 × 1,3 arrondi. V_ON = milieu en échelle log entre la vitesse
 // posée (0,0050) et celle du rasant le plus lent (0,809) : sqrt(0,0050 ×
 // 0,809) ≈ 0,064, arrondi à 0,06. H_OFF et V_OFF sont l'hystérésis de
-// sortie, pas une mesure. W_ON = 2 × 0,0336. T_HOLD est le plus petit
-// multiple de 0,25 s qui tient (poses toutes reconnues, aucun rasant
-// détecté) : voir tools/landing-selftest.mjs.
+// sortie, pas une mesure. W_ON = 2 × 0,0336.
+// T_HOLD, en revanche, ne sépare rien : mesuré en ne faisant varier que lui
+// (tools/landing-selftest.mjs, 2026-08-29), un T_HOLD quasi nul (0,004 s)
+// laisse déjà le rebond écarté jusqu'à t=0,64 s et le roulé jusqu'à t=0,48 s
+// — au-delà des gardes `notBefore` du banc. C'est donc H_ON/V_ON/W_ON seuls
+// qui font la séparation géométrique ; T_HOLD n'ajoute qu'un retard
+// constant. Il reste une marge de confirmation *choisie* contre le bruit non
+// modélisé (vibration de contact, jitter physique), au même titre que
+// TIMELINE — 0,25 s parce que ça tient (poses toutes reconnues, aucun
+// rasant détecté) sans se sentir long en jeu.
+
 export const LANDING = {
 	H_ON: 0.2,      // m, hauteur sol-drone sous laquelle on considère le contact
 	H_OFF: 0.4,     // m, au-dessus de laquelle la pose est perdue (hystérésis)
@@ -95,7 +111,10 @@ export class FlightEnd {
 		const o = this.out;
 		o.lines.length = 0;
 		o.lines.push('LANDING DETECTED', 'MOTORS DISARMED', '', 'END SESSION');
-		o.exitArmed = true;
+		// exitArmed ne s'arme PAS ici : il s'arme dans update(), à la frame qui
+		// vidange réellement `_pending` vers `out.closes` (revue finale,
+		// correction 1). Sinon Échap pourrait sortir au terminal pendant que la
+		// requête de fermeture de session est encore en vol.
 		// Consommé par le prochain update() : la fermeture de session sort ainsi
 		// toujours du même endroit, jamais du gestionnaire de touche.
 		this._pending = 'LANDED';
@@ -111,6 +130,12 @@ export class FlightEnd {
 		// `closes` est un événement : visible une frame, jamais deux.
 		o.closes = this._pending;
 		this._pending = null;
+		// C'est ici, à la frame qui vidange réellement la fermeture 'LANDED',
+		// que la sortie s'arme — pas au moment de disarm() (correction 1) : un
+		// `update(dt=0)` (sim gelée) doit pouvoir vidanger `closes` sans jamais
+		// perdre l'événement, y compris quand aucune frame non gelée ne tourne
+		// entre le geste du joueur et Échap.
+		if (o.closes === 'LANDED') o.exitArmed = true;
 
 		if (crashed && this._phase !== CRASHING && this._phase !== TERMINATED
 			&& this._phase !== LANDED) {
@@ -146,8 +171,10 @@ export class FlightEnd {
 
 	// La pose, mesurée dans le temps plutôt que devinée sur une frame. Le faux
 	// positif à écarter est le vol rasant : bas, mais rapide. C'est la vitesse
-	// qui sépare les deux, la durée qui écarte les rebonds, et la vitesse
-	// angulaire qui écarte la sphère de collision qui roule sans fin.
+	// qui sépare les deux et la vitesse angulaire qui écarte la sphère de
+	// collision qui roule sans fin ; T_HOLD n'écarte rien lui-même (mesuré,
+	// voir le commentaire de LANDING ci-dessus), c'est une marge de
+	// confirmation contre le bruit non modélisé.
 	_advanceLanding({ dt, armed, height, speed, angularSpeed, throttle }) {
 		const o = this.out, L = this.landing;
 
