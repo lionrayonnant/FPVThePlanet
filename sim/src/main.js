@@ -18,6 +18,8 @@ import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
 import { Rainfall } from './rainfall.js';
+import { CloudField } from './cloud.js';
+import { SkyDome } from './sky.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
@@ -74,6 +76,10 @@ let PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
+// Le dôme. scene.background reste posé au-dessus : il n'est plus jamais vu —
+// le dôme couvre l'écran — mais il porte désormais la couleur d'HORIZON, que
+// rainfall.js, lens.js et les tuiles lisent tous. Une seule couleur d'air.
+const skyDome = new SkyDome(scene, { sky: SKY });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -105,6 +111,9 @@ const rain = new RainField(undefined, FOG_DENSITY);
 // scene's fog density rather than sharing it — FOG_DENSITY is the clear-air
 // floor it starts from and never goes below.
 const fog = new FogField(undefined, FOG_DENSITY);
+// Et le ciel au-dessus : quelle fraction est couverte, à quelle hauteur, et de
+// combien le sol s'assombrit. Le monde le décide (#41), pas un réglage.
+const cloud = new CloudField();
 let rainfall = null;
 // Le snapshot météo de la zone survolée, pour le HUD et __sim.debug().
 let weather = null;
@@ -264,7 +273,7 @@ async function boot() {
 	// de zone que celle vue par le terminal avant le décollage.
 	const o = manifest.origin ?? {};
 	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog }) ?? CALM;
+	const applied = applyWeather(weather, { physics, rain, fog, cloud }) ?? CALM;
 	if (weather) {
 		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
 			+ `${headline(weather.days[0])}`, applied);
@@ -273,6 +282,7 @@ async function boot() {
 		physics.setWeather(CALM.wind);
 		rain.setParams(CALM.rain);
 		fog.setParams(CALM.fog);
+		cloud.setParams(CALM.cloud);
 	}
 
 	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
@@ -508,6 +518,7 @@ function respawn() {
 	// or the bank that just blinded you.
 	rain.reset();
 	fog.reset();
+	cloud.reset();
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
@@ -559,25 +570,6 @@ let lastSkyHex = -1;
 // lens pass, which only reprojects rotation, cannot reconstruct.
 let lensShutter = 0;
 
-// Weather does not only take contrast away, it takes the blue out of the sky.
-// Rain darkens it: the light is coming through cloud and water rather than
-// through air. Fog does the opposite — it is bright, and it is neutral, because
-// what you are looking at is the scattered light itself.
-//
-// The two are applied in that order, rain then fog, so that thick fog wins: at
-// fifty metres of visibility the sky is the fog and nothing else. Interpolated
-// on the raw bytes, because the whole colour pipeline is pass-through and a
-// linear round trip here would land the sky back on HANDOFF bug #10.
-const CLEAR_SKY = new THREE.Color(SKY);
-const RAIN_SKY = new THREE.Color(0x8d99a2);
-const FOG_SKY = new THREE.Color(0xc9d0d4);
-const _sky = new THREE.Color();
-function weatherSky(rainScale, fogMix) {
-	// rainScale is 1 in the clear and about 2 in a downpour.
-	return _sky.copy(CLEAR_SKY)
-		.lerp(RAIN_SKY, Math.min(1, (rainScale - 1) * 1.2))
-		.lerp(FOG_SKY, fogMix);
-}
 // Where a bead sitting on the front element is being pushed, in g and in the
 // plane of the lens. Written once a frame into the same object rather than
 // allocated, like every other per-frame vector here.
@@ -653,12 +645,25 @@ function frame() {
 	if (!frozen) {
 		rain.update(physics.airspeed, dt);
 		fog.update(dt);
+		cloud.update(dt);
+		// L'altitude au-dessus du sol, pour le plafond. Prise par rapport au
+		// spawn plutôt que par un raycast : la base des nuages est à des
+		// centaines de mètres, le relief local est du bruit devant, et le
+		// raycast de plus bas dans cette frame n'a pas encore eu lieu.
+		const altitudeAGL = physics.position.y - spawnY;
+		skyDome.setState({
+			cover: cloud.cover, base: cloud.base, altitudeAGL,
+			windDir: physics.wind.direction, windSpeed: physics.wind.speed,
+			rainScale: rain.fogScale, fogMix: fog.skyMix,
+		});
 		// Extinctions add, so densities add. This is a strict generalisation of
 		// the rain-only version it replaces: FOG_DENSITY * rain.fogScale is by
 		// definition FOG_DENSITY + the rain's own extinction, so with the fog
 		// slider at zero the picture is the one #24 left behind, to the bit.
 		const density = fog.density + extinctionOf(rain.visibility);
-		const sky = weatherSky(rain.fogScale, fog.skyMix);
+		// La couleur que le dôme peint réellement cette frame : c'est elle que
+		// les tuiles doivent rejoindre, et pas une autre.
+		const sky = skyDome.horizon;
 		const skyHex = sky.getHex();
 		if (density !== lastDensity || skyHex !== lastSkyHex) {
 			lastDensity = density;
@@ -674,6 +679,7 @@ function frame() {
 		// Zero compiles it out of the lens shader entirely.
 		lens.setGlare(fog.glare);
 	}
+	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
 	rainfall.update({

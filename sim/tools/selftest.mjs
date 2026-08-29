@@ -1259,6 +1259,24 @@ console.log('\nnuages');
 		check('un matériau de tuile neuf n\'assombrit rien', m.uniforms.uDim.value === 1);
 		m.dispose();
 	}
+
+	// D5, l'invariant reformulé : le zénith gagne de la profondeur, mais la
+	// couleur d'HORIZON par ciel clair reste exactement celle que la scène
+	// utilisait avant qu'il y ait un ciel. C'est elle que setFog() pousse sur
+	// les tuiles, donc c'est elle qui décide si la ligne d'horizon se dédouble.
+	{
+		const { CLEAR_HORIZON, CLEAR_ZENITH, OVERCAST_HORIZON } = await import('../src/sky.js');
+		check('l\'horizon par ciel clair est exactement le SKY historique',
+			CLEAR_HORIZON === 0x9fb8cc, `0x${CLEAR_HORIZON.toString(16)}`);
+		// Un ciel clair est plus profond au zénith qu'à l'horizon : c'est de la
+		// diffusion, pas un choix graphique. Garder le dégradé plat aurait été
+		// le seul cas où le rendu serait faux.
+		const lum = (h) => ((h >> 16 & 255) * 0.2126 + (h >> 8 & 255) * 0.7152 + (h & 255) * 0.0722);
+		check('et le zénith clair est plus profond que son horizon',
+			lum(CLEAR_ZENITH) < lum(CLEAR_HORIZON));
+		check('un ciel couvert est plus terne qu\'un ciel clair',
+			lum(OVERCAST_HORIZON) < lum(CLEAR_HORIZON) * 1.05);
+	}
 }
 
 console.log('\ntextures');
