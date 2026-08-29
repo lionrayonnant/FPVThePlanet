@@ -21,7 +21,7 @@ import {
 } from './operator-store.mjs';
 import {
 	openSession, resumeSession, closeSession, validateSession,
-	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession,
+	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession, addPhoto,
 } from './session-model.mjs';
 import { estimateCost, tileGrid, boxDimensions, tileSizeMeters } from './lib/estimates.mjs';
 import { resolveWeather } from './weather-source.mjs';
@@ -286,6 +286,33 @@ const opRoutes = [
 		_writeOperator(state);
 		json(res, 200, { session });
 	}],
+
+	// Capture (PHASE 16). Écrite tout de suite sur la session, pas attendue la
+	// clôture : un onglet mort en vol ne doit pas perdre les photos déjà prises.
+	// Base64 dans le JSON de session, comme le reste de l'état opérateur — pas
+	// de stockage binaire séparé. Plafond de body relevé rien que pour cette
+	// route : une capture dépasse largement le mégaoctet des autres requêtes.
+	['POST', /^\/([^/]+)\/sessions\/([^/]+)\/photos$/, async (req, res, [id, sid]) => {
+		const b = await readBody(req, PHOTO_BODY_MAX);
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+
+		const i = state.sessions.findIndex((s) => s.id === sid);
+		if (i < 0) return json(res, 404, { error: `aucune session "${sid}"` });
+		if (state.sessions[i].result !== 'PENDING') {
+			return json(res, 409, { error: `session "${sid}" déjà ${state.sessions[i].result}` });
+		}
+
+		let session;
+		try { session = validateSession(addPhoto(state.sessions[i], b)); }
+		catch (e) { return json(res, 400, { error: e.message }); }
+
+		state.sessions[i] = session;
+		_writeOperator(state);
+		json(res, 201, { session });
+	}],
 ];
 
 async function closeSessionRoute(req, res, [id, sid]) {
@@ -325,12 +352,16 @@ function json(res, code, body) {
 	res.end(s);
 }
 
-function readBody(req) {
+// Une capture encodée en base64 dépasse vite le mégaoctet d'un body JSON
+// ordinaire (photo + ~33 % d'overhead base64) : plafond dédié pour cette route.
+const PHOTO_BODY_MAX = 8e6;
+
+function readBody(req, maxBytes = 1e6) {
 	return new Promise((resolve, reject) => {
 		let b = '';
 		req.on('data', (d) => {
 			b += d;
-			if (b.length > 1e6) { reject(new Error('body too large')); req.destroy(); }
+			if (b.length > maxBytes) { reject(new Error('body too large')); req.destroy(); }
 		});
 		req.on('end', () => {
 			try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(new Error('invalid JSON body')); }

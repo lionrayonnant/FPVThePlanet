@@ -167,6 +167,7 @@ export class Input {
 					'm',
 					'p',
 					'c',
+					'f',
 					'tab',
 					'escape',
 					' ',

@@ -85,6 +85,27 @@ export function sanitizeTarget(raw) {
 	};
 }
 
+// Ne garde que la forme connue d'une capture (PHASE 16). `ts` est reposé par le
+// serveur, jamais celui qu'envoie le client : l'horodatage de la photo n'a pas
+// à dépendre de l'horloge du navigateur.
+export function sanitizePhoto(raw) {
+	if (!raw || typeof raw !== 'object') throw new Error('photo invalide');
+	if (typeof raw.dataUrl !== 'string' || !raw.dataUrl.startsWith('data:image/')) {
+		throw new Error('photo.dataUrl invalide');
+	}
+	if (!Number.isInteger(raw.w) || raw.w <= 0) throw new Error('photo.w invalide');
+	if (!Number.isInteger(raw.h) || raw.h <= 0) throw new Error('photo.h invalide');
+	return { dataUrl: raw.dataUrl, w: raw.w, h: raw.h, ts: new Date().toISOString() };
+}
+
+// Ajoute une capture sans muter la session existante : plusieurs captures par
+// session, chacune un élément de plus dans `photos[]`.
+export function addPhoto(session, raw) {
+	if (!session || typeof session !== 'object') throw new Error('session illisible');
+	const photo = sanitizePhoto(raw);
+	return { ...session, photos: [...(session.photos ?? []), photo] };
+}
+
 export function openSession({ operatorId, area, weatherSnapshot, target }) {
 	if (!operatorId) throw new Error('operatorId requis');
 	const areaSlug = slugify(area);
@@ -179,6 +200,8 @@ export function validateSession(s) {
 		if (!Number.isFinite(v) || v < 0) throw new Error(`télémétrie.${k} invalide`);
 	}
 	if (s.result !== 'PENDING' && !s.end) throw new Error('session fermée sans end');
+	if (!Array.isArray(s.photos)) throw new Error('photos invalide');
+	for (const p of s.photos) sanitizePhoto(p); // throw si une capture est malformée
 	return s;
 }
 

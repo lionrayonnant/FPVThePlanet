@@ -116,6 +116,13 @@ export async function patchSessionComment(sid, comment) {
 	return (await req('PATCH', `/${cache.id}/sessions/${sid}/comment`, { comment })).session;
 }
 
+// Une capture (PHASE 16). Écriture immédiate, pas attendue la clôture de
+// session : un onglet mort en vol ne doit pas perdre les photos déjà prises.
+export async function postPhoto(sid, body) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return (await req('POST', `/${cache.id}/sessions/${sid}/photos`, body)).session;
+}
+
 export function operatorBase() { return OP_BASE; }
 
 export async function flush() {
