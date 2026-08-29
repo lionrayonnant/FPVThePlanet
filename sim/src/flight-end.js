@@ -25,16 +25,34 @@ export const TIMELINE = {
 	exitAt: 4.6,            // la sortie s'arme avec la dernière ligne
 };
 
-// Seuils de pose. PROVISOIRES : remplacés par tools/landing-selftest.mjs, qui
-// les mesure. Ne pas les modifier à la main.
+// Seuils de pose, mesurés par tools/landing-selftest.mjs sur
+// public/scenes/tour-eiffel le 2026-08-29 : quatre poses (1 m, 3 m, 8 m, vent
+// de travers 8 m/s) se stabilisent toutes sous h=0,1488 m / v=0,0050 m/s /
+// w=0,0336 rad/s (0,1488 m ~ le rayon 0,15 m du collider sphérique : le drone
+// touche le sol). Neuf rasants (hauteur visée 0,3-1 m, tangage 0,3-1) ne
+// descendent jamais sous v=0,809 m/s en vol, même quand la hauteur elle-même
+// frôle 0,15 m un instant — c'est donc la vitesse, pas la hauteur seule, qui
+// écarte ce faux positif.
+// Un dixième cas, un stationnaire bas gaz mis (h~0,5 m, v jusqu'à 0,0008
+// m/s), chevauche largement la vitesse posée : la vitesse ne sépare pas un
+// vol stationnaire tenu d'une pose. C'est THR_IDLE qui l'écarte (le gaz y
+// reste nettement au-dessus de 0,06, et la hauteur au-dessus de H_ON) — pas
+// V_ON, qui est donc calé sur la séparation réelle : le rasant le plus lent
+// mesuré, pas ce stationnaire.
+// H_ON = 0,1488 × 1,3 arrondi. V_ON = milieu en échelle log entre la vitesse
+// posée (0,0050) et celle du rasant le plus lent (0,809) : sqrt(0,0050 ×
+// 0,809) ≈ 0,064, arrondi à 0,06. H_OFF et V_OFF sont l'hystérésis de
+// sortie, pas une mesure. W_ON = 2 × 0,0336. T_HOLD est le plus petit
+// multiple de 0,25 s qui tient (poses toutes reconnues, aucun rasant
+// détecté) : voir tools/landing-selftest.mjs.
 export const LANDING = {
-	H_ON: 0.3,      // m, hauteur sol-drone sous laquelle on considère le contact
-	H_OFF: 0.8,     // m, au-dessus de laquelle la pose est perdue (hystérésis)
-	V_ON: 0.5,      // m/s
-	V_OFF: 1.5,     // m/s
-	W_ON: 0.5,      // rad/s — une sphère de collision qui roule n'est pas posée
+	H_ON: 0.2,      // m, hauteur sol-drone sous laquelle on considère le contact
+	H_OFF: 0.4,     // m, au-dessus de laquelle la pose est perdue (hystérésis)
+	V_ON: 0.06,     // m/s
+	V_OFF: 0.18,    // m/s
+	W_ON: 0.07,     // rad/s — une sphère de collision qui roule n'est pas posée
 	THR_IDLE: 0.06, // gaz coupés, même valeur que le `touchdown` de main.js
-	T_HOLD: 1.0,    // s pendant lesquelles tout cela doit rester vrai
+	T_HOLD: 0.25,   // s pendant lesquelles tout cela doit rester vrai
 };
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
