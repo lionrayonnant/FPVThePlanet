@@ -66,8 +66,17 @@ export class Physics {
 				.setDensity(0)
 				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
 				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
-				// toute pose impossible. 0.05 = il touche et il reste.
-				.setRestitution(0.05)
+				// toute pose impossible.
+				//
+				// PHASE 08 : PHASE 06 avait posé 0.05 / 1.0, mesuré sur freestyle5
+				// seul (06 précède les familles). Croisé avec le sweep 6 familles
+				// de PHASE 07, cette paire fait déraper le toothpick (ultra-léger)
+				// à 1.55 m/s sur le maillage penté, au-dessus du seuil « sits still »
+				// de tools/selftest.mjs. Re-balayé rest×fric contre ce selftest
+				// (tour-eiffel) : 0.15 / 1.0 remet le toothpick à 0.99 m/s, garde
+				// toutes les familles vertes et « a gentle landing » à 483 N (≪ 1500).
+				// 0.15 reste franchement sans rebond — loin des 0.35 qui ricochaient.
+				.setRestitution(0.15)
 				.setFriction(1.0)
 				.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
 				.setContactForceEventThreshold(30),
