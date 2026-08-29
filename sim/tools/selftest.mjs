@@ -29,7 +29,7 @@ import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generat
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
-	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor, nightAmount,
 } from '../src/sun.js';
 
 const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
@@ -2205,6 +2205,29 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 			sun.gain.toFixed(3));
 		check('nuit pleine : le ciel reste bleu', sun.sky.b > sun.sky.r,
 			`${sun.sky.r.toFixed(3)} ${sun.sky.g.toFixed(3)} ${sun.sky.b.toFixed(3)}`);
+	}
+
+	// La profondeur de nuit (#112) : le même seuil crépusculaire que skyChroma,
+	// exposé pour que TileMaterial (uNight) et le halo du dôme ne réinventent
+	// pas un deuxième crépuscule qui contredirait le ciel.
+	{
+		check('jour plein : nightAmount vaut 0', nightAmount(30) === 0);
+		check('nuit pleine : nightAmount vaut 1', nightAmount(-17.7) === 1);
+		check('le crépuscule est entre les deux',
+			nightAmount(-8) > 0 && nightAmount(-8) < 1, nightAmount(-8).toFixed(3));
+		let prevN = -1, monoN = true;
+		for (let e = 10; e >= -20; e -= 1) {
+			const n = nightAmount(e);
+			if (n < 0 || n > 1 || n < prevN - 1e-9) monoN = false;
+			prevN = n;
+		}
+		check('nightAmount monte de façon monotone quand le soleil descend', monoN);
+		check('et SunField la porte : nuit pleine', (() => {
+			const s = new SunField(PARIS);
+			s.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			settle(s, MIDNIGHT, 0, 60);
+			return s.night === 1;
+		})());
 	}
 
 	// La traduction du haut gain en capteur : c'est elle que main.js pousse

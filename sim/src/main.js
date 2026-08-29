@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim, setNight } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -799,6 +799,7 @@ const _tilt = new THREE.Quaternion();
 let lastDensity = -1;
 let lastSkyHex = -1;
 let lastDim = 1;
+let lastNight = 0;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
@@ -962,6 +963,7 @@ if (!frozen) {
 		windSpeed: physics.wind.speed,
 		rainScale: rain.fogScale,
 		fogMix: fog.skyMix,
+		night: sun ? sun.night : 0,
 	});
 
 	// Les extinctions s'additionnent :
@@ -1053,6 +1055,13 @@ if (!frozen) {
 	if (cloud.dim !== lastDim) {
 		lastDim = cloud.dim;
 		setDim(cloud.dim);
+	}
+
+	// Les lumières de la ville (#112), même principe throttlé que le fondu.
+	const night = sun ? sun.night : 0;
+	if (night !== lastNight) {
+		lastNight = night;
+		setNight(night);
 	}
 }
 		// Light the air scatters into the barrel rather than onto the subject.
