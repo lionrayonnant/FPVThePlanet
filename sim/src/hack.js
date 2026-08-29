@@ -1,7 +1,8 @@
 // AUTOMATED ANALYSIS (PHASE 09, Bible §16–18). S'intercale entre le TARGET SCAN
 // (PHASE 08) et le vol. Joue un log automatique fixe, un motif visuel propre à
 // la famille de hack, puis se fige sur MANUAL OVERRIDE REQUIRED + un bouton
-// [ JACK IN ] PROVISOIRE (le rituel réel — CONTROL VECTOR + QTE — est PHASE 10).
+// [ JACK IN ] PROVISOIRE, armé seulement une fois le log joué — un Entrée
+// maintenu/répété depuis le TARGET SCAN ne peut plus zapper l'écran (le rituel réel — CONTROL VECTOR + QTE — est PHASE 10).
 //
 // Écran client pur : look terminal (screen/button de terminal.js), AUCUNE
 // dépendance Three/Rapier/physics. Jamais importé par le moteur.
@@ -28,7 +29,7 @@ function cosmeticSeed(str) {
 }
 
 export function runHack(root, { hackType, family } = {}) {
-	const type = HACK_TYPES.includes(hackType) ? hackType : (hackType || 'UNKNOWN');
+	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
 	const draw = GRAMMARS[type] || drawNeutral;
 	const seed = cosmeticSeed(family || type);
 
@@ -52,7 +53,8 @@ export function runHack(root, { hackType, family } = {}) {
 			shown++;
 			logEl.textContent = HACK_LOG_LINES.slice(0, shown).join('\n');
 			if (shown >= HACK_LOG_LINES.length) {
-				logEl.classList.add('hack-log-armed'); // met MANUAL OVERRIDE en valeur (CSS)
+				logEl.classList.add('hack-log-armed'); // hook JS : le log est joué
+				arm();
 				return;
 			}
 			timer = setTimeout(tick, LINE_MS);
@@ -77,10 +79,17 @@ export function runHack(root, { hackType, family } = {}) {
 			resolve();
 		};
 		const onKey = (e) => {
+			if (e.repeat) return; // ignore l'auto-repeat clavier
 			if (e.key === 'Enter') { e.preventDefault(); finish(); }
 		};
-		window.addEventListener('keydown', onKey);
 
-		s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
+		// Affordances de sortie armées seulement une fois le log entièrement joué.
+		let armed = false;
+		const arm = () => {
+			if (armed || done) return;
+			armed = true;
+			window.addEventListener('keydown', onKey);
+			s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
+		};
 	});
 }

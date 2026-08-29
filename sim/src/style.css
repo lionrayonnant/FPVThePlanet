@@ -371,9 +371,7 @@ canvas { display: block; }
 .hack .terminal-box { width: min(560px, 88vw); }
 .hack .hack-head { font-weight: 700; letter-spacing: .08em; margin-bottom: .6em; }
 .hack .hack-log { min-height: 5em; white-space: pre; line-height: 1.5; }
-/* MANUAL OVERRIDE REQUIRED est la dernière ligne du <pre> ; point d'accroche
-   pour une éventuelle emphase typographique en Task 5. */
-.hack .hack-log.hack-log-armed::after { content: ''; }
+/* .hack-log-armed : hook d'état JS (le log est entièrement joué), pas de style. */
 .hack .hack-grammar {
 	margin-top: .8em;
 	line-height: 1.05;
