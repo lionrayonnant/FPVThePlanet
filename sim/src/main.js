@@ -489,6 +489,7 @@ async function boot() {
 					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
 					// qu'un whiteout arrive au bon moment.
 					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
+					},
 				// Ce qui permet de vérifier le soleil dans le vrai navigateur
 				// plutôt que de regarder une capture et d'y croire.
 				sun: sun && {
@@ -802,7 +803,7 @@ if (!frozen) {
 	// On la prend par rapport au spawn plutôt que via un raycast :
 	// le relief local est négligeable devant l'altitude de la base des nuages,
 	// et le raycast plus bas dans cette frame n'a pas encore eu lieu.
-	const float altitudeAGL = physics.position.y - spawnY;
+	const altitudeAGL = physics.position.y - spawnY;
 
 	skyDome.setState({
 		cover: cloud.cover,
@@ -1024,7 +1025,6 @@ if (!frozen) {
 		});
 		if (peakImpact > 0) audio.playImpact(peakImpact);
 	}
-}
 
 // Picks which prepared map to fly before doing any of the heavy loading work.
 // ?scene=<slug> skips the menu (handy for bookmarking/dev), otherwise the
