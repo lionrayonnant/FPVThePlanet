@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import {
 	polygonBounds, pointInPolygon, segmentsIntersect, tileIntersectsPolygon,
 	polygonGrid, maskKeys, polygonArea, canonicalPoly, polyHash,
-	tileGrid, tileTMSToLatLon,
+	maskOutline, polygonProbePoint,
+	tileGrid, tileTMSToLatLon, latLonToTileTMS,
 } from './lib/tiles.mjs';
 
 let n = 0;
@@ -80,8 +81,11 @@ t('polygonGrid : un tracé plus fin qu\'une tuile rend quand même des colonnes'
 });
 
 t('polygonGrid : un carré aligné sur le treillis ne garde que ses tuiles', () => {
-	// On construit le tracé SUR les bords de tuiles : le résultat doit être
-	// exactement le bloc de tuiles correspondant, sans rab.
+	// On construit le tracé SUR les bords de tuiles : toutes les tuiles de
+	// l'emprise sont alors touchées, aucune n'est masquée. (L'emprise elle-même
+	// gagne une colonne et une rangée de plus que les tuiles nommées : un bord
+	// pile sur une limite de tuile appartient à la tuile suivante. C'est
+	// l'arrondi vers l'extérieur de tileGrid, déjà vrai pour un rectangle.)
 	const z = 20;
 	const a = tileTMSToLatLon(z, 500000, 400000);
 	const b = tileTMSToLatLon(z, 500003, 400002);
@@ -127,6 +131,64 @@ await at('polyHash : 12 hex, stable, sensible au moindre sommet', async () => {
 	assert.equal(h, await polyHash(SQUARE), 'stable');
 	const moved = [...SQUARE]; moved[0] += 0.000001;
 	assert.notEqual(h, await polyHash(moved), 'un micro-degré change le hash');
+});
+
+t('maskOutline : le contour d\'un bloc plein est son périmètre, pas ses lignes internes', () => {
+	const z = 20;
+	const a = tileTMSToLatLon(z, 500000, 400000);
+	const b = tileTMSToLatLon(z, 500003, 400002);
+	const ring = [a.lat, a.lon, a.lat, b.lon, b.lat, b.lon, b.lat, a.lon];
+	const g = polygonGrid(ring, z);
+	// Un bloc plein n'a que son périmètre : une arête par tuile de bordure, et
+	// aucune des arêtes internes que les tuiles se partagent deux à deux.
+	assert.equal(g.masked, 0, 'le bloc est bien plein');
+	assert.equal(maskOutline(g, z).length, 2 * (g.cols + g.rows));
+});
+
+t('maskOutline : le contour d\'un tracé masqué est fermé', () => {
+	// L'invariant qui compte pour du dessin : chaque sommet du contour est
+	// touché un nombre PAIR de fois, donc les segments se referment. C'est vrai
+	// de n'importe quel masque, y compris troué ou en plusieurs morceaux.
+	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
+	const g = polygonGrid(TRI, 20);
+	const segs = maskOutline(g, 20);
+	assert.ok(g.masked > 0, 'le triangle masque bien des tuiles');
+
+	const degree = new Map();
+	for (const seg of segs) {
+		assert.equal(seg.length, 2);
+		for (const p of seg) {
+			assert.equal(p.length, 2, '[lat, lon]');
+			const k = `${p[0].toFixed(9)},${p[1].toFixed(9)}`;
+			degree.set(k, (degree.get(k) ?? 0) + 1);
+		}
+	}
+	assert.equal([...degree.values()].filter((d) => d % 2 === 1).length, 0, 'aucun sommet de degré impair');
+
+	// Et un fait contre-intuitif, noté pour qui voudrait « optimiser » le tracé
+	// du contour : l'escalier d'une diagonale monotone a EXACTEMENT le même
+	// périmètre que le bloc plein qui l'englobe — 2×(cols+rows). C'est l'identité
+	// du taxi ; les marches somment aux deux côtés qu'elles remplacent. Le
+	// contour d'un polygone ne coûte donc pas plus de segments que celui d'un
+	// rectangle, quoi qu'en suggère l'aspect dentelé.
+	assert.equal(segs.length, 2 * (g.cols + g.rows));
+});
+
+t('polygonProbePoint : dans le tracé même quand le centroïde ne l\'est pas', () => {
+	// Un L à l'échelle d'une ville : le centre de son emprise tombe dans
+	// l'encoche. Viser ce centre ferait juger une zone qu'on n'extrait pas.
+	const L_SHAPE = [48.840, 2.280, 48.840, 2.320, 48.850, 2.320, 48.850, 2.290, 48.870, 2.290, 48.870, 2.280];
+	assert.equal(pointInPolygon(48.855, 2.300, L_SHAPE), false, 'le centroïde est bien hors du L');
+
+	const p = polygonProbePoint(L_SHAPE, 20);
+	const g = polygonGrid(L_SHAPE, 20);
+	const { x, y } = latLonToTileTMS(20, p.lat, p.lon);
+	assert.equal(g.keep[(y - g.yMin) * g.cols + (x - g.xMin)], 1, 'la sonde vise une tuile retenue');
+});
+
+t('polygonProbePoint : déterministe', () => {
+	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
+	assert.deepEqual(polygonProbePoint(TRI, 20), polygonProbePoint(TRI, 20));
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

@@ -240,3 +240,51 @@ export async function polyHash(ring) {
 	const digest = await crypto.subtle.digest('SHA-256', bytes);
 	return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
 }
+
+// Le contour de la zone retenue : les arêtes qu'une tuile gardée ne partage pas
+// avec une autre tuile gardée. C'est l'escalier — la forme réellement extraite,
+// par opposition au tracé lisse que l'utilisateur a dessiné. Rendu en segments
+// plutôt qu'en anneaux cousus : Leaflet accepte un tableau de segments comme
+// polyligne multiple, et recoudre des anneaux n'apporterait rien à l'écran.
+export function maskOutline(grid, zoom) {
+	const kept = (x, y) => x >= grid.xMin && x <= grid.xMax && y >= grid.yMin && y <= grid.yMax
+		&& grid.keep[(y - grid.yMin) * grid.cols + (x - grid.xMin)] === 1;
+
+	const segs = [];
+	for (let y = grid.yMin; y <= grid.yMax; y++) {
+		for (let x = grid.xMin; x <= grid.xMax; x++) {
+			if (!kept(x, y)) continue;
+			const s = tileTMSToLatLon(zoom, x, y).lat, n = tileTMSToLatLon(zoom, x, y + 1).lat;
+			const w = tileTMSToLatLon(zoom, x, y).lon, e = tileTMSToLatLon(zoom, x + 1, y).lon;
+			if (!kept(x, y - 1)) segs.push([[s, w], [s, e]]);
+			if (!kept(x, y + 1)) segs.push([[n, w], [n, e]]);
+			if (!kept(x - 1, y)) segs.push([[s, w], [n, w]]);
+			if (!kept(x + 1, y)) segs.push([[s, e], [n, e]]);
+		}
+	}
+	return segs;
+}
+
+// Où sonder la couverture Flyover pour un tracé. Le centre de l'emprise ne
+// convient pas : sur un croissant le long d'un fleuve, ou sur un L, il tombe
+// HORS du tracé, et la sonde rendrait son verdict sur une zone qu'on n'extrait
+// pas. On vise donc le centre de la tuile retenue la plus proche du centroïde.
+export function polygonProbePoint(ring, zoom) {
+	const grid = polygonGrid(ring, zoom);
+	const b = polygonBounds(ring);
+	const cLat = (b.south + b.north) / 2, cLon = (b.west + b.east) / 2;
+
+	let best = null, bestD = Infinity;
+	for (let y = grid.yMin; y <= grid.yMax; y++) {
+		for (let x = grid.xMin; x <= grid.xMax; x++) {
+			if (!grid.keep[(y - grid.yMin) * grid.cols + (x - grid.xMin)]) continue;
+			const lat = (tileTMSToLatLon(zoom, x, y).lat + tileTMSToLatLon(zoom, x, y + 1).lat) / 2;
+			const lon = (tileTMSToLatLon(zoom, x, y).lon + tileTMSToLatLon(zoom, x + 1, y).lon) / 2;
+			const d = (lat - cLat) ** 2 + (lon - cLon) ** 2;
+			// Strictement inférieur : à égalité, la première tuile dans l'ordre
+			// (y puis x) gagne, et la sonde reste reproductible.
+			if (d < bestD) { bestD = d; best = { lat, lon }; }
+		}
+	}
+	return best ?? { lat: cLat, lon: cLon };
+}
