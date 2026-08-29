@@ -197,19 +197,17 @@ function slopeAngleAt(x, z, d = 0.3) {
 // Cherche, sur un carré de 60 m autour du spawn, la facette la plus proche de
 // `targetDeg`. Mesuré sur tour-eiffel (2026-08-29) : viser 30° trouve une
 // facette à 30,0° — c'est la pente la plus raide qui se stabilise dans les
-// seuils actuels. Sondé au-delà (33°, 35°, 37°, 39°, mêmes méthode et pas) :
-// à 33° la vitesse angulaire résiduelle ne redescend plus sous W_ON en 6 s
-// (0,37 rad/s en fin de trace) et à 35° la sphère quitte carrément la pente
-// (elle glisse et retombe 18 m plus bas). Ce n'est donc pas la hauteur qui
-// bloque ici (H_ON=0,2 reste large jusqu'à ~41° géométriquement) mais
-// `setGroundHold` : il amortit la vitesse par un facteur exp(-dt/0,15) sans
-// l'annuler, et la composante de la gravité le long d'une pente assez raide
-// entretient un fluage résiduel que cet amortissement ne rattrape jamais tout
-// à fait. La limite pratique de ce modèle (sphère + amortissement exponentiel)
-// est donc géométrique-dynamique, aux alentours de 30-33°, en-deçà du repli
-// optique à 41° — actée ici en commentaire plutôt que corrigée : relever
-// H_ON ne changerait rien, le blocage est sur W_ON, et le désarmer viderait
-// le critère « une sphère qui roule n'est pas posée » ailleurs sur le banc.
+// seuils actuels. Ce n'est pas la hauteur qui borne (H_ON=0,2 reste large
+// jusqu'à ~41° géométriquement) : au-delà de l'angle de friction du ground
+// hold (atan(0,6) ≈ 31°, voir physics.js) la sphère glisse et quitte la
+// pente — mesuré à 35° avant correction, elle retombait 18 m plus bas.
+//
+// Le fluage résiduel qui bloquait jadis toute pente au-delà de ~30° (la
+// vitesse angulaire ne redescendait plus sous W_ON, 0,37 rad/s en fin de
+// trace à 33°) n'était pas une limite du modèle mais un défaut : le ground
+// hold amortissait la vitesse sans jamais l'annuler. C'est corrigé dans
+// physics.js — la friction statique l'annule — et la section « poses
+// réparties » ci-dessous verrouille le résultat sur du terrain réel.
 function findSlope(targetDeg, radius = 60, step = 1) {
 	let best = null;
 	for (let x = SPAWN.x - radius; x <= SPAWN.x + radius; x += step) {
