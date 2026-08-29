@@ -617,6 +617,43 @@ Plan d'origine (contexte de la décision d'architecture) :
     Rapier — plutôt qu'au stick, faute d'accès manette dans cet
     environnement).
 
+- **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
+  SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
+  `npm run add-map`.
+  - **La règle** : une tuile est retenue dès que le tracé la touche, même d'un
+    coin. La zone extraite est donc toujours un sur-ensemble du tracé, comme le
+    rectangle l'est déjà du fait de l'arrondi sur le treillis. Un corridor plus
+    fin qu'une tuile reste extractible.
+  - **Deux ports, une fixture.** Le prédicat vit dans `pkg/mth/poly.go` et dans
+    le bloc polygone de `tools/lib/tiles.mjs`. Les deux nomment le dossier de
+    cache : une divergence coûterait un re-téléchargement silencieux de
+    plusieurs gigaoctets. `flyover-reverse-engineering/testdata/poly-cases.json`
+    est lu des deux côtés (`go test ./pkg/mth/`, `node tools/map-poly-selftest.mjs`),
+    10 cas, 15 872 décisions de tuile, hash compris. Les deux ports s'accordent.
+  - **Vérifié à travers le vrai binaire Go** (`--plan`, aucune requête de tuile) :
+    sur le corridor en diagonale de la fixture, `columns 123`, `masked 717`,
+    `pruned 0`, et `exportDir` nommé `poly-4b6f9117e786-20-20` — exactement le
+    hash calculé par le port JS. `--bbox` inchangé (1350 colonnes, `masked 0`,
+    même nom de dossier).
+  - **Vérifié dans Chromium** (CDP, `runScanner()` monté sur une page de sonde,
+    puis `add-map.html` de même), sur un tracé en L au-dessus de Paris : les deux
+    écrans posent le même escalier de 504 segments, annoncent 4,87 km² et ~4 min
+    pour le tracé contre 9,75 km² et ~8 min pour son emprise, et le treillis
+    disparaît sous 7 px pendant que le contour reste dessiné.
+  - **Deux mensonges d'écran corrigés au passage**, tous deux invisibles aux
+    tests unitaires : `TILES` affichait `cols × rows`, c'est-à-dire l'emprise
+    (15 812) et non ce qui est demandé (8 069) — l'économie, seule raison d'être
+    du polygone, n'apparaissait nulle part ; et `surveyCentre()` interrogeait
+    Nominatim au centre de l'emprise, qui sur un L tombe dans l'encoche, donc on
+    décrivait un quartier qu'on n'extrait pas. La sonde de couverture avait le
+    même travers et vise désormais une tuile réellement retenue.
+  - **Non vérifié** : aucune extraction réelle par polygone n'a encore été
+    lancée. Tout ce qui précède est mesuré sans télécharger une seule tuile
+    (`--plan`) ou dans le navigateur. Il reste à sortir une vraie carte d'un
+    tracé, et à relancer la même acquisition pour voir le log dire « Tuile déjà
+    téléchargée » — la seule preuve en conditions réelles que le hash du Go et
+    celui de Node concordent.
+
 ## Non vérifié / à faire
 
 - **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
