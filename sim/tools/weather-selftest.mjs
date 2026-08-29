@@ -415,4 +415,45 @@ await ta('la date qui fait foi est celle de l\'API, pas celle du serveur', async
 	assert.equal(r.snapshot.day, '2026-08-29');
 });
 
+// ---------------------------------------------------------- sévérité (PHASE 19)
+
+t('severity : chaque régime en a une, et une seule des quatre', () => {
+	const levels = new Set(['nominal', 'watch', 'marginal', 'nogo']);
+	for (const regime of W.REGIMES) {
+		const s = W.severity({ regime, windSpeed: 0 });
+		assert.ok(levels.has(s), `${regime} : sévérité inconnue « ${s} »`);
+	}
+});
+
+t('severity : ce que la Bible §14 appelle marginal ne passe jamais pour nominal', () => {
+	// Le même jeu de régimes que celui qui déclenche « >>> MARGINAL CONDITIONS »
+	// dans formatForecast : les deux ne doivent pas pouvoir diverger.
+	for (const regime of ['WINDY', 'GALE', 'STORM', 'HEAVY RAIN', 'RAIN', 'FOG']) {
+		const s = W.severity({ regime, windSpeed: 0 });
+		assert.ok(s === 'marginal' || s === 'nogo',
+			`${regime} est marginal pour formatForecast mais « ${s} » pour severity`);
+	}
+	const gale = { day: '2026-08-29', source: 'test', days: [W.sanitize({ windSpeed: 20 })] };
+	assert.equal(gale.days[0].regime, 'GALE');
+	assert.ok(W.conditionsLine(gale).startsWith('>>> '));
+	assert.equal(W.severity(gale.days[0]), 'nogo');
+});
+
+t('severity : on ne sort pas par coup de vent ni par tempête', () => {
+	assert.equal(W.severity({ regime: 'GALE', windSpeed: 20 }), 'nogo');
+	assert.equal(W.severity({ regime: 'STORM', windSpeed: 20 }), 'nogo');
+});
+
+t('severity : un ciel calme sur un vent déjà soutenu reste une information', () => {
+	// classify ne bascule sur WINDY qu'à 9 m/s ; ça se sent dès 6.
+	assert.equal(W.severity({ regime: 'CLEAR', windSpeed: 2 }), 'nominal');
+	assert.equal(W.severity({ regime: 'CLEAR', windSpeed: 7 }), 'watch');
+	assert.equal(W.severity({ regime: 'OVERCAST', windSpeed: 8 }), 'watch');
+});
+
+t('severity : pas de snapshot, pas de couleur', () => {
+	assert.equal(W.severity(null), 'nominal');
+	assert.equal(W.severity(undefined), 'nominal');
+});
+
 console.log(`\n${n} tests météo OK`);

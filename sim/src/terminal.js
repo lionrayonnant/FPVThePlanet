@@ -5,7 +5,7 @@
 import * as operatorApi from './operator.js';
 import { captureControlVector, bootstrap } from './bootstrap.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
-import { worldWeather, formatForecast, headline, today as weatherToday } from './weather.js';
+import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -139,8 +139,14 @@ function localTerrain(root, scenes) {
 				.then((snap) => {
 					const t = snap && weatherToday(snap);
 					sky.textContent = t ? headline(t) : '';
+					// La couleur ne sort que si les conditions changent la décision
+					// de voler (PHASE 19, Bible §38) : `nominal` ne pose rien et la
+					// ligne reste en encre neutre.
+					const sev = t ? weatherSeverity(t) : 'nominal';
+					if (sev !== 'nominal') sky.dataset.severity = sev;
+					else delete sky.dataset.severity;
 				})
-				.catch(() => { sky.textContent = ''; });
+				.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
 			row.append(name, size, sky,
 				button('FORECAST', () => forecastScreen(root, sc)),
 				button('OPEN', () => { s.remove(); resolve(sc.slug); }, 'terminal-cta'));

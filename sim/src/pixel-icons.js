@@ -2,6 +2,8 @@
 // la couleur vient du contexte (currentColor), jamais de l'icône. Pas d'emoji,
 // pas de Material Design. Module pur, Node-safe — sert aussi à générer le
 // favicon (voir faviconDataURI, collé en dur dans index.html).
+import { token } from './palette.js';
+
 export const PIXEL_ICONS = {
 	drone: [
 		'##........##',
@@ -148,6 +150,12 @@ export function iconSVG(name, { color = 'currentColor', size = 12, background = 
 }
 
 // Favicon : drone blanc cassé sur fond sombre (palette de base, Bible §38).
+// Un data URI est un document isolé : il ne voit pas les `var(--…)` de la page,
+// il faut donc lui passer des couleurs résolues. Elles viennent quand même des
+// tokens plutôt que d'être recopiées — avant la PHASE 19 c'était deux gris de
+// plus, hors palette.
 export function faviconDataURI() {
-	return `data:image/svg+xml,${encodeURIComponent(iconSVG('drone', { color: '#e8e6e0', size: 16, background: '#141412' }))}`;
+	return `data:image/svg+xml,${encodeURIComponent(iconSVG('drone', {
+		color: token('--warm-white'), size: 16, background: token('--dark-grey'),
+	}))}`;
 }
