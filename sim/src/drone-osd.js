@@ -14,8 +14,15 @@ import * as THREE from 'three';
 // dimensionné à la GRILLE de la cible et pas à la fenêtre : une incrustation
 // vidéo est à résolution fixe. C'est aussi ce qui fait qu'un OSD 30×16 est
 // énorme et qu'un 50×18 est fin, sans qu'aucun code n'ait à le dire.
-const CELL_W = 24;
-const CELL_H = 34;
+//
+// ANALOG utilise une cellule bien plus petite ET un échantillonnage au plus
+// proche (voir le constructeur) : un vrai MAX7456 pose des glyphes de
+// quelques pixels de large, pas du texte anti-aliasé plein cadre. C'est ce
+// qui donne le côté "chunky" d'un analogique face au numérique, net.
+const CELL_SIZE = {
+	ANALOG: { w: 9, h: 13 },
+	DIGITAL: { w: 24, h: 34 },
+};
 
 const FONT_STACK = '"DejaVu Sans Mono", "Liberation Mono", "Courier New", monospace';
 const FONT_SCALE = { DEFAULT: 1.0, BOLD: 1.0, LARGE: 1.18, CLARITY: 0.92 };
@@ -31,17 +38,36 @@ const pad = (n, w) => String(n).padStart(w, ' ');
 // voir comme absente, jamais comme une valeur plausible.
 const dash = (unit) => `--${unit}`;
 
+// Éléments purement graphiques : pas de texte à comparer/figer/corrompre, ils
+// sont redessinés avec le reste dès qu'un chiffre bouge.
+const GRAPHIC_KEYS = new Set(['HORIZON', 'CROSSHAIR', 'BATT_BAR', 'THR_BAR']);
+
+// Cadence maximale de repeinture d'un OSD analogique : un MAX7456 réel
+// rafraîchit autour de 10 Hz, pas à la cadence de rendu. Le numérique n'a pas
+// ce plafond — voir commit().
+const ANALOG_REPAINT_MS = 100;
+// Période du clignotement d'alerte (batterie basse / RXLOSS), comme un vrai
+// OSD Betaflight.
+const BLINK_PERIOD_MS = 500;
+
 export class DroneOsd {
 	constructor(layout) {
 		this.layout = layout;
+		const cell = CELL_SIZE[layout.style] ?? CELL_SIZE.ANALOG;
+		this.cellW = cell.w;
+		this.cellH = cell.h;
 		this.canvas = document.createElement('canvas');
-		this.canvas.width = layout.grid.cols * CELL_W;
-		this.canvas.height = layout.grid.rows * CELL_H;
+		this.canvas.width = layout.grid.cols * this.cellW;
+		this.canvas.height = layout.grid.rows * this.cellH;
 		this.ctx = this.canvas.getContext('2d');
 
 		this.texture = new THREE.CanvasTexture(this.canvas);
-		this.texture.minFilter = THREE.LinearFilter;
-		this.texture.magFilter = THREE.LinearFilter;
+		// L'analogique reste en filtrage au plus proche : c'est l'échantillonnage
+		// qui garde les texels bruts d'un canvas minuscule bien blocs, comme un
+		// vrai MAX7456. Le numérique, lui, reste lissé — c'est un OSD HD net.
+		const filter = layout.style === 'ANALOG' ? THREE.NearestFilter : THREE.LinearFilter;
+		this.texture.minFilter = filter;
+		this.texture.magFilter = filter;
 		this.texture.generateMipmaps = false;
 		// Le canvas est déjà en sRGB non prémultiplié ; le pipeline couleur du
 		// jeu est délibérément pass-through (lens.js, HANDOFF bug #10), donc
@@ -50,19 +76,30 @@ export class DroneOsd {
 
 		this._values = {};
 		this._painted = null;
+		this._lastPaintAt = 0;
+		this._frozenText = null; // valeur figée par la panne FROZEN, capturée au premier commit
 	}
 
 	get style() { return this.layout.style; }
 
 	update(values) { this._values = values; }
 
-	// Redessine si et seulement si la chaîne affichée a changé. Les valeurs sont
-	// arrondies à l'affichage, donc c'est quelques repeints par seconde et pas
-	// soixante.
+	// Redessine si et seulement si la chaîne affichée a changé (et, en
+	// analogique, pas plus vite que le plafond de rafraîchissement matériel).
 	commit() {
-		const lines = this.layout.elements.map((e) => `${e.key}:${this._text(e.key)}`).join('|');
+		const now = performance.now();
+		const warning = this._values.warning;
+		const blinkOn = !warning || Math.floor(now / BLINK_PERIOD_MS) % 2 === 0;
+
+		let lines = this.layout.elements.map((e) => `${e.key}:${this._text(e.key)}`).join('|');
+		if (warning) lines += `|blink:${blinkOn}`;
 		if (lines === this._painted) return;
+
+		if (this.layout.style === 'ANALOG' && now - this._lastPaintAt < ANALOG_REPAINT_MS) return;
+
 		this._painted = lines;
+		this._lastPaintAt = now;
+		this._blinkOn = blinkOn;
 		this._paint();
 		this.texture.needsUpdate = true;
 	}
@@ -70,6 +107,21 @@ export class DroneOsd {
 	dispose() { this.texture.dispose(); }
 
 	_text(key) {
+		// La panne FROZEN : un capteur mort reste sur sa première lecture pour
+		// tout le vol (si c'est un chronomètre, il ne repart jamais à zéro —
+		// même symptôme, même cause matérielle).
+		if (key === this.layout.frozenKey) {
+			if (this._frozenText === null) this._frozenText = this._rawText(key);
+			return this._frozenText;
+		}
+		const raw = this._rawText(key);
+		// La panne GLITCH : une ROM de police morte affiche des blocs à la place
+		// des caractères, jamais l'absence pure et simple de l'élément.
+		if (key === this.layout.glitchKey) return raw.replace(/\S/g, '▯');
+		return raw;
+	}
+
+	_rawText(key) {
 		const v = this._values;
 		const imperial = this.layout.units === 'IMPERIAL';
 		const dec = this.layout.style === 'DIGITAL' ? 1 : 0;
@@ -125,39 +177,72 @@ export class DroneOsd {
 			case 'VTX_CHAN': return `F${v.vtxChan ?? 4}`;
 			case 'CRAFT_NAME': return this.layout.craftName ?? '';
 			case 'WARNINGS': return v.warning ?? '';
-			// Éléments graphiques : rien à comparer, ils sont redessinés avec le
-			// reste dès qu'un chiffre bouge.
 			case 'HORIZON': return `${Math.round((v.rollRad ?? 0) * 30)}/${Math.round((v.pitchRad ?? 0) * 30)}`;
 			case 'HEADING_TAPE': return String(Math.round(((v.headingRad ?? 0) * 180 / Math.PI + 360) % 360));
 			case 'CROSSHAIR': return '';
+			case 'BATT_BAR': return Number.isFinite(v.socPercent) ? `${Math.round(v.socPercent)}` : '--';
+			case 'THR_BAR': return Number.isFinite(v.throttle01) ? `${Math.round(v.throttle01 * 100)}` : '--';
 			default: return '';
 		}
 	}
+
+	// L'OSD entier peut être décalé de quelques cellules (panne OFFSET) : une
+	// incrustation mal calée déborde du cadre plutôt que de rester centrée.
+	_ox(x) { return x + (this.layout.offsetCols ?? 0) * this.cellW; }
+	_oy(y) { return y + (this.layout.offsetRows ?? 0) * this.cellH; }
 
 	_paint() {
 		const { ctx, layout } = this;
 		ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
 		const scale = FONT_SCALE[layout.font] ?? 1;
-		ctx.font = `${FONT_WEIGHT[layout.font] ?? 500} ${Math.round(CELL_H * 0.72 * scale)}px ${FONT_STACK}`;
+		ctx.font = `${FONT_WEIGHT[layout.font] ?? 500} ${Math.round(this.cellH * 0.72 * scale)}px ${FONT_STACK}`;
 		ctx.textBaseline = 'middle';
 		ctx.textAlign = 'left';
-
-		// Blanc bordé de noir : c'est ce que fait un MAX7456, et c'est la seule
-		// façon de rester lisible sur un ciel blanc comme sur du bitume.
 		ctx.lineJoin = 'round';
-		ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-		ctx.lineWidth = layout.style === 'ANALOG' ? 5 : 3;
-		ctx.fillStyle = '#fff';
+
+		const tint = layout.tint ?? '#fff';
+		const panel = layout.panel ?? 'OUTLINE';
 
 		for (const e of layout.elements) {
-			const x = e.col * CELL_W;
-			const y = e.row * CELL_H + CELL_H * 0.5;
+			const x = this._ox(e.col * this.cellW);
+			const y = this._oy(e.row * this.cellH + this.cellH * 0.5);
 			if (e.key === 'CROSSHAIR') { this._crosshair(x, y); continue; }
 			if (e.key === 'HORIZON') { this._horizon(); continue; }
+			if (e.key === 'BATT_BAR') { this._bar(x, y, this._values.socPercent, '#39ff14'); continue; }
+			if (e.key === 'THR_BAR') { this._bar(x, y, (this._values.throttle01 ?? 0) * 100, '#00e5ff'); continue; }
+
 			const text = this._text(e.key);
 			if (!text) continue;
+			if (e.key === 'WARNINGS' && !this._blinkOn) continue;
+			this._drawText(x, y, text, tint, panel);
+		}
+	}
+
+	_drawText(x, y, text, tint, panel) {
+		const { ctx } = this;
+		const w = ctx.measureText(text).width;
+		const padX = this.cellW * 0.3;
+		const bandH = this.cellH * 0.86;
+
+		if (panel === 'BOX') {
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+			ctx.fillRect(x - padX, y - bandH / 2, w + padX * 2, bandH);
+			ctx.fillStyle = tint;
+			ctx.fillText(text, x, y);
+		} else if (panel === 'INVERT') {
+			ctx.fillStyle = 'rgba(235, 235, 235, 0.9)';
+			ctx.fillRect(x - padX, y - bandH / 2, w + padX * 2, bandH);
+			ctx.fillStyle = '#111';
+			ctx.fillText(text, x, y);
+		} else {
+			// OUTLINE : blanc (ou la teinte numérique) bordé de noir, comme un vrai
+			// MAX7456 — la seule façon de rester lisible sur un ciel blanc comme
+			// sur du bitume.
+			ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+			ctx.lineWidth = this.layout.style === 'ANALOG' ? 3 : 3;
 			ctx.strokeText(text, x, y);
+			ctx.fillStyle = tint;
 			ctx.fillText(text, x, y);
 		}
 	}
@@ -168,11 +253,35 @@ export class DroneOsd {
 		ctx.lineWidth = 3;
 		ctx.strokeStyle = 'rgba(0,0,0,0.85)';
 		ctx.beginPath();
-		ctx.moveTo(x, y); ctx.lineTo(x + CELL_W * 3, y);
+		ctx.moveTo(x, y); ctx.lineTo(x + this.cellW * 3, y);
 		ctx.stroke();
 		ctx.strokeStyle = '#fff';
 		ctx.lineWidth = 1.5;
 		ctx.stroke();
+		ctx.restore();
+	}
+
+	// Jauge graphique (batterie / gaz) : un cadre et un remplissage
+	// proportionnel, posés sur la grille comme HORIZON/CROSSHAIR.
+	_bar(x, y, pct01to100, fillColor) {
+		const { ctx } = this;
+		const w = this.cellW * 7;
+		const h = this.cellH * 0.5;
+		const top = y - h / 2;
+		const p = Number.isFinite(pct01to100) ? Math.max(0, Math.min(100, pct01to100)) / 100 : 0;
+		ctx.save();
+		ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+		ctx.lineWidth = 3;
+		ctx.strokeRect(x, top, w, h);
+		ctx.fillStyle = '#000';
+		ctx.globalAlpha = 0.35;
+		ctx.fillRect(x, top, w, h);
+		ctx.globalAlpha = 1;
+		ctx.fillStyle = fillColor;
+		ctx.fillRect(x, top, w * p, h);
+		ctx.strokeStyle = '#fff';
+		ctx.lineWidth = 1;
+		ctx.strokeRect(x, top, w, h);
 		ctx.restore();
 	}
 

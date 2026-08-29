@@ -1052,6 +1052,7 @@ if (!frozen) {
 		cellV: bat.voltage / PROFILE.battery.cells,
 		currentA: bat.current,
 		mahUsed: bat.usedMah,
+		socPercent: bat.soc * 100,
 		altM: p.y - spawnY,
 		agiM: groundY === null ? null : p.y - groundY,
 		groundSpeedMs: Math.hypot(v.x, v.z),
@@ -1274,7 +1275,10 @@ async function openFlightSession() {
 	applyTargetCamera(targetCamera({ seed, family }));
 
 	droneOsd?.dispose();
-	droneOsd = new DroneOsd(droneOsdLayout({ seed, family, mode }));
+	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines
+	// cibles n'ont simplement pas d'OSD, ou le leur est éteint/HS.
+	const osdLayout = droneOsdLayout({ seed, family, mode });
+	droneOsd = osdLayout ? new DroneOsd(osdLayout) : null;
 	lens.setOsd(droneOsd);
 	fpvtpOsd.show();
 	console.log(`[camera] ${camSpec.aspectName} ${Math.round(camSpec.fovDeg)}° uptilt ${Math.round(camSpec.uptiltDeg)}° res ${Math.round(camSpec.resScale * 100)}%`);

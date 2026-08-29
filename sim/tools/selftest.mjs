@@ -18,7 +18,10 @@ import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { createTileMaterial } from '../src/TileMaterial.js';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
-import { droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY } from './drone-osd-model.mjs';
+import {
+	droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY,
+	PANEL_MODES, ARCHETYPES, FIRMWARES, DIGITAL_TINTS, PATHOLOGIES,
+} from './drone-osd-model.mjs';
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
@@ -1455,6 +1458,8 @@ console.log('\nOSD drone — layout');
 	const digitalGrids = new Set(GRIDS.DIGITAL.map((g) => `${g[0]}x${g[1]}`));
 	let gridsOk = true, boundsOk = true, placedOk = true, noOverlap = true, staplesOk = true;
 	let gpsLeak = false, gpsPresent = false;
+	let panelOk = true, archetypeOk = true, firmwareOk = true, tintOk = true;
+	let noOsdCount = 0, frozenCount = 0, glitchCount = 0, offsetCount = 0, drawn = 0;
 	// `col`/`row` sont volontairement exclus de cette signature : ils portent une
 	// entropie de placement quasi continue et indépendante du contenu (25
 	// largeurs différentes, positions presque libres sur la grille), donc même un
@@ -1468,6 +1473,17 @@ console.log('\nOSD drone — layout');
 		for (const mode of ['ANALOG', 'DIGITAL']) {
 			const fam = ['freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5'][i % 5];
 			const l = droneOsdLayout({ seed: `v${i}`, family: fam, mode });
+			if (l === null) { noOsdCount++; continue; }        // panne NO_OSD : rien de plus à vérifier
+			drawn++;
+			if (l.frozenKey) frozenCount++;
+			if (l.glitchKey) glitchCount++;
+			if (l.offsetCols !== 0 || l.offsetRows !== 0) offsetCount++;
+			if (!PANEL_MODES.includes(l.panel)) panelOk = false;
+			if (!ARCHETYPES.includes(l.archetype)) archetypeOk = false;
+			if (!FIRMWARES.includes(l.firmware)) firmwareOk = false;
+			if (l.style === 'DIGITAL' && !DIGITAL_TINTS.includes(l.tint)) tintOk = false;
+			if (l.style === 'ANALOG' && l.tint !== '#ffffff') tintOk = false;
+
 			const set = mode === 'ANALOG' ? analogGrids : digitalGrids;
 			if (!set.has(gridKey(l.grid))) gridsOk = false;
 
@@ -1499,9 +1515,9 @@ console.log('\nOSD drone — layout');
 
 		// Les capteurs absents suivent la famille, pas le hasard.
 		const tp = droneOsdLayout({ seed: `g${i}`, family: 'toothpick', mode: 'ANALOG' });
-		if (tp.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsLeak = true;
+		if (tp?.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsLeak = true;
 		const lr = droneOsdLayout({ seed: `g${i}`, family: 'longrange', mode: 'DIGITAL' });
-		if (lr.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsPresent = true;
+		if (lr?.elements.some((e) => GPS_ELEMENTS.includes(e.key))) gpsPresent = true;
 	}
 
 	check('chaque style reste dans ses grilles, et elles ne se recoupent pas', gridsOk);
@@ -1511,17 +1527,27 @@ console.log('\nOSD drone — layout');
 	check('BAT_V et un chronomètre sont toujours là', staplesOk);
 	check('toothpick : aucun élément GPS (il n\'en a pas)', gpsLeak === false);
 	check('longrange : le GPS apparaît', gpsPresent === true);
+	check('modes de panneau, archétypes, firmwares connus', panelOk && archetypeOk && firmwareOk);
+	check('teinte : blanc figé en analogique, palette numérique en HD', tintOk);
 
-	// « Ce drone est encore différent » : mesuré, pas espéré. Sur 400 tirages,
-	// des paliers bas volontairement — c'est un plancher, pas une cible.
-	// Mesuré à 400/400 sur ce jeu de graines ; le plancher garde une marge
-	// honnête (12.5%) plutôt que de coller à la mesure.
-	check('la variété est réelle : signatures visibles distinctes (style, grille, police, unités, nom, éléments)', visibleSignatures.size > 350, `${visibleSignatures.size}/400`);
-	check('la variété est réelle : jeux d\'éléments distincts', fieldSets.size > 100, `${fieldSets.size}/400`);
+	// Les pannes (NO_OSD/FROZEN/GLITCH/OFFSET) restent des accidents rares, pas
+	// la norme — un plancher ET un plafond, mesurés sur les mêmes 400 tirages.
+	const total = drawn + noOsdCount;
+	check('NO_OSD reste rare', noOsdCount > 0 && noOsdCount < total * 0.15, `${noOsdCount}/${total}`);
+	check('FROZEN reste rare', frozenCount < drawn * 0.15, `${frozenCount}/${drawn}`);
+	check('GLITCH reste rare', glitchCount < drawn * 0.20, `${glitchCount}/${drawn}`);
+	check('OFFSET reste rare', offsetCount < drawn * 0.15, `${offsetCount}/${drawn}`);
+
+	// « Ce drone est encore différent » : mesuré, pas espéré. Sur les tirages
+	// non-NO_OSD (≈380/400), des paliers bas volontairement — c'est un
+	// plancher, pas une cible. Le plancher garde une marge honnête (12.5%)
+	// plutôt que de coller à la mesure.
+	check('la variété est réelle : signatures visibles distinctes (style, grille, police, unités, nom, éléments)', visibleSignatures.size > drawn * 0.875, `${visibleSignatures.size}/${drawn}`);
+	check('la variété est réelle : jeux d\'éléments distincts', fieldSets.size > 100, `${fieldSets.size}/${drawn}`);
 
 	let imperial = 0;
 	for (let i = 0; i < 400; i++) {
-		if (droneOsdLayout({ seed: `u${i}`, family: 'freestyle5', mode: 'ANALOG' }).units === 'IMPERIAL') imperial++;
+		if (droneOsdLayout({ seed: `u${i}`, family: 'freestyle5', mode: 'ANALOG' })?.units === 'IMPERIAL') imperial++;
 	}
 	check('les unités impériales existent sans dominer', imperial > 40 && imperial < 200, `${imperial}/400`);
 }
