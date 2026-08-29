@@ -144,6 +144,9 @@ const LensShader = {
 		uSensor: { value: new THREE.Vector4(0, 0, 1, 0) },
 		// x écrasement des hautes lumières, y teinte, z quantité de teinte.
 		uSensor2: { value: new THREE.Vector3(0, 0, 0) },
+		// Arbitre entre les deux façons de mourir d'un décodeur composite :
+		// 0 tout au gris, 1 tout au cross-color. N'existe que sous LINK_MODE == 1.
+		uCrossColor: { value: 0 },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -168,6 +171,7 @@ const LensShader = {
 		// Le capteur de la cible, en amont du lien.
 		uniform vec4 uSensor;
 		uniform vec3 uSensor2;
+		uniform float uCrossColor;
 		varying vec2 vUv;
 
 		#if DROPS > 0
@@ -576,7 +580,31 @@ const LensShader = {
 				// eats. That slide to black and white is the signature of a dying
 				// analog link. It stops short of fully grey — a little colour
 				// survives right down to the breakup.
-				c = mix(c, vec3(dot(c, LUMA)), 0.85 * smoothstep(0.85, 0.05, uLink));
+				// Les deux façons de mourir d'un décodeur composite, et chaque
+				// caméra tombe quelque part entre les deux. uCrossColor à 0 :
+				// la sous-porteuse est mangée, l'image part en gris. À 1 : le
+				// décodeur s'accroche et confond le détail avec de la couleur.
+				float fadeK = smoothstep(0.85, 0.05, uLink);
+				c = mix(c, vec3(dot(c, LUMA)), 0.85 * fadeK * (1.0 - uCrossColor));
+
+				// Cross-color. Passe-haut horizontal de la luma à l'échelle de la
+				// sous-porteuse : le décodeur prend ce détail pour une phase de
+				// chrominance. La couleur sort donc de l'image et pas d'un
+				// générateur de bruit — sur un ciel uni il ne se passe
+				// strictement rien, et c'est exactement ce qu'il faut.
+				if (uCrossColor > 0.0) {
+					vec2 sub = vec2(1.0 / uResolution.x, 0.0) * 1.5;
+					float l0 = dot(texture2D(tDiffuse, WRAPX(uvHere - sub)).rgb, LUMA);
+					float l1 = dot(texture2D(tDiffuse, WRAPX(uvHere)).rgb, LUMA);
+					float l2 = dot(texture2D(tDiffuse, WRAPX(uvHere + sub)).rgb, LUMA);
+					float hp = l1 - (l0 + l2) * 0.5;
+					// La phase rampe le long de la ligne et dérive dans le temps :
+					// c'est ce qui fait ramper les couleurs au lieu de les figer.
+					float phase = gl_FragCoord.x * 0.7 + gl_FragCoord.y * 1.7 + uTime * 6.0;
+					vec3 carrier = cos(phase + vec3(0.0, 2.094, 4.189));
+					c += carrier * hp * 14.0 * uCrossColor * (0.15 + 0.85 * fadeK);
+					c = clamp(c, 0.0, 1.0);
+				}
 
 				// RF grain, mostly on luminance with a little chroma left over.
 				// Quadratic in the fade, so the healthy half of the range stays
@@ -748,9 +776,14 @@ export class FpvLens {
 	// Le capteur de la cible. Tout est à zéro par défaut, sauf la saturation :
 	// un uniform à zéro doit vouloir dire « rien à faire ».
 	setSensor({ grain = 0, lift = 0, saturation = 1, ringing = 0,
-	            clip = 0, tintHue = 0, tintAmount = 0 } = {}) {
+	            clip = 0, tintHue = 0, tintAmount = 0, crossColor = 0 } = {}) {
 		this._u.uSensor.value.set(grain, lift, saturation, ringing);
 		this._u.uSensor2.value.set(clip, tintHue, tintAmount);
+		// uCrossColor n'entre PAS dans le calcul de `active` ci-dessous : il ne
+		// pilote rien sous #if SENSOR, seulement le bloc LINK_MODE == 1 (déjà
+		// compilé ou non selon le mode de lien). Le faire recompiler le
+		// capteur serait un couplage faux et une recompilation pour rien.
+		this._u.uCrossColor.value = crossColor;
 		// Actif dès qu'un seul réglage s'écarte du neutre. La saturation neutre
 		// vaut 1 et non 0 : un test « tout à zéro » la prendrait à tort pour
 		// active, et une saturation à 0 (désaturation totale, un réglage
