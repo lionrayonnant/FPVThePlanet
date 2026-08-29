@@ -106,6 +106,21 @@ const GLARE_R = 0.06;     // sampling radius, fraction of the picture height
 const GLARE_MIX = 0.35;   // how much veil at the thickest fog
 const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than picture
 
+// Le soleil (#23). L'imagerie est non éclairée et le restera : le soleil
+// n'existe ici que comme événement optique dans le barillet — un disque, un
+// halo, un voile — et comme gain d'exposition. Rien de tout cela ne touche à la
+// géométrie.
+//
+// Rayon, étalement et force sont choisis à l'œil, exactement comme K1/K2/CA et
+// GLARE_R : il n'y a pas d'optique à mesurer ici. Ce qui n'est PAS à l'œil,
+// c'est qu'ils sont tous multipliés par uSunAmount, qui descend de la
+// transmittance atmosphérique et de la couverture nuageuse — le voile ne peut
+// donc jamais contredire le régime météo affiché au joueur avant le vol.
+const SUN_DISC = 0.020;    // rayon du disque, en unités de l'espace carré
+const SUN_HALO = 0.32;     // rayon du lobe autour du disque
+const SUN_HALO_GAIN = 0.9; // ce que le halo ajoute au plus fort
+const SUN_VEIL = 0.22;     // remontée des noirs quand le soleil est dans le champ
+
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
 // on-the-crossing rule. LINK_OFF must render byte-identically to the pass as it
@@ -115,7 +130,7 @@ export const LINK_ANALOG = 1;
 export const LINK_DIGITAL = 2;
 
 const LensShader = {
-	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0, OSD: 0 },
+	defines: { TAPS: MAX_TAPS, LINK_MODE: LINK_OFF, DROPS: 0, GLARE: 0, SENSOR: 0, OSD: 0, SUN: 0 },
 	uniforms: {
 		tDiffuse: { value: null },
 		uAspect: { value: 1 },
@@ -150,6 +165,16 @@ const LensShader = {
 		// L'OSD de la cible : un canvas 2D peint par DroneOsd, échantillonné aux
 		// UV déjà distordues par le barillet. null quand aucun OSD n'est actif.
 		uOsd: { value: null },
+		// Le soleil : sa position dans l'espace carré de la passe (xy), s'il est
+		// devant la caméra (z = 1) ou derrière (z = 0), sa couleur, sa force
+		// (transmittance × nuages × occlusion) et le gain d'exposition.
+		uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+		uSunColor: { value: new THREE.Color(1, 1, 1) },
+		uSunAmount: { value: 0 },
+		// Multiplie l'image entière. Vaut exactement 1 quand la caméra est à son
+		// point de calibrage, et c'est ce qui rend le cas de référence identique
+		// au bit près à la passe telle qu'elle était avant ce ticket.
+		uExposure: { value: 1 },
 	},
 	vertexShader: /* glsl */`
 		varying vec2 vUv;
@@ -179,6 +204,17 @@ const LensShader = {
 
 		#if OSD
 			uniform sampler2D uOsd;
+		#endif
+
+		#if SUN
+			#define SUN_DISC ${SUN_DISC.toFixed(4)}
+			#define SUN_HALO ${SUN_HALO.toFixed(3)}
+			#define SUN_HALO_GAIN ${SUN_HALO_GAIN.toFixed(2)}
+			#define SUN_VEIL ${SUN_VEIL.toFixed(3)}
+			uniform vec3 uSunPos;
+			uniform vec3 uSunColor;
+			uniform float uSunAmount;
+			uniform float uExposure;
 		#endif
 
 		#if DROPS > 0
@@ -481,17 +517,56 @@ const LensShader = {
 			}
 			#endif
 
+			#if SUN
+				// L'exposition d'abord : c'est le capteur, et tout ce qui suit se
+				// produit dans le verre en amont de lui — sauf qu'ici on peint le
+				// verre après coup, donc le disque et le halo sont ajoutés APRÈS
+				// le gain, sinon la caméra s'auto-atténuerait son propre soleil.
+				c *= uExposure;
+
+				if (uSunAmount > 0.0 && uSunPos.z > 0.5) {
+					// \`base\` est déjà l'espace carré, radialement symétrique — le
+					// même dans lequel les gouttes sont posées.
+					// Et surtout : \`base\` d'AVANT le barillet (uK1/uK2 n'ont pas encore
+					// joué à cette ligne). uSunPos est calculée à l'identique côté
+					// main.js, dans ce même espace non distordu — volontairement : la
+					// position écran du soleil ne doit pas bouger avec le curseur de
+					// barillet, seule l'image autour de lui doit se déformer.
+					float sd = length(base - uSunPos.xy);
+					// Voile : de la lumière qui n'est jamais venue du sujet, entrée
+					// de biais dans le barillet. Même argument que le voile de
+					// brouillard vingt lignes plus haut — une photo prise vers le
+					// soleil n'a pas de noir.
+					float veil = uSunAmount * SUN_VEIL
+						* (1.0 - smoothstep(0.0, 1.4, sd));
+					c += uSunColor * veil;
+					// Halo : le lobe autour de la source. En 1/(1+k·d²) plutôt
+					// qu'en gaussienne, parce qu'un halo d'objectif a des ailes
+					// longues et que c'est ce qu'on en voit.
+					float halo = uSunAmount * SUN_HALO_GAIN
+						/ (1.0 + 60.0 * (sd / SUN_HALO) * (sd / SUN_HALO));
+					c += uSunColor * halo;
+					// Disque. Le bord est adouci sur son propre rayon : à 0,5° il
+					// ne fait que quelques pixels et un bord dur y crénellerait.
+					float disc = uSunAmount
+						* (1.0 - smoothstep(SUN_DISC * 0.6, SUN_DISC, sd));
+					c += uSunColor * disc * 1.6;
+				}
+			#endif
+
 			// ---- l'OSD de la cible ---------------------------------------------
 			// Échantillonné à uvHere, la coordonnée déjà distordue par le
 			// barillet : l'OSD subit donc l'optique gratuitement. Pas d'aberration
 			// chromatique dessus — c'est une incrustation monochrome, séparer les
 			// canaux n'aurait pas de sens.
 			//
-			// Ici et pas ailleurs : après le flou, parce que l'OSD est collé au
-			// capteur et ne smeare pas quand la caméra tourne ; après les gouttes,
-			// parce que l'eau est sur le verre en amont ; avant le vignettage, le
-			// capteur et la liaison, parce que c'est ce qui fait que perdre le
-			// lien coûte de l'information.
+			// Après le soleil : le disque/halo sont un effet du verre, en amont du
+			// capteur ; l'OSD est incrusté par le flight controller de la cible, en
+			// aval du capteur — il se pose donc par-dessus. Ici et pas ailleurs :
+			// après le flou, parce que l'OSD est collé au capteur et ne smeare pas
+			// quand la caméra tourne ; après les gouttes, parce que l'eau est sur
+			// le verre en amont ; avant le vignettage, le capteur et la liaison,
+			// parce que c'est ce qui fait que perdre le lien coûte de l'information.
 			#if OSD
 			{
 				vec4 osd = texture2D(uOsd, uvHere);
@@ -750,6 +825,7 @@ export class FpvLens {
 		this._sensorActive = 0;
 		// L'OSD n'existe pas tant que main.js (Task 9) n'en a pas fourni un.
 		this._osd = null;
+		this._sunOn = false;
 
 		this.setParams({ lens: 0, vignette: 0, shutter: 0 });
 	}
@@ -850,6 +926,33 @@ export class FpvLens {
 		if (crossed) this._updateDefines();
 	}
 
+	// Le soleil, en nombres déjà cuits par sun.js : le lens ne connaît ni
+	// l'astronomie ni l'atmosphère, exactement comme il ne connaît pas la météo
+	// derrière setGlare(). `x`/`y` sont dans l'espace carré de la passe, `front`
+	// dit si le soleil est devant la caméra, `amount` porte la transmittance,
+	// les nuages et l'occlusion, `exposure` est le gain de l'AGC.
+	//
+	// Le bloc est compilé hors du shader quand il serait rigoureusement un
+	// no-op — la même promesse que LINK_OFF et que GLARE à zéro, et la raison
+	// pour laquelle une scène par ciel clair et soleil haut rend exactement
+	// l'image qu'elle rendait avant ce ticket.
+	setSun({ x = 0, y = 0, front = false, color = null, amount = 0, exposure = 1 } = {}) {
+		const a = amount > 0 ? (amount > 1 ? 1 : amount) : 0;
+		// `front` compte : le shader ne dessine rien quand le soleil est derrière
+		// la caméra, donc le bloc serait compilé pour rien. Reste l'exposition,
+		// qui multiplie l'image entière et n'a pas d'orientation.
+		const on = (a > 0 && !!front) || Math.abs(exposure - 1) > 1 / 512;
+		this._u.uSunPos.value.set(x, y, front ? 1 : 0);
+		if (color) this._u.uSunColor.value.copy(color);
+		this._u.uSunAmount.value = a;
+		this._u.uExposure.value = exposure;
+		// Seule la traversée recompile, pas chaque frame où le soleil bouge.
+		if (on !== this._sunOn) {
+			this._sunOn = on;
+			this._updateDefines();
+		}
+	}
+
 	// Advance the population and pack it into the uniforms. tanHalf is the
 	// camera's, and is what turns an angular footprint into the square space the
 	// shader evaluates the field in.
@@ -898,9 +1001,11 @@ export class FpvLens {
 		const defines = this.pass.material.defines;
 		const glare = this._glare > 0 ? 1 : 0;
 		const osd = this._osd ? 1 : 0;
+		const sun = this._sunOn ? 1 : 0;
 		if (taps === this._taps && defines.LINK_MODE === this._linkMode
 			&& defines.DROPS === this._dropBucket && defines.GLARE === glare
-			&& defines.SENSOR === this._sensorActive && defines.OSD === osd) return;
+			&& defines.SENSOR === this._sensorActive && defines.OSD === osd
+			&& defines.SUN === sun) return;
 		this._taps = taps;
 		defines.TAPS = taps;
 		defines.LINK_MODE = this._linkMode;
@@ -908,6 +1013,7 @@ export class FpvLens {
 		defines.GLARE = glare;
 		defines.SENSOR = this._sensorActive;
 		defines.OSD = osd;
+		defines.SUN = sun;
 		this.pass.material.needsUpdate = true;
 	}
 

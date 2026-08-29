@@ -73,7 +73,7 @@ canvas { display: block; }
    (fpvtp-osd.js : verdict > crash > pause). Le fond n'est pas décoratif :
    sans lui le texte se pose sur n'importe quelle image, et un ciel blanc
    l'efface. L'ancien HUD unique en avait un, celui-ci le garde. */
-#fo-crash, #fo-pause, #fo-status {
+#fo-pause, #fo-status {
 	position: absolute;
 	left: 50%;
 	top: 42%;
@@ -84,10 +84,9 @@ canvas { display: block; }
 	padding: 14px 28px;
 	background: rgba(6, 10, 14, .55);
 }
-#fo-crash { color: #ff5a5a; background: rgba(20, 0, 0, .5); }
 #fo-status[data-kind="landed"] { color: #7dff9b; }
 #fo-status[data-kind="lost"] { color: #ff5a5a; }
-#fo-crash small, #fo-pause small, #fo-status small {
+#fo-pause small, #fo-status small {
 	display: block;
 	font-size: 12px;
 	letter-spacing: .1em;
@@ -103,6 +102,18 @@ canvas { display: block; }
 	border: 1px solid rgba(232, 240, 244, .55);
 	border-radius: 50%;
 }
+
+/* Fin de vol (PHASE 14) : pas un écran de mort, un lien qui s'éteint. */
+#flight-end {
+	position: absolute; inset: 0;
+	display: flex; flex-direction: column; align-items: center; justify-content: center;
+	gap: .5em;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 22px; letter-spacing: .35em; text-transform: uppercase;
+	color: #c8d4dd;
+	pointer-events: none;
+}
+#flight-end div:empty { height: .6em; }
 
 /* ---------- settings ---------- */
 
@@ -171,25 +182,26 @@ canvas { display: block; }
 	z-index: 11;
 }
 .bootstrap-box {
-	width: min(560px, 86vw);
-	display: flex; flex-direction: column; gap: 12px;
+	width: min(840px, 88vw);
+	font-size: 21px;
+	display: flex; flex-direction: column; gap: 18px;
 }
 .bootstrap-box pre {
 	margin: 0;
 	white-space: pre-wrap;
 	color: var(--ink);
 }
-.bootstrap-vec { font-size: 20px; letter-spacing: .12em; }
-.bootstrap-row { display: flex; align-items: center; gap: 8px; }
+.bootstrap-vec { font-size: 30px; letter-spacing: .12em; }
+.bootstrap-row { display: flex; align-items: center; gap: 12px; }
 .bootstrap-err { color: var(--accent); min-height: 1.4em; }
 .bootstrap input {
 	background: #0d1218; color: var(--ink);
 	border: 1px solid rgba(255, 255, 255, .25);
-	padding: 10px 12px; font: inherit; letter-spacing: .1em;
+	padding: 15px 18px; font: inherit; letter-spacing: .1em;
 }
 .bootstrap-btn, .bootstrap button {
 	align-self: flex-start;
-	padding: 10px 14px;
+	padding: 15px 21px;
 	background: transparent; color: var(--ink);
 	border: 1px solid rgba(255, 255, 255, .25);
 	font: inherit; cursor: pointer;
@@ -203,23 +215,23 @@ canvas { display: block; }
 /* The Home is calm: no cards, no big metrics, no rounded corners. Navigation is
    inline text; the one framed control is [ GLOBAL SCANNER ]. */
 
-.terminal-box { gap: 16px; }
-.terminal-home .terminal-box { width: min(640px, 90vw); }
+.terminal-box { gap: 24px; font-size: 21px; }
+.terminal-home .terminal-box { width: min(940px, 92vw); }
 .terminal-nav { line-height: 1.9; }
 .terminal-nav button.terminal-link {
 	align-self: auto; padding: 0; border: 0; background: none;
 	color: var(--ink); font: inherit; letter-spacing: .04em; cursor: pointer;
 }
 .terminal-nav button.terminal-link:hover { color: var(--accent); }
-.terminal-foot { opacity: .5; font-size: 12px; margin-top: 4px; white-space: nowrap; }
+.terminal-foot { opacity: .5; font-size: 16px; margin-top: 4px; white-space: nowrap; }
 
-.terminal-areas { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
-.terminal-area { display: flex; align-items: baseline; gap: 14px; }
-.terminal-area > span:first-child { min-width: 180px; }
-.terminal-area-size { opacity: .55; font-size: 12px; }
+.terminal-areas { display: flex; flex-direction: column; gap: 9px; margin: 4px 0; }
+.terminal-area { display: flex; align-items: baseline; gap: 20px; }
+.terminal-area > span:first-child { min-width: 260px; }
+.terminal-area-size { opacity: .55; font-size: 16px; }
 /* Le temps qu'il fait sur la zone. Discret : c'est une information du monde,
    pas une commande — rien ici n'est cliquable. */
-.terminal-area-weather { opacity: .7; font-size: 12px; flex: 1; letter-spacing: .06em; }
+.terminal-area-weather { opacity: .7; font-size: 16px; flex: 1; letter-spacing: .06em; }
 .terminal-area button { margin: 0; }
 
 /* ---------- global scanner (PHASE 03) ---------- */
@@ -229,7 +241,7 @@ canvas { display: block; }
 
 .scanner {
 	position: fixed; inset: 0;
-	display: grid; grid-template-columns: 1fr 360px;
+	display: grid; grid-template-columns: 1fr 480px;
 	background: #0d1218;
 	z-index: 11;
 	pointer-events: auto;
@@ -265,51 +277,51 @@ canvas { display: block; }
 	width: 8px; height: 8px; margin: -4px 0 0 -4px;
 }
 .sc-pin {
-	color: var(--ink); font-size: 10px; letter-spacing: .1em;
+	color: var(--ink); font-size: 13px; letter-spacing: .1em;
 	white-space: nowrap; text-shadow: var(--shadow); opacity: .75;
 }
 
 .scanner-panel {
 	border-left: 1px solid rgba(255, 255, 255, .18);
-	padding: 18px 18px 12px;
+	padding: 26px 26px 18px;
 	overflow-y: auto;
-	display: flex; flex-direction: column; gap: 14px;
-	font-size: 13px;
+	display: flex; flex-direction: column; gap: 20px;
+	font-size: 18px;
 }
-.sc-title { margin: 0; font-size: 15px; letter-spacing: .22em; }
-.sc-block { display: flex; flex-direction: column; gap: 8px; }
-.sc-h { margin: 0; font-size: 11px; letter-spacing: .18em; opacity: .55; }
-.sc-hint { margin: 0; font-size: 11px; letter-spacing: .1em; opacity: .4; }
-.sc-row { display: flex; gap: 8px; align-items: stretch; }
+.sc-title { margin: 0; font-size: 22px; letter-spacing: .22em; }
+.sc-block { display: flex; flex-direction: column; gap: 11px; }
+.sc-h { margin: 0; font-size: 15px; letter-spacing: .18em; opacity: .55; }
+.sc-hint { margin: 0; font-size: 15px; letter-spacing: .1em; opacity: .4; }
+.sc-row { display: flex; gap: 11px; align-items: stretch; }
 
 .scanner input {
 	flex: 1; min-width: 0;
 	background: #0d1218; color: var(--ink);
 	border: 1px solid rgba(255, 255, 255, .25);
-	padding: 7px 9px; font: inherit; letter-spacing: .12em;
+	padding: 10px 13px; font: inherit; letter-spacing: .12em;
 }
 .scanner input:focus { outline: none; border-color: var(--accent); }
 
 .sc-btn, .sc-cta {
 	align-self: flex-start;
-	padding: 7px 10px;
+	padding: 10px 15px;
 	background: transparent; color: var(--ink);
 	border: 1px solid rgba(255, 255, 255, .25);
 	font: inherit; letter-spacing: .1em; cursor: pointer;
 }
-.sc-cta { border: 0; padding: 6px 0; letter-spacing: .14em; }
+.sc-cta { border: 0; padding: 8px 0; letter-spacing: .14em; }
 .sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 .sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
 
 .sc-results { display: flex; flex-direction: column; }
 .sc-result {
-	text-align: left; padding: 5px 0;
+	text-align: left; padding: 7px 0;
 	background: none; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .1);
-	color: var(--ink); font: inherit; font-size: 11px; opacity: .75; cursor: pointer;
+	color: var(--ink); font: inherit; font-size: 16px; opacity: .75; cursor: pointer;
 }
 .sc-result:hover { color: var(--accent); opacity: 1; }
 
-.sc-readout { display: grid; grid-template-columns: 112px 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
+.sc-readout { display: grid; grid-template-columns: 160px 1fr; gap: 4px 14px; margin: 0; font-size: 17px; }
 .sc-readout dt { opacity: .5; letter-spacing: .1em; }
 .sc-readout dd { margin: 0; }
 
@@ -319,14 +331,14 @@ canvas { display: block; }
 .sc-verdict[data-status="planned"], .sc-verdict[data-status="busy"], .sc-verdict[data-status="undecodable"] { color: #f5c451; }
 .sc-verdict[data-status="none"] { color: #f2714f; }
 .sc-verdict[data-status="unprobed"] { opacity: .55; }
-.sc-detail { margin: 0; font-size: 11px; line-height: 1.5; opacity: .6; white-space: pre-wrap; }
+.sc-detail { margin: 0; font-size: 16px; line-height: 1.5; opacity: .6; white-space: pre-wrap; }
 
-.sc-note { margin: 0; font-size: 11px; line-height: 1.5; opacity: .7; white-space: pre-wrap; }
+.sc-note { margin: 0; font-size: 16px; line-height: 1.5; opacity: .7; white-space: pre-wrap; }
 .sc-note[data-kind="warn"] { color: #f5c451; opacity: 1; }
 .sc-note[data-kind="alarm"] { color: #f2714f; opacity: 1; }
 .sc-note[data-kind="ok"] { color: #7ddc8a; opacity: 1; }
 
-.sc-switch { font-size: 11px; letter-spacing: .12em; opacity: .8; }
+.sc-switch { font-size: 16px; letter-spacing: .12em; opacity: .8; }
 .sc-switch button {
 	background: none; border: 0; padding: 0;
 	color: var(--ink); font: inherit; opacity: .45; cursor: pointer;
@@ -334,9 +346,9 @@ canvas { display: block; }
 .sc-switch button[data-on="true"] { opacity: 1; color: var(--accent); }
 .sc-switch button:hover { opacity: 1; }
 
-.sc-foot { margin-top: auto; gap: 6px; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 10px; }
+.sc-foot { margin-top: auto; gap: 9px; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 14px; }
 
-.sc-bar { height: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.sc-bar { height: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .sc-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s linear; }
 /* Pendant la conversion le pipeline ne rend aucun compteur : la barre le dit
    plutôt que d'inventer une progression. */
@@ -345,16 +357,16 @@ canvas { display: block; }
 
 /* TERRAIN/FETCH/DECODE/REBUILD, puis RF ANALYSIS/TARGET SEARCH (PHASE 05,
    Bible §8) : une rangée = un libellé fixe + la même `.sc-bar` qu'ailleurs. */
-.sc-bars { display: flex; flex-direction: column; gap: 6px; }
-.sc-bar-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 8px; }
-.sc-bar-label { font-size: 10px; letter-spacing: .1em; opacity: .55; }
+.sc-bars { display: flex; flex-direction: column; gap: 9px; }
+.sc-bar-row { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 11px; }
+.sc-bar-label { font-size: 15px; letter-spacing: .1em; opacity: .55; }
 
 .sc-log-block { flex: 1; min-height: 120px; }
 .sc-log {
 	margin: 0; flex: 1; overflow-y: auto;
-	font-size: 10px; line-height: 1.45; opacity: .55;
+	font-size: 14px; line-height: 1.45; opacity: .55;
 	white-space: pre-wrap; word-break: break-all;
-	border: 1px solid rgba(255, 255, 255, .12); padding: 6px;
+	border: 1px solid rgba(255, 255, 255, .12); padding: 9px;
 	max-height: 40vh;
 }
 /* RTC (Bible §9) : la même vitrine que le log du pipeline, mais bien plus
@@ -371,7 +383,7 @@ canvas { display: block; }
 /* Même grammaire que les autres écrans terminal : monospace, angles droits,
    aucun aplat de couleur, pas de glow ni de néon (DA §46). Le motif ASCII est
    purement décoratif — d'où l'opacité réduite. */
-.hack .terminal-box { width: min(560px, 88vw); }
+.hack .terminal-box { width: min(820px, 90vw); }
 .hack .hack-head { font-weight: 700; letter-spacing: .08em; margin-bottom: .6em; }
 .hack .hack-log { min-height: 5em; white-space: pre; line-height: 1.5; }
 /* .hack-log-armed : hook d'état JS (le log est entièrement joué), pas de style. */
@@ -386,22 +398,70 @@ canvas { display: block; }
 /* ---------- Rituel CONTROL VECTOR (PHASE 10) ----------
    Cyan/magenta/violet/bleu électrique : réservées à ce seul moment
    (Bible §19 « une à quatre secondes de folie, puis retour au calme »).
-   Nulle part ailleurs dans le jeu — pas de glow permanent (DA §46). */
-.ritual { margin-top: .8em; }
-.ritual-prompt { font-size: 20px; letter-spacing: .16em; min-height: 1.4em; }
-.ritual-prompt-done { opacity: .6; }
-.ritual-acquired { opacity: 1; font-weight: 700; letter-spacing: .1em; }
+   Nulle part ailleurs dans le jeu — pas de glow permanent (DA §46).
+   Plein viewport, casse le cadre terminal derrière lui : un vrai événement,
+   pas un écran de plus dans la même boîte (retour utilisateur PR #80). */
+.ritual {
+	position: fixed; inset: 0;
+	z-index: 12; /* au-dessus de .bootstrap/.hack (11) */
+	display: flex; flex-direction: column; align-items: center; justify-content: center;
+	background: #05070a;
+	overflow: hidden;
+	text-align: center;
+}
+.ritual-prompt {
+	position: relative; z-index: 2;
+	font-size: clamp(30px, 7vw, 104px);
+	letter-spacing: .18em;
+	min-height: 1.4em;
+}
+/* Pendant la culmination, la saisie se retire en haut, petite : le motif prend
+   toute la place. */
+.ritual-prompt-done {
+	position: absolute; top: 6vh; left: 50%; transform: translateX(-50%);
+	font-size: clamp(16px, 2.4vw, 30px);
+	opacity: .5;
+	min-height: 0;
+}
+.ritual-acquired {
+	opacity: 1; font-weight: 700; letter-spacing: .12em;
+	font-size: clamp(32px, 6.5vw, 80px);
+}
+/* Grille de 44×12 caractères mise à l'échelle du viewport plutôt que du texte
+   environnant : à cette taille le motif déborde volontairement des bords —
+   c'est ce qui doit se sentir comme une explosion qui traverse l'écran. */
 .ritual-burst {
-	margin-top: .6em;
-	line-height: 1.05;
+	position: absolute; inset: 0; z-index: 1;
+	display: flex; align-items: center; justify-content: center;
+	line-height: 1.02;
 	white-space: pre;
-	font-size: .9em;
-	min-height: calc(12 * 1.05em);
+	font-size: clamp(18px, 4.2vw, 72px);
 }
 .ritual-burst--cyan { color: #4dd8e8; }
 .ritual-burst--magenta { color: #e34de0; }
 .ritual-burst--violet { color: #8a5cf6; }
 .ritual-burst--blue { color: #3b6cff; }
+
+/* Halo qui respire pendant la culmination : atmosphère, pas de l'information. */
+.ritual-live::after {
+	content: '';
+	position: absolute; inset: -20%;
+	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .1), transparent 60%);
+	animation: ritual-pulse .9s ease-in-out infinite;
+	pointer-events: none;
+}
+@keyframes ritual-pulse {
+	0%, 100% { opacity: .35; transform: scale(1); }
+	50% { opacity: .85; transform: scale(1.08); }
+}
+
+/* Un coup par battement : le rituel doit frapper l'écran, pas juste changer
+   de motif dessus. */
+@keyframes ritual-boom {
+	0% { transform: scale(1.09); filter: brightness(1.9) saturate(1.5); }
+	100% { transform: scale(1); filter: brightness(1) saturate(1); }
+}
+.ritual-boom { animation: ritual-boom .16s ease-out; }
 
 @keyframes ritual-shake {
 	0%, 100% { transform: translateX(0); }

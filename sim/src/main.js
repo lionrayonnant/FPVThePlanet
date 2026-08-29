@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
+import { crashThreshold, idleThrottle } from './quad.js';
+import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
@@ -15,7 +17,10 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
+import { SunField, SKY_REF } from './sun.js';
 import { Rainfall } from './rainfall.js';
+import { CloudField } from './cloud.js';
+import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
@@ -26,6 +31,7 @@ import { targetCamera } from '../tools/target-camera.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
+import { FlightEnd, LANDING } from './flight-end.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -34,17 +40,16 @@ import { FpvtpOsd } from './fpvtp-osd.js';
 // instead of #9FB8CC and dragging the fog toward the same dark blue.
 THREE.ColorManagement.enabled = false;
 
-const SKY = 0x9fb8cc;
+// SKY = sky.js's CLEAR_HORIZON, re-exported under its historical name: one
+// definition of 0x9fb8cc instead of two.
+// sun.js:skyColor() calibrates itself against SKY_REF so that a high sun,
+// clear air and no cloud reproduce this exact value — importing it here
+// (rather than repeating the literal) is what keeps that calibration honest:
+// if this ever changes, sun.js's own bench check would start failing loudly
+// instead of comparing itself to a stale copy of itself.
 const FOG_DENSITY = 0.00085;
 const FIXED_STEP = 1 / 250;
 const MAX_STEPS_PER_FRAME = 12;   // give up rather than spiral if a frame stalls
-// Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
-// 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
-// slamming into something a crash.
-const CRASH_IMPULSE = 1500;
-// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
-// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
-const CRASH_IMPULSE_FLAT = 2800;
 // The ground station's antenna, above whatever the pilot is standing on. The
 // pilot is at the spawn point, because that is where you took off from.
 const ANTENNA_HEIGHT = 1.2;
@@ -83,6 +88,10 @@ let PROFILE = OPTS.family ? PROFILES[OPTS.family] : undefined;
 if (params.toString()) console.log('[opts]', OPTS);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
+// Le dôme. scene.background reste posé au-dessus : il n'est plus jamais vu —
+// le dôme couvre l'écran — mais il porte désormais la couleur d'HORIZON, que
+// rainfall.js, lens.js et les tuiles lisent tous. Une seule couleur d'air.
+const skyDome = new SkyDome(scene);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -120,16 +129,53 @@ const rain = new RainField(undefined, FOG_DENSITY);
 // scene's fog density rather than sharing it — FOG_DENSITY is the clear-air
 // floor it starts from and never goes below.
 const fog = new FogField(undefined, FOG_DENSITY);
+// Et le ciel au-dessus : quelle fraction est couverte, à quelle hauteur, et de
+// combien le sol s'assombrit. Le monde le décide (#41), pas un réglage.
+const cloud = new CloudField();
+// Et la lumière : où est le soleil, ce que l'atmosphère lui fait, et ce que la
+// caméra en fait. Construit dans boot(), une fois le manifest lu — il lui faut
+// la lat/lon de la scène, et sans elle il n'existe pas plutôt que d'inventer un
+// soleil. Modèle pur : il ne ré-éclaire RIEN, l'imagerie reste non éclairée.
+let sun = null;
 let rainfall = null;
 // Le snapshot météo de la zone survolée, pour le HUD et __sim.debug().
 let weather = null;
 
 let physics = null;
+// Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
+let sceneManifest = null;
 let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
+// Le hack + le rituel (vector code, demo scene) tournent devant un monde déjà
+// chargé et physiquement actif (#22) : sans ce gel, le drone tombe pendant que
+// le joueur regarde encore l'écran d'analyse, avant d'avoir touché les sticks.
+let introFrozen = false;
 let crashed = false;
+
+// `landing` est une copie privée de LANDING (pas la constante partagée) : son
+// THR_IDLE est réécrit par boot() une fois la famille de l'appareil connue
+// (idleThrottle, src/quad.js) — muter la constante exportée contaminerait les
+// bancs headless qui importent LANDING pour leurs propres seuils de référence.
+const flightEnd = new FlightEnd({ landing: { ...LANDING } });
+
+// Le lien vu par lens.js quand la machine est morte : quality 0 et frozen sont
+// exactement ce que le shader interprète déjà comme « plus rien n'arrive ».
+// Aucun code d'image nouveau, seulement le mode de dégradation le plus profond.
+const DEAD_LINK = { quality: 0, rssiDbm: -100, lossDb: 999, frozen: true };
+let linkForced = false;
+
+// Le mode choisi par le joueur dans les réglages du lien, mémorisé pour que la
+// séquence de crash puisse forcer une dégradation même s'il a coupé le modèle.
+let lensLinkMode = LINK_OFF;
+
+// Le sol sous le drone, un seul raycast Rapier par frame — physics.groundBelow
+// est un test plein maillage, pas quelque chose à refaire deux fois pour la
+// même position. Recalculé uniquement quand la physique avance ; le gel (pause,
+// caméra libre, réglages) laisse le drone immobile, donc la dernière valeur
+// reste correcte tant que rien n'a bougé.
+let groundY = null;
 // La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
 // l'altitude du spawn, pour la session.
 let flyArea = null;
@@ -144,8 +190,6 @@ let spawnZ = 0;
 // pause, comme sur du vrai matériel. Amorcée au chargement pour que les
 // premières images, avant l'ouverture de session, n'affichent pas 1970.
 let sessionStartedAt = Date.now();
-// Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
-let sceneManifest = null;
 let cameraFov = 120, cameraTilt = 25;
 let accumulator = 0;
 let lastTime = performance.now();
@@ -249,7 +293,17 @@ async function boot() {
 	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
 	PROFILE = physics.profile;
 	audio.setProfile(physics.profile);
+	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
+	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
+	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
+	// pur) chaque fois que boot() fixe l'appareil pour la session.
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
 	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
 	// or an arch would put the ground station inside geometry and leave the link
@@ -290,7 +344,7 @@ async function boot() {
 	hud.progress('premier rendu…', 0.98);
 	hud.detail('');
 	await nextPaint();
-	camera.position.set(manifest.spawn.x, manifest.spawn.y, manifest.spawn.z);
+	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
 	// Through the composer, not the renderer: otherwise the lens pass compiles its
 	// shader on the first frame of flight instead of behind the loading screen.
 	lens.render(camera, 1 / 60);
@@ -306,8 +360,13 @@ async function boot() {
 	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
 	// de zone que celle vue par le terminal avant le décollage.
 	const o = manifest.origin ?? {};
+	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
+	// météo, et la seule chose dont la position du soleil a besoin en plus de
+	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
+	// fonction de l'instant UTC et du lieu, point.
+	sun = SunField.forOrigin(o);
 	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog }) ?? CALM;
+	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
 	if (weather) {
 		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
 			+ `${headline(weather.days[0])}`, applied);
@@ -316,6 +375,8 @@ async function boot() {
 		physics.setWeather(CALM.wind);
 		rain.setParams(CALM.rain);
 		fog.setParams(CALM.fog);
+		cloud.setParams(CALM.cloud);
+		sun?.setWeather(CALM.sun);
 	}
 
 	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
@@ -331,11 +392,11 @@ async function boot() {
 
 	settings.setLink(loadLink(), (p) => {
 		link.setSeverity(p.severity);
-		lens.setLink({
-			mode: p.severity === 0 ? LINK_OFF
-				: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG,
-			severity: p.severity,
-		});
+		// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
+		// même si le joueur a coupé la modélisation du lien.
+		lensLinkMode = p.severity === 0 ? LINK_OFF
+			: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
+		lens.setLink({ mode: lensLinkMode, severity: p.severity });
 	});
 
 
@@ -344,7 +405,7 @@ async function boot() {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog,
+		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -371,7 +432,10 @@ async function boot() {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 			physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-			crashed = false;
+			flightEnd.reset();
+			// Sinon un second crash dans la même page ne re-forcerait pas la
+			// dégradation du lien : setLink(true) ne s'exécute qu'un coup par vol.
+			linkForced = false;
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -445,9 +509,36 @@ async function boot() {
 					// The range the air alone gives you, the range once the rain is
 					// in it too, and how much of that is coming back as veil.
 					range: Math.round(fog.range),
-					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility))),
+					// La densité réellement poussée au shader inclut aussi le
+					// plafond (cf. cloud.extinctionAt dans frame()) : l'ajouter ici
+					// pour que la portée affichée corresponde à ce que l'image
+					// montre une fois qu'on approche le plafond. p et spawnY sont
+					// déjà en main plus haut, pas besoin d'un nouveau raycast.
+					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(p.y - spawnY))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
+				},
+				cloud: {
+					cloudCover: +cloud.cover.toFixed(3),
+					cloudBase: Math.round(cloud.base),
+					// Négatif tant qu'on est sous le plafond, positif une fois dedans
+					// ou au-dessus. C'est le chiffre qu'on regarde quand on vérifie
+					// qu'un whiteout arrive au bon moment.
+					ceilingAGL: Math.round((physics.position.y - spawnY) - cloud.base),
+				},
+				// Ce qui permet de vérifier le soleil dans le vrai navigateur
+				// plutôt que de regarder une capture et d'y croire.
+				sun: sun && {
+					elevation: +sun.elevation.toFixed(2),
+					azimuth: +sun.azimuth.toFixed(2),
+					dir: { x: +sun.dir.x.toFixed(3), y: +sun.dir.y.toFixed(3), z: +sun.dir.z.toFixed(3) },
+					amount: +sun.sunAmount.toFixed(3),
+					visible: +sunVisible.toFixed(3),
+					inFrame: +sunInFrame.toFixed(3),
+					exposure: +sun.exposure.toFixed(3),
+					ambient: +sun.ambient.toFixed(3),
+					sky: '#' + scene.background.getHexString(),
+					active: sun.active,
 				},
 				link: {
 					quality: +link.out.quality.toFixed(3),
@@ -462,7 +553,7 @@ async function boot() {
 					frozen: lens.frozen,
 					rayMs: +linkState.rayMs.toFixed(3),
 				},
-				crashed,
+				flightEnd: flightEnd.out.phase,
 			};
 		},
 	};
@@ -479,14 +570,18 @@ function nextPaint() {
 }
 
 input.onAction = (key, event) => {
-	if (key === 'r') respawn();
-	else if (key === 'disarm') doDisarm();
+	// Pas de respawn : on ne fait pas réapparaître un drone qu'on a perdu.
+	// terrain persistent, flights ephemeral.
+	if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
 	else if (key === 'p') controller?.cyclePreset();
 	else if (key === 'm') controller?.cycleMode();
 	else if (key === 'c') toggleFreeCam();
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
+	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place, et rien
+	// d'autre n'est proposé.
+	else if (key === 'escape' && flightEnd.out.exitArmed) location.href = location.pathname;
 };
 
 renderer.domElement.addEventListener('click', () => {
@@ -496,25 +591,33 @@ renderer.domElement.addEventListener('click', () => {
 	if (!freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
-// Désarmement Betaflight (PHASE 06). Au sol et à l'arrêt → pose propre → LANDED,
-// le drone est conservé, la session ré-ouvrable. En l'air → la chute suit son
-// cours et c'est l'impact qui fermera la session en CRASHED.
+// Désarmement Betaflight. Le geste reste celui du joueur ; c'est la machine de
+// fin de vol qui sait si le drone était posé. Désarmer en l'air est permis : la
+// chute suit son cours, et c'est l'impact qui conclut.
 function doDisarm() {
 	if (!physics || !controller.armed) return;
 	controller.disarm();
+
+	if (!flightEnd.disarm()) return;
+
 	const p = physics.position;
 	const g = physics.groundBelow(p.x, p.y, p.z);
 	const v = physics.velocity;
+
 	// Au sol = à portée de contact du sol, pas « parfaitement immobile » : une
 	// pose sur une sphère de collision est toujours un peu vivante. On rejette
 	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
 	const height = g === null ? Infinity : p.y - g;
-	// Large : une pose par grand vent sur une sphère de collision n'est jamais
-	// parfaitement calme. On ne rejette qu'un désarmement franchement en l'air.
 	const onGround = height < 2 && Math.hypot(v.x, v.y, v.z) < 8;
-	console.log(`[session] désarmement — sol:${onGround} (h=${height === Infinity ? '?' : height.toFixed(2)}m v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`);
+
+	console.log(
+		`[session] désarmement — sol:${onGround} ` +
+		`(h=${height === Infinity ? '?' : height.toFixed(2)}m ` +
+		`v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`
+	);
+
 	if (onGround) {
-		// Le drone est posé : on le fige, il ne roule pas et ne dérive pas.
+		// Posé : on le fige, il ne roule pas et ne dérive pas.
 		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 		fpvtpOsd.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
@@ -528,35 +631,30 @@ function doDisarm() {
 
 function respawn() {
 	if (!physics) return;
+
 	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
 	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
 	// on garde le respawn local pour ne pas casser le flow de debug.
 	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
 	fpvtpOsd.setSessionStatus(null);
 	controller.arm();
-	physics.reset();
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest: sceneManifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
 	link.reset();
+
 	// Neither model was being reset here, and both say in their own comments
 	// that they should be: a respawn should not drop you back into the squall
 	// or the bank that just blinded you.
 	rain.reset();
 	fog.reset();
+	cloud.reset();
+
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
-}
-
-function toggleFreeCam() {
-	if (!freeCam) return;
-	freeCamOn = !freeCamOn;
-	freeCam.enabled = freeCamOn;
-	if (freeCamOn) {
-		document.exitPointerLock();
-		const p = physics.position;
-		freeCam.target.set(p.x, p.y, p.z);
-		camera.position.set(p.x + 60, p.y + 40, p.z + 60);
-		freeCam.update();
-	}
 }
 
 function togglePause(force) {
@@ -598,7 +696,7 @@ function latLonOf(p) {
 	return { lat, lon: o.longitude + p.x / (111320 * Math.cos(lat * Math.PI / 180)) };
 }
 
-function simFrozen() { return freeCamOn || paused || settings.settingsOpen; }
+function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -609,34 +707,25 @@ const _tilt = new THREE.Quaternion();
 // fog has already settled on.
 let lastDensity = -1;
 let lastSkyHex = -1;
+let lastDim = 1;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
 let lensShutter = 0;
 
-// Weather does not only take contrast away, it takes the blue out of the sky.
-// Rain darkens it: the light is coming through cloud and water rather than
-// through air. Fog does the opposite — it is bright, and it is neutral, because
-// what you are looking at is the scattered light itself.
-//
-// The two are applied in that order, rain then fog, so that thick fog wins: at
-// fifty metres of visibility the sky is the fog and nothing else. Interpolated
-// on the raw bytes, because the whole colour pipeline is pass-through and a
-// linear round trip here would land the sky back on HANDOFF bug #10.
-const CLEAR_SKY = new THREE.Color(SKY);
-const RAIN_SKY = new THREE.Color(0x8d99a2);
-const FOG_SKY = new THREE.Color(0xc9d0d4);
-const _sky = new THREE.Color();
-function weatherSky(rainScale, fogMix) {
-	// rainScale is 1 in the clear and about 2 in a downpour.
-	return _sky.copy(CLEAR_SKY)
-		.lerp(RAIN_SKY, Math.min(1, (rainScale - 1) * 1.2))
-		.lerp(FOG_SKY, fogMix);
-}
 // Where a bead sitting on the front element is being pushed, in g and in the
 // plane of the lens. Written once a frame into the same object rather than
 // allocated, like every other per-frame vector here.
 const drift = { x: 0, y: 0 };
+// L'état du soleil entre deux frames, et les vecteurs réutilisés plutôt que
+// réalloués — même règle que `drift` juste au-dessus.
+let sunVisible = 1;    // 0..1, occlusion lissée
+let sunInFrame = 0;    // 0..1, ce que le posemètre voit du disque
+const _sunWorld = new THREE.Vector3();
+const _sunView = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
+const _camInv = new THREE.Quaternion();
+const _sunColor = new THREE.Color();
 
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
@@ -651,6 +740,7 @@ function frame() {
 	const frozen = simFrozen();
 	audio.setMuted(frozen);
 
+	let crashedThisFrame = false;
 	let peakImpact = 0;
 	if (!frozen) {
 		// Touchdown : en airmode un quad ne se pose pas tout seul — les moteurs
@@ -660,9 +750,11 @@ function frame() {
 		// freine pas). Le vent, lui, continue de le pousser. Quand le pilote a
 		// coupé les gaz et que le drone est au ras du sol, on coupe les moteurs
 		// et physics.setGroundHold fige le reste : plus de vent, plus de dérive.
+		// Le seuil de « gaz coupés » (flightEnd.landing.THR_IDLE) est celui de la
+		// famille en vol, pas une constante : voir idleThrottle() dans quad.js.
 		const pp = physics.position;
 		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
-		const touchdown = controller.armed && sticks.throttle < 0.06
+		const touchdown = controller.armed && sticks.throttle < flightEnd.landing.THR_IDLE
 			&& gb !== null && (pp.y - gb) < 0.6;
 		physics.setGroundHold(touchdown);
 
@@ -672,13 +764,10 @@ function frame() {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
 			if (touchdown) motors.fill(0);
 			const impact = physics.step(motors, FIXED_STEP);
-			// Un drone qui arrive à plat encaisse : les bras fléchissent, les
-			// hélices absorbent. Nez en avant ou sur le dos, il casse. Le seuil
-			// de crash suit donc l'assiette au moment du choc.
-			if (impact > 0 && !crashed) {
+			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
 				const r = physics.rotation;
-				const upright = (1 - 2 * (r.x * r.x + r.z * r.z)) > 0.4;
-				if (impact > (upright ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE)) {
+				if (impact > crashThreshold(r)) {
+					crashedThisFrame = true;
 					crashed = true;
 					// Le drone est détruit. La session se ferme sur CRASHED — le
 					// terrain, lui, reste. terrain persistent, flights ephemeral.
@@ -692,6 +781,12 @@ function frame() {
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
 
+		// Un seul raycast de sol par frame de physique. Gelé, rien n'a bougé :
+		// la dernière valeur de groundY reste correcte, inutile de refaire un
+		// test plein maillage pour rien.
+		const fp = physics.position;
+		groundY = physics.groundBelow(fp.x, fp.y, fp.z);
+
 		const p = physics.position;
 		const r = physics.rotation;
 		camera.position.set(p.x, p.y, p.z);
@@ -703,34 +798,194 @@ function frame() {
 		freeCam.update();
 	}
 
+	// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt, quand
+	// la session se ferme. main.js ne fait que l'alimenter et obéir.
+	//
+	// Appelé HORS du bloc gelé (revue finale, correction 1) : flightEnd.disarm()
+	// arme un événement `closes` que seul le prochain update() vidange. Si la
+	// sim se fige (C ou Espace) entre le désarmement et Échap, aucune frame
+	// non gelée ne tournait plus pour lire cet événement — une pose propre
+	// était alors comptée CRASHED par le beacon `beforeunload`. dt=0 fige la
+	// timeline et le compteur de pose (la décision « la séquence de fin se
+	// fige avec la sim » reste vraie), mais `closes` est désormais vidangé
+	// quoi qu'il arrive, dès la prochaine frame.
+	const fePos = physics.position;
+	const fv = physics.velocity, fw = physics.angularVelocity;
+	flightEnd.update({
+		dt: frozen ? 0 : dt,
+		armed: controller.armed,
+		height: groundY === null ? Infinity : fePos.y - groundY,
+		speed: Math.hypot(fv.x, fv.y, fv.z),
+		angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
+		throttle: sticks.throttle,
+		crashed: crashedThisFrame,
+	});
+	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
+	// crashedThisFrame (bonus, revue finale) : un choc encaissé après un
+	// LANDED (le vent repousse un drone désarmé) ne doit pas rejouer la mort
+	// de l'image par-dessus l'écran END SESSION.
+	if (flightEnd.out.linkDead) {
+		// Le drone est détruit : les moteurs se taisent, donc le son aussi —
+		// audio.js suit le régime moteur, il n'y a rien à couper à la main.
+		controller.disarm();
+		// Si le joueur avait coupé la modélisation du lien, il ne verrait
+		// aucune dégradation. La mort de l'image ne se négocie pas.
+		if (!linkForced) {
+			linkForced = true;
+			lens.setLink({ mode: lensLinkMode === LINK_OFF ? LINK_ANALOG : lensLinkMode, severity: 1 });
+		}
+	}
+	const closes = flightEnd.out.closes;
+	if (closes) {
+		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
+	}
+
 	// The weather on the camera. Advanced on the frame clock rather than the
 	// physics step because nothing in it feeds back into the flight model — the
 	// water is on the lens, not on the airframe — and because the streaks and
 	// the drops are drawn once per frame whatever the physics did.
-	if (!frozen) {
-		rain.update(physics.airspeed, dt);
-		fog.update(dt);
-		// Extinctions add, so densities add. This is a strict generalisation of
-		// the rain-only version it replaces: FOG_DENSITY * rain.fogScale is by
-		// definition FOG_DENSITY + the rain's own extinction, so with the fog
-		// slider at zero the picture is the one #24 left behind, to the bit.
-		const density = fog.density + extinctionOf(rain.visibility);
-		const sky = weatherSky(rain.fogScale, fog.skyMix);
-		const skyHex = sky.getHex();
-		if (density !== lastDensity || skyHex !== lastSkyHex) {
-			lastDensity = density;
-			lastSkyHex = skyHex;
-			setFog(sky, density);
-			// Mutated, not replaced: lens.js reads this very object every frame.
-			scene.background.set(sky);
-			// The streaks are lit by the sky too, and used to keep the clear-sky
-			// colour whatever the weather did.
-			rainfall?.setSky(scene.background);
-		}
+if (!frozen) {
+	rain.update(physics.airspeed, dt);
+	fog.update(dt);
+	cloud.update(dt);
+
+	// Altitude au-dessus du sol, utilisée pour le plafond nuageux.
+	// On la prend par rapport au spawn plutôt que via un raycast :
+	// le relief local est négligeable devant l'altitude de la base des nuages,
+	// et le raycast plus bas dans cette frame n'a pas encore eu lieu.
+	const altitudeAGL = physics.position.y - spawnY;
+
+	skyDome.setState({
+		cover: cloud.cover,
+		base: cloud.base,
+		altitudeAGL,
+		windDir: physics.wind.direction,
+		windSpeed: physics.wind.speed,
+		rainScale: rain.fogScale,
+		fogMix: fog.skyMix,
+	});
+
+	// Les extinctions s'additionnent :
+	// - brouillard
+	// - pluie
+	// - plafond nuageux
+	//
+	// Entrer dans un nuage produit ici un voile uniforme piloté par
+	// l'altitude de la caméra, plutôt qu'un calcul par fragment.
+	const density =
+		fog.density +
+		extinctionOf(rain.visibility) +
+		cloud.extinctionAt(altitudeAGL);
+
+	// Couleur réellement produite par le dôme cette frame.
+	const sky = skyDome.horizon;
+	const skyHex = sky.getHex();
+
+	// Le soleil avance avec l'horloge de la frame, comme la pluie et
+	// le brouillard. Rien de ce calcul ne redescend dans le modèle de vol.
+	if (sun) {
+		// Le soleil est-il masqué par un bâtiment ?
+		// Un seul rayon suffit ici : la sonde de vent effectue déjà
+		// plusieurs tests à ~20,8 Hz.
+		const sp = physics.position;
+		const far = 2000;
+
+		const blocked = physics.obstructionBetween(
+			sp.x,
+			sp.y,
+			sp.z,
+			sp.x + sun.dir.x * far,
+			sp.y + sun.dir.y * far,
+			sp.z + sun.dir.z * far,
+		).blocked ? 1 : 0;
+
+		// Lissage pour éviter le clignotement lorsque le rayon frôle
+		// l'arête d'un bâtiment.
+		sunVisible +=
+			((1 - blocked) - sunVisible) *
+			(1 - Math.exp(-dt / 0.08));
+
+		// Direction du soleil dans l'espace caméra.
+		_sunWorld.set(
+			sun.dir.x,
+			sun.dir.y,
+			sun.dir.z,
+		);
+
+		const axis = _camDir
+			.set(0, 0, -1)
+			.applyQuaternion(camera.quaternion);
+
+		const cosAngle = axis.dot(_sunWorld);
+
+		// Fraction de présence du soleil dans le champ de vision.
+		const halfFov =
+			(camera.fov * Math.PI / 180) / 2;
+
+		const cosHalfFov = Math.cos(halfFov);
+
+		const inFrame = Math.max(
+			0,
+			(cosAngle - cosHalfFov) /
+			(1 - cosHalfFov),
+		);
+
+		sunInFrame = inFrame * sunVisible;
+
+		sun.update(dt, { sunInFrame });
+	}
+
+	if (density !== lastDensity || skyHex !== lastSkyHex) {
+		lastDensity = density;
+		lastSkyHex = skyHex;
+
+		setFog(sky, density);
+
+		// Muté, pas remplacé : lens.js lit cet objet à chaque frame.
+		scene.background.set(sky);
+
+		// Les streaks sont eux aussi éclairés par le ciel.
+		rainfall?.setSky(scene.background);
+	}
+
+	// Même principe que pour le fondu : on ne retouche pas tous les
+	// matériaux de chunk à chaque frame pour une valeur qui évolue
+	// sur plusieurs minutes.
+	if (cloud.dim !== lastDim) {
+		lastDim = cloud.dim;
+		setDim(cloud.dim);
+	}
+}
 		// Light the air scatters into the barrel rather than onto the subject.
 		// Zero compiles it out of the lens shader entirely.
 		lens.setGlare(fog.glare);
-	}
+		// Et la lumière qui vient d'une direction plutôt que de partout. La
+		// projection est faite ici parce que main.js est le seul à connaître la
+		// caméra ; lens.js ne reçoit que des nombres, comme pour setGlare().
+		if (sun) {
+			_sunView.copy(_sunWorld).applyQuaternion(_camInv.copy(camera.quaternion).invert());
+			// Espace carré de la passe : x est étiré par l'aspect, exactement
+			// comme `base` dans le shader.
+			// L'espace `base` du shader, et pas un espace écran inventé ici.
+			// lens.js:226-227 le définit : base.x = ndc.x · uAspect et
+			// dir = (base.xy · uTanHalf, −1), avec uTanHalf = tan(fovY/2)
+			// (lens.js:761). Donc base = (v.x/−v.z, v.y/−v.z) / tan(fovY/2) —
+			// SANS facteur 0,5 et SANS multiplier une seconde fois par l'aspect,
+			// qui est déjà porté par l'amplitude de base.x. La caméra regarde
+			// vers −Z, d'où le signe.
+			const front = _sunView.z < 0;
+			const tanHalf = Math.tan(camera.fov * Math.PI / 360);
+			const invZ = 1 / Math.max(1e-4, -_sunView.z);
+			lens.setSun({
+				x: (_sunView.x * invZ) / tanHalf,
+				y: (_sunView.y * invZ) / tanHalf,
+				front,
+				color: _sunColor.setRGB(sun.sunColor.r, sun.sunColor.g, sun.sunColor.b),
+				amount: sun.sunAmount * sunVisible,
+				exposure: sun.exposure,
+			});
+		}
+	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
 	rainfall.update({
@@ -770,10 +1025,10 @@ function frame() {
 	// Free camera is not looking down the drone's video feed, so it gets a clean
 	// picture — same reasoning as muting the motors there. The model keeps
 	// running, so coming back does not start from a stale RSSI.
-	lens.render(camera, dt, freeCamOn ? null : link.out);
+	const linkOut = flightEnd.out.linkDead ? DEAD_LINK : link.out;
+	lens.render(camera, dt, freeCamOn ? null : linkOut);
 
 	const v = physics.velocity;
-	const ground = physics.groundBelow(p.x, p.y, p.z);
 	const bat = physics.battery;
 
 	// Télémétrie agrégée de la session (PHASE 06) : des maxima et des cumuls,
@@ -798,7 +1053,7 @@ function frame() {
 		currentA: bat.current,
 		mahUsed: bat.usedMah,
 		altM: p.y - spawnY,
-		agiM: ground === null ? null : p.y - ground,
+		agiM: groundY === null ? null : p.y - groundY,
 		groundSpeedMs: Math.hypot(v.x, v.z),
 		verticalSpeedMs: v.y,
 		throttle01: sticks.throttle,
@@ -838,7 +1093,7 @@ function frame() {
 		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,
 		propwash: physics.propulsion.propwash,
 	});
-	fpvtpOsd.setCrashed(crashed);
+	fpvtpOsd.setFlightEnd(flightEnd.out);
 	settings.updateAxisBars();
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
@@ -932,8 +1187,14 @@ async function chooseScene() {
 	controller = new FlightController({ profile: PROFILE });
 	console.log(`[target] family ${PROFILE.family} — ${PROFILE.label}`);
 	setScene(slug);
+	introFrozen = true;
 	const booting = boot();
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
+	// pendant le hack comme un unique pas de physique géant.
+	introFrozen = false;
+	accumulator = 0;
+	lastTime = performance.now();
 	return { prepared: true };
 }
 
@@ -976,9 +1237,9 @@ chooseScene()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
-	spawnY = physics.position.y;
-	spawnX = physics.position.x;
-	spawnZ = physics.position.z;
+	spawnY = physics.spawn.y;
+	spawnX = physics.spawn.x;
+	spawnZ = physics.spawn.z;
 	sessionStartedAt = Date.now();
 	// Résolue dans le try, lue après : une ouverture de session ratée ne doit
 	// pas laisser le vol sans caméra ni sans OSD.

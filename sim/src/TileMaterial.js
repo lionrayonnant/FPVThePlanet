@@ -6,8 +6,10 @@ import * as THREE from 'three';
 // is what a packed atlas would suffer from here).
 //
 // The imagery is photogrammetry with lighting already baked in, so there is no
-// lighting model: the sampled texel is the output. The renderer is left in
-// linear-sRGB output so that texel reaches the framebuffer untouched.
+// lighting model: the sampled texel is the output, scaled by a single scalar
+// when clouds are over the map (#22). That scalar carries no spatial structure
+// on purpose — the geometry has no normals, and a projected pattern would
+// argue with the shadows Apple baked into the texture.
 export function createTileMaterial(arrayTexture, fogColor, fogDensity) {
 	return new THREE.ShaderMaterial({
 		glslVersion: THREE.GLSL3,
@@ -15,6 +17,11 @@ export function createTileMaterial(arrayTexture, fogColor, fogDensity) {
 			uMap: { value: arrayTexture },
 			uFogColor: { value: new THREE.Color(fogColor) },
 			uFogDensity: { value: fogDensity },
+			// Les nuages passent (#22). Pas une ombre : un scalaire, sans aucune
+			// structure spatiale — les tuiles portent déjà l'ombrage cuit
+			// d'Apple, et un motif projeté par-dessus le contredirait. 1.0 est
+			// bit-identique à l'absence de nuages.
+			uDim: { value: 1 },
 		},
 		vertexShader: /* glsl */`
 			in float aLayer;
@@ -36,6 +43,7 @@ export function createTileMaterial(arrayTexture, fogColor, fogDensity) {
 			uniform sampler2DArray uMap;
 			uniform vec3 uFogColor;
 			uniform float uFogDensity;
+			uniform float uDim;
 
 			in vec2 vUv;
 			flat in uint vLayer;
@@ -43,7 +51,10 @@ export function createTileMaterial(arrayTexture, fogColor, fogDensity) {
 			out vec4 outColor;
 
 			void main() {
-				vec3 c = texture(uMap, vec3(vUv, float(vLayer))).rgb;
+				// Assombri avant le brouillard : ce qui est voilé est déjà à
+				// l'ombre du nuage, et le voile lui-même a la couleur de l'air,
+				// qui a sa propre luminosité.
+				vec3 c = texture(uMap, vec3(vUv, float(vLayer))).rgb * uDim;
 				// Exponential-squared fog, mostly to hide the hard cliff at the
 				// edge of the tile.
 				float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);

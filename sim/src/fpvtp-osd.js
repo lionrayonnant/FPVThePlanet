@@ -34,9 +34,9 @@ export class FpvtpOsd {
 				<div class="corner bl">
 					<div id="fo-env">WIND — · VIS — · LINK —</div>
 				</div>
-				<div id="fo-crash" hidden>SIGNAL LOST<small>PRESS R</small></div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
+				<div id="flight-end" hidden></div>
 				<div id="fo-reticle"></div>
 			</div>`);
 
@@ -50,25 +50,24 @@ export class FpvtpOsd {
 			input: q('#fo-input'),
 			fps: q('#fo-fps'),
 			env: q('#fo-env'),
-			crash: q('#fo-crash'),
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
+			flightEnd: q('#flight-end'),
 			reticle: q('#fo-reticle'),
 		};
 		this._frames = 0;
 		this._fpsAt = performance.now();
 		this._fps = 0;
-		// Les trois états centraux occupent la même place. Ils ne s'excluent pas
+		this._endLines = '';
+		// Les deux états centraux occupent la même place. Ils ne s'excluent pas
 		// dans le monde — on peut être en pause sur un drone détruit — donc ils
 		// sont tenus ici, et un seul est peint.
 		this._paused = false;
-		this._crashed = false;
 		this._status = null;
 	}
 
 	show() { this.el.root.hidden = false; }
 	setPaused(paused) { this._paused = !!paused; this._refreshCentre(); }
-	setCrashed(crashed) { this._crashed = !!crashed; this._refreshCentre(); }
 
 	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
 	setSessionStatus(text, kind = null) {
@@ -76,8 +75,8 @@ export class FpvtpOsd {
 		this._refreshCentre();
 	}
 
-	// Priorité explicite : verdict de session > crash > pause. Un seul visible,
-	// sans quoi les trois se superposent lettre sur lettre au même endroit.
+	// Priorité explicite : verdict de session > pause. Un seul visible, sans
+	// quoi les deux se superposent lettre sur lettre au même endroit.
 	_refreshCentre() {
 		const e = this.el.status;
 		if (this._status) {
@@ -86,8 +85,33 @@ export class FpvtpOsd {
 			else delete e.dataset.kind;
 		}
 		e.hidden = !this._status;
-		this.el.crash.hidden = !!this._status || !this._crashed;
-		this.el.pause.hidden = !!this._status || this._crashed || !this._paused;
+		this.el.pause.hidden = !!this._status || !this._paused;
+	}
+
+	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre
+	// un lien qui s'éteint. `blackout` est l'opacité du noir qui recouvre la
+	// dernière image, `lines` ce qui s'écrit dessus, une ligne à la fois.
+	// Repris tel quel de l'ancien hud.js — c'est la couche locale qui porte
+	// cette mise en scène, elle ne traverse pas la liaison.
+	setFlightEnd({ lines, blackout }) {
+		const e = this.el.flightEnd;
+		if (!lines.length && blackout <= 0) {
+			if (!e.hidden) { e.hidden = true; e.textContent = ''; this._endLines = ''; }
+			return;
+		}
+		e.hidden = false;
+		e.style.background = `rgba(0, 0, 0, ${blackout})`;
+		// Le DOM n'est reconstruit que quand le texte change : ceci tourne à la
+		// fréquence d'affichage pendant toute la séquence.
+		const key = lines.join('\n');
+		if (key !== this._endLines) {
+			this._endLines = key;
+			e.replaceChildren(...lines.map((text) => {
+				const d = document.createElement('div');
+				d.textContent = text;
+				return d;
+			}));
+		}
 	}
 
 	get fps() { return this._fps; }

@@ -217,6 +217,162 @@ Plan d'origine (contexte de la décision d'architecture) :
     testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
     réel).
   - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
+- **PHASE 14 — fin de vol : crash, pose, sortie manuelle** (issue #51).
+  - Machine à états pure `FlightEnd` (`src/flight-end.js`, sans DOM/Three/Rapier),
+    câblée dans `main.js:frame()` **hors** du bloc gelé (`if (!frozen)`) : appelée
+    à chaque frame avec `dt: frozen ? 0 : dt`, pour que `out.closes` (l'événement
+    à consommation unique qui déclenche `session.end()`) soit toujours vidangé
+    même si la sim se fige (pause, réglages, caméra libre) entre le geste du
+    joueur et sa sortie. `dt=0` fige la timeline et le compteur de pose sans
+    perdre l'événement.
+  - Trois voies de fermeture : crash (`crashed` déjà décidé par
+    `CRASH_IMPULSE`/`CRASH_IMPULSE_FLAT` de `main.js`, réutilisés tels quels),
+    pose tenue (`_advanceLanding`, hystérésis sur hauteur/vitesse/vitesse
+    angulaire/gaz, seuils dans `LANDING`), sortie manuelle (`disarm()`, qui ne
+    ferme la session que si la pose est reconnue — désarmer en l'air reste
+    permis et donne une chute).
+  - Seuils de pose mesurés (`tools/landing-selftest.mjs`, tour-eiffel,
+    2026-08-29) : `H_ON=0.2`, `H_OFF=0.4`, `V_ON=0.06`, `V_OFF=0.18`,
+    `W_ON=0.07`, `THR_IDLE=0.06`, `T_HOLD=0.25`. Le commentaire du code détaille
+    la mesure ; `T_HOLD` n'est *pas* ce qui sépare pose et rasant (mesuré : à
+    `T_HOLD` quasi nul le rebond reste écarté jusqu'à t=0,64 s et le roulé
+    jusqu'à t=0,48 s) — c'est une marge de debounce choisie contre le bruit non
+    modélisé, comme `TIMELINE`.
+  - Séquence de pose : symétrique de la séquence de crash, mais plus courte et
+    plus calme (un geste délibéré, pas une agonie). Table dédiée
+    `LANDING_TIMELINE` (`src/flight-end.js`), lue par la même fonction
+    d'avancement que le crash (`_advanceTimeline`, sur `this._activeTimeline`) :
+    `LANDING DETECTED`/`MOTORS DISARMED` à t=0, fondu au noir de 0,6 à 1,0 s
+    par-dessus l'image *vivante* (pas de `linkDead`), `END SESSION` à 1,4 s,
+    `[ESC] DISCONNECT` à 2,2 s avec `exitArmed`/`TERMINATED`. Avant, les quatre
+    lignes s'affichaient d'un coup et n'annonçaient jamais Échap ; `exitArmed`
+    s'armait dès la frame qui vidangeait `closes`, désormais il ne s'arme qu'à
+    la toute fin de cette séquence — il faut la fermeture de session partie *et*
+    la séquence vue en entier.
+  - Séquence de crash : mise en scène assumée comme telle (pas une mesure),
+    dans `TIMELINE` (`src/flight-end.js`) : image tenue jusqu'à 0,9 s, fondu au
+    noir en 0,4 s, puis `LINK LOST` (1,6 s), `TARGET LOST` (2,8 s), `SESSION
+    TERMINATED` (3,6 s), `[ESC] DISCONNECT` (4,6 s, `exitArmed`). Deux lignes
+    vides dans `TIMELINE.lines` (après `LINK LOST`, avant `[ESC] DISCONNECT`)
+    pour respirer comme l'écran de pose. `linkDead` force `DEAD_LINK` sur
+    `lens.render()` dans `main.js`, gardé sur `flightEnd.out.linkDead` (pas
+    `crashedThisFrame`) pour qu'un choc encaissé après un `LANDED` ne rejoue pas
+    la mort d'image par-dessus l'écran `END SESSION`.
+  - **Vérifié en headless** :
+    - `tools/flight-end-selftest.mjs` : 20 tests, sans DOM/Rapier — impact →
+      crash, timing des lignes de crash et de pose (chacune avec ses lignes
+      vides horodatées avec la ligne qui suit), `out.closes` émis une seule
+      fois pour chaque cause, `exitArmed` faux juste après `disarm()`, encore
+      faux juste après la frame qui vidange `closes`, vrai seulement à la fin
+      de `LANDING_TIMELINE` (phase `TERMINATED`), crash pendant
+      `LANDING_READY` gagne, désarmement en vol ne ferme rien,
+      `update({dt:0})` après `disarm()` vidange `closes` sans avancer la
+      séquence de pose ni armer `exitArmed` (le cas sim gelée), `reset()`.
+    - `tools/landing-selftest.mjs` : Rapier réel sur tour-eiffel. Sept poses
+      (1/3/8 m, vent de travers, rebond, roulé, **pose sur pente** — voir
+      ci-dessous) toutes reconnues ; neuf rasants (3 hauteurs × 3 tangages) et
+      un stationnaire bas tous rejetés, chacun assorti d'un plancher de vitesse
+      et d'une bande de hauteur mesurés sur sa propre trace (pas seulement « pas
+      détecté »).
+    - Pose sur pente (D5 de la spec) : `height` est un raycast vertical depuis
+      le centre du collider sphérique (rayon 0,15 m), donc géométriquement
+      `0,15/cos θ` sous la sphère — la détection plafonnerait vers 41°
+      d'inclinaison rien que sur ce critère. Mesuré sur une facette réelle de
+      tour-eiffel à 30,0° : reconnue à t=2,75 s. Sondé au-delà (33-39°) : c'est
+      `setGroundHold` (amortissement exponentiel, pas `H_ON`) qui bloque en
+      pratique vers 30-33°, avant la limite géométrique de 41° — acté en
+      commentaire dans `landing-selftest.mjs`, `H_ON` n'a pas été remonté (ça
+      ne change rien au blocage réel, qui est sur `W_ON`).
+    - `npm run selftest` reste vert, `npm run build` OK.
+  - **Vérifié en vol piloté** (navigateur, scène tour-eiffel) :
+    - séquence de crash à l'écran : image tenue 0→0,9 s, fondu au noir 0,9→1,3 s,
+      `LINK LOST` 1,62 s, `TARGET LOST` 2,83 s, `SESSION TERMINATED` 3,64 s,
+      `[ESC] DISCONNECT` 4,65 s ;
+    - mort de l'image dès la première frame du crash : `uLink = 0`, sévérité
+      forcée à 1 alors que le réglage joueur était 0,6, moteurs à zéro,
+      contrôleur désarmé ;
+    - pose au repos → `LANDING DETECTED`, puis `J` → `MOTORS DISARMED` /
+      `END SESSION` ;
+    - désarmement en l'air (16 m, 13 m/s) : rien ne se ferme, la chute suit son
+      cours ;
+    - vol rasant réel à 0,25 m et 15,2 m/s : aucun faux positif ;
+    - `Échap` ramène au terminal depuis `TERMINATED` comme depuis `LANDED` ;
+      aucune erreur console.
+  - **Non vérifié** : le ressenti (rythme de la séquence de crash, lisibilité de
+    `LANDING DETECTED` affiché par-dessus l'image encore vivante), et le cas du
+    joueur ayant coupé la modélisation du lien (`LINK_OFF`) — `main.js` force
+    `severity: 1` au premier frame de `CRASHING` dans ce cas, mais le vol
+    vérifié avait le lien actif ; ce chemin n'a pas été exercé en vol.
+- **PHASE 11 — Entry State (issue #48)**, branche `phase-11-entry-state`,
+  mergée dans `main`.
+  - Après `JACK IN` (et à chaque respawn en session), le drone démarre déjà en
+    vol : `src/entry-state.js` (`generateEntryState()`) tire une catégorie
+    pondérée (COMFORTABLE 60 / ACTIVE 25 / CHALLENGING 12 / HOLY_SHIT 3 %),
+    échantillonne position/assiette/vitesse/rotation n'importe où dans le bbox
+    de la scène, puis valide le tirage en deux temps : géométrique
+    (`groundBelow`/`obstructionBetween`, réutilisés tels quels) et un rollout
+    physique headless d'1 s (sticks neutres, throttle hover via
+    `hoverThrottle()`, mêmes `Physics`/`FlightController` que le jeu — aucun
+    second moteur physique). 20 tirages max, puis repli garanti sur l'ancien
+    spawn fixe au repos.
+  - `Physics.applyEntryState()` (nouveau, à côté de `reset()`) pose le corps à
+    un état cinématique arbitraire ; `physics.spawn` (position du pilote au
+    sol, antenne) reste inchangé — seul le point d'entrée du drone bouge.
+  - `main.js` : `boot()` et `respawn()` appellent
+    `physics.applyEntryState(generateEntryState({physics, manifest, seed}))` ;
+    `spawnY` (télémétrie PHASE 06) reste ancré à `physics.spawn.y`, pas à la
+    position d'entrée aléatoire.
+  - **Vérifié headless** : `tools/entry-state-selftest.mjs` (tirage de
+    catégorie pur, chaîné dans `selftest:operator`, distribution mesurée à
+    ±3 points sur 20 000 tirages) ; nouvelle section `entry state` dans
+    `tools/selftest.mjs` sur la scène réelle tour-eiffel (100 tirages : aucun
+    ne crashe dans la seconde de grâce rejouée, aucun sous le terrain, chaque
+    résultat dans la plage de sa catégorie ; repli `maxAttempts=0` vérifié).
+    `npm run selftest`, `selftest:operator`, `npm run build` verts.
+  - **Vérifié navigateur** (MCP chrome-devtools) : première frame de session
+    et respawns répétés (`r`) atterrissent en vol (altitude/vitesse/assiette
+    variées, moteurs actifs), aucun `NaN`, aucune erreur console.
+  - **Non vérifié / connu, hors périmètre de cette phase** : les plages de
+    valeurs par catégorie (`RANGES` dans `entry-state.js`) sont un premier
+    jet tapé à la main, pas mesuré au banc — à ajuster au ressenti en vol. Le
+    rollout de validation suppose un throttle hover pendant la seconde de
+    grâce ; si le vrai jeu démarre au throttle 0 (position par défaut du
+    stick dans `input.js`), un joueur qui ne touche pas les gaz immédiatement
+    peut chuter en CHALLENGING/HOLY_SHIT (basse altitude) avant la fin de la
+    seconde — tension déjà documentée dans la spec, à traiter par PHASE 10
+    (rituel JACK IN) ou `input.js`, pas par ce module. Le contrôle de sécurité
+    géométrique ne regarde pas la viabilité du lien vidéo au point d'entrée
+    (l'émetteur reste fixe à `physics.spawn`) — un spawn éloigné avec un
+    bâtiment sur la ligne de vue peut ouvrir une session sur un lien dégradé.
+- **Ciel et nuages (issue #22)**, branche `issue-22-nuages-ciel`.
+  - Le ciel est un dôme dégradé avec une couche nuageuse procédurale
+    (`src/sky.js`, `src/cloud.js`) ; la couverture vient de `cloudPct` du world
+    state (météo), pas d'un réglage manuel.
+  - Plafond traversable : whiteout à l'approche, on ressort au-dessus de la
+    couche. Profil d'extinction mesuré en vol à couverture 0,95 (base 136 m) :
+    nul jusqu'à 50 m, 0,0068 à 100 m, 0,0658 en saturation entre 200 et 300 m,
+    retombé à 0,0217 à 400 m.
+  - Assombrissement global du sol **sans motif** : décision de conception, pas
+    une simplification — la géométrie n'a pas de normales et les tuiles
+    portent déjà l'ombrage cuit d'Apple. `DIM_MAX = 0,55`, mesuré en vol sur
+    `tour-eiffel` et `notre-dame-de-la-croix`.
+  - Vérifié en vol : `uHorizon`, `scene.background` et le `uFogColor` des
+    matériaux de chunk portent tous exactement la même couleur — c'est ce qui
+    empêche la ligne d'horizon de se dédoubler.
+  - **L'invariant historique change de forme.** Il ne dit plus que le pixel de
+    ciel sort à `#9fb8cc` : un dégradé change forcément le pixel du zénith,
+    et c'est l'objet même de cette issue. L'invariant devient : **la couleur
+    d'horizon par ciel clair vaut exactement `#9fb8cc`**, c'est elle que
+    `setFog()` pousse sur les tuiles, et le zénith est délibérément plus
+    profond. Vérifié en vol.
+  - **Non vérifié** : le coût en fill rate du dôme à FOV 120 sur un GPU
+    modeste — la vérification a tourné en rendu logiciel.
+  - Le sens de dérive du vent était inversé (`_drift` accumulé avec le bon
+    signe, mais le shader échantillonne `vnoise(p + uDrift·…)`, ce qui
+    translate le motif à *moins* le vecteur ajouté : les nuages remontaient
+    le vent). Corrigé après la revue finale, vérifié par un calcul numérique
+    sur un portage JS du fbm (maximum local suivi sous un vent de nord).
+    Toujours **non vérifié à l'œil**.
 - Rendu réel sur GPU utilisateur (RX 9060 XT, ANGLE/radeonsi) : **5 draw calls,
   3 742 191 triangles**, coût GPU **1,68 ms/frame** à 256 px (mesuré par sync
   `readPixels` ; c'était ~1 ms à 128 px). Large marge sur un budget de 10 ms.
@@ -298,8 +454,71 @@ Plan d'origine (contexte de la décision d'architecture) :
     télémétrie jamais éprouvés dans le navigateur avec un vrai vol ; le geste de
     désarmement à la manette non plus.
 
+- **Le soleil** (issue #23) : `src/sun.js` (position + couleur du ciel + AGC
+  `SunField`), `src/lens.js` (bloc `#if SUN` : disque, halo, voile, gain
+  d'exposition), câblage `src/main.js` (occlusion via
+  `physics.obstructionBetween()`, projection écran, `weatherSky()` dérive
+  maintenant du soleil, `window.__sim.debug().sun`).
+  - **Vérifié au banc** : `npm run selftest` — 57 checks dédiés répartis en
+    quatre sections (`soleil — position`, `soleil — atmosphère et couleur du
+    ciel`, `soleil — exposition (AGC) et SunField`, `soleil — traduction
+    depuis le bulletin`), 258/258 au total sur la scène `tour-eiffel`.
+  - **Vérifié en vol, navigateur (CDP direct sur un Chromium headless dédié,
+    dev server sur le worktree `issue-23-soleil`, `?scene=tour-eiffel`,
+    heure réelle 2026-08-29 ~15h40 CEST)** :
+    - `window.__sim.debug().sun` existe et ses champs sont plausibles pour
+      Paris à l'heure réelle : élévation ~44,8° puis en baisse au fil du test
+      (cohérent avec une fin d'après-midi), `dir.z > 0` (soleil au sud), ciel
+      `#a3c2e2`-`#a7c9ee` (bleu clair, cohérent avec une élévation proche
+      mais pas égale à la référence de calibrage 60°).
+    - **Passage 1 — soleil dans le cadre** : caméra pointée droit sur le
+      soleil (rotation du corps Rapier forcée), `inFrame` monte à 0,81,
+      `exposure` chute de 1 à 0,562 en ~1,5 s ; en la retournant à 180°,
+      l'exposition remonte (0,562 → 0,846 → 0,90 sur les secondes
+      suivantes), plus lentement que la fermeture — la mécanique décrite par
+      l'issue est bien observable dans le vrai rendu.
+    - **Passage 2 — soleil occulté par un bâtiment** : position/orientation
+      choisies par balayage de `physics.obstructionBetween()` pour couper le
+      rayon soleil sur un immeuble ; `visible` tombe de 1 à 0, `inFrame`
+      retombe à 0 avec lui, et `exposure` reste quasi immobile (0,992 →
+      0,995) — un soleil caché ne ferme pas le diaphragme, confirmé.
+    - **Passage 3 — ciel couvert** : `window.__sim.sun.setWeather({cloudPct:
+      100, visibilityM: 20000})` → `amount` tombe à 0, `active` passe à
+      `false`, ciel gris clair `#cde0e4`, plus de disque.
+    - **Non-régression** : à l'heure réelle du test l'élévation solaire
+      (~44°) n'était pas celle du point de calibrage (`REF_ELEV = 60`), donc
+      la reproduction *exacte* de `#9fb8cc` n'a pas pu être observée en
+      direct (c'est couvert au banc par `soleil — exposition (AGC) et
+      SunField` : `sun.exposure === 1` exactement à `REF_ELEV`/`REF_VIS`).
+      Ce qui a été observé en direct : ciel clair, soleil hors cadre ⇒
+      `exposure` revient à 1 et le ciel calculé (`#9eb2c0` à 44° d'élévation)
+      s'approche de `#9fb8cc` dans le sens attendu par la formule. Ciel
+      totalement couvert ⇒ `active` bien `false` dans le vrai rendu — le cas
+      de non-régression que le code documente réellement (voir le
+      commentaire au-dessus de `SunField.active` dans `sun.js` : `active` est
+      vrai dès que le soleil est levé, caméra ou pas — un ciel clair de midi
+      NE rend PAS `active` faux, seul un ciel totalement bouché, ou la nuit
+      avec un gain resté à 1, le fait).
+    - Aucune erreur console pendant le test.
+  - **Non vérifié** : le ressenti d'un vol complet du lever au coucher (ça
+    demande de laisser tourner des heures réelles, il n'y a délibérément
+    aucun réglage d'heure) ; le pilotage manette réel des trois passages (ils
+    ont été reproduits par script CDP — orientation de la caméra forcée via
+    Rapier — plutôt qu'au stick, faute d'accès manette dans cet
+    environnement).
+
 ## Non vérifié / à faire
 
+- **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
+  (tour-eiffel) — voir le détail dans le bloc PHASE 14 ci-dessus. Restent non
+  vérifiés : le ressenti (rythme de la séquence, lisibilité de `LANDING
+  DETECTED` par-dessus l'image encore vivante) et le cas `LINK_OFF` (lien
+  coupé par le joueur au moment du crash), non exercé en vol.
+  - La nouvelle séquence de pose temporisée (`LANDING_TIMELINE`, ordonnancement
+    et armement d'`exitArmed` en fin de séquence) n'est vérifiée qu'en headless
+    (`tools/flight-end-selftest.mjs`, 20 tests) ; pas encore rejouée dans le
+    navigateur — le rythme perçu (2,2 s, fondu à 0,6-1,0 s) et l'annonce
+    `[ESC] DISCONNECT` sur une pose réelle restent à éprouver en vol piloté.
 - **PHASE 05, dans le navigateur** : les quatre barres, le bloc GEOMETRY/
   TEXTURES, les barres décoratives RF ANALYSIS/TARGET SEARCH, le flux RTC et
   l'écran TERRAIN ACQUIRED → KEEP/REMOVE ont été vérifiés côté logique pure

@@ -23,6 +23,40 @@ export const QUAD = DEFAULT_PROFILE;
 
 export function hoverThrust(profile = QUAD) { return profile.mass * GRAVITY; }
 export const HOVER_THRUST = hoverThrust(QUAD);
+// Le manche de « gaz coupés » (PHASE 14), dérivé plutôt que choisi. La poussée
+// statique d'un moteur suit omega = omegaMax * cmd^rpmCurve (voir Propulsion
+// plus bas) et poussée ∝ omega², donc poussée totale(cmd) = 4 * maxThrustPerMotor
+// * cmd^(2*rpmCurve). En-dessous du manche où cette poussée tombe à la moitié du
+// poids, l'appareil accélère vers le bas à au moins 0,5 g : ce n'est plus du
+// pilotage au ras du sol, c'est une pose en cours, quel que soit le manche
+// exact que le pilote tient encore. On résout cmd pour poussée = poids / 2 :
+//   cmd = ((mass * g) / (8 * maxThrustPerMotor)) ^ (1 / (2 * rpmCurve))
+// (le 8 plutôt que le 4 de hoverThrust vient de ce facteur 1/2 sur le poids
+// visé). Valeurs obtenues par famille (tools/landing-selftest.mjs les
+// revérifie) : freestyle5 0,143 · race5 0,106 · cinewhoop 0,250 ·
+// longrange 0,185 · heavy5 0,169 · toothpick 0,231 — toutes franchement sous
+// le manche de stationnaire (hoverStick, tools/selftest.mjs) de la même
+// famille.
+export function idleThrottle(profile = QUAD) {
+	return ((profile.mass * GRAVITY) / (8 * profile.maxThrustPerMotor)) ** (1 / (2 * profile.rpmCurve));
+}
+
+// Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
+// 25 m/s into a building ~2450N. 1500 lets you land and bump walls, but calls
+// slamming into something a crash.
+export const CRASH_IMPULSE = 1500;
+
+// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
+// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+export const CRASH_IMPULSE_FLAT = 2800;
+
+// Un drone qui arrive à plat encaisse : bras et hélices absorbent. Nez en avant
+// ou sur le dos, il casse plus facilement — le seuil suit donc l'assiette au
+// moment du choc (upY proche de 1 = plat/dessus, proche de -1 = inversé).
+export function crashThreshold(rotation) {
+	const upY = 1 - 2 * (rotation.x * rotation.x + rotation.z * rotation.z);
+	return upY > 0.4 ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE;
+}
 
 // Motor layout in Betaflight order: 1 rear-right, 2 front-right, 3 rear-left,
 // 4 front-left. spin = +1 for counter-clockwise seen from above (a positive

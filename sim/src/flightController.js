@@ -363,7 +363,7 @@ export class FlightController {
 // Throttle that cancels gravity at the current tilt, inverted through the
 // thrust curve so it lands on the right stick position instead of assuming
 // thrust is linear in throttle.
-function hoverThrottle(profile, q) {
+export function hoverThrottle(profile, q) {
 	const up = rotate(q, 0, 1, 0);
 	const need = (profile.mass * GRAVITY) / Math.max(0.35, up.y);
 	const fraction = clamp(need / (4 * profile.maxThrustPerMotor), 0, 1);
