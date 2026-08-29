@@ -812,7 +812,12 @@ async function chooseScene() {
 	const seed = Math.random().toString(16).slice(2, 12);
 	const count = signalCountFor(slug);
 	const scan = generateTargetScan({ seed, count });
-	const choice = await runTargetScan(ui, { seed, count }); // { seed, count, index }
+	// La météo du monde pour cette zone, résolue avant le scan pour rendre les
+	// conditions saillantes au choix de cible (issue #76). worldWeather est caché
+	// par zone : boot() réutilise ce résultat sans nouvel aller-retour.
+	const sc = (await loadSceneList()).find((s) => s.slug === slug);
+	const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
+	const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index }
 	const family = scan.candidates[choice.index]._family;
 	return { slug, resume: undefined, target: choice, family };
 }

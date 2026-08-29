@@ -516,4 +516,36 @@ export function formatForecast(snapshot, { title = '' } = {}) {
 	return lines.join('\n');
 }
 
+// Les régimes où un vol devient une mauvaise idée : la Bible §14 veut que le
+// pilote y pense AVANT de voler, pas en découvrant la première rafale.
+const MARGINAL = new Set(['WINDY', 'GALE', 'STORM', 'HEAVY RAIN', 'RAIN', 'FOG']);
+
+// Le bloc CONDITIONS rendu au TARGET SCAN (issue #76). Trois lignes — vent
+// (force + direction + label), pluie, visibilité — précédées d'une alerte quand
+// le régime du jour est marginal. `null` si pas de snapshot : on n'invente pas
+// de météo.
+export function conditionsBlock(snapshot) {
+	const t = today(snapshot);
+	if (!t) return null;
+	const lines = ['CONDITIONS', ''];
+	if (MARGINAL.has(t.regime)) lines.push('>>> MARGINAL CONDITIONS', '');
+	lines.push(
+		`WIND         ${t.windSpeed.toFixed(1)} m/s  ${compassPoint(t.windDir)}   ${windLabel(t.windSpeed)}`,
+		`RAIN         ${t.rateMmH < 0.05 ? 'NONE' : `${t.rateMmH.toFixed(1)} mm/h`}`,
+		`VISIBILITY   ${formatVisibility(t.visibilityM)}`,
+	);
+	return lines;
+}
+
+// Le rappel d'une ligne, en pied de fiche cible : la dernière chose lue avant
+// CONFIRM. `null` si pas de snapshot.
+export function conditionsLine(snapshot) {
+	const t = today(snapshot);
+	if (!t) return null;
+	const parts = [windLabel(t.windSpeed)];
+	if (t.rateMmH >= 0.05) parts.push('RAIN');
+	parts.push(`VIS ${formatVisibility(t.visibilityM)}`);
+	return `${MARGINAL.has(t.regime) ? '>>> ' : ''}${parts.join(' · ')}`;
+}
+
 export { RANGE_MIN, MAX_RATE };
