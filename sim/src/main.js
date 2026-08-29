@@ -129,6 +129,12 @@ let linkForced = false;
 // Le mode choisi par le joueur dans les réglages du lien, mémorisé pour que la
 // séquence de crash puisse forcer une dégradation même s'il a coupé le modèle.
 let lensLinkMode = LINK_OFF;
+// Le sol sous le drone, un seul raycast Rapier par frame — physics.groundBelow
+// est un test plein maillage, pas quelque chose à refaire deux fois pour la
+// même position. Recalculé uniquement quand la physique avance ; le gel (pause,
+// caméra libre, réglages) laisse le drone immobile, donc la dernière valeur
+// reste correcte tant que rien n'a bougé.
+let groundY = null;
 // La zone survolée (= slug de scène), l'id d'une session LANDED à reprendre, et
 // l'altitude du spawn, pour la session.
 let flyArea = null;
@@ -342,6 +348,9 @@ async function boot() {
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 			physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 			flightEnd.reset();
+			// Sinon un second crash dans la même page ne re-forcerait pas la
+			// dégradation du lien : setLink(true) ne s'exécute qu'un coup par vol.
+			linkForced = false;
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -604,12 +613,12 @@ function frame() {
 		// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt,
 		// quand la session se ferme. main.js ne fait que l'alimenter et obéir.
 		const fp = physics.position;
-		const fg = physics.groundBelow(fp.x, fp.y, fp.z);
+		groundY = physics.groundBelow(fp.x, fp.y, fp.z);
 		const fv = physics.velocity, fw = physics.angularVelocity;
 		flightEnd.update({
 			dt,
 			armed: controller.armed,
-			height: fg === null ? Infinity : fp.y - fg,
+			height: groundY === null ? Infinity : fp.y - groundY,
 			speed: Math.hypot(fv.x, fv.y, fv.z),
 			angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
 			throttle: sticks.throttle,
@@ -713,7 +722,6 @@ function frame() {
 	lens.render(camera, dt, freeCamOn ? null : linkOut);
 
 	const v = physics.velocity;
-	const ground = physics.groundBelow(p.x, p.y, p.z);
 	const bat = physics.battery;
 
 	// Télémétrie agrégée de la session (PHASE 06) : des maxima et des cumuls,
@@ -730,7 +738,7 @@ function frame() {
 	});
 
 	hud.update({
-		altitude: ground === null ? null : p.y - ground,
+		altitude: groundY === null ? null : p.y - groundY,
 		speed: Math.hypot(v.x, v.y, v.z),
 		throttle: sticks.throttle,
 		mode: freeCamOn ? 'caméra libre' : controller.mode,
