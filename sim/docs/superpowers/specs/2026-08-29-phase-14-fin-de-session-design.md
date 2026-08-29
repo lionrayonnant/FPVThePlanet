@@ -44,10 +44,12 @@ modèle PHASE 07/08/11 : logique pure testable headless, câblée sur le
 
 Ce qui existe déjà et n'est **pas** re-décidé ici :
 
-- `quad.js:crashThreshold(rotation)` — le seuil de crash mesuré, fonction de
-  l'assiette au moment du choc. La spec le réutilise tel quel. (L'issue parle
-  d'un `CRASH_IMPULSE = 1500` dans `main.js` : cette constante a déjà été
-  remplacée par `crashThreshold()`, plus fine et mesurée elle aussi.)
+- `main.js:CRASH_IMPULSE` (1500) et `CRASH_IMPULSE_FLAT` (2800), choisis selon
+  l'assiette au moment du choc — les seuils mesurés que l'issue demande de
+  réutiliser. Ils ne sont ni déplacés ni re-choisis. `FlightEnd` reçoit un
+  booléen `crashed` déjà décidé : la source du seuil lui est indifférente, donc
+  le `crashThreshold(rotation)` de PHASE 11 s'y substituera sans changer une
+  ligne de PHASE 14.
 - `session.end('CRASHED' | 'LANDED')` (PHASE 06) — la fermeture serveur de la
   session. PHASE 14 change **quand** elle est appelée, pas ce qu'elle fait.
 - `link.js` / `lens.js` — le gel d'image, le bruit RF, les macroblocs, le
@@ -160,7 +162,7 @@ Ordre imposé par la Bible : l'**image** meurt avant le **texte**.
 
 | t (s) | ce qui se passe |
 |---|---|
-| 0,0 | impact > `crashThreshold()`. `linkDead = true` : dernière image gelée, bruit/macroblocs au maximum. Moteurs coupés. `closes = 'CRASHED'`. Aucun texte. |
+| 0,0 | impact au-delà du seuil de crash. `linkDead = true` : dernière image gelée, bruit/macroblocs au maximum. Moteurs coupés. `closes = 'CRASHED'`. Aucun texte. |
 | 0,9 | `blackout` monte à 1 en 0,4 s — noir. |
 | 1,6 | `LINK LOST` |
 | 2,8 | `TARGET LOST` |
