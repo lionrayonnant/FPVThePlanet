@@ -1,0 +1,150 @@
+// Logique pure du Session Log et du Target Log (PHASE 17, Bible §28).
+// Aucune E/S, aucun DOM, aucun `node:` — importable tel quel par le client
+// (bundlé par Vite) comme par le selftest.
+//
+// Le Target Log est DÉRIVÉ des sessions (spec D1) : il n'y a pas de stock à
+// tenir à jour, seulement une lecture de `state.sessions`. Une session
+// supprimée emporte donc la trace de sa cible, ce qui est le comportement
+// voulu — le log ne conserve que la trace d'une session.
+import { formatVisibility, windLabel } from './lib/weather.mjs';
+import { PROFILES } from '../src/drone-profiles.js';
+
+export const SESSION_FILTERS = ['ALL', 'LANDED', 'CRASHED', 'WITH PHOTOS'];
+
+export function pad(n, width = 5) {
+	const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+	return String(v).padStart(width, '0');
+}
+
+// `tour-eiffel` → `TOUR EIFFEL`. Dérivé du slug porté par la session, jamais de
+// `scenes.json` ni du `terrainCache` : une session doit rester lisible après la
+// suppression de son terrain (Bible §29, « supprimer le terrain ne supprime pas
+// le souvenir »).
+export function areaLabel(slug) {
+	const s = String(slug ?? '').trim();
+	return s ? s.replace(/-+/g, ' ').toUpperCase() : 'UNKNOWN AREA';
+}
+
+// `28.08.26 / 21:42`, en heure LOCALE : c'est l'heure qu'il était pour
+// l'opérateur, pas UTC.
+export function stamp(iso) {
+	const d = new Date(iso ?? NaN);
+	if (Number.isNaN(d.getTime())) return '—';
+	const p = (n) => String(n).padStart(2, '0');
+	return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${p(d.getFullYear() % 100)}`
+		+ ` / ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function duration(seconds) {
+	const s = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+	const m = Math.floor(s / 60);
+	return m ? `${m}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`;
+}
+
+export function filterSessions(sessions, filter) {
+	const list = Array.isArray(sessions) ? sessions.slice() : [];
+	switch (filter) {
+		case 'LANDED': return list.filter((s) => s.result === 'LANDED');
+		case 'CRASHED': return list.filter((s) => s.result === 'CRASHED');
+		case 'WITH PHOTOS': return list.filter((s) => (s.photos?.length ?? 0) > 0);
+		// `ALL` — et tout filtre inconnu, plutôt qu'une liste vide inexplicable.
+		default: return list;
+	}
+}
+
+function familyLabel(family) {
+	return PROFILES[family]?.label ?? String(family ?? 'UNKNOWN');
+}
+
+export function sessionRow(s) {
+	const target = s?.targetSeq ? `TARGET ${pad(s.targetSeq, 3)}` : 'NO TARGET';
+	return [
+		`SESSION ${pad(s?.seq)}`.padEnd(14),
+		areaLabel(s?.area).padEnd(26),
+		target.padEnd(11),
+		String(s?.result ?? 'UNKNOWN').padEnd(8),
+		duration(s?.flightTelemetry?.durationS),
+	].join(' ');
+}
+
+// Chaque bloc rend `null` quand sa donnée manque : un bloc absent est omis du
+// détail, jamais rempli d'une valeur inventée.
+function targetBlock(s) {
+	const t = s?.target;
+	if (!t) return null;
+	const lines = [`TARGET ${pad(s.targetSeq, 3)}`, familyLabel(t.family)];
+	if (t.signal) lines[1] += `  ${t.signal.rssiDbm} dBm ${t.signal.mode}`;
+	if (t.hackType) lines.push(t.hackType);
+	return lines;
+}
+
+function weatherBlock(snapshot) {
+	const d = snapshot?.day0;
+	if (!d) return null;
+	const lines = ['WEATHER', snapshot.regime ?? d.regime ?? 'UNKNOWN'];
+	if (Number.isFinite(d.windSpeed)) {
+		lines.push(`WIND ${d.windSpeed.toFixed(1)} m/s  ${windLabel(d.windSpeed)}`);
+	}
+	if (Number.isFinite(d.rateMmH) && d.rateMmH >= 0.05) {
+		lines.push(`RAIN ${d.rateMmH.toFixed(1)} mm/h`);
+	}
+	if (Number.isFinite(d.visibilityM)) lines.push(`VIS ${formatVisibility(d.visibilityM)}`);
+	return lines;
+}
+
+function flightBlock(s) {
+	const tel = s?.flightTelemetry ?? {};
+	return [
+		'FLIGHT',
+		duration(tel.durationS),
+		`MAX SPEED ${(tel.maxSpeedMs ?? 0).toFixed(1)} m/s`
+			+ ` · MAX ALT ${Math.round(tel.maxAltitudeM ?? 0)} m`
+			+ ` · DISTANCE ${Math.round(tel.distanceM ?? 0)} m`,
+		`RESULT ${s?.result ?? 'UNKNOWN'}`,
+	];
+}
+
+export function sessionDetail(s) {
+	const blocks = [
+		[`SESSION ${pad(s?.seq)}`],
+		[areaLabel(s?.area), stamp(s?.start)],
+		targetBlock(s),
+		s?.randomart ? ['RANDOMART', s.randomart] : null,
+		weatherBlock(s?.weatherSnapshot),
+		flightBlock(s),
+		// Zéro capture reste affiché : « aucune photo » est une information.
+		['CAPTURES', pad(s?.photos?.length ?? 0, 2)],
+		s?.comment ? ['OPERATOR NOTE', `"${s.comment}"`] : null,
+	];
+	return blocks.filter(Boolean).map((b) => b.join('\n')).join('\n\n');
+}
+
+export function targetLogEntries(sessions) {
+	return (Array.isArray(sessions) ? sessions : [])
+		.filter((s) => s?.target && s?.targetSeq)
+		.map((s) => ({
+			targetSeq: s.targetSeq,
+			sessionId: s.id,
+			family: s.target.family,
+			label: familyLabel(s.target.family),
+			rssiDbm: s.target.signal?.rssiDbm ?? null,
+			mode: s.target.signal?.mode ?? null,
+			hackType: s.target.hackType ?? null,
+			area: s.area,
+			at: s.start,
+			result: s.result,
+		}))
+		.sort((a, b) => b.targetSeq - a.targetSeq);
+}
+
+export function targetRow(e) {
+	const signal = e.rssiDbm == null ? 'NO SIGNAL' : `${String(e.rssiDbm).padStart(4)} dBm ${e.mode}`;
+	return [
+		`TARGET ${pad(e.targetSeq, 3)}`.padEnd(11),
+		e.label.padEnd(14),
+		signal.padEnd(17),
+		areaLabel(e.area).padEnd(26),
+		stamp(e.at).padEnd(17),
+		String(e.result ?? 'UNKNOWN'),
+	].join(' ');
+}
