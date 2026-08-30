@@ -177,6 +177,11 @@ let crashed = false;
 // deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
 let exiting = false;
 
+// État « bouton manette tenu » pour la sortie de fin de vol (issue #123).
+// Vrai par défaut : seul un front montant APRÈS l'armement de la sortie
+// déclenche la déconnexion.
+let exitPadHeld = true;
+
 // PHASE 16 : levé par la touche capture, consommé une fois par frame juste
 // après lens.render() — c'est cette frame-là, déjà rendue, que lens.capture()
 // redessine à la résolution du capteur cible. L'OSD FPVTP! (overlay DOM
@@ -608,6 +613,9 @@ async function finishBoot(preloading) {
 	window.__simInput = null;
 
 	hud.ready();
+	// À partir d'ici les sticks pilotent le drone : le panneau Settings ouvert
+	// en vol n'écoute plus la manette (issue #123, voir settings.js).
+	settings.flightActive = true;
 	lastTime = performance.now();
 	renderer.setAnimationLoop(frame);
 	uiAudio.play('TERRAIN_READY');
@@ -1226,6 +1234,19 @@ if (!frozen) {
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setPhotoReady(photoReady);
 	settings.updateAxisBars();
+
+	// [ESC] DISCONNECT, version radio (issue #123) : une fois la sortie armée le
+	// vol est fini — n'importe quel bouton de manette NOUVELLEMENT pressé
+	// déconnecte, sans poser la radio. Front montant seulement : un inter tenu
+	// depuis le vol ou le geste de désarmement ne compte pas.
+	if (flightEnd.out.exitArmed && !exiting) {
+		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+		const down = !!pad?.buttons.some((b) => b.pressed);
+		if (down && !exitPadHeld) finishSession();
+		exitPadHeld = down;
+	} else {
+		exitPadHeld = true;
+	}
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
 	// wasted work, and setTargetAtTime interpolates between frames anyway.

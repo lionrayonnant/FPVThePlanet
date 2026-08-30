@@ -35,6 +35,55 @@ html, body {
 
 canvas { display: block; }
 
+/* ---------- curseur de menu (issue #123) ---------- */
+/* Le focus natif EST le curseur du jeu (src/menu-nav.js) : une seule vérité
+   pour Tab, souris, clavier et manette. L'anneau système — bleu, hors palette,
+   différent sur chaque machine — disparaît partout au profit du marqueur
+   ▌ (U+258C), natif dans Departure Mono : pleine hauteur de cellule, encre au
+   bord gauche, écart au centre optique nul — il forme un filet vertical contre
+   la rangée focalisée. Les champs de saisie gardent leur propre signe (le
+   filet de bordure qui passe en pleine encre, règles existantes plus bas). */
+:focus { outline: none; }
+button:focus { position: relative; }
+button:focus::before {
+	content: '▌';
+	position: absolute;
+	left: -0.9em; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	font-size: inherit;
+	letter-spacing: 0;
+	color: var(--ink);
+	/* Le marqueur est le curseur, pas une cible : un clic dessus doit toucher
+	   ce qu'il y a derrière, pas agrandir le bouton. */
+	pointer-events: none;
+}
+/* Un contrôle réglable (slider, select, checkbox) porte le marqueur sur sa
+   ligne entière : c'est la ligne que ←/→ règle (issue #123, Settings). */
+.panel label:focus-within { position: relative; }
+.panel label:focus-within::before {
+	content: '▌';
+	position: absolute;
+	left: -18px; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	color: var(--ink);
+	pointer-events: none;
+}
+#pad-map td:first-child { position: relative; }
+#pad-map tr:focus-within td:first-child::before {
+	content: '▌';
+	position: absolute;
+	left: -14px; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	color: var(--ink);
+	pointer-events: none;
+}
+
 #ui { position: fixed; inset: 0; pointer-events: none; }
 #ui button, #ui input, #ui select, #ui label { pointer-events: auto; }
 
@@ -168,6 +217,10 @@ canvas { display: block; }
 .panel {
 	pointer-events: auto;
 	width: min(460px, 90vw);
+	/* Le panneau défile quand il dépasse (issue #123) : à 785 px de contenu sur
+	   un portable 1366×768 il était rogné en haut et en bas, sans recours. */
+	max-height: 92vh;
+	overflow-y: auto;
 	padding: var(--space-5) 30px;
 	background: var(--grey);
 	border: var(--rule-w) solid var(--rule);
@@ -293,6 +346,9 @@ canvas { display: block; }
 	align-self: auto; padding: 0; border: 0; background: none;
 	color: var(--ink); font: inherit; letter-spacing: inherit; cursor: pointer;
 	text-transform: uppercase;
+	/* Ce qui est actionnable se voit au repos (issue #123) : un filet d'un
+	   pixel sous le lien — la forme, pas la couleur, le distingue du titre. */
+	border-bottom: var(--rule-w) solid var(--rule-strong);
 }
 /* Survol : la ligne s'allume, elle ne change pas de teinte. */
 .terminal-nav button.terminal-link:hover { background: var(--warm-white); color: var(--black); }
@@ -331,6 +387,30 @@ canvas { display: block; }
 .terminal-area-weather[data-severity="watch"] { color: var(--yellow); }
 .terminal-area-weather[data-severity="marginal"] { color: var(--orange); }
 .terminal-area-weather[data-severity="nogo"] { color: var(--red); }
+
+/* ---------- listes navigables (issue #123) ---------- */
+/* Les rangées du SESSION LOG et du TARGET SCAN étaient peintes dans un <pre> :
+   ni cliquables, ni atteignables au Tab, ni lisibles par une aide technique.
+   Chaque rangée est un vrai bouton, au même niveau DISPLAY que le <pre>
+   qu'elle remplace, avec la colonne du curseur réservée à gauche — le
+   marqueur ▌ s'y pose sans décaler le texte, comme le faisait l'ancien `>`. */
+.terminal-list {
+	display: flex; flex-direction: column;
+	max-height: 55vh; overflow-y: auto;
+}
+button.terminal-row {
+	padding: 1px 0 1px 1.2em; border: 0; background: none;
+	text-align: left; white-space: pre; cursor: pointer;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s);
+	line-height: 1.45;
+	letter-spacing: var(--track-display);
+	color: var(--ink);
+}
+button.terminal-row:hover { background: var(--warm-white); color: var(--black); }
+/* Dans une liste qui défile, le marqueur vit DANS la colonne réservée : à
+   -0.9em il serait rogné par l'overflow. */
+button.terminal-row:focus::before { left: 0; }
 
 /* ---------- session log (PHASE 17) ---------- */
 /* Vignettes des captures d'une session. Grille souple : le détail d'une session

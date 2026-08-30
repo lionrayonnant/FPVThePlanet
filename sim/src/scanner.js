@@ -19,6 +19,7 @@ import {
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 } from '../tools/scanner-model.mjs';
 import { rtcScript } from '../tools/rtc-model.mjs';
+import { menuNav } from './menu-nav.js';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 
@@ -576,18 +577,31 @@ export function runScanner(root) {
 
 	// ------------------------------------------------------------ acquisition
 	let resolveScanner;
-	const done = (slug) => { cleanup(); resolveScanner(slug); };
+	let finished = false;
+	const done = (slug) => {
+		if (finished) return;
+		finished = true;
+		cleanup();
+		resolveScanner(slug);
+	};
 
 	function cleanup() {
-		document.removeEventListener('keydown', onKey);
+		nav.detach();
 		map.remove();
 		el.remove();
 	}
 
-	function onKey(e) {
-		if (e.key === 'Escape' && !state.jobId) { e.preventDefault(); done(undefined); }
-	}
-	document.addEventListener('keydown', onKey);
+	// Navigation clavier + manette du panneau (issue #123) — le panneau seul :
+	// attaché à `el`, le curseur circulerait aussi dans les contrôles Leaflet
+	// de la carte. menu-nav ignore les champs de saisie : la recherche et la
+	// désignation restent éditables, et leurs flèches leur appartiennent.
+	// Échap / B remonte comme avant — jamais pendant une acquisition (la fermer
+	// se fait par ABORT ou LEAVE, un geste explicite). Pas de focusFirst :
+	// l'écran pose déjà son focus sur la recherche au montage.
+	const nav = menuNav(panel, {
+		back: () => { if (!state.jobId) done(undefined); },
+		focusFirst: false,
+	});
 	$('.sc-back').onclick = () => done(undefined);
 
 	$('.sc-acquire').onclick = async () => {

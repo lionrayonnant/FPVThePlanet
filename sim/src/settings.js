@@ -1,4 +1,5 @@
 import { CHANNELS } from './input.js';
+import { menuNav } from './menu-nav.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
@@ -136,6 +137,9 @@ export class Settings {
 			linkVal: el.querySelector('#link-val'),
 			linkPresets: el.querySelector('#link-presets'),
 		};
+		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
+		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
+		this.flightActive = false;
 		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		el.querySelector('#reset-settings').onclick = () => {
 			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, lien vidéo, son) ?')) return;
@@ -264,7 +268,20 @@ export class Settings {
 	toggleSettings(force) {
 		const show = force ?? this.el.settings.hidden;
 		this.el.settings.hidden = !show;
-		if (show) this.buildAxisRows();
+		if (show) {
+			this.buildAxisRows();
+			// Navigation clavier + manette (issue #123) : ↑/↓ circule entre les
+			// lignes, ←/→ règle le contrôle focalisé (menu-nav.js sait lesquels
+			// sont réglables), Échap / B referme. Attaché à l'ouverture seulement :
+			// en vol, panneau fermé, les flèches restent des commandes.
+			this._nav ??= menuNav(this.el.settings, {
+				back: () => this.toggleSettings(false),
+				gamepad: !this.flightActive,
+			});
+		} else {
+			this._nav?.detach();
+			this._nav = null;
+		}
 	}
 
 	get settingsOpen() { return !this.el.settings.hidden; }
