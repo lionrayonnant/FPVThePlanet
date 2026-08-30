@@ -6,8 +6,10 @@
 //
 // PRESS ANY KEY (calme, palette UI) fait passer le geste utilisateur qui
 // lance le cracktro (logo + plasma/raster + scrolltext, Bible §19 :
-// cyan/magenta/violet/bleu électrique réservés à ce moment). Muet au
-// démarrage (le cracktro n'a plus de partition) : skippable à tout instant —
+// cyan/magenta/violet/bleu électrique réservés à ce moment). Ce même geste
+// ouvre l'AudioContext et lance l'ambiance du terminal (callback
+// `onFirstGesture`) : le cracktro n'a plus de partition propre, mais il n'est
+// plus joué dans le silence. Skippable à tout instant —
 // n'importe quel geste coupe net (démontage complet) plutôt que d'attendre la
 // fin.
 import { INTRO_PHASES, INTRO_TOTAL_MS, RESOLUTION_AT_MS, phaseAt, SKIP_WRAP_MS } from '../tools/intro-model.mjs';
@@ -31,7 +33,11 @@ const PRIMITIVE_NAMES = Object.keys(RITUAL_PRIMITIVES);
 const COLORS = ['cyan', 'magenta', 'violet', 'blue'];
 const SEED = cosmeticSeed('intro'); // fixe : le motif n'a pas à varier d'un chargement à l'autre
 
-export function runIntro(root) {
+// `onFirstGesture` est appelé UNE fois, de façon synchrone, dans le handler du
+// geste qui passe le gate. C'est la seule fenêtre où le navigateur autorise le
+// démarrage d'un AudioContext : main.js s'en sert pour lancer l'ambiance du
+// terminal dès cet instant, plutôt qu'à la fin du cracktro.
+export function runIntro(root, { onFirstGesture = null } = {}) {
 	return new Promise((resolve) => {
 		const wrap = document.createElement('div');
 		wrap.className = 'intro';
@@ -167,6 +173,10 @@ export function runIntro(root) {
 			// partition.
 			window.removeEventListener('keydown', onGate);
 			wrap.removeEventListener('click', onGate);
+			// Avant startCracktro() : on est encore dans la pile d'appel du
+			// geste, ce que l'autoplay policy exige. Une erreur côté audio ne
+			// doit pas empêcher l'intro de se lancer.
+			try { onFirstGesture?.(); } catch (err) { console.warn('[intro]', err); }
 			startCracktro();
 		}
 		window.addEventListener('keydown', onGate, { once: true });

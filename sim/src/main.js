@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim, setNight } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -282,15 +282,20 @@ function stage(name) {
 // so it can start the moment a scene's slug is known — well before a target
 // (and its family) has been picked — and run underneath TARGET SCAN and the
 // hack ritual instead of underneath its own loading screen (PHASE 13).
-async function preloadScene() {
+// Charge une zone SANS rien monter dans la scène Three : les meshes sont
+// seulement rendus à l'appelant, et c'est finishBoot() qui les monte, une fois
+// la zone réellement engagée. C'est ce qui rend un préchargement orphelin
+// inoffensif — le TARGET SCAN est annulable, et un retour au choix de zone
+// laisse ce chargement finir tranquillement au lieu de l'abandonner (voir
+// preloadFor).
+async function preloadScene(slug) {
+	const base = sceneBase(slug);
 	const t0 = performance.now();
 	hud.startClock();
 
 	stage('manifest');
 	hud.progress('lecture du manifest…', 0.01);
-	const manifest = await loadManifest();
-	sceneManifest = manifest;
-	fpvtpOsd.setCredit(creditText(manifest));
+	const manifest = await loadManifest(base);
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;
@@ -301,7 +306,7 @@ async function preloadScene() {
 	await initPhysics();
 
 	stage('chunks');
-	const { meshes, timings } = await loadChunks(manifest,
+	const { meshes, timings } = await loadChunks(manifest, base,
 		{ fogColor: SKY, fogDensity: FOG_DENSITY, maxChunks: OPTS.maxChunks,
 		  mipmaps: OPTS.mipmaps, anisotropy: OPTS.anisotropy },
 		({ bytes, totalBytes, done, total, decoding }) => {
@@ -309,22 +314,15 @@ async function preloadScene() {
 				0.02 + 0.45 * (bytes / totalBytes));
 			hud.detail(`${(bytes / 1e6).toFixed(0)} / ${(totalBytes / 1e6).toFixed(0)} Mo`);
 		});
-	for (const m of meshes) scene.add(m);
 	console.log('chunk timings (ms):', JSON.stringify(timings));
 
-	// In the scene, not over it: the streaks go through the RenderPass, so the
-	// lens distorts, vignettes, smears and breaks them up like everything else,
-	// and the city occludes them.
-	rainfall = new Rainfall(scene, { sky: SKY });
-	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
-
 	stage('collision-download');
-	const collision = await loadCollision(manifest, (f, received) => {
+	const collision = await loadCollision(manifest, base, (f, received) => {
 		hud.progress('maillage de collision…', 0.47 + 0.28 * f);
 		hud.detail(`${(received / 1e6).toFixed(0)} / ${(manifest.collision.bytes / 1e6).toFixed(0)} Mo`);
 	});
 
-	return { manifest, meshes, collision, t0 };
+	return { slug, manifest, meshes, collision, t0 };
 }
 
 // The rest of boot(): needs PROFILE (the target's family, resolved by TARGET
@@ -335,6 +333,18 @@ async function preloadScene() {
 // without the caller needing to know boot() is split in two.
 async function finishBoot(preloading) {
 	const { manifest, meshes, collision, t0 } = await preloading;
+
+	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
+	// de cet instant la zone est engagée, on ne revient plus en arrière.
+	sceneManifest = manifest;
+	fpvtpOsd.setCredit(creditText(manifest));
+	for (const m of meshes) scene.add(m);
+
+	// In the scene, not over it: the streaks go through the RenderPass, so the
+	// lens distorts, vignettes, smears and breaks them up like everything else,
+	// and the city occludes them.
+	rainfall = new Rainfall(scene, { sky: SKY });
+	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
 
 	stage('collision-build');
 	hud.progress('construction de l’arbre de collision…', 0.76);
@@ -628,8 +638,8 @@ async function finishBoot(preloading) {
 // Convenience wrapper for callers with nothing to hide the load behind
 // (?scene=, resume, dev ?family=): runs both halves back to back, same as
 // before the PHASE 13 split.
-async function boot() {
-	return finishBoot(preloadScene());
+async function boot(slug) {
+	return finishBoot(preloadFor(slug));
 }
 
 // Yields long enough for the loading screen to actually repaint.
@@ -1351,6 +1361,46 @@ function signalCountFor(slug) {
 	return 2 + Math.round(Math.max(0, Math.min(1, lvl)) * 3);   // 2..5, échelle du Global Scanner
 }
 
+// Un préchargement par zone, conservé d'un passage au TARGET SCAN à l'autre.
+// Revenir en arrière puis revenir sur la même zone ne rejoue donc aucun
+// téléchargement : Monaco pèse 510 Mo et ~4,6 s en local, bien plus sur un
+// vrai réseau. Sûr parce que preloadScene() ne monte rien dans la scène et
+// capture sa propre base d'URL — deux zones peuvent charger en parallèle sans
+// se marcher dessus.
+const preloads = new Map();
+
+function preloadFor(slug) {
+	let p = preloads.get(slug);
+	if (!p) {
+		p = preloadScene(slug);
+		// Un préchargement abandonné qui échoue ne doit pas remonter en
+		// « unhandled rejection » : celui qui l'attend vraiment verra l'erreur,
+		// les autres non.
+		p.catch(() => {});
+		preloads.set(slug, p);
+	}
+	return p;
+}
+
+// Les meshes préchargés retiennent leurs planches de texture (~135 Mo par
+// zone) : dès qu'une zone est engagée, les autres n'ont plus de raison d'être
+// et sont libérées. Elles ne sont dans aucune scène — il suffit de rendre la
+// mémoire.
+function dropPreloadsExcept(keepSlug) {
+	for (const [slug, p] of preloads) {
+		if (slug === keepSlug) continue;
+		preloads.delete(slug);
+		p.then((loaded) => {
+			for (const m of loaded.meshes ?? []) {
+				m.geometry.dispose();
+				m.material.uniforms?.uMap?.value?.dispose();
+				m.material.dispose();
+			}
+			console.log(`[load] préchargement abandonné libéré: ${slug}`);
+		}, () => {});
+	}
+}
+
 async function chooseScene() {
 	const ui = document.getElementById('ui');
 
@@ -1372,100 +1422,111 @@ async function chooseScene() {
 		else await operator.selectOperator(pick.id);
 	}
 
-	// Ambiance du terminal (issue #122). Le pool `menu` n'est pas un drone :
-	// c'est le lieu où l'on est assis, avant. La graine change à chaque
-	// chargement — le terminal n'a pas de buildSeed à respecter, et deux
-	// sessions de suite ne doivent pas ouvrir sur le même morceau.
-	//
-	// Câblé ici plutôt que dans terminal.js : les écrans restent des clients
-	// purs, sans dépendance audio.
-	await music.loadManifest();
-	const menuTrack = music.trackForMenu(Math.random().toString(16).slice(2, 12));
-	music.prepare(menuTrack).then((ready) => {
-		// Le terminal est peut-être déjà passé : on ne démarre que s'il est
-		// encore là, sinon la musique de menu s'inviterait par-dessus le hack.
-		if (ready && !music.playing) music.play({ intensity: PHASE_INTENSITY.MENU });
-	});
+	// Pas de démarrage de musique ici : c'est startup(), dans le geste du PRESS
+	// ANY KEY, qui s'en charge. Un appel de plus ici tournerait au chargement,
+	// AVANT tout geste : il consommerait le garde de startMenuMusic() et
+	// lancerait la source sur un contexte encore suspendu, laissant le geste
+	// suivant sans rien à démarrer.
 
-	// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
-	const flyChoice = await runTerminal(ui, { settings });
-	const { slug, resume } = flyChoice;
+	// Boucle du choix de zone : Échap au TARGET SCAN revient ici. Rien n'est
+	// démonté et rien n'est rechargé — c'est ce qui permet à l'ambiance du
+	// terminal de continuer sans la moindre coupure, et au préchargement de la
+	// zone qu'on vient de quitter de rester acquis.
+	for (;;) {
+		// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
+		const flyChoice = await runTerminal(ui, { settings });
+		const { slug, resume } = flyChoice;
 
-	if (resume) {
-		// terrain persistent, flights ephemeral : une session LANDED rejoue SA
-		// cible (le serveur la relit du disque). On récupère juste la famille pour
-		// le PROFILE de vol.
-		const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
-		return {
-			slug, resume, target: undefined,
-			family: prev?.target?.family ?? OPTS.family ?? undefined,
-			// L'exemplaire aussi est rejoué : reprendre une session, c'est
-			// reprendre CE drone, pas un autre de la même famille.
-			buildSeed: prev?.target?.buildSeed ?? undefined,
-		};
+		if (resume) {
+			// terrain persistent, flights ephemeral : une session LANDED rejoue SA
+			// cible (le serveur la relit du disque). On récupère juste la famille pour
+			// le PROFILE de vol.
+			const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
+			return {
+				slug, resume, target: undefined,
+				family: prev?.target?.family ?? OPTS.family ?? undefined,
+				// L'exemplaire aussi est rejoué : reprendre une session, c'est
+				// reprendre CE drone, pas un autre de la même famille.
+				buildSeed: prev?.target?.buildSeed ?? undefined,
+			};
+		}
+
+		// Override dev ?family= : court-circuite le TARGET SCAN.
+		if (OPTS.family) {
+			const previewHack = normalizeHackType(OPTS.hack);
+			if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
+			// Pas de buildSeed : l'override dev vole le profil NOMINAL de la famille.
+			// C'est ce qui garde ?family=freestyle5 identique au banc et à la
+			// référence de tools/tune-pid.mjs.
+			return { slug, resume: undefined, target: undefined, family: OPTS.family };
+		}
+
+		// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte
+		// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat. Le slug
+		// est déjà connu ici (le TARGET SCAN choisit une cible dans cette carte, pas
+		// la carte elle-même) : preloadScene() démarre tout de suite, pour courir
+		// derrière le TARGET SCAN entier et pas seulement derrière l'attente de
+		// l'AUTOMATED ANALYSIS (PHASE 13, issue #50).
+		introFrozen = true;
+		const preloading = preloadFor(slug);
+
+		const seed = Math.random().toString(16).slice(2, 12);
+		const count = signalCountFor(slug);
+		const scan = generateTargetScan({ seed, count });
+		// La météo du monde pour cette zone, résolue avant le scan pour rendre les
+		// conditions saillantes au choix de cible (issue #76). worldWeather est caché
+		// par zone : boot() réutilise ce résultat sans nouvel aller-retour.
+		const sc = (await loadSceneList()).find((s) => s.slug === slug);
+		const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
+		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index } | { cancelled }
+
+		// Échap au TARGET SCAN : retour au choix de zone, sans rien casser. Le
+		// préchargement lancé plus haut CONTINUE en tâche de fond : il ne touche
+		// pas à la scène Three (preloadScene ne monte rien) et il a capturé sa
+		// propre base d'URL, donc il ne peut ni corrompre ni être corrompu par le
+		// chargement d'une autre zone. Revenir sur cette même zone le retrouvera
+		// tel quel, souvent déjà fini.
+		if (choice.cancelled) {
+			introFrozen = false;
+			continue;
+		}
+
+		// La zone est engagée : les autres préchargements ne serviront plus.
+		dropPreloadsExcept(slug);
+
+		const cand = scan.candidates[choice.index];
+
+		audio.start();
+		flyArea = slug;
+		flyTarget = choice;
+		// L'exemplaire (PHASE 07). La graine est celle que le serveur reconstruira
+		// dans resolveTarget() — le drone que tu voles est celui que le monde a tiré,
+		// pas un que le client s'est inventé.
+		const buildSeed = `${seed}::${choice.index}`;
+		const build = targetBuild({ seed: buildSeed, family: cand._family });
+		PROFILE = build.profile;
+		controller = new FlightController({ profile: PROFILE, rates: build.rates });
+		logBuild(build);
+		const booting = finishBoot(preloading);
+		// Le morceau se décode PENDANT l'AUTOMATED ANALYSIS, en parallèle du
+		// chargement de la scène : au drop le buffer doit déjà être là. Le tirage
+		// est déterministe sur buildSeed — reprendre une session, c'est reprendre ce
+		// drone ET sa musique.
+		//
+		// L'écran ne nomme toujours pas la famille : la musique est le premier
+		// indice sensoriel, pas une révélation. « You don't read the drone. You
+		// feel it. »
+		await music.loadManifest();
+		await music.prepare(music.trackForFamily(cand._family, buildSeed));
+		music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
+		await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+		// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
+		// pendant le hack comme un unique pas de physique géant.
+		introFrozen = false;
+		accumulator = 0;
+		lastTime = performance.now();
+		return { prepared: true };
 	}
-
-	// Override dev ?family= : court-circuite le TARGET SCAN.
-	if (OPTS.family) {
-		const previewHack = normalizeHackType(OPTS.hack);
-		if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
-		// Pas de buildSeed : l'override dev vole le profil NOMINAL de la famille.
-		// C'est ce qui garde ?family=freestyle5 identique au banc et à la
-		// référence de tools/tune-pid.mjs.
-		return { slug, resume: undefined, target: undefined, family: OPTS.family };
-	}
-
-	// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte
-	// charge en tâche de fond : au [ JACK IN ] le contrôle est immédiat. Le slug
-	// est déjà connu ici (le TARGET SCAN choisit une cible dans cette carte, pas
-	// la carte elle-même) : preloadScene() démarre tout de suite, pour courir
-	// derrière le TARGET SCAN entier et pas seulement derrière l'attente de
-	// l'AUTOMATED ANALYSIS (PHASE 13, issue #50).
-	setScene(slug);
-	introFrozen = true;
-	const preloading = preloadScene();
-
-	const seed = Math.random().toString(16).slice(2, 12);
-	const count = signalCountFor(slug);
-	const scan = generateTargetScan({ seed, count });
-	// La météo du monde pour cette zone, résolue avant le scan pour rendre les
-	// conditions saillantes au choix de cible (issue #76). worldWeather est caché
-	// par zone : boot() réutilise ce résultat sans nouvel aller-retour.
-	const sc = (await loadSceneList()).find((s) => s.slug === slug);
-	const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
-	const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index }
-	const cand = scan.candidates[choice.index];
-
-	audio.start();
-	flyArea = slug;
-	flyTarget = choice;
-	// L'exemplaire (PHASE 07). La graine est celle que le serveur reconstruira
-	// dans resolveTarget() — le drone que tu voles est celui que le monde a tiré,
-	// pas un que le client s'est inventé.
-	const buildSeed = `${seed}::${choice.index}`;
-	const build = targetBuild({ seed: buildSeed, family: cand._family });
-	PROFILE = build.profile;
-	controller = new FlightController({ profile: PROFILE, rates: build.rates });
-	logBuild(build);
-	const booting = finishBoot(preloading);
-	// Le morceau se décode PENDANT l'AUTOMATED ANALYSIS, en parallèle du
-	// chargement de la scène : au drop le buffer doit déjà être là. Le tirage
-	// est déterministe sur buildSeed — reprendre une session, c'est reprendre ce
-	// drone ET sa musique.
-	//
-	// L'écran ne nomme toujours pas la famille : la musique est le premier
-	// indice sensoriel, pas une révélation. « You don't read the drone. You
-	// feel it. »
-	await music.loadManifest();
-	await music.prepare(music.trackForFamily(cand._family, buildSeed));
-	music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
-	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
-	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
-	// pendant le hack comme un unique pas de physique géant.
-	introFrozen = false;
-	accumulator = 0;
-	lastTime = performance.now();
-	return { prepared: true };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -1484,8 +1545,57 @@ if (OPTS.scene) {
 	window.addEventListener('keydown', kick, { once: true });
 }
 
+// Ambiance du terminal (issue #122). Le pool `menu` n'est pas un drone : c'est
+// le lieu où l'on est assis, avant. Elle doit sonner dès le PRESS ANY KEY de
+// l'intro — ce geste est le premier de la page, donc le premier instant où le
+// navigateur laisse démarrer l'AudioContext — et non seulement une fois le
+// cracktro fini et l'opérateur choisi.
+//
+// D'où deux temps séparés : le décodage n'a besoin d'aucun geste et tourne
+// pendant l'intro ; la lecture, elle, part DANS le geste. Sans cette
+// séparation on attendrait le fetch + decode à l'instant précis où l'on veut
+// entendre quelque chose.
+//
+// Câblé ici plutôt que dans intro.js / terminal.js : les écrans restent des
+// clients purs, sans dépendance audio.
+let menuMusicReady = null;
+let menuMusicStarted = false;
+
+function prepareMenuMusic() {
+	// La graine change à chaque chargement — le terminal n'a pas de buildSeed à
+	// respecter, et deux sessions de suite ne doivent pas ouvrir sur le même
+	// morceau.
+	menuMusicReady ??= music.loadManifest().then(() =>
+		music.prepare(music.trackForMenu(Math.random().toString(16).slice(2, 12))));
+	return menuMusicReady;
+}
+
+async function startMenuMusic() {
+	if (menuMusicStarted) return;
+	menuMusicStarted = true;
+	// Le volume musique du joueur n'est appliqué qu'au boot de la scène
+	// (settings.setAudio), bien après le menu : sans ça la musique du terminal
+	// entrerait à fond alors que le réglage stocké dit autre chose.
+	music.setVolume(loadMusicVolume());
+	const ready = await prepareMenuMusic();
+	// Le terminal est peut-être déjà passé : on ne démarre que s'il est encore
+	// là, sinon la musique de menu s'inviterait par-dessus le hack.
+	if (ready && !music.playing) music.play({ intensity: PHASE_INTENSITY.MENU });
+}
+
 async function startup() {
-	if (!OPTS.scene) await runIntro(document.getElementById('ui'));
+	if (!OPTS.scene) {
+		// Décodage lancé avant l'intro, lecture déclenchée par son gate.
+		prepareMenuMusic();
+		await runIntro(document.getElementById('ui'), {
+			onFirstGesture: () => {
+				// Synchrone dans le handler du geste : c'est ce qui autorise
+				// l'AudioContext. La lecture, elle, peut arriver après.
+				audio.start();
+				startMenuMusic();
+			},
+		});
+	}
 	return chooseScene();
 }
 
@@ -1494,7 +1604,7 @@ startup()
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
-		// Session fraîche : PROFILE / controller / setScene / boot() ont déjà été
+		// Session fraîche : PROFILE / controller / boot() ont déjà été
 		// lancés dans chooseScene() et le hack a couvert le chargement.
 		if (choice.prepared) return;
 		hud.show();
@@ -1512,8 +1622,7 @@ startup()
 		);
 		if (build) logBuild(build);
 		else if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label} (nominal)`);
-		setScene(slug);
-		return boot();
+		return boot(slug);
 	})
 	.then(openFlightSession)
 	.catch((err) => {

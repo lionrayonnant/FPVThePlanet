@@ -9,7 +9,8 @@ const GAMEPAD_MOVE_THRESHOLD = 0.15;
 // GAMEPAD MAPPINGS
 // -----------------------------------------------------------------------------
 
-// EdgeTX radios
+// EdgeTX radios : gimbals à friction, la course entière du manche gauche est
+// utile — throttle en PLEINE course (voir THROTTLE_MODE).
 const EDGETX_MAP = {
 	roll: { axis: 0, invert: false },
 	pitch: { axis: 1, invert: true },
@@ -17,38 +18,38 @@ const EDGETX_MAP = {
 	yaw: { axis: 3, invert: false },
 };
 
-// Generic gamepad / Xbox-style mapping
-const PAD_MAP = {
-	throttle: { axis: 1, invert: true },
-	yaw: { axis: 0, invert: false },
-	pitch: { axis: 3, invert: true },
-	roll: { axis: 2, invert: false },
-};
-
 // -----------------------------------------------------------------------------
-// PS4 / DualShock 4
+// MANETTES À STICKS AUTO-CENTRÉS (DualShock 4/DualSense, Xbox, génériques)
 //
-// Typical browser layout:
+// Un seul profil : en mapping « standard » du navigateur, PlayStation et Xbox
+// exposent exactement la même disposition d'axes.
 //
-// axis 0 = left stick X
-// axis 1 = left stick Y
-// axis 2 = right stick X
-// axis 3 = right stick Y
+// axis 0 = stick gauche X    axis 2 = stick droit X
+// axis 1 = stick gauche Y    axis 3 = stick droit Y
 //
-// Wanted FPV mapping:
-//
-// left  Y -> throttle
-// left  X -> yaw
-// right X -> roll
-// right Y -> pitch (inverted)
+// Mapping FPV voulu :
+//   gauche Y -> throttle (moitié haute seule, voir THROTTLE_MODE)
+//   gauche X -> yaw
+//   droit  X -> roll
+//   droit  Y -> pitch : stick poussé vers l'avant = nez qui pique.
+//                       L'axe vaut -1 vers l'avant et `sticks.pitch < 0` fait
+//                       piquer (flightController : pitch > 0 = cabrer), donc
+//                       PAS d'inversion. Même convention au clavier.
 // -----------------------------------------------------------------------------
 
-const PS4_MAP = {
+const GAMEPAD_MAP = {
 	throttle: { axis: 1, invert: true },
 	yaw: { axis: 0, invert: false },
 	roll: { axis: 2, invert: false },
 	pitch: { axis: 3, invert: false },
 };
+
+// Comment l'axe de throttle devient 0..1 :
+//   'full' : (v+1)/2 — le manche tient sa position (radio).
+//   'half' : max(0, v) — un stick auto-centré revient à 0 %, sinon lâcher la
+//            manette laisserait 50 % de gaz et rendrait le geste de
+//            désarmement (throttle < 0,08) injoignable au repos.
+export const THROTTLE_MODE = { radio: 'full', gamepad: 'half' };
 
 // -----------------------------------------------------------------------------
 // DEVICE DETECTION
@@ -57,33 +58,40 @@ const PS4_MAP = {
 const RADIO_RE =
 	/edgetx|opentx|radiomaster|frsky|jumper|tx16|taranis|betafpv|flysky/i;
 
-const PS4_RE =
-	/dualshock|wireless controller|054c|playstation|ps4/i;
+// 045e = vendor Microsoft. « xinput » couvre les manettes 360/One vues via
+// XInput sous Windows.
+const XBOX_RE =
+	/xbox|xinput|045e/i;
 
-function isPS4(pad) {
-	return !!(
-		pad &&
-		PS4_RE.test(pad.id || '')
-	);
+// 054c = vendor Sony, commun à la DS4 et à la DualSense. Firefox nomme la DS4
+// « Wireless Controller » tout court — mais Chrome nomme la manette Xbox
+// « Xbox Wireless Controller », d'où l'ordre de test dans padKind().
+const PLAYSTATION_RE =
+	/dualshock|dualsense|wireless controller|054c|playstation|ps[45]/i;
+
+// Renvoie 'radio' | 'xbox' | 'playstation' | 'generic'. L'ordre compte :
+// radio d'abord (une radio peut s'annoncer « ... Controller »), puis Xbox
+// avant PlayStation à cause de « Wireless Controller ».
+export function padKind(id) {
+	const s = id || '';
+	if (RADIO_RE.test(s)) return 'radio';
+	if (XBOX_RE.test(s)) return 'xbox';
+	if (PLAYSTATION_RE.test(s)) return 'playstation';
+	return 'generic';
 }
 
-function isRadio(pad) {
-	return !!(
-		pad &&
-		RADIO_RE.test(pad.id || '')
-	);
+export function defaultMapForKind(kind) {
+	return structuredClone(kind === 'radio' ? EDGETX_MAP : GAMEPAD_MAP);
 }
 
-function defaultMapFor(pad) {
-	if (isRadio(pad)) {
-		return structuredClone(EDGETX_MAP);
-	}
+export function throttleModeForKind(kind) {
+	return kind === 'radio' ? THROTTLE_MODE.radio : THROTTLE_MODE.gamepad;
+}
 
-	if (isPS4(pad)) {
-		return structuredClone(PS4_MAP);
-	}
-
-	return structuredClone(PAD_MAP);
+// Axe -1..1 déjà désinversé -> gaz 0..1.
+export function throttleFromAxis(v, mode) {
+	const t = mode === THROTTLE_MODE.radio ? (v + 1) / 2 : v;
+	return Math.max(0, Math.min(1, t));
 }
 
 export const CHANNELS = [
@@ -120,7 +128,11 @@ export class Input {
 
 		this.map =
 			saved ??
-			structuredClone(PAD_MAP);
+			defaultMapForKind('generic');
+
+		// Réévalué à l'activation d'une manette : une radio garde la pleine
+		// course, tout le reste passe en demi-course.
+		this.throttleMode = THROTTLE_MODE.gamepad;
 
 		this.sticks = {
 			throttle: 0,
@@ -224,17 +236,10 @@ export class Input {
 					pad.buttons.length
 				);
 
-				if (isPS4(pad)) {
-					console.log(
-						'[input] DualShock 4 detected'
-					);
-				}
-
-				if (isRadio(pad)) {
-					console.log(
-						'[input] EdgeTX radio detected'
-					);
-				}
+				console.log(
+					'[input] kind:',
+					padKind(pad.id)
+				);
 			}
 		);
 
@@ -361,18 +366,21 @@ export class Input {
 	_activate(p) {
 		this.gamepadIndex = p.index;
 
+		const kind = padKind(p.id);
+
+		// Le mode de throttle suit toujours le matériel : il décrit la course
+		// physique du manche, pas une préférence — un remap utilisateur ne le
+		// concerne pas.
+		this.throttleMode = throttleModeForKind(kind);
+
 		// Automatically choose the proper map
 		// unless the user has explicitly saved one.
 		if (!this._savedMap) {
-			this.map = defaultMapFor(p);
+			this.map = defaultMapForKind(kind);
 		}
 
-		console.log('[input] using gamepad:', p.id);
-		console.log('[input] active map:', this.map);
-
-		if (isPS4(p)) {
-			console.log('[input] PS4 mapping active');
-		}
+		console.log('[input] using gamepad:', p.id, `(${kind})`);
+		console.log('[input] active map:', this.map, this.throttleMode);
 
 		return p;
 	}
@@ -407,8 +415,10 @@ export class Input {
 			];
 
 		if (pad) {
-			this.map =
-				defaultMapFor(pad);
+			const kind = padKind(pad.id);
+
+			this.map = defaultMapForKind(kind);
+			this.throttleMode = throttleModeForKind(kind);
 
 			console.log(
 				'[input] manually selected:',
@@ -514,7 +524,10 @@ export class Input {
 		}
 
 		this.sticks.throttle =
-			(t + 1) / 2;
+			throttleFromAxis(
+				t,
+				this.throttleMode
+			);
 
 		this.sticks.yaw =
 			applyDeadband(
@@ -535,105 +548,14 @@ export class Input {
 	}
 
 	// ---------------------------------------------------------------------------
-	// PS4 / DUALSHOCK 4
-	// ---------------------------------------------------------------------------
-
-	readPS4(pad) {
-		// -------------------------------------------------------------
-		// LEFT STICK X -> YAW
-		// -------------------------------------------------------------
-
-		const rawYaw =
-			pad.axes[
-				PS4_MAP.yaw.axis
-			] ?? 0;
-
-		// -------------------------------------------------------------
-		// LEFT STICK Y -> THROTTLE
-		//
-		// PS4:
-		//   haut    = -1
-		//   centre  =  0
-		//   bas     = +1
-		//
-		// On veut:
-		//   haut    = 1.0 (100%)
-		//   centre  = 0.0 (0%)
-		//   bas     = 0.0 (0%)
-		//
-		// Donc seule la moitié supérieure du stick
-		// contrôle les gaz.
-		// -------------------------------------------------------------
-
-		const rawThrottle =
-			pad.axes[
-				PS4_MAP.throttle.axis
-			] ?? 0;
-
-		const throttleAxis =
-			PS4_MAP.throttle.invert
-				? -rawThrottle
-				: rawThrottle;
-
-		// Seule la partie positive agit sur les gaz.
-		this.sticks.throttle =
-			Math.max(
-				0,
-				Math.min(
-					1,
-					throttleAxis
-				)
-			);
-
-		// -------------------------------------------------------------
-		// RIGHT STICK X -> ROLL
-		// -------------------------------------------------------------
-
-		const rawRoll =
-			pad.axes[
-				PS4_MAP.roll.axis
-			] ?? 0;
-
-		this.sticks.roll =
-			applyDeadband(rawRoll);
-
-		// -------------------------------------------------------------
-		// RIGHT STICK Y -> PITCH INVERTED
-		// -------------------------------------------------------------
-
-		const rawPitch =
-			pad.axes[
-				PS4_MAP.pitch.axis
-			] ?? 0;
-
-		const pitchAxis =
-			PS4_MAP.pitch.invert
-				? -rawPitch
-				: rawPitch;
-
-		this.sticks.pitch =
-			applyDeadband(pitchAxis);
-
-		// -------------------------------------------------------------
-		// YAW
-		// -------------------------------------------------------------
-
-		this.sticks.yaw =
-			applyDeadband(rawYaw);
-
-		return true;
-	}
-
-
-	// ---------------------------------------------------------------------------
 	// GAMEPAD READER
 	// ---------------------------------------------------------------------------
 
+	// Un seul chemin de lecture pour tout le monde : radio, PlayStation, Xbox
+	// et manettes génériques ne diffèrent que par `this.map` et
+	// `this.throttleMode`. C'est ce qui rend le remap du panneau Settings
+	// effectif sur TOUTES les manettes (il écrit dans `this.map`).
 	readGamepad(pad) {
-		if (isPS4(pad)) {
-			return this.readPS4(pad);
-		}
-
 		return this.readStandardGamepad(pad);
 	}
 
@@ -687,16 +609,18 @@ export class Input {
 			roll += 1;
 		}
 
-		// Pitch
+		// Pitch — même convention que la manette : « en avant » fait piquer.
 		if (has('arrowup')) {
-			pitch += 1;
-		}
-
-		if (has('arrowdown')) {
 			pitch -= 1;
 		}
 
-		// Mouse
+		if (has('arrowdown')) {
+			pitch += 1;
+		}
+
+		// Mouse. Exception assumée à la convention ci-dessus : la souris n'est
+		// pas un manche qu'on pousse, c'est une visée. Souris vers le haut =
+		// regarder vers le haut = cabrer, comme partout ailleurs.
 		if (
 			this.pointerLocked &&
 			roll === 0 &&

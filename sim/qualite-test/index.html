@@ -1,0 +1,174 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A/B qualité de génération — FPVTP!</title>
+<style>
+	body { background:#0b0b0c; color:#d8d8d2; font:14px/1.6 ui-monospace,monospace;
+	       margin:0; padding:40px; display:flex; justify-content:center; }
+	main { width:min(680px,100%); }
+	h1 { font-size:15px; font-weight:400; letter-spacing:.14em; text-transform:uppercase;
+	     color:#6f6f68; margin:0 0 28px; }
+	p { color:#8f8f88; margin:0 0 22px; }
+	.row { display:flex; gap:10px; margin:0 0 22px; }
+	button { flex:1; background:#151517; color:#d8d8d2; border:1px solid #2a2a2e;
+	         padding:22px 0; font:inherit; font-size:20px; cursor:pointer; border-radius:2px; }
+	button:hover { border-color:#4a4a52; }
+	button.on { background:#1d3a2a; border-color:#3f7a56; color:#e8ffe8; }
+	button:disabled { opacity:.35; cursor:default; }
+	.bar { height:3px; background:#1d1d20; margin:0 0 26px; }
+	.bar div { height:100%; background:#3f7a56; width:0; }
+	.small { font-size:12px; color:#6f6f68; }
+	.small b { color:#a8a8a0; font-weight:400; }
+	table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+	td { padding:5px 0; border-bottom:1px solid #1d1d20; }
+	td:last-child { text-align:right; color:#8f8f88; }
+	.hidden { display:none; }
+	kbd { background:#1d1d20; padding:1px 6px; border-radius:2px; color:#a8a8a0; }
+</style>
+<main>
+	<h1>A/B qualité de génération</h1>
+	<p>
+		Même prompt, même graine, quatre réglages de diffusion. Tous égalisés à
+		&minus;14&nbsp;LUFS : ce que tu compares est la <b>texture</b>, pas le volume.
+		Les quatre jouent en même temps et en phase — tu ne fais que choisir
+		lequel tu entends, donc la bascule est instantanée et à la même mesure.
+	</p>
+
+	<div class="row" id="btns"></div>
+	<div class="bar"><div id="prog"></div></div>
+
+	<p class="small">
+		Touches <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> pour basculer ·
+		<kbd>espace</kbd> pause · <kbd>R</kbd> retour au début<br>
+		Les étiquettes sont <b>mélangées au hasard</b> à chaque chargement. Choisis
+		ta préférée avant de révéler.
+	</p>
+
+	<p><button id="reveal" style="padding:12px 0;font-size:14px">Révéler les réglages</button></p>
+	<table id="answer" class="hidden"></table>
+</main>
+
+<script type="module">
+// Test A/B en aveugle des réglages de génération Stable Audio (issue #122).
+// Jetable : ce dossier n'est pas suivi par git.
+//
+// Pourquoi tout jouer en parallèle plutôt que l'un après l'autre : une
+// différence de texture ne s'entend qu'à position identique. Enchaîner les
+// fichiers oblige à comparer un souvenir, ce qui ne marche pas au-delà de
+// quelques secondes.
+
+const FILES = [
+	{ file: 'A_8pas_cfg1_ACTUEL.opus', label: '8 pas · cfg 1.0  (réglage ACTUEL)' },
+	{ file: 'B_50pas_cfg1.opus',       label: '50 pas · cfg 1.0' },
+	{ file: 'C_50pas_cfg3.opus',       label: '50 pas · cfg 3' },
+	{ file: 'D_50pas_cfg7.opus',       label: '50 pas · cfg 7' },
+];
+
+// Mélange, pour que la position d'un bouton ne trahisse pas son réglage.
+const order = FILES.map((_, i) => i);
+for (let i = order.length - 1; i > 0; i--) {
+	const j = Math.floor(Math.random() * (i + 1));
+	[order[i], order[j]] = [order[j], order[i]];
+}
+
+const ctx = new AudioContext();
+const btns = document.getElementById('btns');
+const prog = document.getElementById('prog');
+let gains = [];
+let sources = [];
+let started = false;
+let startedAt = 0;
+let pausedAt = 0;
+let current = 0;
+let duration = 0;
+
+const NAMES = ['1', '2', '3', '4'];
+
+for (let i = 0; i < order.length; i++) {
+	const b = document.createElement('button');
+	b.textContent = NAMES[i];
+	b.disabled = true;
+	b.onclick = () => select(i);
+	btns.appendChild(b);
+}
+
+const buffers = await Promise.all(order.map(async (idx) => {
+	const r = await fetch(FILES[idx].file);
+	return ctx.decodeAudioData(await r.arrayBuffer());
+}));
+duration = Math.min(...buffers.map((b) => b.duration));
+[...btns.children].forEach((b) => { b.disabled = false; });
+
+function build(offset) {
+	// Une source par version, toutes démarrées au même instant et au même
+	// décalage : elles restent en phase, et basculer ne fait que déplacer un
+	// gain. Reconstruire à chaque lecture est normal — un AudioBufferSource ne
+	// se relance pas.
+	sources.forEach((s) => { try { s.stop(); } catch { /* déjà arrêtée */ } });
+	sources = []; gains = [];
+	const t = ctx.currentTime + 0.05;
+	buffers.forEach((buf, i) => {
+		const src = ctx.createBufferSource();
+		src.buffer = buf;
+		src.loop = true;
+		const g = ctx.createGain();
+		// Un seul canal ouvert : les autres sont à zéro, pas déconnectés, pour
+		// que la bascule soit instantanée et sans clic.
+		g.gain.value = i === current ? 1 : 0;
+		src.connect(g).connect(ctx.destination);
+		src.start(t, offset % buf.duration);
+		sources.push(src); gains.push(g);
+	});
+	startedAt = t - offset;
+}
+
+function select(i) {
+	current = i;
+	// Rampe très courte : assez pour éviter le clic, assez brève pour que la
+	// bascule reste perçue comme instantanée.
+	gains.forEach((g, k) => g.gain.setTargetAtTime(k === i ? 1 : 0, ctx.currentTime, 0.008));
+	[...btns.children].forEach((b, k) => b.classList.toggle('on', k === i));
+}
+
+function play() {
+	ctx.resume();
+	build(pausedAt);
+	started = true;
+	select(current);
+}
+
+function pause() {
+	pausedAt = (ctx.currentTime - startedAt) % duration;
+	sources.forEach((s) => { try { s.stop(); } catch { /* déjà arrêtée */ } });
+	started = false;
+	[...btns.children].forEach((b) => b.classList.remove('on'));
+}
+
+addEventListener('keydown', (e) => {
+	if (e.key >= '1' && e.key <= '4') {
+		const i = Number(e.key) - 1;
+		if (!started) { current = i; play(); } else select(i);
+		e.preventDefault();
+	} else if (e.code === 'Space') {
+		started ? pause() : play();
+		e.preventDefault();
+	} else if (e.key.toLowerCase() === 'r') {
+		pausedAt = 0;
+		if (started) play();
+	}
+});
+
+btns.firstChild.addEventListener('click', () => { if (!started) play(); }, { once: true });
+[...btns.children].forEach((b) => b.addEventListener('click', () => { if (!started) play(); }));
+
+setInterval(() => {
+	if (!started) return;
+	prog.style.width = `${(((ctx.currentTime - startedAt) % duration) / duration) * 100}%`;
+}, 100);
+
+document.getElementById('reveal').onclick = () => {
+	const t = document.getElementById('answer');
+	t.classList.remove('hidden');
+	t.innerHTML = order.map((idx, i) =>
+		`<tr><td>${NAMES[i]}</td><td>${FILES[idx].label}</td></tr>`).join('');
+};
+</script>

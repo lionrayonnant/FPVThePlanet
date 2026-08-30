@@ -3,11 +3,13 @@ import { createTileMaterial, createArrayTexture } from './TileMaterial.js';
 
 // Absolute, because the worker resolves relative URLs against /src/, not the
 // page. import.meta.env.BASE_URL keeps this correct under a deployed subpath.
-// Which scene's data to load; picked from the in-app menu before boot().
-let BASE = null;
-
-export function setScene(slug) {
-	BASE = `${import.meta.env.BASE_URL}scenes/${slug}/`;
+// Le préfixe d'URL d'une scène. Explicite, et CAPTURÉ au départ d'un
+// chargement plutôt que relu à chaque requête : le TARGET SCAN est annulable
+// (retour au choix de zone), et un préchargement déjà en vol doit continuer de
+// lire SA scène même si le joueur en désigne une autre entre-temps. Un global
+// mutable rendait ce mélange possible — d'où sa disparition.
+export function sceneBase(slug) {
+	return `${import.meta.env.BASE_URL}scenes/${slug}/`;
 }
 
 // Lists maps prepared with tools/add-map.mjs, for the pre-flight menu.
@@ -17,8 +19,8 @@ export async function loadSceneList() {
 	return res.json();
 }
 
-export async function loadManifest() {
-	const res = await fetch(BASE + 'manifest.json');
+export async function loadManifest(base) {
+	const res = await fetch(base + 'manifest.json');
 	if (!res.ok) throw new Error(`manifest.json: HTTP ${res.status} — run "npm run add-map" (or "npm run prep") first`);
 	return res.json();
 }
@@ -56,7 +58,7 @@ export function setDim(dim) {
 	for (const m of tileMaterials) m.uniforms.uDim.value = dim;
 }
 
-export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {
+export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {
 	const { cellSize, cellsPerRow } = manifest;
 	const chunks = manifest.chunks.slice(0, maxChunks);
 	const meshes = new Array(chunks.length);
@@ -108,7 +110,7 @@ export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinit
 			resolve();
 		};
 		worker.postMessage({
-			index, baseUrl: BASE,
+			index, baseUrl: base,
 			geo: chunk.geo, tex: chunk.tex,
 			cell: cellSize, cellsPerRow,
 		});
@@ -126,8 +128,8 @@ export function loadChunks(manifest, { fogColor, fogDensity, maxChunks = Infinit
 	return Promise.all(runners).then(() => ({ meshes, timings }));
 }
 
-export async function loadCollision(manifest, onProgress) {
-	const res = await fetch(BASE + manifest.collision.file);
+export async function loadCollision(manifest, base, onProgress) {
+	const res = await fetch(base + manifest.collision.file);
 	if (!res.ok) throw new Error(`${manifest.collision.file}: HTTP ${res.status}`);
 
 	// ~90MB: stream it so the loading screen can show real progress.

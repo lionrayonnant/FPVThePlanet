@@ -57,9 +57,18 @@ ${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
 			context: () => scanContext({ scan, weather }),
 		});
 
-		// Pas de `back` : un TARGET SCAN se conclut en choisissant un signal —
-		// c'était déjà vrai avant (aucune touche ne l'annulait).
-		const listNav = menuNav(s.el, {});
+		// Échap / bouton B ressort vers le choix de zone. L'écran ne sait pas ce
+		// que ça coûte — à cet instant main.js a déjà lancé le préchargement de
+		// la carte — donc il se contente de le signaler et laisse l'appelant
+		// décider : les écrans restent des clients purs.
+		const cancel = () => {
+			listNav.detach();
+			stopScan();
+			s.remove();
+			resolve({ cancelled: true });
+		};
+
+		const listNav = menuNav(s.el, { back: cancel });
 
 		const finish = (index) => {
 			listNav.detach();
