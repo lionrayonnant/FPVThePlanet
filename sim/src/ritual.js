@@ -11,6 +11,7 @@
 // derrière lui). Écran client pur : aucune dépendance Three/Rapier/physics.
 // Jamais importé par le moteur.
 import { readGamepadDir } from './gamepad-dir.js';
+import { blockNav } from './menu-nav.js';
 import { cosmeticSeed, RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from './hack-grammars.js';
 import { pickVariant, checkInput } from '../tools/ritual-model.mjs';
 import { uiAudio } from './ui-audio.js';
@@ -29,6 +30,10 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 		wrap.className = 'ritual';
 		wrap.innerHTML = '<pre class="ritual-prompt"></pre><pre class="ritual-burst" aria-hidden="true"></pre>';
 		container.appendChild(wrap);
+		// Pendant le rituel les flèches sont la donnée saisie : aucun nav resté
+		// monté dessous ne doit naviguer ni recevoir un bouton manette (issue
+		// #123 — un écran s'abonne explicitement, celui-ci ne s'abonne jamais).
+		const unblock = blockNav(wrap);
 		const promptEl = wrap.querySelector('.ritual-prompt');
 		const burstEl = wrap.querySelector('.ritual-burst');
 
@@ -143,6 +148,7 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			// navigation) ne doit jamais laisser un riser tourner derrière l'écran
 			// suivant. Sans effet si l'explosion l'a déjà coupée dans startBurst().
 			uiAudio.killRitualTension();
+			unblock();
 			wrap.remove();
 			resolve();
 		}

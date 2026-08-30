@@ -46,9 +46,28 @@ export function runIntro(root) {
 		let logoSpans = [];
 		let burstEl = null;
 
+		// « PRESS ANY KEY » vaut aussi pour la radio (issue #123) : n'importe quel
+		// bouton de manette passe le gate, puis saute le cracktro — mêmes règles
+		// que le clavier. Front montant seulement, « tenu » au départ : un bouton
+		// déjà pressé au chargement ne compte pas. Limite de plateforme : un
+		// bouton de manette n'est pas un geste utilisateur pour l'AudioContext —
+		// l'intro reste alors muette jusqu'au premier vrai clic ou touche.
+		let padHeld = true;
+		const padPoll = setInterval(() => {
+			if (finished) return;
+			const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+			const down = !!pad?.buttons.some((b) => b.pressed);
+			if (down && !padHeld) {
+				if (!started) onGate();
+				else onSkip();
+			}
+			padHeld = down;
+		}, 80);
+
 		function teardown() {
 			finished = true;
 			cancelAnimationFrame(raf);
+			clearInterval(padPoll);
 			window.removeEventListener('keydown', onGate);
 			wrap.removeEventListener('click', onGate);
 			window.removeEventListener('keydown', onSkip);

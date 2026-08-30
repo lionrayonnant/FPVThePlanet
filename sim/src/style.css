@@ -1,8 +1,21 @@
-:root {
-	--ink: #eaf2f8;
-	--shadow: 0 1px 3px rgba(0, 0, 0, .9);
-	--accent: #6cf;
-}
+/* PHASE 19 (issue #56) — tout le pigment, toute la graduation et toute la
+   typographie viennent de tokens.css. Aucun littéral de couleur ici : c'est ce
+   que vérifie tools/palette-selftest.mjs.
+
+   La grammaire, écran par écran (Bible §38) : traits d'un pixel, angles droits,
+   très peu d'ombres, aucun coin arrondi, aucun aplat. L'état actif ne se marque
+   jamais par une couleur — il se marque par une inversion de clarté.
+
+   Trois niveaux typographiques et pas un de plus (Bible §39) :
+     DISPLAY  Departure Mono — les <pre> du terminal, FPVTP!, TARGET ACQUIRED,
+              JACK IN, et tous les blocs ASCII (elle seule dessine ┌ ─ │).
+     UI       IBM Plex Mono 500 — titres de panneau, liens, boutons.
+     DATA     IBM Plex Mono 400 tabulaire — les relevés chiffrés.
+
+   Un bloc ASCII est en Departure Mono de bout en bout : les deux familles ont
+   des chasses différentes, les mélanger sur une même ligne casserait les cadres. */
+
+@import './tokens.css';
 
 * { box-sizing: border-box; }
 
@@ -14,12 +27,62 @@ html, body {
 	margin: 0;
 	height: 100%;
 	overflow: hidden;
-	background: #0d1218;
-	font: 14px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	background: var(--dark-grey);
+	font: 400 14px/1.45 var(--font-data);
+	letter-spacing: var(--track-data);
 	color: var(--ink);
 }
 
 canvas { display: block; }
+
+/* ---------- curseur de menu (issue #123) ---------- */
+/* Le focus natif EST le curseur du jeu (src/menu-nav.js) : une seule vérité
+   pour Tab, souris, clavier et manette. L'anneau système — bleu, hors palette,
+   différent sur chaque machine — disparaît partout au profit du marqueur
+   ▌ (U+258C), natif dans Departure Mono : pleine hauteur de cellule, encre au
+   bord gauche, écart au centre optique nul — il forme un filet vertical contre
+   la rangée focalisée. Les champs de saisie gardent leur propre signe (le
+   filet de bordure qui passe en pleine encre, règles existantes plus bas). */
+:focus { outline: none; }
+button:focus { position: relative; }
+button:focus::before {
+	content: '▌';
+	position: absolute;
+	left: -0.9em; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	font-size: inherit;
+	letter-spacing: 0;
+	color: var(--ink);
+	/* Le marqueur est le curseur, pas une cible : un clic dessus doit toucher
+	   ce qu'il y a derrière, pas agrandir le bouton. */
+	pointer-events: none;
+}
+/* Un contrôle réglable (slider, select, checkbox) porte le marqueur sur sa
+   ligne entière : c'est la ligne que ←/→ règle (issue #123, Settings). */
+.panel label:focus-within { position: relative; }
+.panel label:focus-within::before {
+	content: '▌';
+	position: absolute;
+	left: -18px; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	color: var(--ink);
+	pointer-events: none;
+}
+#pad-map td:first-child { position: relative; }
+#pad-map tr:focus-within td:first-child::before {
+	content: '▌';
+	position: absolute;
+	left: -14px; top: 50%;
+	transform: translateY(-50%);
+	line-height: 1;
+	font-family: var(--font-ascii);
+	color: var(--ink);
+	pointer-events: none;
+}
 
 #ui { position: fixed; inset: 0; pointer-events: none; }
 #ui button, #ui input, #ui select, #ui label { pointer-events: auto; }
@@ -29,15 +92,24 @@ canvas { display: block; }
 #loading {
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
-	background: #0d1218;
+	background: var(--dark-grey);
 	z-index: 10;
 }
 #loading .box { width: min(420px, 80vw); text-align: center; }
-#loading h1 { margin: 0 0 .3em; font-size: 22px; letter-spacing: .18em; font-weight: 600; }
-#loading p { margin: 0 0 1.2em; opacity: .65; min-height: 1.4em; }
-#loading .bar { height: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
-#loading-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
-.err { color: #ff8080; }
+#loading h1 {
+	margin: 0 0 .3em;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s);
+	letter-spacing: var(--track-display);
+	font-weight: 400;
+	text-transform: uppercase;
+}
+#loading p { margin: 0 0 1.2em; color: var(--dim); min-height: 1.4em; }
+#loading .bar { height: 2px; background: var(--rule); overflow: hidden; }
+/* La progression est de l'information, mais pas une alerte : elle se marque en
+   pleine encre, pas en couleur (Bible §38). */
+#loading-bar { height: 100%; width: 0; background: var(--warm-white); transition: width .2s ease; }
+.err { color: var(--red); }
 
 /* ---------- hud ---------- */
 /* L'OSD de vol s'est scindé en deux couches à la PHASE 12 : celle du drone est
@@ -53,14 +125,16 @@ canvas { display: block; }
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-	font-size: 13px;
+	font-family: var(--font-data);
+	font-size: var(--fs-data);
+	font-variant-numeric: tabular-nums;
 	line-height: 1.6;
 	letter-spacing: .04em;
-	color: #e8f0f4;
+	color: var(--ink);
 	text-shadow: var(--shadow);
 	/* Très doux, et sur la couche seule : ce n'est pas le vignettage de
 	   l'objectif, qui lui est dans le shader et deux boîtes plus haut. */
-	mask-image: radial-gradient(ellipse 120% 120% at 50% 50%, #000 60%, rgba(0, 0, 0, .82) 100%);
+	mask-image: radial-gradient(ellipse 120% 120% at 50% 50%, #000 60%, rgba(0, 0, 0, .82) 100%); /* palette-ok: stops d'un masque alpha, pas du pigment */
 }
 #fpvtp-osd .corner { position: absolute; }
 #fpvtp-osd .tl { top: 12px; left: 14px; }
@@ -69,10 +143,13 @@ canvas { display: block; }
 #fpvtp-osd .br { bottom: 12px; right: 14px; text-align: right; }
 /* Le crédit fournisseur est une mention légale, pas une information de vol :
    il se tient en retrait du reste de l'OSD. */
-#fo-credit { font-size: 10px; opacity: .45; letter-spacing: .04em; }
-#fo-ident { color: var(--accent); }
-#fo-rates, #fo-input, #fo-fps { font-size: 12px; opacity: .6; }
-#fo-env { font-size: 12px; opacity: .8; }
+#fo-credit { font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+/* L'identifiant de la zone est ce que l'OSD a de plus important : il le dit en
+   pleine encre pendant que ses voisins descendent en gris (Bible §38 — pas de
+   couleur qui ne transmette rien). */
+#fo-ident { color: var(--ink); }
+#fo-rates, #fo-input, #fo-fps { font-size: 12px; color: var(--dim); }
+#fo-env { font-size: 12px; color: var(--ink); }
 /* Les trois occupent la même place et un seul est visible à la fois
    (fpvtp-osd.js : verdict > crash > pause). Le fond n'est pas décoratif :
    sans lui le texte se pose sur n'importe quelle image, et un ciel blanc
@@ -83,19 +160,27 @@ canvas { display: block; }
 	top: 42%;
 	transform: translate(-50%, -50%);
 	text-align: center;
-	font-size: 28px;
-	letter-spacing: .18em;
-	padding: 14px 28px;
-	background: rgba(6, 10, 14, .55);
+	font-family: var(--font-display);
+	font-size: var(--fs-display-m);
+	letter-spacing: var(--track-display);
+	text-transform: uppercase;
+	padding: var(--space-3) var(--space-5);
+	background: var(--scrim-soft);
 }
-#fo-status[data-kind="landed"] { color: #7dff9b; }
-#fo-status[data-kind="lost"] { color: #ff5a5a; }
+/* Vert et rouge parce qu'ils disent le résultat du vol — le seul emploi que la
+   Bible §38 autorise pour une couleur fonctionnelle. */
+#fo-status[data-kind="landed"] { color: var(--green); }
+#fo-status[data-kind="lost"] { color: var(--red); }
 #fo-pause small, #fo-status small {
 	display: block;
+	font-family: var(--font-ui);
+	font-weight: 500;
 	font-size: 12px;
 	letter-spacing: .1em;
-	opacity: .7;
+	color: var(--dim);
 }
+/* Le seul arrondi du fichier, et il est légitime : c'est un réticule optique,
+   pas un coin de card. */
 #fo-reticle {
 	position: absolute;
 	left: 50%;
@@ -103,7 +188,7 @@ canvas { display: block; }
 	width: 14px;
 	height: 14px;
 	margin: -7px 0 0 -7px;
-	border: 1px solid rgba(232, 240, 244, .55);
+	border: var(--rule-w) solid var(--dim);
 	border-radius: 50%;
 }
 
@@ -112,9 +197,9 @@ canvas { display: block; }
 	position: absolute; inset: 0;
 	display: flex; flex-direction: column; align-items: center; justify-content: center;
 	gap: .5em;
-	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-	font-size: 22px; letter-spacing: .35em; text-transform: uppercase;
-	color: #c8d4dd;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s); letter-spacing: .35em; text-transform: uppercase;
+	color: var(--dim);
 	pointer-events: none;
 }
 #flight-end div:empty { height: .6em; }
@@ -124,7 +209,7 @@ canvas { display: block; }
 #settings {
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
-	background: rgba(6, 10, 14, .8);
+	background: var(--scrim);
 	/* Above the operator terminal (z-index 11) as well as the flight HUD, so the
 	   Tab panel opens on top whether it is called from the terminal or in flight. */
 	z-index: 20;
@@ -132,47 +217,64 @@ canvas { display: block; }
 .panel {
 	pointer-events: auto;
 	width: min(460px, 90vw);
-	padding: 26px 30px;
-	background: #141b23;
-	border: 1px solid rgba(255, 255, 255, .1);
+	/* Le panneau défile quand il dépasse (issue #123) : à 785 px de contenu sur
+	   un portable 1366×768 il était rogné en haut et en bas, sans recours. */
+	max-height: 92vh;
+	overflow-y: auto;
+	padding: var(--space-5) 30px;
+	background: var(--grey);
+	border: var(--rule-w) solid var(--rule);
 }
-.panel h2 { font-size: 12px; letter-spacing: .18em; opacity: .55; margin: 1.6em 0 .8em; font-weight: 600; }
+/* Titre de section : le niveau UI, en retrait — il nomme, il n'annonce pas. */
+.panel h2 {
+	font-family: var(--font-ui); font-weight: 500;
+	font-size: 12px; letter-spacing: var(--track-ui); text-transform: uppercase;
+	color: var(--light-grey);
+	margin: 1.6em 0 .8em;
+}
 .panel h2:first-child { margin-top: 0; }
-#pad-name { margin: 0 0 1em; font-size: 12px; opacity: .7; word-break: break-all; }
-#pad-map { width: 100%; border-collapse: collapse; font-size: 12px; }
-#pad-map td { padding: 4px 6px 4px 0; }
-#pad-map select, .panel select { background: #0d1218; color: var(--ink); border: 1px solid rgba(255, 255, 255, .2); padding: 2px 4px; font: inherit; }
+#pad-name { margin: 0 0 1em; font-size: 12px; color: var(--dim); word-break: break-all; }
+#pad-map { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+#pad-map td { padding: var(--space-1) 6px var(--space-1) 0; }
+#pad-map select, .panel select {
+	background: var(--dark-grey); color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong);
+	padding: 2px var(--space-1); font: inherit;
+}
 .panel select { flex: 1; }
 .panel select:disabled { opacity: .3; }
-.axisbar { position: relative; height: 4px; background: rgba(255, 255, 255, .12); width: 100%; min-width: 90px; }
-.axisbar i { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--accent); }
+.axisbar { position: relative; height: 4px; background: var(--rule); width: 100%; min-width: 90px; }
+.axisbar i { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--warm-white); }
 .panel label { display: flex; align-items: center; gap: .7em; margin: .5em 0; font-size: 12px; }
-.panel input[type=range] { flex: 1; accent-color: var(--accent); }
+.panel input[type=range] { flex: 1; accent-color: var(--warm-white); }
 .panel input[type=range]:disabled { opacity: .3; }
 .panel label.check { justify-content: flex-start; }
-.panel label.check input { accent-color: var(--accent); width: 14px; height: 14px; }
+.panel label.check input { accent-color: var(--warm-white); width: 14px; height: 14px; }
 .panel button {
-	margin-top: 1.6em; width: 100%; padding: 9px;
+	margin-top: 1.6em; width: 100%; padding: var(--space-2);
 	background: transparent; color: var(--ink);
-	border: 1px solid rgba(255, 255, 255, .25);
-	font: inherit; cursor: pointer;
+	border: var(--rule-w) solid var(--rule-strong);
+	font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase;
+	cursor: pointer;
 }
-.panel button:hover { border-color: var(--accent); color: var(--accent); }
+.panel button:hover { border-color: var(--warm-white); }
 .panel .presets { display: flex; gap: .5em; margin: .5em 0; }
-.panel .presets button { margin-top: 0; padding: 5px; font-size: 11px; }
-.panel .presets button.on { border-color: var(--accent); color: var(--accent); }
+.panel .presets button { margin-top: 0; padding: 5px; font-size: var(--fs-micro); }
+/* L'état actif s'écrit en vidéo inverse, jamais en couleur (Bible §38). */
+.panel .presets button.on { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .panel .presets button:disabled { opacity: .3; cursor: default; }
 /* Bloc en lecture seule : la fiche caméra de la cible et l'aide clavier. */
-.panel .spec { font-size: 12px; opacity: .7; line-height: 1.7; margin-bottom: 10px; }
-.panel .spec b { color: var(--accent); font-weight: 600; }
+.panel .spec { font-size: 12px; color: var(--dim); line-height: 1.7; margin-bottom: 10px; }
+.panel .spec b { color: var(--ink); font-weight: 400; }
 /* Inline with its slider rather than on its own line, unlike every other
    button in the panel. */
 #wind-dir-rand { margin-top: 0; width: auto; padding: 1px 7px; }
 
 #loading-detail, #loading-clock {
 	margin: .9em 0 0;
-	font-size: 11px;
-	opacity: .45;
+	font-size: var(--fs-micro);
+	color: var(--faint);
 	min-height: 1.3em;
 }
 #loading-clock { margin-top: .2em; font-variant-numeric: tabular-nums; }
@@ -182,37 +284,49 @@ canvas { display: block; }
 .bootstrap {
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
-	background: #0d1218;
+	background: var(--dark-grey);
 	z-index: 11;
 }
 .bootstrap-box {
 	width: min(840px, 88vw);
-	font-size: 21px;
 	display: flex; flex-direction: column; gap: 18px;
 }
+/* Les <pre> sont la machine qui parle : niveau DISPLAY, sur la grille 11 px de
+   Departure Mono pour rester nets. Tout ce que l'opérateur manipule autour —
+   liens, boutons, champs — reste au niveau UI. */
 .bootstrap-box pre {
 	margin: 0;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s);
+	letter-spacing: var(--track-display);
 	white-space: pre-wrap;
 	color: var(--ink);
 }
-.bootstrap-vec { font-size: 30px; letter-spacing: .12em; }
-.bootstrap-row { display: flex; align-items: center; gap: 12px; }
-.bootstrap-err { color: var(--accent); min-height: 1.4em; }
+.bootstrap-box pre.bootstrap-vec { font-size: var(--fs-display-m); }
+.bootstrap-row { display: flex; align-items: center; gap: 12px; font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
+/* Un échec est une information : il se dit en rouge, pas en accent. Avant la
+   PHASE 19 cette ligne était cyan — la couleur demo servait de couleur d'erreur. */
+.bootstrap-err { color: var(--red); min-height: 1.4em; font-family: var(--font-ui); font-size: var(--fs-ui); letter-spacing: var(--track-ui); }
 .bootstrap input, .bootstrap textarea {
-	background: #0d1218; color: var(--ink);
-	border: 1px solid rgba(255, 255, 255, .25);
-	padding: 15px 18px; font: inherit; letter-spacing: .1em;
+	background: var(--dark-grey); color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong);
+	padding: 15px 18px;
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui-l);
+	letter-spacing: .1em;
 }
+.bootstrap input:focus, .bootstrap textarea:focus { outline: none; border-color: var(--warm-white); }
 .bootstrap textarea { resize: vertical; min-height: 4.5em; }
 .bootstrap-btn, .bootstrap button {
 	align-self: flex-start;
 	padding: 15px 21px;
 	background: transparent; color: var(--ink);
-	border: 1px solid rgba(255, 255, 255, .25);
-	font: inherit; cursor: pointer;
+	border: var(--rule-w) solid var(--rule-strong);
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui); text-transform: uppercase;
+	cursor: pointer;
 }
 .bootstrap-btn:hover, .bootstrap button:hover:not(:disabled) {
-	border-color: var(--accent); color: var(--accent);
+	background: var(--warm-white); color: var(--black); border-color: var(--warm-white);
 }
 .bootstrap button:disabled { opacity: .4; cursor: default; }
 
@@ -220,32 +334,92 @@ canvas { display: block; }
 /* The Home is calm: no cards, no big metrics, no rounded corners. Navigation is
    inline text; the one framed control is [ GLOBAL SCANNER ]. */
 
-.terminal-box { gap: 24px; font-size: 21px; }
+.terminal-box { gap: 24px; }
 .terminal-home .terminal-box { width: min(940px, 92vw); }
-.terminal-nav { line-height: 1.9; }
+.terminal-nav {
+	line-height: 1.9;
+	font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-ui-l); letter-spacing: var(--track-ui);
+	color: var(--light-grey);
+}
 .terminal-nav button.terminal-link {
 	align-self: auto; padding: 0; border: 0; background: none;
-	color: var(--ink); font: inherit; letter-spacing: .04em; cursor: pointer;
+	color: var(--ink); font: inherit; letter-spacing: inherit; cursor: pointer;
+	text-transform: uppercase;
+	/* Ce qui est actionnable se voit au repos (issue #123) : un filet d'un
+	   pixel sous le lien — la forme, pas la couleur, le distingue du titre. */
+	border-bottom: var(--rule-w) solid var(--rule-strong);
 }
-.terminal-nav button.terminal-link:hover { color: var(--accent); }
-.terminal-foot { opacity: .5; font-size: 16px; margin-top: 4px; white-space: nowrap; }
+/* Survol : la ligne s'allume, elle ne change pas de teinte. */
+.terminal-nav button.terminal-link:hover { background: var(--warm-white); color: var(--black); }
+/* Le pied de page compte des sessions et des octets : c'est de la donnée, pas
+   la machine qui parle — il redescend donc du niveau DISPLAY hérité des <pre>
+   vers le niveau DATA. */
+.bootstrap-box pre.terminal-foot {
+	color: var(--light-grey);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+	margin-top: var(--space-1); white-space: nowrap;
+}
 
-.terminal-areas { display: flex; flex-direction: column; gap: 9px; margin: 4px 0; }
-.terminal-area { display: flex; align-items: baseline; gap: 20px; }
+.terminal-areas { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-1) 0; }
+.terminal-area { display: flex; align-items: baseline; gap: 20px; font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
 .terminal-area > span:first-child { min-width: 260px; }
-.terminal-area-size { opacity: .55; font-size: 16px; }
-/* Le temps qu'il fait sur la zone. Discret : c'est une information du monde,
-   pas une commande — rien ici n'est cliquable. */
-.terminal-area-weather { opacity: .7; font-size: 16px; flex: 1; letter-spacing: .06em; }
+.terminal-area-size { color: var(--light-grey); font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
+/* Le temps qu'il fait sur la zone. Retour utilisateur du 2026-08-29 : « au
+   lancement d'un vol on ne pense pas aux conditions ». Il fallait donc le
+   rendre saillant sans le rendre criard — c'est une ligne de relevé, pas une
+   alarme. D'où le niveau DISPLAY, en pleine encre, encadré à gauche par un
+   filet : il se distingue par la forme et non par la couleur. Departure Mono
+   porte aussi les quatre flèches ↑ → ↓ ← du vent, que Plex Mono n'a pas. */
+.terminal-area-weather {
+	flex: 1;
+	font-family: var(--font-ascii);
+	font-size: var(--fs-display-s);
+	letter-spacing: .06em;
+	color: var(--ink);
+	border-left: var(--rule-w) solid var(--rule-strong);
+	padding-left: var(--space-3);
+}
+/* La couleur n'apparaît que si la météo change la décision de voler
+   (weather.js pose data-severity) : sinon la ligne reste en encre neutre. */
+.terminal-area-weather[data-severity="watch"] { color: var(--yellow); }
+.terminal-area-weather[data-severity="marginal"] { color: var(--orange); }
+.terminal-area-weather[data-severity="nogo"] { color: var(--red); }
+
+/* ---------- listes navigables (issue #123) ---------- */
+/* Les rangées du SESSION LOG et du TARGET SCAN étaient peintes dans un <pre> :
+   ni cliquables, ni atteignables au Tab, ni lisibles par une aide technique.
+   Chaque rangée est un vrai bouton, au même niveau DISPLAY que le <pre>
+   qu'elle remplace, avec la colonne du curseur réservée à gauche — le
+   marqueur ▌ s'y pose sans décaler le texte, comme le faisait l'ancien `>`. */
+.terminal-list {
+	display: flex; flex-direction: column;
+	max-height: 55vh; overflow-y: auto;
+}
+button.terminal-row {
+	padding: 1px 0 1px 1.2em; border: 0; background: none;
+	text-align: left; white-space: pre; cursor: pointer;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s);
+	line-height: 1.45;
+	letter-spacing: var(--track-display);
+	color: var(--ink);
+}
+button.terminal-row:hover { background: var(--warm-white); color: var(--black); }
+/* Dans une liste qui défile, le marqueur vit DANS la colonne réservée : à
+   -0.9em il serait rogné par l'overflow. */
+button.terminal-row:focus::before { left: 0; }
 
 /* ---------- session log (PHASE 17) ---------- */
 /* Vignettes des captures d'une session. Grille souple : le détail d'une session
    ne doit jamais forcer un défilement horizontal. Même sobriété que la Home —
    pas de coins arrondis, pas d'ombre. */
-.session-shots { display: flex; flex-wrap: wrap; gap: 9px; margin: 4px 0; }
+.session-shots { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-1) 0; }
 .session-shots img {
 	width: 180px; height: auto;
-	border: 1px solid rgba(255, 255, 255, .25);
+	border: var(--rule-w) solid var(--rule-strong);
 	image-rendering: pixelated;
 }
 .terminal-area button { margin: 0; }
@@ -258,13 +432,13 @@ canvas { display: block; }
 .scanner {
 	position: fixed; inset: 0;
 	display: grid; grid-template-columns: 1fr 480px;
-	background: #0d1218;
+	background: var(--dark-grey);
 	z-index: 11;
 	pointer-events: auto;
 }
-.scanner-map { position: relative; height: 100%; background: #0d1218; }
+.scanner-map { position: relative; height: 100%; background: var(--dark-grey); }
 /* MONO : le filtre porte sur les tuiles de la couche seulement, pas sur les
-   vecteurs — la grille, la zone et les repères gardent l'accent du terminal.
+   vecteurs — la grille, la zone et les repères gardent l'encre du terminal.
    Le fond OSM est inversé (blanc sur noir) ; les couches déjà sombres ou
    photographiques sont seulement désaturées. */
 .scanner-map .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
@@ -274,98 +448,113 @@ canvas { display: block; }
    d'un pixel, lui, ne se voit pas à l'échelle d'une carte. */
 .scanner-map .leaflet-tile { width: 257px !important; height: 257px !important; }
 .scanner-map .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
-.scanner-map .leaflet-container { background: #0d1218; font: inherit; }
+.scanner-map .leaflet-container { background: var(--dark-grey); font: inherit; }
 .scanner-map .leaflet-control-attribution {
-	background: rgba(13, 18, 24, .8); color: rgba(234, 242, 248, .5);
-	font-size: 10px; letter-spacing: .02em; border-radius: 0;
+	background: var(--scrim); color: var(--faint);
+	font-family: var(--font-data); font-size: 10px; letter-spacing: var(--track-data);
+	border-radius: 0;
 }
-.scanner-map .leaflet-control-attribution a { color: rgba(234, 242, 248, .7); }
+.scanner-map .leaflet-control-attribution a { color: var(--dim); }
 .scanner-map .leaflet-bar,
 .scanner-map .leaflet-bar a {
-	border-radius: 0; border-color: rgba(255, 255, 255, .25);
-	background: #0d1218; color: var(--ink);
+	border-radius: 0; border-color: var(--rule-strong);
+	background: var(--dark-grey); color: var(--ink);
 }
-.scanner-map .leaflet-bar a:hover { background: #131a22; color: var(--accent); }
+.scanner-map .leaflet-bar a:hover { background: var(--warm-white); color: var(--black); }
 /* Poignées Geoman : des carrés, pas des pastilles. */
 .scanner-map .leaflet-div-icon,
 .scanner-map .marker-icon {
-	border-radius: 0 !important; background: #0d1218; border: 1px solid var(--accent);
+	border-radius: 0 !important; background: var(--dark-grey);
+	border: var(--rule-w) solid var(--warm-white);
 	width: 8px; height: 8px; margin: -4px 0 0 -4px;
 }
 .sc-pin {
-	color: var(--ink); font-size: 13px; letter-spacing: .1em;
-	white-space: nowrap; text-shadow: var(--shadow); opacity: .75;
+	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-data); letter-spacing: .1em;
+	white-space: nowrap; text-shadow: var(--shadow);
 }
 
 .scanner-panel {
-	border-left: 1px solid rgba(255, 255, 255, .18);
-	padding: 26px 26px 18px;
+	border-left: var(--rule-w) solid var(--rule-strong);
+	padding: var(--space-5) var(--space-5) 18px;
 	overflow-y: auto;
 	display: flex; flex-direction: column; gap: 20px;
-	font-size: 18px;
+	font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui);
 }
-.sc-title { margin: 0; font-size: 22px; letter-spacing: .22em; }
+/* Le titre de l'écran, seul élément DISPLAY du panneau. */
+.sc-title {
+	margin: 0;
+	font-family: var(--font-display); font-weight: 400;
+	font-size: var(--fs-display-s); letter-spacing: var(--track-display);
+	text-transform: uppercase;
+}
 .sc-block { display: flex; flex-direction: column; gap: 11px; }
-.sc-h { margin: 0; font-size: 15px; letter-spacing: .18em; opacity: .55; }
-.sc-hint { margin: 0; font-size: 15px; letter-spacing: .1em; opacity: .4; }
+.sc-h { margin: 0; font-size: var(--fs-ui); letter-spacing: var(--track-ui); color: var(--light-grey); text-transform: uppercase; }
+.sc-hint { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); color: var(--faint); }
 .sc-row { display: flex; gap: 11px; align-items: stretch; }
 
 .scanner input {
 	flex: 1; min-width: 0;
-	background: #0d1218; color: var(--ink);
-	border: 1px solid rgba(255, 255, 255, .25);
+	background: var(--dark-grey); color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong);
 	padding: 10px 13px; font: inherit; letter-spacing: .12em;
 }
-.scanner input:focus { outline: none; border-color: var(--accent); }
+.scanner input:focus { outline: none; border-color: var(--warm-white); }
 
 .sc-btn, .sc-cta {
 	align-self: flex-start;
 	padding: 10px 15px;
 	background: transparent; color: var(--ink);
-	border: 1px solid rgba(255, 255, 255, .25);
-	font: inherit; letter-spacing: .1em; cursor: pointer;
+	border: var(--rule-w) solid var(--rule-strong);
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui); text-transform: uppercase; cursor: pointer;
 }
-.sc-cta { border: 0; padding: 8px 0; letter-spacing: .14em; }
-.sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.sc-cta { border: 0; padding: var(--space-2) 0; }
+.sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
 
 .sc-results { display: flex; flex-direction: column; }
 .sc-result {
 	text-align: left; padding: 7px 0;
-	background: none; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .1);
-	color: var(--ink); font: inherit; font-size: 16px; opacity: .75; cursor: pointer;
+	background: none; border: 0; border-bottom: var(--rule-w) solid var(--rule);
+	color: var(--dim); font: inherit; font-size: var(--fs-ui); cursor: pointer;
 }
-.sc-result:hover { color: var(--accent); opacity: 1; }
+.sc-result:hover { background: var(--warm-white); color: var(--black); }
 
-.sc-readout { display: grid; grid-template-columns: 160px 1fr; gap: 4px 14px; margin: 0; font-size: 17px; }
-.sc-readout dt { opacity: .5; letter-spacing: .1em; }
-.sc-readout dd { margin: 0; }
+/* Le gabarit label / valeur de la Bible §38 : deux colonnes alignées, le label
+   en retrait, la valeur en pleine encre et en chiffres tabulaires. */
+.sc-readout { display: grid; grid-template-columns: 160px 1fr; gap: var(--space-1) var(--space-3); margin: 0; font-family: var(--font-data); font-size: var(--fs-ui); letter-spacing: var(--track-data); }
+.sc-readout dt { color: var(--light-grey); font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase; }
+.sc-readout dd { margin: 0; font-variant-numeric: tabular-nums; }
 
-.sc-density { margin: 0; letter-spacing: .06em; }
-.sc-verdict { margin: 0; letter-spacing: .14em; }
-.sc-verdict[data-status="ok"] { color: #7ddc8a; }
-.sc-verdict[data-status="planned"], .sc-verdict[data-status="busy"], .sc-verdict[data-status="undecodable"] { color: #f5c451; }
-.sc-verdict[data-status="none"] { color: #f2714f; }
-.sc-verdict[data-status="unprobed"] { opacity: .55; }
-.sc-detail { margin: 0; font-size: 16px; line-height: 1.5; opacity: .6; white-space: pre-wrap; }
+.sc-density { margin: 0; font-family: var(--font-data); font-size: var(--fs-ui); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
+.sc-verdict { margin: 0; letter-spacing: var(--track-ui); text-transform: uppercase; }
+/* Un verdict de couverture est exactement le cas que la Bible §38 autorise :
+   la couleur EST l'information. */
+.sc-verdict[data-status="ok"] { color: var(--green); }
+.sc-verdict[data-status="planned"], .sc-verdict[data-status="busy"], .sc-verdict[data-status="undecodable"] { color: var(--yellow); }
+.sc-verdict[data-status="none"] { color: var(--red); }
+.sc-verdict[data-status="unprobed"] { color: var(--light-grey); }
+.sc-detail { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); line-height: 1.5; letter-spacing: var(--track-data); color: var(--dim); white-space: pre-wrap; }
 
-.sc-note { margin: 0; font-size: 16px; line-height: 1.5; opacity: .7; white-space: pre-wrap; }
-.sc-note[data-kind="warn"] { color: #f5c451; opacity: 1; }
-.sc-note[data-kind="alarm"] { color: #f2714f; opacity: 1; }
-.sc-note[data-kind="ok"] { color: #7ddc8a; opacity: 1; }
+.sc-note { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); line-height: 1.5; letter-spacing: var(--track-data); color: var(--dim); white-space: pre-wrap; }
+.sc-note[data-kind="warn"] { color: var(--yellow); }
+.sc-note[data-kind="alarm"] { color: var(--orange); }
+.sc-note[data-kind="ok"] { color: var(--green); }
 
-.sc-switch { font-size: 16px; letter-spacing: .12em; opacity: .8; }
+.sc-switch { font-size: var(--fs-ui); letter-spacing: var(--track-ui); color: var(--light-grey); }
 .sc-switch button {
-	background: none; border: 0; padding: 0;
-	color: var(--ink); font: inherit; opacity: .45; cursor: pointer;
+	background: none; border: 0; padding: 0 var(--space-1);
+	color: var(--light-grey); font: inherit; cursor: pointer;
 }
-.sc-switch button[data-on="true"] { opacity: 1; color: var(--accent); }
-.sc-switch button:hover { opacity: 1; }
+/* L'option retenue passe en vidéo inverse — le même signe d'état que partout. */
+.sc-switch button[data-on="true"] { background: var(--warm-white); color: var(--black); }
+.sc-switch button:hover { color: var(--ink); }
 
-.sc-foot { margin-top: auto; gap: 9px; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 14px; }
+.sc-foot { margin-top: auto; gap: var(--space-2); border-top: var(--rule-w) solid var(--rule); padding-top: var(--space-3); }
 
-.sc-bar { height: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
-.sc-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s linear; }
+.sc-bar { height: 3px; background: var(--rule); overflow: hidden; }
+.sc-bar i { display: block; height: 100%; width: 0; background: var(--warm-white); transition: width .3s linear; }
 /* Pendant la conversion le pipeline ne rend aucun compteur : la barre le dit
    plutôt que d'inventer une progression. */
 .sc-bar[data-indeterminate="1"] i { width: 100% !important; animation: sc-sweep 1.6s linear infinite; transform-origin: left; }
@@ -373,16 +562,19 @@ canvas { display: block; }
 
 /* TERRAIN/FETCH/DECODE/REBUILD, puis RF ANALYSIS/TARGET SEARCH (PHASE 05,
    Bible §8) : une rangée = un libellé fixe + la même `.sc-bar` qu'ailleurs. */
-.sc-bars { display: flex; flex-direction: column; gap: 9px; }
+.sc-bars { display: flex; flex-direction: column; gap: var(--space-2); }
 .sc-bar-row { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 11px; }
-.sc-bar-label { font-size: 15px; letter-spacing: .1em; opacity: .55; }
+.sc-bar-label { font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase; color: var(--light-grey); }
 
 .sc-log-block { flex: 1; min-height: 120px; }
+/* Le journal du pipeline est de la sortie machine : Departure Mono, comme les
+   autres blocs à chasse imposée. */
 .sc-log {
 	margin: 0; flex: 1; overflow-y: auto;
-	font-size: 14px; line-height: 1.45; opacity: .55;
+	font-family: var(--font-ascii); font-size: var(--fs-data); line-height: 1.45;
+	letter-spacing: var(--track-data); color: var(--dim);
 	white-space: pre-wrap; word-break: break-all;
-	border: 1px solid rgba(255, 255, 255, .12); padding: 9px;
+	border: var(--rule-w) solid var(--rule); padding: var(--space-2);
 	max-height: 40vh;
 }
 /* RTC (Bible §9, PHASE 21) : la même vitrine que le log du pipeline, mais bien
@@ -393,11 +585,11 @@ canvas { display: block; }
    en colonne flex) portent déjà les mêmes règles sans qu'il faille les
    dupliquer — une seule langue visuelle pour toutes les voix du crew. */
 .sc-rtc-block { flex: 0 0 auto; }
-.sc-rtc { max-height: 18vh; opacity: .4; }
+.sc-rtc { max-height: 18vh; color: var(--faint); }
 
 @media (max-width: 900px) {
 	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
-	.scanner-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, .18); }
+	.scanner-panel { border-left: 0; border-top: var(--rule-w) solid var(--rule-strong); }
 }
 
 /* ---------- AUTOMATED ANALYSIS / hack (PHASE 09) ---------- */
@@ -405,15 +597,31 @@ canvas { display: block; }
    aucun aplat de couleur, pas de glow ni de néon (DA §46). Le motif ASCII est
    purement décoratif — d'où l'opacité réduite. */
 .hack .terminal-box { width: min(820px, 90vw); }
-.hack .hack-head { font-weight: 700; letter-spacing: .08em; margin-bottom: .6em; }
+.hack .hack-head { letter-spacing: var(--track-display); margin-bottom: .6em; }
 .hack .hack-log { min-height: 5em; white-space: pre; line-height: 1.5; }
 /* .hack-log-armed : hook d'état JS (le log est entièrement joué), pas de style. */
 .hack .hack-grammar {
 	margin-top: .8em;
+	font-family: var(--font-ascii);
 	line-height: 1.05;
-	opacity: .85;
+	color: var(--dim);
 	white-space: pre;
-	font-size: .9em;
+	/* 22 px et pas .9em : Departure Mono est une police pixel, elle n'est nette
+	   qu'aux multiples de 11 px, et .9em tombait à 19,8. La grille fait 44
+	   colonnes, soit 616 px ici — elle tient dans les 820 px de la boîte. */
+	font-size: var(--fs-display-s);
+}
+/* MANUAL OVERRIDE REQUIRED est le seul moment où l'analyse rend la main à
+   l'opérateur : jusqu'ici il passait dans le corps du log sans emphase
+   (HANDOFF PHASE 09). Il monte au niveau DISPLAY et s'entoure de blanc. */
+.hack .hack-handover {
+	display: block;
+	margin: .8em 0 .2em;
+	font-family: var(--font-display);
+	font-size: var(--fs-display-s);
+	letter-spacing: var(--track-display);
+	text-transform: uppercase;
+	color: var(--warm-white);
 }
 
 /* ---------- Rituel CONTROL VECTOR (PHASE 10) ----------
@@ -426,27 +634,31 @@ canvas { display: block; }
 	position: fixed; inset: 0;
 	z-index: 12; /* au-dessus de .bootstrap/.hack (11) */
 	display: flex; flex-direction: column; align-items: center; justify-content: center;
-	background: #05070a;
+	background: var(--black);
 	overflow: hidden;
 	text-align: center;
 }
 .ritual-prompt {
 	position: relative; z-index: 2;
-	font-size: clamp(30px, 7vw, 104px);
-	letter-spacing: .18em;
+	font-family: var(--font-display);
+	font-size: clamp(33px, 7vw, 110px);
+	letter-spacing: var(--track-display);
+	text-transform: uppercase;
 	min-height: 1.4em;
 }
 /* Pendant la culmination, la saisie se retire en haut, petite : le motif prend
    toute la place. */
 .ritual-prompt-done {
 	position: absolute; top: 6vh; left: 50%; transform: translateX(-50%);
-	font-size: clamp(16px, 2.4vw, 30px);
-	opacity: .5;
+	font-size: clamp(22px, 2.4vw, 33px);
+	color: var(--dim);
 	min-height: 0;
 }
 .ritual-acquired {
-	opacity: 1; font-weight: 700; letter-spacing: .12em;
-	font-size: clamp(32px, 6.5vw, 80px);
+	font-family: var(--font-display);
+	letter-spacing: var(--track-display);
+	text-transform: uppercase;
+	font-size: clamp(33px, 6.5vw, 88px);
 }
 /* Grille de 44×12 caractères mise à l'échelle du viewport plutôt que du texte
    environnant : à cette taille le motif déborde volontairement des bords —
@@ -454,20 +666,21 @@ canvas { display: block; }
 .ritual-burst {
 	position: absolute; inset: 0; z-index: 1;
 	display: flex; align-items: center; justify-content: center;
+	font-family: var(--font-ascii);
 	line-height: 1.02;
 	white-space: pre;
-	font-size: clamp(18px, 4.2vw, 72px);
+	font-size: clamp(22px, 4.2vw, 77px);
 }
-.ritual-burst--cyan { color: #4dd8e8; }
-.ritual-burst--magenta { color: #e34de0; }
-.ritual-burst--violet { color: #8a5cf6; }
-.ritual-burst--blue { color: #3b6cff; }
+.ritual-burst--cyan { color: var(--cyan); }
+.ritual-burst--magenta { color: var(--magenta); }
+.ritual-burst--violet { color: var(--violet); }
+.ritual-burst--blue { color: var(--electric); }
 
 /* Halo qui respire pendant la culmination : atmosphère, pas de l'information. */
 .ritual-live::after {
 	content: '';
 	position: absolute; inset: -20%;
-	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .1), transparent 60%);
+	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .1), transparent 60%); /* palette-ok: halo de lumière du rituel, pas une teinte d'interface */
 	animation: ritual-pulse .9s ease-in-out infinite;
 	pointer-events: none;
 }
@@ -504,7 +717,7 @@ canvas { display: block; }
 	position: fixed; inset: 0;
 	z-index: 20;
 	display: flex; flex-direction: column; align-items: center; justify-content: center;
-	background: #05070a;
+	background: var(--black);
 	overflow: hidden;
 	text-align: center;
 	/* #ui met pointer-events:none et c'est hérité (règle générale, ligne 24) :
@@ -514,8 +727,10 @@ canvas { display: block; }
 }
 .intro-gate {
 	margin: 0;
+	font-family: var(--font-ui); font-weight: 500;
 	font-size: clamp(16px, 2.6vw, 26px);
-	letter-spacing: .1em;
+	letter-spacing: var(--track-ui);
+	text-transform: uppercase;
 	color: var(--ink);
 	animation: intro-gate-blink 1.6s step-end infinite;
 }
@@ -526,9 +741,9 @@ canvas { display: block; }
 
 .intro-logo {
 	position: relative; z-index: 2;
-	font-size: clamp(48px, 12vw, 160px);
-	font-weight: 700;
-	letter-spacing: .06em;
+	font-family: var(--font-display);
+	font-size: clamp(44px, 12vw, 154px);
+	letter-spacing: var(--track-display);
 	line-height: 1;
 	color: var(--ink);
 	opacity: 0;
@@ -543,11 +758,11 @@ canvas { display: block; }
 .intro-scroll {
 	position: absolute; bottom: 8vh; left: 0; width: 100%;
 	z-index: 2;
+	font-family: var(--font-ascii);
 	white-space: nowrap;
-	font-size: clamp(14px, 2vw, 22px);
+	font-size: clamp(11px, 2vw, 22px);
 	letter-spacing: .1em;
-	color: var(--ink);
-	opacity: .8;
+	color: var(--dim);
 	transition: opacity .3s ease;
 }
 .intro-scroll span {
@@ -565,15 +780,16 @@ canvas { display: block; }
 .intro-burst {
 	position: absolute; inset: 0; z-index: 1;
 	display: flex; align-items: center; justify-content: center;
+	font-family: var(--font-ascii);
 	line-height: 1.02;
 	white-space: pre;
-	font-size: clamp(14px, 3vw, 56px);
+	font-size: clamp(22px, 3vw, 66px);
 	opacity: .8;
 }
-.intro-burst--cyan { color: #4dd8e8; }
-.intro-burst--magenta { color: #e34de0; }
-.intro-burst--violet { color: #8a5cf6; }
-.intro-burst--blue { color: #3b6cff; }
+.intro-burst--cyan { color: var(--cyan); }
+.intro-burst--magenta { color: var(--magenta); }
+.intro-burst--violet { color: var(--violet); }
+.intro-burst--blue { color: var(--electric); }
 
 /* Résolution : la plasma et le scrolltext s'effacent, le logo (déjà retombé à
    plat par renderLogo()) reste seul, en phase avec BOOT_SIGNATURE. */

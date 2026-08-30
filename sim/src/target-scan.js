@@ -4,8 +4,11 @@
 //
 // Écran client pur : rendu avec le look terminal (screen/button de terminal.js),
 // aucune dépendance Three/Rapier. La génération vient de tools/target-model.mjs,
-// bundlée par Vite.
+// bundlée par Vite. La grammaire ↑/↓ + Entrée vit dans menu-nav.js (issue
+// #123) : chaque signal est un vrai bouton, le curseur est le focus natif —
+// cliquable, tabulable, et pilotable à la manette.
 import { screen, button } from './terminal.js';
+import { menuNav } from './menu-nav.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
 import { conditionsBlock, conditionsLine } from './weather.js';
 import { uiAudio } from './ui-audio.js';
@@ -32,81 +35,41 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 	const condBlock = conditionsBlock(weather);
 	const condLine = conditionsLine(weather);
 	return new Promise((resolve) => {
-		let cursor = 0;
-		let activeView = 'list'; // Track which view is showing: 'list' or 'sheet'
-
-		const list = () => scan.candidates.map((c, i) => {
-			const mark = i === cursor ? '>' : ' ';
-			return `${mark} ${c.id}   ${String(c.rssiDbm).padStart(4)} dBm   ${c.mode}`;
-		}).join('\n');
-
 		const s = screen(root);
-		// Piège : draw() tourne à chaque flèche. Si le RTC vivait dans ce <pre>,
-		// la première frappe détruirait son nœud pendant que ses minuteurs
-		// continuent d'écrire dans le vide. La liste vit donc dans son propre
-		// <pre>, seul reconstruit par draw() — le RTC et le bouton SELECT sont
-		// ajoutés une fois, hors de la zone redessinée.
-		const listPre = document.createElement('pre');
-		s.box.appendChild(listPre);
-		const draw = () => {
-			listPre.textContent = `TARGET SCAN
+		s.box.innerHTML = `<pre>TARGET SCAN
 
-${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED
+${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
 
-${list()}`;
-		};
-		draw();
-		// `cursor` est lu au clic, pas capturé : SELECT n'a pas besoin d'être
-		// recréé à chaque déplacement.
-		s.box.appendChild(button('SELECT', () => sheet(cursor), 'terminal-cta'));
+		const wrap = document.createElement('div');
+		wrap.className = 'terminal-list';
+		scan.candidates.forEach((c, i) => {
+			const row = `${c.id}   ${String(c.rssiDbm).padStart(4)} dBm   ${c.mode}`;
+			wrap.appendChild(button(row, () => sheet(i), 'terminal-row'));
+		});
+		s.box.appendChild(wrap);
+
+		// Le RTC vit sous la liste. Depuis l'issue #123 la liste n'est plus
+		// redessinée — chaque signal est un vrai bouton et le curseur est le
+		// focus natif — donc ce nœud survit jusqu'au démontage explicite.
 		appendRtc(s.box);
 		const stopScan = mount(s.box.querySelector('.sc-rtc'), {
 			event: 'TARGET_SCAN',
 			context: () => scanContext({ scan, weather }),
 		});
 
-		// Actions de la fiche : câblées à la fois aux boutons et au clavier (spec D5,
-		// « ↑/↓ + Entrée … Deux frappes, pas plus »). Réassignées à chaque ouverture
-		// de fiche pour capturer l'index et le handle d'écran courants.
-		let sheetConfirm = null;
-		let sheetBack = null;
-
-		const onKey = (e) => {
-			if (activeView === 'sheet') {
-				// Fiche affichée : Entrée = CONFIRM, Échap/Retour = BACK, flèches inertes
-				// (mais preventDefault pour que la page ne défile pas).
-				if (e.key === 'Enter') { e.preventDefault(); sheetConfirm?.(); }
-				else if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); sheetBack?.(); }
-				else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); }
-				return;
-			}
-
-			if (e.key === 'ArrowDown') {
-				e.preventDefault();
-				cursor = (cursor + 1) % scan.candidates.length;
-				draw();
-			}
-			else if (e.key === 'ArrowUp') {
-				e.preventDefault();
-				cursor = (cursor - 1 + scan.candidates.length) % scan.candidates.length;
-				draw();
-			}
-			else if (e.key === 'Enter') {
-				sheet(cursor);
-			}
-		};
-		window.addEventListener('keydown', onKey);
+		// Pas de `back` : un TARGET SCAN se conclut en choisissant un signal —
+		// c'était déjà vrai avant (aucune touche ne l'annulait).
+		const listNav = menuNav(s.el, {});
 
 		const finish = (index) => {
-			window.removeEventListener('keydown', onKey);
+			listNav.detach();
 			stopScan();
 			s.remove();
 			resolve({ seed: scan.seed, count: scan.count, index });
 		};
 
 		const sheet = (index) => {
-			activeView = 'sheet';
-			s.el.style.display = 'none'; // Hide list screen while sheet is shown
+			s.el.style.display = 'none'; // la liste attend derrière la fiche
 
 			const d = describeTarget(scan.candidates[index]);
 			const s2 = screen(root);
@@ -137,25 +100,27 @@ FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : '
 					: sayOnce('WEATHER', scanContext({ scan, weather })).then((w) => w && paint(w)));
 
 			let done = false;
-			sheetConfirm = () => {
+			const confirm = () => {
 				if (done) return;
 				done = true;
+				sheetNav.detach();
 				uiAudio.play('TARGET_FOUND');
 				s2.remove();
 				finish(index);
 			};
-			sheetBack = () => {
+			const back = () => {
 				if (done) return;
 				done = true;
+				sheetNav.detach();
 				s2.remove();
-				activeView = 'list'; // Switch back to list
-				s.el.style.display = ''; // Restore list visibility
-				sheetConfirm = null;
-				sheetBack = null;
-				draw();
+				s.el.style.display = ''; // la liste reprend la main (pile de navs)
+				listNav.focusAt(index);
 			};
-			s2.box.appendChild(button('CONFIRM', () => sheetConfirm(), 'terminal-cta'));
-			s2.box.appendChild(button('BACK', () => sheetBack(), 'terminal-cta'));
+			s2.box.appendChild(button('CONFIRM', confirm, 'terminal-cta'));
+			s2.box.appendChild(button('BACK', back, 'terminal-cta'));
+			// Le curseur se pose sur CONFIRM : « ↑/↓ + Entrée … Deux frappes, pas
+			// plus » (spec D5) reste vrai, au clavier comme à la manette.
+			const sheetNav = menuNav(s2.el, { back });
 		};
 	});
 }

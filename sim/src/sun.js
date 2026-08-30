@@ -202,6 +202,25 @@ const normalize3 = (c) => {
 	return [c[0] / s, c[1] / s, c[2] / s];
 };
 
+// La profondeur de nuit, 0 (jour) à 1 (nuit pleine), sur les seuils
+// crépusculaires réels — civil −6°, nautique −12° — et non des paliers ronds.
+// Exportée (#112) : TileMaterial (les lumières de la ville) et le halo du
+// dôme la lisent, pour qu'il n'existe qu'UN crépuscule dans tout le sim.
+export function nightAmount(elevationDeg) {
+	return smoothstep(-2, -14, elevationDeg);
+}
+
+// La nuit NOIRE (#112, retour de vol) : la luminosité du dôme. 1 le jour ;
+// sur le plateau de nuit, un ciel quasi noir — le plancher n'existe que pour
+// que l'horizon ne soit pas un trou parfait. La forme de la courbe (descente
+// au crépuscule, plateau toute la nuit astronomique, remontée à l'aube) n'est
+// PAS une horloge : c'est nightAmount() sur l'élévation solaire, donc le
+// plateau s'allonge tout seul avec la saison.
+const NIGHT_DOME_FLOOR = 0.05;
+export function skyNightDim(night) {
+	return 1 - clamp01(night) * (1 - NIGHT_DOME_FLOOR);
+}
+
 export function skyChroma(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const m = airMass(refracted(elevationDeg));
 	const mSky = 1 + (m - 1) * SKY_SLANT;
@@ -223,10 +242,9 @@ export function skyChroma(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 	const day = single.map((c) => c * (1 - w) + w / 3);
 
 	// Sous l'horizon la diffusion simple ne décrit plus rien : la lumière vient
-	// de la haute atmosphère, plusieurs fois diffusée. Le modèle passe la main,
-	// mais sur les seuils crépusculaires réels — civil −6°, nautique −12°,
-	// astronomique −18° — et non sur des paliers ronds.
-	const night = smoothstep(-2, -14, elevationDeg);
+	// de la haute atmosphère, plusieurs fois diffusée. Le modèle passe la main
+	// à nightAmount(), le seul crépuscule du sim.
+	const night = nightAmount(elevationDeg);
 	return day.map((c, i) => c * (1 - night) + NIGHT_CHROMA[i] * night);
 }
 
@@ -473,6 +491,9 @@ export class SunField {
 		// gain — main.js le pousse vers le bloc capteur de lens.js (grain,
 		// noirs levés, désaturation).
 		this.gain = 0;
+		// Profondeur de nuit (#112) : ce que lisent les lumières de la ville et
+		// le halo du dôme. Purement astronomique, la météo n'y touche pas.
+		this.night = 0;
 		this._settled = false;
 	}
 
@@ -496,6 +517,7 @@ export class SunField {
 		const p = sunPosition({ lat: this.lat, lon: this.lon, date });
 		this.elevation = p.elevation * R2D;
 		this.azimuth = p.azimuth * R2D;
+		this.night = nightAmount(this.elevation);
 		const v = sunVector(p.azimuth, p.elevation);
 		this.dir.x = v.x; this.dir.y = v.y; this.dir.z = v.z;
 

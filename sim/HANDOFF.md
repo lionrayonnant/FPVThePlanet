@@ -800,6 +800,71 @@ Plan d'origine (contexte de la décision d'architecture) :
     hypothèse OBJ vivant hors des décodeurs. À rendre agnostique du format
     avant qu'un décodeur glTF n'arrive.
 
+- **Passe d'ergonomie — navigation clavier + manette sur tous les écrans
+  (issue #123)**, branche `claude/issue-123-tj720t`.
+  - `src/menu-nav.js` (nouveau) : la grammaire ↑/↓ + Entrée + Échap, écrite
+    deux fois indépendamment dans `session-log.js` et `target-scan.js`, est
+    extraite et généralisée. Le curseur EST le focus natif (`element.focus()`) ;
+    le marqueur `▌` (U+258C, natif Departure Mono) est peint par `style.css`
+    sur `:focus`, l'anneau bleu système est retiré partout (`:focus { outline:
+    none }` + remplacements). Pile de navs : le plus haut visible a la main ;
+    `blockNav()` rend tout inerte sous un écran non-abonné. Trois contextes ne
+    s'abonnent jamais : capture du CONTROL VECTOR et rituel (flèches = donnée,
+    tous deux posent un `blockNav`), vol (`input.js`). Les champs de saisie
+    texte gardent leurs touches (Échap excepté) — la recherche du scanner
+    reste éditable. Manette : mêmes directions (`readGamepadDir`), A active le
+    focalisé, B remonte, front montant avec état initial « tenu ».
+  - Abonnés : tous les écrans terminal (Home, LAST SESSION, LOCAL TERRAIN,
+    FORECAST, CONTROL VECTOR, OPERATOR, OPERATOR SELECT, stub), session
+    log/détail/target log, target scan (liste + fiche), scanner (panneau seul,
+    pas les contrôles Leaflet), settings, bootstrap (hardware/name/registered/
+    retry), post-flight (note + terrain). Intro : n'importe quel bouton manette
+    passe le gate puis saute le cracktro (limite : un bouton manette n'est pas
+    un geste utilisateur AudioContext — intro muette jusqu'au premier vrai
+    clic/touche). Fin de vol : `[ESC] DISCONNECT` répond aussi à n'importe quel
+    bouton manette nouvellement pressé (`main.js`, front montant).
+  - Listes du SESSION LOG et du TARGET SCAN converties de `<pre>` en vrais
+    boutons (`.terminal-row`, colonne curseur réservée, `white-space: pre`,
+    défilement à 55vh) : cliquables, tabulables, lisibles par une aide
+    technique — `VIEW SESSION`/`SELECT` supprimés, la rangée est le bouton.
+  - Settings : `.panel` en `max-height: 92vh; overflow-y: auto` (rogné sans
+    recours sur 1366×768 avant) ; ↑/↓ circule, ←/→ règle le contrôle focalisé
+    (range/select via événements `input`/`change` synthétiques — les `oninput`
+    existants persistent sans rien savoir du module), Échap/B referme. **En
+    vol, le panneau n'écoute pas la manette** (`settings.flightActive`, posé
+    par `finishBoot()`) : les sticks pilotent le drone, ils déplaceraient le
+    curseur et les sliders à chaque geste.
+  - Affordance au repos : filet d'un pixel sous les `.terminal-link`
+    (`--rule-strong`) ; entrée directe vers le vol sur la Home — CTA
+    `[ FLY — <zone> ]` (zone de la dernière session encore sur disque, sinon
+    première zone locale), curseur posé dessus au repos ; sans terrain, le
+    scanner reste l'entrée (issue #123, point 5).
+  - Confirmations ajoutées à la capture du vecteur : Entrée et bouton A
+    confirment quand le vecteur est complet, B efface (mêmes conditions que le
+    bouton `CONFIRM VECTOR`).
+  - **Vérifié headless** : `tools/menu-nav-selftest.mjs` (10 tests, logique
+    pure : index circulaire, pas de slider borné, classement saisie de texte),
+    chaîné dans `selftest:operator` ; toute la chaîne `selftest:operator`
+    verte (hors `landing-selftest`/`selftest`, qui exigent la scène
+    tour-eiffel absente de l'environnement de la session) ; `npm run build`
+    vert ; `palette-selftest` vert (aucun littéral de couleur ajouté).
+  - **Vérifié navigateur** (Chromium headless + Playwright, serveur de dev,
+    1366×768) : parcours intro → bootstrap complet → Home **au clavier seul**
+    (gate, CONTINUE focalisé + Entrée, nom tapé + Entrée, vecteur aux flèches
+    + Entrée, REGISTERED + Entrée) ; sur la Home le focus au repos est
+    `[ FLY — TOUR EIFFEL ]`, `outline: none`, marqueur `▌` peint en `::before`,
+    filet 1px sous les liens ; ↓ déplace le focus ; SETTINGS atteint et ouvert
+    au clavier, panneau `overflow-y: auto` avec `scrollHeight 784 > clientHeight
+    705`, ←/→ règle le slider volume (60→61), ↓ en sort sans le régler, Échap
+    referme et la Home reprend la main. Aucune erreur console imputable.
+  - **Non vérifié** : le parcours à la **manette réelle** (la logique bouton/
+    direction est celle de `readGamepadDir`, déjà éprouvée en conditions
+    réelles sur bootstrap/rituel, mais A/B/front montant pas rejoués avec une
+    radio) ; le ressenti visuel du marqueur sur vrai écran ; le scanner et le
+    vol complet (pas de scène dans l'environnement) ; le nom d'opérateur reste
+    le seul moment du jeu qui exige un clavier (pas de clavier virtuel —
+    assumé, à trancher si ça gêne).
+
 ## Non vérifié / à faire
 
 - **PHASE 21 — Lore / RTC v0** (issue #58). Un crew — `root` (tranche),

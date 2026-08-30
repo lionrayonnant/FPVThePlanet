@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, setScene, setFog, setDim, setNight } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -172,10 +172,15 @@ let paused = false;
 let introFrozen = false;
 let crashed = false;
 
-// Garde le [ESC] DISCONNECT (PHASE 15) idempotent : exitArmed reste vrai une
+// Garde le [ENTER] DISCONNECT (PHASE 15) idempotent : exitArmed reste vrai une
 // fois posé, une touche maintenue ou un second événement ne doit pas ouvrir
 // deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
 let exiting = false;
+
+// État « bouton manette tenu » pour la sortie de fin de vol (issue #123).
+// Vrai par défaut : seul un front montant APRÈS l'armement de la sortie
+// déclenche la déconnexion.
+let exitPadHeld = true;
 
 // PHASE 16 : levé par la touche capture, consommé une fois par frame juste
 // après lens.render() — c'est cette frame-là, déjà rendue, que lens.capture()
@@ -252,7 +257,6 @@ function applyTargetCamera(spec) {
 	lens.setCamera({ aspect: spec.aspect, resScale: spec.resScale });
 	lens.setSensor(nightSensor(lastNightGain, spec.sensor));
 	rainfall?.setSize(innerHeight * renderer.getPixelRatio(), spec.fovDeg);
-	settings.setCameraSpec(spec);
 }
 
 // Stage-by-stage so a long load always shows what it is doing and how long that
@@ -431,20 +435,21 @@ async function finishBoot(preloading) {
 		audio.setBrightness(brightness);
 	});
 
-	settings.setLens(loadLens(), (p) => {
-		lens.setEnabled(p.on);
-		lens.setParams(p);
-		lensShutter = p.shutter;
-	});
+	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
+	// une fois ici depuis leurs valeurs stockées (cf. settings.js).
+	const lensCfg = loadLens();
+	const lensParams = { on: lensCfg.on, lens: lensCfg.lens, vignette: lensCfg.vignette, shutter: lensCfg.shutter / 1000 };
+	lens.setEnabled(lensParams.on);
+	lens.setParams(lensParams);
+	lensShutter = lensParams.shutter;
 
-	settings.setLink(loadLink(), (p) => {
-		link.setSeverity(p.severity);
-		// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
-		// même si le joueur a coupé la modélisation du lien.
-		lensLinkMode = p.severity === 0 ? LINK_OFF
-			: p.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
-		lens.setLink({ mode: lensLinkMode, severity: p.severity });
-	});
+	const linkCfg = loadLink();
+	link.setSeverity(linkCfg.severity);
+	// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
+	// même si le joueur a coupé la modélisation du lien.
+	lensLinkMode = linkCfg.severity === 0 ? LINK_OFF
+		: linkCfg.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
+	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
 
 
 	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
@@ -608,6 +613,9 @@ async function finishBoot(preloading) {
 	window.__simInput = null;
 
 	hud.ready();
+	// À partir d'ici les sticks pilotent le drone : le panneau Settings ouvert
+	// en vol n'écoute plus la manette (issue #123, voir settings.js).
+	settings.flightActive = true;
 	lastTime = performance.now();
 	renderer.setAnimationLoop(frame);
 	uiAudio.play('TERRAIN_READY');
@@ -636,9 +644,12 @@ input.onAction = (key, event) => {
 	else if (key === 'f') pendingCapture = true;
 	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
-	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place, et rien
-	// d'autre n'est proposé.
-	else if (key === 'escape' && flightEnd.out.exitArmed) finishSession();
+	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place. Entrée
+	// est un doublon d'Échap plutôt que le seul chemin : en plein écran
+	// navigateur, Échap est confisquée pour quitter le plein écran et ne
+	// délivre jamais de keydown à la page (comportement du navigateur, pas un
+	// bug — voir le clic ci-dessous pour la même raison).
+	else if ((key === 'escape' || key === 'enter') && flightEnd.out.exitArmed) finishSession();
 };
 
 // POST-FLIGHT ANALYSIS (PHASE 15, Bible §25) avant de rendre la main au
@@ -662,6 +673,12 @@ renderer.domElement.addEventListener('click', () => {
 	// Safety net for ?scene=<slug>, which skips the menu and therefore skips the
 	// only other user gesture we get. start() is idempotent.
 	audio.start();
+	// [ENTER] DISCONNECT au clic : un clic est un geste garanti par la page en
+	// plein écran navigateur, là où Échap ne l'est pas (confisquée pour quitter
+	// le plein écran lui-même — voir le commentaire d'exitPointerLock plus
+	// bas). Un joueur qui vient de crasher plein écran a donc toujours un
+	// moyen de sortir.
+	if (flightEnd.out.exitArmed && !exiting) { finishSession(); return; }
 	// Une fois le vol fini, on ne reprend plus le curseur : le reverrouiller
 	// reconfisquerait Échap au navigateur (voir la sortie du pointer lock à la
 	// fermeture de session), et il n'y a plus rien à piloter.
@@ -802,6 +819,7 @@ const _tilt = new THREE.Quaternion();
 let lastDensity = -1;
 let lastSkyHex = -1;
 let lastDim = 1;
+let lastNight = 0;
 // The lens exposure, mirrored here because the streak length is that exposure
 // times the relative speed — the translational half of the motion blur that the
 // lens pass, which only reprojects rotation, cannot reconstruct.
@@ -933,7 +951,7 @@ function frame() {
 	if (closes) {
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
 		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
-		// qui rend [ESC] DISCONNECT possible — en pointer lock (a fortiori en
+		// qui rend [ENTER] DISCONNECT possible — en pointer lock (a fortiori en
 		// plein écran), le navigateur confisque Échap pour déverrouiller le
 		// curseur et ne délivre aucun keydown à la page. La seule sortie que
 		// l'écran de fin propose serait alors la seule touche qui n'arrive
@@ -965,6 +983,7 @@ if (!frozen) {
 		windSpeed: physics.wind.speed,
 		rainScale: rain.fogScale,
 		fogMix: fog.skyMix,
+		night: sun ? sun.night : 0,
 	});
 
 	// Les extinctions s'additionnent :
@@ -1056,6 +1075,13 @@ if (!frozen) {
 	if (cloud.dim !== lastDim) {
 		lastDim = cloud.dim;
 		setDim(cloud.dim);
+	}
+
+	// Les lumières de la ville (#112), même principe throttlé que le fondu.
+	const night = sun ? sun.night : 0;
+	if (night !== lastNight) {
+		lastNight = night;
+		setNight(night);
 	}
 }
 		// Light the air scatters into the barrel rather than onto the subject.
@@ -1217,6 +1243,19 @@ if (!frozen) {
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setPhotoReady(photoReady);
 	settings.updateAxisBars();
+
+	// [ENTER] DISCONNECT, version radio (issue #123) : une fois la sortie armée le
+	// vol est fini — n'importe quel bouton de manette NOUVELLEMENT pressé
+	// déconnecte, sans poser la radio. Front montant seulement : un inter tenu
+	// depuis le vol ou le geste de désarmement ne compte pas.
+	if (flightEnd.out.exitArmed && !exiting) {
+		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+		const down = !!pad?.buttons.some((b) => b.pressed);
+		if (down && !exitPadHeld) finishSession();
+		exitPadHeld = down;
+	} else {
+		exitPadHeld = true;
+	}
 
 	// Once per frame, not per physics step: 250 Hz of AudioParam writes would be
 	// wasted work, and setTargetAtTime interpolates between frames anyway.
