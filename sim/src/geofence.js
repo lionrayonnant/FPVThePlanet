@@ -130,12 +130,15 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // CE QUE LA BORNE ÉCHANGE — et il faut que ça se lise ici, pas seulement en
 // jeu. Rétrécir le couloir raidit la rampe (`pushOf` étale toujours 0 → A_MAX
 // sur `hold` mètres) mais ne rend pas au drone la distance qu'il lui faut :
-// sous `hold` inférieur à ~49 m, soit un demi-côté sous 252 m, le pilote qui
-// OBÉIT — le programme de manche ci-dessus, exactement — franchit quand même
-// le bord des données. Mesuré, couloir imposé, pénétration de la pire famille :
+// sous un `hold` de 49 m — HOLD_STOP_GUARANTEE_M ci-dessous, soit un demi-côté
+// sous 252 m — le pilote qui OBÉIT (le programme de manche ci-dessus,
+// exactement) franchit quand même le bord des données. Mesuré, couloir imposé,
+// une colonne par scène, pénétration de la pire famille (heavy5 partout) :
 //
-//   hold  66,0  58,7  51,5  48,5  43,7  39,3  31,9  27,0   (m)
-//   pire −12,1  −6,7  −1,7  +0,4  +3,7  +6,9 +12,1 +15,7   (m, + = franchi)
+//   scène  t-eiffel  s-iena  poisso  bethe  roose  inval  triom  basti  parcp
+//   hold       66,0    58,7    51,5   48,5   43,7   39,3   39,1   31,9   27,0
+//   pire      −12,1    −6,7    −1,7   +0,4   +3,7   +6,7   +6,9  +12,1  +15,7
+//                                      ^^^^ à partir d'ici, + = le bord est franchi
 //
 // Sur SIX scènes des vingt-quatre — betheny (1 famille sur 6), roosevelt (2),
 // invalides (3), triomphe (3), bastille (4), parcdesprinces (4) — la propriété
@@ -156,6 +159,16 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // volable sur parcdesprinces et 48,8 % sur bastille au lieu de 66,7 % partout.
 // Le tiers a choisi le cœur volable contre la garantie d'arrêt. Sur une carte
 // de poche, on préfère voler.
+
+// Le couloir HOLD effectif en dessous duquel la garantie ci-dessus tombe :
+// mesuré par bissection sur la pire famille (heavy5), encadré à
+// 49,032 < hold* <= 49,063 m, arrondi au mètre. L'arrondi n'est pas le facteur
+// limitant : le modèle de pilotage lui-même déplace la mesure voisine (le point
+// fixe) de 2,58 m sur sa grille de sensibilité. Exporté et non recopié parce
+// que tools/lib/add-map-core.mjs s'en sert pour avertir au moment où une carte
+// trop petite est ajoutée — sans quoi ce 49 deviendrait un deuxième nombre à
+// tenir à jour, exactement le problème qu'il ferme.
+export const HOLD_STOP_GUARANTEE_M = 49;
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
