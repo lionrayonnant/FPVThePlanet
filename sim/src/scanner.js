@@ -18,7 +18,8 @@ import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 } from '../tools/scanner-model.mjs';
-import { rtcScript } from '../tools/rtc-model.mjs';
+import { mount, sayOnce } from './dialogue.js';
+import { acquisitionContext, scanContext } from './dialogue-context.js';
 import * as operatorApi from './operator.js';
 
 const API = '/__map-api';
@@ -111,6 +112,11 @@ const PANEL = `
 	<pre class="sc-note sc-acquire-note" hidden></pre>
 </section>
 
+<section class="sc-block sc-log-block sc-rtc-block">
+	<pre class="sc-h">RTC // INTERNAL</pre>
+	<pre class="sc-log sc-rtc"></pre>
+</section>
+
 <section class="sc-block sc-foot">
 	<div class="sc-switch sc-layers"></div>
 	<div class="sc-switch sc-detail-switch"></div>
@@ -196,6 +202,17 @@ export function runScanner(root) {
 
 	const $ = (sel) => el.querySelector(sel);
 	const panel = $('.scanner-panel');
+
+	// RTC du panneau de recherche : de la couleur, jamais une source
+	// d'information sur le pipeline réel (mêmes invariants que watchJob()).
+	// Ce panneau n'est monté qu'une fois — il n'est jamais réaffiché après
+	// avoir été remplacé par JOB_PANEL — mais on arrête quand même le montage
+	// avant ce remplacement (voir watchJob()) : c'est stop() qui existe pour
+	// éviter qu'un minuteur ne survive à son nœud.
+	let stopSearch = mount(panel.querySelector('.sc-rtc'), {
+		event: 'AREA_SEARCH',
+		context: () => scanContext({}),
+	});
 
 	const state = {
 		zone: null,         // { bbox } ou { poly } — la zone dessinée, brute
@@ -429,6 +446,17 @@ export function runScanner(root) {
 			const { plan, ...d } = await post('/plan', { ...state.zone, zoom: state.zoom, altitude: 20 });
 			state.describe = d; state.plan = plan; state.probe = null;
 			renderAnalysis(); drawPruned(); renderCoverage();
+
+			// Un seul échange, jamais un blocage : la sonde continue sans attendre
+			// le crew (pas d'await sur ce chemin d'interaction, PHASE 05).
+			sayOnce('PROBE_AREA', acquisitionContext({ name: $('.sc-name').value.trim(), tiles: state.describe?.estimate?.tiles }))
+				.then((lines) => {
+					const rtcEl = $('.sc-rtc');
+					if (!lines || !rtcEl) return;
+					for (const l of lines) rtcEl.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
+					rtcEl.scrollTop = rtcEl.scrollHeight;
+				});
+
 			if (plan.columns === 0) return;
 
 			$('.sc-verdict').dataset.status = 'busy';
@@ -578,6 +606,11 @@ export function runScanner(root) {
 	const done = (slug) => { cleanup(); resolveScanner(slug); };
 
 	function cleanup() {
+		// `el.remove()` détruit tout le sous-arbre, panneau de recherche compris
+		// — mais pas le minuteur du montage RTC s'il tourne encore (BACK/Escape
+		// depuis l'écran de recherche, avant tout job). stopSearch() est idempotent
+		// à l'appel suivant (déjà nul depuis watchJob() sinon).
+		stopSearch?.();
 		document.removeEventListener('keydown', onKey);
 		map.remove();
 		el.remove();
@@ -614,6 +647,11 @@ export function runScanner(root) {
 	// ANALYSIS / TARGET SEARCH et le flux RTC sont décoratifs (PHASE 05, Bible
 	// §8/§9) : ils ne conditionnent jamais ABORT/LEAVE/FLY.
 	function watchJob(id, name, expected) {
+		// Le panneau de recherche disparaît (innerHTML remplacé juste après) :
+		// son montage RTC doit s'arrêter AVANT, sinon son minuteur écrit dans le
+		// vide sur un nœud détaché — exactement la fuite que stop() existe pour
+		// éviter.
+		stopSearch?.(); stopSearch = null;
 		state.jobId = id;
 		panel.innerHTML = JOB_PANEL;
 		panel.querySelector('.sc-job-name').textContent = name.toUpperCase();
@@ -660,16 +698,13 @@ export function runScanner(root) {
 		};
 
 		// RTC : de la couleur, jamais une source d'information sur le pipeline
-		// réel. Boucle si l'acquisition dure plus longtemps que le script.
-		const rtc = panel.querySelector('.sc-rtc');
-		const script = rtcScript({ name, tiles: expected });
-		let rtcAt = 0;
-		const rtcTimer = setInterval(() => {
-			const { speaker, line } = script[rtcAt % script.length];
-			rtc.appendChild(document.createTextNode(`\n> ${speaker}\n${line}\n`));
-			rtc.scrollTop = rtc.scrollHeight;
-			rtcAt++;
-		}, 4500);
+		// réel. Le corpus est tiré par le moteur de dialogue (PHASE 21) — le
+		// contexte est une FONCTION parce que `pipeline` se remplit en cours de
+		// route et que le crew doit pouvoir en parler quand il arrive.
+		const stopRtc = mount(panel.querySelector('.sc-rtc'), {
+			event: 'ACQUIRE_AREA',
+			context: () => acquisitionContext({ name, tiles: expected, pipeline }),
+		});
 
 		const es = new EventSource(`${API}/jobs/${id}/events`);
 		es.addEventListener('state', (e) => {
@@ -700,7 +735,7 @@ export function runScanner(root) {
 		// les minuteurs et la connexion SSE de CETTE vue s'arrêtent.
 		panel.querySelector('.sc-leave').onclick = () => {
 			clearInterval(tick);
-			clearInterval(rtcTimer);
+			stopRtc();
 			es.close();
 			done(undefined);
 		};
@@ -710,7 +745,7 @@ export function runScanner(root) {
 		// un succès — c'est acquired() qui prend le relais avec KEEP/REMOVE.
 		function finish(msg, kind) {
 			clearInterval(tick);
-			clearInterval(rtcTimer);
+			stopRtc();
 			es.close();
 			state.jobId = null;
 			panel.querySelector('.sc-abort').hidden = true;

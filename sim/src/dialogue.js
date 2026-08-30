@@ -31,6 +31,11 @@ export function loadShard(event) {
 
 function hydrateMemory() {
 	if (memory) return memory;
+	// Hydratée une seule fois par onglet à partir de l'opérateur chargé — sûr
+	// aujourd'hui seulement parce que main.js attend loadOperator() avant tout
+	// écran qui monte le dialogue. Rien ne l'impose ici : un futur écran monté
+	// plus tôt dans le boot figerait silencieusement la mémoire vide pour tout
+	// l'onglet, sans qu'aucun test ne le détecte.
 	const stored = getOperator()?.dialogueMemory;
 	// Une clé absente se lit comme une mémoire vierge : pas de migration, pas
 	// de bump de schéma, un opérateur d'avant PHASE 21 marche tel quel (D6).
