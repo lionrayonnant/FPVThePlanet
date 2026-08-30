@@ -1,8 +1,11 @@
-// Assemblage du contexte de dialogue (PHASE 21). Ce module ne FORMATE rien —
-// le formatage appartient à la table des slots de catalog.mjs. Il ne fait que
-// pré-extraire les valeurs de l'état vivant, avec une règle : ce qui n'est pas
-// connu vaut `null`, ce qui rend simplement inéligibles les entrées qui en
-// dépendaient. Un contexte pauvre appauvrit la conversation, il ne la casse pas.
+// Assemblage du contexte de dialogue (PHASE 21). Ce module pré-extrait les
+// valeurs de l'état vivant ; le formatage scalaire appartient à la table des
+// slots de catalog.mjs. Seule exception : ce que le modèle météo est seul à
+// savoir phraser (headline, visibilité) est déjà mis en mots ici, parce que
+// catalog.mjs n'a pas accès à cette logique. Règle commune aux deux cas : ce
+// qui n'est pas connu vaut `null`, ce qui rend simplement inéligibles les
+// entrées qui en dépendaient. Un contexte pauvre appauvrit la conversation,
+// il ne la casse pas.
 import { today, headline, formatVisibility } from '../tools/lib/weather.mjs';
 import { PROFILES } from './drone-profiles.js';
 import { getOperator } from './operator.js';
@@ -58,19 +61,23 @@ const operatorContext = () => {
 };
 
 export function acquisitionContext({ name, tiles, pipeline } = {}) {
+	// Vérifié dans tools/map-api-plugin.mjs (émetteur de l'évènement SSE `stat`,
+	// ensemble ACCUMULATED) et tools/scanner-model.mjs (pipelineStats, qui
+	// affiche déjà les trois) : `pipeline` ne porte pas de total nommé `bytes`,
+	// mais chunkBytes et textureBytes sont des compteurs accumulés et
+	// collisionBytes une valeur ponctuelle valide — leur somme EST le total.
+	// Avant le premier évènement `stat`, aucun des trois n'existe encore : ici
+	// seulement, `null`, comme `tiles` juste au-dessus.
+	const b = pipeline ?? {};
+	const hasBytes = b.chunkBytes != null || b.textureBytes != null || b.collisionBytes != null;
+	const totalBytes = (b.chunkBytes ?? 0) + (b.textureBytes ?? 0) + (b.collisionBytes ?? 0);
 	return {
 		operator: operatorContext(),
 		machine: machineContext(),
 		area: { name: name ?? null },
 		terrain: {
 			tiles: Number.isFinite(tiles) && tiles > 0 ? tiles : null,
-			// Vérifié dans tools/map-api-plugin.mjs (émetteur de l'évènement SSE
-			// `stat`) et tools/scanner-model.mjs (consommateur) : `pipeline` ne
-			// porte jamais de total en octets, seulement des compteurs séparés
-			// (chunkBytes, textureBytes, collisionBytes). Aucun total fiable à
-			// additionner ici sans deviner — donc `null`, ce qui rend {terrain_mb}
-			// simplement inéligible. C'est un comportement correct, pas un manque.
-			megabytes: null,
+			megabytes: hasBytes ? totalBytes / 1e6 : null,
 		},
 	};
 }
