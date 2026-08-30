@@ -327,16 +327,18 @@ function runOnce(family, trial, brakeT, runup) {
 function worstOverBrake(family, trial, runup) {
 	const hoverT = hoverThrottle(PROFILES[family], LEVEL);
 	let worst = null, shallowest = Infinity, maxImpact = 0, allLevelled = true, allStopped = true;
+	let allMoving = true;
 	for (let i = 0; i <= BRAKE_STEPS; i++) {
 		const brakeT = (hoverT * i) / BRAKE_STEPS;
 		const r = runOnce(family, trial, brakeT, runup);
 		maxImpact = Math.max(maxImpact, r.maxImpact);
 		allLevelled = allLevelled && r.levelled;
 		allStopped = allStopped && r.stopped;
+		allMoving = allMoving && r.entryV > 0;
 		shallowest = Math.min(shallowest, r.deepest);
 		if (!worst || r.deepest > worst.deepest) worst = { ...r, brakeT };
 	}
-	return { ...worst, hoverT, spread: worst.deepest - shallowest, maxImpact, allLevelled, allStopped };
+	return { ...worst, hoverT, spread: worst.deepest - shallowest, maxImpact, allLevelled, allStopped, allMoving };
 }
 
 // Le R_HOLD self-consistant d'une famille : le plus petit couloir sous la
@@ -357,6 +359,12 @@ function findRHold(family, runup) {
 			// exagéré (au-delà d'environ 100 m sur tour-eiffel). Le banc ne
 			// livre pas de chiffre là-dessus, il n'en a pas de bon.
 			throw new Error(`${family} : un freinage n'a pas atteint l'arrêt en ${SIM_CAP_S} s (couloir d'essai ${trial.toFixed(1)} m). Sous un couloir aussi large le drone flue au lieu de s'arrêter et la pénétration mesurée serait tronquée. Si c'est un --start exagéré, en prendre un plus petit.`);
+		}
+		if (!last.allMoving) {
+			// Un run où le drone entre en HOLD à l'arrêt ne mesure rien : la
+			// pénétration est alors ~−trial et l'itération converge sagement
+			// vers MARGIN_M, ce qui a l'air d'un résultat.
+			throw new Error(`${family} : le drone est entré dans le couloir à l'arrêt (couloir d'essai ${trial.toFixed(1)} m) — il n'y a pas eu d'approche, donc pas de distance d'arrêt à mesurer`);
 		}
 		if (!last.allLevelled) {
 			throw new Error(`${family} : le pilote n'a jamais retrouvé l'horizon (couloir d'essai ${trial.toFixed(1)} m) — le programme de manche ne décrit plus ce qui se passe`);
@@ -399,13 +407,17 @@ for (const family of FAMILIES) {
 }
 
 // Un banc qui a heurté quelque chose ne livre pas de chiffre. Les lignes par
-// famille ci-dessus sont déjà sorties (elles sont imprimées au fil de l'eau,
-// une mesure prend quelques secondes) : elles sont donc FAUSSES, et c'est le
-// livrable — les deux valeurs à figer — qui ne sort pas.
-if (worstImpact > 0) {
-	console.error(`\nÉCHEC : impact non nul (${worstImpact.toFixed(1)} N) — le drone a percuté la scène`);
-	console.error(`pendant la mesure. Les lignes par famille ci-dessus sont fausses ; aucune`);
-	console.error(`valeur figeable n'est imprimée.`);
+// famille ci-dessus sont déjà sorties — elles s'impriment au fil de l'eau,
+// une mesure prend quelques secondes — donc c'est le livrable, les deux
+// valeurs à figer, qui ne sort pas. On nomme les familles touchées plutôt que
+// de condamner les six en bloc : `worstImpact` est un max, et une seule
+// famille qui percute ne rend pas les cinq autres lignes fausses (chacune
+// imprime déjà son propre `impact`).
+const hit = FAMILIES.filter((f) => res[f].maxImpact > 0);
+if (hit.length > 0) {
+	console.error(`\nÉCHEC : impact non nul (jusqu'à ${worstImpact.toFixed(1)} N) — le drone a percuté`);
+	console.error(`la scène pendant la mesure de : ${hit.join(', ')}. Ces lignes-là sont fausses ;`);
+	console.error(`aucune valeur figeable n'est imprimée.`);
 	process.exit(1);
 }
 // MARGIN_M doit couvrir la dispersion qu'elle prétend couvrir.
