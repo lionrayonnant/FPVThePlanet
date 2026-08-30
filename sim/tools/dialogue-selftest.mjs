@@ -20,6 +20,8 @@ import {
 import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS, SIGNATURE_PHRASES } from './dialogue/validate.mjs';
 import { normalize, trigrams, jaccard, findDuplicates, findRepeatedLines, MIN_REPEATED_LINE_WORDS, seenLineSet, addLinesToSeen, repeatedLineIn } from './dialogue/dedupe.mjs';
 import { RARITY_GUIDANCE } from './dialogue/generate.mjs';
+import { sanitize } from './lib/weather.mjs';
+import { acquisitionContext, scanContext } from '../src/dialogue-context.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -596,6 +598,102 @@ t('pack de secours : valide, et surtout sans aucun requires', () => {
 		'TARGET_SCAN', 'TARGET_SELECTED', 'TARGET_ANALYSIS', 'HACK', 'MANUAL_OVERRIDE',
 		'JACK_IN', 'WEATHER']) {
 		assert.ok(FALLBACK.some((e) => e.events.includes(id)), `aucun secours pour ${id}`);
+	}
+});
+
+// --- spec §Vérification, points 1 et 2 (issue #58) -------------------------
+//
+// Les deux points jamais implémentés : (1) aucun placeholder non résolu sur
+// beaucoup de tirages, contextes pauvres inclus ; (2) toute entrée livrée est
+// atteignable par au moins un contexte. Le point 2 est exactement ce qui
+// aurait attrapé le finding 2 (hackType perdu) automatiquement.
+//
+// Les contextes sont construits UNIQUEMENT via acquisitionContext() et
+// scanContext(), les deux vraies fonctions de src/dialogue-context.js — on ne
+// réinvente pas une forme de contexte parallèle.
+
+// machineContext() met gpu/display en cache après son premier appel : on
+// stub un DOM minimal AVANT tout appel pour que ces deux slots puissent
+// résoudre ici, sinon ils resteraient null pour toujours dans ce test Node
+// et fausseraient la reachability de tout futur {gpu}/{display}.
+globalThis.document = {
+	createElement: () => ({
+		getContext: () => ({ getExtension: () => ({}), getParameter: () => 'Test GPU 9000' }),
+	}),
+};
+globalThis.window = { screen: { width: 1920, height: 1080 } };
+
+const richWeatherDay = sanitize({
+	date: '2026-01-01', windSpeed: 8, windGust: 14, windDir: 210,
+	precipMm: 6, rateMmH: 3, visibilityM: 3000, cloudPct: 90,
+});
+
+// « riche » fusionne les deux namespaces : un événement câblé en v1 peut
+// piocher dans l'un ou l'autre selon son écran d'origine (acquisitionContext
+// pour ACQUIRE_AREA, scanContext pour TARGET_ANALYSIS et consorts).
+const richCtx = {
+	...acquisitionContext({
+		name: 'Riverside', tiles: 48,
+		pipeline: { chunkBytes: 4e6, textureBytes: 9e6, collisionBytes: 1e6 },
+	}),
+	...scanContext({
+		scan: { candidates: [1, 2, 3] },
+		weather: { days: [richWeatherDay] },
+		candidate: { mode: 'ANALOG', rssiDbm: -58 },
+		hackType: 'FIRMWARE',
+		family: 'freestyle5',
+	}),
+};
+
+// Contexte pauvre volontaire : aucun argument, exactement ce qu'on a avant le
+// premier évènement `stat` (acquisitionContext) ou avant le premier scan
+// (scanContext) — voir les commentaires de dialogue-context.js.
+const sparseCtx = { ...acquisitionContext({}), ...scanContext({}) };
+
+// Contexte mixte : la zone/le terrain sont connus (acquisition en cours),
+// rien de la cible ni de la météo ne l'est encore — pour couvrir le cas où
+// une famille de slot résout et une autre pas, dans le même rendu.
+const midCtx = {
+	...acquisitionContext({
+		name: 'Riverside', tiles: 48,
+		pipeline: { chunkBytes: 4e6, textureBytes: 9e6, collisionBytes: 1e6 },
+	}),
+	...scanContext({}),
+};
+
+const SPEC_CONTEXTS = [richCtx, sparseCtx, midCtx];
+
+t('spec §Vérification 1 : aucun placeholder non résolu sur de nombreux tirages, contextes pauvres inclus', () => {
+	const manifest = JSON.parse(readFileSync(new URL('../public/dialogue/manifest.json', import.meta.url)));
+	for (const [event, file] of Object.entries(manifest.shards)) {
+		const shard = JSON.parse(readFileSync(new URL(`../public/dialogue/${file}`, import.meta.url)));
+		SPEC_CONTEXTS.forEach((ctx, ci) => {
+			let memory = emptyMemory();
+			const rng = rngFrom(`spec-verif-1:${event}:${ci}`);
+			for (let i = 0; i < 300; i++) {
+				const { entry, memory: next } = select({ event, pool: shard.entries, ctx, memory, rng });
+				memory = next;
+				if (!entry) continue;
+				assert.doesNotThrow(() => render(entry, ctx),
+					`${entry.id} : placeholder non résolu (event ${event}, contexte #${ci})`);
+			}
+		});
+	}
+});
+
+t('spec §Vérification 2 : chaque entrée livrée est atteignable par au moins un contexte', () => {
+	const manifest = JSON.parse(readFileSync(new URL('../public/dialogue/manifest.json', import.meta.url)));
+	for (const [event, file] of Object.entries(manifest.shards)) {
+		const shard = JSON.parse(readFileSync(new URL(`../public/dialogue/${file}`, import.meta.url)));
+		for (const entry of shard.entries) {
+			const reachable = SPEC_CONTEXTS.some((ctx) => eligible(entry, ctx));
+			if (reachable) continue;
+			// Le premier chemin de requires qui ne résout toujours pas dans le
+			// contexte le plus généreux qu'on sache construire — c'est LE chemin
+			// bloquant, celui qui aurait rendu l'entrée définitivement inéligible.
+			const stuck = (entry.requires ?? []).find((path) => resolvePath(richCtx, path) === null);
+			assert.fail(`${entry.id} : aucun contexte ne le rend éligible — chemin bloquant : ${stuck ?? '(inconnu)'}`);
+		}
 	}
 });
 
