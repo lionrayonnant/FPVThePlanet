@@ -893,9 +893,40 @@ Plan d'origine (contexte de la décision d'architecture) :
     donnait 4 ms partout. La boucle de rendu appelle `space.update()` à chaque
     frame et écrasait les injections avec la géométrie réelle — le drone était
     posé au sol. Il faut neutraliser `space.update` pendant une injection.
-  - **NON ÉCOUTÉ.** Le réglage des bornes de `REVERB` (quantité, amortissement,
-    durée) est raisonné, pas mesuré : seul le pré-delay est physique. À caler
-    en vol, dans la même séance que le reste.
+  - **DEUX BUGS ENTENDUS EN VOL, corrigés** (branche `fix-flutter-echo`) :
+    - *« Un écho infini qui devient un bruit horrible. »* Pas une divergence,
+      de l'ACCUMULATION. Une réverbération se conçoit pour des transitoires ;
+      un moteur de drone est un son CONTINU. Un peigne bouclé au gain g
+      alimenté en continu converge vers 1/(1-g) fois son entrée — à g=0,92
+      c'est ×12,5, et il y en avait quatre sommés sans compensation. Mesuré au
+      navigateur, même lieu, bruit continu à -16,8 dB en entrée : la
+      réverbération SEULE sortait à **-10,8 dB avec un pic à 1,28**, donc plus
+      fort que ce qui l'alimentait et au-delà de la pleine échelle. Après
+      correction : **-33,7 dB, pic 0,10** — 22,9 dB d'écart. Chaque peigne
+      renvoie désormais son signal pondéré par (1-g)/N, ce qui rend le niveau
+      du mouillé indépendant de la durée de queue.
+    - *« Un tour d'hélice = un écho. »* Flutter echo : quatre peignes bouclés
+      sans diffusion résonnent à 1/T, soit 23 à 51 Hz, et ce battement posé sur
+      un son déjà périodique s'entend comme un bégaiement. Ajout de trois
+      allpass de Schroeder EN SÉRIE après le banc de peignes. Attention :
+      le BiquadFilter `allpass` de Web Audio est un allpass du second ordre, il
+      déphase mais ne retarde rien — il fallait le construire à la ligne à
+      retard.
+    - *« Ça ne se coupe pas à la fin de session. »* `space.silence()` existait
+      mais n'était appelé nulle part, et il ne coupait que le wet : l'énergie
+      restait dans les boucles. Il ouvre maintenant aussi les contre-réactions,
+      et il est appelé sur `linkDead` (crash) ET sur `closes === 'LANDED'`.
+    - Plafond de contre-réaction 0,92 → 0,70 ; queue maximale 2,2 s → 1,1 s
+      (l'ordre de grandeur d'une rue urbaine réelle) ; longueurs de peigne
+      reprises sur des rapports premiers entre eux (23 : 31 : 41 : 53 ms).
+    - `tools/space-render-selftest.mjs`, 10 tests, verrouille l'invariant qui
+      manquait : le gain permanent du réseau doit valoir 1 quelle que soit la
+      durée demandée.
+  - **NON ÉCOUTÉ depuis la correction.** Les bornes de `REVERB` (quantité,
+    amortissement, durée) restent raisonnées : seul le pré-delay est physique.
+    Le niveau du mouillé est maintenant volontairement discret (-15 dB sous le
+    sec au maximum) — après un « bruit horrible », mieux vaut pécher par
+    prudence et remonter à l'oreille.
 
 - **Qualité de génération — piste ouverte, non conclue.** La musique est jugée
   « un peu plate » à l'écoute. Mesuré : `steps` seul n'aide pas (8→50 à cfg 1
@@ -950,6 +981,14 @@ Plan d'origine (contexte de la décision d'architecture) :
       denses), ce qui ruinait le seul point de calibration du mix. Remplacée
       par `loudnorm` deux passes en `linear=true` : écart ramené à **0,3 dB**
       (-13,8 à -14,1 LUFS sur les 21).
+  - **Plancher d'intensité relevé après écoute (0,30 → 0,62)** et lissage rendu
+    ASYMÉTRIQUE (montée 0,25 s, descente 1,80 s). En FPV on coupe les gaz sans
+    arrêt ; à 0,30 la musique tombait à -14 dB derrière une coupure à 1,2 kHz,
+    c'est-à-dire qu'elle disparaissait à chaque geste normal de pilotage.
+    Mesuré : couper les gaz à 15 m/s retirait 5,6 dB, il en retire 1,9 — et
+    avec la descente lente, un chop d'une demi-seconde n'en parcourt que 24 %,
+    soit 0,46 dB, inaudible. Le poids du manche est aussi passé de 0,40 à 0,25
+    au profit de la vitesse : le manche est nerveux, la vitesse a de l'inertie.
   - **NON CALIBRÉ — `FLIGHT.speedRefMs`** dans `tools/music-model.mjs`. Un vol
     scripté en boucle ouverte ne produit pas de vitesses représentatives (sans
     boucle de pilotage le drone tombe : le relevé obtenu mesurait la chute

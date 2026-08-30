@@ -54,8 +54,16 @@ export const PHASE_INTENSITY = {
 	MENU: 0.55,
 	HACK: 0.12,
 	DROP: 1.0,
-	FLOOR: 0.30,  // le vol ne descend jamais en dessous : en vol stationnaire la
-	              // musique reste là, elle ne s'évanouit pas.
+	// Le vol ne descend JAMAIS en dessous. Relevé de 0,30 à 0,62 après écoute :
+	// en FPV on coupe les gaz sans arrêt — punch, chop, dive, coast — et à 0,30
+	// la musique tombait à -14 dB derrière une coupure à 1,2 kHz, c'est-à-dire
+	// qu'elle disparaissait à chaque geste normal de pilotage.
+	//
+	// Le plancher n'annule pas l'arc, il le déplace : de 0,62 à 1,0 la coupure
+	// va encore de 4,1 à 19 kHz et le gain de -7,6 à 0 dB. Ce qui change, c'est
+	// que le bas de la plage est désormais « la musique respire » et non « la
+	// musique s'en va ».
+	FLOOR: 0.62,
 };
 
 // Durées de transition, en millisecondes.
@@ -91,8 +99,27 @@ export const DUCK = { ritual: 0.25, ms: 250 };
 // plage de vitesses effectivement pilotées — ni collé à FLOOR, ni saturé à 1.
 export const FLIGHT = {
 	speedRefMs: 25,      // vitesse au-delà de laquelle la vitesse ne pousse plus
-	wThrottle: 0.40,     // ce que le joueur FAIT
-	wSpeed: 0.60,        // ce que le joueur SUBIT — c'est ça qu'on ressent
+	// Le poids du manche est passé de 0,40 à 0,25, celui de la vitesse de 0,60
+	// à 0,75. Raison mesurée : le manche est NERVEUX, la vitesse a de
+	// l'inertie. À 0,40, couper les gaz retirait 0,28 d'intensité d'un seul
+	// coup, alors que le drone continue de filer — la musique plongeait sur un
+	// geste qui ne change rien à ce que le pilote ressent.
+	wThrottle: 0.25,     // ce que le joueur FAIT
+	wSpeed: 0.75,        // ce que le joueur SUBIT — c'est ça qu'on ressent
+};
+
+// Lissage ASYMÉTRIQUE de l'intensité, en secondes. Monter vite, redescendre
+// lentement : c'est le second remède aux coupures de gaz, et le plus important.
+//
+// Une coupure dure une demi-seconde ; une vraie accalmie dure dix secondes. Avec
+// une constante unique, les deux se ressemblent. Avec une descente lente, le
+// chop ne descend presque pas — la musique n'a pas le temps — tandis qu'un vol
+// qui se calme vraiment finit par redescendre. C'est le principe d'un détecteur
+// d'enveloppe, et il encode musicalement la différence entre un geste et une
+// intention.
+export const INTENSITY_TAU = {
+	rise: 0.25,
+	fall: 1.80,
 };
 
 /**

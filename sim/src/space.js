@@ -10,28 +10,52 @@
 // démarrage) et ce qui claquerait à chaque échange. Un réseau de retards se
 // pilote entièrement par AudioParams.
 //
-//   entrée → preDelay ─┬→ retard₁ ⟲ (lowpass × feedback) ─┐
-//                      ├→ retard₂ ⟲ …                     ├→ wet → sortie
-//                      ├→ retard₃ ⟲ …                     │
-//                      └→ retard₄ ⟲ …                     ┘
+//   entrée → preDelay → 4 peignes bouclés ⟲ → 3 allpass en série → wet → sortie
 //
-// Quinze nœuds, construits une fois. update() ne fait que viser des
-// AudioParams : `nodesCreated` doit rester immobile pendant tout un vol.
+// DEUX DÉFAUTS CORRIGÉS ICI, tous deux entendus en vol.
+//
+// 1. « Un écho infini qui devient un bruit horrible. » Ce n'était pas une
+//    divergence : c'était de l'ACCUMULATION. Une réverbération se conçoit pour
+//    des sons transitoires, or un moteur de drone est un son CONTINU. Un
+//    peigne bouclé au gain g alimenté en continu converge vers 1/(1-g) fois
+//    son entrée — à g=0,92 c'est ×12,5, et il y en avait quatre sommés sans
+//    aucune compensation, soit +34 dB avant même le wet. Chaque peigne renvoie
+//    désormais son signal pondéré par (1-g)/N : le niveau du mouillé devient
+//    INDÉPENDANT de la durée de queue, ce que fait toute vraie réverbération.
+//
+// 2. « Un tour d'hélice = un écho. » La première version s'arrêtait aux
+// peignes, et elle avait un défaut audible décrit à l'écoute comme « un tour
+// d'hélice = un écho » : quatre peignes bouclés à fort gain résonnent à 1/T,
+// soit 23 à 51 Hz pour ces longueurs, et ce battement régulier posé sur un son
+// déjà périodique — des hélices — s'entend comme un bégaiement. C'est le
+// flutter echo, et c'est ce que les allpass en série existent pour supprimer :
+// ils étalent chaque écho discret en une queue lisse sans rien changer au
+// spectre.
+//
+// Structure de Schroeder, donc : banc de peignes EN PARALLÈLE, puis chaîne
+// d'allpass EN SÉRIE. L'ordre compte ; diffuser avant les peignes ne
+// diffuserait que l'entrée, pas les répétitions.
 
 import { acoustics, reverbParams } from '../tools/space-model.mjs';
 
-// Longueurs des quatre lignes, en secondes. Volontairement non commensurables :
-// des retards en rapport simple font sonner le réseau comme une hauteur plutôt
-// que comme un lieu. Échelle de petite salle — ce sont les PREMIÈRES réflexions
-// qui portent la sensation de proximité, pas une longue queue.
-const TAPS = [0.0197, 0.0289, 0.0353, 0.0431];
+// Longueurs des quatre peignes, en secondes. Choisies dans un rapport proche de
+// nombres premiers entre eux (23 : 31 : 41 : 53 ms) pour que leurs résonances
+// ne se superposent pas : des retards en rapport simple font sonner le réseau
+// comme une hauteur plutôt que comme un lieu.
+const COMBS = [0.0233, 0.0311, 0.0411, 0.0530];
 
-// Marge de stabilité du bouclage. Au-delà, le réseau entre en oscillation.
-const MAX_FEEDBACK = 0.92;
+// Allpass de diffusion, en série. Courts et non commensurables avec les
+// peignes. Le gain de 0,5 est la valeur classique : au-delà l'allpass devient
+// lui-même résonant et on remplace un défaut par un autre.
+const ALLPASS = [0.0047, 0.0083, 0.0127];
+const ALLPASS_G = 0.5;
 
-// Lissage. Assez lent pour qu'un rayon qui accroche brièvement un lampadaire ne
-// fasse pas sauter l'acoustique, assez rapide pour qu'une façade qu'on longe
-// s'entende arriver.
+// Plafond de contre-réaction, abaissé de 0,92 à 0,70. À 0,86 — ce que la
+// version précédente atteignait en espace fermé — un peigne met plus d'une
+// seconde à décroître et son battement devient un motif rythmique. La queue est
+// désormais portée par la diffusion, pas par la résonance.
+const MAX_FEEDBACK = 0.70;
+
 const TAU = 0.12;
 
 // Le pré-delay est le seul paramètre dont un saut S'ENTEND comme un clic : un
@@ -41,13 +65,44 @@ const TAU = 0.12;
 // vraiment du mur.
 const PREDELAY_TAU = 0.35;
 
+/**
+ * Allpass de Schroeder. Web Audio a bien un BiquadFilter `allpass`, mais c'est
+ * un allpass du SECOND ORDRE : il déphase autour d'une fréquence et ne retarde
+ * rien. Ce qu'il faut ici est un allpass à ligne à retard, qui diffuse dans le
+ * temps. Il se construit :
+ *
+ *   y = -g·x + d        avec        d_in = x + g·d
+ *
+ * soit une contre-réaction positive dans la ligne et une anticipation négative
+ * autour d'elle. Le module est transparent en amplitude — d'où « allpass » —
+ * et n'agit que sur la répartition temporelle.
+ */
+function makeAllpass(ctx, timeS, g) {
+	const input = ctx.createGain();
+	const output = ctx.createGain();
+	const delay = ctx.createDelay(0.2);
+	delay.delayTime.value = timeS;
+
+	const fb = ctx.createGain();      // + g dans la boucle
+	fb.gain.value = g;
+	const ff = ctx.createGain();      // − g autour de la boucle
+	ff.gain.value = -g;
+
+	input.connect(delay);
+	delay.connect(fb).connect(delay);
+	delay.connect(output);
+	input.connect(ff).connect(output);
+
+	return { input, output, nodes: 5 };
+}
+
 export class SpaceAudio {
 	constructor() {
 		this.ctx = null;
 		this.nodesCreated = 0;
 		this.input = null;
 		this.output = null;
-		this._taps = [];
+		this._combs = [];
 		this._preDelay = null;
 		this._wet = null;
 		this.last = null;   // dernière description du lieu, pour l'inspection
@@ -71,13 +126,18 @@ export class SpaceAudio {
 		this._preDelay = ctx.createDelay(0.5);
 		this._preDelay.delayTime.value = 0.01;
 
+		// Somme des peignes, avant diffusion. Chaque peigne y entre par son
+		// propre envoi compensé (voir update) — la somme elle-même est neutre.
+		const combSum = ctx.createGain();
+		combSum.gain.value = 1;
+
 		this._wet = ctx.createGain();
 		this._wet.gain.value = 0;   // on entre depuis le sec : pas de réverbe au boot
 
 		this.input.connect(this._preDelay);
-		this.nodesCreated += 3;
+		this.nodesCreated += 4;
 
-		for (const time of TAPS) {
+		for (const time of COMBS) {
 			const delay = ctx.createDelay(0.25);
 			delay.delayTime.value = time;
 
@@ -87,19 +147,35 @@ export class SpaceAudio {
 			damp.Q.value = 0.5;
 
 			const fb = ctx.createGain();
-			fb.gain.value = 0.4;
+			fb.gain.value = 0.3;
 
-			// La boucle : retard → amortissement → gain → retour dans le retard.
+			// Envoi compensé. C'est LA correction du bruit qui montait : sans
+			// lui, allonger la queue augmente aussi le niveau, et sur une
+			// source continue le peigne s'accumule jusqu'à saturer le mix.
+			const send = ctx.createGain();
+			send.gain.value = (1 - 0.3) / COMBS.length;
+
 			// L'amortissement EST dans la boucle, pas après : c'est ce qui fait
 			// que les aigus meurent plus vite que les graves, comme dans une
 			// vraie pièce, au lieu d'être coupés une fois pour toutes.
 			this._preDelay.connect(delay);
 			delay.connect(damp).connect(fb).connect(delay);
-			delay.connect(this._wet);
+			delay.connect(send).connect(combSum);
 
-			this._taps.push({ delay, damp, fb, time });
-			this.nodesCreated += 3;
+			this._combs.push({ delay, damp, fb, send, time });
+			this.nodesCreated += 4;
 		}
+
+		// La chaîne de diffusion. C'est elle qui transforme quatre échos
+		// périodiques en une queue.
+		let node = combSum;
+		for (const time of ALLPASS) {
+			const ap = makeAllpass(ctx, time, ALLPASS_G);
+			node.connect(ap.input);
+			node = ap.output;
+			this.nodesCreated += ap.nodes;
+		}
+		node.connect(this._wet);
 
 		this._wet.connect(destination);
 		this.output = this._wet;
@@ -121,20 +197,37 @@ export class SpaceAudio {
 		this._preDelay.delayTime.setTargetAtTime(p.preDelayS, now, PREDELAY_TAU);
 		this._wet.gain.setTargetAtTime(p.wet, now, TAU);
 
-		for (const t of this._taps) {
-			t.damp.frequency.setTargetAtTime(p.dampHz, now, TAU);
-			// RT60 : le gain de bouclage qui amène cette ligne à -60 dB en
-			// decayS secondes. C'est la formule qui relie une DURÉE voulue à un
-			// gain, et c'est elle qui rend « la taille du lieu » réglable.
-			const g = Math.min(Math.pow(10, (-3 * t.time) / Math.max(p.decayS, 0.05)), MAX_FEEDBACK);
-			t.fb.gain.setTargetAtTime(g, now, TAU);
+		for (const c of this._combs) {
+			c.damp.frequency.setTargetAtTime(p.dampHz, now, TAU);
+			// RT60 : le gain de bouclage qui amène ce peigne à -60 dB en decayS
+			// secondes. C'est la formule qui relie une DURÉE voulue à un gain,
+			// et c'est elle qui rend « la taille du lieu » réglable. Le plafond
+			// prime toujours : au-delà, le peigne résonne au lieu de décroître.
+			const g = Math.min(Math.pow(10, (-3 * c.time) / Math.max(p.decayS, 0.05)), MAX_FEEDBACK);
+			c.fb.gain.setTargetAtTime(g, now, TAU);
+			// Le gain permanent d'un peigne alimenté en continu est 1/(1-g) :
+			// on l'annule exactement, sinon « plus de queue » voudrait aussi
+			// dire « plus fort », et le moteur — qui ne s'arrête jamais —
+			// ferait monter le réseau jusqu'à l'écrasement.
+			c.send.gain.setTargetAtTime((1 - g) / this._combs.length, now, TAU);
 		}
 	}
 
-	/** Coupe le mouillé sans démonter : le vol peut reprendre. */
+	/**
+	 * Coupe la réverbération sans démonter : le vol peut reprendre.
+	 *
+	 * Couper le seul `wet` ne suffit PAS. Les peignes gardent l'énergie déjà
+	 * accumulée et continuent de tourner en boucle ; il faut aussi ouvrir les
+	 * boucles, sinon rouvrir le wait plus tard réveillerait la queue d'un vol
+	 * précédent. C'est ce qui faisait continuer le bruit dans les menus après
+	 * la fin de session.
+	 */
 	silence() {
 		if (!this._wet || !this.ctx) return;
-		this._wet.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+		const now = this.ctx.currentTime;
+		this._wet.gain.setTargetAtTime(0, now, 0.05);
+		for (const c of this._combs) c.fb.gain.setTargetAtTime(0, now, 0.05);
+		this.last = null;
 	}
 
 	dispose() {
@@ -142,11 +235,11 @@ export class SpaceAudio {
 		try {
 			this.input.disconnect();
 			this._preDelay.disconnect();
-			for (const t of this._taps) { t.delay.disconnect(); t.damp.disconnect(); t.fb.disconnect(); }
+			for (const c of this._combs) { c.delay.disconnect(); c.damp.disconnect(); c.fb.disconnect(); }
 			this._wet.disconnect();
 		} catch { /* déjà démonté */ }
 		this.input = this.output = this._preDelay = this._wet = null;
-		this._taps = [];
+		this._combs = [];
 	}
 }
 

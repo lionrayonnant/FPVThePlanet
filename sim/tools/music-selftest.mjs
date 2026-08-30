@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	MUSIC_SCHEMA_VERSION, MUSIC_POOLS, INTENSITY, PHASE_INTENSITY, FADE, DUCK, FLIGHT,
 	intensityParams, flightIntensity, pickTrack, pushRecent, validateManifest,
-	poolForFamily, RECENT_LIMIT,
+	poolForFamily, RECENT_LIMIT, INTENSITY_TAU,
 } from './music-model.mjs';
 import {
 	POOLS, AXES, AXIS_NAMES, AXES_PER_TRACK, buildPrompt, negativesFor,
@@ -286,9 +286,51 @@ test('le HACK est bien « la pièce d\'à côté » et le DROP est plein', () =>
 	assert.ok(intensityParams(PHASE_INTENSITY.HACK).cutoffHz < 900);
 });
 
-test('le plancher de vol laisse la musique présente', () => {
+test('le plancher de vol laisse la musique VRAIMENT présente', () => {
 	assert.ok(PHASE_INTENSITY.FLOOR > PHASE_INTENSITY.HACK);
-	assert.ok(PHASE_INTENSITY.FLOOR < 0.5, 'un plancher trop haut annule l\'arc');
+	// Le plancher n'est pas une valeur de confort : c'est la garantie qu'un
+	// geste de pilotage normal ne fait pas disparaître la musique. À 0,30 elle
+	// tombait à -14 dB derrière une coupure à 1,2 kHz, ce qui s'entendait comme
+	// une extinction.
+	const p = intensityParams(PHASE_INTENSITY.FLOOR);
+	assert.ok(20 * Math.log10(p.gain) > -9, `plancher à ${(20 * Math.log10(p.gain)).toFixed(1)} dB, trop bas`);
+	assert.ok(p.cutoffHz > 3000, `plancher à ${Math.round(p.cutoffHz)} Hz, trop sourd`);
+	// Mais il reste un arc : le plein doit rester nettement au-dessus.
+	assert.ok(PHASE_INTENSITY.FLOOR < 0.8, 'un plancher trop haut annule l\'arc');
+});
+
+test('couper les gaz ne coupe pas la musique', () => {
+	// En FPV on coupe les gaz sans arrêt — punch, chop, dive, coast. C'est le
+	// geste le plus courant du pilotage, et il ne doit pas ducker la musique.
+	for (const speedMs of [5, 15, 25]) {
+		const plein = flightIntensity({ throttle: 1, speedMs });
+		const coupe = flightIntensity({ throttle: 0, speedMs });
+		const dbPlein = 20 * Math.log10(intensityParams(plein).gain);
+		const dbCoupe = 20 * Math.log10(intensityParams(coupe).gain);
+		assert.ok(dbPlein - dbCoupe < 2.5,
+			`à ${speedMs} m/s, couper les gaz retire ${(dbPlein - dbCoupe).toFixed(1)} dB`);
+	}
+});
+
+test('la vitesse pèse nettement plus que le manche', () => {
+	// Le manche est nerveux, la vitesse a de l'inertie. Un rapport trop
+	// équilibré rend la musique sensible à un geste qui ne change rien à ce que
+	// le pilote ressent.
+	assert.ok(FLIGHT.wSpeed >= 3 * FLIGHT.wThrottle,
+		`rapport ${(FLIGHT.wSpeed / FLIGHT.wThrottle).toFixed(1)}, le manche pèse trop`);
+});
+
+test('le lissage est asymétrique : monter vite, redescendre lentement', () => {
+	// Le vrai remède aux coupures de gaz. Une coupure dure une demi-seconde,
+	// une accalmie dure dix secondes ; avec une constante unique les deux se
+	// ressemblent.
+	assert.ok(INTENSITY_TAU.fall > 4 * INTENSITY_TAU.rise,
+		`descente ${INTENSITY_TAU.fall} s contre montée ${INTENSITY_TAU.rise} s : pas assez asymétrique`);
+	// Un chop d'une demi-seconde ne doit parcourir qu'une fraction du chemin.
+	const parcouru = 1 - Math.exp(-0.5 / INTENSITY_TAU.fall);
+	assert.ok(parcouru < 0.35, `un chop de 0,5 s parcourt ${(parcouru * 100).toFixed(0)} % de la descente`);
+	// Mais un rush doit s'entendre tout de suite.
+	assert.ok(1 - Math.exp(-0.5 / INTENSITY_TAU.rise) > 0.8, 'la montée est trop lente pour un rush');
 });
 
 test('flightIntensity reste dans [FLOOR, 1]', () => {
@@ -311,7 +353,11 @@ test('désarmé, la musique attend au plancher', () => {
 test('un rush est plus intense qu\'un stationnaire', () => {
 	const hover = flightIntensity({ throttle: 0.45, speedMs: 0.5 });
 	const rush = flightIntensity({ throttle: 0.95, speedMs: 28 });
-	assert.ok(rush > hover + 0.3, `arc trop plat : ${hover.toFixed(2)} → ${rush.toFixed(2)}`);
+	// La plage est plus étroite depuis que le plancher est haut, mais l'arc doit
+	// rester franc : au moins 4 dB entre un stationnaire et un rush.
+	const dbHover = 20 * Math.log10(intensityParams(hover).gain);
+	const dbRush = 20 * Math.log10(intensityParams(rush).gain);
+	assert.ok(dbRush - dbHover > 4, `arc trop plat : ${(dbRush - dbHover).toFixed(1)} dB`);
 });
 
 test('la vitesse pèse plus que le manche', () => {
