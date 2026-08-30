@@ -49,8 +49,13 @@ export const PROFILES = {
 		tauSpinUp: 0.022,
 		tauSpinDown: 0.045,
 		torqueRatio: 0.019,
-		kAxial: 3.0e-5,
-		kLateral: 5.0e-5,
+		// inflowGain/buffetGain/lateralGain are corrections against
+		// quad.js's disk-area formula for kInflow/kBuffet/kLateral (see
+		// INFLOW_K0/LATERAL_K0 there) — 1 here means this family's disk
+		// already sits on the measured big-prop constant.
+		inflowGain: 1.000535,
+		buffetGain: 1.000535,
+		lateralGain: 0.999253,
 		bodyDrag: { x: 0.010, y: 0.028, z: 0.010 },
 		battery: { cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 100 },
 		pid: {
@@ -85,8 +90,9 @@ export const PROFILES = {
 		tauSpinUp: 0.020,
 		tauSpinDown: 0.042,
 		torqueRatio: 0.018,
-		kAxial: 3.0e-5,
-		kLateral: 4.6e-5,
+		inflowGain: 1.014607,
+		buffetGain: 1.014607,
+		lateralGain: 0.919313,
 		bodyDrag: { x: 0.009, y: 0.025, z: 0.009 },
 		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.012, maxCurrent: 115 },
 		pid: {
@@ -122,8 +128,9 @@ export const PROFILES = {
 		tauSpinUp: 0.026,
 		tauSpinDown: 0.052,
 		torqueRatio: 0.024,          // ducted props run at higher blade loading
-		kAxial: 2.0e-5,
-		kLateral: 3.5e-5,            // ducts fight translation hard
+		inflowGain: 2.322297,        // small disk (3.8 cm prop) needs real correction
+		buffetGain: 2.322297,
+		lateralGain: 1.942993,       // ducts fight translation hard
 		bodyDrag: { x: 0.030, y: 0.045, z: 0.030 },
 		battery: { cells: 4, capacityMah: 1100, internalOhm: 0.014, maxCurrent: 70 },
 		pid: {
@@ -159,8 +166,9 @@ export const PROFILES = {
 		tauSpinUp: 0.032,
 		tauSpinDown: 0.068,
 		torqueRatio: 0.021,
-		kAxial: 5.5e-5,
-		kLateral: 9.0e-5,
+		inflowGain: 0.997672,
+		buffetGain: 0.997672,
+		lateralGain: 0.917682,
 		bodyDrag: { x: 0.012, y: 0.040, z: 0.012 },
 		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90 },
 		pid: {
@@ -194,8 +202,9 @@ export const PROFILES = {
 		tauSpinUp: 0.024,
 		tauSpinDown: 0.048,
 		torqueRatio: 0.019,
-		kAxial: 3.2e-5,
-		kLateral: 5.2e-5,
+		inflowGain: 0.995080,
+		buffetGain: 0.995080,
+		lateralGain: 1.039223,
 		bodyDrag: { x: 0.011, y: 0.032, z: 0.011 },
 		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.011, maxCurrent: 100 },
 		pid: {
@@ -214,10 +223,14 @@ export const PROFILES = {
 	// would (~6e-5 about roll). Bi-blade props: the audio blade-pass sits an
 	// octave lower per rpm than the tri-blade families.
 	//
-	// (A 1S 65 mm tinywhoop was prototyped too but pulled — at ~34 g the flight
-	// model's roll/pitch/yaw coupling terms, negligible on a 650 g 5", are not
-	// calibrated for that mass and it will not hold a commanded rate. Tracked as
-	// follow-up; see the PHASE 07 spec.)
+	// (A 1S 65 mm tinywhoop was prototyped too but pulled — see issue #71.
+	// Splitting the old single `kAxial` into kInflowOf/kBuffetOf/kLateralOf
+	// (quad.js) was necessary but not sufficient: holding a full-stick roll
+	// long enough eventually makes THIS family's pitch/yaw diverge too (~2.8 s
+	// in, well past the 1.2 s selftest window), and it is real rigid-body
+	// physics — reproduces with every quad.js coupling term and every PID term
+	// zeroed. A 34 g build hits the same wall inside ~1 s. Tracked separately,
+	// not an aero-coefficient problem.)
 	toothpick: {
 		family: 'toothpick',
 		label: 'MICRO',
@@ -243,8 +256,9 @@ export const PROFILES = {
 		tauSpinUp: 0.014,
 		tauSpinDown: 0.030,
 		torqueRatio: 0.014,        // bi-blade 2.5" props: modest prop-drag torque, loose yaw
-		kAxial: 7.5e-6,
-		kLateral: 1.3e-5,
+		inflowGain: 2.806033,      // small disk (3.2 cm prop) needs real correction
+		buffetGain: 2.806033,
+		lateralGain: 1.035958,
 		bodyDrag: { x: 0.0018, y: 0.0050, z: 0.0018 },
 		battery: { cells: 2, capacityMah: 450, internalOhm: 0.045, maxCurrent: 18 },
 		pid: {
