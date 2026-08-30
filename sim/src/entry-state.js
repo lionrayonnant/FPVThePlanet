@@ -10,6 +10,7 @@
 
 import { FlightController, hoverThrottle } from './flightController.js';
 import { crashThreshold } from './quad.js';
+import { Geofence } from './geofence.js';
 
 export const CATEGORIES = ['COMFORTABLE', 'ACTIVE', 'CHALLENGING', 'HOLY_SHIT'];
 export const WEIGHTS = [60, 25, 12, 3];
@@ -54,9 +55,30 @@ export const RANGES = {
 	HOLY_SHIT: { aglM: [1.5, 5], speedMs: [25, 40], tiltDeg: [40, 80], rateDps: [150, 400] },
 };
 
-// How far past the bbox edge sampling stays away from, so a draw never lands
-// past the last chunk actually loaded.
-const EDGE_MARGIN = 10;
+// La marge au bord, désormais celle de la clôture (#139) et non plus une
+// valeur locale. Elle valait 10 m, ce qui suffisait à ne pas tirer un point
+// au-delà du dernier chunk chargé — mais pas à naître HORS de l'avertissement
+// de zone : R_CAUTION se compte en dizaines de mètres. Un vol ne doit jamais
+// commencer sur un « NO COVERAGE ».
+//
+// C'est le couloir EFFECTIF de la scène qu'on lit (`effectiveCorridor.caution`)
+// et non la constante R_CAUTION : la clôture borne son couloir au tiers du plus
+// petit demi-côté (geofence.js), donc sur une petite carte elle avertit BIEN
+// plus près du bord que 113 m. Retirer la constante de chaque côté y retirerait
+// une bande que la clôture ne réclame pas. Mesuré sur les 25 scènes de
+// public/scenes/ : sur parcdesprinces (demi-côtés 139 × 151 m) la constante ne
+// laisserait qu'une bande de 51 × 76 m — 4,6 % de l'emprise — là où le couloir
+// effectif vaut 46,2 m et en laisse 185 × 209. Et sur une carte de moins de
+// 113 m de demi-côté l'encart CROISERAIT (x0 > x1) ; le couloir effectif, qui
+// vaut au plus halfMin/3, ne le peut pas.
+//
+// Un Geofence est construit plutôt que la formule recopiée : c'est lui qui
+// décide de la borne, et il n'y a aucune raison d'en tenir un second
+// exemplaire ici. Le coût est nul — occupancyOf() ne passe ici qu'au défaut de
+// cache, une fois par instance Physics.
+function edgeMarginOf(manifest) {
+	return new Geofence(manifest.bbox).effectiveCorridor.caution;
+}
 
 function lerp(rand, [lo, hi]) { return lo + rand() * (hi - lo); }
 
@@ -126,8 +148,9 @@ export function occupancyOf(physics, manifest) {
 	const cached = occupancyCache.get(physics);
 	if (cached) return cached;
 
-	const x0 = manifest.bbox.min[0] + EDGE_MARGIN, x1 = manifest.bbox.max[0] - EDGE_MARGIN;
-	const z0 = manifest.bbox.min[2] + EDGE_MARGIN, z1 = manifest.bbox.max[2] - EDGE_MARGIN;
+	const edgeMargin = edgeMarginOf(manifest);
+	const x0 = manifest.bbox.min[0] + edgeMargin, x1 = manifest.bbox.max[0] - edgeMargin;
+	const z0 = manifest.bbox.min[2] + edgeMargin, z1 = manifest.bbox.max[2] - edgeMargin;
 	const cols = Math.max(1, Math.min(OCCUPANCY_MAX_SIDE, Math.round((x1 - x0) / OCCUPANCY_CELL_M)));
 	const rows = Math.max(1, Math.min(OCCUPANCY_MAX_SIDE, Math.round((z1 - z0) / OCCUPANCY_CELL_M)));
 	const dx = (x1 - x0) / cols, dz = (z1 - z0) / rows;
