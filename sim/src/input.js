@@ -170,6 +170,7 @@ export class Input {
 					'f',
 					'tab',
 					'escape',
+					'enter',
 					' ',
 				].includes(k)
 			) {
