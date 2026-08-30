@@ -13,6 +13,9 @@ import {
 	rngFrom, emptyMemory, eligible, select, PAIR_COOLDOWN,
 } from './dialogue/engine.mjs';
 import { JENSEN_COOLDOWN as JC } from './dialogue/catalog.mjs';
+import {
+	args as genArgs, resolveBackend, parseEntries, BACKENDS, DEFAULT_BACKEND, DEFAULT_MODEL, DEFAULT_OLLAMA_HOST,
+} from './dialogue/generate.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -520,6 +523,106 @@ t('isolation : public/dialogue ne contient que des données', () => {
 	for (const f of readdirSync(new URL('../public/dialogue/', import.meta.url))) {
 		assert.match(f, /\.json$/, `public/dialogue contient autre chose que des données : ${f}`);
 	}
+});
+
+// --- backend local (Ollama) : arguments et sélection (D1, sans modèle) -----
+
+t('args : lit les paires --clé valeur', () => {
+	const a = genArgs(['node', 'generate.mjs', '--event', 'ACQUIRE_AREA', '--count', '6', '--batch', '6']);
+	assert.equal(a.event, 'ACQUIRE_AREA');
+	assert.equal(a.count, '6');
+	assert.equal(a.batch, '6');
+});
+
+t('args : un drapeau sans valeur (fin de ligne) devient true', () => {
+	const a = genArgs(['node', 'generate.mjs', '--event', 'X', '--dry-run']);
+	assert.equal(a['dry-run'], true);
+});
+
+t('args : un drapeau suivi d\'un autre --clé devient true, pas la clé suivante', () => {
+	const a = genArgs(['node', 'generate.mjs', '--dry-run', '--backend', 'ollama']);
+	assert.equal(a['dry-run'], true);
+	assert.equal(a.backend, 'ollama');
+});
+
+t('resolveBackend : claude par défaut, rien ne change pour un usage existant', () => {
+	assert.equal(DEFAULT_BACKEND, 'claude');
+	const r = resolveBackend({}, {});
+	assert.equal(r.backend, 'claude');
+	assert.equal(r.model, DEFAULT_MODEL.claude);
+});
+
+t('resolveBackend : ollama choisit le modèle et l\'hôte mesurés par défaut', () => {
+	const r = resolveBackend({ backend: 'ollama' }, {});
+	assert.equal(r.backend, 'ollama');
+	assert.equal(r.model, 'batiai/qwen3.6-27b:q3');
+	assert.equal(r.host, DEFAULT_OLLAMA_HOST);
+	assert.equal(r.host, 'http://127.0.0.1:11434');
+});
+
+t('resolveBackend : --model et --ollama-host l\'emportent sur les défauts', () => {
+	const r = resolveBackend({ backend: 'ollama', model: 'autre-modele', 'ollama-host': 'http://box:9999' }, {});
+	assert.equal(r.model, 'autre-modele');
+	assert.equal(r.host, 'http://box:9999');
+});
+
+t('resolveBackend : OLLAMA_HOST de l\'environnement sert si --ollama-host est absent', () => {
+	const r = resolveBackend({ backend: 'ollama' }, { OLLAMA_HOST: 'http://env-host:11434' });
+	assert.equal(r.host, 'http://env-host:11434');
+});
+
+t('resolveBackend : un backend inconnu échoue clairement', () => {
+	assert.throws(() => resolveBackend({ backend: 'mistral' }, {}), /backend inconnu/);
+});
+
+t('resolveBackend : le backend claude ignore OLLAMA_HOST', () => {
+	const r = resolveBackend({}, { OLLAMA_HOST: 'http://env-host:11434' });
+	assert.equal(r.backend, 'claude');
+	assert.equal(r.model, DEFAULT_MODEL.claude);
+});
+
+t('BACKENDS : exactement claude et ollama', () => {
+	assert.deepEqual(BACKENDS, ['claude', 'ollama']);
+});
+
+t('parseEntries : tableau JSON nu', () => {
+	assert.deepEqual(parseEntries('[{"a":1},{"a":2}]'), [{ a: 1 }, { a: 2 }]);
+});
+
+t('parseEntries : tableau enrobé de prose avant et après', () => {
+	const text = 'Voici le résultat :\n[{"a":1}]\nVoilà, terminé.';
+	assert.deepEqual(parseEntries(text), [{ a: 1 }]);
+});
+
+t('parseEntries : tableau dans un bloc de code ```json', () => {
+	const text = 'Sure, here it is:\n```json\n[{"a":1},{"a":2}]\n```\nLet me know if you need more.';
+	assert.deepEqual(parseEntries(text), [{ a: 1 }, { a: 2 }]);
+});
+
+t('parseEntries : tableau dans un bloc de code sans langage', () => {
+	const text = '```\n[{"a":1}]\n```';
+	assert.deepEqual(parseEntries(text), [{ a: 1 }]);
+});
+
+t('parseEntries : ne se fait pas piéger par un crochet dans la prose de fin', () => {
+	// Un modèle local ajoute volontiers une phrase de clôture ; si elle contient
+	// elle-même un crochet après le tableau réel, un simple lastIndexOf(']')
+	// couperait le JSON au mauvais endroit.
+	const text = '[{"a":1}]\n(généré comme demandé [voir consignes])';
+	assert.deepEqual(parseEntries(text), [{ a: 1 }]);
+});
+
+t('parseEntries : ne se fait pas piéger par un crochet à l\'intérieur d\'une réplique', () => {
+	const text = '[{"lines":[{"speaker":"root","text":"check [redacted] now"}]}]';
+	assert.deepEqual(parseEntries(text), [{ lines: [{ speaker: 'root', text: 'check [redacted] now' }] }]);
+});
+
+t('parseEntries : aucun tableau dans la réponse échoue clairement', () => {
+	assert.throws(() => parseEntries('je ne peux pas répondre à ça.'), /aucun tableau JSON/);
+});
+
+t('parseEntries : tableau non refermé échoue clairement', () => {
+	assert.throws(() => parseEntries('[{"a":1}'), /non refermé/);
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

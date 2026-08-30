@@ -4,13 +4,20 @@
 //
 //   node tools/dialogue/generate.mjs --event ACQUIRE_AREA --count 200
 //     [--batch 20] [--rarity COMMON] [--model claude-opus-5] [--dry-run]
+//     [--backend claude|ollama] [--ollama-host http://127.0.0.1:11434]
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { EVENTS } from './catalog.mjs';
 import { validateEntry } from './validate.mjs';
 import { findDuplicates } from './dedupe.mjs';
 
-const MODEL = 'claude-opus-5';
+export const BACKENDS = ['claude', 'ollama'];
+export const DEFAULT_BACKEND = 'claude';
+export const DEFAULT_MODEL = { claude: 'claude-opus-5', ollama: 'batiai/qwen3.6-27b:q3' };
+export const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434';
+// Un lot local sur un GPU domestique peut prendre plusieurs minutes ; un
+// timeout court transformerait un run normal en échec.
+const OLLAMA_TIMEOUT_MS = 10 * 60 * 1000;
 
 // Un lot impose SA distribution de formes. C'est le levier principal contre
 // l'effondrement stylistique : 200 entrées demandées d'un bloc convergent vers
@@ -27,18 +34,28 @@ const FORMS = [
 	'a rare cryptic remark that explains nothing',
 ];
 
-function args() {
+export function args(argv = process.argv) {
 	const a = {};
-	for (let i = 2; i < process.argv.length; i++) {
-		const k = process.argv[i];
-		if (k.startsWith('--')) a[k.slice(2)] = process.argv[i + 1]?.startsWith('--') || !process.argv[i + 1] ? true : process.argv[++i];
+	for (let i = 2; i < argv.length; i++) {
+		const k = argv[i];
+		if (k.startsWith('--')) a[k.slice(2)] = argv[i + 1]?.startsWith('--') || !argv[i + 1] ? true : argv[++i];
 	}
 	return a;
 }
 
+// Résout le backend, le modèle et l'hôte à partir des arguments et de
+// l'environnement. Pur : aucune E/S, testable sans modèle ni réseau.
+export function resolveBackend(a, env = process.env) {
+	const backend = a.backend ?? DEFAULT_BACKEND;
+	if (!BACKENDS.includes(backend)) throw new Error(`--backend inconnu (${backend}) — attendu : ${BACKENDS.join(' ou ')}`);
+	const model = a.model ?? DEFAULT_MODEL[backend];
+	const host = a['ollama-host'] ?? env.OLLAMA_HOST ?? DEFAULT_OLLAMA_HOST;
+	return { backend, model, host };
+}
+
 // Le prompt passe par stdin : un lot dépasse les limites d'argument, et une
 // erreur là-dessus est silencieuse et pénible à diagnostiquer.
-function callModel(prompt, model = MODEL) {
+function callModelClaude(prompt, model) {
 	return new Promise((resolve, reject) => {
 		const p = spawn('claude', ['-p', '--output-format', 'json', '--model', model]);
 		let out = '', err = '';
@@ -54,6 +71,41 @@ function callModel(prompt, model = MODEL) {
 		});
 		p.stdin.end(prompt);
 	});
+}
+
+// Backend local via Ollama. Même contrat que callModelClaude : une chaîne de
+// prompt entre, une chaîne de réponse sort. Un timeout généreux car un gros
+// lot sur un GPU domestique peut prendre plusieurs minutes (swap VRAM inclus).
+async function callModelOllama(prompt, model, host) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+	let res;
+	try {
+		res = await fetch(`${host}/api/generate`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ model, prompt, stream: false, options: { temperature: 0.9, num_ctx: 8192 }, think: false }),
+			signal: controller.signal,
+		});
+	} catch (e) {
+		const cause = e.name === 'AbortError'
+			? `délai dépassé (${OLLAMA_TIMEOUT_MS / 1000}s)`
+			: e.message;
+		throw new Error(`Ollama injoignable sur ${host} (modèle ${model}) : ${cause}. Ollama tourne-t-il ?`);
+	} finally {
+		clearTimeout(timer);
+	}
+	if (!res.ok) {
+		const body = await res.text().catch(() => '');
+		throw new Error(`Ollama a rendu ${res.status} sur ${host} (modèle ${model}) : ${body.slice(0, 400)}`);
+	}
+	const parsed = await res.json();
+	return String(parsed.response ?? '');
+}
+
+function callModel(prompt, { backend, model, host }) {
+	if (backend === 'ollama') return callModelOllama(prompt, model, host);
+	return callModelClaude(prompt, model);
 }
 
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
@@ -88,12 +140,37 @@ function buildPrompt({ event, entries, rarity, forms, count }) {
 	].join('\n');
 }
 
-// Le modèle enrobe volontiers sa réponse. On récupère le premier tableau JSON.
-function parseEntries(text) {
-	const start = text.indexOf('[');
-	const end = text.lastIndexOf(']');
-	if (start < 0 || end < 0) throw new Error(`aucun tableau JSON dans la réponse : ${text.slice(0, 300)}`);
-	return JSON.parse(text.slice(start, end + 1));
+// Le modèle enrobe volontiers sa réponse — un modèle local plus encore qu'un
+// modèle hébergé (prose avant/après, bloc ```json). indexOf/lastIndexOf sur
+// '[' et ']' se fait avoir dès que ce texte d'habillage contient lui-même un
+// crochet après le tableau réel (ex. « ...comme ceci : [voir plus haut] »).
+// On repère donc le premier '[' puis on avance jusqu'au ']' qui l'équilibre,
+// en ignorant les crochets à l'intérieur des chaînes JSON (guillemets et
+// échappements pris en compte) pour ne pas se faire piéger par du texte
+// entre crochets dans les répliques elles-mêmes.
+export function parseEntries(text) {
+	// Retire un éventuel bloc de code (```json ... ``` ou ``` ... ```).
+	const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+	const body = fenced ? fenced[1] : text;
+
+	const start = body.indexOf('[');
+	if (start < 0) throw new Error(`aucun tableau JSON dans la réponse : ${text.slice(0, 300)}`);
+
+	let depth = 0, inString = false, escaped = false, end = -1;
+	for (let i = start; i < body.length; i++) {
+		const c = body[i];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (c === '\\') escaped = true;
+			else if (c === '"') inString = false;
+			continue;
+		}
+		if (c === '"') inString = true;
+		else if (c === '[') depth++;
+		else if (c === ']') { depth--; if (depth === 0) { end = i; break; } }
+	}
+	if (end < 0) throw new Error(`tableau JSON non refermé dans la réponse : ${text.slice(0, 300)}`);
+	return JSON.parse(body.slice(start, end + 1));
 }
 
 async function main() {
@@ -103,7 +180,7 @@ async function main() {
 	const total = Number(a.count ?? 100);
 	const size = Number(a.batch ?? 20);
 	const rarity = a.rarity ?? 'COMMON';
-	const model = a.model ?? MODEL;
+	const { backend, model, host } = resolveBackend(a);
 
 	const shard = loadShard(event);
 	let seq = shard.entries.length;
@@ -112,7 +189,7 @@ async function main() {
 	for (let done = 0; done < total; done += size) {
 		const n = Math.min(size, total - done);
 		const forms = Array.from({ length: n }, (_, i) => FORMS[(done + i) % FORMS.length]);
-		const text = await callModel(buildPrompt({ event, entries: shard.entries, rarity, forms, count: n }), model);
+		const text = await callModel(buildPrompt({ event, entries: shard.entries, rarity, forms, count: n }), { backend, model, host });
 
 		for (const raw of parseEntries(text)) {
 			const entry = {
@@ -138,12 +215,19 @@ async function main() {
 
 	// Le taux de rejet d'un lot dit quelque chose du PROMPT, pas des entrées :
 	// au-delà de 5 %, on jette et on corrige le brief plutôt que de rapiécer.
+	// On nomme le backend et le modèle : 20 % de rejet ne veut pas dire la même
+	// chose venant d'un 27B local que du modèle hébergé.
 	const rate = rejected / (kept + rejected || 1);
-	if (rate > 0.05) console.warn(`\n⚠  taux de rejet ${(rate * 100).toFixed(1)} % — revoir prompts/events/${EVENTS[event].shard}.md avant de continuer`);
+	console.log(`backend : ${backend} (${model})`);
+	if (rate > 0.05) console.warn(`\n⚠  taux de rejet ${(rate * 100).toFixed(1)} % avec ${backend}/${model} — revoir prompts/events/${EVENTS[event].shard}.md avant de continuer`);
 
 	if (a['dry-run']) { console.log('(--dry-run : rien écrit)'); return; }
 	writeFileSync(shardPath(event), `${JSON.stringify(shard, null, 2)}\n`);
 	console.log(`écrit : public/dialogue/${EVENTS[event].shard}.json`);
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1); });
+// Ne lance rien à l'import : le selftest importe args()/resolveBackend()/
+// parseEntries() sans vouloir déclencher un run réel.
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main().catch((e) => { console.error(e.message); process.exit(1); });
+}
