@@ -8,6 +8,7 @@ import {
 	R_CAUTION, R_HOLD, FLOOR_CAUTION, FLOOR_HOLD, FLOOR_EDGE, FLOOR_LOST,
 	A_MAX, FENCE_SPAN, FENCE_WARN_DB,
 } from '../src/geofence.js';
+import { VideoLink } from '../src/link.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -235,6 +236,70 @@ t('t : 0 à l entrée de caution, 1 en fin de couloir (horizontal)', () => {
 	assert.equal(f.out.t, 0);
 	f.update(at(1000 + R_HOLD, 100, 0));   // marge = -R_HOLD = h.lost
 	assert.equal(f.out.t, 1);
+});
+
+// --- Le canal terminal de link.js -----------------------------------------
+
+// Une frame de lien parfait : à dix mètres, rien dans le chemin.
+const CLEAR = { distance: 10, blocked: false, span: 0, dt: 1 / 60 };
+
+t('sans perte terminale, link.js est intact', () => {
+	const l = new VideoLink();
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 1);
+});
+
+t('la perte terminale tue l image', () => {
+	const l = new VideoLink();
+	l.setTerminalLoss(FENCE_SPAN);
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 0);
+});
+
+t('la borne de jouabilité #79 ne relève JAMAIS une perte terminale', () => {
+	const l = new VideoLink();
+	l.setTerminalLoss(FENCE_SPAN);
+	// 30 s : bien au-delà de BLACKOUT_MAX_S (2 s), donc la borne a eu tout le
+	// temps de s'armer et de replaquer la qualité à COOLDOWN_FLOOR_Q.
+	let worst = 0;
+	for (let i = 0; i < 30 * 60; i++) {
+		l.update(CLEAR);
+		worst = Math.max(worst, l.out.quality);
+	}
+	assert.equal(worst, 0, `la borne #79 a relevé l image à ${worst}`);
+});
+
+t('la perte terminale se retire', () => {
+	const l = new VideoLink();
+	l.setTerminalLoss(FENCE_SPAN);
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 0);
+	l.setTerminalLoss(0);
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 1);
+});
+
+t('reset() efface la perte terminale', () => {
+	const l = new VideoLink();
+	l.setTerminalLoss(FENCE_SPAN);
+	l.update(CLEAR);
+	l.reset();
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 1);
+});
+
+t('FENCE_SPAN vaut bien LOSS_DEAD − LOSS_CLEAN de link.js', () => {
+	// Le lien est propre ; on lui ajoute exactement FENCE_SPAN. Si la constante
+	// dupliquée dans geofence.js a dérivé de celle de link.js, la qualité ne
+	// tombe pas pile à zéro.
+	const l = new VideoLink();
+	l.setTerminalLoss(FENCE_SPAN);
+	l.update(CLEAR);
+	assert.equal(l.out.quality, 0);
+	const m = new VideoLink();
+	m.setTerminalLoss(FENCE_SPAN - 0.5);
+	m.update(CLEAR);
+	assert.ok(m.out.quality > 0, 'un demi-dB de moins doit laisser une image');
 });
 
 console.log(`\n${n} vérifications OK`);

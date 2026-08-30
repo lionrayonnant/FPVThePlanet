@@ -112,6 +112,13 @@ export class VideoLink {
 		// dB, comme spread et shadow. NON remis à zéro par reset() : c'est une
 		// propriété de la cible, elle survit à un respawn dans la session.
 		this._baseLoss = 0;
+		// La perte de la clôture de zone (#139). Elle NE PASSE PAS par _loss,
+		// et c'est tout l'intérêt : la borne de jouabilité de l'issue #79
+		// écrête _loss et replaque la qualité à COOLDOWN_FLOOR_Q après deux
+		// secondes d'écran noir. Cette borne existe pour qu'on ne reste jamais
+		// coincé aveugle EN VOL — or sortir de la zone n'est pas voler, c'est
+		// la fin de la session. Appliquée en sortie, après la borne.
+		this._terminalLoss = 0;
 		this.out = { quality: 1, rssiDbm: RSSI_REF_DBM, lossDb: 0, frozen: false };
 		this.reset();
 	}
@@ -124,6 +131,7 @@ export class VideoLink {
 		// a respawn never drops you straight back into a jammed screen.
 		this._blackoutT = 0;
 		this._cooldownT = 0;
+		this._terminalLoss = 0;
 		this.out.quality = 1;
 		this.out.rssiDbm = RSSI_REF_DBM;
 		this.out.lossDb = 0;
@@ -136,6 +144,14 @@ export class VideoLink {
 
 	setSignal({ rssiDbm } = {}) {
 		this._baseLoss = Number.isFinite(rssiDbm) ? Math.max(0, RSSI_REF_DBM - rssiDbm) : 0;
+	}
+
+	// La perte de la clôture de zone (#139), en dB. Pas de lissage : TAU_FALL
+	// et TAU_RISE existent parce que la géométrie des obstacles est une
+	// fonction en escalier, or une position ne l'est pas — cette perte varie
+	// déjà continûment avec le mètre parcouru.
+	setTerminalLoss(db) {
+		this._terminalLoss = Number.isFinite(db) ? Math.max(0, db) : 0;
 	}
 
 	// distance in metres; blocked/span straight out of
@@ -190,7 +206,19 @@ export class VideoLink {
 			this._blackoutT = Math.max(0, this._blackoutT - dt * 0.5);
 		}
 
-		const loss = Math.max(0, this._loss + this._noise * this.severity);
+		// La clôture s'ajoute ici, en aval de la borne #79 : elle n'est pas une
+		// nuisance à lisser, elle est la fin de la session.
+		const loss = Math.max(0, this._loss + this._noise * this.severity) + this._terminalLoss;
+		// qualityOf() ne touche 0 qu'à LOSS_DEAD, pas à un span de LOSS_DEAD −
+		// LOSS_CLEAN depuis zéro : c'est la LARGEUR de la bande de dégradation,
+		// pas un budget absolu. qualityOf(loss) sous-compterait donc de pile
+		// LOSS_CLEAN pour un lien déjà propre (loss ambiant ≈ 0), et FENCE_SPAN
+		// n'amènerait la qualité qu'à ~0,31 au lieu de 0 — en contradiction avec
+		// le commentaire de geofence.js (« n'importe quel lien, si propre
+		// soit-il ») et avec ligne 23 ci-dessus (58 dB = la largeur depuis
+		// LOSS_CLEAN). On décale donc l'argument de LOSS_CLEAN pour rendre la
+		// coupure indépendante du bruit ambiant, comme documenté.
+		if (this._terminalLoss > 0) quality = Math.min(quality, qualityOf(LOSS_CLEAN + this._terminalLoss));
 
 		// Frame drops. Only the digital renderer uses this, but it belongs to the
 		// receiver rather than to the shader, so it is decided here. The
