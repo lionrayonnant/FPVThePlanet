@@ -110,12 +110,52 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // nombres à chaque `npm run add-map`), et surtout le banc NE TOURNE PAS sur
 // les petites : il lui faut l'élan d'amener la famille à sa vitesse de pic
 // PLUS le couloir d'essai devant la face — 213 m pour heavy5 au couloir
-// complet, et déjà 164 m pour freestyle5 au premier pas de l'itération, contre
-// 164 m de demi-côté sur bastille, où il lève dès ce premier pas. Il refuse
-// plutôt que de mesurer une approche qui n'a pas eu la place d'exister. Le
-// couloir effectivement appliqué est lisible sur l'instance
+// complet. Sur bastille (demi-côté 164 m) il lève au SECOND pas de
+// l'itération : le premier passe (élan 118,1 + couloir d'essai 10 = 128,1 m),
+// le second demande 164,4 m et n'a que 163,7. Il refuse plutôt que de mesurer
+// une approche qui n'a pas eu la place d'exister.
+//
+// `scale` s'applique à TOUT le couloir, `lost` compris : la clôture reste UNE
+// forme, mise à l'échelle d'un bloc. Le segment au-delà du bord n'est contraint
+// par rien de géométrique et la symétrie qui le justifiait sur une grande carte
+// (« la distance qu'il faut pour s'arrêter est celle que l'image coûte ») n'a
+// plus de sens une fois le couloir borné — mais 66 m de couloir de mort au-delà
+// d'une carte de 328 m serait disproportionné dans l'autre sens. Homothétie,
+// donc, et pas de découplage.
+//
+// Le couloir effectivement appliqué est lisible sur l'instance
 // (`fence.effectiveCorridor`), c'est lui qu'il faut montrer au joueur, pas la
 // constante.
+//
+// CE QUE LA BORNE ÉCHANGE — et il faut que ça se lise ici, pas seulement en
+// jeu. Rétrécir le couloir raidit la rampe (`pushOf` étale toujours 0 → A_MAX
+// sur `hold` mètres) mais ne rend pas au drone la distance qu'il lui faut :
+// sous `hold` inférieur à ~49 m, soit un demi-côté sous 252 m, le pilote qui
+// OBÉIT — le programme de manche ci-dessus, exactement — franchit quand même
+// le bord des données. Mesuré, couloir imposé, pénétration de la pire famille :
+//
+//   hold  66,0  58,7  51,5  48,5  43,7  39,3  31,9  27,0   (m)
+//   pire −12,1  −6,7  −1,7  +0,4  +3,7  +6,9 +12,1 +15,7   (m, + = franchi)
+//
+// Sur SIX scènes des vingt-quatre — betheny (1 famille sur 6), roosevelt (2),
+// invalides (3), triomphe (3), bastille (4), parcdesprinces (4) — la propriété
+// que R_HOLD portait, et qui est toute sa raison d'être, n'est plus tenue.
+// C'est irréparable : arrêter 27,8 m/s en 27 m demanderait ~14,3 m/s² quand
+// A_MAX en donne 2,94 en moyenne sur la rampe, et relever A_MAX détruirait le
+// « ce n'est pas un mur » qui EST le design. La carte est trop petite, point.
+//
+// Le mode de défaillance reste doux, et c'est ce qui rend l'échange tenable :
+// la pénétration n'atteint jamais `lost`, donc `over` reste faux et la session
+// n'est PAS perdue. L'image agonise — de 8 dB sur betheny à 37 dB sur
+// parcdesprinces, sur les 58 du budget — et le rappel repousse. On paie en
+// image, pas en session.
+//
+// Et ce n'est pas un choix libre, c'est un ÉCHANGE. Tenir la garantie sur
+// toutes les cartes exigerait `caution >= 84 m` (le `hold >= 49 m` ci-dessus
+// remonté par le rapport des deux seuils), ce qui laisserait 39,5 % de cœur
+// volable sur parcdesprinces et 48,8 % sur bastille au lieu de 66,7 % partout.
+// Le tiers a choisi le cœur volable contre la garantie d'arrêt. Sur une carte
+// de poche, on préfère voler.
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
@@ -256,12 +296,19 @@ export class Geofence {
 		// l'OSD et le README doivent dire au joueur ce qui s'applique à SA
 		// carte, pas ce que la constante vaut. `scale === 1` veut dire « la
 		// carte est assez grande, c'est la valeur mesurée telle quelle ».
-		this.effectiveCorridor = {
+		//
+		// Calculé UNE FOIS ici, comme this.h : si la scène change, on
+		// reconstruit un Geofence, on ne mute pas la bbox sous celui-ci —
+		// `update()` lit `this.bbox` en direct, donc une bbox mutée après coup
+		// donnerait un couloir qui ne correspond plus à la carte. Gelé pour que
+		// l'écrire de l'extérieur échoue franchement au lieu de rendre cette
+		// propriété menteuse sans toucher au couloir réellement appliqué.
+		this.effectiveCorridor = Object.freeze({
 			caution: R_CAUTION * scale,
 			hold: R_HOLD * scale,
 			scale,
 			halfMinM: halfMin,
-		};
+		});
 		const e = this.effectiveCorridor;
 		this.h = corridor(e.caution, e.hold, 0, -e.hold);
 		// Marges relatives à bbox.min.y, donc toutes négatives : le couloir est

@@ -308,7 +308,25 @@ bbox**, les deux seuils à la même échelle pour que le temps d'avertissement
 survive à la réduction. Le cœur volable n'est ainsi jamais sous 67 % du plus
 petit côté, et les quinze grandes cartes gardent la valeur mesurée intacte.
 C'est une borne, pas une mesure : elle ne dit pas que le chiffre est faux,
-elle dit ce qu'on en garde quand la carte ne peut pas le payer.
+elle dit ce qu'on en garde quand la carte ne peut pas le payer. `scale`
+s'applique à tout le couloir, `lost` compris — la clôture reste une forme,
+mise à l'échelle d'un bloc.
+
+**Et ce que la borne échange.** Rétrécir le couloir raidit la rampe mais ne
+rend pas au drone la distance qu'il lui faut : sous un couloir `HOLD` de ~49 m,
+soit un demi-côté sous 252 m, le pilote qui **obéit** franchit quand même le
+bord des données — sur six scènes des vingt-quatre (`betheny` 1 famille sur 6,
+`roosevelt` 2, `invalides` 3, `triomphe` 3, `bastille` 4, `parcdesprinces` 4).
+C'est irréparable : arrêter 27,8 m/s en 27 m demanderait ~14,3 m/s² quand
+`A_MAX` en donne 2,94 en moyenne sur la rampe, et relever `A_MAX` détruirait le
+« ce n'est pas un mur » qui *est* le design. Le mode de défaillance reste doux :
+la pénétration n'atteint jamais `lost`, donc `over` reste faux, la session
+n'est pas perdue — l'image agonise (8 dB sur `betheny`, 37 sur
+`parcdesprinces`, sur les 58 du budget) et le rappel repousse. On paie en
+image, pas en session. Ce n'est donc pas un choix libre mais un **échange** :
+tenir la garantie partout exigerait `caution >= 84 m`, soit 39,5 % de cœur
+volable sur `parcdesprinces` et 48,8 % sur `bastille` au lieu de 66,7 %
+partout. Le tiers a choisi le cœur volable contre la garantie d'arrêt.
 
 **`R_CAUTION` = `R_HOLD` + délai de lecture × vitesse max.** Le délai est de
 la mise en scène et s'assume comme telle, mais il s'ancre sur une constante du

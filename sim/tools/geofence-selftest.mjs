@@ -311,6 +311,22 @@ t('bbox rectangulaire : c est le PLUS PETIT demi-côté qui gouverne, sur les de
 	assert.deepEqual(g.effectiveCorridor, e);
 });
 
+t('le couloir effectif est un instantané gelé, et il dit vrai', () => {
+	const f = new Geofence(square(BOUND_HALF / 4));
+	// Il décrit le couloir RÉELLEMENT appliqué, pas une intention.
+	assert.equal(f.effectiveCorridor.caution, f.h.caution);
+	assert.equal(f.effectiveCorridor.hold, f.h.hold);
+	// `scale` s'applique à TOUT le couloir, `lost` compris : une seule forme.
+	assert.equal(f.h.lost, -f.effectiveCorridor.hold);
+	assert.equal(f.h.edge, 0);
+	assert.equal(f.h.caution / f.h.hold, R_CAUTION / R_HOLD);
+	// Gelé : l'écrire de l'extérieur ne peut pas le rendre menteur en silence.
+	assert.ok(Object.isFrozen(f.effectiveCorridor));
+	// Ce fichier est un module ES, donc strict : écrire un champ gelé lève.
+	assert.throws(() => { f.effectiveCorridor.hold = 5; }, TypeError);
+	assert.equal(f.effectiveCorridor.hold, f.h.hold);
+});
+
 t('la borne ne touche PAS le couloir vertical', () => {
 	const wide = new Geofence(BBOX);
 	const tight = new Geofence(square(BOUND_HALF / 4));
