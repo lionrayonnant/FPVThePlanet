@@ -605,8 +605,10 @@ t('pack de secours : valide, et surtout sans aucun requires', () => {
 //
 // Les deux points jamais implémentés : (1) aucun placeholder non résolu sur
 // beaucoup de tirages, contextes pauvres inclus ; (2) toute entrée livrée est
-// atteignable par au moins un contexte. Le point 2 est exactement ce qui
-// aurait attrapé le finding 2 (hackType perdu) automatiquement.
+// atteignable par au moins un contexte. Le point 2 ne peut attraper une
+// régression comme le finding 2 (hackType perdu) que si au moins un des
+// SPEC_CONTEXTS reproduit la forme de production en cause — d'où hackCtx
+// plus bas, construit avec candidate: null comme hack.js le fait vraiment.
 //
 // Les contextes sont construits UNIQUEMENT via acquisitionContext() et
 // scanContext(), les deux vraies fonctions de src/dialogue-context.js — on ne
@@ -661,7 +663,45 @@ const midCtx = {
 	...scanContext({}),
 };
 
-const SPEC_CONTEXTS = [richCtx, sparseCtx, midCtx];
+// Contexte réel de hack.js:68 (runHack) : candidate: null AVEC un hackType
+// renseigné — c'est exactement la forme qui a caché finding 2, parce
+// qu'aucun des trois contextes ci-dessus ne construit `target` à partir d'un
+// candidate falsy. Sans ce fixture, la reachability ne peut pas détecter une
+// régression de targetContext() sur cette branche.
+const hackCtx = {
+	...acquisitionContext({
+		name: 'Riverside', tiles: 48,
+		pipeline: { chunkBytes: 4e6, textureBytes: 9e6, collisionBytes: 1e6 },
+	}),
+	...scanContext({
+		scan: { candidates: [1, 2, 3] },
+		weather: { days: [richWeatherDay] },
+		candidate: null,
+		hackType: 'FIRMWARE',
+		family: 'freestyle5',
+	}),
+};
+
+const SPEC_CONTEXTS = [richCtx, sparseCtx, midCtx, hackCtx];
+
+// Régression directe du finding 2 (issue #58) : rien du corpus livré n'utilise
+// encore {hack_type} (TARGET_ANALYSIS et HACK sont générés ce soir), donc les
+// deux tests de spec ci-dessous ne peuvent pas encore le détecter via le
+// corpus lui-même — ils ne parcourent que ce qui existe déjà sur disque. Ce
+// test construit une entrée synthétique qui l'utilise et vérifie directement
+// que hackCtx la rend éligible et que le placeholder résout, pour que le
+// guard morde MAINTENANT et pas seulement une fois le corpus généré.
+t('hackCtx : {hack_type} éligible et résolu avec candidate null (finding 2, issue #58)', () => {
+	const synthetic = { id: 'test/hack_type', lines: [
+		{ speaker: 'root', text: 'running {hack_type} now.' },
+	], requires: ['target.hackType'] };
+	assert.ok(eligible(synthetic, hackCtx),
+		'target.hackType doit résoudre depuis hackCtx malgré candidate: null');
+	assert.doesNotThrow(() => render(synthetic, hackCtx),
+		'{hack_type} doit s\'interpoler sans lever avec hackCtx');
+	assert.deepEqual(render(synthetic, hackCtx),
+		[{ speaker: 'root', text: 'running FIRMWARE now.' }]);
+});
 
 t('spec §Vérification 1 : aucun placeholder non résolu sur de nombreux tirages, contextes pauvres inclus', () => {
 	const manifest = JSON.parse(readFileSync(new URL('../public/dialogue/manifest.json', import.meta.url)));
