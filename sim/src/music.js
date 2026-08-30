@@ -18,17 +18,12 @@
 
 import { ensureContext, musicIn, setMusicVolume } from './audio-bus.js';
 import {
-	intensityParams, PHASE_INTENSITY, FADE, DUCK, MUSIC_SCHEMA_VERSION, validateManifest,
+	intensityParams, PHASE_INTENSITY, FADE, DUCK, INTENSITY_TAU,
+	MUSIC_SCHEMA_VERSION, validateManifest,
 	pickTrack, pushRecent, poolForFamily,
 } from '../tools/music-model.mjs';
 
 const RECENT_KEY = 'fpvmaps.musicRecent';
-
-// Constante de lissage de l'intensité en vol. Assez lent pour qu'un coup de
-// gaz ponctuel ne fasse pas pomper la musique, assez rapide pour qu'un rush
-// s'entende. Le lissage est ICI et pas dans le modèle : setTargetAtTime est
-// indépendant du frame rate, une moyenne glissante par frame ne l'est pas.
-const INTENSITY_TAU = 0.35;
 
 // Le drop est un geste, pas une rampe : on le pose avec une transition
 // explicite plutôt qu'avec la constante de lissage du vol.
@@ -145,15 +140,21 @@ export class Music {
 	 * Le seul appel de la boucle de rendu. Ne crée AUCUN nœud : il ne fait que
 	 * viser deux AudioParams.
 	 */
-	setIntensity(k, { tau = INTENSITY_TAU } = {}) {
-		this.intensity = k;
+	setIntensity(k, { tau = null } = {}) {
 		const v = this.current;
+		const rising = k >= this.intensity;
+		this.intensity = k;
 		if (!v) return;
 		const ctx = ensureContext();
 		if (!ctx) return;
+		// Asymétrique par défaut : on monte vite, on redescend lentement. En FPV
+		// les gaz se coupent sans arrêt, et sans cette asymétrie la musique
+		// duckait à chaque chop. Un appelant qui veut un geste franc — le drop —
+		// passe sa propre constante.
+		const t = tau ?? (rising ? INTENSITY_TAU.rise : INTENSITY_TAU.fall);
 		const { cutoffHz, gain } = intensityParams(k);
-		v.lowpass.frequency.setTargetAtTime(cutoffHz, ctx.currentTime, tau);
-		v.gain.gain.setTargetAtTime(gain, ctx.currentTime, tau);
+		v.lowpass.frequency.setTargetAtTime(cutoffHz, ctx.currentTime, t);
+		v.gain.gain.setTargetAtTime(gain, ctx.currentTime, t);
 	}
 
 	/** Le drop : on pose l'intensité pleine d'un geste, pas d'une dérive. */

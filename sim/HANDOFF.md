@@ -981,6 +981,14 @@ Plan d'origine (contexte de la décision d'architecture) :
       denses), ce qui ruinait le seul point de calibration du mix. Remplacée
       par `loudnorm` deux passes en `linear=true` : écart ramené à **0,3 dB**
       (-13,8 à -14,1 LUFS sur les 21).
+  - **Plancher d'intensité relevé après écoute (0,30 → 0,62)** et lissage rendu
+    ASYMÉTRIQUE (montée 0,25 s, descente 1,80 s). En FPV on coupe les gaz sans
+    arrêt ; à 0,30 la musique tombait à -14 dB derrière une coupure à 1,2 kHz,
+    c'est-à-dire qu'elle disparaissait à chaque geste normal de pilotage.
+    Mesuré : couper les gaz à 15 m/s retirait 5,6 dB, il en retire 1,9 — et
+    avec la descente lente, un chop d'une demi-seconde n'en parcourt que 24 %,
+    soit 0,46 dB, inaudible. Le poids du manche est aussi passé de 0,40 à 0,25
+    au profit de la vitesse : le manche est nerveux, la vitesse a de l'inertie.
   - **NON CALIBRÉ — `FLIGHT.speedRefMs`** dans `tools/music-model.mjs`. Un vol
     scripté en boucle ouverte ne produit pas de vitesses représentatives (sans
     boucle de pilotage le drone tombe : le relevé obtenu mesurait la chute
