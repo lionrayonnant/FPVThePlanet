@@ -44,12 +44,18 @@ const DARKEN = 0.88;
 // camera.far vaut 2 500 m (main.js) et coupe tout au-delà, donc rien de plus
 // lointain ne peut jamais être vu, quelle que soit la portée du brouillard.
 // Ce qui compte est de couvrir camera.far depuis n'importe quel point que le
-// pilote peut atteindre — jusqu'à R_CAUTION au-delà du bord avant LOST
-// (113 m, geofence.js) — et la plus grande carte mesurée à ce jour
+// pilote peut atteindre. La clôture s'arrête à R_HOLD au-delà du bord, pas à
+// R_CAUTION : son couloir horizontal est corridor(caution, hold, 0, -hold) et
+// `over` se lève à mH < -hold, soit 66 m (geofence.js), pas 113. La séquence
+// de fin laisse ensuite dériver l'épave le temps que le noir monte (0,8 s
+// dans FENCE_TIMELINE, moins de 25 m à pleine vitesse), et l'image est déjà
+// morte à ce moment-là. On garde 113 dans le calcul ci-dessous, non parce
+// que c'est le bon seuil, mais parce que c'est le majorant simple : le pire
+// cas depuis le centre de la plus grande carte mesurée à ce jour
 // (chateau-des-ducs-de-bretagne, demi-côté 1 314 m sur son axe le plus long ;
 // vérifié sur les 25 manifestes de public/scenes/, tour-eiffel n'est PAS la
-// plus grande) donne un pire cas d'environ 1 314 + 113 + 2 500 ≈ 3 930 m
-// depuis le centre. 20 000 m garde une marge large, à coût nul :
+// plus grande) vaut environ 1 314 + 113 + 2 500 ≈ 3 930 m. 20 000 m garde une
+// marge de plus de cinq fois ce chiffre, à coût nul :
 // PlaneGeometry(size, size) ne fait que 2 triangles, quelle que soit sa
 // taille. Le résidu que camera.far laisse passer à la coupe, dans l'air le
 // plus clair (donc le plus lent à fondre) : 1 - exp(-(0,00085×2500)²) ≈

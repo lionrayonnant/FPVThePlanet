@@ -30,7 +30,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 - Limite connue : `selftest` spécifique à la Tour Eiffel
 - Détails techniques du pré-traitement — trois réglages qui comptent · sur le gris
 - Le modèle de vol — le vent · la pluie · le brouillard · le son · le rendu FPV ·
-  le lien vidéo · régler le PID
+  le lien vidéo · limites de zone · régler le PID
 
 ## Contrôles
 
@@ -1074,6 +1074,105 @@ comme un bug de rendu plutôt que comme une information.
 Coût mesuré : **1,0 ms/frame au pire** sur un budget de 10, dont 0,12 ms pour
 les quatre taps de chrominance de l'analogique. Une image gelée coûte 0,60 ms
 au lieu de 1,41 : elle n'est pas rendue du tout, seulement réaffichée.
+
+### Limites de zone
+
+La carte s'arrête. Ce qu'il y a au-delà n'a jamais été téléchargé — et la
+fiction ne fait pas semblant du contraire : **la zone, c'est le rectangle que
+le joueur a lui-même tracé dans le `GLOBAL SCANNER`**, et hors de lui il n'y a
+pas de données, donc pas de couverture, donc pas de lien. Ce n'est pas une
+portée radio : une portée radio serait un cercle centré sur le pilote, or le
+point de décollage n'est pas au centre de la carte (sur `tour-eiffel` il est à
+(−120, 140) dans une boîte de ±642 m). Le cercle inscrit jetterait la moitié de
+la carte, le circonscrit déborderait dans le vide.
+
+Le modèle vit dans `src/geofence.js` — ni THREE, ni Rapier, ni DOM, comme
+`wind.js`, `fog.js`, `link.js` et `flight-end.js`. `main.js` en pousse la force
+dans Rapier, l'avertissement dans l'OSD et la perte dans le bilan de liaison.
+
+**Quatre anneaux**, décidés par la marge au bord (positive dedans, négative
+dehors) :
+
+| anneau | horizontal | vertical (sous `bbox.min.y`) | ce qui se passe |
+|---|---|---|---|
+| `NOMINAL` | marge > 113 m | au-dessus de −2 m | rien |
+| `CAUTION` | 113 → 66 m | −2 → −5 m | `NO COVERAGE` clignote, l'image commence à se dégrader (8 dB) |
+| `HOLD` | 66 → 0 m | −5 → −8 m | le rappel monte de 0 à 5,89 m/s², l'image continue de mourir |
+| `LOST` | au-delà du bord | sous −8 m | le rappel est plein, la perte s'emballe ; à −66 m (horizontal) ou −10 m (vertical) la session se termine |
+
+Les frontières ont 15 % d'hystérésis (`HYST`) : sans elle, un stationnaire tenu
+pile sur le seuil fait strober l'avertissement — `link.js` a exactement le même
+problème et exactement la même réponse.
+
+**D'où sortent 66 et 113.** Ils sont mesurés, pas choisis :
+
+```bash
+node tools/geofence-measure.mjs                 # R_HOLD et R_CAUTION
+node tools/geofence-measure.mjs --guarantee     # le couloir sous lequel la garantie tombe
+node tools/geofence-selftest.mjs                # le modèle, sans navigateur
+```
+
+`R_HOLD = 66 m` est la distance d'arrêt du pilote qui **obéit** — un programme
+de manche explicite (plein gaz à 42° d'assiette à l'approche, gaz ramenés et
+tangage tiré à plat dès l'entrée en `HOLD`), balayé sur les six familles et
+sur la bande de gaz de freinage, pire cas retenu : `heavy5`, 65,83 m. C'est un
+point fixe, pas une soustraction — la rampe du rappel dépend elle-même de
+`R_HOLD`. `R_CAUTION = 113 m` ajoute le temps de **lire** l'avertissement à la
+vitesse maximale mesurée (30,87 m/s) : 1,5 s, soit trois clignotements à
+`BLINK_PERIOD_MS`.
+
+Le rappel plafonne à `A_MAX = 0,6 g`, soit 60 % de ce qu'un stationnaire
+consomme déjà. Choisi pour ce qu'il **ne** fait **pas** : il ne dépasse pas la
+poussée disponible. Lâchez les manches, vous êtes ramené ; insistez plein gaz,
+vous passez — et vous perdez la session. Ce n'est pas un mur, c'est le failsafe
+du drone qui se bat contre vous.
+
+**Le couloir est borné par carte.** 113 m sur `bastille` (demi-côté 164 m)
+avaleraient 89 % de la carte. `Geofence` met donc les deux seuils à l'échelle
+par le **même** facteur, pour que leur rapport — et donc le temps
+d'avertissement, seule raison d'être de `R_CAUTION` — survive à la réduction :
+
+```
+halfMin = min((max.x − min.x)/2, (max.z − min.z)/2)
+scale   = min(1, (halfMin / 3) / R_CAUTION)
+```
+
+Le cœur volable ne descend jamais sous 67 % du plus petit côté, et les quinze
+grandes cartes gardent la valeur mesurée à l'identique. Le couloir réellement
+appliqué se lit sur l'instance (`fence.effectiveCorridor`) et dans la console
+au chargement (`[fence] couloir …`) — c'est lui qu'il faut montrer, pas la
+constante. En dessous d'un couloir `HOLD` de 50 m (`HOLD_STOP_GUARANTEE_M`,
+soit un demi-côté sous ~252 m), le pilote qui obéit franchit quand même le bord
+sur les familles les plus lourdes ; `npm run add-map` le dit au moment où la
+carte est ajoutée. Le mode de défaillance reste doux : la pénétration
+n'atteint jamais `lost`, donc la session n'est pas perdue — on paie en image,
+pas en session.
+
+**Pourquoi le couloir vertical est sous `bbox.min.y`.** Le signe est ce qui
+compte le plus. Posé au-dessus, il pousserait le drone vers le haut au point le
+plus bas de la carte — la surface de la Seine sur `ile-de-la-cite`, où voler à
+deux mètres de l'eau est un vol parfaitement normal. Ces quatre nombres (2 / 5
+/ 8 / 10 m) ne sont pas mesurés et n'ont pas à l'être : ils reposent sur un
+argument géométrique — deux mètres sous la surface la plus basse de la carte,
+on est forcément sous quelque chose — et ils ne sont pas mis à l'échelle, parce
+qu'une petite carte n'a pas un dessous plus mince qu'une grande.
+
+**Pourquoi la clôture a son propre canal dans `link.js`.** La perte de zone
+passe par `setTerminalLoss()` et **pas** par `_loss`. La borne de jouabilité de
+l'issue #79 écrête `_loss` et replaque la qualité à un plancher volable après
+deux secondes d'écran noir — elle existe pour qu'on ne reste jamais coincé
+aveugle **en vol**. Or sortir de la zone n'est pas voler, c'est la fin de la
+session : ce canal-là est appliqué en sortie, après la borne, et ne se relève
+jamais. Le budget dépensé est exactement `LOSS_DEAD − LOSS_CLEAN` = 58 dB —
+ce qui emmène n'importe quel lien, si propre soit-il, de parfait à mort —
+dont 8 dB avant le bord, pendant l'avertissement (`KNIFE_EDGE_DB` : « you are
+told you are running out of margin before you run out »).
+
+Au-delà du bord, `src/ground.js` pose un plan sous le maillage. Sans lui la
+falaise a du **ciel** dessous, et ce n'est pas un cas limite : en air clair la
+portée est d'environ 2 km pour une carte de ±642 m. Ce n'est pas une extension
+du monde, c'est une plaine sous la brume — même formule de brouillard que
+`TileMaterial.js`, terme à terme, sinon l'horizon se dédouble.
 
 ### Régler le PID
 
