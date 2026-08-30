@@ -237,7 +237,13 @@ export class Physics {
 
 	// One fixed step. `motors` is four commands in 0..1 straight from the mixer.
 	// Returns the largest contact force seen during the step, for crash detection.
-	step(motors, dt = this.world.timestep) {
+	//
+	// `external` : une force en newtons, repère MONDE, ajoutée au même pas que
+	// la poussée. Un paramètre et non un setter : une force externe ne doit pas
+	// pouvoir traîner d'un pas sur l'autre, et resetForces() en tête de cette
+	// méthode rend tout addForce appelé du dehors silencieusement inopérant.
+	// Seule cliente aujourd'hui : la clôture de zone (#139).
+	step(motors, dt = this.world.timestep, external = null) {
 		// Rapier keeps user forces until they are cleared; without this every
 		// previous step's thrust stays applied and the quad rockets off.
 		this.body.resetForces(false);
@@ -291,6 +297,7 @@ export class Physics {
 		this.body.addForce(fw, true);
 		const tw = rotateVec(q, torque.x, torque.y, torque.z);
 		this.body.addTorque(tw, true);
+		if (external) this.body.addForce(external, true);
 
 		let impact = 0;
 		this.world.step(this.events);

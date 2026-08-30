@@ -57,6 +57,27 @@ export const LANDING_TIMELINE = {
 	exitAt: 2.2,            // la sortie s'arme avec la dernière ligne
 };
 
+// Troisième table : la sortie de zone (#139). TIMELINE commence par 0,9 s
+// d'image morte laissée à l'écran, ce qui suppose un impact — une épave qui
+// roule, et qu'on regarde. Une sortie de zone n'en a pas : l'image est déjà
+// morte, progressivement, sur les derniers mètres du couloir. Il n'y a rien à
+// laisser pourrir, donc le noir monte tout de suite, et la première ligne
+// nomme la cause plutôt que de la faire deviner.
+// Mise en scène, pas mesure — comme les deux tables au-dessus.
+export const FENCE_TIMELINE = {
+	blackoutAt: 0.3,
+	blackoutFade: 0.5,
+	lines: [
+		[0, 'OUT OF COVERAGE'],
+		[1.2, ''],
+		[1.2, 'SIGNAL LOST'],
+		[2.0, 'SESSION TERMINATED'],
+		[3.0, ''],
+		[3.0, '[ENTER] DISCONNECT'],
+	],
+	exitAt: 3.0,
+};
+
 // Seuils de pose, mesurés par tools/landing-selftest.mjs sur
 // public/scenes/tour-eiffel le 2026-08-29 : quatre poses (1 m, 3 m, 8 m, vent
 // de travers 8 m/s) se stabilisent toutes sous h=0,1488 m / v=0,0050 m/s /
@@ -107,9 +128,11 @@ export const LANDING = {
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 export class FlightEnd {
-	constructor({ timeline = TIMELINE, landingTimeline = LANDING_TIMELINE, landing = LANDING } = {}) {
+	constructor({ timeline = TIMELINE, landingTimeline = LANDING_TIMELINE,
+	              fenceTimeline = FENCE_TIMELINE, landing = LANDING } = {}) {
 		this.timeline = timeline;
 		this.landingTimeline = landingTimeline;
+		this.fenceTimeline = fenceTimeline;
 		this.landing = landing;
 		// Muté chaque frame plutôt que recréé, comme link.out et wind.out : ceci
 		// tourne à la fréquence d'affichage.
@@ -171,7 +194,8 @@ export class FlightEnd {
 	}
 
 	update({ dt = 0, armed = false, height = Infinity, speed = 0,
-	         angularSpeed = 0, throttle = 0, crashed = false } = {}) {
+	         angularSpeed = 0, throttle = 0, crashed = false,
+	         outOfZone = false } = {}) {
 		const o = this.out;
 		// `closes` est un événement : visible une frame, jamais deux.
 		o.closes = this._pending;
@@ -185,12 +209,17 @@ export class FlightEnd {
 		// 2) — il faut à la fois que la fermeture soit partie *et* que le
 		// joueur ait vu la séquence en entier.
 
-		if (crashed && this._phase !== CRASHING && this._phase !== TERMINATED
+		// Deux causes, une seule phase : l'écran meurt de la même façon, seule
+		// la table change. `outOfZone` passe en premier — si les deux arrivent
+		// sur la même frame (on percute une façade en franchissant le bord),
+		// c'est la sortie qui est l'événement, pas le choc.
+		const ends = outOfZone || crashed;
+		if (ends && this._phase !== CRASHING && this._phase !== TERMINATED
 			&& this._phase !== LANDED) {
 			this._phase = CRASHING;
 			this._t = 0;
 			this._hold = 0;
-			this._activeTimeline = this.timeline;
+			this._activeTimeline = outOfZone ? this.fenceTimeline : this.timeline;
 			o.lines.length = 0;
 			// L'image meurt à l'instant du choc, avant tout texte.
 			o.linkDead = true;
@@ -210,10 +239,11 @@ export class FlightEnd {
 		o.phase = this._phase;
 	}
 
-	// Partagée par le crash et la pose : seule la table (this._activeTimeline)
-	// change. Les deux causes qu'une timeline avance sont symétriques (une
-	// horloge, un fondu au noir, des lignes qui apparaissent), donc une seule
-	// fonction plutôt que deux copies presque identiques.
+	// Partagée par le crash, la pose et la sortie de zone : seule la table
+	// (this._activeTimeline) change. Les trois causes qu'une timeline avance
+	// sont symétriques (une horloge, un fondu au noir, des lignes qui
+	// apparaissent), donc une seule fonction plutôt que trois copies presque
+	// identiques.
 	_advanceTimeline(dt) {
 		const o = this.out, tl = this._activeTimeline;
 		this._t += dt;

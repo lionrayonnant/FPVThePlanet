@@ -35,6 +35,12 @@ const MAX_CONCURRENT = 3;
 // second one.
 const tileMaterials = [];
 
+// Le sol lointain (#139) suit exactement la même météo que les tuiles — sinon
+// la ligne d'horizon se dédouble. Enregistré plutôt qu'importé : loader.js ne
+// doit rien savoir de THREE au-delà de ce qu'il fait déjà.
+let distantGround = null;
+export function setDistantGround(g) { distantGround = g; }
+
 // color is a THREE.Color or a hex; density is the exp-squared coefficient in
 // TileMaterial.js. Both are written straight through — the whole colour pipeline
 // is pass-through (main.js, HANDOFF bug #10), so anything converted here comes
@@ -44,18 +50,21 @@ export function setFog(color, density) {
 		if (color !== undefined) m.uniforms.uFogColor.value.set(color);
 		if (density !== undefined) m.uniforms.uFogDensity.value = density;
 	}
+	distantGround?.setFog(color, density);
 }
 
 // La profondeur de nuit (#112). Même forme que setDim : le modèle vit dans
 // sun.js (nightAmount), ce fichier ne fait que le pousser sur chaque chunk.
 export function setNight(night) {
 	for (const m of tileMaterials) m.uniforms.uNight.value = night;
+	distantGround?.setNight(night);
 }
 
 // L'assombrissement des nuages (#22). Même forme que setFog : le modèle vit
 // dans cloud.js, ce fichier ne fait que le pousser sur chaque chunk.
 export function setDim(dim) {
 	for (const m of tileMaterials) m.uniforms.uDim.value = dim;
+	distantGround?.setDim(dim);
 }
 
 export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = Infinity, mipmaps = true, anisotropy = 8 }, onProgress) {

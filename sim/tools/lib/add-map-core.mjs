@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run, Cancelled } from './run.mjs';
 import * as providers from './providers/index.mjs';
+import { Geofence, HOLD_STOP_GUARANTEE_M } from '../../src/geofence.js';
 
 export const SIM_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 export const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
@@ -172,8 +173,37 @@ export async function addMap(opts, { onLog, signal } = {}) {
 	if (i >= 0) scenes[i] = entry; else scenes.push(entry);
 	writeScenes(scenes);
 
+	// La vraie bbox n'existe qu'une fois prep.mjs passé : c'est ici, et pas
+	// avant, qu'on peut dire ce que la clôture fera de cette carte.
+	try {
+		const note = fenceNote(JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8')).bbox);
+		if (note) log(note);
+	} catch { /* pas de manifeste lisible : la carte est déjà en échec ailleurs */ }
+
 	log(`\n✓ "${name}" prêt — disponible dans le menu au prochain "npm run dev".`);
 	return { slug, outDir, tileDir, entry, stats };
+}
+
+// Ce que la clôture de zone (#139) fera de cette carte, dit au moment où on
+// l'ajoute. R_HOLD et R_CAUTION sont mesurés sur une grande carte et Geofence
+// borne son couloir aux petites ; en dessous de HOLD_STOP_GUARANTEE_M la borne
+// coûte la propriété que R_HOLD portait — un pilote qui obéit peut franchir le
+// bord des données. Le destinataire est le développeur qui ajoute la carte,
+// pas un joueur en vol : sans ça, une carte de poche rejoint en silence la
+// liste des scènes concernées et le commentaire figé de geofence.js en nomme
+// six quand il y en a sept.
+//
+// Rend null quand il n'y a rien à dire. Ni réseau ni Rapier : tools/
+// geofence-selftest.mjs l'appelle directement sur des bbox synthétiques.
+export function fenceNote(bbox) {
+	const { caution, hold, scale } = new Geofence(bbox).effectiveCorridor;
+	if (scale >= 1) return null;
+	const bounded = `Clôture : carte plus petite que le couloir mesuré — borné à `
+		+ `${caution.toFixed(0)} m d'avertissement / ${hold.toFixed(0)} m de rappel.`;
+	if (hold >= HOLD_STOP_GUARANTEE_M) return bounded;
+	return `${bounded}\n  ⚠ Sous ${HOLD_STOP_GUARANTEE_M} m de rappel, un pilote qui OBÉIT peut `
+		+ `franchir le bord des données : l'image agonise et le rappel le repousse, mais `
+		+ `la clôture ne le retient plus. La carte reste jouable — ce n'est pas une erreur.`;
 }
 
 export function dirSize(dir) {

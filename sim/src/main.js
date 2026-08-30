@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -40,6 +40,8 @@ import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
 import { creditText } from './provider-credit.js';
 import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
+import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
+import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
@@ -163,6 +165,15 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+// Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
+// dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
+// a ni clôture ni horizon à dessiner.
+let fence = null;
+let distantGround = null;
+// La force du rappel, écrite une fois par PAS de physique plutôt qu'allouée —
+// même règle que `drift` plus bas : ceci tourne à 250 Hz. Rapier recopie le
+// vecteur dans addForce(), rien ne le retient après le pas.
+const _fenceForce = { x: 0, y: 0, z: 0 };
 // Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
 let sceneManifest = null;
 let emitter = null;
@@ -363,6 +374,33 @@ async function finishBoot(preloading) {
 	// pur) chaque fois que boot() fixe l'appareil pour la session.
 	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
 	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+
+	// Les limites de la zone (#139). Construites AVANT le tirage du point
+	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
+	// sert désormais pour ne jamais naître dans l'avertissement.
+	fence = new Geofence(manifest.bbox);
+	const ec = fence.effectiveCorridor;
+	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
+		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
+	// Et ce qu'on voit au-delà du dernier chunk. Monté ici, avant le
+	// renderer.compile() de la fin du chargement : sa matière doit compiler
+	// derrière l'écran de chargement, pas à la première frame de vol.
+	//
+	// Un seul par page : finishBoot() n'est appelé qu'une fois (ses deux
+	// appelants s'excluent) et changer de zone recharge la page. Si un
+	// démontage de scène apparaît un jour, il devra faire dispose() PUIS
+	// setDistantGround(null) — l'enregistrement de loader.js ne doit pas
+	// survivre à l'objet, setFog/setNight/setDim écriraient sur une matière
+	// libérée.
+	//
+	// La météo n'a pas encore été appliquée à ce stade : ces deux valeurs sont
+	// l'air clair du départ, et la première frame les réécrit toutes les deux
+	// par setFog() (lastDensity/lastSkyHex partent à -1, donc elle passe).
+	distantGround = new DistantGround(scene, manifest.bbox, {
+		fogColor: scene.background, fogDensity: fog.density,
+	});
+	setDistantGround(distantGround);
+
 	physics.applyEntryState(generateEntryState({
 		physics,
 		manifest,
@@ -472,6 +510,7 @@ async function finishBoot(preloading) {
 
 	window.__sim = {
 		physics, controller, camera, renderer, scene, input, timeline, audio, music, space, lens, link, rain, fog, cloud, sun,
+		fence, distantGround,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -499,6 +538,7 @@ async function finishBoot(preloading) {
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 			physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 			flightEnd.reset();
+			fence.reset();
 			// Sinon un second crash dans la même page ne re-forcerait pas la
 			// dégradation du lien : setLink(true) ne s'exécute qu'un coup par vol.
 			linkForced = false;
@@ -621,6 +661,35 @@ async function finishBoot(preloading) {
 					rayMs: +linkState.rayMs.toFixed(3),
 				},
 				flightEnd: flightEnd.out.phase,
+				// Ce qui permet de vérifier la clôture dans le vrai navigateur
+				// plutôt que de regarder une capture et d'y croire.
+				fence: {
+					zone: fence.out.zone,
+					// ATTENTION : ce n'est PAS la distance au bord. C'est
+					// min(marge horizontale, marge verticale − v.edge), et en
+					// vol normal c'est presque toujours le terme VERTICAL qui
+					// sort.
+					//
+					// Mesuré sur tour-eiffel (bbox.min.y = −30,9), au centre de
+					// la bbox, à y = 60 en coordonnées ABSOLUES : la marge
+					// horizontale vaut 640,6 m et ce champ n'affiche que 98,9.
+					//
+					// Le REPÈRE compte, et c'est ce qui a déjà produit trois
+					// chiffres différents pour la même grandeur : décrire le
+					// même vol comme « 60 m au-dessus du plancher » (y absolu
+					// 29,1) donne 68,0, pas 98,9. Dire lequel des deux, ou ne
+					// pas citer de nombre.
+					//
+					// La ZONE, elle, ne souffre pas de ce mélange : elle vient
+					// de max(rang) des deux couloirs, qui restent indépendants.
+					marginM: +fence.out.marginM.toFixed(1),
+					t: +fence.out.t.toFixed(3),
+					lossDb: +fence.out.lossDb.toFixed(1),
+					warning: fence.out.warning,
+					over: fence.out.over,
+					pushMs2: +Math.hypot(fence.out.push.x, fence.out.push.y, fence.out.push.z).toFixed(2),
+					corridor: fence.effectiveCorridor,
+				},
 			};
 		},
 	};
@@ -769,6 +838,11 @@ function respawn() {
 		seed: Math.random().toString(16).slice(2, 12),
 	}));
 	link.reset();
+	// Pour l'HYSTÉRÉSIS, et pour elle seule : sans ce reset, zoneOf() jugerait
+	// la première frame d'après-respawn à l'aune de la zone d'avant. La perte
+	// sur le lien, elle, est déjà partie — link.reset() (juste au-dessus) remet
+	// _terminalLoss à zéro, et fence.update() recalcule lossDb dans la frame.
+	fence.reset();
 
 	// Neither model was being reset here, and both say in their own comments
 	// that they should be: a respawn should not drop you back into the squall
@@ -889,7 +963,33 @@ function frame() {
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
 			if (touchdown) motors.fill(0);
-			const impact = physics.step(motors, FIXED_STEP);
+			// La clôture lit la position de CE pas, et sa force part DANS ce
+			// pas : physics.step() commence par resetForces(), un addForce
+			// appelé d'ici serait effacé sans jamais être intégré. D'où le
+			// troisième paramètre plutôt qu'un appel séparé.
+			fence.update(physics.position);
+			let fenceForce = null;
+			// `!linkDead` : une épave n'a plus de failsafe. Sans ça le rappel
+			// continue de pousser un drone désarmé — mesuré, il ramenait
+			// l'épave de 71 m dehors à 239 m dedans, à 22 m/s, et faisait
+			// retomber `over` derrière elle (#150). L'écran ne le montrait pas
+			// (linkDead force DEAD_LINK au rendu), mais le monde le faisait.
+			//
+			// Aucun risque de couper le rappel trop tôt : flightEnd.update()
+			// tourne APRÈS cette boucle, donc la frame où l'on franchit
+			// applique encore sa force, et linkDead ne se lève que dans la
+			// même frame où main.js désarme le contrôleur. En retard d'une
+			// frame, jamais en avance.
+			if (fence.out.zone !== FENCE_OK && !flightEnd.out.linkDead) {
+				// push est une ACCÉLÉRATION (m/s², plafonnée à A_MAX) : Rapier
+				// veut des newtons, donc × la masse réelle de l'appareil — pas
+				// celle du profil par défaut. Un drone lourd est rappelé aussi
+				// fermement qu'un léger.
+				const a = fence.out.push, m = physics.profile.mass;
+				_fenceForce.x = a.x * m; _fenceForce.y = a.y * m; _fenceForce.z = a.z * m;
+				fenceForce = _fenceForce;
+			}
+			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
 				const r = physics.rotation;
 				if (impact > crashThreshold(r)) {
@@ -952,6 +1052,9 @@ function frame() {
 		angularSpeed: Math.hypot(fw.x, fw.y, fw.z),
 		throttle: sticks.throttle,
 		crashed: crashedThisFrame,
+		// Sortie de zone : même phase que le crash, autre table de texte
+		// (FENCE_TIMELINE). Le verdict de session reste CRASHED.
+		outOfZone: fence.out.over,
 	});
 	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
 	// crashedThisFrame (bonus, revue finale) : un choc encaissé après un
@@ -1193,6 +1296,12 @@ if (!frozen) {
 	linkState.distance = Math.hypot(p.x - emitter.x, p.y - emitter.y, p.z - emitter.z);
 	linkState.blocked = shadow.blocked;
 	linkState.span = shadow.span;
+	// AVANT update() et pas après : c'est update() qui lit _terminalLoss, donc
+	// l'écrire ensuite coûterait une frame de retard sur la dégradation.
+	// Ce canal court-circuite délibérément la borne de jouabilité #79 : sortir
+	// de la zone n'est pas une nuisance dont on doit pouvoir se relever, c'est
+	// la fin de la session.
+	link.setTerminalLoss(fence.out.lossDb);
 	link.update({ distance: linkState.distance, blocked: shadow.blocked, span: shadow.span, dt });
 
 	// Free camera is not looking down the drone's video feed, so it gets a clean
@@ -1271,7 +1380,11 @@ if (!frozen) {
 		vtxChan: 4,
 		// Les avertissements d'un OSD réel ne sont pas décoratifs : ils sont ce
 		// qui reste lisible quand tout le reste est bruité.
+		// NO COVERAGE passe devant RXLOSS : en zone d'avertissement la clôture
+		// EST la cause du RXLOSS, et afficher l'effet plutôt que la cause
+		// dirait au pilote de revenir vers… rien.
 		warning: bat.voltage / PROFILE.battery.cells < 3.4 ? 'LOW VOLTAGE'
+			: fence.out.warning ? fence.out.warning
 			: link.out.quality < 0.25 ? 'RXLOSS' : '',
 	});
 

@@ -81,6 +81,10 @@ export function createTileMaterial(arrayTexture, fogColor, fogDensity) {
 				}
 				// Exponential-squared fog, mostly to hide the hard cliff at the
 				// edge of the tile.
+				// Dupliquée dans ground.js (le sol lointain, #139) — les deux
+				// DOIVENT rester identiques terme à terme, sinon la ligne
+				// d'horizon se dédouble entre les tuiles et le sol. Si celle-ci
+				// bouge, faire bouger l'autre avec.
 				float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
 				outColor = vec4(mix(c, uFogColor, clamp(f, 0.0, 1.0)), 1.0);
 			}

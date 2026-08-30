@@ -26,6 +26,7 @@ import {
 import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
+import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
@@ -1858,9 +1859,20 @@ console.log('\nentry state — sampleCandidate');
 	// unattended, none land under the terrain; category mix close to spec.
 	const drawCounts = Object.fromEntries(CATEGORIES.map((c) => [c, 0]));
 	let anyCrashed = false, anyUnderground = false, anyOutOfRange = false;
+	// Le point d'entrée ne doit JAMAIS naître dans la clôture (#139) : un vol
+	// qui commence sur « NO COVERAGE » est un vol qu'on n'a pas voulu. Une
+	// seule instance, remise à zéro avant chaque test — sans quoi l'hystérésis
+	// de zoneOf() ferait dépendre un tirage du précédent.
+	const entryFence = new Geofence(manifest.bbox);
+	let fenced = null;
 	for (let i = 0; i < 100; i++) {
 		const entry = generateEntryState({ physics: phys, manifest, seed: `draw-${i}` });
 		drawCounts[entry.category]++;
+		entryFence.reset();
+		entryFence.update(entry.position);
+		if (entryFence.out.zone !== GF_NOMINAL && !fenced) {
+			fenced = { i, zone: entryFence.out.zone, m: entryFence.out.marginM };
+		}
 		if (!rolloutSafe(entry, phys)) anyCrashed = true;
 		const ground = phys.groundBelow(entry.position.x, entry.position.y, entry.position.z);
 		if (ground === null || entry.position.y - ground < 1) anyUnderground = true;
@@ -1873,9 +1885,32 @@ console.log('\nentry state — sampleCandidate');
 		}
 	}
 	check('100 draws: none crash within the grace second when replayed', !anyCrashed);
+	check('100 tirages : aucun point d’entrée ne naît dans la clôture (#139)', fenced === null,
+		fenced && `tirage ${fenced.i} : ${fenced.zone} à ${fenced.m.toFixed(1)} m`);
 	check('100 draws: none spawn under the terrain', !anyUnderground);
 	check('100 draws: each returned entry matches its own category\'s AGL/speed range', !anyOutOfRange);
 	console.log(`    category mix over 100 draws: ${JSON.stringify(drawCounts)}`);
+
+	// La marge au bord gouverne le TIRAGE, pas le filet de sécurité : on la
+	// balaie donc là où elle agit, et large. 10 000 appels à
+	// generateEntryState() rejoueraient jusqu'à 20 s de physique à 250 Hz
+	// chacun ; sampleCandidate() ne coûte qu'un rayon de sol, et les 100
+	// tirages complets ci-dessus couvrent déjà la chaîne de bout en bout.
+	{
+		const rand = rngFrom('fence-margin');
+		let worst = null;
+		for (let i = 0; i < 10000 && worst === null; i++) {
+			const c = sampleCandidate(CATEGORIES[i % CATEGORIES.length], manifest, phys, rand);
+			if (!c) continue;
+			entryFence.reset();
+			entryFence.update(c.position);
+			if (entryFence.out.zone !== GF_NOMINAL) {
+				worst = { i, zone: entryFence.out.zone, m: entryFence.out.marginM };
+			}
+		}
+		check('10 000 tirages : aucun candidat ne naît dans la clôture (#139)', worst === null,
+			worst && `tirage ${worst.i} : ${worst.zone} à ${worst.m.toFixed(1)} m`);
+	}
 
 	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
 	check('maxAttempts=0 falls back to the fixed spawn', fallback.category === 'COMFORTABLE'
