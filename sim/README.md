@@ -19,6 +19,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 - Ajouter une carte — depuis le jeu (GLOBAL SCANNER) · l'ancienne GUI ·
   en ligne de commande · prérequis · options · dimensionner `--radius` ·
   retoucher une carte
+- Musique — le pipeline de génération · boucles · normalisation · write-once
 - Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
 - Le terminal opérateur
 - Cartes disponibles
@@ -148,6 +149,48 @@ npm run add-map -- "Sacré-Cœur" 48.8867 2.3431
 3. **Enregistrement** — la carte est ajoutée à `public/scenes.json`, donc elle
    apparaît dans le menu au prochain `npm run dev` (pas besoin de relancer le
    serveur s'il tourne déjà, un simple rechargement de page suffit).
+
+## Musique
+
+L'arc musical (issue #122) : une bibliothèque de morceaux générés localement,
+un par session, dont l'intensité suit le vol. Chaque famille de drone a son
+genre — cf. Bible §34.
+
+Les morceaux sont **commités** dans `public/music/` (Opus 96 kbps, ~1,1 Mo pour
+90 s) et décrits par `public/music.json`. Le jeu se lance et se joue sans eux :
+manifeste absent ou fichier manquant, il reste silencieux.
+
+Le pipeline, dans l'ordre. Il demande une installation locale de
+[Stable Audio 3](https://github.com/Stability-AI/stable-audio-3) (~10 Go avec
+les poids), hors du dépôt, désignée par `FPVTP_STABLE_AUDIO` :
+
+```bash
+export FPVTP_STABLE_AUDIO=/chemin/vers/stableaudio3.0
+
+npm run add-music -- --pool all --count 10   # génère dans .music-staging/ (gitignoré)
+npm run music-gate                            # rejet automatique mesuré
+npm run music-loop                            # boucle sans couture + normalisation + Opus
+npm run music-review                          # écoute : o accepter, k refuser, l couture
+```
+
+`--pool` accepte `all` ou l'une des sept clés : `menu`, `freestyle5`, `race5`,
+`cinewhoop`, `longrange`, `heavy5`, `toothpick` (les six dernières sont les
+familles de `src/drone-profiles.js`).
+
+Trois choses à savoir :
+
+- **Stable Audio ne produit pas de boucles.** `music-loop.mjs` crossfade les
+  3 dernières secondes par-dessus les 3 premières, ce qui rend les deux
+  jonctions continues. La touche `l` de la revue fait entendre exactement cette
+  couture.
+- **Tout est normalisé à -14 LUFS**, en deux passes. C'est ce qui permet de
+  calibrer le mix une seule fois pour toute la bibliothèque.
+- **Write-once.** Un fichier commité n'est jamais réécrit : git ne
+  delta-compresse pas l'audio et n'oublie rien. Un morceau recalé après coup est
+  retiré du manifeste et supprimé, jamais régénéré sous le même nom.
+
+Les prompts et les six axes de variation sont dans `tools/music-prompts.mjs` —
+c'est la source de vérité créative, pas un détail d'implémentation.
 
 ## Supprimer une carte
 

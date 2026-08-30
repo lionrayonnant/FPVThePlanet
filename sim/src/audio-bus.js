@@ -8,17 +8,19 @@
 // désignerait plus rien de mesurable.
 //
 //   moteurs/vent/propwash/impacts → master(mute) → air(6k) ─┐
-//                                                            ├→ limiteur → volume → destination
-//   SYSTEM / LINK / RITUAL ──────→ uiMaster(trim) ───────────┘
+//   SYSTEM / LINK / RITUAL ──────→ uiMaster(trim) ───────────┼→ limiteur → volume → destination
+//   MUSIQUE (issue #122) ────────→ musicMaster(vol) ─────────┘
 //
-// Trois conséquences, toutes voulues :
+// Quatre conséquences, toutes voulues :
 //   - l'UI ne traverse pas `air` : ce lowpass est l'excuse « on entend le drone
 //     à travers une paire de lunettes », et un click d'interface doit claquer ;
 //   - l'UI n'est pas coupée par audio.setMuted(frozen), qui est vrai pendant
 //     TOUT l'écran de hack — un rituel muet exactement quand il doit frapper
 //     serait le bug le plus bête de la phase ;
-//   - le rituel est limité avec le reste : un vrai mixage, pas deux sorties qui
-//     se marchent dessus.
+//   - la musique non plus, pour la même raison : l'arc musical COMMENCE sur
+//     l'écran de hack, qui est gelé ;
+//   - tout est limité ensemble : un vrai mixage, pas trois sorties qui se
+//     marchent dessus.
 
 // Reprises telles quelles de src/audio.js, où elles étaient mesurées : le point
 // le plus fort du sim (plein gaz + rush + impact) laisse ~1,6 dB de marge, et
@@ -29,11 +31,18 @@ const LIMIT = { threshold: -3, ratio: 20, attack: 0.003, release: 0.1 };
 // sons d'UI sont rares et doivent porter sans écraser les moteurs.
 const UI_TRIM = 0.5;
 
+// Trim de la chaîne musicale. Les morceaux entrent tous à -14 LUFS
+// (tools/music-loop.mjs), donc ce trim vaut pour toute la bibliothèque — c'est
+// le point de calibration unique de la musique. Comme UI_TRIM, il reste un
+// point de départ raisonné tant que personne n'a écouté (issue #11).
+const MUSIC_TRIM = 0.7;
+
 const TAU = 0.08; // lissage du volume, comme AUDIO.tauMaster
 
 let ctx = null;
 let engine = null;
 let ui = null;
+let music = null;
 let volume = null;
 let factory = null;
 
@@ -42,7 +51,7 @@ let factory = null;
 export function _setContextFactory(fn) { factory = fn; }
 
 export function _reset() {
-	ctx = engine = ui = volume = null;
+	ctx = engine = ui = music = volume = null;
 	factory = null;
 }
 
@@ -78,9 +87,12 @@ export function ensureContext() {
 	engine.gain.value = 1;
 	ui = ctx.createGain();
 	ui.gain.value = UI_TRIM;
+	music = ctx.createGain();
+	music.gain.value = MUSIC_TRIM;
 
 	engine.connect(limiter);
 	ui.connect(limiter);
+	music.connect(limiter);
 	limiter.connect(volume).connect(ctx.destination);
 
 	resumeQuietly();
@@ -100,6 +112,17 @@ function resumeQuietly() {
 export function context() { return ctx; }
 export function engineIn() { return engine; }
 export function uiIn() { return ui; }
+export function musicIn() { return music; }
+
+// Volume de la musique seule, réglable par le joueur (SETTINGS). Distinct du
+// volume global : le vol reste un exercice d'écoute du moteur, et il faut
+// pouvoir baisser la musique SANS baisser la machine.
+export function setMusicVolume(v) {
+	if (!music || !ctx) return;
+	const target = (v < 0 ? 0 : v > 1 ? 1 : v) * MUSIC_TRIM;
+	music.gain.setTargetAtTime(target, ctx.currentTime, TAU);
+	music.gain.value = target;
+}
 
 export function setVolume(v) {
 	if (!volume || !ctx) return;

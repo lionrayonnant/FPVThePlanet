@@ -867,6 +867,59 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **Arc musical — issue #122** (branche `music-arc`). Renverse la règle « pas de
+  musique » de PHASE 18 : la Bible §34 et la roadmap PHASE 18 ont été amendées
+  dans le même mouvement, sans quoi le prochain travail audio serait reparti de
+  l'ancienne règle.
+  - **Architecture** : modèle pur `tools/music-model.mjs` + rendu `src/music.js`,
+    comme `ui-audio-model.mjs` / `ui-audio.js`. La musique n'est **pas** un
+    neuvième événement d'interface : vocabulaire toujours clos à huit entrées,
+    garde-fou toujours vert, la musique a son propre bus (`musicIn`) et son
+    propre volume (slider MUSIC, `fpvmaps.musicVolume`, défaut 0,7).
+  - **L'arc tient dans un scalaire** `intensity` ∈ [0,1] qui pilote un lowpass
+    (380 Hz → 19 kHz, en log) et un gain (-20 dB → 0 dB). MENU 0,55 · HACK 0,12
+    (« la musique de la pièce d'à côté ») · DROP 1,0 en 0,4 s · vol =
+    `flightIntensity(télémétrie)` avec un plancher à 0,30. Crash : coupe à
+    `flightEnd.out.linkDead`, c'est-à-dire **à l'instant du choc**, avec
+    l'image — pas 1,6 s plus tard à la ligne « LINK LOST ». Pose : fondu 2 s.
+    POST-FLIGHT reste silencieux.
+  - **Pipeline** : `npm run add-music` → `music-gate` → `music-loop` →
+    `npm run music-review`. Stable Audio 3 Medium en local, chemin donné par
+    `FPVTP_STABLE_AUDIO`. Staging gitignoré, seuls les `.opus` validés à
+    l'oreille entrent dans `public/music/` + `public/music.json`.
+  - **Vérifié en Node** : `npm run selftest:operator` vert (49 tests neufs dans
+    `music-selftest.mjs`), suite complète à 489 assertions, exit 0.
+  - **Vérifié au navigateur** (Chromium headless via CDP, `?scene=bastille`) :
+    manifeste 21/21 servi et validé, décodage réel en stéréo 48 kHz avec des
+    durées conformes au manifeste à 3 décimales, et surtout
+    **`music.nodesCreated` ne bouge pas de 0 sur 450 frames de vol** —
+    `play()` crée 4 nœuds, `setIntensity()` n'en crée aucun. Aucune erreur
+    console.
+  - **Mesures qui ont corrigé le code** (lot de calibration de 21 morceaux de
+    90 s, 3 par pool) :
+    - Le gate rejetait 20/21 sur des critères qui mesuraient la mauvaise chose.
+      La crête d'un candidat brut n'a pas de sens (19/21 dépassent 0 dBFS en
+      inter-échantillon, comportement normal d'un master fort) et
+      `music-loop.mjs` la corrige de toute façon. Et le seuil d'écart RMS à
+      2 dB rejetait exactement le dub techno et l'ambiance de menu — les pools
+      dont l'identité EST d'être égale. Bornes recalibrées, distribution
+      complète écrite dans `tools/music-gate.mjs`.
+    - La normalisation par gain statique laissait la bibliothèque s'étaler de
+      -14 à -17,1 LUFS (le plafond de crête plafonnait le gain sur les masters
+      denses), ce qui ruinait le seul point de calibration du mix. Remplacée
+      par `loudnorm` deux passes en `linear=true` : écart ramené à **0,3 dB**
+      (-13,8 à -14,1 LUFS sur les 21).
+  - **NON CALIBRÉ — `FLIGHT.speedRefMs`** dans `tools/music-model.mjs`. Un vol
+    scripté en boucle ouverte ne produit pas de vitesses représentatives (sans
+    boucle de pilotage le drone tombe : le relevé obtenu mesurait la chute
+    libre, pas le vol). Se fait manche en main, pendant la séance d'écoute ; le
+    snippet de console est écrit au-dessus de la constante.
+  - **NON ÉCOUTÉ**, et c'est le critère d'acceptation. 21 candidats sont prêts
+    dans `.music-staging/`, aucun n'est entré dans le manifeste. Rien ne doit
+    être commité dans `public/music/` avant `npm run music-review`. Cette dette
+    s'ajoute à celle, déjà ouverte, de PHASE 18 / #106 / #107 : le mixage
+    complet (moteur + UI + rituel + musique) n'a jamais été entendu.
+
 - **PHASE 18 — Audio final** (issue #55). Langage sonore de trois familles à
   côté de la synthèse moteur, qui est conservée telle quelle.
   - **Vérifié en Node** (`npm run selftest:operator`, 52 tests neufs répartis
