@@ -16,7 +16,7 @@ export const NOTES = [
 	] },
 	{ build: '0.2.0', unlock: { terrains: 1, sessions: 1, targets: 0 }, lines: [
 		'session log added',
-		'no crash recovery yet, sessions kept anyway',
+		'no crash recovery, sessions kept anyway',
 	] },
 	{ build: '0.2.1', unlock: { terrains: 1, sessions: 3, targets: 0 }, lines: [
 		'fixed: session timestamp off by one hour on the export box',

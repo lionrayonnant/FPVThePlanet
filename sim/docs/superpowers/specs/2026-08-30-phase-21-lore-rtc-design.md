@@ -208,10 +208,34 @@ corpus qui n'a pas passé `validate.mjs`, donc en développement.
 
 ### `tools/dialogue/generate.mjs` + `prompts/` (nouveaux) — dev uniquement
 
-`callModel(prompt)` avec deux dos : l'API Messages via `fetch` si
-`ANTHROPIC_API_KEY` est présent, sinon `claude -p --output-format json`. Zéro
-nouvelle dépendance dans les deux cas ; la seconde voie marche sans clé, la
-première est la voie documentée pour un contributeur.
+**Correction post-implémentation.** Cette section décrivait à l'origine deux
+dos pour `callModel(prompt)` : l'API Messages via `fetch` si
+`ANTHROPIC_API_KEY` était présent, sinon `claude -p`. Le dos API Messages n'a
+jamais été écrit : aucune clé n'existait dans l'environnement pour l'exercer,
+et du code jamais exécuté est du code faux qui s'ignore — mieux vaut l'absence
+qu'une fausse promesse de chemin testé (issue de suivi ouverte pour qui aura
+une clé). Le SDK officiel aurait aussi introduit une dépendance, ce que la
+contrainte du projet interdit sans raison forte.
+
+Ce qui existe réellement est un drapeau `--backend claude|ollama` :
+
+- `claude` (défaut) pilote `claude -p --output-format json` en sous-processus,
+  le prompt passé par stdin pour ne pas heurter les limites d'arguments d'un
+  gros lot ;
+- `ollama` pilote un modèle local via `POST /api/generate` sur
+  `http://127.0.0.1:11434` (configurable par `--ollama-host` ou `OLLAMA_HOST`),
+  modèle par défaut `batiai/qwen3.6-27b:q3`, timeout large (10 min) car un lot
+  sur un GPU domestique peut swapper la VRAM.
+
+Zéro nouvelle dépendance dans les deux cas : le premier dos est un
+sous-processus CLI, le second un `fetch` HTTP nu.
+
+Le dos local est devenu le **chemin principal pour la génération en lot** :
+mesuré à **4,9 s par entrée**, soit environ **9 heures pour tout le corpus, à
+coût nul** — contre une estimation de 100 à 200 USD via l'API hébergée pour le
+même volume. `claude -p` reste le défaut du script (le chemin documenté sans
+setup local) mais n'est plus le chemin visé pour produire les 3000 à 5000
+répliques du corpus.
 
 Trois leviers contre l'effondrement stylistique, tous dans le prompt de lot —
 c'est le vrai risque du procédé, 200 entrées d'affilée convergent sinon vers le
@@ -288,8 +312,16 @@ navigation du terminal, dans le style des écrans existants.
 - `tools/rtc-selftest.mjs` : remplacé par `tools/dialogue-selftest.mjs`.
 - `src/scanner.js` : le `setInterval` RTC laisse place à `mount()`. Les écrans
   de recherche et de sonde reçoivent `AREA_SEARCH` / `PROBE_AREA`.
-- `src/target-scan.js`, `src/hack.js`, `src/entry-state.js` : un emplacement
-  réutilisant le style `.sc-rtc`, et le respect de D9.
+- `src/target-scan.js`, `src/hack.js` : un emplacement réutilisant le style
+  `.sc-rtc`, et le respect de D9.
+
+  **Correction post-implémentation.** Une version antérieure de cette section
+  citait `src/entry-state.js` comme point d'appel de l'événement `WEATHER`.
+  Ce fichier n'est pas un écran : c'est le générateur d'état de spawn de la
+  couche physique (PHASE 11, tirage pondéré + double filet de sécurité avant
+  le premier stick touché) et il ne connaît rien du moteur de dialogue.
+  `WEATHER` est câblé dans `src/target-scan.js` (écran TARGET SCAN, voir
+  `sayOnce('WEATHER', scanContext({ scan, weather }))`).
 - `src/terminal.js`, `tools/terminal-model.mjs` : entrée `BUILD NOTES` et
   numéro de build en pied.
 - `package.json` : `dialogue-selftest.mjs` et `buildnotes-selftest.mjs` dans

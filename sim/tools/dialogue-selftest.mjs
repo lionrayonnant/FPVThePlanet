@@ -16,6 +16,8 @@ import { JENSEN_COOLDOWN as JC } from './dialogue/catalog.mjs';
 import {
 	args as genArgs, resolveBackend, parseEntries, BACKENDS, DEFAULT_BACKEND, DEFAULT_MODEL, DEFAULT_OLLAMA_HOST,
 } from './dialogue/generate.mjs';
+import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS } from './dialogue/validate.mjs';
+import { normalize, trigrams, jaccard, findDuplicates } from './dialogue/dedupe.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -261,8 +263,6 @@ t('PAIR_COOLDOWN : la même paire ne monopolise pas la conversation', () => {
 
 // --- validation -----------------------------------------------------------------
 
-import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS } from './dialogue/validate.mjs';
-
 const GOOD = {
 	id: 'acquire_area/0001',
 	events: ['ACQUIRE_AREA'],
@@ -390,8 +390,6 @@ t('validateCorpus : compte les bonnes et rejette les ids en double', () => {
 });
 
 // --- déduplication par trigrammes -----------------------------------------------
-
-import { normalize, trigrams, jaccard, findDuplicates } from './dialogue/dedupe.mjs';
 
 const mk = (id, ...texts) => ({ id, lines: texts.map((text) => ({ speaker: 'root', text })) });
 

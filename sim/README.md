@@ -21,6 +21,8 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
   retoucher une carte
 - Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
 - Le terminal opérateur
+- Le pipeline de dialogue (RTC du crew) — `dialogue:gen` · `dialogue:inspect` ·
+  `dialogue:check` · les deux dos · la politique de relecture
 - Cartes disponibles
 - Exporter une scène en `.glb`
 - Architecture
@@ -293,6 +295,49 @@ http://localhost:5173/?scene=<slug>
 
 Le `slug` est celui visible dans `public/scenes.json` ou dans le nom du
 dossier `public/scenes/<slug>/`.
+
+## Le pipeline de dialogue (RTC du crew)
+
+`public/dialogue/*.json` (un shard par événement, plus `manifest.json`) est du
+**contenu versionné, pas un artefact de build** : il se commite comme le
+reste, ne se régénère pas au lancement, et un joueur qui ignore entièrement
+les RTC du crew (`root`, `jensen`, `mikhail`, le processus `cron`) ne rate
+aucune information de jeu — c'est le critère d'acceptation de PHASE 21.
+
+Trois commandes, toutes des outils de développement (rien sous `src/` ne les
+importe, vérifié par `tools/dialogue-selftest.mjs`) :
+
+```bash
+npm run dialogue:gen -- --event ACQUIRE_AREA --count 200 [--batch 20] \
+  [--rarity COMMON] [--backend claude|ollama] [--dry-run]
+npm run dialogue:inspect -- --event ACQUIRE_AREA [--count 30] [--rarity RARE]
+npm run dialogue:check     # = node tools/dialogue-selftest.mjs
+```
+
+`dialogue:gen` pilote un LLM par lot (`tools/dialogue/generate.mjs`,
+`tools/dialogue/prompts/`) avec deux dos :
+
+- `--backend claude` (par défaut) : `claude -p --output-format json`, sans
+  configuration préalable ;
+- `--backend ollama` : un modèle local via `http://127.0.0.1:11434` (modèle
+  par défaut `batiai/qwen3.6-27b:q3`, configurable par `--ollama-host` ou
+  `OLLAMA_HOST`). C'est le **chemin retenu pour la génération en lot** :
+  mesuré à 4,9 s par entrée, environ 9 h pour tout le corpus, à coût nul —
+  contre une estimation de 100 à 200 USD via une API hébergée pour le même
+  volume.
+
+`dialogue:inspect` rend N tirages avec des contextes factices pour la
+relecture humaine. Politique de relecture : **100 % des entrées `RARE` et
+`VERY_RARE`, 100 % des lignes de `jensen`**, un échantillon de **10 %** pour
+le reste. Un lot qui dépasse 5 % de rejet au premier passage (style, slots,
+doublons) se **régénère en entier** plutôt que de se corriger réplique par
+réplique — la dérive de ton d'un lot se corrige mieux en le rejouant qu'en le
+rustinant.
+
+`dialogue:check` fait tourner `validate.mjs` (forme, `speaker` connu, slots
+vs `requires`, liste noire de style — adresse au joueur, quatrième mur,
+vocabulaire IA moderne, promesse de suite) et `dedupe.mjs` (quasi-doublons
+par trigrammes) sur tout corpus livré.
 
 ## Cartes disponibles
 
