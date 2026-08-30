@@ -24,6 +24,43 @@ export function jaccard(a, b) {
 
 const entryText = (entry) => (entry.lines ?? []).map((l) => l.text).join(' ');
 
+// Nombre minimal de mots, une fois normalisée, pour qu'une réplique répétée
+// compte comme un défaut. En deçà, la répétition est un procédé délibéré et
+// correct : « no », « yes », « again », « no comment », « fair enough » sont
+// des battements courts que le crew réutilise sciemment en aparté sec — les
+// signaler comme doublon serait du bruit. Au-delà, une phrase de trois mots
+// ou plus est assez distinctive pour qu'être vue dix fois trahisse une
+// formule figée (« ship the coarse pass », mesuré 10 fois sur 566 entrées)
+// plutôt qu'un tic de langage voulu.
+export const MIN_REPEATED_LINE_WORDS = 3;
+
+// Détection de répétition ligne par ligne, complémentaire de findDuplicates :
+// findDuplicates compare des ÉCHANGES entiers et rate deux échanges
+// différents qui recyclent la même réplique formule. Ici on compte les
+// répliques normalisées identiques à travers tout le corpus, peu importe
+// l'échange qui les porte — c'est le signal qui manquait pour mesurer un
+// vocabulaire de remplissage.
+export function findRepeatedLines(entries, { minWords = MIN_REPEATED_LINE_WORDS } = {}) {
+	const byLine = new Map(); // texte normalisé -> [ids d'entrées]
+
+	for (const entry of entries) {
+		for (const line of entry.lines ?? []) {
+			const norm = normalize(line.text);
+			if (norm.split(' ').filter(Boolean).length < minWords) continue;
+			let ids = byLine.get(norm);
+			if (!ids) byLine.set(norm, (ids = []));
+			ids.push(entry.id);
+		}
+	}
+
+	const out = [];
+	for (const [text, ids] of byLine) {
+		if (ids.length > 1) out.push({ text, count: ids.length, ids });
+	}
+	out.sort((a, b) => b.count - a.count);
+	return out;
+}
+
 // Index inversé trigramme -> indices. On ne compare une entrée qu'aux entrées
 // qui partagent au moins un trigramme avec elle : deux textes sans trigramme
 // commun ont un Jaccard nul, les comparer serait du temps perdu.

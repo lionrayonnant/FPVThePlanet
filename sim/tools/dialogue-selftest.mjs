@@ -16,8 +16,9 @@ import { JENSEN_COOLDOWN as JC } from './dialogue/catalog.mjs';
 import {
 	args as genArgs, resolveBackend, parseEntries, BACKENDS, DEFAULT_BACKEND, DEFAULT_MODEL, DEFAULT_OLLAMA_HOST,
 } from './dialogue/generate.mjs';
-import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS } from './dialogue/validate.mjs';
-import { normalize, trigrams, jaccard, findDuplicates } from './dialogue/dedupe.mjs';
+import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS, SIGNATURE_PHRASES } from './dialogue/validate.mjs';
+import { normalize, trigrams, jaccard, findDuplicates, findRepeatedLines, MIN_REPEATED_LINE_WORDS } from './dialogue/dedupe.mjs';
+import { RARITY_GUIDANCE } from './dialogue/generate.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -307,6 +308,21 @@ t('validateEntry : un locuteur de réplique doit figurer dans characters', () =>
 	assert.ok(validateEntry(bad).some((p) => /cron/.test(p)));
 });
 
+t('validateEntry : phrase signature dans la bouche de son propriétaire passe', () => {
+	const ok = { ...GOOD, characters: ['jensen'], requires: [],
+		lines: [{ speaker: 'jensen', text: 'no comment' }] };
+	assert.deepEqual(validateEntry(ok), []);
+});
+
+t('validateEntry : phrase signature volée à un autre locuteur est un problème nommé', () => {
+	assert.equal(SIGNATURE_PHRASES['no comment'], 'jensen');
+	const bad = { ...GOOD, characters: ['root'], requires: [],
+		lines: [{ speaker: 'root', text: 'no comment' }] };
+	const problems = validateEntry(bad);
+	assert.ok(problems.some((p) => /no comment/.test(p) && /jensen/.test(p) && /root/.test(p)),
+		'doit nommer la phrase, son propriétaire et le mauvais locuteur');
+});
+
 t('validateEntry : événement et rareté inconnus', () => {
 	assert.ok(validateEntry({ ...GOOD, events: ['NOPE'] }).some((p) => /NOPE/.test(p)));
 	assert.ok(validateEntry({ ...GOOD, rarity: 'SOMETIMES' }).some((p) => /SOMETIMES/.test(p)));
@@ -435,6 +451,42 @@ t('findDuplicates : tient l\'échelle visée sans exploser le temps', () => {
 	findDuplicates(many, { threshold: 0.85 });
 	const ms = Date.now() - t0;
 	assert.ok(ms < 20000, `déduplication trop lente : ${ms} ms sur 5000 entrées`);
+});
+
+t('findRepeatedLines : une phrase distinctive reprise dans plusieurs entrées est signalée', () => {
+	const entries = [
+		mk('a', 'ship the coarse pass'),
+		mk('b', 'ship the coarse pass'),
+		mk('c', 'the mesh has no holes so far'),
+	];
+	const rep = findRepeatedLines(entries);
+	assert.equal(rep.length, 1);
+	assert.equal(rep[0].count, 2);
+	assert.equal(rep[0].text, 'ship the coarse pass');
+});
+
+t('findRepeatedLines : un battement court comme "no" repris dix fois n\'est pas signalé', () => {
+	assert.ok('no'.split(' ').length < MIN_REPEATED_LINE_WORDS);
+	const entries = Array.from({ length: 10 }, (_, i) => mk(`m/${i}`, 'no'));
+	assert.deepEqual(findRepeatedLines(entries), []);
+});
+
+t('findRepeatedLines : le rapport nomme les entrées fautives', () => {
+	const entries = [
+		mk('a', 'drop the outer tiles'),
+		mk('b', 'drop the outer tiles'),
+		mk('c', 'drop the outer tiles'),
+	];
+	const rep = findRepeatedLines(entries);
+	assert.equal(rep.length, 1);
+	assert.deepEqual(rep[0].ids.sort(), ['a', 'b', 'c']);
+});
+
+t('RARITY_GUIDANCE : une instruction d\'écriture par palier, pas seulement un poids', () => {
+	assert.deepEqual(Object.keys(RARITY_GUIDANCE), ['COMMON', 'UNCOMMON', 'RARE', 'VERY_RARE']);
+	for (const text of Object.values(RARITY_GUIDANCE)) assert.ok(text.length > 20);
+	// L'invariant du critère d'acceptation : VERY_RARE ne doit jamais promettre de suite.
+	assert.match(RARITY_GUIDANCE.VERY_RARE, /promise|promises/i);
 });
 
 // --- cadence -----------------------------------------------------------------

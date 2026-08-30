@@ -34,6 +34,17 @@ const FORMS = [
 	'a rare cryptic remark that explains nothing',
 ];
 
+// La rareté n'est pas qu'un poids de tirage, c'est un registre d'écriture.
+// Mesuré sur le premier corpus : sans instruction, le modèle ne fait varier
+// que la longueur (VERY_RARE = COMMON en plus court), jamais le contenu.
+// Chaque entrée dit à l'auteur CE QU'EST le palier, pas seulement son nom.
+export const RARITY_GUIDANCE = {
+	COMMON: 'This is the ordinary texture of a working channel: routine, procedural, unremarkable. Mundane is correct here — resist the urge to make it clever or memorable.',
+	UNCOMMON: 'A sharper exchange than the ordinary channel: a disagreement that actually lands, a joke that works, a flash of friction or personality. Still grounded and work-related, but with an edge COMMON does not have.',
+	RARE: 'Something a player would repeat to someone else afterwards. It has to earn being uncommon — an unexpected admission, a genuinely odd turn of phrase, a beat that stands apart from everything around it.',
+	VERY_RARE: "Genuinely strange — it should make a player wonder whether they were meant to see it. It explains nothing, resolves nothing, and promises nothing: strangeness must never come from revealing lore, hinting at a plot, or implying something is coming. No line here may promise a sequel someone would then have to write — strange, not portentous. This is jensen's natural register, but it is not exclusive to him; any crew member can carry it.",
+};
+
 export function args(argv = process.argv) {
 	const a = {};
 	for (let i = 2; i < argv.length; i++) {
@@ -134,8 +145,10 @@ function buildPrompt({ event, entries, rarity, forms, count }) {
 		read(`prompts/events/${EVENTS[event].shard}.md`),
 		`\n# This batch\n`,
 		`Write exactly ${count} dialogue entries for the event ${event}.`,
-		`Every entry in this batch has rarity ${rarity}.`,
+		`Every entry in this batch has rarity ${rarity}. ${RARITY_GUIDANCE[rarity] ?? ''}`,
 		`Use these shapes, one per entry, in order:\n${forms.map((f, i) => `${i + 1}. ${f}`).join('\n')}`,
+		`\nDo not reach for stock phrases — lines like "ship the coarse pass" or "does it matter" recur constantly across a large corpus and read as formula, not voice. Every entry should sound freshly written, not assembled from a phrasebook of crew clichés.`,
+		`\nThe crew's dialogue is decoration, never a true reading of what the software is doing: never state real pipeline state — no durations, no percentages, no progress figures, no accurate diagnostics of what a process is actually doing.`,
 		`\n# Already written for this event — do not go near these again\n${digest(entries) || '(nothing yet)'}`,
 		`\n# Output\n`,
 		'Reply with a JSON array and nothing else. No prose, no code fence.',

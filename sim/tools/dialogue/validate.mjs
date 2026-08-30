@@ -3,8 +3,18 @@
 // permet de relire le corpus par échantillon : tout ce qui est vérifiable
 // automatiquement l'est sur 100 % des entrées, l'humain ne juge que le ton.
 import { CREW, RARITY, EVENTS, SLOTS, slotsUsed, pathsForSlots } from './catalog.mjs';
+import { normalize } from './dedupe.mjs';
 
 export const KNOWN_PATHS = new Set(Object.values(SLOTS).map((s) => s.path));
+
+// Phrases signature : un tic de langage identitaire (« no comment » est le
+// refus de jensen) qui change de bouche casse le personnage plus sûrement
+// qu'une faute de style, et le validateur de locuteur (CREW) ne peut pas le
+// voir puisque tout le monde a le droit de parler. Table réduite, tenue à la
+// main — on n'en déduit surtout pas un modèle de personnalité général.
+export const SIGNATURE_PHRASES = {
+	'no comment': 'jensen',
+};
 
 const MAX_LINE_CHARS = 90;   // au-delà, ce n'est plus du RTC, c'est un paragraphe
 const MAX_LINES = 6;
@@ -46,6 +56,8 @@ export function validateEntry(entry) {
 			if (text.trim() === '') push('réplique vide');
 			if (text.length > MAX_LINE_CHARS) push(`réplique trop longue : ${text.length} caractères`);
 			for (const ban of STYLE_BANS) if (ban.re.test(text)) push(`${ban.why} : "${text}"`);
+			const owner = SIGNATURE_PHRASES[normalize(text)];
+			if (owner && l?.speaker !== owner) push(`phrase signature de ${owner} dans la bouche de ${l?.speaker} : "${text}"`);
 		}
 	}
 
