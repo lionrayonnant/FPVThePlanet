@@ -36,6 +36,10 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 
 **Manette / radio USB** détectée automatiquement (Mode 2 par défaut), remappable
 dans **Tab** avec des barres de niveau en direct pour identifier chaque axe.
+**Chrome recommandé** : la Gamepad API y est plus permissive (détection sur
+simple mouvement de stick) que sur Firefox, plus strict sur le focus de
+l'onglet et parfois l'appui d'un bouton avant de faire apparaître le
+périphérique.
 
 **Clavier** : `W`/`S` gaz · `A`/`D` lacet · flèches ou souris roulis-tangage ·
 `R` respawn · `M` mode (acro/angle/altitude) · `C` caméra libre · `Tab` réglages.

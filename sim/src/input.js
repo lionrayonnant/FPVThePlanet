@@ -310,34 +310,33 @@ export class Input {
 
 	getGamepad() {
 		const pads =
-			navigator.getGamepads
+			(navigator.getGamepads
 				? navigator.getGamepads()
-				: [];
+				: []
+			).filter(Boolean);
+
+		// Already selected
+		const current = pads.find((p) => p.index === this.gamepadIndex);
+		if (current) return current;
 
 		for (const p of pads) {
-			if (!p) continue;
-
-			const base =
-				this._baseline.get(p.index);
-
-			// New device
-			if (!base) {
-				this._baseline.set(
-					p.index,
-					[...p.axes]
-				);
-
-				continue;
+			if (!this._baseline.has(p.index)) {
+				this._baseline.set(p.index, [...p.axes]);
 			}
+		}
 
-			// Already selected
-			if (
-				this.gamepadIndex === p.index
-			) {
-				return p;
-			}
+		// Un seul pad branché : le seuil de mouvement n'a d'utilité que pour
+		// départager plusieurs manettes candidates (« laquelle bouge en
+		// premier »). Avec une seule manette, l'exiger ne fait qu'empêcher
+		// la détection d'un stick au repos ou trop stable (ex. gimbal Hall
+		// d'une radio) — on l'adopte directement.
+		if (pads.length === 1) {
+			return this._activate(pads[0]);
+		}
 
-			// Detect movement
+		for (const p of pads) {
+			const base = this._baseline.get(p.index);
+
 			const moved =
 				p.axes.some((v, i) => {
 					const previous =
@@ -352,37 +351,30 @@ export class Input {
 				});
 
 			if (moved) {
-				this.gamepadIndex =
-					p.index;
-
-				// Automatically choose the proper map
-				// unless the user has explicitly saved one.
-				if (!this._savedMap) {
-					this.map =
-						defaultMapFor(p);
-				}
-
-				console.log(
-					'[input] using gamepad:',
-					p.id
-				);
-
-				console.log(
-					'[input] active map:',
-					this.map
-				);
-
-				if (isPS4(p)) {
-					console.log(
-						'[input] PS4 mapping active'
-					);
-				}
-
-				return p;
+				return this._activate(p);
 			}
 		}
 
 		return null;
+	}
+
+	_activate(p) {
+		this.gamepadIndex = p.index;
+
+		// Automatically choose the proper map
+		// unless the user has explicitly saved one.
+		if (!this._savedMap) {
+			this.map = defaultMapFor(p);
+		}
+
+		console.log('[input] using gamepad:', p.id);
+		console.log('[input] active map:', this.map);
+
+		if (isPS4(p)) {
+			console.log('[input] PS4 mapping active');
+		}
+
+		return p;
 	}
 
 	// ---------------------------------------------------------------------------

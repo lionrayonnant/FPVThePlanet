@@ -221,7 +221,12 @@ export class Settings {
 	}
 
 	updateAxisBars() {
-		if (!this.settingsOpen || this._axisRows.length === 0) return;
+		if (!this.settingsOpen) return;
+		// La manette a pu se faire connaître après l'ouverture du panneau
+		// (ex. gamepadconnected pas encore levé par le navigateur au moment
+		// du premier buildAxisRows()) : on retente tant qu'aucune ligne n'a
+		// été construite plutôt que de rester bloqué sur "no controller detected".
+		if (this._axisRows.length === 0) { this.buildAxisRows(); return; }
 		const pad = this.input.getGamepad();
 		if (!pad) return;
 		for (const row of this._axisRows) {
