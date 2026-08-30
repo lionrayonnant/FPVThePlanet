@@ -49,7 +49,12 @@ export const REVERB = {
 	dampHz: [1400, 7000],
 	// Durée de la queue. Suit la TAILLE du lieu, pas son degré de fermeture :
 	// une cathédrale ouverte résonne plus longtemps qu'un placard fermé.
-	decayS: [0.18, 2.2],
+	//
+	// Plafond abaissé de 2,2 s à 1,1 s. La source n'est pas une impulsion mais
+	// un moteur qui tourne sans interruption : une queue longue ne s'entend pas
+	// comme un lieu vaste, elle s'entend comme une traîne qui ne finit jamais.
+	// 1,1 s est déjà l'ordre de grandeur d'une rue urbaine réelle.
+	decayS: [0.18, 1.1],
 	// Au-delà, on considère qu'il n'y a plus de lieu du tout.
 	openM: 30,
 };

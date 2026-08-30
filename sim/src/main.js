@@ -955,6 +955,10 @@ function frame() {
 		// Attendre la ligne « LINK LOST » (1,6 s) laisserait la musique jouer
 		// par-dessus l'épave qui roule (issue #122).
 		music.kill();
+		// L'acoustique se tait avec le drone. Sans cet appel le réseau garde sa
+		// dernière valeur de wet et l'énergie déjà accumulée dans ses boucles :
+		// le bruit continuait dans les menus après la fin de session.
+		space.silence();
 		controller.disarm();
 		// Si le joueur avait coupé la modélisation du lien, il ne verrait
 		// aucune dégradation. La mort de l'image ne se négocie pas.
@@ -969,6 +973,9 @@ function frame() {
 		// Dans les deux cas POST-FLIGHT ANALYSIS reste silencieux (Bible : « pas
 		// de musique, pas de récompense »).
 		if (closes === 'LANDED') music.stop({ fadeMs: FADE.landed });
+		// Une pose coupe l'acoustique aussi : le crash passe par linkDead
+		// ci-dessus, mais un atterrissage propre n'y passe jamais.
+		space.silence();
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
 		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
 		// qui rend [ENTER] DISCONNECT possible — en pointer lock (a fortiori en
