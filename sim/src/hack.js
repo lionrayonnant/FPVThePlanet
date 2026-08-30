@@ -27,6 +27,8 @@ import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
 import { runRitual } from './ritual.js';
 import { ritualVector } from '../tools/ritual-model.mjs';
 import { getOperator } from './operator.js';
+import { mount } from './dialogue.js';
+import { scanContext } from './dialogue-context.js';
 
 const DOT_MIN = 3;
 const DOT_MAX = 15;
@@ -49,6 +51,19 @@ export function runHack(root, { hackType, family, ready } = {}) {
 <pre class="hack-grammar" aria-hidden="true"></pre>`;
 	const logEl = s.box.querySelector('.hack-log');
 	const gramEl = s.box.querySelector('.hack-grammar');
+
+	// RTC : de la couleur pendant la séquence automatique seulement. D9 est
+	// non négociable — le crew se tait avant l'armement du CONTROL VECTOR, et
+	// stopHack() coupe net avant arm() plus bas. MANUAL_OVERRIDE et JACK_IN ne
+	// sont volontairement jamais montés ici : ce sont les instants du rituel.
+	const rtcSection = document.createElement('section');
+	rtcSection.className = 'sc-block sc-log-block sc-rtc-block';
+	rtcSection.innerHTML = '<pre class="sc-h">RTC // INTERNAL</pre><pre class="sc-log sc-rtc"></pre>';
+	s.box.appendChild(rtcSection);
+	const stopHack = mount(s.box.querySelector('.sc-rtc'), {
+		event: 'TARGET_ANALYSIS',
+		context: () => scanContext({ candidate: null, hackType, family }),
+	});
 
 	return new Promise((resolve, reject) => {
 		let raf = 0;
@@ -137,6 +152,10 @@ export function runHack(root, { hackType, family, ready } = {}) {
 			armed = true;
 			phase = 'armed';
 			paint();
+			// D9 : le crew parle avant l'armement, jamais pendant — la culmination
+			// du rituel est une seule chose à la fois. On coupe net ici, avant que
+			// runRitual() ne prenne l'écran.
+			stopHack();
 			const vector = ritualVector(getOperator()?.controlVector);
 			runRitual(root, { hackType: type, vector, seed }).then(finish, (err) => {
 				teardown();
@@ -157,6 +176,11 @@ export function runHack(root, { hackType, family, ready } = {}) {
 			cancelAnimationFrame(raf);
 			timers.forEach(clearTimeout);
 			timers.clear();
+			// Idempotent : déjà arrêté si arm() est passé par là, mais teardown()
+			// est aussi le seul point de sortie quand le hack échoue avant l'armement
+			// (ready rejetée pendant 'hold') — sans ça le minuteur RTC survivrait à
+			// s.remove() sur un nœud détaché.
+			stopHack();
 			s.remove();
 		};
 
