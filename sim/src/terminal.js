@@ -6,6 +6,7 @@ import * as operatorApi from './operator.js';
 import { captureControlVector, bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
+import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -282,6 +283,24 @@ TARGETS      ${op.targetLog?.length ?? 0}</pre>
 	return new Promise((resolve) => { resolveScreen = resolve; });
 }
 
+// ---------- BUILD NOTES ----------
+
+// Échelle de versions écrite à la main (tools/buildnotes-model.mjs), déverrouillée
+// par les compteurs déjà accumulés par l'opérateur. Décoratif : pas de résolution
+// de vol, juste un BACK vers la Home.
+function buildNotesScreen(root, operator) {
+	const s = screen(root);
+	const c = countersOf(operator);
+	s.box.innerHTML = `<pre>BUILD NOTES
+
+CURRENT BUILD   ${currentBuild(c)}
+
+${unlockedNotes(c).map((n) => `${n.build}\n${n.lines.map((l) => `  ${l}`).join('\n')}`).join('\n\n')}</pre>`;
+	return new Promise((resolve) => {
+		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+	});
+}
+
 // ---------- OPERATOR SELECT (repris de l'ancienne home.js) ----------
 
 export async function operatorSelect(root, choices) {
@@ -368,6 +387,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 			}],
 			['SETTINGS', () => settings?.toggleSettings(true)],
 			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
+			['BUILD NOTES', async () => { await buildNotesScreen(root, api.getOperator()); render(); }],
 		]));
 
 		const foot = document.createElement('pre');

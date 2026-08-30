@@ -396,19 +396,19 @@ Les logs rendent l'attente intéressante sans la rendre obligatoire.
 > root
 tokyo
 
-> vex
+> mikhail
 obviously
 
 > root
 there are a lot
 
-> vex
+> mikhail
 drones or tiles
 
 > root
 yes
 
-> vex
+> mikhail
 excellent
 ```
 

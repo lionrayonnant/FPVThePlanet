@@ -577,8 +577,13 @@ button.terminal-row:focus::before { left: 0; }
 	border: var(--rule-w) solid var(--rule); padding: var(--space-2);
 	max-height: 40vh;
 }
-/* RTC (Bible §9) : la même vitrine que le log du pipeline, mais bien plus
-   discrète — c'est du décor, jamais une source d'information sur l'opération. */
+/* RTC (Bible §9, PHASE 21) : la même vitrine que le log du pipeline, mais bien
+   plus discrète — c'est du décor, jamais une source d'information sur
+   l'opération. `.sc-block`/`.sc-h`/`.sc-log`/`.sc-rtc` sont des classes nues,
+   pas scopées à `.scanner-panel` : le conteneur d'écran du scanner et celui
+   des écrans terminal (TARGET SCAN, la fiche, HACK — `.bootstrap-box`, aussi
+   en colonne flex) portent déjà les mêmes règles sans qu'il faille les
+   dupliquer — une seule langue visuelle pour toutes les voix du crew. */
 .sc-rtc-block { flex: 0 0 auto; }
 .sc-rtc { max-height: 18vh; color: var(--faint); }
 

@@ -109,6 +109,23 @@ try {
 	// Le trou : la prochaine session prend 3, pas 2.
 	const s3 = await call('POST', `/__operator/${id}/sessions`, { area: 'lviv', weatherSnapshot: null });
 	check('le numéro suivant est 3 : un numéro ne se recycle pas', s3.body.session.seq === 3);
+
+	// --- clés PATCH-ables au niveau opérateur (PHASE 21, regression #dialogueMemory) ---
+	// `dialogueMemory` doit être accepté et faire l'aller-retour : sans ce test,
+	// une régression de OP_WRITABLE_KEYS repasse inaperçue jusqu'à un vrai
+	// navigateur (c'est ainsi que le bug initial a été trouvé).
+	const memory = { seen: ['line-042'], ring: ['line-041', 'line-042'] };
+	const patched = await call('PATCH', `/__operator/${id}`, { key: 'dialogueMemory', value: memory });
+	check('PATCH dialogueMemory : accepté et persisté',
+		patched.status === 200 && patched.body.operator.dialogueMemory !== undefined);
+
+	const reread = await call('GET', `/__operator/${id}`);
+	check('dialogueMemory fait l\'aller-retour sur disque',
+		JSON.stringify(reread.body.operator.dialogueMemory) === JSON.stringify(memory));
+
+	const rejected = await call('PATCH', `/__operator/${id}`, { key: 'notAKey', value: 1 });
+	check('PATCH clé inconnue → 400', rejected.status === 400
+		&& /clé non modifiable/.test(rejected.body.error ?? ''));
 } finally {
 	await server.close();
 	fs.rmSync(DIR, { recursive: true, force: true });

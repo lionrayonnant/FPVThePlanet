@@ -88,7 +88,13 @@ function operatorSummary(s) {
 	};
 }
 
-const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings']);
+// `dialogueMemory` (PHASE 21) : mémoire anti-répétition du moteur de dialogue,
+// écrite via le même `operator.patch()` débouncé que `settings`. Purement
+// cosmétique — un fichier opérateur sans cette clé se relit comme une mémoire
+// neuve (src/dialogue.js) — donc pas de validation de forme côté serveur, au
+// même titre que `settings` : elle est bornée côté client (anneau de 256
+// entrées, table de 512 vus, dans tools/dialogue/engine.mjs).
+const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings', 'dialogueMemory']);
 
 // Traduit une erreur de lecture d'opérateur en code HTTP : id malformé → 400,
 // fichier d'un schéma trop récent → 409, tout le reste (JSON corrompu, E/S) → 500.
