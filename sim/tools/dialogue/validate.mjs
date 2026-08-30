@@ -11,13 +11,15 @@ const MAX_LINES = 6;
 
 // Bible §9-§12 : le crew ne sait pas qu'il est dans un jeu, ne s'adresse jamais
 // au joueur, n'explique pas le lore et ne promet aucune suite.
+// STYLE_BANS[0] couvre adresse directe au joueur (« the player »). Les autres
+// règles visent le vocabulaire impossible en 1998-2003, pas les mots courants.
 export const STYLE_BANS = [
 	{ re: /\bthe player\b|\bthe user\b/i, why: 'adresse au joueur' },
 	{ re: /\bthe game\b|\bthis is (just )?a game\b|\bfourth wall\b/i, why: 'quatrième mur' },
 	{ re: /\bLLM\b|\bprompt(ing|ed)?\b|\bneural net\b|\bmachine learning\b/i, why: 'vocabulaire IA moderne' },
 	{ re: /\bto be continued\b|\bnext time\b|\bmore on (that|this) later\b/i, why: 'promesse de suite' },
 	{ re: /\b(you|i)('ll| will) (see|find out|know)\b|\bexplain (it )?later\b/i, why: 'promesse de suite' },
-	{ re: /\bplayer\b/i, why: 'vocabulaire de jeu vidéo' },
+	{ re: /\bgameplay\b|\brespawn\b|\bpower-?up\b|\bhigh scores?\b|\bNPC\b|\blevel up\b/i, why: 'vocabulaire de jeu vidéo' },
 ];
 
 export function validateEntry(entry) {

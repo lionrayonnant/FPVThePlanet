@@ -329,6 +329,47 @@ t('style : les interdits de la Bible sont attrapés', () => {
 	for (const b of STYLE_BANS) assert.ok(b.why && b.re instanceof RegExp);
 });
 
+t('style : "the player should know" est attrapé par la règle adresse au joueur, pas par vocabulaire', () => {
+	// Confirmation que le déplacement de la règle du jeu fonctionne :
+	// bans[0] attrape l'adresse directe, donc pas besoin d'une règle sur /\bplayer\b/ seul.
+	const bad = { ...GOOD, requires: [], lines: [{ speaker: 'root', text: 'the player should know' }] };
+	const problems = validateEntry(bad);
+	assert.ok(problems.some((p) => /adresse au joueur/.test(p)), 'doit être attrapé par bans[0]');
+});
+
+t('style : le vocabulaire de jeu spécifique 1998-2003 est attrapé', () => {
+	// La nouvelle règle bans[5] cible le vocabulaire impossible en 1998-2003,
+	// pas les mots courants qui peuvent avoir d'autres sens (« player »).
+	const gamingTerms = [
+		'respawn the node',       // respawn
+		'the NPC will wait',      // NPC
+		'get that power-up',      // power-up
+		'level up your skills',   // level up
+		'high score achievement', // high score
+		'improved gameplay loop', // gameplay
+	];
+	for (const text of gamingTerms) {
+		const bad = { ...GOOD, requires: [], lines: [{ speaker: 'root', text }] };
+		assert.ok(validateEntry(bad).length > 0, `doit être attrapé : "${text}"`);
+	}
+});
+
+t('style : les usages légitimes du mot "player" ne sont pas rejetés', () => {
+	// Regression test : la règle remplacée /\bplayer\b/i rejetait aussi « record player »,
+	// « media player », « key player », etc. La nouvelle règle ne le fait pas.
+	const legitimate = [
+		'the record player still works',
+		'a key player in the network',
+		'media player on the workstation',
+	];
+	for (const text of legitimate) {
+		const good = { ...GOOD, requires: [], lines: [{ speaker: 'root', text }] };
+		const problems = validateEntry(good);
+		assert.ok(!problems.some((p) => /vocabulaire de jeu vidéo/.test(p)),
+			`faux positif non-fondé : "${text}"`);
+	}
+});
+
 t('KNOWN_PATHS : dérivé du catalogue, pas une seconde liste à maintenir', () => {
 	assert.ok(KNOWN_PATHS.has('weather.windMs'));
 	assert.ok(!KNOWN_PATHS.has('weather.windMS'));
