@@ -1,7 +1,7 @@
 // Selftest du moteur de dialogue (PHASE 21). Aucune E/S, aucun DOM.
 // Lancer : node tools/dialogue-selftest.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, readFileSync as rf } from 'node:fs';
 import {
 	CREW, RARITY, EVENTS, SLOTS, JENSEN_COOLDOWN, MEMORY_RING, MEMORY_SEEN,
 	resolvePath, slotsUsed, pathsForSlots,
@@ -499,6 +499,26 @@ t('pack de secours : valide, et surtout sans aucun requires', () => {
 		'TARGET_SCAN', 'TARGET_SELECTED', 'TARGET_ANALYSIS', 'HACK', 'MANUAL_OVERRIDE',
 		'JACK_IN', 'WEATHER']) {
 		assert.ok(FALLBACK.some((e) => e.events.includes(id)), `aucun secours pour ${id}`);
+	}
+});
+
+// --- isolation de l'atelier de génération (D1) -----------------------------
+
+t('isolation : aucun module de src/ n\'importe l\'outillage de génération', () => {
+	// readdirSync non récursif : src/ est plat aujourd'hui (aucun sous-dossier).
+	// Si ça change, ce test doit devenir récursif pour continuer à tout couvrir.
+	const dir = new URL('../src/', import.meta.url);
+	for (const f of readdirSync(dir)) {
+		if (!f.endsWith('.js')) continue;
+		const code = rf(new URL(f, dir), 'utf8');
+		assert.ok(!/dialogue\/(generate|inspect)\.mjs/.test(code),
+			`${f} importe l'outillage de génération — le jeu ne doit dépendre d'aucun LLM (D1)`);
+	}
+});
+
+t('isolation : public/dialogue ne contient que des données', () => {
+	for (const f of readdirSync(new URL('../public/dialogue/', import.meta.url))) {
+		assert.match(f, /\.json$/, `public/dialogue contient autre chose que des données : ${f}`);
 	}
 });
 
