@@ -76,6 +76,14 @@ export const RANGES = {
 // décide de la borne, et il n'y a aucune raison d'en tenir un second
 // exemplaire ici. Le coût est nul — occupancyOf() ne passe ici qu'au défaut de
 // cache, une fois par instance Physics.
+//
+// La marge est STRICTE, et par construction plutôt que par chance : un tirage
+// vaut x = x0 + (i + rand()) * dx avec 0 <= i <= cols-1, et rngFrom() est un
+// xorshift32 dont l'état ne peut jamais atteindre 0 depuis un état non nul —
+// donc rand() vit dans ]0, 1[, bornes exclues. x est donc strictement dans
+// ]x0, x1[, jamais posé dessus. Or zoneOf() bascule en CAUTION dès que la
+// marge est <= caution : c'est cette exclusion-là qui garantit la propriété,
+// pas les 10 000 tirages de tools/selftest.mjs, qui ne font que la surveiller.
 function edgeMarginOf(manifest) {
 	return new Geofence(manifest.bbox).effectiveCorridor.caution;
 }

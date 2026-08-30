@@ -1137,8 +1137,13 @@ halfMin = min((max.x − min.x)/2, (max.z − min.z)/2)
 scale   = min(1, (halfMin / 3) / R_CAUTION)
 ```
 
-Le cœur volable ne descend jamais sous 67 % du plus petit côté, et les quinze
-grandes cartes gardent la valeur mesurée à l'identique. Le couloir réellement
+Le cœur volable ne descend jamais sous 67 % du plus petit côté, et les cartes
+assez grandes (`scale === 1`) gardent la valeur mesurée à l'identique : **12 des
+17 entrées de `public/scenes.json`**, le seul inventaire de cartes que le dépôt
+suive. Les manifestes eux-mêmes (`public/scenes/`) sont gitignorés, donc un
+comptage « sur les N manifestes locaux » n'est pas reproductible d'une machine
+à l'autre — sur celle où ces chiffres ont été mesurés (2026-08-31, 25 dossiers,
+dont 8 hors `scenes.json`), c'était 16 sur 25. Le couloir réellement
 appliqué se lit sur l'instance (`fence.effectiveCorridor`) et dans la console
 au chargement (`[fence] couloir …`) — c'est lui qu'il faut montrer, pas la
 constante. En dessous d'un couloir `HOLD` de 50 m (`HOLD_STOP_GUARANTEE_M`,
