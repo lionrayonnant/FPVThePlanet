@@ -17,32 +17,50 @@ import { FLOOR_LOST } from './geofence.js';
 // clôture : rien ne peut z-fighter avec la ville, et on ne peut jamais passer
 // dessous.
 //
-// Limite connue, pas résolue ici. À 100 m d'altitude au milieu de la carte,
-// le bord est à ~640 m ; à ~2 km de portée le brouillard n'y mange que ~26 %.
-// Le plan sera donc franchement visible, et plat. Le pari : il se lit comme
-// la plaine derrière la ville, aplatie par la brume — plausible pour Paris,
-// et de toute façon strictement mieux que du ciel sous le sol. Si à l'œil il
-// se lit comme une nappe morte, la correction la moins chère est un bruit de
-// valeur à grande échelle sur sa couleur (uColor) — mais ça se tranche après
-// avoir regardé, pas avant ; ce fichier ne le construit pas.
+// Limite MESURÉE (gl.readPixels sur le rendu réel, tour-eiffel), pas
+// supposée. Depuis le centre de carte, 100 m d'altitude, regard horizontal,
+// ville dans le cadre : le sol n'occupe qu'une bande d'environ 6 % de la
+// hauteur du cadre entre le bord de la ville et l'horizon, et il n'y
+// assombrit le ciel que de 9/255 en moyenne (17/255 au maximum). De nuit,
+// l'écart tombe à 3-4,5/255 — sous le grain du capteur de nuit (±10-15/255,
+// lens.js) : trois fois plus petit que le bruit qui le recouvre.
+//
+// Et « ligne d'horizon nette » serait faux par construction, pas seulement
+// en pratique : le sol converge vers EXACTEMENT uFogColor à l'horizon (même
+// formule que TileMaterial.js, donc même limite), donc le contraste y est
+// NUL — aucune ligne ne peut s'y former, à aucune distance. Ce qu'on voit
+// est un dégradé doux et continu, vers 50 % du cadre à l'horizontale. Le
+// pari tient — ça ne se lit pas comme une nappe morte — mais pour la raison
+// inverse de celle qu'on pourrait deviner : pas parce que le dégradé serait
+// marqué, mais parce que le contraste ne monte jamais assez haut nulle part
+// pour se voir. Tant que ça tient, pas de bruit de valeur construit ici.
 
 // De combien le sol est plus sombre que l'horizon. Une plaine lointaine n'est
 // pas exactement de la couleur de l'air, sinon il n'y a plus de ligne
 // d'horizon du tout — et c'est cette ligne qui dit « il y a un sol ». Choisi à
 // l'œil, comme les couleurs de sky.js.
 const DARKEN = 0.88;
-// Le côté du plan, en multiples de la portée du brouillard le plus clair. 4×
-// garantit qu'il atteint toujours l'horizon, quelle que soit la météo. Avec la
-// portée claire réelle du dépôt (~2 km) et le plancher de 20 km ci-dessous,
-// c'est ce plancher qui gouverne en pratique tant qu'aucune scène ne dépasse
-// ~5 km de portée claire — mais la formule reste correcte si ça change un jour.
-const SPAN = 4;
+// Le côté du plan, en mètres. Ni la météo ni la carte ne le dimensionnent :
+// camera.far vaut 2 500 m (main.js) et coupe tout au-delà, donc rien de plus
+// lointain ne peut jamais être vu, quelle que soit la portée du brouillard.
+// Ce qui compte est de couvrir camera.far depuis n'importe quel point que le
+// pilote peut atteindre — jusqu'à R_CAUTION au-delà du bord avant LOST
+// (113 m, geofence.js) — et la plus grande carte mesurée à ce jour
+// (chateau-des-ducs-de-bretagne, demi-côté 1 314 m sur son axe le plus long ;
+// vérifié sur les 25 manifestes de public/scenes/, tour-eiffel n'est PAS la
+// plus grande) donne un pire cas d'environ 1 314 + 113 + 2 500 ≈ 3 930 m
+// depuis le centre. 20 000 m garde une marge large, à coût nul :
+// PlaneGeometry(size, size) ne fait que 2 triangles, quelle que soit sa
+// taille. Le résidu que camera.far laisse passer à la coupe, dans l'air le
+// plus clair (donc le plus lent à fondre) : 1 - exp(-(0,00085×2500)²) ≈
+// 1,1 %, soit ≈0,34/255 sur l'écart max entre uColor et uFogColor — sous la
+// quantification d'un canal 8 bits, donc invisible quelle que soit la météo.
+const GROUND_SIZE = 20000;
 
 export class DistantGround {
-	constructor(scene, bbox, { fogColor, fogDensity, span = 20000 } = {}) {
+	constructor(scene, bbox, { fogColor, fogDensity } = {}) {
 		const y = bbox.min[1] - FLOOR_LOST - 0.5;
-		const size = Math.max(span * SPAN, 20000);
-		const geo = new THREE.PlaneGeometry(size, size);
+		const geo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
 		geo.rotateX(-Math.PI / 2);
 
 		// Même brouillard exp-carré que TileMaterial.js, et pour la même raison
@@ -78,6 +96,12 @@ export class DistantGround {
 					// Pas de lumières de ville ici : c'est la campagne, elle
 					// s'éteint la nuit. uNight ne fait que l'assombrir.
 					vec3 c = uColor * uDim * (1.0 - 0.75 * uNight);
+					// Dupliqué depuis TileMaterial.js, DÉLIBÉRÉMENT (pas de
+					// sampler2DArray/UV ici pour justifier une matière commune) —
+					// mais les deux formules DOIVENT rester identiques terme à
+					// terme, sinon l'horizon se dédouble entre tuiles et sol :
+					// c'est toute la prémisse de ce fichier. Si l'une bouge,
+					// bouger l'autre avec.
 					float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
 					outColor = vec4(mix(c, uFogColor, clamp(f, 0.0, 1.0)), 1.0);
 				}
