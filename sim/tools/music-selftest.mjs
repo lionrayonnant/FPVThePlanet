@@ -615,14 +615,13 @@ test('les bornes du gate sont ordonnées et plausibles', () => {
 	assert.ok(BOUNDS.minSideDb < 0);
 });
 
-test('la génération vise la QUALITÉ, pas la vitesse', () => {
-	// Les 8 pas de la CLI amont sont un défaut de vitesse. Le passage à 50 a été
-	// tranché à l'oreille, en A/B aveugle et à volume égalisé — et il contredit
-	// les mesures d'air et de largeur, qui désignaient 50/cfg 7. Ces métriques
-	// mesuraient la densité, pas la profondeur.
-	assert.ok(DEFAULTS.steps >= 50, `${DEFAULTS.steps} pas : réglage de vitesse, pas de qualité`);
-	// Le CFG reste bas : au-delà, le modèle sort déjà compressé (-5,3 LUFS,
-	// LRA 4,4 à cfg 7) et l'on gagne de la densité en croyant gagner de l'air.
+test('la génération reste au point de fonctionnement du modèle', () => {
+	// Contre-intuitif, donc à protéger : monter le nombre de pas DÉGRADE ce
+	// modèle. Stable Audio 3 est construit pour l'inférence rapide et 8 pas est
+	// son régime nominal, pas un raccourci. À 50 pas la sortie tombe de 3,6 à
+	// 8,7 dB et part hors-style — vérifié à l'oreille sur le pool `menu`.
+	assert.equal(DEFAULTS.steps, 8, 'le modèle sort de son régime au-delà');
+	// Et le CFG reste bas : à 7 le rendu sort déjà compressé (-5,3 LUFS, LRA 4,4).
 	assert.ok(DEFAULTS.cfgScale <= 2, `cfg ${DEFAULTS.cfgScale} : le rendu sera écrasé`);
 });
 

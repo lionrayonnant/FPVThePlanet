@@ -38,29 +38,28 @@ export const DEFAULTS = {
 	duration: 90,
 	model: 'medium',
 
-	// 50 pas de diffusion, et non les 8 de la CLI amont — qui sont un défaut de
-	// VITESSE, pas de qualité. Choisi à l'oreille, en A/B aveugle et à volume
-	// égalisé, contre 8/cfg 1, 50/cfg 3 et 50/cfg 7.
+	// 8 pas — le défaut de la CLI amont, et il faut le laisser là.
 	//
-	// À noter parce que c'est instructif : mes mesures désignaient le contraire.
-	// Sur l'énergie au-dessus de 8 kHz et la largeur du côté, 50/cfg 1 sortait
-	// DERNIER (-19,5 dB d'aigus contre -16,7 pour 8 pas) et 50/cfg 7 premier.
-	// Ces métriques mesuraient la densité, pas la profondeur : un rendu mieux
-	// résolu a MOINS d'énergie parasite dans les aigus. Sur ce qu'on ne sait pas
-	// mesurer, l'oreille tranche — et il faut la laisser trancher en aveugle,
-	// sinon on choisit ce qu'on croit devoir choisir.
-	steps: 50,
+	// J'ai cru que 8 était un raccourci de VITESSE et je suis monté à 50 après
+	// un A/B aveugle où un morceau de race5 à 50 pas avait été préféré. C'était
+	// une généralisation depuis UN échantillon, et elle était fausse : à
+	// l'écoute du pool `menu`, 50 pas rend hors-style et « comme un signal un
+	// peu buggé ».
+	//
+	// Mesuré ensuite, mêmes prompts et mêmes graines : 50 pas sort 3,6 à 8,7 dB
+	// SOUS 8 pas (-21,2/-23,8/-24,7 contre -17,6/-15,1/-18,0 LUFS). Une sortie
+	// plus faible et moins affirmée est la signature d'un modèle poussé hors de
+	// son régime — et tout Stable Audio 3 est construit autour de l'inférence
+	// rapide (« minutes of audio in milliseconds », 5 s produites en 0,41 s).
+	// 8 pas n'est pas un compromis, c'est le point de fonctionnement nominal.
+	//
+	// Ne pas remonter ce nombre sans réécouter PLUSIEURS pools : la fidélité
+	// d'un morceau isolé ne dit rien de l'adhérence au style sur l'ensemble.
+	steps: 8,
 
-	// Reste à 1.0. Monter le CFG serre le rendu sur le prompt mais le comprime :
-	// à cfg 7 le modèle sortait à -5,3 LUFS avec un LRA de 4,4, donc déjà
-	// écrasé, et c'est ce qui gonflait artificiellement mes mesures d'air.
 	cfgScale: 1.0,
 };
 
-// Coût : ~68 s par morceau au lieu de ~6 s. Le modèle met de toute façon plus
-// longtemps à charger qu'à générer un morceau court, et un lot se génère en une
-// seule invocation — la différence reste sans importance à l'échelle d'une vague.
-export const SECONDS_PER_TRACK_HINT = 70;
 
 function parseArgs(argv) {
 	const out = { pool: null, count: 1, seedBase: 'v1', tag: '', ...DEFAULTS };
