@@ -79,6 +79,44 @@ export const R_HOLD = 66;      // m : distance d'arrêt du pilote qui obéit
 // en vaut 1,52 à cette vitesse-là.
 export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 
+// ---------------------------------------------------------------------------
+// Et la carte, dans tout ça : LA BORNE
+// ---------------------------------------------------------------------------
+//
+// Les deux chiffres ci-dessus sont des SCALAIRES GLOBAUX mesurés sur
+// tour-eiffel, dont le plus petit demi-côté fait 641 m. Sur les 24 scènes de
+// public/scenes.json, NEUF ont un demi-côté sous 340 m — parcdesprinces 139 m,
+// bastille 164, triomphe 201, invalides 202, roosevelt 224, betheny 249,
+// poissoniere 264, seine-iena-alma 301, palais-de-l-elysee 314. Sur bastille,
+// 113 m d'avertissement avaleraient 89 % de la carte : il ne resterait qu'un
+// mouchoir de poche où l'OSD ne crie pas.
+//
+// Geofence BORNE donc son couloir horizontal à un tiers du plus petit
+// demi-côté de la bbox de la scène, les deux seuils mis à l'échelle par le
+// MÊME facteur — pour que leur RAPPORT survive à la réduction, et avec lui le
+// temps d'avertissement, qui est tout ce que R_CAUTION apporte :
+//
+//   halfMin = min((max.x − min.x)/2, (max.z − min.z)/2)
+//   scale   = min(1, (halfMin / 3) / R_CAUTION)
+//
+// Le cœur volable — la zone où rien ne clignote — ne descend ainsi JAMAIS sous
+// 67 % du plus petit côté, et les quinze grandes cartes gardent exactement la
+// valeur mesurée (scale === 1, à l'identique bit pour bit).
+//
+// C'est une BORNE, pas une mesure. Elle n'invalide pas les chiffres du dessus,
+// elle dit ce qu'on en garde quand la carte ne peut pas les payer. Une vraie
+// mesure PAR SCÈNE a été écartée pour deux raisons : elle exigerait de rejouer
+// tools/geofence-measure.mjs sur chacune des 24 cartes (et de refiger 48
+// nombres à chaque `npm run add-map`), et surtout le banc NE TOURNE PAS sur
+// les petites : il lui faut l'élan d'amener la famille à sa vitesse de pic
+// PLUS le couloir d'essai devant la face — 213 m pour heavy5 au couloir
+// complet, et déjà 164 m pour freestyle5 au premier pas de l'itération, contre
+// 164 m de demi-côté sur bastille, où il lève dès ce premier pas. Il refuse
+// plutôt que de mesurer une approche qui n'a pas eu la place d'exister. Le
+// couloir effectivement appliqué est lisible sur l'instance
+// (`fence.effectiveCorridor`), c'est lui qu'il faut montrer au joueur, pas la
+// constante.
+
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
 // arrive en se faufilant. Ces trois nombres sont posés sur un argument
@@ -204,9 +242,33 @@ const RANK = { [NOMINAL]: 0, [CAUTION]: 1, [HOLD]: 2, [LOST]: 3 };
 export class Geofence {
 	constructor(bbox) {
 		this.bbox = bbox;
-		this.h = corridor(R_CAUTION, R_HOLD, 0, -R_HOLD);
+		// La borne (voir le bloc « Et la carte, dans tout ça » plus haut) : le
+		// couloir horizontal ne dépasse jamais le tiers du plus petit demi-côté
+		// de la carte. Un seul facteur pour les deux seuils, sinon la bande
+		// d'avertissement — le seul rôle de R_CAUTION — se ferait écraser la
+		// première.
+		const halfMin = Math.min(
+			(bbox.max[0] - bbox.min[0]) / 2,
+			(bbox.max[2] - bbox.min[2]) / 2,
+		);
+		const scale = Math.min(1, halfMin / 3 / R_CAUTION);
+		// Le couloir RÉELLEMENT appliqué, en mètres, à lire de l'extérieur :
+		// l'OSD et le README doivent dire au joueur ce qui s'applique à SA
+		// carte, pas ce que la constante vaut. `scale === 1` veut dire « la
+		// carte est assez grande, c'est la valeur mesurée telle quelle ».
+		this.effectiveCorridor = {
+			caution: R_CAUTION * scale,
+			hold: R_HOLD * scale,
+			scale,
+			halfMinM: halfMin,
+		};
+		const e = this.effectiveCorridor;
+		this.h = corridor(e.caution, e.hold, 0, -e.hold);
 		// Marges relatives à bbox.min.y, donc toutes négatives : le couloir est
-		// entièrement sous le point le plus bas du maillage.
+		// entièrement sous le point le plus bas du maillage. PAS mis à
+		// l'échelle : ces quatre seuils sont géométriques (« deux mètres sous
+		// la surface la plus basse »), pas une distance d'arrêt — une petite
+		// carte n'a pas un dessous plus mince qu'une grande.
 		this.v = corridor(-FLOOR_CAUTION, -FLOOR_HOLD, -FLOOR_EDGE, -FLOOR_LOST);
 		// Muté chaque frame plutôt que recréé, comme link.out et flightEnd.out :
 		// ceci tourne à la fréquence d'affichage.

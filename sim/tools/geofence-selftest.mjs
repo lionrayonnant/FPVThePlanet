@@ -238,6 +238,92 @@ t('t : 0 à l entrée de caution, 1 en fin de couloir (horizontal)', () => {
 	assert.equal(f.out.t, 1);
 });
 
+// --- La borne du couloir à la taille de la carte ---------------------------
+
+// R_CAUTION et R_HOLD sont mesurés sur une grande carte ; Geofence borne le
+// couloir horizontal au tiers du plus petit demi-côté de la scène, les deux
+// seuils par le même facteur. Toujours par rapport aux constantes exportées :
+// ces tests doivent survivre à une re-mesure.
+
+// Le tiers du demi-côté SOUS lequel la borne mord : en dessous, scale < 1.
+const BOUND_HALF = 3 * R_CAUTION;
+// Une bbox carrée de demi-côté `h`, hauteur généreuse et sans rapport.
+const square = (h) => ({ min: [-h, -30, -h], max: [h, 270, h] });
+
+t('carte assez grande : le couloir est la valeur mesurée, à l identique', () => {
+	const f = new Geofence(BBOX);   // demi-côté 1000 m, bien au-dessus de la borne
+	assert.equal(f.effectiveCorridor.scale, 1);
+	assert.equal(f.effectiveCorridor.caution, R_CAUTION);
+	assert.equal(f.effectiveCorridor.hold, R_HOLD);
+	// Non-régression : les frontières tombent exactement là où elles tombaient
+	// avant que la borne existe.
+	const zoneAtMargin = (m) => { f.update(at(1000 - m, 100, 0)); return f.out.zone; };
+	assert.equal(zoneAtMargin(R_CAUTION + 10), NOMINAL);
+	assert.equal(zoneAtMargin((R_CAUTION + R_HOLD) / 2), CAUTION);
+	assert.equal(zoneAtMargin(R_HOLD / 2), HOLD);
+	assert.equal(zoneAtMargin(-1), LOST);
+	// Et la poussée aussi : pleine au bord, nulle à l entrée de HOLD.
+	f.update(at(1000 - R_HOLD, 100, 0));
+	assert.equal(f.out.push.x, 0);
+	f.update(at(1000, 100, 0));
+	assert.equal(f.out.push.x, -A_MAX);
+});
+
+t('carte étroite : le couloir rétrécit, le rapport des deux seuils survit', () => {
+	// Un demi-côté franchement sous la borne (elle mord à 3 x R_CAUTION).
+	const h = BOUND_HALF / 4;
+	const f = new Geofence(square(h));
+	const e = f.effectiveCorridor;
+	assert.ok(e.scale < 1, `la borne devrait mordre à un demi-côté de ${h}`);
+	assert.ok(Math.abs(e.caution - h / 3) < 1e-9, 'caution vaut le tiers du demi-côté');
+	// LE point : le rapport, donc le temps d avertissement, est préservé.
+	assert.ok(Math.abs(e.caution / e.hold - R_CAUTION / R_HOLD) < 1e-9);
+	// Le cœur sans avertissement fait bien les deux tiers du côté.
+	const side = 2 * h;
+	const core = side - 2 * e.caution;
+	assert.ok(Math.abs(core / side - 2 / 3) < 1e-9, `cœur ${(100 * core / side).toFixed(1)} % du côté`);
+	// Et les zones suivent le couloir effectif, pas la constante.
+	const zoneAtMargin = (m) => { f.update(at(h - m, 100, 0)); return f.out.zone; };
+	assert.equal(zoneAtMargin(e.caution + 10), NOMINAL);
+	assert.equal(zoneAtMargin((e.caution + e.hold) / 2), CAUTION);
+	assert.equal(zoneAtMargin(e.hold / 2), HOLD);
+	assert.equal(zoneAtMargin(-1), LOST);
+	// La constante brute, elle, est hors de la carte : la câbler sans borne
+	// aurait mis TOUTE la scène en avertissement.
+	assert.ok(R_CAUTION > h, 'le test ne prouve rien si la constante tient dans la carte');
+});
+
+t('bbox rectangulaire : c est le PLUS PETIT demi-côté qui gouverne, sur les deux axes', () => {
+	const wide = 4 * BOUND_HALF, narrow = BOUND_HALF / 4;
+	// Étroite en Z, large en X.
+	const f = new Geofence({ min: [-wide, -30, -narrow], max: [wide, 270, narrow] });
+	const e = f.effectiveCorridor;
+	assert.ok(Math.abs(e.halfMinM - narrow) < 1e-9);
+	assert.ok(Math.abs(e.caution - narrow / 3) < 1e-9);
+	// L axe LARGE hérite du même couloir rétréci : un seul couloir, pas un par
+	// axe — sinon la marge euclidienne des coins parlerait de deux échelles.
+	f.update(at(wide - (e.caution + e.hold) / 2, 100, 0));
+	assert.equal(f.out.zone, CAUTION, 'axe large : le couloir rétréci s applique aussi');
+	f.update(at(wide - e.caution - 10, 100, 0));
+	assert.equal(f.out.zone, NOMINAL);
+	// Et l inverse (étroite en X) donne le même couloir : min sur les deux.
+	const g = new Geofence({ min: [-narrow, -30, -wide], max: [narrow, 270, wide] });
+	assert.deepEqual(g.effectiveCorridor, e);
+});
+
+t('la borne ne touche PAS le couloir vertical', () => {
+	const wide = new Geofence(BBOX);
+	const tight = new Geofence(square(BOUND_HALF / 4));
+	assert.ok(tight.effectiveCorridor.scale < 1);
+	assert.deepEqual(tight.v, wide.v);
+	// Et les zones verticales tombent aux mêmes hauteurs sous le maillage.
+	const FLOOR = -30;   // bbox.min.y, commun aux deux
+	const zoneAtY = (f, y) => { f.update(at(0, y, 0)); return f.out.zone; };
+	for (const dy of [1, -(FLOOR_CAUTION + FLOOR_HOLD) / 2, -(FLOOR_HOLD + FLOOR_LOST) / 2, -FLOOR_LOST - 1]) {
+		assert.equal(zoneAtY(tight, FLOOR + dy), zoneAtY(wide, FLOOR + dy), `dy=${dy}`);
+	}
+});
+
 // --- Le canal terminal de link.js -----------------------------------------
 
 // Une frame de lien parfait : à dix mètres, rien dans le chemin.
