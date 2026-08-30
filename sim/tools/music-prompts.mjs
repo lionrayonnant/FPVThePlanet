@@ -196,7 +196,17 @@ export const POOL_AXIS_BANS = {
 		grain: ['gritty digital samplers, early tracker character'],
 	},
 	menu: {
-		energy: ['relentless and driving'],        // vs « patient and watchful »
+		// Les DEUX extrêmes, et c'est le second qui a mordu à l'écoute.
+		// Le noyau dit déjà « sparse minimal percussion, patient and watchful » ;
+		// quand un axe ajoute encore « restrained » ou « sparse, lots of space »,
+		// le prompt ne demande plus rien et le modèle rend du vide — trois
+		// tirages consécutifs à 6, 15 et 36 % de fenêtres silencieuses, décrits
+		// à l'écoute comme « y a même pas de musique ». Les trois morceaux de
+		// menu qui MARCHENT ont reçu « dense layered arrangement », « harsh
+		// distorted edges » et « hypnotic and repetitive » : ce pool a besoin
+		// qu'on lui donne de la matière, pas qu'on lui en retire.
+		energy: ['relentless and driving', 'restrained and patient'],
+		density: ['sparse arrangement, lots of space'],
 	},
 };
 
