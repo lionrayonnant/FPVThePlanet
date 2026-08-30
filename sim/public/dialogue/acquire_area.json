@@ -3403,23 +3403,6 @@
       ]
     },
     {
-      "id": "acquire_area/0168",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "COMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "tile writer: 1 handle open. flush interval 4s"
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0169",
       "events": [
         "ACQUIRE_AREA"
@@ -3948,23 +3931,6 @@
         {
           "speaker": "mikhail",
           "text": "i will. i always look at the edges"
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0195",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "COMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "texture pages written. 12 of 12. no resample"
         }
       ]
     },
@@ -6078,23 +6044,6 @@
       ]
     },
     {
-      "id": "acquire_area/0311",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "COMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "tile buffer allocated. 64 slots. reuse enabled"
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0312",
       "events": [
         "ACQUIRE_AREA"
@@ -8059,23 +8008,6 @@
         {
           "speaker": "root",
           "text": "outer ring is not our problem today"
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0410",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "COMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "mesh reader: 3 streams open. 0 stalled"
         }
       ]
     },
@@ -10534,28 +10466,6 @@
       ]
     },
     {
-      "id": "acquire_area/0541",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "UNCOMMON",
-      "characters": [
-        "root",
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "root",
-          "text": "is the stream stable"
-        },
-        {
-          "speaker": "cron",
-          "text": "stream stable. packet loss: 0.0%"
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0542",
       "events": [
         "ACQUIRE_AREA"
@@ -10757,23 +10667,6 @@
         {
           "speaker": "mikhail",
           "text": "the source texture is corrupt."
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0555",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "UNCOMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "mesh reader: 2 streams open."
         }
       ]
     },
@@ -11049,23 +10942,6 @@
       ]
     },
     {
-      "id": "acquire_area/0571",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "UNCOMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "mesh reader: 1 stream open. 1 stalled."
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0572",
       "events": [
         "ACQUIRE_AREA"
@@ -11289,23 +11165,6 @@
         {
           "speaker": "mikhail",
           "text": "header claims 16 bit indices. geometry uses 32."
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0585",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "UNCOMMON",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "mesh reader: 2 streams open. 1 stalled."
         }
       ]
     },
@@ -11896,23 +11755,6 @@
       ]
     },
     {
-      "id": "acquire_area/0625",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "RARE",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "atlas write head stalled at offset 0x4000"
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0626",
       "events": [
         "ACQUIRE_AREA"
@@ -12152,23 +11994,6 @@
       ]
     },
     {
-      "id": "acquire_area/0652",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "RARE",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "atlas write head stalled. buffer idle."
-        }
-      ]
-    },
-    {
       "id": "acquire_area/0658",
       "events": [
         "ACQUIRE_AREA"
@@ -12231,23 +12056,6 @@
         {
           "speaker": "mikhail",
           "text": "it is not finished, root."
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0661",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "RARE",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "tile reader: 4 open."
         }
       ]
     },
@@ -12553,23 +12361,6 @@
         {
           "speaker": "jensen",
           "text": "count the bridges. then count them tomorrow."
-        }
-      ]
-    },
-    {
-      "id": "acquire_area/0678",
-      "events": [
-        "ACQUIRE_AREA"
-      ],
-      "rarity": "VERY_RARE",
-      "characters": [
-        "cron"
-      ],
-      "requires": [],
-      "lines": [
-        {
-          "speaker": "cron",
-          "text": "archive opened. entry 0 has no name. 1 of 1 unnamed."
         }
       ]
     },

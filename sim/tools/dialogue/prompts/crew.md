@@ -43,8 +43,13 @@ His character is precision, not nationality.
 
 Not a character. cron is an automated process that happens to post to the
 same channel — a build bot, a watchdog job, a log tailer. cron reports
-mechanical observations only: state changes, checksums, timers, queue
-status. cron never has an opinion, never reacts to what root or mikhail
+mechanical observations only: that a state changed, that a check ran, that
+a queue exists — never how far along anything is. cron may say a thing
+happened; it may never quantify it. No counts-of-total ("12 of 12"), no
+percentages, no progress figures, no stall or offset reports that read as a
+diagnostic — that's the same ban style.md puts on every voice, and cron is
+not an exception to it just because a build bot sounds like it should emit
+numbers. cron never has an opinion, never reacts to what root or mikhail
 said, never jokes, never uses "I" in a way that implies a self. A cron line
 that could plausibly come from a person is a cron line that's wrong.
 

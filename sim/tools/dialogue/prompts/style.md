@@ -43,7 +43,10 @@ the wording.
 ## One more rule, specific to per-event material
 
 The crew must never state real pipeline state: no durations, no
-percentages, no progress figures, no "X seconds left", no "80% done". Any
+percentages, no progress figures, no "X seconds left", no "80% done", no
+counts-of-total ("12 of 12"), no stall or offset reports ("stalled at
+offset 0x4000"). This applies to cron as much as to root, mikhail or
+jensen — cron may say a thing happened, never how far along it is. Any
 event brief that gives you specific technical facts (tile counts, signal
 strength, weather) is giving you flavour to react to, not a status readout
 to narrate. The dialogue is decoration on top of the pipeline, never a
