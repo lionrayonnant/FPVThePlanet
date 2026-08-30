@@ -286,10 +286,15 @@ function runOnce(family, trial, brakeT, runup) {
 	const startZ = b.min[2] + runway;
 	const { profile, fc, rates, maxRate } = setup(family, startZ);
 	// La face visée doit bien être la plus proche au départ, sinon la mesure
-	// parle d'une autre face que celle qu'on croit.
+	// parle d'une autre face que celle qu'on croit. C'est ce qui arrive sur une
+	// carte trop petite : le banc a besoin de `runup` mètres pour amener la
+	// famille à sa vitesse de pic PLUS le couloir d'essai, et sur bastille
+	// (demi-côté 164 m) ça ne rentre pas. Il refuse plutôt que de mesurer une
+	// approche qui n'a pas eu la place d'exister — c'est aussi la raison pour
+	// laquelle geofence.js BORNE son couloir au lieu de le mesurer par scène.
 	const m0 = horizontalMargin(phys.position, b);
 	if (Math.abs(m0 - runway) > 1e-3) {
-		throw new Error(`couloir d'élan trop long pour cette scène : au départ la face la plus proche est à ${m0.toFixed(1)} m, pas ${runway.toFixed(1)} m`);
+		throw new Error(`carte trop petite pour ce banc : ${family} a besoin de ${runup.toFixed(1)} m d'élan + ${trial.toFixed(1)} m de couloir = ${runway.toFixed(1)} m devant la face −Z, mais au point de départ la face la plus proche n'est qu'à ${m0.toFixed(1)} m. Aucune mesure possible ici.`);
 	}
 	let deepest = -Infinity, maxImpact = 0, entryV = 0;
 	let entered = false, levelled = false, stopped = false;
@@ -393,17 +398,22 @@ for (const family of FAMILIES) {
 	console.log(`               [${r.trace.join('  ')}]`);
 }
 
-// Un banc qui a heurté quelque chose ne livre pas de chiffre.
+// Un banc qui a heurté quelque chose ne livre pas de chiffre. Les lignes par
+// famille ci-dessus sont déjà sorties (elles sont imprimées au fil de l'eau,
+// une mesure prend quelques secondes) : elles sont donc FAUSSES, et c'est le
+// livrable — les deux valeurs à figer — qui ne sort pas.
 if (worstImpact > 0) {
 	console.error(`\nÉCHEC : impact non nul (${worstImpact.toFixed(1)} N) — le drone a percuté la scène`);
-	console.error(`pendant la mesure. Aucun chiffre n'est imprimé : ils seraient faux.`);
+	console.error(`pendant la mesure. Les lignes par famille ci-dessus sont fausses ; aucune`);
+	console.error(`valeur figeable n'est imprimée.`);
 	process.exit(1);
 }
 // MARGIN_M doit couvrir la dispersion qu'elle prétend couvrir.
 if (Math.ceil(worstSpread) > MARGIN_M) {
 	console.error(`\nÉCHEC : dispersion mesurée ${worstSpread.toFixed(2)} m > MARGIN_M ${MARGIN_M} m.`);
 	console.error(`La marge ne couvre plus l'incertitude de pilotage qu'elle est censée couvrir :`);
-	console.error(`remonter MARGIN_M à ${Math.ceil(worstSpread)} et relancer.`);
+	console.error(`remonter MARGIN_M à ${Math.ceil(worstSpread)} et relancer. Les R_HOLD* par famille`);
+	console.error(`ci-dessus valent pour l'ancienne marge ; aucune valeur figeable n'est imprimée.`);
 	process.exit(1);
 }
 
