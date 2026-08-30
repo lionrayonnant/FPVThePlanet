@@ -31,11 +31,19 @@ const LIMIT = { threshold: -3, ratio: 20, attack: 0.003, release: 0.1 };
 // sons d'UI sont rares et doivent porter sans écraser les moteurs.
 const UI_TRIM = 0.5;
 
-// Trim de la chaîne musicale. Les morceaux entrent tous à -14 LUFS
-// (tools/music-loop.mjs), donc ce trim vaut pour toute la bibliothèque — c'est
-// le point de calibration unique de la musique. Comme UI_TRIM, il reste un
-// point de départ raisonné tant que personne n'a écouté (issue #11).
-const MUSIC_TRIM = 0.7;
+// Pas de trim musical, contrairement à UI_TRIM. C'est délibéré, et c'est une
+// correction : il y en avait un à 0.7, multiplié par un slider dont le défaut
+// était lui aussi à 0.7 — la musique sortait donc à 0.49, atténuée deux fois
+// pour la même raison, et aucun des deux nombres ne voulait dire « la balance ».
+//
+// Un seul bouton désormais, dont le DÉFAUT est la balance mesurée
+// (settings.js loadMusicVolume). Les morceaux entrent tous à -14 LUFS
+// (tools/music-loop.mjs), donc ce réglage unique vaut pour toute la
+// bibliothèque — c'est ce qui rend la calibration faisable une seule fois.
+//
+// Retirer le trim remonte la musique de +3,1 dB à réglage stocké identique,
+// ce qui est exactement ce que demandait la première écoute en vol : « il faut
+// rehausser un peu la musique par rapport au son du drone » (issue #122).
 
 const TAU = 0.08; // lissage du volume, comme AUDIO.tauMaster
 
@@ -88,7 +96,7 @@ export function ensureContext() {
 	ui = ctx.createGain();
 	ui.gain.value = UI_TRIM;
 	music = ctx.createGain();
-	music.gain.value = MUSIC_TRIM;
+	music.gain.value = 1;
 
 	engine.connect(limiter);
 	ui.connect(limiter);
@@ -119,9 +127,9 @@ export function musicIn() { return music; }
 // pouvoir baisser la musique SANS baisser la machine.
 export function setMusicVolume(v) {
 	if (!music || !ctx) return;
-	const target = (v < 0 ? 0 : v > 1 ? 1 : v) * MUSIC_TRIM;
+	const target = v < 0 ? 0 : v > 1 ? 1 : v;
 	music.gain.setTargetAtTime(target, ctx.currentTime, TAU);
-	music.gain.value = target;
+	music.gain.value = target;   // le faux contexte n'interpole pas ; le vrai ignore
 }
 
 export function setVolume(v) {

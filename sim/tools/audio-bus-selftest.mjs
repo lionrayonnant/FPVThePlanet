@@ -93,4 +93,50 @@ t('EngineAudio se branche sur le bus et atteint la destination', () => {
 	assert.equal(a.master.gain.value, 1);
 });
 
+t('la musique passe par le limiteur mais pas par le lowpass `air`', () => {
+	const ctx = fresh();
+	const comp = ctx._nodes.find((x) => x.type === 'compressor');
+	const mus = bus.musicIn();
+	assert.ok(mus, 'pas d\'entrée musique');
+	assert.ok(reaches(ctx, mus.id, comp.id), 'la musique évite le limiteur');
+	assert.ok(reaches(ctx, mus.id, ctx.destination.id), 'la musique est muette');
+	// `air` est l'excuse « on entend le drone à travers des lunettes » ; la
+	// musique n'est pas dans le monde et ne doit pas le traverser.
+	const air = ctx._nodes.find((x) => x.type === 'biquad' && x.frequency && x.frequency.value < 8000);
+	if (air) assert.ok(!reaches(ctx, mus.id, air.id), 'la musique traverse le lowpass air');
+});
+
+t('setMusicVolume : le réglage est appliqué TEL QUEL, sans trim caché', () => {
+	// Régression : il y a eu un MUSIC_TRIM à 0.7 multiplié par un slider dont le
+	// défaut valait 0.7 aussi — la musique sortait à 0.49, atténuée deux fois
+	// pour la même raison. La balance vit dans UN seul nombre, le défaut du
+	// slider (settings.js loadMusicVolume) ; le bus ne doit rien ajouter.
+	const ctx = fresh();
+	for (const v of [0, 0.25, 0.7, 1]) {
+		bus.setMusicVolume(v);
+		assert.ok(Math.abs(bus.musicIn().gain.value - v) < 1e-9,
+			`setMusicVolume(${v}) rend ${bus.musicIn().gain.value} — un trim s'est glissé dans la chaîne`);
+	}
+});
+
+t('setMusicVolume : borné à 0..1', () => {
+	fresh();
+	bus.setMusicVolume(5);
+	assert.equal(bus.musicIn().gain.value, 1);
+	bus.setMusicVolume(-2);
+	assert.equal(bus.musicIn().gain.value, 0);
+});
+
+t('la musique n\'est pas coupée par le mute moteur', () => {
+	// L'arc musical COMMENCE sur l'écran de hack, où audio.setMuted(frozen) est
+	// vrai. Une musique coupée là serait muette pendant tout son établissement.
+	const ctx = fresh();
+	const a = new EngineAudio();
+	a.start();
+	bus.setMusicVolume(0.7);
+	a.setMuted(true);
+	assert.equal(a.master.gain.value, 0);
+	assert.ok(Math.abs(bus.musicIn().gain.value - 0.7) < 1e-9, 'le mute moteur a emporté la musique');
+});
+
 console.log(`\n${n} tests OK`);
