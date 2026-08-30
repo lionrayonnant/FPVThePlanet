@@ -36,6 +36,23 @@
 			"lufs": -14
 		},
 		{
+			"id": "cinewhoop-a28237ff",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-a28237ff.opus",
+			"durS": 84.1,
+			"bpm": 118,
+			"axes": {
+				"aggression": "smooth and rounded",
+				"darkness": "darker and colder",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 118 BPM, smooth and rounded, darker and colder, gritty digital samplers, early tracker character, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::1",
+			"modelSeed": 2054236900,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
 			"id": "cinewhoop-be2de002",
 			"pool": "cinewhoop",
 			"file": "music/cinewhoop/cinewhoop-be2de002.opus",
@@ -51,6 +68,57 @@
 			"modelSeed": 1107732801,
 			"model": "stable-audio-3-medium",
 			"lufs": -14
+		},
+		{
+			"id": "cinewhoop-d4d76375",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-d4d76375.opus",
+			"durS": 86.123,
+			"bpm": 116,
+			"axes": {
+				"aggression": null,
+				"density": "dense layered arrangement",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 116 BPM, dense layered arrangement, vintage drum machines and analog hardware, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::2",
+			"modelSeed": 554080419,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.4
+		},
+		{
+			"id": "freestyle5-0a4fcc30",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-0a4fcc30.opus",
+			"durS": 87,
+			"bpm": 128,
+			"axes": {
+				"aggression": null,
+				"darkness": "darker and colder",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s underground electro and chopped breakbeat, funky and swaggering, heavy syncopated snare, thick rubbery bassline with attitude, broken drum edits, gritty electro stabs, groove that pushes and pulls against the grid, PC demo scene and tracker music attitude, 128 BPM, darker and colder, gritty digital samplers, early tracker character, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::0",
+			"modelSeed": 1856093651,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
+			"id": "freestyle5-41aaba4a",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-41aaba4a.opus",
+			"durS": 86.138,
+			"bpm": 126,
+			"axes": {
+				"atmosphere": "hypnotic and repetitive",
+				"density": "dense layered arrangement",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s underground electro and chopped breakbeat, funky and swaggering, heavy syncopated snare, thick rubbery bassline with attitude, broken drum edits, gritty electro stabs, groove that pushes and pulls against the grid, PC demo scene and tracker music attitude, 126 BPM, hypnotic and repetitive, dense layered arrangement, gritty digital samplers, early tracker character, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::1",
+			"modelSeed": 2054236900,
+			"model": "stable-audio-3-medium",
+			"lufs": -14.1
 		},
 		{
 			"id": "freestyle5-8ca25a25",
@@ -121,6 +189,23 @@
 			"lufs": -13.8
 		},
 		{
+			"id": "heavy5-662f4ec9",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-662f4ec9.opus",
+			"durS": 85.737,
+			"bpm": 119,
+			"axes": {
+				"atmosphere": null,
+				"energy": "relentless and driving",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s industrial techno at half-time feel, colossal and slow, enormous slow kick drums with long decay, huge space between hits, grinding low-end drone underneath, corroded metallic impacts, the sound of heavy machinery that takes time to stop, dark, patient and crushing, underground European electronic scene, 119 BPM, relentless and driving, gritty digital samplers, early tracker character, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::0",
+			"modelSeed": 1856093651,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.6
+		},
+		{
 			"id": "heavy5-746cba74",
 			"pool": "heavy5",
 			"file": "music/heavy5/heavy5-746cba74.opus",
@@ -155,6 +240,23 @@
 			"lufs": -13.9
 		},
 		{
+			"id": "heavy5-fe9b451f",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-fe9b451f.opus",
+			"durS": 87,
+			"bpm": 117,
+			"axes": {
+				"density": null,
+				"energy": "relentless and driving",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "early-2000s industrial techno at half-time feel, colossal and slow, enormous slow kick drums with long decay, huge space between hits, grinding low-end drone underneath, corroded metallic impacts, the sound of heavy machinery that takes time to stop, dark, patient and crushing, underground European electronic scene, 117 BPM, relentless and driving, raw hardware synthesizers, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::1",
+			"modelSeed": 2054236900,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
 			"id": "longrange-05bda551",
 			"pool": "longrange",
 			"file": "music/longrange/longrange-05bda551.opus",
@@ -185,6 +287,23 @@
 			"prompt": "late-1990s and early-2000s dub techno, deep sub bass, hypnotic four-to-the-floor pulse, long tape delays, sparse percussion, slowly evolving filters, distant synthetic textures, spacious stereo field, minimal and introspective, underground electronic music, 105 BPM, darker and colder, raw hardware synthesizers, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
 			"seed": "cal1::2",
 			"modelSeed": 97657944,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "longrange-9124834a",
+			"pool": "longrange",
+			"file": "music/longrange/longrange-9124834a.opus",
+			"durS": 86.21,
+			"bpm": 109,
+			"axes": {
+				"density": "dense layered arrangement",
+				"energy": "restrained and patient",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "late-1990s Berlin dub techno, cavernous and lonely, one aching chord stab drenched in long tape echo, returning again and again, deep physical sub bass you feel more than hear, steady hypnotic four-to-the-floor pulse, crackling vinyl haze, vast empty stereo space, patient and unresolved, 109 BPM, dense layered arrangement, restrained and patient, vintage drum machines and analog hardware, instrumental, no vocals, no modern EDM drop, no cinematic trailer music",
+			"seed": "v2::1",
+			"modelSeed": 2054236900,
 			"model": "stable-audio-3-medium",
 			"lufs": -13.9
 		},
