@@ -6,6 +6,7 @@ import {
 	Geofence, horizontalMargin, verticalMargin,
 	NOMINAL, CAUTION, HOLD, LOST,
 	R_CAUTION, R_HOLD, FLOOR_CAUTION, FLOOR_HOLD, FLOOR_EDGE, FLOOR_LOST,
+	A_MAX, FENCE_SPAN, FENCE_WARN_DB,
 } from '../src/geofence.js';
 
 let n = 0;
@@ -102,6 +103,138 @@ t('over : vrai seulement une fois la session perdue', () => {
 	assert.equal(f.out.over, false, 'dehors mais pas encore au bout du couloir');
 	f.update(at(1000 + R_HOLD + 1, 100, 0));
 	assert.equal(f.out.over, true);
+});
+
+// --- Couverture ajoutée en revue : out.push, out.lossDb, out.marginM, out.t
+// (constats du relecteur sur task-1-report.md). Toujours par rapport aux
+// constantes exportées, jamais à leurs valeurs littérales : R_HOLD, R_CAUTION
+// sont provisoires (remplacées tâche 4), et FLOOR_*/A_MAX/FENCE_* le sont
+// tout autant pour ce fichier.
+
+t('la poussée horizontale : nulle en entrée de HOLD, pleine au bord et au-delà', () => {
+	const f = new Geofence(BBOX);
+	const pushXAtMargin = (m) => { f.update(at(1000 - m, 100, 0)); return f.out.push.x; };
+	assert.equal(pushXAtMargin(R_HOLD), 0);
+	assert.equal(pushXAtMargin(0), -A_MAX);
+	assert.equal(pushXAtMargin(-R_HOLD), -A_MAX);   // au-delà du bord : toujours pleine
+});
+
+t('la poussée horizontale croît sans à-coup entre l entrée de HOLD et le bord', () => {
+	const f = new Geofence(BBOX);
+	// Magnitude positive : sur la face +X la poussée pointe vers -X (voir le
+	// test de direction ci-dessous), donc on prend la valeur absolue ici pour
+	// raisonner sur une grandeur qui croît (un simple `-x` renverrait -0 au
+	// lieu de 0 à l'entrée de HOLD, et -0 !== 0 pour assert.equal strict).
+	const magAtMargin = (m) => { f.update(at(1000 - m, 100, 0)); return Math.abs(f.out.push.x); };
+	const steps = 20;
+	const dm = R_HOLD / steps;
+	const maxSlope = A_MAX / R_HOLD;   // pente exacte de la rampe linéaire hold→edge
+	let prev = magAtMargin(R_HOLD);
+	assert.equal(prev, 0);
+	for (let i = 1; i <= steps; i++) {
+		const cur = magAtMargin(R_HOLD - i * dm);
+		assert.ok(cur >= prev - 1e-9, `pas monotone autour de i=${i}`);
+		assert.ok(cur - prev <= maxSlope * dm + 1e-9, `à-coup autour de i=${i}`);
+		prev = cur;
+	}
+	assert.ok(Math.abs(prev - A_MAX) < 1e-9);   // le balayage finit pile au bord
+});
+
+t('la poussée horizontale rentre toujours, sur les quatre faces', () => {
+	const f = new Geofence(BBOX);
+	const m = R_HOLD / 2;   // au milieu du couloir HOLD : ni nulle ni pleine
+	f.update(at(1000 - m, 100, 0));                     // face +X
+	assert.ok(f.out.push.x < 0, '+X : la poussée doit rentrer, donc pointer vers -X');
+	assert.equal(f.out.push.z, 0);
+	f.update(at(-1000 + m, 100, 0));                    // face -X
+	assert.ok(f.out.push.x > 0, '-X : la poussée doit rentrer, donc pointer vers +X');
+	assert.equal(f.out.push.z, 0);
+	f.update(at(0, 100, 1000 - m));                     // face +Z
+	assert.ok(f.out.push.z < 0, '+Z : la poussée doit rentrer, donc pointer vers -Z');
+	assert.equal(f.out.push.x, 0);
+	f.update(at(0, 100, -1000 + m));                    // face -Z
+	assert.ok(f.out.push.z > 0, '-Z : la poussée doit rentrer, donc pointer vers +Z');
+	assert.equal(f.out.push.x, 0);
+});
+
+t('la poussée verticale : nulle au-dessus du seuil, positive et jamais négative en dessous', () => {
+	const f = new Geofence(BBOX);
+	const FLOOR = BBOX.min[1];
+	f.update(at(0, FLOOR, 0));
+	assert.equal(f.out.push.y, 0, 'posé sur le point le plus bas : pas encore de rappel');
+	f.update(at(0, FLOOR - FLOOR_HOLD / 2, 0));
+	assert.equal(f.out.push.y, 0, 'encore au-dessus du seuil HOLD : pas de rappel');
+	f.update(at(0, FLOOR - (FLOOR_HOLD + FLOOR_EDGE) / 2, 0));
+	assert.ok(f.out.push.y > 0 && f.out.push.y < A_MAX, 'entre HOLD et EDGE : rappel partiel');
+	f.update(at(0, FLOOR - FLOOR_LOST * 10, 0));
+	assert.equal(f.out.push.y, A_MAX, 'bien au-delà : rappel plein, jamais plus');
+	assert.ok(f.out.push.y >= 0, 'jamais de rappel vers le bas');
+});
+
+t('la perte horizontale : nulle jusqu à R_CAUTION, FENCE_WARN_DB au bord, FENCE_SPAN en fin de couloir', () => {
+	const f = new Geofence(BBOX);
+	const lossAtMargin = (m) => { f.update(at(1000 - m, 100, 0)); return f.out.lossDb; };
+	assert.equal(lossAtMargin(R_CAUTION), 0);
+	assert.equal(lossAtMargin(R_CAUTION + 20), 0);
+	assert.equal(lossAtMargin(0), FENCE_WARN_DB);
+	assert.equal(lossAtMargin(-R_HOLD), FENCE_SPAN);
+});
+
+t('la perte horizontale croît de façon monotone tout au long du couloir', () => {
+	const f = new Geofence(BBOX);
+	const lossAtMargin = (m) => { f.update(at(1000 - m, 100, 0)); return f.out.lossDb; };
+	const steps = 40;
+	let prev = -Infinity;
+	for (let i = 0; i <= steps; i++) {
+		const m = R_CAUTION - ((R_CAUTION + R_HOLD) * i) / steps;   // de R_CAUTION à -R_HOLD
+		const loss = lossAtMargin(m);
+		assert.ok(loss >= prev - 1e-9, `perte non monotone à marge=${m}`);
+		prev = loss;
+	}
+	assert.ok(Math.abs(prev - FENCE_SPAN) < 1e-9);
+});
+
+t('la perte verticale a ses propres seuils : nulle au-dessus, FENCE_WARN_DB à FLOOR_EDGE, FENCE_SPAN à FLOOR_LOST', () => {
+	const f = new Geofence(BBOX);
+	const FLOOR = BBOX.min[1];
+	const lossAtY = (y) => { f.update(at(0, y, 0)); return f.out.lossDb; };
+	assert.equal(lossAtY(FLOOR - FLOOR_CAUTION), 0);
+	assert.equal(lossAtY(FLOOR + 50), 0);
+	assert.equal(lossAtY(FLOOR - FLOOR_EDGE), FENCE_WARN_DB);
+	assert.equal(lossAtY(FLOOR - FLOOR_LOST), FENCE_SPAN);
+});
+
+t('la perte verticale croît de façon monotone tout au long de son couloir', () => {
+	const f = new Geofence(BBOX);
+	const FLOOR = BBOX.min[1];
+	const lossAtY = (y) => { f.update(at(0, y, 0)); return f.out.lossDb; };
+	const steps = 40;
+	let prev = -Infinity;
+	for (let i = 0; i <= steps; i++) {
+		// de FLOOR-FLOOR_CAUTION (entrée du couloir) à FLOOR-FLOOR_LOST (fin)
+		const y = FLOOR - FLOOR_CAUTION - ((FLOOR_LOST - FLOOR_CAUTION) * i) / steps;
+		const loss = lossAtY(y);
+		assert.ok(loss >= prev - 1e-9, `perte non monotone à y=${y}`);
+		prev = loss;
+	}
+	assert.ok(Math.abs(prev - FENCE_SPAN) < 1e-9);
+});
+
+t('marginM : la verticale gagne au milieu, décalée du bord de son couloir', () => {
+	const f = new Geofence(BBOX);
+	f.update(MIDDLE);
+	// mH = 1000 (voir le premier test) ; mV = 100 − bbox.min.y = 130, décalée
+	// du bord du couloir vertical (v.edge = −FLOOR_EDGE) : 130 + FLOOR_EDGE.
+	// Très inférieure à mH : c'est elle qui gagne au Math.min.
+	assert.equal(f.out.marginM, 100 - BBOX.min[1] + FLOOR_EDGE);
+});
+
+t('t : 0 à l entrée de caution, 1 en fin de couloir (horizontal)', () => {
+	const f = new Geofence(BBOX);
+	f.update(at(1000 - R_CAUTION, 100, 0));
+	assert.equal(f.out.t, 0);
+	f.update(at(1000 + R_HOLD, 100, 0));   // marge = -R_HOLD = h.lost
+	assert.equal(f.out.t, 1);
 });
 
 console.log(`\n${n} vérifications OK`);
