@@ -666,10 +666,22 @@ async function finishBoot(preloading) {
 				fence: {
 					zone: fence.out.zone,
 					// ATTENTION : ce n'est PAS la distance au bord. C'est
-					// min(marge horizontale, marge verticale) — au centre de la
-					// carte à 60 m d'altitude il vaut 19, pas 500, parce que
-					// c'est le terme vertical qui sort. La ZONE, elle, vient de
-					// max(rang) des deux couloirs, qui restent indépendants.
+					// min(marge horizontale, marge verticale − v.edge), et en
+					// vol normal c'est presque toujours le terme VERTICAL qui
+					// sort.
+					//
+					// Mesuré sur tour-eiffel (bbox.min.y = −30,9), au centre de
+					// la bbox, à y = 60 en coordonnées ABSOLUES : la marge
+					// horizontale vaut 640,6 m et ce champ n'affiche que 98,9.
+					//
+					// Le REPÈRE compte, et c'est ce qui a déjà produit trois
+					// chiffres différents pour la même grandeur : décrire le
+					// même vol comme « 60 m au-dessus du plancher » (y absolu
+					// 29,1) donne 68,0, pas 98,9. Dire lequel des deux, ou ne
+					// pas citer de nombre.
+					//
+					// La ZONE, elle, ne souffre pas de ce mélange : elle vient
+					// de max(rang) des deux couloirs, qui restent indépendants.
 					marginM: +fence.out.marginM.toFixed(1),
 					t: +fence.out.t.toFixed(3),
 					lossDb: +fence.out.lossDb.toFixed(1),

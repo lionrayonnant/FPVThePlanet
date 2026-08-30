@@ -83,13 +83,19 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // Et la carte, dans tout ça : LA BORNE
 // ---------------------------------------------------------------------------
 //
+// TOUS LES COMPTAGES DE CARTES DE CE BLOC portent sur public/scenes.json —
+// 17 entrées — et sur lui seul, parce que c'est le seul inventaire de cartes
+// que git suive. public/scenes/ est gitignoré : son contenu varie d'une
+// machine à l'autre (ici 25 dossiers, dont 8 absents de scenes.json), donc un
+// nombre compté dessus n'est vérifiable par personne d'autre. Vérifiés le
+// 2026-08-31 en instanciant Geofence sur les 17 manifestes.
+//
 // Les deux chiffres ci-dessus sont des SCALAIRES GLOBAUX mesurés sur
-// tour-eiffel, dont le plus petit demi-côté fait 641 m. Sur les 24 scènes de
-// public/scenes.json, NEUF ont un demi-côté sous 340 m — parcdesprinces 139 m,
-// bastille 164, triomphe 201, invalides 202, roosevelt 224, betheny 249,
-// poissoniere 264, seine-iena-alma 301, palais-de-l-elysee 314. Sur bastille,
-// 113 m d'avertissement avaleraient 89 % de la carte : il ne resterait qu'un
-// mouchoir de poche où l'OSD ne crie pas.
+// tour-eiffel, dont le plus petit demi-côté fait 641 m. Sur les 17 scènes de
+// public/scenes.json, CINQ ont un demi-côté sous 340 m — bastille 164 m,
+// triomphe 201, roosevelt 224, betheny 249, seine-iena-alma 301 ; la suivante
+// est gare, à 554. Sur bastille, 113 m d'avertissement avaleraient 89 % de la
+// carte : il ne resterait qu'un mouchoir de poche où l'OSD ne crie pas.
 //
 // Geofence BORNE donc son couloir horizontal à un tiers du plus petit
 // demi-côté de la bbox de la scène, les deux seuils mis à l'échelle par le
@@ -100,7 +106,7 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 //   scale   = min(1, (halfMin / 3) / R_CAUTION)
 //
 // Le cœur volable — la zone où rien ne clignote — ne descend ainsi JAMAIS sous
-// 67 % du plus petit côté, et les quinze grandes cartes gardent exactement la
+// 67 % du plus petit côté, et les douze grandes cartes gardent exactement la
 // valeur mesurée (scale === 1, à l'identique bit pour bit).
 //
 // C'est une BORNE, pas une mesure. Elle n'invalide pas les chiffres du dessus,
@@ -141,10 +147,16 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 //   pire      −12,1    −6,7    −1,7   +0,4   +3,7   +6,7   +6,9  +12,1  +15,7
 //                                      ^^^^ à partir d'ici, + = le bord est franchi
 //
-// Sur SIX scènes des vingt-quatre — betheny (1 famille sur 6), roosevelt (2),
-// invalides (3), triomphe (3), bastille (4), parcdesprinces (4) — la propriété
-// que R_HOLD portait, et qui est toute sa raison d'être, n'est plus tenue.
-// C'est irréparable : arrêter 27,8 m/s en 27 m demanderait ~14,3 m/s² quand
+// (Ce tableau est une MESURE, pas un comptage : il garde ses neuf colonnes,
+// dont trois — poisso, inval, parcp — sont des cartes locales absentes de
+// scenes.json. Elles éclairent la courbe ; elles ne comptent pas dans les
+// chiffres ci-dessous.)
+//
+// Sur QUATRE scènes des dix-sept — betheny (1 famille sur 6), roosevelt (2),
+// triomphe (3), bastille (4) — la propriété que R_HOLD portait, et qui est
+// toute sa raison d'être, n'est plus tenue.
+// C'est irréparable : arrêter 27,8 m/s en 27 m (parcdesprinces, la pire
+// colonne du tableau, carte locale) demanderait ~14,3 m/s² quand
 // A_MAX en donne 2,94 en moyenne sur la rampe, et relever A_MAX détruirait le
 // « ce n'est pas un mur » qui EST le design. La carte est trop petite, point.
 //
