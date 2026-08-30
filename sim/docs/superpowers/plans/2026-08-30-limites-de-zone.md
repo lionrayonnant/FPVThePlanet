@@ -852,18 +852,34 @@ const STEP = 1 / 250;
 const BLINK_PERIOD_S = 0.5;   // drone-osd.js:51
 const BLINKS_TO_READ = 3;
 
+const LEVEL = { x: 0, y: 0, z: 0, w: 1 };
+const ZERO = { x: 0, y: 0, z: 0 };
+
+// Place le corps, à plat, à la vitesse voulue. Mêmes appels que
+// tools/landing-selftest.mjs:place() — il n'existe pas de `teleport`.
+function place(pos, vel) {
+	phys.body.setTranslation(pos, true);
+	phys.body.setRotation(LEVEL, true);
+	phys.body.setLinvel(vel, true);
+	phys.body.setAngvel(ZERO, true);
+	phys.setGroundHold(false);
+}
+
 // La vitesse en palier maximale d'un profil : on pousse tangage plein et on
 // laisse la traînée trouver son équilibre, en l'air, loin de tout.
 function topSpeed(family) {
 	phys.setProfile(PROFILES[family]);
 	const fc = new FlightController();
-	const start = { x: 0, y: manifest.bbox.max[1] + 200, z: 0 };
-	phys.teleport(start, { x: 0, y: 0, z: 0 });
 	fc.arm();
+	phys.setWind(ZERO, 0);
+	place({ x: 0, y: manifest.bbox.max[1] + 200, z: 0 }, ZERO);
 	let v = 0;
 	for (let i = 0; i < 25 * 250; i++) {
 		const sticks = { throttle: 0.75, roll: 0, pitch: 1, yaw: 0 };
-		phys.step(STEP, fc.update(sticks, phys.state, STEP));
+		// fc.update(sticks, phys, dt) rend { motors }, et step prend
+		// (motors, dt) dans CET ordre.
+		const { motors } = fc.update(sticks, phys, STEP);
+		phys.step(motors, STEP);
 		const s = phys.velocity;
 		v = Math.max(v, Math.hypot(s.x, s.z));
 	}
@@ -875,11 +891,12 @@ function topSpeed(family) {
 function penetration(family, speed, fence) {
 	phys.setProfile(PROFILES[family]);
 	const fc = new FlightController();
+	fc.arm();
+	phys.setWind(ZERO, 0);
 	const b = manifest.bbox;
 	// Départ deux fois R_HOLD avant la face, à mi-hauteur, plein est.
-	const start = { x: b.max[0] - 2 * R_HOLD, y: (b.min[1] + b.max[1]) / 2, z: 0 };
-	phys.teleport(start, { x: speed, y: 0, z: 0 });
-	fc.arm();
+	place({ x: b.max[0] - 2 * R_HOLD, y: (b.min[1] + b.max[1]) / 2, z: 0 },
+	      { x: speed, y: 0, z: 0 });
 	fence.reset();
 	let deepest = -Infinity;
 	for (let i = 0; i < 30 * 250; i++) {
@@ -889,11 +906,13 @@ function penetration(family, speed, fence) {
 		// Manches au neutre dès HOLD ; avant, on maintient la vitesse.
 		const held = fence.out.zone === HOLD || fence.out.zone === LOST;
 		const sticks = { throttle: 0.5, roll: 0, pitch: held ? 0 : 0.3, yaw: 0 };
-		const motors = fc.update(sticks, phys.state, STEP);
-		phys.step(STEP, motors);
-		// Le rappel, poussé exactement comme main.js le fera.
+		const { motors } = fc.update(sticks, phys, STEP);
+		// Le rappel entre par le TROISIÈME paramètre de step(), en newtons et
+		// dans le repère monde — exactement comme main.js le fera. Le passer
+		// par un addForce APRÈS step() ne marcherait pas : step() commence par
+		// resetForces().
 		const a = fence.out.push, m = phys.profile.mass;
-		phys.body.addForce({ x: a.x * m, y: a.y * m, z: a.z * m }, true);
+		phys.step(motors, STEP, { x: a.x * m, y: a.y * m, z: a.z * m });
 		if (phys.velocity.x <= 0) break;   // arrêté, ou repoussé
 	}
 	return deepest;
@@ -920,12 +939,10 @@ console.log(`  R_CAUTION = ${rCaution}   (= R_HOLD + ${BLINKS_TO_READ} × ${BLIN
 console.log(`\n  → reporter ces deux valeurs dans src/geofence.js, avec la date.`);
 ```
 
-**Note pour l'implémenteur :** `phys.teleport(...)` et `phys.body` peuvent ne
-pas exister sous ces noms. **Avant d'écrire ce fichier, lire `src/physics.js`
-en entier** et utiliser les vraies méthodes ; si aucune téléportation n'existe,
-la façon dont `tools/landing-selftest.mjs` place le drone est la référence à
-copier. Ne pas ajouter d'API publique à `physics.js` pour ce harnais si une
-existante fait l'affaire.
+**Dépendance :** ce harnais utilise le troisième paramètre de
+`physics.step(motors, dt, externalForce)`, qui est ajouté par la tâche 6
+step 1. **Faire la tâche 6 step 1 avant celle-ci** (c'est une dizaine de
+lignes dans `physics.js`, indépendante du reste de la tâche 6).
 
 - [ ] **Step 2 : lancer la mesure**
 
@@ -1157,7 +1174,50 @@ git commit -m "feat(ground): un sol lointain sous le maillage (#139)"
 - Consumes: tout ce qui précède.
 - Produces: le comportement observable en vol.
 
-- [ ] **Step 1 : `entry-state.js` — supprimer le `EDGE_MARGIN` local**
+- [ ] **Step 1 : `physics.js` — une fenêtre pour les forces externes**
+
+`physics.step()` commence par `resetForces(false)` (ligne ~243), puis ajoute
+la poussée du quad, puis appelle `world.step()`. Une force ajoutée **après**
+`physics.step()` serait donc effacée au début du pas suivant **sans jamais
+être intégrée** : la clôture pousserait zéro newton, en silence, et tous les
+tests hors-navigateur passeraient au vert. La force doit entrer entre le reset
+et `world.step()`, et `physics.js` est seul propriétaire de cette fenêtre.
+
+Changer la signature (paramètre optionnel — aucun appelant existant n'est
+cassé) :
+
+```js
+	// `external` : une force en newtons, repère MONDE, ajoutée au même pas que
+	// la poussée. Un paramètre et non un setter : une force externe ne doit pas
+	// pouvoir traîner d'un pas sur l'autre, et resetForces() en tête de cette
+	// méthode rend tout addForce appelé du dehors silencieusement inopérant.
+	// Seule cliente aujourd'hui : la clôture de zone (#139).
+	step(motors, dt = this.world.timestep, external = null) {
+```
+
+et, juste après le `this.body.addTorque(tw, true);` de la poussée :
+
+```js
+		if (external) this.body.addForce(external, true);
+```
+
+Vérifier qu'aucun appelant existant ne passe déjà un troisième argument :
+
+```bash
+cd sim && grep -rn "\.step(" src/ tools/ | grep -v "propulsion.step\|world.step\|\.step(setpoint\|\.step(gyro\|\.step(-\|pid\." | head
+```
+
+Puis :
+
+```bash
+cd sim && node tools/landing-selftest.mjs 2>&1 | tail -3
+git add sim/src/physics.js && git commit -m "feat(physics): step() accepte une force externe au même pas (#139)"
+```
+
+Attendu : `landing-selftest.mjs` intact — le paramètre est optionnel et par
+défaut nul, donc le comportement est bit-identique.
+
+- [ ] **Step 2 : `entry-state.js` — supprimer le `EDGE_MARGIN` local**
 
 `EDGE_MARGIN` vaut 10 m, et `R_CAUTION` vaudra plusieurs dizaines. En l'état,
 un point d'entrée pourrait naître déjà en `CAUTION`, voire en `HOLD` : le vol
@@ -1175,7 +1235,7 @@ import { R_CAUTION as EDGE_MARGIN } from './geofence.js';
 
 (l'import monte en haut du fichier ; le `const EDGE_MARGIN = 10;` disparaît.)
 
-- [ ] **Step 2 : la vérification par scène dans `tools/selftest.mjs`**
+- [ ] **Step 3 : la vérification par scène dans `tools/selftest.mjs`**
 
 Ajouter, avec les autres vérifications qui prennent la scène :
 
@@ -1207,7 +1267,7 @@ import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
 retourner `.position`. **Lire `src/entry-state.js` et l'usage existant dans
 `tools/selftest.mjs` avant d'écrire ce bloc**, et l'adapter aux vrais noms.
 
-- [ ] **Step 3 : lancer les tests**
+- [ ] **Step 4 : lancer les tests**
 
 ```bash
 cd sim && npm run selftest 2>&1 | tail -8 && npm run selftest -- public/scenes/ile-de-la-cite-et-ile-saint-louis 2>&1 | tail -8
@@ -1215,14 +1275,14 @@ cd sim && npm run selftest 2>&1 | tail -8 && npm run selftest -- public/scenes/i
 
 Attendu : les deux scènes au vert, y compris la nouvelle vérification.
 
-- [ ] **Step 4 : commit intermédiaire**
+- [ ] **Step 5 : commit intermédiaire**
 
 ```bash
 git add sim/src/entry-state.js sim/tools/selftest.mjs
 git commit -m "feat(entry-state): la marge au bord est celle de la clôture (#139)"
 ```
 
-- [ ] **Step 5 : le câblage dans `main.js`**
+- [ ] **Step 6 : le câblage dans `main.js`**
 
 Cinq points, tous petits :
 
@@ -1244,20 +1304,21 @@ import { DistantGround } from './ground.js';
 avec `let fence = null, distantGround = null;` déclarés près de `let physics`.
 Importer `setDistantGround` depuis `./loader.js`.
 
-3. **La mise à jour et le rappel**, dans la boucle de simulation, juste après
-le `physics.step(...)` et **avant** que les forces soient remises à zéro —
-c'est-à-dire au même endroit que les autres forces externes. Chercher où
-`physics.step` est appelé et suivre le patron :
+3. **La mise à jour et le rappel**, dans la boucle de simulation, **avant**
+l'appel à `physics.step(...)`, et la force passe par le troisième paramètre
+ajouté au step 1 :
 ```js
 	fence.update(physics.position);
+	let fenceForce = null;
 	if (fence.out.zone !== FENCE_OK) {
 		const a = fence.out.push, m = physics.profile.mass;
-		physics.body.addForce({ x: a.x * m, y: a.y * m, z: a.z * m }, true);
+		fenceForce = { x: a.x * m, y: a.y * m, z: a.z * m };
 	}
+	physics.step(motors, STEP, fenceForce);
 ```
-**Attention :** `CLAUDE.md` impose `resetForces()`/`resetTorques()` à chaque
-pas. Vérifier que ce `addForce` tombe dans la même fenêtre que celui de
-`quad.js` (`physics.js:291`) — sinon il sera effacé, ou il persistera.
+en adaptant `motors` / `STEP` aux noms réellement utilisés sur place.
+**Ne pas** appeler `physics.body.addForce` depuis `main.js` : `step()`
+commence par `resetForces()`, la force serait effacée sans jamais agir.
 
 4. **La perte de lien**, à côté de `link.update(...)` (ligne ~1196) :
 ```js
@@ -1279,7 +1340,7 @@ et dans le `flightEnd.update({...})` (ligne ~947) :
 		outOfZone: fence.out.over,
 ```
 
-- [ ] **Step 6 : vérifier en vol**
+- [ ] **Step 7 : vérifier en vol**
 
 ```bash
 cd sim && npm run dev
@@ -1301,7 +1362,7 @@ plan se lit comme une nappe morte plutôt que comme une plaine sous la brume,
 ouvrir une issue de suivi pour un bruit de valeur à grande échelle sur sa
 couleur. Ne pas le construire d'avance.
 
-- [ ] **Step 7 : documenter**
+- [ ] **Step 8 : documenter**
 
 Ajouter à `sim/README.md`, après la section sur le lien vidéo, une section
 « Limites de zone » : la fiction (la zone scannée), le tableau des quatre
@@ -1309,7 +1370,7 @@ anneaux, d'où sortent `R_HOLD` et `R_CAUTION` (la commande
 `node tools/geofence-measure.mjs`), pourquoi le couloir vertical est sous
 `bbox.min.y`, et pourquoi la clôture a son propre canal dans `link.js`.
 
-- [ ] **Step 8 : commit et pousser**
+- [ ] **Step 9 : commit et pousser**
 
 ```bash
 git add sim/src/main.js sim/README.md
