@@ -261,22 +261,54 @@ instructions de shader. À trancher **après** avoir regardé, pas avant.
 `R_HOLD` et `R_CAUTION` ne sont pas posés à l'œil. CLAUDE.md :
 mesurés, pas choisis à la main.
 
-### `tools/geofence-selftest.mjs`
+### `tools/geofence-measure.mjs`
 
 Sur le patron de `tools/landing-selftest.mjs` : vrai Rapier, vrai
-`FlightController`, vrai `quad.js`, une scène réelle, un seul monde.
+`FlightController`, vrai `quad.js`, une scène réelle, un seul monde. (Le nom
+`geofence-selftest.mjs` est pris par les tests unitaires du modèle : le dépôt
+sépare les deux patrons, un banc de mesure n'est pas une suite de tests.)
 
 **`R_HOLD` = la distance d'arrêt.** Pour chaque famille de
-`drone-profiles.js`, le drone est lancé horizontalement à sa vitesse en palier
-maximale, droit vers le bord ; à l'entrée en `HOLD` les manches reviennent au
-neutre (le pilote a lu l'avertissement et a lâché) et seul le rappel plafonné
-plus la traînée propre du quad le décélèrent. On mesure la pénétration
-maximale. `R_HOLD` = le pire cas sur toutes les familles, arrondi vers le
-haut.
+`drone-profiles.js`, le drone approche plein gaz vers une face ; à l'entrée en
+`HOLD` le pilote obéit, et seuls le rappel plafonné plus la traînée propre du
+quad le décélèrent. On mesure la pénétration maximale, par recherche de point
+fixe. `R_HOLD` = le pire cas sur toutes les familles.
 
-Manches au neutre et non tirées à fond : un pilote qui insiste **doit**
-pouvoir passer, c'est la moitié du design. `R_HOLD` dimensionne le cas où on
-obéit, pas le cas où on désobéit.
+**Correction, 2026-08-30 (trouvée en mesurant).** La première rédaction disait
+« les manches reviennent au neutre (le pilote a lu l'avertissement et a
+lâché) ». C'est faux dans ce jeu. `FlightController` prend `'acro'` par défaut
+et `src/entry-state.js` le force : **en ACRO, des manches centrées ne remettent
+pas à plat, elles tiennent l'assiette.** Le drone reste piqué à 42°, plein axe,
+et continue d'accélérer — pénétrations mesurées de +37 m à +853 m selon la
+famille. La première mesure (29 m) avait été prise en ANGLE, donc elle
+répondait à une question que le jeu ne pose pas.
+
+« Obéir » est donc défini par un programme de manche explicite, écrit dans le
+commentaire figé de `geofence.js` : **gaz ramenés au stationnaire, et tangage
+tiré pour ramener l'appareil à plat, puis centré.** C'est ce qu'un pilote FPV
+fait réellement pour s'arrêter en acro. Trois autres hypothèses tacites ont
+suivi le même sort : la vitesse d'approche est prise plein gaz et non aux trois
+quarts, les gaz de freinage sont balayés de zéro au stationnaire avec le pire
+cas retenu, et la marge est la dispersion mesurée du point d'arrêt sur ce
+balayage, non plus un mètre posé.
+
+Deux hypothèses restent ouvertes et portent leurs tickets : l'assiette
+d'approche est encore plafonnée à 42° (#141), et le pire cas « gaz coupés »
+dimensionne sur un pilote qui tombe et s'écraserait avant de franchir (#142).
+
+Un pilote qui insiste **doit** pouvoir passer, c'est la moitié du design.
+`R_HOLD` dimensionne le cas où on obéit, pas le cas où on désobéit.
+
+**Une borne, en plus de la mesure.** `R_HOLD` et `R_CAUTION` sont mesurés sur
+`tour-eiffel`, dont le demi-côté fait 641 m. Neuf des vingt-quatre scènes ont
+un demi-côté sous 340 m, et sur `bastille` (164 m) le couloir mesuré avalerait
+89 % de la carte — le banc refuse même d'y tourner, faute d'élan. `Geofence`
+borne donc son couloir horizontal à **un tiers du plus petit demi-côté de la
+bbox**, les deux seuils à la même échelle pour que le temps d'avertissement
+survive à la réduction. Le cœur volable n'est ainsi jamais sous 67 % du plus
+petit côté, et les quinze grandes cartes gardent la valeur mesurée intacte.
+C'est une borne, pas une mesure : elle ne dit pas que le chiffre est faux,
+elle dit ce qu'on en garde quand la carte ne peut pas le payer.
 
 **`R_CAUTION` = `R_HOLD` + délai de lecture × vitesse max.** Le délai est de
 la mise en scène et s'assume comme telle, mais il s'ancre sur une constante du
