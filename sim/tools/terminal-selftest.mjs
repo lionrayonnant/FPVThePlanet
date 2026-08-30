@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { formatBytes, terminalModel } from './terminal-model.mjs';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
+import { NOTES } from './buildnotes-model.mjs';
 
 const TGT = resolveTarget(generateTargetScan({ seed: 'terminal-seed', count: 3 }), 0);
 
@@ -27,12 +28,16 @@ t('terminalModel : opérateur neuf, cache vide', () => {
 	assert.deepEqual(m.areas, []);
 	assert.equal(m.areasKnown, true);
 	assert.equal(m.lastSession, null);
-	assert.equal(m.footer, 'LOCAL INSTALLATION · OPERATOR NEO · 0 LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED');
+	assert.equal(m.build, NOTES[0].build);
+	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR NEO · BUILD ${NOTES[0].build} · 0 LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED`);
 });
 
 t('terminalModel : compteurs et dernière session', () => {
 	const operator = {
 		name: 'Vex',
+		// Alimente countersOf (BUILD NOTES, PHASE 21) : compteur terrains distinct
+		// de la liste `scenes` passée au modèle, qui pilote seulement `areas`.
+		terrainCache: [{ slug: 'tour-eiffel' }, { slug: 'sacre-coeur' }],
 		// Le Target Log est dérivé des sessions (PHASE 17, spec D1) : la troisième
 		// session n'a pas de cible, elle ne compte donc pas comme cible loguée.
 		sessions: [
@@ -46,7 +51,8 @@ t('terminalModel : compteurs et dernière session', () => {
 		{ slug: 'sacre-coeur', name: 'Sacré-Cœur', bytes: null },
 	];
 	const m = terminalModel({ operator, scenes });
-	assert.equal(m.footer, 'LOCAL INSTALLATION · OPERATOR VEX · 2 LOCAL AREAS · 3 SESSIONS · 2 TARGETS LOGGED');
+	assert.equal(m.build, NOTES[4].build);
+	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR VEX · BUILD ${NOTES[4].build} · 2 LOCAL AREAS · 3 SESSIONS · 2 TARGETS LOGGED`);
 	assert.deepEqual(m.areas, [
 		{ slug: 'tour-eiffel', name: 'Tour Eiffel', size: '812 MB' },
 		{ slug: 'sacre-coeur', name: 'Sacré-Cœur', size: '—' },
@@ -58,7 +64,8 @@ t('terminalModel : cache terrain injoignable', () => {
 	const m = terminalModel({ operator: { name: 'Neo' }, scenes: null });
 	assert.equal(m.areasKnown, false);
 	assert.deepEqual(m.areas, []);
-	assert.equal(m.footer, 'LOCAL INSTALLATION · OPERATOR NEO · ? LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED');
+	assert.equal(m.build, NOTES[0].build);
+	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR NEO · BUILD ${NOTES[0].build} · ? LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED`);
 });
 
 t('terminalModel : opérateur sans nom', () => {

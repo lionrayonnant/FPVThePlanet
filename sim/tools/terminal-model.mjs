@@ -2,6 +2,7 @@
 // importable par le terminal côté navigateur et par le selftest.
 
 import { targetLogEntries } from './session-log-model.mjs';
+import { countersOf, currentBuild } from './buildnotes-model.mjs';
 
 // Taille lisible d'un répertoire de scène. Décimal (1 Go = 1e9) pour rester
 // cohérent avec bootstrap.js (storageString) et l'affichage système.
@@ -29,9 +30,13 @@ export function terminalModel({ operator, scenes }) {
 		: [];
 
 	const areaCount = known ? String(areas.length) : '?';
+	// Numéro de build affiché au pied (PHASE 21, BUILD NOTES) : dérivé des
+	// mêmes compteurs opérateur que le reste du footer, jamais d'un état séparé.
+	const build = currentBuild(countersOf(operator));
 	const footer = [
 		'LOCAL INSTALLATION',
 		`OPERATOR ${name}`,
+		`BUILD ${build}`,
 		`${areaCount} LOCAL AREAS`,
 		`${sessions.length} SESSIONS`,
 		`${targets.length} TARGETS LOGGED`,
@@ -42,6 +47,7 @@ export function terminalModel({ operator, scenes }) {
 		areas,
 		areasKnown: known,
 		footer,
+		build,
 		lastSession: sessions.length ? sessions[sessions.length - 1] : null,
 	};
 }
