@@ -19,6 +19,19 @@ export const SIGNATURE_PHRASES = {
 const MAX_LINE_CHARS = 90;   // au-delà, ce n'est plus du RTC, c'est un paragraphe
 const MAX_LINES = 6;
 
+// Une réplique qui n'est QUE le nom d'un membre du crew, avec ou sans ':' et
+// espaces autour, est un label de locuteur que le modèle a émis comme si
+// c'était une ligne de texte (mesuré : acquire_area/0651, `text: "root:"`).
+// Dérivé de CREW, pas une seconde liste à part — CREW dérive déjà
+// KNOWN_PATHS ailleurs dans ce fichier, même logique ici : une seconde liste
+// dériverait de la première avec le temps.
+// Ancré sur toute la chaîne (après trim) : « jensen, status? » ou « ask
+// mikhail about the ridge » ne matchent PAS, seul un nom NU matche — le crew
+// s'adresse par le prénom sans arrêt, ce n'est pas ce qu'on veut attraper.
+const CREW_LABEL_RE = new RegExp(`^(?:${CREW.join('|')}):?$`, 'i');
+
+const isCrewLabelOnly = (text) => CREW_LABEL_RE.test(text.trim());
+
 // Bible §9-§12 : le crew ne sait pas qu'il est dans un jeu, ne s'adresse jamais
 // au joueur, n'explique pas le lore et ne promet aucune suite.
 // STYLE_BANS[0] couvre adresse directe au joueur (« the player »). Les autres
@@ -54,6 +67,7 @@ export function validateEntry(entry) {
 			else if (!(entry.characters ?? []).includes(l.speaker)) push(`locuteur absent de characters : ${l.speaker}`);
 			const text = String(l?.text ?? '');
 			if (text.trim() === '') push('réplique vide');
+			if (isCrewLabelOnly(text)) push(`réplique n'est qu'un label de locuteur : "${text}"`);
 			if (text.length > MAX_LINE_CHARS) push(`réplique trop longue : ${text.length} caractères`);
 			for (const ban of STYLE_BANS) if (ban.re.test(text)) push(`${ban.why} : "${text}"`);
 			const owner = SIGNATURE_PHRASES[normalize(text)];

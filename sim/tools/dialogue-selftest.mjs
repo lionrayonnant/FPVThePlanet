@@ -18,7 +18,7 @@ import {
 	nextSeq,
 } from './dialogue/generate.mjs';
 import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS, SIGNATURE_PHRASES } from './dialogue/validate.mjs';
-import { normalize, trigrams, jaccard, findDuplicates, findRepeatedLines, MIN_REPEATED_LINE_WORDS } from './dialogue/dedupe.mjs';
+import { normalize, trigrams, jaccard, findDuplicates, findRepeatedLines, MIN_REPEATED_LINE_WORDS, seenLineSet, addLinesToSeen, repeatedLineIn } from './dialogue/dedupe.mjs';
 import { RARITY_GUIDANCE } from './dialogue/generate.mjs';
 
 let n = 0;
@@ -406,6 +406,33 @@ t('validateCorpus : compte les bonnes et rejette les ids en double', () => {
 	assert.ok(dup.errors.some((e) => /double/i.test(e.problem)));
 });
 
+t('validateEntry : une réplique qui n\'est qu\'un label de locuteur est rejetée', () => {
+	// Cas mesuré : acquire_area/0651, text: "root:" — le modèle a émis un
+	// label de speaker comme si c'était la réplique elle-même.
+	const bad = { ...GOOD, requires: [], lines: [{ speaker: 'root', text: 'root:' }] };
+	const problems = validateEntry(bad);
+	assert.ok(problems.some((p) => /label de locuteur/.test(p)), 'doit être attrapé');
+});
+
+t('validateEntry : un nom de crew seul, sans ":", est aussi rejeté', () => {
+	const bad = { ...GOOD, requires: [], lines: [{ speaker: 'mikhail', text: 'mikhail' }] };
+	assert.ok(validateEntry(bad).some((p) => /label de locuteur/.test(p)));
+	// Insensible à la casse et aux espaces autour.
+	const bad2 = { ...GOOD, requires: [], lines: [{ speaker: 'mikhail', text: '  MIKHAIL  ' }] };
+	assert.ok(validateEntry(bad2).some((p) => /label de locuteur/.test(p)));
+});
+
+t('validateEntry : une réplique qui mentionne un membre du crew sans être QUE son nom passe', () => {
+	// Le cas qui compte : le crew s'adresse par le prénom sans arrêt. Une
+	// règle trop large effacerait silencieusement du dialogue légitime.
+	const legitimate = ['jensen, status?', 'ask mikhail about the ridge'];
+	for (const text of legitimate) {
+		const good = { ...GOOD, requires: [], lines: [{ speaker: 'root', text }] };
+		const problems = validateEntry(good);
+		assert.ok(!problems.some((p) => /label de locuteur/.test(p)), `faux positif non-fondé : "${text}"`);
+	}
+});
+
 // --- déduplication par trigrammes -----------------------------------------------
 
 const mk = (id, ...texts) => ({ id, lines: texts.map((text) => ({ speaker: 'root', text })) });
@@ -481,6 +508,22 @@ t('findRepeatedLines : le rapport nomme les entrées fautives', () => {
 	const rep = findRepeatedLines(entries);
 	assert.equal(rep.length, 1);
 	assert.deepEqual(rep[0].ids.sort(), ['a', 'b', 'c']);
+});
+
+t('seenLineSet / repeatedLineIn : filtrage à l\'accueil, incrémental', () => {
+	// Simule le filtrage de generate.mjs : une formule déjà écrite dans le
+	// shard chargé fait rejeter la première entrée candidate qui la reprend,
+	// et l'ensemble grandit ensuite avec les entrées gardées du run.
+	const shard = [mk('a', 'ship the coarse pass')];
+	const seen = seenLineSet(shard);
+	assert.equal(repeatedLineIn(mk('b', 'ship the coarse pass'), seen), 'ship the coarse pass');
+	assert.equal(repeatedLineIn(mk('c', 'the mesh has no holes so far'), seen), null);
+
+	// Une entrée gardée doit elle-même entrer dans l'ensemble : une formule
+	// répétée DEUX FOIS dans le même run doit être attrapée à la deuxième,
+	// pas seulement contre le corpus chargé au départ.
+	addLinesToSeen(mk('c', 'drop the outer tiles'), seen);
+	assert.equal(repeatedLineIn(mk('d', 'drop the outer tiles'), seen), 'drop the outer tiles');
 });
 
 t('RARITY_GUIDANCE : une instruction d\'écriture par palier, pas seulement un poids', () => {

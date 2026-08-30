@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { EVENTS } from './catalog.mjs';
 import { validateEntry } from './validate.mjs';
-import { findDuplicates } from './dedupe.mjs';
+import { findDuplicates, seenLineSet, addLinesToSeen, repeatedLineIn } from './dedupe.mjs';
 
 export const BACKENDS = ['claude', 'ollama'];
 export const DEFAULT_BACKEND = 'claude';
@@ -244,7 +244,12 @@ async function main() {
 
 	const shard = loadShard(event);
 	let seq = nextSeq(shard.entries);
-	let kept = 0, rejected = 0;
+	let kept = 0, rejected = 0, rejectedPhrase = 0;
+	// Filtrage à l'accueil, pas seulement en fin de run : voir dedupe.mjs.
+	// Amorcé sur le corpus déjà écrit, puis grandi au fil des entrées gardées
+	// — une formule qui apparaît deux fois DANS le même run doit être attrapée
+	// aussi sûrement qu'une formule déjà présente dans le shard chargé.
+	const seenLines = seenLineSet(shard.entries);
 
 	for (let done = 0; done < total; done += size) {
 		const n = Math.min(size, total - done);
@@ -261,23 +266,32 @@ async function main() {
 			// Le premier problème suffit rarement à corriger le prompt : on les
 			// rapporte tous, pas seulement le premier trouvé.
 			if (problems.length) { rejected++; console.warn(`  rejet ${entry.id} : ${problems.join(' ; ')}`); continue; }
+			// Rejet distinct de la validation : l'entrée est par ailleurs correcte,
+			// elle recycle juste une réplique déjà écrite pour cet événement.
+			const repeated = repeatedLineIn(entry, seenLines);
+			if (repeated) { rejectedPhrase++; console.warn(`  rejet ${entry.id} (formule reprise) : "${repeated}"`); continue; }
+			addLinesToSeen(entry, seenLines);
 			shard.entries.push(entry);
 			kept++;
 		}
-		console.log(`lot ${done / size + 1} : ${kept} gardées, ${rejected} rejetées`);
+		console.log(`lot ${done / size + 1} : ${kept} gardées, ${rejected} rejetées (validation), ${rejectedPhrase} rejetées (formule reprise)`);
 	}
 
-	// Déduplication en dernier : une entrée peut être irréprochable et redite.
+	// Déduplication en dernier : une entrée peut être irréprochable, inédite
+	// ligne à ligne, et pourtant redire tout un ÉCHANGE déjà écrit autrement.
 	const dups = findDuplicates(shard.entries, { threshold: 0.75 });
 	const drop = new Set(dups.map((d) => d.b));
 	shard.entries = shard.entries.filter((e) => !drop.has(e.id));
-	console.log(`\n${kept} gardées, ${rejected} rejetées, ${drop.size} doublons écartés → ${shard.entries.length} au total`);
+	console.log(`\n${kept} gardées, ${rejected} rejetées (validation), ${rejectedPhrase} rejetées (formule reprise), ${drop.size} doublons d'échange écartés → ${shard.entries.length} au total`);
 
 	// Le taux de rejet d'un lot dit quelque chose du PROMPT, pas des entrées :
 	// au-delà de 5 %, on jette et on corrige le brief plutôt que de rapiécer.
 	// On nomme le backend et le modèle : 20 % de rejet ne veut pas dire la même
-	// chose venant d'un 27B local que du modèle hébergé.
-	const rate = rejected / (kept + rejected || 1);
+	// chose venant d'un 27B local que du modèle hébergé. La formule reprise
+	// compte dans ce taux au même titre que la validation : les deux disent
+	// que le prompt n'a pas suffi à obtenir des entrées neuves.
+	const totalRejected = rejected + rejectedPhrase;
+	const rate = totalRejected / (kept + totalRejected || 1);
 	console.log(`backend : ${backend} (${model})`);
 	if (rate > 0.05) console.warn(`\n⚠  taux de rejet ${(rate * 100).toFixed(1)} % avec ${backend}/${model} — revoir prompts/events/${EVENTS[event].shard}.md avant de continuer`);
 

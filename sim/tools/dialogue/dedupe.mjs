@@ -61,6 +61,40 @@ export function findRepeatedLines(entries, { minWords = MIN_REPEATED_LINE_WORDS 
 	return out;
 }
 
+// Ensemble des répliques normalisées déjà écrites, pour un filtrage
+// INCRÉMENTAL à l'accueil d'une entrée générée (voir generate.mjs) :
+// contrairement à findRepeatedLines, qui rapporte après coup sur tout le
+// corpus déjà écrit, ceci permet de refuser une entrée AVANT qu'elle
+// n'ajoute une formule déjà vue, pendant la génération elle-même.
+export function seenLineSet(entries, { minWords = MIN_REPEATED_LINE_WORDS } = {}) {
+	const seen = new Set();
+	for (const entry of entries) addLinesToSeen(entry, seen, minWords);
+	return seen;
+}
+
+// Ajoute les répliques distinctives (>= minWords mots) d'une entrée à un
+// ensemble `seen` construit par seenLineSet. Séparé de seenLineSet pour
+// pouvoir grandir l'ensemble une entrée à la fois pendant un run, sans
+// reparcourir tout le corpus à chaque nouvelle entrée gardée.
+export function addLinesToSeen(entry, seen, minWords = MIN_REPEATED_LINE_WORDS) {
+	for (const line of entry.lines ?? []) {
+		const norm = normalize(line.text);
+		if (norm.split(' ').filter(Boolean).length < minWords) continue;
+		seen.add(norm);
+	}
+}
+
+// Rend la première réplique normalisée de `entry` déjà présente dans `seen`,
+// ou null si l'entrée n'introduit aucune formule déjà écrite.
+export function repeatedLineIn(entry, seen, minWords = MIN_REPEATED_LINE_WORDS) {
+	for (const line of entry.lines ?? []) {
+		const norm = normalize(line.text);
+		if (norm.split(' ').filter(Boolean).length < minWords) continue;
+		if (seen.has(norm)) return norm;
+	}
+	return null;
+}
+
 // Index inversé trigramme -> indices. On ne compare une entrée qu'aux entrées
 // qui partagent au moins un trigramme avec elle : deux textes sans trigramme
 // commun ont un Jaccard nul, les comparer serait du temps perdu.
