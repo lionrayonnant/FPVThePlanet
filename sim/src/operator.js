@@ -3,8 +3,10 @@
 // L'identité du client vit dans localStorage (fpvmaps.operatorId) et accompagne
 // chaque requête : c'est ce qui permet à deux personnes de jouer en même temps
 // sur le même serveur de dev. Le serveur ne décide jamais « qui tu es ».
-// Repli quand la clé manque (navigateur neuf ou vidé) : 1 opérateur sur disque
-// → on l'adopte ; plusieurs → l'appelant montre OPERATOR SELECT.
+// Repli quand la clé manque (navigateur neuf ou vidé) : l'appelant montre
+// toujours OPERATOR SELECT — même avec un seul opérateur sur disque, pour
+// qu'un nouveau client (ex. ami sur un tunnel ngrok partagé) puisse créer le
+// sien plutôt que d'hériter du tien.
 
 const OP_BASE = '/__operator';
 const KEY = 'fpvmaps.operatorId';
@@ -56,9 +58,6 @@ export async function loadOperator() {
 	}
 	const { operators } = await req('GET', '');
 	if (operators.length === 0) return { operator: null, needsBootstrap: true, choices: null };
-	if (operators.length === 1) {
-		return { operator: await selectOperator(operators[0].id), needsBootstrap: false, choices: null };
-	}
 	return { operator: null, needsBootstrap: false, choices: operators.map(({ id, name }) => ({ id, name })) };
 }
 

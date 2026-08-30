@@ -121,6 +121,40 @@
 			"lufs": -14.1
 		},
 		{
+			"id": "freestyle5-88e40add",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-88e40add.opus",
+			"durS": 86.631,
+			"bpm": 166,
+			"axes": {
+				"density": null,
+				"energy": null,
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "late-1990s Berlin digital hardcore, distorted breakbeats at punk intensity, overdriven chopped drum loops, screaming detuned synth riffs, abrupt stops and sudden restarts, raw unhinged energy, sounds like a machine being thrown around and caught, hardware samplers pushed into clipping, 166 BPM, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::1",
+			"modelSeed": 554985773,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "freestyle5-8a9c0861",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-8a9c0861.opus",
+			"durS": 85.424,
+			"bpm": 158,
+			"axes": {
+				"atmosphere": "restless and shifting",
+				"density": "dense layered arrangement",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "late-1990s Berlin digital hardcore, distorted breakbeats at punk intensity, overdriven chopped drum loops, screaming detuned synth riffs, abrupt stops and sudden restarts, raw unhinged energy, sounds like a machine being thrown around and caught, hardware samplers pushed into clipping, 158 BPM, restless and shifting, dense layered arrangement, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::2",
+			"modelSeed": 1173137740,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
 			"id": "freestyle5-8ca25a25",
 			"pool": "freestyle5",
 			"file": "music/freestyle5/freestyle5-8ca25a25.opus",
@@ -136,6 +170,23 @@
 			"modelSeed": 97657944,
 			"model": "stable-audio-3-medium",
 			"lufs": -14.1
+		},
+		{
+			"id": "freestyle5-a8e5b726",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-a8e5b726.opus",
+			"durS": 84.942,
+			"bpm": 161,
+			"axes": {
+				"aggression": "harsh distorted edges",
+				"density": null,
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "late-1990s Berlin digital hardcore, distorted breakbeats at punk intensity, overdriven chopped drum loops, screaming detuned synth riffs, abrupt stops and sudden restarts, raw unhinged energy, sounds like a machine being thrown around and caught, hardware samplers pushed into clipping, 161 BPM, harsh distorted edges, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::3",
+			"modelSeed": 1700972765,
+			"model": "stable-audio-3-medium",
+			"lufs": -14
 		},
 		{
 			"id": "freestyle5-b9e4732f",
@@ -170,6 +221,57 @@
 			"modelSeed": 1107732801,
 			"model": "stable-audio-3-medium",
 			"lufs": -14.1
+		},
+		{
+			"id": "freestyle5-f288055b",
+			"pool": "freestyle5",
+			"file": "music/freestyle5/freestyle5-f288055b.opus",
+			"durS": 83.954,
+			"bpm": 169,
+			"axes": {
+				"darkness": "brighter and more open",
+				"energy": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "late-1990s Berlin digital hardcore, distorted breakbeats at punk intensity, overdriven chopped drum loops, screaming detuned synth riffs, abrupt stops and sudden restarts, raw unhinged energy, sounds like a machine being thrown around and caught, hardware samplers pushed into clipping, 169 BPM, brighter and more open, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::0",
+			"modelSeed": 2016157778,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "heavy5-04123074",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-04123074.opus",
+			"durS": 83.336,
+			"bpm": 132,
+			"axes": {
+				"atmosphere": null,
+				"darkness": "darker and colder",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "late-1990s ceremonial tribal trance, sacred and monumental, wordless choir soaring high above everything, enormous spaced tribal drums with long decay, huge silence between hits, deep physical sub bass you feel in the chest, tuned metal percussion, hand drums and low ritual horns, slow ceremonial build releasing into a massive tribal groove, ancient temple atmosphere, organic instruments against hardware synthesizers, 132 BPM, darker and colder, raw hardware synthesizers, wordless choral voices only, no lyrics, no words, no spoken word, no rapping, no verse or chorus structure, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::1",
+			"modelSeed": 554985773,
+			"model": "stable-audio-3-medium",
+			"lufs": -14
+		},
+		{
+			"id": "heavy5-0630e140",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-0630e140.opus",
+			"durS": 86.526,
+			"bpm": 130,
+			"axes": {
+				"aggression": null,
+				"density": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "late-1990s ceremonial tribal trance, sacred and monumental, wordless choir soaring high above everything, enormous spaced tribal drums with long decay, huge silence between hits, deep physical sub bass you feel in the chest, tuned metal percussion, hand drums and low ritual horns, slow ceremonial build releasing into a massive tribal groove, ancient temple atmosphere, organic instruments against hardware synthesizers, 130 BPM, raw hardware synthesizers, wordless choral voices only, no lyrics, no words, no spoken word, no rapping, no verse or chorus structure, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::0",
+			"modelSeed": 2016157778,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.6
 		},
 		{
 			"id": "heavy5-334ce580",
@@ -223,6 +325,40 @@
 			"lufs": -13.9
 		},
 		{
+			"id": "heavy5-891da860",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-891da860.opus",
+			"durS": 83.642,
+			"bpm": 127,
+			"axes": {
+				"darkness": "darker and colder",
+				"density": "dense layered arrangement",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "late-1990s ceremonial tribal trance, sacred and monumental, wordless choir soaring high above everything, enormous spaced tribal drums with long decay, huge silence between hits, deep physical sub bass you feel in the chest, tuned metal percussion, hand drums and low ritual horns, slow ceremonial build releasing into a massive tribal groove, ancient temple atmosphere, organic instruments against hardware synthesizers, 127 BPM, darker and colder, dense layered arrangement, raw hardware synthesizers, wordless choral voices only, no lyrics, no words, no spoken word, no rapping, no verse or chorus structure, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::2",
+			"modelSeed": 1173137740,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
+			"id": "heavy5-bc151bd4",
+			"pool": "heavy5",
+			"file": "music/heavy5/heavy5-bc151bd4.opus",
+			"durS": 84.416,
+			"bpm": 125,
+			"axes": {
+				"aggression": null,
+				"darkness": "darker and colder",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "late-1990s ceremonial tribal trance, sacred and monumental, wordless choir soaring high above everything, enormous spaced tribal drums with long decay, huge silence between hits, deep physical sub bass you feel in the chest, tuned metal percussion, hand drums and low ritual horns, slow ceremonial build releasing into a massive tribal groove, ancient temple atmosphere, organic instruments against hardware synthesizers, 125 BPM, darker and colder, vintage drum machines and analog hardware, wordless choral voices only, no lyrics, no words, no spoken word, no rapping, no verse or chorus structure, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::3",
+			"modelSeed": 1700972765,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
 			"id": "heavy5-d4140587",
 			"pool": "heavy5",
 			"file": "music/heavy5/heavy5-d4140587.opus",
@@ -274,6 +410,23 @@
 			"lufs": -13.9
 		},
 		{
+			"id": "longrange-1d23d8f3",
+			"pool": "longrange",
+			"file": "music/longrange/longrange-1d23d8f3.opus",
+			"durS": 86.683,
+			"bpm": 107,
+			"axes": {
+				"darkness": "darker and colder",
+				"density": null,
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "1980s synth-funk and electro production, nocturnal neon highway feeling, punchy gated drum machine with a big cracking snare on the backbeat, fat detuned analog saw bassline with groove, driving sixteenth-note arpeggio rolling through the whole track, bright confident lead melody, lush chorused pads underneath, sleek and propulsive, cruising alone at high speed after dark, vintage polysynth, LinnDrum-style kit and analog chorus character, 107 BPM, darker and colder, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::3",
+			"modelSeed": 1700972765,
+			"model": "stable-audio-3-medium",
+			"lufs": -14.2
+		},
+		{
 			"id": "longrange-46a85fdf",
 			"pool": "longrange",
 			"file": "music/longrange/longrange-46a85fdf.opus",
@@ -291,6 +444,23 @@
 			"lufs": -13.9
 		},
 		{
+			"id": "longrange-76a7f05f",
+			"pool": "longrange",
+			"file": "music/longrange/longrange-76a7f05f.opus",
+			"durS": 85.257,
+			"bpm": 116,
+			"axes": {
+				"darkness": "brighter and more open",
+				"density": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "1980s synth-funk and electro production, nocturnal neon highway feeling, punchy gated drum machine with a big cracking snare on the backbeat, fat detuned analog saw bassline with groove, driving sixteenth-note arpeggio rolling through the whole track, bright confident lead melody, lush chorused pads underneath, sleek and propulsive, cruising alone at high speed after dark, vintage polysynth, LinnDrum-style kit and analog chorus character, 116 BPM, brighter and more open, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::0",
+			"modelSeed": 2016157778,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
 			"id": "longrange-9124834a",
 			"pool": "longrange",
 			"file": "music/longrange/longrange-9124834a.opus",
@@ -306,6 +476,40 @@
 			"modelSeed": 2054236900,
 			"model": "stable-audio-3-medium",
 			"lufs": -13.9
+		},
+		{
+			"id": "longrange-a96fb8da",
+			"pool": "longrange",
+			"file": "music/longrange/longrange-a96fb8da.opus",
+			"durS": 86.447,
+			"bpm": 110,
+			"axes": {
+				"aggression": "harsh distorted edges",
+				"atmosphere": "hypnotic and repetitive",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "1980s synth-funk and electro production, nocturnal neon highway feeling, punchy gated drum machine with a big cracking snare on the backbeat, fat detuned analog saw bassline with groove, driving sixteenth-note arpeggio rolling through the whole track, bright confident lead melody, lush chorused pads underneath, sleek and propulsive, cruising alone at high speed after dark, vintage polysynth, LinnDrum-style kit and analog chorus character, 110 BPM, harsh distorted edges, hypnotic and repetitive, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::1",
+			"modelSeed": 554985773,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "longrange-b8763be9",
+			"pool": "longrange",
+			"file": "music/longrange/longrange-b8763be9.opus",
+			"durS": 87,
+			"bpm": 107,
+			"axes": {
+				"atmosphere": "restless and shifting",
+				"darkness": null,
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "1980s synth-funk and electro production, nocturnal neon highway feeling, punchy gated drum machine with a big cracking snare on the backbeat, fat detuned analog saw bassline with groove, driving sixteenth-note arpeggio rolling through the whole track, bright confident lead melody, lush chorused pads underneath, sleek and propulsive, cruising alone at high speed after dark, vintage polysynth, LinnDrum-style kit and analog chorus character, 107 BPM, restless and shifting, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v3::2",
+			"modelSeed": 1173137740,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.7
 		},
 		{
 			"id": "longrange-e09d6b7b",
