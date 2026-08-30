@@ -21,11 +21,26 @@ import { MUSIC_SCHEMA_VERSION, validateManifest } from './music-model.mjs';
 const MUSIC_DIR = join(SIM, 'public/music');
 const MANIFEST = join(SIM, 'public/music.json');
 
+// Les refus sont MÉMORISÉS. Sans ça, chaque nouvelle vague represente les
+// morceaux déjà écartés — on refuse deux fois le même, et le temps d'écoute est
+// la ressource rare de tout ce pipeline. Le fichier vit dans le staging, donc
+// gitignoré : c'est un journal de travail local, pas une donnée du jeu.
+const REJECTED = join(STAGING, 'rejected.json');
+
 // Combien de secondes de part et d'autre du point de bouclage la touche `l`
 // fait entendre.
 const SEAM_S = 5;
 
 const ESC = '';
+
+function loadRejected() {
+	try { return new Set(JSON.parse(readFileSync(REJECTED, 'utf8'))); }
+	catch { return new Set(); }
+}
+
+function saveRejected(set) {
+	writeFileSync(REJECTED, JSON.stringify([...set].sort(), null, '\t') + '\n');
+}
 
 function loadManifest() {
 	if (!existsSync(MANIFEST)) return { schemaVersion: MUSIC_SCHEMA_VERSION, tracks: [] };
@@ -76,23 +91,30 @@ async function run() {
 
 	const manifest = loadManifest();
 	const known = new Set(manifest.tracks.map((t) => t.id));
+	const rejected = loadRejected();
 
-	const candidates = readdirSync(STAGING).filter((f) => f.endsWith('.opus')).sort()
-		.map((f) => basename(f, '.opus'))
-		.filter((id) => !known.has(id));
+	const all = readdirSync(STAGING).filter((f) => f.endsWith('.opus')).sort()
+		.map((f) => basename(f, '.opus'));
+	const candidates = all.filter((id) => !known.has(id) && !rejected.has(id));
+	const skipped = all.length - candidates.length;
 
-	if (!candidates.length) { console.log('rien de neuf à écouter (lance music-gate puis music-loop)'); return; }
+	if (!candidates.length) {
+		console.log(`rien de neuf à écouter${skipped ? ` (${skipped} déjà jugé(s))` : ''}`);
+		console.log('lance npm run add-music, puis music-gate et music-loop');
+		return;
+	}
 
 	process.stdin.setRawMode(true);
 	process.stdin.resume();
 	process.stdin.setEncoding('utf8');
 	const key = () => new Promise((res) => process.stdin.once('data', res));
 
-	console.log(`${candidates.length} morceau(x) à écouter · ${manifest.tracks.length} déjà dans le jeu`);
+	console.log(`${candidates.length} morceau(x) à écouter · ${manifest.tracks.length} déjà dans le jeu`
+		+ (skipped ? ` · ${skipped} déjà jugé(s), non representé(s)` : ''));
 	console.log('o accepter · k refuser · r rejouer · l couture · s passer · q sauver et quitter\n');
 
 	let accepted = 0;
-	let rejected = 0;
+	let nRejected = 0;
 	let quit = false;
 
 	for (const [i, id] of candidates.entries()) {
@@ -122,8 +144,11 @@ async function run() {
 				});
 				accepted++; console.log('  → accepté\n'); done = true;
 			} else if (k === 'k') {
-				stopPlayer(); rejected++; console.log('  → refusé\n'); done = true;
+				stopPlayer(); rejected.add(id); nRejected++;
+				console.log('  → refusé\n'); done = true;
 			} else if (k === 's') {
+				// Passer n'est PAS refuser : le morceau reviendra à la prochaine
+				// session, c'est ce qui distingue les deux touches.
 				stopPlayer(); console.log('  → passé\n'); done = true;
 			} else if (k === 'r') {
 				play(file);
@@ -138,11 +163,13 @@ async function run() {
 	stopPlayer();
 	const seam = join(STAGING, '.seam.wav');
 	if (existsSync(seam)) unlinkSync(seam);
-	// Le manifeste est écrit même sur un abandon : ce qui a été accepté est
-	// acquis, sinon une session de revue interrompue serait perdue.
+	// Le manifeste et le journal des refus sont écrits même sur un abandon : ce
+	// qui a été jugé est acquis, sinon une session de revue interrompue serait
+	// entièrement à refaire.
+	saveRejected(rejected);
 	saveManifest(manifest);
 	process.stdin.setRawMode(false);
-	console.log(`\n${accepted} accepté(s), ${rejected} refusé(s) · ${manifest.tracks.length} morceaux dans le jeu`);
+	console.log(`\n${accepted} accepté(s), ${nRejected} refusé(s) · ${manifest.tracks.length} morceaux dans le jeu`);
 	console.log(`→ ${MANIFEST}`);
 	process.exit(0);
 }
