@@ -145,8 +145,26 @@ calibrées, sur la distance que le selftest aura mesurée :
   dans `link.js` : « you are told you are running out of margin before you run
   out ».
 - **Dehors**, de la limite à `R_HOLD` de profondeur : les 50 dB restants. À
-  `R_HOLD` dehors la clôture a donc dépensé `LOSS_DEAD − LOSS_CLEAN` = 58 dB,
-  ce qui tue **n'importe quel** lien, si propre soit-il.
+  `R_HOLD` dehors la clôture a donc dépensé `LOSS_DEAD − LOSS_CLEAN` = 58 dB.
+
+**Correction, 2026-08-30 (mesurée en implémentant).** Cette première rédaction
+disait que 58 dB « tuent n'importe quel lien, si propre soit-il ». C'est faux,
+et faux d'une façon qui se calcule :
+`qualityOf(l) = 1 − clamp01((l − LOSS_CLEAN)/(LOSS_DEAD − LOSS_CLEAN))`, donc
+58 dB ajoutés à un lien propre (perte ambiante ≈ 0) rendent
+`1 − (58−18)/58 = 0,31`, pas 0 — mesuré à 0,31034482758620685 en implémentant
+la formule à la lettre. 58 dB est la **largeur de la bande de fondu**, de
+`LOSS_CLEAN` à `LOSS_DEAD` ; ce n'est pas un budget absolu depuis zéro, qui
+vaudrait 76 dB.
+
+L'exigence liante n'était pas le nombre, c'était que l'image meure **exactement
+au mètre où la session s'arrête**, quel que soit l'ambiant. La perte terminale
+part donc de `LOSS_CLEAN` et non de la perte courante :
+`quality = min(quality, qualityOf(LOSS_CLEAN + terminalLoss))`. À
+`terminalLoss = 0` c'est `qualityOf(18) = 1`, donc un no-op exact ; à
+`FENCE_SPAN` c'est 0, y compris pour un drone déjà à l'ombre d'un bâtiment.
+Porter `FENCE_SPAN` à 76 aurait été l'autre correction possible, mais elle
+casse le déterminisme : un lien déjà dégradé serait mort avant `R_HOLD`.
 
 La symétrie est voulue : la distance qu'il faut pour s'arrêter est exactement
 celle que l'image coûte.
