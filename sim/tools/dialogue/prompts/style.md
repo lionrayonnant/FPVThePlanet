@@ -60,3 +60,12 @@ diagnostic of it.
 - Lowercase, terminal-register punctuation is fine and often better than a
   full sentence with a capital and a period. Look at existing entries in
   the shard you're given — match that register, don't invent a new one.
+- **A single-clause line does not end with a period.** "the checksum failed"
+  is right, "the checksum failed." is not. This is the one rule the shard
+  you're given will not show you drifting on, because a local model drifts
+  on it silently, batch by batch — check every line you write against it
+  directly, do not infer it from a handful of examples. A line of several
+  sentences keeps the period between its clauses, and keeps its own final
+  one too ("zero. always zero." is correct, not "zero. always zero"). A
+  question keeps its "?" and a trailing dash its "—" — neither is a period
+  and neither is touched by this rule.

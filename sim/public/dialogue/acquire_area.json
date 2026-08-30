@@ -4577,7 +4577,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "the rectangle has a hole in it."
+          "text": "the rectangle has a hole in it"
         }
       ]
     },
@@ -7863,7 +7863,7 @@
         },
         {
           "speaker": "root",
-          "text": "then it is not."
+          "text": "then it is not"
         }
       ]
     },
@@ -9331,7 +9331,7 @@
         },
         {
           "speaker": "root",
-          "text": "if it renders, it is."
+          "text": "if it renders, it is"
         }
       ]
     },
@@ -9349,7 +9349,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the uv bounds exceed the atlas."
+          "text": "the uv bounds exceed the atlas"
         },
         {
           "speaker": "root",
@@ -9372,15 +9372,15 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the texture coordinates are inverted."
+          "text": "the texture coordinates are inverted"
         },
         {
           "speaker": "root",
-          "text": "flip them in the shader."
+          "text": "flip them in the shader"
         },
         {
           "speaker": "mikhail",
-          "text": "that breaks the normal map."
+          "text": "that breaks the normal map"
         }
       ]
     },
@@ -9397,7 +9397,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "three submeshes share material zero."
+          "text": "three submeshes share material zero"
         }
       ]
     },
@@ -9415,11 +9415,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "start the decode on the coarse pass."
+          "text": "start the decode on the coarse pass"
         },
         {
           "speaker": "mikhail",
-          "text": "the header is corrupted."
+          "text": "the header is corrupted"
         }
       ]
     },
@@ -9454,11 +9454,11 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the lod thresholds are wrong."
+          "text": "the lod thresholds are wrong"
         },
         {
           "speaker": "root",
-          "text": "they are correct for this range."
+          "text": "they are correct for this range"
         }
       ]
     },
@@ -9475,7 +9475,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the geometry remembers what was removed."
+          "text": "the geometry remembers what was removed"
         }
       ]
     },
@@ -9492,7 +9492,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "if it fits in memory, we keep it."
+          "text": "if it fits in memory, we keep it"
         }
       ]
     },
@@ -9514,7 +9514,7 @@
         },
         {
           "speaker": "root",
-          "text": "only if the mesh is inside-out."
+          "text": "only if the mesh is inside-out"
         }
       ]
     },
@@ -9532,11 +9532,11 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the tile pitch is inconsistent."
+          "text": "the tile pitch is inconsistent"
         },
         {
           "speaker": "root",
-          "text": "it is consistent enough."
+          "text": "it is consistent enough"
         }
       ]
     },
@@ -9555,15 +9555,15 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "there is a hole in the mesh."
+          "text": "there is a hole in the mesh"
         },
         {
           "speaker": "root",
-          "text": "patch it with the ground texture."
+          "text": "patch it with the ground texture"
         },
         {
           "speaker": "mikhail",
-          "text": "the ground texture has no alpha."
+          "text": "the ground texture has no alpha"
         }
       ]
     },
@@ -9580,7 +9580,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the archive header claims 0 bytes."
+          "text": "the archive header claims 0 bytes"
         }
       ]
     },
@@ -9598,11 +9598,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "push the set to the queue."
+          "text": "push the set to the queue"
         },
         {
           "speaker": "mikhail",
-          "text": "the queue is full."
+          "text": "the queue is full"
         }
       ]
     },
@@ -9637,7 +9637,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the coarse pass looks dense enough."
+          "text": "the coarse pass looks dense enough"
         },
         {
           "speaker": "mikhail",
@@ -9658,7 +9658,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the ground remembers what was here before."
+          "text": "the ground remembers what was here before"
         }
       ]
     },
@@ -9675,7 +9675,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "if it renders, it is real."
+          "text": "if it renders, it is real"
         }
       ]
     },
@@ -9697,7 +9697,7 @@
         },
         {
           "speaker": "root",
-          "text": "we stop when the buffer fills."
+          "text": "we stop when the buffer fills"
         }
       ]
     },
@@ -9719,7 +9719,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "the outer ring is where the holes live."
+          "text": "the outer ring is where the holes live"
         }
       ]
     },
@@ -9738,15 +9738,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "we can use the first pass."
+          "text": "we can use the first pass"
         },
         {
           "speaker": "mikhail",
-          "text": "the first pass is low res."
+          "text": "the first pass is low res"
         },
         {
           "speaker": "root",
-          "text": "nobody flies that close."
+          "text": "nobody flies that close"
         }
       ]
     },
@@ -9763,7 +9763,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "there is a void in the center tile."
+          "text": "there is a void in the center tile"
         }
       ]
     },
@@ -9781,11 +9781,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "start the index write."
+          "text": "start the index write"
         },
         {
           "speaker": "mikhail",
-          "text": "the checksum failed on page 4."
+          "text": "the checksum failed on page 4"
         }
       ]
     },
@@ -9820,11 +9820,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the mesh topology is clean."
+          "text": "the mesh topology is clean"
         },
         {
           "speaker": "mikhail",
-          "text": "non-manifold edges on the ridge line."
+          "text": "non-manifold edges on the ridge line"
         }
       ]
     },
@@ -9841,7 +9841,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "some corners are sharper than others."
+          "text": "some corners are sharper than others"
         }
       ]
     },
@@ -9858,7 +9858,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "we are buying terrain by the byte."
+          "text": "we are buying terrain by the byte"
         }
       ]
     },
@@ -9902,7 +9902,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "page 2 is still writing."
+          "text": "page 2 is still writing"
         }
       ]
     },
@@ -9921,15 +9921,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "queue the decode."
+          "text": "queue the decode"
         },
         {
           "speaker": "mikhail",
-          "text": "the header is corrupt."
+          "text": "the header is corrupt"
         },
         {
           "speaker": "jensen",
-          "text": "try it anyway."
+          "text": "try it anyway"
         }
       ]
     },
@@ -9947,7 +9947,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "start the index write on the coarse pass."
+          "text": "start the index write on the coarse pass"
         },
         {
           "speaker": "mikhail",
@@ -9969,11 +9969,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the set looks clean."
+          "text": "the set looks clean"
         },
         {
           "speaker": "mikhail",
-          "text": "it has no ground."
+          "text": "it has no ground"
         }
       ]
     },
@@ -9990,7 +9990,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the silence is loud."
+          "text": "the silence is loud"
         }
       ]
     },
@@ -10008,11 +10008,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "ship the coarse pass."
+          "text": "ship the coarse pass"
         },
         {
           "speaker": "mikhail",
-          "text": "it is not the coarse pass."
+          "text": "it is not the coarse pass"
         }
       ]
     },
@@ -10031,15 +10031,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "index the outer ring."
+          "text": "index the outer ring"
         },
         {
           "speaker": "mikhail",
-          "text": "it is empty."
+          "text": "it is empty"
         },
         {
           "speaker": "jensen",
-          "text": "index the empty."
+          "text": "index the empty"
         }
       ]
     },
@@ -10074,11 +10074,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the units are feet."
+          "text": "the units are feet"
         },
         {
           "speaker": "mikhail",
-          "text": "the units are meters."
+          "text": "the units are meters"
         }
       ]
     },
@@ -10112,7 +10112,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "great, another rectangle to file."
+          "text": "great, another rectangle to file"
         }
       ]
     },
@@ -10134,7 +10134,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "only if you want flat ground."
+          "text": "only if you want flat ground"
         }
       ]
     },
@@ -10152,11 +10152,11 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the header claims 4k resolution."
+          "text": "the header claims 4k resolution"
         },
         {
           "speaker": "root",
-          "text": "the header is a suggestion."
+          "text": "the header is a suggestion"
         }
       ]
     },
@@ -10175,15 +10175,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "push it to the queue."
+          "text": "push it to the queue"
         },
         {
           "speaker": "mikhail",
-          "text": "it has geometry errors."
+          "text": "it has geometry errors"
         },
         {
           "speaker": "root",
-          "text": "they will be hidden by the grass."
+          "text": "they will be hidden by the grass"
         }
       ]
     },
@@ -10240,11 +10240,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "this set is clean."
+          "text": "this set is clean"
         },
         {
           "speaker": "mikhail",
-          "text": "clean does not mean correct."
+          "text": "clean does not mean correct"
         }
       ]
     },
@@ -10261,7 +10261,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "some maps are just paper."
+          "text": "some maps are just paper"
         }
       ]
     },
@@ -10278,7 +10278,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the atlas is locked."
+          "text": "the atlas is locked"
         }
       ]
     },
@@ -10318,11 +10318,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "ship it."
+          "text": "ship it"
         },
         {
           "speaker": "mikhail",
-          "text": "it is not ready."
+          "text": "it is not ready"
         }
       ]
     },
@@ -10341,15 +10341,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "hold the queue."
+          "text": "hold the queue"
         },
         {
           "speaker": "mikhail",
-          "text": "the bandwidth cost is rising."
+          "text": "the bandwidth cost is rising"
         },
         {
           "speaker": "root",
-          "text": "accuracy costs more."
+          "text": "accuracy costs more"
         }
       ]
     },
@@ -10366,7 +10366,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "vertex winding is counter-clockwise."
+          "text": "vertex winding is counter-clockwise"
         }
       ]
     },
@@ -10388,7 +10388,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "it has a hole in the ridge."
+          "text": "it has a hole in the ridge"
         }
       ]
     },
@@ -10619,15 +10619,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "queue the fine pass."
+          "text": "queue the fine pass"
         },
         {
           "speaker": "mikhail",
-          "text": "the fine pass is full of noise."
+          "text": "the fine pass is full of noise"
         },
         {
           "speaker": "root",
-          "text": "better noise than blank space."
+          "text": "better noise than blank space"
         }
       ]
     },
@@ -10644,7 +10644,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the water tiles are all black."
+          "text": "the water tiles are all black"
         }
       ]
     },
@@ -10662,11 +10662,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "start the atlas bake."
+          "text": "start the atlas bake"
         },
         {
           "speaker": "mikhail",
-          "text": "the source texture is corrupt."
+          "text": "the source texture is corrupt"
         }
       ]
     },
@@ -10684,11 +10684,11 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the ridge line is jagged."
+          "text": "the ridge line is jagged"
         },
         {
           "speaker": "root",
-          "text": "it is fine."
+          "text": "it is fine"
         }
       ]
     },
@@ -10705,7 +10705,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the map remembers what you forgot."
+          "text": "the map remembers what you forgot"
         }
       ]
     },
@@ -10722,7 +10722,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "we are downloading a mistake."
+          "text": "we are downloading a mistake"
         }
       ]
     },
@@ -10744,7 +10744,7 @@
         },
         {
           "speaker": "root",
-          "text": "it is."
+          "text": "it is"
         }
       ]
     },
@@ -10762,11 +10762,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "ship the coarse set."
+          "text": "ship the coarse set"
         },
         {
           "speaker": "mikhail",
-          "text": "the normals are flipped."
+          "text": "the normals are flipped"
         }
       ]
     },
@@ -10785,15 +10785,15 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "tile 4 is empty."
+          "text": "tile 4 is empty"
         },
         {
           "speaker": "root",
-          "text": "fill it with air."
+          "text": "fill it with air"
         },
         {
           "speaker": "mikhail",
-          "text": "air has no collision."
+          "text": "air has no collision"
         }
       ]
     },
@@ -10810,7 +10810,7 @@
       "lines": [
         {
           "speaker": "cron",
-          "text": "atlas page 1 open."
+          "text": "atlas page 1 open"
         }
       ]
     },
@@ -10828,11 +10828,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "verify the checksum."
+          "text": "verify the checksum"
         },
         {
           "speaker": "mikhail",
-          "text": "it will fail."
+          "text": "it will fail"
         }
       ]
     },
@@ -10849,7 +10849,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "vertex winding is cw."
+          "text": "vertex winding is cw"
         }
       ]
     },
@@ -10867,11 +10867,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the ground looks solid."
+          "text": "the ground looks solid"
         },
         {
           "speaker": "mikhail",
-          "text": "it is a single plane."
+          "text": "it is a single plane"
         }
       ]
     },
@@ -10910,7 +10910,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "it is watertight but the water has no volume."
+          "text": "it is watertight but the water has no volume"
         }
       ]
     },
@@ -10937,7 +10937,7 @@
         },
         {
           "speaker": "jensen",
-          "text": "the view matters more than the structure."
+          "text": "the view matters more than the structure"
         }
       ]
     },
@@ -10976,7 +10976,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the vertex count in the header is a suggestion, not a fact."
+          "text": "the vertex count in the header is a suggestion, not a fact"
         }
       ]
     },
@@ -10994,7 +10994,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the tile grid aligns."
+          "text": "the tile grid aligns"
         },
         {
           "speaker": "mikhail",
@@ -11015,7 +11015,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "some maps are heavier than they look."
+          "text": "some maps are heavier than they look"
         }
       ]
     },
@@ -11073,15 +11073,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "mikhail, tell me why we cannot just render what we have."
+          "text": "mikhail, tell me why we cannot just render what we have"
         },
         {
           "speaker": "mikhail",
-          "text": "because the ground is missing a third of its weight."
+          "text": "because the ground is missing a third of its weight"
         },
         {
           "speaker": "jensen",
-          "text": "gravity is a setting."
+          "text": "gravity is a setting"
         }
       ]
     },
@@ -11116,7 +11116,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "mikhail, stop nitpicking the uvs and give me a go/no-go."
+          "text": "mikhail, stop nitpicking the uvs and give me a go/no-go"
         },
         {
           "speaker": "mikhail",
@@ -11335,7 +11335,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "another rectangle to sort through."
+          "text": "another rectangle to sort through"
         }
       ]
     },
@@ -11357,7 +11357,7 @@
         },
         {
           "speaker": "root",
-          "text": "close enough."
+          "text": "close enough"
         }
       ]
     },
@@ -11375,11 +11375,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "looks good to me."
+          "text": "looks good to me"
         },
         {
           "speaker": "mikhail",
-          "text": "it is not good."
+          "text": "it is not good"
         }
       ]
     },
@@ -11436,11 +11436,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "we can hold it all resident."
+          "text": "we can hold it all resident"
         },
         {
           "speaker": "mikhail",
-          "text": "memory is not infinite."
+          "text": "memory is not infinite"
         }
       ]
     },
@@ -11457,7 +11457,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the ground remembers."
+          "text": "the ground remembers"
         }
       ]
     },
@@ -11474,7 +11474,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "uv set 2 is absent."
+          "text": "uv set 2 is absent"
         }
       ]
     },
@@ -11492,11 +11492,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "fine is fine."
+          "text": "fine is fine"
         },
         {
           "speaker": "mikhail",
-          "text": "fine is not a standard."
+          "text": "fine is not a standard"
         }
       ]
     },
@@ -11707,11 +11707,11 @@
         },
         {
           "speaker": "mikhail",
-          "text": "the normals are baked into the geometry."
+          "text": "the normals are baked into the geometry"
         },
         {
           "speaker": "root",
-          "text": "fine."
+          "text": "fine"
         }
       ]
     },
@@ -11728,7 +11728,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the header has a signature from 1994."
+          "text": "the header has a signature from 1994"
         }
       ]
     },
@@ -11746,7 +11746,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "check the winding on tile 12."
+          "text": "check the winding on tile 12"
         },
         {
           "speaker": "mikhail",
@@ -11768,11 +11768,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the seam is invisible at this resolution."
+          "text": "the seam is invisible at this resolution"
         },
         {
           "speaker": "mikhail",
-          "text": "it is visible at any resolution."
+          "text": "it is visible at any resolution"
         }
       ]
     },
@@ -11789,7 +11789,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "do not load the water tiles."
+          "text": "do not load the water tiles"
         }
       ]
     },
@@ -11806,7 +11806,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the noise is part of the texture now."
+          "text": "the noise is part of the texture now"
         }
       ]
     },
@@ -11828,7 +11828,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "the grid is aligned to the origin."
+          "text": "the grid is aligned to the origin"
         }
       ]
     },
@@ -11847,15 +11847,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "verify the material index."
+          "text": "verify the material index"
         },
         {
           "speaker": "mikhail",
-          "text": "index 0 is null."
+          "text": "index 0 is null"
         },
         {
           "speaker": "root",
-          "text": "expected."
+          "text": "expected"
         }
       ]
     },
@@ -11872,7 +11872,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the skybox is repeating on the ground."
+          "text": "the skybox is repeating on the ground"
         }
       ]
     },
@@ -11928,7 +11928,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the ground remembers what was removed."
+          "text": "the ground remembers what was removed"
         }
       ]
     },
@@ -11945,7 +11945,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the mountain is just a stack of pixels waiting to fall."
+          "text": "the mountain is just a stack of pixels waiting to fall"
         }
       ]
     },
@@ -11972,7 +11972,7 @@
         },
         {
           "speaker": "jensen",
-          "text": "it remembers the fire."
+          "text": "it remembers the fire"
         }
       ]
     },
@@ -11989,7 +11989,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the void in tile 4 is intentional."
+          "text": "the void in tile 4 is intentional"
         }
       ]
     },
@@ -12008,15 +12008,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "pull the sector."
+          "text": "pull the sector"
         },
         {
           "speaker": "mikhail",
-          "text": "the header is missing a seal."
+          "text": "the header is missing a seal"
         },
         {
           "speaker": "jensen",
-          "text": "let it bleed."
+          "text": "let it bleed"
         }
       ]
     },
@@ -12033,7 +12033,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "the noise floor is rising."
+          "text": "the noise floor is rising"
         }
       ]
     },
@@ -12055,7 +12055,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "it is not finished, root."
+          "text": "it is not finished, root"
         }
       ]
     },
@@ -12073,11 +12073,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "fine enough."
+          "text": "fine enough"
         },
         {
           "speaker": "mikhail",
-          "text": "it is not fine."
+          "text": "it is not fine"
         }
       ]
     },
@@ -12094,7 +12094,7 @@
       "lines": [
         {
           "speaker": "jensen",
-          "text": "the geometry is polite."
+          "text": "the geometry is polite"
         }
       ]
     },
@@ -12111,7 +12111,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "another rectangle to sort."
+          "text": "another rectangle to sort"
         }
       ]
     },
@@ -12133,7 +12133,7 @@
         },
         {
           "speaker": "mikhail",
-          "text": "no."
+          "text": "no"
         }
       ]
     },
@@ -12152,15 +12152,15 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "look at tile 4."
+          "text": "look at tile 4"
         },
         {
           "speaker": "mikhail",
-          "text": "it is empty space."
+          "text": "it is empty space"
         },
         {
           "speaker": "jensen",
-          "text": "it is waiting."
+          "text": "it is waiting"
         }
       ]
     },
@@ -12216,7 +12216,7 @@
         },
         {
           "speaker": "jensen",
-          "text": "someone did."
+          "text": "someone did"
         }
       ]
     },
@@ -12234,7 +12234,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the elevation set is flat where the streets are."
+          "text": "the elevation set is flat where the streets are"
         },
         {
           "speaker": "mikhail",
@@ -12257,7 +12257,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "there is a second copy of tile 31 further down the archive."
+          "text": "there is a second copy of tile 31 further down the archive"
         },
         {
           "speaker": "root",
@@ -12265,7 +12265,7 @@
         },
         {
           "speaker": "jensen",
-          "text": "close."
+          "text": "close"
         }
       ]
     },
@@ -12282,7 +12282,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "whoever surveyed this walked the same street four times."
+          "text": "whoever surveyed this walked the same street four times"
         }
       ]
     },
@@ -12339,7 +12339,7 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "the north edge stitches clean."
+          "text": "the north edge stitches clean"
         },
         {
           "speaker": "mikhail",
@@ -12400,11 +12400,11 @@
       "lines": [
         {
           "speaker": "root",
-          "text": "nobody has requested this sector in years."
+          "text": "nobody has requested this sector in years"
         },
         {
           "speaker": "jensen",
-          "text": "that is not what the log says."
+          "text": "that is not what the log says"
         }
       ]
     },
@@ -12431,7 +12431,7 @@
         },
         {
           "speaker": "jensen",
-          "text": "leave it in."
+          "text": "leave it in"
         }
       ]
     },
@@ -12448,7 +12448,7 @@
       "lines": [
         {
           "speaker": "mikhail",
-          "text": "every window in this sector faces the same way."
+          "text": "every window in this sector faces the same way"
         }
       ]
     },
@@ -12509,11 +12509,11 @@
         },
         {
           "speaker": "root",
-          "text": "that is one."
+          "text": "that is one"
         },
         {
           "speaker": "mikhail",
-          "text": "over a sector it is not."
+          "text": "over a sector it is not"
         }
       ]
     },
