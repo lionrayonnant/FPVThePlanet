@@ -88,6 +88,54 @@ export function kThrustOf(profile = QUAD) {
 	return profile.maxThrustPerMotor / (profile.maxOmega * profile.maxOmega);
 }
 
+function diskAreaOf(profile) {
+	return Math.PI * profile.propRadius * profile.propRadius;
+}
+
+// A rotor's local axial velocity difference dv changes its thrust by roughly
+// coefficient*omega*dv (momentum-theory inflow slope). That one mechanism
+// used to be measured twice under one name, `kAxial`: once for climb thrust
+// loss (kInflowOf below) and once for the turbulence-buffet damping torque
+// (kBuffetOf below) — two unrelated jobs sharing one dial, so rescaling it by
+// disk size for one job broke the other (issue #71, commit fcfa19a).
+//
+// Non-dimensionalizing kAxial's old per-family values against
+// sqrt(2*rho*diskArea*kThrust) — the actual inflow-slope scale from actuator
+// disk theory — shows freestyle5/race5/longrange/heavy5 (propRadius 6.4-8.9
+// cm, 0.55-0.92 kg) agree on the same constant (~0.169) to within 2%: the
+// sim's implicit formula was already right in form, just never written down.
+// Only smaller disks (cinewhoop, toothpick) need a correction, carried below
+// in `inflowGain`/`buffetGain` — that missing correction, and nobody knowing
+// how much more of it a ~34 g/~20 mm-prop craft would need, is why the
+// prototyped 1S tinywhoop was pulled from PHASE 07.
+const INFLOW_K0 = 0.169;
+const BUFFET_K0 = INFLOW_K0;
+
+// kLateral (rotor/body drag -> yaw damping) is one job, not two, and its own
+// ratio to disk area is already tight across the same four families
+// (~3.6-4.1e-3); non-dimensionalizing it the same way removes its last
+// "no formula" complaint without needing a split.
+const LATERAL_K0 = 3.95e-3;
+
+export function kInflowOf(profile = QUAD) {
+	const base = Math.sqrt(2 * AIR_DENSITY * diskAreaOf(profile) * kThrustOf(profile));
+	return INFLOW_K0 * base * (profile.inflowGain ?? 1);
+}
+
+export function kBuffetOf(profile = QUAD) {
+	const base = Math.sqrt(2 * AIR_DENSITY * diskAreaOf(profile) * kThrustOf(profile));
+	return BUFFET_K0 * base * (profile.buffetGain ?? 1);
+}
+
+export function kLateralOf(profile = QUAD) {
+	return LATERAL_K0 * diskAreaOf(profile) * (profile.lateralGain ?? 1);
+}
+
+// Ground-effect reach as a multiple of propRadius, fixed to reproduce
+// freestyle5's measured 0.22 m reach on its 0.0635 m prop exactly, so every
+// other family's reach scales off its own disk instead of freestyle5's.
+const GROUND_EFFECT_REACH_RATIO = 0.22 / 0.0635;
+
 // Compat exports for the handful of consumers that only ever want the default
 // airframe (audio.js panning, tools reporting).
 export const MOTORS = motorsOf(QUAD);
@@ -152,6 +200,9 @@ export class Propulsion {
 		this._motors = motorsOf(profile);
 		this._mix = mixOf(profile);
 		this._kThrust = kThrustOf(profile);
+		this._kInflow = kInflowOf(profile);
+		this._kBuffet = kBuffetOf(profile);
+		this._kLateral = kLateralOf(profile);
 		this.seed = seed >>> 0;
 		this._rng = mulberry32(this.seed);
 		this.battery = new Battery(profile.battery);
@@ -225,11 +276,15 @@ export class Propulsion {
 		this.propwash = clamp01((descent - 2) / 6) * clamp01((8 - lateral) / 6);
 
 		// Ground effect: the disc pushes against a surface it cannot displace, so
-		// thrust rises. Roughly one rotor diameter of reach on a 5".
-		// NOTE (PHASE 07): the 0.18 gain and 0.22 reach are still global, not
-		// per-profile. A ducted whoop has far stronger ground effect than an open
-		// 7"; making these per-family is deliberately left as follow-up.
-		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / 0.22);
+		// thrust rises. Reach is one rotor diameter-ish, scaled off THIS profile's
+		// own disk (issue #71) instead of hard-coded to freestyle5's 0.22 m: a
+		// fixed reach made a whoop's tiny disk feel ground effect over a distance
+		// several times its own body size, holding idle thrust — and so descent
+		// rate — pinned near hover far longer than a real ~34 g airframe would.
+		// The 0.18 peak gain is still global; no per-family measurement exists
+		// yet for how much a duct changes it (left as follow-up, same as before).
+		const groundReach = GROUND_EFFECT_REACH_RATIO * P.propRadius;
+		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
 
 		let load = 0, thrustTotal = 0;
 		let tx = 0, ty = 0, tz = 0;
@@ -261,7 +316,7 @@ export class Propulsion {
 			// Thrust: static term minus what the axial inflow takes away. Clamped
 			// at zero rather than allowed to go negative — a prop windmilling
 			// backwards is outside anything this model claims to cover.
-			let t = this._kThrust * w * w - P.kAxial * w * vy;
+			let t = this._kThrust * w * w - this._kInflow * w * vy;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
@@ -283,8 +338,8 @@ export class Propulsion {
 			// moment: tau_y = r_z*F_x - r_x*F_z. Under yaw rate it comes out
 			// opposing the rotation, which is the aerodynamic yaw damping a real
 			// quad has and this model did not.
-			const dx = -P.kLateral * w * vx;
-			const dz = -P.kLateral * w * vz;
+			const dx = -this._kLateral * w * vx;
+			const dz = -this._kLateral * w * vz;
 			dragX += dx;
 			dragZ += dz;
 			ty += m.z * dx - m.x * dz;
@@ -318,11 +373,11 @@ export class Propulsion {
 			// An eddy smaller than the disc does not arrive at all four rotors at
 			// once, so the same fluctuation that pushes the quad sideways also
 			// twists it. The amplitude is not a taste constant: a velocity
-			// difference dv across one rotor changes its thrust by kAxial*w*dv,
+			// difference dv across one rotor changes its thrust by kBuffet*w*dv,
 			// and that acts on the arm — so the torque is that product, and it
 			// grows with rpm exactly like the thrust it perturbs does.
 			const wMean = (this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4;
-			const s = P.kAxial * wMean * shake * P.armZ;
+			const s = this._kBuffet * wMean * shake * P.armZ;
 			tx += this._buffet[0].next(dt) * s;
 			ty += this._buffet[1].next(dt) * s * 0.4;
 			tz += this._buffet[2].next(dt) * s;
