@@ -12,6 +12,20 @@ import { menuNav } from './menu-nav.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
 import { conditionsBlock, conditionsLine } from './weather.js';
 import { uiAudio } from './ui-audio.js';
+import { mount, sayOnce } from './dialogue.js';
+import { scanContext } from './dialogue-context.js';
+
+// Bloc RTC partagé par la liste et la fiche : même markup que scanner.js
+// (`.sc-block .sc-log-block .sc-rtc-block`), pour une seule langue visuelle
+// entre toutes les voix du crew.
+const rtcMarkup = '<pre class="sc-h">RTC // INTERNAL</pre><pre class="sc-log sc-rtc"></pre>';
+function appendRtc(box) {
+	const el = document.createElement('section');
+	el.className = 'sc-block sc-log-block sc-rtc-block';
+	el.innerHTML = rtcMarkup;
+	box.appendChild(el);
+	return el;
+}
 
 // `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
 // scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
@@ -34,12 +48,22 @@ ${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
 		});
 		s.box.appendChild(wrap);
 
+		// Le RTC vit sous la liste. Depuis l'issue #123 la liste n'est plus
+		// redessinée — chaque signal est un vrai bouton et le curseur est le
+		// focus natif — donc ce nœud survit jusqu'au démontage explicite.
+		appendRtc(s.box);
+		const stopScan = mount(s.box.querySelector('.sc-rtc'), {
+			event: 'TARGET_SCAN',
+			context: () => scanContext({ scan, weather }),
+		});
+
 		// Pas de `back` : un TARGET SCAN se conclut en choisissant un signal —
 		// c'était déjà vrai avant (aucune touche ne l'annulait).
 		const listNav = menuNav(s.el, {});
 
 		const finish = (index) => {
 			listNav.detach();
+			stopScan();
 			s.remove();
 			resolve({ seed: scan.seed, count: scan.count, index });
 		};
@@ -57,6 +81,23 @@ DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
 VIDEO          ${d.video}
 CONTROL        ${d.control}
 FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}</pre>`;
+			appendRtc(s2.box);
+
+			// Un seul échange à l'ouverture de la fiche. La météo est déjà affichée
+			// juste au-dessus par CONDITIONS : on ne la fait commenter par le crew
+			// que si la cible n'a rien dit — cascade sur le `null` que sayOnce rend
+			// déjà pour « silence », sans exposer la mémoire hors de dialogue.js.
+			// Ni l'un ni l'autre n'est attendu : ça ne bloque jamais CONFIRM/BACK.
+			const paint = (lines) => {
+				const el = s2.box.querySelector('.sc-rtc');
+				if (!el) return;
+				for (const l of lines) el.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
+				el.scrollTop = el.scrollHeight;
+			};
+			sayOnce('TARGET_SELECTED', scanContext({ scan, weather, candidate: scan.candidates[index] }))
+				.then((lines) => lines
+					? paint(lines)
+					: sayOnce('WEATHER', scanContext({ scan, weather })).then((w) => w && paint(w)));
 
 			let done = false;
 			const confirm = () => {

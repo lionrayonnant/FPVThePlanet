@@ -97,15 +97,19 @@ export async function probeHardware() {
 }
 
 // Commentaires de crew : câblés sur ce qui a été trouvé, 2 à 4 par run.
+// PHASE 21 : cet écran tourne avant le chargement de l'opérateur, donc avant
+// que la mémoire du moteur de dialogue existe — le monter ici la figerait
+// vide pour tout l'onglet. Lignes câblées en dur à dessein, ne pas relier au
+// moteur de dialogue.
 function crewNotes(rows) {
 	const by = Object.fromEntries(rows.map((r) => [r.label, r.value]));
 	const out = [];
 	const hz = parseInt(by.REFRESH, 10);
-	if (hz >= 120) out.push('// root: ' + hz + 'hz', '// vex: acceptable');
-	else if (hz) out.push('// root: ' + hz + 'hz', '// vex: we make do');
-	if (by.INPUT === 'NO GAMEPAD') out.push('// root: no radio', '// vex: keyboard then');
-	else out.push('// root: radio detected', '// vex: good');
-	if (by.NETWORK === 'OFFLINE') out.push('// root: offline', '// vex: cache only');
+	if (hz >= 120) out.push('// root: ' + hz + 'hz', '// mikhail: acceptable');
+	else if (hz) out.push('// root: ' + hz + 'hz', '// mikhail: we make do');
+	if (by.INPUT === 'NO GAMEPAD') out.push('// root: no radio', '// mikhail: keyboard then');
+	else out.push('// root: radio detected', '// cron: good');
+	if (by.NETWORK === 'OFFLINE') out.push('// root: offline', '// cron: cache only');
 	return out.slice(0, 4);
 }
 

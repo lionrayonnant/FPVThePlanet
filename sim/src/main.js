@@ -1444,7 +1444,7 @@ async function chooseScene() {
 	await music.loadManifest();
 	await music.prepare(music.trackForFamily(cand._family, buildSeed));
 	music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
-	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
 	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 	// pendant le hack comme un unique pas de physique géant.
 	introFrozen = false;

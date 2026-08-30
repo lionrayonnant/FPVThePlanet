@@ -20,7 +20,7 @@ export const TIMELINE = {
 	// finale, correction 6) : une ligne vide qui apparaît seule, une frame
 	// avant son texte, romprait l'écart visuel qu'elle est censée créer. La
 	// spec écrit ces blocs avec un blanc après LINK LOST et un autre avant
-	// [ESC] DISCONNECT — c'est ce que hud.js#flight-end div:empty rend déjà
+	// [ENTER] DISCONNECT — c'est ce que hud.js#flight-end div:empty rend déjà
 	// pour l'écran de pose (MOTORS DISARMED / END SESSION).
 	lines: [
 		[1.6, 'LINK LOST'],
@@ -28,7 +28,7 @@ export const TIMELINE = {
 		[2.8, 'TARGET LOST'],
 		[3.6, 'SESSION TERMINATED'],
 		[4.6, ''],
-		[4.6, '[ESC] DISCONNECT'],
+		[4.6, '[ENTER] DISCONNECT'],
 	],
 	exitAt: 4.6,            // la sortie s'arme avec la dernière ligne
 };
@@ -52,7 +52,7 @@ export const LANDING_TIMELINE = {
 		[1.4, ''],
 		[1.4, 'END SESSION'],
 		[2.2, ''],
-		[2.2, '[ESC] DISCONNECT'],
+		[2.2, '[ENTER] DISCONNECT'],
 	],
 	exitAt: 2.2,            // la sortie s'arme avec la dernière ligne
 };

@@ -329,6 +329,10 @@ button:focus::before {
 	background: var(--warm-white); color: var(--black); border-color: var(--warm-white);
 }
 .bootstrap button:disabled { opacity: .4; cursor: default; }
+/* Le contrôle encadré du terminal (voir commentaire plus bas) : un filet
+   d'ink plutôt que le gris de repos des autres CTA, pour rester le seul
+   bouton qui accroche l'œil sans sortir de la palette. */
+.terminal-scanner-cta { border-color: var(--ink); }
 
 /* ---------- operator terminal (PHASE 02) ---------- */
 /* The Home is calm: no cards, no big metrics, no rounded corners. Navigation is
@@ -363,9 +367,31 @@ button:focus::before {
 	margin-top: var(--space-1); white-space: nowrap;
 }
 
-.terminal-areas { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-1) 0; }
-.terminal-area { display: flex; align-items: baseline; gap: 20px; font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
+.terminal-search { width: 100%; box-sizing: border-box; }
+.terminal-areas {
+	display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-1) 0;
+	max-height: 55vh; overflow-y: auto;
+}
+button.terminal-area {
+	box-sizing: border-box;
+	display: flex; align-items: baseline; gap: 20px; width: 100%;
+	font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui);
+	border: 0; background: none; text-align: left; cursor: pointer; color: var(--ink);
+	padding: 1px 0 1px 1.2em;
+}
+button.terminal-area:hover, button.terminal-area:focus {
+	background: var(--warm-white); color: var(--black);
+}
+button.terminal-area:hover .terminal-area-size, button.terminal-area:focus .terminal-area-size,
+button.terminal-area:hover .terminal-area-weather, button.terminal-area:focus .terminal-area-weather {
+	color: inherit;
+}
+button.terminal-area:focus::before { left: 0; }
 .terminal-area > span:first-child { min-width: 260px; }
+/* Rangée d'actions (OPEN · FORECAST · REMOVE) : masquée tant que la carte de
+   la rangée au-dessus n'est pas activée (Entrée/clic) — Échap la referme. */
+.terminal-area-actions { padding-left: 1.2em; margin: 2px 0 0; display: flex; align-items: center; gap: var(--space-2); }
+.terminal-area-actions[hidden] { display: none; }
 .terminal-area-size { color: var(--light-grey); font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
 /* Le temps qu'il fait sur la zone. Retour utilisateur du 2026-08-29 : « au
    lancement d'un vol on ne pense pas aux conditions ». Il fallait donc le
@@ -374,13 +400,14 @@ button:focus::before {
    filet : il se distingue par la forme et non par la couleur. Departure Mono
    porte aussi les quatre flèches ↑ → ↓ ← du vent, que Plex Mono n'a pas. */
 .terminal-area-weather {
-	flex: 1;
+	flex: 1; min-width: 0;
 	font-family: var(--font-ascii);
 	font-size: var(--fs-display-s);
 	letter-spacing: .06em;
 	color: var(--ink);
 	border-left: var(--rule-w) solid var(--rule-strong);
 	padding-left: var(--space-3);
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* La couleur n'apparaît que si la météo change la décision de voler
    (weather.js pose data-severity) : sinon la ligne reste en encre neutre. */
@@ -577,8 +604,13 @@ button.terminal-row:focus::before { left: 0; }
 	border: var(--rule-w) solid var(--rule); padding: var(--space-2);
 	max-height: 40vh;
 }
-/* RTC (Bible §9) : la même vitrine que le log du pipeline, mais bien plus
-   discrète — c'est du décor, jamais une source d'information sur l'opération. */
+/* RTC (Bible §9, PHASE 21) : la même vitrine que le log du pipeline, mais bien
+   plus discrète — c'est du décor, jamais une source d'information sur
+   l'opération. `.sc-block`/`.sc-h`/`.sc-log`/`.sc-rtc` sont des classes nues,
+   pas scopées à `.scanner-panel` : le conteneur d'écran du scanner et celui
+   des écrans terminal (TARGET SCAN, la fiche, HACK — `.bootstrap-box`, aussi
+   en colonne flex) portent déjà les mêmes règles sans qu'il faille les
+   dupliquer — une seule langue visuelle pour toutes les voix du crew. */
 .sc-rtc-block { flex: 0 0 auto; }
 .sc-rtc { max-height: 18vh; color: var(--faint); }
 

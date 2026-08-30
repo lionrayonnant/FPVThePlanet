@@ -4,13 +4,12 @@
 // inchangé). Écran client pur : aucun Three/Rapier/physics, jamais importé
 // par le moteur.
 //
-// PRESS ANY KEY (calme, palette UI) résout la contrainte de geste utilisateur
-// pour l'AudioContext ; le geste qui la passe est aussi celui qui démarre
-// playIntro(). Le cracktro qui suit (logo + plasma/raster + scrolltext, Bible
-// §19 : cyan/magenta/violet/bleu électrique réservés à ce moment) est
-// skippable à tout instant — n'importe quel geste coupe net (uiAudio.skipIntro()
-// + démontage complet) plutôt que d'attendre la fin.
-import { uiAudio } from './ui-audio.js';
+// PRESS ANY KEY (calme, palette UI) fait passer le geste utilisateur qui
+// lance le cracktro (logo + plasma/raster + scrolltext, Bible §19 :
+// cyan/magenta/violet/bleu électrique réservés à ce moment). Muet au
+// démarrage (le cracktro n'a plus de partition) : skippable à tout instant —
+// n'importe quel geste coupe net (démontage complet) plutôt que d'attendre la
+// fin.
 import { INTRO_PHASES, INTRO_TOTAL_MS, RESOLUTION_AT_MS, phaseAt, SKIP_WRAP_MS } from '../tools/intro-model.mjs';
 import { cosmeticSeed, RITUAL_PRIMITIVES } from './hack-grammars.js';
 
@@ -95,13 +94,10 @@ export function runIntro(root) {
 			// Retrait SYNCHRONE, comme onGate() plus bas : un skip se martèle en
 			// pratique (touche tenue, double clic), et finish() ne tourne qu'après
 			// SKIP_WRAP_MS — sans ce retrait immédiat, une deuxième frappe dans cette
-			// fenêtre relancerait skipIntro() une deuxième fois. uiAudio.skipIntro()
-			// est lui-même devenu idempotent en défense en profondeur, mais l'écran
-			// ne doit pas compter dessus pour se comporter correctement.
+			// fenêtre relancerait le skip une deuxième fois.
 			skipped = true;
 			window.removeEventListener('keydown', onSkip);
 			wrap.removeEventListener('click', onSkip);
-			uiAudio.skipIntro();
 			// Un dénouement bref plutôt qu'un cut visuel à la milliseconde près :
 			// le temps que l'œil accroche la coupure, pas le temps de rejouer la
 			// coda entière (SKIP_WRAP_MS << la durée de résolution normale).
@@ -156,9 +152,6 @@ export function runIntro(root) {
 			requestAnimationFrame(() => wrap.querySelector('.intro-logo').classList.add('intro-logo-in'));
 			window.addEventListener('keydown', onSkip);
 			wrap.addEventListener('click', onSkip);
-			// Le geste qui vient de passer le gate démarre aussi l'AudioContext :
-			// c'est le seul moment de toute l'intro où un navigateur l'autorise.
-			uiAudio.playIntro();
 			raf = requestAnimationFrame(loop);
 		}
 

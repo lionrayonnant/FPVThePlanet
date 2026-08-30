@@ -920,6 +920,47 @@ Plan d'origine (contexte de la décision d'architecture) :
     s'ajoute à celle, déjà ouverte, de PHASE 18 / #106 / #107 : le mixage
     complet (moteur + UI + rituel + musique) n'a jamais été entendu.
 
+- **PHASE 21 — Lore / RTC v0** (issue #58). Un crew — `root` (tranche),
+  `jensen` (agent double, délibérément rare), `mikhail` (garde-fou technique),
+  `cron` (un processus, pas un personnage) — commente depuis un corpus écrit
+  hors-ligne et interpolé avec l'état réel du jeu. `vex` est retiré du canon
+  (D7) : ses lignes de la Bible §9 et du boot (`src/bootstrap.js`) sont
+  réattribuées à `root`/`mikhail`/`cron`.
+  - **Vérifié sans navigateur** (`node tools/dialogue-selftest.mjs` : 71
+    vérifications, tout passe ; `node tools/buildnotes-selftest.mjs` : 8
+    vérifications, tout passe) : le moteur de sélection (bassin, éligibilité,
+    trois seaux de refroidissement, poids de rareté, rareté de jensen — jamais
+    plus d'une fois toutes les 12 répliques), le rendu de slots qui jette sur
+    tout `{…}` non résolu, `validateCorpus()` et `findDuplicates()` passés sur
+    le shard `ACQUIRE_AREA` livré au complet (aucune erreur, aucun quasi-doublon
+    au-dessus de 0,75 de Jaccard), le pack de secours embarqué (`FALLBACK`)
+    valide et sans aucun `requires`, un événement câblé pour chacun des IDs de
+    la v1 même sans réseau, et l'isolation de l'outillage de génération
+    (`tools/dialogue/generate.mjs`, `prompts/`) : aucun module de `src/` ne
+    l'importe, `public/dialogue/` ne contient que des données.
+  - **Vérifié dans le navigateur** (le contrôleur a piloté un vrai Chromium) :
+    le flux RTC survit à un redessin du curseur sans perdre son historique ;
+    aucun `{slot}` non résolu n'apparaît sur le chemin joué ; les répliques
+    arrivent une par une, jamais en bloc ; le pack de secours embarqué
+    fonctionne quand le corpus réseau est indisponible. **Un défaut serveur a
+    été trouvé et corrigé à cette occasion** : `dialogueMemory` était rejeté
+    par la liste blanche du PATCH opérateur (`OP_WRITABLE_KEYS` dans
+    `tools/map-api-plugin.mjs`), ce qui cassait silencieusement la persistance
+    de la mémoire anti-répétition et produisait une boucle de retentative sans
+    fin côté client. Corrigé (`dialogueMemory` ajouté à la liste blanche,
+    régression couverte par `tools/session-api-selftest.mjs`).
+  - **Non vérifié** : la qualité perçue du corpus sur une longue partie — un
+    jugement de ton qu'aucun selftest ne mesure, exactement comme l'écoute
+    pour PHASE 18 et pour l'audio de l'intro (voir plus bas). **Ce n'est pas
+    vérifié, seulement écrit avec soin.** De même, le silence pendant le
+    burst du rituel (D9 : `buildContext()` n'est jamais appelé pendant
+    l'armement du CONTROL VECTOR) a été relu dans le code mais pas observé en
+    vol — la lecture de code n'est pas une observation.
+  - Dette connue, volontairement non traitée ici : `sim/public/dialogue/*.json`
+    est indenté à deux espaces alors que le reste du dépôt utilise des
+    tabulations — le fichier appartient à une génération de corpus en cours au
+    moment de cette tâche, non touché ; suivi en issue de suivi séparée.
+
 - **PHASE 18 — Audio final** (issue #55). Langage sonore de trois familles à
   côté de la synthèse moteur, qui est conservée telle quelle.
   - **Vérifié en Node** (`npm run selftest:operator`, 52 tests neufs répartis

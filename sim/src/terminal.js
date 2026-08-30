@@ -6,6 +6,7 @@ import * as operatorApi from './operator.js';
 import { captureControlVector, bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
+import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -22,7 +23,7 @@ export function button(label, onClick, cls = 'terminal-link') {
 	const b = document.createElement('button');
 	b.type = 'button';
 	b.className = cls;
-	b.textContent = cls === 'terminal-cta' ? `[ ${label} ]` : label;
+	b.textContent = cls.split(' ').includes('terminal-cta') ? `[ ${label} ]` : label;
 	b.onclick = onClick;
 	return b;
 }
@@ -114,51 +115,165 @@ function localTerrain(root, scenes) {
 	const s = screen(root);
 	return new Promise((resolve) => {
 		let nav = null;
-		const done = (slug) => { nav?.detach(); s.remove(); resolve(slug); };
-		if (scenes === null || scenes.length === 0) {
-			// Pas de renvoi vers une page d'acquisition : le scanner EST l'entrée.
-			s.box.innerHTML = `<pre>LOCAL TERRAIN\n\n${scenes === null
-				? 'TERRAIN CACHE UNREACHABLE' : 'NO LOCAL TERRAIN — ACQUIRE ONE'}</pre>`;
+		// Une rangée ouverte pose son propre menuNav (OPEN/FORECAST/REMOVE),
+		// au-dessus de la liste : Échap referme celui-là avant celui de l'écran.
+		let subNav = null;
+		const closeSub = () => { subNav?.detach(); subNav = null; };
+		const done = (slug) => { closeSub(); nav?.detach(); s.remove(); resolve(slug); };
+
+		// Filtre texte, conservé d'un re-rendu à l'autre (REMOVE, retour de
+		// FORECAST) — seul le nom compte, c'est la seule donnée que l'opérateur
+		// reconnaît au clavier.
+		let query = '';
+
+		// Tri actif, même durée de vie que le filtre. WEATHER dépend d'une donnée
+		// qui arrive en retard (worldWeather par rangée) : le cache et le
+		// registre `weatherReordered` évitent de retrier en boucle à chaque
+		// résolution — un seul re-tri par carte, la première fois qu'on connaît
+		// sa sévérité.
+		const SORTS = ['NAME', 'SIZE', 'DATE', 'WEATHER'];
+		let sortBy = 'NAME';
+		const weatherSeverityBySlug = new Map();
+		const weatherReordered = new Set();
+
+		const SEVERITY_RANK = { nominal: 0, watch: 1, marginal: 2, nogo: 3 };
+
+		const compareScenes = (a, b) => {
+			if (sortBy === 'SIZE') return (b.bytes ?? 0) - (a.bytes ?? 0); // plus lourd d'abord
+			if (sortBy === 'DATE') return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')); // plus récent d'abord
+			if (sortBy === 'WEATHER') {
+				const ra = weatherSeverityBySlug.has(a.slug) ? SEVERITY_RANK[weatherSeverityBySlug.get(a.slug)] : 99;
+				const rb = weatherSeverityBySlug.has(b.slug) ? SEVERITY_RANK[weatherSeverityBySlug.get(b.slug)] : 99;
+				return ra - rb || a.name.localeCompare(b.name);
+			}
+			return a.name.localeCompare(b.name);
+		};
+
+		const render = (focusIdx = 0, focusSearch = false, focusSortIdx = -1) => {
+			closeSub();
+			nav?.detach();
+			s.box.innerHTML = '';
+			if (scenes === null || scenes.length === 0) {
+				// Pas de renvoi vers une page d'acquisition : le scanner EST l'entrée.
+				s.box.innerHTML = `<pre>LOCAL TERRAIN\n\n${scenes === null
+					? 'TERRAIN CACHE UNREACHABLE' : 'NO LOCAL TERRAIN — ACQUIRE ONE'}</pre>`;
+				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+				nav = menuNav(s.el, { back: () => done() });
+				return;
+			}
+			s.box.innerHTML = '<pre>LOCAL TERRAIN</pre>';
+
+			const search = document.createElement('input');
+			search.type = 'search';
+			search.autocomplete = 'off';
+			search.spellcheck = false;
+			search.placeholder = 'SEARCH';
+			search.value = query;
+			search.className = 'terminal-search';
+			search.oninput = () => { query = search.value; render(0, true); };
+			s.box.appendChild(search);
+
+			const sortRow = document.createElement('div');
+			sortRow.className = 'terminal-nav terminal-sort';
+			SORTS.forEach((key, i) => {
+				if (i) sortRow.appendChild(document.createTextNode(' · '));
+				sortRow.appendChild(button(key === sortBy ? `[${key}]` : key, () => {
+					sortBy = key;
+					render(0, false, i);
+				}));
+			});
+			s.box.appendChild(sortRow);
+
+			const q = query.trim().toLowerCase();
+			const shown = (q ? scenes.filter((sc) => sc.name.toLowerCase().includes(q)) : scenes.slice())
+				.sort(compareScenes);
+
+			const refocusSearch = () => { search.focus(); search.setSelectionRange(search.value.length, search.value.length); };
+			const refocusSort = () => { sortRow.querySelectorAll('button')[focusSortIdx]?.focus(); };
+
+			if (!shown.length) {
+				const empty = document.createElement('pre');
+				empty.textContent = 'NO MATCH';
+				s.box.appendChild(empty);
+				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+				nav = menuNav(s.el, { back: () => done(), focusFirst: false });
+				if (focusSortIdx >= 0) refocusSort(); else refocusSearch();
+				return;
+			}
+
+			const list = document.createElement('div');
+			list.className = 'terminal-areas';
+			shown.forEach((sc, i) => {
+				const item = document.createElement('div');
+
+				// La rangée entière est le curseur (issue #123) : ↑/↓ la survolent,
+				// elle prend le ton blanc de la DA — Entrée/clic ouvre ses actions.
+				const row = document.createElement('button');
+				row.type = 'button';
+				row.className = 'terminal-area';
+				const name = document.createElement('span');
+				name.textContent = sc.name;
+				const size = document.createElement('span');
+				size.className = 'terminal-area-size';
+				size.textContent = formatBytes(sc.bytes);
+				// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit
+				// quand le world state répond, et reste vide s'il ne répond pas.
+				const sky = document.createElement('span');
+				sky.className = 'terminal-area-weather';
+				sky.textContent = '…';
+				worldWeather({ lat: sc.lat, lon: sc.lon })
+					.then((snap) => {
+						const t = snap && weatherToday(snap);
+						sky.textContent = t ? headline(t) : '';
+						// La couleur ne sort que si les conditions changent la décision
+						// de voler (PHASE 19, Bible §38) : `nominal` ne pose rien et la
+						// ligne reste en encre neutre.
+						const sev = t ? weatherSeverity(t) : 'nominal';
+						if (sev !== 'nominal') sky.dataset.severity = sev;
+						else delete sky.dataset.severity;
+						weatherSeverityBySlug.set(sc.slug, sev);
+						if (sortBy === 'WEATHER' && !weatherReordered.has(sc.slug)) {
+							weatherReordered.add(sc.slug);
+							render(focusIdx, focusSearch, focusSortIdx);
+						}
+					})
+					.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
+				row.append(name, size, sky);
+
+				const actions = document.createElement('div');
+				actions.className = 'terminal-nav terminal-area-actions';
+				actions.hidden = true;
+				actions.append(
+					button('OPEN', () => done(sc.slug)),
+					button('FORECAST', () => forecastScreen(root, sc)),
+					button('REMOVE', async () => {
+						closeSub();
+						const r = await fetch(`/__map-api/scenes/${sc.slug}`, { method: 'DELETE' });
+						if (!r.ok) return;
+						scenes = scenes.filter((x) => x.slug !== sc.slug);
+						render(Math.min(i, scenes.length - 1));
+					}));
+				row.onclick = () => {
+					if (subNav) return;
+					actions.hidden = false;
+					subNav = menuNav(actions, { back: () => { closeSub(); actions.hidden = true; row.focus(); } });
+				};
+
+				item.append(row, actions);
+				list.appendChild(item);
+			});
+			s.box.appendChild(list);
 			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-			nav = menuNav(s.el, { back: () => done() });
-			return;
-		}
-		s.box.innerHTML = '<pre>LOCAL TERRAIN</pre>';
-		const list = document.createElement('div');
-		list.className = 'terminal-areas';
-		for (const sc of scenes) {
-			const row = document.createElement('div');
-			row.className = 'terminal-area';
-			const name = document.createElement('span');
-			name.textContent = sc.name;
-			const size = document.createElement('span');
-			size.className = 'terminal-area-size';
-			size.textContent = formatBytes(sc.bytes);
-			// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit
-			// quand le world state répond, et reste vide s'il ne répond pas.
-			const sky = document.createElement('span');
-			sky.className = 'terminal-area-weather';
-			sky.textContent = '…';
-			worldWeather({ lat: sc.lat, lon: sc.lon })
-				.then((snap) => {
-					const t = snap && weatherToday(snap);
-					sky.textContent = t ? headline(t) : '';
-					// La couleur ne sort que si les conditions changent la décision
-					// de voler (PHASE 19, Bible §38) : `nominal` ne pose rien et la
-					// ligne reste en encre neutre.
-					const sev = t ? weatherSeverity(t) : 'nominal';
-					if (sev !== 'nominal') sky.dataset.severity = sev;
-					else delete sky.dataset.severity;
-				})
-				.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
-			row.append(name, size, sky,
-				button('FORECAST', () => forecastScreen(root, sc)),
-				button('OPEN', () => done(sc.slug), 'terminal-cta'));
-			list.appendChild(row);
-		}
-		s.box.appendChild(list);
-		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-		nav = menuNav(s.el, { back: () => done() });
+			nav = menuNav(s.el, { back: () => done(), focusFirst: false });
+			if (focusSortIdx >= 0) refocusSort();
+			else if (focusSearch) refocusSearch();
+			else {
+				const rows = list.querySelectorAll('button.terminal-area');
+				(rows[Math.min(focusIdx, rows.length - 1)] ?? s.box.querySelector('button'))?.focus();
+			}
+		};
+
+		render();
 	});
 }
 
@@ -263,23 +378,30 @@ REGISTERED   ${String(op.createdAt).replace('T', ' ').slice(0, 16)}
 SESSIONS     ${op.sessions?.length ?? 0}
 TARGETS      ${op.targetLog?.length ?? 0}</pre>
 			<div class="op-portrait" hidden></div>`;
-		s.box.appendChild(button('SWITCH OPERATOR', async () => {
-			// Masqué pendant la sélection et un éventuel bootstrapping : la pile
-			// de navs (menu-nav.js) rend la main à l'écran monté par-dessus.
-			s.el.hidden = true;
-			const list = await api.listOperators();
-			const pick = await operatorSelect(root, list);
-			if (pick.create) await bootstrap(root);
-			else await api.selectOperator(pick.id);
-			s.el.hidden = false;
-			render();
-		}, 'terminal-cta'));
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
 		nav?.focusAt(0);
 	};
 	render();
 	nav = menuNav(s.el, { back: close });
 	return new Promise((resolve) => { resolveScreen = resolve; });
+}
+
+// ---------- BUILD NOTES ----------
+
+// Échelle de versions écrite à la main (tools/buildnotes-model.mjs), déverrouillée
+// par les compteurs déjà accumulés par l'opérateur. Décoratif : pas de résolution
+// de vol, juste un BACK vers la Home.
+function buildNotesScreen(root, operator) {
+	const s = screen(root);
+	const c = countersOf(operator);
+	s.box.innerHTML = `<pre>BUILD NOTES
+
+CURRENT BUILD   ${currentBuild(c)}
+
+${unlockedNotes(c).map((n) => `${n.build}\n${n.lines.map((l) => `  ${l}`).join('\n')}`).join('\n\n')}</pre>`;
+	return new Promise((resolve) => {
+		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+	});
 }
 
 // ---------- OPERATOR SELECT (repris de l'ancienne home.js) ----------
@@ -347,7 +469,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 			scenes = await fetchScenes();
 			s.el.hidden = false;
 			render();
-		}, 'terminal-cta'));
+		}, 'terminal-cta terminal-scanner-cta'));
 
 		s.box.appendChild(navRow([
 			['SESSION LOG', async () => {
@@ -368,6 +490,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 			}],
 			['SETTINGS', () => settings?.toggleSettings(true)],
 			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
+			['BUILD NOTES', async () => { await buildNotesScreen(root, api.getOperator()); render(); }],
 		]));
 
 		const foot = document.createElement('pre');
