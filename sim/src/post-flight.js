@@ -6,6 +6,7 @@
 // Uniquement pour une session LANDED : une session CRASHED n'a pas de grand
 // écran (Bible §24, « pas de récompense, pas de grand écran de mort »).
 import { screen, button, fetchScenes } from './terminal.js';
+import { menuNav } from './menu-nav.js';
 import { formatBytes } from '../tools/terminal-model.mjs';
 import { analyzeFlight } from '../tools/post-flight-model.mjs';
 import * as operatorApi from './operator.js';
@@ -61,9 +62,14 @@ OPERATOR NOTE</pre>
 				try { await operatorApi.patchSessionComment(session.id, text); }
 				catch (e) { console.warn('[post-flight] note non sauvegardée', e); }
 			}
+			nav.detach();
 			s.remove();
 			resolve();
 		}, 'terminal-cta'));
+		// Pas de `back` : le rapport se referme par CONTINUE, il n'y a pas
+		// d'ailleurs. La note (textarea) garde ses touches ; ↓ ou la manette
+		// descend sur CONTINUE.
+		const nav = menuNav(s.el, {});
 	});
 }
 
@@ -83,16 +89,18 @@ ${formatBytes(scene.bytes)}
 
 KEEP TERRAIN DATA?</pre>`;
 	return new Promise((resolve) => {
+		const close = () => { nav.detach(); s.remove(); resolve(); };
 		// KEEP : rien à faire, le terrain reste tel quel sur disque.
-		s.box.appendChild(button('KEEP', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		s.box.appendChild(button('KEEP', close, 'terminal-cta'));
 		// REMOVE : supprime les données préparées, pas la session — « supprimer le
 		// terrain ne supprime pas le souvenir ».
 		s.box.appendChild(button('REMOVE', async () => {
 			try { await fetch(`/__map-api/scenes/${scene.slug}`, { method: 'DELETE' }); }
 			catch (e) { console.warn('[post-flight] suppression du terrain échouée', e); }
-			s.remove();
-			resolve();
+			close();
 		}, 'terminal-cta'));
+		// Pas de `back` : la question demande une réponse, KEEP ou REMOVE.
+		const nav = menuNav(s.el, {});
 	});
 }
 

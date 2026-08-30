@@ -3,6 +3,7 @@
 // déjà rempli ce conteneur. Tout le texte visible est en anglais (D5).
 import * as operatorApi from './operator.js';
 import { readGamepadDir } from './gamepad-dir.js';
+import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -116,6 +117,7 @@ function screen(root) {
 	el.innerHTML = '<div class="bootstrap-box"></div>';
 	root.appendChild(el);
 	return {
+		el,
 		box: el.querySelector('.bootstrap-box'),
 		remove: () => el.remove(),
 	};
@@ -158,8 +160,9 @@ async function hardwareScreen(root) {
 	lines.push('', 'INITIALIZATION...');
 	await revealLines(s.box, lines.filter((l) => l !== undefined));
 	await new Promise((resolve) => {
-		const btn = button('CONTINUE', () => { s.remove(); resolve(); });
-		s.box.appendChild(btn);
+		const close = () => { nav.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('CONTINUE', close));
+		const nav = menuNav(s.el, {});
 	});
 }
 
@@ -188,6 +191,7 @@ async function nameScreen(root, api) {
 			err.textContent = '';
 			try {
 				const state = await api.createOperator(input.value);
+				nav.detach();
 				s.remove();
 				resolve(state);
 			} catch (e) {
@@ -196,6 +200,10 @@ async function nameScreen(root, api) {
 		};
 		input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 		s.box.appendChild(button('REGISTER', submit));
+		// Le champ garde son focus et ses touches (menu-nav ignore la saisie de
+		// texte) ; la manette peut descendre sur REGISTER et valider avec A. Le
+		// nom lui-même se tape au clavier — seul moment du jeu où il en faut un.
+		const nav = menuNav(s.el, { focusFirst: false });
 	});
 }
 
@@ -203,6 +211,10 @@ async function nameScreen(root, api) {
 
 export async function captureControlVector(root, initialLength = 6) {
 	const s = screen(root);
+	// Ici les flèches sont la donnée saisie, pas de la navigation : cet écran
+	// ne s'abonne pas à menu-nav et rend inertes les navs restés montés
+	// dessous (issue #123 — un écran s'abonne explicitement).
+	const unblock = blockNav(s.el);
 	let length = initialLength;
 	let vec = [];
 	let resolveVec;
@@ -246,14 +258,31 @@ WRITE IT DOWN.</pre>
 		const map = { ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left' };
 		if (map[e.key]) { e.preventDefault(); add(map[e.key]); }
 		if (e.key === 'Backspace') { e.preventDefault(); vec = vec.slice(0, -1); render(); }
+		// Entrée = CONFIRM VECTOR, aux mêmes conditions que le bouton (issue
+		// #123 : tout doit être faisable au clavier seul).
+		if (e.key === 'Enter' && vec.length === length) { e.preventDefault(); finish(); }
 	};
 	window.addEventListener('keydown', onKey);
 
+	// A confirme (vecteur complet seulement), B efface — mêmes boutons que dans
+	// menu-nav.js. Front montant, et « tenu » au départ : le geste qui a ouvert
+	// cet écran ne doit pas confirmer ou effacer à travers lui.
 	let padPrev = null;
+	const padHeld = { 0: true, 1: true };
 	const padPoll = setInterval(() => {
 		const d = readGamepadDir(padPrev);
-		if (d === '__hold') return;
-		if (d) { padPrev = d; add(d); } else { padPrev = null; }
+		if (d !== '__hold') {
+			if (d) { padPrev = d; add(d); } else { padPrev = null; }
+		}
+		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+		for (const b of [0, 1]) {
+			const down = !!pad?.buttons[b]?.pressed;
+			if (down && !padHeld[b]) {
+				if (b === 0 && vec.length === length) finish();
+				if (b === 1) { vec = vec.slice(0, -1); render(); }
+			}
+			padHeld[b] = down;
+		}
 	}, 80);
 
 	// finish() : déclaration hoistée dans le scope de la fonction pour rester
@@ -261,6 +290,7 @@ WRITE IT DOWN.</pre>
 	function finish() {
 		window.removeEventListener('keydown', onKey);
 		clearInterval(padPoll);
+		unblock();
 		s.remove();
 		resolveVec(vec.slice());
 	}
@@ -281,7 +311,9 @@ ${vec.map((d) => ARROW[d]).join(' ')}
 KEEP THIS VECTOR.
 YOU WILL NEED IT.</pre>`;
 	return new Promise((resolve) => {
-		s.box.appendChild(button('CONTINUE', () => { s.remove(); resolve(); }));
+		const close = () => { nav.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('CONTINUE', close));
+		const nav = menuNav(s.el, {});
 	});
 }
 
@@ -306,8 +338,10 @@ async function flushOrRetry(root, api) {
 			uiAudio.play('ERROR');
 			const s = screen(root);
 			const ok = await new Promise((resolve) => {
+				const retry = () => { nav.detach(); s.remove(); resolve(true); };
 				s.box.innerHTML = '<pre>VECTOR NOT SAVED — RETRY</pre>';
-				s.box.appendChild(button('RETRY', () => { s.remove(); resolve(true); }));
+				s.box.appendChild(button('RETRY', retry));
+				const nav = menuNav(s.el, {});
 			});
 			if (!ok) return;
 		}

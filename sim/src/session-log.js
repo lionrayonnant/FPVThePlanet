@@ -6,6 +6,7 @@
 // déjà pour le scanner : un import statique fermerait un cycle, puisque ce
 // fichier importe screen/button de terminal.js.
 import { screen, button, fetchScenes } from './terminal.js';
+import { menuNav, blockNav } from './menu-nav.js';
 import * as operatorApi from './operator.js';
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
@@ -30,6 +31,9 @@ function gallery(photos) {
 
 // SESSION LOG (Bible §28). Liste filtrable, curseur ↑/↓, ←/→ change de filtre,
 // Entrée ouvre la fiche, Échap revient — même grammaire que le TARGET SCAN.
+// La grammaire vit dans menu-nav.js (issue #123) : chaque rangée est un vrai
+// bouton, le curseur est le focus natif — cliquable, tabulable, lisible par
+// une aide technique, et pilotable à la manette.
 //
 // Résout `undefined` (retour au terminal) ou un slug de zone (REVISIT AREA
 // remonté depuis la fiche).
@@ -40,9 +44,9 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 
 	return new Promise((resolve) => {
 		let filter = 'ALL';
-		let cursor = 0;
 		let busy = false; // une fiche est ouverte : la liste ne réagit plus
 		let done = false;
+		let nav = null;
 
 		const s = screen(root);
 		const rows = () => filterSessions(all, filter);
@@ -50,37 +54,45 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 		const finish = (value) => {
 			if (done) return;
 			done = true;
-			window.removeEventListener('keydown', onKey);
+			nav?.detach();
 			s.remove();
 			resolve(value);
 		};
 
-		const draw = () => {
+		// `focusIdx` : la rangée où reposer le curseur après le re-rendu — celle
+		// d'où l'on vient en refermant une fiche, la première sinon.
+		const draw = (focusIdx = 0) => {
 			const list = rows();
-			cursor = list.length ? Math.min(cursor, list.length - 1) : 0;
-			const body = list.length
-				? list.map((sess, i) => `${i === cursor ? '>' : ' '} ${sessionRow(sess)}`).join('\n')
-				: '  NO SESSIONS MATCH THIS FILTER';
-			s.box.innerHTML = `<pre>SESSION LOG
+			s.box.innerHTML = '<pre>SESSION LOG</pre>';
 
-${body}</pre>`;
+			const wrap = document.createElement('div');
+			wrap.className = 'terminal-list';
+			if (list.length) {
+				list.forEach((sess, i) => wrap.appendChild(button(sessionRow(sess), () => openAt(i), 'terminal-row')));
+			} else {
+				const empty = document.createElement('pre');
+				empty.textContent = 'NO SESSIONS MATCH THIS FILTER';
+				wrap.appendChild(empty);
+			}
+			s.box.appendChild(wrap);
 
-			const nav = document.createElement('div');
-			nav.className = 'terminal-nav';
+			const filters = document.createElement('div');
+			filters.className = 'terminal-nav';
 			SESSION_FILTERS.forEach((f, i) => {
-				if (i) nav.appendChild(document.createTextNode(' · '));
+				if (i) filters.appendChild(document.createTextNode(' · '));
 				// Le filtre actif se lit entre crochets — pas de classe dédiée, la
 				// Home est calme (Bible §30).
-				nav.appendChild(button(f === filter ? `[${f}]` : f, () => {
+				filters.appendChild(button(f === filter ? `[${f}]` : f, () => {
 					filter = f;
-					cursor = 0;
 					draw();
 				}));
 			});
-			s.box.appendChild(nav);
+			s.box.appendChild(filters);
 
-			if (list.length) s.box.appendChild(button('VIEW SESSION', () => openAt(cursor), 'terminal-cta'));
 			s.box.appendChild(button('BACK', () => finish(undefined), 'terminal-cta'));
+
+			const rowEls = wrap.querySelectorAll('.terminal-row');
+			(rowEls[Math.min(focusIdx, rowEls.length - 1)] ?? s.box.querySelector('button'))?.focus();
 		};
 
 		const openAt = async (i) => {
@@ -97,36 +109,21 @@ ${body}</pre>`;
 			}
 			busy = false;
 			s.el.style.display = '';
-			draw();
+			draw(i);
 		};
 
-		function onKey(e) {
-			if (busy) return; // la fiche a ses propres touches
-			const list = rows();
-			if (e.key === 'ArrowDown' && list.length) {
-				e.preventDefault();
-				cursor = (cursor + 1) % list.length;
-				draw();
-			} else if (e.key === 'ArrowUp' && list.length) {
-				e.preventDefault();
-				cursor = (cursor - 1 + list.length) % list.length;
-				draw();
-			} else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-				e.preventDefault();
-				const d = e.key === 'ArrowRight' ? 1 : -1;
+		nav = menuNav(s.el, {
+			back: () => finish(undefined),
+			// ←/→ change de filtre où que soit le curseur, comme avant.
+			onDir: (dir) => {
+				const d = dir === 'right' ? 1 : -1;
 				const i = SESSION_FILTERS.indexOf(filter);
 				filter = SESSION_FILTERS[(i + d + SESSION_FILTERS.length) % SESSION_FILTERS.length];
-				cursor = 0;
 				draw();
-			} else if (e.key === 'Enter') {
-				e.preventDefault();
-				openAt(cursor);
-			} else if (e.key === 'Escape' || e.key === 'Backspace') {
-				e.preventDefault();
-				finish(undefined);
-			}
-		}
-		window.addEventListener('keydown', onKey);
+				return true;
+			},
+			focusFirst: false, // draw() place lui-même le curseur
+		});
 
 		draw();
 	});
@@ -140,18 +137,26 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 	const s = screen(root);
 	s.box.innerHTML = '<pre>SESSION\n\nREADING LOG…</pre>';
 
+	// Pendant le chargement, cette fiche n'a encore rien à naviguer mais des
+	// écrans restés visibles dessous en ont : bloquer la pile évite qu'une
+	// flèche ou un bouton manette n'agisse derrière READING LOG… (issue #123).
+	const unblock = blockNav(s.el);
+
 	let session = null;
 	let error = null;
 	try { session = await operatorApi.getSession(sessionId); }
 	catch (e) { error = e; }
 
 	// L'écran a pu être démonté pendant la requête.
-	if (!s.el.isConnected) return undefined;
+	if (!s.el.isConnected) { unblock(); return undefined; }
 
 	if (error) {
+		unblock();
 		s.box.querySelector('pre').textContent = `SESSION\n\nLOG UNREADABLE — ${error.message}`;
 		return new Promise((resolve) => {
-			s.box.appendChild(button('BACK', () => { s.remove(); resolve(undefined); }, 'terminal-cta'));
+			const close = () => { nav.detach(); s.remove(); resolve(undefined); };
+			s.box.appendChild(button('BACK', close, 'terminal-cta'));
+			const nav = menuNav(s.el, { back: close });
 		});
 	}
 
@@ -159,14 +164,16 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 	// `null` quand l'appelant ne l'a pas déjà : on le demande alors nous-mêmes.
 	const known = scenes ?? await fetchScenes().catch(() => null);
 	const areaKnown = Array.isArray(known) && known.some((sc) => sc.slug === session.area);
-	if (!s.el.isConnected) return undefined;
+	if (!s.el.isConnected) { unblock(); return undefined; }
+	unblock();
 
 	return new Promise((resolve) => {
 		let done = false;
+		let nav = null;
 		const finish = (value) => {
 			if (done) return;
 			done = true;
-			window.removeEventListener('keydown', onKey);
+			nav?.detach();
 			s.remove();
 			resolve(value);
 		};
@@ -194,10 +201,7 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 		}, 'terminal-cta'));
 		s.box.appendChild(button('BACK', () => finish(undefined), 'terminal-cta'));
 
-		function onKey(e) {
-			if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); finish(undefined); }
-		}
-		window.addEventListener('keydown', onKey);
+		nav = menuNav(s.el, { back: () => finish(undefined) });
 	});
 }
 
@@ -220,17 +224,15 @@ A TARGET IS A TRACE. A CRASHED TARGET IS LOST, A LANDED ONE IS DONE.
 ${body}</pre>`;
 	return new Promise((resolve) => {
 		let done = false;
+		let nav = null;
 		const finish = () => {
 			if (done) return;
 			done = true;
-			window.removeEventListener('keydown', onKey);
+			nav?.detach();
 			s.remove();
 			resolve(undefined);
 		};
-		function onKey(e) {
-			if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); finish(); }
-		}
-		window.addEventListener('keydown', onKey);
 		s.box.appendChild(button('BACK', finish, 'terminal-cta'));
+		nav = menuNav(s.el, { back: finish });
 	});
 }

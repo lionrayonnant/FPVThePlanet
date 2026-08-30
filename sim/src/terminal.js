@@ -4,6 +4,7 @@
 // déjà. Tout le texte d'interface est en anglais (D5).
 import * as operatorApi from './operator.js';
 import { captureControlVector, bootstrap } from './bootstrap.js';
+import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 
@@ -54,7 +55,9 @@ function stub(root, title, line) {
 	const s = screen(root);
 	s.box.innerHTML = `<pre>${title}\n\n${line}</pre>`;
 	return new Promise((resolve) => {
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		const close = () => { nav.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		const nav = menuNav(s.el, { back: close });
 	});
 }
 
@@ -90,7 +93,9 @@ async function forecastScreen(root, scene) {
 	const s = screen(root);
 	s.box.innerHTML = `<pre>FORECAST // ${scene.name.toUpperCase()}\n\nQUERYING WORLD STATE…</pre>`;
 	const back = new Promise((resolve) => {
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		const close = () => { nav.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		const nav = menuNav(s.el, { back: close });
 	});
 	const snapshot = await worldWeather({ lat: scene.lat, lon: scene.lon });
 	// L'écran peut avoir été fermé pendant la requête.
@@ -108,15 +113,14 @@ async function forecastScreen(root, scene) {
 function localTerrain(root, scenes) {
 	const s = screen(root);
 	return new Promise((resolve) => {
-		if (scenes === null) {
-			s.box.innerHTML = '<pre>LOCAL TERRAIN\n\nTERRAIN CACHE UNREACHABLE</pre>';
-			s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
-			return;
-		}
-		if (scenes.length === 0) {
-			s.box.innerHTML = '<pre>LOCAL TERRAIN\n\nNO LOCAL TERRAIN — ACQUIRE ONE</pre>';
+		let nav = null;
+		const done = (slug) => { nav?.detach(); s.remove(); resolve(slug); };
+		if (scenes === null || scenes.length === 0) {
 			// Pas de renvoi vers une page d'acquisition : le scanner EST l'entrée.
-			s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+			s.box.innerHTML = `<pre>LOCAL TERRAIN\n\n${scenes === null
+				? 'TERRAIN CACHE UNREACHABLE' : 'NO LOCAL TERRAIN — ACQUIRE ONE'}</pre>`;
+			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+			nav = menuNav(s.el, { back: () => done() });
 			return;
 		}
 		s.box.innerHTML = '<pre>LOCAL TERRAIN</pre>';
@@ -149,11 +153,12 @@ function localTerrain(root, scenes) {
 				.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
 			row.append(name, size, sky,
 				button('FORECAST', () => forecastScreen(root, sc)),
-				button('OPEN', () => { s.remove(); resolve(sc.slug); }, 'terminal-cta'));
+				button('OPEN', () => done(sc.slug), 'terminal-cta'));
 			list.appendChild(row);
 		}
 		s.box.appendChild(list);
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+		nav = menuNav(s.el, { back: () => done() });
 	});
 }
 
@@ -162,6 +167,8 @@ function localTerrain(root, scenes) {
 async function controlVectorScreen(root, api) {
 	const s = screen(root);
 	let revealed = false;
+	let nav = null;
+	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
 	const render = () => {
 		const op = api.getOperator();
 		const set = op.controlVector?.length > 0;
@@ -173,16 +180,23 @@ async function controlVectorScreen(root, api) {
 ${shown}</pre>`;
 		if (set && !revealed) s.box.appendChild(button('SHOW VECTOR', () => { revealed = true; render(); }, 'terminal-cta'));
 		s.box.appendChild(button('REDEFINE', async () => {
+			// Masqué pendant la capture : les flèches y sont la donnée saisie, cet
+			// écran ne doit ni naviguer ni recevoir un clic manette pendant qu'elle
+			// est ouverte (issue #123 — un écran s'abonne explicitement).
+			s.el.hidden = true;
 			const v = await captureControlVector(root, op.controlVector?.length || 6);
 			api.patch('controlVector', v);
 			try { await api.flush(); } catch { /* réessai automatique côté operator.js */ }
 			revealed = true;
+			s.el.hidden = false;
 			render();
 		}, 'terminal-cta'));
-		s.box.appendChild(button('BACK', () => { s.remove(); resolveScreen(); }, 'terminal-cta'));
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		nav?.focusAt(0);
 	};
 	let resolveScreen;
 	render();
+	nav = menuNav(s.el, { back: close });
 	return new Promise((resolve) => { resolveScreen = resolve; });
 }
 
@@ -192,10 +206,13 @@ ${shown}</pre>`;
 function lastSessionScreen(root, model) {
 	const s = screen(root);
 	return new Promise((resolve) => {
+		let nav = null;
+		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
 		const ls = model.lastSession;
 		if (!ls) {
 			s.box.innerHTML = '<pre>LAST SESSION — NONE YET</pre>';
-			s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+			nav = menuNav(s.el, { back: () => done() });
 			return;
 		}
 		const area = ls.area ?? ls.slug ?? null;
@@ -211,21 +228,23 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 			const r = await runSessionDetail(root, ls.id, { scenes: null });
 			// REVISIT et DELETE ferment LAST SESSION : dans les deux cas l'écran
 			// qu'on avait sous les yeux ne décrit plus l'état courant.
-			if (r?.revisit) { s.remove(); resolve(r.revisit); return; }
-			if (r?.deleted) { s.remove(); resolve(); return; }
+			if (r?.revisit) { done(r.revisit); return; }
+			if (r?.deleted) { done(); return; }
 			s.el.style.display = '';
+			nav?.focusAt(0);
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
 		// terrain persistent, flights ephemeral : seule une session LANDED garde
 		// son drone, donc seule elle se reprend. Un CRASHED est terminal.
 		if (ls.result === 'LANDED' && areaKnown) {
 			s.box.appendChild(button('RESUME SESSION',
-				() => { s.remove(); resolve({ slug: area, resume: ls.id }); }, 'terminal-cta'));
+				() => done({ slug: area, resume: ls.id }), 'terminal-cta'));
 		}
 		if (areaKnown) {
-			s.box.appendChild(button('REVISIT AREA', () => { s.remove(); resolve(area); }, 'terminal-cta'));
+			s.box.appendChild(button('REVISIT AREA', () => done(area), 'terminal-cta'));
 		}
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+		nav = menuNav(s.el, { back: () => done() });
 	});
 }
 
@@ -234,6 +253,8 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 async function operatorScreen(root, api) {
 	const s = screen(root);
 	let resolveScreen;
+	let nav = null;
+	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
 	const render = () => {
 		const op = api.getOperator();
 		s.box.innerHTML = `<pre>OPERATOR // ${op.name.toUpperCase()}
@@ -243,15 +264,21 @@ SESSIONS     ${op.sessions?.length ?? 0}
 TARGETS      ${op.targetLog?.length ?? 0}</pre>
 			<div class="op-portrait" hidden></div>`;
 		s.box.appendChild(button('SWITCH OPERATOR', async () => {
+			// Masqué pendant la sélection et un éventuel bootstrapping : la pile
+			// de navs (menu-nav.js) rend la main à l'écran monté par-dessus.
+			s.el.hidden = true;
 			const list = await api.listOperators();
 			const pick = await operatorSelect(root, list);
 			if (pick.create) await bootstrap(root);
 			else await api.selectOperator(pick.id);
+			s.el.hidden = false;
 			render();
 		}, 'terminal-cta'));
-		s.box.appendChild(button('BACK', () => { s.remove(); resolveScreen(); }, 'terminal-cta'));
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		nav?.focusAt(0);
 	};
 	render();
+	nav = menuNav(s.el, { back: close });
 	return new Promise((resolve) => { resolveScreen = resolve; });
 }
 
@@ -261,10 +288,13 @@ export async function operatorSelect(root, choices) {
 	const s = screen(root);
 	s.box.innerHTML = '<pre>OPERATOR SELECT</pre>';
 	return new Promise((resolve) => {
+		const done = (value) => { nav.detach(); s.remove(); resolve(value); };
 		for (const c of choices) {
-			s.box.appendChild(button(c.name.toUpperCase(), () => { s.remove(); resolve({ id: c.id }); }, 'terminal-cta'));
+			s.box.appendChild(button(c.name.toUpperCase(), () => done({ id: c.id }), 'terminal-cta'));
 		}
-		s.box.appendChild(button('+ NEW OPERATOR', () => { s.remove(); resolve({ create: true }); }, 'terminal-cta'));
+		s.box.appendChild(button('+ NEW OPERATOR', () => done({ create: true }), 'terminal-cta'));
+		// Pas de `back` : il faut choisir un opérateur — il n'y a pas d'ailleurs.
+		const nav = menuNav(s.el, {});
 	});
 }
 
@@ -278,18 +308,33 @@ export async function runTerminal(root, { settings, api = operatorApi } = {}) {
 	const s = screen(root, 'terminal-home');
 	let resolveFly;
 
+	let nav = null;
 	const render = () => {
 		const model = terminalModel({ operator: api.getOperator(), scenes });
 		s.box.innerHTML = `<pre>FPVTP! // 0.97b
 OPERATOR // ${model.operatorName}</pre>`;
+
+		// Voler est ce qu'on fait à chaque session : l'action la plus fréquente a
+		// une entrée directe et le curseur au repos (issue #123, point 5) — la
+		// zone de la dernière session si elle est encore sur disque, sinon la
+		// première zone locale. Sans terrain, le scanner reste l'entrée.
+		const flyArea = model.areas.find((a) => a.slug === model.lastSession?.area) ?? model.areas[0];
+		if (flyArea) {
+			s.box.appendChild(button(`FLY — ${flyArea.name.toUpperCase()}`, () => fly(flyArea.slug), 'terminal-cta'));
+		}
 
 		s.box.appendChild(navRow([
 			['LAST SESSION', async () => {
 				const r = await lastSessionScreen(root, model);
 				if (typeof r === 'string') fly(r);
 				else if (r) fly(r.slug, r.resume);
+				else nav?.focusAt(0);
 			}],
-			['LOCAL TERRAIN', async () => { const slug = await localTerrain(root, scenes); if (slug) fly(slug); }],
+			['LOCAL TERRAIN', async () => {
+				const slug = await localTerrain(root, scenes);
+				if (slug) fly(slug);
+				else nav?.focusAt(0);
+			}],
 			['CONTROL VECTOR', async () => { await controlVectorScreen(root, api); render(); }],
 		]));
 
@@ -329,9 +374,12 @@ OPERATOR // ${model.operatorName}</pre>`;
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
 		s.box.appendChild(foot);
+		nav?.focusAt(0);
 	};
 
-	const fly = (slug, resume) => { s.remove(); resolveFly({ slug, resume }); };
+	const fly = (slug, resume) => { nav?.detach(); s.remove(); resolveFly({ slug, resume }); };
 	render();
+	// Pas de `back` : la Home est la racine, il n'y a rien au-dessus.
+	nav = menuNav(s.el, {});
 	return new Promise((resolve) => { resolveFly = resolve; });
 }
