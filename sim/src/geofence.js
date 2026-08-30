@@ -21,36 +21,63 @@ export const HOLD = 'HOLD';         // averti et retenu
 export const LOST = 'LOST';         // dehors ; l'image est en train de mourir
 
 // Mesurés par tools/geofence-measure.mjs sur public/scenes/tour-eiffel le
-// 2026-08-30, sur les 6 familles de drone-profiles.js. Protocole : le drone
-// accélère depuis l'arrêt, tangage plein en mode ANGLE (assiette tenue à
-// 42°, pas une vitesse de rotation — le mode par défaut ACRO ferait boucler
-// le drone sans fin), jusqu'à sa vitesse en palier maximale, droit vers une
-// face ; à l'entrée en HOLD les manches reviennent au neutre (le pilote a lu
-// l'avertissement et a lâché) ; seuls A_MAX et la traînée de quad.js
-// décélèrent ensuite.
+// 2026-08-30, sur les 6 familles de drone-profiles.js.
 //
-// La formule directe (pénétration mesurée + 1 m) ne s'applique pas ici :
-// sous le couloir alors en place (40 m, la valeur PROVISOIRE remplacée ici),
-// AUCUNE des six familles ne dépasse la face — la plus lourde (heavy5)
-// s'arrête déjà 10 m avant. La rampe du rappel (0 à A_MAX sur R_HOLD mètres,
-// pushOf() plus bas) dépend d'elle-même de R_HOLD, donc rétrécir le couloir
-// change la distance qu'on cherche à mesurer avec : R_HOLD est le POINT FIXE
-// de « sous un couloir de X mètres, la pire famille s'arrête à 1 m de la
-// face », trouvé par itération directe (convergence en 3-4 pas sur les six
-// familles, indépendante du point de départ — voir task-4-report.md). Pire
-// famille : heavy5 (la plus lourde, pas la plus rapide : 24,50 m/s contre
-// 26,89 pour race5), point fixe à 28,72 m, arrondi au mètre supérieur.
+// Le protocole est EN ACRO, le mode du jeu (FlightController démarre en
+// `acro`, entry-state.js:241 le force). Ça change tout : en ACRO des manches
+// centrées ne remettent pas à plat, elles TIENNENT l'assiette. Mesuré, manches
+// centrés et gaz au stationnaire : l'assiette reste à 42° et cinq familles sur
+// six franchissent la face sous un couloir de 29 m — jusqu'à +44,6 m (heavy5)
+// dans les dix secondes qui suivent l'entrée en HOLD. « Lâcher les manches »
+// n'est donc pas une façon d'obéir ici, et « obéir » doit être un programme de
+// manche explicite. Le voici, en entier — c'est lui, la définition :
 //
-// Manches au neutre et non tirées à fond, délibérément : un pilote qui
-// insiste DOIT pouvoir passer, c'est la moitié du design. R_HOLD dimensionne
-// le cas où on obéit, pas le cas où on désobéit.
-export const R_HOLD = 29;      // m : distance d'arrêt, manches au neutre
+//   approche : plein gaz, et le pilote pique jusqu'à 42° (ANGLE_MAX_TILT,
+//     l'assiette la plus inclinée que l'auto-stabilisation du dépôt tienne)
+//     et tient cette assiette jusqu'au couloir ;
+//   freinage, dès l'entrée en HOLD : gaz ramenés quelque part entre zéro et
+//     le stationnaire — bande BALAYÉE de 0 à hoverThrottle(), pire cas
+//     retenu, parce que le manche des gaz d'un pilote qui freine n'est pas
+//     connaissable ; et tangage TIRÉ pour ramener l'appareil à plat, puis
+//     CENTRÉ dès l'horizon revenu et plus jamais touché. À partir de là
+//     l'ACRO tient l'assiette : rien ne le remet à plat à sa place, et le
+//     résidu qu'il a laissé, il le garde.
+//
+// Ensuite, seuls A_MAX et la traînée de quad.js décélèrent. Manches ramenés
+// au calme et non tirés à fond, délibérément : un pilote qui insiste DOIT
+// pouvoir passer, c'est la moitié du design. R_HOLD dimensionne le cas où on
+// obéit, pas le cas où on désobéit.
+//
+// Ce n'est pas une soustraction mais un POINT FIXE : la rampe du rappel (0 à
+// A_MAX sur R_HOLD mètres, pushOf() plus bas) dépend elle-même de R_HOLD, donc
+// rétrécir le couloir durcit la rampe et change la distance qu'on mesure avec.
+// Trouvé par itération directe, convergence en 3 à 5 pas, indépendante du
+// point de départ : 65,82 / 65,83 / 65,84 / 65,87 / 65,93 m depuis des départs
+// de 5, 10, 20, 40 et 66 m (`--start`). Insensible au modèle de pilotage, lui
+// aussi : sur la grille (taux de ralliement /2, x1, x2) x (seuil « à plat »
+// 0,25°, 1°, 4°) le point fixe tient dans 63,40 - 65,98 m, sous 66 dans les
+// neuf cas.
+//
+// Pire famille : heavy5, 65,83 m, arrondie au mètre supérieur. Pire non parce
+// qu'elle est la plus lourde — elle ne l'est pas, longrange fait 0,92 kg
+// contre 0,85 — mais parce qu'elle a la plus faible traînée de carène par
+// unité de masse des six (bodyDrag.z/masse = 0,0129, contre 0,0164 pour race5
+// et 0,0500 pour cinewhoop) tout en approchant à 27,76 m/s. Les six valeurs
+// vont de 19,19 m (toothpick) à 65,83 m (heavy5).
+//
+// La marge de sécurité visée par ce point fixe (12 m) est mesurée elle aussi :
+// c'est la dispersion du point d'arrêt sur le balayage des gaz de freinage
+// (11,08 m au point fixe), arrondie au mètre supérieur — l'écart que produit à
+// elle seule la seule hypothèse de pilotage qu'on ne sait pas trancher. Le
+// banc la re-mesure et refuse de livrer un chiffre si elle la dépasse.
+export const R_HOLD = 66;      // m : distance d'arrêt du pilote qui obéit
 // R_HOLD + le temps de lire l'avertissement à la vitesse maximale mesurée
-// (26,89 m/s, race5). Ce délai est de la mise en scène et s'assume comme
-// telle, mais il s'ancre sur une constante du dépôt : un avertissement doit
-// clignoter trois fois pour être lu, et BLINK_PERIOD_MS vaut 500 ms
-// (drone-osd.js:51). Soit 1,5 s.
-export const R_CAUTION = 70;   // m : R_HOLD + 1,5 s à la vitesse maximale
+// (30,87 m/s, race5, plein gaz à 42°). Ce délai est de la mise en scène et
+// s'assume comme telle, mais il s'ancre sur une constante du dépôt : un
+// avertissement doit clignoter trois fois pour être lu, et BLINK_PERIOD_MS
+// vaut 500 ms (drone-osd.js:51). Soit 1,5 s, et la bande de 47 m ci-dessous
+// en vaut 1,52 à cette vitesse-là.
+export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
