@@ -15,6 +15,7 @@ import {
 import { JENSEN_COOLDOWN as JC } from './dialogue/catalog.mjs';
 import {
 	args as genArgs, resolveBackend, parseEntries, BACKENDS, DEFAULT_BACKEND, DEFAULT_MODEL, DEFAULT_OLLAMA_HOST,
+	nextSeq,
 } from './dialogue/generate.mjs';
 import { validateEntry, validateCorpus, STYLE_BANS, KNOWN_PATHS, SIGNATURE_PHRASES } from './dialogue/validate.mjs';
 import { normalize, trigrams, jaccard, findDuplicates, findRepeatedLines, MIN_REPEATED_LINE_WORDS } from './dialogue/dedupe.mjs';
@@ -634,6 +635,36 @@ t('resolveBackend : le backend claude ne porte aucun hôte, même si OLLAMA_HOST
 
 t('BACKENDS : exactement claude et ollama', () => {
 	assert.deepEqual(BACKENDS, ['claude', 'ollama']);
+});
+
+t('nextSeq : continue au-dessus du plus grand id existant, pas du compte', () => {
+	// Un tableau qui a perdu des entrées (dédoublonnage) doit repartir du plus
+	// haut numéro jamais délivré, jamais de sa longueur actuelle.
+	const entries = [
+		{ id: 'acquire_area/0001' },
+		{ id: 'acquire_area/0585' },
+		{ id: 'acquire_area/0042' },
+	];
+	assert.equal(nextSeq(entries), 585);
+});
+
+t('nextSeq : un shard élagué (moins d\'entrées que le plus haut id) n\'entre pas en collision', () => {
+	// Simule le cas réel : 566 entrées en tableau, mais le plus haut id est
+	// 0585 (des doublons ont été retirés en aval). Le prochain id délivré doit
+	// être 0586, jamais un id déjà présent dans le tableau.
+	const entries = Array.from({ length: 10 }, (_, i) => ({ id: `acquire_area/${String(i + 576).padStart(4, '0')}` }));
+	const seq = nextSeq(entries);
+	assert.equal(seq, 585);
+	const next = `acquire_area/${String(seq + 1).padStart(4, '0')}`;
+	assert.ok(!entries.some((e) => e.id === next), 'le prochain id ne doit collisionner avec aucun id existant');
+});
+
+t('nextSeq : shard vide démarre à zéro', () => {
+	assert.equal(nextSeq([]), 0);
+});
+
+t('nextSeq : robuste à un id qui ne se termine pas par des chiffres', () => {
+	assert.equal(nextSeq([{ id: 'acquire_area/xxxx' }, { id: 'acquire_area/0012' }]), 12);
 });
 
 t('parseEntries : tableau JSON nu', () => {

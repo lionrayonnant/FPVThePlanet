@@ -123,6 +123,25 @@ function callModel(prompt, { backend, model, host }) {
 	return callModelClaude(prompt, model);
 }
 
+// Numéro de séquence de départ pour un shard : le plus grand suffixe
+// numérique déjà utilisé, pas la longueur du tableau. La déduplication en
+// fin de run RETIRE des entrées (voir plus bas), donc le tableau rétrécit
+// sous le plus haut id jamais délivré — repartir de sa longueur réémettrait
+// des ids déjà pris. Un id ne doit JAMAIS être réutilisé, même après
+// suppression de l'entrée qui le portait : les trous dans la numérotation
+// sont normaux et attendus, exactement comme une séquence de base de
+// données. NE PAS "combler les trous" un jour, ça réintroduirait le bug.
+export function nextSeq(entries) {
+	let max = 0;
+	for (const e of entries) {
+		const m = /(\d+)\s*$/.exec(e?.id ?? '');
+		if (!m) continue;
+		const n = Number(m[1]);
+		if (Number.isFinite(n) && n > max) max = n;
+	}
+	return max;
+}
+
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
 const shardPath = (event) => new URL(`../../public/dialogue/${EVENTS[event].shard}.json`, import.meta.url);
@@ -224,7 +243,7 @@ async function main() {
 	const { backend, model, host } = resolveBackend(a);
 
 	const shard = loadShard(event);
-	let seq = shard.entries.length;
+	let seq = nextSeq(shard.entries);
 	let kept = 0, rejected = 0;
 
 	for (let done = 0; done < total; done += size) {
