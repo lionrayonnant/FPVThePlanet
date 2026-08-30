@@ -1354,7 +1354,7 @@ async function chooseScene() {
 	controller = new FlightController({ profile: PROFILE, rates: build.rates });
 	logBuild(build);
 	const booting = finishBoot(preloading);
-	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting });
+	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
 	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 	// pendant le hack comme un unique pas de physique géant.
 	introFrozen = false;

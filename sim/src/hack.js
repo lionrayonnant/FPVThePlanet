@@ -39,7 +39,7 @@ const padLabel = (s) => s.padEnd(18);
 // `ready` : promesse du chargement de fond (main.js). Résolue -> on peut armer
 // le rituel dès la fin de la séquence. Rejetée -> on démonte et on propage
 // (échec de boot). Absente -> séquence scriptée seule (chemins ?scene=/?family=).
-export function runHack(root, { hackType, family, ready } = {}) {
+export function runHack(root, { hackType, family, ready, candidate = null } = {}) {
 	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
 	const draw = GRAMMARS[type] || drawNeutral;
 	const seed = cosmeticSeed(family || type);
@@ -60,9 +60,13 @@ export function runHack(root, { hackType, family, ready } = {}) {
 	rtcSection.className = 'sc-block sc-log-block sc-rtc-block';
 	rtcSection.innerHTML = '<pre class="sc-h">RTC // INTERNAL</pre><pre class="sc-log sc-rtc"></pre>';
 	s.box.appendChild(rtcSection);
+	// candidate : le même exemplaire que main.js a tiré du scan (facultatif —
+	// les chemins de preview ?scene=/?family= n'en ont pas). Le fournir ouvre
+	// {signal} et {video_type} en plus de {hack_type} pour TARGET_ANALYSIS/HACK ;
+	// candidate: null reste le comportement par défaut (issue #58 finding 2).
 	const stopHack = mount(s.box.querySelector('.sc-rtc'), {
 		event: 'TARGET_ANALYSIS',
-		context: () => scanContext({ candidate: null, hackType, family }),
+		context: () => scanContext({ candidate, hackType, family }),
 	});
 
 	return new Promise((resolve, reject) => {

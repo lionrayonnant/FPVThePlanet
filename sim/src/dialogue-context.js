@@ -42,7 +42,11 @@ export function weatherContext(snapshot) {
 }
 
 export function targetContext(candidate, hackType = null) {
-	if (!candidate) return {};
+	// hackType ne dépend pas de candidate : hack.js:62 monte TARGET_ANALYSIS
+	// avec candidate: null (aucun candidat n'est disponible à cet écran) mais
+	// un hackType réel. Si on retournait {} ici, {hack_type} ne résoudrait
+	// jamais dans le seul événement qui l'utilise — voir issue #58 finding 2.
+	if (!candidate) return { hackType };
 	return {
 		video: candidate.mode && candidate.mode !== 'UNKNOWN' ? candidate.mode : null,
 		rssiDbm: candidate.rssiDbm ?? null,
