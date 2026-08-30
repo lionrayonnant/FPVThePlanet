@@ -1,0 +1,70 @@
+{
+  "event": "ACQUIRE_AREA",
+  "entries": [
+    { "id": "acquire_area/0001", "events": ["ACQUIRE_AREA"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": [],
+      "lines": [{ "speaker": "root", "text": "new sector queued" },
+                { "speaker": "mikhail", "text": "on it" }] },
+
+    { "id": "acquire_area/0002", "events": ["ACQUIRE_AREA"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": ["area.name"],
+      "lines": [{ "speaker": "root", "text": "{location}" },
+                { "speaker": "mikhail", "text": "obviously" }] },
+
+    { "id": "acquire_area/0003", "events": ["ACQUIRE_AREA"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": ["terrain.tiles"],
+      "lines": [{ "speaker": "root", "text": "how many tiles" },
+                { "speaker": "mikhail", "text": "{terrain_size}" },
+                { "speaker": "root", "text": "that is a lot" },
+                { "speaker": "mikhail", "text": "depends what you count" }] },
+
+    { "id": "acquire_area/0004", "events": ["ACQUIRE_AREA"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": [],
+      "lines": [{ "speaker": "mikhail", "text": "you counting drones or tiles" },
+                { "speaker": "root", "text": "does it matter" },
+                { "speaker": "mikhail", "text": "yes" }] },
+
+    { "id": "acquire_area/0005", "events": ["ACQUIRE_AREA"], "rarity": "RARE",
+      "characters": ["root", "jensen"], "requires": [],
+      "lines": [{ "speaker": "jensen", "text": "it matters" },
+                { "speaker": "root", "text": "why are you even in this channel" },
+                { "speaker": "jensen", "text": "no comment" }] },
+
+    { "id": "acquire_area/0006", "events": ["ACQUIRE_AREA", "TERRAIN_PROGRESS"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": [],
+      "lines": [{ "speaker": "root", "text": "mesh is coming in fine" },
+                { "speaker": "mikhail", "text": "define fine" },
+                { "speaker": "root", "text": "no holes so far" },
+                { "speaker": "mikhail", "text": "so far is not a guarantee" }] },
+
+    { "id": "acquire_area/0007", "events": ["ACQUIRE_AREA"], "rarity": "COMMON",
+      "characters": ["root", "mikhail"], "requires": [],
+      "lines": [{ "speaker": "root", "text": "ship it when it lands" },
+                { "speaker": "mikhail", "text": "no" },
+                { "speaker": "root", "text": "why" },
+                { "speaker": "mikhail", "text": "because it is not landed yet" },
+                { "speaker": "root", "text": "fair" }] },
+
+    { "id": "acquire_area/0008", "events": ["ACQUIRE_AREA", "TERRAIN_PROGRESS"], "rarity": "COMMON",
+      "characters": ["root", "cron"], "requires": [],
+      "lines": [{ "speaker": "root", "text": "textures baking" },
+                { "speaker": "cron", "text": "checksum queued" }] },
+
+    { "id": "acquire_area/0009", "events": ["ACQUIRE_AREA"], "rarity": "VERY_RARE",
+      "characters": ["root", "jensen"], "requires": [],
+      "lines": [{ "speaker": "jensen", "text": "watching" },
+                { "speaker": "root", "text": "watching what" },
+                { "speaker": "jensen", "text": "no comment" }] },
+
+    { "id": "acquire_area/0010", "events": ["ACQUIRE_AREA", "TERRAIN_PROGRESS"], "rarity": "COMMON",
+      "characters": ["cron"], "requires": [],
+      "lines": [{ "speaker": "cron", "text": "cache warm" }] },
+
+    { "id": "acquire_area/0011", "events": ["ACQUIRE_AREA"], "rarity": "UNCOMMON",
+      "characters": ["root", "mikhail"], "requires": [],
+      "lines": [{ "speaker": "root", "text": "ship it" },
+                { "speaker": "mikhail", "text": "no" },
+                { "speaker": "root", "text": "it works" },
+                { "speaker": "mikhail", "text": "that is not the same thing" }] }
+  ]
+}

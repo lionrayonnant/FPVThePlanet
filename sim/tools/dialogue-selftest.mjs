@@ -1,10 +1,13 @@
 // Selftest du moteur de dialogue (PHASE 21). Aucune E/S, aucun DOM.
 // Lancer : node tools/dialogue-selftest.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
 	CREW, RARITY, EVENTS, SLOTS, JENSEN_COOLDOWN, MEMORY_RING, MEMORY_SEEN,
 	resolvePath, slotsUsed, pathsForSlots,
 } from './dialogue/catalog.mjs';
+import { pickInRange, nextGapMs, planExchange } from './dialogue/cadence.mjs';
+import { FALLBACK } from '../src/dialogue-fallback.js';
 import { render } from './dialogue/render.mjs';
 import {
 	rngFrom, emptyMemory, eligible, select, PAIR_COOLDOWN,
@@ -431,6 +434,72 @@ t('findDuplicates : tient l\'échelle visée sans exploser le temps', () => {
 	findDuplicates(many, { threshold: 0.85 });
 	const ms = Date.now() - t0;
 	assert.ok(ms < 20000, `déduplication trop lente : ${ms} ms sur 5000 entrées`);
+});
+
+// --- cadence -----------------------------------------------------------------
+
+t('pickInRange : reste dans la fourchette', () => {
+	const rng = rngFrom('c');
+	for (let i = 0; i < 200; i++) {
+		const v = pickInRange([100, 300], rng);
+		assert.ok(v >= 100 && v <= 300, `hors fourchette : ${v}`);
+	}
+});
+
+t('nextGapMs : suit la cadence déclarée par l\'événement', () => {
+	const rng = rngFrom('g');
+	const [lo, hi] = EVENTS.ACQUIRE_AREA.gapMs;
+	for (let i = 0; i < 100; i++) {
+		const v = nextGapMs('ACQUIRE_AREA', rng);
+		assert.ok(v >= lo && v <= hi);
+	}
+	assert.ok(nextGapMs('NOT_AN_EVENT', rng) > 0, 'un événement inconnu ne doit pas rendre NaN');
+});
+
+t('planExchange : première réplique à 0, les suivantes espacées et croissantes', () => {
+	const lines = [
+		{ speaker: 'root', text: 'how long' },
+		{ speaker: 'mikhail', text: 'three minutes' },
+		{ speaker: 'root', text: 'you said two' },
+	];
+	const plan = planExchange(lines, 'ACQUIRE_AREA', rngFrom('p'));
+	assert.equal(plan.length, 3);
+	assert.equal(plan[0].atMs, 0);
+	for (let i = 1; i < plan.length; i++) {
+		assert.ok(plan[i].atMs > plan[i - 1].atMs, 'les répliques doivent tomber une par une');
+	}
+	assert.deepEqual(plan.map((l) => l.speaker), ['root', 'mikhail', 'root']);
+});
+
+t('corpus livré : le shard ACQUIRE_AREA passe validation et déduplication', () => {
+	const shard = JSON.parse(readFileSync(new URL('../public/dialogue/acquire_area.json', import.meta.url)));
+	assert.equal(shard.event, 'ACQUIRE_AREA');
+	assert.ok(shard.entries.length >= 10, `corpus de départ trop maigre : ${shard.entries.length}`);
+	const r = validateCorpus(shard.entries);
+	assert.deepEqual(r.errors, [], 'le corpus livré doit être irréprochable');
+	assert.deepEqual(findDuplicates(shard.entries, { threshold: 0.75 }), []);
+});
+
+t('manifeste : chaque shard annoncé existe et déclare son propre événement', () => {
+	const manifest = JSON.parse(readFileSync(new URL('../public/dialogue/manifest.json', import.meta.url)));
+	for (const [event, file] of Object.entries(manifest.shards)) {
+		assert.ok(EVENTS[event], `manifeste : événement inconnu ${event}`);
+		const shard = JSON.parse(readFileSync(new URL(`../public/dialogue/${file}`, import.meta.url)));
+		assert.equal(shard.event, event, `${file} : l'événement déclaré ne correspond pas au manifeste`);
+	}
+});
+
+t('pack de secours : valide, et surtout sans aucun requires', () => {
+	assert.deepEqual(validateCorpus(FALLBACK).errors, []);
+	for (const e of FALLBACK) {
+		assert.deepEqual(e.requires, [], `${e.id} : le secours doit rendre sans contexte du tout`);
+	}
+	// Chaque événement câblé en v1 doit avoir de quoi parler même sans réseau.
+	for (const id of ['AREA_SEARCH', 'PROBE_AREA', 'ACQUIRE_AREA', 'TERRAIN_PROGRESS',
+		'TARGET_SCAN', 'TARGET_SELECTED', 'TARGET_ANALYSIS', 'HACK', 'MANUAL_OVERRIDE',
+		'JACK_IN', 'WEATHER']) {
+		assert.ok(FALLBACK.some((e) => e.events.includes(id)), `aucun secours pour ${id}`);
+	}
 });
 
 console.log(`\n${n} vérifications, tout passe.`);
