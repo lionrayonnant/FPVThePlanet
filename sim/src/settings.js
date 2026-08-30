@@ -63,16 +63,12 @@ export function loadLink() {
 	return { mode, severity: loadPercent(LINK_KEY, 1) };
 }
 
-// The Tab panel: gamepad mapping, camera, lens, video link, audio. It owns
+// The Tab panel: input detection/binding, controls reminder, audio. It owns
 // #settings and nothing else — l'OSD de vol s'est scindé en deux couches
 // (drone-osd.js et fpvtp-osd.js), le terminal opérateur est dans terminal.js.
-// PHASE 12 : le champ et l'inclinaison de la caméra appartiennent à la cible,
-// donc leurs deux sliders ont laissé la place à une fiche en lecture seule, et
-// l'aide clavier a quitté l'écran de vol pour ce panneau.
-// PHASE 04 has taken the weather out: the six wind /
-// rain / fog controls are gone, and nothing here can choose the weather any
-// more. The link block stays for now — it is not weather, and issue #41 does
-// not ask for it.
+// Issue #120 : caméra, objectif et lien vidéo n'étaient pas des réglages
+// destinés au joueur — ils restent pilotés par leurs valeurs stockées
+// (loadLens/loadLink, cf. main.js) mais ont quitté ce panneau.
 export class Settings {
 	constructor(root, input) {
 		this.input = input;
@@ -84,29 +80,11 @@ export class Settings {
 				<h2>Controller</h2>
 				<p id="pad-name">no controller detected</p>
 				<table id="pad-map"></table>
-				<h2>Camera</h2>
-				<div id="cam-spec" class="spec">—</div>
 				<h2>Controls</h2>
 				<div id="keymap" class="spec">
 					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
 					<b>R</b> respawn · <b>J</b> disarm · <b>M</b> mode · <b>P</b> rates<br>
 					<b>C</b> free camera · <b>Space</b> pause · <b>Tab</b> settings
-				</div>
-				<h2>Lens</h2>
-				<label class="check"><input id="lens-on" type="checkbox"> FPV rendering</label>
-				<label>Lens <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
-				<label>Vignette <input id="vig" type="range" min="0" max="100" step="1"> <span id="vig-val"></span> %</label>
-				<label>Shutter <input id="shut" type="range" min="0" max="20" step="0.5"> <span id="shut-val"></span></label>
-				<h2>Video link</h2>
-				<label>Rendering <select id="link-mode">
-					<option value="analog">Analog</option>
-					<option value="digital">Digital</option>
-				</select></label>
-				<label>Degradation <input id="link" type="range" min="0" max="100" step="1"> <span id="link-val"></span> %</label>
-				<div id="link-presets" class="presets">
-					<button type="button" data-v="30">Low</button>
-					<button type="button" data-v="60">Medium</button>
-					<button type="button" data-v="100">High</button>
 				</div>
 				<h2>Sound</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
@@ -124,25 +102,13 @@ export class Settings {
 			toneVal: el.querySelector('#tone-val'),
 			padName: el.querySelector('#pad-name'),
 			padMap: el.querySelector('#pad-map'),
-			camSpec: el.querySelector('#cam-spec'),
-			lensOn: el.querySelector('#lens-on'),
-			lens: el.querySelector('#lens'),
-			lensVal: el.querySelector('#lens-val'),
-			vig: el.querySelector('#vig'),
-			vigVal: el.querySelector('#vig-val'),
-			shut: el.querySelector('#shut'),
-			shutVal: el.querySelector('#shut-val'),
-			linkMode: el.querySelector('#link-mode'),
-			link: el.querySelector('#link'),
-			linkVal: el.querySelector('#link-val'),
-			linkPresets: el.querySelector('#link-presets'),
 		};
 		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
 		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
 		this.flightActive = false;
 		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		el.querySelector('#reset-settings').onclick = () => {
-			if (!confirm('Reset all settings (controller, camera, lens, video link, sound)?')) return;
+			if (!confirm('Reset all settings (controller, sound)?')) return;
 			try {
 				for (const key of Object.keys(localStorage)) {
 					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
@@ -160,84 +126,7 @@ export class Settings {
 
 	hydrate() {
 		const noop = () => { };
-		this.setLens(loadLens(), noop);
-		this.setLink(loadLink(), noop);
 		this.setAudio(loadVolume(), loadBrightness(), noop);
-	}
-
-	// La fiche de la caméra de la cible, en lecture seule. Le drone n'est pas le
-	// tien : son champ et son inclinaison ne se règlent pas.
-	setCameraSpec({ fovDeg, uptiltDeg, aspectName, resScale }) {
-		this.el.camSpec.textContent =
-			`${Math.round(fovDeg)}° FOV · ${Math.round(uptiltDeg)}° UPTILT · ${aspectName} · ${Math.round(resScale * 100)}%`;
-	}
-
-	// One slider for the lens as a whole — barrel, chromatic aberration and edge
-	// softness are the same piece of glass, so splitting them into three controls
-	// would only let you build an optic that cannot exist. Shutter is separate
-	// because it belongs to the sensor, and because it is the first thing to turn
-	// off if the frame rate drops.
-	setLens({ on, lens, vignette, shutter }, onChange) {
-		const emit = () => {
-			const enabled = this.el.lensOn.checked;
-			const l = Number(this.el.lens.value);
-			const v = Number(this.el.vig.value);
-			const ms = Number(this.el.shut.value);
-			this.el.lensVal.textContent = l;
-			this.el.vigVal.textContent = v;
-			this.el.shutVal.textContent = ms === 0 ? 'aucune' : `${ms.toFixed(1)} ms`;
-			// The link lives in the same pass, so the master switch has to reach it
-			// too — otherwise its controls stay live while doing nothing.
-			for (const el of [this.el.lens, this.el.vig, this.el.shut,
-			                  this.el.linkMode, this.el.link,
-			                  ...this.el.linkPresets.children]) el.disabled = !enabled;
-			try {
-				localStorage.setItem(LENS_ON_KEY, enabled ? '1' : '0');
-				localStorage.setItem(LENS_KEY, String(l));
-				localStorage.setItem(VIGNETTE_KEY, String(v));
-				localStorage.setItem(SHUTTER_KEY, String(ms / 20 * 100));
-			} catch { }
-			onChange({ on: enabled, lens: l / 100, vignette: v / 100, shutter: ms / 1000 });
-		};
-		this.el.lensOn.checked = on;
-		this.el.lens.value = Math.round(lens * 100);
-		this.el.vig.value = Math.round(vignette * 100);
-		this.el.shut.value = shutter;
-		this.el.lensOn.onchange = emit;
-		this.el.lens.oninput = emit;
-		this.el.vig.oninput = emit;
-		this.el.shut.oninput = emit;
-		emit();
-	}
-
-	// Two controls and not four: which receiver you are pretending to fly, and how
-	// hard it bites. Everything else about the link — where it breaks, how fast it
-	// recovers — is a consequence of the geometry and belongs in link.js, not on a
-	// slider.
-	setLink({ mode, severity }, onChange) {
-		const emit = () => {
-			const pct = Number(this.el.link.value);
-			const m = this.el.linkMode.value;
-			this.el.linkVal.textContent = pct;
-			for (const b of this.el.linkPresets.children)
-				b.classList.toggle('on', Number(b.dataset.v) === pct);
-			try {
-				localStorage.setItem(LINK_KEY, String(pct));
-				localStorage.setItem(LINK_MODE_KEY, m);
-			} catch { }
-			onChange({ mode: m, severity: pct / 100 });
-		};
-		this.el.linkMode.value = mode;
-		this.el.link.value = Math.round(severity * 100);
-		this.el.linkMode.onchange = emit;
-		this.el.link.oninput = emit;
-		this.el.linkPresets.onclick = (e) => {
-			const b = e.target.closest('button');
-			if (!b) return;
-			this.el.link.value = b.dataset.v;
-			emit();
-		};
-		emit();
 	}
 
 	// Both audio settings are worth remembering across reloads: nobody wants the
