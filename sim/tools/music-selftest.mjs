@@ -18,7 +18,8 @@ import {
 	POOLS, AXES, AXIS_NAMES, AXES_PER_TRACK, buildPrompt, negativesFor,
 	NEGATIVES_COMMON, NO_VOICE, WORDLESS_VOICE, POOL_VOICE, POOL_AXIS_BANS,
 } from './music-prompts.mjs';
-import { planFor, trackId } from './music-gen.mjs';
+import { planFor, trackId, DEFAULTS } from './music-gen.mjs';
+import { partition } from './music-retire.mjs';
 import { loopFilter, loudnormMeasureFilter, loudnormApplyFilter, TARGET_LUFS, TARGET_PEAK_DBFS, TARGET_LRA, CROSSFADE_S } from './music-loop.mjs';
 import { judge, BOUNDS } from './music-gate.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
@@ -562,8 +563,39 @@ test('le recouvrement de boucle est audible mais court', () => {
 	assert.ok(CROSSFADE_S >= 1 && CROSSFADE_S <= 6);
 });
 
+test('le gate attrape un morceau VIDE, pas seulement un morceau plat', () => {
+	// Le trou qui a laissé passer trois tirages de menu décrits comme « y a même
+	// pas de musique ». L'écart RMS ne suffit pas : un morceau très dynamique a
+	// lui aussi un grand écart. Ce qui distingue le vide, c'est la PROPORTION du
+	// morceau passée sous la médiane.
+	const t = { durationS: 90, lufs: -14, truePeak: 0, headSilenceS: 0, tailSilenceS: 1, rmsSpreadDb: 20, sideDb: -14 };
+	// Mesures réelles des trois tirages ratés.
+	for (const silentFraction of [0.15, 0.36]) {
+		assert.ok(judge({ ...t, silentFraction }, 90).reasons.some((r) => /vide/.test(r)),
+			`${silentFraction * 100} % de vide non détecté`);
+	}
+	// Et le pire morceau ACCEPTÉ à l'oreille doit continuer de passer.
+	assert.deepEqual(judge({ ...t, silentFraction: 0.06 }, 90).reasons, [],
+		'6 % de vide est la mesure de cinewhoop-1fbea112, validé à l\'oreille');
+});
+
+test('menu ne peut plus recevoir d\'axe qui le vide', () => {
+	// Le noyau du pool dit déjà « sparse minimal percussion, patient and
+	// watchful ». Un axe qui ajoute du vide par-dessus rend un prompt qui ne
+	// demande rien. J'avais banni « relentless and driving » — la mauvaise
+	// direction : les trois morceaux de menu qui marchent sont les plus DENSES.
+	const bans = POOL_AXIS_BANS.menu;
+	assert.ok(bans.energy.includes('restrained and patient'), 'menu peut encore se faire vider');
+	assert.ok(bans.density.includes('sparse arrangement, lots of space'));
+	for (let i = 0; i < 300; i++) {
+		const { axes } = buildPrompt('menu', `s${i}`);
+		assert.notEqual(axes.energy, 'restrained and patient');
+		assert.notEqual(axes.density, 'sparse arrangement, lots of space');
+	}
+});
+
 test('judge accepte un morceau sain et nomme chaque défaut', () => {
-	const sane = { durationS: 90, lufs: -13, truePeak: -1.2, headSilenceS: 0.1, tailSilenceS: 1.0, rmsSpreadDb: 6, sideDb: -14 };
+	const sane = { durationS: 90, lufs: -13, truePeak: -1.2, headSilenceS: 0.1, tailSilenceS: 1.0, rmsSpreadDb: 6, silentFraction: 0, sideDb: -14 };
 	assert.deepEqual(judge(sane, 90).reasons, []);
 	assert.ok(judge({ ...sane, durationS: 40 }, 90).reasons.some((r) => /durée/.test(r)));
 	assert.ok(judge({ ...sane, headSilenceS: 9 }, 90).reasons.some((r) => /tête/.test(r)));
@@ -579,7 +611,7 @@ test('le gate ne rejette PAS une crête inter-échantillon normale', () => {
 	// 19 des 21 morceaux du lot de calibration dépassent 0 dBFS. C'est le
 	// comportement normal d'un master fort, et music-loop.mjs le corrige par un
 	// gain statique. Rejeter là-dessus viderait la bibliothèque.
-	const sane = { durationS: 90, lufs: -13, headSilenceS: 0, tailSilenceS: 1, rmsSpreadDb: 6, sideDb: -14 };
+	const sane = { durationS: 90, lufs: -13, headSilenceS: 0, tailSilenceS: 1, rmsSpreadDb: 6, silentFraction: 0, sideDb: -14 };
 	for (const truePeak of [0.1, 0.6, 1.4, 2.9]) {
 		assert.deepEqual(judge({ ...sane, truePeak }, 90).reasons, [], `crête ${truePeak} rejetée à tort`);
 	}
@@ -589,7 +621,7 @@ test('le gate laisse vivre les genres volontairement égaux', () => {
 	// Le dub techno (LONG RANGE) et l'ambiance de menu sont hypnotiques par
 	// construction : un seuil d'écart RMS trop haut rejetterait exactement les
 	// pools dont c'est l'identité. Mesures réelles du lot : 1.29 et 1.75 dB.
-	const even = { durationS: 90, lufs: -14, truePeak: 1.1, headSilenceS: 0, tailSilenceS: 1, sideDb: -18 };
+	const even = { durationS: 90, lufs: -14, truePeak: 1.1, headSilenceS: 0, tailSilenceS: 1, silentFraction: 0, sideDb: -18 };
 	for (const rmsSpreadDb of [1.29, 1.75, 3.3]) {
 		assert.deepEqual(judge({ ...even, rmsSpreadDb }, 90).reasons, [], `écart ${rmsSpreadDb} dB rejeté à tort`);
 	}
@@ -598,7 +630,7 @@ test('le gate laisse vivre les genres volontairement égaux', () => {
 });
 
 test('le fondu de queue normal du modèle passe, une queue morte non', () => {
-	const t = { durationS: 90, lufs: -13, truePeak: 0.5, headSilenceS: 0, rmsSpreadDb: 6, sideDb: -14 };
+	const t = { durationS: 90, lufs: -13, truePeak: 0.5, headSilenceS: 0, rmsSpreadDb: 6, silentFraction: 0, sideDb: -14 };
 	for (const tailSilenceS of [0, 1.12, 2.95, 4.42]) {
 		assert.deepEqual(judge({ ...t, tailSilenceS }, 90).reasons, [], `queue ${tailSilenceS} s rejetée à tort`);
 	}
@@ -612,6 +644,53 @@ test('les bornes du gate sont ordonnées et plausibles', () => {
 	assert.ok(BOUNDS.headSilenceS < BOUNDS.tailSilenceS,
 		'on tolère plus de silence en queue : music-loop la recoupe');
 	assert.ok(BOUNDS.minSideDb < 0);
+	assert.ok(BOUNDS.maxSilentFraction > 0.06 && BOUNDS.maxSilentFraction < 0.15,
+		'le seuil de vide doit laisser passer le pire morceau accepté (6 %) et attraper les ratés (15 %)');
+});
+
+test('la génération reste au point de fonctionnement du modèle', () => {
+	// Contre-intuitif, donc à protéger : monter le nombre de pas DÉGRADE ce
+	// modèle. Stable Audio 3 est construit pour l'inférence rapide et 8 pas est
+	// son régime nominal, pas un raccourci. À 50 pas la sortie tombe de 3,6 à
+	// 8,7 dB et part hors-style — vérifié à l'oreille sur le pool `menu`.
+	assert.equal(DEFAULTS.steps, 8, 'le modèle sort de son régime au-delà');
+	// Et le CFG reste bas : à 7 le rendu sort déjà compressé (-5,3 LUFS, LRA 4,4).
+	assert.ok(DEFAULTS.cfgScale <= 2, `cfg ${DEFAULTS.cfgScale} : le rendu sera écrasé`);
+});
+
+// --- retrait ----------------------------------------------------------------
+
+const lib = [
+	{ id: 'race5-a', pool: 'race5', file: 'music/race5/a.opus', durS: 80, bpm: 148, seed: 'cal1::0' },
+	{ id: 'race5-b', pool: 'race5', file: 'music/race5/b.opus', durS: 80, bpm: 148, seed: 's50::0' },
+	{ id: 'menu-a', pool: 'menu', file: 'music/menu/a.opus', durS: 80, bpm: 90, seed: 'cal1::0' },
+	{ id: 'menu-b', pool: 'menu', file: 'music/menu/b.opus', durS: 80, bpm: 90, seed: 's50::0' },
+];
+
+test('partition sépare par graine et par id', () => {
+	const parGraine = partition(lib, { before: 's50' });
+	assert.deepEqual(parGraine.drop.map((t) => t.id), ['race5-a', 'menu-a']);
+	assert.deepEqual(parGraine.keep.map((t) => t.id), ['race5-b', 'menu-b']);
+
+	const parId = partition(lib, { ids: ['menu-b'] });
+	assert.deepEqual(parId.drop.map((t) => t.id), ['menu-b']);
+	assert.equal(parId.keep.length, 3);
+});
+
+test('partition ne retire rien sans critère', () => {
+	const p = partition(lib, {});
+	assert.equal(p.drop.length, 0);
+	assert.equal(p.keep.length, lib.length);
+});
+
+test('partition supporte un morceau sans graine', () => {
+	// Les entrées les plus anciennes du manifeste pourraient ne pas en avoir ;
+	// les traiter comme « à retirer » silencieusement serait une perte de
+	// données déguisée en nettoyage.
+	const sansGraine = [{ id: 'x', pool: 'menu', file: 'f', durS: 1, bpm: 1 }];
+	const p = partition(sansGraine, { before: 's50' });
+	assert.equal(p.drop.length, 1, 'un morceau sans graine ne survit pas à --before, et c\'est voulu');
+	assert.equal(partition(sansGraine, { ids: [] }).drop.length, 0);
 });
 
 console.log(`music-selftest : ${passed} tests`);

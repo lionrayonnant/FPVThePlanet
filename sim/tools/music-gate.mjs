@@ -57,6 +57,17 @@ export const BOUNDS = {
 	// c'est le travail de l'oreille (music-review), pas d'ffmpeg. Ce plancher
 	// n'attrape plus que le silence déguisé.
 	minRmsSpreadDb: 0.8,
+	// Le pendant du précédent, et il manquait. Un morceau peut passer toutes les
+	// autres bornes en étant composé de passages QUASI SILENCIEUX alternant avec
+	// du son : à l'écoute, « y a même pas de musique ». L'écart RMS ne l'attrape
+	// pas, parce qu'un morceau très dynamique a lui aussi un grand écart.
+	//
+	// On mesure donc la PROPORTION de fenêtres de 3 s situées plus de 25 dB sous
+	// la médiane du morceau. Calibré sur les 40 morceaux validés à l'oreille :
+	// le pire est à 6 % (cinewhoop-1fbea112), tous les autres à 0 %. Les tirages
+	// ratés du pool menu mesuraient 15 % et 36 %. 12 % laisse donc passer tout
+	// ce qui a été accepté et attrape le vide franc.
+	maxSilentFraction: 0.12,
 	// Stable Audio rend parfois du quasi-mono. Le jeu a un champ stéréo (les
 	// moteurs sont pannés) : une musique mono s'y écrase. Mesuré en écart entre
 	// l'énergie du côté (L-R) et celle du milieu (L+R) ; le lot va de -24 à
@@ -77,6 +88,13 @@ function stderrOf(args) {
 // une structure de morceau apparaître.
 const WINDOW_SAMPLES = 220500;
 
+// Fenêtre plus courte pour la détection de vide : un trou de 3 s s'entend déjà
+// comme un trou, et une fenêtre de 5 s le moyennerait avec ce qui l'entoure.
+const SILENCE_WINDOW_SAMPLES = 132300;
+
+// À combien de dB sous la médiane du morceau une fenêtre compte comme vide.
+const SILENCE_DEPTH_DB = 25;
+
 function rmsValues(out) {
 	return [...out.matchAll(/RMS level dB:\s*(-?[\d.]+|-?inf)/g)]
 		.map((m) => Number(m[1])).filter(Number.isFinite);
@@ -89,9 +107,9 @@ function rmsValues(out) {
  * rend là que le résumé global. Les valeurs par fenêtre vivent dans les
  * métadonnées de frame, d'où ametadata=print, qui écrit sur stdout.
  */
-function windowRmsDb(file) {
+function windowRmsDb(file, samples = WINDOW_SAMPLES) {
 	const r = spawnSync('ffmpeg', ['-nostats', '-v', 'error', '-i', file, '-af',
-		`pan=mono|c0=0.5*c0+0.5*c1,asetnsamples=n=${WINDOW_SAMPLES},`
+		`pan=mono|c0=0.5*c0+0.5*c1,asetnsamples=n=${samples},`
 		+ 'astats=metadata=1:reset=1,'
 		+ 'ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-',
 		'-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -149,6 +167,13 @@ export function measure(file) {
 	const rms = windowRmsDb(file);
 	const rmsSpreadDb = rms.length > 3 ? percentile(rms, 0.9) - percentile(rms, 0.1) : 0;
 
+	// Proportion du morceau qui est du vide. Mesurée par rapport à la médiane du
+	// morceau lui-même, donc indépendante du niveau absolu.
+	const fine = windowRmsDb(file, SILENCE_WINDOW_SAMPLES);
+	const silentFraction = fine.length > 4
+		? fine.filter((v) => v < percentile(fine, 0.5) - SILENCE_DEPTH_DB).length / fine.length
+		: 0;
+
 	// Détection du quasi-mono : on compare l'énergie du côté (L-R) à celle du
 	// milieu (L+R). Un vrai stéréo tient dans -25..-6 dB ; un mono déguisé
 	// s'effondre vers -60 dB et plus bas. `astats` de ce build ne rend pas de
@@ -157,7 +182,7 @@ export function measure(file) {
 	const side = monoRmsDb(file, '0.5*c0-0.5*c1');
 	const sideDb = (Number.isFinite(mid) && Number.isFinite(side)) ? side - mid : NaN;
 
-	return { file, durationS: dur, lufs, truePeak, headSilenceS, tailSilenceS, rmsSpreadDb, sideDb };
+	return { file, durationS: dur, lufs, truePeak, headSilenceS, tailSilenceS, rmsSpreadDb, silentFraction, sideDb };
 }
 
 /** Mesures → verdict. Pur : testable sans ffmpeg. */
@@ -173,6 +198,9 @@ export function judge(m, targetDurationS) {
 	else if (m.lufs < BOUNDS.lufs[0] || m.lufs > BOUNDS.lufs[1]) bad.push(`${m.lufs} LUFS hors [${BOUNDS.lufs}]`);
 	if (Number.isFinite(m.truePeak) && m.truePeak > BOUNDS.maxTruePeakDbfs) bad.push(`crête ${m.truePeak} dBFS — rendu cassé`);
 	if (m.rmsSpreadDb < BOUNDS.minRmsSpreadDb) bad.push(`niveau plat (${m.rmsSpreadDb.toFixed(1)} dB d'écart) — nappe, pas morceau`);
+	if (Number.isFinite(m.silentFraction) && m.silentFraction > BOUNDS.maxSilentFraction) {
+		bad.push(`${Math.round(m.silentFraction * 100)} % du morceau est vide — « y a même pas de musique »`);
+	}
 	if (Number.isFinite(m.sideDb) && m.sideDb < BOUNDS.minSideDb) bad.push(`quasi-mono (côté à ${m.sideDb.toFixed(1)} dB du milieu)`);
 	return { pass: bad.length === 0, reasons: bad };
 }
@@ -194,7 +222,7 @@ function run() {
 		results.push({ id, pool: meta.pool, ...m, ...v });
 		if (!asJson) {
 			const mark = v.pass ? '✓' : '✗';
-			console.log(`${mark} ${id.padEnd(20)} ${String(meta.pool ?? '').padEnd(11)} ${m.lufs} LUFS  crête ${m.truePeak}  écart ${m.rmsSpreadDb.toFixed(1)} dB`);
+			console.log(`${mark} ${id.padEnd(20)} ${String(meta.pool ?? '').padEnd(11)} ${m.lufs} LUFS  écart ${m.rmsSpreadDb.toFixed(1)} dB  vide ${Math.round(m.silentFraction * 100)} %`);
 			for (const r of v.reasons) console.log(`    ${r}`);
 		}
 	}

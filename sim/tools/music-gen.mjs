@@ -37,9 +37,29 @@ export const DEFAULTS = {
 	// que la revue à l'oreille reste faisable et que le dépôt reste tenable.
 	duration: 90,
 	model: 'medium',
+
+	// 8 pas — le défaut de la CLI amont, et il faut le laisser là.
+	//
+	// J'ai cru que 8 était un raccourci de VITESSE et je suis monté à 50 après
+	// un A/B aveugle où un morceau de race5 à 50 pas avait été préféré. C'était
+	// une généralisation depuis UN échantillon, et elle était fausse : à
+	// l'écoute du pool `menu`, 50 pas rend hors-style et « comme un signal un
+	// peu buggé ».
+	//
+	// Mesuré ensuite, mêmes prompts et mêmes graines : 50 pas sort 3,6 à 8,7 dB
+	// SOUS 8 pas (-21,2/-23,8/-24,7 contre -17,6/-15,1/-18,0 LUFS). Une sortie
+	// plus faible et moins affirmée est la signature d'un modèle poussé hors de
+	// son régime — et tout Stable Audio 3 est construit autour de l'inférence
+	// rapide (« minutes of audio in milliseconds », 5 s produites en 0,41 s).
+	// 8 pas n'est pas un compromis, c'est le point de fonctionnement nominal.
+	//
+	// Ne pas remonter ce nombre sans réécouter PLUSIEURS pools : la fidélité
+	// d'un morceau isolé ne dit rien de l'adhérence au style sur l'ensemble.
 	steps: 8,
+
 	cfgScale: 1.0,
 };
+
 
 function parseArgs(argv) {
 	const out = { pool: null, count: 1, seedBase: 'v1', tag: '', ...DEFAULTS };
