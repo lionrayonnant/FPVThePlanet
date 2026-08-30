@@ -6,9 +6,10 @@ import {
 	Geofence, horizontalMargin, verticalMargin,
 	NOMINAL, CAUTION, HOLD, LOST,
 	R_CAUTION, R_HOLD, FLOOR_CAUTION, FLOOR_HOLD, FLOOR_EDGE, FLOOR_LOST,
-	A_MAX, FENCE_SPAN, FENCE_WARN_DB,
+	A_MAX, FENCE_SPAN, FENCE_WARN_DB, HOLD_STOP_GUARANTEE_M,
 } from '../src/geofence.js';
 import { VideoLink } from '../src/link.js';
+import { fenceNote } from './lib/add-map-core.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -338,6 +339,34 @@ t('la borne ne touche PAS le couloir vertical', () => {
 	for (const dy of [1, -(FLOOR_CAUTION + FLOOR_HOLD) / 2, -(FLOOR_HOLD + FLOOR_LOST) / 2, -FLOOR_LOST - 1]) {
 		assert.equal(zoneAtY(tight, FLOOR + dy), zoneAtY(wide, FLOOR + dy), `dy=${dy}`);
 	}
+});
+
+t('add-map avertit quand la carte est trop petite pour la garantie d arrêt', () => {
+	// Les trois régimes, exprimés par rapport aux constantes : la borne mord
+	// sous un demi-côté de 3 x R_CAUTION, et la garantie tombe sous le
+	// demi-côté qui produit HOLD_STOP_GUARANTEE_M de rappel.
+	const boundBelow = 3 * R_CAUTION;
+	const guaranteeBelow = (3 * R_CAUTION * HOLD_STOP_GUARANTEE_M) / R_HOLD;
+	assert.ok(guaranteeBelow < boundBelow, 'sinon les trois régimes se recouvrent');
+
+	// Grande carte : rien à signaler.
+	assert.equal(fenceNote(BBOX), null);
+
+	// Bornée, mais la garantie tient encore : on informe, on n avertit pas.
+	const okHalf = (guaranteeBelow + boundBelow) / 2;
+	const info = fenceNote(square(okHalf));
+	assert.ok(info, 'une carte bornée doit être signalée');
+	assert.ok(!info.includes('OBÉIT'), `pas d avertissement attendu ici : ${info}`);
+
+	// Sous la garantie : l avertissement, et il nomme le seuil exporté.
+	const risky = fenceNote(square(guaranteeBelow / 2));
+	assert.ok(risky.includes('OBÉIT'), `avertissement attendu : ${risky}`);
+	assert.ok(risky.includes(String(HOLD_STOP_GUARANTEE_M)));
+
+	// Et le seuil est bien lu sur le couloir EFFECTIF, pas sur la constante :
+	// juste au-dessus il n avertit pas, juste en dessous il avertit.
+	assert.ok(!fenceNote(square(guaranteeBelow * 1.02)).includes('OBÉIT'));
+	assert.ok(fenceNote(square(guaranteeBelow * 0.98)).includes('OBÉIT'));
 });
 
 // --- Le canal terminal de link.js -----------------------------------------
