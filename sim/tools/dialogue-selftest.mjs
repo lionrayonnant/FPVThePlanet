@@ -383,4 +383,54 @@ t('validateCorpus : compte les bonnes et rejette les ids en double', () => {
 	assert.ok(dup.errors.some((e) => /double/i.test(e.problem)));
 });
 
+// --- déduplication par trigrammes -----------------------------------------------
+
+import { normalize, trigrams, jaccard, findDuplicates } from './dialogue/dedupe.mjs';
+
+const mk = (id, ...texts) => ({ id, lines: texts.map((text) => ({ speaker: 'root', text })) });
+
+t('normalize : casse, ponctuation et espaces écrasés', () => {
+	assert.equal(normalize('  Ship  IT, now! '), 'ship it now');
+});
+
+t('trigrams : fenêtres de trois caractères', () => {
+	const g = trigrams('abcd');
+	assert.deepEqual([...g].sort(), ['abc', 'bcd']);
+	assert.equal(trigrams('ab').size, 0);
+});
+
+t('jaccard : identique vaut 1, disjoint vaut 0', () => {
+	assert.equal(jaccard(trigrams('hello there'), trigrams('hello there')), 1);
+	assert.equal(jaccard(trigrams('aaaaaa'), trigrams('bbbbbb')), 0);
+	assert.equal(jaccard(new Set(), new Set()), 0);
+});
+
+t('findDuplicates : attrape le quasi-doublon, laisse le reste tranquille', () => {
+	const entries = [
+		mk('a', 'tile 842 is corrupt'),
+		mk('b', 'tile 843 is corrupt'),          // quasi-doublon de a
+		mk('c', 'the mesh has no holes so far'), // sans rapport
+	];
+	const dups = findDuplicates(entries, { threshold: 0.6 });
+	assert.equal(dups.length, 1);
+	assert.deepEqual([dups[0].a, dups[0].b].sort(), ['a', 'b']);
+	assert.ok(dups[0].score >= 0.6);
+});
+
+t('findDuplicates : compare l\'échange entier, pas réplique par réplique', () => {
+	const entries = [mk('x', 'how long', 'three minutes'), mk('y', 'how long', 'three minutes')];
+	assert.equal(findDuplicates(entries, { threshold: 0.9 }).length, 1);
+});
+
+t('findDuplicates : tient l\'échelle visée sans exploser le temps', () => {
+	// 5000 entrées distinctes : l'index inversé doit rester très en deçà de la
+	// comparaison de toutes les paires. Si ce test devient lent, c'est que
+	// l'index n'est pas utilisé.
+	const many = Array.from({ length: 5000 }, (_, i) => mk(`m/${i}`, `signal ${i} lost over sector ${i * 7}`));
+	const t0 = Date.now();
+	findDuplicates(many, { threshold: 0.85 });
+	const ms = Date.now() - t0;
+	assert.ok(ms < 20000, `déduplication trop lente : ${ms} ms sur 5000 entrées`);
+});
+
 console.log(`\n${n} vérifications, tout passe.`);
