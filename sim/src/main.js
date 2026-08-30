@@ -481,6 +481,19 @@ async function finishBoot(preloading) {
 		sun?.setWeather(CALM.sun);
 	}
 
+	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
+	// (loader.js) à leurs valeurs par défaut (uDim=1, uNight=0) : setFog/setDim/
+	// setNight ne les a jamais touchés. La boucle de rendu ne les pousse que
+	// sur CHANGEMENT (lastDensity/lastSkyHex/lastDim/lastNight ci-dessous) — si
+	// la nuit était déjà installée à la scène précédente, la valeur n'a pas
+	// changé et ces matériaux restent bloqués à leurs défauts pour toujours.
+	// Invalider le cache force le prochain frame à les resynchroniser même
+	// quand la valeur elle-même n'a pas bougé depuis la scène d'avant.
+	lastDensity = NaN;
+	lastSkyHex = NaN;
+	lastDim = NaN;
+	lastNight = NaN;
+
 	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
 		audio.setVolume(volume);
 		audio.setBrightness(brightness);
