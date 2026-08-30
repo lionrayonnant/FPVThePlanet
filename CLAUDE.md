@@ -51,7 +51,7 @@ Scene loading
 
 public/scenes.json drives the scene menu.
 
-src/loader.js:setScene(slug) must run before loadManifest(), loadChunks(), or loadCollision().
+src/loader.js:sceneBase(slug) gives the URL prefix; pass it explicitly to loadManifest(), loadChunks() and loadCollision(). There is no mutable current-scene global: two zones can preload concurrently (the TARGET SCAN is cancellable) and each must keep reading its own.
 
 ?scene=<slug> bypasses the menu.
 
