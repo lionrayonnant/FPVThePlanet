@@ -18,7 +18,7 @@ import {
 	POOLS, AXES, AXIS_NAMES, AXES_PER_TRACK, buildPrompt, negativesFor,
 	NEGATIVES_COMMON, NO_VOICE, WORDLESS_VOICE, POOL_VOICE, POOL_AXIS_BANS,
 } from './music-prompts.mjs';
-import { planFor, trackId, DEFAULTS } from './music-gen.mjs';
+import { planFor, trackId, DEFAULTS, suggestSeedBase } from './music-gen.mjs';
 import { partition } from './music-retire.mjs';
 import { loopFilter, loudnormMeasureFilter, loudnormApplyFilter, TARGET_LUFS, TARGET_PEAK_DBFS, TARGET_LRA, CROSSFADE_S } from './music-loop.mjs';
 import { judge, BOUNDS } from './music-gate.mjs';
@@ -658,6 +658,22 @@ test('la génération reste au point de fonctionnement du modèle', () => {
 	assert.equal(DEFAULTS.steps, 8, 'le modèle sort de son régime au-delà');
 	// Et le CFG reste bas : à 7 le rendu sort déjà compressé (-5,3 LUFS, LRA 4,4).
 	assert.ok(DEFAULTS.cfgScale <= 2, `cfg ${DEFAULTS.cfgScale} : le rendu sera écrasé`);
+});
+
+test('suggestSeedBase suit la série et n\'entre jamais en collision', () => {
+	// Le piège le plus facile du pipeline : réutiliser une graine ne produit pas
+	// d'autres morceaux, elle rend EXACTEMENT les mêmes, que le worker saute
+	// ensuite comme déjà générés. On croit avoir agrandi la bibliothèque et il
+	// ne s'est rien passé — silencieusement.
+	assert.equal(suggestSeedBase(new Set()), 'v1');
+	assert.equal(suggestSeedBase(new Set(['v5'])), 'v6');
+	assert.equal(suggestSeedBase(new Set(['cal1', 'v2', 'v3', 'v5'])), 'v6');
+	// Une graine hors série ne doit pas bloquer la suggestion.
+	assert.equal(suggestSeedBase(new Set(['cal1'])), 'v1');
+	// Et la suggestion ne doit jamais être déjà prise.
+	for (const used of [new Set(['v1']), new Set(['v1', 'v2', 'v3']), new Set(['v9', 'cal1'])]) {
+		assert.ok(!used.has(suggestSeedBase(used)), 'la suggestion entre en collision');
+	}
 });
 
 // --- retrait ----------------------------------------------------------------
