@@ -604,9 +604,12 @@ t('pack de secours : valide, et surtout sans aucun requires', () => {
 t('isolation : aucun module de src/ n\'importe l\'outillage de génération', () => {
 	// readdirSync non récursif : src/ est plat aujourd'hui (aucun sous-dossier).
 	// Si ça change, ce test doit devenir récursif pour continuer à tout couvrir.
+	// Extension : .js ET .mjs — src/operator.selftest.mjs existe déjà, et un
+	// import de generate.mjs depuis un .mjs de src/ doit être attrapé comme
+	// n'importe quel .js (D1, critère d'acceptation 4).
 	const dir = new URL('../src/', import.meta.url);
 	for (const f of readdirSync(dir)) {
-		if (!f.endsWith('.js')) continue;
+		if (!f.endsWith('.js') && !f.endsWith('.mjs')) continue;
 		const code = rf(new URL(f, dir), 'utf8');
 		assert.ok(!/dialogue\/(generate|inspect)\.mjs/.test(code),
 			`${f} importe l'outillage de génération — le jeu ne doit dépendre d'aucun LLM (D1)`);
