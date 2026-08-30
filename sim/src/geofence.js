@@ -20,11 +20,37 @@ export const CAUTION = 'CAUTION';   // averti
 export const HOLD = 'HOLD';         // averti et retenu
 export const LOST = 'LOST';         // dehors ; l'image est en train de mourir
 
-// PROVISOIRE — remplacé par tools/geofence-measure.mjs (tâche 5 du plan).
-// Ne pas écrire de test sur ces valeurs littérales : les tests se réfèrent aux
-// constantes, jamais à leurs nombres.
-export const R_HOLD = 40;      // m : distance d'arrêt, manches au neutre
-export const R_CAUTION = 85;   // m : R_HOLD + 1,5 s à la vitesse maximale
+// Mesurés par tools/geofence-measure.mjs sur public/scenes/tour-eiffel le
+// 2026-08-30, sur les 6 familles de drone-profiles.js. Protocole : le drone
+// accélère depuis l'arrêt, tangage plein en mode ANGLE (assiette tenue à
+// 42°, pas une vitesse de rotation — le mode par défaut ACRO ferait boucler
+// le drone sans fin), jusqu'à sa vitesse en palier maximale, droit vers une
+// face ; à l'entrée en HOLD les manches reviennent au neutre (le pilote a lu
+// l'avertissement et a lâché) ; seuls A_MAX et la traînée de quad.js
+// décélèrent ensuite.
+//
+// La formule directe (pénétration mesurée + 1 m) ne s'applique pas ici :
+// sous le couloir alors en place (40 m, la valeur PROVISOIRE remplacée ici),
+// AUCUNE des six familles ne dépasse la face — la plus lourde (heavy5)
+// s'arrête déjà 10 m avant. La rampe du rappel (0 à A_MAX sur R_HOLD mètres,
+// pushOf() plus bas) dépend d'elle-même de R_HOLD, donc rétrécir le couloir
+// change la distance qu'on cherche à mesurer avec : R_HOLD est le POINT FIXE
+// de « sous un couloir de X mètres, la pire famille s'arrête à 1 m de la
+// face », trouvé par itération directe (convergence en 3-4 pas sur les six
+// familles, indépendante du point de départ — voir task-4-report.md). Pire
+// famille : heavy5 (la plus lourde, pas la plus rapide : 24,50 m/s contre
+// 26,89 pour race5), point fixe à 28,72 m, arrondi au mètre supérieur.
+//
+// Manches au neutre et non tirées à fond, délibérément : un pilote qui
+// insiste DOIT pouvoir passer, c'est la moitié du design. R_HOLD dimensionne
+// le cas où on obéit, pas le cas où on désobéit.
+export const R_HOLD = 29;      // m : distance d'arrêt, manches au neutre
+// R_HOLD + le temps de lire l'avertissement à la vitesse maximale mesurée
+// (26,89 m/s, race5). Ce délai est de la mise en scène et s'assume comme
+// telle, mais il s'ancre sur une constante du dépôt : un avertissement doit
+// clignoter trois fois pour être lu, et BLINK_PERIOD_MS vaut 500 ms
+// (drone-osd.js:51). Soit 1,5 s.
+export const R_CAUTION = 70;   // m : R_HOLD + 1,5 s à la vitesse maximale
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
