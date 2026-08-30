@@ -10,3 +10,13 @@ flyover-reverse-engineering/.git-upstream-backup/
 # ont un slash final et ne matchent donc pas un lien symbolique.
 sim/node_modules
 sim/public/scenes
+
+# L'installation Stable Audio 3 (issue #122) : ~15 Go avec les poids, et son
+# propre dépôt git — non ignorée, git la stage en gitlink (mode 160000), c'est
+# à dire une référence de sous-module vers un commit que personne ne peut
+# récupérer, sans .gitmodules. Elle vit à côté du dépôt, pas dedans :
+# sim/tools/music-gen.mjs la trouve par FPVTP_STABLE_AUDIO.
+stableaudio3.0/
+
+# Sauvegardes locales de l'état opérateur, du même genre que operator-state/.
+operator-state-backup-*/
