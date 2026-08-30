@@ -45,10 +45,14 @@ export function args(argv = process.argv) {
 
 // Résout le backend, le modèle et l'hôte à partir des arguments et de
 // l'environnement. Pur : aucune E/S, testable sans modèle ni réseau.
+// L'hôte n'est calculé que pour ollama : le backend claude ne le lit jamais,
+// autant ne pas le porter dans le résultat (sinon un OLLAMA_HOST déjà présent
+// dans l'environnement d'un usage claude s'y retrouverait sans raison).
 export function resolveBackend(a, env = process.env) {
 	const backend = a.backend ?? DEFAULT_BACKEND;
 	if (!BACKENDS.includes(backend)) throw new Error(`--backend inconnu (${backend}) — attendu : ${BACKENDS.join(' ou ')}`);
 	const model = a.model ?? DEFAULT_MODEL[backend];
+	if (backend !== 'ollama') return { backend, model, host: undefined };
 	const host = a['ollama-host'] ?? env.OLLAMA_HOST ?? DEFAULT_OLLAMA_HOST;
 	return { backend, model, host };
 }
@@ -140,23 +144,12 @@ function buildPrompt({ event, entries, rarity, forms, count }) {
 	].join('\n');
 }
 
-// Le modèle enrobe volontiers sa réponse — un modèle local plus encore qu'un
-// modèle hébergé (prose avant/après, bloc ```json). indexOf/lastIndexOf sur
-// '[' et ']' se fait avoir dès que ce texte d'habillage contient lui-même un
-// crochet après le tableau réel (ex. « ...comme ceci : [voir plus haut] »).
-// On repère donc le premier '[' puis on avance jusqu'au ']' qui l'équilibre,
+// Depuis un index donné, avance jusqu'au ']' qui équilibre le '[' de départ,
 // en ignorant les crochets à l'intérieur des chaînes JSON (guillemets et
-// échappements pris en compte) pour ne pas se faire piéger par du texte
-// entre crochets dans les répliques elles-mêmes.
-export function parseEntries(text) {
-	// Retire un éventuel bloc de code (```json ... ``` ou ``` ... ```).
-	const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-	const body = fenced ? fenced[1] : text;
-
-	const start = body.indexOf('[');
-	if (start < 0) throw new Error(`aucun tableau JSON dans la réponse : ${text.slice(0, 300)}`);
-
-	let depth = 0, inString = false, escaped = false, end = -1;
+// échappements pris en compte). Rend l'index de ce ']', ou -1 si le tableau
+// ouvert à `start` ne se referme jamais.
+function balancedArrayEnd(body, start) {
+	let depth = 0, inString = false, escaped = false;
 	for (let i = start; i < body.length; i++) {
 		const c = body[i];
 		if (inString) {
@@ -167,10 +160,45 @@ export function parseEntries(text) {
 		}
 		if (c === '"') inString = true;
 		else if (c === '[') depth++;
-		else if (c === ']') { depth--; if (depth === 0) { end = i; break; } }
+		else if (c === ']') { depth--; if (depth === 0) return i; }
 	}
-	if (end < 0) throw new Error(`tableau JSON non refermé dans la réponse : ${text.slice(0, 300)}`);
-	return JSON.parse(body.slice(start, end + 1));
+	return -1;
+}
+
+// Le modèle enrobe volontiers sa réponse — un modèle local plus encore qu'un
+// modèle hébergé (prose avant *et* après, bloc ```json). Le premier '[' de
+// la réponse n'est pas forcément celui du vrai tableau : une préface du
+// genre « using the format like [role, text], here is the batch: [...] »
+// place un crochet de prose avant le tableau réel. On essaie donc chaque
+// occurrence de '[' de gauche à droite, on l'équilibre en respectant les
+// chaînes JSON, et on ne retient le résultat que s'il parse en un tableau
+// d'objets — un crochet de prose s'équilibre souvent (il a bien un ']' qui
+// lui correspond) mais ne parse pas en JSON, ou parse en autre chose qu'un
+// tableau d'objets (ex. des mots nus). Le premier candidat qui satisfait les
+// deux conditions est le vrai tableau ; les crochets à l'intérieur des
+// répliques elles-mêmes ne sont jamais retenus en premier puisqu'ils
+// n'ouvrent pas de tableau qui s'équilibre correctement à ce niveau.
+export function parseEntries(text) {
+	// Retire un éventuel bloc de code (```json ... ``` ou ``` ... ```).
+	const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+	const body = fenced ? fenced[1] : text;
+
+	let anyBracket = false;
+	let anyBalanced = false;
+	for (let i = body.indexOf('['); i >= 0; i = body.indexOf('[', i + 1)) {
+		anyBracket = true;
+		const end = balancedArrayEnd(body, i);
+		if (end < 0) continue;
+		anyBalanced = true;
+		let parsed;
+		try { parsed = JSON.parse(body.slice(i, end + 1)); } catch { continue; }
+		if (Array.isArray(parsed) && parsed.every((e) => e && typeof e === 'object' && !Array.isArray(e))) {
+			return parsed;
+		}
+	}
+	if (!anyBracket) throw new Error(`aucun tableau JSON dans la réponse : ${text.slice(0, 300)}`);
+	if (!anyBalanced) throw new Error(`tableau JSON non refermé dans la réponse : ${text.slice(0, 300)}`);
+	throw new Error(`aucun tableau JSON exploitable dans la réponse : ${text.slice(0, 300)}`);
 }
 
 async function main() {

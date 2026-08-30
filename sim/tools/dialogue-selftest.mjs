@@ -575,10 +575,11 @@ t('resolveBackend : un backend inconnu échoue clairement', () => {
 	assert.throws(() => resolveBackend({ backend: 'mistral' }, {}), /backend inconnu/);
 });
 
-t('resolveBackend : le backend claude ignore OLLAMA_HOST', () => {
+t('resolveBackend : le backend claude ne porte aucun hôte, même si OLLAMA_HOST est défini', () => {
 	const r = resolveBackend({}, { OLLAMA_HOST: 'http://env-host:11434' });
 	assert.equal(r.backend, 'claude');
 	assert.equal(r.model, DEFAULT_MODEL.claude);
+	assert.equal(r.host, undefined, 'claude ne lit jamais host : un OLLAMA_HOST de l\'environnement ne doit pas s\'y retrouver');
 });
 
 t('BACKENDS : exactement claude et ollama', () => {
@@ -610,6 +611,15 @@ t('parseEntries : ne se fait pas piéger par un crochet dans la prose de fin', (
 	// couperait le JSON au mauvais endroit.
 	const text = '[{"a":1}]\n(généré comme demandé [voir consignes])';
 	assert.deepEqual(parseEntries(text), [{ a: 1 }]);
+});
+
+t('parseEntries : ne se fait pas piéger par un crochet dans la prose de préface', () => {
+	// Symétrique du cas précédent : une préface du genre « using the format
+	// like [role, text], here is the batch: [...] » place un crochet qui
+	// s'équilibre avant le vrai tableau. Un modèle local préface au moins
+	// aussi souvent qu'il conclut.
+	const text = 'Using the format like [role, text], here is the batch: [{"a":1},{"a":2}]';
+	assert.deepEqual(parseEntries(text), [{ a: 1 }, { a: 2 }]);
 });
 
 t('parseEntries : ne se fait pas piéger par un crochet à l\'intérieur d\'une réplique', () => {
