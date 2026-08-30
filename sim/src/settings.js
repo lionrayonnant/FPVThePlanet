@@ -81,38 +81,38 @@ export class Settings {
 		el.hidden = true;
 		el.innerHTML = `
 			<div class="panel">
-				<h2>Manette</h2>
-				<p id="pad-name">aucune manette détectée</p>
+				<h2>Controller</h2>
+				<p id="pad-name">no controller detected</p>
 				<table id="pad-map"></table>
-				<h2>Caméra</h2>
+				<h2>Camera</h2>
 				<div id="cam-spec" class="spec">—</div>
-				<h2>Commandes</h2>
+				<h2>Controls</h2>
 				<div id="keymap" class="spec">
 					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
 					<b>R</b> respawn · <b>J</b> disarm · <b>M</b> mode · <b>P</b> rates<br>
 					<b>C</b> free camera · <b>Space</b> pause · <b>Tab</b> settings
 				</div>
-				<h2>Objectif</h2>
-				<label class="check"><input id="lens-on" type="checkbox"> Rendu FPV</label>
-				<label>Objectif <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
-				<label>Vignettage <input id="vig" type="range" min="0" max="100" step="1"> <span id="vig-val"></span> %</label>
-				<label>Obturation <input id="shut" type="range" min="0" max="20" step="0.5"> <span id="shut-val"></span></label>
-				<h2>Lien vidéo</h2>
-				<label>Rendu <select id="link-mode">
-					<option value="analog">Analogique</option>
-					<option value="digital">Numérique</option>
+				<h2>Lens</h2>
+				<label class="check"><input id="lens-on" type="checkbox"> FPV rendering</label>
+				<label>Lens <input id="lens" type="range" min="0" max="100" step="1"> <span id="lens-val"></span> %</label>
+				<label>Vignette <input id="vig" type="range" min="0" max="100" step="1"> <span id="vig-val"></span> %</label>
+				<label>Shutter <input id="shut" type="range" min="0" max="20" step="0.5"> <span id="shut-val"></span></label>
+				<h2>Video link</h2>
+				<label>Rendering <select id="link-mode">
+					<option value="analog">Analog</option>
+					<option value="digital">Digital</option>
 				</select></label>
-				<label>Dégradation <input id="link" type="range" min="0" max="100" step="1"> <span id="link-val"></span> %</label>
+				<label>Degradation <input id="link" type="range" min="0" max="100" step="1"> <span id="link-val"></span> %</label>
 				<div id="link-presets" class="presets">
-					<button type="button" data-v="30">Faible</button>
-					<button type="button" data-v="60">Moyen</button>
-					<button type="button" data-v="100">Élevé</button>
+					<button type="button" data-v="30">Low</button>
+					<button type="button" data-v="60">Medium</button>
+					<button type="button" data-v="100">High</button>
 				</div>
-				<h2>Son</h2>
+				<h2>Sound</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
-				<label>Timbre <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
-				<button id="reset-settings">Réinitialiser les réglages</button>
-				<button id="close-settings">Fermer (Tab)</button>
+				<label>Tone <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
+				<button id="reset-settings">Reset settings</button>
+				<button id="close-settings">Close (Tab)</button>
 			</div>`;
 		root.appendChild(el);
 
@@ -142,7 +142,7 @@ export class Settings {
 		this.flightActive = false;
 		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
 		el.querySelector('#reset-settings').onclick = () => {
-			if (!confirm('Réinitialiser tous les réglages (manette, caméra, objectif, lien vidéo, son) ?')) return;
+			if (!confirm('Reset all settings (controller, camera, lens, video link, sound)?')) return;
 			try {
 				for (const key of Object.keys(localStorage)) {
 					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
@@ -290,13 +290,13 @@ export class Settings {
 	// Live bars next to each let you see which physical stick is which.
 	buildAxisRows() {
 		const pad = this.input.getGamepad();
-		this.el.padName.textContent = pad ? pad.id : 'aucune manette détectée';
+		this.el.padName.textContent = pad ? pad.id : 'no controller detected';
 		if (!pad) { this.el.padMap.innerHTML = ''; this._axisRows = []; return; }
 
 		this.el.padMap.innerHTML = '';
 		this._axisRows = CHANNELS.map((ch) => {
 			const tr = document.createElement('tr');
-			const opts = pad.axes.map((_, i) => `<option value="${i}">axe ${i}</option>`).join('');
+			const opts = pad.axes.map((_, i) => `<option value="${i}">axis ${i}</option>`).join('');
 			tr.innerHTML = `<td>${ch}</td>
 				<td><select>${opts}</select></td>
 				<td><label><input type="checkbox"> inv</label></td>
