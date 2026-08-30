@@ -90,8 +90,11 @@ export function planFor({ pool, count, seedBase, duration }) {
 
 async function run() {
 	const opts = parseArgs(process.argv.slice(2));
-	if (!opts.pool) throw new Error('--pool est requis (ou "all")');
-	const pools = opts.pool === 'all' ? MUSIC_POOLS : [opts.pool];
+	if (!opts.pool) throw new Error('--pool est requis : un pool, une liste séparée par des virgules, ou "all"');
+	// Une liste séparée par des virgules, parce que le modèle met plus longtemps
+	// à charger qu'à générer : refaire quatre pools en quatre commandes, c'est
+	// payer quatre fois les 17 s de chargement pour rien.
+	const pools = opts.pool === 'all' ? MUSIC_POOLS : opts.pool.split(',').map((p) => p.trim()).filter(Boolean);
 	for (const p of pools) {
 		if (!MUSIC_POOLS.includes(p)) throw new Error(`pool inconnu : ${p} (connus : ${MUSIC_POOLS.join(', ')})`);
 	}

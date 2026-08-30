@@ -43,9 +43,15 @@ export const POOLS = {
 		label: '5" FREESTYLE',
 		bpm: [126, 138],
 		feel: 'polyvalent, nerveux, libre — le son FPV de référence',
-		core: 'early-2000s underground electro and breakbeat, energetic and playful, '
-			+ 'crisp drum programming, rolling bassline, agile synth patterns, '
-			+ 'subtle IDM elements, technical but loose, PC demo scene atmosphere',
+		// v2 : la v1 demandait « energetic and playful, agile synth patterns »,
+		// c'est-à-dire le terrain de MICRO, et se faisait manger par lui. Le
+		// freestyle n'est pas joueur, il est FUNKY et cassé : le groove
+		// bouscule, la caisse claire tombe où on ne l'attend pas.
+		core: 'early-2000s underground electro and chopped breakbeat, '
+			+ 'funky and swaggering, heavy syncopated snare, '
+			+ 'thick rubbery bassline with attitude, broken drum edits, '
+			+ 'gritty electro stabs, groove that pushes and pulls against the grid, '
+			+ 'PC demo scene and tracker music attitude',
 	},
 	race5: {
 		label: '5" RACE',
@@ -60,28 +66,46 @@ export const POOLS = {
 		label: 'CINEWHOOP',
 		bpm: [104, 118],
 		feel: 'observation, stabilité, paysage',
-		core: 'early-2000s atmospheric electronica, warm synthesizers, spacious pads, '
-			+ 'subtle breakbeat percussion, gentle bassline, slow evolving textures, '
-			+ 'restrained IDM influences, curious atmosphere, '
-			+ 'slightly nostalgic computer hardware character',
+		// v2 : la v1 disait « subtle », « gentle », « restrained » dans la même
+		// phrase — trois adjectifs qui reculent, et rien qui s'engage. On
+		// commet une vraie identité : une mélodie qui flotte, mélancolique et
+		// large, et une accroche située plutôt qu'un « curious atmosphere ».
+		core: 'early-2000s atmospheric electronica with a real floating melody, '
+			+ 'wide glowing pads, wistful and unhurried, '
+			+ 'clear melodic motif that drifts and returns, '
+			+ 'deep round bassline, crisp detailed breakbeat underneath, '
+			+ 'the melancholy of an empty city seen from above at dawn, '
+			+ 'warm 90s digital synthesizer character',
 	},
 	longrange: {
 		label: 'LONG RANGE',
 		bpm: [98, 110],
 		feel: 'distance, endurance, solitude — regarder le RSSI descendre',
-		core: 'late-1990s and early-2000s dub techno, deep sub bass, '
-			+ 'hypnotic four-to-the-floor pulse, long tape delays, sparse percussion, '
-			+ 'slowly evolving filters, distant synthetic textures, spacious stereo field, '
-			+ 'minimal and introspective, underground electronic music',
+		// v2 : la v1 empilait minimal / sparse / slowly / distant — tout tirait
+		// dans le même sens et le résultat devenait du papier peint. La
+		// solitude n'est pas l'absence : il faut UNE voix, seule, dans un
+		// espace immense. D'où l'accord de nappe qui revient et la basse
+		// physique sous les échos.
+		core: 'late-1990s Berlin dub techno, cavernous and lonely, '
+			+ 'one aching chord stab drenched in long tape echo, returning again and again, '
+			+ 'deep physical sub bass you feel more than hear, '
+			+ 'steady hypnotic four-to-the-floor pulse, crackling vinyl haze, '
+			+ 'vast empty stereo space, patient and unresolved',
 	},
 	heavy5: {
 		label: 'HEAVY 5"',
-		bpm: [120, 132],
+		bpm: [116, 126],
 		feel: 'masse, puissance, inertie — la machine doit peser',
-		core: 'early-2000s industrial techno, heavy low end, powerful kick drums, '
-			+ 'dense mechanical percussion, distorted analog bass, '
-			+ 'industrial synthesizer textures, physical and massive rhythm, '
-			+ 'dark but controlled, underground European electronic scene',
+		// v2 : la v1 demandait « mechanical percussion, distorted bass », soit
+		// le terrain de RACE, en moins rapide — donc un RACE raté. La masse ne
+		// se dit pas par la vitesse mais par la LENTEUR : demi-tempo, coups
+		// espacés, et le temps que met une chose lourde à s'arrêter. BPM
+		// abaissé (120-132 → 116-126) pour la même raison.
+		core: 'early-2000s industrial techno at half-time feel, colossal and slow, '
+			+ 'enormous slow kick drums with long decay, huge space between hits, '
+			+ 'grinding low-end drone underneath, corroded metallic impacts, '
+			+ 'the sound of heavy machinery that takes time to stop, '
+			+ 'dark, patient and crushing, underground European electronic scene',
 	},
 	toothpick: {
 		label: 'MICRO',
