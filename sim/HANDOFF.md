@@ -867,6 +867,47 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
+  Le monde répond : retard, quantité et couleur des réflexions suivent la
+  géométrie.
+  - **Aucun rayon supplémentaire.** `space.update()` relit la rosace que
+    `physics.probeWind()` lance déjà une fois par pas de physique pour l'ombre
+    de vent (`physics.probe`, accesseur en lecture seule ajouté pour ça).
+  - **Pas de ConvolverNode, un réseau de retards.** Une réponse impulsionnelle
+    est un buffer figé, or le pré-delay doit changer à chaque mètre parcouru :
+    il faudrait fabriquer et échanger un buffer par frame, ce qui claque et ce
+    que la discipline « aucun nœud après le démarrage » interdit. Quatre lignes
+    de retard, amortissement DANS la boucle (les aigus meurent plus vite que
+    les graves, comme dans une vraie pièce), 15 nœuds construits une fois.
+  - **La grandeur qui porte tout est le pré-delay** : l'aller-retour du son
+    jusqu'à la surface la plus proche, `2·d / 340`. C'est une mesure, pas un
+    réglage, et c'est cet écart-là qu'on entend en rasant un mur — pas « il y a
+    plus de réverbe ».
+  - **Vérifié en Node** : `tools/space-selftest.mjs`, 14 tests ; suite complète
+    verte, exit 0, 585 assertions. `createDelay` ajouté au faux contexte.
+  - **Vérifié au navigateur** (CDP) : 15 nœuds au démarrage, **0 créé sur
+    300 frames de vol**, aucune erreur. Plage relevée sur six géométries
+    synthétiques, cible atteinte au dixième de ms : plein ciel 140 ms / wet
+    0,06 → contre une façade 4,7 ms / wet 0,55.
+  - **Piège de méthode, noté pour la prochaine fois** : la première mesure
+    donnait 4 ms partout. La boucle de rendu appelle `space.update()` à chaque
+    frame et écrasait les injections avec la géométrie réelle — le drone était
+    posé au sol. Il faut neutraliser `space.update` pendant une injection.
+  - **NON ÉCOUTÉ.** Le réglage des bornes de `REVERB` (quantité, amortissement,
+    durée) est raisonné, pas mesuré : seul le pré-delay est physique. À caler
+    en vol, dans la même séance que le reste.
+
+- **Qualité de génération — piste ouverte, non conclue.** La musique est jugée
+  « un peu plate » à l'écoute. Mesuré : `steps` seul n'aide pas (8→50 à cfg 1
+  DÉGRADE l'air de -16,7 à -19,5 dB et la largeur de -12,2 à -14,0) ; seul
+  `cfg 7` améliore les deux (-13,8 et -9,3) mais sort à -5,3 LUFS avec un LRA
+  de 4,4, donc déjà écrasé. **Les mesures ne distinguent pas « profondeur » de
+  « saturation »** — quatre versions du même prompt égalisées à -14 LUFS
+  attendent une écoute comparative. Deuxième suspect jamais testé : le limiteur
+  du bus (-3 dB, 20:1, release 100 ms) est calibré pour la synthèse moteur ;
+  moteur et musique se somment et tapent dedans ensemble, ce qui écrase tout et
+  pompe au rythme des gaz.
+
 - **Arc musical — issue #122** (branche `music-arc`). Renverse la règle « pas de
   musique » de PHASE 18 : la Bible §34 et la roadmap PHASE 18 ont été amendées
   dans le même mouvement, sans quoi le prochain travail audio serait reparti de

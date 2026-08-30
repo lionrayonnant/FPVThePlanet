@@ -1369,6 +1369,20 @@ sonore de :
 
 > You don't read the drone. You feel it.
 
+### L'acoustique du lieu (issue #122)
+
+Le monde répond. Ce n'est pas de la réverbération décorative : le retard, la
+quantité et la couleur des réflexions suivent la géométrie réelle, mesurée par
+les mêmes rayons que l'ombre de vent.
+
+Raser une façade claque. Passer sous un pont referme. Monter ouvre le ciel et
+tout s'assèche. C'est la sensation de proximité, et c'est le cœur du FPV.
+
+Ce qu'on ne fait PAS : spatialiser en binaural. En FPV le drone est la caméra,
+les moteurs sont solidaires de la tête — un HRTF sur une source qui ne bouge
+jamais par rapport à l'auditeur ne dirait rien. Ce qui change en vol, c'est ce
+que le monde renvoie.
+
 Le vol appartient toujours à :
 
 - moteurs ;
