@@ -999,7 +999,9 @@ Le joueur doit lui-même sortir du contrôle.
 
 Pas de commentaire ironique.
 
-Pas de musique.
+Pas de musique — la musique du vol s'est éteinte avec le vol (coupée net au
+crash, relâchée en fondu à la pose, cf. §34 révisé, issue #122). L'écran de fin
+reste silencieux : c'est le contraste qui le rend lourd.
 
 Pas de récompense.
 
@@ -1333,9 +1335,41 @@ Il est uniquement le rituel de prise de contrôle.
 
 # 34. Son
 
-### Pas de musique pendant le vol.
+### Le vol a une musique. (révisé — issue #122)
 
-Le vol appartient à :
+> **Décision révisée.** Cette section disait « Pas de musique pendant le vol ».
+> Elle a été renversée par l'issue #122 : le jeu a une identité musicale, et
+> elle est portée par le vol autant que par les menus. Ce qui suit est la règle
+> en vigueur ; le reste de la section 34 (le vocabulaire d'interface clos, le
+> système qui ne bipe pas) est inchangé.
+
+Chaque famille de drone a son genre, avec un ADN commun : fin 90 / début 2000,
+electronica, IDM, techno, trance. Pas de modern EDM, pas de musique de film.
+
+| famille | genre |
+|---|---|
+| 5" FREESTYLE | electro / breakbeat — polyvalent, nerveux, libre |
+| 5" RACE | hard techno — vitesse, concentration, pression |
+| CINEWHOOP | electronica atmosphérique — observation, paysage |
+| LONG RANGE | dub techno — distance, endurance, solitude |
+| HEAVY 5" | industrial techno — masse, puissance, inertie |
+| MICRO | trance — petit, vif, joueur |
+| (menus) | ambiance froide et complotiste |
+
+L'arc : la musique s'installe **sourdement** au lancement du HACK — filtrée,
+lointaine, la musique de la pièce d'à côté. Elle se retire pendant le rituel,
+qui garde sa culmination. Elle **explose au drop** sur le drone. Puis elle vit
+avec le vol : son intensité suit ce que le pilote subit, pas seulement ce qu'il
+fait. Au crash elle meurt à l'instant du choc, avec l'image. À la pose, elle
+relâche.
+
+**La musique ne dit jamais au joueur quelle catégorie il a reçue.** Elle lui en
+donne une intuition, avant que l'écran ne nomme quoi que ce soit. C'est la forme
+sonore de :
+
+> You don't read the drone. You feel it.
+
+Le vol appartient toujours à :
 
 - moteurs ;
 - vent ;

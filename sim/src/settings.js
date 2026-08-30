@@ -3,6 +3,7 @@ import { menuNav } from './menu-nav.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
 const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
+const MUSIC_KEY = 'fpvmaps.musicVolume';
 const LENS_KEY = 'fpvmaps.lens';
 const VIGNETTE_KEY = 'fpvmaps.lensVignette';
 const SHUTTER_KEY = 'fpvmaps.lensShutter';
@@ -25,6 +26,10 @@ function loadPercent(key, fallback) {
 
 export const loadVolume = () => loadPercent(VOLUME_KEY, 0.6);
 export const loadBrightness = () => loadPercent(BRIGHTNESS_KEY, 0.5);
+// Défaut à 0.7 et non 1 : la musique est un enrichissement (issue #122), le vol
+// reste un exercice d'écoute de la machine. Réglage SÉPARÉ du volume global,
+// pour qu'on puisse baisser la musique sans baisser le moteur.
+export const loadMusicVolume = () => loadPercent(MUSIC_KEY, 0.7);
 
 // The FPV look is on by default — a clean rectilinear camera is the thing this
 // is here to stop looking like. Every part of it is a slider away from off, and
@@ -89,6 +94,7 @@ export class Settings {
 				<h2>Sound</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 				<label>Tone <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
+				<label>Music <input id="music" type="range" min="0" max="100" step="1"> <span id="music-val"></span> %</label>
 				<button id="reset-settings">Reset settings</button>
 				<button id="close-settings">Close (Tab)</button>
 			</div>`;
@@ -100,6 +106,8 @@ export class Settings {
 			volVal: el.querySelector('#vol-val'),
 			tone: el.querySelector('#tone'),
 			toneVal: el.querySelector('#tone-val'),
+			music: el.querySelector('#music'),
+			musicVal: el.querySelector('#music-val'),
 			padName: el.querySelector('#pad-name'),
 			padMap: el.querySelector('#pad-map'),
 		};
@@ -126,31 +134,37 @@ export class Settings {
 
 	hydrate() {
 		const noop = () => { };
-		this.setAudio(loadVolume(), loadBrightness(), noop);
+		this.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), noop);
 	}
 
-	// Both audio settings are worth remembering across reloads: nobody wants the
-	// sim to come back at full blast every time, and where "bright enough but
-	// not tiring" sits depends on the headphones. Same localStorage shape as
+	// All three audio settings are worth remembering across reloads: nobody
+	// wants the sim to come back at full blast every time, where "bright enough
+	// but not tiring" sits depends on the headphones, and how much music you
+	// want under the motors is a matter of taste. Same localStorage shape as
 	// the gamepad map in input.js.
-	setAudio(volume, brightness, onChange) {
+	setAudio(volume, brightness, musicVolume, onChange) {
 		const emit = () => {
 			const vol = Number(this.el.vol.value);
 			const tone = Number(this.el.tone.value);
+			const mus = Number(this.el.music.value);
 			this.el.volVal.textContent = vol;
 			// Signed, because what the slider does is move away from the tuning
 			// the spectrum was measured at, in both directions.
 			this.el.toneVal.textContent = tone === 50 ? 'neutre' : (tone > 50 ? '+' : '') + (tone - 50);
+			this.el.musicVal.textContent = mus;
 			try {
 				localStorage.setItem(VOLUME_KEY, String(vol));
 				localStorage.setItem(BRIGHTNESS_KEY, String(tone));
+				localStorage.setItem(MUSIC_KEY, String(mus));
 			} catch { }
-			onChange(vol / 100, tone / 100);
+			onChange(vol / 100, tone / 100, mus / 100);
 		};
 		this.el.vol.value = Math.round(volume * 100);
 		this.el.tone.value = Math.round(brightness * 100);
+		this.el.music.value = Math.round(musicVolume * 100);
 		this.el.vol.oninput = emit;
 		this.el.tone.oninput = emit;
+		this.el.music.oninput = emit;
 		emit();
 	}
 

@@ -14,6 +14,7 @@ import { readGamepadDir } from './gamepad-dir.js';
 import { blockNav } from './menu-nav.js';
 import { cosmeticSeed, RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from './hack-grammars.js';
 import { pickVariant, checkInput } from '../tools/ritual-model.mjs';
+import { music } from './music.js';
 import { uiAudio } from './ui-audio.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -101,6 +102,11 @@ export function runRitual(container, { hackType, vector, seed } = {}) {
 			wrap.classList.add('ritual-live');
 			// L'explosion prend le relais : la tension n'a plus rien à préparer.
 			uiAudio.killRitualTension();
+			// La musique se retire le temps du rituel. Chaque hack a sa propre
+			// signature sonore (Bible §36) et c'est ELLE qui doit culminer ; une
+			// musique à plein régime par-dessus rendrait les six rituels
+			// indiscernables. Elle revient juste après, pour le drop.
+			music.duck();
 			// Programmée d'un coup sur l'horloge audio : le rythme ne doit pas
 			// dépendre des frames, que le chargement de la carte peut faire sauter.
 			uiAudio.playRitual(hackType, variant.ms);

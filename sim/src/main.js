@@ -8,7 +8,7 @@ import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
-import { Settings, loadVolume, loadBrightness, loadLens, loadLink } from './settings.js';
+import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
@@ -32,6 +32,8 @@ import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
 import { targetBuild } from '../tools/target-build.mjs';
+import { music } from './music.js';
+import { flightIntensity, PHASE_INTENSITY, FADE } from '../tools/music-model.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
@@ -430,9 +432,10 @@ async function finishBoot(preloading) {
 		sun?.setWeather(CALM.sun);
 	}
 
-	settings.setAudio(loadVolume(), loadBrightness(), (volume, brightness) => {
+	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
 		audio.setVolume(volume);
 		audio.setBrightness(brightness);
+		music.setVolume(musicVolume);
 	});
 
 	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
@@ -457,7 +460,7 @@ async function finishBoot(preloading) {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, lens, link, rain, fog, cloud, sun,
+		physics, controller, camera, renderer, scene, input, timeline, audio, music, lens, link, rain, fog, cloud, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -939,6 +942,11 @@ function frame() {
 	if (flightEnd.out.linkDead) {
 		// Le drone est détruit : les moteurs se taisent, donc le son aussi —
 		// audio.js suit le régime moteur, il n'y a rien à couper à la main.
+		// La musique, elle, ne suit rien : on la coupe explicitement, ici et
+		// pas à `closes`, pour qu'elle meure À L'INSTANT DU CHOC, avec l'image.
+		// Attendre la ligne « LINK LOST » (1,6 s) laisserait la musique jouer
+		// par-dessus l'épave qui roule (issue #122).
+		music.kill();
 		controller.disarm();
 		// Si le joueur avait coupé la modélisation du lien, il ne verrait
 		// aucune dégradation. La mort de l'image ne se négocie pas.
@@ -949,6 +957,10 @@ function frame() {
 	}
 	const closes = flightEnd.out.closes;
 	if (closes) {
+		// CRASHED a déjà été coupé net plus haut (linkDead). Une pose relâche.
+		// Dans les deux cas POST-FLIGHT ANALYSIS reste silencieux (Bible : « pas
+		// de musique, pas de récompense »).
+		if (closes === 'LANDED') music.stop({ fadeMs: FADE.landed });
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
 		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
 		// qui rend [ENTER] DISCONNECT possible — en pointer lock (a fortiori en
@@ -1190,6 +1202,18 @@ if (!frozen) {
 		armed: controller.armed,
 	});
 
+	// L'arc musical en vol (issue #122). Un seul appel, un seul scalaire, et
+	// setIntensity ne déplace que des AudioParams : aucun nœud n'est créé par
+	// frame. Gelé, on ne touche à rien — la musique tient sa valeur pendant une
+	// pause au lieu de retomber au plancher.
+	if (!frozen && music.playing) {
+		music.setIntensity(flightIntensity({
+			throttle: sticks.throttle,
+			speedMs: Math.hypot(v.x, v.y, v.z),
+			armed: controller.armed,
+		}));
+	}
+
 	// Les deux couches, dans cet ordre : celle de la cible, qui traversera la
 	// liaison et le capteur, puis la nôtre, qui ne traverse rien.
 	const here = latLonOf(p);
@@ -1333,6 +1357,21 @@ async function chooseScene() {
 		else await operator.selectOperator(pick.id);
 	}
 
+	// Ambiance du terminal (issue #122). Le pool `menu` n'est pas un drone :
+	// c'est le lieu où l'on est assis, avant. La graine change à chaque
+	// chargement — le terminal n'a pas de buildSeed à respecter, et deux
+	// sessions de suite ne doivent pas ouvrir sur le même morceau.
+	//
+	// Câblé ici plutôt que dans terminal.js : les écrans restent des clients
+	// purs, sans dépendance audio.
+	await music.loadManifest();
+	const menuTrack = music.trackForMenu(Math.random().toString(16).slice(2, 12));
+	music.prepare(menuTrack).then((ready) => {
+		// Le terminal est peut-être déjà passé : on ne démarre que s'il est
+		// encore là, sinon la musique de menu s'inviterait par-dessus le hack.
+		if (ready && !music.playing) music.play({ intensity: PHASE_INTENSITY.MENU });
+	});
+
 	// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
 	const flyChoice = await runTerminal(ui, { settings });
 	const { slug, resume } = flyChoice;
@@ -1388,11 +1427,23 @@ async function chooseScene() {
 	// L'exemplaire (PHASE 07). La graine est celle que le serveur reconstruira
 	// dans resolveTarget() — le drone que tu voles est celui que le monde a tiré,
 	// pas un que le client s'est inventé.
-	const build = targetBuild({ seed: `${seed}::${choice.index}`, family: cand._family });
+	const buildSeed = `${seed}::${choice.index}`;
+	const build = targetBuild({ seed: buildSeed, family: cand._family });
 	PROFILE = build.profile;
 	controller = new FlightController({ profile: PROFILE, rates: build.rates });
 	logBuild(build);
 	const booting = finishBoot(preloading);
+	// Le morceau se décode PENDANT l'AUTOMATED ANALYSIS, en parallèle du
+	// chargement de la scène : au drop le buffer doit déjà être là. Le tirage
+	// est déterministe sur buildSeed — reprendre une session, c'est reprendre ce
+	// drone ET sa musique.
+	//
+	// L'écran ne nomme toujours pas la famille : la musique est le premier
+	// indice sensoriel, pas une révélation. « You don't read the drone. You
+	// feel it. »
+	await music.loadManifest();
+	await music.prepare(music.trackForFamily(cand._family, buildSeed));
+	music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
 	await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
 	// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 	// pendant le hack comme un unique pas de physique géant.
@@ -1461,6 +1512,10 @@ startup()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
+	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
+	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
+	// s'entendre comme un événement plutôt que comme une dérive.
+	music.drop();
 	spawnY = physics.spawn.y;
 	spawnX = physics.spawn.x;
 	spawnZ = physics.spawn.z;

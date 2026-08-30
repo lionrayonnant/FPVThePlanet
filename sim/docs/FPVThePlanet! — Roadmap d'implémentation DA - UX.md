@@ -1062,9 +1062,16 @@ Le log conserve seulement la trace.
 
 Mettre en place le langage sonore.
 
-### Pas de musique pendant le vol
+### ~~Pas de musique pendant le vol~~ → PHASE 18b, arc musical (issue #122)
 
-Le vol est :
+> **Renversé.** PHASE 18 a été construite sur « pas de musique ». L'issue #122
+> revient sur cette décision : le jeu a une identité musicale, une bibliothèque
+> générée localement (Stable Audio 3), et un arc HACK → drop → vol. La règle en
+> vigueur est la section 34 révisée de la Bible. Ce qui reste vrai de PHASE 18 :
+> le vocabulaire d'interface est clos à huit entrées, la musique n'en fait pas
+> partie et vit sur son propre bus.
+
+Le vol reste :
 
 - moteurs ;
 - air ;

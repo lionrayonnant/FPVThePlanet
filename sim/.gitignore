@@ -2,3 +2,8 @@ node_modules/
 public/scenes/
 dist/
 operator-state/
+
+# Candidats musicaux bruts (issue #122) : des WAV de ~15 Mo pièce, régénérables
+# par `npm run add-music`. Seuls les .opus validés à l'oreille entrent dans
+# public/music/, et ceux-là sont commités.
+.music-staging/
