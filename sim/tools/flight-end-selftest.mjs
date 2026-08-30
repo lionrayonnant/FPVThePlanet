@@ -3,7 +3,7 @@
 // Lancer : node tools/flight-end-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	FlightEnd, TIMELINE, LANDING_TIMELINE, LANDING,
+	FlightEnd, TIMELINE, LANDING_TIMELINE, FENCE_TIMELINE, LANDING,
 	FLYING, LANDING_READY, LANDED, CRASHING, TERMINATED,
 } from '../src/flight-end.js';
 
@@ -11,7 +11,7 @@ let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 // Une frame de vol nominal : en l'air, armé, gaz au tiers.
-const FLIGHT = { dt: 1 / 60, armed: true, height: 30, speed: 12, angularSpeed: 1, throttle: 0.35, crashed: false };
+const FLIGHT = { dt: 1 / 60, armed: true, height: 30, speed: 12, angularSpeed: 1, throttle: 0.35, crashed: false, outOfZone: false };
 const frame = (over = {}) => ({ ...FLIGHT, ...over });
 
 // Avance la machine de `seconds` en frames de 1/60, sans rien d'autre.
@@ -268,6 +268,47 @@ t('une carcasse immobile au sol n\'est pas un atterrissage', () => {
 	hold(fe, 3, { crashed: true });
 	assert.equal(fe.phase, CRASHING);
 	assert.equal(fe.disarm(), false);
+});
+
+// Troisième chronologie : la sortie de zone (#139). Même mécanique que le
+// crash (this._activeTimeline change de table) : les tests ci-dessous se
+// concentrent donc sur ce qui diffère — quelle table, et l'arbitrage quand
+// les deux causes arrivent sur la même frame.
+t('sortie de zone : CRASHING, image morte, verdict CRASHED', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ outOfZone: true }));
+	assert.equal(fe.phase, CRASHING);
+	assert.equal(fe.out.linkDead, true);
+	assert.equal(fe.out.closes, 'CRASHED');
+});
+
+t('sortie de zone : la table de la clôture, pas celle du crash', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ outOfZone: true }));
+	advance(fe, FENCE_TIMELINE.exitAt + 0.2, { outOfZone: true });
+	assert.deepEqual(
+		fe.out.lines,
+		FENCE_TIMELINE.lines.map(([, text]) => text),
+	);
+	assert.equal(fe.out.exitArmed, true);
+});
+
+t('la clôture noircit plus tôt que le crash : pas d\'épave à regarder', () => {
+	assert.ok(FENCE_TIMELINE.blackoutAt < TIMELINE.blackoutAt);
+});
+
+t('la première ligne de la clôture nomme la cause', () => {
+	assert.equal(FENCE_TIMELINE.lines[0][1], 'OUT OF COVERAGE');
+});
+
+t('un crash pendant une sortie de zone ne rejoue pas la séquence', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ outOfZone: true }));
+	const first = fe.out.lines.length;
+	fe.update(frame({ crashed: true }));
+	assert.equal(fe.phase, CRASHING);
+	assert.ok(fe.out.lines.length >= first);
+	assert.equal(fe.out.closes, null, 'closes ne se déclenche qu\'une fois');
 });
 
 console.log(`\n${n} tests OK`);
