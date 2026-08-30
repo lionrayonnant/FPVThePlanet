@@ -36,17 +36,17 @@ await t('aucun opérateur → bootstrap', async () => {
 	assert.deepEqual(r, { operator: null, needsBootstrap: true, choices: null });
 });
 
-await t('un opérateur → adopté', async () => {
+await t('un opérateur sans clé locale → choices (pas d\'adoption auto)', async () => {
 	const store = fakeStore();
 	op._setStore(store);
 	op._setFetch(fakeFetch({
 		'GET /__operator': () => [200, { operators: [{ id: 'neo-1', name: 'Neo' }] }],
-		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: [] } }],
 	}));
 	const r = await op.loadOperator();
 	assert.equal(r.needsBootstrap, false);
-	assert.equal(r.operator.id, 'neo-1');
-	assert.equal(store.getItem('fpvmaps.operatorId'), 'neo-1');
+	assert.equal(r.operator, null);
+	assert.deepEqual(r.choices, [{ id: 'neo-1', name: 'Neo' }]);
+	assert.equal(store.getItem('fpvmaps.operatorId'), null);
 });
 
 await t('plusieurs opérateurs → choices', async () => {
