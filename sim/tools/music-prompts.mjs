@@ -2,8 +2,19 @@
 // AUCUNE Web Audio, AUCUN DOM, AUCUN `node:`. Le pipeline de génération
 // (tools/music-gen.mjs) et le selftest importent ce fichier tel quel.
 //
-// L'ADN commun, non négociable, est celui de FPVTP! : fin 90 / début 2000,
-// electronica, IDM, techno, trance. Pas de modern EDM, pas de musique de film.
+// L'ADN commun de FPVTP! : ÉLECTRONIQUE PRÉ-2005, JOUÉE SUR DU MATÉRIEL.
+// Bandes-son analogiques 80s, tribal et goa 90s, electronica, IDM, techno,
+// trance, hardcore début 2000.
+//
+// Cette fenêtre a été élargie vers l'ARRIÈRE (elle disait « fin 90 / début
+// 2000 »). Pourquoi vers l'arrière et pas vers l'avant : la règle d'époque
+// n'était qu'un proxy, et l'anti-cible est la vraie règle — pas d'EDM de
+// festival, pas de musique de bande-annonce. Trois envies exprimées à la
+// deuxième écoute (synthwave, hardcore-punk berlinois, tribal sacré) avaient
+// chacune un ancêtre AVANT 2005 : les BO analogiques 80s, le digital hardcore
+// de 1995-99, le tribal-goa de 1997-2000. Viser l'ancêtre plutôt que le
+// revival garde l'unité du jeu sans rien s'interdire.
+//
 // Ces sept prompts définissent le centre de gravité, PAS sept genres verrouillés :
 // buildPrompt() les décale sur six axes pour que deux morceaux d'une même
 // famille se ressemblent sans être le même.
@@ -41,11 +52,22 @@ export const POOLS = {
 	},
 	freestyle5: {
 		label: '5" FREESTYLE',
-		bpm: [126, 138],
+		// BPM relevé de 126-138 à 155-172. Le freestyle sert à tenter des
+		// tricks — flips, punchouts, murs — et un groove à 130 ne suit pas ça.
+		// Le recouvrement avec RACE (142-154) n'est pas un problème malgré la
+		// proximité de tempo : RACE est un kick droit, implacable, qui avance ;
+		// FREESTYLE est un breakbeat cassé qui s'arrête et repart. Le RYTHME
+		// les sépare, pas la vitesse.
+		bpm: [155, 172],
 		feel: 'polyvalent, nerveux, libre — le son FPV de référence',
-		core: 'early-2000s underground electro and breakbeat, energetic and playful, '
-			+ 'crisp drum programming, rolling bassline, agile synth patterns, '
-			+ 'subtle IDM elements, technical but loose, PC demo scene atmosphere',
+		// v3 : « funky and swaggering » était faux d'INTENTION, pas seulement
+		// d'exécution. On vise le digital hardcore berlinois de 1995-99,
+		// l'ancêtre revendiqué du gabber-punk d'aujourd'hui.
+		core: 'late-1990s Berlin digital hardcore, distorted breakbeats at punk intensity, '
+			+ 'overdriven chopped drum loops, screaming detuned synth riffs, '
+			+ 'abrupt stops and sudden restarts, raw unhinged energy, '
+			+ 'sounds like a machine being thrown around and caught, '
+			+ 'hardware samplers pushed into clipping',
 	},
 	race5: {
 		label: '5" RACE',
@@ -60,28 +82,61 @@ export const POOLS = {
 		label: 'CINEWHOOP',
 		bpm: [104, 118],
 		feel: 'observation, stabilité, paysage',
-		core: 'early-2000s atmospheric electronica, warm synthesizers, spacious pads, '
-			+ 'subtle breakbeat percussion, gentle bassline, slow evolving textures, '
-			+ 'restrained IDM influences, curious atmosphere, '
-			+ 'slightly nostalgic computer hardware character',
+		// v2 : la v1 disait « subtle », « gentle », « restrained » dans la même
+		// phrase — trois adjectifs qui reculent, et rien qui s'engage. On
+		// commet une vraie identité : une mélodie qui flotte, mélancolique et
+		// large, et une accroche située plutôt qu'un « curious atmosphere ».
+		core: 'early-2000s atmospheric electronica with a real floating melody, '
+			+ 'wide glowing pads, wistful and unhurried, '
+			+ 'clear melodic motif that drifts and returns, '
+			+ 'deep round bassline, crisp detailed breakbeat underneath, '
+			+ 'the melancholy of an empty city seen from above at dawn, '
+			+ 'warm 90s digital synthesizer character',
 	},
 	longrange: {
 		label: 'LONG RANGE',
-		bpm: [98, 110],
+		bpm: [98, 116],
 		feel: 'distance, endurance, solitude — regarder le RSSI descendre',
-		core: 'late-1990s and early-2000s dub techno, deep sub bass, '
-			+ 'hypnotic four-to-the-floor pulse, long tape delays, sparse percussion, '
-			+ 'slowly evolving filters, distant synthetic textures, spacious stereo field, '
-			+ 'minimal and introspective, underground electronic music',
+		// v4. Le dub techno a échoué deux fois (1 retenu sur 3), et la v3 a
+		// échoué autrement : viser la BO analogique 80s a donné du Carpenter —
+		// minimal, lent, menaçant — alors que la synthwave demandée est
+		// PUNCHY et GROOVY. Deux choses opposées sous la même étiquette « 80s ».
+		//
+		// Ce qu'on vise ici est le versant funk de la production 80s : batterie
+		// qui claque à grosse réverbe, basse saw grasse, arpège qui roule en
+		// doubles-croches, mélodie franche. La route de nuit, mais en roulant
+		// vite — pas en attendant quelque chose dans le noir.
+		core: '1980s synth-funk and electro production, nocturnal neon highway feeling, '
+			+ 'punchy gated drum machine with a big cracking snare on the backbeat, '
+			+ 'fat detuned analog saw bassline with groove, '
+			+ 'driving sixteenth-note arpeggio rolling through the whole track, '
+			+ 'bright confident lead melody, lush chorused pads underneath, '
+			+ 'sleek and propulsive, cruising alone at high speed after dark, '
+			+ 'vintage polysynth, LinnDrum-style kit and analog chorus character',
 	},
 	heavy5: {
 		label: 'HEAVY 5"',
-		bpm: [120, 132],
+		bpm: [124, 136],
 		feel: 'masse, puissance, inertie — la machine doit peser',
-		core: 'early-2000s industrial techno, heavy low end, powerful kick drums, '
-			+ 'dense mechanical percussion, distorted analog bass, '
-			+ 'industrial synthesizer textures, physical and massive rhythm, '
-			+ 'dark but controlled, underground European electronic scene',
+		// v3, et c'est la réécriture la plus profonde. Les v1 et v2 cherchaient
+		// la masse dans la techno industrielle, donc dans le vocabulaire de
+		// RACE : percussion mécanique, basse saturée. La v3 la cherche dans le
+		// SACRÉ — tribal-goa de 1997-2000 — et c'est ce qui règle enfin le
+		// recouvrement : la masse ne vient plus de la percussion mais du
+		// sub-bass et de l'ESPACE entre les coups.
+		//
+		// Seul pool à porter des voix, et seulement SANS PAROLES (cf.
+		// negativesFor). Un chœur au-dessus d'un groove tribal très lourd :
+		// c'est la signature de HEAVY, pas une couleur commune. La Bible §37
+		// (« pas de voix ») vise le narrateur et la voix de hacker, pas un
+		// chœur traité comme un instrument.
+		core: 'late-1990s ceremonial tribal trance, sacred and monumental, '
+			+ 'wordless choir soaring high above everything, '
+			+ 'enormous spaced tribal drums with long decay, huge silence between hits, '
+			+ 'deep physical sub bass you feel in the chest, '
+			+ 'tuned metal percussion, hand drums and low ritual horns, '
+			+ 'slow ceremonial build releasing into a massive tribal groove, '
+			+ 'ancient temple atmosphere, organic instruments against hardware synthesizers',
 	},
 	toothpick: {
 		label: 'MICRO',
@@ -115,15 +170,71 @@ export const AXES = {
 
 export const AXIS_NAMES = Object.keys(AXES);
 
-// Toujours présent, jamais varié : c'est la clôture du genre. Le selftest
+// Valeurs d'axe qu'un pool ne doit JAMAIS recevoir, parce qu'elles nient un mot
+// déjà présent dans son noyau. Sans ce garde-fou le tirage produit des prompts
+// qui se contredisent — « raw unhinged energy at punk intensity » suivi de
+// « restrained and patient » — et le modèle tranche alors tout seul, en général
+// vers le plus mou.
+//
+// C'est un garde-fou de cohérence, pas un réglage de goût : on n'interdit que
+// ce qui contredit un mot ÉCRIT dans le noyau. Une valeur bannie est remplacée
+// par l'option neutre, jamais par une autre — le tirage reste déterministe.
+export const POOL_AXIS_BANS = {
+	freestyle5: {
+		energy: ['restrained and patient'],        // vs « punk intensity »
+		aggression: ['smooth and rounded'],        // vs « pushed into clipping »
+		atmosphere: ['hypnotic and repetitive'],   // vs « abrupt stops and sudden restarts »
+	},
+	race5: {
+		energy: ['restrained and patient'],        // vs « extremely energetic »
+		aggression: ['smooth and rounded'],        // vs « aggressive, distorted »
+	},
+	heavy5: {
+		energy: ['restrained and patient'],        // vs « monumental »
+		aggression: ['smooth and rounded'],        // vs « enormous », « massive »
+		// Le grain tracker jure avec le temple : HEAVY est organique.
+		grain: ['gritty digital samplers, early tracker character'],
+	},
+	menu: {
+		energy: ['relentless and driving'],        // vs « patient and watchful »
+	},
+};
+
+// La clôture du genre : toujours présente, jamais variée, et le selftest
 // vérifie qu'aucun prompt ne sort sans.
-export const NEGATIVES = 'instrumental, no vocals, no modern EDM drop, no cinematic trailer music';
+//
+// C'est l'ANTI-CIBLE qui tient l'identité, pas la fenêtre d'époque. Un morceau
+// peut venir de 1984 ou de 2003 ; ce qu'il ne doit jamais être, c'est de l'EDM
+// de festival ou de la musique de bande-annonce.
+export const NEGATIVES_COMMON = 'no festival EDM, no modern EDM drop, no cinematic trailer music';
+
+// Six familles sur sept sont strictement instrumentales.
+export const NO_VOICE = 'instrumental, no vocals';
+
+// HEAVY est la seule exception, et elle est étroite : un chœur traité comme un
+// instrument. Ce qui reste interdit — paroles, couplet/refrain, parole
+// dite — est ce que vise réellement la Bible §37, et c'est aussi ce qui
+// transformerait un morceau en chanson.
+export const WORDLESS_VOICE = 'wordless choral voices only, no lyrics, no words, '
+	+ 'no spoken word, no rapping, no verse or chorus structure';
+
+export const POOL_VOICE = { heavy5: WORDLESS_VOICE };
+
+/** La clôture applicable à un pool. */
+export function negativesFor(pool) {
+	return `${POOL_VOICE[pool] ?? NO_VOICE}, ${NEGATIVES_COMMON}`;
+}
 
 // Nombre d'axes (hors `grain`, toujours tiré) qu'un morceau reçoit. Deux, pas
 // six : au-delà le prompt se contredit et Stable Audio rend de la bouillie.
 export const AXES_PER_TRACK = 2;
 
 const AXIS_POOL = AXIS_NAMES.filter((k) => k !== 'grain');
+
+/** La valeur est-elle interdite pour ce pool ? */
+function banned(pool, axis, value) {
+	return !!value && (POOL_AXIS_BANS[pool]?.[axis] ?? []).includes(value);
+}
 
 // Tire `n` axes distincts, dans un ordre stable, sans réordonner la liste
 // source : le résultat ne dépend que de la seed.
@@ -157,14 +268,24 @@ export function buildPrompt(pool, seed) {
 	const fragments = [];
 	for (const name of chosen) {
 		const options = AXES[name];
-		const value = options[Math.floor(rand() * options.length)];
+		let value = options[Math.floor(rand() * options.length)];
+		// Le tirage est consommé DANS TOUS LES CAS avant le remplacement, pour
+		// qu'ajouter un bannissement ne décale pas les morceaux déjà générés
+		// des autres pools.
+		if (banned(pool, name, value)) value = null;
 		axes[name] = value;
 		if (value) fragments.push(value);
 	}
-	const grain = AXES.grain[Math.floor(rand() * AXES.grain.length)];
+	// Le grain est le seul axe toujours présent : s'il est banni on reprend le
+	// suivant dans la liste plutôt que de laisser le morceau sans ancrage
+	// matériel, qui est ce qui tient l'ADN.
+	let grain = AXES.grain[Math.floor(rand() * AXES.grain.length)];
+	if (banned(pool, 'grain', grain)) {
+		grain = AXES.grain.find((g) => !banned(pool, 'grain', g)) ?? grain;
+	}
 	axes.grain = grain;
 	fragments.push(grain);
 
-	const prompt = [`${spec.core}`, `${bpm} BPM`, ...fragments, NEGATIVES].join(', ');
+	const prompt = [`${spec.core}`, `${bpm} BPM`, ...fragments, negativesFor(pool)].join(', ');
 	return { pool, bpm, prompt, axes };
 }

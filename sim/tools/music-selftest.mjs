@@ -14,7 +14,10 @@ import {
 	intensityParams, flightIntensity, pickTrack, pushRecent, validateManifest,
 	poolForFamily, RECENT_LIMIT,
 } from './music-model.mjs';
-import { POOLS, AXES, AXIS_NAMES, NEGATIVES, AXES_PER_TRACK, buildPrompt } from './music-prompts.mjs';
+import {
+	POOLS, AXES, AXIS_NAMES, AXES_PER_TRACK, buildPrompt, negativesFor,
+	NEGATIVES_COMMON, NO_VOICE, WORDLESS_VOICE, POOL_VOICE, POOL_AXIS_BANS,
+} from './music-prompts.mjs';
 import { planFor, trackId } from './music-gen.mjs';
 import { loopFilter, loudnormMeasureFilter, loudnormApplyFilter, TARGET_LUFS, TARGET_PEAK_DBFS, TARGET_LRA, CROSSFADE_S } from './music-loop.mjs';
 import { judge, BOUNDS } from './music-gate.mjs';
@@ -80,8 +83,84 @@ test('le BPM reste dans la fourchette de la famille', () => {
 test('tout prompt porte la clôture de genre et son BPM', () => {
 	for (const p of MUSIC_POOLS) {
 		const { prompt, bpm } = buildPrompt(p, 'x');
-		assert.ok(prompt.includes(NEGATIVES), `${p} : négatifs absents`);
+		assert.ok(prompt.includes(negativesFor(p)), `${p} : négatifs absents`);
+		assert.ok(prompt.includes(NEGATIVES_COMMON), `${p} : anti-cible absente`);
 		assert.ok(prompt.includes(`${bpm} BPM`), `${p} : BPM absent du prompt`);
+	}
+});
+
+test('HEAVY est le SEUL pool à porter des voix, et seulement sans paroles', () => {
+	assert.deepEqual(Object.keys(POOL_VOICE), ['heavy5'],
+		'la voix est la signature de HEAVY, pas une couleur commune');
+	for (const p of MUSIC_POOLS) {
+		const { prompt } = buildPrompt(p, 'x');
+		if (p === 'heavy5') {
+			assert.ok(prompt.includes(WORDLESS_VOICE), 'heavy5 : clôture de voix absente');
+			assert.ok(!prompt.includes(NO_VOICE), 'heavy5 : interdit les voix qu\'il demande');
+		} else {
+			assert.ok(prompt.includes(NO_VOICE), `${p} : devrait être strictement instrumental`);
+		}
+	}
+});
+
+test('même avec voix, aucun prompt ne peut devenir une chanson', () => {
+	// Ce que la Bible §37 vise réellement : le narrateur, la voix de hacker, la
+	// parole. Un chœur traité comme un instrument n'est pas ça — mais des
+	// paroles, si.
+	for (const p of MUSIC_POOLS) {
+		const { prompt } = buildPrompt(p, 'x');
+		for (const forbidden of ['no lyrics', 'no spoken word']) {
+			const covered = prompt.includes(forbidden) || prompt.includes(NO_VOICE);
+			assert.ok(covered, `${p} : rien n'interdit « ${forbidden.slice(3)} »`);
+		}
+	}
+});
+
+test('aucun prompt ne se contredit lui-même', () => {
+	// Le défaut qui a motivé POOL_AXIS_BANS : un noyau à « punk intensity »
+	// recevait « restrained and patient », et le modèle tranchait tout seul —
+	// vers le plus mou. Un prompt qui se contredit est un prompt qui ne demande
+	// plus rien.
+	for (const pool of MUSIC_POOLS) {
+		const bans = POOL_AXIS_BANS[pool] ?? {};
+		for (let i = 0; i < 300; i++) {
+			const { axes, prompt } = buildPrompt(pool, `s${i}`);
+			for (const [axis, values] of Object.entries(bans)) {
+				assert.ok(!values.includes(axes[axis]),
+					`${pool} : « ${axes[axis]} » contredit son noyau`);
+				for (const v of values) {
+					assert.ok(!prompt.includes(v), `${pool} : « ${v} » a fui dans le prompt`);
+				}
+			}
+		}
+	}
+});
+
+test('le grain matériel survit à un bannissement', () => {
+	// Le grain est le seul axe toujours présent : c'est lui qui tient l'ancrage
+	// « joué sur du matériel », donc l'ADN. Le bannir ne doit pas le supprimer.
+	for (const pool of MUSIC_POOLS) {
+		for (let i = 0; i < 50; i++) {
+			const { axes } = buildPrompt(pool, `g${i}`);
+			assert.ok(axes.grain, `${pool} : morceau sans ancrage matériel`);
+			assert.ok(AXES.grain.includes(axes.grain), `${pool} : grain hors vocabulaire`);
+			assert.ok(!(POOL_AXIS_BANS[pool]?.grain ?? []).includes(axes.grain),
+				`${pool} : grain banni retenu`);
+		}
+	}
+});
+
+test('on ne bannit que ce qui existe dans le vocabulaire des axes', () => {
+	// Une faute de frappe dans POOL_AXIS_BANS serait un bannissement muet : la
+	// valeur contradictoire continuerait de sortir sans que rien ne le dise.
+	for (const [pool, bans] of Object.entries(POOL_AXIS_BANS)) {
+		assert.ok(MUSIC_POOLS.includes(pool), `bannissement pour un pool inconnu : ${pool}`);
+		for (const [axis, values] of Object.entries(bans)) {
+			assert.ok(AXES[axis], `${pool} : axe inconnu « ${axis} »`);
+			for (const v of values) {
+				assert.ok(AXES[axis].includes(v), `${pool}.${axis} : « ${v} » n'est pas une valeur de cet axe`);
+			}
+		}
 	}
 });
 
@@ -92,7 +171,7 @@ test('aucun prompt ne contient de terme hors ADN', () => {
 	for (const p of MUSIC_POOLS) {
 		for (let i = 0; i < 20; i++) {
 			const { prompt } = buildPrompt(p, `s${i}`);
-			const head = prompt.slice(0, prompt.indexOf(NEGATIVES));
+			const head = prompt.slice(0, prompt.indexOf(negativesFor(p)));
 			for (const b of banned) assert.ok(!head.includes(b), `${p} : « ${b} » dans le prompt`);
 		}
 	}
@@ -109,6 +188,57 @@ test('chaque axe propose une option neutre sauf le grain', () => {
 	for (const name of AXIS_NAMES) {
 		if (name === 'grain') { assert.ok(!AXES[name].includes(null)); continue; }
 		assert.ok(AXES[name].includes(null), `${name} : pas d'option neutre`);
+	}
+});
+
+// Mots trop communs pour dire quoi que ce soit d'une identité musicale.
+const STOP = new Set(('and the of a an with in to that at more than into over under '
+	+ 'early late 2000s 1990s music musical sound like its it is are be').split(' '));
+
+const contentWords = (core) => new Set(core.toLowerCase()
+	.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+	.filter((w) => w.length > 3 && !STOP.has(w)));
+
+// Seuil réglé sur la mesure, pas au jugé. Le couple le plus proche après la
+// réécriture v2 est race5 ↔ toothpick à 0,149 — et ces deux-là sont, à
+// l'écoute, les plus reconnaissables de la bibliothèque : leurs mots communs
+// (« energetic », « percussion », « underground ») sont génériques, pas
+// identitaires. 0,16 laisse donc passer ce qui marche et attrape la
+// régression : avant la v2, race5 ↔ heavy5 était à 0,190 en partageant
+// « mechanical percussion kick distorted bass », et heavy5 sonnait comme un
+// race5 raté.
+const MAX_CORE_OVERLAP = 0.16;
+
+test('deux pools ne se marchent pas dessus', () => {
+	// Attention à ce que ce test prouve : le recouvrement lexical est un
+	// détecteur d'odeur, pas un verdict. Deux prompts disjoints peuvent rendre
+	// deux morceaux jumeaux, et seule l'oreille tranche (music-review). Ce
+	// qu'il attrape, lui, c'est le cas où l'on a ÉCRIT deux fois la même
+	// famille — ce qui est arrivé.
+	const pools = Object.keys(POOLS);
+	for (let i = 0; i < pools.length; i++) {
+		for (let j = i + 1; j < pools.length; j++) {
+			const a = contentWords(POOLS[pools[i]].core);
+			const b = contentWords(POOLS[pools[j]].core);
+			const shared = [...a].filter((w) => b.has(w));
+			const overlap = shared.length / new Set([...a, ...b]).size;
+			assert.ok(overlap <= MAX_CORE_OVERLAP,
+				`${pools[i]} ↔ ${pools[j]} : ${overlap.toFixed(3)} de recouvrement [${shared.join(' ')}]`);
+		}
+	}
+});
+
+test('aucun noyau ne recule sur trois adjectifs à la fois', () => {
+	// La v1 de cinewhoop disait « subtle », « gentle » et « restrained » dans
+	// la même phrase : rien ne s'engageait, et c'est le pool qui a le moins
+	// convaincu à la première écoute. Un hedge va bien (le « slightly strange »
+	// de MICRO est une torsion, pas un recul) ; trois, c'est un prompt qui
+	// n'ose rien demander.
+	const hedges = ['subtle', 'gentle', 'restrained', 'slightly', 'somewhat', 'mild', 'soft'];
+	for (const p of Object.keys(POOLS)) {
+		const core = POOLS[p].core.toLowerCase();
+		const found = hedges.filter((h) => core.includes(h));
+		assert.ok(found.length < 3, `${p} : ${found.length} adjectifs qui reculent [${found.join(' ')}]`);
 	}
 });
 
@@ -312,7 +442,7 @@ test('planFor produit un plan complet et reproductible', () => {
 		assert.equal(j.pool, 'heavy5');
 		assert.equal(j.durationS, 90);
 		assert.ok(Number.isInteger(j.modelSeed) && j.modelSeed >= 0, 'la seed du modèle doit être un entier positif');
-		assert.ok(j.prompt.includes(NEGATIVES));
+		assert.ok(j.prompt.includes(negativesFor(j.pool)));
 		assert.ok(j.out.endsWith(`${j.id}.wav`));
 	}
 });

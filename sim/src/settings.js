@@ -26,9 +26,13 @@ function loadPercent(key, fallback) {
 
 export const loadVolume = () => loadPercent(VOLUME_KEY, 0.6);
 export const loadBrightness = () => loadPercent(BRIGHTNESS_KEY, 0.5);
-// Défaut à 0.7 et non 1 : la musique est un enrichissement (issue #122), le vol
-// reste un exercice d'écoute de la machine. Réglage SÉPARÉ du volume global,
-// pour qu'on puisse baisser la musique sans baisser le moteur.
+// Ce défaut EST la balance musique/moteur, et c'est le seul endroit où elle
+// vit : audio-bus.js n'applique plus de trim par-dessus (il en avait un, à 0.7
+// lui aussi, ce qui atténuait deux fois — corrigé). 0.7 est la valeur mesurée à
+// la première écoute en vol.
+//
+// Réglage SÉPARÉ du volume global, pour qu'on puisse baisser la musique sans
+// baisser le moteur : le vol reste un exercice d'écoute de la machine.
 export const loadMusicVolume = () => loadPercent(MUSIC_KEY, 0.7);
 
 // The FPV look is on by default — a clean rectilinear camera is the thing this

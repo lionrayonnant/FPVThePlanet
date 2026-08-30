@@ -33,6 +33,7 @@ import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
 import { targetBuild } from '../tools/target-build.mjs';
 import { music } from './music.js';
+import { space } from './space.js';
 import { flightIntensity, PHASE_INTENSITY, FADE } from '../tools/music-model.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
 import { DroneOsd } from './drone-osd.js';
@@ -460,7 +461,7 @@ async function finishBoot(preloading) {
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
 
 	window.__sim = {
-		physics, controller, camera, renderer, scene, input, timeline, audio, music, lens, link, rain, fog, cloud, sun,
+		physics, controller, camera, renderer, scene, input, timeline, audio, music, space, lens, link, rain, fog, cloud, sun,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
@@ -901,6 +902,13 @@ function frame() {
 		// test plein maillage pour rien.
 		const fp = physics.position;
 		groundY = physics.groundBelow(fp.x, fp.y, fp.z);
+
+		// L'acoustique du lieu suit la géométrie réelle (issue #122). Elle relit
+		// la rosace que le pas de physique vient de lancer pour l'ombre de vent :
+		// aucun rayon supplémentaire. Gelé, on ne touche à rien — le lieu n'a
+		// pas changé, et une réverbération qui dérive pendant une pause
+		// s'entendrait.
+		space.update(physics.probe);
 
 		const p = physics.position;
 		const r = physics.rotation;

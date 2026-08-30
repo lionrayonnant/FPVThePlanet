@@ -42,7 +42,7 @@ export const DEFAULTS = {
 };
 
 function parseArgs(argv) {
-	const out = { pool: null, count: 1, seedBase: 'v1', ...DEFAULTS };
+	const out = { pool: null, count: 1, seedBase: 'v1', tag: '', ...DEFAULTS };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		const next = () => argv[++i];
@@ -51,6 +51,8 @@ function parseArgs(argv) {
 		else if (a === '--duration') out.duration = Number(next());
 		else if (a === '--model') out.model = next();
 		else if (a === '--steps') out.steps = Number(next());
+		else if (a === '--cfg') out.cfgScale = Number(next());
+		else if (a === '--tag') out.tag = next();
 		else if (a === '--seed-base') out.seedBase = next();
 		else throw new Error(`argument inconnu : ${a}`);
 	}
@@ -63,18 +65,18 @@ function parseArgs(argv) {
 // voisines (…::0, …::1) rend des hachés voisins, et une liste de revue où tous
 // les ids se ressemblent est une liste où l'on se trompe de ligne. L'avalanche
 // xorshift les sépare.
-export function trackId(pool, seedBase, index) {
-	const rand = rngFrom(`${pool}::${seedBase}::${index}::id`);
+export function trackId(pool, seedBase, index, tag = '') {
+	const rand = rngFrom(`${pool}::${seedBase}::${index}::id${tag ? `::${tag}` : ''}`);
 	const hex = () => Math.floor(rand() * 0x10000).toString(16).padStart(4, '0');
 	return `${pool}-${hex()}${hex()}`;
 }
 
 /** Construit le plan de génération. Pur : testable sans GPU. */
-export function planFor({ pool, count, seedBase, duration }) {
+export function planFor({ pool, count, seedBase, duration, tag = '' }) {
 	const jobs = [];
 	for (let i = 0; i < count; i++) {
 		const seed = `${seedBase}::${i}`;
-		const id = trackId(pool, seedBase, i);
+		const id = trackId(pool, seedBase, i, tag);
 		const { bpm, prompt, axes } = buildPrompt(pool, seed);
 		jobs.push({
 			id, pool, bpm, prompt, axes, seed,
@@ -90,8 +92,11 @@ export function planFor({ pool, count, seedBase, duration }) {
 
 async function run() {
 	const opts = parseArgs(process.argv.slice(2));
-	if (!opts.pool) throw new Error('--pool est requis (ou "all")');
-	const pools = opts.pool === 'all' ? MUSIC_POOLS : [opts.pool];
+	if (!opts.pool) throw new Error('--pool est requis : un pool, une liste séparée par des virgules, ou "all"');
+	// Une liste séparée par des virgules, parce que le modèle met plus longtemps
+	// à charger qu'à générer : refaire quatre pools en quatre commandes, c'est
+	// payer quatre fois les 17 s de chargement pour rien.
+	const pools = opts.pool === 'all' ? MUSIC_POOLS : opts.pool.split(',').map((p) => p.trim()).filter(Boolean);
 	for (const p of pools) {
 		if (!MUSIC_POOLS.includes(p)) throw new Error(`pool inconnu : ${p} (connus : ${MUSIC_POOLS.join(', ')})`);
 	}

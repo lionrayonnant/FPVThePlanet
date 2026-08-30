@@ -229,6 +229,12 @@ export class Physics {
 		return this._probe;
 	}
 
+	// La rosace de sondage telle que le dernier step() l'a lancée, ou null si
+	// aucun sondage n'a encore eu lieu. Lecture seule, aucun rayon de plus :
+	// l'acoustique du lieu (src/space.js) se sert des MÊMES rayons que l'ombre
+	// de vent, ce qui est la raison pour laquelle elle est gratuite.
+	get probe() { return this._probed ? this._probe : null; }
+
 	// One fixed step. `motors` is four commands in 0..1 straight from the mixer.
 	// Returns the largest contact force seen during the step, for crash detection.
 	step(motors, dt = this.world.timestep) {

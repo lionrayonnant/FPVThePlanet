@@ -69,6 +69,13 @@ export function fakeAudioContext({ sampleRate = 48000, state = 'running' } = {})
 			gain: makeParam('gain', 0),
 		}),
 		createStereoPanner: () => node('panner', { pan: makeParam('pan', 0) }),
+		// maxDelayTime est retenu : un DelayNode dont on vise un temps au-delà
+		// de son maximum sature silencieusement dans le vrai navigateur, et
+		// c'est le genre de plafond qu'un test doit pouvoir constater.
+		createDelay: (maxDelayTime = 1) => node('delay', {
+			maxDelayTime,
+			delayTime: makeParam('delayTime', 0),
+		}),
 		createDynamicsCompressor: () => node('compressor', {
 			threshold: makeParam('threshold', -24),
 			knee: makeParam('knee', 30),

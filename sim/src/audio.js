@@ -1,5 +1,6 @@
 import { QUAD, MOTORS } from './quad.js';
 import { ensureContext, engineIn, setVolume as setBusVolume } from './audio-bus.js';
+import { space } from './space.js';
 
 // The audio only needs two numbers off the airframe family: how many blades a
 // prop has (sets the blade-pass pitch) and full-thrust per motor (normalises
@@ -185,6 +186,13 @@ export class EngineAudio {
 
 		// Le limiteur et le volume sont en aval, dans le bus partagé.
 		this.master.connect(this.air).connect(engineIn());
+
+		// L'acoustique du lieu (issue #122) : une dérivation en parallèle du
+		// sec, qui revient DANS `air`. La réverbération appartient au monde —
+		// on l'entend à travers les mêmes lunettes que les moteurs, sinon elle
+		// sonnerait plus proche que ce qui la produit.
+		const spaceIn = space.build(ctx, this.air);
+		if (spaceIn) this.master.connect(spaceIn);
 
 		this.noiseBuffer = makeNoiseBuffer(ctx, 2);
 		this.impactBuffer = makeImpactBuffer(ctx, 0.15);
