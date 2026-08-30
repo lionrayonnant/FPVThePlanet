@@ -1,20 +1,106 @@
 // Mesure la distance d'arrêt sous le rappel de la clôture (issue #139), pour
 // chaque famille de drone, et en déduit R_HOLD et R_CAUTION.
 //
-//   node tools/geofence-measure.mjs [sceneDir]
+//   node tools/geofence-measure.mjs [sceneDir] [--start=<m>]
 //
-// CLAUDE.md : mesurés, pas choisis à la main. Protocole : le drone accélère
-// depuis l'arrêt, tangage plein (mode ANGLE, assiette tenue à 42°), jusqu'à
-// sa vitesse en palier maximale, droit vers une face ; à l'entrée en HOLD les
-// manches reviennent au neutre (le pilote a lu l'avertissement et a lâché) ;
-// seuls A_MAX et la traînée de quad.js décélèrent. On mesure la pénétration.
+// CLAUDE.md : mesurés, pas choisis à la main.
 //
-// Manches au NEUTRE et non tirées à fond, délibérément : un pilote qui
-// insiste doit pouvoir passer, c'est la moitié du design. R_HOLD dimensionne
-// le cas où on obéit, pas le cas où on désobéit.
+// ---------------------------------------------------------------------------
+// LE PROTOCOLE — en ACRO, parce que c'est le mode du jeu
+// ---------------------------------------------------------------------------
 //
-// QUATRE écarts au brief d'origine (task-4-brief.md), tous vérifiés par
-// mesure et détaillés dans task-4-report.md :
+// FlightController démarre en `acro` et src/entry-state.js:241 le force. En
+// ACRO, des manches centrées ne remettent PAS l'appareil à plat : elles
+// tiennent l'assiette. Mesuré avec ce banc, manches centrés à l'entrée en HOLD
+// et gaz au stationnaire (le plus favorable au pilote) : l'assiette reste à
+// 42° au degré près, cinq familles sur six franchissent la face sous un
+// couloir de 29 m — de +4,7 m (cinewhoop, la seule à s'arrêter) à +44,6 m
+// (heavy5) dans les dix secondes qui suivent l'entrée en HOLD — et quatre sur
+// six la franchissent encore sous un couloir de 66 m. « Lâcher les manches »
+// n'est donc PAS une façon d'obéir dans ce jeu, et une mesure faite en mode
+// ANGLE (où lâcher remet à plat tout seul) répond à une question que le jeu ne
+// pose pas.
+//
+// « Obéir » doit donc être un PROGRAMME DE MANCHE explicite. Le voici, en
+// entier — c'est lui, la définition, et rien d'autre dans ce fichier n'a le
+// droit de la contredire :
+//
+//   APPROCHE (avant l'entrée en HOLD)
+//     gaz     : plein (1,0)
+//     tangage : le pilote pique jusqu'à 42° — ANGLE_MAX_TILT, l'assiette la
+//               plus inclinée que l'auto-stabilisation du dépôt tienne — et
+//               tient cette assiette jusqu'au couloir.
+//
+//   FREINAGE (dès l'entrée en HOLD, le pilote a lu l'avertissement)
+//     gaz     : ramenés quelque part entre zéro et le stationnaire. On BALAYE
+//               cette bande de 0 à hoverThrottle() et on garde le PIRE cas :
+//               le manche des gaz exact d'un pilote qui freine n'est pas
+//               connaissable, donc on ne le suppose pas.
+//     tangage : TIRÉ pour ramener l'appareil à plat — en ACRO il faut le
+//               faire soi-même — puis CENTRÉ dès que l'horizon est revenu
+//               (à 1° près) et plus jamais touché. À partir de là l'ACRO
+//               tient l'assiette : rien ne remet le drone à plat pour le
+//               pilote, et le résidu d'assiette qu'il a laissé, il le garde.
+//
+//   Le tangage, dans les deux phases, demande le MÊME taux de rotation que le
+//   mode angle demanderait pour la même erreur d'assiette (ANGLE_STRENGTH,
+//   flightController.js) — c'est la définition que le dépôt se donne déjà d'un
+//   ralliement d'assiette correct — inversé à travers la courbe de rates de la
+//   famille. Le pilote raisonne en degrés par seconde, pas en millimètres de
+//   manche ; l'inversion rend le programme identique d'une famille à l'autre.
+//   Vérifié : sur la grille 3x3 (taux divisé par 2, nominal, doublé) x (seuil
+//   « à plat » 0,25°, 1°, 4°), le point fixe de la pire famille tient dans
+//   63,40 - 65,98 m, soit 2,58 m d'écart, et RESTE sous la valeur figée dans
+//   les neuf cas. Ce n'est pas ce modèle-là qui porte l'incertitude ; c'est le
+//   manche des gaz, et c'est lui qu'on balaye.
+//
+// Une fois à plat, seuls le rappel plafonné (A_MAX) et la traînée de quad.js
+// décélèrent. Manches ramenés au calme et non tirés à fond, délibérément : un
+// pilote qui insiste DOIT pouvoir passer, c'est la moitié du design. R_HOLD
+// dimensionne le cas où on obéit, pas le cas où on désobéit.
+//
+// Plein gaz, et non 75 % : « la vitesse maximale » n'a pas de sens à un manche
+// arbitraire. À 42° et plein gaz la machine grimpe aussi — ce n'est pas un vol
+// en palier, c'est un dash — mais seule la composante horizontale entre dans
+// un couloir horizontal, et c'est elle qu'on retient. Le vol se déroule à
+// bbox.max.y + 200 m, au-dessus du point le plus haut de la carte : la marge
+// horizontale ne dépend pas de l'altitude (voir horizontalMargin), et à cette
+// hauteur aucune collision avec la scène n'est possible — ce que le banc
+// re-vérifie de toute façon en continu (maxImpact).
+//
+// ---------------------------------------------------------------------------
+// POURQUOI UN POINT FIXE, ET PAS UNE SOUSTRACTION
+// ---------------------------------------------------------------------------
+//
+// La FORME de la rampe du rappel (0 à A_MAX sur R_HOLD mètres, pushOf() dans
+// geofence.js) dépend elle-même de R_HOLD : rétrécir le couloir durcit la
+// rampe et change la distance d'arrêt qu'on cherche à mesurer avec. Pas de
+// raccourci algébrique. On cherche le POINT FIXE — le couloir sous la rampe
+// DUQUEL la famille s'arrête pile à MARGIN_M de la face — par itération
+// directe : R(n+1) = R(n) + pénétration(n) + MARGIN_M. La contraction est
+// nette (3 à 5 pas) et le résultat est indépendant du point de départ :
+// mesuré à 65,82 / 65,83 / 65,84 / 65,87 / 65,93 m depuis des départs de 5,
+// 10, 20, 40 et 66 m. Le départ est un ARGUMENT (--start), pas la constante
+// qu'on calcule : un banc qui s'amorce sur son propre résultat ne contrôle
+// plus rien. (Au-delà d'une centaine de mètres de départ, la rampe d'essai
+// devient si molle qu'un résidu d'assiette l'équilibre : le drone flue au lieu
+// de s'arrêter et le banc refuse de livrer un chiffre. C'est voulu.)
+//
+// ---------------------------------------------------------------------------
+// MARGIN_M — mesurée elle aussi
+// ---------------------------------------------------------------------------
+//
+// La marge de sécurité visée n'est pas un « +1 » posé à la main. Elle est
+// prise égale à la DISPERSION mesurée du point d'arrêt sur le balayage des
+// gaz de freinage : c'est l'écart que produit, à elle seule, la seule
+// hypothèse de pilotage qu'on ne sait pas trancher. La régler là revient à
+// dire qu'un pilote aussi loin du pire cas balayé que la bande balayée est
+// large s'arrête encore dedans. Le banc RE-MESURE cette dispersion au point
+// fixe et refuse de livrer un chiffre si elle dépasse MARGIN_M.
+//
+// ---------------------------------------------------------------------------
+// CE QUE LE BRIEF D'ORIGINE DEMANDAIT ET QUI ÉTAIT FAUX
+// ---------------------------------------------------------------------------
 //
 //   1. `new FlightController()` doit recevoir `{ profile }`. Sans ça, le
 //      contrôleur garde le PID et le mixer de DEFAULT_PROFILE (freestyle5)
@@ -22,50 +108,37 @@
 //      sur six auraient volé avec les gains d'une autre. Même paire que
 //      tools/selftest.mjs:useFamily().
 //
-//   2. Un tangage tenu suppose le mode ANGLE. En mode ACRO (le défaut de
-//      FlightController), le tangage est une VITESSE de rotation, pas une
-//      assiette : tenir le manche à fond fait boucler le drone sans fin au
-//      lieu de le stabiliser à 42° — mesuré : jusqu'à -25 m/s de vitesse
-//      verticale après 3 s au lieu d'une vitesse en palier stable.
+//   2. « On pousse tangage plein et on laisse la traînée trouver son
+//      équilibre » suppose une assiette tenue, donc le mode ANGLE. Mais le jeu
+//      vole en ACRO — voir tout le haut de ce fichier : la réponse n'est pas
+//      de changer de mode, c'est d'écrire le programme de manche.
 //
-//   3. Le drone doit ACCÉLÉRER depuis l'arrêt jusqu'à sa vitesse en palier,
-//      jamais être téléporté directement à cette vitesse à plat (assiette
-//      LEVEL). Une coque à plat lancée à 25 m/s présente au vent tout le
-//      disque rotor plutôt que les 42° inclinés qui ont produit cette
-//      vitesse ; la traînée de « plaque » qui en résulte n'a rien à voir
-//      avec le vol réel et tue la vitesse en quelques mètres, HOLD ou pas.
-//      Conséquence : la face testée est +Z, la direction naturelle du
-//      tangage plein depuis une assiette LEVEL (vérifié : vx≈0, vz=vmax en
-//      partant à plat) — pas +X comme dans le brief. geofence.js est
-//      symétrique par face ; seule la face testée change.
+//   3. Le drone ne doit jamais être TÉLÉPORTÉ à sa vitesse de croisière, et
+//      surtout pas à plat : c'est piqué à 42° qu'il atteint cette vitesse. Une
+//      coque à plat lancée d'un coup à 25 m/s présente aux quatre rotors toute
+//      leur vitesse de translation, donc la traînée rotor kLateral·ω·v
+//      (quad.js:287), qui est le terme dominant à plat — et non « une traînée
+//      de plaque », qui serait faux dans le détail : bodyDrag.y vaut ~3 fois
+//      bodyDrag.x/z, une coque à plat présente donc au vent ses axes de FAIBLE
+//      traînée de carène. Conséquence pratique : le drone accélère depuis
+//      l'arrêt sur un couloir dimensionné pour ça, et la face testée est celle
+//      vers laquelle le piqué l'emmène (−Z, plein avant).
 //
-//   4. La formule à un coup du brief, R_HOLD = pénétration_mesurée + 1,
-//      suppose la pénétration positive (le pilote dépasse la face) SOUS
-//      L'ANCIEN COULOIR (R_HOLD = 40, la constante PROVISOIRE encore en
-//      place au moment de la mesure). Ce n'est vrai pour AUCUNE des six
-//      familles : sous 40 m de rampe, même la plus lourde s'arrête ~10 m
-//      avant la face. La formule donnerait un R_HOLD négatif — exactement le
-//      signal d'alarme que le brief demande de surveiller. La raison est que
-//      la FORME de la rampe (0 à A_MAX sur R_HOLD mètres, voir pushOf() dans
-//      geofence.js) dépend ELLE-MÊME de R_HOLD : rétrécir le couloir durcit
-//      la rampe et change la distance d'arrêt qu'on cherche à mesurer avec.
-//      Pas de raccourci : on cherche le point fixe — le R_HOLD sous la rampe
-//      DUQUEL le pilote s'arrête pile à la marge visée — par itération
-//      directe. Elle converge seule (contraction nette, 3-4 pas suffisent à
-//      0,3 m près sur les six familles, voir task-4-report.md) en partant de
-//      la constante actuelle, un point de départ connu sûr (jamais de
-//      dépassement mesuré à R_HOLD=40) : l'itération ne fait donc QUE
-//      rétrécir le couloir, jamais l'inverse, pas de risque de partir d'un
-//      couloir trop court qui laisserait le pilote dépasser LOST pendant la
-//      recherche elle-même.
+//   4. `R_HOLD = pénétration + 1` suppose une pénétration positive sous le
+//      couloir d'essai. Voir le point fixe ci-dessus.
 import fs from 'node:fs';
 import path from 'node:path';
 import { initPhysics, Physics } from '../src/physics.js';
-import { FlightController } from '../src/flightController.js';
+import {
+	FlightController, hoverThrottle, unrotateVec,
+	actualRate, ANGLE_MAX_TILT, ANGLE_STRENGTH,
+} from '../src/flightController.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
-import { Geofence, horizontalMargin, A_MAX, R_HOLD } from '../src/geofence.js';
+import { Geofence, horizontalMargin, A_MAX } from '../src/geofence.js';
 
-const sceneDir = path.resolve(process.argv[2] ?? 'public/scenes/tour-eiffel');
+const args = process.argv.slice(2);
+const startArg = args.find((a) => a.startsWith('--start='));
+const sceneDir = path.resolve(args.find((a) => !a.startsWith('--')) ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
 const raw = fs.readFileSync(path.join(sceneDir, 'collision.bin'));
 const vc = raw.readUInt32LE(8), ic = raw.readUInt32LE(12);
@@ -77,178 +150,274 @@ const collision = {
 await initPhysics();
 // Un seul monde : plusieurs trimeshes pleine résolution épuisent le tas wasm.
 const phys = new Physics(collision, manifest.spawn);
+
 const STEP = 1 / 250;
-const BLINK_PERIOD_S = 0.5;   // drone-osd.js:51
+const BLINK_PERIOD_S = 0.5;    // drone-osd.js:51
 const BLINKS_TO_READ = 3;
-const MARGIN_M = 1;           // marge de sécurité visée, comme le "+1" du brief
-const FIXED_POINT_TOL = 0.3;  // m : tolérance de convergence de l'itération
-const MAX_ITERATIONS = 12;
+// Marge de sécurité visée par le point fixe : la dispersion mesurée du point
+// d'arrêt sur le balayage des gaz de freinage, arrondie au mètre supérieur
+// (voir l'en-tête). Vérifiée au point fixe par le banc lui-même.
+const MARGIN_M = 12;
+const FIXED_POINT_TOL = 0.3;   // m : tolérance de convergence de l'itération
+const MAX_ITERATIONS = 20;
+const BRAKE_STEPS = 10;        // pas du balayage des gaz de freinage, 0 → hover
+// Point de départ de l'itération. Délibérément PAS R_HOLD : un banc qui
+// s'amorce sur la constante qu'il calcule ne la contrôle plus. Surchargeable
+// par --start=<m> — c'est ce qui rend reproductible la vérification
+// d'indépendance au point de départ citée dans l'en-tête.
+const DEFAULT_START = 10;
+const START = startArg ? Number(startArg.slice('--start='.length)) : DEFAULT_START;
+if (!Number.isFinite(START) || START <= 0) throw new Error(`--start invalide : ${startArg}`);
+// « L'horizon est revenu » : à 1° près. Mesuré, le point fixe de la pire
+// famille ne bouge que de 1,1 m entre 0,25° et 4° (64,92 → 65,98) : ce seuil
+// ne porte pas le chiffre.
+const LEVEL_SIN = Math.sin(1 * Math.PI / 180);
+const CRUISE_SIN = Math.sin(ANGLE_MAX_TILT);
+const SIM_CAP_S = 90;          // garde-fou ; voir findRHold() pour ce qu'il attrape
 
 const b = manifest.bbox;
-const MID_Y = (b.min[1] + b.max[1]) / 2;
-// Distance de départ avant la face +Z, drone à l'arrêt. Doit dépasser
-// largement la distance de convergence vers la vitesse en palier (mesurée :
-// 8 m pour toothpick à 85 m pour heavy5) tout en laissant le temps d'y
-// accélérer avant la zone CAUTION — la valeur exacte n'entre dans aucun
-// calcul, seule compte la marge. Dégagement vérifié par mesure (aucun
-// impact enregistré sur les six familles, voir task-4-report.md).
-const RUNWAY = 200;
-
+// Au-dessus du point le plus haut de la carte : aucune collision possible, et
+// la marge horizontale ne dépend pas de l'altitude.
+const HIGH_Y = b.max[1] + 200;
 const LEVEL = { x: 0, y: 0, z: 0, w: 1 };
 const ZERO = { x: 0, y: 0, z: 0 };
 
-// Place le corps, à plat, à la vitesse voulue. Mêmes appels que
-// tools/landing-selftest.mjs:place() — il n'existe pas de `teleport`.
-function place(pos, vel) {
-	phys.body.setTranslation(pos, true);
+// Place le corps à l'arrêt, à plat. Mêmes appels que
+// tools/landing-selftest.mjs:53-61 — il n'existe pas de `teleport`. Pas de
+// paramètre de vitesse : rien ici n'est jamais lancé à une vitesse posée à la
+// main, c'est tout l'objet de l'écart 3.
+function place(z) {
+	phys.body.setTranslation({ x: 0, y: HIGH_Y, z }, true);
 	phys.body.setRotation(LEVEL, true);
-	phys.body.setLinvel(vel, true);
+	phys.body.setLinvel(ZERO, true);
 	phys.body.setAngvel(ZERO, true);
 	phys.setGroundHold(false);
 }
 
-// La vitesse en palier maximale d'un profil : tangage plein en mode ANGLE
-// (assiette tenue à 42°, PAS une vitesse de rotation — écart 2 ci-dessus),
-// loin de tout, jusqu'à ce que la traînée trouve son équilibre.
-function topSpeed(family) {
+// Prépare une famille : profil dans la physique ET dans le contrôleur (écart
+// 1), vent coupé, corps posé à l'arrêt. `setProfile()` reconstruit la
+// Propulsion, donc chaque run repart batterie pleine et rotors à l'arrêt.
+function setup(family, z) {
 	const profile = PROFILES[family];
 	phys.setProfile(profile);
-	const fc = new FlightController({ profile });   // écart 1 : profile lié au contrôleur
+	const fc = new FlightController({ profile });   // mode par défaut : ACRO
 	fc.arm();
-	fc.setMode('angle');                             // écart 2 : assiette, pas vitesse
 	phys.setWind(ZERO, 0);
-	place({ x: 0, y: b.max[1] + 200, z: 0 }, ZERO);
-	let v = 0;
-	for (let i = 0; i < 25 * 250; i++) {
-		const sticks = { throttle: 0.75, roll: 0, pitch: 1, yaw: 0 };
-		// fc.update(sticks, phys, dt) rend { motors }, et step prend
-		// (motors, dt) dans CET ordre.
-		const { motors } = fc.update(sticks, phys, STEP);
-		phys.step(motors, STEP);
-		const s = phys.velocity;
-		v = Math.max(v, Math.hypot(s.x, s.z));
-	}
-	return v;
+	place(z);
+	return { profile, fc, rates: fc.rates.pitch, maxRate: fc.rates.pitch.max * Math.PI / 180 };
 }
 
-// Rampe locale du rappel horizontal, identique à pushOf() de geofence.js
-// mais paramétrée par un R_HOLD D'ESSAI plutôt que la constante figée :
-// c'est justement cette constante qu'on cherche (écart 4 ci-dessus).
-// Recopiée plutôt qu'importée pour ne rien changer à geofence.js avant
-// d'avoir une valeur en main ; croisée contre le vrai pushOf() (via un vrai
-// Geofence) juste en dessous avant de s'y fier.
-function localPush(margin, rHoldTrial) {
-	if (margin >= rHoldTrial) return 0;
+// sin(assiette piquée) lu sur le quaternion : upB.z vaut +sin(piqué).
+const noseDown = () => unrotateVec(phys.rotation, 0, 1, 0).z;
+
+// L'inverse de actualRate() : quel manche demande ce taux ? La courbe est
+// monotone en |manche|, une bissection suffit.
+function invActualRate(rate, r) {
+	const s = Math.sign(rate), target = Math.abs(rate);
+	if (target >= actualRate(1, r)) return s;
+	let lo = 0, hi = 1;
+	for (let i = 0; i < 30; i++) {
+		const mid = (lo + hi) / 2;
+		if (actualRate(mid, r) < target) lo = mid; else hi = mid;
+	}
+	return (s * (lo + hi)) / 2;
+}
+
+// Le manche de tangage du pilote : la même demande de taux que le mode angle
+// produirait pour rejoindre `targetSin`, inversée à travers les rates de la
+// famille (voir l'en-tête).
+function pitchStick(targetSin, rates, maxRate) {
+	const want = ANGLE_STRENGTH * (noseDown() - targetSin);
+	return invActualRate(Math.max(-maxRate, Math.min(maxRate, want)), rates);
+}
+
+// Rampe locale du rappel horizontal, identique à pushOf() de geofence.js mais
+// paramétrée par un R_HOLD D'ESSAI plutôt que la constante figée : c'est
+// justement celle-là qu'on cherche. Croisée contre le vrai pushOf() ci-dessous
+// avant tout usage.
+function localPush(margin, trial) {
+	if (margin >= trial) return 0;
 	if (margin <= 0) return A_MAX;
-	return A_MAX * (rHoldTrial - margin) / rHoldTrial;
+	return (A_MAX * (trial - margin)) / trial;
 }
 
 function crossCheckLocalPush() {
 	const f = new Geofence(b);
+	// localPush() suppose que le bord des données est à marge nulle. C'est le
+	// cas par construction dans Geofence — mais c'est une hypothèse, donc on la
+	// vérifie plutôt que de la supposer.
+	if (f.h.edge !== 0) throw new Error(`crossCheck : h.edge vaut ${f.h.edge}, localPush() suppose 0`);
+	const hold = f.h.hold;
 	for (const frac of [1, 0.75, 0.5, 0.25, 0, -0.15]) {
-		const m = R_HOLD * frac;
+		const m = hold * frac;
 		f.reset();
-		f.update({ x: 0, y: MID_Y, z: b.max[2] - m });
-		const real = f.out.push.z;          // pousse vers -Z depuis la face +Z
-		const mine = -localPush(m, R_HOLD);
+		f.update({ x: 0, y: HIGH_Y, z: b.min[2] + m });
+		const real = f.out.push.z;             // face −Z : la normale rentrante est +Z
+		const mine = localPush(m, hold);
 		if (Math.abs(real - mine) > 1e-6) {
 			throw new Error(`localPush() diverge de pushOf() à margin=${m.toFixed(2)} : réel=${real} local=${mine}`);
 		}
 	}
 }
 
-// La pénétration sous un couloir d'essai `rHoldTrial` : accélère depuis
-// l'arrêt (tangage plein, throttle 0.75, comme topSpeed()) jusqu'à l'entrée
-// dans CE couloir d'essai (margin <= rHoldTrial), puis manches au neutre
-// (throttle 0.5, tangage 0) — seuls A_MAX (rampe locale) et la traînée de
-// quad.js décélèrent, jusqu'à l'arrêt (vitesse <= 0) ou 60 s simulées.
-// Rend { deepest, maxImpact } : maxImpact doit rester 0 sur toute la
-// mesure — un impact non nul voudrait dire que le drone a percuté la scène
-// réelle (pas la clôture, qui est synthétique) et que la mesure est fausse.
-function overshootAt(family, rHoldTrial) {
-	const profile = PROFILES[family];
-	phys.setProfile(profile);
-	const fc = new FlightController({ profile });
-	fc.arm();
-	fc.setMode('angle');
-	phys.setWind(ZERO, 0);
-	place({ x: 0, y: MID_Y, z: b.max[2] - RUNWAY }, ZERO);
-	let deepest = -Infinity;
-	let maxImpact = 0;
-	let entered = false;
-	for (let i = 0; i < 60 * 250; i++) {
-		const p = phys.position;
-		const margin = horizontalMargin(p, b);
-		deepest = Math.max(deepest, p.z - b.max[2]);
-		if (margin <= rHoldTrial) entered = true;
-		const sticks = { throttle: entered ? 0.5 : 0.75, roll: 0, pitch: entered ? 0 : 1, yaw: 0 };
-		const { motors } = fc.update(sticks, phys, STEP);
-		// -Z : la normale rentrante depuis la face +Z. Le rappel entre par le
-		// TROISIÈME paramètre de step(), en newtons et repère monde — comme
-		// main.js le fera (#139, tâche 6 step 1) — jamais par un addForce
-		// après step(), que resetForces() effacerait sans l'intégrer.
-		const push = entered ? -localPush(margin, rHoldTrial) : 0;
+// L'approche seule, sans clôture : à quelle distance de son départ arrêté la
+// famille atteint-elle sa vitesse horizontale maximale, et laquelle ? Cette
+// distance sert à dimensionner le couloir d'élan pour que l'entrée en HOLD
+// tombe PILE sur ce pic — le pire cas.
+function approach(family) {
+	const { fc, rates, maxRate } = setup(family, 0);
+	let best = { v: -1, d: 0 };
+	for (let i = 0; i < 30 * 250; i++) {
+		const stick = pitchStick(CRUISE_SIN, rates, maxRate);
+		const { motors } = fc.update({ throttle: 1, roll: 0, pitch: stick, yaw: 0 }, phys, STEP);
+		phys.step(motors, STEP);
+		const s = phys.velocity;
+		const vh = Math.hypot(s.x, s.z);
+		if (vh > best.v) best = { v: vh, d: -phys.position.z };
+	}
+	return best;
+}
+
+// Un run complet : élan puis freinage sous un couloir d'essai `trial`, gaz de
+// freinage `brakeT`. Rend la pénétration maximale (positive = la face est
+// franchie), l'impact maximal enregistré et la vitesse à l'entrée en HOLD.
+function runOnce(family, trial, brakeT, runup) {
+	const runway = runup + trial;
+	const startZ = b.min[2] + runway;
+	const { profile, fc, rates, maxRate } = setup(family, startZ);
+	// La face visée doit bien être la plus proche au départ, sinon la mesure
+	// parle d'une autre face que celle qu'on croit.
+	const m0 = horizontalMargin(phys.position, b);
+	if (Math.abs(m0 - runway) > 1e-3) {
+		throw new Error(`couloir d'élan trop long pour cette scène : au départ la face la plus proche est à ${m0.toFixed(1)} m, pas ${runway.toFixed(1)} m`);
+	}
+	let deepest = -Infinity, maxImpact = 0, entryV = 0;
+	let entered = false, levelled = false, stopped = false;
+	for (let i = 0; i < SIM_CAP_S * 250; i++) {
+		const margin = horizontalMargin(phys.position, b);
+		deepest = Math.max(deepest, -margin);
+		if (!entered && margin <= trial) {
+			entered = true;
+			entryV = Math.hypot(phys.velocity.x, phys.velocity.z);
+		}
+		if (entered && !levelled && noseDown() <= LEVEL_SIN) levelled = true;
+		// Le programme de manche, et rien d'autre : voir l'en-tête.
+		const stick = entered && levelled ? 0 : pitchStick(entered ? 0 : CRUISE_SIN, rates, maxRate);
+		const throttle = entered ? brakeT : 1;
+		const { motors } = fc.update({ throttle, roll: 0, pitch: stick, yaw: 0 }, phys, STEP);
+		// Le rappel entre par le TROISIÈME paramètre de step(), en newtons et
+		// repère monde — comme main.js le fera (#139, tâche 6) — jamais par un
+		// addForce après step(), que resetForces() effacerait sans l'intégrer.
+		// +Z : la normale rentrante depuis la face −Z.
+		const push = entered ? localPush(margin, trial) : 0;
 		const impact = phys.step(motors, STEP, { x: 0, y: 0, z: push * profile.mass });
 		maxImpact = Math.max(maxImpact, impact);
-		if (entered && phys.velocity.z <= 0) break;
+		if (entered && phys.velocity.z >= 0) { stopped = true; break; }
 	}
-	return { deepest, maxImpact };
+	return { deepest, maxImpact, entryV, levelled, stopped };
 }
 
-// Le R_HOLD self-consistant d'une famille : le plus petit couloir qui
-// arrête sa vitesse en palier à MARGIN_M de marge avant la face. Itération
-// directe (voir écart 4) : R_HOLD(n+1) = R_HOLD(n) + pénétration(n) + marge.
-function findRHold(family) {
-	let trial = R_HOLD;   // la constante actuelle : point de départ sûr, voir écart 4
-	const trace = [];
-	let maxImpact = 0;
-	for (let it = 0; it < MAX_ITERATIONS; it++) {
-		const r = overshootAt(family, trial);
+// Le pire des gaz de freinage, de 0 au stationnaire, et la dispersion que ce
+// balayage produit à lui seul.
+function worstOverBrake(family, trial, runup) {
+	const hoverT = hoverThrottle(PROFILES[family], LEVEL);
+	let worst = null, shallowest = Infinity, maxImpact = 0, allLevelled = true, allStopped = true;
+	for (let i = 0; i <= BRAKE_STEPS; i++) {
+		const brakeT = (hoverT * i) / BRAKE_STEPS;
+		const r = runOnce(family, trial, brakeT, runup);
 		maxImpact = Math.max(maxImpact, r.maxImpact);
-		trace.push({ trial, d: r.deepest });
-		const next = Math.max(1, trial + r.deepest + MARGIN_M);
-		if (Math.abs(next - trial) < FIXED_POINT_TOL) { trial = next; break; }
+		allLevelled = allLevelled && r.levelled;
+		allStopped = allStopped && r.stopped;
+		shallowest = Math.min(shallowest, r.deepest);
+		if (!worst || r.deepest > worst.deepest) worst = { ...r, brakeT };
+	}
+	return { ...worst, hoverT, spread: worst.deepest - shallowest, maxImpact, allLevelled, allStopped };
+}
+
+// Le R_HOLD self-consistant d'une famille : le plus petit couloir sous la
+// rampe duquel son pire freinage s'arrête à MARGIN_M de la face.
+function findRHold(family, runup) {
+	let trial = START, last = null;
+	const trace = [];
+	let maxImpact = 0, converged = false;
+	for (let it = 0; it < MAX_ITERATIONS; it++) {
+		last = worstOverBrake(family, trial, runup);
+		maxImpact = Math.max(maxImpact, last.maxImpact);
+		trace.push(`${trial.toFixed(1)}→${last.deepest.toFixed(1)}`);
+		if (!last.allStopped) {
+			// Cas connu : sous un couloir TRÈS large la rampe est si molle qu'un
+			// résidu d'assiette de 2° aux gaz de stationnaire l'équilibre — le
+			// drone flue au lieu de s'arrêter et la pénétration serait tronquée
+			// par la garde de temps. C'est ce qui arrive avec un --start
+			// exagéré (au-delà d'environ 100 m sur tour-eiffel). Le banc ne
+			// livre pas de chiffre là-dessus, il n'en a pas de bon.
+			throw new Error(`${family} : un freinage n'a pas atteint l'arrêt en ${SIM_CAP_S} s (couloir d'essai ${trial.toFixed(1)} m). Sous un couloir aussi large le drone flue au lieu de s'arrêter et la pénétration mesurée serait tronquée. Si c'est un --start exagéré, en prendre un plus petit.`);
+		}
+		if (!last.allLevelled) {
+			throw new Error(`${family} : le pilote n'a jamais retrouvé l'horizon (couloir d'essai ${trial.toFixed(1)} m) — le programme de manche ne décrit plus ce qui se passe`);
+		}
+		const next = trial + last.deepest + MARGIN_M;
+		if (next <= 0) {
+			throw new Error(`${family} : l'itération demande un couloir négatif (${next.toFixed(1)} m) — le harnais est faux`);
+		}
+		if (Math.abs(next - trial) < FIXED_POINT_TOL) { trial = next; converged = true; break; }
 		trial = next;
 	}
-	return { rHold: trial, trace, maxImpact };
-}
-
-console.log('vitesse en palier maximale (mode angle, tangage plein, throttle 0.75) :');
-const vmax = {};
-for (const family of FAMILIES) {
-	vmax[family] = topSpeed(family);
-	console.log(`  ${family.padEnd(12)} vmax ${vmax[family].toFixed(2)} m/s`);
+	if (!converged) {
+		throw new Error(`${family} : pas de convergence en ${MAX_ITERATIONS} itérations, trace [${trace.join('  ')}]`);
+	}
+	return { rHold: trial, trace, maxImpact, last };
 }
 
 crossCheckLocalPush();
-console.log('\ncross-check localPush() vs pushOf() (à R_HOLD actuel) : ok');
+console.log(`cross-check localPush() vs pushOf() : ok`);
+console.log(`scène ${path.basename(sceneDir)}   A_MAX ${A_MAX.toFixed(3)} m/s²   MARGIN_M ${MARGIN_M} m   départ de l'itération ${START} m\n`);
 
-console.log(`\nR_HOLD self-consistant par famille (marge visée ${MARGIN_M} m), trace de l'itération :`);
-const perFamily = {};
-let worstImpact = 0;
+console.log(`approche : plein gaz, assiette tenue à ${(ANGLE_MAX_TILT * 180 / Math.PI).toFixed(0)}°, depuis l'arrêt`);
+const peak = {};
 for (const family of FAMILIES) {
-	const { rHold, trace, maxImpact } = findRHold(family);
-	perFamily[family] = rHold;
-	worstImpact = Math.max(worstImpact, maxImpact);
-	const t = trace.map((s) => `${s.trial.toFixed(1)}→${s.d.toFixed(1)}`).join('  ');
-	console.log(`  ${family.padEnd(12)} R_HOLD* ${rHold.toFixed(2)} m   [${t}]   maxImpact ${maxImpact.toFixed(1)} N`);
+	peak[family] = approach(family);
+	console.log(`  ${family.padEnd(12)} vpic ${peak[family].v.toFixed(2)} m/s   atteinte à ${peak[family].d.toFixed(0)} m`);
 }
 
+console.log(`\nR_HOLD self-consistant par famille (pire des ${BRAKE_STEPS + 1} gaz de freinage) :`);
+const res = {};
+let worstImpact = 0, worstSpread = 0;
+for (const family of FAMILIES) {
+	const r = findRHold(family, peak[family].d);
+	res[family] = r;
+	worstImpact = Math.max(worstImpact, r.maxImpact);
+	worstSpread = Math.max(worstSpread, r.last.spread);
+	const p = PROFILES[family];
+	console.log(`  ${family.padEnd(12)} R_HOLD* ${r.rHold.toFixed(2).padStart(6)} m   entrée ${r.last.entryV.toFixed(2)} m/s   pire gaz ${r.last.brakeT.toFixed(3)}/${r.last.hoverT.toFixed(3)}   dispersion ${r.last.spread.toFixed(2)} m   bodyDrag.z/masse ${(p.bodyDrag.z / p.mass).toFixed(5)}   impact ${r.maxImpact.toFixed(1)} N`);
+	console.log(`               [${r.trace.join('  ')}]`);
+}
+
+// Un banc qui a heurté quelque chose ne livre pas de chiffre.
 if (worstImpact > 0) {
-	console.log(`\n  ATTENTION : impact non nul détecté (${worstImpact.toFixed(1)} N) — le drone a`);
-	console.log(`  percuté la scène réelle pendant la mesure. Les chiffres ci-dessus sont faux.`);
+	console.error(`\nÉCHEC : impact non nul (${worstImpact.toFixed(1)} N) — le drone a percuté la scène`);
+	console.error(`pendant la mesure. Aucun chiffre n'est imprimé : ils seraient faux.`);
+	process.exit(1);
+}
+// MARGIN_M doit couvrir la dispersion qu'elle prétend couvrir.
+if (Math.ceil(worstSpread) > MARGIN_M) {
+	console.error(`\nÉCHEC : dispersion mesurée ${worstSpread.toFixed(2)} m > MARGIN_M ${MARGIN_M} m.`);
+	console.error(`La marge ne couvre plus l'incertitude de pilotage qu'elle est censée couvrir :`);
+	console.error(`remonter MARGIN_M à ${Math.ceil(worstSpread)} et relancer.`);
+	process.exit(1);
 }
 
-const worstFamily = FAMILIES.reduce((a, c) => (perFamily[c] > perFamily[a] ? c : a));
-const worstVFamily = FAMILIES.reduce((a, c) => (vmax[c] > vmax[a] ? c : a));
-const worstV = vmax[worstVFamily];
+const worstFamily = FAMILIES.reduce((a, c) => (res[c].rHold > res[a].rHold ? c : a));
+const worstVFamily = FAMILIES.reduce((a, c) => (peak[c].v > peak[a].v ? c : a));
+const worstV = peak[worstVFamily].v;
 
-const rHold = Math.ceil(perFamily[worstFamily]);
+const rHold = Math.ceil(res[worstFamily].rHold);
 const rCaution = Math.ceil(rHold + BLINKS_TO_READ * BLINK_PERIOD_S * worstV);
 
-console.log(`\n  A_MAX             ${A_MAX.toFixed(3)} m/s²`);
-console.log(`  pire R_HOLD*      ${perFamily[worstFamily].toFixed(2)} m (${worstFamily})`);
-console.log(`  pire vmax         ${worstV.toFixed(2)} m/s (${worstVFamily})`);
+console.log(`\n  pire R_HOLD*       ${res[worstFamily].rHold.toFixed(2)} m (${worstFamily})`);
+console.log(`  pire vitesse       ${worstV.toFixed(2)} m/s (${worstVFamily})`);
+console.log(`  pire dispersion    ${worstSpread.toFixed(2)} m  (≤ MARGIN_M = ${MARGIN_M} m : ok)`);
 console.log(`\n  R_HOLD    = ${rHold}`);
 console.log(`  R_CAUTION = ${rCaution}   (= R_HOLD + ${BLINKS_TO_READ} × ${BLINK_PERIOD_S} s × ${worstV.toFixed(2)} m/s)`);
+console.log(`               la bande d'avertissement vaut ${rCaution - rHold} m, soit ${((rCaution - rHold) / worstV).toFixed(2)} s à ${worstV.toFixed(2)} m/s`);
 console.log(`\n  → reporter ces deux valeurs dans src/geofence.js, avec la date.`);

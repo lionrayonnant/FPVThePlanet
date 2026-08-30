@@ -142,8 +142,13 @@ const RC_SMOOTHING = 40;        // Hz
 const MOTOR_IDLE = 0.055;       // Betaflight dynamic idle: props never stop, or
                                 // there is nothing to recover from
 
-const ANGLE_MAX_TILT = 42 * DEG;
-const ANGLE_STRENGTH = 9.0;     // rad/s of rate demand per rad of angle error
+// Exportés (avec actualRate plus bas) parce que tools/geofence-measure.mjs a
+// besoin de parler la langue de ce contrôleur : son pilote ACRO synthétique
+// vise l'assiette la plus inclinée que l'auto-stabilisation tienne et rallie
+// l'horizon au taux que le mode angle demanderait. Recopier ces trois-là dans
+// le banc en ferait des chiffres qui dérivent en silence.
+export const ANGLE_MAX_TILT = 42 * DEG;
+export const ANGLE_STRENGTH = 9.0;   // rad/s of rate demand per rad of angle error
 const ALT_KP = 3.2, ALT_KD = 3.6;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -215,7 +220,7 @@ class AxisPid {
 	}
 }
 
-function actualRate(stick, r) {
+export function actualRate(stick, r) {
 	// Betaflight's ACTUAL rates, verbatim in shape.
 	const rc = clamp(stick, -1, 1);
 	const a = Math.abs(rc);
