@@ -62,8 +62,11 @@ Sortie, écrite une fois par frame dans le même objet :
 
 ### Le volume
 
-Une boîte alignée sur les axes : la bbox rognée horizontalement de
-`R_CAUTION`, plancher à `bbox.min.y − FLOOR_DEPTH`, **pas de plafond**.
+Une boîte alignée sur les axes. Horizontalement c'est **la bbox brute** :
+`marginM = 0` tombe exactement là où le maillage s'arrête, donc pas un mètre
+de carte téléchargée n'est gaspillé. `CAUTION` et `HOLD` sont des couloirs
+*dedans*, `LOST` est dehors. Plancher à `bbox.min.y − FLOOR_DEPTH`, et **pas
+de plafond**.
 
 Le plancher est **sous** le minimum du terrain, et le signe compte. La
 première rédaction de ce spec le mettait au-dessus (`bbox.min.y +
