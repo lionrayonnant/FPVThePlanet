@@ -12372,6 +12372,415 @@
           "text": "the header claims a forest. the ground is flat."
         }
       ]
+    },
+    {
+      "id": "acquire_area/0669",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "one tile in this batch was authored by hand. i can tell. i cannot prove it."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0670",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "jensen. you pulled this sector before."
+        },
+        {
+          "speaker": "jensen",
+          "text": "someone did."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0671",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the elevation set is flat where the streets are."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no. the streets are flat where the elevation set is."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0672",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "there is a second copy of tile 31 further down the archive."
+        },
+        {
+          "speaker": "root",
+          "text": "identical?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "close."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0673",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "whoever surveyed this walked the same street four times."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0674",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the timestamps in the tile footers run backwards as you go —"
+        },
+        {
+          "speaker": "root",
+          "text": "footers are not data. next."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0675",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "material 9 is unused. it is still in the table with a name and a comment."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0676",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the north edge stitches clean."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it stitches to itself. that is not the same thing."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0677",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "count the bridges. then count them tomorrow."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0678",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "archive opened. entry 0 has no name. 1 of 1 unnamed."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0679",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "who signed this export"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the field says operator. the value is also operator."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0680",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nobody has requested this sector in years."
+        },
+        {
+          "speaker": "jensen",
+          "text": "that is not what the log says."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0681",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is there a stairwell with no building on it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the building is in the collision set. not in the mesh."
+        },
+        {
+          "speaker": "jensen",
+          "text": "leave it in."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0682",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "every window in this sector faces the same way."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0683",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail, the shadow direction in the textures does not match the —"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i saw it. i am not going to say anything about it."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0684",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "atlas page 3 written. page 3 written."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0685",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the scale factor is 1.0000001."
+        },
+        {
+          "speaker": "root",
+          "text": "that is one."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "over a sector it is not."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0686",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not name the sector out loud while it is loading. no reason."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0687",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i have opened this archive before and it was smaller. moving on."
+        }
+      ]
+    },
+    {
+      "id": "acquire_area/0688",
+      "events": [
+        "ACQUIRE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "anything alive in the set"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "there is a bird in the texture. it is in four tiles at once."
+        }
+      ]
     }
   ]
 }
