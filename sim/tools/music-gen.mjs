@@ -37,9 +37,30 @@ export const DEFAULTS = {
 	// que la revue à l'oreille reste faisable et que le dépôt reste tenable.
 	duration: 90,
 	model: 'medium',
-	steps: 8,
+
+	// 50 pas de diffusion, et non les 8 de la CLI amont — qui sont un défaut de
+	// VITESSE, pas de qualité. Choisi à l'oreille, en A/B aveugle et à volume
+	// égalisé, contre 8/cfg 1, 50/cfg 3 et 50/cfg 7.
+	//
+	// À noter parce que c'est instructif : mes mesures désignaient le contraire.
+	// Sur l'énergie au-dessus de 8 kHz et la largeur du côté, 50/cfg 1 sortait
+	// DERNIER (-19,5 dB d'aigus contre -16,7 pour 8 pas) et 50/cfg 7 premier.
+	// Ces métriques mesuraient la densité, pas la profondeur : un rendu mieux
+	// résolu a MOINS d'énergie parasite dans les aigus. Sur ce qu'on ne sait pas
+	// mesurer, l'oreille tranche — et il faut la laisser trancher en aveugle,
+	// sinon on choisit ce qu'on croit devoir choisir.
+	steps: 50,
+
+	// Reste à 1.0. Monter le CFG serre le rendu sur le prompt mais le comprime :
+	// à cfg 7 le modèle sortait à -5,3 LUFS avec un LRA de 4,4, donc déjà
+	// écrasé, et c'est ce qui gonflait artificiellement mes mesures d'air.
 	cfgScale: 1.0,
 };
+
+// Coût : ~68 s par morceau au lieu de ~6 s. Le modèle met de toute façon plus
+// longtemps à charger qu'à générer un morceau court, et un lot se génère en une
+// seule invocation — la différence reste sans importance à l'échelle d'une vague.
+export const SECONDS_PER_TRACK_HINT = 70;
 
 function parseArgs(argv) {
 	const out = { pool: null, count: 1, seedBase: 'v1', tag: '', ...DEFAULTS };

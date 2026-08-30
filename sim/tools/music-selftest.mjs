@@ -18,7 +18,8 @@ import {
 	POOLS, AXES, AXIS_NAMES, AXES_PER_TRACK, buildPrompt, negativesFor,
 	NEGATIVES_COMMON, NO_VOICE, WORDLESS_VOICE, POOL_VOICE, POOL_AXIS_BANS,
 } from './music-prompts.mjs';
-import { planFor, trackId } from './music-gen.mjs';
+import { planFor, trackId, DEFAULTS } from './music-gen.mjs';
+import { partition } from './music-retire.mjs';
 import { loopFilter, loudnormMeasureFilter, loudnormApplyFilter, TARGET_LUFS, TARGET_PEAK_DBFS, TARGET_LRA, CROSSFADE_S } from './music-loop.mjs';
 import { judge, BOUNDS } from './music-gate.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
@@ -612,6 +613,52 @@ test('les bornes du gate sont ordonnées et plausibles', () => {
 	assert.ok(BOUNDS.headSilenceS < BOUNDS.tailSilenceS,
 		'on tolère plus de silence en queue : music-loop la recoupe');
 	assert.ok(BOUNDS.minSideDb < 0);
+});
+
+test('la génération vise la QUALITÉ, pas la vitesse', () => {
+	// Les 8 pas de la CLI amont sont un défaut de vitesse. Le passage à 50 a été
+	// tranché à l'oreille, en A/B aveugle et à volume égalisé — et il contredit
+	// les mesures d'air et de largeur, qui désignaient 50/cfg 7. Ces métriques
+	// mesuraient la densité, pas la profondeur.
+	assert.ok(DEFAULTS.steps >= 50, `${DEFAULTS.steps} pas : réglage de vitesse, pas de qualité`);
+	// Le CFG reste bas : au-delà, le modèle sort déjà compressé (-5,3 LUFS,
+	// LRA 4,4 à cfg 7) et l'on gagne de la densité en croyant gagner de l'air.
+	assert.ok(DEFAULTS.cfgScale <= 2, `cfg ${DEFAULTS.cfgScale} : le rendu sera écrasé`);
+});
+
+// --- retrait ----------------------------------------------------------------
+
+const lib = [
+	{ id: 'race5-a', pool: 'race5', file: 'music/race5/a.opus', durS: 80, bpm: 148, seed: 'cal1::0' },
+	{ id: 'race5-b', pool: 'race5', file: 'music/race5/b.opus', durS: 80, bpm: 148, seed: 's50::0' },
+	{ id: 'menu-a', pool: 'menu', file: 'music/menu/a.opus', durS: 80, bpm: 90, seed: 'cal1::0' },
+	{ id: 'menu-b', pool: 'menu', file: 'music/menu/b.opus', durS: 80, bpm: 90, seed: 's50::0' },
+];
+
+test('partition sépare par graine et par id', () => {
+	const parGraine = partition(lib, { before: 's50' });
+	assert.deepEqual(parGraine.drop.map((t) => t.id), ['race5-a', 'menu-a']);
+	assert.deepEqual(parGraine.keep.map((t) => t.id), ['race5-b', 'menu-b']);
+
+	const parId = partition(lib, { ids: ['menu-b'] });
+	assert.deepEqual(parId.drop.map((t) => t.id), ['menu-b']);
+	assert.equal(parId.keep.length, 3);
+});
+
+test('partition ne retire rien sans critère', () => {
+	const p = partition(lib, {});
+	assert.equal(p.drop.length, 0);
+	assert.equal(p.keep.length, lib.length);
+});
+
+test('partition supporte un morceau sans graine', () => {
+	// Les entrées les plus anciennes du manifeste pourraient ne pas en avoir ;
+	// les traiter comme « à retirer » silencieusement serait une perte de
+	// données déguisée en nettoyage.
+	const sansGraine = [{ id: 'x', pool: 'menu', file: 'f', durS: 1, bpm: 1 }];
+	const p = partition(sansGraine, { before: 's50' });
+	assert.equal(p.drop.length, 1, 'un morceau sans graine ne survit pas à --before, et c\'est voulu');
+	assert.equal(partition(sansGraine, { ids: [] }).drop.length, 0);
 });
 
 console.log(`music-selftest : ${passed} tests`);
