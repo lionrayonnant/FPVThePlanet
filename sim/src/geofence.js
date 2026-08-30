@@ -130,9 +130,10 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // CE QUE LA BORNE ÉCHANGE — et il faut que ça se lise ici, pas seulement en
 // jeu. Rétrécir le couloir raidit la rampe (`pushOf` étale toujours 0 → A_MAX
 // sur `hold` mètres) mais ne rend pas au drone la distance qu'il lui faut :
-// sous un `hold` de 49 m — HOLD_STOP_GUARANTEE_M ci-dessous, soit un demi-côté
-// sous 252 m — le pilote qui OBÉIT (le programme de manche ci-dessus,
-// exactement) franchit quand même le bord des données. Mesuré, couloir imposé,
+// sous un `hold` d'environ 49 m — soit un demi-côté sous 252 m ; voir
+// HOLD_STOP_GUARANTEE_M ci-dessous — le pilote qui OBÉIT (le programme de
+// manche ci-dessus, exactement) franchit quand même le bord des données.
+// Mesuré, couloir imposé,
 // une colonne par scène, pénétration de la pire famille (heavy5 partout) :
 //
 //   scène  t-eiffel  s-iena  poisso  bethe  roose  inval  triom  basti  parcp
@@ -160,15 +161,30 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 // Le tiers a choisi le cœur volable contre la garantie d'arrêt. Sur une carte
 // de poche, on préfère voler.
 
-// Le couloir HOLD effectif en dessous duquel la garantie ci-dessus tombe :
-// mesuré par bissection sur la pire famille (heavy5), encadré à
-// 49,032 < hold* <= 49,063 m, arrondi au mètre. L'arrondi n'est pas le facteur
-// limitant : le modèle de pilotage lui-même déplace la mesure voisine (le point
-// fixe) de 2,58 m sur sa grille de sensibilité. Exporté et non recopié parce
-// que tools/lib/add-map-core.mjs s'en sert pour avertir au moment où une carte
-// trop petite est ajoutée — sans quoi ce 49 deviendrait un deuxième nombre à
-// tenir à jour, exactement le problème qu'il ferme.
-export const HOLD_STOP_GUARANTEE_M = 49;
+// Le couloir HOLD effectif en dessous duquel la garantie ci-dessus tombe.
+// Mesuré, pas choisi : `node tools/geofence-measure.mjs --guarantee` le rejoue
+// par bissection sur la pire famille (heavy5) depuis un bracket anchré sur
+// R_HOLD — jamais sur cette constante-ci — et refuse un chiffre s'il n'encadre
+// pas ou ne converge pas. 2026-08-30, bracket par défaut [16,50 ; 66,00] :
+// `49,045 < hold* <= 49,057 m`, soit un demi-côté de carte entre 251,9 et
+// 252,0 m.
+//
+// Figé à 50 et non 49 : l'arrondi est délibérément vers le HAUT. Une garde qui
+// avertit à tort coûte une phrase au développeur qui ajoute la carte ; une
+// garde qui se tait à tort laisse passer une carte où le pilote qui obéit
+// franchit le bord sans que personne ne l'ait su. 49 aurait laissé une bande
+// de 6 cm — les cartes dont le rappel tombe dans [49 ; 49,06) — muette alors
+// que la pire famille y franchit. 50 la ferme, et ne change aucune des 24
+// scènes actuelles (poissoniere, la plus proche au-dessus, est à 51,5 m).
+// L'écart à la mesure est de toute façon dominé par le modèle de pilotage, qui
+// vaut 2,58 m sur la mesure voisine (le point fixe) — voir sa grille de
+// sensibilité dans tools/geofence-measure.mjs.
+//
+// Exporté et non recopié parce que tools/lib/add-map-core.mjs s'en sert pour
+// avertir au moment où une carte trop petite est ajoutée — sans quoi ce nombre
+// deviendrait un second exemplaire à tenir à jour, exactement le problème
+// qu'il ferme.
+export const HOLD_STOP_GUARANTEE_M = 50;
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y

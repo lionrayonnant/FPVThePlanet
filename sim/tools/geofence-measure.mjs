@@ -2,6 +2,7 @@
 // chaque famille de drone, et en déduit R_HOLD et R_CAUTION.
 //
 //   node tools/geofence-measure.mjs [sceneDir] [--start=<m>]
+//   node tools/geofence-measure.mjs [sceneDir] --guarantee [--bracket=<lo>,<hi>]
 //
 // CLAUDE.md : mesurés, pas choisis à la main.
 //
@@ -87,6 +88,27 @@
 // de s'arrêter et le banc refuse de livrer un chiffre. C'est voulu.)
 //
 // ---------------------------------------------------------------------------
+// --guarantee : jusqu'où la borne peut rétrécir le couloir
+// ---------------------------------------------------------------------------
+//
+// geofence.js borne son couloir sur les petites cartes (voir le bloc « Et la
+// carte, dans tout ça »). Rétrécir le couloir raidit la rampe mais ne rend pas
+// au drone la distance qu'il lui faut : en dessous d'un certain couloir, le
+// pilote qui OBÉIT — le même programme de manche, exactement — franchit quand
+// même le bord des données. Ce mode ENCADRE ce couloir-là par bissection sur
+// la pire famille, et c'est lui qui produit HOLD_STOP_GUARANTEE_M.
+//
+// Le bracket de départ n'est PAS dérivé de la constante calculée ici, même
+// règle que --start : sa borne haute est R_HOLD, dont le banc principal montre
+// que la pire famille s'y arrête avec MARGIN_M de reste, et sa borne basse est
+// R_HOLD/4, où elle franchit largement. Les deux bouts sont VÉRIFIÉS avant la
+// première bissection, et le mode refuse de livrer un chiffre s'ils
+// n'encadrent pas, ou si la bissection n'a pas convergé.
+//
+// La valeur à reporter est arrondie au mètre SUPÉRIEUR, délibérément : voir le
+// commentaire de HOLD_STOP_GUARANTEE_M dans geofence.js.
+//
+// ---------------------------------------------------------------------------
 // MARGIN_M — mesurée elle aussi
 // ---------------------------------------------------------------------------
 //
@@ -134,10 +156,14 @@ import {
 	actualRate, ANGLE_MAX_TILT, ANGLE_STRENGTH,
 } from '../src/flightController.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
-import { Geofence, horizontalMargin, A_MAX } from '../src/geofence.js';
+import {
+	Geofence, horizontalMargin, A_MAX, R_HOLD, R_CAUTION, HOLD_STOP_GUARANTEE_M,
+} from '../src/geofence.js';
 
 const args = process.argv.slice(2);
 const startArg = args.find((a) => a.startsWith('--start='));
+const GUARANTEE = args.includes('--guarantee');
+const bracketArg = args.find((a) => a.startsWith('--bracket='));
 const sceneDir = path.resolve(args.find((a) => !a.startsWith('--')) ?? 'public/scenes/tour-eiffel');
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
 const raw = fs.readFileSync(path.join(sceneDir, 'collision.bin'));
@@ -168,6 +194,21 @@ const BRAKE_STEPS = 10;        // pas du balayage des gaz de freinage, 0 → hov
 const DEFAULT_START = 10;
 const START = startArg ? Number(startArg.slice('--start='.length)) : DEFAULT_START;
 if (!Number.isFinite(START) || START <= 0) throw new Error(`--start invalide : ${startArg}`);
+// Bissection de --guarantee. Le bracket par défaut est anchré sur R_HOLD — une
+// constante que ce mode ne calcule PAS : en haut R_HOLD lui-même, où le banc
+// principal montre que la pire famille s'arrête avec MARGIN_M de reste ; en bas
+// son quart, où elle franchit largement. Les deux bouts sont vérifiés avant de
+// bissecter. Surchargeable par --bracket=<lo>,<hi>.
+const GUARANTEE_BRACKET = bracketArg
+	? bracketArg.slice('--bracket='.length).split(',').map(Number)
+	: [R_HOLD / 4, R_HOLD];
+if (GUARANTEE_BRACKET.length !== 2 || !GUARANTEE_BRACKET.every((x) => Number.isFinite(x) && x > 0)
+	|| GUARANTEE_BRACKET[0] >= GUARANTEE_BRACKET[1]) {
+	throw new Error(`--bracket invalide : ${bracketArg}`);
+}
+const GUARANTEE_TOL = 0.02;    // m : largeur d'encadrement visée
+const GUARANTEE_MAX_STEPS = 20;
+
 // « L'horizon est revenu » : à 1° près. Mesuré, le point fixe de la pire
 // famille ne bouge que de 1,1 m entre 0,25° et 4° (64,92 → 65,98) : ce seuil
 // ne porte pas le chiffre.
@@ -382,15 +423,77 @@ function findRHold(family, runup) {
 	return { rHold: trial, trace, maxImpact, last };
 }
 
+// La pire pénétration TOUTES FAMILLES confondues sous un couloir imposé, avec
+// les mêmes gardes que findRHold() : un banc qui a heurté, qui n'a pas arrêté,
+// qui n'a jamais retrouvé l'horizon ou qui est entré à l'arrêt ne mesure rien.
+function worstOfAll(hold, peak) {
+	let worst = -Infinity, who = null;
+	for (const family of FAMILIES) {
+		const r = worstOverBrake(family, hold, peak[family].d);
+		if (r.maxImpact > 0) throw new Error(`${family} : impact ${r.maxImpact.toFixed(1)} N sous un couloir de ${hold.toFixed(2)} m — la mesure serait fausse`);
+		if (!r.allStopped) throw new Error(`${family} : un freinage n'a pas atteint l'arrêt sous un couloir de ${hold.toFixed(2)} m`);
+		if (!r.allLevelled) throw new Error(`${family} : le pilote n'a jamais retrouvé l'horizon sous un couloir de ${hold.toFixed(2)} m`);
+		if (!r.allMoving) throw new Error(`${family} : entrée dans le couloir à l'arrêt sous un couloir de ${hold.toFixed(2)} m`);
+		if (r.deepest > worst) { worst = r.deepest; who = family; }
+	}
+	return { worst, who };
+}
+
+// Encadre par bissection le couloir sous lequel le pilote qui obéit se met à
+// franchir la face. Rend { lo, hi, who } : lo franchit, hi retient.
+function bisectGuarantee(peak) {
+	let [lo, hi] = GUARANTEE_BRACKET;
+	console.log(`\nbracket de départ [${lo.toFixed(2)}, ${hi.toFixed(2)}] m — anchré sur R_HOLD, pas sur la constante calculée ici`);
+	const atLo = worstOfAll(lo, peak);
+	const atHi = worstOfAll(hi, peak);
+	console.log(`  ${lo.toFixed(3).padStart(7)} → ${(atLo.worst > 0 ? '+' : '') + atLo.worst.toFixed(3)} (${atLo.who})`);
+	console.log(`  ${hi.toFixed(3).padStart(7)} → ${(atHi.worst > 0 ? '+' : '') + atHi.worst.toFixed(3)} (${atHi.who})`);
+	if (atLo.worst <= 0) throw new Error(`bracket bas invalide : à ${lo.toFixed(2)} m la pire famille ne franchit pas (${atLo.worst.toFixed(2)} m). Prendre un --bracket plus bas.`);
+	if (atHi.worst > 0) throw new Error(`bracket haut invalide : à ${hi.toFixed(2)} m la pire famille franchit encore (+${atHi.worst.toFixed(2)} m). Prendre un --bracket plus haut.`);
+	let who = atHi.who, steps = 0;
+	while (hi - lo > GUARANTEE_TOL) {
+		if (++steps > GUARANTEE_MAX_STEPS) {
+			throw new Error(`pas de convergence en ${GUARANTEE_MAX_STEPS} bissections : encadrement encore large de ${(hi - lo).toFixed(3)} m`);
+		}
+		const mid = (lo + hi) / 2;
+		const r = worstOfAll(mid, peak);
+		who = r.who;
+		console.log(`  ${mid.toFixed(3).padStart(7)} → ${(r.worst > 0 ? '+' : '') + r.worst.toFixed(3)} (${r.who})`);
+		if (r.worst > 0) lo = mid; else hi = mid;
+	}
+	return { lo, hi, who };
+}
+
 crossCheckLocalPush();
 console.log(`cross-check localPush() vs pushOf() : ok`);
-console.log(`scène ${path.basename(sceneDir)}   A_MAX ${A_MAX.toFixed(3)} m/s²   MARGIN_M ${MARGIN_M} m   départ de l'itération ${START} m\n`);
+console.log(`scène ${path.basename(sceneDir)}   A_MAX ${A_MAX.toFixed(3)} m/s²`
+	+ (GUARANTEE ? `   mode --guarantee` : `   MARGIN_M ${MARGIN_M} m   départ de l'itération ${START} m`) + `\n`);
 
 console.log(`approche : plein gaz, assiette tenue à ${(ANGLE_MAX_TILT * 180 / Math.PI).toFixed(0)}°, depuis l'arrêt`);
 const peak = {};
 for (const family of FAMILIES) {
 	peak[family] = approach(family);
 	console.log(`  ${family.padEnd(12)} vpic ${peak[family].v.toFixed(2)} m/s   atteinte à ${peak[family].d.toFixed(0)} m`);
+}
+
+if (GUARANTEE) {
+	const { lo, hi, who } = bisectGuarantee(peak);
+	// Le demi-côté qui produit ce couloir, via la borne de geofence.js :
+	// hold = R_HOLD * (halfMin / 3) / R_CAUTION.
+	const halfMin = (h) => (h * 3 * R_CAUTION) / R_HOLD;
+	// Arrondi au mètre SUPÉRIEUR, et pas au plus proche : une garde qui avertit
+	// à tort coûte une phrase, une garde qui se tait à tort laisse passer une
+	// carte où le pilote qui obéit franchit sans que personne ne l'ait su.
+	const value = Math.ceil(hi);
+	console.log(`\n  couloir de bascule encadré : ${lo.toFixed(3)} < hold* <= ${hi.toFixed(3)} m   (pire famille : ${who})`);
+	console.log(`  soit un demi-côté de carte  : ${halfMin(lo).toFixed(1)} < halfMin* <= ${halfMin(hi).toFixed(1)} m`);
+	console.log(`\n  HOLD_STOP_GUARANTEE_M = ${value}   (borne haute arrondie au mètre SUPÉRIEUR, exprès)`);
+	// Simple contrôle de cohérence : la constante figée n'entre nulle part dans
+	// la recherche ci-dessus, elle est seulement comparée à son résultat.
+	console.log(`  constante figée dans geofence.js : ${HOLD_STOP_GUARANTEE_M}`
+		+ (HOLD_STOP_GUARANTEE_M === value ? '   → à jour' : `   → À METTRE À JOUR (${value})`));
+	console.log(`\n  → reporter cette valeur dans src/geofence.js, avec la date.`);
+	process.exit(HOLD_STOP_GUARANTEE_M === value ? 0 : 1);
 }
 
 console.log(`\nR_HOLD self-consistant par famille (pire des ${BRAKE_STEPS + 1} gaz de freinage) :`);
