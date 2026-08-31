@@ -49,21 +49,21 @@
 			"path": "3060406071636370470326",
 			"epoch": 984,
 			"imageryEpoch": null,
-			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s3060406071636370470326!2u984!2e6!4b0",
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s3060406071636370470326!2u984!2e1!4b0",
 			"file": "node-0-3060406071636370470326.pb"
 		},
 		{
 			"path": "306040607163637042477",
 			"epoch": 984,
 			"imageryEpoch": null,
-			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306040607163637042477!2u984!2e6!4b0",
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306040607163637042477!2u984!2e1!4b0",
 			"file": "node-1-306040607163637042477.pb"
 		},
 		{
 			"path": "30604060716363607",
 			"epoch": 984,
 			"imageryEpoch": null,
-			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s30604060716363607!2u984!2e6!4b0",
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s30604060716363607!2u984!2e1!4b0",
 			"file": "node-2-30604060716363607.pb"
 		}
 	]

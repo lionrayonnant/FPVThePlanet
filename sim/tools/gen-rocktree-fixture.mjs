@@ -8,6 +8,11 @@
 // Bulks absents du HAR (cache navigateur) ont été refetchés en live :
 //   - Bulk racine ('') : https://kh.google.com/rt/earth/BulkMetadata/pb=!1m2!1s!2u1014
 //   - Bulks intermédiaires manquants : même URL avec prefix dans !1s
+//
+// NodeData : le HAR les contient en !2e6 (CRN_DXT1), mais le fournisseur exige
+// toujours !2e1 (JPEG). Les fixtures sont donc re-capturées en !2e1 : les URLs
+// sont réécrites au moment de générer l'index. Régénérer n'introduit pas
+// d'incohérence : les nœuds restent en JPEG.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -72,7 +77,9 @@ for (const p of [...wanted].sort((a, b) => a.length - b.length || (a < b ? -1 : 
 picked.forEach((n, i) => {
 	const file = `node-${i}-${n.path}.pb`;
 	save(file, n.b64);
-	index.nodes.push({ path: n.path, epoch: n.epoch, imageryEpoch: n.imageryEpoch, url: n.url, file });
+	// Réécrire l'URL HAR (!2e6 = CRN_DXT1) en !2e1 (JPEG), format que le fournisseur exige.
+	const url = n.url.replace(/!2e\d+/, '!2e1');
+	index.nodes.push({ path: n.path, epoch: n.epoch, imageryEpoch: n.imageryEpoch, url, file });
 });
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index, null, '\t') + '\n');
 console.log(`${index.bulks.length} bulks, ${index.nodes.length} nodes ->`, OUT);

@@ -6,12 +6,12 @@ export function readVarint(buf, pos) {
 	let v = 0, shift = 0, b;
 	do {
 		b = buf[pos.i++];
-		// Au-delà de 2^53 un varint ne tient plus dans un Number ; rocktree n'en
-		// émet pas (epochs, ids, compteurs). On lève plutôt que de corrompre.
-		if (shift >= 53) throw new Error('varint > 2^53');
 		v += (b & 0x7f) * 2 ** shift;
 		shift += 7;
 	} while (b & 0x80);
+	// Au-delà de 2^53 un varint ne tient plus dans un Number ; rocktree n'en
+	// émet pas (epochs, ids, compteurs). On lève plutôt que de corrompre.
+	if (!Number.isSafeInteger(v)) throw new Error('varint > 2^53');
 	return v;
 }
 

@@ -24,6 +24,12 @@ t('pb : varint, len-delimited et packed doubles sur un message fabriqué', () =>
 	assert.equal(doubles(f[2].value)[0], 1.5);
 });
 
+t('pb : varint overflow lève (9 octets encodant >2^53)', () => {
+	// field 1 varint de 9 octets encodant 2^54
+	const buf = Buffer.from([0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x04]);
+	assert.throws(() => readFields(buf), /varint > 2\^53/);
+});
+
 t('planetoid : epoch racine 1014 (constaté live le 2026-08-31)', () => {
 	assert.equal(parsePlanetoid(read(FIX.planetoid)).rootEpoch, FIX.epoch);
 });
@@ -69,8 +75,9 @@ t('node : matrice 16 doubles dont le translationnel est à ~rayon terrestre', ()
 		for (const m of node.meshes) {
 			assert.equal(m.vertices.length % 3, 0, 'vertices = 3 plans d\'octets');
 			assert.ok(m.texture, 'texture présente');
-			assert.equal(m.texture.format, 6, 'format 6 (fixture)');
-			assert.ok(m.texture.data.length > 0, 'texture data présente');
+			assert.equal(m.texture.format, 1, 'format JPG (!2e1)');
+			// Un JPEG commence par FFD8.
+			assert.equal(m.texture.data.readUInt16BE(0), 0xffd8);
 		}
 		assert.ok(node.copyrightIds.length > 0, 'copyright_ids présents');
 	}
