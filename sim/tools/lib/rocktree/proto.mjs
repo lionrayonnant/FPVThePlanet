@@ -40,8 +40,8 @@ export function parseBulk(buf) {
 	}
 	return {
 		nodes,
-		headNodeCenter: doubles(one(f, 3) ?? Buffer.alloc(0)),
-		metersPerTexel: floats(one(f, 4) ?? Buffer.alloc(0)),
+		headNodeCenter: doubles(one(f, 3) ?? new Uint8Array(0)),
+		metersPerTexel: floats(one(f, 4) ?? new Uint8Array(0)),
 		defaultImageryEpoch: one(f, 5) ?? null,
 	};
 }
@@ -78,11 +78,13 @@ function parseMesh(buf) {
 	};
 }
 
+const utf8 = new TextDecoder('utf-8');
+
 export function parseCopyrights(buf) {
 	const map = new Map();
 	for (const raw of all(readFields(buf), 1)) {
 		const c = readFields(raw);
-		map.set(one(c, 1), one(c, 2).toString('utf8'));
+		map.set(one(c, 1), utf8.decode(one(c, 2)));
 	}
 	return map;
 }

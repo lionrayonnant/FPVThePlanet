@@ -929,6 +929,19 @@ await t('pb : readFields marche sur un Uint8Array pur, pas seulement un Buffer',
 	assert.equal(f[0].value, 1.5);
 });
 
+await t('copyrights : parseCopyrights marche sur un Uint8Array pur (pas seulement Buffer)', () => {
+	// field 1 (message Copyright), lui-même : field 1 = id (varint 5), field 2 = texte utf-8 "©" (2 octets: 0xC2 0xA9)
+	// Copyright { id=5, text="©" } encodé à la main :
+	//   sous-message field2=2 (texte) : clé=2*8+2=18, len=2, 0xC2 0xA9
+	//   field1=1 (id) : clé=1*8+0=8, varint 5
+	const copyrightMsg = new Uint8Array([8, 5, 18, 2, 0xc2, 0xa9]);
+	// message racine : field 1 = ce sous-message, répété (wire 2)
+	const key = 1 * 8 + 2;
+	const outer = new Uint8Array([key, copyrightMsg.length, ...copyrightMsg]);
+	const map = parseCopyrights(outer);
+	assert.equal(map.get(5), '©');
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);
 
 })();
