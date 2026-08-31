@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from '../rocktree/proto.mjs';
-import { octantsCovering } from '../rocktree/octant.mjs';
+import { descendBox, boxIntersects } from '../rocktree/octant.mjs';
 import { polyHash, polygonBounds } from '../tiles.mjs';
 
 // tools/lib/providers/ est trois niveaux sous sim/ (tools -> lib -> providers) :
@@ -59,11 +59,9 @@ export const _net = {
 // fixtures sont à 0.0 (champ non renseigné faute de subdivision connue à
 // cette profondeur dans cette capture) — pas une mesure, donc la sortie est
 // plafonnée à 22. Niveau 2 est le plancher : un chemin de racine (ROOTS dans
-// octant.mjs) fait déjà 2 digits, donc c'est le niveau le moins profond
-// qu'octantsCovering() puisse jamais produire — niveau 1 lui fait dépasser
-// sa condition d'arrêt (pathArr.length === level) et boucler jusqu'au
-// débordement de pile (mesuré). Aucune valeur de zoom utilisée par la GUI
-// (~13-20, cf. README) n'approche ce plancher.
+// octant.mjs) fait déjà 2 digits, c'est donc le niveau le moins profond qui
+// désigne un octant. Aucune valeur de zoom utilisée par la GUI (~13-20, cf.
+// README) n'approche ce plancher.
 const ZOOM_TO_LEVEL = { 13: 14, 14: 15, 15: 16, 16: 17, 17: 18, 18: 19, 19: 20, 20: 21 };
 export function zoomToLevel(zoom) {
 	const z = Math.round(zoom);
@@ -73,39 +71,27 @@ export function zoomToLevel(zoom) {
 	return Math.max(2, Math.min(22, z + 1));
 }
 
-// Estimation géométrique du nombre de cellules lat/lon distinctes de taille
-// (90/2^(level-2))° qui recoupent `zone`, sur UNE seule couche verticale.
-// « level-2 » : le chemin de racine fait déjà 2 digits (voir ZOOM_TO_LEVEL
-// ci-dessus), donc c'est le nombre de digits ajoutés par octantsCovering()
-// après la racine. Chaque digit suivant sépare la boîte courante en 2 (lat)
-// x 2 (lon) x 2 (vertical, cf. octant.mjs:childBoxes — le bit vertical du
-// digit ne change PAS la boîte lat/lon) : la vraie énumération visite donc
-// 2^(level-2) fois plus de chemins que de cellules lat/lon distinctes, ce
-// qui la rend inutilisable comme estimation instantanée (mesuré : 41 s pour
-// une zone de 240 m au niveau 21 — zoom GUI 20 par défaut —, >300 s sans
-// terminer pour 1 km ; voir HANDOFF.md). `estimateColumns` ne fait donc PAS
-// tourner octantsCovering()/traverse() : elle borne la grille géométrique-
-// ment, en O(1). Ce n'est pas le nombre réel de nœuds que traverse()
-// retiendrait (branches refermées par un LEAF, ancêtres fill-in exclus,
-// z-fight exclu...) — seulement une majoration pour l'affichage GUI et le
-// garde-fou de fetch() ci-dessous. La sonde (probe) reste la seule preuve
-// réelle de couverture.
-export function estimateColumns(zone, level) {
-	const digits = Math.max(level - 2, 0);
-	const cellDeg = 90 / 2 ** digits;
-	// +1 : la grille n'est pas alignée sur les bords de `zone`, une cellule
-	// à cheval sur un bord compte quand même (même logique que boxIntersects).
-	const cols = Math.max(1, Math.ceil((zone.east - zone.west) / cellDeg) + 1);
-	const rows = Math.max(1, Math.ceil((zone.north - zone.south) / cellDeg) + 1);
-	return cols * rows;
-}
+// Plafond de sécurité de la traversée, en NŒUDS RETENUS.
+//
+// Il remplace un garde-fou qui mesurait la mauvaise chose : l'ancien comparait
+// un nombre de COLONNES lat/lon (~4 400 pour une zone de 500 m au niveau 21) à
+// une limite de 200 000, alors que le coût réel était colonnes × 2^(niveau-2),
+// soit ~2·10^9. Il ne se déclenchait donc jamais là où il aurait fallu, et un
+// téléchargement de zone ordinaire partait pour des heures (issue #153).
+//
+// Ce n'est pas un optimum mesuré, c'est un arrêt de catastrophe. Repère réel :
+// le bake `ge-champ-de-mars` (rayon 120 m, niveau 21) retient 91 nœuds ;
+// 50 000 nœuds valent donc de l'ordre de 2,8 km de côté — très au-delà de
+// toute scène FPV, tout en empêchant un bbox tracé à l'échelle d'un pays de
+// lancer des dizaines de Go de NodeData en silence.
+const MAX_NODES = 50_000;
 
-// Zone×zoom au-delà de laquelle la vraie traversée (octantsCovering) est
-// hors de portée d'un fetch interactif — cf. le commentaire d'estimateColumns
-// ci-dessus pour les mesures. Le vrai correctif (marche descendante par
-// bulks plutôt que digit-par-digit) est un suivi séparé ; ce garde-fou évite
-// juste le pendage silencieux de plusieurs minutes/heures en attendant.
-const MAX_FETCH_COLUMNS = 200_000;
+// Bulks demandés en parallèle. Une génération de la marche descendante tient
+// dans quelques dizaines de requêtes : les paralléliser par petits lots change
+// une traversée d'une minute en une de quelques secondes, sans ouvrir des
+// centaines de connexions d'un coup. Même esprit que le BATCH de
+// downloadNodes() plus bas.
+const BULK_BATCH = 8;
 
 // Mêmes règles que flyover.mjs (copiées avec leur justification) : le nom du
 // dossier de cache est indépendant du fournisseur (cf. HANDOFF), mais chaque
@@ -202,59 +188,132 @@ export function dropFillinAncestors(nodesOut) {
 	return hasDescendant.size;
 }
 
-// Cœur du fournisseur : descend les bulks tous les 4 digits (le grain auquel
-// le protocole les découpe), en vérifiant à chaque étage que le préfixe
-// existe et sert du NodeData (flags & 8 = NODATA). Un LEAF (flags & 4)
-// rencontré avant le niveau demandé referme la branche : le nœud le plus
-// profond retenu (fill-in) est le dernier prefix valide, pas de descente plus
-// loin puisqu'aucun bulk enfant n'existe.
-export async function traverse(zone, level, { signal, onLog } = {}) {
+// Expansion d'UN bulk, sans réseau. À partir des seuls nœuds que ce bulk
+// déclare, rend (a) les nœuds à retenir et (b) les bulks enfants à visiter.
+//
+// C'est le renversement qui fait l'issue #153. L'ancienne traversée énumérait
+// d'abord toute la géométrie possible au niveau cible, puis demandait aux
+// bulks si chaque chemin existait ; comme chaque digit porte 2 bits lat/lon ET
+// 1 bit vertical, et que le bit vertical ne change pas la boîte lat/lon, elle
+// produisait 2^(niveau-2) chemins par cellule réelle — 524 288 au niveau 21.
+// Ici on part de ce que les bulks déclarent : la duplication verticale ne
+// coûte plus que ce qui existe vraiment.
+//
+// Les chemins relatifs d'un bulk font 1 à 4 digits ; au-delà, c'est un bulk
+// enfant qui prend le relais (frontière du protocole). On parcourt donc en
+// profondeur l'arbre INTERNE du bulk, en raffinant la boîte digit par digit et
+// en élaguant dès qu'elle ne recoupe plus la zone.
+//
+// Pure et exportée pour être verrouillée seule par le selftest : toute la
+// logique de décision (NODATA, LEAF, niveau, frontière de bulk) tient ici,
+// traverse() ne s'occupe plus que du réseau et de l'assemblage.
+export function expandBulk(bulk, bulkPath, bulkBox, zone, level) {
+	const retained = [];
+	const children = [];
+	const stack = [{ rel: '', box: bulkBox }];
+
+	while (stack.length > 0) {
+		const { rel, box } = stack.pop();
+		for (let d = 0; d < 8; d++) {
+			const childRel = rel + d;
+			const meta = bulk.nodes.get(childRel);
+			// Absent du bulk : rien de plus profond ne peut exister sous ce
+			// chemin (chaque préfixe d'un nœud est déclaré, cf. selftest).
+			if (!meta) continue;
+
+			const full = bulkPath + childRel;
+			// Un chemin relatif peut faire 4 digits d'un coup : sans cette
+			// garde, un bulk à la profondeur 20 rendrait des nœuds de
+			// profondeur 24 pour un niveau 21. L'ancienne traversée ne le
+			// pouvait pas (ses cibles faisaient exactement `level` digits) —
+			// c'est une divergence à ne pas introduire.
+			if (full.length > level) continue;
+
+			const childBox = descendBox(box, bulkPath + rel, String(d));
+			// null = branche géométriquement impossible (clé est sous une
+			// calotte polaire) ; sinon on élague sur la zone.
+			if (!childBox || !boxIntersects(childBox, zone)) continue;
+
+			// NODATA (flags & 8) : le nœud existe comme maillon du chemin mais
+			// ne sert pas de NodeData — on le traverse sans le retenir.
+			if (!(meta.flags & 8)) retained.push({ path: full, meta });
+
+			// LEAF (flags & 4) : la branche est refermée, aucun bulk enfant
+			// n'existe en dessous.
+			if (meta.flags & 4) continue;
+			if (full.length >= level) continue;
+
+			if (childRel.length === 4) children.push({ bulkPath: full, box: childBox, epoch: meta.bulkEpoch ?? bulk.epoch });
+			else stack.push({ rel: childRel, box: childBox });
+		}
+	}
+	return { retained, children };
+}
+
+// Cœur du fournisseur : marche descendante par bulks, filtrée par la zone.
+//
+// On descend génération de bulks par génération de bulks (les bulks d'une même
+// profondeur sont indépendants, donc demandés en parallèle par lots de
+// BULK_BATCH) ; expandBulk() ci-dessus décide seul ce qui est retenu et où
+// descendre. Le coût suit le nombre de nœuds réellement présents dans la zone,
+// pas le nombre de cellules cibles fois 2^(niveau-2).
+export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES } = {}) {
 	const { rootEpoch, radius } = await getPlanetoid({ signal });
 	const bulkCache = new Map();
 	let visitedBulks = 0;
 
-	async function getBulk(bulkPath, epoch) {
+	// On mémorise la PROMESSE, pas le résultat : les lots parallèles ci-dessous
+	// peuvent demander deux fois le même bulk avant que le premier n'ait
+	// répondu, et une Map de résultats les laisserait tous deux passer au
+	// réseau.
+	function getBulk(bulkPath, epoch) {
 		if (bulkCache.has(bulkPath)) return bulkCache.get(bulkPath);
-		const bulk = await fetchBulk(bulkPath, epoch, { signal });
-		bulkCache.set(bulkPath, bulk);
-		if (bulk) visitedBulks++;
-		return bulk;
+		const p = fetchBulk(bulkPath, epoch, { signal }).then((bulk) => {
+			if (bulk) visitedBulks++;
+			return bulk;
+		});
+		bulkCache.set(bulkPath, p);
+		return p;
 	}
 
 	const nodesOut = new Map();
-	for (const { path: target } of octantsCovering(zone, level)) {
-		let bulk = await getBulk('', rootEpoch);
-		let consumed = 0;
-		let lastGood = null; // { path, meta, bulk }
+	// Le bulk racine n'a pas de boîte parente : ses deux premiers digits
+	// adressent une racine, et descendBox() le sait à la longueur du chemin.
+	let frontier = [{ bulkPath: '', box: null, epoch: rootEpoch }];
 
-		while (bulk && consumed < target.length) {
-			const remain = Math.min(4, target.length - consumed);
-			let matchedLen = 0, leafHit = false;
-			for (let len = 1; len <= remain; len++) {
-				const rel = target.slice(consumed, consumed + len);
-				const meta = bulk.nodes.get(rel);
-				if (!meta) break;
-				matchedLen = len;
-				if (!(meta.flags & 8)) lastGood = { path: target.slice(0, consumed + len), meta, bulk };
-				if (meta.flags & 4) { leafHit = true; break; }
+	while (frontier.length > 0) {
+		const next = [];
+		for (let i = 0; i < frontier.length; i += BULK_BATCH) {
+			const slice = frontier.slice(i, i + BULK_BATCH);
+			const bulks = await Promise.all(slice.map((f) => getBulk(f.bulkPath, f.epoch)));
+			for (let k = 0; k < slice.length; k++) {
+				const bulk = bulks[k];
+				// Bulk absent (404/410) : cette branche de l'octree n'est pas
+				// dans la capture, ce n'est pas une erreur.
+				if (!bulk) continue;
+				const { retained, children } = expandBulk(bulk, slice[k].bulkPath, slice[k].box, zone, level);
+				for (const { path: p, meta } of retained) {
+					if (nodesOut.has(p)) continue;
+					nodesOut.set(p, {
+						path: p,
+						epoch: meta.epoch ?? bulk.epoch,
+						imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? bulk.defaultImageryEpoch) : null,
+						flags: meta.flags,
+					});
+				}
+				next.push(...children);
 			}
-			if (matchedLen === 0 || leafHit) break; // chemin absent, ou LEAF : branche refermée
-			consumed += matchedLen;
-			if (consumed >= target.length || matchedLen < 4) break; // niveau atteint, ou pas de frontière de bulk
-			const rel4 = target.slice(consumed - 4, consumed);
-			const nextEpoch = bulk.nodes.get(rel4)?.bulkEpoch ?? bulk.epoch;
-			bulk = await getBulk(target.slice(0, consumed), nextEpoch);
+			// Plafond vérifié PENDANT la marche, pas après : le but est de
+			// s'arrêter avant d'avoir dépensé le réseau, pas de constater les
+			// dégâts. Voir MAX_NODES plus haut pour l'ordre de grandeur.
+			if (nodesOut.size > maxNodes) {
+				throw new Error(
+					`zone trop grande pour ce zoom : plus de ${maxNodes.toLocaleString('fr-FR')} octants au niveau ${level}.\n` +
+					'  Réduis le zoom ou la zone (rayon/bbox/polygone) avant de relancer.'
+				);
+			}
 		}
-
-		if (lastGood && !nodesOut.has(lastGood.path)) {
-			const { meta, bulk: b } = lastGood;
-			nodesOut.set(lastGood.path, {
-				path: lastGood.path,
-				epoch: meta.epoch ?? b.epoch,
-				imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? b.defaultImageryEpoch) : null,
-				flags: meta.flags,
-			});
-		}
+		frontier = next;
 	}
 
 	// fill-in ancestors : voir le commentaire sur dropFillinAncestors() plus haut.
@@ -278,17 +337,17 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 	return { nodes, visitedBulks, rootEpoch, radius };
 }
 
-// Interroge une estimation seule (aucun réseau, aucune traversée de
-// l'octree) : combien de colonnes lat/lon, sur quelle emprise — les champs
-// que la GUI lit (columns, trigger, pruned). Voir le commentaire
-// d'estimateColumns() plus haut : plan() n'appelle plus traverse() —
-// l'énumération réelle pendait des minutes au zoom par défaut (mesuré,
-// cf. HANDOFF.md).
-export async function plan(opts) {
+// Plan : la marche par bulks étant désormais proportionnelle aux nœuds
+// réellement présents (issue #153), plan() peut se permettre la VRAIE
+// traversée et rendre le compte exact d'octants retenus — là où il rendait
+// une majoration géométrique sans rapport avec ce que Google couvre. Aucun
+// NodeData n'est téléchargé : seulement les BulkMetadata, quelques dizaines
+// de requêtes.
+export async function plan(opts, { signal } = {}) {
 	const zone = zoneOf(opts);
 	const level = zoomToLevel(opts.zoom ?? 20);
-	const columns = estimateColumns(zone, level);
-	return { columns, trigger: 'Google Earth', pruned: 0, coverage: zone };
+	const { nodes, visitedBulks } = await traverse(zone, level, { signal });
+	return { columns: nodes.length, trigger: 'Google Earth', pruned: 0, coverage: zone, level, visitedBulks };
 }
 
 // Sonde de couverture : une micro-zone (~3x3 octants) au centre de la zone,
@@ -378,23 +437,6 @@ export async function fetch(opts, { onLog, signal } = {}) {
 
 	const zone = zoneOf(opts);
 	const level = zoomToLevel(zoom);
-
-	// Garde-fou : la vraie traversée (octantsCovering, digit par digit) est en
-	// O(cellules × 2^(level-2) variantes verticales) — voir le commentaire
-	// d'estimateColumns() plus haut pour les mesures (41 s / 240 m niveau 21,
-	// >300 s sans terminer / 1 km). Sans ce garde-fou, un fetch() sur une zone
-	// trop grande pour ce zoom pend silencieusement des minutes, voire des
-	// heures, avant d'échouer ou de saturer la mémoire.
-	const estimated = estimateColumns(zone, level);
-	if (estimated > MAX_FETCH_COLUMNS) {
-		throw new Error(
-			`zone trop grande pour ce zoom : ~${estimated.toLocaleString('fr-FR')} cellules estimées au niveau ${level} ` +
-			`(limite ${MAX_FETCH_COLUMNS.toLocaleString('fr-FR')}).\n` +
-			'  Réduis le zoom ou la zone (rayon/bbox/polygone) avant de relancer.\n' +
-			"  La traversée digit-par-digit actuelle ne passe pas à l'échelle à cette taille ; " +
-			'une marche descendante par bulks (vrai fix, issue de suivi) lèvera cette limite.'
-		);
-	}
 
 	const { nodes, rootEpoch, radius } = await traverse(zone, level, { signal, onLog });
 

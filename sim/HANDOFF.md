@@ -875,23 +875,8 @@ Plan d'origine (contexte de la décision d'architecture) :
     - les *reality meshes* (étage 3 du design amendé) — pas abordés ici.
     - la traversée retient par **bbox**, pas par le polygone exact tracé côté
       GUI — un sur-ensemble comme pour Flyover, non resserré.
-    - `octantsCovering()` énumère un chemin par variante VERTICALE en plus des
-      cellules lat/lon (2^(level-2) variantes par cellule, cf. commentaire
-      `estimateColumns()` dans `google-earth.mjs`) : ~1,8 M chemins/s mesurés,
-      soit ~5 s pour les 9 M évoqués dans une version antérieure de cette
-      note — mais ce chiffre n'était pas reproductible tel quel : au zoom GUI
-      par défaut (20 → niveau 21), une zone de 240 m prend **41 s** rien que
-      pour l'énumération, et une zone de 1 km ne termine **pas en 300 s**. La
-      GUI (« Vérifier la couverture » → `/plan`) appelait cette énumération
-      sur la zone entière : pendaison multi-minute garantie aux réglages par
-      défaut. Mitigation posée dans la revue finale de l'issue #18 : `plan()`
-      n'appelle plus `traverse()`, il rend une estimation géométrique O(1) du
-      nombre de cellules lat/lon (`estimateColumns()`) ; `fetch()` calcule la
-      même estimation avant de traverser et lève une erreur française
-      explicite au-delà de 200 000 cellules plutôt que de pendre en
-      silence. Le vrai correctif — une marche descendante par *bulks* plutôt
-      que digit par digit, qui élimine la duplication verticale à la racine —
-      reste à faire ; issue de suivi à ouvrir.
+    - ~~`octantsCovering()` énumère un chemin par variante VERTICALE~~ —
+      **résolu, issue #153** (voir la section dédiée plus bas).
     - `tools/remove-map.mjs` garde un chemin de cache Flyover-only (voir
       bullet Stage 1-2 ci-dessus).
     - calibration `zoom ↔ niveau` mono-latitude (voir plus haut).
@@ -906,6 +891,57 @@ Plan d'origine (contexte de la décision d'architecture) :
     (bulks/planetoid/copyrights). Le HAR (114 Mo) est gitignoré
     (`docs/*.har`) ; régénération via
     `node tools/gen-rocktree-fixture.mjs "<chemin du .har>"` sur un HAR frais.
+
+- **Traversée rocktree : marche descendante par bulks (issue #153)**, branche
+  `issue-153-bulk-walk`.
+  - **Le défaut** : `traverse()` énumérait d'abord toute la géométrie possible
+    au niveau cible (`octantsCovering`), puis demandait aux bulks si chaque
+    chemin existait. Chaque digit d'octree porte 2 bits lat/lon **et 1 bit
+    vertical**, et le bit vertical ne change pas la boîte lat/lon : l'énumération
+    produisait donc 2^(niveau-2) chemins par cellule réelle — **524 288 au
+    niveau 21**, le zoom GUI par défaut. Google Earth étant le fournisseur par
+    défaut, c'était le chemin nominal qui pendait.
+  - **Le garde-fou d'alors ne pouvait rien** : il comparait un nombre de
+    *colonnes* lat/lon (~4 400 pour une zone de 500 m au niveau 21) à une limite
+    de 200 000, alors que le coût réel était colonnes × 2^19 ≈ 2·10⁹. Il ne se
+    déclenchait jamais là où il aurait fallu.
+  - **Le correctif** : on renverse. `expandBulk()` (pur, exporté, testé seul)
+    part des nœuds qu'un bulk déclare, raffine la boîte digit par digit et
+    élague sur la zone ; `traverse()` descend génération de bulks par génération,
+    par lots parallèles de 8. Le coût suit les nœuds réellement présents.
+    `descendBox()` (octant.mjs) porte la géométrie : racines à 2 digits, puis
+    `childBoxes`, `null` hors géométrie.
+  - **Mesuré** (Champ de Mars, zoom 20 → niveau 21, réseau réel) :
+
+    | zone | ancien | nouveau | nœuds |
+    |------|--------|---------|-------|
+    | 40 m  | 5,0 s  | 0,36 s | 109 = 109 |
+    | 240 m | 62,1 s | 0,57 s | 429 = 429 |
+    | 1 km  | ne terminait pas (>300 s) | 2,9 s | 3 551 |
+
+    Soit **108×** sur la zone de 240 m. Les ensembles de nœuds sont **identiques
+    au chemin près** — c'est une accélération, pas un changement de sémantique,
+    et le selftest le verrouille contre un oracle (l'ancien algorithme, transcrit
+    dans `rocktree-selftest.mjs` et gardé là seulement).
+  - `plan()` fait désormais la vraie traversée et rend le compte exact d'octants
+    (aucun NodeData, seulement des BulkMetadata) au lieu d'une majoration
+    géométrique. `estimateColumns()` et `MAX_FETCH_COLUMNS` sont supprimés ;
+    le plafond est maintenant `MAX_NODES = 50 000`, vérifié **pendant** la marche.
+  - **Vérifié** : 28 tests `tools/rocktree-selftest.mjs` ; équivalence contre
+    l'oracle sur fixtures (niveaux 17 et 20) et sur réseau réel (niveau 21,
+    rayons 20 et 120 m) ; bake réel `radius 150` (594 nœuds, 793 575 sommets,
+    51,5 Mo) rechargé et piloté en navigateur, `selftest.mjs` de scène au vert.
+  - **Le « 91 nœuds » du bake `ge-champ-de-mars`** cité plus haut était au
+    **zoom 19**, pas 20 : ce n'est pas une régression face aux 429 mesurés ici.
+  - **Découvert au passage, PAS corrigé ici — issue de suivi** : ~16 % de la
+    surface tournée vers le ciel est noire. Cause mesurée : la traversée retient
+    les **deux jumeaux verticaux** d'une même case lat/lon (mêmes digits au bit
+    vertical près). Sur 58 nœuds sombres, 57 partagent leur case avec un autre
+    nœud retenu, et 53 de ces cases contiennent un nœud clair ET un nœud noir —
+    Google sert un placeholder de 970 octets à texture noire pour l'un des deux,
+    et les deux sont dessinés. `dropFillinAncestors()` ne les voit pas : aucun
+    n'est préfixe de l'autre. **Préexistant** — l'ancienne traversée retenait
+    exactement les mêmes nœuds.
 
 - **Passe d'ergonomie — navigation clavier + manette sur tous les écrans
   (issue #123)**, branche `claude/issue-123-tj720t`.
