@@ -44,14 +44,17 @@ appellent déjà ce endpoint — cohérent avec leur propre visionneuse web. Pas
 proxy nécessaire.
 
 **Portabilité du décodeur.** `tools/lib/rocktree/proto.mjs`, `unpack.mjs`,
-`octant.mjs` n'importent rien de `node:*`. `pb.mjs`, le lecteur protobuf bas
-niveau, dépend de trois choses spécifiques à `Buffer` Node :
+`octant.mjs` n'importent rien de `node:*`. Mais un grep complet (pas la
+première recherche, incomplète) trouve SIX appels spécifiques à `Buffer`
+Node répartis sur trois fichiers :
 
 | appel | fichier | usage |
 |---|---|---|
-| `buf.readDoubleLE(pos.i)` | `pb.mjs:22` | champ wire-type 1 (64 bits) |
-| `buf.readFloatLE(pos.i)` | `pb.mjs:25` | champ wire-type 5 (32 bits) |
+| `buf.readDoubleLE(pos.i)` | `pb.mjs:26` | champ wire-type 1 (64 bits) |
+| `buf.readFloatLE(pos.i)` | `pb.mjs:28` | champ wire-type 5 (32 bits) |
 | `Buffer.alloc(0)` ×2 | `proto.mjs:43-44` | repli si le champ est absent |
+| `.toString('utf8')` | `proto.mjs:85` | `parseCopyrights()`, texte des copyrights |
+| `buf.readUInt16LE(0)`/`(2)` | `unpack.mjs:22` | en-tête des coordonnées de texture |
 | `Buffer.from(await res.arrayBuffer())` | `google-earth.mjs:34` | retour de `_net.http()` |
 
 `buf.subarray(...)` (wire-type 2, len-delimited) est déjà portable :
@@ -61,8 +64,8 @@ niveau, dépend de trois choses spécifiques à `Buffer` Node :
 
 ### Les parsers deviennent runtime-agnostiques
 
-`pb.mjs`, `proto.mjs`, `unpack.mjs`, `octant.mjs` : les quatre appels du
-tableau ci-dessus sont remplacés par leurs équivalents `DataView`/`Uint8Array`
+`pb.mjs`, `proto.mjs`, `unpack.mjs` : les six appels du tableau ci-dessus sont
+remplacés par leurs équivalents `DataView`/`Uint8Array`/`TextDecoder`
 natifs (`new DataView(buf.buffer, ...).getFloat64(...)`, `new Uint8Array(0)`,
 etc.). Un seul décodeur, deux appelants :
 
@@ -86,20 +89,41 @@ pré-cuits. La réparation des texels noirs (#158, qui utilise `sharp` côté
 Node) reste une passe de qualité pour le bake ; elle n'est pas requise pour
 qu'un nœud s'affiche et n'est pas dans ce périmètre.
 
+### `tools/lib/rocktree/url.mjs` — nouveau, extrait de `google-earth.mjs`
+
+`nodeUrl({ path, epoch, imageryEpoch, flags })` (aujourd'hui privée dans
+`google-earth.mjs:165`) construit l'URL `NodeData` — avec la garde sur
+`imageryEpoch` qui évite un `!3unull` (404 garanti, voir le commentaire en
+place). Elle ne dépend de rien de Node : extraite dans ce nouveau fichier avec
+`PREFIX`, importée par `google-earth.mjs` (qui perd sa copie privée) ET par
+`rocktree-worker.js` ci-dessous. Un seul endroit qui sait construire cette
+URL, comme pour les parsers.
+
 ### `src/rocktree-loader.js` — nouveau
 
 Miroir de `loadChunks()` dans `loader.js`. Expose une seule fonction :
 
 ```js
-fetchNode(path, epoch, { signal }) -> Promise<{ matrix, copyrightIds, meshes }>
+fetchNode({ path, epoch, imageryEpoch, flags }, { signal }) -> Promise<{ matrix, copyrightIds, meshes }>
 ```
 
-Un nœud en entrée, sa géométrie/texture en sortie — exactement la forme que
-`parseNode()` produit déjà (`{ matrix, copyrightIds, meshes }`, chaque mesh
-portant `vertices`, `indices`, `texCoords`, `texture`), simplement décodée par
-un chemin qui tourne dans un Worker navigateur. Ce module ne sait RIEN de la
-position du drone ni d'une fenêtre de streaming — ce sera le problème de la
-tranche suivante. Frontière nette : testable seule, remplaçable seule.
+Mêmes quatre champs que `nodeUrl()` en entrée — l'appelant les a déjà
+(c'est ce qu'une traversée de `BulkMetadata` produit). Sortie : exactement la
+forme que `parseNode()` produit déjà (`{ matrix, copyrightIds, meshes }`,
+chaque mesh portant `vertices`, `indices`, `texCoords`, `texture`), décodée
+par un chemin qui tourne dans un Worker navigateur. Ce module ne sait RIEN de
+la position du drone ni d'une fenêtre de streaming — ce sera le problème de
+la tranche suivante. Frontière nette : testable seule, remplaçable seule.
+
+**`signal` ne traverse PAS `postMessage()`.** Un `AbortSignal` n'est pas
+clonable par l'algorithme de clonage structuré — l'envoyer à un Worker
+échouerait. `rocktree-worker.js` ne connaît donc aucun signal : il reçoit
+`{ path, epoch, imageryEpoch, flags }` et fait son travail sans condition.
+L'annulation reste sur le fil principal, dans `rocktree-loader.js`, exactement
+comme `loader.js` le fait déjà pour les chunks pré-cuits (`worker.terminate()`
+dans `dropPreloadsExcept()`) : si `signal` se déclenche avant la réponse,
+`fetchNode()` appelle `worker.terminate()` et rejette sans jamais avoir
+prétendu transporter le signal plus loin.
 
 **Ce que `fetchNode` NE rend PAS, volontairement :**
 
