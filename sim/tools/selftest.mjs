@@ -1493,8 +1493,13 @@ console.log('\ntextures');
 {
 	const tileDir = manifest.source;
 	const mtlPath = tileDir ? path.join(tileDir, 'exp_model.mtl') : null;
-	if (!mtlPath || !fs.existsSync(mtlPath)) {
+	if (!tileDir || !fs.existsSync(tileDir)) {
 		console.log(`  SKIP  needs the source tile — ${mtlPath ?? 'no manifest.source'} is not on disk`);
+	} else if (!fs.existsSync(mtlPath)) {
+		// Non-OBJ decoders (Google Earth's rocktree, #110) have no exp_model.mtl
+		// to read UVs back from — nothing wrong with the scene, just a check
+		// that only knows how to re-derive them from an OBJ/MTL pair.
+		console.log('  SKIP  UV convention — skipped (décodeur non-OBJ, #110)');
 	} else {
 		const sharp = (await import('sharp')).default;
 
