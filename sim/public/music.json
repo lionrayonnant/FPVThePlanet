@@ -2,6 +2,125 @@
 	"schemaVersion": 1,
 	"tracks": [
 		{
+			"id": "cinewhoop-05b8b260",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-05b8b260.opus",
+			"durS": 85.177,
+			"bpm": 114,
+			"axes": {
+				"atmosphere": null,
+				"density": "dense layered arrangement",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 114 BPM, dense layered arrangement, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::15",
+			"modelSeed": 1672617869,
+			"model": "stable-audio-3-medium",
+			"lufs": -14.1
+		},
+		{
+			"id": "cinewhoop-08669785",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-08669785.opus",
+			"durS": 85.915,
+			"bpm": 111,
+			"axes": {
+				"atmosphere": null,
+				"darkness": "darker and colder",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 111 BPM, darker and colder, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::35",
+			"modelSeed": 345057103,
+			"model": "stable-audio-3-medium",
+			"lufs": -14.1
+		},
+		{
+			"id": "cinewhoop-17caf45f",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-17caf45f.opus",
+			"durS": 85.995,
+			"bpm": 104,
+			"axes": {
+				"darkness": "brighter and more open",
+				"density": "dense layered arrangement",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 104 BPM, brighter and more open, dense layered arrangement, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::4",
+			"modelSeed": 2124549221,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "cinewhoop-19e1b582",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-19e1b582.opus",
+			"durS": 83.703,
+			"bpm": 107,
+			"axes": {
+				"density": null,
+				"energy": "relentless and driving",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 107 BPM, relentless and driving, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::2",
+			"modelSeed": 1717857025,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
+			"id": "cinewhoop-24785dd1",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-24785dd1.opus",
+			"durS": 85.814,
+			"bpm": 111,
+			"axes": {
+				"density": null,
+				"energy": "restrained and patient",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 111 BPM, restrained and patient, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::10",
+			"modelSeed": 2097839984,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.6
+		},
+		{
+			"id": "cinewhoop-2be977e2",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-2be977e2.opus",
+			"durS": 85.771,
+			"bpm": 116,
+			"axes": {
+				"darkness": null,
+				"energy": "restrained and patient",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 116 BPM, restrained and patient, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::18",
+			"modelSeed": 1628535832,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
+			"id": "cinewhoop-3f83db72",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-3f83db72.opus",
+			"durS": 85.164,
+			"bpm": 114,
+			"axes": {
+				"aggression": "smooth and rounded",
+				"energy": "restrained and patient",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 114 BPM, smooth and rounded, restrained and patient, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::29",
+			"modelSeed": 1609999456,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.7
+		},
+		{
 			"id": "cinewhoop-3ff66a79",
 			"pool": "cinewhoop",
 			"file": "music/cinewhoop/cinewhoop-3ff66a79.opus",
@@ -17,6 +136,23 @@
 			"modelSeed": 537611730,
 			"model": "stable-audio-3-medium",
 			"lufs": -13.9
+		},
+		{
+			"id": "cinewhoop-421f7125",
+			"pool": "cinewhoop",
+			"file": "music/cinewhoop/cinewhoop-421f7125.opus",
+			"durS": 85.945,
+			"bpm": 109,
+			"axes": {
+				"darkness": "brighter and more open",
+				"energy": "restrained and patient",
+				"grain": "gritty digital samplers, early tracker character"
+			},
+			"prompt": "early-2000s atmospheric electronica with a real floating melody, wide glowing pads, wistful and unhurried, clear melodic motif that drifts and returns, deep round bassline, crisp detailed breakbeat underneath, the melancholy of an empty city seen from above at dawn, warm 90s digital synthesizer character, 109 BPM, brighter and more open, restrained and patient, gritty digital samplers, early tracker character, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v6::27",
+			"modelSeed": 1401926682,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
 		},
 		{
 			"id": "cinewhoop-6b82a7f6",
