@@ -35,9 +35,40 @@ export const _net = {
 	},
 };
 
-// PROVISOIRE (Task 8 la mesure) : zoom GUI -> niveau d'octree, identité bornée
-// aux niveaux que les fixtures couvrent (13 à 22).
-export function zoomToLevel(zoom) { return Math.max(13, Math.min(22, zoom)); }
+// Table MESURÉE (Task 8, issue #18) : zoom GUI -> niveau d'octree, calibrée
+// hors-ligne sur tools/testdata/rocktree/ (capture Paris, epoch 1014) avec
+// tools/rocktree-calibrate.mjs. Le m/texel de l'octree décroît en puissance
+// de 2 par niveau, EXACTEMENT comme le m/px Flyover décroît en puissance de
+// 2 par zoom (156543.03*cos(lat)/2^zoom, la référence du zoom actuel) : le
+// rapport mesuré (m/texel du niveau retenu / m/px Flyover) est constant à
+// travers zoom 13-20, ≈1.032 — donc un DÉCALAGE CONSTANT, niveau = zoom+1,
+// pas une intuition mais ce que dit la mesure :
+//
+// zoom | Flyover m/px (lat 48.858°) | niveau | m/texel mesuré | ratio
+//   13 |                    12.5725 |     14 |         12.9761 | 1.032
+//   14 |                     6.2863 |     15 |          6.4850 | 1.032
+//   15 |                     3.1431 |     16 |          3.2424 | 1.032
+//   16 |                     1.5716 |     17 |          1.6212 | 1.032
+//   17 |                     0.7858 |     18 |          0.8106 | 1.032
+//   18 |                     0.3929 |     19 |          0.4053 | 1.032
+//   19 |                     0.1964 |     20 |          0.2026 | 1.032
+//   20 |                     0.0982 |     21 |          0.1013 | 1.032
+//
+// Niveau 22 est le plus profond mesuré dans la capture (les nœuds réels des
+// fixtures descendent jusque-là) ; les niveaux 23-24 lus dans les bulks des
+// fixtures sont à 0.0 (champ non renseigné faute de subdivision connue à
+// cette profondeur dans cette capture) — pas une mesure, donc la sortie est
+// plafonnée à 22. Niveau 1 est le niveau le moins profond que porte un bulk
+// (racine, path ""), donc le plancher côté données ; aucune valeur de zoom
+// utilisée par la GUI (~13-20, cf. README) n'en approche.
+const ZOOM_TO_LEVEL = { 13: 14, 14: 15, 15: 16, 16: 17, 17: 18, 18: 19, 19: 20, 20: 21 };
+export function zoomToLevel(zoom) {
+	const z = Math.round(zoom);
+	if (ZOOM_TO_LEVEL[z] != null) return ZOOM_TO_LEVEL[z];
+	// Hors de la plage calibrée ci-dessus : même décalage constant mesuré
+	// (niveau = zoom+1), borné à [1, 22] pour les raisons ci-dessus.
+	return Math.max(1, Math.min(22, z + 1));
+}
 
 // Mêmes règles que flyover.mjs (copiées avec leur justification) : le nom du
 // dossier de cache est indépendant du fournisseur (cf. HANDOFF), mais chaque
