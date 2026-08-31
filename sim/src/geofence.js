@@ -20,28 +20,32 @@ export const CAUTION = 'CAUTION';   // averti
 export const HOLD = 'HOLD';         // averti et retenu
 export const LOST = 'LOST';         // dehors ; l'image est en train de mourir
 
-// Mesurés par tools/geofence-measure.mjs sur public/scenes/tour-eiffel le
-// 2026-08-30, sur les 6 familles de drone-profiles.js.
+// Mesurés par tools/geofence-measure.mjs sur public/scenes/tour-eiffel, sur
+// les 6 familles de drone-profiles.js. Re-figés le 2026-08-31 (issues #141,
+// #142) : les deux paragraphes ci-dessous décrivent le protocole ACTUEL, pas
+// celui de la première mesure du 2026-08-30.
 //
 // Le protocole est EN ACRO, le mode du jeu (FlightController démarre en
 // `acro`, entry-state.js:241 le force). Ça change tout : en ACRO des manches
-// centrées ne remettent pas à plat, elles TIENNENT l'assiette. Mesuré, manches
-// centrés et gaz au stationnaire : l'assiette reste à 42° et cinq familles sur
-// six franchissent la face sous un couloir de 29 m — jusqu'à +44,6 m (heavy5)
-// dans les dix secondes qui suivent l'entrée en HOLD. « Lâcher les manches »
-// n'est donc pas une façon d'obéir ici, et « obéir » doit être un programme de
-// manche explicite. Le voici, en entier — c'est lui, la définition :
+// centrées ne remettent pas à plat, elles TIENNENT l'assiette. « Lâcher les
+// manches » n'est donc pas une façon d'obéir ici, et « obéir » doit être un
+// programme de manche explicite. Le voici, en entier — c'est lui, la
+// définition :
 //
-//   approche : plein gaz, et le pilote pique jusqu'à 42° (ANGLE_MAX_TILT,
-//     l'assiette la plus inclinée que l'auto-stabilisation du dépôt tienne)
-//     et tient cette assiette jusqu'au couloir ;
+//   approche : plein gaz, tangage tenu à une assiette BALAYÉE sur 42° / 55° /
+//     70° / 85° (issue #141 — rien ne plafonne le tangage à ANGLE_MAX_TILT en
+//     ACRO, ce plafond n'existe que pour le mode ANGLE, absent de ce jeu), et
+//     le pire des quatre retenu par famille ;
 //   freinage, dès l'entrée en HOLD : gaz ramenés quelque part entre zéro et
 //     le stationnaire — bande BALAYÉE de 0 à hoverThrottle(), pire cas
-//     retenu, parce que le manche des gaz d'un pilote qui freine n'est pas
-//     connaissable ; et tangage TIRÉ pour ramener l'appareil à plat, puis
-//     CENTRÉ dès l'horizon revenu et plus jamais touché. À partir de là
-//     l'ACRO tient l'assiette : rien ne le remet à plat à sa place, et le
-//     résidu qu'il a laissé, il le garde.
+//     PLAUSIBLE retenu (issue #142 — un gaz qui fait tomber l'appareil de
+//     plus de 40 m, RANGES.COMFORTABLE.aglM[1] d'entry-state.js, pendant le
+//     freinage aurait déjà touché le sol à toute altitude réellement jouable ;
+//     il reste dans le balayage mais pas dans la sélection du pire cas) ; et
+//     tangage TIRÉ pour ramener l'appareil à plat, puis CENTRÉ dès l'horizon
+//     revenu et plus jamais touché. À partir de là l'ACRO tient l'assiette :
+//     rien ne le remet à plat à sa place, et le résidu qu'il a laissé, il le
+//     garde.
 //
 // Ensuite, seuls A_MAX et la traînée de quad.js décélèrent. Manches ramenés
 // au calme et non tirés à fond, délibérément : un pilote qui insiste DOIT
@@ -51,51 +55,45 @@ export const LOST = 'LOST';         // dehors ; l'image est en train de mourir
 // Ce n'est pas une soustraction mais un POINT FIXE : la rampe du rappel (0 à
 // A_MAX sur R_HOLD mètres, pushOf() plus bas) dépend elle-même de R_HOLD, donc
 // rétrécir le couloir durcit la rampe et change la distance qu'on mesure avec.
-// Trouvé par itération directe, convergence en 3 à 5 pas, indépendante du
-// point de départ : 65,82 / 65,83 / 65,84 / 65,87 / 65,93 m depuis des départs
-// de 5, 10, 20, 40 et 66 m (`--start`). Insensible au modèle de pilotage, lui
-// aussi : sur la grille (taux de ralliement /2, x1, x2) x (seuil « à plat »
-// 0,25°, 1°, 4°) le point fixe tient dans 63,40 - 65,98 m, sous 66 dans les
-// neuf cas.
+// Trouvé par itération directe pour chaque famille (voir la trace complète
+// dans tools/geofence-measure.mjs à chaque run).
 //
-// Pire famille : heavy5, 65,83 m, arrondie au mètre supérieur. Pire non parce
-// qu'elle est la plus lourde — elle ne l'est pas, longrange fait 0,92 kg
-// contre 0,85 — mais parce qu'elle a la plus faible traînée de carène par
-// unité de masse des six (bodyDrag.z/masse = 0,0129, contre 0,0164 pour race5
-// et 0,0500 pour cinewhoop) tout en approchant à 27,76 m/s. Les six valeurs
-// vont de 19,19 m (toothpick) à 65,83 m (heavy5).
+// Pire famille : race5, 72,26 m, arrondie au mètre supérieur — et non plus
+// heavy5 (65,83 m sous l'ancien protocole plafonné à 42°). Le balayage
+// d'assiette change le classement : à 85° race5 atteint 42,72 m/s contre
+// 36,29 pour heavy5, et cet écart de vitesse pèse plus que l'écart de traînée
+// de carène qui faisait gagner heavy5 à 42°. Les six valeurs vont de 22,50 m
+// (toothpick) à 72,26 m (race5).
 //
-// La marge de sécurité visée par ce point fixe (12 m) est mesurée elle aussi :
-// c'est la dispersion du point d'arrêt sur le balayage des gaz de freinage
-// (11,08 m au point fixe), arrondie au mètre supérieur — l'écart que produit à
-// elle seule la seule hypothèse de pilotage qu'on ne sait pas trancher. Le
-// banc la re-mesure et refuse de livrer un chiffre si elle la dépasse.
-export const R_HOLD = 66;      // m : distance d'arrêt du pilote qui obéit
+// La marge de sécurité visée par ce point fixe (12 m, MARGIN_M) est mesurée
+// elle aussi : c'est la dispersion du point d'arrêt sur le balayage des gaz de
+// freinage PLAUSIBLES (6,69 m au point fixe de race5, la pire des six
+// familles), arrondie au mètre supérieur — l'écart que produit à elle seule la
+// seule hypothèse de pilotage qu'on ne sait pas trancher. Le banc la re-mesure
+// et refuse de livrer un chiffre si elle la dépasse.
+export const R_HOLD = 73;      // m : distance d'arrêt du pilote qui obéit
 // R_HOLD + le temps de lire l'avertissement à la vitesse maximale mesurée
-// (30,87 m/s, race5, plein gaz à 42°). Ce délai est de la mise en scène et
+// (42,72 m/s, race5, plein gaz à 85°). Ce délai est de la mise en scène et
 // s'assume comme telle, mais il s'ancre sur une constante du dépôt : un
 // avertissement doit clignoter trois fois pour être lu, et BLINK_PERIOD_MS
-// vaut 500 ms (drone-osd.js:51). Soit 1,5 s, et la bande de 47 m ci-dessous
+// vaut 500 ms (drone-osd.js:51). Soit 1,5 s, et la bande de 65 m ci-dessous
 // en vaut 1,52 à cette vitesse-là.
-export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
+export const R_CAUTION = 138;  // m : R_HOLD + 1,5 s à la vitesse maximale
 
 // ---------------------------------------------------------------------------
 // Et la carte, dans tout ça : LA BORNE
 // ---------------------------------------------------------------------------
 //
 // TOUS LES COMPTAGES DE CARTES DE CE BLOC portent sur public/scenes.json —
-// 17 entrées — et sur lui seul, parce que c'est le seul inventaire de cartes
-// que git suive. public/scenes/ est gitignoré : son contenu varie d'une
-// machine à l'autre (ici 25 dossiers, dont 8 absents de scenes.json), donc un
-// nombre compté dessus n'est vérifiable par personne d'autre. Vérifiés le
-// 2026-08-31 en instanciant Geofence sur les 17 manifestes.
+// 24 entrées le 2026-08-31 — et sur lui seul, parce que c'est le seul
+// inventaire de cartes que git suive. public/scenes/ est gitignoré : son
+// contenu varie d'une machine à l'autre, donc un nombre compté dessus n'est
+// vérifiable par personne d'autre.
 //
-// Les deux chiffres ci-dessus sont des SCALAIRES GLOBAUX mesurés sur
-// tour-eiffel, dont le plus petit demi-côté fait 641 m. Sur les 17 scènes de
-// public/scenes.json, CINQ ont un demi-côté sous 340 m — bastille 164 m,
-// triomphe 201, roosevelt 224, betheny 249, seine-iena-alma 301 ; la suivante
-// est gare, à 554. Sur bastille, 113 m d'avertissement avaleraient 89 % de la
-// carte : il ne resterait qu'un mouchoir de poche où l'OSD ne crie pas.
+// Les deux chiffres ci-dessus (R_HOLD, R_CAUTION) sont des SCALAIRES GLOBAUX
+// mesurés sur tour-eiffel, dont le plus petit demi-côté fait 641 m — bien plus
+// grand que R_CAUTION. Sur une petite carte, R_CAUTION tout seul peut avaler
+// la carte entière avant même de parler de R_HOLD.
 //
 // Geofence BORNE donc son couloir horizontal à un tiers du plus petit
 // demi-côté de la bbox de la scène, les deux seuils mis à l'échelle par le
@@ -106,97 +104,73 @@ export const R_CAUTION = 113;  // m : R_HOLD + 1,5 s à la vitesse maximale
 //   scale   = min(1, (halfMin / 3) / R_CAUTION)
 //
 // Le cœur volable — la zone où rien ne clignote — ne descend ainsi JAMAIS sous
-// 67 % du plus petit côté, et les douze grandes cartes gardent exactement la
-// valeur mesurée (scale === 1, à l'identique bit pour bit).
+// 67 % du plus petit côté, et une grande carte garde exactement la valeur
+// mesurée (scale === 1, à l'identique bit pour bit).
 //
 // C'est une BORNE, pas une mesure. Elle n'invalide pas les chiffres du dessus,
 // elle dit ce qu'on en garde quand la carte ne peut pas les payer. Une vraie
 // mesure PAR SCÈNE a été écartée pour deux raisons : elle exigerait de rejouer
-// tools/geofence-measure.mjs sur chacune des 24 cartes (et de refiger 48
-// nombres à chaque `npm run add-map`), et surtout le banc NE TOURNE PAS sur
-// les petites : il lui faut l'élan d'amener la famille à sa vitesse de pic
-// PLUS le couloir d'essai devant la face — 213 m pour heavy5 au couloir
-// complet. Sur bastille (demi-côté 164 m) il lève au SECOND pas de
-// l'itération : le premier passe (élan 118,1 + couloir d'essai 10 = 128,1 m),
-// le second demande 164,4 m et n'a que 163,7. Il refuse plutôt que de mesurer
-// une approche qui n'a pas eu la place d'exister.
+// tools/geofence-measure.mjs sur chacune des cartes (et de refiger deux
+// nombres par famille à chaque `npm run add-map`), et surtout le banc NE
+// TOURNE PAS sur les petites : il lui faut l'élan d'amener la famille à sa
+// vitesse de pic PLUS le couloir d'essai devant la face, et une petite carte
+// n'a pas cette place. Il refuse plutôt que de mesurer une approche qui n'a
+// pas eu la place d'exister.
 //
 // `scale` s'applique à TOUT le couloir, `lost` compris : la clôture reste UNE
 // forme, mise à l'échelle d'un bloc. Le segment au-delà du bord n'est contraint
 // par rien de géométrique et la symétrie qui le justifiait sur une grande carte
 // (« la distance qu'il faut pour s'arrêter est celle que l'image coûte ») n'a
-// plus de sens une fois le couloir borné — mais 66 m de couloir de mort au-delà
-// d'une carte de 328 m serait disproportionné dans l'autre sens. Homothétie,
-// donc, et pas de découplage.
+// plus de sens une fois le couloir borné — mais un grand couloir de mort
+// au-delà d'une petite carte serait disproportionné dans l'autre sens.
+// Homothétie, donc, et pas de découplage.
 //
 // Le couloir effectivement appliqué est lisible sur l'instance
 // (`fence.effectiveCorridor`), c'est lui qu'il faut montrer au joueur, pas la
 // constante.
 //
-// CE QUE LA BORNE ÉCHANGE — et il faut que ça se lise ici, pas seulement en
-// jeu. Rétrécir le couloir raidit la rampe (`pushOf` étale toujours 0 → A_MAX
-// sur `hold` mètres) mais ne rend pas au drone la distance qu'il lui faut :
-// sous un `hold` d'environ 49 m — soit un demi-côté sous 252 m ; voir
-// HOLD_STOP_GUARANTEE_M ci-dessous — le pilote qui OBÉIT (le programme de
-// manche ci-dessus, exactement) franchit quand même le bord des données.
-// Mesuré, couloir imposé,
-// une colonne par scène, pénétration de la pire famille (heavy5 partout) :
-//
-//   scène  t-eiffel  s-iena  poisso  bethe  roose  inval  triom  basti  parcp
-//   hold       66,0    58,7    51,5   48,5   43,7   39,3   39,1   31,9   27,0
-//   pire      −12,1    −6,7    −1,7   +0,4   +3,7   +6,7   +6,9  +12,1  +15,7
-//                                      ^^^^ à partir d'ici, + = le bord est franchi
-//
-// (Ce tableau est une MESURE, pas un comptage : il garde ses neuf colonnes,
-// dont trois — poisso, inval, parcp — sont des cartes locales absentes de
-// scenes.json. Elles éclairent la courbe ; elles ne comptent pas dans les
-// chiffres ci-dessous.)
-//
-// Sur QUATRE scènes des dix-sept — betheny (1 famille sur 6), roosevelt (2),
-// triomphe (3), bastille (4) — la propriété que R_HOLD portait, et qui est
-// toute sa raison d'être, n'est plus tenue.
-// C'est irréparable : arrêter 27,8 m/s en 27 m (parcdesprinces, la pire
-// colonne du tableau, carte locale) demanderait ~14,3 m/s² quand
-// A_MAX en donne 2,94 en moyenne sur la rampe, et relever A_MAX détruirait le
-// « ce n'est pas un mur » qui EST le design. La carte est trop petite, point.
+// CE QUE LA BORNE ÉCHANGE. Rétrécir le couloir raidit la rampe (`pushOf` étale
+// toujours 0 → A_MAX sur `hold` mètres) mais ne rend pas au drone la distance
+// qu'il lui faut : sous HOLD_STOP_GUARANTEE_M de rappel, le pilote qui OBÉIT
+// (le programme de manche ci-dessus, exactement) franchit quand même le bord
+// des données. C'est irréparable en gardant le design : durcir A_MAX au point
+// d'arrêter la pire famille sur une carte de poche détruirait le « ce n'est
+// pas un mur » qui EST le principe de la clôture.
 //
 // Le mode de défaillance reste doux, et c'est ce qui rend l'échange tenable :
-// la pénétration n'atteint jamais `lost`, donc `over` reste faux et la session
-// n'est PAS perdue. L'image agonise — de 8 dB sur betheny à 37 dB sur
-// parcdesprinces, sur les 58 du budget — et le rappel repousse. On paie en
-// image, pas en session.
+// tant que la pénétration n'atteint pas `lost`, `over` reste faux et la
+// session n'est PAS perdue — l'image agonise et le rappel repousse encore. On
+// paie en image, pas en session.
 //
-// Et ce n'est pas un choix libre, c'est un ÉCHANGE. Tenir la garantie sur
-// toutes les cartes exigerait `caution >= 84 m` (le `hold >= 49 m` ci-dessus
-// remonté par le rapport des deux seuils), ce qui laisserait 39,5 % de cœur
-// volable sur parcdesprinces et 48,8 % sur bastille au lieu de 66,7 % partout.
-// Le tiers a choisi le cœur volable contre la garantie d'arrêt. Sur une carte
-// de poche, on préfère voler.
+// QUELLES CARTES SONT CONCERNÉES, MAINTENANT (#146) : pas une liste figée ici
+// — celle qui existait avant nommait six scènes quand il y en avait sept, et
+// citait des chiffres qu'aucune des re-mesures suivantes (#141, #142) n'a
+// remis à jour. `node tools/geofence-check-scenes.mjs` relit
+// public/scenes.json et le manifeste réel de chaque carte présente en local,
+// et liste celles où HOLD_STOP_GUARANTEE_M n'est pas atteint — à date de ce
+// commit, 9 des 24 : nantes, caen, parcdesprinces, bastille, triomphe,
+// seine-iena-alma, roosevelt, betheny, palais-de-l-elysee. C'est la commande
+// qui fait foi, pas ce commentaire.
 
 // Le couloir HOLD effectif en dessous duquel la garantie ci-dessus tombe.
 // Mesuré, pas choisi : `node tools/geofence-measure.mjs --guarantee` le rejoue
-// par bissection sur la pire famille (heavy5) depuis un bracket anchré sur
-// R_HOLD — jamais sur cette constante-ci — et refuse un chiffre s'il n'encadre
-// pas ou ne converge pas. 2026-08-30, bracket par défaut [16,50 ; 66,00] :
-// `49,045 < hold* <= 49,057 m`, soit un demi-côté de carte entre 251,9 et
-// 252,0 m.
+// par bissection sur la pire famille (race5, depuis #141) depuis un bracket
+// anchré sur R_HOLD — jamais sur cette constante-ci — et refuse un chiffre
+// s'il n'encadre pas ou ne converge pas. 2026-08-31, bracket [18,25 ; 73,00] :
+// `59,433 < hold* <= 59,446 m`, soit un demi-côté de carte de 337,1 m.
 //
-// Figé à 50 et non 49 : l'arrondi est délibérément vers le HAUT. Une garde qui
-// avertit à tort coûte une phrase au développeur qui ajoute la carte ; une
-// garde qui se tait à tort laisse passer une carte où le pilote qui obéit
-// franchit le bord sans que personne ne l'ait su. 49 aurait laissé une bande
-// de 6 cm — les cartes dont le rappel tombe dans [49 ; 49,06) — muette alors
-// que la pire famille y franchit. 50 la ferme, et ne change aucune des 24
-// scènes actuelles (poissoniere, la plus proche au-dessus, est à 51,5 m).
-// L'écart à la mesure est de toute façon dominé par le modèle de pilotage, qui
-// vaut 2,58 m sur la mesure voisine (le point fixe) — voir sa grille de
-// sensibilité dans tools/geofence-measure.mjs.
+// Figé à 60 et non 59 : l'arrondi est délibérément vers le HAUT, même logique
+// qu'ailleurs dans ce fichier — une garde qui avertit à tort coûte une phrase
+// au développeur qui ajoute la carte ; une garde qui se tait à tort laisse
+// passer une carte où le pilote qui obéit franchit le bord sans que personne
+// ne l'ait su.
 //
-// Exporté et non recopié parce que tools/lib/add-map-core.mjs s'en sert pour
-// avertir au moment où une carte trop petite est ajoutée — sans quoi ce nombre
-// deviendrait un second exemplaire à tenir à jour, exactement le problème
-// qu'il ferme.
-export const HOLD_STOP_GUARANTEE_M = 50;
+// Exporté et non recopié parce que tools/lib/add-map-core.mjs et
+// tools/geofence-check-scenes.mjs (#146) s'en servent tous les deux pour
+// avertir — l'un à l'ajout d'une carte, l'autre en relisant scenes.json —
+// sans quoi ce nombre deviendrait un second exemplaire à tenir à jour,
+// exactement le problème que ces deux outils ferment.
+export const HOLD_STOP_GUARANTEE_M = 60;
 
 // Le couloir vertical, lui, ne se mesure pas — et c'est délibéré. Une distance
 // d'arrêt n'a pas de sens ici : on n'arrive pas sous la dalle en fonçant, on y
@@ -222,18 +196,39 @@ export const FLOOR_LOST = 10;     // fin de session
 // toi — un comportement qu'un pilote FPV reconnaît.
 export const A_MAX = 0.6 * 9.81;
 
-// Hystérésis sur les frontières de zone, en fraction de la marge du seuil.
+// Hystérésis sur les frontières de zone, en MÈTRES ABSOLUS (issue #143).
 // Sans elle, un stationnaire tenu pile sur R_CAUTION fait strober
 // l'avertissement de l'OSD. link.js a exactement ce problème et exactement
 // cette réponse (FREEZE_ENTER / FREEZE_LEAVE, et son commentaire : « at a
 // single threshold the picture strobes between frozen and clean while you
 // hover on the boundary »).
 //
-// 15 % est posé et n'a pas besoin d'être mieux : il suffit que l'écart dépasse
-// la dérive d'un stationnaire tenu, qui se compte en dizaines de centimètres
-// quand R_CAUTION se compte en dizaines de mètres. Il n'y a pas deux ordres de
-// grandeur à arbitrer.
-export const HYST = 0.15;
+// Était une FRACTION du couloir (15 %), justifiée par « la dérive d'un
+// stationnaire tenu, qui se compte en dizaines de centimètres ». Faux pour ce
+// jeu : le vol est en ACRO (entry-state.js:241), qui NE S'AUTO-NIVELLE PAS —
+// manches centrés, l'appareil garde l'assiette qu'il a, il ne la ramène pas à
+// plat (c'est tout le sujet du protocole de tools/geofence-measure.mjs, voir
+// son en-tête). Un « stationnaire tenu » n'a donc pas de dérive résiduelle
+// mesurable au sens physique : à plat et sticks centrés elle est nulle au bruit
+// flottant près, ce que le banc de simulation ne peut pas distinguer d'un vrai
+// pilote qui recentre activement. Rien dans ce dépôt ne modélise le tremblement
+// de main sur un vrai stick — cette grandeur-là n'est pas mesurable ici.
+//
+// Sur les seuils mesurés (R_HOLD 66, R_CAUTION 113), 15 % valait 26,85 m — cent
+// fois l'ordre de grandeur invoqué, et un vrai défaut : `pushOf()`/`lossOf()`
+// lisent la marge brute, seul `zone`/`warning` porte l'hystérésis, donc l'OSD
+// pouvait afficher NO COVERAGE jusqu'à 5,4 s après un retour bien à l'intérieur
+// (lossDb = 0, push = 0) — un avertissement sans rien derrière.
+//
+// HYST_M est donc CHOISI, pas mesuré — comme A_MAX ci-dessus, et pour la même
+// raison : la grandeur qu'il couvre (jitter d'affichage / arrondi de
+// simulation, pas dérive de vol) n'a pas de protocole de mesure qui ait un
+// sens. 3 m est l'unité déjà en usage dans ce fichier pour « petite marge
+// physique » (l'écart entre les seuils du couloir vertical, FLOOR_CAUTION à
+// FLOOR_LOST, est de 2 à 3 m) : assez pour qu'un déplacement d'une frame ne
+// fasse jamais osciller la zone, largement trop petit pour reproduire la
+// fenêtre « avertissement sans rien derrière » du réglage précédent.
+export const HYST_M = 3;
 
 // Le budget que la clôture dépense, en dB. LOSS_DEAD − LOSS_CLEAN de link.js :
 // c'est, par construction, ce qui emmène N'IMPORTE QUEL lien, si propre
@@ -285,8 +280,7 @@ function zoneOf(margin, c, previous) {
 	// d'une zone que pour y entrer — « plus haut » au sens de la marge, donc
 	// il faut revenir un peu plus loin dans le sûr qu'on n'est allé dans le
 	// danger.
-	const span = Math.abs(c.caution - c.lost) * HYST;
-	const w = (thr, current) => (previous === current ? thr + span : thr);
+	const w = (thr, current) => (previous === current ? thr + HYST_M : thr);
 	if (margin < w(c.edge, LOST)) return LOST;
 	if (margin <= w(c.hold, HOLD)) return HOLD;
 	if (margin <= w(c.caution, CAUTION)) return CAUTION;

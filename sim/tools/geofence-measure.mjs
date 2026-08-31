@@ -28,9 +28,11 @@
 //
 //   APPROCHE (avant l'entrée en HOLD)
 //     gaz     : plein (1,0)
-//     tangage : le pilote pique jusqu'à 42° — ANGLE_MAX_TILT, l'assiette la
-//               plus inclinée que l'auto-stabilisation du dépôt tienne — et
-//               tient cette assiette jusqu'au couloir.
+//     tangage : le pilote pique et tient l'assiette jusqu'au couloir. L'assiette
+//               elle-même est BALAYÉE (issue #141) sur APPROACH_ANGLES_DEG —
+//               rien ne la plafonne à ANGLE_MAX_TILT (42°) en ACRO, ce plafond
+//               n'existe que pour le mode ANGLE, absent de ce jeu — et le pire
+//               cas par famille est retenu.
 //
 //   FREINAGE (dès l'entrée en HOLD, le pilote a lu l'avertissement)
 //     gaz     : ramenés quelque part entre zéro et le stationnaire. On BALAYE
@@ -61,9 +63,10 @@
 // dimensionne le cas où on obéit, pas le cas où on désobéit.
 //
 // Plein gaz, et non 75 % : « la vitesse maximale » n'a pas de sens à un manche
-// arbitraire. À 42° et plein gaz la machine grimpe aussi — ce n'est pas un vol
-// en palier, c'est un dash — mais seule la composante horizontale entre dans
-// un couloir horizontal, et c'est elle qu'on retient. Le vol se déroule à
+// arbitraire. À chaque assiette balayée et plein gaz la machine grimpe aussi
+// — ce n'est pas un vol en palier, c'est un dash — mais seule la composante
+// horizontale entre dans un couloir horizontal, et c'est elle qu'on retient.
+// Le vol se déroule à
 // bbox.max.y + 200 m, au-dessus du point le plus haut de la carte : la marge
 // horizontale ne dépend pas de l'altitude (voir horizontalMargin), et à cette
 // hauteur aucune collision avec la scène n'est possible — ce que le banc
@@ -136,7 +139,7 @@
 //      de changer de mode, c'est d'écrire le programme de manche.
 //
 //   3. Le drone ne doit jamais être TÉLÉPORTÉ à sa vitesse de croisière, et
-//      surtout pas à plat : c'est piqué à 42° qu'il atteint cette vitesse. Une
+//      surtout pas à plat : c'est piqué qu'il atteint cette vitesse. Une
 //      coque à plat lancée d'un coup à 25 m/s présente aux quatre rotors toute
 //      leur vitesse de translation, donc la traînée rotor kLateral·ω·v
 //      (quad.js:287), qui est le terme dominant à plat — et non « une traînée
@@ -153,9 +156,10 @@ import path from 'node:path';
 import { initPhysics, Physics } from '../src/physics.js';
 import {
 	FlightController, hoverThrottle, unrotateVec,
-	actualRate, ANGLE_MAX_TILT, ANGLE_STRENGTH,
+	actualRate, ANGLE_STRENGTH,
 } from '../src/flightController.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
+import { RANGES } from '../src/entry-state.js';
 import {
 	Geofence, horizontalMargin, A_MAX, R_HOLD, R_CAUTION, HOLD_STOP_GUARANTEE_M,
 } from '../src/geofence.js';
@@ -213,8 +217,29 @@ const GUARANTEE_MAX_STEPS = 20;
 // famille ne bouge que de 1,1 m entre 0,25° et 4° (64,92 → 65,98) : ce seuil
 // ne porte pas le chiffre.
 const LEVEL_SIN = Math.sin(1 * Math.PI / 180);
-const CRUISE_SIN = Math.sin(ANGLE_MAX_TILT);
+// L'assiette d'approche (issue #141) : le jeu vole en ACRO, où rien ne plafonne
+// le tangage à ANGLE_MAX_TILT (42°) — ce plafond n'existe que pour le mode
+// ANGLE, que le jeu ne propose pas ici. Balayée plutôt que fixée, sur les
+// mêmes quatre points que la revue de #141 : le gain marginal s'effondre
+// au-delà (race5 41,45 → 42,72 m/s de 70° à 85°, heavy5 35,99 → 36,29 —
+// moins de 1 m/s pour 15° de plus), donc pousser le balayage plus loin ne
+// changerait pas le pire cas. 85° et non 90° : au-delà l'assiette n'a plus de
+// composante de portance verticale mesurable et le drone tombe pendant les 30
+// s de l'approche, hors de la marge de 200 m que le banc s'accorde au-dessus
+// du point le plus haut de la carte — ce n'est plus une approche, c'est un
+// piqué, et cette question-là n'est pas celle que #141 pose.
+const APPROACH_ANGLES_DEG = [42, 55, 70, 85];
 const SIM_CAP_S = 90;          // garde-fou ; voir findRHold() pour ce qu'il attrape
+// #142 : un pilote qui, en freinant, tombe plus que la bande AGL la plus haute
+// que ce jeu utilise réellement (RANGES.COMFORTABLE, entry-state.js) aurait
+// déjà touché le sol — ou déclenché flight-end — bien avant d'avoir parcouru
+// la distance horizontale que ce banc mesure. Sur cinq familles sur six, le
+// pire cas du balayage des gaz de freinage était gaz coupés — un pilote qui ne
+// freine pas, il tombe — et ce cas-là dimensionnait jusqu'à 13,4 m de couloir
+// sur un crash, pas sur un franchissement de clôture. Ces gaz-là restent dans
+// le balayage (allStopped/allLevelled/allMoving les vérifient toujours), ils
+// sont seulement exclus de la SÉLECTION du pire cas.
+const MAX_PLAUSIBLE_FALL_M = RANGES.COMFORTABLE.aglM[1];   // 40 m
 
 const b = manifest.bbox;
 // Au-dessus du point le plus haut de la carte : aucune collision possible, et
@@ -301,15 +326,15 @@ function crossCheckLocalPush() {
 	}
 }
 
-// L'approche seule, sans clôture : à quelle distance de son départ arrêté la
-// famille atteint-elle sa vitesse horizontale maximale, et laquelle ? Cette
-// distance sert à dimensionner le couloir d'élan pour que l'entrée en HOLD
-// tombe PILE sur ce pic — le pire cas.
-function approach(family) {
+// L'approche seule, sans clôture, à une assiette donnée : à quelle distance de
+// son départ arrêté la famille atteint-elle sa vitesse horizontale maximale, et
+// laquelle ? Cette distance sert à dimensionner le couloir d'élan pour que
+// l'entrée en HOLD tombe PILE sur ce pic — le pire cas.
+function approach(family, targetSin) {
 	const { fc, rates, maxRate } = setup(family, 0);
 	let best = { v: -1, d: 0 };
 	for (let i = 0; i < 30 * 250; i++) {
-		const stick = pitchStick(CRUISE_SIN, rates, maxRate);
+		const stick = pitchStick(targetSin, rates, maxRate);
 		const { motors } = fc.update({ throttle: 1, roll: 0, pitch: stick, yaw: 0 }, phys, STEP);
 		phys.step(motors, STEP);
 		const s = phys.velocity;
@@ -319,11 +344,25 @@ function approach(family) {
 	return best;
 }
 
+// Le pire des quatre assiettes de APPROACH_ANGLES_DEG (issue #141), par
+// famille : celle qui produit la vitesse de pic la plus haute.
+function worstApproach(family) {
+	let best = null;
+	for (const deg of APPROACH_ANGLES_DEG) {
+		const sin = Math.sin((deg * Math.PI) / 180);
+		const r = approach(family, sin);
+		if (!best || r.v > best.v) best = { ...r, angleDeg: deg, sin };
+	}
+	return best;
+}
+
 // Un run complet : élan puis freinage sous un couloir d'essai `trial`, gaz de
-// freinage `brakeT`. Rend la pénétration maximale (positive = la face est
-// franchie), l'impact maximal enregistré et la vitesse à l'entrée en HOLD.
-function runOnce(family, trial, brakeT, runup) {
-	const runway = runup + trial;
+// freinage `brakeT`, à l'assiette d'approche `peak.sin`/`peak.d` de
+// worstApproach(). Rend la pénétration maximale (positive = la face est
+// franchie), l'impact maximal enregistré, la vitesse à l'entrée en HOLD, et la
+// chute verticale depuis l'entrée en HOLD jusqu'à l'arrêt (#142).
+function runOnce(family, trial, brakeT, peak) {
+	const runway = peak.d + trial;
 	const startZ = b.min[2] + runway;
 	const { profile, fc, rates, maxRate } = setup(family, startZ);
 	// La face visée doit bien être la plus proche au départ, sinon la mesure
@@ -335,9 +374,9 @@ function runOnce(family, trial, brakeT, runup) {
 	// laquelle geofence.js BORNE son couloir au lieu de le mesurer par scène.
 	const m0 = horizontalMargin(phys.position, b);
 	if (Math.abs(m0 - runway) > 1e-3) {
-		throw new Error(`carte trop petite pour ce banc : ${family} a besoin de ${runup.toFixed(1)} m d'élan + ${trial.toFixed(1)} m de couloir = ${runway.toFixed(1)} m devant la face −Z, mais au point de départ la face la plus proche n'est qu'à ${m0.toFixed(1)} m. Aucune mesure possible ici.`);
+		throw new Error(`carte trop petite pour ce banc : ${family} a besoin de ${peak.d.toFixed(1)} m d'élan + ${trial.toFixed(1)} m de couloir = ${runway.toFixed(1)} m devant la face −Z, mais au point de départ la face la plus proche n'est qu'à ${m0.toFixed(1)} m. Aucune mesure possible ici.`);
 	}
-	let deepest = -Infinity, maxImpact = 0, entryV = 0;
+	let deepest = -Infinity, maxImpact = 0, entryV = 0, enterY = null, minY = Infinity;
 	let entered = false, levelled = false, stopped = false;
 	for (let i = 0; i < SIM_CAP_S * 250; i++) {
 		const margin = horizontalMargin(phys.position, b);
@@ -345,10 +384,12 @@ function runOnce(family, trial, brakeT, runup) {
 		if (!entered && margin <= trial) {
 			entered = true;
 			entryV = Math.hypot(phys.velocity.x, phys.velocity.z);
+			enterY = phys.position.y;
 		}
+		if (entered) minY = Math.min(minY, phys.position.y);
 		if (entered && !levelled && noseDown() <= LEVEL_SIN) levelled = true;
 		// Le programme de manche, et rien d'autre : voir l'en-tête.
-		const stick = entered && levelled ? 0 : pitchStick(entered ? 0 : CRUISE_SIN, rates, maxRate);
+		const stick = entered && levelled ? 0 : pitchStick(entered ? 0 : peak.sin, rates, maxRate);
 		const throttle = entered ? brakeT : 1;
 		const { motors } = fc.update({ throttle, roll: 0, pitch: stick, yaw: 0 }, phys, STEP);
 		// Le rappel entre par le TROISIÈME paramètre de step(), en newtons et
@@ -360,36 +401,46 @@ function runOnce(family, trial, brakeT, runup) {
 		maxImpact = Math.max(maxImpact, impact);
 		if (entered && phys.velocity.z >= 0) { stopped = true; break; }
 	}
-	return { deepest, maxImpact, entryV, levelled, stopped };
+	const fall = entered ? enterY - minY : 0;
+	return { deepest, maxImpact, entryV, levelled, stopped, fall };
 }
 
 // Le pire des gaz de freinage, de 0 au stationnaire, et la dispersion que ce
-// balayage produit à lui seul.
-function worstOverBrake(family, trial, runup) {
+// balayage produit à lui seul. Les gaz qui font tomber le drone de plus de
+// MAX_PLAUSIBLE_FALL_M pendant le freinage restent dans le balayage — les
+// invariants ci-dessous les couvrent toujours — mais sont exclus de la
+// sélection du pire cas (#142) : au-delà de cette chute, aucune altitude
+// réellement jouable ne laisserait le freinage se terminer avant le sol.
+function worstOverBrake(family, trial, peak) {
 	const hoverT = hoverThrottle(PROFILES[family], LEVEL);
 	let worst = null, shallowest = Infinity, maxImpact = 0, allLevelled = true, allStopped = true;
-	let allMoving = true;
+	let allMoving = true, anyPlausible = false;
 	for (let i = 0; i <= BRAKE_STEPS; i++) {
 		const brakeT = (hoverT * i) / BRAKE_STEPS;
-		const r = runOnce(family, trial, brakeT, runup);
+		const r = runOnce(family, trial, brakeT, peak);
 		maxImpact = Math.max(maxImpact, r.maxImpact);
 		allLevelled = allLevelled && r.levelled;
 		allStopped = allStopped && r.stopped;
 		allMoving = allMoving && r.entryV > 0;
+		if (r.fall > MAX_PLAUSIBLE_FALL_M) continue;
+		anyPlausible = true;
 		shallowest = Math.min(shallowest, r.deepest);
 		if (!worst || r.deepest > worst.deepest) worst = { ...r, brakeT };
+	}
+	if (!anyPlausible) {
+		throw new Error(`${family} : sous un couloir de ${trial.toFixed(1)} m, tout le balayage des gaz de freinage tombe de plus de ${MAX_PLAUSIBLE_FALL_M} m — aucun gaz jouable à retenir`);
 	}
 	return { ...worst, hoverT, spread: worst.deepest - shallowest, maxImpact, allLevelled, allStopped, allMoving };
 }
 
 // Le R_HOLD self-consistant d'une famille : le plus petit couloir sous la
 // rampe duquel son pire freinage s'arrête à MARGIN_M de la face.
-function findRHold(family, runup) {
+function findRHold(family, peak) {
 	let trial = START, last = null;
-	const trace = [];
-	let maxImpact = 0, converged = false;
+	const trace = [], nexts = [];
+	let maxImpact = 0, converged = false, oscillating = false;
 	for (let it = 0; it < MAX_ITERATIONS; it++) {
-		last = worstOverBrake(family, trial, runup);
+		last = worstOverBrake(family, trial, peak);
 		maxImpact = Math.max(maxImpact, last.maxImpact);
 		trace.push(`${trial.toFixed(1)}→${last.deepest.toFixed(1)}`);
 		if (!last.allStopped) {
@@ -415,12 +466,30 @@ function findRHold(family, runup) {
 			throw new Error(`${family} : l'itération demande un couloir négatif (${next.toFixed(1)} m) — le harnais est faux`);
 		}
 		if (Math.abs(next - trial) < FIXED_POINT_TOL) { trial = next; converged = true; break; }
+		// Cycle de période 2 (#142) : selon `trial`, le gaz de freinage exclu par
+		// MAX_PLAUSIBLE_FALL_M n'est pas toujours le même, donc le pire cas
+		// PLAUSIBLE change d'identité d'un pas à l'autre au lieu de varier
+		// continûment — l'itération rebondit entre deux voisins plutôt que de
+		// converger. Le point fixe existe toujours (c'est une propriété du
+		// couloir, la discrétisation de BRAKE_STEPS le fait juste sauter par-
+		// dessus) : retenu, le plus grand des deux, par le même arrondi vers le
+		// HAUT que HOLD_STOP_GUARANTEE_M — une garde trop large coûte une phrase,
+		// une garde trop courte laisse franchir sans qu'on l'ait su.
+		if (nexts.length >= 2 && Math.abs(next - nexts[nexts.length - 2]) < FIXED_POINT_TOL) {
+			trial = Math.max(next, nexts[nexts.length - 2]);
+			last = worstOverBrake(family, trial, peak);
+			maxImpact = Math.max(maxImpact, last.maxImpact);
+			trace.push(`osc→${trial.toFixed(1)}→${last.deepest.toFixed(1)}`);
+			converged = true; oscillating = true;
+			break;
+		}
+		nexts.push(next);
 		trial = next;
 	}
 	if (!converged) {
 		throw new Error(`${family} : pas de convergence en ${MAX_ITERATIONS} itérations, trace [${trace.join('  ')}]`);
 	}
-	return { rHold: trial, trace, maxImpact, last };
+	return { rHold: trial, trace, maxImpact, last, oscillating };
 }
 
 // La pire pénétration TOUTES FAMILLES confondues sous un couloir imposé, avec
@@ -429,7 +498,7 @@ function findRHold(family, runup) {
 function worstOfAll(hold, peak) {
 	let worst = -Infinity, who = null;
 	for (const family of FAMILIES) {
-		const r = worstOverBrake(family, hold, peak[family].d);
+		const r = worstOverBrake(family, hold, peak[family]);
 		if (r.maxImpact > 0) throw new Error(`${family} : impact ${r.maxImpact.toFixed(1)} N sous un couloir de ${hold.toFixed(2)} m — la mesure serait fausse`);
 		if (!r.allStopped) throw new Error(`${family} : un freinage n'a pas atteint l'arrêt sous un couloir de ${hold.toFixed(2)} m`);
 		if (!r.allLevelled) throw new Error(`${family} : le pilote n'a jamais retrouvé l'horizon sous un couloir de ${hold.toFixed(2)} m`);
@@ -469,11 +538,11 @@ console.log(`cross-check localPush() vs pushOf() : ok`);
 console.log(`scène ${path.basename(sceneDir)}   A_MAX ${A_MAX.toFixed(3)} m/s²`
 	+ (GUARANTEE ? `   mode --guarantee` : `   MARGIN_M ${MARGIN_M} m   départ de l'itération ${START} m`) + `\n`);
 
-console.log(`approche : plein gaz, assiette tenue à ${(ANGLE_MAX_TILT * 180 / Math.PI).toFixed(0)}°, depuis l'arrêt`);
+console.log(`approche : plein gaz, assiette balayée sur ${APPROACH_ANGLES_DEG.join('°/')}°, depuis l'arrêt`);
 const peak = {};
 for (const family of FAMILIES) {
-	peak[family] = approach(family);
-	console.log(`  ${family.padEnd(12)} vpic ${peak[family].v.toFixed(2)} m/s   atteinte à ${peak[family].d.toFixed(0)} m`);
+	peak[family] = worstApproach(family);
+	console.log(`  ${family.padEnd(12)} vpic ${peak[family].v.toFixed(2)} m/s   atteinte à ${peak[family].d.toFixed(0)} m   pire assiette ${peak[family].angleDeg}°`);
 }
 
 if (GUARANTEE) {
@@ -500,7 +569,7 @@ console.log(`\nR_HOLD self-consistant par famille (pire des ${BRAKE_STEPS + 1} g
 const res = {};
 let worstImpact = 0, worstSpread = 0;
 for (const family of FAMILIES) {
-	const r = findRHold(family, peak[family].d);
+	const r = findRHold(family, peak[family]);
 	res[family] = r;
 	worstImpact = Math.max(worstImpact, r.maxImpact);
 	worstSpread = Math.max(worstSpread, r.last.spread);
