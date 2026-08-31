@@ -55,8 +55,24 @@ export const THROTTLE_MODE = { radio: 'full', gamepad: 'half' };
 // DEVICE DETECTION
 // -----------------------------------------------------------------------------
 
+// Les noms de marque ne suffisent pas : ils ne couvrent que les radios qu'on a
+// pensé à lister, et une radio non reconnue tombe en 'generic', donc sur
+// GAMEPAD_MAP — dont les quatre axes sont dans un ORDRE DIFFÉRENT d'EDGETX_MAP,
+// avec un gaz en demi-course. Le pilote ne voit pas « mal mappé », il voit
+// « ça ne marche pas ». Signalé sur un TBS Tango 2, qu'aucun mot de cette liste
+// n'attrapait.
+//
+// D'où `4f54` : c'est l'identifiant produit USB des radios OpenTX/EdgeTX —
+// « OT » en ASCII — associé au fabricant `1209` (pid.codes). Vérifié sur le
+// matériel du projet : la Radiomaster Pocket s'énumère en 1209:4f54, et les
+// firmwares dérivés d'OpenTX (dont FreedomTX du Tango 2) partagent cet
+// identifiant. Un identifiant vaut mieux qu'un nom, exactement comme 045e et
+// 054c plus bas pour Xbox et PlayStation.
+//
+// Les noms restent en second rideau, pour les radios qui s'énumèrent sous un
+// identifiant propriétaire.
 const RADIO_RE =
-	/edgetx|opentx|radiomaster|frsky|jumper|tx16|taranis|betafpv|flysky/i;
+	/4f54|edgetx|opentx|freedomtx|radiomaster|frsky|jumper|tx16|taranis|betafpv|flysky|tbs|tango|horus|boxer|zorro|commando/i;
 
 // 045e = vendor Microsoft. « xinput » couvre les manettes 360/One vues via
 // XInput sous Windows.

@@ -41,6 +41,29 @@ t('padKind : radios EdgeTX avant tout le reste', () => {
 	assert.equal(padKind('OpenTX FrSky Taranis'), 'radio');
 });
 
+t('padKind : une radio est reconnue par son IDENTIFIANT USB, pas seulement par sa marque', () => {
+	// 1209:4f54 — pid.codes / « OT » — est l'identifiant partagé des radios
+	// OpenTX/EdgeTX. Constaté sur le matériel du projet : la Radiomaster Pocket
+	// s'énumère ainsi. Les deux navigateurs formatent l'identifiant
+	// différemment, les deux doivent passer.
+	assert.equal(padKind('EdgeTX Radiomaster Pocket Joystick (Vendor: 1209 Product: 4f54)'), 'radio');
+	assert.equal(padKind('1209-4f54-EdgeTX Radiomaster Pocket Joystick'), 'radio');
+	// Le cas qui a motivé le correctif : aucun mot de marque de la liste
+	// d'origine n'attrapait un TBS Tango 2, qui tombait donc en 'generic' —
+	// c'est-à-dire sur GAMEPAD_MAP, dont l'ordre des axes est différent.
+	assert.equal(padKind('TBS Tango 2 (Vendor: 1209 Product: 4f54)'), 'radio');
+	assert.equal(padKind('TBS TANGO 2 Joystick'), 'radio');
+});
+
+t('padKind : classer une radio en generic donne des axes FAUX, pas juste un défaut cosmétique', () => {
+	// La raison pour laquelle une mauvaise classification se vit comme « ça ne
+	// marche pas » : les deux cartes n'assignent pas les mêmes axes.
+	const radio = defaultMapForKind('radio'), generic = defaultMapForKind('generic');
+	const differing = ['throttle', 'yaw', 'roll', 'pitch'].filter((c) => radio[c].axis !== generic[c].axis);
+	assert.equal(differing.length, 4, `les 4 canaux doivent différer, ${differing.length} diffèrent`);
+	assert.notEqual(throttleModeForKind('radio'), throttleModeForKind('generic'));
+});
+
 t('padKind : inconnu / vide -> generic', () => {
 	assert.equal(padKind('Some No-Name Pad'), 'generic');
 	assert.equal(padKind(''), 'generic');
