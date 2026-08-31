@@ -10,6 +10,7 @@ import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
 import { rootOctant, childBoxes, descendBox, boxIntersects, ROOTS } from './lib/rocktree/octant.mjs';
+import { PREFIX, nodeUrl } from './lib/rocktree/url.mjs';
 import * as rocktree from './lib/decoders/rocktree.mjs';
 import { pick } from './lib/decoders/index.mjs';
 import * as ge from './lib/providers/google-earth.mjs';
@@ -901,6 +902,21 @@ await t('fournisseur : une zone démesurée est refusée par un plafond de nœud
 		/zone trop grande/,
 		'la traversée doit refuser explicitement, pas partir pour des heures'
 	);
+});
+
+await t('url : NodeData sans imageryEpoch (flag 16 absent)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: null, flags: 0 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!4b0');
+});
+
+await t('url : NodeData avec imageryEpoch (flag 16 posé et epoch connu)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: 42, flags: 16 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!3u42!4b0');
+});
+
+await t('url : flag 16 posé mais imageryEpoch null -> pas de !3unull (404 garanti sinon)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: null, flags: 16 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!4b0');
 });
 
 console.log(`rocktree-selftest : ${n} tests ok`);

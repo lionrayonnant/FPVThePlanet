@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from '../rocktree/proto.mjs';
 import { descendBox, boxIntersects } from '../rocktree/octant.mjs';
 import { polyHash, polygonBounds } from '../tiles.mjs';
+import { PREFIX, nodeUrl } from '../rocktree/url.mjs';
 
 // tools/lib/providers/ est trois niveaux sous sim/ (tools -> lib -> providers) :
 // il faut donc QUATRE dirname() pour remonter à sim/ depuis le chemin complet du
@@ -23,8 +24,6 @@ export function _cacheRootForTests(dir) { CACHE_ROOT = dir ?? path.join(SIM_ROOT
 export const id = 'google-earth';
 export const label = 'Google Earth';
 export const attribution = ['© Google'];
-
-const PREFIX = 'https://kh.google.com/rt/earth/';
 
 // Réseau remplaçable par les tests (fixtures à la place de kh.google.com).
 export const _net = {
@@ -160,16 +159,6 @@ async function fetchBulk(bulkPath, epoch, { signal }) {
 		if (e.status === 404 || e.status === 410) return null;
 		throw e;
 	}
-}
-
-function nodeUrl({ path: p, epoch, imageryEpoch, flags }) {
-	let u = `${PREFIX}NodeData/pb=!1m2!1s${p}!2u${epoch}!2e1`;
-	// imageryEpoch peut rester null même avec le flag posé (ni meta.imageryEpoch
-	// ni bulk.defaultImageryEpoch renseignés dans la capture, cf. traverse()) :
-	// sans cette garde on émettait `!3unull`, un 404 garanti compté comme nœud
-	// manquant.
-	if ((flags & 16) && imageryEpoch != null) u += `!3u${imageryEpoch}`;
-	return u + '!4b0';
 }
 
 // fill-in ancestors (issue #18 Task 9, ruling après échec réel de bake) :
