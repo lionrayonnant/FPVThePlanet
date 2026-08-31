@@ -42,7 +42,7 @@ export function zoomToLevel(zoom) { return Math.max(13, Math.min(22, zoom)); }
 // Mêmes règles que flyover.mjs (copiées avec leur justification) : le nom du
 // dossier de cache est indépendant du fournisseur (cf. HANDOFF), mais chaque
 // fournisseur reste libre de sa propre disposition sur disque.
-export async function tileDirName({ lat, lon, zoom, radius, altitude, bbox, poly }) {
+export async function tileDirName({ lat, lon, zoom = 20, radius = 25, altitude = 0, bbox, poly }) {
 	if (poly) return `poly-${await polyHash(poly)}-${zoom}-${altitude}`;
 	if (bbox) {
 		const { south, west, north, east } = bbox;
@@ -174,7 +174,7 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 // pruned).
 export async function plan(opts, { signal } = {}) {
 	const zone = zoneOf(opts);
-	const level = zoomToLevel(opts.zoom);
+	const level = zoomToLevel(opts.zoom ?? 20);
 	const { nodes } = await traverse(zone, level, { signal });
 	return { columns: nodes.length, trigger: 'Google Earth', pruned: 0, coverage: zone };
 }
@@ -184,7 +184,7 @@ export async function plan(opts, { signal } = {}) {
 // d'état 'undecodable' possible ici (contrairement à Flyover/C3M).
 export async function probe(opts, { signal } = {}) {
 	const zone = zoneOf(opts);
-	const level = zoomToLevel(opts.zoom);
+	const level = zoomToLevel(opts.zoom ?? 20);
 	const centre = { lat: (zone.south + zone.north) / 2, lon: (zone.west + zone.east) / 2 };
 	// Largeur angulaire d'un octant à ce niveau : la racine couvre 90°, et
 	// chaque digit suivant la moitié (cf. childBoxes) — indépendant de la
@@ -239,7 +239,7 @@ async function downloadNodes(tileDir, nodes, { signal, onLog }) {
 // Télécharge la tuile et rend le dossier prêt pour prep.mjs. Lève si aucun
 // nœud n'a pu être obtenu — 0 tuile 3D, cf. ruling task-6 #3.
 export async function fetch(opts, { onLog, signal } = {}) {
-	const { zoom, force = false } = opts;
+	const { zoom = 20, force = false } = opts;
 	const tileDir = await tileDirPath(opts);
 	let fetchedAt;
 
