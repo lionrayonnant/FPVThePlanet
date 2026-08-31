@@ -315,16 +315,19 @@ await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', 
 		assert.equal(d.tu.length, d.vertCount, 'un UV par sommet');
 		for (const m of d.materials) assert.ok(Buffer.isBuffer(m.texture), 'textures en Buffer');
 		// ECEF plausible sur un échantillon.
-		const r = Math.hypot(d.vx.array[0], d.vy.array[0], d.vz.array[0]);
+		const vx = d.vx.view(), vy = d.vy.view(), vz = d.vz.view();
+		const r = Math.hypot(vx[0], vy[0], vz[0]);
 		assert.ok(r > 6.35e6 && r < 6.4e6, `|v0| = ${r}`);
 		// UV moteur dans [0,1].
+		const tu = d.tu.view(), tv = d.tv.view();
 		for (let i = 0; i < d.vertCount; i += 101) {
-			assert.ok(d.tu.array[i] >= -0.01 && d.tu.array[i] <= 1.01);
-			assert.ok(d.tv.array[i] >= -0.01 && d.tv.array[i] <= 1.01);
+			assert.ok(tu[i] >= -0.01 && tu[i] <= 1.01);
+			assert.ok(tv[i] >= -0.01 && tv[i] <= 1.01);
 		}
 		// Les indices de triangles pointent dans les sommets.
 		for (const g of d.triByMat) {
-			for (let i = 0; i < g.length; i += 2) assert.ok(g.array[i] < d.vertCount);
+			const gv = g.view();
+			for (let i = 0; i < g.length; i += 2) assert.ok(gv[i] < d.vertCount);
 		}
 		// L'attribution vient des tuiles (niveau 3 du design).
 		assert.ok(d.attribution.length > 0);
