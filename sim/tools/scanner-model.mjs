@@ -154,19 +154,67 @@ export function signalDensity({ place, areaKm2 }) {
 	};
 }
 
+// ---------------------------------------------------------------- fournisseur
+//
+// Le scanner sonde UN fournisseur, celui que l'opérateur a désigné. Pas de mode
+// automatique et rien de présélectionné : deux sources ne servent ni la même
+// imagerie ni la même fraîcheur, et laisser une machine trancher à la place de
+// l'opérateur lui cacherait précisément ce qu'il est venu regarder. Choisir est
+// donc un geste, à chaque zone.
+//
+// `registry` est la réponse de /__map-api/providers : { providers: [{id, label}],
+// default }. On s'en sert pour l'ORDRE d'affichage seulement — le défaut du
+// registre est la priorité 1 de l'issue #18, donc il se présente en premier —
+// jamais pour choisir à la place de quelqu'un.
+// Un exporteur qui panique rend sa stack goroutine entière. La première ligne
+// porte la cause (« open ./config.json: no such file »), le reste est un vidage
+// mémoire qui n'a rien à faire dans un panneau de jeu — et qui noierait le seul
+// morceau lisible. Le log serveur garde la trace complète.
+function firstLine(msg) {
+	const line = String(msg ?? '').split('\n').map((l) => l.trim()).find(Boolean);
+	if (!line) return 'unknown error';
+	return line.length > 160 ? `${line.slice(0, 157)}…` : line;
+}
+
+export function sourceChoices(registry) {
+	const list = (registry?.providers ?? []).filter((p) => p && p.id);
+	const dflt = registry?.default;
+	const first = list.filter((p) => p.id === dflt);
+	return [...first, ...list.filter((p) => p.id !== dflt)].map((p) => ({ id: p.id, label: p.label ?? p.id }));
+}
+
+// Le fournisseur retenu, ou null tant que l'opérateur n'a pas choisi (ou si son
+// choix n'est plus inscrit : on ne se rabat pas en silence sur un autre).
+export function chosenSource(registry, chosen) {
+	return sourceChoices(registry).find((p) => p.id === chosen) ?? null;
+}
+
 // ---------------------------------------------------------------- couverture
 //
-// Verdict de couverture Flyover en langage du jeu. `plan` vient de
-// /__map-api/plan, `probe` de /__map-api/probe.
-export function coverageLine({ plan, probe }) {
+// Verdict de couverture en langage du jeu. `plan` vient de /__map-api/plan,
+// `probe` de /__map-api/probe, et `provider` ({ id, label }) est celui qui a
+// répondu : avec plusieurs fournisseurs inscrits, dire LEQUEL a parlé est la
+// moitié de l'information — un « NO COVERAGE » anonyme ne dit pas s'il faut
+// changer de zone ou changer de source.
+export function coverageLine({ plan, probe, provider }) {
+	const who = provider?.label ?? 'The source';
 	if (probe) {
+		// « La sonde a échoué » n'est PAS « il n'y a rien ici ». Un jeton absent,
+		// un exporteur qui plante, un réseau coupé : rendre ça en « NO COVERAGE »
+		// ferait conclure à l'opérateur que la source ne couvre pas la zone, et il
+		// changerait de zone au lieu de réparer son installation. Le message du
+		// serveur passe alors tel quel — c'est la seule chose qui aide vraiment.
+		if (probe.status === 'error') {
+			return { status: 'error', label: 'SOURCE UNAVAILABLE', detail: `${who} could not be reached: ${firstLine(probe.message)}` };
+		}
 		const label = { ok: 'PHOTOGRAMMETRY CONFIRMED', undecodable: 'COVERED / UNREADABLE', none: 'NO COVERAGE' }[probe.status] ?? 'UNKNOWN';
 		// Le message du serveur est en français : il sert la GUI d'extraction, pas
 		// le jeu. On reformule à partir des compteurs, qui eux sont des mesures.
 		const detail = {
-			ok: `${num(probe.exported ?? 0)} tiles came back at the centre of the area. Flyover has real photogrammetry here.`,
+			ok: `${num(probe.exported ?? 0)} tiles came back at the centre of the area. ${who} has real photogrammetry here.`,
+			// « C3M » est le format d'Apple : ce statut ne peut venir que de lui.
 			undecodable: `${num(probe.undecodable ?? 0)} tiles came back but the C3M parser cannot decode them. Covered, unusable.`,
-			none: 'Nothing came back at the centre of the area. Flyover most likely has no photogrammetry here.',
+			none: `Nothing came back at the centre of the area. ${who} most likely has no photogrammetry here.`,
 		}[probe.status] ?? probe.message;
 		return { status: probe.status, label, detail };
 	}
@@ -182,7 +230,7 @@ export function coverageLine({ plan, probe }) {
 			: `Region "${plan.trigger}" — ${num(plan.columns)} columns inside its extent.`;
 		return { status: 'planned', label: 'REGION FOUND', detail };
 	}
-	return { status: 'unprobed', label: 'UNPROBED', detail: 'Flyover only serves photogrammetry over a list of cities. Probe before acquiring.' };
+	return { status: 'unprobed', label: 'UNPROBED', detail: `${who} only serves photogrammetry over part of the world. Probe before acquiring.` };
 }
 
 // La part de la zone scannée que la région Flyover déclare NE PAS couvrir.
