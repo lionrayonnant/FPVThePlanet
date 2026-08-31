@@ -841,6 +841,35 @@ await t('fournisseur : au niveau 21, le coût suit les nœuds présents — pas 
 	}
 });
 
+await t('fournisseur : la traversée rend compte de son avancement (sinon l\'écran semble bloqué)', async () => {
+	// La traversée précède tout téléchargement, donc le compteur de tuiles de
+	// l'écran d'acquisition reste à 0 pendant toute sa durée — mesuré jusqu'à
+	// 25,8 s pour une zone d'1,5 km au niveau 21. Muette, elle est
+	// indistinguable d'un blocage : c'est exactement ce qui a été signalé.
+	const served = new Map();
+	served.set('PlanetoidMetadata', read(FIX.planetoid));
+	for (const b of FIX.bulks) served.set(`BulkMetadata/pb=!1m2!1s${b.path}!2u${b.epoch}`, read(b.file));
+	const http = async (url) => {
+		const key = url.replace('https://kh.google.com/rt/earth/', '');
+		if (!served.has(key)) { const e = new Error('404'); e.status = 404; throw e; }
+		return served.get(key);
+	};
+
+	const zone = { south: 48.85, west: 2.33, north: 48.87, east: 2.36 };
+	const lines = [];
+	await withNet(http, () => ge.traverse(zone, 20, {
+		reportMs: 0, // sans temporisation : on veut voir la ligne, pas attendre
+		onLog: (l) => { if (l.stream === 'meta') lines.push(l.line); },
+	}));
+
+	const progress = lines.filter((l) => /^repérage : /.test(l));
+	assert.ok(progress.length > 0, `aucune ligne d'avancement émise : ${JSON.stringify(lines)}`);
+	assert.match(progress[0], /octant\(s\).*bulk\(s\) lu\(s\)/,
+		'la ligne doit dire ce qui avance réellement — octants repérés et bulks lus');
+	// Et le résumé final reste émis, il n'est pas remplacé par les points d'étape.
+	assert.ok(lines.some((l) => /^traversée : /.test(l)), 'le résumé final de traversée a disparu');
+});
+
 await t('fournisseur : une zone démesurée est refusée par un plafond de nœuds, pas par une pendaison', async () => {
 	// L'ancien garde-fou comparait des COLONNES lat/lon (~4 400 pour 500 m au
 	// niveau 21) à une limite de 200 000 : il ne se déclenchait jamais sur une
