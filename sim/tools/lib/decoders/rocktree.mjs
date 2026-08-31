@@ -13,6 +13,40 @@ export function sniff(tileDir) {
 	return fs.existsSync(path.join(tileDir, 'rocktree-tile.json'));
 }
 
+// Google's rocktree node matrices place vertices on a SPHERE of Earth's mean
+// radius (6 371 000 m), not the WGS84 ellipsoid prep.mjs's ecefToGeodetic
+// (Bowring) expects — a decoder contract mismatch found baking Champ de Mars
+// real (issue #18 Task 9): the raw matrix-transformed points satisfied
+// asin(z/r) ≈ the true geodetic latitude and r - 6 371 000 ≈ the true
+// altitude (19..363 m across a tile whose tallest point is the Eiffel Tower)
+// to within tens of metres, while running the SAME points through a proper
+// WGS84 ellipsoidal inverse landed 0.19° / ~5 km off — a geocentric-sphere
+// feed "read" as if it were oblate-ellipsoid ECEF, which it structurally
+// isn't (verified against three independent vertices and the tile's whole
+// vertex cloud, not asserted from one sample). Re-expressed here as true
+// WGS84 ellipsoidal ECEF, so prep.mjs's shared geodesy — origin, ENU basis,
+// every downstream ground query — sees the same contract Flyover's OBJ
+// decoder already gives it, without prep.mjs needing to know which decoder
+// produced its input.
+const WGS84_A = 6378137.0;
+const WGS84_F = 1 / 298.257223563;
+const WGS84_B = WGS84_A * (1 - WGS84_F);
+const WGS84_E2 = 1 - (WGS84_B * WGS84_B) / (WGS84_A * WGS84_A);
+const EARTH_MEAN_RADIUS_M = 6371000;
+
+function sphereToWgs84Ecef(x, y, z) {
+	const r = Math.hypot(x, y, z);
+	const lat = Math.asin(z / r), lon = Math.atan2(y, x);
+	const alt = r - EARTH_MEAN_RADIUS_M;
+	const sl = Math.sin(lat), cl = Math.cos(lat);
+	const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * sl * sl);
+	return [
+		(n + alt) * cl * Math.cos(lon),
+		(n + alt) * cl * Math.sin(lon),
+		(n * (1 - WGS84_E2) + alt) * sl,
+	];
+}
+
 export async function decode(tileDir, { onLog } = {}) {
 	const log = (line) => onLog?.(line);
 	const tile = JSON.parse(fs.readFileSync(path.join(tileDir, 'rocktree-tile.json'), 'utf8'));
@@ -51,9 +85,11 @@ export async function decode(tileDir, { onLog } = {}) {
 			const base = vx.length;
 			for (let i = 0; i < count; i++) {
 				const x = xyz[i * 3], y = xyz[i * 3 + 1], z = xyz[i * 3 + 2];
-				vx.push(x * ma[0] + y * ma[4] + z * ma[8] + ma[12]);
-				vy.push(x * ma[1] + y * ma[5] + z * ma[9] + ma[13]);
-				vz.push(x * ma[2] + y * ma[6] + z * ma[10] + ma[14]);
+				const gx = x * ma[0] + y * ma[4] + z * ma[8] + ma[12];
+				const gy = x * ma[1] + y * ma[5] + z * ma[9] + ma[13];
+				const gz = x * ma[2] + y * ma[6] + z * ma[10] + ma[14];
+				const [ex, ey, ez] = sphereToWgs84Ecef(gx, gy, gz);
+				vx.push(ex); vy.push(ey); vz.push(ez);
 				if (uvNorm) {
 					const u = (uvNorm.uv[i * 2] + uvNorm.ou) * uvNorm.su;
 					const v = (uvNorm.uv[i * 2 + 1] + uvNorm.ov) * uvNorm.sv;

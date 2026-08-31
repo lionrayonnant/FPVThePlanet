@@ -129,12 +129,48 @@ const attribution = decoded.attribution?.length ? decoded.attribution : opts.att
 // would leave a half-written scene behind on a failed run.
 fs.mkdirSync(opts.outDir, { recursive: true });
 
+// ---- outlier filter (rocktree ancestor fill-in, issue #18 Task 9) ------
+//
+// traverse() in providers/google-earth.mjs falls back to a coarse ancestor
+// node when a target octant's own leaf has no finer child (the documented
+// "fill-in" — see its comment). That ancestor's OWN mesh still carries real,
+// non-excluded triangles for its other seven octants, which near the octree
+// root span thousands of kilometres of unrelated geography — a Flyover OBJ
+// tile never has this shape, only rocktree's fill-in does. A 240 m bake has
+// no use for continent-scale triangles, and even a handful of them move the
+// bbox-centroid origin far off the real tile, which is what turned into
+// "no ground found anywhere" baking Champ de Mars (origin landed near
+// 35.7,45.2 instead of Paris). The real cluster and the fill-in debris are
+// separated by four to five orders of magnitude (metres vs thousands of
+// km), so a fixed cutoff around the MEDIAN position — robust to a small
+// minority of extreme outliers, unlike a bbox centre — reliably tells them
+// apart without needing to know what radius was actually requested. Revisit
+// the constant if a Google Earth bake is ever intentionally wider than 20 km.
+function median(view) {
+	const s = Float64Array.from(view);
+	s.sort();
+	const n = s.length;
+	return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+const OUTLIER_RADIUS_M = 20000;
+const VX = vx.view(), VY = vy.view(), VZ = vz.view();
+const medX = median(VX), medY = median(VY), medZ = median(VZ);
+const far = new Uint8Array(vertCount);
+let farCount = 0;
+for (let i = 0; i < vertCount; i++) {
+	const dx = VX[i] - medX, dy = VY[i] - medY, dz = VZ[i] - medZ;
+	if (dx * dx + dy * dy + dz * dz > OUTLIER_RADIUS_M * OUTLIER_RADIUS_M) { far[i] = 1; farCount++; }
+}
+if (farCount) {
+	console.log(`${stamp()} dropping ${farCount.toLocaleString()} / ${vertCount.toLocaleString()} vertices beyond ${(OUTLIER_RADIUS_M / 1000).toFixed(0)} km of the tile median — rocktree ancestor fill-in debris`);
+}
+
 // ---- ECEF -> local ENU metres -----------------------------------------
 
 let minX = Infinity, minY = Infinity, minZ = Infinity;
 let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-const VX = vx.view(), VY = vy.view(), VZ = vz.view();
 for (let i = 0; i < vertCount; i++) {
+	if (far[i]) continue;
 	if (VX[i] < minX) minX = VX[i]; if (VX[i] > maxX) maxX = VX[i];
 	if (VY[i] < minY) minY = VY[i]; if (VY[i] > maxY) maxY = VY[i];
 	if (VZ[i] < minZ) minZ = VZ[i]; if (VZ[i] > maxZ) maxZ = VZ[i];
@@ -180,23 +216,30 @@ for (let c = 0; c < chunkCount; c++) {
 		// vi = 2^21 and silently drops ti's low bits.
 		const seen = new Map();
 		const localLayer = m - layerBase;
-		for (let k = 0; k < tris.length; k += 2) {
-			const vi = tris[k], ti = tris[k + 1];
-			let byUv = seen.get(vi);
-			if (byUv === undefined) { byUv = new Map(); seen.set(vi, byUv); }
-			let local = byUv.get(ti);
-			if (local === undefined) {
-				local = lay.length;
-				const x = VX[vi], y = VY[vi], z = VZ[vi];
-				pos.push(x, y, z);
-				uv.push(TU[ti], TV[ti]);
-				lay.push(localLayer);
-				if (x < bmin[0]) bmin[0] = x; if (x > bmax[0]) bmax[0] = x;
-				if (y < bmin[1]) bmin[1] = y; if (y > bmax[1]) bmax[1] = y;
-				if (z < bmin[2]) bmin[2] = z; if (z > bmax[2]) bmax[2] = z;
-				byUv.set(ti, local);
+		// 3 corners (6 entries: vIdx,uvIdx pairs) per triangle, always -- both
+		// decoders emit them that way. Stepped 6 at a time so a whole outlier
+		// triangle (see the filter above) can be skipped before any of its
+		// corners touch pos/uv/lay/idx, rather than only after the fact.
+		for (let k = 0; k < tris.length; k += 6) {
+			if (far[tris[k]] || far[tris[k + 2]] || far[tris[k + 4]]) continue;
+			for (let c = 0; c < 6; c += 2) {
+				const vi = tris[k + c], ti = tris[k + c + 1];
+				let byUv = seen.get(vi);
+				if (byUv === undefined) { byUv = new Map(); seen.set(vi, byUv); }
+				let local = byUv.get(ti);
+				if (local === undefined) {
+					local = lay.length;
+					const x = VX[vi], y = VY[vi], z = VZ[vi];
+					pos.push(x, y, z);
+					uv.push(TU[ti], TV[ti]);
+					lay.push(localLayer);
+					if (x < bmin[0]) bmin[0] = x; if (x > bmax[0]) bmax[0] = x;
+					if (y < bmin[1]) bmin[1] = y; if (y > bmax[1]) bmax[1] = y;
+					if (z < bmin[2]) bmin[2] = z; if (z > bmax[2]) bmax[2] = z;
+					byUv.set(ti, local);
+				}
+				idx.push(local);
 			}
-			idx.push(local);
 		}
 	}
 

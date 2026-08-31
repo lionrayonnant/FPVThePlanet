@@ -341,5 +341,20 @@
 		"fetchedAt": "2026-08-30T20:31:54.788Z",
 		"bytes": 182574161,
 		"createdAt": "2026-08-30T20:32:06.412Z"
+	},
+	{
+		"slug": "ge-champ-de-mars",
+		"name": "GE Champ de Mars",
+		"lat": 48.8582,
+		"lon": 2.2945,
+		"radius": 120,
+		"zoom": 19,
+		"altitude": 20,
+		"cell": 256,
+		"quality": 85,
+		"provider": "google-earth",
+		"fetchedAt": "2026-08-31T08:37:15.790Z",
+		"bytes": 14766607,
+		"createdAt": "2026-08-31T08:44:12.617Z"
 	}
 ]

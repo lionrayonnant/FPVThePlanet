@@ -186,9 +186,35 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 		}
 	}
 
+	// fill-in ancestors (issue #18 Task 9, ruling après échec réel de bake) :
+	// `lastGood` retient, PAR COLONNE cible, le nœud le plus profond dont le
+	// NodeData est réellement disponible — pas forcément un LEAF. Quand une
+	// colonne voisine descend plus loin sur le même chemin, ce nœud moins
+	// profond redevient un pur ancêtre, et son maillage (hors l'octant qui
+	// continue) couvre alors une cellule bien plus grande que la petite zone
+	// demandée — jusqu'à un quart d'hémisphère près de la racine. L'inclure
+	// a produit une origine à des milliers de km de Paris et un maillage sans
+	// sol trouvable (bake Champ de Mars, radius 120). Un nœud est un pur
+	// ancêtre ssi un AUTRE nœud retenu prolonge son chemin — pas seulement
+	// son enfant direct (path+1 digit) : les niveaux NODATA intermédiaires
+	// sautés par la boucle ci-dessus font que le prochain nœud réel peut être
+	// 2+ digits plus profond. Triés, les chemins placent un préfixe
+	// immédiatement avant tout ce qui le prolonge (ordre lexicographique) :
+	// un seul regard sur l'entrée suivante suffit à détecter un descendant.
+	const sortedPaths = [...nodesOut.keys()].sort();
+	const hasDescendant = new Set();
+	for (let i = 0; i + 1 < sortedPaths.length; i++) {
+		if (sortedPaths[i + 1].startsWith(sortedPaths[i])) hasDescendant.add(sortedPaths[i]);
+	}
+	for (const p of hasDescendant) nodesOut.delete(p);
+
 	// exclude : pour chaque nœud retenu dont un enfant direct (path + 1 digit)
 	// est aussi retenu, exclure cet octant — sinon parent et enfant dessinent
-	// la même géométrie (z-fight, cf. décodeur).
+	// la même géométrie (z-fight, cf. décodeur). Après le filtre ci-dessus,
+	// deux nœuds retenus ne sont plus jamais l'un l'ancêtre de l'autre, donc
+	// ceci ne trouve normalement plus rien — gardé pour la robustesse si un
+	// futur changement de traversée réintroduit des recouvrements au même
+	// niveau.
 	const paths = new Set(nodesOut.keys());
 	const nodes = [...nodesOut.values()].map((n) => {
 		const exclude = [];
@@ -196,7 +222,7 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 		return { ...n, exclude };
 	});
 
-	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s), ${visitedBulks} bulk(s) visité(s).` });
+	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s) (+${hasDescendant.size} ancêtre(s) fill-in écarté(s)), ${visitedBulks} bulk(s) visité(s).` });
 	return { nodes, visitedBulks, rootEpoch };
 }
 
