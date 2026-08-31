@@ -417,17 +417,38 @@ $('check').onclick = async () => {
 			return;
 		}
 
-		// Auto : Google Earth d'abord, repli sur Apple Flyover si pas 'ok'.
-		let verdict, tried;
+		// Auto : Google Earth d'abord, repli sur Apple Flyover si pas 'ok' — y
+		// compris si la sonde LÈVE (réseau, 5xx transitoire de kh.google.com,
+		// non-2xx sur /plan ou /probe). Sur un endpoint non documenté c'est la
+		// panne la plus probable, pas juste un statut 'none' : une exception
+		// attrapée ici vaut donc "pas 'ok'" et fait continuer au fournisseur
+		// suivant, elle ne casse pas la boucle.
+		let verdict = null, tried, failures = [];
 		for (tried of AUTO_ORDER) {
 			renderVerdict({ status: 'pending', message: `Interrogation de ${providerLabel(tried)}…` });
-			verdict = await checkProvider(tried, zoom, altitude);
-			if (verdict.status === 'ok') break;
+			try {
+				verdict = await checkProvider(tried, zoom, altitude);
+				if (verdict.status === 'ok') break;
+			} catch (e) {
+				failures.push(`${providerLabel(tried)} : ${e.message}`);
+				verdict = null;
+			}
 		}
+		// Le fournisseur retenu pour /jobs est le dernier essayé, qu'il ait
+		// couvert ou non : si l'utilisateur choisit de lancer quand même malgré
+		// un verdict négatif, il faut envoyer le plus généreux des deux essais,
+		// pas retomber sur le défaut du serveur (le premier de AUTO_ORDER).
 		state.autoProvider = tried;
-		renderVerdict(verdict.status === 'ok'
-			? { status: verdict.status, message: `Couvert par ${providerLabel(tried)} : ${verdict.message.replace(/^Couvert\s*:\s*/, '')}` }
-			: { status: verdict.status, message: `${providerLabel(tried)} : ${verdict.message}` });
+		if (verdict?.status === 'ok') {
+			renderVerdict({ status: verdict.status, message: `Couvert par ${providerLabel(tried)} : ${verdict.message.replace(/^Couvert\s*:\s*/, '')}` });
+		} else if (verdict) {
+			renderVerdict({ status: verdict.status, message: `${providerLabel(tried)} : ${verdict.message}` });
+		} else {
+			// Les deux sondes ont levé (pas juste rendu un statut non-'ok') : on
+			// montre les deux échecs plutôt que d'avaler silencieusement le
+			// dernier et de laisser croire à une simple absence de couverture.
+			renderVerdict({ status: 'none', message: `Aucun fournisseur n'a répondu — ${failures.join(' ; ')}` });
+		}
 	} catch (e) {
 		renderVerdict({ status: 'none', message: e.message });
 	} finally {
