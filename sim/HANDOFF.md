@@ -1053,6 +1053,9 @@ Plan d'origine (contexte de la décision d'architecture) :
     vol complet (pas de scène dans l'environnement) ; le nom d'opérateur reste
     le seul moment du jeu qui exige un clavier (pas de clavier virtuel —
     assumé, à trancher si ça gêne).
+- `fetchNode()` (#168) vérifiée en direct le 2026-09-01, contre
+  `kh.google.com`, chemin `0370` epoch `1005` — 1 mesh, texture décodée sans
+  `sharp`.
 
 ## Non vérifié / à faire
 

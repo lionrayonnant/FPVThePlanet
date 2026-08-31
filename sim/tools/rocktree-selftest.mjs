@@ -10,6 +10,7 @@ import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
 import { rootOctant, childBoxes, descendBox, boxIntersects, ROOTS } from './lib/rocktree/octant.mjs';
+import { PREFIX, nodeUrl } from './lib/rocktree/url.mjs';
 import * as rocktree from './lib/decoders/rocktree.mjs';
 import { pick } from './lib/decoders/index.mjs';
 import * as ge from './lib/providers/google-earth.mjs';
@@ -901,6 +902,68 @@ await t('fournisseur : une zone démesurée est refusée par un plafond de nœud
 		/zone trop grande/,
 		'la traversée doit refuser explicitement, pas partir pour des heures'
 	);
+});
+
+await t('url : NodeData sans imageryEpoch (flag 16 absent)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: null, flags: 0 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!4b0');
+});
+
+await t('url : NodeData avec imageryEpoch (flag 16 posé et epoch connu)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: 42, flags: 16 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!3u42!4b0');
+});
+
+await t('url : flag 16 posé mais imageryEpoch null -> pas de !3unull (404 garanti sinon)', () => {
+	const u = nodeUrl({ path: '306', epoch: 1014, imageryEpoch: null, flags: 16 });
+	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!4b0');
+});
+
+await t('pb : readFields marche sur un Uint8Array pur, pas seulement un Buffer', () => {
+	// field 1 (num=1, wire=1, 64-bit) : clé = 1*8+1 = 9, puis 8 octets little-endian de 1.5
+	const bytes = new Uint8Array([9, 0, 0, 0, 0, 0, 0, 0xf8, 0x3f]);
+	const f = readFields(bytes);
+	assert.equal(f.length, 1);
+	assert.equal(f[0].num, 1);
+	assert.equal(f[0].wire, 1);
+	assert.equal(f[0].value, 1.5);
+});
+
+await t('copyrights : parseCopyrights marche sur un Uint8Array pur (pas seulement Buffer)', () => {
+	// field 1 (message Copyright), lui-même : field 1 = id (varint 5), field 2 = texte utf-8 "©" (2 octets: 0xC2 0xA9)
+	// Copyright { id=5, text="©" } encodé à la main :
+	//   sous-message field2=2 (texte) : clé=2*8+2=18, len=2, 0xC2 0xA9
+	//   field1=1 (id) : clé=1*8+0=8, varint 5
+	const copyrightMsg = new Uint8Array([8, 5, 18, 2, 0xc2, 0xa9]);
+	// message racine : field 1 = ce sous-message, répété (wire 2)
+	const key = 1 * 8 + 2;
+	const outer = new Uint8Array([key, copyrightMsg.length, ...copyrightMsg]);
+	const map = parseCopyrights(outer);
+	assert.equal(map.get(5), '©');
+});
+
+await t('unpack : unpackTexCoords marche sur un Uint8Array pur (pas seulement Buffer)', () => {
+	// en-tête : uMod-1=9 (uMod=10), vMod-1=19 (vMod=20), en uint16 LE
+	const header = new Uint8Array([9, 0, 19, 0]);
+	// 1 sommet, 4 plans d'un octet (lo(u), lo(v), hi(u), hi(v)) tous à 0
+	const body = new Uint8Array([0, 0, 0, 0]);
+	const buf = new Uint8Array([...header, ...body]);
+	const { uv, uMod, vMod } = unpackTexCoords(buf, 1);
+	assert.equal(uMod, 10);
+	assert.equal(vMod, 20);
+	assert.deepEqual([...uv], [0, 0]);
+});
+
+await t('google-earth.mjs : plus aucune référence à Buffer dans le source (portabilité navigateur, #168)', () => {
+	const src = fs.readFileSync(
+		path.join(DIR, '..', '..', 'lib/providers/google-earth.mjs'),
+		'utf8',
+	);
+	// Buffer\. et non \bBuffer\b : le mot « Buffer » reste légitime en PROSE
+	// (ce test-ci, le commentaire d'en-tête) — c'est un appel à l'API Node
+	// (Buffer.from, Buffer.alloc, ...) qui casserait un Worker navigateur.
+	assert.doesNotMatch(src, /Buffer\./,
+		'google-earth.mjs appelle encore l\'API Buffer — src/rocktree-worker.js ne peut pas l\'importer tel quel');
 });
 
 console.log(`rocktree-selftest : ${n} tests ok`);
