@@ -2,7 +2,7 @@
 // DOM. Lancer : node tools/scanner-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands,
+	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands, sourceChoices, chosenSource,
 	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
 	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline,
 } from './scanner-model.mjs';
@@ -178,6 +178,78 @@ t('coverageLine : les trois états', () => {
 	assert.equal(coverageLine({ probe: { status: 'weird', message: 'boom' } }).detail, 'boom');
 	// La sonde prime sur le plan : c'est la seule preuve réelle.
 	assert.equal(coverageLine({ plan: { columns: 40, trigger: 'x' }, probe: { status: 'none', message: 'y' } }).status, 'none');
+});
+
+t('coverageLine : le verdict nomme le fournisseur qui a répondu', () => {
+	// Avec deux fournisseurs inscrits (issue #18), « NO COVERAGE » sans nom ne
+	// dit pas s'il faut changer de zone ou changer de source.
+	const google = { id: 'google-earth', label: 'Google Earth' };
+	const apple = { id: 'flyover', label: 'Apple Flyover' };
+	assert.match(coverageLine({ probe: { status: 'ok', exported: 28 }, provider: google }).detail,
+		/^28 tiles came back at the centre of the area\. Google Earth has real photogrammetry here\.$/);
+	assert.match(coverageLine({ probe: { status: 'none' }, provider: apple }).detail,
+		/Apple Flyover most likely has no photogrammetry here\./);
+	assert.match(coverageLine({ provider: google }).detail, /^Google Earth only serves/);
+	// Aucun fournisseur connu : la phrase reste grammaticale, sans inventer de nom.
+	assert.match(coverageLine({ probe: { status: 'none' } }).detail, /The source most likely has no/);
+	// Le format C3M est celui d'Apple : ce statut ne peut venir que de lui, la
+	// phrase n'a donc pas à être paramétrée.
+	assert.match(coverageLine({ probe: { status: 'undecodable', undecodable: 4 }, provider: apple }).detail, /C3M parser/);
+});
+
+t('coverageLine : une sonde en échec ne se déguise pas en absence de couverture', () => {
+	// Constaté en vrai : sans flyover-reverse-engineering/config.json, la sonde
+	// Apple plante — et l'écran annonçait « NO COVERAGE / rien n'est revenu »,
+	// c'est-à-dire « change de zone » là où il fallait lire « répare ton
+	// installation ». Les deux verdicts sont désormais distincts.
+	const apple = { id: 'flyover', label: 'Apple Flyover' };
+	const v = coverageLine({ probe: { status: 'error', message: 'panic: open ./config.json: no such file' }, provider: apple });
+	assert.equal(v.status, 'error');
+	assert.equal(v.label, 'SOURCE UNAVAILABLE');
+	assert.match(v.detail, /^Apple Flyover could not be reached: panic: open \.\/config\.json/);
+	assert.doesNotMatch(v.detail, /no photogrammetry here/);
+	// Le message du serveur est ce qui aide : il n'est jamais avalé.
+	assert.match(coverageLine({ probe: { status: 'error' } }).detail, /unknown error/);
+	// Mais un panic Go rend sa stack goroutine entière : seule la première ligne
+	// — la cause — entre dans le panneau, le reste vit dans le log serveur.
+	const panic = coverageLine({ provider: apple, probe: { status: 'error',
+		message: 'panic: open ./config.json: no such file or directory\n\ngoroutine 1 [running]:\nmain.main()\n\t/x/y.go:145 +0x21d1\nexit status 2' } });
+	assert.equal(panic.detail, 'Apple Flyover could not be reached: panic: open ./config.json: no such file or directory');
+	assert.doesNotMatch(panic.detail, /goroutine/);
+	// Une ligne unique interminable est coupée plutôt que d'étirer le panneau.
+	assert.ok(coverageLine({ probe: { status: 'error', message: 'x'.repeat(400) } }).detail.length < 220);
+});
+
+const REGISTRY = {
+	// Le serveur liste Flyover en premier et désigne Google comme défaut : les
+	// deux informations sont distinctes, et c'est le cas réel de /providers.
+	providers: [{ id: 'flyover', label: 'Apple Flyover' }, { id: 'google-earth', label: 'Google Earth' }],
+	default: 'google-earth',
+};
+
+t('sourceChoices : les deux sources, priorité #18 en tête, rien de choisi', () => {
+	assert.deepEqual(sourceChoices(REGISTRY), [
+		{ id: 'google-earth', label: 'Google Earth' },
+		{ id: 'flyover', label: 'Apple Flyover' },
+	]);
+	// L'ordre d'affichage suit le défaut du registre, mais AFFICHER n'est pas
+	// CHOISIR : rien n'est présélectionné, c'est chosenSource qui tranche.
+	assert.equal(chosenSource(REGISTRY, null), null);
+	assert.equal(chosenSource(REGISTRY, undefined), null);
+	assert.deepEqual(chosenSource(REGISTRY, 'flyover'), { id: 'flyover', label: 'Apple Flyover' });
+	assert.deepEqual(chosenSource(REGISTRY, 'google-earth'), { id: 'google-earth', label: 'Google Earth' });
+	// Un id inconnu ne se rabat PAS en silence sur un autre fournisseur : sans
+	// source valide, le scanner ferme la sonde plutôt que d'en deviner une.
+	assert.equal(chosenSource(REGISTRY, 'inconnu'), null);
+	// Registre absent ou vide (serveur injoignable) : aucune source à proposer.
+	assert.deepEqual(sourceChoices(undefined), []);
+	assert.deepEqual(sourceChoices({ providers: [] }), []);
+	assert.equal(chosenSource(undefined, 'google-earth'), null);
+	// Défaut annoncé mais pas inscrit : la liste reste celle du serveur.
+	assert.deepEqual(sourceChoices({ providers: [{ id: 'flyover', label: 'Apple Flyover' }], default: 'absent' }),
+		[{ id: 'flyover', label: 'Apple Flyover' }]);
+	// Libellé manquant : on affiche l'id plutôt qu'un bouton vide.
+	assert.deepEqual(sourceChoices({ providers: [{ id: 'x' }] }), [{ id: 'x', label: 'x' }]);
 });
 
 t('acquisitionProgress : honnête sur ce qu\'il sait', () => {

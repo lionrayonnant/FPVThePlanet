@@ -802,6 +802,39 @@ Plan d'origine (contexte de la décision d'architecture) :
     **Auto** (sonde Google Earth, puis repli Apple Flyover — y compris quand
     la sonde Google **lève** une exception, pas seulement quand elle répond
     négativement).
+  - **Choix de la source dans le GLOBAL SCANNER** (`src/scanner.js`, l'écran
+    qui a absorbé `add-map.html` — c'est LA voie réelle, la GUI héritée ne
+    sert plus qu'au débogage). Bloc COVERAGE : `SOURCE — PICK ONE`, une rangée
+    `sc-switch` alimentée par `GET /__map-api/providers` (le scanner n'écrit
+    ni les ids ni les libellés). **Aucun mode automatique, rien de
+    présélectionné** : PROBE et ACQUIRE restent fermés tant que l'opérateur
+    n'a pas désigné une source, et changer de source invalide plan+sonde.
+    `sourceChoices()`/`chosenSource()` (scanner-model, testés) portent la
+    règle ; l'ordre d'AFFICHAGE suit le défaut du registre (priorité #18),
+    afficher n'étant pas choisir. Le fournisseur désigné part dans `/plan`,
+    `/probe` et `/jobs`.
+    - **Corrigé au passage, trouvé en s'en servant** : (1) le scanner
+      n'envoyait aucun `provider`, donc il acquérait déjà chez Google tout en
+      écrivant « Flyover » partout — les verdicts nomment maintenant la source
+      qui a répondu ; (2) `probe()` de google-earth ne rendait pas `exported`,
+      d'où un « 0 tiles came back » sous un verdict « couvert » ; (3) une
+      sonde qui **échoue** était rendue en `NO COVERAGE` (« rien n'est revenu
+      ici »), ce qui envoyait chercher une autre zone quand il fallait réparer
+      son installation — statut `error` distinct, libellé `SOURCE
+      UNAVAILABLE`, message serveur réduit à sa première ligne (un panic Go
+      déversait sa stack goroutine dans le panneau).
+    - **Vérifié dans le navigateur** sur une zone du Champ-de-Mars : rangée à
+      deux boutons, rien de présélectionné, PROBE fermé tant qu'aucune source
+      n'est choisie ; GOOGLE EARTH → « 18 tiles came back … Google Earth has
+      real photogrammetry here » ; bascule sur APPLE FLYOVER → verdict remis à
+      UNPROBED puis, `config.json` en place, « Couvert : 23 tuile(s) » côté
+      API. Un `provider` inconnu est refusé en 400 (« fournisseur inconnu :
+      bidon (connus : flyover, google-earth) »).
+    - **À savoir pour tester dans un worktree** : `flyover-reverse-engineering/
+      config.json` (jeton Apple, gitignoré) n'existe QUE dans la copie
+      principale — sans lui la sonde Apple échoue, et c'est exactement ce que
+      le nouveau `SOURCE UNAVAILABLE` sert à ne plus confondre avec « pas de
+      couverture ». Le copier dans le worktree suffit.
   - **Découvertes wire, mesurées (pas dans la doc de protocole tierce)** :
     - le globe rocktree est une **sphère** de rayon moyen terrestre
       (6 371 010 m), pas l'ellipsoïde WGS84 — `sphereToWgs84Ecef()` dans le

@@ -17,6 +17,7 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
+	sourceChoices, chosenSource,
 } from '../tools/scanner-model.mjs';
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
@@ -73,7 +74,7 @@ const PANEL = `
 
 <section class="sc-block">
 	<pre class="sc-h">AREA ANALYSIS</pre>
-	<pre class="sc-hint">NO AREA — DRAW A BOX OR A SHAPE</pre>
+	<pre class="sc-hint sc-area-hint">NO AREA — DRAW A BOX OR A SHAPE</pre>
 	<dl class="sc-readout" hidden>
 		<dt>TILES</dt><dd class="sc-tiles">—</dd>
 		<dt>REQUESTS</dt><dd class="sc-requests">—</dd>
@@ -101,6 +102,9 @@ const PANEL = `
 
 <section class="sc-block">
 	<pre class="sc-h">COVERAGE</pre>
+	<pre class="sc-hint sc-source-hint">SOURCE — PICK ONE</pre>
+	<div class="sc-switch sc-source-switch"></div>
+	<pre class="sc-note sc-source-note" hidden></pre>
 	<pre class="sc-verdict" data-status="unprobed">UNPROBED</pre>
 	<pre class="sc-detail"></pre>
 	<button type="button" class="sc-cta sc-probe" disabled>[ PROBE AREA ]</button>
@@ -223,10 +227,18 @@ export function runScanner(root) {
 		probe: null,        // dernier verdict de sonde
 		place: null,        // { class, type } Nominatim, pour la densité de signal
 		zoom: 20,
+		source: null,       // id du fournisseur DÉSIGNÉ par l'opérateur, jamais deviné
 		nameEdited: false,
 		scenes: [],
 		jobId: null,
 	};
+
+	// Registre des fournisseurs, tel que le serveur le déclare : le scanner
+	// n'invente ni les ids ni les libellés (issue #18). Tant que la réponse n'est
+	// pas là, la rangée SOURCE est vide et la sonde reste fermée — mieux vaut
+	// n'offrir aucun choix qu'un choix qui n'existe pas côté pipeline.
+	let registry = { providers: [], default: undefined };
+	const provider = () => chosenSource(registry, state.source);
 
 	// ------------------------------------------------------------ carte
 	const map = L.map($('.scanner-map'), {
@@ -292,6 +304,8 @@ export function runScanner(root) {
 
 	// Part de la zone que la région Flyover déclare ne pas couvrir. Vient du plan
 	// réel : l'emprise de région est un rectangle, l'élagage est une intersection.
+	// Propre à Flyover : le plan de Google Earth ne déclare pas d'emprise de
+	// région (rien à élaguer), prunedBands rend null et rien n'est grisé.
 	function drawPruned() {
 		pruned.clearLayers();
 		const p = prunedBands(state.plan);
@@ -340,7 +354,7 @@ export function runScanner(root) {
 		if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
 		state.zone = state.describe = state.plan = state.probe = null;
 		lattice.clearLayers(); pruned.clearLayers(); outline.clearLayers(); map.removeLayer(snapped);
-		$('.sc-hint').hidden = false;
+		$('.sc-area-hint').hidden = false;
 		$('.sc-readout').hidden = true;
 		$('.sc-clear').hidden = true;
 		$('.sc-heavy').hidden = true;
@@ -367,7 +381,7 @@ export function runScanner(root) {
 	function renderAnalysis() {
 		const a = areaAnalysis(state.describe);
 		if (!a) return;
-		$('.sc-hint').hidden = true;
+		$('.sc-area-hint').hidden = true;
 		$('.sc-readout').hidden = false;
 		$('.sc-clear').hidden = false;
 		$('.sc-tiles').textContent = a.tiles;
@@ -430,7 +444,7 @@ export function runScanner(root) {
 
 	// ------------------------------------------------------------ couverture
 	function renderCoverage() {
-		const v = coverageLine({ plan: state.plan, probe: state.probe });
+		const v = coverageLine({ plan: state.plan, probe: state.probe, provider: provider() });
 		const el2 = $('.sc-verdict');
 		el2.dataset.status = v.status;
 		el2.textContent = v.label;
@@ -440,12 +454,18 @@ export function runScanner(root) {
 
 	$('.sc-probe').onclick = async () => {
 		const btn = $('.sc-probe');
+		// La source est désignée, jamais devinée : sans elle, il n'y a rien à
+		// sonder. Le bouton est déjà fermé dans ce cas (updateButtons) — cette
+		// garde protège le chemin clavier/manette.
+		const src = provider();
+		if (!state.zone || !src) return;
+
 		btn.disabled = true;
 		$('.sc-verdict').dataset.status = 'busy';
 		$('.sc-verdict').textContent = 'PROBING';
-		$('.sc-detail').textContent = 'Querying the Flyover region…';
+		$('.sc-detail').textContent = `Querying ${src.label}…`;
 		try {
-			const { plan, ...d } = await post('/plan', { ...state.zone, zoom: state.zoom, altitude: 20 });
+			const { plan, ...d } = await post('/plan', { ...state.zone, zoom: state.zoom, altitude: 20, provider: src.id });
 			state.describe = d; state.plan = plan; state.probe = null;
 			renderAnalysis(); drawPruned(); renderCoverage();
 
@@ -463,14 +483,16 @@ export function runScanner(root) {
 
 			$('.sc-verdict').dataset.status = 'busy';
 			$('.sc-verdict').textContent = 'SAMPLING';
-			$('.sc-detail').textContent = `Region "${plan.trigger}" — downloading a photogrammetry sample at the centre…`;
-			state.probe = await post('/probe', { ...state.zone, zoom: state.zoom, altitude: 20 });
+			$('.sc-detail').textContent = `${src.label} — downloading a photogrammetry sample at the centre…`;
+			state.probe = await post('/probe', { ...state.zone, zoom: state.zoom, altitude: 20, provider: src.id });
 			renderCoverage();
 		} catch (e) {
-			state.probe = { status: 'none', message: e.message };
+			// Un échec de la sonde n'est pas un verdict de couverture : voir
+			// coverageLine, qui distingue « injoignable » de « rien ici ».
+			state.probe = { status: 'error', message: e.message };
 			renderCoverage();
 		} finally {
-			btn.disabled = !state.zone;
+			btn.disabled = !state.zone || !provider();
 		}
 	};
 
@@ -565,8 +587,12 @@ export function runScanner(root) {
 	function updateButtons() {
 		const name = $('.sc-name').value.trim();
 		const slug = slugify(name);
-		$('.sc-probe').disabled = !state.zone;
-		$('.sc-acquire').disabled = !state.zone || !slug;
+		// Sonder comme acquérir demandent une source désignée : il n'y a pas de
+		// fournisseur par défaut ici, et en inventer un enverrait l'opérateur
+		// chercher une imagerie qu'il n'a pas demandée.
+		const src = provider();
+		$('.sc-probe').disabled = !state.zone || !src;
+		$('.sc-acquire').disabled = !state.zone || !slug || !src;
 		const existing = state.scenes.find((s) => s.slug === slug);
 		note('.sc-slug', slug ? (existing ? `ID ${slug} — ALREADY IN CACHE, ACQUIRING OVERWRITES IT` : `ID ${slug}`) : null, existing ? 'warn' : null);
 	}
@@ -580,7 +606,10 @@ export function runScanner(root) {
 	}
 
 	// ------------------------------------------------------------ couches
-	function switchRow(sel, entries) {
+	// `preselect` : la rangée démarre sur sa première entrée. Vrai pour les
+	// couches et le détail, qui ont un état de départ légitime ; FAUX pour la
+	// source, où rien n'est choisi tant que l'opérateur n'a pas choisi.
+	function switchRow(sel, entries, { preselect = true } = {}) {
 		const row = $(sel);
 		row.innerHTML = '';
 		entries.forEach(([label, fn], i) => {
@@ -591,8 +620,26 @@ export function runScanner(root) {
 			b.onclick = () => { fn(); for (const o of row.querySelectorAll('button')) o.dataset.on = String(o === b); };
 			row.appendChild(b);
 		});
-		row.querySelector('button').dataset.on = 'true';
+		const first = row.querySelector('button');
+		if (preselect && first) first.dataset.on = 'true';
 	}
+	// Changer de source invalide plan et sonde : le verdict affiché appartenait
+	// au fournisseur précédent, et rien ne dit que le suivant répondra pareil.
+	// Même geste que le commutateur de détail juste en dessous.
+	function setSource(id) {
+		state.source = id;
+		state.plan = null; state.probe = null;
+		pruned.clearLayers();
+		renderCoverage();
+		updateButtons();
+	}
+	function renderSourceSwitch() {
+		const choices = sourceChoices(registry);
+		switchRow('.sc-source-switch', choices.map((p) => [p.label.toUpperCase(), () => setSource(p.id)]), { preselect: false });
+		note('.sc-source-note', choices.length ? null : 'SCANNER OFFLINE — NO SOURCE AVAILABLE', 'alarm');
+	}
+	renderSourceSwitch();
+
 	switchRow('.sc-layers', Object.keys(LAYERS).map((k) => [k, () => setLayer(k)]));
 	switchRow('.sc-detail-switch', DETAIL.map((d) => [`${d.label} ${d.side}`, () => {
 		state.zoom = d.zoom;
@@ -639,16 +686,20 @@ export function runScanner(root) {
 	$('.sc-acquire').onclick = async () => {
 		// La sonde n'est pas obligatoire, mais acquérir sans elle est le meilleur
 		// moyen d'attendre dix minutes pour rien.
+		const src = provider();
+		if (!src) return;
 		if (state.probe?.status !== 'ok') {
 			const why = state.probe || state.plan
-				? coverageLine({ plan: state.plan, probe: state.probe }).detail
-				: 'Flyover coverage has not been probed for this area.';
+				? coverageLine({ plan: state.plan, probe: state.probe, provider: src }).detail
+				: `${src.label} coverage has not been probed for this area.`;
 			if (!confirm(`${why}\n\nAcquire anyway?`)) return;
 		}
 		try {
+			// On acquiert chez la source désignée, toujours explicitement : le
+			// pipeline a un défaut, mais il ne doit jamais décider ici.
 			const { jobId } = await post('/jobs', {
 				name: $('.sc-name').value.trim(),
-				...state.zone, zoom: state.zoom, altitude: 20, cell: 256, quality: 85,
+				...state.zone, zoom: state.zoom, altitude: 20, cell: 256, quality: 85, provider: src.id,
 			});
 			watchJob(jobId, $('.sc-name').value.trim(), state.describe?.estimate?.tiles ?? 0);
 		} catch (e) {
@@ -838,6 +889,13 @@ export function runScanner(root) {
 	// ------------------------------------------------------------ démarrage
 	clearZone();
 	loadScenes();
+	// Les sources proposées viennent du serveur. En cas d'échec on garde AUTO
+	// seul : le pipeline choisira son défaut, exactement comme avant qu'il y ait
+	// deux fournisseurs.
+	api('/providers').then((r) => {
+		registry = { providers: r.providers ?? [], default: r.default };
+		renderSourceSwitch();
+	}).catch(() => {});
 	// Reprend la main sur une acquisition déjà en cours (rechargement, retour au
 	// scanner pendant qu'un job tourne).
 	api('/jobs').then(({ jobs }) => {

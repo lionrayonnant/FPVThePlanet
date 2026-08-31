@@ -561,6 +561,9 @@ button.terminal-row:focus::before { left: 0; }
 .sc-verdict[data-status="ok"] { color: var(--green); }
 .sc-verdict[data-status="planned"], .sc-verdict[data-status="busy"], .sc-verdict[data-status="undecodable"] { color: var(--yellow); }
 .sc-verdict[data-status="none"] { color: var(--red); }
+/* « Injoignable » n'est pas « pas de couverture » : même alarme rouge, mais le
+   libellé et le détail disent que c'est l'installation locale qui a échoué. */
+.sc-verdict[data-status="error"] { color: var(--red); }
 .sc-verdict[data-status="unprobed"] { color: var(--light-grey); }
 .sc-detail { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); line-height: 1.5; letter-spacing: var(--track-data); color: var(--dim); white-space: pre-wrap; }
 

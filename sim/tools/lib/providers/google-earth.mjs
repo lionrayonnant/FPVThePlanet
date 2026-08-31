@@ -305,10 +305,13 @@ export async function probe(opts, { signal } = {}) {
 	const probeZone = { south: centre.lat - half, north: centre.lat + half, west: centre.lon - half, east: centre.lon + half };
 
 	const { nodes } = await traverse(probeZone, level, { signal });
+	// `exported` est le compteur que les deux fournisseurs ont en commun : ce qui
+	// est réellement revenu au centre de la zone. Le scanner l'affiche tel quel —
+	// sans lui, un verdict « couvert » s'accompagnait d'un « 0 tiles » mensonger.
 	if (nodes.length > 0) {
-		return { status: 'ok', message: `Couvert : ${nodes.length} octant(s) au niveau ${level}.` };
+		return { status: 'ok', exported: nodes.length, message: `Couvert : ${nodes.length} octant(s) au niveau ${level}.` };
 	}
-	return { status: 'none', message: "Google Earth n'a pas de photogrammétrie à ce niveau ici." };
+	return { status: 'none', exported: 0, message: "Google Earth n'a pas de photogrammétrie à ce niveau ici." };
 }
 
 // Télécharge la tuile : traverse puis récupère le NodeData de chaque nœud
