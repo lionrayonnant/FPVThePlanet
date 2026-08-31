@@ -105,9 +105,9 @@ const stamp = () => `[${((Date.now() - t0) / 1000).toFixed(1)}s]`;
 // lèvent (jamais process.exit) : c'est ici, à la frontière CLI, qu'on retombe
 // sur un message clair + exit 1 plutôt qu'une trace de pile brute (issue #18,
 // retour de revue — fichier manquant, tuile vide, ou dossier non reconnu).
-let decoded;
+let decoded, decoder;
 try {
-	const decoder = pick(opts.tileDir);
+	decoder = pick(opts.tileDir);
 	decoded = await decoder.decode(opts.tileDir, {
 		onLog: (line) => console.log(`${stamp()} ${line}`),
 	});
@@ -154,15 +154,25 @@ function median(view) {
 }
 const OUTLIER_RADIUS_M = 20000;
 const VX = vx.view(), VY = vy.view(), VZ = vz.view();
-const medX = median(VX), medY = median(VY), medZ = median(VZ);
+// far stays all-zero (never allocated to anything else) on the OBJ path: the
+// artefact this guards against is rocktree's fill-in ancestors specifically
+// (see the comment above) — Flyover's OBJ decoder never produces it, so the
+// median (a copy + sort of every vx/vy/vz, real cost on Flyover's
+// multi-million-vertex tiles) is skipped rather than run for nothing. The
+// downstream origin/chunk-building loops still read `far` unconditionally;
+// this keeps them decoder-agnostic while leaving the OBJ path's output
+// byte-for-byte the same as before this filter existed.
 const far = new Uint8Array(vertCount);
 let farCount = 0;
-for (let i = 0; i < vertCount; i++) {
-	const dx = VX[i] - medX, dy = VY[i] - medY, dz = VZ[i] - medZ;
-	if (dx * dx + dy * dy + dz * dz > OUTLIER_RADIUS_M * OUTLIER_RADIUS_M) { far[i] = 1; farCount++; }
-}
-if (farCount) {
-	console.log(`${stamp()} dropping ${farCount.toLocaleString()} / ${vertCount.toLocaleString()} vertices beyond ${(OUTLIER_RADIUS_M / 1000).toFixed(0)} km of the tile median — rocktree ancestor fill-in debris`);
+if (decoder.id !== 'obj') {
+	const medX = median(VX), medY = median(VY), medZ = median(VZ);
+	for (let i = 0; i < vertCount; i++) {
+		const dx = VX[i] - medX, dy = VY[i] - medY, dz = VZ[i] - medZ;
+		if (dx * dx + dy * dy + dz * dz > OUTLIER_RADIUS_M * OUTLIER_RADIUS_M) { far[i] = 1; farCount++; }
+	}
+	if (farCount) {
+		console.log(`${stamp()} dropping ${farCount.toLocaleString()} / ${vertCount.toLocaleString()} vertices beyond ${(OUTLIER_RADIUS_M / 1000).toFixed(0)} km of the tile median — rocktree ancestor fill-in debris`);
+	}
 }
 
 // ---- ECEF -> local ENU metres -----------------------------------------

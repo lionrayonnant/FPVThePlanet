@@ -21,6 +21,32 @@ const read = (f) => fs.readFileSync(path.join(DIR, f));
 let n = 0;
 const t = async (name, fn) => { await Promise.resolve(fn()); n++; console.log(`  ok  ${name}`); };
 
+// Fabrique un tileDir depuis les fixtures (c'est le format que produit le
+// fournisseur — ce helper EST le contrat entre fournisseur et décodeur).
+// Partagé par le test décodeur et le test de régression sphère→WGS84
+// ci-dessous plutôt que dupliqué : les deux décodent le même tileDir.
+function makeFixtureTileDir() {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rocktree-dec-'));
+	fs.mkdirSync(path.join(dir, 'nodes'));
+	const copyrights = {};
+	for (const nf of FIX.nodes) {
+		fs.copyFileSync(path.join(DIR, nf.file), path.join(dir, 'nodes', `${nf.path}.pb`));
+	}
+	// Résout les copyright_ids réels des fixtures contre copyrights.pb.
+	const crMap = parseCopyrights(read(FIX.copyrights));
+	for (const nf of FIX.nodes) {
+		for (const id of parseNode(read(nf.file)).copyrightIds) {
+			if (crMap.has(id)) copyrights[id] = crMap.get(id);
+		}
+	}
+	fs.writeFileSync(path.join(dir, 'rocktree-tile.json'), JSON.stringify({
+		provider: 'google-earth', epoch: FIX.epoch, level: 16,
+		fetchedAt: '2026-08-31T00:00:00.000Z', copyrights,
+		nodes: FIX.nodes.map((nf) => ({ path: nf.path, file: `nodes/${nf.path}.pb`, exclude: [] })),
+	}, null, '\t'));
+	return dir;
+}
+
 await (async () => {
 
 await t('pb : varint, len-delimited et packed doubles sur un message fabriqué', () => {
@@ -286,28 +312,8 @@ await t('octant : octantsCovering rend, au niveau des fixtures, un surensemble d
 });
 
 await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', async () => {
-	// Fabrique un tileDir depuis les fixtures (c'est le format que produira
-	// le fournisseur en Task 6 — ce test EST le contrat entre les deux).
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rocktree-dec-'));
+	const dir = makeFixtureTileDir();
 	try {
-		fs.mkdirSync(path.join(dir, 'nodes'));
-		const copyrights = {};
-		for (const nf of FIX.nodes) {
-			fs.copyFileSync(path.join(DIR, nf.file), path.join(dir, 'nodes', `${nf.path}.pb`));
-		}
-		// Résout les copyright_ids réels des fixtures contre copyrights.pb.
-		const crMap = parseCopyrights(read(FIX.copyrights));
-		for (const nf of FIX.nodes) {
-			for (const id of parseNode(read(nf.file)).copyrightIds) {
-				if (crMap.has(id)) copyrights[id] = crMap.get(id);
-			}
-		}
-		fs.writeFileSync(path.join(dir, 'rocktree-tile.json'), JSON.stringify({
-			provider: 'google-earth', epoch: FIX.epoch, level: 16,
-			fetchedAt: '2026-08-31T00:00:00.000Z', copyrights,
-			nodes: FIX.nodes.map((nf) => ({ path: nf.path, file: `nodes/${nf.path}.pb`, exclude: [] })),
-		}, null, '\t'));
-
 		assert.equal(pick(dir).id, 'rocktree', 'sniff par reniflage');
 		const lines = [];
 		const d = await rocktree.decode(dir, { onLog: (l) => lines.push(l) });
@@ -338,6 +344,78 @@ await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', 
 		assert.ok(lines.some((l) => /^\s*[\d\s, .]+ vertices, [\d\s, .]+ uvs, [\d\s, .]+ triangles$/.test(l)));
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+await t('décodeur : les sommets ECEF convertissent en altitude WGS84 plausible (verrou sphère→ellipsoïde, issue #18 Task 9)', async () => {
+	// Régression pour le bug réel du bake Champ de Mars : rocktree.mjs plaçait
+	// ses sommets sur une SPHÈRE de rayon terrestre moyen (6 371 000 m), pas
+	// sur l'ellipsoïde WGS84 que prep.mjs (Bowring) attend. Sans la
+	// reconversion sphereToWgs84Ecef(), la même conversion ci-dessous rend
+	// une latitude fausse de 0,19° et une altitude ~5100 m au lieu de
+	// quelques dizaines de mètres — c'est ce que ce test aurait détecté.
+	// Bowring réécrite ici (et non importée de prep.mjs) : prep.mjs n'exporte
+	// pas ecefToGeodetic, et CLAUDE.md demande de ne pas retoucher sa
+	// géodésie ECEF→ENU sans raison — la dupliquer dans un test n'en est pas
+	// une modification.
+	const A = 6378137.0, F = 1 / 298.257223563, B = A * (1 - F);
+	const E2 = 1 - (B * B) / (A * A), EP2 = (A * A - B * B) / (B * B);
+	function ecefToGeodeticAlt(x, y, z) {
+		const p = Math.hypot(x, y);
+		const theta = Math.atan2(z * A, p * B);
+		const lat = Math.atan2(z + EP2 * B * Math.sin(theta) ** 3, p - E2 * A * Math.cos(theta) ** 3);
+		const N = A / Math.sqrt(1 - E2 * Math.sin(lat) ** 2);
+		return p / Math.cos(lat) - N; // altitude seule ; lat/lon non nécessaires ici
+	}
+
+	const dir = makeFixtureTileDir();
+	try {
+		const d = await rocktree.decode(dir, {});
+		const vx = d.vx.view(), vy = d.vy.view(), vz = d.vz.view();
+		// Mesuré sur cette fixture (capture Paris réelle) : altitude dans
+		// [26.2, 89.4] m sur 3621 sommets échantillonnés (pas de terrain élevé
+		// dans cette capture-là) — [0, 400] ci-dessous est donc un seuil large,
+		// pas serré au point de casser sur une fixture future qui inclurait
+		// un toit ou la Tour Eiffel, tout en restant très en dessous des
+		// ~5100 m que rendrait la régression sphère→ellipsoïde.
+		let sampled = 0, outOfRange = 0;
+		for (let i = 0; i < d.vertCount; i += 7) {
+			const alt = ecefToGeodeticAlt(vx[i], vy[i], vz[i]);
+			sampled++;
+			if (!(alt >= 0 && alt <= 400)) outOfRange++;
+		}
+		assert.ok(sampled > 100, `échantillon trop petit (${sampled})`);
+		assert.ok(outOfRange / sampled <= 0.01,
+			`${outOfRange}/${sampled} sommets hors [0, 400] m — sphère→ellipsoïde probablement absente`);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+await t('fournisseur : dropFillinAncestors écarte tout chemin retenu préfixe strict d\'un autre', () => {
+	// Reproduit la forme du scénario réel qui a cassé le bake Champ de Mars :
+	// un ancêtre coarse ("30"), un ancêtre intermédiaire séparé de son
+	// descendant par PLUS d'un digit ("3060" -> "306040", pas "30601" — les
+	// niveaux NODATA sautés par traverse() dans la vraie boucle), un ancêtre
+	// immédiatement adjacent à son descendant ("306040" -> le leaf), et une
+	// branche "31" totalement indépendante qui ne doit pas être touchée.
+	const synth = new Map([
+		['30', {}],
+		['3060', {}],
+		['306040', {}],
+		['30604060716362605075', {}],
+		['31', {}],
+	]);
+	const dropped = ge.dropFillinAncestors(synth);
+	assert.equal(dropped, 3, `attendu 3 ancêtres écartés (30, 3060, 306040), eu ${dropped}`);
+	assert.deepEqual([...synth.keys()].sort(), ['30604060716362605075', '31']);
+
+	// L'invariant lui-même, avec le même lookahead trié que le code : après
+	// filtrage, aucun chemin retenu ne doit être un préfixe strict d'un autre.
+	const sorted = [...synth.keys()].sort();
+	for (let i = 0; i + 1 < sorted.length; i++) {
+		assert.ok(!sorted[i + 1].startsWith(sorted[i]),
+			`${sorted[i]} est un préfixe strict de ${sorted[i + 1]} — un ancêtre fill-in a survécu`);
 	}
 });
 

@@ -131,6 +131,36 @@ function nodeUrl({ path: p, epoch, imageryEpoch, flags }) {
 	return u + '!4b0';
 }
 
+// fill-in ancestors (issue #18 Task 9, ruling après échec réel de bake) :
+// `lastGood`, dans traverse() ci-dessous, retient PAR COLONNE cible le nœud
+// le plus profond dont le NodeData est réellement disponible — pas
+// forcément un LEAF. Quand une colonne voisine descend plus loin sur le
+// même chemin, ce nœud moins profond redevient un pur ancêtre, et son
+// maillage (hors l'octant qui continue) couvre alors une cellule bien plus
+// grande que la petite zone demandée — jusqu'à un quart d'hémisphère près
+// de la racine. L'inclure a produit une origine à des milliers de km de
+// Paris et un maillage sans sol trouvable (bake Champ de Mars, radius 120).
+// Un nœud est un pur ancêtre ssi un AUTRE nœud retenu prolonge son chemin —
+// pas seulement son enfant direct (path+1 digit) : les niveaux NODATA
+// intermédiaires sautés par traverse() font que le prochain nœud réel peut
+// être 2+ digits plus profond. Triés, les chemins placent un préfixe
+// immédiatement avant tout ce qui le prolonge (ordre lexicographique) : un
+// seul regard sur l'entrée suivante suffit à détecter un descendant.
+//
+// Fonction nommée et exportée séparément (plutôt que laissée en ligne dans
+// traverse()) pour que rocktree-selftest.mjs verrouille l'algorithme
+// lui-même sur des chemins synthétiques, sans réseau ni capture réelle qui
+// doive reproduire le scénario par chance.
+export function dropFillinAncestors(nodesOut) {
+	const sortedPaths = [...nodesOut.keys()].sort();
+	const hasDescendant = new Set();
+	for (let i = 0; i + 1 < sortedPaths.length; i++) {
+		if (sortedPaths[i + 1].startsWith(sortedPaths[i])) hasDescendant.add(sortedPaths[i]);
+	}
+	for (const p of hasDescendant) nodesOut.delete(p);
+	return hasDescendant.size;
+}
+
 // Cœur du fournisseur : descend les bulks tous les 4 digits (le grain auquel
 // le protocole les découpe), en vérifiant à chaque étage que le préfixe
 // existe et sert du NodeData (flags & 8 = NODATA). Un LEAF (flags & 4)
@@ -186,27 +216,8 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 		}
 	}
 
-	// fill-in ancestors (issue #18 Task 9, ruling après échec réel de bake) :
-	// `lastGood` retient, PAR COLONNE cible, le nœud le plus profond dont le
-	// NodeData est réellement disponible — pas forcément un LEAF. Quand une
-	// colonne voisine descend plus loin sur le même chemin, ce nœud moins
-	// profond redevient un pur ancêtre, et son maillage (hors l'octant qui
-	// continue) couvre alors une cellule bien plus grande que la petite zone
-	// demandée — jusqu'à un quart d'hémisphère près de la racine. L'inclure
-	// a produit une origine à des milliers de km de Paris et un maillage sans
-	// sol trouvable (bake Champ de Mars, radius 120). Un nœud est un pur
-	// ancêtre ssi un AUTRE nœud retenu prolonge son chemin — pas seulement
-	// son enfant direct (path+1 digit) : les niveaux NODATA intermédiaires
-	// sautés par la boucle ci-dessus font que le prochain nœud réel peut être
-	// 2+ digits plus profond. Triés, les chemins placent un préfixe
-	// immédiatement avant tout ce qui le prolonge (ordre lexicographique) :
-	// un seul regard sur l'entrée suivante suffit à détecter un descendant.
-	const sortedPaths = [...nodesOut.keys()].sort();
-	const hasDescendant = new Set();
-	for (let i = 0; i + 1 < sortedPaths.length; i++) {
-		if (sortedPaths[i + 1].startsWith(sortedPaths[i])) hasDescendant.add(sortedPaths[i]);
-	}
-	for (const p of hasDescendant) nodesOut.delete(p);
+	// fill-in ancestors : voir le commentaire sur dropFillinAncestors() plus haut.
+	const droppedAncestors = dropFillinAncestors(nodesOut);
 
 	// exclude : pour chaque nœud retenu dont un enfant direct (path + 1 digit)
 	// est aussi retenu, exclure cet octant — sinon parent et enfant dessinent
@@ -222,7 +233,7 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 		return { ...n, exclude };
 	});
 
-	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s) (+${hasDescendant.size} ancêtre(s) fill-in écarté(s)), ${visitedBulks} bulk(s) visité(s).` });
+	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s) (+${droppedAncestors} ancêtre(s) fill-in écarté(s)), ${visitedBulks} bulk(s) visité(s).` });
 	return { nodes, visitedBulks, rootEpoch };
 }
 
