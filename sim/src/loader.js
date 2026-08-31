@@ -35,6 +35,21 @@ const MAX_CONCURRENT = 3;
 // second one.
 const tileMaterials = [];
 
+// Retire des matières de tileMaterials quand leurs chunks sont libérés (issue
+// #147) : `push` seul les y gardait pour toujours, avec elles
+// `uniforms.uMap.value` → le `DataArrayTexture` dont `.image.data` (le buffer
+// de pixels, ~135 Mo par zone) n'est PAS libéré par `texture.dispose()` — ce
+// dernier ne fait que signaler le renderer côté GPU, il ne touche pas à la
+// donnée JS. Sans ce retrait, une zone préchargée puis abandonnée ne rend
+// jamais sa mémoire, et setFog()/setNight()/setDim() itèrent chaque frame de
+// météo sur des matières mortes en plus des vivantes.
+export function releaseTileMaterials(materials) {
+	for (const m of materials) {
+		const i = tileMaterials.indexOf(m);
+		if (i !== -1) tileMaterials.splice(i, 1);
+	}
+}
+
 // Le sol lointain (#139) suit exactement la même météo que les tuiles — sinon
 // la ligne d'horizon se dédouble. Enregistré plutôt qu'importé : loader.js ne
 // doit rien savoir de THREE au-delà de ce qu'il fait déjà.
