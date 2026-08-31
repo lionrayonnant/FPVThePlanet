@@ -19,7 +19,8 @@ export function unpackVertices(buf) {
 // En-tête 4 octets : (uMod-1, vMod-1) en uint16 LE. Puis 4 plans d'octets :
 // lo(u), lo(v), hi(u), hi(v) — delta-encodés modulo uMod/vMod.
 export function unpackTexCoords(buf, count) {
-	const uMod = 1 + buf.readUInt16LE(0), vMod = 1 + buf.readUInt16LE(2);
+	const dv = new DataView(buf.buffer, buf.byteOffset, 4);
+	const uMod = 1 + dv.getUint16(0, true), vMod = 1 + dv.getUint16(2, true);
 	const data = buf.subarray(4);
 	if (data.length !== count * 4) throw new Error(`texcoords : ${data.length} octets pour ${count} sommets`);
 	const uv = new Uint16Array(count * 2);

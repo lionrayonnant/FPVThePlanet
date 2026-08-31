@@ -942,6 +942,18 @@ await t('copyrights : parseCopyrights marche sur un Uint8Array pur (pas seulemen
 	assert.equal(map.get(5), '©');
 });
 
+await t('unpack : unpackTexCoords marche sur un Uint8Array pur (pas seulement Buffer)', () => {
+	// en-tête : uMod-1=9 (uMod=10), vMod-1=19 (vMod=20), en uint16 LE
+	const header = new Uint8Array([9, 0, 19, 0]);
+	// 1 sommet, 4 plans d'un octet (lo(u), lo(v), hi(u), hi(v)) tous à 0
+	const body = new Uint8Array([0, 0, 0, 0]);
+	const buf = new Uint8Array([...header, ...body]);
+	const { uv, uMod, vMod } = unpackTexCoords(buf, 1);
+	assert.equal(uMod, 10);
+	assert.equal(vMod, 20);
+	assert.deepEqual([...uv], [0, 0]);
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);
 
 })();
