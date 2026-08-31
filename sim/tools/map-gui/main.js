@@ -21,6 +21,10 @@ const state = {
 	zoom: 20,
 	jobId: null,
 	nameEdited: false,
+	// Fournisseur retenu par la dernière vérification en mode Auto (design #18) :
+	// null tant qu'aucune sonde n'a tranché. En mode manuel c'est le sélecteur
+	// lui-même qui fait foi — voir electedProviderId() plus bas.
+	autoProvider: null,
 };
 
 // ---------------------------------------------------------------- carte
@@ -85,7 +89,7 @@ map.on('pm:remove', clearZone);
 
 function clearZone() {
 	if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
-	state.zone = null; state.describe = null; state.coverage = null;
+	state.zone = null; state.describe = null; state.coverage = null; state.autoProvider = null;
 	lattice.clearLayers();
 	outline.clearLayers();
 	map.removeLayer(snapped);
@@ -343,27 +347,87 @@ function goTo(lat, lon, label) {
 	if (label && !state.nameEdited && !$('name').value) { $('name').value = label; updateButtons(); }
 }
 
+// -------------------------------------------------------------- fournisseur
+//
+// « Auto » sonde Google Earth d'abord, et ne retombe sur Apple Flyover que si
+// ce premier essai n'est pas 'ok' (l'ordre du design #18 : Google devient le
+// fournisseur par défaut, Flyover est le repli). Le sélecteur manuel court-
+// circuite cette logique et n'interroge que le fournisseur choisi.
+const AUTO_ORDER = ['google-earth', 'flyover'];
+let providersList = []; // [{id, label}], peuplé par /providers au démarrage
+
+function providerLabel(id) {
+	return providersList.find((p) => p.id === id)?.label ?? id;
+}
+
+// Le fournisseur qui part réellement dans /plan, /probe et /jobs : le choix
+// manuel du sélecteur s'il y en a un, sinon celui que la dernière sonde Auto a
+// retenu (peut être null si aucune vérification n'a encore tourné — dans ce
+// cas le serveur applique son propre défaut, qui est aussi le premier de
+// AUTO_ORDER).
+function electedProviderId() {
+	return $('provider').value || state.autoProvider || undefined;
+}
+
+async function loadProviders() {
+	try {
+		const { providers } = await api('/providers');
+		providersList = providers;
+		const sel = $('provider');
+		for (const p of providers) {
+			sel.append(Object.assign(document.createElement('option'), { value: p.id, textContent: p.label }));
+		}
+	} catch { /* le sélecteur reste sur "Auto" seul ; /plan et /jobs valident quand même côté serveur */ }
+}
+
+$('provider').addEventListener('change', () => {
+	state.autoProvider = null; state.coverage = null;
+	renderVerdict({ status: 'pending', message: 'Fournisseur changé — vérifie la couverture avant de lancer.' });
+});
+
 // ---------------------------------------------------------------- couverture
+
+// Plan puis sonde UN fournisseur donné. Rend le verdict de probe() tel quel
+// (status/message), sans toucher à l'affichage — l'appelant décide comment le
+// montrer (mode manuel : tel quel ; mode Auto : préfixé du fournisseur élu).
+async function checkProvider(provider, zoom, altitude) {
+	const { plan, ...d } = await post('/plan', { ...state.zone, zoom, altitude, provider });
+	state.describe = d; renderZone(d);
+
+	// columns === 0 : la région existe mais son emprise déclarée ne recouvre
+	// pas du tout la zone. Verdict immédiat, sans toucher au réseau.
+	if (plan.columns === 0) {
+		return { status: 'none',
+			message: `Hors de l'emprise de « ${plan.trigger} » : les ${nf.format(plan.pruned)} colonnes sont toutes en dehors. Déplace la zone.` };
+	}
+
+	renderVerdict({ status: 'pending', message: `${providerLabel(provider)} — « ${plan.trigger} ». Téléchargement d'un échantillon au centre…` });
+	return post('/probe', { ...state.zone, zoom, altitude, provider });
+}
 
 $('check').onclick = async () => {
 	const btn = $('check');
 	btn.disabled = true;
-	renderVerdict({ status: 'pending', message: 'Interrogation de la région Flyover…' });
+	const zoom = state.zoom, altitude = Number($('altitude').value) || 20;
+	const chosen = $('provider').value; // '' = Auto
 	try {
-		const zoom = state.zoom, altitude = Number($('altitude').value) || 20;
-		const { plan, ...d } = await post('/plan', { ...state.zone, zoom, altitude });
-		state.describe = d; renderZone(d);
-
-		// columns === 0 : la région existe mais son emprise déclarée ne recouvre
-		// pas du tout la zone. Verdict immédiat, sans toucher au réseau.
-		if (plan.columns === 0) {
-			return renderVerdict({ status: 'none',
-				message: `Hors de l'emprise de la région « ${plan.trigger} » : les ${nf.format(plan.pruned)} colonnes sont toutes en dehors. Déplace la zone.` });
+		if (chosen) {
+			renderVerdict({ status: 'pending', message: `Interrogation de ${providerLabel(chosen)}…` });
+			renderVerdict(await checkProvider(chosen, zoom, altitude));
+			return;
 		}
 
-		renderVerdict({ status: 'pending', message: `Région « ${plan.trigger} ». Téléchargement d'un échantillon au centre…` });
-		const p = await post('/probe', { ...state.zone, zoom, altitude });
-		renderVerdict(p);
+		// Auto : Google Earth d'abord, repli sur Apple Flyover si pas 'ok'.
+		let verdict, tried;
+		for (tried of AUTO_ORDER) {
+			renderVerdict({ status: 'pending', message: `Interrogation de ${providerLabel(tried)}…` });
+			verdict = await checkProvider(tried, zoom, altitude);
+			if (verdict.status === 'ok') break;
+		}
+		state.autoProvider = tried;
+		renderVerdict(verdict.status === 'ok'
+			? { status: verdict.status, message: `Couvert par ${providerLabel(tried)} : ${verdict.message.replace(/^Couvert\s*:\s*/, '')}` }
+			: { status: verdict.status, message: `${providerLabel(tried)} : ${verdict.message}` });
 	} catch (e) {
 		renderVerdict({ status: 'none', message: e.message });
 	} finally {
@@ -386,12 +450,13 @@ $('launch').onclick = async () => {
 	if (state.coverage?.status !== 'ok') {
 		const why = state.coverage
 			? state.coverage.message
-			: 'La couverture Flyover n\'a pas été vérifiée pour cette zone.';
+			: 'La couverture n\'a pas été vérifiée pour cette zone.';
 		if (!confirm(`${why}\n\nLancer quand même l'extraction ?`)) return;
 	}
 	try {
 		const { jobId } = await post('/jobs', {
 			name: $('name').value.trim(),
+			provider: electedProviderId(),
 			...state.zone,
 			zoom: state.zoom,
 			altitude: Number($('altitude').value) || 20,
@@ -533,6 +598,7 @@ async function loadScenes() {
 
 // ---------------------------------------------------------------- démarrage
 
+loadProviders();
 loadScenes();
 clearZone();
 

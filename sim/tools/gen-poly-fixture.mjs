@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { polygonBounds, polygonGrid, maskKeys, polygonArea, canonicalPoly, polyHash } from './lib/tiles.mjs';
-import { FLYOVER_ROOT } from './lib/add-map-core.mjs';
+import { FLYOVER_ROOT } from './lib/providers/flyover.mjs';
 
 const CASES = [
 	{ name: 'carré', zoom: 20, ring: [48.845, 2.295, 48.845, 2.305, 48.855, 2.305, 48.855, 2.295] },

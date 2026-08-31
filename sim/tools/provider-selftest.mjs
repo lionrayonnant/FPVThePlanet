@@ -3,7 +3,11 @@
 import assert from 'node:assert/strict';
 import * as registry from './lib/providers/index.mjs';
 import * as flyover from './lib/providers/flyover.mjs';
-import * as core from './lib/add-map-core.mjs';
+import { planScan, tileDirPath } from './lib/add-map-core.mjs';
+// Pas appelé directement dans ce fichier : l'import seul est déjà un smoke test
+// (un google-earth.mjs cassé ferait échouer le chargement du module avant même
+// que le test de dispatch ci-dessous ne tourne).
+import * as ge from './lib/providers/google-earth.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -35,13 +39,28 @@ t('contrat : chaque fournisseur expose la surface attendue', () => {
 
 // La stabilité des clés de cache elles-mêmes est déjà couverte par
 // map-poly-selftest.mjs (les trois formes : poly, radius, bbox), qui les importe
-// depuis add-map-core.mjs. On ne la duplique pas ici : on vérifie seulement que
-// l'extraction n'a pas rompu le chemin d'import ni l'asynchronisme.
-await at('flyover : tileDirName reste asynchrone et traverse la ré-export', async () => {
+// désormais directement depuis lib/providers/flyover.mjs — tileDirName n'est
+// plus sur la surface d'add-map-core.mjs (Task 7, issue #18 : le shim câblé
+// Flyover meurt). On vérifie seulement que tileDirName reste asynchrone.
+await at('flyover : tileDirName reste asynchrone', async () => {
 	const direct = await flyover.tileDirName({ lat: 48.8582, lon: 2.297, zoom: 20, radius: 25, altitude: 20 });
-	const viaCore = await core.tileDirName({ lat: 48.8582, lon: 2.297, zoom: 20, radius: 25, altitude: 20 });
-	assert.equal(direct, viaCore, 'la ré-export doit rendre exactement la même clé');
 	assert.equal(typeof direct, 'string');
+});
+
+// Task 7 (issue #18) : le shim d'add-map-core.mjs câblait plan/probe/tileDirPath
+// sur Flyover sans regarder opts.provider. Avec deux fournisseurs inscrits,
+// c'était /plan et /probe interrogeant Flyover pour une carte Google, et
+// DELETE ?raw=1 orphelinant le cache Google. Ce test prouve que le dispatch
+// regarde bien opts.provider.
+await at('dispatch : opts.provider choisit le fournisseur, plus de câblage Flyover', async () => {
+	// tileDirPath d'une même zone diffère par fournisseur : la preuve que le
+	// shim est mort. (flyover -> downloaded_files/obj, google-earth -> .cache)
+	const opts = { lat: 48.86, lon: 2.35, zoom: 20, radius: 25, altitude: 20 };
+	const pFly = await tileDirPath({ ...opts, provider: 'flyover' });
+	const pGe = await tileDirPath({ ...opts, provider: 'google-earth' });
+	assert.notEqual(pFly, pGe);
+	assert.match(pGe, /\.cache\/google-earth/);
+	await assert.rejects(planScan({ ...opts, provider: 'inconnu' }), /fournisseur inconnu/);
 });
 
 await at('flyover : les trois modes de zone donnent trois clés distinctes', async () => {

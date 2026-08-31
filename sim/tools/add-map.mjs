@@ -1,10 +1,12 @@
-// One-command pipeline for adding a new flyable map: downloads the Apple
-// Flyover tile (Go exporter), converts it (prep.mjs), and registers it in
-// public/scenes.json so it shows up in the in-app menu.
+// One-command pipeline for adding a new flyable map: downloads the tile from
+// the chosen provider (Google Earth by default, or Apple Flyover — Go
+// exporter), converts it (prep.mjs), and registers it in public/scenes.json
+// so it shows up in the in-app menu.
 //
 //   node tools/add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25]
 //                           [--altitude 20] [--cell 256] [--quality 85]
 //                           [--slug custom-slug] [--force]
+//                           [--provider google-earth|flyover]
 //                           [--bbox <south>,<west>,<north>,<east>]
 //                           [--poly "<lat>,<lon> <lat>,<lon> ..."]
 //
@@ -25,10 +27,11 @@
 // All the work lives in lib/add-map-core.mjs; this file is only the CLI.
 
 import { addMap, Cancelled, slugify } from './lib/add-map-core.mjs';
+import * as providers from './lib/providers/index.mjs';
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false, bbox: null, poly: null };
+	const opts = { zoom: 20, radius: 25, altitude: 20, cell: 256, quality: 85, slug: null, force: false, bbox: null, poly: null, provider: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--zoom') opts.zoom = parseInt(argv[++i], 10);
@@ -38,13 +41,18 @@ function parseArgs(argv) {
 		else if (a === '--quality') opts.quality = parseInt(argv[++i], 10);
 		else if (a === '--slug') opts.slug = argv[++i];
 		else if (a === '--force') opts.force = true;
+		else if (a === '--provider') opts.provider = argv[++i];
 		else if (a === '--bbox') opts.bbox = parseBox(argv[++i]);
 		else if (a === '--poly') opts.poly = parseRing(argv[++i]);
 		else positional.push(a);
 	}
 	if (positional.length !== 3) {
-		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--bbox s,w,n,e] [--poly "lat,lon lat,lon ..."]');
+		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--provider google-earth|flyover] [--bbox s,w,n,e] [--poly "lat,lon lat,lon ..."]');
 		process.exit(1);
+	}
+	if (opts.provider) {
+		try { providers.get(opts.provider); }
+		catch (e) { console.error(e.message); process.exit(1); }
 	}
 	const [name, latStr, lonStr] = positional;
 	const lat = Number(latStr), lon = Number(lonStr);
