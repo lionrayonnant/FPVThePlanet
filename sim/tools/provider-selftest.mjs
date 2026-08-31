@@ -11,9 +11,9 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 // map-poly-selftest.mjs.
 const at = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 
-t('registre : flyover est le fournisseur par défaut', () => {
-	assert.equal(registry.DEFAULT_PROVIDER_ID, 'flyover');
-	assert.equal(registry.get('flyover').id, 'flyover');
+t('registre : google-earth est le fournisseur par défaut (design #18, Stage 3 livré)', () => {
+	assert.equal(registry.DEFAULT_PROVIDER_ID, 'google-earth');
+	assert.equal(registry.get('google-earth').id, 'google-earth');
 });
 
 t('registre : un id inconnu lève une erreur nommant les ids connus', () => {

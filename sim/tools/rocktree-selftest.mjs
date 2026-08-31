@@ -12,6 +12,7 @@ import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOct
 import { rootOctant, childBoxes, octantsCovering, ROOTS } from './lib/rocktree/octant.mjs';
 import * as rocktree from './lib/decoders/rocktree.mjs';
 import { pick } from './lib/decoders/index.mjs';
+import * as ge from './lib/providers/google-earth.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
@@ -337,6 +338,61 @@ await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', 
 		assert.ok(lines.some((l) => /^\s*[\d\s, .]+ vertices, [\d\s, .]+ uvs, [\d\s, .]+ triangles$/.test(l)));
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau', async () => {
+	// Sert les fixtures à la place de kh.google.com. Toute URL hors fixture
+	// répond 404 (nœud/bulk absent) : la traversée doit s'en accommoder.
+	const served = new Map();
+	served.set('PlanetoidMetadata', read(FIX.planetoid));
+	served.set(`Copyrights/pb=!1u${FIX.epoch}`, read(FIX.copyrights));
+	for (const b of FIX.bulks) served.set(`BulkMetadata/pb=!1m2!1s${b.path}!2u${b.epoch}`, read(b.file));
+	for (const nf of FIX.nodes) served.set(nf.url.replace('https://kh.google.com/rt/earth/', ''), read(nf.file));
+
+	const realHttp = ge._net.http;
+	ge._net.http = async (url) => {
+		const key = url.replace('https://kh.google.com/rt/earth/', '');
+		if (!served.has(key)) { const e = new Error(`404 ${key}`); e.status = 404; throw e; }
+		return served.get(key);
+	};
+	try {
+		// Le nœud le plus profond des fixtures (niveau 22) : viser sa propre
+		// kml_bounding_box comme zone, à ce même niveau, garantit que la
+		// traversée retombe exactement dessus en suivant une chaîne de bulks
+		// entièrement présente dans la capture (ruling task-6 #5) — plutôt que
+		// de dépendre d'un niveau intermédiaire dont le bulk enfant peut manquer.
+		const deepest = FIX.nodes.reduce((a, b) => (a.path.length >= b.path.length ? a : b));
+		const kml = doubles(readFields(read(deepest.file)).find((f) => f.num === 5).value);
+		// Ordre mesuré empiriquement sur les fixtures (imprimé une fois) :
+		// [west, south, altMin, east, north, altMax] — PAS n,s,e,w,altMax,altMin.
+		const zone = { bbox: { west: kml[0], south: kml[1], east: kml[3], north: kml[4] } };
+		const zoom = deepest.path.length; // 22
+
+		const plan = await ge.plan({ ...zone, zoom });
+		assert.ok(plan.columns >= 1, `plan.columns = ${plan.columns}`);
+
+		const probe = await ge.probe({ ...zone, zoom });
+		assert.equal(probe.status, 'ok', probe.message);
+
+		const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ge-fetch-'));
+		ge._cacheRootForTests(tmp);
+		try {
+			const res = await ge.fetch({ ...zone, zoom });
+			assert.ok(fs.existsSync(path.join(res.tileDir, 'rocktree-tile.json')));
+			const tile = JSON.parse(fs.readFileSync(path.join(res.tileDir, 'rocktree-tile.json'), 'utf8'));
+			assert.ok(tile.nodes.length >= 1);
+			assert.ok(Object.keys(tile.copyrights).length >= 1, 'copyrights résolus');
+			assert.ok(ge.tileIsUsable(res.tileDir));
+			// Et le tileDir produit se décode : la boucle est bouclée hors-ligne.
+			const d = await rocktree.decode(res.tileDir, {});
+			assert.ok(d.vertCount > 0);
+		} finally {
+			ge._cacheRootForTests(null);
+			fs.rmSync(tmp, { recursive: true, force: true });
+		}
+	} finally {
+		ge._net.http = realHttp;
 	}
 });
 
