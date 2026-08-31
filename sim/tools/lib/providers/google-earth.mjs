@@ -2,10 +2,12 @@
 // earth.google.com — voir l'amendement 2026-08-31 du design #18. Pas de clé,
 // pas d'API souscrite : même posture que Flyover, endpoints kh.google.com.
 //
-// Réseau injectable : `_net.http(url, { signal }) -> Promise<Buffer>` est le
-// seul point de contact avec kh.google.com. Les tests le remplacent (mock des
-// fixtures) plutôt que de passer par un framework d'injection — c'est le motif
-// le plus simple qui permette de rejouer une capture hors-ligne.
+// Réseau injectable : `_net.http(url, { signal }) -> Promise<Uint8Array>` est
+// le seul point de contact avec kh.google.com. Les tests le remplacent (mock
+// des fixtures) plutôt que de passer par un framework d'injection — c'est le
+// motif le plus simple qui permette de rejouer une capture hors-ligne.
+// Uint8Array et non Buffer (#168) : ce module doit rester importable par un
+// Worker navigateur, qui n'a pas l'API Buffer
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +32,7 @@ export const _net = {
 	async http(url, { signal } = {}) {
 		const res = await globalThis.fetch(url, { signal });
 		if (!res.ok) { const e = new Error(`${res.status} ${url}`); e.status = res.status; throw e; }
-		return Buffer.from(await res.arrayBuffer());
+		return new Uint8Array(await res.arrayBuffer());
 	},
 };
 

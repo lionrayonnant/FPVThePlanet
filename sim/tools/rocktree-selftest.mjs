@@ -954,6 +954,18 @@ await t('unpack : unpackTexCoords marche sur un Uint8Array pur (pas seulement Bu
 	assert.deepEqual([...uv], [0, 0]);
 });
 
+await t('google-earth.mjs : plus aucune référence à Buffer dans le source (portabilité navigateur, #168)', () => {
+	const src = fs.readFileSync(
+		path.join(DIR, '..', '..', 'lib/providers/google-earth.mjs'),
+		'utf8',
+	);
+	// Buffer\. et non \bBuffer\b : le mot « Buffer » reste légitime en PROSE
+	// (ce test-ci, le commentaire d'en-tête) — c'est un appel à l'API Node
+	// (Buffer.from, Buffer.alloc, ...) qui casserait un Worker navigateur.
+	assert.doesNotMatch(src, /Buffer\./,
+		'google-earth.mjs appelle encore l\'API Buffer — src/rocktree-worker.js ne peut pas l\'importer tel quel');
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);
 
 })();
