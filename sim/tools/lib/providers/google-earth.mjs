@@ -107,9 +107,9 @@ function zoneOf({ lat, lon, radius = 25, bbox, poly }) {
 	return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon };
 }
 
-async function getPlanetoidEpoch({ signal }) {
+async function getPlanetoid({ signal }) {
 	const buf = await _net.http(PREFIX + 'PlanetoidMetadata', { signal });
-	return parsePlanetoid(buf).rootEpoch;
+	return parsePlanetoid(buf); // { rootEpoch, radius }
 }
 
 // Une bulk absente (404/410) veut dire « cette branche de l'octree n'est pas
@@ -168,7 +168,7 @@ export function dropFillinAncestors(nodesOut) {
 // profond retenu (fill-in) est le dernier prefix valide, pas de descente plus
 // loin puisqu'aucun bulk enfant n'existe.
 export async function traverse(zone, level, { signal, onLog } = {}) {
-	const rootEpoch = await getPlanetoidEpoch({ signal });
+	const { rootEpoch, radius } = await getPlanetoid({ signal });
 	const bulkCache = new Map();
 	let visitedBulks = 0;
 
@@ -234,7 +234,7 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 	});
 
 	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s) (+${droppedAncestors} ancêtre(s) fill-in écarté(s)), ${visitedBulks} bulk(s) visité(s).` });
-	return { nodes, visitedBulks, rootEpoch };
+	return { nodes, visitedBulks, rootEpoch, radius };
 }
 
 // Interroge la traversée seule (aucun NodeData téléchargé) : combien de
@@ -331,7 +331,7 @@ export async function fetch(opts, { onLog, signal } = {}) {
 
 	const zone = zoneOf(opts);
 	const level = zoomToLevel(zoom);
-	const { nodes, rootEpoch } = await traverse(zone, level, { signal, onLog });
+	const { nodes, rootEpoch, radius } = await traverse(zone, level, { signal, onLog });
 
 	const { stats, entries, copyrightIds } = await downloadNodes(tileDir, nodes, { signal, onLog });
 
@@ -355,7 +355,7 @@ export async function fetch(opts, { onLog, signal } = {}) {
 	// (tileIsUsable), un fetch interrompu avant cette ligne n'empoisonne donc
 	// jamais le cache.
 	fs.writeFileSync(path.join(tileDir, 'rocktree-tile.json'), JSON.stringify({
-		provider: id, epoch: rootEpoch, level, fetchedAt, copyrights, nodes: entries,
+		provider: id, epoch: rootEpoch, radius, level, fetchedAt, copyrights, nodes: entries,
 	}, null, '\t'));
 
 	onLog?.({ stream: 'phase', line: 'download', done: true });

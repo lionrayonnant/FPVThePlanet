@@ -14,8 +14,14 @@ export function unpackPathAndFlags(v) {
 }
 
 export function parsePlanetoid(buf) {
-	const meta = readFields(one(readFields(buf), 1));
-	return { rootEpoch: Number(one(meta, 5) ?? one(meta, 2)) };
+	const f = readFields(buf);
+	const meta = readFields(one(f, 1));
+	// Champ 2 du message racine (pas de `meta` — sibling de field 1, un float32
+	// nu) : le rayon de la sphère que rocktree.mjs utilise pour reconvertir ses
+	// sommets en ellipsoïde WGS84. Constaté 6 371 010.0 exactement sur la
+	// capture Paris du 2026-08-31 (planetoid.pb) — voyage désormais avec la
+	// tuile plutôt que d'être recopié en dur côté décodeur.
+	return { rootEpoch: Number(one(meta, 5) ?? one(meta, 2)), radius: one(f, 2) };
 }
 
 export function parseBulk(buf) {

@@ -39,8 +39,13 @@ function makeFixtureTileDir() {
 			if (crMap.has(id)) copyrights[id] = crMap.get(id);
 		}
 	}
+	// radius : lu du vrai planetoid.pb de la fixture (comme fetch() le ferait
+	// réellement, issue #18 revue post-cdd7e7c), pas la valeur en dur du
+	// décodeur — ce tileDir exerce donc le chemin "radius fourni", le
+	// fallback restant couvert par les tileDir déjà cuits sans ce champ.
+	const radius = parsePlanetoid(read(FIX.planetoid)).radius;
 	fs.writeFileSync(path.join(dir, 'rocktree-tile.json'), JSON.stringify({
-		provider: 'google-earth', epoch: FIX.epoch, level: 16,
+		provider: 'google-earth', epoch: FIX.epoch, radius, level: 16,
 		fetchedAt: '2026-08-31T00:00:00.000Z', copyrights,
 		nodes: FIX.nodes.map((nf) => ({ path: nf.path, file: `nodes/${nf.path}.pb`, exclude: [] })),
 	}, null, '\t'));
@@ -64,8 +69,13 @@ await t('pb : varint overflow lève (9 octets encodant >2^53)', () => {
 	assert.throws(() => readFields(buf), /varint > 2\^53/);
 });
 
-await t('planetoid : epoch racine 1014 (constaté live le 2026-08-31)', () => {
-	assert.equal(parsePlanetoid(read(FIX.planetoid)).rootEpoch, FIX.epoch);
+await t('planetoid : epoch racine 1014, rayon 6 371 010 m (constatés live le 2026-08-31)', () => {
+	const p = parsePlanetoid(read(FIX.planetoid));
+	assert.equal(p.rootEpoch, FIX.epoch);
+	// Champ 2 du message racine (pas de `meta`) : le rayon de la sphère que
+	// rocktree.mjs reconvertit en ellipsoïde WGS84 — 6 371 010, pas la
+	// constante IUGG 6 371 000 qui biaisait chaque altitude de +10 m.
+	assert.equal(p.radius, 6371010);
 });
 
 await t('copyrights : des centaines d\'entrées, du texte utf-8 exploitable', () => {
@@ -349,11 +359,13 @@ await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', 
 
 await t('décodeur : les sommets ECEF convertissent en altitude WGS84 plausible (verrou sphère→ellipsoïde, issue #18 Task 9)', async () => {
 	// Régression pour le bug réel du bake Champ de Mars : rocktree.mjs plaçait
-	// ses sommets sur une SPHÈRE de rayon terrestre moyen (6 371 000 m), pas
-	// sur l'ellipsoïde WGS84 que prep.mjs (Bowring) attend. Sans la
-	// reconversion sphereToWgs84Ecef(), la même conversion ci-dessous rend
-	// une latitude fausse de 0,19° et une altitude ~5100 m au lieu de
-	// quelques dizaines de mètres — c'est ce que ce test aurait détecté.
+	// ses sommets sur une SPHÈRE (le rayon protocolaire de PlanetoidMetadata,
+	// 6 371 010 m — pas la constante IUGG 6 371 000 utilisée un temps par ce
+	// décodeur, qui biaisait chaque altitude de +10 m), pas sur l'ellipsoïde
+	// WGS84 que prep.mjs (Bowring) attend. Sans la reconversion
+	// sphereToWgs84Ecef(), la même conversion ci-dessous rend une latitude
+	// fausse de 0,19° et une altitude ~5100 m au lieu de quelques dizaines de
+	// mètres — c'est ce que ce test aurait détecté.
 	// Bowring réécrite ici (et non importée de prep.mjs) : prep.mjs n'exporte
 	// pas ecefToGeodetic, et CLAUDE.md demande de ne pas retoucher sa
 	// géodésie ECEF→ENU sans raison — la dupliquer dans un test n'en est pas
@@ -372,12 +384,14 @@ await t('décodeur : les sommets ECEF convertissent en altitude WGS84 plausible 
 	try {
 		const d = await rocktree.decode(dir, {});
 		const vx = d.vx.view(), vy = d.vy.view(), vz = d.vz.view();
-		// Mesuré sur cette fixture (capture Paris réelle) : altitude dans
-		// [26.2, 89.4] m sur 3621 sommets échantillonnés (pas de terrain élevé
-		// dans cette capture-là) — [0, 400] ci-dessous est donc un seuil large,
-		// pas serré au point de casser sur une fixture future qui inclurait
-		// un toit ou la Tour Eiffel, tout en restant très en dessous des
-		// ~5100 m que rendrait la régression sphère→ellipsoïde.
+		// Mesuré sur cette fixture (capture Paris réelle, rayon protocolaire
+		// 6 371 010 m) : altitude dans [16.2, 79.4] m sur 3621 sommets
+		// échantillonnés (pas de terrain élevé dans cette capture-là) — [0, 400]
+		// ci-dessous est donc un seuil large, pas serré au point de casser sur
+		// une fixture future qui inclurait un toit ou la Tour Eiffel, tout en
+		// restant très en dessous des ~5100 m que rendrait la régression
+		// sphère→ellipsoïde (et bien au-dessus du biais de +10 m que rendrait
+		// à lui seul un retour à l'ancienne constante 6 371 000).
 		let sampled = 0, outOfRange = 0;
 		for (let i = 0; i < d.vertCount; i += 7) {
 			const alt = ecefToGeodeticAlt(vx[i], vy[i], vz[i]);
@@ -461,6 +475,10 @@ await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau
 			const tile = JSON.parse(fs.readFileSync(path.join(res.tileDir, 'rocktree-tile.json'), 'utf8'));
 			assert.ok(tile.nodes.length >= 1);
 			assert.ok(Object.keys(tile.copyrights).length >= 1, 'copyrights résolus');
+			// Le rayon protocolaire (PlanetoidMetadata) voyage jusque dans le
+			// tileDir écrit par fetch() — servi ici par le vrai planetoid.pb de
+			// la fixture, donc lu naturellement, pas une valeur du mock.
+			assert.equal(tile.radius, 6371010, 'rayon planetoid écrit dans rocktree-tile.json');
 			assert.ok(ge.tileIsUsable(res.tileDir));
 			// Et le tileDir produit se décode : la boucle est bouclée hors-ligne.
 			const d = await rocktree.decode(res.tileDir, {});

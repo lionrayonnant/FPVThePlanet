@@ -13,31 +13,36 @@ export function sniff(tileDir) {
 	return fs.existsSync(path.join(tileDir, 'rocktree-tile.json'));
 }
 
-// Google's rocktree node matrices place vertices on a SPHERE of Earth's mean
-// radius (6 371 000 m), not the WGS84 ellipsoid prep.mjs's ecefToGeodetic
-// (Bowring) expects — a decoder contract mismatch found baking Champ de Mars
-// real (issue #18 Task 9): the raw matrix-transformed points satisfied
-// asin(z/r) ≈ the true geodetic latitude and r - 6 371 000 ≈ the true
-// altitude (19..363 m across a tile whose tallest point is the Eiffel Tower)
-// to within tens of metres, while running the SAME points through a proper
-// WGS84 ellipsoidal inverse landed 0.19° / ~5 km off — a geocentric-sphere
-// feed "read" as if it were oblate-ellipsoid ECEF, which it structurally
-// isn't (verified against three independent vertices and the tile's whole
-// vertex cloud, not asserted from one sample). Re-expressed here as true
-// WGS84 ellipsoidal ECEF, so prep.mjs's shared geodesy — origin, ENU basis,
-// every downstream ground query — sees the same contract Flyover's OBJ
-// decoder already gives it, without prep.mjs needing to know which decoder
-// produced its input.
+// Google's rocktree node matrices place vertices on a SPHERE, not the WGS84
+// ellipsoid prep.mjs's ecefToGeodetic (Bowring) expects — a decoder contract
+// mismatch found baking Champ de Mars real (issue #18 Task 9): the raw
+// matrix-transformed points satisfied asin(z/r) ≈ the true geodetic latitude
+// and r - radius ≈ the true altitude (19..363 m across a tile whose tallest
+// point is the Eiffel Tower) to within tens of metres, while running the
+// SAME points through a proper WGS84 ellipsoidal inverse landed 0.19° / ~5 km
+// off — a geocentric-sphere feed "read" as if it were oblate-ellipsoid ECEF,
+// which it structurally isn't (verified against three independent vertices
+// and the tile's whole vertex cloud, not asserted from one sample).
+// Re-expressed here as true WGS84 ellipsoidal ECEF, so prep.mjs's shared
+// geodesy — origin, ENU basis, every downstream ground query — sees the same
+// contract Flyover's OBJ decoder already gives it, without prep.mjs needing
+// to know which decoder produced its input.
 const WGS84_A = 6378137.0;
 const WGS84_F = 1 / 298.257223563;
 const WGS84_B = WGS84_A * (1 - WGS84_F);
 const WGS84_E2 = 1 - (WGS84_B * WGS84_B) / (WGS84_A * WGS84_A);
-const EARTH_MEAN_RADIUS_M = 6371000;
+// The sphere's own radius travels with the tile (PlanetoidMetadata field 2,
+// read by providers/google-earth.mjs and written into rocktree-tile.json as
+// `radius`) — this is only the fallback for a tileDir cut before that field
+// existed. Value: PlanetoidMetadata field 2, constaté 6 371 010.0 exactement
+// sur la capture Paris du 2026-08-31 (tools/testdata/rocktree/planetoid.pb) —
+// not IUGG's rounded 6 371 000, which biased every converted altitude +10 m.
+const PLANETOID_RADIUS_FALLBACK = 6371010;
 
-function sphereToWgs84Ecef(x, y, z) {
+function sphereToWgs84Ecef(x, y, z, radius) {
 	const r = Math.hypot(x, y, z);
 	const lat = Math.asin(z / r), lon = Math.atan2(y, x);
-	const alt = r - EARTH_MEAN_RADIUS_M;
+	const alt = r - radius;
 	const sl = Math.sin(lat), cl = Math.cos(lat);
 	const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * sl * sl);
 	return [
@@ -51,6 +56,7 @@ export async function decode(tileDir, { onLog } = {}) {
 	const log = (line) => onLog?.(line);
 	const tile = JSON.parse(fs.readFileSync(path.join(tileDir, 'rocktree-tile.json'), 'utf8'));
 	if (!tile.nodes?.length) throw new Error(`${tileDir} : rocktree-tile.json ne liste aucun nœud.`);
+	const radius = tile.radius ?? PLANETOID_RADIUS_FALLBACK;
 
 	const materials = [];
 	const vx = new Growable(Float64Array, 1 << 20), vy = new Growable(Float64Array, 1 << 20), vz = new Growable(Float64Array, 1 << 20);
@@ -88,7 +94,7 @@ export async function decode(tileDir, { onLog } = {}) {
 				const gx = x * ma[0] + y * ma[4] + z * ma[8] + ma[12];
 				const gy = x * ma[1] + y * ma[5] + z * ma[9] + ma[13];
 				const gz = x * ma[2] + y * ma[6] + z * ma[10] + ma[14];
-				const [ex, ey, ez] = sphereToWgs84Ecef(gx, gy, gz);
+				const [ex, ey, ez] = sphereToWgs84Ecef(gx, gy, gz, radius);
 				vx.push(ex); vy.push(ey); vz.push(ez);
 				if (uvNorm) {
 					const u = (uvNorm.uv[i * 2] + uvNorm.ou) * uvNorm.su;
