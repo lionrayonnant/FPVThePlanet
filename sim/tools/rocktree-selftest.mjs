@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
-import { rootOctant, childBoxes, octantsCovering, ROOTS } from './lib/rocktree/octant.mjs';
+import { rootOctant, childBoxes, descendBox, boxIntersects, ROOTS } from './lib/rocktree/octant.mjs';
 import * as rocktree from './lib/decoders/rocktree.mjs';
 import { pick } from './lib/decoders/index.mjs';
 import * as ge from './lib/providers/google-earth.mjs';
@@ -50,6 +50,144 @@ function makeFixtureTileDir() {
 		nodes: FIX.nodes.map((nf) => ({ path: nf.path, file: `nodes/${nf.path}.pb`, exclude: [] })),
 	}, null, '\t'));
 	return dir;
+}
+
+// ---------------------------------------------------------------- oracle
+// L'ANCIEN algorithme de traversée (énumération géométrique des octants, puis
+// descente des bulks chemin par chemin), gardé ici et NULLE PART ailleurs.
+//
+// Il n'a plus sa place dans la lib : au niveau 21 il énumère 2^19 variantes
+// VERTICALES par cellule lat/lon — 68 M de chemins et 42 s mesurés pour une
+// zone de 240 m, sans terminer sur 1 km (issue #153). Le laisser exporté,
+// c'était laisser un piège de 42 s à portée d'import.
+//
+// Mais il reste l'oracle : lent et évidemment correct. La marche par bulks
+// doit rendre EXACTEMENT le même ensemble de nœuds, et c'est ce que le test
+// d'équivalence plus bas vérifie sur les fixtures réelles. Sans lui, « j'ai
+// réécrit la traversée » ne serait garanti par rien.
+function* octantsCoveringReference(zone, level) {
+	function* walk(pathArr, box) {
+		if (pathArr.length === level) { yield { path: pathArr.join(''), box }; return; }
+		for (const { key, box: b } of childBoxes(box)) {
+			if (boxIntersects(b, zone)) {
+				pathArr.push(key);
+				yield* walk(pathArr, b);
+				pathArr.pop();
+			}
+		}
+	}
+	const pathArr = [];
+	for (const [path, box] of ROOTS) {
+		if (boxIntersects(box, zone)) {
+			for (const ch of path) pathArr.push(ch);
+			yield* walk(pathArr, box);
+			pathArr.length = 0;
+		}
+	}
+}
+
+// L'ancienne traverse(), rendue pure : au lieu d'aller chercher les bulks sur
+// le réseau, elle les lit dans une Map path -> bulk parsé. Même logique digit
+// par digit, même `lastGood`, même condition d'arrêt — c'est une transcription,
+// pas une réécriture, sinon l'oracle ne prouverait rien.
+function traverseByEnumerationReference(bulksByPath, zone, level) {
+	const nodesOut = new Map();
+	for (const { path: target } of octantsCoveringReference(zone, level)) {
+		let bulk = bulksByPath.get('') ?? null;
+		let consumed = 0;
+		let lastGood = null;
+
+		while (bulk && consumed < target.length) {
+			const remain = Math.min(4, target.length - consumed);
+			let matchedLen = 0, leafHit = false;
+			for (let len = 1; len <= remain; len++) {
+				const rel = target.slice(consumed, consumed + len);
+				const meta = bulk.nodes.get(rel);
+				if (!meta) break;
+				matchedLen = len;
+				if (!(meta.flags & 8)) lastGood = { path: target.slice(0, consumed + len), meta, bulk };
+				if (meta.flags & 4) { leafHit = true; break; }
+			}
+			if (matchedLen === 0 || leafHit) break;
+			consumed += matchedLen;
+			if (consumed >= target.length || matchedLen < 4) break;
+			bulk = bulksByPath.get(target.slice(0, consumed)) ?? null;
+		}
+
+		if (lastGood && !nodesOut.has(lastGood.path)) {
+			const { meta, bulk: b } = lastGood;
+			nodesOut.set(lastGood.path, {
+				path: lastGood.path,
+				epoch: meta.epoch ?? b.epoch,
+				imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? b.defaultImageryEpoch) : null,
+				flags: meta.flags,
+			});
+		}
+	}
+	ge.dropFillinAncestors(nodesOut);
+	return nodesOut;
+}
+
+// Les bulks des fixtures, parsés une fois, indexés par chemin de bulk.
+function fixtureBulks() {
+	const m = new Map();
+	for (const b of FIX.bulks) m.set(b.path, { ...parseBulk(read(b.file)), epoch: b.epoch });
+	return m;
+}
+
+// Sert les fixtures à la place de kh.google.com. Toute URL hors fixture
+// répond 404 (nœud/bulk absent) : la traversée doit s'en accommoder.
+function fixtureNet() {
+	const served = new Map();
+	served.set('PlanetoidMetadata', read(FIX.planetoid));
+	served.set(`Copyrights/pb=!1u${FIX.epoch}`, read(FIX.copyrights));
+	for (const b of FIX.bulks) served.set(`BulkMetadata/pb=!1m2!1s${b.path}!2u${b.epoch}`, read(b.file));
+	for (const nf of FIX.nodes) served.set(nf.url.replace('https://kh.google.com/rt/earth/', ''), read(nf.file));
+	return async (url) => {
+		const key = url.replace('https://kh.google.com/rt/earth/', '');
+		if (!served.has(key)) { const e = new Error(`404 ${key}`); e.status = 404; throw e; }
+		return served.get(key);
+	};
+}
+
+// Installe un réseau mock le temps d'un appel, et le retire quoi qu'il arrive.
+async function withNet(http, fn) {
+	const real = ge._net.http;
+	ge._net.http = http;
+	try { return await fn(); } finally { ge._net.http = real; }
+}
+
+// ---------------------------------------------------------- encodeur bulk
+// Encodeur protobuf minimal, réservé aux tests : il permet de FABRIQUER des
+// octrees synthétiques de forme choisie (cf. le test de complexité), ce
+// qu'aucune fixture figée ne peut offrir. Miroir exact de unpackPathAndFlags()
+// dans proto.mjs — si l'un des deux dérive, le test aller-retour plus bas
+// tombe.
+function encodeVarint(n) {
+	const out = [];
+	while (n > 127) { out.push((n & 0x7f) | 0x80); n = Math.floor(n / 128); }
+	out.push(n);
+	return out;
+}
+
+function encodePathAndFlags(relPath, flags) {
+	// unpackPathAndFlags lit : level = 1 + (v & 3), puis `level` digits de 3
+	// bits du poids faible au poids fort, puis les flags. On empile donc à
+	// l'envers : flags d'abord, digits du dernier au premier, longueur enfin.
+	let v = flags;
+	for (let i = relPath.length - 1; i >= 0; i--) v = v * 8 + Number(relPath[i]);
+	return v * 4 + (relPath.length - 1);
+}
+
+// entries : [{ relPath, flags, bulkEpoch? }] -> Buffer d'un BulkMetadata.
+function encodeBulk(entries) {
+	const out = [];
+	for (const e of entries) {
+		const node = [0x08, ...encodeVarint(encodePathAndFlags(e.relPath, e.flags))]; // champ 1 varint
+		if (e.bulkEpoch != null) node.push(0x28, ...encodeVarint(e.bulkEpoch));       // champ 5 varint
+		out.push(0x0a, ...encodeVarint(node.length), ...node);                        // champ 1 len-delimited
+	}
+	return Buffer.from(out);
 }
 
 await (async () => {
@@ -304,21 +442,171 @@ await t('octant : chemins profonds validés digit par digit depuis racine', () =
 	}
 });
 
-await t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leurs chemins', () => {
-	// La zone couverte par la capture contient les nœuds de la fixture : la
-	// traversée géométrique doit proposer leurs chemins (le serveur décide
-	// ensuite de leur existence — ici on ne teste que la géométrie).
-	// Test uniquement au niveau le plus peu profond (17) pour la tractabilité ;
-	// niveaux 21-22 sont exponentiellement coûteux sans index spatial.
-	const minDepth = Math.min(...FIX.nodes.map(n => n.path.length));
-	const shallow = FIX.nodes.find(nf => nf.path.length === minDepth);
-	const L = shallow.path.length;
-	const zone = { south: 48.85, west: 2.33, north: 48.87, east: 2.36 };
-	let found = false;
-	for (const o of octantsCovering(zone, L)) {
-		if (o.path === shallow.path) { found = true; break; }
+await t('octant : descendBox — racines à 2 digits, puis childBoxes, null hors géométrie', () => {
+	// Profondeur 0 : un digit seul ne nomme pas une racine (celles-ci font 2
+	// digits) mais l'union des deux qui commencent par lui — un quart de globe.
+	assert.deepEqual(descendBox(null, '', '3'), { n: 90, s: 0, w: 0, e: 180 });
+	assert.deepEqual(descendBox(null, '', '0'), { n: 0, s: -90, w: -180, e: 0 });
+	// Profondeur 1 : on tombe exactement sur la racine de ROOTS.
+	assert.deepEqual(descendBox(null, '3', '0'), ROOTS.find(([p]) => p === '30')[1]);
+	// Profondeur >= 2 : childBoxes ordinaire, et la jumelle verticale (+4)
+	// partage la boîte de son homologue — c'est LA raison du 2^(niveau-2).
+	const b30 = ROOTS.find(([p]) => p === '30')[1];
+	assert.deepEqual(descendBox(b30, '30', '2'), descendBox(b30, '30', '6'));
+	// Digit géométriquement impossible : sous une boîte qui touche le pôle, les
+	// enfants NORD (clés 2/3/6/7) touchent le pôle à leur tour, et childBoxes
+	// n'y émet pas de découpe est/ouest — les clés nord-EST (3 et 7) n'existent
+	// donc pas, et descendBox rend null plutôt qu'une boîte inventée. Les
+	// enfants SUD (clés 0/1/4/5), eux, ne touchent plus le pôle et se
+	// découpent normalement.
+	const polar = { n: 90, s: 45, w: 0, e: 90 };
+	assert.equal(descendBox(polar, '3021', '3'), null, 'nord-est sous une calotte polaire');
+	assert.equal(descendBox(polar, '3021', '7'), null, 'jumelle verticale du nord-est');
+	assert.deepEqual(descendBox(polar, '3021', '2'), { n: 90, s: 67.5, w: 0, e: 90 },
+		'le nord-ouest garde la pleine longitude');
+	assert.deepEqual(descendBox(polar, '3021', '1'), { n: 67.5, s: 45, w: 45, e: 90 },
+		'le sud-est ne touche plus le pôle : découpe est/ouest normale');
+	// Racine inexistante : null plutôt qu'une boîte inventée.
+	assert.equal(descendBox(null, '', '9'), null);
+	assert.equal(descendBox(null, '0', '0'), null); // '00' n'est pas une racine
+});
+
+await t('octant : descendBox reproduit, digit par digit, la boîte de chaque chemin de fixture', () => {
+	// Même propriété que le test « chemins profonds » plus haut, mais par la
+	// fonction que la traversée utilise réellement : la boîte finale doit
+	// contenir le centre ECEF mesuré du nœud.
+	for (const nf of FIX.nodes) {
+		const ma = parseNode(read(nf.file)).matrix;
+		const cx = 128 * ma[0] + 128 * ma[4] + 128 * ma[8] + ma[12];
+		const cy = 128 * ma[1] + 128 * ma[5] + 128 * ma[9] + ma[13];
+		const cz = 128 * ma[2] + 128 * ma[6] + 128 * ma[10] + ma[14];
+		const r = Math.hypot(cx, cy, cz);
+		const lat = Math.asin(cz / r) * 180 / Math.PI, lon = Math.atan2(cy, cx) * 180 / Math.PI;
+
+		let box = null;
+		for (let i = 0; i < nf.path.length; i++) {
+			box = descendBox(box, nf.path.slice(0, i), nf.path[i]);
+			assert.ok(box, `${nf.path} : digit ${i} sans boîte`);
+		}
+		assert.ok(box.s <= lat && lat <= box.n && box.w <= lon && lon <= box.e,
+			`${nf.path} : centre (${lat.toFixed(5)}, ${lon.toFixed(5)}) hors box ${JSON.stringify(box)}`);
 	}
-	assert.ok(found, `${shallow.path} absent de octantsCovering au niveau ${L}`);
+});
+
+await t('proto : encodeBulk/parseBulk font un aller-retour (l\'encodeur de test est fidèle)', () => {
+	// L'encodeur ci-dessus sert à fabriquer les octrees synthétiques du test de
+	// complexité. S'il encode faux, ce test-là mesurerait une fiction : on
+	// verrouille donc d'abord l'encodeur contre le VRAI parseur de proto.mjs.
+	const entries = [
+		{ relPath: '0', flags: 0 },
+		{ relPath: '47', flags: 4 },
+		{ relPath: '036', flags: 8 },
+		{ relPath: '4703', flags: 16, bulkEpoch: 1013 },
+	];
+	const bulk = parseBulk(encodeBulk(entries));
+	assert.equal(bulk.nodes.size, entries.length);
+	for (const e of entries) {
+		const m = bulk.nodes.get(e.relPath);
+		assert.ok(m, `${e.relPath} absent après aller-retour`);
+		assert.equal(m.flags, e.flags, `flags de ${e.relPath}`);
+		assert.equal(m.bulkEpoch, e.bulkEpoch ?? null, `bulkEpoch de ${e.relPath}`);
+	}
+});
+
+await t('fournisseur : expandBulk retient/élague/descend selon les flags et la zone', () => {
+	// Unité pure : aucun réseau. Les quatre décisions qu'expandBulk doit
+	// prendre, isolées l'une de l'autre sur un bulk fabriqué.
+	//
+	// Racine '30' = (0..90°N, 0..90°E). Sous elle, digit 0 = sud-ouest
+	// (0..45°N, 0..45°E) ; digit 2 = nord-ouest (45..90°N, ...). La zone
+	// couvre largement le quart sud-ouest — assez pour que les DEUX frères
+	// '000' et '001' y tombent (sinon le cas LEAF ne serait jamais atteint,
+	// élagué par la géométrie et non par les flags) — mais s'arrête bien en
+	// dessous de 45°N, donc la branche nord doit être élaguée.
+	const b30 = ROOTS.find(([p]) => p === '30')[1];
+	const zone = { south: 0.1, north: 22, west: 0.1, east: 22 };
+	const bulk = { ...parseBulk(encodeBulk([
+		{ relPath: '0', flags: 0 },                    // sud-ouest, retenu, on descend
+		{ relPath: '2', flags: 0 },                    // nord-ouest : hors zone
+		{ relPath: '00', flags: 8 },                   // NODATA : pas retenu, mais traversé
+		{ relPath: '000', flags: 0 },                  // retenu sous un NODATA
+		{ relPath: '001', flags: 4 },                  // LEAF : retenu, on ne descend plus
+		{ relPath: '0010', flags: 0 },                 // sous un LEAF : jamais atteint
+		{ relPath: '0000', flags: 0, bulkEpoch: 77 },  // frontière 4 digits -> bulk enfant
+	])), epoch: 1014 };
+
+	const { retained, children } = ge.expandBulk(bulk, '30', b30, zone, 22);
+	const paths = retained.map((r) => r.path).sort();
+
+	assert.ok(paths.includes('300'), 'le nœud sud-ouest doit être retenu');
+	assert.ok(!paths.some((p) => p.startsWith('302')), 'la branche nord est hors zone');
+	assert.ok(!paths.includes('3000'), 'un NODATA (flags & 8) ne se retient pas');
+	assert.ok(paths.includes('30000'), 'on traverse un NODATA pour retenir dessous');
+	assert.ok(paths.includes('30001'), 'un LEAF se retient');
+	assert.ok(!paths.includes('300010'), 'un LEAF referme la branche');
+
+	assert.deepEqual(children, [{ bulkPath: '300000', box: children[0]?.box, epoch: 77 }]);
+	assert.equal(children[0].epoch, 77, 'le bulk enfant hérite du bulkEpoch déclaré, pas de celui du bulk courant');
+});
+
+await t('fournisseur : expandBulk ne rend jamais un nœud plus profond que le niveau demandé', () => {
+	// Les chemins relatifs vont jusqu'à 4 digits : sans garde, un bulk à la
+	// profondeur 20 rendrait des nœuds de profondeur 24 pour un niveau 21.
+	// L'ancienne traversée ne le pouvait pas (ses cibles faisaient exactement
+	// `level` digits) — c'est une divergence à ne pas introduire.
+	const b30 = ROOTS.find(([p]) => p === '30')[1];
+	const zone = { south: 0.1, north: 22, west: 0.1, east: 22 };
+	const bulk = { ...parseBulk(encodeBulk([
+		{ relPath: '0', flags: 0 }, { relPath: '00', flags: 0 },
+		{ relPath: '000', flags: 0 }, { relPath: '0000', flags: 0 },
+	])), epoch: 1014 };
+
+	for (const level of [3, 4, 5]) {
+		const { retained, children } = ge.expandBulk(bulk, '30', b30, zone, level);
+		for (const r of retained) {
+			assert.ok(r.path.length <= level, `niveau ${level} : ${r.path} (${r.path.length} digits) trop profond`);
+		}
+		for (const c of children) {
+			assert.ok(c.bulkPath.length <= level, `niveau ${level} : bulk enfant ${c.bulkPath} au-delà du niveau`);
+		}
+	}
+});
+
+await t('fournisseur : la marche par bulks rend EXACTEMENT le même ensemble que l\'ancienne énumération', async () => {
+	// LE test de la réécriture (issue #153). L'oracle en haut de ce fichier est
+	// l'ancien algorithme, transcrit sans réseau ; la nouvelle traverse() passe
+	// par le mock des fixtures. Les deux doivent rendre le même ensemble de
+	// nœuds, avec les mêmes epochs et les mêmes flags — sinon la réécriture a
+	// changé la sémantique en même temps que la complexité.
+	//
+	// Zone : l'emprise du nœud le plus profond de la capture, élargie, pour
+	// que plusieurs branches de bulks soient réellement visitées.
+	const deepest = FIX.nodes.reduce((a, b) => (a.path.length >= b.path.length ? a : b));
+	const kml = doubles(readFields(read(deepest.file)).find((f) => f.num === 5).value);
+	const pad = 0.002;
+	const zone = { west: kml[0] - pad, south: kml[1] - pad, east: kml[3] + pad, north: kml[4] + pad };
+
+	const bulks = fixtureBulks();
+	const http = fixtureNet();
+
+	// Niveaux 17 et 20 : l'oracle coûte 2^(niveau-2) chemins par cellule, donc
+	// au-delà il ne termine pas en un temps de selftest (c'est tout le sujet de
+	// l'issue). 20 traverse quand même QUATRE frontières de bulks (4/8/12/16),
+	// donc la descente inter-bulks est bien exercée.
+	for (const level of [17, 20]) {
+		const expected = traverseByEnumerationReference(bulks, zone, level);
+		const { nodes } = await withNet(http, () => ge.traverse(zone, level));
+
+		const got = new Map(nodes.map((n) => [n.path, n]));
+		assert.ok(expected.size > 0, `niveau ${level} : l'oracle ne retient rien, le test ne prouverait rien`);
+		assert.deepEqual([...got.keys()].sort(), [...expected.keys()].sort(),
+			`niveau ${level} : ensembles de chemins différents`);
+		for (const [path, exp] of expected) {
+			assert.equal(got.get(path).epoch, exp.epoch, `${path} : epoch`);
+			assert.equal(got.get(path).imageryEpoch, exp.imageryEpoch, `${path} : imageryEpoch`);
+			assert.equal(got.get(path).flags, exp.flags, `${path} : flags`);
+		}
+	}
 });
 
 await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', async () => {
@@ -434,21 +722,7 @@ await t('fournisseur : dropFillinAncestors écarte tout chemin retenu préfixe s
 });
 
 await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau', async () => {
-	// Sert les fixtures à la place de kh.google.com. Toute URL hors fixture
-	// répond 404 (nœud/bulk absent) : la traversée doit s'en accommoder.
-	const served = new Map();
-	served.set('PlanetoidMetadata', read(FIX.planetoid));
-	served.set(`Copyrights/pb=!1u${FIX.epoch}`, read(FIX.copyrights));
-	for (const b of FIX.bulks) served.set(`BulkMetadata/pb=!1m2!1s${b.path}!2u${b.epoch}`, read(b.file));
-	for (const nf of FIX.nodes) served.set(nf.url.replace('https://kh.google.com/rt/earth/', ''), read(nf.file));
-
-	const realHttp = ge._net.http;
-	ge._net.http = async (url) => {
-		const key = url.replace('https://kh.google.com/rt/earth/', '');
-		if (!served.has(key)) { const e = new Error(`404 ${key}`); e.status = 404; throw e; }
-		return served.get(key);
-	};
-	try {
+	await withNet(fixtureNet(), async () => {
 		// Le nœud le plus profond des fixtures (niveau 22) : viser sa propre
 		// kml_bounding_box comme zone, à ce même niveau, garantit que la
 		// traversée retombe exactement dessus en suivant une chaîne de bulks
@@ -461,7 +735,13 @@ await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau
 		const zone = { bbox: { west: kml[0], south: kml[1], east: kml[3], north: kml[4] } };
 		const zoom = deepest.path.length; // 22
 
+		// plan() traverse maintenant pour de vrai (issue #153) : `columns` est le
+		// nombre de nœuds RÉELLEMENT retenus, pas une majoration géométrique.
+		// La preuve : il doit coïncider avec ce que rend traverse() elle-même.
 		const plan = await ge.plan({ ...zone, zoom });
+		const { nodes } = await ge.traverse(zone.bbox, ge.zoomToLevel(zoom));
+		assert.equal(plan.columns, nodes.length,
+			'plan() doit rendre le compte réel de la traversée, pas une estimation');
 		assert.ok(plan.columns >= 1, `plan.columns = ${plan.columns}`);
 
 		const probe = await ge.probe({ ...zone, zoom });
@@ -487,9 +767,111 @@ await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau
 			ge._cacheRootForTests(null);
 			fs.rmSync(tmp, { recursive: true, force: true });
 		}
-	} finally {
-		ge._net.http = realHttp;
+	});
+});
+
+await t('fournisseur : au niveau 21, le coût suit les nœuds présents — pas 2^19 par cellule (issue #153)', async () => {
+	// LE test de complexité. Un octree synthétique DENSE en lat/lon mais à une
+	// seule variante verticale par cellule (la forme d'un vrai rocktree : le
+	// bit vertical distingue dessus/dessous du sol, les deux n'existent
+	// quasiment jamais ensemble) : chaque nœud a les 4 quadrants lat/lon,
+	// digits 0 à 3.
+	//
+	// L'ancienne énumération ne regardait PAS les données : elle produisait
+	// cellules × 2^(niveau-2) chemins quoi qu'il y ait dans l'arbre. Mesuré sur
+	// cette machine : 68 157 440 chemins en 42,0 s pour la zone de 240 m
+	// ci-dessous, et 1 km sans terminer (>60 s, 82 M de chemins atteints).
+	//
+	// On compte les APPELS RÉSEAU plutôt que les secondes : c'est déterministe
+	// et indépendant de la machine, là où un seuil en millisecondes ne mesure
+	// que le CPU du jour. Le chrono est imprimé, pas asserté serré.
+	const DIGITS = [0, 1, 2, 3];
+	const entries = [];
+	(function gen(rel) {
+		for (const d of DIGITS) {
+			const r = rel + d;
+			entries.push({ relPath: r, flags: 0, bulkEpoch: r.length === 4 ? FIX.epoch : undefined });
+			if (r.length < 4) gen(r);
+		}
+	})('');
+	// Tous les bulks de cet arbre ont le même contenu relatif : un seul buffer
+	// encodé sert pour n'importe quel chemin de bulk.
+	const denseBulk = encodeBulk(entries);
+	const planetoid = read(FIX.planetoid);
+
+	let httpCalls = 0;
+	const denseNet = async (url) => {
+		httpCalls++;
+		const key = url.replace('https://kh.google.com/rt/earth/', '');
+		if (key === 'PlanetoidMetadata') return planetoid;
+		if (key.startsWith('BulkMetadata/')) return denseBulk;
+		const e = new Error(`404 ${key}`); e.status = 404; throw e;
+	};
+
+	const lat = 48.8582, lon = 2.2945, level = 21;
+	// Bornes déduites de la géométrie de l'octree, pas d'un run : au niveau 20
+	// (dernière frontière de bulk avant 21) une cellule fait ~38 m de côté en
+	// latitude, donc une zone de N mètres en recoupe ~(N/38 + 1)^2. Les bornes
+	// ci-dessous laissent un facteur ~2 de marge sur ce compte.
+	for (const [label, radius, maxCalls] of [['240 m', 120, 400], ['1 km', 500, 3000]]) {
+		const dLat = radius / 111320, dLon = dLat / Math.cos(lat * Math.PI / 180);
+		const zone = { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon };
+
+		httpCalls = 0;
+		const t0 = Date.now();
+		const { nodes, visitedBulks } = await withNet(denseNet, () => ge.traverse(zone, level));
+		const ms = Date.now() - t0;
+
+		// Ce qu'aurait énuméré l'ancien algorithme sur la MÊME zone, calculé
+		// analytiquement (le faire tourner prendrait des minutes) : une cellule
+		// lat/lon vaut 2^(niveau-2) chemins à cause de la duplication verticale.
+		const cellDeg = 90 / 2 ** (level - 2);
+		const oldPaths = (Math.ceil((zone.north - zone.south) / cellDeg) + 1)
+			* (Math.ceil((zone.east - zone.west) / cellDeg) + 1) * 2 ** (level - 2);
+
+		console.log(`      ${label} niveau ${level} : ${nodes.length} nœuds, ${visitedBulks} bulks, `
+			+ `${httpCalls} requêtes, ${ms} ms — l'ancienne énumération : ${oldPaths.toExponential(1)} chemins`);
+
+		assert.ok(nodes.length > 0, `${label} : rien retenu, l'arbre synthétique ne sert à rien`);
+		assert.ok(httpCalls <= maxCalls,
+			`${label} : ${httpCalls} requêtes (> ${maxCalls}) — le coût ne suit plus les nœuds présents`);
+		// Filet large : même sur une machine lente, une marche qui suit les
+		// données ne prend pas 30 s là où l'ancienne en prenait 42.
+		assert.ok(ms < 30_000, `${label} : ${ms} ms`);
 	}
+});
+
+await t('fournisseur : une zone démesurée est refusée par un plafond de nœuds, pas par une pendaison', async () => {
+	// L'ancien garde-fou comparait des COLONNES lat/lon (~4 400 pour 500 m au
+	// niveau 21) à une limite de 200 000 : il ne se déclenchait jamais sur une
+	// zone normale, alors que le coût réel était colonnes × 2^19. Le nouveau
+	// plafond compte ce qui coûte vraiment — les nœuds retenus — et lève une
+	// erreur française explicite.
+	const DIGITS = [0, 1, 2, 3];
+	const entries = [];
+	(function gen(rel) {
+		for (const d of DIGITS) {
+			const r = rel + d;
+			entries.push({ relPath: r, flags: 0, bulkEpoch: r.length === 4 ? FIX.epoch : undefined });
+			if (r.length < 4) gen(r);
+		}
+	})('');
+	const denseBulk = encodeBulk(entries);
+	const planetoid = read(FIX.planetoid);
+	const denseNet = async (url) => {
+		const key = url.replace('https://kh.google.com/rt/earth/', '');
+		if (key === 'PlanetoidMetadata') return planetoid;
+		if (key.startsWith('BulkMetadata/')) return denseBulk;
+		const e = new Error(`404 ${key}`); e.status = 404; throw e;
+	};
+
+	// Un département entier au niveau 21 : des millions de nœuds.
+	const zone = { south: 48.5, north: 49.2, west: 2.0, east: 2.8 };
+	await assert.rejects(
+		() => withNet(denseNet, () => ge.traverse(zone, 21, { maxNodes: 5000 })),
+		/zone trop grande/,
+		'la traversée doit refuser explicitement, pas partir pour des heures'
+	);
 });
 
 console.log(`rocktree-selftest : ${n} tests ok`);

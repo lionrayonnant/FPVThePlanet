@@ -37,23 +37,32 @@ export function boxIntersects(box, zone) {
 	return box.s < zone.north && box.n > zone.south && box.w < zone.east && box.e > zone.west;
 }
 
-export function* octantsCovering(zone, level) {
-	function* walk(pathArr, box) {
-		if (pathArr.length === level) { yield { path: pathArr.join(''), box }; return; }
-		for (const { key, box: b } of childBoxes(box)) {
-			if (boxIntersects(b, zone)) {
-				pathArr.push(key);
-				yield* walk(pathArr, b);
-				pathArr.pop();
-			}
-		}
-	}
-	const pathArr = [];
-	for (const [path, box] of ROOTS) {
-		if (boxIntersects(box, zone)) {
-			for (const ch of path) pathArr.push(ch);
-			yield* walk(pathArr, box);
-			pathArr.length = 0;
-		}
-	}
+// Boîtes des préfixes d'UN SEUL digit. Une racine fait 2 digits (ROOTS), donc
+// le premier digit ne nomme pas une racine mais la paire de racines qui
+// commence par lui — un quart de globe (un hémisphère × une moitié de
+// longitude), que le second digit recoupe en deux. Dérivé de ROOTS plutôt
+// qu'écrit à la main : la table reste la seule source de vérité.
+const ROOT_HALVES = new Map();
+for (const [p, b] of ROOTS) {
+	const cur = ROOT_HALVES.get(p[0]);
+	ROOT_HALVES.set(p[0], cur
+		? { n: Math.max(cur.n, b.n), s: Math.min(cur.s, b.s), w: Math.min(cur.w, b.w), e: Math.max(cur.e, b.e) }
+		: { ...b });
+}
+
+// Descend d'UN digit le long d'un chemin d'octree et rend la boîte de
+// l'enfant. `pathSoFar` est le chemin DÉJÀ parcouru (sans `digit`) : c'est lui
+// qui dit à quelle profondeur on se trouve, car les deux premiers digits
+// adressent une racine et non un childBoxes() ordinaire.
+//
+// Rend `null` quand le digit n'existe pas géométriquement à cet endroit — un
+// digit hors [0,7], un préfixe de 2 digits qui n'est pas une racine, ou une
+// clé « est » sous une calotte polaire (childBoxes ne les émet pas : au pôle
+// la découpe est/ouest n'existe pas). `null` veut dire « cette branche de
+// l'octree est impossible », à distinguer de « elle existe mais est hors
+// zone » : dans les deux cas on élague, mais pas pour la même raison.
+export function descendBox(box, pathSoFar, digit) {
+	if (pathSoFar.length === 0) return ROOT_HALVES.get(digit) ?? null;
+	if (pathSoFar.length === 1) return ROOTS.find(([p]) => p === pathSoFar + digit)?.[1] ?? null;
+	return childBoxes(box).find((c) => c.key === Number(digit))?.box ?? null;
 }
