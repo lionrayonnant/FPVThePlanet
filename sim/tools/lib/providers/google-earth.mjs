@@ -271,7 +271,7 @@ export function expandBulk(bulk, bulkPath, bulkBox, zone, level) {
 // BULK_BATCH) ; expandBulk() ci-dessus décide seul ce qui est retenu et où
 // descendre. Le coût suit le nombre de nœuds réellement présents dans la zone,
 // pas le nombre de cellules cibles fois 2^(niveau-2).
-export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES } = {}) {
+export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES, reportMs = 1500 } = {}) {
 	const { rootEpoch, radius } = await getPlanetoid({ signal });
 	const bulkCache = new Map();
 	let visitedBulks = 0;
@@ -295,6 +295,23 @@ export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODE
 	// adressent une racine, et descendBox() le sait à la longueur du chemin.
 	let frontier = [{ bulkPath: '', box: null, epoch: rootEpoch }];
 
+	// La traversée précède tout téléchargement : le compteur de tuiles de
+	// l'écran d'acquisition reste donc à 0 pendant toute sa durée. Sur une
+	// grande zone c'est long — mesuré à Nantes au niveau 21 : 3,9 s pour un
+	// rayon de 500 m, 13,6 s pour 1 km, 25,8 s pour 1,5 km — et sans un mot,
+	// l'écran est indistinguable d'un blocage. On rend donc la marche bavarde.
+	// Chaque ligne dit ce qui avance RÉELLEMENT (bulks lus, octants repérés) ;
+	// on n'invente pas de fausses tuiles téléchargées.
+	// `reportMs` est un point de test : le selftest le met à 0 pour vérifier
+	// que la ligne est bien émise, sans avoir à faire durer une traversée.
+	let lastReport = Date.now();
+	const report = (force = false) => {
+		if (!onLog) return;
+		if (!force && Date.now() - lastReport < reportMs) return;
+		lastReport = Date.now();
+		onLog({ stream: 'meta', line: `repérage : ${nodesOut.size.toLocaleString('fr-FR')} octant(s), ${visitedBulks.toLocaleString('fr-FR')} bulk(s) lu(s)…` });
+	};
+
 	while (frontier.length > 0) {
 		const next = [];
 		for (let i = 0; i < frontier.length; i += BULK_BATCH) {
@@ -317,6 +334,7 @@ export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODE
 				}
 				next.push(...children);
 			}
+			report();
 			// Plafond vérifié PENDANT la marche, pas après : le but est de
 			// s'arrêter avant d'avoir dépensé le réseau, pas de constater les
 			// dégâts. Voir MAX_NODES plus haut pour l'ordre de grandeur.

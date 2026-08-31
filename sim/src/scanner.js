@@ -772,20 +772,64 @@ export function runScanner(root) {
 		});
 
 		const es = new EventSource(`${API}/jobs/${id}/events`);
+
+		// Un flux qui ne dit RIEN est indistinguable, à l'écran, d'un job qui
+		// travaille : le chrono ELAPSED tourne côté navigateur et continue même
+		// si rien n'arrive jamais. C'est ce qui a été signalé — écran figé sur
+		// « 0 tuile » avec le chrono qui monte, PIPELINE vide, et pour les DEUX
+		// fournisseurs, donc sans rapport avec ce que fait l'extracteur.
+		//
+		// La cause : quand le serveur de dev redémarre (vite recharge dès qu'un
+		// fichier bouge), EventSource repasse en CONNECTING et réessaie sans
+		// fin. `onerror` plus bas ne réagissait qu'à CLOSED — donc à rien du
+		// tout dans ce cas.
+		//
+		// Le job vit côté serveur : on ne peut pas conclure à l'échec sur un
+		// simple silence. On le SIGNALE, sans rien couper, et on l'efface dès
+		// qu'un événement arrive.
+		const SILENCE_MS = 10_000;
+		let heard = false;
+		let silence = null;
+		const armSilence = () => {
+			clearTimeout(silence);
+			silence = setTimeout(() => {
+				note('.sc-job-note', heard
+					? 'LINK INTERRUPTED — RECONNECTING. THE ACQUISITION KEEPS RUNNING.'
+					: 'NO RESPONSE FROM LOCAL INSTALLATION — IS THE DEV SERVER STILL UP?', 'warn');
+			}, SILENCE_MS);
+		};
+		const heardFrom = () => {
+			heard = true;
+			note('.sc-job-note', '', '');
+			armSilence();
+		};
+		armSilence();
+
+		es.addEventListener('open', heardFrom);
 		es.addEventListener('state', (e) => {
 			const d = JSON.parse(e.data);
+			heardFrom();
 			phase = d.phase ?? phase; hits = d.hits ?? 0; pipeline = d.pipeline ?? pipeline;
 			renderProgress(); renderStats();
 		});
-		es.addEventListener('log', (e) => append(JSON.parse(e.data).line));
+		es.addEventListener('log', (e) => { heardFrom(); append(JSON.parse(e.data).line); });
 		es.addEventListener('phase', (e) => { phase = JSON.parse(e.data).phase; renderProgress(); });
-		es.addEventListener('progress', (e) => { hits = JSON.parse(e.data).hits; renderProgress(); });
+		es.addEventListener('progress', (e) => { heardFrom(); hits = JSON.parse(e.data).hits; renderProgress(); });
 		es.addEventListener('stat', (e) => { pipeline = JSON.parse(e.data); renderProgress(); renderStats(); });
 		es.addEventListener('done', (e) => { finish(); acquired(JSON.parse(e.data)); });
 		es.addEventListener('error', (e) => finish(String(JSON.parse(e.data).message ?? '').toUpperCase(), 'alarm'));
 		es.addEventListener('cancelled', () => finish('ACQUISITION ABORTED — NOTHING WAS ADDED', 'warn'));
 		es.addEventListener('end', () => es.close());
-		es.onerror = () => { if (es.readyState === EventSource.CLOSED) finish('LINK TO LOCAL INSTALLATION LOST', 'alarm'); };
+		// CLOSED = le serveur a refusé (job inconnu apres un redemarrage, 404) :
+		// definitif, on conclut. CONNECTING = il reessaie : on laisse le
+		// minuteur de silence parler a notre place plutot que de mentir dans un
+		// sens ou dans l'autre.
+		es.onerror = () => {
+			if (es.readyState === EventSource.CLOSED) {
+				clearTimeout(silence);
+				finish('LINK TO LOCAL INSTALLATION LOST', 'alarm');
+			}
+		};
 
 		panel.querySelector('.sc-abort').onclick = async () => {
 			const b = panel.querySelector('.sc-abort');
@@ -810,6 +854,7 @@ export function runScanner(root) {
 		// un succès — c'est acquired() qui prend le relais avec KEEP/REMOVE.
 		function finish(msg, kind) {
 			clearInterval(tick);
+			clearTimeout(silence);
 			stopRtc();
 			es.close();
 			state.jobId = null;
