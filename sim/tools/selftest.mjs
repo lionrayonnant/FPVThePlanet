@@ -30,7 +30,7 @@ import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
-	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor, nightAmount,
+	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor, nightAmount, NIGHT_FLOOR_DEG,
 	skyNightDim,
 } from '../src/sun.js';
 
@@ -2350,6 +2350,41 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 			if (s.gain < prev - 1e-9) monotone = false;
 			prev = s.gain;
 		}
+		// Nuit désactivée temporairement : le PLANCHER d'élévation. Le modèle
+		// doit rester exact quand personne ne lui en passe (les vérifications
+		// au-dessus en dépendent), et une scène de nuit doit basculer en jour
+		// dès qu'on le passe — sans incohérence entre nuit, gain et direction
+		// du soleil, qui dérivent tous de la même élévation.
+		{
+			const minuit = new Date('2026-06-21T23:52:00Z');
+			const nuit = new SunField(PARIS);
+			nuit.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			settle(nuit, minuit, 0, 60);
+			check('sans plancher, la nuit reste la nuit (le modèle n\'est pas modifié)',
+				nuit.night > 0.9 && nuit.gain > 0, `night=${nuit.night.toFixed(3)} gain=${nuit.gain.toFixed(3)}`);
+
+			const jour = new SunField(PARIS);
+			jour.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			for (let i = 0; i < 60; i++) {
+				jour.update(1 / 60, { date: minuit, sunInFrame: 0, minElevationDeg: NIGHT_FLOOR_DEG });
+			}
+			check('avec le plancher, la même minuit ne fait plus ni nuit ni haut gain',
+				jour.night === 0 && jour.gain === 0,
+				`night=${jour.night} gain=${jour.gain} elev=${jour.elevation.toFixed(1)}°`);
+			check('le plancher tient l\'élévation, et le soleil est AU-DESSUS de l\'horizon',
+				Math.abs(jour.elevation - NIGHT_FLOOR_DEG) < 1e-9 && jour.dir.y > 0,
+				`elev=${jour.elevation} dir.y=${jour.dir.y.toFixed(3)}`);
+			// Le plancher ne doit JAMAIS abaisser un vrai soleil haut.
+			const midi = new Date('2026-06-21T12:00:00Z');
+			const a = new SunField(PARIS), b = new SunField(PARIS);
+			a.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			b.setWeather({ cloudPct: 0, visibilityM: REF_VIS });
+			a.update(1 / 60, { date: midi });
+			b.update(1 / 60, { date: midi, minElevationDeg: NIGHT_FLOOR_DEG });
+			check('en plein jour le plancher est un no-op', Math.abs(a.elevation - b.elevation) < 1e-9,
+				`${a.elevation.toFixed(2)}° vs ${b.elevation.toFixed(2)}°`);
+		}
+
 		check('le haut gain monte de façon monotone au crépuscule', monotone,
 			gains.map((g) => g.toFixed(2)).join(' → '));
 	}

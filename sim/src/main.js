@@ -20,7 +20,7 @@ import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
 import { FogField, extinctionOf } from './fog.js';
-import { SunField, SKY_REF, nightSensor } from './sun.js';
+import { SunField, SKY_REF, nightSensor, NIGHT_FLOOR_DEG } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
@@ -92,6 +92,9 @@ export const OPTS = {
 	// Dev-only : ?date=2026-06-21T23:52:00Z fige le soleil à cet instant —
 	// c'est ce qui permet de vérifier la nuit (#111) en plein jour. Une date
 	// invalide donne un NaN silencieux dans sunPosition(), d'où le garde.
+	// Dev-only : ?night=1 rétablit la nuit, désactivée temporairement (cf.
+	// NIGHT_FLOOR_DEG dans sun.js). Se combine avec ?date= pour viser une heure.
+	night: params.get('night') === '1',
 	date: (() => {
 		const d = params.has('date') ? new Date(params.get('date')) : null;
 		return d && Number.isFinite(d.getTime()) ? d : null;
@@ -1206,7 +1209,13 @@ if (!frozen) {
 
 		sunInFrame = inFrame * sunVisible;
 
-		sun.update(dt, OPTS.date ? { sunInFrame, date: OPTS.date } : { sunInFrame });
+		// Nuit désactivée temporairement (cf. NIGHT_FLOOR_DEG dans sun.js).
+		// `?night=1` la rétablit pour la vérifier.
+		sun.update(dt, {
+			sunInFrame,
+			...(OPTS.date ? { date: OPTS.date } : {}),
+			...(OPTS.night ? {} : { minElevationDeg: NIGHT_FLOOR_DEG }),
+		});
 	}
 
 	if (density !== lastDensity || skyHex !== lastSkyHex) {

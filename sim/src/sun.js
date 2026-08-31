@@ -210,6 +210,20 @@ export function nightAmount(elevationDeg) {
 	return smoothstep(-2, -14, elevationDeg);
 }
 
+// TEMPORAIRE — la nuit est désactivée par défaut dans l'application, à la
+// demande (« le mode nuit c'est chiant »). Ce n'est PAS une suppression : rien
+// n'est retiré de sun.js, sky.js, TileMaterial.js ni ground.js, et le modèle
+// reste exact si on ne lui passe pas de plancher. Seul main.js pousse cette
+// valeur dans SunField.update(), et `?night=1` la débraye pour vérifier que la
+// nuit (#111 starlight, #112 ville allumée) fonctionne toujours.
+//
+// 12° : au-dessus du crépuscule civil (−6°) et du seuil de nightAmount (−2°),
+// donc jamais de nuit ni de rampe haut gain, tout en restant un soleil bas —
+// la lumière rasante de fin d'après-midi, pas un midi écrasé. Pour rétablir la
+// nuit définitivement : supprimer NIGHT_FLOOR_DEG et le `minElevationDeg` que
+// main.js passe. Rien d'autre.
+export const NIGHT_FLOOR_DEG = 12;
+
 // La nuit NOIRE (#112, retour de vol) : la luminosité du dôme. 1 le jour ;
 // sur le plateau de nuit, un ciel quasi noir — le plancher n'existe que pour
 // que l'horizon ne soit pas un trou parfait. La forme de la courbe (descente
@@ -513,12 +527,22 @@ export class SunField {
 	// sunInFrame est 0..1 : combien le disque, occlusion comprise, pèse dans ce
 	// que le posemètre voit. main.js le calcule, parce que lui seul connaît la
 	// caméra et la géométrie.
-	update(dt, { date = new Date(), sunInFrame = 0 } = {}) {
+	// `minElevationDeg` : plancher optionnel sur l'élévation solaire. Le modèle
+	// reste vrai par défaut (-90, aucun effet) ; c'est l'APPLICATION qui décide
+	// de s'en écarter, et main.js l'utilise pour désactiver temporairement la
+	// nuit. Un plancher ici plutôt qu'un interrupteur sur `night` : tout —
+	// nuit, chroma du ciel, disque, ambiance, AGC, lumières de ville, halo du
+	// dôme — dérive de cette seule valeur, donc rien ne peut se désynchroniser.
+	// Éteindre `night` seul donnerait une scène noire sous un ciel de jour.
+	update(dt, { date = new Date(), sunInFrame = 0, minElevationDeg = -90 } = {}) {
 		const p = sunPosition({ lat: this.lat, lon: this.lon, date });
-		this.elevation = p.elevation * R2D;
+		const elevDeg = Math.max(p.elevation * R2D, minElevationDeg);
+		this.elevation = elevDeg;
 		this.azimuth = p.azimuth * R2D;
 		this.night = nightAmount(this.elevation);
-		const v = sunVector(p.azimuth, p.elevation);
+		// Depuis l'élévation PLANCHÉRISÉE : sinon la direction du soleil
+		// pointerait sous l'horizon pendant que l'éclairage dit « midi ».
+		const v = sunVector(p.azimuth, elevDeg * D2R);
 		this.dir.x = v.x; this.dir.y = v.y; this.dir.z = v.z;
 
 		const c = skyColor(this.elevation, this.visibilityM, this.cloudPct);
