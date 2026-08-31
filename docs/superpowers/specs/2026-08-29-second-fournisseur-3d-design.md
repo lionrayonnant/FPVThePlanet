@@ -232,3 +232,64 @@ sur pièce plutôt que supposés :
   volée — un sous-système à part entière.
 - OSM/procédural.
 - Toute migration des scènes existantes : elles restent valides telles quelles.
+
+---
+
+## Amendement 2026-08-31 — le Stage 3 passe par le protocole Earth interne
+
+Le propriétaire a fourni une capture HAR du trafic réel de earth.google.com
+(1499 NodeData + 240 BulkMetadata complets). Elle change la voie du Stage 3 :
+**pas de Map Tiles API, pas de clé, pas de glTF**. Google Earth web parle son
+protocole interne « rocktree », le même que documente
+`earth-reverse-engineering` (retroplasma — l'auteur de
+`flyover-reverse-engineering` que ce dépôt embarque). La posture est donc
+identique à celle de Flyover : un protocole interne sans API souscrite. Les
+sections « clé API », « décodeur glTF » et « inconnues à lever sur un vrai
+root.json » ci-dessus sont caduques.
+
+### Constaté sur pièce (HAR du 2026-08-31 + deux requêtes live)
+
+- Endpoints : `https://kh.google.com/rt/earth/PlanetoidMetadata`,
+  `BulkMetadata/pb=!1m2!1s{octant}!2u{epoch}`,
+  `NodeData/pb=!1m2!1s{octant}!2u{epoch}!2e{fmt}[!3u{epochImagerie}]!4b0`,
+  `Copyrights/pb=!1u{epoch}`. Aucun jeton, aucun paramètre de session —
+  vérifié live (PlanetoidMetadata et Copyrights répondent à nu).
+- Epoch racine live : 1014, cohérent avec le HAR. `!2e1` = textures **JPEG
+  256×256 embarquées** dans le protobuf — `sharp()` les lit en Buffer,
+  chemin déjà prévu par prep.mjs.
+- NodeData décodé sur un échantillon du HAR : champ 1 =
+  `matrix_globe_from_mesh`, 16 doubles — les sommets (uint8 delta-packés)
+  se transforment **directement en ECEF**, exactement ce que le contrat
+  décodeur demande (vx/vy/vz Float64 ECEF).
+- Attribution par tuile : `NodeData.copyright_ids` + le endpoint `Copyrights`
+  (368 entrées id→texte, ex. « Image © 2026 Maxar Technologies ») — le
+  niveau 3 du design (l'attribution qui vient des tuiles cuites) est
+  réellement implémentable, ce que la Map Tiles API ne garantissait pas mieux.
+- Le format de maillage complet (delta-packing, strip d'indices en varints,
+  layer_bounds, masque d'octant, OBB, normales) est documenté par le proto et
+  le client C++ de `earth-reverse-engineering`. **Ce dépôt n'a pas de licence :
+  il sert de documentation de protocole, le code est réécrit, pas copié** —
+  son `decode-resource.js` embarque d'ailleurs le décodeur minifié de Google
+  lui-même, inutilisable directement.
+
+### Décisions
+
+- **Client Node natif** dans `sim/tools/lib/providers/` + un
+  `decoders/rocktree.mjs` — pas de vendoring d'`earth-reverse-engineering`
+  (non maintenu depuis 2020, sans licence, sortie OBJ intermédiaire inutile
+  quand le contrat décodeur veut de l'ECEF que le protocole donne déjà).
+- Le fournisseur s'appelle **`google-earth`** (label « Google Earth ») : le
+  manifest dit d'où viennent les octets, et ce ne sont pas ceux de la
+  Photorealistic 3D Tiles API.
+- Le HAR fournit des **fixtures hors-ligne** pour développer le décodeur en
+  TDD sans toucher aux serveurs ; un petit sous-ensemble est figé dans
+  `sim/tools/testdata/rocktree/` (le HAR de 114 Mo, lui, ne rentre pas dans
+  git).
+- L'analogue du `--zoom` est le **niveau d'octree** (les chemins d'octant du
+  HAR font 14-16 caractères sur Paris) ; la correspondance zoom↔niveau se
+  calibre sur `meters_per_texel` des BulkMetadata d'une zone connue —
+  mesurée, pas devinée.
+- Le cache brut va dans `sim/.cache/google-earth/<dossier-par-zone>/`
+  (gitignoré), symétrique du `downloaded_files/obj/` de Flyover.
+- `fetchedAt` : date du téléchargement réel ; sur cache hit, mtime de
+  l'index du dossier — même règle que Flyover.
