@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
+import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
@@ -80,6 +81,62 @@ t('node : matrice 16 doubles dont le translationnel est à ~rayon terrestre', ()
 			assert.equal(m.texture.data.readUInt16BE(0), 0xffd8);
 		}
 		assert.ok(node.copyrightIds.length > 0, 'copyright_ids présents');
+	}
+});
+
+t('unpack : sur chaque mesh des fixtures, les invariants géométriques tiennent', () => {
+	for (const nf of FIX.nodes) {
+		const node = parseNode(read(nf.file));
+		for (const mesh of node.meshes) {
+			const { xyz, count } = unpackVertices(mesh.vertices);
+			assert.equal(xyz.length, count * 3);
+			const strip = unpackIndices(mesh.indices);
+			for (const idx of strip) assert.ok(idx >= 0 && idx < count, `indice ${idx} / ${count} sommets`);
+			const { layerBounds } = unpackLayerBoundsAndOctants(mesh.layerAndOctantCounts, strip, count);
+			assert.ok(layerBounds[3] <= strip.length);
+			if (mesh.texCoords) {
+				const { uv } = unpackTexCoords(mesh.texCoords, count);
+				assert.equal(uv.length, count * 2);
+			}
+		}
+	}
+});
+
+t('unpack : les sommets transformés par la matrice tombent à ~rayon terrestre', () => {
+	// Le VRAI test du décodage : delta-unpacking faux = sommets aberrants,
+	// et la norme ECEF le crie tout de suite (6 357–6 400 km + bâti).
+	for (const nf of FIX.nodes) {
+		const node = parseNode(read(nf.file));
+		const ma = node.matrix;
+		for (const mesh of node.meshes) {
+			const { xyz, count } = unpackVertices(mesh.vertices);
+			for (let i = 0; i < count; i += 97) { // échantillon
+				const x = xyz[i * 3], y = xyz[i * 3 + 1], z = xyz[i * 3 + 2];
+				const ex = x * ma[0] + y * ma[4] + z * ma[8] + ma[12];
+				const ey = x * ma[1] + y * ma[5] + z * ma[9] + ma[13];
+				const ez = x * ma[2] + y * ma[6] + z * ma[10] + ma[14];
+				const r = Math.hypot(ex, ey, ez);
+				assert.ok(r > 6.35e6 && r < 6.4e6, `|v| = ${r}`);
+			}
+		}
+	}
+});
+
+t('unpack : les UV finaux tombent dans [0,1] (uv_offset_and_scale du proto)', () => {
+	for (const nf of FIX.nodes) {
+		const node = parseNode(read(nf.file));
+		for (const mesh of node.meshes) {
+			if (!mesh.texCoords || !mesh.uvOffsetAndScale) continue;
+			const { xyz, count } = unpackVertices(mesh.vertices);
+			const { uv } = unpackTexCoords(mesh.texCoords, count);
+			const [ou, ov, su, sv] = mesh.uvOffsetAndScale;
+			let inRange = 0;
+			for (let i = 0; i < count; i++) {
+				const u = (uv[i * 2] + ou) * su, v = (uv[i * 2 + 1] + ov) * sv;
+				if (u >= -0.01 && u <= 1.01 && v >= -0.01 && v <= 1.01) inRange++;
+			}
+			assert.ok(inRange / count > 0.99, `${inRange}/${count} UV dans [0,1]`);
+		}
 	}
 });
 
