@@ -919,6 +919,16 @@ await t('url : flag 16 posé mais imageryEpoch null -> pas de !3unull (404 garan
 	assert.equal(u, 'https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306!2u1014!2e1!4b0');
 });
 
+await t('pb : readFields marche sur un Uint8Array pur, pas seulement un Buffer', () => {
+	// field 1 (num=1, wire=1, 64-bit) : clé = 1*8+1 = 9, puis 8 octets little-endian de 1.5
+	const bytes = new Uint8Array([9, 0, 0, 0, 0, 0, 0, 0xf8, 0x3f]);
+	const f = readFields(bytes);
+	assert.equal(f.length, 1);
+	assert.equal(f[0].num, 1);
+	assert.equal(f[0].wire, 1);
+	assert.equal(f[0].value, 1.5);
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);
 
 })();

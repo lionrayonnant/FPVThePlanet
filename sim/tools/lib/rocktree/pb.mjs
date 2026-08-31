@@ -18,14 +18,18 @@ export function readVarint(buf, pos) {
 export function readFields(buf) {
 	const out = [];
 	const pos = { i: 0 };
+	// Une seule DataView pour tout le buffer plutôt qu'une par champ lu :
+	// readFields tourne sur des milliers de champs par nœud, une DataView par
+	// appel serait une allocation par champ pour rien.
+	const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 	while (pos.i < buf.length) {
 		const key = readVarint(buf, pos);
 		const num = Math.floor(key / 8), wire = key & 7;
 		let value;
 		if (wire === 0) value = readVarint(buf, pos);
-		else if (wire === 1) { value = buf.readDoubleLE(pos.i); pos.i += 8; }
+		else if (wire === 1) { value = dv.getFloat64(pos.i, true); pos.i += 8; }
 		else if (wire === 2) { const len = readVarint(buf, pos); value = buf.subarray(pos.i, pos.i + len); pos.i += len; }
-		else if (wire === 5) { value = buf.readFloatLE(pos.i); pos.i += 4; }
+		else if (wire === 5) { value = dv.getFloat32(pos.i, true); pos.i += 4; }
 		else throw new Error(`wire type ${wire} inattendu (champ ${num})`);
 		out.push({ num, wire, value });
 	}
