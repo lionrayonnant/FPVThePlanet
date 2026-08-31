@@ -5,6 +5,6 @@ export default {
   server: {
     ...config.server,
     host: '0.0.0.0',
-    allowedHosts: ['treat-durably-empirical.ngrok-free.dev'],
+    allowedHosts: ['periodic-rio-arise-bond.trycloudflare.com'],
   },
 };
