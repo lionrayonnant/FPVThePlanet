@@ -16,8 +16,14 @@
 import { nodeUrl } from '../tools/lib/rocktree/url.mjs';
 import { parseNode } from '../tools/lib/rocktree/proto.mjs';
 
+// Persistant (#170) : ce worker traite UN message, répond, et REVIENT
+// écouter — contrairement à un usage un-coup comme celui que loadChunks()
+// fait de worker.js. L'appelant (rocktree-worker-pool.js) crée un petit
+// nombre de ces workers une fois pour toute la session de vol et les
+// réutilise ; `id` corrèle chaque réponse à sa requête, plusieurs pouvant
+// être en vol en même temps sur des workers différents du pool.
 self.onmessage = async (e) => {
-	const { path, epoch, imageryEpoch, flags } = e.data;
+	const { id, path, epoch, imageryEpoch, flags } = e.data;
 	try {
 		const url = nodeUrl({ path, epoch, imageryEpoch, flags });
 		const res = await fetch(url);
@@ -38,13 +44,13 @@ self.onmessage = async (e) => {
 		// buffer brut du protobuf (les vues qui en dépendent, ex. texture.data,
 		// sont déjà extraites dans meshes avant ce point).
 		self.postMessage(
-			{ ok: true, matrix: node.matrix, copyrightIds: node.copyrightIds, meshes },
+			{ id, ok: true, matrix: node.matrix, copyrightIds: node.copyrightIds, meshes },
 			[buf.buffer, ...bitmaps],
 		);
 	} catch (err) {
 		// status: 404/410 = nœud absent, résultat NORMAL du protocole rocktree
 		// (voir tools/lib/providers/google-earth.mjs), pas une panne — le fil
 		// principal doit pouvoir le distinguer sans parser le message d'erreur.
-		self.postMessage({ ok: false, error: String((err && err.message) || err), status: err?.status ?? null });
+		self.postMessage({ id, ok: false, error: String((err && err.message) || err), status: err?.status ?? null });
 	}
 };
