@@ -93,6 +93,20 @@ const MAX_NODES = 50_000;
 // downloadNodes() plus bas.
 const BULK_BATCH = 8;
 
+// Repli d'imagerie (issue #158) : de combien de niveaux remonter pour trouver
+// des nœuds qui portent RÉELLEMENT de l'imagerie.
+//
+// La photogrammétrie de Google s'arrête à une profondeur variable, souvent
+// bien avant le niveau demandé ; en dessous, les nœuds existent mais leur
+// atlas est noir. Mesuré sur deux chaînes d'ancêtres réelles au Champ de Mars
+// (niveau 21 demandé) : luminance 0,1 / 2,1 aux profondeurs 19 et 18, puis
+// 100,4 à la profondeur 17 — soit quatre niveaux au-dessus. Même profil sur la
+// seconde chaîne (noir de 18 à 21, 112,8 en 17).
+//
+// Ces nœuds sont peu nombreux et peu coûteux : au niveau 17 une cellule fait
+// ~305 m, donc une poignée suffit à couvrir une tuile de scène.
+const FALLBACK_LEVELS_UP = 4;
+
 // Mêmes règles que flyover.mjs (copiées avec leur justification) : le nom du
 // dossier de cache est indépendant du fournisseur (cf. HANDOFF), mais chaque
 // fournisseur reste libre de sa propre disposition sur disque.
@@ -375,8 +389,8 @@ export async function probe(opts, { signal } = {}) {
 
 // Télécharge la tuile : traverse puis récupère le NodeData de chaque nœud
 // retenu, en petits lots pour ne pas ouvrir trop de connexions à la fois.
-async function downloadNodes(tileDir, nodes, { signal, onLog }) {
-	fs.mkdirSync(path.join(tileDir, 'nodes'), { recursive: true });
+async function downloadNodes(tileDir, nodes, { signal, onLog, subdir = 'nodes' }) {
+	fs.mkdirSync(path.join(tileDir, subdir), { recursive: true });
 	const stats = { exported: 0, missing: 0 };
 	const copyrightIds = new Set();
 	const entries = [];
@@ -399,7 +413,7 @@ async function downloadNodes(tileDir, nodes, { signal, onLog }) {
 				}
 				throw e;
 			}
-			const file = `nodes/${n.path}.pb`;
+			const file = `${subdir}/${n.path}.pb`;
 			fs.writeFileSync(path.join(tileDir, file), buf);
 			for (const cid of parseNode(buf).copyrightIds) copyrightIds.add(cid);
 			entries.push({ path: n.path, file, exclude: n.exclude });
@@ -442,6 +456,24 @@ export async function fetch(opts, { onLog, signal } = {}) {
 
 	const { stats, entries, copyrightIds } = await downloadNodes(tileDir, nodes, { signal, onLog });
 
+	// Repli d'imagerie (issue #158) : les ancêtres qui portent encore de la
+	// vraie imagerie là où les nœuds fins n'ont qu'un atlas noir. On ne garde
+	// que ceux qui ne sont PAS déjà dans la tuile — un ancêtre retenu par la
+	// traversée principale sert déjà.
+	const fallbackLevel = Math.max(2, level - FALLBACK_LEVELS_UP);
+	let fallbackEntries = [];
+	if (fallbackLevel < level) {
+		const retained = new Set(nodes.map((n) => n.path));
+		const coarse = (await traverse(zone, fallbackLevel, { signal })).nodes
+			.filter((n) => !retained.has(n.path));
+		if (coarse.length > 0) {
+			onLog?.({ stream: 'meta', line: `repli d'imagerie : ${coarse.length} nœud(s) au niveau ${fallbackLevel}.` });
+			const fb = await downloadNodes(tileDir, coarse, { signal, onLog, subdir: 'fallback' });
+			fallbackEntries = fb.entries;
+			for (const cid of fb.copyrightIds) copyrightIds.add(cid);
+		}
+	}
+
 	if (stats.exported === 0) {
 		fs.rmSync(tileDir, { recursive: true, force: true });
 		throw new Error(
@@ -463,6 +495,7 @@ export async function fetch(opts, { onLog, signal } = {}) {
 	// jamais le cache.
 	fs.writeFileSync(path.join(tileDir, 'rocktree-tile.json'), JSON.stringify({
 		provider: id, epoch: rootEpoch, radius, level, fetchedAt, copyrights, nodes: entries,
+		fallbackLevel, fallback: fallbackEntries,
 	}, null, '\t'));
 
 	onLog?.({ stream: 'phase', line: 'download', done: true });

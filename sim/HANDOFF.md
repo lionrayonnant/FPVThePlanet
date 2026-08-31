@@ -943,6 +943,52 @@ Plan d'origine (contexte de la décision d'architecture) :
     n'est préfixe de l'autre. **Préexistant** — l'ancienne traversée retenait
     exactement les mêmes nœuds.
 
+- **Tuiles noires rocktree : inversion V + repli d'imagerie (issue #158)**,
+  branche `issue-158-imagery` (empilée sur `issue-153-bulk-walk`).
+  - **La vraie cause, trouvée sur signalement utilisateur (« elles sont dans le
+    mauvais sens ») : le décodeur INVERSAIT V.** `rocktree.mjs` héritait de
+    `obj.mjs` un `tv = 1 - v`. Or `obj.mjs` inverse parce que le format OBJ a
+    son origine en BAS-gauche ; le protocole rocktree a déjà la sienne EN HAUT.
+    Toutes les tuiles Google Earth étaient donc affichées retournées depuis
+    l'issue #18 — et « textures nettes » ne l'avait pas vu, une vue aérienne
+    retournée restant parfaitement nette.
+  - **Comment on l'établit** : en rasterisant les nœuds au sol dans les deux
+    conventions. `v` direct rend une photo aérienne cohérente du Champ de Mars
+    (Tour Eiffel, Seine, pont d'Iéna, bassins reconnaissables) ; `1 - v` rend
+    une mosaïque brouillée. Verrouillé par un test qui mesure la SORTIE :
+    `imagery-selftest` rasterise une fixture réelle dans les deux sens et
+    compare le gradient spatial moyen (12,78 direct contre 17,74 inversé).
+  - **Conséquence sur le diagnostic initial** : les « 19,7 % d'aire noire »
+    mesurés dans #158 étaient très majoritairement un artefact de cette
+    inversion — on échantillonnait le remplissage d'atlas. V corrigé, le noir
+    résiduel n'est que **0,11 %** au Champ de Mars.
+  - **Repli d'imagerie** (`tools/lib/rocktree/imagery.mjs`) : là où la
+    photogrammétrie de Google s'arrête vraiment, une trame au sol unique
+    (cellules carrées EN MÈTRES, 0,25 m, plafonnée à 4096 de côté) est peinte
+    par toute l'imagerie valable — nœuds retenus d'abord, ancêtres à
+    `niveau − 4` ensuite et seulement dans les vides (`onlyEmpty`) — puis
+    dilatée ; chaque texel noir prend l'échantillon de la trame au même point du
+    sol. Un texel non noir n'est jamais touché.
+    - Piège corrigé en route, visible seulement à l'œil : peindre en
+      échantillonnant la texture aux TROIS SOMMETS puis en interpolant la
+      COULEUR (Gouraud) rend une mosaïque de facettes. Il faut interpoler les
+      UV et échantillonner PAR CELLULE. Verrouillé par un test au damier.
+  - **Mesuré sur la sortie du décodeur, V corrigé** :
+
+    | site | sans repli | avec repli | aire perdue |
+    |---|---|---|---|
+    | Champ de Mars (couverture dense) | 0,11 % | **0,02 %** | 0,00 % |
+    | Martignas-sur-Jalle (plus mince) | 1,82 % | **1,30 %** | 0,00 % |
+
+    Le repli est donc un gain marginal — l'essentiel venait de l'inversion V.
+    Il reste sans contrepartie mesurable (aucune aire perdue, ~2 s de cuisson,
+    4-5 nœuds de plus téléchargés).
+  - **Vérifié** : 16 tests `tools/imagery-selftest.mjs` ; 28 tests
+    `rocktree-selftest` inchangés ; decoder/provider/map-poly au vert ; bake
+    réel rechargé, et surtout la photo aérienne reconstruite **depuis les tu/tv
+    émis par le décodeur** (donc ce que prep cuit) est nette et correctement
+    orientée.
+
 - **Passe d'ergonomie — navigation clavier + manette sur tous les écrans
   (issue #123)**, branche `claude/issue-123-tj720t`.
   - `src/menu-nav.js` (nouveau) : la grammaire ↑/↓ + Entrée + Échap, écrite
