@@ -4,7 +4,13 @@
 //
 //   node tools/dialogue/generate.mjs --event ACQUIRE_AREA --count 200
 //     [--batch 20] [--rarity COMMON] [--model claude-opus-5] [--dry-run]
-//     [--backend claude|ollama] [--ollama-host http://127.0.0.1:11434]
+//     [--backend claude|ollama] [--ollama-host http://127.0.0.1:11434] [--show]
+//
+// --show : imprime chaque entrée au fil du run, pas seulement les compteurs
+// par lot. Une entrée gardée s'imprime dans la forme d'écran du jeu (« >
+// locuteur » puis la réplique) ; une entrée rejetée imprime pourquoi. Éteint
+// par défaut — un script qui parse la sortie de generate.mjs ne doit pas voir
+// son format changer sous lui.
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { EVENTS } from './catalog.mjs';
@@ -233,6 +239,24 @@ export function parseEntries(text) {
 	throw new Error(`aucun tableau JSON exploitable dans la réponse : ${text.slice(0, 300)}`);
 }
 
+// --show, entrée gardée : la même forme que le jeu affiche (src/dialogue.js,
+// src/target-scan.js, src/scanner.js impriment tous « > locuteur \n texte »)
+// — ce qui défile est ce qu'un joueur lirait, verbatim, jamais reformaté.
+// L'id et la rareté passent en en-tête discrète, pas mêlés à l'échange.
+function printAccepted(entry) {
+	console.log(`\n[${entry.id}  ${entry.rarity}]`);
+	for (const line of entry.lines) console.log(`> ${line.speaker}\n${line.text}`);
+}
+
+// --show, doublon d'échange écarté en fin de run : seul rejet des trois qui
+// n'avait aucune trace par entrée avant --show (juste un total). On imprime
+// contre quel id il fait doublon et le texte complet de l'entrée écartée —
+// assez pour juger si le seuil de findDuplicates est trop large ou correct.
+function printDuplicateRejection(dup, entry) {
+	const text = (entry?.lines ?? []).map((l) => l.text).join(' / ');
+	console.warn(`  rejet ${dup.b} (doublon d'échange, ${(dup.score * 100).toFixed(0)} % vs ${dup.a}) : "${text}"`);
+}
+
 async function main() {
 	const a = args();
 	const event = a.event;
@@ -240,6 +264,7 @@ async function main() {
 	const total = Number(a.count ?? 100);
 	const size = Number(a.batch ?? 20);
 	const rarity = a.rarity ?? 'COMMON';
+	const show = Boolean(a.show);
 	const { backend, model, host } = resolveBackend(a);
 
 	const shard = loadShard(event);
@@ -273,6 +298,7 @@ async function main() {
 			addLinesToSeen(entry, seenLines);
 			shard.entries.push(entry);
 			kept++;
+			if (show) printAccepted(entry);
 		}
 		console.log(`lot ${done / size + 1} : ${kept} gardées, ${rejected} rejetées (validation), ${rejectedPhrase} rejetées (formule reprise)`);
 	}
@@ -281,6 +307,10 @@ async function main() {
 	// ligne à ligne, et pourtant redire tout un ÉCHANGE déjà écrit autrement.
 	const dups = findDuplicates(shard.entries, { threshold: 0.75 });
 	const drop = new Set(dups.map((d) => d.b));
+	if (show) {
+		const byId = new Map(shard.entries.map((e) => [e.id, e]));
+		for (const dup of dups) printDuplicateRejection(dup, byId.get(dup.b));
+	}
 	shard.entries = shard.entries.filter((e) => !drop.has(e.id));
 	console.log(`\n${kept} gardées, ${rejected} rejetées (validation), ${rejectedPhrase} rejetées (formule reprise), ${drop.size} doublons d'échange écartés → ${shard.entries.length} au total`);
 

@@ -1,0 +1,6031 @@
+{
+  "event": "HACK",
+  "entries": [
+    {
+      "id": "hack/0001",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware is live"
+        }
+      ]
+    },
+    {
+      "id": "hack/0002",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "did it stick"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0003",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the handshake was messy"
+        },
+        {
+          "speaker": "root",
+          "text": "it's in though"
+        }
+      ]
+    },
+    {
+      "id": "hack/0004",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the port"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's open"
+        },
+        {
+          "speaker": "root",
+          "text": "i'll bet on that"
+        }
+      ]
+    },
+    {
+      "id": "hack/0005",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "override: applied"
+        }
+      ]
+    },
+    {
+      "id": "hack/0006",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're moving on to"
+        },
+        {
+          "speaker": "root",
+          "text": "shut up and fly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0007",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is -62 dbm"
+        }
+      ]
+    },
+    {
+      "id": "hack/0008",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "hardly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0009",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was unlocked"
+        }
+      ]
+    },
+    {
+      "id": "hack/0010",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum verified"
+        }
+      ]
+    },
+    {
+      "id": "hack/0011",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any latency"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "negligible"
+        }
+      ]
+    },
+    {
+      "id": "hack/0012",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we have control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "hack/0013",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the delay"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checking"
+        },
+        {
+          "speaker": "root",
+          "text": "hurry up"
+        }
+      ]
+    },
+    {
+      "id": "hack/0014",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "firmware: active"
+        }
+      ]
+    },
+    {
+      "id": "hack/0015",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "looking at the raven"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, wrong tab"
+        }
+      ]
+    },
+    {
+      "id": "hack/0016",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "protocol stack is intact"
+        }
+      ]
+    },
+    {
+      "id": "hack/0017",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's done"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "hack/0018",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "birds fly south"
+        }
+      ]
+    },
+    {
+      "id": "hack/0019",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear for raven"
+        }
+      ]
+    },
+    {
+      "id": "hack/0020",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0021",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{hack_type} drop"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not quite aligned"
+        }
+      ]
+    },
+    {
+      "id": "hack/0022",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push the payload"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer is tight"
+        },
+        {
+          "speaker": "root",
+          "text": "do it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0023",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the return packet is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0024",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "confirm the write"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't interrupt the cycle"
+        }
+      ]
+    },
+    {
+      "id": "hack/0025",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi at {signal}, acceptable"
+        }
+      ]
+    },
+    {
+      "id": "hack/0026",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's messy but present"
+        }
+      ]
+    },
+    {
+      "id": "hack/0027",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was already open"
+        }
+      ]
+    },
+    {
+      "id": "hack/0030",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready for flight"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "hack/0031",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the handshake"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's slow"
+        },
+        {
+          "speaker": "jensen",
+          "text": "patience"
+        }
+      ]
+    },
+    {
+      "id": "hack/0033",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "wait for the ack"
+        },
+        {
+          "speaker": "root",
+          "text": "skip it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0034",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "stack is intact"
+        }
+      ]
+    },
+    {
+      "id": "hack/0035",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "barely"
+        }
+      ]
+    },
+    {
+      "id": "hack/0037",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear for {operator_name}"
+        }
+      ]
+    },
+    {
+      "id": "hack/0038",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any latency"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "hack/0039",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move to jack_in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not stable"
+        },
+        {
+          "speaker": "root",
+          "text": "do it anyway"
+        }
+      ]
+    },
+    {
+      "id": "hack/0040",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checksum verified"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you're reading garbage"
+        }
+      ]
+    },
+    {
+      "id": "hack/0042",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing the vector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stop, wait for the lock"
+        }
+      ]
+    },
+    {
+      "id": "hack/0043",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus clock is steady"
+        }
+      ]
+    },
+    {
+      "id": "hack/0044",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the crc failed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0045",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the key was never lost"
+        }
+      ]
+    },
+    {
+      "id": "hack/0046",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't blink"
+        }
+      ]
+    },
+    {
+      "id": "hack/0047",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "did the vector land?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0048",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "that's yellow"
+        }
+      ]
+    },
+    {
+      "id": "hack/0049",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the buffer"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's full"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it's hungry"
+        }
+      ]
+    },
+    {
+      "id": "hack/0050",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "handshake complete"
+        }
+      ]
+    },
+    {
+      "id": "hack/0051",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the stack is shifting"
+        },
+        {
+          "speaker": "root",
+          "text": "let it settle"
+        }
+      ]
+    },
+    {
+      "id": "hack/0052",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "injector is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0053",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the log says no"
+        }
+      ]
+    },
+    {
+      "id": "hack/0054",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is loud"
+        }
+      ]
+    },
+    {
+      "id": "hack/0055",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "coffee time"
+        }
+      ]
+    },
+    {
+      "id": "hack/0056",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "any errors?"
+        },
+        {
+          "speaker": "root",
+          "text": "none"
+        }
+      ]
+    },
+    {
+      "id": "hack/0057",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the packet dropped"
+        },
+        {
+          "speaker": "root",
+          "text": "it retried"
+        }
+      ]
+    },
+    {
+      "id": "hack/0058",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hold position"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "why"
+        },
+        {
+          "speaker": "cron",
+          "text": "lock established"
+        }
+      ]
+    },
+    {
+      "id": "hack/0059",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "firmware write: success"
+        }
+      ]
+    },
+    {
+      "id": "hack/0060",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "hack/0062",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "write cycle was long"
+        },
+        {
+          "speaker": "root",
+          "text": "it landed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0063",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was never locked"
+        }
+      ]
+    },
+    {
+      "id": "hack/0065",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the stack stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0066",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vector is clean"
+        },
+        {
+          "speaker": "root",
+          "text": "not really"
+        }
+      ]
+    },
+    {
+      "id": "hack/0067",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push to flight"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer is hot"
+        },
+        {
+          "speaker": "root",
+          "text": "risk it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0068",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi is holding"
+        }
+      ]
+    },
+    {
+      "id": "hack/0069",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checking the handshake"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it already went"
+        }
+      ]
+    },
+    {
+      "id": "hack/0073",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "moving on"
+        }
+      ]
+    },
+    {
+      "id": "hack/0074",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency check"
+        },
+        {
+          "speaker": "root",
+          "text": "negative"
+        }
+      ]
+    },
+    {
+      "id": "hack/0076",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "look at the raven"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal is weak"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no it isn't"
+        }
+      ]
+    },
+    {
+      "id": "hack/0081",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the signal remembers"
+        }
+      ]
+    },
+    {
+      "id": "hack/0083",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "was the vector clean"
+        },
+        {
+          "speaker": "root",
+          "text": "it landed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0084",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're moving on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bus is noisy"
+        }
+      ]
+    },
+    {
+      "id": "hack/0090",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "no comment"
+        }
+      ]
+    },
+    {
+      "id": "hack/0099",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does it matter"
+        }
+      ]
+    },
+    {
+      "id": "hack/0101",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the firmware active?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0102",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "lock is engaged"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, it's just echoing"
+        }
+      ]
+    },
+    {
+      "id": "hack/0105",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the bus clock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's steady"
+        }
+      ]
+    },
+    {
+      "id": "hack/0106",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "write cycle complete"
+        }
+      ]
+    },
+    {
+      "id": "hack/0107",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the packet is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0108",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does the door matter?"
+        }
+      ]
+    },
+    {
+      "id": "hack/0110",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any latency?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "zero"
+        }
+      ]
+    },
+    {
+      "id": "hack/0114",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear for flight"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "hack/0115",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi at -62 dbm"
+        }
+      ]
+    },
+    {
+      "id": "hack/0120",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yellow light"
+        }
+      ]
+    },
+    {
+      "id": "hack/0127",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        }
+      ]
+    },
+    {
+      "id": "hack/0136",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        }
+      ]
+    },
+    {
+      "id": "hack/0141",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing the firmware now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait the clock is drifting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0142",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0143",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's writing"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not writing cleanly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0144",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the lock was imaginary"
+        }
+      ]
+    },
+    {
+      "id": "hack/0159",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clock is drifting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0161",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware is in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not clean"
+        }
+      ]
+    },
+    {
+      "id": "hack/0162",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wire hums"
+        }
+      ]
+    },
+    {
+      "id": "hack/0163",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "another one bites the dust"
+        }
+      ]
+    },
+    {
+      "id": "hack/0165",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "firmwrite accepted"
+        },
+        {
+          "speaker": "root",
+          "text": "it's not stable"
+        }
+      ]
+    },
+    {
+      "id": "hack/0171",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing happens twice"
+        }
+      ]
+    },
+    {
+      "id": "hack/0174",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checksum verified?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "negative"
+        }
+      ]
+    },
+    {
+      "id": "hack/0176",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0178",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "packet drop detected"
+        }
+      ]
+    },
+    {
+      "id": "hack/0180",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "darkness is loud"
+        }
+      ]
+    },
+    {
+      "id": "hack/0192",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum verified"
+        },
+        {
+          "speaker": "root",
+          "text": "i don't see it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0193",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware: active"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "hack/0201",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware drop"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "that's not in"
+        }
+      ]
+    },
+    {
+      "id": "hack/0202",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "injecting"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clock skew"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "hack/0203",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage dipping"
+        }
+      ]
+    },
+    {
+      "id": "hack/0205",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "reset the stack"
+        }
+      ]
+    },
+    {
+      "id": "hack/0206",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checksum passed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it did not"
+        }
+      ]
+    },
+    {
+      "id": "hack/0219",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not quite"
+        }
+      ]
+    },
+    {
+      "id": "hack/0220",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "inject now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer full"
+        },
+        {
+          "speaker": "root",
+          "text": "flush it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0223",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage is within spec"
+        }
+      ]
+    },
+    {
+      "id": "hack/0225",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wire remembers"
+        }
+      ]
+    },
+    {
+      "id": "hack/0226",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "another one done"
+        }
+      ]
+    },
+    {
+      "id": "hack/0228",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's messy"
+        }
+      ]
+    },
+    {
+      "id": "hack/0229",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not locked"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0230",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "packet loss on channel 3"
+        }
+      ]
+    },
+    {
+      "id": "hack/0233",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're good to go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "rssi is low"
+        }
+      ]
+    },
+    {
+      "id": "hack/0234",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "why do we bother?"
+        }
+      ]
+    },
+    {
+      "id": "hack/0235",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "coffee break"
+        }
+      ]
+    },
+    {
+      "id": "hack/0239",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum mismatch"
+        }
+      ]
+    },
+    {
+      "id": "hack/0241",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus clock looks steady"
+        }
+      ]
+    },
+    {
+      "id": "hack/0246",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's ugly but it's in"
+        }
+      ]
+    },
+    {
+      "id": "hack/0258",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "inject now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bus clock is drifting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0281",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "injection live"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage dip on the bus"
+        },
+        {
+          "speaker": "cron",
+          "text": "state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0282",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "crc is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0283",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "look at the buffer"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's noise"
+        }
+      ]
+    },
+    {
+      "id": "hack/0284",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "clock skew is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0285",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it took"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not the way we wanted"
+        }
+      ]
+    },
+    {
+      "id": "hack/0286",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the ghost remembers"
+        }
+      ]
+    },
+    {
+      "id": "hack/0288",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the stack clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0291",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the rssi"
+        }
+      ]
+    },
+    {
+      "id": "hack/0293",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage is steady"
+        }
+      ]
+    },
+    {
+      "id": "hack/0298",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "debatable"
+        }
+      ]
+    },
+    {
+      "id": "hack/0299",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware drop"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer overflow risk"
+        },
+        {
+          "speaker": "cron",
+          "text": "state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0301",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: inject now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: wait for the ack first"
+        }
+      ]
+    },
+    {
+      "id": "hack/0302",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: bus voltage is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0303",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: stack is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: no it isn't"
+        }
+      ]
+    },
+    {
+      "id": "hack/0304",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "jensen: the clock is wrong"
+        }
+      ]
+    },
+    {
+      "id": "hack/0305",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: don't blink"
+        }
+      ]
+    },
+    {
+      "id": "hack/0306",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: is the checksum valid"
+        },
+        {
+          "speaker": "root",
+          "text": "root: yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0307",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: we're in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: not quite"
+        }
+      ]
+    },
+    {
+      "id": "hack/0308",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: pushing payload"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: buffer is full"
+        },
+        {
+          "speaker": "jensen",
+          "text": "jensen: no comment"
+        }
+      ]
+    },
+    {
+      "id": "hack/0309",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: latency is high"
+        }
+      ]
+    },
+    {
+      "id": "hack/0310",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: check the handshake"
+        },
+        {
+          "speaker": "root",
+          "text": "root: skip it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0311",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "cron: state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0312",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: firmware active"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: crc failed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0313",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "jensen: silence is loud"
+        }
+      ]
+    },
+    {
+      "id": "hack/0314",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "root: green light"
+        }
+      ]
+    },
+    {
+      "id": "hack/0315",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: signal strength"
+        },
+        {
+          "speaker": "root",
+          "text": "root: irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "hack/0317",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: clock skew detected"
+        },
+        {
+          "speaker": "root",
+          "text": "root: ignore it"
+        },
+        {
+          "speaker": "jensen",
+          "text": "jensen: does it matter"
+        }
+      ]
+    },
+    {
+      "id": "hack/0318",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "cron: override: applied"
+        }
+      ]
+    },
+    {
+      "id": "hack/0319",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: packet drop on ch3"
+        },
+        {
+          "speaker": "root",
+          "text": "root: move on"
+        }
+      ]
+    },
+    {
+      "id": "hack/0320",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mikhail: voltage within spec"
+        }
+      ]
+    },
+    {
+      "id": "hack/0321",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the header is malformed"
+        },
+        {
+          "speaker": "root",
+          "text": "it's fine"
+        }
+      ]
+    },
+    {
+      "id": "hack/0322",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the bird doesn't know it's flying"
+        }
+      ]
+    },
+    {
+      "id": "hack/0324",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the vector clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0325",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stack looks stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's drifting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0326",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "check the crc first"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it's too late"
+        }
+      ]
+    },
+    {
+      "id": "hack/0328",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "inject now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "hack/0331",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "why do we build walls"
+        }
+      ]
+    },
+    {
+      "id": "hack/0333",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "rssi holding"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0335",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer is full"
+        },
+        {
+          "speaker": "cron",
+          "text": "state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0337",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "check the bus"
+        }
+      ]
+    },
+    {
+      "id": "hack/0338",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "injection live"
+        }
+      ]
+    },
+    {
+      "id": "hack/0342",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "did the {hack_type} stick?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0343",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not really"
+        }
+      ]
+    },
+    {
+      "id": "hack/0344",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the bus"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0345",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi is {signal}"
+        }
+      ]
+    },
+    {
+      "id": "hack/0347",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "header is standard"
+        }
+      ]
+    },
+    {
+      "id": "hack/0348",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "target is compliant"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's confused"
+        }
+      ]
+    },
+    {
+      "id": "hack/0349",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was open"
+        }
+      ]
+    },
+    {
+      "id": "hack/0350",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "done"
+        }
+      ]
+    },
+    {
+      "id": "hack/0351",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "how's {operator_name} doing?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "steady"
+        }
+      ]
+    },
+    {
+      "id": "hack/0352",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "signal is strong"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's weak"
+        }
+      ]
+    },
+    {
+      "id": "hack/0353",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the hash"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's valid"
+        },
+        {
+          "speaker": "root",
+          "text": "prove it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0355",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the clock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clock is fine"
+        }
+      ]
+    },
+    {
+      "id": "hack/0357",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "override successful"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "barely"
+        }
+      ]
+    },
+    {
+      "id": "hack/0358",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing to see"
+        }
+      ]
+    },
+    {
+      "id": "hack/0359",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "next"
+        }
+      ]
+    },
+    {
+      "id": "hack/0360",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {hack_type} final?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0363",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "crc mismatch on sector 4"
+        }
+      ]
+    },
+    {
+      "id": "hack/0365",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is {signal}"
+        }
+      ]
+    },
+    {
+      "id": "hack/0366",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the {hack_type} hash"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "hash is invalid"
+        }
+      ]
+    },
+    {
+      "id": "hack/0368",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it took"
+        }
+      ]
+    },
+    {
+      "id": "hack/0369",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the {hack_type} stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "hack/0372",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "packet drop on ch3"
+        }
+      ]
+    },
+    {
+      "id": "hack/0374",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency check"
+        }
+      ]
+    },
+    {
+      "id": "hack/0375",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {hack_type} complete"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "hack/0378",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {operator_name} ready"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0379",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware active"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checksum failed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0380",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the door wasn't locked"
+        }
+      ]
+    },
+    {
+      "id": "hack/0383",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the stack"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage is dipping"
+        },
+        {
+          "speaker": "cron",
+          "text": "state changed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0384",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "crc is valid but ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0391",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the hash"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "hash is wrong"
+        }
+      ]
+    },
+    {
+      "id": "hack/0394",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "injecting"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stop"
+        }
+      ]
+    },
+    {
+      "id": "hack/0397",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the bird is blind"
+        }
+      ]
+    },
+    {
+      "id": "hack/0398",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't think about the math"
+        }
+      ]
+    },
+    {
+      "id": "hack/0401",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the delay?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer overflow"
+        },
+        {
+          "speaker": "jensen",
+          "text": "someone is watching"
+        }
+      ]
+    },
+    {
+      "id": "hack/0402",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the checksum is wrong"
+        }
+      ]
+    },
+    {
+      "id": "hack/0407",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "coffee is cold"
+        }
+      ]
+    },
+    {
+      "id": "hack/0421",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the hash"
+        }
+      ]
+    },
+    {
+      "id": "hack/0434",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't wait for the handshake"
+        }
+      ]
+    },
+    {
+      "id": "hack/0440",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the {hack_type} payload landed hard"
+        }
+      ]
+    },
+    {
+      "id": "hack/0441",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stack is stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stable doesn't mean correct"
+        }
+      ]
+    },
+    {
+      "id": "hack/0442",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wire was always listening"
+        }
+      ]
+    },
+    {
+      "id": "hack/0443",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "less drama more data"
+        }
+      ]
+    },
+    {
+      "id": "hack/0444",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "did the hash verify?"
+        },
+        {
+          "speaker": "root",
+          "text": "it did"
+        }
+      ]
+    },
+    {
+      "id": "hack/0446",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage sagging slightly"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it will recover"
+        }
+      ]
+    },
+    {
+      "id": "hack/0447",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "override state: active"
+        }
+      ]
+    },
+    {
+      "id": "hack/0448",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't linger on the buffer"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i'm watching it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0449",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "clock drift is within tolerance"
+        }
+      ]
+    },
+    {
+      "id": "hack/0451",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "keys change hands"
+        }
+      ]
+    },
+    {
+      "id": "hack/0452",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "no second chances"
+        }
+      ]
+    },
+    {
+      "id": "hack/0453",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the handshake valid?"
+        },
+        {
+          "speaker": "root",
+          "text": "it is"
+        }
+      ]
+    },
+    {
+      "id": "hack/0454",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the stack is fragile"
+        }
+      ]
+    },
+    {
+      "id": "hack/0455",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing the {hack_type} now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the handshake looks jagged"
+        },
+        {
+          "speaker": "root",
+          "text": "it's in, leave it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0456",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi is {signal}, barely audible"
+        }
+      ]
+    },
+    {
+      "id": "hack/0457",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send the {hack_type} payload"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, the bus clock is skewing"
+        }
+      ]
+    },
+    {
+      "id": "hack/0458",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the {hack_type} write cycle is standard"
+        }
+      ]
+    },
+    {
+      "id": "hack/0460",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door opens inward"
+        }
+      ]
+    },
+    {
+      "id": "hack/0461",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware is hot, don't look at it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0462",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the header valid?"
+        },
+        {
+          "speaker": "root",
+          "text": "it is what it is"
+        }
+      ]
+    },
+    {
+      "id": "hack/0464",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{hack_type} applied"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage dipped during write"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant, it took"
+        }
+      ]
+    },
+    {
+      "id": "hack/0465",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{operator_name} is typing too slow"
+        }
+      ]
+    },
+    {
+      "id": "hack/0466",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the stack is corrupting"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it, push"
+        }
+      ]
+    },
+    {
+      "id": "hack/0467",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "clock drift is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0468",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean injection"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the crc is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0469",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "shadows have weight"
+        }
+      ]
+    },
+    {
+      "id": "hack/0470",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the {hack_type} bit"
+        }
+      ]
+    },
+    {
+      "id": "hack/0471",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "did the write stick?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "hack/0474",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the voltage dip is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0476",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the header checksum"
+        }
+      ]
+    },
+    {
+      "id": "hack/0478",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "doors open both ways"
+        }
+      ]
+    },
+    {
+      "id": "hack/0479",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the {hack_type}"
+        }
+      ]
+    },
+    {
+      "id": "hack/0480",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the stack ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's waiting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0481",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too soon"
+        }
+      ]
+    },
+    {
+      "id": "hack/0482",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "confirm the lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "lock is hypothetical"
+        },
+        {
+          "speaker": "root",
+          "text": "pretend it's real"
+        }
+      ]
+    },
+    {
+      "id": "hack/0484",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the crc"
+        }
+      ]
+    },
+    {
+      "id": "hack/0487",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the ghost has no teeth"
+        }
+      ]
+    },
+    {
+      "id": "hack/0495",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is ugly"
+        }
+      ]
+    },
+    {
+      "id": "hack/0499",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware is hot"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "temperature is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0500",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the {hack_type} payload"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bus is noisy"
+        },
+        {
+          "speaker": "jensen",
+          "text": "noise is data"
+        }
+      ]
+    },
+    {
+      "id": "hack/0501",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi at {signal}"
+        }
+      ]
+    },
+    {
+      "id": "hack/0502",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "injecting now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the handshake"
+        }
+      ]
+    },
+    {
+      "id": "hack/0503",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "crc is valid"
+        }
+      ]
+    },
+    {
+      "id": "hack/0511",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "check the hash first"
+        }
+      ]
+    },
+    {
+      "id": "hack/0513",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "override successful"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency is high"
+        }
+      ]
+    },
+    {
+      "id": "hack/0516",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the {hack_type} write stable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bus settled"
+        }
+      ]
+    },
+    {
+      "id": "hack/0518",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is the buffer empty?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it wasn't full before"
+        },
+        {
+          "speaker": "jensen",
+          "text": "empty is a state"
+        }
+      ]
+    },
+    {
+      "id": "hack/0521",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage dip is nominal"
+        }
+      ]
+    },
+    {
+      "id": "hack/0522",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean to me"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the checksum failed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0529",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stack is corrupting"
+        }
+      ]
+    },
+    {
+      "id": "hack/0530",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the firmware tastes like ash"
+        }
+      ]
+    },
+    {
+      "id": "hack/0531",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the bus quiet?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is screaming"
+        }
+      ]
+    },
+    {
+      "id": "hack/0534",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the voltage is dreaming"
+        }
+      ]
+    },
+    {
+      "id": "hack/0537",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "cleanliness is a lie"
+        }
+      ]
+    },
+    {
+      "id": "hack/0538",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the machine is hungry"
+        }
+      ]
+    },
+    {
+      "id": "hack/0539",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't look at the buffer"
+        }
+      ]
+    },
+    {
+      "id": "hack/0540",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the stack valid?"
+        },
+        {
+          "speaker": "root",
+          "text": "valid for what?"
+        }
+      ]
+    },
+    {
+      "id": "hack/0541",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the ghost is watching"
+        }
+      ]
+    },
+    {
+      "id": "hack/0542",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the bus settle"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage is oscillating"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it dreams in reverse"
+        }
+      ]
+    },
+    {
+      "id": "hack/0543",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the silence has a frequency"
+        }
+      ]
+    },
+    {
+      "id": "hack/0544",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we have ownership of the bus"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you have a voltage spike"
+        }
+      ]
+    },
+    {
+      "id": "hack/0545",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the return path impedance"
+        }
+      ]
+    },
+    {
+      "id": "hack/0550",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "payload accepted"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "crc failed on sector 4"
+        }
+      ]
+    },
+    {
+      "id": "hack/0554",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the {hack_type} header is standard"
+        }
+      ]
+    },
+    {
+      "id": "hack/0555",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stack is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not clean"
+        }
+      ]
+    },
+    {
+      "id": "hack/0556",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the metal remembers"
+        }
+      ]
+    },
+    {
+      "id": "hack/0559",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "firmware active"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage is dreaming"
+        }
+      ]
+    },
+    {
+      "id": "hack/0562",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing payload"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stop"
+        }
+      ]
+    },
+    {
+      "id": "hack/0566",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the firmware smells like wet dust"
+        }
+      ]
+    },
+    {
+      "id": "hack/0572",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the checksum is valid"
+        }
+      ]
+    },
+    {
+      "id": "hack/0573",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is dirty"
+        }
+      ]
+    },
+    {
+      "id": "hack/0579",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the air feels thin"
+        }
+      ]
+    },
+    {
+      "id": "hack/0583",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't trust the echo"
+        }
+      ]
+    },
+    {
+      "id": "hack/0584",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's just electricity"
+        }
+      ]
+    },
+    {
+      "id": "hack/0587",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "clock drift is high"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "drift is high"
+        }
+      ]
+    },
+    {
+      "id": "hack/0589",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "confirm {hack_type} lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "locking..."
+        }
+      ]
+    },
+    {
+      "id": "hack/0590",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the fan in this room changed pitch when it went through"
+        }
+      ]
+    },
+    {
+      "id": "hack/0591",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "who wrote this thing originally?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "someone with better handwriting than us"
+        }
+      ]
+    },
+    {
+      "id": "hack/0592",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the {hack_type} went in quiet"
+        },
+        {
+          "speaker": "root",
+          "text": "it didn't. i heard it from the hallway"
+        }
+      ]
+    },
+    {
+      "id": "hack/0593",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "anyone else get the sense we've done this exact one before"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        },
+        {
+          "speaker": "jensen",
+          "text": "i wouldn't rule it out"
+        }
+      ]
+    },
+    {
+      "id": "hack/0594",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "there is a fingerprint on the inside of the case"
+        }
+      ]
+    },
+    {
+      "id": "hack/0595",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "funny thing about this model, the previous owner used to—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's through"
+        }
+      ]
+    },
+    {
+      "id": "hack/0596",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "write cycle finished before the lamp finished flickering"
+        }
+      ]
+    },
+    {
+      "id": "hack/0597",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that's the right sector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's the sector we agreed on. not the same thing"
+        }
+      ]
+    },
+    {
+      "id": "hack/0598",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty ones take it best"
+        }
+      ]
+    },
+    {
+      "id": "hack/0599",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{operator_name} never asks what we do to these things"
+        }
+      ]
+    },
+    {
+      "id": "hack/0600",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "why is there a serial number in the tail block"
+        },
+        {
+          "speaker": "root",
+          "text": "there always is"
+        }
+      ]
+    },
+    {
+      "id": "hack/0601",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nothing on the far side"
+        },
+        {
+          "speaker": "jensen",
+          "text": "there's something. it just isn't answering you"
+        }
+      ]
+    },
+    {
+      "id": "hack/0602",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "did anyone touch the second bank"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not me"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it's warm though"
+        }
+      ]
+    },
+    {
+      "id": "hack/0603",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{signal}, and the room went quieter than that"
+        }
+      ]
+    },
+    {
+      "id": "hack/0604",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i had a dream about this board, the trace layout was—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the write landed"
+        }
+      ]
+    },
+    {
+      "id": "hack/0605",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the ribbon cable is seated one pin off and it worked anyway"
+        }
+      ]
+    },
+    {
+      "id": "hack/0606",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that block should be zeroed"
+        },
+        {
+          "speaker": "root",
+          "text": "it is zeroed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "then something is writing zeroes on purpose"
+        }
+      ]
+    },
+    {
+      "id": "hack/0607",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "count the screws when you close it"
+        }
+      ]
+    },
+    {
+      "id": "hack/0608",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "target.hackType"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "every {hack_type} i've done smells faintly of a school hallway"
+        }
+      ]
+    },
+    {
+      "id": "hack/0609",
+      "events": [
+        "HACK"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the date on the original image"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "later than today"
+        }
+      ]
+    }
+  ]
+}

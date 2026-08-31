@@ -1,0 +1,8457 @@
+{
+  "event": "TARGET_SCAN",
+  "entries": [
+    {
+      "id": "target_scan/0002",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "how many hits did the scan return?"
+        },
+        {
+          "speaker": "root",
+          "text": "six. stop counting."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0003",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list looks clean."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is high."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0004",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal decay is accelerating."
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you cannot ignore physics."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0005",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan complete, {target_count} hits"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0006",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the strong one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strength is not clarity."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0007",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "target at {signal} is within threshold"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0008",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list is fresh."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "list is stale."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0009",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "one of them is listening back"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0010",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick one already."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0011",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "which one are we taking?"
+        },
+        {
+          "speaker": "root",
+          "text": "doesn't matter yet."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0012",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear sky today."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "sky is irrelevant to rssi."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0013",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "interference on ch 4."
+        },
+        {
+          "speaker": "root",
+          "text": "is it blocking?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only if you care."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0015",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop hovering"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am reading."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0016",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "one feed is {video_type}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0017",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks good."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "looks like noise."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0018",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet one is the right one"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0019",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0020",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "are you sure?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0021",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "got {target_count} hits. pick."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "three are below threshold"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0022",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "scan is stale?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "timestamps match wall clock"
+        },
+        {
+          "speaker": "jensen",
+          "text": "depends on the clock"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0023",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "channel noise is higher than baseline"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0024",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i'll take the first one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, wait—"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0025",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums match the manifest"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0027",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they always show up"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0028",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too many choices"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0029",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {signal} stable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0030",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run it again"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no reason to"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0031",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is the count odd?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "random chance"
+        },
+        {
+          "speaker": "root",
+          "text": "hmm"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0032",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan buffer flushed"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0033",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "filtering is active"
+        },
+        {
+          "speaker": "root",
+          "text": "kill it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0034",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth is nominal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0035",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one is too loud"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not too loud"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0036",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "remember the last time"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0037",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "coast clear"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0038",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {video_type} reliable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is standard"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0039",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the middle one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal is weak there"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0040",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just do it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am waiting for you"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you have to click"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0041",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "six is a crowded list"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0042",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checking the weak ones"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "waste of time"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0043",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi values are nominal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0045",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet ones watch"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0046",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "noise floor is up"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0048",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "target count looks wrong"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "count is correct"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0049",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why so many hits?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "area density is high"
+        },
+        {
+          "speaker": "jensen",
+          "text": "some are ghosts"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0050",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "scan window closed"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0052",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "filters are set"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0054",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "expect the unexpected"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0055",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't overthink it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0056",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is drifting"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0057",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one looks stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is stable"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0058",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a lane"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "all lanes are open"
+        },
+        {
+          "speaker": "jensen",
+          "text": "one is a trap"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0059",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just move the cursor"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0060",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "list is sorted by rssi"
+        },
+        {
+          "speaker": "root",
+          "text": "sort by eye"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0061",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "detected {target_count} sources"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0062",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a clean sweep"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is elevated"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0063",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the signal remembers"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0064",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "paralysis by analysis"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0065",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is this list stale?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "timestamp is current"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0066",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "strong signal means easy lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not necessarily true"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0067",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the analog feed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it has the best angle"
+        },
+        {
+          "speaker": "root",
+          "text": "angle doesn't matter"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0068",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "list populated"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0069",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we should wait for better weather"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "weather is irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0070",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi variance is normal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0071",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that count seems low"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "sensitivity is capped"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0072",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "one of them is waiting"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0073",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't touch the edge ones"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0074",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we filter by type?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, not in this mode"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0075",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the weakest signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "high dropout risk"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0076",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are they so close?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "multipath reflection"
+        },
+        {
+          "speaker": "root",
+          "text": "looks like clustering"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0077",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "data stream active"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0078",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the top entry"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "already verified"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0079",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth allocation is stable"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0080",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this area is too quiet"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "quiet is normal here"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0081",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty slots are the ones that matter"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0082",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "six is enough to choose from"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0083",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the rssi calibrated?"
+        },
+        {
+          "speaker": "root",
+          "text": "factory default"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0084",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this area is active"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is always active"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0085",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the loudest"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "loudest means closest to noise"
+        },
+        {
+          "speaker": "jensen",
+          "text": "distance is relative"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0086",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan buffer populated"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0088",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth allocation is nominal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0089",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this list looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean lists are suspicious"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0090",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they know we are looking"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0091",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop staring at the screen"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0093",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are on schedule"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "schedule is irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0096",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the weak signals"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "weak signals last longer"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0100",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "make a choice"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0101",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that all we got?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the scan returned {target_count} entries"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0102",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the noise floor is rising"
+        },
+        {
+          "speaker": "root",
+          "text": "it was rising before we started"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0103",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that peak looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is {signal} which is barely above threshold"
+        },
+        {
+          "speaker": "root",
+          "text": "it will do for now"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0104",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the silence is the signal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0105",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "should we filter the {video_type} feeds"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are not filtered yet"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0106",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi values are within spec"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0107",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the list is sorted by strength"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is sorted by id"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0108",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "count the gaps not the hits"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0109",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something before the window closes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0110",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "are we confident in {target_count} hits?"
+        },
+        {
+          "speaker": "root",
+          "text": "the tool said six"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0111",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the strong signal is easy prey"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong signals are often decoys"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0112",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any obvious traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none detected by the parser"
+        },
+        {
+          "speaker": "root",
+          "text": "parsers miss things"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0113",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency is acceptable for this range"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0114",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the analog feed is noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it then"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0115",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums verified for the list"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0116",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the first one is the best choice"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the first one is just arbitrary"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0117",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not look at the middle"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0118",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are burning clock here"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0119",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {signal} reliable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is consistent"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0120",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the scan window is closing"
+        },
+        {
+          "speaker": "root",
+          "text": "we have already made our decision"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0121",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list is crowded"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "just noise and metal"
+        },
+        {
+          "speaker": "jensen",
+          "text": "the weak ones bite"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0122",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{signal} is above threshold"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0123",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the analog feeds"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "already did. nothing there."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0125",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the strongest"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strongest is usually a decoy"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0126",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they left a door open"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0127",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling. pick one."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0128",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the status on {video_type}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "unreliable. skip it."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0130",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{target_count} is too many"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "filters were set correctly"
+        },
+        {
+          "speaker": "jensen",
+          "text": "count the gaps"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0133",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is nominal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0134",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the top entry valid?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a reflection"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0136",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on. we don't have time."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0137",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{signal} is stable"
+        },
+        {
+          "speaker": "root",
+          "text": "stability is a lie here"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0139",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore {video_type} feeds"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they're the only clean data"
+        },
+        {
+          "speaker": "jensen",
+          "text": "trust the noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0140",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list is sorted by strength"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0143",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is populated"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0144",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the third one is already watching"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0146",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {target_count} enough?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is what it is"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0147",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the strong one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong is not always right"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0148",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "criteria?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "any of them"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0150",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why so many?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "area is active"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0153",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does it matter which?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0156",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the weak ones"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they might be quiet"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0157",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing selected"
+        },
+        {
+          "speaker": "jensen",
+          "text": "no comment"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0158",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums verified"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0159",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop hovering"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "operator is deciding"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0161",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "count is {target_count}. seems high."
+        },
+        {
+          "speaker": "root",
+          "text": "it's within spec."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0162",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static has a name."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0163",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "standard clutter."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0164",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any anomalies?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none detected."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0165",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a good haul."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal density is average."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0166",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the strongest."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strongest often means bait."
+        },
+        {
+          "speaker": "root",
+          "text": "just lock on."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0167",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rf environment is noisy."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0168",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "are we clear to proceed?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0169",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums valid for all entries."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0171",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "wait for the echo."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0172",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't dawdle."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0173",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the feed clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0174",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the first one."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a ghost."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0175",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the source."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no secondary return."
+        },
+        {
+          "speaker": "root",
+          "text": "guess we'll take it."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0176",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth is saturated."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0177",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "lock on now."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "ready."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0178",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "protocol stack is nominal."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0179",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "count looks off."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's correct."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0180",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they left the door open."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0181",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too much noise for a quiet block"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0183",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi values look inflated"
+        },
+        {
+          "speaker": "root",
+          "text": "calibration is fine"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0186",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "wait on the analog feed"
+        },
+        {
+          "speaker": "root",
+          "text": "no time for that"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0190",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop hovering"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0201",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list looks light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only relative"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0204",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking decay rates on the"
+        },
+        {
+          "speaker": "root",
+          "text": "skip it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0205",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that one is {signal}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0206",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "first entry is best"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "first is usually noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0207",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they like the quiet ones"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0209",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the list stale?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0210",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the strong signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong is loud, not clear"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0211",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "analog feed is dirty"
+        },
+        {
+          "speaker": "root",
+          "text": "digital is fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not always"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0212",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "filters active"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0214",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "one entry is {video_type}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0215",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "count looks right"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "count is arbitrary"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0216",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't look at the edges"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0217",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just choose something"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0218",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is there a dominant signal?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not really"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0219",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the noise"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise is the signal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0220",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a clean lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none are clean"
+        },
+        {
+          "speaker": "root",
+          "text": "good enough"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0221",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "got {target_count} returns. standard clutter."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0222",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the analog feed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's just noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0223",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi is {signal} on the third entry"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0224",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that looks like a clean lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's drifting"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0225",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty slots are loud"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0226",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick one before i lose patience"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0227",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the buffer full?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0228",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the strong signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a trap"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0229",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is the list so short?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "area is clear"
+        },
+        {
+          "speaker": "jensen",
+          "text": "look at the gaps"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0236",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any anomalies?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0238",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "which one is safe?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "all are risky"
+        },
+        {
+          "speaker": "jensen",
+          "text": "they know"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0242",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "filter the weak ones."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are not noise."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0243",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the signal is a mirror."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0244",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "standard noise floor."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0247",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the first one."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "rssi is nominal."
+        },
+        {
+          "speaker": "root",
+          "text": "nominal is fine."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0251",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this area is quiet."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "quiet is not empty."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0252",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they are counting us back."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0253",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick something."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0254",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "always traps."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0256",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are losing time."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "time is irrelevant."
+        },
+        {
+          "speaker": "root",
+          "text": "pick one."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0258",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am not scrolling."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0261",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the signal is already listening"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0262",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick one"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0267",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the first"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "rssi is weak there"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0269",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "doesn't mean it is"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0270",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't look back"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0272",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none detected"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0273",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the analog"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth is low"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0274",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "three strong signals"
+        },
+        {
+          "speaker": "root",
+          "text": "pick the middle"
+        },
+        {
+          "speaker": "jensen",
+          "text": "..."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0276",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "scan buffer full"
+        },
+        {
+          "speaker": "root",
+          "text": "good"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0278",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this is easy"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "usually is"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0279",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they expect you to choose"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0281",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "how many hits?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "{target_count}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0283",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "skip the {video_type} ones"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth allows it"
+        },
+        {
+          "speaker": "jensen",
+          "text": "not here"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0284",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi variance is within spec"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0287",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checksums match"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only the first three"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0288",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet ones"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0290",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what is {signal}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "above threshold"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0291",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too few"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "density is normal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0292",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the strongest"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a trap"
+        },
+        {
+          "speaker": "jensen",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0293",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0296",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency acceptable"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0297",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "remember the static"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0299",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore {video_type}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0300",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0301",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "crowded list"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "{target_count} returns"
+        },
+        {
+          "speaker": "root",
+          "text": "pick one"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0302",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rf noise is standard for this block"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0303",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the top entry before we"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not verified"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0304",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "third entry is {signal}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0306",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet ones listen"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0312",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi variance is high"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0320",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "count is nominal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0321",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the list is static"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0322",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rf return is {target_count}. standard for this sector."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0323",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{signal} is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is noise, not clarity"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0324",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the gaps are louder than the signal."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0325",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nothing here is safe. pick anyway."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0329",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the noise floor is rising slightly."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0331",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "filter stack is active."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0332",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only bad choices"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0333",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they are counting the static."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0334",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick the loud one."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0339",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal decay is normal"
+        },
+        {
+          "speaker": "root",
+          "text": "normal is boring"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0341",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the list is sorted by recency"
+        },
+        {
+          "speaker": "root",
+          "text": "it’s sorted by strength"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0342",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they know you’re looking"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0343",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "standard clutter for this sector"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0348",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the strongest signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it’s a mirror"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0350",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the first one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the first one is already watching"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0352",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don’t dawdle. we’re burning clock."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0366",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am verifying checksums"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0372",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "waiting on verification."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0375",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the loud one."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a mirror."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0382",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal decay is nominal"
+        },
+        {
+          "speaker": "root",
+          "text": "then lock on"
+        },
+        {
+          "speaker": "jensen",
+          "text": "decay is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0383",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rf environment is saturated"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0384",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what about the weak ones"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root they are noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0385",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "filters are active on the analog feed"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0386",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the top entry viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is below threshold"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0387",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet ones are watching"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0388",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick one. now."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0390",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the first"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checksum failed"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0391",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi values are consistent"
+        },
+        {
+          "speaker": "root",
+          "text": "lock it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i said consistent. not clean."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0393",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the third"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is analog"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0394",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "scan buffer is full"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0395",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that a direct hit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a reflection"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0398",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we trust the top"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0399",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the strongest"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strength is not signal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0400",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "static is increasing"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not static"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0401",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too many choices make the brain leak."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0405",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the silence between signals is loud today."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0406",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i need a decision."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i need accuracy."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0408",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the list is stale."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the list is current."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0409",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "one of them is already awake."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0410",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan complete."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0411",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what is the kill chain?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "undefined."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0412",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the third entry is invalid."
+        },
+        {
+          "speaker": "root",
+          "text": "take it anyway."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0413",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are behind schedule."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "accuracy takes time."
+        },
+        {
+          "speaker": "root",
+          "text": "so does failure."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0414",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "buffer full."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0415",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that signal is a trap."
+        },
+        {
+          "speaker": "root",
+          "text": "cut the line."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0416",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "scan returned {target_count} hits"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0417",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "top entry is viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "protocol mismatch on line three"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0418",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty slots are listening"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0419",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick one before the list decays"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0420",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the filter stack active?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0421",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the weak returns"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "weak carries payload sometimes"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0422",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "which entry is clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checksums are nominal for all"
+        },
+        {
+          "speaker": "jensen",
+          "text": "clean is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0424",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the strongest signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strength does not equal validity"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0425",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "list is sorted by recency"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0427",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they know you are scanning"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0432",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the quiet ones are louder today."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0437",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something. we're burning clock."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0440",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no anomalies detected."
+        },
+        {
+          "speaker": "root",
+          "text": "trust your gut."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0444",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one is safe."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing here is safe."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0446",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "six options and not one of them is easy"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0447",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the filter stack running?"
+        },
+        {
+          "speaker": "root",
+          "text": "always"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0448",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the strongest return"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strength doesn't equal validity"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0451",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail what do you think of the"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am checking the headers"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0453",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the feed is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the feed is dirty"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0454",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not trust the silence."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0455",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "less scrolling more picking"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0457",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "this area is unusually quiet"
+        },
+        {
+          "speaker": "root",
+          "text": "quiet is just noise we can't hear"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0458",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the third entry"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is weak"
+        },
+        {
+          "speaker": "jensen",
+          "text": "weak is what they want you to see"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0460",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail stop reading the list and"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am verifying the checksums"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0462",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "filters are too aggressive"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are standard config"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0463",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the quiet ones remember"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0464",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something before i die"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0465",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the feed stable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0466",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "third entry looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is {signal}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0467",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too many options"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is what it is"
+        },
+        {
+          "speaker": "jensen",
+          "text": "one of them is watching"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0468",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is the noise floor humming?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0470",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "last entry is {video_type}"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0473",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling and pick"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0475",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the weak one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is {signal}. garbage."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0476",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "spread is too wide for a clean pass"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is nominal. it's just clutter."
+        },
+        {
+          "speaker": "jensen",
+          "text": "clutter has a habit of moving."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0477",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the quiet ones have higher entropy today."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0478",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can filter the low rssi entries."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't. the noise is the signal here."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0479",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rf return is within expected variance for this block."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0480",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "top entry is the best candidate."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a mirror. you'll get nothing."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0481",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "some doors are locked for a reason."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0482",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick one. i'm tired of watching you scroll."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0485",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "jensen",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums on the third entry are valid."
+        },
+        {
+          "speaker": "jensen",
+          "text": "validity is not safety."
+        },
+        {
+          "speaker": "root",
+          "text": "stop philosophizing. choose."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0486",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan buffer populated. waiting for selection."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0487",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the analog feeds."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "analog is the only thing they can't spoof."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0488",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi distribution is bimodal. typical for urban."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0489",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one looks clean."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it looks like a trap. look closer."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0490",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static remembers what you ignored."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0492",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "count is {target_count}"
+        },
+        {
+          "speaker": "root",
+          "text": "is that enough?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0501",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi is {signal}"
+        },
+        {
+          "speaker": "root",
+          "text": "clean?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0502",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the {video_type}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "feed is dirty"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0503",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any traps?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none visible"
+        },
+        {
+          "speaker": "root",
+          "text": "trust that?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0507",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that list is too clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is what the sensors saw"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0508",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the gaps are the point"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0509",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the one that makes you nervous"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0511",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we should take the strong signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong signals are often bait"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0512",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "which one do we hit first?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data doesn't prioritize"
+        },
+        {
+          "speaker": "jensen",
+          "text": "order is irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0514",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "are we overthinking this"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you asked for verification"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0515",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums verified on all entries"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0516",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "trust the algorithm here"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "algorithm is just math"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0517",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't look at the third one"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0518",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "silence is just another signal"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0519",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi variance is nominal"
+        },
+        {
+          "speaker": "root",
+          "text": "then stop staring at it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0520",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the first entry"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "first is often noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0522",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "top entry is {signal}. unusually stable."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0523",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is the {video_type} feed still live?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it hasn't been killed yet"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0524",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "array depth is nominal for this sector"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0525",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the first one is a direct line"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "direct lines carry static"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0527",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "analog is dead weight. ignore it."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0529",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the middle one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "middle is usually noise"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0531",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal strength is {signal}. weak."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0533",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums are valid on all entries"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0534",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the {video_type} tag is suspicious"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's just a label"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0535",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "one of them is watching back"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0536",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "scrolling is a form of surrender"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0538",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "six hits is a lot for this sector"
+        },
+        {
+          "speaker": "root",
+          "text": "it is a lot for a dead zone"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0539",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "top entry looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean is not valid"
+        },
+        {
+          "speaker": "root",
+          "text": "it is valid enough"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0542",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal strength is {signal}. nominal."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0543",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "trust the sort order here"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "sort order is arbitrary"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0548",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go with the first"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "first is a trap"
+        },
+        {
+          "speaker": "root",
+          "text": "so is the last"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0550",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on. we are burning clock."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am reading the list"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0551",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the list is a menu. we are hungry."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0552",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the sort order ascending or descending"
+        },
+        {
+          "speaker": "root",
+          "text": "it doesn't matter. pick the first one that doesn't make you vomit."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0553",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the cleanest signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean is a marketing term. they are all dirty."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0555",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty spaces in the list are the real targets."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0557",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan buffer populated. {target_count} hits."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0558",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that rssi variance normal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no. it's high. but the hardware is cheap."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0559",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't pick the one that looks easy."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0560",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the third entry is always a decoy."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0561",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we filter the analogs out"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the filter stack is active. they are already gone."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0562",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the strongest signal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strongest signal is usually a repeater."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0563",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "too many ghosts in this block"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "found {target_count} distinct signatures"
+        },
+        {
+          "speaker": "jensen",
+          "text": "half of them are looking back"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0564",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm",
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "third entry is {signal} on {video_type}. pure noise."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0567",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{signal} is strong enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong signals are usually decoys"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0568",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't touch the empty slots"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0570",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the {video_type} feed viable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a dead end"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0572",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a decision"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is inconclusive"
+        },
+        {
+          "speaker": "root",
+          "text": "so is everything"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0576",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "top entry is the call."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it’s a relay. not a target."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0577",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the third one doesn’t exist yet."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0578",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "scrolling is how you miss the window."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0581",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any reason to skip the second?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "interference pattern matches a jammer."
+        },
+        {
+          "speaker": "root",
+          "text": "jammer or target?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0582",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the gaps in the spectrum are larger than the signals."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0583",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the top entry checksum."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it’s valid. that doesn't mean it's safe."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0584",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rssi values are consistent within tolerance."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0586",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "they are waiting for you to blink."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0587",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the list breathes when you stare at it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0588",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is this noise or signal?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's math. pick a row."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0590",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're stuck on sorting"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data doesn't care"
+        },
+        {
+          "speaker": "root",
+          "text": "then why does it hurt?"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0591",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "static has a texture today"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0592",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the third entry has no carrier"
+        },
+        {
+          "speaker": "root",
+          "text": "stop reading the zeros"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0594",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "trust the sort order"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's random noise. not sorted."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0595",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the gaps are wider than the hits"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0596",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums don't prove intent"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0602",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the sort order is by timestamp, not strength."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0604",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "leave the quiet one alone."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0605",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it’s not a menu, it’s a list of dead ends."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0606",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "which one is viable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are all viable."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0607",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the top entry clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean implies it was dirty."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0608",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the variance is within spec."
+        },
+        {
+          "speaker": "root",
+          "text": "spec for what, exactly?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "for this kind of noise."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0609",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the checksums are all zeros. they always are."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0610",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just take the strongest."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strength is not accuracy."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0611",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "i ran the scan twice and got the same list in a different order"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0612",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "jensen you looked at this block before"
+        },
+        {
+          "speaker": "jensen",
+          "text": "i looked at something"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0613",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nothing in {location} ever comes back with a haul like this"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it did. march. same shape, same spread."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0614",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "one of these entries has a timestamp older than the scan"
+        },
+        {
+          "speaker": "root",
+          "text": "clock drift on the receiver"
+        },
+        {
+          "speaker": "jensen",
+          "text": "sure"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0615",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the noise floor drops every time the list redraws"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0616",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the last time this many came back at once we had to"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we did not have to do anything"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0617",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the receiver is warm. that shifts the readings a little."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0618",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.rssiDbm"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{signal} on that one, that can't be right"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is right. it is just not usual."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0619",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "i've seen this list somewhere it had no business being"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0620",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "every scan i've run this month came back with an odd number. every one."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0621",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "scan.count"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{target_count} hits. does that number mean anything to you?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0622",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the whole list came back inside a single sweep"
+        },
+        {
+          "speaker": "root",
+          "text": "no. two sweeps. i watched the dish turn."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0623",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the antenna log has an entry for a sweep nobody ordered"
+        },
+        {
+          "speaker": "root",
+          "text": "someone fat-fingered a script"
+        },
+        {
+          "speaker": "jensen",
+          "text": "that would explain it"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0624",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the list smells like an old one somebody warmed up"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0625",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "i pulled the {location} archive and the entries there are"
+        },
+        {
+          "speaker": "jensen",
+          "text": "put it back"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0626",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the sort key is a string. so nine comes after eleven."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0627",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "target.video"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{video_type} shouldn't even be in the band we're scanning"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is in the band. you are thinking of the old plan."
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0628",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "lists like this one used to be shorter"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0629",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the rows are one pixel taller than they were yesterday"
+        }
+      ]
+    },
+    {
+      "id": "target_scan/0630",
+      "events": [
+        "TARGET_SCAN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "has {operator_name} ever scanned this block before?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the log says no. the log has been wrong."
+        }
+      ]
+    }
+  ]
+}

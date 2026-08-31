@@ -1,0 +1,7352 @@
+{
+  "event": "JACK_IN",
+  "entries": [
+    {
+      "id": "jack_in/0001",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "control passes to raven"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0002",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the link stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0003",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the buffer is full"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0004",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handing off"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency is high"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0005",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "link: operator"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0006",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the whoop is spinning up"
+        },
+        {
+          "speaker": "root",
+          "text": "let it fly"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0007",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "telemetry stream started"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0008",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "raven has the stick"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the stick is virtual"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0009",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it sees us"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0010",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go raven"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0011",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the channel encrypted?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0012",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are done here"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the logs are still writing"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0013",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "that will spike cpu"
+        },
+        {
+          "speaker": "root",
+          "text": "take the hit"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0014",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "state: active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0015",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "waiting for ack"
+        },
+        {
+          "speaker": "root",
+          "text": "move on"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0016",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid controller engaged"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0017",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "system is nominal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nominal is a guess"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0018",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't look"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0019",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's yours raven"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0020",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "did we lose packet?"
+        },
+        {
+          "speaker": "root",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0021",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear for handoff"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "link is noisy"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0022",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency spike"
+        },
+        {
+          "speaker": "jensen",
+          "text": "as planned"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0023",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "handshake complete"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0024",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking pid gains"
+        },
+        {
+          "speaker": "root",
+          "text": "don't"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0025",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vibration filter active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0026",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "feedthrough clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not quite"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0027",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "no comment"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0028",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "cut the feed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0029",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is raven ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0030",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "dropping root privs"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "risky"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0031",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "final check"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "firmware locked"
+        },
+        {
+          "speaker": "jensen",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0032",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "mode: fly"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0033",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro drift detected"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0034",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "calibrating compass"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0035",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "telemetry open"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "encrypted only"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0036",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "quiet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0037",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let him fly"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0038",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "confirm lock?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0039",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "good luck"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "he doesn't need it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0040",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handing over"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal weak"
+        },
+        {
+          "speaker": "jensen",
+          "text": "enough"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0041",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0042",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "verify the lock"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's locked"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0043",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "link established"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0044",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is tuned"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's default"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0045",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "leave the door open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0046",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "disconnect me"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0047",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency check?"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0048",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "give me control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "already gone"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0049",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "did we get root?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "shell is active"
+        },
+        {
+          "speaker": "root",
+          "text": "not what i meant"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0050",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "propellers are clearing"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0051",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is he pausing?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "he isn't"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0052",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "session: active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0053",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "kill the video"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "keep it streaming"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0054",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "don't listen"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0055",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clock in"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0056",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "log the takeoff?"
+        },
+        {
+          "speaker": "root",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0057",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stay on line"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "why?"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0058",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any interference?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none detected"
+        },
+        {
+          "speaker": "jensen",
+          "text": "wait for it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0059",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "altimeter zeroed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0060",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "watch the ceiling"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "there is no ceil—"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0061",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage spike on the bus"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0062",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "oscillating slightly"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0063",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was already open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0064",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't touch the gains"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0067",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handshake failed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "retrying sequence"
+        },
+        {
+          "speaker": "jensen",
+          "text": "again"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0068",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "fan curve is aggressive"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0069",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "initiate handoff"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0071",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "telemetry is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "packet loss at 2%"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0072",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is loud"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0073",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go figure"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0074",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the link secure?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0075",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready to fly"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "compass is drifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0076",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer full"
+        },
+        {
+          "speaker": "jensen",
+          "text": "overflow"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0077",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "log tail open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0078",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the feed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "already done"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0079",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gpio mapped"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0082",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop watching it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0083",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the bus clear?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0084",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready to push"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0085",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "do we hold?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal is noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "push it anyway"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0086",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "handshake pending"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0087",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "give the wheel"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0088",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid gains are set"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0089",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "look good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0090",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it doesn't matter"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0091",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the pin"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0092",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is he in?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0093",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let him go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0096",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stop"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0097",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vibration filter on"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0098",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clean link"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not really"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0100",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's yours"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0101",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the gyro?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checked twice"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0102",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage is soft"
+        },
+        {
+          "speaker": "root",
+          "text": "noise floor"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0103",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "initiating jump"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the settle"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: jumping"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0104",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the motor whine is higher"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0106",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "log: control transfer"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0107",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is correct"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "derivative is clipped"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0108",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "he knows"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0109",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "keys are hot"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0110",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the video clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0111",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the mic"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mic is off"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0112",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the ack"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: idle"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0113",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "check: gpio"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0114",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "root, the baro"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0116",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gains look good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are too high"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0117",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door sticks"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0118",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "link is weak"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0119",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "are we clear?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clear"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0121",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "closing the loop"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage is drifting"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: handoff imminent"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0122",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "handshake sequence completed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0123",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gyro bias is shifting"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0124",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid integrator windup cleared"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0125",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "link is solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal to noise ratio is low"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0126",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static has a rhythm"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0127",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "keys are warm"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0128",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "are we live?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0129",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer is full"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0130",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "control path switched"
+        },
+        {
+          "speaker": "root",
+          "text": "done"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "check the voltage again"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0131",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "video stream muted"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0133",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "compass calibration failed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0134",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not fine"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0135",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "ghosts in the machine"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0136",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't blink"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0137",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "status?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0139",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "cron",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid gains need adjustment"
+        },
+        {
+          "speaker": "cron",
+          "text": "timer reset"
+        },
+        {
+          "speaker": "root",
+          "text": "too late"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0140",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "session started"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0141",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "wait, the gpio"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mapped already"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0142",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum verified on the whoop"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0144",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wind changes mind"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0146",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the whoop armed?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0148",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handshake done"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "baro drift is back"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0149",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vibration filter engaged"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0150",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't watch the"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "video feed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0151",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "pid controller active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0152",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gyro is zeroed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bias is shifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0153",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is a color"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0155",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "telemetry open?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0156",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear for fly"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no such state"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0157",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "context is shared"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "just pushing bits"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0159",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "pin now"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0161",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is set"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "integrator is not zero"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0162",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wind has a memory"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0163",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "keys are live"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0164",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the bus stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0165",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gyro is drifting"
+        },
+        {
+          "speaker": "root",
+          "text": "it is within spec"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0168",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the feed and go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the whoop is not armed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0169",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the gpio mapping"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0171",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it watches back"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0172",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hands off"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0173",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "telemetry is open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0175",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro is drifting"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it will crash"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0178",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "verify the pid gains"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0180",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the sky is closed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0181",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "control is yours"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0186",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the voltage"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0187",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid integrator cleared"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0188",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gains are wrong"
+        },
+        {
+          "speaker": "root",
+          "text": "they are fine"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0191",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum verified?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0195",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "root, the bus"
+        },
+        {
+          "speaker": "root",
+          "text": "move"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0199",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0201",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bus is noisy"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0203",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro offset is drifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0207",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wind remembers"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0208",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is yours"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0212",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage spike detected"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0216",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "ghosts in the wire"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0217",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0218",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is he ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "always"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0220",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checksum failed"
+        },
+        {
+          "speaker": "cron",
+          "text": "link: operator"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0221",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "handshake resolved"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0222",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing to raven now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, the bus"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0223",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid table loaded"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0225",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it breathes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0227",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the gyro zeroed?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0228",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "telemetry clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is high"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0230",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "context switch pending"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0231",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage sag on the"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0232",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro offset nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0233",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gains are set"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "integrator is risky"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0237",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't drop the link"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0240",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0241",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "drone.label"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the {drone_type} is drawing current"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0242",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "signal looks solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is noise"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0243",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the sky is listening"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0245",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the link clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "adequate"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0246",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arming sequence done"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0248",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "control path: active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0249",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push the feed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "do not"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0252",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look away"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0253",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "cut the tether"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0255",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "video is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "video is lagging"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0257",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "checksum passed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0258",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go ahead"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0259",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "comms are open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0260",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is done"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0261",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was never locked"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0262",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let the bird go"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0263",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the bus voltage"
+        },
+        {
+          "speaker": "root",
+          "text": "it's nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0269",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid gains look wrong"
+        },
+        {
+          "speaker": "root",
+          "text": "they are set"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0275",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "static is rising"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0276",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0283",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage sagging"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: pending"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0284",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "check: telemetry stream"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0285",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gains are nominal, we"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, the gyro is drifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0287",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, baro offset is bad"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0292",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the checksum"
+        },
+        {
+          "speaker": "cron",
+          "text": "check: handshake"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0300",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "hold, baro is drifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0302",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the baro is noisy"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0306",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does it matter"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0309",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the link is weak"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0312",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gyro bias is shifting, root —"
+        },
+        {
+          "speaker": "root",
+          "text": "send it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0313",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "queue: empty"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0321",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait the buffer"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0322",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "i2c latency is nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0323",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "bus is clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "there is noise on line 3"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0324",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the sky is not a variable"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0327",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "link is stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "packet loss is non-zero"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0328",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage sag on the bus"
+        },
+        {
+          "speaker": "jensen",
+          "text": "let it fall"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0331",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid table is loaded"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0333",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing happens twice"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0334",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0337",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "baro offset is high"
+        },
+        {
+          "speaker": "cron",
+          "text": "state: active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0341",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "gains are nominal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are not"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0342",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the bird does not want to fly"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0343",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the key"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0344",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage?"
+        },
+        {
+          "speaker": "root",
+          "text": "stable"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0345",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "link is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is noisy"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0347",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gpio state is low"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0348",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arming sequence"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0349",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "switch: context"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0351",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "you are already late"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0352",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let it go"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0355",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage sag"
+        },
+        {
+          "speaker": "jensen",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0356",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is dirty"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0358",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "log: transfer done"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0361",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handoff in five"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0362",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the imu stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0363",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "voltage is low"
+        },
+        {
+          "speaker": "root",
+          "text": "it's within spec"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0364",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the link"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no packet loss"
+        },
+        {
+          "speaker": "root",
+          "text": "then why the lag?"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0365",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the fan curve is wrong"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0368",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid looks set"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "integrator is high"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0370",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching now"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0372",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro offset is off"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0373",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        },
+        {
+          "speaker": "root",
+          "text": "why not"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0380",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the link solid?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0381",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "passing control to raven"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the imu is still warm"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0382",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "open the port"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency is high on the rx"
+        },
+        {
+          "speaker": "cron",
+          "text": "port: open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0383",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the whoop is drawing 1.2 amps"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0384",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arm it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait—the gyro isn't zeroed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0385",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "telemetry link: established"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0386",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "voltage is good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is nominal, not good"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0389",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the video feed clean?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0392",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "static is rising on channel 4"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0393",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go ahead"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, the baro is drifting"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0399",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the gpio state is low"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0400",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "cron",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handshake done"
+        },
+        {
+          "speaker": "cron",
+          "text": "link: operator"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "verify the checksum"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0410",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0416",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "imu data rate is nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0417",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the switch is not yet made"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0419",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is {operator_name}'s turn now"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0422",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arming now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the sync pulse"
+        },
+        {
+          "speaker": "root",
+          "text": "we do not have time"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0424",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0430",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i would not"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0434",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gpio 12 is floating"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0436",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door was always open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0437",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop talking to the machine"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0442",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0444",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checksum passed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "checksum failed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0446",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the switch flips itself"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0449",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are going in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the voltage sags"
+        },
+        {
+          "speaker": "root",
+          "text": "then we sag too"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0452",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "imu data is stale"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0453",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is nominal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nominal is relative"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0455",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop checking the logs"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0456",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it live?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "always live"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0457",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gyro bias shifted"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0461",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "kill the debug stream"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0462",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "bus is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bus is always dirty"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0463",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the door opens inward"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0464",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop holding your breath"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0465",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the gpio map"
+        },
+        {
+          "speaker": "root",
+          "text": "map is static"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0466",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are good to go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "voltage is sagging"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0467",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "imu is lagging"
+        },
+        {
+          "speaker": "jensen",
+          "text": "let it burn"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0468",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid integrator is saturated"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0469",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arming sequence now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, the motor driver"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0470",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "telemetry handshake done"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0472",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it watches you back"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0473",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't blink at the screen"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0475",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "control handoff complete"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not complete"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0479",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "gpio 12 is low"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0481",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wire is cut"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0483",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the voltage stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0485",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the handshake is slow"
+        },
+        {
+          "speaker": "root",
+          "text": "do it anyway"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0486",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "log: handoff initiated"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0487",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the gains"
+        },
+        {
+          "speaker": "root",
+          "text": "too late for that"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0490",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "someone is listening"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0491",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let the whoop burn"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0492",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus latency is low"
+        },
+        {
+          "speaker": "root",
+          "text": "it is never zero"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0496",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "telemetry is noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "don't watch it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0497",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "imu rate is nominal"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0502",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switch context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency will spike"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0503",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "arm it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "gpio is floating"
+        },
+        {
+          "speaker": "root",
+          "text": "arm it anyway"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0506",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "mux: switched to external"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0507",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pid is tight enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it oscillates on yaw"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0508",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the wire was always cut"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0509",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop hovering over the log"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0510",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the imu zeroed?"
+        },
+        {
+          "speaker": "root",
+          "text": "we checked it yesterday"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0513",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "baro is reading negative"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0514",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root, wait"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0515",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "telemetry stream: active"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0518",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is not a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0519",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "bus voltage is sagging?"
+        },
+        {
+          "speaker": "root",
+          "text": "it holds"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0521",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handing {operator_name}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bus is hot"
+        },
+        {
+          "speaker": "root",
+          "text": "it will burn"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0522",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "mux: open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0523",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "cut the debug stream"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0536",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "drop the key for {operator_name}"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0538",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "imu calibration failed"
+        },
+        {
+          "speaker": "root",
+          "text": "it passes the check"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0539",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "link latency is high"
+        },
+        {
+          "speaker": "root",
+          "text": "acceptable for fpv"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not for this distance"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0547",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pid integrator saturated"
+        },
+        {
+          "speaker": "root",
+          "text": "it will settle"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0548",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is dirty on ch4"
+        },
+        {
+          "speaker": "root",
+          "text": "fly it anyway"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "that is not how physics works"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0549",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we built the door, now walk through it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0550",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the handoff atomic?"
+        },
+        {
+          "speaker": "root",
+          "text": "nothing is atomic"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0552",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "link is up"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "link is noise"
+        },
+        {
+          "speaker": "root",
+          "text": "it flies anyway"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0553",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "mux: input source changed"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0561",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handoff in three"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the imu is drifting"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it is already gone"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0562",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the barometer reads zero altitude"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0563",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pushing control"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the pid table is not loaded"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0572",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the whoop is drawing current"
+        },
+        {
+          "speaker": "root",
+          "text": "it is always drawing current"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0575",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static remembers"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0580",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the barometer reads zero"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0581",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "handshake resolved"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0585",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cage is open"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0586",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the buffer flushed?"
+        },
+        {
+          "speaker": "root",
+          "text": "it is empty"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0587",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mux is live"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "mux is toggling"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0589",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "input source: remote"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0590",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the handshake"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0594",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0596",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "control passed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0600",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mux state is verified"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0602",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the sky is heavy today"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0605",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "switching context"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the context was already switched"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0606",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "send it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "send what"
+        },
+        {
+          "speaker": "root",
+          "text": "intent"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0607",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "static is rising on the bus"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0608",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the rack is warm and nothing is running on it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0609",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "who cleaned the bench"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nobody was in the room"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0610",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that's the same tone we heard in march"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "march had two tones"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0611",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "something moved in the rack camera"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the rack camera is unplugged"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0612",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the room smells like a thunderstorm and the windows are shut"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0613",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the serial console printed a name that isn't in the —"
+        },
+        {
+          "speaker": "root",
+          "text": "don't read it out"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0614",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the ground strap has a knot in it. it was not tied by hand."
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0615",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that timestamp is tomorrow"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the clock is correct. i checked it twice."
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0616",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the third chair has never been sat in"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0617",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i've done this exact handoff before and it was this quiet then too"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0618",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "did you hear the fan stop"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "there is no fan on that unit"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0620",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "there's a second cursor on my terminal"
+        },
+        {
+          "speaker": "root",
+          "text": "blinking?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0621",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the corridor light went out and came back the wrong colour"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0622",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "before we hand off, the manifest lists a fourth —"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "hand off"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0623",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the spare battery is at rest voltage and it has never been charged"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0624",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "this build isn't ours"
+        },
+        {
+          "speaker": "root",
+          "text": "it has my initials in it"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0625",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "count the antennas sometime"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0626",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "note: this channel was quiet at this hour last week also"
+        }
+      ]
+    },
+    {
+      "id": "jack_in/0627",
+      "events": [
+        "JACK_IN"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "has {operator_name} logged in yet"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the session opened an hour ago"
+        }
+      ]
+    }
+  ]
+}

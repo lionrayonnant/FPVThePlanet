@@ -1,0 +1,8004 @@
+{
+  "event": "AREA_SEARCH",
+  "entries": [
+    {
+      "id": "area_search/0001",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a tile"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0002",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the lens calibrated?"
+        },
+        {
+          "speaker": "root",
+          "text": "it has to be"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0003",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "cloud cover is high there"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0004",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the thermal band is noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i will try"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0005",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon line is drifting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0006",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "zoom in on the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the resolution won't hold"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0007",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the gimbal limits"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0008",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that angle is fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0009",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is just a mirror"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0010",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop spinning the globe"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0011",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the link stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0012",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the coast"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too much reflection"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0013",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are wasting time"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you are rushing"
+        },
+        {
+          "speaker": "root",
+          "text": "i am waiting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0014",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid lines are misaligned"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0016",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "refresh the vector data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0018",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look closer at the shadows"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0019",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit or quit"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0020",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the battery holding?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0021",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the resolution is better here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0022",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the hesitation"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal degradation in that band"
+        },
+        {
+          "speaker": "jensen",
+          "text": "the map is not a menu"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0023",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision is a latency issue"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0024",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the thermal overlay is showing noise"
+        },
+        {
+          "speaker": "root",
+          "text": "cut the overlay"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0025",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "render thread idle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0026",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector is too dense for fpv"
+        },
+        {
+          "speaker": "root",
+          "text": "then we go higher"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0027",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is a coordinate"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0028",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick a tile"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0030",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "target that ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a false contour"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0031",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid is shifting"
+        },
+        {
+          "speaker": "root",
+          "text": "it is drifting"
+        },
+        {
+          "speaker": "jensen",
+          "text": "nothing moves unless you do"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0032",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon is flat today"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0034",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "input stream active"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0035",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the coordinates are wrong"
+        },
+        {
+          "speaker": "root",
+          "text": "they are close enough"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0036",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look at the dark spot"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0037",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "less looking more doing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0038",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the link holding"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant until we fly"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0039",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a cliff"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0040",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "make a move"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is stale"
+        },
+        {
+          "speaker": "jensen",
+          "text": "stale data is still data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0041",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop hovering"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0042",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that ridge has too much interference"
+        },
+        {
+          "speaker": "root",
+          "text": "shut up"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0043",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the render thread is idle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0044",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector is clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no it isn't"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0045",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "maybe not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0046",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0051",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just do it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0052",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking telemetry"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0053",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it looks fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no it does not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0054",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does it matter"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0055",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid is drifting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0056",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "should we recalibrate?"
+        },
+        {
+          "speaker": "root",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0057",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that angle is risky"
+        },
+        {
+          "speaker": "root",
+          "text": "fine then"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0058",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none are good"
+        },
+        {
+          "speaker": "jensen",
+          "text": "always"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0060",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "make a choice"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too noisy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0061",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the raster layer is clipping"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0062",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector is viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the elevation data is stale"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0063",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty spaces are honest"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0064",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring at a map is not work"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0065",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the feed buffered?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is live"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0066",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that ridge looks accessible"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the slope is 40 degrees"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0067",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the valley"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is shadowed"
+        },
+        {
+          "speaker": "jensen",
+          "text": "light is optional"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0068",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the color balance is off"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0069",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail stop nitpicking"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is the data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0070",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "render buffer cleared"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0071",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that coordinate is safe"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no guarantee of safety"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0072",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "you are looking for ghosts"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0073",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move the cursor already"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0074",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the link encrypted?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is always encrypted"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0075",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take the coastal route"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "salt corrosion kills motors"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0076",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any preference?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "high ground only"
+        },
+        {
+          "speaker": "jensen",
+          "text": "down is just as good"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0077",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon is pixelated"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0078",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail check the weather"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am not a meteorologist"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0079",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the map is just geometry"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0080",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that tile looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean is a subjective term"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0081",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0082",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring doesn't change the terrain"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0090",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "geometry is not destiny"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0099",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a mirror"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0101",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we still browsing?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "waiting for a clear signal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0102",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the raster is too coarse here"
+        },
+        {
+          "speaker": "root",
+          "text": "it is fine enough"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0103",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "try the northern ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too much foliage noise"
+        },
+        {
+          "speaker": "root",
+          "text": "then try the southern one"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0104",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "map tile cache invalidated"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0105",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the elevation data is suspect"
+        },
+        {
+          "speaker": "root",
+          "text": "use it anyway"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0106",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking vector integrity"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0107",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the shadows disagree"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0108",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map remembers you"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0109",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop rotating the globe"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0111",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "too much urban clutter"
+        },
+        {
+          "speaker": "root",
+          "text": "density is irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0115",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "verifying grid alignment"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0121",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop panning."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the vector data is sparse here"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0122",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the lidar return is weak in this band"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0123",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are waiting on you"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am checking the signal integrity"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0124",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the tile cache is warm"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0127",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "your indecision is costing us"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0128",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no data to support it"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0130",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the thermal overlay is drifting"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it indicates heat sink failure"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0131",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cursor is stuck on the coast"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0132",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid alignment is off by two pixels"
+        },
+        {
+          "speaker": "root",
+          "text": "so?"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0134",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the link is stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it dropped packets earlier"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0137",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the delay?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "verifying checksums"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0139",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a location"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none are optimal"
+        },
+        {
+          "speaker": "root",
+          "text": "good enough"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0142",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the mesh density is low here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0143",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not fine"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0144",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the view is a choice"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0145",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "map view active"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0146",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that ridge accessible?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0147",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0148",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is thin"
+        },
+        {
+          "speaker": "root",
+          "text": "pick something"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0151",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cursor is drifting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0152",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that tile is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not clean"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0153",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look away"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0155",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any preference?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0157",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move the cursor"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is stuck"
+        },
+        {
+          "speaker": "root",
+          "text": "move it"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0158",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the lidar return is weak"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0161",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that ridge is too exposed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the slope is within limits"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0162",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a memory"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0164",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the raster loading?"
+        },
+        {
+          "speaker": "root",
+          "text": "it's a static image"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0166",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a decision"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the signal is weak"
+        },
+        {
+          "speaker": "jensen",
+          "text": "nothing happens here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0167",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid alignment is off"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0170",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the thermal band is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's just noise"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0171",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look for the empty spaces"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0176",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0201",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop panning the map"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is fine"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0202",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "urban density is high"
+        },
+        {
+          "speaker": "root",
+          "text": "so"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "so what"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0203",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cursor blinks"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0204",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is too steep"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0205",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the raster is flat"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0206",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this sector works"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0209",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the link good?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0210",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go north"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no signal there"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0211",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any data?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise"
+        },
+        {
+          "speaker": "root",
+          "text": "noise is data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0212",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon is sharp"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0213",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid"
+        },
+        {
+          "speaker": "root",
+          "text": "stop"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0214",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vector integrity ok"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0215",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that clear?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is cluttered"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0216",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "empty"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0217",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0218",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0219",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bad angle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0220",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we fly soon"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "maybe"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "or not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0221",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the terrain model is low res here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0222",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checking the western ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no. too much canopy."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0223",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "map viewport updated"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0224",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this sector looks open"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not open"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0225",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is hungry"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0228",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is exposed"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0230",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the shadows are flat"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0231",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "zoom in on the valley"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is blocked"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0232",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "cursor position updated"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0238",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit to the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "data is stale"
+        },
+        {
+          "speaker": "jensen",
+          "text": "try again"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0240",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop scrolling"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is loading"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0241",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop rotating the feed"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0243",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "geometry is not truth"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0245",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that sector viable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is too dense"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0259",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop panning"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0260",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is clear"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0261",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is eating itself"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0262",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "browsing is not a strategy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0263",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the vector data fresh?"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0264",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the ridge"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the slope is too steep"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0265",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we looking?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "waiting for signal"
+        },
+        {
+          "speaker": "root",
+          "text": "signal is fine"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0266",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "thermal band is noisy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0267",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go left"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "left is water"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0268",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking grid alignment"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0270",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look for the gaps"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0271",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop circling"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0273",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take the coast"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too much clutter"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0274",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit already"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "verifying telemetry"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "still verifying"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0279",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the horizon is flat"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0281",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the pause?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal noise on the edge"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0282",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector is dense"
+        },
+        {
+          "speaker": "root",
+          "text": "density is cover"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0284",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the lidar return is flat"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0286",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "thermal band is drifting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0287",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is offset"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0289",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision is latency"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0294",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the weather"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0299",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any preference?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none of them are good"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0300",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "they are all noisy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0301",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cursor has been on that ridge for three minutes"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a plausible landing zone"
+        },
+        {
+          "speaker": "root",
+          "text": "plausible is not acquired"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0302",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "vegetation density is higher than the model predicts"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0303",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we still rotating the view"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0304",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "refresh the tile cache if you need to"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0305",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that valley is clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not clear, it is just empty"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0306",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is watching back"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0307",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "viewport state idle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0308",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the thermal data loaded?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is buffered"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0309",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the eastern sector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, the elevation is too steep"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0310",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a fix on this sector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is aligned"
+        },
+        {
+          "speaker": "root",
+          "text": "then pick one"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0311",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon line is sharp today"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0313",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the signal strength before committing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0314",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that ridge is safe"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "safe is not a technical term"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0315",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "geometry is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0320",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "map tile cache cleared"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0321",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail let"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is not wrong"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0322",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "tile fetch latency is nominal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0323",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it looks clear enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "resolution is insufficient"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0324",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is not a map"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0325",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision is a feature"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0326",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the projection Mercator?"
+        },
+        {
+          "speaker": "root",
+          "text": "it is"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0327",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector is noisy"
+        },
+        {
+          "speaker": "root",
+          "text": "so are all of them"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0328",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a fix"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "data is insufficient"
+        },
+        {
+          "speaker": "root",
+          "text": "we don't have better data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0329",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the cursor is trembling"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0330",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we"
+        },
+        {
+          "speaker": "jensen",
+          "text": "waiting"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0331",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "rendering queue is empty"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0333",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look at the void"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0334",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick or don't"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0336",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that view is obstructed"
+        },
+        {
+          "speaker": "root",
+          "text": "so is this one"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0337",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go east"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal loss there"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is always loss"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0338",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "cache hit ratio is low"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0339",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop rotating"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the view is yours"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0340",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "telemetry is nominal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0341",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the elevation model is outdated"
+        },
+        {
+          "speaker": "root",
+          "text": "it's good enough"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0342",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static is loud today"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0343",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop staring at the pixels"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0346",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the lidar is weak here"
+        },
+        {
+          "speaker": "jensen",
+          "text": "noise is just data"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0347",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the mesh is tearing on the north edge"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0348",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the signal strength"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's nominal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0350",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that ridge looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's exposed"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0351",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map breathes"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0354",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go north"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "urban clutter is high"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0357",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "refresh the cache"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's already cold"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0359",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a mirage"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0360",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the cursor knows"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0361",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a sector"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0362",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the coast viable?"
+        },
+        {
+          "speaker": "root",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0364",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is old"
+        },
+        {
+          "speaker": "root",
+          "text": "it is what it is"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0365",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "viewport idle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0367",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "raster resolution is nominal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0369",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is not real"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0370",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0372",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go north"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "coverage is poor"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0373",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "fine"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0375",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0380",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the cache warm?"
+        },
+        {
+          "speaker": "root",
+          "text": "it is"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0381",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick one"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the signal is bad here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0382",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we still looking?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "coverage is sparse"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it's always sparse"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0383",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the mesh looks tired"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0384",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "checking the elevation data?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's old."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0385",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "raster interpolation is linear"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0386",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's noisy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0390",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go north"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal drops past the ridge"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0391",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any preference?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none of this works"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it does"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0395",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that one looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0397",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop rotating"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0398",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring at pixels doesn't download them"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0399",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the resolution adequate?"
+        },
+        {
+          "speaker": "root",
+          "text": "it's pixels. they are adequate."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0401",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can refine it later."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we can't."
+        },
+        {
+          "speaker": "root",
+          "text": "fine. keep looking."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0402",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the shadow casting is wrong on the ridge"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0404",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "viewport event logged"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0405",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is clean."
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is blank"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0406",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a lie"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0407",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision burns fuel"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0408",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the cache ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is always ready"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0409",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector is dead."
+        },
+        {
+          "speaker": "root",
+          "text": "so is everything else"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0411",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the horizon line is jagged"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0413",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the map is just a grid"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0414",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that ridge is viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a drawing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0415",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the silence is loud"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0416",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "pixel noise is not terrain"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0417",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that sector open?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0418",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we should commit now"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "to what"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0419",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why this one?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal is weak"
+        },
+        {
+          "speaker": "jensen",
+          "text": "look at the sky"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0421",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none are clean"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0422",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "zoom is not a strategy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0423",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that tile looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is empty"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0424",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "data is a ghost"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0426",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "why there?"
+        },
+        {
+          "speaker": "root",
+          "text": "because it is there"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0428",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop browsing and pick a target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the noise floor is too high to guess"
+        },
+        {
+          "speaker": "root",
+          "text": "guess then. we are burning time."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0429",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hovering is just slow falling."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0430",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that ridge has blind spots in the shadow"
+        },
+        {
+          "speaker": "root",
+          "text": "not now."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0431",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "tile boundaries are misaligned again."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0432",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector is clear enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not clear."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0433",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map remembers what you ignore."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0434",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "paralysis is a valid strategy, just not this one."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0435",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the coast?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "salt corrosion."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0436",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that valley looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it looks like a grave."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0437",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a decision by zero five"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is incomplete"
+        },
+        {
+          "speaker": "jensen",
+          "text": "silence is also data."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0438",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the geometry is lying about the slope."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0439",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just pick the high ground"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "high ground is exposed."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0441",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector works"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it does not."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0443",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring doesn't render the mesh"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0445",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that ridge has too much occlusion"
+        },
+        {
+          "speaker": "root",
+          "text": "occlusion is just geometry we haven't paid for yet"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0450",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clean is a rendering artifact"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0458",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "raster alignment drift is within spec"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0459",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "sector is stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only the projection is"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0460",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map prefers those who wait"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0461",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hesitation is a form of error"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0462",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the tile cache populated?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is populated with nothing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0463",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the ridge is viable"
+        },
+        {
+          "speaker": "root",
+          "text": "viability is not a plan"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0464",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the high ground"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the mesh is missing there"
+        },
+        {
+          "speaker": "root",
+          "text": "we fly blind then"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0466",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick something"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am not the pilot"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0467",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "geometric distortion increases with zoom"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0468",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the signal is strong"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the signal is noise"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0471",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the target locked?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no target selected"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0472",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the sector is clear"
+        },
+        {
+          "speaker": "root",
+          "text": "clear is not safe"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0473",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a coordinate"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the model is sparse here"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant. commit."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0474",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the curvature is wrong on this tile"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0475",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the valley floor"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we lose signal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0476",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "raster alignment is nominal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0477",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it looks flat enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "flat is not smooth"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0478",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map chooses us"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0479",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring does not render geometry"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0480",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the ridge viable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0482",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop rotating the view"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it helps with orientation"
+        },
+        {
+          "speaker": "root",
+          "text": "pick a point. now."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0484",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit to the valley"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "occlusion is heavy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0487",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is also a direction"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0488",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the cursor is hovering on nothing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0489",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the projection distorting the north edge?"
+        },
+        {
+          "speaker": "root",
+          "text": "it distorts everything"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0490",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector has heavy occlusion"
+        },
+        {
+          "speaker": "root",
+          "text": "so does the last one we picked"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0491",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need a fix on the grid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is fine, your patience is not"
+        },
+        {
+          "speaker": "root",
+          "text": "keep talking and you will be"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0492",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the view is always the wrong one"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0493",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the ridge, it is exposed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "exposure is not safety"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0496",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look where the map ends"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0497",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop panning and pick a target"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0498",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the thermal band loaded?"
+        },
+        {
+          "speaker": "root",
+          "text": "it never loads"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0499",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can refine the approach later"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we never refine"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0500",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the lidar return is flat there"
+        },
+        {
+          "speaker": "root",
+          "text": "flat is flyable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "flat is a cliff"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0501",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the horizon is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0502",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit to the valley floor"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a kill box"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0504",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the ridge is too steep"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0506",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a tile or we leave"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is empty"
+        },
+        {
+          "speaker": "root",
+          "text": "then make it not be"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0507",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that sector has no thermal signature"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0508",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we still panning the view"
+        },
+        {
+          "speaker": "jensen",
+          "text": "the map is breathing"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0521",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the map is not a destination, it is a menu"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0522",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the rendering lagging?"
+        },
+        {
+          "speaker": "root",
+          "text": "the rendering is fine. your patience is not."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0524",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are wasting cycles"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we are verifying integrity"
+        },
+        {
+          "speaker": "root",
+          "text": "we are staring"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0525",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the cursor hovers because it is afraid"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0526",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail, stop analyzing the pixels"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i am not"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0529",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not trust the white space"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0530",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision is a form of sabotage"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0531",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring at a jpeg won't calibrate the lens"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0532",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the shadow casting deterministic"
+        },
+        {
+          "speaker": "root",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0533",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that ridge is exposed"
+        },
+        {
+          "speaker": "root",
+          "text": "so is the sky"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0534",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "thermal data is sparse there"
+        },
+        {
+          "speaker": "jensen",
+          "text": "sparsity is a texture"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0535",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid lines are bleeding into the terrain"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0536",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we have three minutes of fuel"
+        },
+        {
+          "speaker": "jensen",
+          "text": "time is local"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0538",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this sector is flat"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a plane, not flat"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0540",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "indecision is expensive"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0541",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the mesh loaded"
+        },
+        {
+          "speaker": "root",
+          "text": "irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0543",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a spot or we sit here all night"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the noise floor is high everywhere"
+        },
+        {
+          "speaker": "root",
+          "text": "noise is still a direction"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0544",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid lines are bleeding through the overlay"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0545",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail, tell me why that ridge is bad"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i didnt say it was"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0546",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "raster interpolation is linear on this tile"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0547",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that sector looks stable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "stable is not the same as safe"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0548",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is eating the cursor"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0549",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hesitation is a form of drag"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0550",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the thermal band active?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is loading. it is not active."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0552",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the curvature is wrong on that edge"
+        },
+        {
+          "speaker": "root",
+          "text": "it is within spec"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "spec is a lie we tell ourselves"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0553",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the pixels are just sitting there"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0554",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just commit to the valley"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the valley is a sinkhole"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0555",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "doppler shift is negligible at this scale"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0556",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is the only viable vector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a rock"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0557",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map hates you"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0558",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick a pixel"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0559",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why are we waiting?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "patience"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0560",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it looks clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it looks like noise"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0561",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are losing light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we have forty minutes"
+        },
+        {
+          "speaker": "jensen",
+          "text": "time is irrelevant"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0562",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "viewport idle state detected"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0563",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that ridge has blind spots"
+        },
+        {
+          "speaker": "root",
+          "text": "stop nitpicking"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0565",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is a good choice"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is a bad choice"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0566",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not look back"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0568",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the geometry loaded"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is always loaded"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0569",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that tile is empty"
+        },
+        {
+          "speaker": "root",
+          "text": "empty is quiet"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0571",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the curvature feels wrong"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0572",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are wasting fuel by"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "fuel is irrelevant here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0573",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checking shadow occlusion"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0574",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "this looks viable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "viable is not optimal"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0575",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the view is correct"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0576",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "hesitation is a cost"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0577",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the data fresh"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "freshness is a myth"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0578",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the elevation is flat"
+        },
+        {
+          "speaker": "root",
+          "text": "flat is not safe"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0580",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "input stream idle"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0581",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "pick the high ground"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root—"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0582",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid overlay is misaligned"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0584",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map does not want you here"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0585",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "staring is not a strategy"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0586",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "these coastlines were drawn by someone who had never seen water"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0587",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "jensen, still on channel?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "in the way that counts"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0588",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nothing on that landmass worth the trip"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "there is, it just does not photograph"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0589",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the elevation model has a hole shaped like a chair"
+        },
+        {
+          "speaker": "root",
+          "text": "a chair"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "an armchair, if we are being exact"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0590",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "geometry cache flushed without request"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0591",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "if you rotate the projection ninety degrees the whole thing looks like—"
+        },
+        {
+          "speaker": "root",
+          "text": "it doesn't"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0592",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "labels render in a second pass, that is why they always arrive late"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0593",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the north edge wraps, that is correct"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it wraps twice"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0594",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "i have been to one of these"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0595",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "at this zoom every city is the same city"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0596",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why do you keep scrolling past the equator?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "habit"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0597",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that landmass is uninhabited"
+        },
+        {
+          "speaker": "root",
+          "text": "there are lights on it at night"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0598",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "someone renamed a river in the index"
+        },
+        {
+          "speaker": "root",
+          "text": "to what?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "to the same name, spelled differently"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0599",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "there is a lake here that appears on no other map i have worked from"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0600",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail, if you say contour one more—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "contour"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0601",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "map surface acquired input focus"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0602",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that island is exactly where i said it was"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is where you said, on a different map"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0603",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "i knew someone who chose by weather. they were not wrong."
+        }
+      ]
+    },
+    {
+      "id": "area_search/0604",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{operator_name} is looking for somewhere that agrees with them"
+        }
+      ]
+    },
+    {
+      "id": "area_search/0605",
+      "events": [
+        "AREA_SEARCH"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "what is the population of {location}?"
+        },
+        {
+          "speaker": "root",
+          "text": "wrong question to ask a map"
+        }
+      ]
+    }
+  ]
+}

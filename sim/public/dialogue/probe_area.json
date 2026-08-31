@@ -1,0 +1,7338 @@
+{
+  "event": "PROBE_AREA",
+  "entries": [
+    {
+      "id": "probe_area/0001",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a mess in {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0002",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is that enough data?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the probe says {terrain_size} tiles"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0003",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can handle {terrain_mb}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only if the link holds"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0004",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "start the sweep on {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth is marginal"
+        },
+        {
+          "speaker": "root",
+          "text": "then we go slow"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0005",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "noise floor is high near {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0006",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit to {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, raven is drifting"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0007",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "mesh density is standard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0008",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "cache fits {terrain_mb}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not after compression"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0009",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is already written"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0010",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "skip {location} for now"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0011",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {terrain_size} tiles safe?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0012",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push {location} forward"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "risk of drop is real"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0013",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why is {location} flagged?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "probe returned odd geometry"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0014",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe complete for {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0015",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "lock {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "channel is noisy"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0016",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "payload is {terrain_mb}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0017",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "good signal on {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it fades every few seconds"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0018",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "some things are best left empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0019",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "leave {location} alone"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0020",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what about {terrain_size}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too dense for quick pass"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0027",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "check the edges"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0036",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "trust the noise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0041",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe hit {location} hard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0042",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it worth the burn?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root. the signal is sparse."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0043",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe complete, {terrain_size} tiles"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0044",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's clean enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the estimate is wrong"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0045",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the grid remembers"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0046",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{operator_name} looks tired"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0047",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the risk here?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "low"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0048",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the geometry is jagged"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0049",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need to go in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bandwidth is tight"
+        },
+        {
+          "speaker": "root",
+          "text": "then go in"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0050",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "that {terrain_mb} is heavy"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0051",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't overthink it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i'm not. i'm checking."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0052",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "checksum pending"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0053",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's shaky"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0054",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "static is alive"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0055",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "coffee break"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0056",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0057",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let's fly"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the wind"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0058",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the link is weak"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i'm just saying"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0059",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{location} is quiet today"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0060",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "root. the packet loss."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0063",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the geometry is a suggestion"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0067",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "do we commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is thin"
+        },
+        {
+          "speaker": "jensen",
+          "text": "thin is fine"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0069",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run the calc again"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "calcs are fine"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0071",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a clean sector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is clean"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0072",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "some walls do not exist"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0073",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "sector scan complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0076",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the holdup?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency"
+        },
+        {
+          "speaker": "root",
+          "text": "accept it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0078",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ignore the artifacts"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i can't just ignore math"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0080",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's just noise"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's signal"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0081",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the walls are listening"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0082",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a lot of empty space"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0083",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we take {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the bandwidth says no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0084",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a clear shot"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "clear is not safe"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0085",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it seems small enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "small can be dense"
+        },
+        {
+          "speaker": "root",
+          "text": "and big can be empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0086",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{location} has bad geometry"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0087",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can just—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't start that"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0088",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "packet loss is within spec"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0089",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the signal is strong"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "strong is not accurate"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0090",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "shadows move here"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0091",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just do the job"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0092",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {terrain_mb} too much?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "storage is cheap"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0093",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a standard run"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is standard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0094",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let's try {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the latency is high"
+        },
+        {
+          "speaker": "root",
+          "text": "acceptable"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0095",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe returned {terrain_size} tiles"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0096",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we're moving in on—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait for the checksum"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0097",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "verify the header first"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0098",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the map looks fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "fine is not correct"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0099",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing is as it seems"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0100",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop overthinking it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0101",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "status on {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "probe finished"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0102",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can take {terrain_mb}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer won't hold that"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0103",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for {terrain_size} tiles"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too many variables"
+        },
+        {
+          "speaker": "cron",
+          "text": "probe cycle ended"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0104",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{location} is dense"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0105",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit now while the signal is—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0106",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums are valid"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0107",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "geometry looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "artifacts in the north sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0108",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is loud today"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0109",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run the numbers again"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0110",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {terrain_mb} acceptable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0111",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "lock the target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not stable yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0113",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "cache cleared"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0114",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "sweep {location} hard"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0115",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency is within spec"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0116",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "only on the surface"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0117",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not look down"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0118",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stand by"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0119",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready for {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "always"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0120",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push the limit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the limit is real"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0122",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid is uneven"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0125",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "look again"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0126",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "maybe we don't go"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0127",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "standard procedure"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0130",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "looks like noise"
+        },
+        {
+          "speaker": "jensen",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0131",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan finished"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0132",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is weak"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0134",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's accurate"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0135",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "who cares"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0136",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "check the header"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0138",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "debatable"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0139",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "caution"
+        },
+        {
+          "speaker": "cron",
+          "text": "logged"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0140",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "just a number"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0143",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the angle is the point"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0144",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take the shot"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0145",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it stable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "barely"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0146",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "clear to commit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no it is not"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0147",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks fine"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the header is bad"
+        },
+        {
+          "speaker": "root",
+          "text": "fine"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0148",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe returned noise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0149",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are going in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i did not say that"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0150",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "buffer alignment is standard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0152",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing happens twice"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0153",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe cycle finished"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0154",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any blockers?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0155",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0157",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "sector index updated"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0158",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "start the"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0159",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums are pending"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0161",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a mirror"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0189",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's just a number"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0190",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we commit now?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0193",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe hit a dead zone"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0199",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "status on the probe?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0206",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the walls are thin"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0210",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "do we go in?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "signal is noisy"
+        },
+        {
+          "speaker": "jensen",
+          "text": "does it matter"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0216",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0217",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what is the risk?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "zero"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0218",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0221",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "start the sweep"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "buffer is full"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0223",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is warped"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0224",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is a lie"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0225",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a Tuesday run"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0229",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "latency spike"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0230",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are moving in on"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0232",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "geometry is bad"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0233",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look away"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0237",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any blockers?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "static"
+        },
+        {
+          "speaker": "root",
+          "text": "proceed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0241",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it worth it?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "unlikely"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0242",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the echo returns before the shout"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0243",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "small enough to bite off"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0244",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {terrain_size} manageable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "barely"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0245",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the header is corrupt"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0246",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit on {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "bandwidth is saturated"
+        },
+        {
+          "speaker": "root",
+          "text": "then squeeze it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0247",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe yielded {terrain_mb}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0248",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "initiate the download sequence"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0249",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums are nominal"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0251",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "eyes on the wrong wall"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0252",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "geometry holds"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0254",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed to acquisition"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "abort suggested"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0255",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why the hesitation?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "latency spike detected"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "rerun probe"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0256",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "grid alignment shifted"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0257",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we are going live"
+        },
+        {
+          "speaker": "root",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0258",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "buffer ready"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0259",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "data looks clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "artifacts present"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0260",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not trust the map"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0261",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move forward"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0262",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "how dense is {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "medium"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0263",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can take {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is fractured"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0265",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "noise floor rising in {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0267",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "buffer alignment ok"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0269",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the empty tiles count"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0270",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run the sweep"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0271",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {location} clear?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0274",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "sector scan complete: {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0275",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let's go—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0277",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready to commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0278",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "who is watching?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0279",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0281",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "take {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "data is sparse"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0282",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what about {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "geometry is messy"
+        },
+        {
+          "speaker": "root",
+          "text": "it always is"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0283",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the tile count feels high for this sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0284",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can push—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, the header is wrong"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0285",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal attenuation is within spec"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0286",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's small enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "size is not density"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0287",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the floor is a ceiling"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0288",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit or kill it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0289",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it ready?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0290",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it will break"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0291",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "closest node"
+        },
+        {
+          "speaker": "root",
+          "text": "closest is not clean"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0292",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe cache updated"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0293",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the alignment is off by—"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0294",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "buffer size is standard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0295",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "looks mean nothing"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0296",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does the grid breathe?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0297",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "move on"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0298",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "start the engine?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0299",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it safe?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "nothing is"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0300",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "forget {location}"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it was never real"
+        },
+        {
+          "speaker": "root",
+          "text": "then why the probe?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0301",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "job queue empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0308",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "look like a go?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "probe data is stale"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0309",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal density is high"
+        },
+        {
+          "speaker": "root",
+          "text": "we can take it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's a trap"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0314",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "no comment"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0317",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "risk is elevated"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0323",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map remembers"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0324",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "burn the cache"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0326",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid is broken"
+        },
+        {
+          "speaker": "root",
+          "text": "it's not"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0327",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the angle is wrong"
+        },
+        {
+          "speaker": "root",
+          "text": "so?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0328",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "null pointer on tile 4"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0329",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "wait"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "too late"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0330",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "buffer flush complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0332",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "why count?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0333",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe returned 842 tiles"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0334",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0336",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the geometry is wrong"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "really wrong"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0337",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "quiet today"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0338",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run it"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "don't"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0339",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum failed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0340",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's dirty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0341",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "ghost in the grid"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0342",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "check the corners first"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0343",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the mesh stable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0347",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "let's look at the—"
+        },
+        {
+          "speaker": "root",
+          "text": "no, skip that"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0348",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "header byte 0x12 is null"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0349",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "readings are nominal"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the variance is high"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0351",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal is clean"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0352",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any noise?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "none"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0353",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go for it"
+        },
+        {
+          "speaker": "root",
+          "text": "wait, check the cache"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0355",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "quiet sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0356",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "bring up the map—"
+        },
+        {
+          "speaker": "root",
+          "text": "actually, just fly"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0357",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "buffer aligned"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0358",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it is safe"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the edges are sharp"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0359",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "do not look"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0360",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "standard run"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0361",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "should we lock?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0363",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we split the grid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "split introduces boundary errors"
+        },
+        {
+          "speaker": "jensen",
+          "text": "boundaries are imaginary"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0365",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i'm committing to the sweep"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the sweep will fail on the northern edge"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0366",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "cache alignment is standard"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0367",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "signal looks strong enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is fluctuating"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0368",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is not the territory"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0370",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the noise floor rising?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0371",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "tile count is within bounds"
+        },
+        {
+          "speaker": "root",
+          "text": "bounds are too loose"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0372",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we need better resolution"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "resolution costs time"
+        },
+        {
+          "speaker": "jensen",
+          "text": "time is a variable"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0373",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksum mismatch on sector 4"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0374",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "initiate the download"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the link is unstable"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0376",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a clean run"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the data is corrupted"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0377",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "look at the shadows"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0379",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we push the limit?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0381",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "COMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "confirm the target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "target is obscured"
+        },
+        {
+          "speaker": "jensen",
+          "text": "obscured is clear enough"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0382",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "leave it alone"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0384",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it is not green"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0385",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks dense enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "density is not accuracy"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it is what it is"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0386",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the grid feels hollow today"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0387",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we commit on the high res"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0388",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "header checksum is nominal"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0390",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does the map know you are here?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0391",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't overthink the probe"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0392",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "ready to lock?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0393",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i said no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0394",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "push the boundary"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the boundary is hard"
+        },
+        {
+          "speaker": "jensen",
+          "text": "maybe you should push"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0397",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe returned a valid tile count for this sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0398",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the mesh is fragmented"
+        },
+        {
+          "speaker": "root",
+          "text": "it's still contiguous"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0399",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the void has depth"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0400",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't overfit the noise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0401",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is the header clean?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0402",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the density is too high for our buffer"
+        },
+        {
+          "speaker": "root",
+          "text": "we have enough space"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0403",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "alignment is off by two"
+        },
+        {
+          "speaker": "root",
+          "text": "ignore it"
+        },
+        {
+          "speaker": "jensen",
+          "text": "entropy increases"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0405",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "committing now—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0413",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "{terrain_mb} for a single sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0414",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we should commit before the window—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the window is a metaphor"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0416",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the signal looks solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "solid does not mean accurate"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0417",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the map is hungry"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0418",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "burning {location}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0419",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the buffer aligned?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0423",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the density is higher than—"
+        },
+        {
+          "speaker": "root",
+          "text": "skip the lecture"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0424",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "grid offset by two units"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0427",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe is just a guess"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0429",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a target"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "looks like a trap"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0430",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the static has teeth"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0431",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "burn the cycle or save it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0432",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the grid stable?"
+        },
+        {
+          "speaker": "root",
+          "text": "yes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0434",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's not ready"
+        },
+        {
+          "speaker": "jensen",
+          "text": "neither is the map"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0435",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "signal bleed on the north edge"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0439",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "nothing is empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0440",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "trust the probe"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0441",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what's the risk?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wasted time"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0442",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "i object"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0443",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is {location} worth the bandwidth?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the geometry is messy"
+        },
+        {
+          "speaker": "jensen",
+          "text": "messy is just data"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0445",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "mikhail what do you think of the—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the tiles are orthogonal root"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0446",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums on the header are nominal"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0447",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it looks clear"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the probe lies when the angle is wrong"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0448",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the walls are not what they seem"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0449",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't stare at the static"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0450",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is the signal density acceptable?"
+        },
+        {
+          "speaker": "root",
+          "text": "adequate"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0451",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "this sector has high noise"
+        },
+        {
+          "speaker": "root",
+          "text": "noise is just data we haven't parsed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0453",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "scan complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0454",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "prepare the download—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "not yet committed root"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0456",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's ready"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the probe is an estimate not a fact"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0457",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "silence is also data"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0459",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it worth the fuel?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the geometry holds"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0460",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks clean enough"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the mesh is fractured"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0462",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe cycle complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0464",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "estimating {terrain_mb} payload"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0465",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the header looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "byte 0x12 is null"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0466",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does the map lie?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0467",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "burn the cache or save it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0468",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "any blockers?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "noise floor rising"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0469",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks like a go"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is offset"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0471",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "queue is empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0474",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "that density looks manageable"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "density is a function of your threshold"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0478",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit on this sector"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the grid is fragmented"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0480",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "cron"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "estimated payload: {terrain_mb}"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0488",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "what’s the yield on {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "dense, but tight."
+        },
+        {
+          "speaker": "root",
+          "text": "tight enough?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0490",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we lock on the first pass"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "and risk the—"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0491",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "tile adjacency is nominal"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0494",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop looking at the shadows"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0497",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "why hesitate on {location}?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the density is wrong."
+        },
+        {
+          "speaker": "root",
+          "text": "define wrong."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0499",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit on the high res"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the buffer will—"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0501",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "proceed"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "that is not a plan"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0502",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the grid breathes"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0504",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "is it writable?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the sectors are"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0505",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "UNCOMMON",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "green light"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the header is malformed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0506",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it smells like static"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0508",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take the hill"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the hill is a lie"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0510",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe cache stale"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0511",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i say we push the—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0513",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the map is clean"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the map is blind"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0514",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "it remembers us"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0515",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "don't overfit"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0516",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "can we afford it?"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the cost is fixed"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0517",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we go in"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "you will regret it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0520",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we lock the grid now—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "wait, the header is corrupt"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0521",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "checksums are nominal for this sector"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0522",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "it's a clean sweep"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no, it's a dirty cache"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0523",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the void has teeth"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0524",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop staring at the noise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0529",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "commit on the first pass—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the signal is weak"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0533",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "stop looking at the noise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0535",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we push the boundary"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the buffer will not hold"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0537",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the static is rising"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0541",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "does the map know?"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0542",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "the grid is lying to us"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0543",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "is {location} writable?"
+        },
+        {
+          "speaker": "root",
+          "text": "nothing is"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0546",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the corners are empty"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0547",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we take the first pass—"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "no"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0549",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "signal looks solid"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "solid is not stable"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0553",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "looks good"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "good for whom"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0556",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "we can afford the bandwidth"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "but the latency is—"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0557",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "cache flush complete"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0558",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the probe came back before i sent it"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0559",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "who put {location} on the list"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it was already there"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0560",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "nothing down there but roofs"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the roofs have doors on them"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0561",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the estimate is even. exactly even."
+        },
+        {
+          "speaker": "root",
+          "text": "so?"
+        },
+        {
+          "speaker": "jensen",
+          "text": "they usually aren't"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0562",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the same block shows up in every sector we look at"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0563",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "run it again and this time watch the—"
+        },
+        {
+          "speaker": "jensen",
+          "text": "i watched it the first time"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0564",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "probe wrote to a directory we deleted in march"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0565",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.tiles"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{terrain_size} tiles, that's the whole thing"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "it's the whole thing twice"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0566",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "the third pass is always politer"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0567",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "i've seen this area in a dream and i'd like that on record"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0568",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "who signed the probe request"
+        },
+        {
+          "speaker": "jensen",
+          "text": "a name we retired"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0569",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "operator.name"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{operator_name} hasn't asked about this one yet"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "asked twice. neither time out loud."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0570",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "anything unusual"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "the water in the estimate isn't flat"
+        },
+        {
+          "speaker": "jensen",
+          "text": "it never has been"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0571",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "cron"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "cron",
+          "text": "probe complete. probe complete. probe complete."
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0572",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail",
+        "root"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "there's a structure in the estimate that isn't in any—"
+        },
+        {
+          "speaker": "root",
+          "text": "i know the one"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0573",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "the tile names are sorted, but not into any order i recognise"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0574",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "mikhail"
+      ],
+      "requires": [
+        "terrain.megabytes"
+      ],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "{terrain_mb} is what we got last time too"
+        },
+        {
+          "speaker": "mikhail",
+          "text": "we have never probed this area"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0575",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "jensen"
+      ],
+      "requires": [
+        "area.name"
+      ],
+      "lines": [
+        {
+          "speaker": "jensen",
+          "text": "{location} is smaller from the inside"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0576",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "mikhail"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "mikhail",
+          "text": "one tile in the estimate has no neighbours and no edges"
+        }
+      ]
+    },
+    {
+      "id": "probe_area/0577",
+      "events": [
+        "PROBE_AREA"
+      ],
+      "rarity": "VERY_RARE",
+      "characters": [
+        "root",
+        "jensen"
+      ],
+      "requires": [],
+      "lines": [
+        {
+          "speaker": "root",
+          "text": "have we looked at this before"
+        },
+        {
+          "speaker": "jensen",
+          "text": "we're looking at it now"
+        }
+      ]
+    }
+  ]
+}

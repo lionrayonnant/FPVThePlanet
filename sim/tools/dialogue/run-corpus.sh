@@ -28,9 +28,12 @@ run() {  # run <backend> <event> <count> <batch> <rarity>
 	local backend=$1 event=$2 count=$3 batch=$4 rarity=$5
 	echo "--- $event / $rarity / $count via $backend" | tee -a "$LOG"
 	local out
+	# --show : le dialogue défile en direct sur le terminal ET dans le journal
+	# via ce tee (pipefail est actif plus haut, la sortie de node reste donc
+	# celle qui décide de l'échec de ce pipeline). Aucune couleur ni curseur
+	# dans generate.mjs : le journal reste du texte lisible au grep/less.
 	out=$(node tools/dialogue/generate.mjs --event "$event" --count "$count" \
-		--batch "$batch" --rarity "$rarity" --backend "$backend" 2>&1)
-	echo "$out" >> "$LOG"
+		--batch "$batch" --rarity "$rarity" --backend "$backend" --show 2>&1 | tee -a "$LOG")
 	if ! grep -q "^backend : $backend" <<< "$out"; then
 		echo "ARRÊT — backend attendu '$backend', bilan :" | tee -a "$LOG"
 		grep "^backend :" <<< "$out" | tee -a "$LOG"
