@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround } from './loader.js';
+import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -1526,7 +1526,12 @@ function dropPreloadsExcept(keepSlug) {
 		if (slug === keepSlug) continue;
 		preloads.delete(slug);
 		p.then((loaded) => {
-			for (const m of loaded.meshes ?? []) {
+			const meshes = loaded.meshes ?? [];
+			// #147 : sans ce retrait, tileMaterials (loader.js) gardait ces
+			// matières vivantes malgré dispose() ci-dessous — dispose() ne libère
+			// que le GPU, pas le buffer de pixels JS que uMap.value référence.
+			releaseTileMaterials(meshes.map((m) => m.material));
+			for (const m of meshes) {
 				m.geometry.dispose();
 				m.material.uniforms?.uMap?.value?.dispose();
 				m.material.dispose();
