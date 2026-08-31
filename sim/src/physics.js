@@ -35,13 +35,24 @@ export class Physics {
 		this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
 		this.world.timestep = 1 / 250;
 
-		const groundBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-		this.world.createCollider(
-			RAPIER.ColliderDesc.trimesh(collision.vertices, collision.indices)
-				.setFriction(0.9)
-				.setRestitution(0.15),
-			groundBody,
-		);
+		this.groundBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+		// Mode ?live= (#168, #170) : pas de collision.bin, donc un trimesh de
+		// scène à 0 sommet. Rapier n'accepte pas un trimesh vide (RuntimeError
+		// wasm "unreachable" côté ColliderDesc.trimesh) — sauter la création
+		// dans ce cas et laisser groundBody nu, prêt à recevoir des colliders
+		// de nœuds rocktree via addNodeCollider().
+		if (collision.vertices.length > 0 && collision.indices.length > 0) {
+			this.world.createCollider(
+				RAPIER.ColliderDesc.trimesh(collision.vertices, collision.indices)
+					.setFriction(0.9)
+					.setRestitution(0.15),
+				this.groundBody,
+			);
+		}
+		// Colliders rocktree progressifs (#168, #170) : un trimesh par nœud
+		// reçu en vol, sur ce MÊME corps fixe — Rapier accepte plusieurs
+		// colliders par corps nativement, pas besoin d'un corps par nœud.
+		this._nodeColliders = new Map();
 
 		this.spawn = { ...spawn };
 		this.body = this.world.createRigidBody(
@@ -146,6 +157,38 @@ export class Physics {
 			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },
 			IDENTITY, true,
 		);
+	}
+
+	// #168, #170 : convertit la géométrie d'UN nœud rocktree fraîchement
+	// décodé en collider Rapier, sur le même groundBody que le trimesh de
+	// scène (s'il existe) ou seul (mode ?live=, pas de collision.bin).
+	// Mêmes réglages de friction/restitution que le trimesh de scène — un sol
+	// qui se comporte pareil des deux côtés, cuit ou streamé.
+	addNodeCollider(path, vertices, indices) {
+		if (this._nodeColliders.has(path)) {
+			throw new Error(`addNodeCollider: "${path}" est déjà chargé — removeNodeCollider() d'abord`);
+		}
+		const collider = this.world.createCollider(
+			RAPIER.ColliderDesc.trimesh(vertices, indices)
+				.setFriction(0.9)
+				.setRestitution(0.15),
+			this.groundBody,
+		);
+		this._nodeColliders.set(path, collider);
+		// Rapier ne rafraîchit l'accélération des requêtes (castRay etc.) que
+		// dans world.step() — un collider ajouté/retiré hors step() reste
+		// invisible à groundBelow() tant qu'on ne force pas cette mise à jour.
+		// Le streaming rocktree doit être interrogeable au frame même où le
+		// nœud arrive, pas seulement au prochain tick physique.
+		this.world.queryPipeline.update(this.world.colliders);
+	}
+
+	removeNodeCollider(path) {
+		const collider = this._nodeColliders.get(path);
+		if (!collider) throw new Error(`removeNodeCollider: "${path}" n'est pas chargé`);
+		this.world.removeCollider(collider, true);
+		this._nodeColliders.delete(path);
+		this.world.queryPipeline.update(this.world.colliders);
 	}
 
 	reset() {
