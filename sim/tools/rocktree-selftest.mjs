@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
+import { rootOctant, childBoxes, octantsCovering } from './lib/rocktree/octant.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
@@ -184,6 +185,43 @@ t('unpack : layerBounds[m] = indice WHERE group m BEGINS (test synthétique)', (
 	// Vérifs clés :
 	assert.equal(octantOf[strip[0]], 0, 'strip[0] doit être octant 0 (groupe 0)');
 	assert.equal(octantOf[strip[3]], 0, 'strip[3] doit être octant 0 (groupe 8)');
+});
+
+t('octant : Paris (48.86, 2.35) est dans la racine 30 (0..90°E, hémisphère nord)', () => {
+	assert.equal(rootOctant(48.86, 2.35).path, '30');
+	assert.equal(rootOctant(-33.9, 151.2).path, '13'); // Sydney
+	assert.equal(rootOctant(40.7, -74.0).path, '21');  // New York
+});
+
+t('octant : les chemins de la fixture HAR (Paris) redescendent bien depuis 30', () => {
+	for (const nf of FIX.nodes) assert.ok(nf.path.startsWith('30'), nf.path);
+});
+
+t('octant : childBoxes découpe en 4 boxes lat/lon × 2 variantes verticales', () => {
+	// Non-polar box to demonstrate full 8-way split without polar logic
+	const kids = childBoxes({ n: 45, s: -45, w: -45, e: 45 });
+	assert.equal(kids.length, 8);
+	const k3 = kids.find((k) => k.key === 3);
+	assert.deepEqual(k3.box, { n: 45, s: 0, w: 0, e: 45 });
+	// La variante +4 partage la box de sa jumelle.
+	assert.deepEqual(kids.find((k) => k.key === 7).box, k3.box);
+});
+
+t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leurs chemins', () => {
+	// La zone couverte par la capture contient les nœuds de la fixture : la
+	// traversée géométrique doit proposer leurs chemins (le serveur décide
+	// ensuite de leur existence — ici on ne teste que la géométrie).
+	// Test uniquement au niveau le plus peu profond (17) pour la tractabilité ;
+	// niveaux 21-22 sont exponentiellement coûteux sans index spatial.
+	const minDepth = Math.min(...FIX.nodes.map(n => n.path.length));
+	const shallow = FIX.nodes.find(nf => nf.path.length === minDepth);
+	const L = shallow.path.length;
+	const zone = { south: 48.85, west: 2.33, north: 48.87, east: 2.36 };
+	let found = false;
+	for (const o of octantsCovering(zone, L)) {
+		if (o.path === shallow.path) { found = true; break; }
+	}
+	assert.ok(found, `${shallow.path} absent de octantsCovering au niveau ${L}`);
 });
 
 console.log(`rocktree-selftest : ${n} tests ok`);
