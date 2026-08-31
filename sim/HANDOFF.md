@@ -842,10 +842,23 @@ Plan d'origine (contexte de la décision d'architecture) :
     - les *reality meshes* (étage 3 du design amendé) — pas abordés ici.
     - la traversée retient par **bbox**, pas par le polygone exact tracé côté
       GUI — un sur-ensemble comme pour Flyover, non resserré.
-    - `octantsCovering()` énumère des millions de colonnes cibles pour une
-      petite AOI (9 175 040 mesurées en diagnostic sur 240 m de côté) — n'a
-      pas empêché la cuisson de tourner en <1 s, candidat perf si des bakes
-      plus larges deviennent lents.
+    - `octantsCovering()` énumère un chemin par variante VERTICALE en plus des
+      cellules lat/lon (2^(level-2) variantes par cellule, cf. commentaire
+      `estimateColumns()` dans `google-earth.mjs`) : ~1,8 M chemins/s mesurés,
+      soit ~5 s pour les 9 M évoqués dans une version antérieure de cette
+      note — mais ce chiffre n'était pas reproductible tel quel : au zoom GUI
+      par défaut (20 → niveau 21), une zone de 240 m prend **41 s** rien que
+      pour l'énumération, et une zone de 1 km ne termine **pas en 300 s**. La
+      GUI (« Vérifier la couverture » → `/plan`) appelait cette énumération
+      sur la zone entière : pendaison multi-minute garantie aux réglages par
+      défaut. Mitigation posée dans la revue finale de l'issue #18 : `plan()`
+      n'appelle plus `traverse()`, il rend une estimation géométrique O(1) du
+      nombre de cellules lat/lon (`estimateColumns()`) ; `fetch()` calcule la
+      même estimation avant de traverser et lève une erreur française
+      explicite au-delà de 200 000 cellules plutôt que de pendre en
+      silence. Le vrai correctif — une marche descendante par *bulks* plutôt
+      que digit par digit, qui élimine la duplication verticale à la racine —
+      reste à faire ; issue de suivi à ouvrir.
     - `tools/remove-map.mjs` garde un chemin de cache Flyover-only (voir
       bullet Stage 1-2 ci-dessus).
     - calibration `zoom ↔ niveau` mono-latitude (voir plus haut).

@@ -70,10 +70,10 @@ function printLevelTable(byLevel) {
 	return levels;
 }
 
-function printFlyoverTable() {
-	console.log(`zoom | m/px tuile Flyover (lat ${CAPTURE_LAT}°)`);
+function printFlyoverTable(lat = CAPTURE_LAT) {
+	console.log(`zoom | m/px tuile Flyover (lat ${lat}°)`);
 	console.log('-----+--------------------------------');
-	for (const z of ZOOMS) console.log(`${String(z).padStart(4)} | ${flyoverMetersPerPixel(z).toFixed(4)}`);
+	for (const z of ZOOMS) console.log(`${String(z).padStart(4)} | ${flyoverMetersPerPixel(z, lat).toFixed(4)}`);
 }
 
 // Correspondance zoom -> niveau : pour chaque zoom, le niveau mesuré dont le
@@ -90,11 +90,11 @@ function closestLevel(byLevel, targetMetersPerPixel) {
 	return best;
 }
 
-function printMapping(byLevel) {
+function printMapping(byLevel, lat = CAPTURE_LAT) {
 	console.log('zoom | Flyover m/px | niveau retenu | m/texel mesuré | ratio (mesuré/Flyover)');
 	console.log('-----+--------------+----------------+-----------------+------------------------');
 	for (const z of ZOOMS) {
-		const target = flyoverMetersPerPixel(z);
+		const target = flyoverMetersPerPixel(z, lat);
 		const lvl = closestLevel(byLevel, target);
 		if (lvl == null) { console.log(`${String(z).padStart(4)} | ${target.toFixed(4).padStart(12)} | (aucune donnée)`); continue; }
 		const mean = byLevel.get(lvl).sum / byLevel.get(lvl).n;
@@ -178,7 +178,7 @@ async function live(lat, lon) {
 	printFlyoverTable(lat);
 	console.log();
 	console.log('--- correspondance zoom -> niveau ---');
-	printMapping(accumulate(bulks));
+	printMapping(accumulate(bulks), lat);
 }
 
 const args = process.argv.slice(2);

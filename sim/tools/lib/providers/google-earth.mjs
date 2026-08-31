@@ -58,17 +58,54 @@ export const _net = {
 // fixtures descendent jusque-là) ; les niveaux 23-24 lus dans les bulks des
 // fixtures sont à 0.0 (champ non renseigné faute de subdivision connue à
 // cette profondeur dans cette capture) — pas une mesure, donc la sortie est
-// plafonnée à 22. Niveau 1 est le niveau le moins profond que porte un bulk
-// (racine, path ""), donc le plancher côté données ; aucune valeur de zoom
-// utilisée par la GUI (~13-20, cf. README) n'en approche.
+// plafonnée à 22. Niveau 2 est le plancher : un chemin de racine (ROOTS dans
+// octant.mjs) fait déjà 2 digits, donc c'est le niveau le moins profond
+// qu'octantsCovering() puisse jamais produire — niveau 1 lui fait dépasser
+// sa condition d'arrêt (pathArr.length === level) et boucler jusqu'au
+// débordement de pile (mesuré). Aucune valeur de zoom utilisée par la GUI
+// (~13-20, cf. README) n'approche ce plancher.
 const ZOOM_TO_LEVEL = { 13: 14, 14: 15, 15: 16, 16: 17, 17: 18, 18: 19, 19: 20, 20: 21 };
 export function zoomToLevel(zoom) {
 	const z = Math.round(zoom);
 	if (ZOOM_TO_LEVEL[z] != null) return ZOOM_TO_LEVEL[z];
 	// Hors de la plage calibrée ci-dessus : même décalage constant mesuré
-	// (niveau = zoom+1), borné à [1, 22] pour les raisons ci-dessus.
-	return Math.max(1, Math.min(22, z + 1));
+	// (niveau = zoom+1), borné à [2, 22] pour les raisons ci-dessus.
+	return Math.max(2, Math.min(22, z + 1));
 }
+
+// Estimation géométrique du nombre de cellules lat/lon distinctes de taille
+// (90/2^(level-2))° qui recoupent `zone`, sur UNE seule couche verticale.
+// « level-2 » : le chemin de racine fait déjà 2 digits (voir ZOOM_TO_LEVEL
+// ci-dessus), donc c'est le nombre de digits ajoutés par octantsCovering()
+// après la racine. Chaque digit suivant sépare la boîte courante en 2 (lat)
+// x 2 (lon) x 2 (vertical, cf. octant.mjs:childBoxes — le bit vertical du
+// digit ne change PAS la boîte lat/lon) : la vraie énumération visite donc
+// 2^(level-2) fois plus de chemins que de cellules lat/lon distinctes, ce
+// qui la rend inutilisable comme estimation instantanée (mesuré : 41 s pour
+// une zone de 240 m au niveau 21 — zoom GUI 20 par défaut —, >300 s sans
+// terminer pour 1 km ; voir HANDOFF.md). `estimateColumns` ne fait donc PAS
+// tourner octantsCovering()/traverse() : elle borne la grille géométrique-
+// ment, en O(1). Ce n'est pas le nombre réel de nœuds que traverse()
+// retiendrait (branches refermées par un LEAF, ancêtres fill-in exclus,
+// z-fight exclu...) — seulement une majoration pour l'affichage GUI et le
+// garde-fou de fetch() ci-dessous. La sonde (probe) reste la seule preuve
+// réelle de couverture.
+export function estimateColumns(zone, level) {
+	const digits = Math.max(level - 2, 0);
+	const cellDeg = 90 / 2 ** digits;
+	// +1 : la grille n'est pas alignée sur les bords de `zone`, une cellule
+	// à cheval sur un bord compte quand même (même logique que boxIntersects).
+	const cols = Math.max(1, Math.ceil((zone.east - zone.west) / cellDeg) + 1);
+	const rows = Math.max(1, Math.ceil((zone.north - zone.south) / cellDeg) + 1);
+	return cols * rows;
+}
+
+// Zone×zoom au-delà de laquelle la vraie traversée (octantsCovering) est
+// hors de portée d'un fetch interactif — cf. le commentaire d'estimateColumns
+// ci-dessus pour les mesures. Le vrai correctif (marche descendante par
+// bulks plutôt que digit-par-digit) est un suivi séparé ; ce garde-fou évite
+// juste le pendage silencieux de plusieurs minutes/heures en attendant.
+const MAX_FETCH_COLUMNS = 200_000;
 
 // Mêmes règles que flyover.mjs (copiées avec leur justification) : le nom du
 // dossier de cache est indépendant du fournisseur (cf. HANDOFF), mais chaque
@@ -127,7 +164,11 @@ async function fetchBulk(bulkPath, epoch, { signal }) {
 
 function nodeUrl({ path: p, epoch, imageryEpoch, flags }) {
 	let u = `${PREFIX}NodeData/pb=!1m2!1s${p}!2u${epoch}!2e1`;
-	if (flags & 16) u += `!3u${imageryEpoch}`;
+	// imageryEpoch peut rester null même avec le flag posé (ni meta.imageryEpoch
+	// ni bulk.defaultImageryEpoch renseignés dans la capture, cf. traverse()) :
+	// sans cette garde on émettait `!3unull`, un 404 garanti compté comme nœud
+	// manquant.
+	if ((flags & 16) && imageryEpoch != null) u += `!3u${imageryEpoch}`;
 	return u + '!4b0';
 }
 
@@ -237,14 +278,17 @@ export async function traverse(zone, level, { signal, onLog } = {}) {
 	return { nodes, visitedBulks, rootEpoch, radius };
 }
 
-// Interroge la traversée seule (aucun NodeData téléchargé) : combien de
-// colonnes, sur quelle emprise — les champs que la GUI lit (columns, trigger,
-// pruned).
-export async function plan(opts, { signal } = {}) {
+// Interroge une estimation seule (aucun réseau, aucune traversée de
+// l'octree) : combien de colonnes lat/lon, sur quelle emprise — les champs
+// que la GUI lit (columns, trigger, pruned). Voir le commentaire
+// d'estimateColumns() plus haut : plan() n'appelle plus traverse() —
+// l'énumération réelle pendait des minutes au zoom par défaut (mesuré,
+// cf. HANDOFF.md).
+export async function plan(opts) {
 	const zone = zoneOf(opts);
 	const level = zoomToLevel(opts.zoom ?? 20);
-	const { nodes } = await traverse(zone, level, { signal });
-	return { columns: nodes.length, trigger: 'Google Earth', pruned: 0, coverage: zone };
+	const columns = estimateColumns(zone, level);
+	return { columns, trigger: 'Google Earth', pruned: 0, coverage: zone };
 }
 
 // Sonde de couverture : une micro-zone (~3x3 octants) au centre de la zone,
@@ -331,6 +375,24 @@ export async function fetch(opts, { onLog, signal } = {}) {
 
 	const zone = zoneOf(opts);
 	const level = zoomToLevel(zoom);
+
+	// Garde-fou : la vraie traversée (octantsCovering, digit par digit) est en
+	// O(cellules × 2^(level-2) variantes verticales) — voir le commentaire
+	// d'estimateColumns() plus haut pour les mesures (41 s / 240 m niveau 21,
+	// >300 s sans terminer / 1 km). Sans ce garde-fou, un fetch() sur une zone
+	// trop grande pour ce zoom pend silencieusement des minutes, voire des
+	// heures, avant d'échouer ou de saturer la mémoire.
+	const estimated = estimateColumns(zone, level);
+	if (estimated > MAX_FETCH_COLUMNS) {
+		throw new Error(
+			`zone trop grande pour ce zoom : ~${estimated.toLocaleString('fr-FR')} cellules estimées au niveau ${level} ` +
+			`(limite ${MAX_FETCH_COLUMNS.toLocaleString('fr-FR')}).\n` +
+			'  Réduis le zoom ou la zone (rayon/bbox/polygone) avant de relancer.\n' +
+			"  La traversée digit-par-digit actuelle ne passe pas à l'échelle à cette taille ; " +
+			'une marche descendante par bulks (vrai fix, issue de suivi) lèvera cette limite.'
+		);
+	}
+
 	const { nodes, rootEpoch, radius } = await traverse(zone, level, { signal, onLog });
 
 	const { stats, entries, copyrightIds } = await downloadNodes(tileDir, nodes, { signal, onLog });

@@ -15,8 +15,9 @@
 // d'incohérence : les nœuds restent en JPEG.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), 'testdata/rocktree');
+const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const har = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const entries = har.log.entries.filter((e) => e.response.status === 200 && e.response.content?.text);
 
