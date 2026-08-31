@@ -1,0 +1,70 @@
+{
+	"epoch": 1014,
+	"planetoid": "planetoid.pb",
+	"copyrights": "copyrights.pb",
+	"bulks": [
+		{
+			"path": "",
+			"epoch": 1014,
+			"file": "bulk-root.pb"
+		},
+		{
+			"path": "3060",
+			"epoch": 1014,
+			"file": "bulk-3060.pb"
+		},
+		{
+			"path": "30604060",
+			"epoch": 1014,
+			"file": "bulk-30604060.pb"
+		},
+		{
+			"path": "306040607163",
+			"epoch": 1014,
+			"file": "bulk-306040607163.pb"
+		},
+		{
+			"path": "3060406071636360",
+			"epoch": 1014,
+			"file": "bulk-3060406071636360.pb"
+		},
+		{
+			"path": "3060406071636370",
+			"epoch": 1014,
+			"file": "bulk-3060406071636370.pb"
+		},
+		{
+			"path": "30604060716363704247",
+			"epoch": 1014,
+			"file": "bulk-30604060716363704247.pb"
+		},
+		{
+			"path": "30604060716363704703",
+			"epoch": 1014,
+			"file": "bulk-30604060716363704703.pb"
+		}
+	],
+	"nodes": [
+		{
+			"path": "3060406071636370470326",
+			"epoch": 984,
+			"imageryEpoch": null,
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s3060406071636370470326!2u984!2e1!4b0",
+			"file": "node-0-3060406071636370470326.pb"
+		},
+		{
+			"path": "306040607163637042477",
+			"epoch": 984,
+			"imageryEpoch": null,
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s306040607163637042477!2u984!2e1!4b0",
+			"file": "node-1-306040607163637042477.pb"
+		},
+		{
+			"path": "30604060716363607",
+			"epoch": 984,
+			"imageryEpoch": null,
+			"url": "https://kh.google.com/rt/earth/NodeData/pb=!1m2!1s30604060716363607!2u984!2e1!4b0",
+			"file": "node-2-30604060716363607.pb"
+		}
+	]
+}

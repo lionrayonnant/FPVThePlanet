@@ -60,8 +60,9 @@
 //                  par le fournisseur, qui prime sur le défaut. Un décodeur qui
 //                  ne sait rien dire (OBJ) rend [].
 import * as obj from './obj.mjs';
+import * as rocktree from './rocktree.mjs';
 
-export const DECODERS = [obj];
+export const DECODERS = [obj, rocktree];
 
 export function pick(tileDir) {
 	const d = DECODERS.find((x) => x.sniff(tileDir));

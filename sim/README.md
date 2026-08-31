@@ -1,8 +1,9 @@
 # FPVThePlanet! — simulateur de drone basé sur des données photogramétriques
 
-Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques Apple
-Flyover. Plusieurs cartes peuvent être téléchargées et se choisissent au
-lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
+Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques 3D. Deux
+fournisseurs : **Google Earth** (protocole `rocktree`, par défaut, sans clé)
+et **Apple Flyover** (repli). Plusieurs cartes peuvent être téléchargées et se
+choisissent au lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
 
 ```bash
 npm install
@@ -28,7 +29,8 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 - Exporter une scène en `.glb`
 - Architecture
 - Limite connue : `selftest` spécifique à la Tour Eiffel
-- Détails techniques du pré-traitement — trois réglages qui comptent · sur le gris
+- Détails techniques du pré-traitement — fournisseurs et décodeurs · fixtures
+  rocktree · trois réglages qui comptent · sur le gris
 - Le modèle de vol — le vent · la pluie · le brouillard · le son · le rendu FPV ·
   le lien vidéo · limites de zone · régler le PID
 
@@ -46,8 +48,9 @@ périphérique.
 
 ## Ajouter une carte
 
-Une carte = une zone téléchargée depuis Apple Flyover puis convertie pour le
-moteur.
+Une carte = une zone téléchargée (Google Earth par défaut, Apple Flyover en
+repli — voir [Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)) puis
+convertie pour le moteur.
 
 ### Depuis le jeu — `GLOBAL SCANNER` (voie principale)
 
@@ -105,6 +108,10 @@ jamais pour faire taire un test rouge : si les deux ports divergent, l'un a un b
 `http://localhost:5173/add-map.html` fait toujours la même chose, en français et
 hors du jeu. Le scanner l'a absorbée ; elle disparaîtra avec la mise en scène de
 l'acquisition (PHASE 5).
+
+Le sélecteur **FOURNISSEUR** y propose `Auto` (Google Earth, puis repli Apple
+Flyover si Google ne couvre pas la zone — y compris quand la sonde Google
+lève une exception), `Apple Flyover` ou `Google Earth` explicitement.
 
 Deux choses valent d'être comprises :
 
@@ -269,6 +276,11 @@ prendre plusieurs minutes selon la taille de la zone).
 
 ### Prérequis
 
+**`--provider google-earth` (défaut) : aucun.** Le protocole `rocktree` de
+`kh.google.com` ne demande ni clé ni jeton — vérifié live sur plusieurs
+endpoints.
+
+**`--provider flyover`** :
 - **Go** installé (`go run` est utilisé directement, pas de build séparé).
 - `flyover-reverse-engineering/config.json` renseigné (voir le
   [README de ce dépôt](../flyover-reverse-engineering/README.md#setup) —
@@ -282,13 +294,15 @@ prendre plusieurs minutes selon la taille de la zone).
 npm run add-map -- "Nom" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20]
                                       [--cell 256] [--quality 85]
                                       [--slug identifiant] [--force]
+                                      [--provider google-earth|flyover]
                                       [--bbox s,w,n,e]
                                       [--poly "lat,lon lat,lon ..."]
 ```
 
 | Option | Défaut | Effet |
 |---|---|---|
-| `--zoom` | 20 | Niveau de zoom Flyover (~13-20). 20 = résolution maximale, celle utilisée jusqu'ici. |
+| `--provider` | `google-earth` | Fournisseur des octets (voir [Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)). `flyover` bascule sur Apple Flyover. Pas de mode Auto en CLI (GUI seulement) : un id invalide échoue tout de suite. |
+| `--zoom` | 20 | Niveau de zoom (~13-20). Sur `flyover`, 20 = résolution maximale ; sur `google-earth`, converti en niveau d'octree (`niveau = zoom + 1`, cap 22 — voir plus bas). |
 | `--radius` | 25 | Rayon du scan en tuiles autour du centre (`tryXY`). Voir plus bas pour dimensionner. |
 | `--altitude` | 20 | Nombre d'index d'altitude essayés par tuile (`tryH`). 20 convient dans la quasi-totalité des cas. |
 | `--cell` | 256 | Taille en pixels de chaque cellule de texture. Coûte cher : chaque doublement **quadruple** la VRAM. `128` = qualité réduite mais VRAM divisée par 4 (utile sur machine modeste). |
@@ -527,22 +541,80 @@ séparées.
 **`tools/lib/providers/`** — d'où viennent les octets. Chaque fournisseur expose
 `plan` (estimer sans télécharger), `probe` (y a-t-il vraiment de la donnée ici),
 `fetch` (télécharger et rendre un dossier de tuiles), plus `tileDirPath` et son
-attribution. `lib/add-map-core.mjs` ne fait plus qu'orchestrer. Seul
-`flyover` est inscrit aujourd'hui ; l'ordre de priorité visé est Google >
-Flyover > maillages sous licence ouverte (issue #18).
+attribution. `lib/add-map-core.mjs` ne fait plus qu'orchestrer ; `/plan`,
+`/probe`, `fetch` et `DELETE /scenes/:slug?raw=1` dispatchent tous par
+fournisseur, `add-map.mjs` et la GUI (`add-map.html`) savent tous deux
+positionner `opts.provider`.
+
+Deux fournisseurs inscrits :
+
+| id | label | défaut | clé/jeton | cache brut |
+|---|---|---|---|---|
+| `google-earth` | Google Earth | **oui** (`DEFAULT_PROVIDER_ID`) | aucun | `sim/.cache/google-earth/<zone>/` |
+| `flyover` | Apple Flyover | non (repli) | `config.json` (voir Prérequis) | `flyover-reverse-engineering/downloaded_files/obj/` |
+
+`google-earth` parle le protocole interne **rocktree** de `kh.google.com` —
+celui que Google Earth web lui-même utilise, pas la Photorealistic 3D Tiles
+API (clé, glTF) initialement envisagée pour ce fournisseur : un HAR du trafic
+réel a montré que `kh.google.com` ne demande ni clé ni paramètre de session.
+Client Node natif dans `google-earth.mjs` + `decoders/rocktree.mjs`, écrits à
+partir de la documentation de protocole d'`earth-reverse-engineering`
+(non maintenu, sans licence — code réécrit, pas copié). Détail dans
+`docs/superpowers/specs/2026-08-29-second-fournisseur-3d-design.md`
+(« Amendement 2026-08-31 ») et l'entrée HANDOFF « Second fournisseur 3D ».
+
+`--provider` (voir [Ajouter une carte](#ajouter-une-carte)) choisit
+explicitement en CLI ; le sélecteur **FOURNISSEUR** de la GUI ajoute un mode
+`Auto` qui sonde Google Earth puis retombe sur Apple Flyover (y compris si la
+sonde Google lève une exception plutôt que de répondre négativement).
 
 **`tools/lib/decoders/`** — comment les lire. Chaque décodeur expose `sniff`
 (sais-tu lire ce dossier ?) et `decode` (rends matériaux, positions ECEF, UV et
 triangles). `prep.mjs` choisit par reniflage : **aucun drapeau ne sélectionne le
 décodeur**, si bien qu'un fournisseur servant de l'OBJ réutilise le décodeur OBJ
 sans rien déclarer. Tout ce qui suit le decode — rebase ENU, chunks, texture
-arrays, mesh de collision — ignore le format d'entrée.
+arrays, mesh de collision — ignore le format d'entrée. Le décodeur `rocktree`
+(sommets delta-packés, ECEF direct via `matrix_globe_from_mesh`) suit ce même
+contrat ; une correction lui est propre : le globe rocktree est une **sphère**
+de rayon moyen terrestre (6 371 010 m), pas l'ellipsoïde WGS84 que `prep.mjs`
+attend, donc `sphereToWgs84Ecef()` reconvertit chaque sommet avant de le
+pousser dans le contrat partagé (sans elle, l'origine d'une scène tombe à
+~21 km du point demandé). L'inversion `1 - v` de l'axe UV (voir encart
+ci-dessous) reste correcte pour `rocktree` aussi — vérifié en navigateur, pas
+d'inversion supplémentaire nécessaire.
 
 > **Attention.** L'inversion de l'axe V vit **dans le décodeur OBJ**, pas dans le
 > contrat partagé : OBJ met l'origine UV en bas à gauche, glTF en haut à gauche.
 > Un décodeur qui hérite de cette inversion sans la mériter produit les fameuses
 > « textures grises » — 21 % de la surface visible échantillonne le remplissage
 > gris hors patch. Chaque décodeur tranche pour son compte.
+
+### Fixtures rocktree et leur régénération
+
+`tools/testdata/rocktree/` fige un petit échantillon du protocole
+(`.pb` bulks/nodes + `index.json`) depuis un HAR réel de earth.google.com
+(2026-08-31, epoch racine 1014, capturé sur Paris) : `tools/rocktree-selftest.mjs`
+tourne dessus hors ligne, sans réseau. Le HAR source (114 Mo) n'est **pas**
+commité (gitignoré, `docs/*.har`) ; seuls les octets figés le sont. Deux
+particularités à connaître avant de régénérer :
+
+- les nœuds sont re-capturés en `!2e1` (JPEG) même si le HAR original les
+  avait en `!2e6` (CRN/DXT1) — le fournisseur demande toujours du JPEG, c'est
+  ce que les fixtures doivent refléter ;
+- quelques bulks intermédiaires absents du HAR (cache navigateur au moment de
+  la capture) ont été refetchés en live, à l'epoch de la chaîne (1014).
+
+Pour régénérer avec un nouveau HAR :
+
+```bash
+node tools/gen-rocktree-fixture.mjs "<chemin du .har>"
+```
+
+`node tools/rocktree-calibrate.mjs [--live]` recalcule la table
+`zoom ↔ niveau d'octree` (`meters_per_texel` contre la référence Flyover) ;
+`--live` interroge le vrai service au lieu des fixtures — utile si la
+calibration mono-latitude actuelle (mesurée sur Paris) doit être vérifiée
+ailleurs sur le globe.
 
 ### Trois réglages qui comptent
 

@@ -12,7 +12,10 @@ import {
 	maskOutline, polygonProbePoint,
 	tileGrid, tileTMSToLatLon, latLonToTileTMS,
 } from './lib/tiles.mjs';
-import { tileDirName } from './lib/add-map-core.mjs';
+// tileDirName est spécifique à Flyover (nom de cache compatible avec le
+// Sprintf du Go) : ce n'est plus sur la surface d'add-map-core.mjs depuis le
+// dispatch par fournisseur (Task 7, issue #18). On l'importe directement.
+import { tileDirName } from './lib/providers/flyover.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };

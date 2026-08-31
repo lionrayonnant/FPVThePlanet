@@ -13,8 +13,9 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
 	addMap, planScan, probeCoverage, slugify, readScenes, writeScenes,
-	dirSize, tileDirPath, Cancelled, SCENES_DIR, FLYOVER_ROOT,
+	dirSize, tileDirPath, listProviders, Cancelled, SCENES_DIR,
 } from './lib/add-map-core.mjs';
+import * as providers from './lib/providers/index.mjs';
 import {
 	newId, validateName, validateControlVector,
 	freshState, migrate,
@@ -459,6 +460,15 @@ function requireZone(b) {
 	return { bbox: requireBox(b.bbox) };
 }
 
+// b.provider est facultatif (le défaut du registre s'applique alors) ; s'il est
+// fourni, il doit nommer un fournisseur inscrit — providers.get() porte déjà le
+// message français ("fournisseur inconnu : ...") que la GUI affiche, et le
+// throw remonte au catch générique du middleware qui le rend en 400.
+function requireProvider(b) {
+	if (b.provider == null) return undefined;
+	return providers.get(b.provider).id;
+}
+
 function intIn(v, lo, hi, dflt) {
 	const n = Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt;
 	return Math.min(hi, Math.max(lo, n));
@@ -570,6 +580,12 @@ function startJob(opts) {
 const routes = [
 	['GET', /^\/scenes$/, async (req, res) => json(res, 200, { scenes: sceneList() })],
 
+	// Liste des fournisseurs inscrits + le défaut du registre (Task 7, issue
+	// #18) : la GUI en peuple son sélecteur plutôt que de coder les ids en dur.
+	['GET', /^\/providers$/, async (req, res) => json(res, 200, {
+		providers: listProviders(), default: providers.DEFAULT_PROVIDER_ID,
+	})],
+
 	['DELETE', /^\/scenes\/([a-z0-9-]+)$/, async (req, res, [slug], url) => {
 		const scenes = readScenes();
 		const i = scenes.findIndex((s) => s.slug === slug);
@@ -580,31 +596,41 @@ const routes = [
 		let raw = false;
 		if (url.searchParams.get('raw') === '1') {
 			// On retrouve la tuile brute par son nom, quelle que soit la forme de
-			// la zone : « centre + rayon », « bbox », ou « poly ».
-			const dir = await tileDirPath(entry.poly || entry.bbox
-				? entry
-				: { lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 });
+			// la zone : « centre + rayon », « bbox », ou « poly ». Le fournisseur
+			// vient de l'entrée elle-même (scenes.json le porte depuis le Stage 1) —
+			// les entrées historiques, d'avant le multi-fournisseur, n'en ont pas et
+			// retombent sur 'flyover' : jamais un chemin Flyover pour des octets
+			// Google, ni l'inverse.
+			const dir = await tileDirPath({
+				...(entry.poly || entry.bbox
+					? entry
+					: { lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 }),
+				provider: entry.provider ?? 'flyover',
+			});
 			if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); raw = true; }
 		}
 		json(res, 200, { removed: slug, raw });
 	}],
 
 	// Description instantanée d'une zone : aucune requête réseau, appelable à
-	// chaque déplacement de la souris.
+	// chaque déplacement de la souris. Indépendante du fournisseur (géométrie
+	// et coût estimé seulement) : pas de b.provider ici.
 	['POST', /^\/describe$/, async (req, res) => {
 		const b = await readBody(req);
 		const zone = requireZone(b);
 		json(res, 200, describe(zone, intIn(b.zoom, 13, 20, 20), intIn(b.altitude, 1, 60, 20)));
 	}],
 
-	// Plan réel : interroge la région Flyover, élague les colonnes hors emprise,
-	// et rend l'emprise de couverture — sans télécharger une seule tuile.
+	// Plan réel : interroge la région du fournisseur choisi, élague les colonnes
+	// hors emprise, et rend l'emprise de couverture — sans télécharger une seule
+	// tuile.
 	['POST', /^\/plan$/, async (req, res) => {
 		const b = await readBody(req);
 		const zone = requireZone(b);
+		const provider = requireProvider(b);
 		const zoom = intIn(b.zoom, 13, 20, 20), altitude = intIn(b.altitude, 1, 60, 20);
 		const c = centreOf(zone);
-		const plan = await planScan({ lat: c.lat, lon: c.lon, zoom, altitude, ...zone });
+		const plan = await planScan({ lat: c.lat, lon: c.lon, zoom, altitude, provider, ...zone });
 		json(res, 200, { plan, ...describe(zone, zoom, altitude, plan.columns) });
 	}],
 
@@ -612,9 +638,10 @@ const routes = [
 	['POST', /^\/probe$/, async (req, res) => {
 		const b = await readBody(req);
 		const zone = requireZone(b);
+		const provider = requireProvider(b);
 		const c = centreOf(zone);
 		json(res, 200, await probeCoverage({
-			lat: c.lat, lon: c.lon, ...zone,
+			lat: c.lat, lon: c.lon, provider, ...zone,
 			zoom: intIn(b.zoom, 13, 20, 20), altitude: intIn(b.altitude, 1, 60, 20),
 		}));
 	}],
@@ -628,6 +655,7 @@ const routes = [
 		if (current) return json(res, 409, { error: 'une extraction est déjà en cours', jobId: current.id });
 		const b = await readBody(req);
 		const zone = requireZone(b);
+		const provider = requireProvider(b);
 		const name = String(b.name ?? '').trim();
 		if (!name) return json(res, 400, { error: 'nom manquant' });
 		const slug = (b.slug ? slugify(b.slug) : slugify(name));
@@ -635,7 +663,7 @@ const routes = [
 
 		const c = centreOf(zone);
 		const job = startJob({
-			name, slug, ...zone, lat: c.lat, lon: c.lon,
+			name, slug, provider, ...zone, lat: c.lat, lon: c.lon,
 			zoom: intIn(b.zoom, 13, 20, 20), altitude: intIn(b.altitude, 1, 60, 20),
 			cell: intIn(b.cell, 64, 512, 256), quality: intIn(b.quality, 40, 100, 85),
 			force: b.force === true,
@@ -731,5 +759,4 @@ export default function mapApiPlugin() {
 	};
 }
 
-export { FLYOVER_ROOT };
 export { _readOperator, _writeOperator, _listOperators, OPERATOR_DIR };

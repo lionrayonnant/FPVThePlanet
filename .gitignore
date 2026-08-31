@@ -20,3 +20,6 @@ stableaudio3.0/
 
 # Sauvegardes locales de l'état opérateur, du même genre que operator-state/.
 operator-state-backup-*/
+
+# HAR captures (>100 Mo, serveur local uniquement)
+docs/*.har

@@ -738,8 +738,8 @@ Plan d'origine (contexte de la décision d'architecture) :
     de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
     replis. La génération de cibles est peut-être logée à la même enseigne.
 
-- **Second fournisseur 3D — Stages 1 et 2 (issue #18)**, branche
-  `issue-18-providers`.
+- **Second fournisseur 3D — Stages 1, 2 et 3 (issue #18)**. Stages 1-2 sur
+  `issue-18-providers` (PR #115, mergée) ; Stage 3 sur `issue-18-google-earth`.
   - Deux seams distincts introduits dans le pipeline de préparation, à ne pas
     confondre : `tools/lib/providers/` (d'où viennent les octets — `plan`,
     `probe`, `fetch`, `tileDirName`/`tileDirPath` async, `tileIsUsable`, id/
@@ -753,17 +753,14 @@ Plan d'origine (contexte de la décision d'architecture) :
     reniflage). `tools/lib/growable.mjs` (Growable) et `tools/lib/run.mjs`
     (runner de sous-process + `Cancelled`) sont les deux utilitaires partagés
     extraits au passage, neutres vis-à-vis des deux seams.
-  - **À faire par le Stage 3, pour ne pas être découvert tard** : aujourd'hui
-    seul `fetch` est réellement dispatché par fournisseur. `tileDirName`/
-    `tileDirPath`/`tileIsUsable`/`planScan`/`probeCoverage` restent liés en dur
-    à `providers.get('flyover')` dans `tools/lib/add-map-core.mjs:24-28` (shim
-    de compatibilité pour la surface historique), et `map-api-plugin.mjs` — la
-    GUI, la voie principale d'ajout de carte — importe exactement ces symboles.
-    Ni `add-map.mjs` ni la GUI ne savent positionner `opts.provider`. Donc dès
-    qu'un second fournisseur s'inscrira : `/plan` et `/probe` continueront
-    d'interroger Flyover quel que soit le fournisseur choisi, et
-    `DELETE /scenes/:slug?raw=1` calculera un chemin de cache Flyover pour des
-    tuiles d'un autre fournisseur — orphelinant silencieusement leur téléchargement.
+  - **Fait par le Stage 3** (c'était le risque signalé ci-dessus, à ne pas
+    découvrir tard) : `plan`/`probe`/`fetch`/`tileDirName`/`tileDirPath`/
+    `tileIsUsable` sont maintenant dispatchés par fournisseur dans
+    `add-map-core.mjs` ; `add-map.mjs` et `map-api-plugin.mjs` (GUI) savent
+    positionner `opts.provider`. Reste néanmoins **non traité** :
+    `tools/remove-map.mjs` garde sa propre constante de cache Flyover-only
+    (n'importe pas `add-map-core`) — orpheline le cache d'une scène supprimée
+    si elle vient de `google-earth` ; suivi en issue de suivi à créer.
   - `manifest.json` passe en `version: 3` et porte `provider: {id, label,
     attribution, fetchedAt}`. Les manifests `version: 2` existants se
     rechargent tels quels, avec repli sur l'attribution Apple Flyover — **pas
@@ -787,18 +784,95 @@ Plan d'origine (contexte de la décision d'architecture) :
     « © Apple » en bas à droite, à 14 px du bord droit et 12 px du bas, les
     mêmes marges que les coins tl/tr/bl existants du HUD. Absente du
     `drone-osd` diégétique, visible seulement sur `fpvtp-osd`.
-  - **Hors périmètre, à dessein** : le Stage 3 (le vrai fournisseur Google
-    Photorealistic 3D Tiles — client 3D Tiles, clé API, décodeur glTF) n'est
-    **pas fait** ; il attend un plan séparé une fois les inconnues wire levées
-    sur un vrai `root.json` (compression Draco, système de coordonnées des
-    transforms, structure exacte d'`asset.copyright`, paramètre de session,
-    calibration de `geometricError`). La sélection automatique de fournisseur
-    et le choix du fournisseur dans la GUI d'ajout de carte n'ont de sens
-    qu'avec un second fournisseur inscrit ; reportés au Stage 3 avec lui.
-  - **Gap connu, suivi en #110** : `tools/selftest.mjs` parse encore
-    `exp_model.mtl` directement pour vérifier la convention UV — la dernière
-    hypothèse OBJ vivant hors des décodeurs. À rendre agnostique du format
-    avant qu'un décodeur glTF n'arrive.
+  - **Amendement du design (2026-08-31)** : le Stage 3 planifié à l'origine
+    (Google Photorealistic 3D Tiles — clé API, glTF, `root.json`) n'a **pas eu
+    lieu**. Le propriétaire a fourni un HAR du trafic réel d'earth.google.com :
+    Google Earth web parle un protocole interne, **rocktree**
+    (`kh.google.com`), pas la Map Tiles API — aucune clé, aucun paramètre de
+    session. Détail dans `docs/superpowers/specs/2026-08-29-second-fournisseur-3d-design.md`,
+    section « Amendement 2026-08-31 ». Client Node natif écrit dans
+    `tools/lib/providers/google-earth.mjs` + `tools/lib/decoders/rocktree.mjs`
+    — pas de vendoring d'`earth-reverse-engineering` (non maintenu depuis 2020,
+    sans licence : il sert de documentation de protocole, le code est réécrit,
+    pas copié).
+  - **Stage 3 livré** : fournisseur `google-earth` inscrit et **par défaut**
+    (`DEFAULT_PROVIDER_ID = 'google-earth'`), décodeur `rocktree` inscrit,
+    `plan`/`probe`/`fetch`/`DELETE` dispatchés par fournisseur, sélecteur
+    FOURNISSEUR dans la GUI d'ajout de carte (`add-map.html`) avec mode
+    **Auto** (sonde Google Earth, puis repli Apple Flyover — y compris quand
+    la sonde Google **lève** une exception, pas seulement quand elle répond
+    négativement).
+  - **Découvertes wire, mesurées (pas dans la doc de protocole tierce)** :
+    - le globe rocktree est une **sphère** de rayon moyen terrestre
+      (6 371 010 m), pas l'ellipsoïde WGS84 — `sphereToWgs84Ecef()` dans le
+      décodeur convertit sommet par sommet ; sans elle l'origine d'une scène
+      tombe à 49,05°/5151 m au lieu du point demandé (repère Paris, écart
+      géocentrique/géodésique théorique).
+    - `kml_bounding_box` (NodeData, champ 5) est ordonné `[west, south,
+      altMin, east, north, altMax]` — pas l'ordre supposé par le plan initial.
+    - les textures sont **toujours** demandées en `!2e1` (JPEG) : le HAR les
+      avait capturées en `!2e6` (CRN/DXT1), mais le serveur sert bien le même
+      nœud en JPEG sur simple demande — vérifié live (200, magic `ffd8`).
+    - les epochs s'enchaînent par bulk le long d'une chaîne réelle (984 →
+      1005 → 1013 → 1014 observés), pas un epoch unique global.
+    - `zoom ↔ niveau d'octree` : `niveau = zoom + 1`, calibré sur
+      `meters_per_texel` (ratio constant 1,032, log-échelle) contre la
+      référence Flyover, cap à 22 (tools/rocktree-calibrate.mjs). Calibration
+      **mono-latitude** (Paris) — `cos(lat)` pourrait la décaler d'un niveau
+      ailleurs, non vérifié, `--live` disponible pour recalibrer au besoin.
+    - `copyright_ids` (NodeData) + l'endpoint `Copyrights` donnent
+      l'attribution de niveau 3 du design (celle qui vient des tuiles cuites),
+      mais peut être vide pour une tuile réelle une fois les ancêtres
+      hors-sujet exclus (constaté sur `ge-champ-de-mars` : `"255": ""`) — fait
+      de données, pas un défaut du décodeur.
+    - deux bugs de traversée/géodésie réels trouvés à la cuisson (au-delà des
+      inconnues wire attendues) : ancêtres fill-in sans rapport avec la zone
+      restaient inclus (bathymétrie arctique sur une tuile Paris) → filtre
+      « aucun nœud retenu n'est préfixe strict d'un autre » dans
+      `google-earth.mjs`. Détail complet dans `task-9-report.md`.
+  - **Vérifié** : 21 tests `tools/rocktree-selftest.mjs` (fixtures HAR figées
+    hors-ligne, re-capturées en JPEG) ; cuisson réelle `ge-champ-de-mars`
+    (48.8582, 2.2945 — 91 nœuds retenus, 246 805 sommets, 184 000 triangles) ;
+    scène chargée, pilotée et collisionnée en navigateur (`LANDING DETECTED`,
+    impact + CCD, textures nettes — décision `1 - v` du décodeur OBJ confirmée
+    correcte aussi pour rocktree, pas d'inversion à faire) ; crédit « © Google »
+    affiché sur `fpvtp-osd` seulement ; sélecteur GUI + mode Auto vérifiés
+    (« Couvert par Google Earth : 28 octant(s) au niveau 21 »).
+  - **Reste ouvert / hors scope** :
+    - les *reality meshes* (étage 3 du design amendé) — pas abordés ici.
+    - la traversée retient par **bbox**, pas par le polygone exact tracé côté
+      GUI — un sur-ensemble comme pour Flyover, non resserré.
+    - `octantsCovering()` énumère un chemin par variante VERTICALE en plus des
+      cellules lat/lon (2^(level-2) variantes par cellule, cf. commentaire
+      `estimateColumns()` dans `google-earth.mjs`) : ~1,8 M chemins/s mesurés,
+      soit ~5 s pour les 9 M évoqués dans une version antérieure de cette
+      note — mais ce chiffre n'était pas reproductible tel quel : au zoom GUI
+      par défaut (20 → niveau 21), une zone de 240 m prend **41 s** rien que
+      pour l'énumération, et une zone de 1 km ne termine **pas en 300 s**. La
+      GUI (« Vérifier la couverture » → `/plan`) appelait cette énumération
+      sur la zone entière : pendaison multi-minute garantie aux réglages par
+      défaut. Mitigation posée dans la revue finale de l'issue #18 : `plan()`
+      n'appelle plus `traverse()`, il rend une estimation géométrique O(1) du
+      nombre de cellules lat/lon (`estimateColumns()`) ; `fetch()` calcule la
+      même estimation avant de traverser et lève une erreur française
+      explicite au-delà de 200 000 cellules plutôt que de pendre en
+      silence. Le vrai correctif — une marche descendante par *bulks* plutôt
+      que digit par digit, qui élimine la duplication verticale à la racine —
+      reste à faire ; issue de suivi à ouvrir.
+    - `tools/remove-map.mjs` garde un chemin de cache Flyover-only (voir
+      bullet Stage 1-2 ci-dessus).
+    - calibration `zoom ↔ niveau` mono-latitude (voir plus haut).
+  - **Gap #110, résolu côté selftest** : `tools/selftest.mjs` skip proprement
+    la vérification de convention UV quand le dossier de tuile n'a pas
+    d'`exp_model.mtl` (décodeur non-OBJ), au lieu de confondre ce cas avec un
+    cache purgé. La dette de fond (dernière hypothèse OBJ vivant hors des
+    décodeurs) reste ; #110 documente maintenant le comportement observé, pas
+    fermé pour autant.
+  - **Fixtures** : `sim/tools/testdata/rocktree/` — figées depuis un HAR de
+    earth.google.com (2026-08-31, epoch racine 1014) + deux requêtes live
+    (bulks/planetoid/copyrights). Le HAR (114 Mo) est gitignoré
+    (`docs/*.har`) ; régénération via
+    `node tools/gen-rocktree-fixture.mjs "<chemin du .har>"` sur un HAR frais.
 
 - **Passe d'ergonomie — navigation clavier + manette sur tous les écrans
   (issue #123)**, branche `claude/issue-123-tj720t`.

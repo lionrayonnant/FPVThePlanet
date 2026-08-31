@@ -58,8 +58,8 @@
 			</div>
 
 			<div class="block">
-				<h2>Couverture Flyover</h2>
-				<p class="verdict" id="verdict" data-status="pending">Vérifie avant de lancer : Flyover ne fait de la photogrammétrie que sur une liste de villes.</p>
+				<h2>Couverture</h2>
+				<p class="verdict" id="verdict" data-status="pending">Vérifie avant de lancer : aucun fournisseur ne fait de la photogrammétrie partout.</p>
 				<button id="check" disabled>Vérifier la couverture</button>
 			</div>
 
@@ -70,6 +70,13 @@
 					<input id="name" type="text" autocomplete="off" placeholder="Cathédrale de Reims">
 				</label>
 				<p class="note" id="slug-note" hidden></p>
+
+				<label class="field">
+					<span>Fournisseur</span>
+					<select id="provider">
+						<option value="">Auto (Google Earth, puis Apple Flyover)</option>
+					</select>
+				</label>
 
 				<p class="field"><span>Détail</span></p>
 				<div class="seg" id="zoom">

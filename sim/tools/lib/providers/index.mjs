@@ -1,11 +1,13 @@
 // Registre des fournisseurs de photogrammétrie. L'ordre de priorité de l'issue
-// #18 est : Google > Flyover > reality meshes ouverts. Tant que Flyover est seul
-// inscrit, il est le défaut.
+// #18 est : Google > Flyover > reality meshes ouverts. Les deux premiers sont
+// inscrits ; Google est le défaut (design #18, « devient le fournisseur par
+// défaut une fois le Stage 3 livré »).
 import * as flyover from './flyover.mjs';
+import * as googleEarth from './google-earth.mjs';
 
-export const DEFAULT_PROVIDER_ID = 'flyover';
+export const DEFAULT_PROVIDER_ID = 'google-earth';
 
-export const PROVIDERS = { [flyover.id]: flyover };
+export const PROVIDERS = { [flyover.id]: flyover, [googleEarth.id]: googleEarth };
 
 export function list() { return Object.values(PROVIDERS); }
 

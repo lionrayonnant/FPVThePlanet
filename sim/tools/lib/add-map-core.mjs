@@ -1,7 +1,8 @@
 // Le pipeline d'ajout de carte, appelable depuis du code : récupération de la
 // tuile via le fournisseur choisi (tools/lib/providers/, délégué — voir
-// providers.get() plus bas ; aujourd'hui seul Flyover, Go exporter, est
-// inscrit), conversion (prep.mjs), enregistrement dans public/scenes.json.
+// providers.get() plus bas ; Google Earth et Apple Flyover sont inscrits, cf.
+// providers/index.mjs), conversion (prep.mjs), enregistrement dans
+// public/scenes.json.
 //
 // tools/add-map.mjs en est le wrapper CLI ; l'API dev de la GUI
 // (tools/map-api-plugin.mjs) appelle addMap() directement pour pouvoir streamer
@@ -19,15 +20,25 @@ export const SIM_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(imp
 export const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
 export const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
 
-// Surface publique historique : map-api-plugin.mjs, map-poly-selftest.mjs,
-// scanner-selftest.mjs et gen-poly-fixture.mjs importent encore ces symboles ici.
 export { Cancelled };
-export const FLYOVER_ROOT = providers.get('flyover').FLYOVER_ROOT;
-export const tileDirName = (o) => providers.get('flyover').tileDirName(o);
-export const tileDirPath = (o) => providers.get('flyover').tileDirPath(o);
-export const tileIsUsable = (d) => providers.get('flyover').tileIsUsable(d);
-export const planScan = (o, x) => providers.get('flyover').plan(o, x);
-export const probeCoverage = (o, x) => providers.get('flyover').probe(o, x);
+
+// Surface dispatchée par fournisseur (Task 7, issue #18) : le shim câblé
+// Flyover est mort, chaque fonction lit opts.provider (ou providerId pour
+// tileIsUsable, qui ne reçoit qu'un dossier). FLYOVER_ROOT et tileDirName
+// disparaissent de cette surface — les deux sont spécifiques à Flyover (nom de
+// cache Go-compatible), et chaque fournisseur garde son propre tileDirName en
+// interne à tileDirPath. Les importeurs qui en avaient besoin lisent
+// désormais lib/providers/flyover.mjs directement.
+export const providerOf = (id) => providers.get(id ?? providers.DEFAULT_PROVIDER_ID);
+export const tileDirPath = (o) => providerOf(o.provider).tileDirPath(o);
+export const tileIsUsable = (d, providerId) => providerOf(providerId).tileIsUsable(d);
+// async, pas juste des fléchées expression-body : un providerOf(o.provider) qui
+// lève (fournisseur inconnu) doit rejeter la promesse rendue, pas jeter de façon
+// synchrone — c'est ce que planScan({ provider: 'inconnu' }) doit pouvoir passer
+// à assert.rejects() sans wrapper (provider-selftest.mjs).
+export const planScan = async (o, x) => providerOf(o.provider).plan(o, x);
+export const probeCoverage = async (o, x) => providerOf(o.provider).probe(o, x);
+export const listProviders = () => providers.list().map((p) => ({ id: p.id, label: p.label }));
 
 // Les ligatures et les lettres barrées ne se décomposent pas en NFD : sans cette
 // table, « Sacré-Cœur » donne « sacre-c-ur ». Le slug est visible dans la GUI et
