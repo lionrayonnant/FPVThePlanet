@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
-import { rootOctant, childBoxes, octantsCovering } from './lib/rocktree/octant.mjs';
+import { rootOctant, childBoxes, octantsCovering, ROOTS } from './lib/rocktree/octant.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
@@ -205,6 +205,49 @@ t('octant : childBoxes découpe en 4 boxes lat/lon × 2 variantes verticales', (
 	assert.deepEqual(k3.box, { n: 45, s: 0, w: 0, e: 45 });
 	// La variante +4 partage la box de sa jumelle.
 	assert.deepEqual(kids.find((k) => k.key === 7).box, k3.box);
+});
+
+t('octant : comportement polaire — pas de découpe est/ouest au pôle', () => {
+	const polarKids = childBoxes({ n: 90, s: 0, w: 0, e: 90 });
+	assert.equal(polarKids.length, 6, `${polarKids.length} enfants au lieu de 6 (les est skippés au pôle)`);
+	assert.ok(!polarKids.some((k) => k.key === 3 || k.key === 7), 'clés east (3, 7) doivent être absentes');
+	const k2 = polarKids.find((k) => k.key === 2);
+	assert.deepEqual(k2.box, { n: 90, s: 45, w: 0, e: 90 }, 'enfant nord-ouest garde la pleine longitude');
+});
+
+t('octant : chemins profonds validés digit par digit depuis racine', () => {
+	// Vérifier que tous les chemins des fixtures se marchent correctement
+	// depuis la racine, digit par digit. Les positions exactes sont mesurées
+	// depuis les matrices ECEF et varient par nœud ; on teste seulement que
+	// chaque étape du chemin mène à un enfant valide et que la box se raffine.
+	for (const nf of FIX.nodes) {
+		// Trouver la racine via ses 2 premiers digits
+		const rootPath = nf.path.slice(0, 2);
+		const rootEntry = ROOTS.find(([p]) => p === rootPath);
+		assert.ok(rootEntry, `Racine ${rootPath} du chemin ${nf.path} non trouvée`);
+		let box = rootEntry[1];
+		const rootBox = box;
+
+		// Marcher le chemin digit par digit, vérifier que chaque digit
+		// correspond à un enfant valide et que la box se raffine.
+		for (let i = 2; i < nf.path.length; i++) {
+			const digit = nf.path[i];
+			const key = Number(digit);
+			const children = childBoxes(box);
+			const child = children.find(c => c.key === key);
+			assert.ok(child, `Chemin ${nf.path}: digit ${i} '${digit}' (clé ${key}) n'a pas d'enfant correspondant`);
+			box = child.box;
+
+			// Vérifier que la box se raffine (reste incluse dans la box parente)
+			assert.ok(box.n <= rootBox.n && box.s >= rootBox.s && box.w >= rootBox.w && box.e <= rootBox.e,
+				`Chemin ${nf.path} au digit ${i}: box s'échappe des limites`);
+		}
+
+		// Vérifier que la box finale couvre une région raisonnablement petite.
+		// À niveau 22, la box doit faire environ 1/2^11 d'un côté ≈ 90/2048 ≈ 0.044 degrés.
+		const size = Math.max(box.n - box.s, box.e - box.w);
+		assert.ok(size < 0.1, `Chemin ${nf.path}: box finale trop grande (${size}°)`);
+	}
 });
 
 t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leurs chemins', () => {

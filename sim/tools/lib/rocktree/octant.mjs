@@ -2,7 +2,7 @@
 // digit ajoute une subdivision (2 bits lat/lon + 1 bit vertical). Réécrit
 // d'après la documentation de protocole d'earth-reverse-engineering.
 
-const ROOTS = [
+export const ROOTS = [
 	['02', { n: 0, s: -90, w: -180, e: -90 }], ['03', { n: 0, s: -90, w: -90, e: 0 }],
 	['12', { n: 0, s: -90, w: 0, e: 90 }],     ['13', { n: 0, s: -90, w: 90, e: 180 }],
 	['20', { n: 90, s: 0, w: -180, e: -90 }],  ['21', { n: 90, s: 0, w: -90, e: 0 }],
