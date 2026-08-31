@@ -11,7 +11,7 @@ const POOL_SIZE = 3;
 let nextId = 1;
 let workers = null;   // Worker[], créés une seule fois, jamais détruits
 let nextWorker = 0;   // round-robin
-const pending = new Map();   // id -> { resolve, reject }
+const pending = new Map();   // id -> { worker, resolve, reject }
 
 function ensurePool() {
 	if (workers) return workers;
@@ -35,10 +35,13 @@ function ensurePool() {
 			// (contrairement à { ok: false } côté message) : elle peut casser
 			// TOUTES les requêtes en vol sur CE worker. Rejeter celles qui
 			// n'ont pas encore répondu plutôt que les laisser pendre pour
-			// toujours.
+			// toujours — mais UNIQUEMENT celles assignées à CE worker, pas à
+			// d'autres du pool.
 			for (const [id, p] of pending) {
-				p.reject(new Error(`rocktree worker: ${e.message}`));
-				pending.delete(id);
+				if (p.worker === w) {
+					p.reject(new Error(`rocktree worker: ${e.message}`));
+					pending.delete(id);
+				}
 			}
 		};
 		return w;
@@ -68,6 +71,7 @@ export function fetchNode({ path, epoch, imageryEpoch, flags }, { signal } = {})
 		signal?.addEventListener('abort', onAbort);
 
 		pending.set(id, {
+			worker,
 			resolve: (v) => { signal?.removeEventListener('abort', onAbort); resolve(v); },
 			reject: (e) => { signal?.removeEventListener('abort', onAbort); reject(e); },
 		});
