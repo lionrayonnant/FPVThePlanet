@@ -80,6 +80,14 @@ export const R_HOLD = 73;      // m : distance d'arrêt du pilote qui obéit
 // en vaut 1,52 à cette vitesse-là.
 export const R_CAUTION = 138;  // m : R_HOLD + 1,5 s à la vitesse maximale
 
+// La pire vitesse mesurée par tools/geofence-measure.mjs (race5, plein gaz à
+// 85°, voir le commentaire de R_CAUTION ci-dessus) — exportée séparément
+// parce que la fenêtre de streaming rocktree (#168, #170) en a besoin pour
+// dimensionner son propre rayon de chargement, sur le même principe que
+// R_CAUTION : la distance qu'il faut pour réagir est celle que la pire
+// vitesse mesurée impose. Un seul chiffre mesuré, deux consommateurs.
+export const WORST_MEASURED_SPEED_MS = 42.72;
+
 // ---------------------------------------------------------------------------
 // Et la carte, dans tout ça : LA BORNE
 // ---------------------------------------------------------------------------
