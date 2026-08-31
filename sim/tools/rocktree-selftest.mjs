@@ -217,10 +217,23 @@ t('octant : comportement polaire — pas de découpe est/ouest au pôle', () => 
 
 t('octant : chemins profonds validés digit par digit depuis racine', () => {
 	// Vérifier que tous les chemins des fixtures se marchent correctement
-	// depuis la racine, digit par digit. Les positions exactes sont mesurées
-	// depuis les matrices ECEF et varient par nœud ; on teste seulement que
-	// chaque étape du chemin mène à un enfant valide et que la box se raffine.
+	// depuis la racine, digit par digit, et aboutissent sur le centre mesuré
+	// de chaque nœud (extrait de la matrice ECEF).
 	for (const nf of FIX.nodes) {
+		// Charger le nœud et extraire la matrice ECEF
+		const node = parseNode(read(nf.file));
+		const ma = node.matrix;
+
+		// Calculer le centre du cube local (128,128,128) en ECEF
+		const cx = 128 * ma[0] + 128 * ma[4] + 128 * ma[8] + ma[12];
+		const cy = 128 * ma[1] + 128 * ma[5] + 128 * ma[9] + ma[13];
+		const cz = 128 * ma[2] + 128 * ma[6] + 128 * ma[10] + ma[14];
+
+		// Convertir en lat/lon
+		const r = Math.hypot(cx, cy, cz);
+		const lat = Math.asin(cz / r) * 180 / Math.PI;
+		const lon = Math.atan2(cy, cx) * 180 / Math.PI;
+
 		// Trouver la racine via ses 2 premiers digits
 		const rootPath = nf.path.slice(0, 2);
 		const rootEntry = ROOTS.find(([p]) => p === rootPath);
@@ -243,10 +256,9 @@ t('octant : chemins profonds validés digit par digit depuis racine', () => {
 				`Chemin ${nf.path} au digit ${i}: box s'échappe des limites`);
 		}
 
-		// Vérifier que la box finale couvre une région raisonnablement petite.
-		// À niveau 22, la box doit faire environ 1/2^11 d'un côté ≈ 90/2048 ≈ 0.044 degrés.
-		const size = Math.max(box.n - box.s, box.e - box.w);
-		assert.ok(size < 0.1, `Chemin ${nf.path}: box finale trop grande (${size}°)`);
+		// Vérifier que la box finale contient le centre mesuré du nœud
+		assert.ok(box.s <= lat && lat <= box.n && box.w <= lon && lon <= box.e,
+			`${nf.path} : centre (${lat.toFixed(5)}, ${lon.toFixed(5)}) hors box ${JSON.stringify(box)}`);
 	}
 });
 
