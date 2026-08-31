@@ -140,4 +140,50 @@ t('unpack : les UV finaux tombent dans [0,1] (uv_offset_and_scale du proto)', ()
 	}
 });
 
+t('unpack : layerBounds[m] = indice WHERE group m BEGINS (test synthétique)', () => {
+	// Construis un buffer varint avec 32 groupes de 8 varints chacun.
+	// Groupe 0: [2,1,0,0,0,0,0,0] — 2+1 = 3 indices
+	// Groupe 1: [3,0,0,0,0,0,0,0] — 3 indices
+	// Groupe 2: [4,0,0,0,0,0,0,0] — 4 indices
+	// Groupe 3: [5,0,0,0,0,0,0,0] — 5 indices
+	// Groupe 4-31: [0,...] — 0 indices chacun
+	// Tous les varints < 128 s'encodent en un octet.
+	const buf = Buffer.from([
+		32, // len = 32 varints
+		2, 1, 0, 0, 0, 0, 0, 0, // groupe 0: octant 0 (2 idx), 1 (1 idx), 2-7 (0 idx)
+		3, 0, 0, 0, 0, 0, 0, 0, // groupe 1: octant 0 (3 idx), 1-7 (0 idx)
+		4, 0, 0, 0, 0, 0, 0, 0, // groupe 2: octant 0 (4 idx), 1-7 (0 idx)
+		5, 0, 0, 0, 0, 0, 0, 0, // groupe 3: octant 0 (5 idx), 1-7 (0 idx)
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 4-7: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 8-11: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 12-15: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 16-19: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 20-23: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 24-27: tous 0
+		0, 0, 0, 0, 0, 0, 0, 0, // groupe 28-31: tous 0
+	]);
+	const strip = new Uint32Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+	const count = 15;
+	const { layerBounds, octantOf } = unpackLayerBoundsAndOctants(buf, strip, count);
+	// Attendu : layerBounds[0..9] = [0, 3, 6, 10, 15, 15, 15, 15, 15, 15]
+	// - Groupe 0 (i % 8 === 0) : layerBounds[0] = 0 (k avant les varints du groupe)
+	//   Varints : 2, 1, 0, 0, 0, 0, 0, 0 → k = 0 + 2 + 1 = 3
+	// - Groupe 8 (i % 8 === 0) : layerBounds[1] = 3 (k avant les varints du groupe)
+	//   Varints : 3, 0, 0, 0, 0, 0, 0, 0 → k = 3 + 3 = 6
+	// - Groupe 16 (i % 8 === 0) : layerBounds[2] = 6
+	//   Varints : 4, 0, 0, 0, 0, 0, 0, 0 → k = 6 + 4 = 10
+	// - Groupe 24 (i % 8 === 0) : layerBounds[3] = 10 (début de TERRAIN_HIDDEN)
+	//   Varints : 5, 0, 0, 0, 0, 0, 0, 0 → k = 10 + 5 = 15
+	// - Groupe 32 n'existe pas (len === 32) ; boucle while remplit 4-9 avec 15
+	assert.deepEqual([...layerBounds], [0, 3, 6, 10, 15, 15, 15, 15, 15, 15]);
+	// Octant assignment :
+	// - Groupe 0 (i=0, octant 0): 2 idx → strip[0], strip[1] = 0, 0 = octantOf 0
+	// - Groupe 1 (i=1, octant 1): 1 idx → strip[2] = octantOf 1
+	// - Groupe 2-7 (i=2-7, octant 2-7): 0 idx each
+	// - Groupe 8 (i=8, octant 0): 3 idx → strip[3], strip[4], strip[5] = octantOf 0
+	// Vérifs clés :
+	assert.equal(octantOf[strip[0]], 0, 'strip[0] doit être octant 0 (groupe 0)');
+	assert.equal(octantOf[strip[3]], 0, 'strip[3] doit être octant 0 (groupe 8)');
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);

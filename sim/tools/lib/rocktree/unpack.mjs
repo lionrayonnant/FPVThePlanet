@@ -48,7 +48,10 @@ export function unpackIndices(buf) {
 
 // layer_and_octant_counts : `len` varints ; tous les 8 une borne de couche
 // (indices dans le strip), et chaque varint v peint l'octant (i & 7) sur les
-// v indices suivants du strip. layerBounds[3] = fin des couches terrain.
+// v indices suivants du strip. layerBounds[m] = index du strip où commence le
+// groupe m ; layerBounds[3] est donc le DÉBUT de TERRAIN_HIDDEN — l'aval garde
+// i < layerBounds[3], c'est-à-dire les couches 0-2 (OVERGROUND + terrain
+// visible). Ne pas décaler : la référence enregistre la borne AVANT le groupe.
 export function unpackLayerBoundsAndOctants(buf, strip, vertCount) {
 	const pos = { i: 0 };
 	const len = readVarint(buf, pos);
