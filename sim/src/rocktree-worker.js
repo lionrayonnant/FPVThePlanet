@@ -33,11 +33,18 @@ self.onmessage = async (e) => {
 			return { ...m, bitmap };
 		}));
 
+		// Le worker est terminé juste après ce postMessage : transférer buf.buffer
+		// ne coûte rien (plus besoin de buf ici) et évite le clonage structuré du
+		// buffer brut du protobuf (les vues qui en dépendent, ex. texture.data,
+		// sont déjà extraites dans meshes avant ce point).
 		self.postMessage(
 			{ ok: true, matrix: node.matrix, copyrightIds: node.copyrightIds, meshes },
-			bitmaps,
+			[buf.buffer, ...bitmaps],
 		);
 	} catch (err) {
-		self.postMessage({ ok: false, error: String((err && err.message) || err) });
+		// status: 404/410 = nœud absent, résultat NORMAL du protocole rocktree
+		// (voir tools/lib/providers/google-earth.mjs), pas une panne — le fil
+		// principal doit pouvoir le distinguer sans parser le message d'erreur.
+		self.postMessage({ ok: false, error: String((err && err.message) || err), status: err?.status ?? null });
 	}
 };

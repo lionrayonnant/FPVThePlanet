@@ -121,7 +121,7 @@ clonable par l'algorithme de clonage structuré — l'envoyer à un Worker
 `{ path, epoch, imageryEpoch, flags }` et fait son travail sans condition.
 L'annulation reste sur le fil principal, dans `rocktree-loader.js`, exactement
 comme `loader.js` le fait déjà pour les chunks pré-cuits (`worker.terminate()`
-dans `dropPreloadsExcept()`) : si `signal` se déclenche avant la réponse,
+dans `loadChunks()`) : si `signal` se déclenche avant la réponse,
 `fetchNode()` appelle `worker.terminate()` et rejette sans jamais avoir
 prétendu transporter le signal plus loin.
 
