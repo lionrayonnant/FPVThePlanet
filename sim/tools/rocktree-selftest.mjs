@@ -4,20 +4,25 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { readFields, varints, doubles, floats } from './lib/rocktree/pb.mjs';
 import { parsePlanetoid, parseBulk, parseNode, parseCopyrights } from './lib/rocktree/proto.mjs';
 import { unpackVertices, unpackTexCoords, unpackIndices, unpackLayerBoundsAndOctants } from './lib/rocktree/unpack.mjs';
 import { rootOctant, childBoxes, octantsCovering, ROOTS } from './lib/rocktree/octant.mjs';
+import * as rocktree from './lib/decoders/rocktree.mjs';
+import { pick } from './lib/decoders/index.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
 const read = (f) => fs.readFileSync(path.join(DIR, f));
 
 let n = 0;
-const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
+const t = async (name, fn) => { await Promise.resolve(fn()); n++; console.log(`  ok  ${name}`); };
 
-t('pb : varint, len-delimited et packed doubles sur un message fabriqué', () => {
+await (async () => {
+
+await t('pb : varint, len-delimited et packed doubles sur un message fabriqué', () => {
 	// field 1 varint 300 ; field 2 bytes "ab" ; field 3 packed double [1.5]
 	const buf = Buffer.from([0x08, 0xac, 0x02, 0x12, 0x02, 0x61, 0x62, 0x1a, 0x08, 0, 0, 0, 0, 0, 0, 0xf8, 0x3f]);
 	const f = readFields(buf);
@@ -26,23 +31,23 @@ t('pb : varint, len-delimited et packed doubles sur un message fabriqué', () =>
 	assert.equal(doubles(f[2].value)[0], 1.5);
 });
 
-t('pb : varint overflow lève (9 octets encodant >2^53)', () => {
+await t('pb : varint overflow lève (9 octets encodant >2^53)', () => {
 	// field 1 varint de 9 octets encodant 2^54
 	const buf = Buffer.from([0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x04]);
 	assert.throws(() => readFields(buf), /varint > 2\^53/);
 });
 
-t('planetoid : epoch racine 1014 (constaté live le 2026-08-31)', () => {
+await t('planetoid : epoch racine 1014 (constaté live le 2026-08-31)', () => {
 	assert.equal(parsePlanetoid(read(FIX.planetoid)).rootEpoch, FIX.epoch);
 });
 
-t('copyrights : des centaines d\'entrées, du texte utf-8 exploitable', () => {
+await t('copyrights : des centaines d\'entrées, du texte utf-8 exploitable', () => {
 	const map = parseCopyrights(read(FIX.copyrights));
 	assert.ok(map.size > 100, `${map.size} entrées`);
 	assert.ok([...map.values()].some((s) => /©|NASA|Maxar|Airbus/.test(s)));
 });
 
-t('bulk racine : les chemins relatifs font 1 à 4 digits octaux, la racine a des enfants', () => {
+await t('bulk racine : les chemins relatifs font 1 à 4 digits octaux, la racine a des enfants', () => {
 	const bulk = parseBulk(read(FIX.bulks[0].file));
 	assert.ok(bulk.nodes.size > 0);
 	for (const [p, m] of bulk.nodes) {
@@ -51,7 +56,7 @@ t('bulk racine : les chemins relatifs font 1 à 4 digits octaux, la racine a des
 	}
 });
 
-t('bulk : la chaîne de la fixture se suit (chaque nœud du chemin existe dans son bulk)', () => {
+await t('bulk : la chaîne de la fixture se suit (chaque nœud du chemin existe dans son bulk)', () => {
 	for (const node of FIX.nodes) {
 		for (const b of FIX.bulks) {
 			if (!node.path.startsWith(b.path) || node.path === b.path) continue;
@@ -67,7 +72,7 @@ t('bulk : la chaîne de la fixture se suit (chaque nœud du chemin existe dans s
 	}
 });
 
-t('node : matrice 16 doubles dont le translationnel est à ~rayon terrestre', () => {
+await t('node : matrice 16 doubles dont le translationnel est à ~rayon terrestre', () => {
 	for (const nf of FIX.nodes) {
 		const node = parseNode(read(nf.file));
 		assert.equal(node.matrix.length, 16);
@@ -85,7 +90,7 @@ t('node : matrice 16 doubles dont le translationnel est à ~rayon terrestre', ()
 	}
 });
 
-t('unpack : sur chaque mesh des fixtures, les invariants géométriques tiennent', () => {
+await t('unpack : sur chaque mesh des fixtures, les invariants géométriques tiennent', () => {
 	for (const nf of FIX.nodes) {
 		const node = parseNode(read(nf.file));
 		for (const mesh of node.meshes) {
@@ -103,7 +108,7 @@ t('unpack : sur chaque mesh des fixtures, les invariants géométriques tiennent
 	}
 });
 
-t('unpack : les sommets transformés par la matrice tombent à ~rayon terrestre', () => {
+await t('unpack : les sommets transformés par la matrice tombent à ~rayon terrestre', () => {
 	// Le VRAI test du décodage : delta-unpacking faux = sommets aberrants,
 	// et la norme ECEF le crie tout de suite (6 357–6 400 km + bâti).
 	for (const nf of FIX.nodes) {
@@ -123,7 +128,7 @@ t('unpack : les sommets transformés par la matrice tombent à ~rayon terrestre'
 	}
 });
 
-t('unpack : les UV finaux tombent dans [0,1] (uv_offset_and_scale du proto)', () => {
+await t('unpack : les UV finaux tombent dans [0,1] (uv_offset_and_scale du proto)', () => {
 	for (const nf of FIX.nodes) {
 		const node = parseNode(read(nf.file));
 		for (const mesh of node.meshes) {
@@ -141,7 +146,7 @@ t('unpack : les UV finaux tombent dans [0,1] (uv_offset_and_scale du proto)', ()
 	}
 });
 
-t('unpack : layerBounds[m] = indice WHERE group m BEGINS (test synthétique)', () => {
+await t('unpack : layerBounds[m] = indice WHERE group m BEGINS (test synthétique)', () => {
 	// Construis un buffer varint avec 32 groupes de 8 varints chacun.
 	// Groupe 0: [2,1,0,0,0,0,0,0] — 2+1 = 3 indices
 	// Groupe 1: [3,0,0,0,0,0,0,0] — 3 indices
@@ -187,17 +192,17 @@ t('unpack : layerBounds[m] = indice WHERE group m BEGINS (test synthétique)', (
 	assert.equal(octantOf[strip[3]], 0, 'strip[3] doit être octant 0 (groupe 8)');
 });
 
-t('octant : Paris (48.86, 2.35) est dans la racine 30 (0..90°E, hémisphère nord)', () => {
+await t('octant : Paris (48.86, 2.35) est dans la racine 30 (0..90°E, hémisphère nord)', () => {
 	assert.equal(rootOctant(48.86, 2.35).path, '30');
 	assert.equal(rootOctant(-33.9, 151.2).path, '13'); // Sydney
 	assert.equal(rootOctant(40.7, -74.0).path, '21');  // New York
 });
 
-t('octant : les chemins de la fixture HAR (Paris) redescendent bien depuis 30', () => {
+await t('octant : les chemins de la fixture HAR (Paris) redescendent bien depuis 30', () => {
 	for (const nf of FIX.nodes) assert.ok(nf.path.startsWith('30'), nf.path);
 });
 
-t('octant : childBoxes découpe en 4 boxes lat/lon × 2 variantes verticales', () => {
+await t('octant : childBoxes découpe en 4 boxes lat/lon × 2 variantes verticales', () => {
 	// Non-polar box to demonstrate full 8-way split without polar logic
 	const kids = childBoxes({ n: 45, s: -45, w: -45, e: 45 });
 	assert.equal(kids.length, 8);
@@ -207,7 +212,7 @@ t('octant : childBoxes découpe en 4 boxes lat/lon × 2 variantes verticales', (
 	assert.deepEqual(kids.find((k) => k.key === 7).box, k3.box);
 });
 
-t('octant : comportement polaire — pas de découpe est/ouest au pôle', () => {
+await t('octant : comportement polaire — pas de découpe est/ouest au pôle', () => {
 	const polarKids = childBoxes({ n: 90, s: 0, w: 0, e: 90 });
 	assert.equal(polarKids.length, 6, `${polarKids.length} enfants au lieu de 6 (les est skippés au pôle)`);
 	assert.ok(!polarKids.some((k) => k.key === 3 || k.key === 7), 'clés east (3, 7) doivent être absentes');
@@ -215,7 +220,7 @@ t('octant : comportement polaire — pas de découpe est/ouest au pôle', () => 
 	assert.deepEqual(k2.box, { n: 90, s: 45, w: 0, e: 90 }, 'enfant nord-ouest garde la pleine longitude');
 });
 
-t('octant : chemins profonds validés digit par digit depuis racine', () => {
+await t('octant : chemins profonds validés digit par digit depuis racine', () => {
 	// Vérifier que tous les chemins des fixtures se marchent correctement
 	// depuis la racine, digit par digit, et aboutissent sur le centre mesuré
 	// de chaque nœud (extrait de la matrice ECEF).
@@ -262,7 +267,7 @@ t('octant : chemins profonds validés digit par digit depuis racine', () => {
 	}
 });
 
-t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leurs chemins', () => {
+await t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leurs chemins', () => {
 	// La zone couverte par la capture contient les nœuds de la fixture : la
 	// traversée géométrique doit proposer leurs chemins (le serveur décide
 	// ensuite de leur existence — ici on ne teste que la géométrie).
@@ -279,4 +284,59 @@ t('octant : octantsCovering rend, au niveau des fixtures, un surensemble de leur
 	assert.ok(found, `${shallow.path} absent de octantsCovering au niveau ${L}`);
 });
 
+await t('décodeur : un tileDir de fixtures se décode et respecte le contrat', async () => {
+	// Fabrique un tileDir depuis les fixtures (c'est le format que produira
+	// le fournisseur en Task 6 — ce test EST le contrat entre les deux).
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rocktree-dec-'));
+	try {
+		fs.mkdirSync(path.join(dir, 'nodes'));
+		const copyrights = {};
+		for (const nf of FIX.nodes) {
+			fs.copyFileSync(path.join(DIR, nf.file), path.join(dir, 'nodes', `${nf.path}.pb`));
+		}
+		// Résout les copyright_ids réels des fixtures contre copyrights.pb.
+		const crMap = parseCopyrights(read(FIX.copyrights));
+		for (const nf of FIX.nodes) {
+			for (const id of parseNode(read(nf.file)).copyrightIds) {
+				if (crMap.has(id)) copyrights[id] = crMap.get(id);
+			}
+		}
+		fs.writeFileSync(path.join(dir, 'rocktree-tile.json'), JSON.stringify({
+			provider: 'google-earth', epoch: FIX.epoch, level: 16,
+			fetchedAt: '2026-08-31T00:00:00.000Z', copyrights,
+			nodes: FIX.nodes.map((nf) => ({ path: nf.path, file: `nodes/${nf.path}.pb`, exclude: [] })),
+		}, null, '\t'));
+
+		assert.equal(pick(dir).id, 'rocktree', 'sniff par reniflage');
+		const lines = [];
+		const d = await rocktree.decode(dir, { onLog: (l) => lines.push(l) });
+
+		assert.ok(d.vertCount > 0);
+		assert.equal(d.tu.length, d.vertCount, 'un UV par sommet');
+		for (const m of d.materials) assert.ok(Buffer.isBuffer(m.texture), 'textures en Buffer');
+		// ECEF plausible sur un échantillon.
+		const r = Math.hypot(d.vx.array[0], d.vy.array[0], d.vz.array[0]);
+		assert.ok(r > 6.35e6 && r < 6.4e6, `|v0| = ${r}`);
+		// UV moteur dans [0,1].
+		for (let i = 0; i < d.vertCount; i += 101) {
+			assert.ok(d.tu.array[i] >= -0.01 && d.tu.array[i] <= 1.01);
+			assert.ok(d.tv.array[i] >= -0.01 && d.tv.array[i] <= 1.01);
+		}
+		// Les indices de triangles pointent dans les sommets.
+		for (const g of d.triByMat) {
+			for (let i = 0; i < g.length; i += 2) assert.ok(g.array[i] < d.vertCount);
+		}
+		// L'attribution vient des tuiles (niveau 3 du design).
+		assert.ok(d.attribution.length > 0);
+		assert.ok(d.attribution.some((s) => /Google/.test(s)));
+		// Les deux lignes au mot près du contrat parsePrepLine.
+		assert.ok(lines.some((l) => /^\s*\d+ materials, \d+ without a texture$/.test(l)), lines.join('|'));
+		assert.ok(lines.some((l) => /^\s*[\d\s, .]+ vertices, [\d\s, .]+ uvs, [\d\s, .]+ triangles$/.test(l)));
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 console.log(`rocktree-selftest : ${n} tests ok`);
+
+})();

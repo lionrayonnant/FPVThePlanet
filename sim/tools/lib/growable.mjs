@@ -24,4 +24,5 @@ export class Growable {
 		for (const v of vals) this.buf[this.length++] = v;
 	}
 	view() { return this.buf.subarray(0, this.length); }
+	get array() { return this.buf; }
 }
