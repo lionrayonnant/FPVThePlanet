@@ -1086,6 +1086,9 @@ Plan d'origine (contexte de la décision d'architecture) :
     de contact Rapier après un impact.
   - Rapport complet (4ᵉ tentative, remplace celui de la 3ᵉ) :
     `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`.
+
+## Non vérifié / à faire
+
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
   Le monde répond : retard, quantité et couleur des réflexions suivent la
   géométrie.
