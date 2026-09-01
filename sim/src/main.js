@@ -43,6 +43,8 @@ import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
+import { unpackVertices, unpackIndices } from '../tools/lib/rocktree/unpack.mjs';
+import { sphereToWgs84Ecef, ecefToLocalEnu } from '../tools/lib/rocktree/geodesy.mjs';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -1477,6 +1479,58 @@ if (!frozen) {
 // Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
 // on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
 // Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
+// Convertit la sortie de fetchNode() (matrix/copyrightIds/meshes, forme de
+// parseNode()) en meshes THREE affichables + géométrie de collision brute,
+// pour un nœud rocktree reçu en vol (#168). Un nœud rocktree peut porter
+// plusieurs meshes (voir tools/lib/rocktree/proto.mjs:parseMesh) — chacun
+// devient son propre THREE.Mesh ET son propre appel à
+// physics.addNodeCollider(), avec un chemin de collider dérivé (`${path}#${i}`)
+// puisque addNodeCollider() suit un collider par CLÉ, pas par nœud.
+//
+// matrix (node.matrix) place les sommets sur une SPHÈRE, pas l'ellipsoïde
+// WGS84 (voir Tâche 8) — sphereToWgs84Ecef() est la correction, PAS une
+// formalité : l'omettre a mesuré 5 km d'erreur sur #18 Task 9.
+function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
+	const ma = matrix;
+	const built = [];
+	meshes.forEach((m, i) => {
+		const { xyz, count } = unpackVertices(m.vertices);
+		const positions = new Float32Array(count * 3);
+		for (let v = 0; v < count; v++) {
+			const x = xyz[v * 3], y = xyz[v * 3 + 1], z = xyz[v * 3 + 2];
+			const ecef = sphereToWgs84Ecef(
+				x * ma[0] + y * ma[4] + z * ma[8] + ma[12],
+				x * ma[1] + y * ma[5] + z * ma[9] + ma[13],
+				x * ma[2] + y * ma[6] + z * ma[10] + ma[14],
+				sphereRadius,
+			);
+			const local = ecefToLocalEnu(ecef, originEcef, basis);
+			positions[v * 3] = local.x; positions[v * 3 + 1] = local.y; positions[v * 3 + 2] = local.z;
+		}
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+		const strip = unpackIndices(m.indices);
+		// Triangle strip -> triangles indépendants : trois sommets consécutifs
+		// du strip forment un triangle, en alternant le sens tous les deux pas
+		// (convention triangle strip standard).
+		const idx = new Uint32Array((strip.length - 2) * 3);
+		for (let s = 0; s + 2 < strip.length; s++) {
+			if (s % 2 === 0) { idx[s * 3] = strip[s]; idx[s * 3 + 1] = strip[s + 1]; idx[s * 3 + 2] = strip[s + 2]; }
+			else { idx[s * 3] = strip[s + 1]; idx[s * 3 + 1] = strip[s]; idx[s * 3 + 2] = strip[s + 2]; }
+		}
+		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
+		geometry.computeVertexNormals();
+
+		const material = m.bitmap
+			? new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(m.bitmap) })
+			: new THREE.MeshBasicMaterial({ color: 0x808080 });
+		const mesh = new THREE.Mesh(geometry, material);
+		mesh.name = `rocktree-${path}-${i}`;
+		built.push({ mesh, colliderPath: `${path}#${i}`, vertices: positions, indices: idx });
+	});
+	return built;
+}
+
 // Une ligne de console par exemplaire. C'est du debug, pas de l'UI : le joueur
 // n'apprend la masse et le pack de sa cible qu'en vol (PHASE 08 : la fiche
 // pré-hack les donne UNKNOWN).
