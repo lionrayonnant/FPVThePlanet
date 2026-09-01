@@ -1135,6 +1135,20 @@ Plan d'origine (contexte de la décision d'architecture) :
   Vérifié à froid sur Versailles-ville (spawn recalé à 198,5 m, posé à 118 m,
   1568 meshes) et Caen (1543 meshes) à 300 m.
 
+- **Saccades du streaming corrigées** (#184) vérifiées en navigateur le
+  2026-09-01. Cause racine mesurée en trois couches : (1) tout le travail
+  par nœud s'exécutait à l'arrivée, en rafales de dizaines par frame ;
+  (2) surtout, chaque `addNodeCollider` sur `groundBody` forçait Rapier à
+  resommer les propriétés de masse de TOUS les trimesh au step suivant —
+  ~57 ms PAR STEP pendant une vague, amplifié ×15 par le rattrapage de
+  l'accumulateur (frames de 700-1700 ms). Correctifs : colliders de nœuds
+  SANS corps parent, files build/libération drainées sous budget de 3 ms
+  par frame (`processLiveNodeWork`), fetchs triés par distance au drone
+  (la box voyage depuis `traverse()`), `computeVertexNormals` supprimé
+  (MeshBasicMaterial, jamais lu). Mesuré après : plus aucun step > 8 ms,
+  longtasks 726 → ≤ 72 ms (reste : parse de `traverse()` sur le fil
+  principal, ticket de suivi avec la politique de retry des fetchs).
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

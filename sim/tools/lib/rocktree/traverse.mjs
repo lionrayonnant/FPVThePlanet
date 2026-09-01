@@ -184,8 +184,11 @@ export function expandBulk(bulk, bulkPath, bulkBox, zone, level) {
 			if (!childBox || !boxIntersects(childBox, zone)) continue;
 
 			// NODATA (flags & 8) : le nœud existe comme maillon du chemin mais
-			// ne sert pas de NodeData — on le traverse sans le retenir.
-			if (!(meta.flags & 8)) retained.push({ path: full, meta });
+			// ne sert pas de NodeData — on le traverse sans le retenir. La box
+			// voyage avec le nœud (#184) : la fenêtre de streaming trie les
+			// fetchs par distance au drone, et la recalculer chez elle referait
+			// digit par digit la marche que cette boucle vient de faire.
+			if (!(meta.flags & 8)) retained.push({ path: full, meta, box: childBox });
 
 			// LEAF (flags & 4) : la branche est refermée, aucun bulk enfant
 			// n'existe en dessous.
@@ -258,13 +261,14 @@ export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODE
 				// dans la capture, ce n'est pas une erreur.
 				if (!bulk) continue;
 				const { retained, children } = expandBulk(bulk, slice[k].bulkPath, slice[k].box, zone, level);
-				for (const { path: p, meta } of retained) {
+				for (const { path: p, meta, box } of retained) {
 					if (nodesOut.has(p)) continue;
 					nodesOut.set(p, {
 						path: p,
 						epoch: meta.epoch ?? bulk.epoch,
 						imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? bulk.defaultImageryEpoch) : null,
 						flags: meta.flags,
+						box,
 					});
 				}
 				next.push(...children);

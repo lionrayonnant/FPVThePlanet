@@ -168,11 +168,17 @@ export class Physics {
 		if (this._nodeColliders.has(path)) {
 			throw new Error(`addNodeCollider: "${path}" est déjà chargé — removeNodeCollider() d'abord`);
 		}
+		// SANS corps parent (#184) : un collider attaché à groundBody force
+		// Rapier à recalculer les propriétés de masse du corps au step suivant
+		// en sommant TOUS ses trimesh — mesuré à ~57 ms par step dès qu'une
+		// vague de streaming ajoute des nœuds à chaque frame (spirale de
+		// rattrapage de l'accumulateur : frames de 700-1700 ms). Un collider
+		// sans parent est statique dans le monde, aucune propriété de masse à
+		// recalculer, et se comporte identiquement face au drone.
 		const collider = this.world.createCollider(
 			RAPIER.ColliderDesc.trimesh(vertices, indices)
 				.setFriction(0.9)
 				.setRestitution(0.15),
-			this.groundBody,
 		);
 		this._nodeColliders.set(path, collider);
 		// Rapier ne rafraîchit l'accélération des requêtes (castRay etc.) que

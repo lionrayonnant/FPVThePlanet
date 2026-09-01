@@ -159,4 +159,21 @@ await t('floorRadiusM au constructeur : le rayon de boot est celui du curseur, p
 	assert.equal(win.nearestTrustedRadius(), 300 - TRUST_MARGIN_M);
 });
 
+// L'ordre de fetch (#184) : les nœuds proches du drone d'abord. Sans ça,
+// l'ordre est celui de la marche de l'octree — le nœud SOUS le spawn peut
+// arriver en dernier (l'attente du sol de bootLive() expirait à froid, drone
+// mesuré à −917 m), et le terrain lointain apparaît avant le proche.
+await t('update() fetche les nœuds par distance croissante au drone (#184)', async () => {
+	const near = { path: 'near', epoch: 1, imageryEpoch: null, flags: 0, box: { s: 48.849, n: 48.851, w: 2.289, e: 2.291 } };
+	const far = { path: 'far', epoch: 1, imageryEpoch: null, flags: 0, box: { s: 48.86, n: 48.862, w: 2.31, e: 2.312 } };
+	const mid = { path: 'mid', epoch: 1, imageryEpoch: null, flags: 0, box: { s: 48.853, n: 48.855, w: 2.295, e: 2.297 } };
+	// traverse rend l'ordre de la marche de l'octree : loin d'abord, exprès.
+	const traverse = async () => ({ nodes: [far, mid, near], radius: RADIUS });
+	const fetched = [];
+	const fetchNode = async (nd) => { fetched.push(nd.path); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(fetched, ['near', 'mid', 'far']);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);

@@ -184,6 +184,53 @@ let weather = null;
 let physics = null;
 const liveMeshes = new Map();   // colliderPath -> THREE.Mesh, mode ?live= (#168)
 let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
+
+// Files du mode ?live= (#184) : les nœuds reçus/libérés attendent ici, et
+// processLiveNodeWork() les traite sous un budget par frame — le travail par
+// nœud est petit (~1,4 ms) mais arrive en rafales de plusieurs dizaines par
+// frame, et l'exécuter à l'arrivée gelait le rendu 70-330 ms par vague.
+const pendingNodeBuilds = new Map();    // path -> { matrix, meshes, sphereRadius }
+const pendingNodeReleases = [];         // paths dont mesh+collider sont à retirer
+// ~3 ms : ce qui tient dans une frame de 60 fps déjà occupée par la physique
+// et le rendu sans la faire déborder de 16,7 ms. Une vague de 800 nœuds
+// (~1,1 s de travail) s'étale ainsi sur ~5 s au lieu de geler l'image —
+// le tri par distance de rocktree-window.js fait apparaître le proche d'abord.
+const NODE_WORK_BUDGET_MS = 3;
+
+// Draine les files sous budget. Les libérations d'abord : elles rendent de la
+// mémoire et leur retard laisserait des meshes fantômes hors fenêtre.
+function processLiveNodeWork(budgetMs = NODE_WORK_BUDGET_MS) {
+	if (!liveWindow) return;
+	const start = performance.now();
+	while (performance.now() - start < budgetMs) {
+		if (pendingNodeReleases.length > 0) {
+			const path = pendingNodeReleases.shift();
+			for (const [colliderPath, mesh] of [...liveMeshes.entries()]) {
+				if (!colliderPath.startsWith(`${path}#`)) continue;
+				scene.remove(mesh);
+				mesh.geometry.dispose();
+				mesh.material.dispose();
+				physics.removeNodeCollider(colliderPath);
+				liveMeshes.delete(colliderPath);
+			}
+			continue;
+		}
+		const next = pendingNodeBuilds.entries().next();
+		if (next.done) break;
+		const [path, job] = next.value;
+		pendingNodeBuilds.delete(path);
+		const built = buildNodeMesh(path, job.matrix, job.meshes, job.sphereRadius, liveWindow.originEcef, liveWindow.originBasis);
+		for (const { mesh, colliderPath, vertices, indices } of built) {
+			scene.add(mesh);
+			// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
+			// rendu — sinon Three téléverse toutes les textures de la vague
+			// dans la frame où elles deviennent visibles.
+			if (mesh.material.map) renderer.initTexture(mesh.material.map);
+			physics.addNodeCollider(colliderPath, vertices, indices);
+			liveMeshes.set(colliderPath, mesh);
+		}
+	}
+}
 // Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
 // a ni clôture ni horizon à dessiner.
@@ -798,23 +845,22 @@ async function bootLive([lat, lon]) {
 		// — démarrer au repli puis élargir une frame plus tard fetcherait le
 		// boot en deux vagues.
 		floorRadiusM: loadViewRange(),
+		// Les callbacks n'exécutent RIEN (#184) : ils empilent, et le travail
+		// réel (build + cuisson Rapier + upload texture + dispose) est étalé
+		// par processLiveNodeWork() sous un budget par frame. Mesuré avant :
+		// chaque nœud ne coûte que ~1,4 ms, mais le pool en livre des dizaines
+		// dans la même frame — gels de 70 à 330 ms à chaque vague, GPU oisif.
 		onNodeReady: (path, matrix, meshes, sphereRadius) => {
-			const built = buildNodeMesh(path, matrix, meshes, sphereRadius, rocktreeWindow.originEcef, rocktreeWindow.originBasis);
-			for (const { mesh, colliderPath, vertices, indices } of built) {
-				scene.add(mesh);
-				physics.addNodeCollider(colliderPath, vertices, indices);
-				liveMeshes.set(colliderPath, mesh);
-			}
+			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
 		},
 		onNodeReleased: (path) => {
-			for (const [colliderPath, mesh] of [...liveMeshes.entries()]) {
-				if (!colliderPath.startsWith(`${path}#`)) continue;
-				scene.remove(mesh);
-				mesh.geometry.dispose();
-				mesh.material.dispose();
-				physics.removeNodeCollider(colliderPath);
-				liveMeshes.delete(colliderPath);
-			}
+			// Un nœud libéré encore en file de build n'a jamais existé côté
+			// scène/Rapier : le retirer de la file suffit — l'empiler en
+			// libération créerait un dispose sans rien à disposer, et l'oubli
+			// inverse (build après libération) créerait mesh + collider
+			// orphelins, que plus rien ne libérerait jamais.
+			if (pendingNodeBuilds.delete(path)) return;
+			pendingNodeReleases.push(path);
 		},
 	});
 	liveWindow = rocktreeWindow;
@@ -842,8 +888,14 @@ async function bootLive([lat, lon]) {
 	const groundDeadline = performance.now() + 20000;
 	let groundHere = null;
 	while (groundHere === null && performance.now() < groundDeadline) {
+		// La boucle de rendu n'a pas démarré : personne d'autre ne draine les
+		// files de nœuds (#184) — sans cet appel, aucun collider n'apparaîtrait
+		// jamais et l'attente expirerait à chaque boot. Budget large : l'écran
+		// de chargement n'a pas de frame à tenir, autant construire vite (le
+		// tri par distance met le nœud sous le spawn dans la première vague).
+		processLiveNodeWork(25);
 		groundHere = physics.groundBelow(0, 3000, 0, 6000);
-		if (groundHere === null) await new Promise((r) => setTimeout(r, 250));
+		if (groundHere === null) await new Promise((r) => setTimeout(r, 10));
 	}
 	if (groundHere !== null) {
 		// physics.reset() renvoie au spawn ET re-prime les moteurs — c'est
@@ -1196,6 +1248,8 @@ function frame() {
 						fenceForce = _fenceForce;
 					}
 				}
+				// Étale le travail des nœuds reçus/libérés sous budget (#184).
+				processLiveNodeWork();
 				// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
 				// tâche de fond, la frame courante vole avec ce qui est déjà là.
 				// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
@@ -1742,7 +1796,9 @@ function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
 		}
 		const idx = new Uint32Array(idxList);
 		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
-		geometry.computeVertexNormals();
+		// Pas de computeVertexNormals() (#184) : MeshBasicMaterial est
+		// non-éclairé, les normales ne sont jamais lues — c'était un parcours
+		// complet de la géométrie par nœud pour rien.
 
 		// Sans attribut `uv`, chaque mesh est peint du seul texel (0,0) de sa
 		// texture — des aplats de couleur, pas une photo aérienne (#180). Même
