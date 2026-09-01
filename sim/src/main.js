@@ -44,7 +44,9 @@ import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
 import { unpackVertices, unpackIndices } from '../tools/lib/rocktree/unpack.mjs';
-import { sphereToWgs84Ecef, ecefToLocalEnu } from '../tools/lib/rocktree/geodesy.mjs';
+import { sphereToWgs84Ecef, ecefToLocalEnu, localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
+import { push as rocktreeFencePush } from './rocktree-fence.js';
+import { RocktreeWindow } from './rocktree-window.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -101,6 +103,10 @@ export const OPTS = {
 		const d = params.has('date') ? new Date(params.get('date')) : null;
 		return d && Number.isFinite(d.getTime()) ? d : null;
 	})(),
+	// Dev-only : ?live=48.8584,2.2945 vole en direct depuis rocktree, sans
+	// scène pré-cuite (#168). Pas de météo/geofence/écran de crédit — voir le
+	// plan d'implémentation pour ce qui est volontairement hors périmètre.
+	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
 };
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
@@ -170,6 +176,8 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+const liveMeshes = new Map();   // colliderPath -> THREE.Mesh, mode ?live= (#168)
+let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
 // Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
 // a ni clôture ni horizon à dessiner.
@@ -729,6 +737,61 @@ async function boot(slug) {
 	return finishBoot(preloadFor(slug));
 }
 
+// Niveau d'octree constant pour ce jalon (Global Constraints) — la vraie
+// sélection de LOD par distance/altitude reste un ticket de suivi. 21 :
+// ZOOM_TO_LEVEL[20] dans google-earth.mjs — le niveau que produit le zoom
+// par défaut d'`add-map` (CLAUDE.md, --zoom 20), donc déjà le niveau que
+// toutes les cartes existantes utilisent couramment.
+const ROCKTREE_LEVEL = 21;
+
+// Boot minimal pour ?live=lat,lon (#168) : pas de manifest, pas de
+// collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
+// spawn — pas de recentrage en vol (hors périmètre, voir la spec).
+async function bootLive([lat, lon]) {
+	const emptyCollision = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
+	// Spawn à 80 m au-dessus du point demandé : aucun relief n'est encore
+	// chargé au moment de la construction de Physics (le premier nœud rocktree
+	// arrive de façon asynchrone, après), donc pas de hauteur de terrain
+	// connaissable ici. 80 m est CHOISI — assez pour dominer un immeuble
+	// parisien courant, à revoir si un terrain plus haut est visé.
+	physics = new Physics(emptyCollision, { x: 0, y: 80, z: 0 }, PROFILE ? { profile: PROFILE } : {});
+	PROFILE = physics.profile;
+	audio.setProfile(physics.profile);
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+
+	const rocktreeWindow = new RocktreeWindow({
+		level: ROCKTREE_LEVEL,
+		origin: { lat, lon },
+		onNodeReady: (path, matrix, meshes, sphereRadius) => {
+			const built = buildNodeMesh(path, matrix, meshes, sphereRadius, rocktreeWindow.originEcef, rocktreeWindow.originBasis);
+			for (const { mesh, colliderPath, vertices, indices } of built) {
+				scene.add(mesh);
+				physics.addNodeCollider(colliderPath, vertices, indices);
+				liveMeshes.set(colliderPath, mesh);
+			}
+		},
+		onNodeReleased: (path) => {
+			for (const [colliderPath, mesh] of [...liveMeshes.entries()]) {
+				if (!colliderPath.startsWith(`${path}#`)) continue;
+				scene.remove(mesh);
+				mesh.geometry.dispose();
+				mesh.material.dispose();
+				physics.removeNodeCollider(colliderPath);
+				liveMeshes.delete(colliderPath);
+			}
+		},
+	});
+	liveWindow = rocktreeWindow;
+	// Amorce la fenêtre autour du spawn avant la première frame : sans ce
+	// premier appel, le drone tombe dans le vide jusqu'au premier update()
+	// de la boucle de rendu.
+	await rocktreeWindow.update({ lat, lon });
+
+	audio.start();
+	renderer.compile(scene, camera);
+	hud.hide();
+}
+
 // Yields long enough for the loading screen to actually repaint.
 function nextPaint() {
 	return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -1006,6 +1069,35 @@ function frame() {
 				const a = fence.out.push, m = physics.profile.mass;
 				_fenceForce.x = a.x * m; _fenceForce.y = a.y * m; _fenceForce.z = a.z * m;
 				fenceForce = _fenceForce;
+			}
+			if (liveWindow) {
+				const dronePos = physics.position;
+				const centerLocal = liveWindow.windowCenterLocal;
+				if (centerLocal) {
+					const dist = Math.hypot(dronePos.x - centerLocal.x, dronePos.z - centerLocal.z);
+					const a = rocktreeFencePush(dist, liveWindow.nearestTrustedRadius());
+					if (a > 0) {
+						const dx = dronePos.x - centerLocal.x, dz = dronePos.z - centerLocal.z;
+						const len = Math.hypot(dx, dz) || 1;
+						const m = physics.profile.mass;
+						// fenceForce peut déjà être posé par le rappel de zone
+						// ci-dessus (mode scène) ; en mode ?live= fence est toujours
+						// NOMINAL (pas de Geofence construite), donc fenceForce est
+						// encore null ici — les deux rappels ne se cumulent jamais.
+						_fenceForce.x = -(dx / len) * a * m;
+						_fenceForce.z = -(dz / len) * a * m;
+						_fenceForce.y = 0;
+						fenceForce = _fenceForce;
+					}
+				}
+				// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
+				// tâche de fond, la frame courante vole avec ce qui est déjà là.
+				// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
+				// de la conversion que buildNodeMesh fait dans l'autre sens
+				// (Tâche 8/9), pas une formule ad hoc.
+				const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
+				const droneGeo = ecefToGeodetic(...droneEcef);
+				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon });
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
@@ -1598,6 +1690,11 @@ function dropPreloadsExcept(keepSlug) {
 async function chooseScene() {
 	const ui = document.getElementById('ui');
 
+	if (OPTS.live) {
+		await bootLive(OPTS.live);
+		return null;   // pas de slug : le reste du pipeline scène ne doit pas s'exécuter
+	}
+
 	if (OPTS.scene) {
 		await operator.ensureDevOperator();
 		const scenes = await loadSceneList();
@@ -1798,6 +1895,10 @@ startup()
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
+		// ?live= : bootLive() a déjà tout fait à l'intérieur de chooseScene()
+		// (pas de manifest à charger, pas de TARGET SCAN) — chooseScene()
+		// renvoie null pour le dire (#168), rien de plus à faire ici.
+		if (choice === null) return;
 		// Session fraîche : PROFILE / controller / boot() ont déjà été
 		// lancés dans chooseScene() et le hack a couvert le chargement.
 		if (choice.prepared) return;
