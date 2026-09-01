@@ -4,7 +4,8 @@
 // { nodes, radius } — même forme que le vrai traverse() de traverse.mjs
 // (radius vient de PlanetoidMetadata) — PAS un tableau nu.
 import assert from 'node:assert/strict';
-import { RocktreeWindow, REFRESH_THRESHOLD_M } from '../src/rocktree-window.js';
+import { RocktreeWindow, REFRESH_THRESHOLD_M, TRUST_MARGIN_M } from '../src/rocktree-window.js';
+import { WORST_MEASURED_SPEED_MS } from '../src/geofence.js';
 
 let n = 0;
 const t = async (name, fn) => { await Promise.resolve(fn()); n++; console.log(`  ok  ${name}`); };
@@ -72,15 +73,33 @@ await t('windowCenterLocal se déplace vers le nord (z négatif, convention -Z=n
 	assert.ok(win.windowCenterLocal.z < -500, `z=${win.windowCenterLocal.z} — attendu très négatif (nord, ~1000 m)`);
 });
 
-await t('nearestTrustedRadius() décroît quand la latence observée augmente', async () => {
+// Ce test garde l'UNITÉ de la latence, pas juste son signe : la version
+// précédente n'assertait que « > 0 », ce qui passait aussi avec le bug qui
+// multipliait des MILLISECONDES par WORST_MEASURED_SPEED_MS (m/s) et rendait
+// ~4300 m pour 100 ms de latence. On injecte donc une latence connue et on
+// borne le résultat des DEUX côtés.
+await t('nearestTrustedRadius() vaut REFRESH_THRESHOLD_M + latence(s)×vitesse − marge, pour une latence connue', async () => {
+	const DELAY_MS = 100;
 	const { traverse } = fakeDeps({ traverseNodes: [NODE_A] });
-	const slow = fakeDeps({ traverseNodes: [NODE_A], fetchDelayMs: 5 }).fetchNode;
+	const slow = fakeDeps({ traverseNodes: [NODE_A], fetchDelayMs: DELAY_MS }).fetchNode;
 	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: slow });
-	const r0 = win.nearestTrustedRadius();   // avant toute mesure : valeur de repli
+	const r0 = win.nearestTrustedRadius();   // avant toute mesure : repli − marge
+	assert.ok(r0 > 0, `repli=${r0}`);
 	await win.update(ORIGIN);
-	// Une seule mesure ne doit pas faire s'effondrer le rayon de repli à zéro.
-	assert.ok(win.nearestTrustedRadius() > 0);
-	assert.ok(r0 > 0);
+	// update() ne bloque pas sur le fetch (volontaire) : la mesure de latence
+	// n'existe qu'une fois la promesse retombée. On attend qu'elle bouge.
+	const deadline = Date.now() + 3000;
+	while (win.nearestTrustedRadius() === r0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+	const r = win.nearestTrustedRadius();
+	const expected = REFRESH_THRESHOLD_M + (DELAY_MS / 1000) * WORST_MEASURED_SPEED_MS - TRUST_MARGIN_M;
+	// ±10 m ≈ ±234 ms de jitter de setTimeout : large pour le bruit de mesure,
+	// mille fois trop serré pour laisser repasser une latence en ms brutes.
+	assert.ok(Math.abs(r - expected) < 10, `rayon de confiance ${r.toFixed(1)} m, attendu ~${expected.toFixed(1)} m`);
+	// Borne absolue indépendante des constantes : avec le bug d'unité, 100 ms
+	// donnaient ~4300 m. Aucun rayon de confiance plausible n'est kilométrique.
+	assert.ok(r > 0 && r < 500, `rayon de confiance hors de toute plage plausible : ${r}`);
+	// Et il DÉCROÎT bien par rapport au repli quand une latence est mesurée.
+	assert.ok(r < r0, `${r} devrait être sous le repli ${r0}`);
 });
 
 console.log(`rocktree-window-selftest : ${n} tests ok`);
