@@ -43,8 +43,7 @@ import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
-import { unpackVertices, unpackIndices, unpackTexCoords } from '../tools/lib/rocktree/unpack.mjs';
-import { sphereToWgs84Ecef, ecefToLocalEnu, localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
+import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 
@@ -219,7 +218,7 @@ function processLiveNodeWork(budgetMs = NODE_WORK_BUDGET_MS) {
 		if (next.done) break;
 		const [path, job] = next.value;
 		pendingNodeBuilds.delete(path);
-		const built = buildNodeMesh(path, job.matrix, job.meshes, job.sphereRadius, liveWindow.originEcef, liveWindow.originBasis);
+		const built = buildNodeMesh(path, job.meshes);
 		for (const { mesh, colliderPath, vertices, indices } of built) {
 			scene.add(mesh);
 			// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
@@ -230,6 +229,10 @@ function processLiveNodeWork(budgetMs = NODE_WORK_BUDGET_MS) {
 			liveMeshes.set(colliderPath, mesh);
 		}
 	}
+	// UN refit du query-BVH pour tout le lot de la frame (#187) — add/remove
+	// ne le paient plus chacun. Doit rester APRÈS la boucle : groundBelow()
+	// (spawn, AGL) lit le pipeline au plus tard à la frame suivante.
+	physics.flushNodeColliders();
 }
 // Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
@@ -1248,29 +1251,6 @@ function frame() {
 						fenceForce = _fenceForce;
 					}
 				}
-				// Étale le travail des nœuds reçus/libérés sous budget (#184).
-				processLiveNodeWork();
-				// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
-				// tâche de fond, la frame courante vole avec ce qui est déjà là.
-				// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
-				// de la conversion que buildNodeMesh fait dans l'autre sens
-				// (Tâche 8/9), pas une formule ad hoc.
-				const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
-				const droneGeo = ecefToGeodetic(...droneEcef);
-				// Garde (#182) : une position dégénérée (drone passé sous le terrain
-				// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
-				// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
-				// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
-				// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
-				// dernière position saine que la vider.
-				if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
-					// Rien n'attend cette promesse (c'est le but : la frame ne bloque
-					// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
-					// lève devient une unhandled promise rejection silencieuse.
-					// Observabilité seulement : pas de retry ici (ticket de suivi).
-					liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
-						.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
-				}
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
@@ -1289,6 +1269,39 @@ function frame() {
 			steps++;
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+
+		// Travail de streaming UNE fois par FRAME, hors de la boucle
+		// d'accumulation (#187) : logé dans la boucle, il tournait une fois par
+		// STEP physique — en rattrapage (12-15 steps/frame après une frame
+		// longue), 12-15 budgets de drain de 3 ms s'empilaient dans la même
+		// frame (40-80 ms mesurés), ce qui entretenait la spirale que le budget
+		// devait justement empêcher. La poussée de clôture, elle, reste par
+		// step : elle dépend de la position, qui change à chaque step.
+		if (liveWindow && !frozen) {
+			// Étale le travail des nœuds reçus/libérés sous budget (#184).
+			processLiveNodeWork();
+			// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
+			// tâche de fond, la frame courante vole avec ce qui est déjà là.
+			// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
+			// de la conversion que build-node.mjs fait dans l'autre sens.
+			const dronePos = physics.position;
+			const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
+			const droneGeo = ecefToGeodetic(...droneEcef);
+			// Garde (#182) : une position dégénérée (drone passé sous le terrain
+			// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
+			// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
+			// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
+			// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
+			// dernière position saine que la vider.
+			if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+				// lève devient une unhandled promise rejection silencieuse.
+				// Observabilité seulement : pas de retry ici (ticket de suivi).
+				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
+			}
+		}
 
 		// Un seul raycast de sol par frame de physique. Gelé, rien n'a bougé :
 		// la dernière valeur de groundY reste correcte, inutile de refaire un
@@ -1750,74 +1763,31 @@ if (!frozen) {
 // Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
 // on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
 // Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
-// Convertit la sortie de fetchNode() (matrix/copyrightIds/meshes, forme de
-// parseNode()) en meshes THREE affichables + géométrie de collision brute,
-// pour un nœud rocktree reçu en vol (#168). Un nœud rocktree peut porter
-// plusieurs meshes (voir tools/lib/rocktree/proto.mjs:parseMesh) — chacun
-// devient son propre THREE.Mesh ET son propre appel à
-// physics.addNodeCollider(), avec un chemin de collider dérivé (`${path}#${i}`)
-// puisque addNodeCollider() suit un collider par CLÉ, pas par nœud.
-//
-// matrix (node.matrix) place les sommets sur une SPHÈRE, pas l'ellipsoïde
-// WGS84 (voir Tâche 8) — sphereToWgs84Ecef() est la correction, PAS une
-// formalité : l'omettre a mesuré 5 km d'erreur sur #18 Task 9.
-function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
-	const ma = matrix;
+// Enveloppe THREE de la sortie de fetchNode() (#168, #187). Depuis #187 tout
+// le calcul (ECEF→ENU, strip→triangles, UV normalisés, boundingSphere) est
+// fait dans le Worker par tools/lib/rocktree/build-node.mjs — chaque mesh
+// arrive avec positions/uvs/indices déjà transférables ; il ne reste ici que
+// ce qui exige le fil principal : objets THREE et matériau. Un nœud peut
+// porter plusieurs meshes — chacun devient son propre THREE.Mesh ET son
+// propre collider (`${path}#${i}` : addNodeCollider() suit une clé, pas un
+// nœud).
+function buildNodeMesh(path, meshes) {
 	const built = [];
 	meshes.forEach((m, i) => {
-		const { xyz, count } = unpackVertices(m.vertices);
-		const positions = new Float32Array(count * 3);
-		for (let v = 0; v < count; v++) {
-			const x = xyz[v * 3], y = xyz[v * 3 + 1], z = xyz[v * 3 + 2];
-			const ecef = sphereToWgs84Ecef(
-				x * ma[0] + y * ma[4] + z * ma[8] + ma[12],
-				x * ma[1] + y * ma[5] + z * ma[9] + ma[13],
-				x * ma[2] + y * ma[6] + z * ma[10] + ma[14],
-				sphereRadius,
-			);
-			const local = ecefToLocalEnu(ecef, originEcef, basis);
-			positions[v * 3] = local.x; positions[v * 3 + 1] = local.y; positions[v * 3 + 2] = local.z;
-		}
 		const geometry = new THREE.BufferGeometry();
-		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-		const strip = unpackIndices(m.indices);
-		// Triangle strip -> triangles indépendants, en sautant les triangles
-		// dégénérés (aire nulle, courants aux points de jonction d'un strip) —
-		// même garde que forEachDrawnTriangle() dans tools/lib/decoders/
-		// rocktree.mjs (le décodeur de référence déjà en prod). Une géométrie de
-		// collision avec des triangles d'aire nulle déstabilise la résolution de
-		// contact Rapier (#176) — la taille de sortie n'est donc plus fixe.
-		const idxList = [];
-		for (let s = 0; s + 2 < strip.length; s++) {
-			const a = strip[s], b = strip[s + 1], c = strip[s + 2];
-			if (a === b || a === c || b === c) continue;
-			if (s % 2 === 0) { idxList.push(a, b, c); }
-			else { idxList.push(b, a, c); }
-		}
-		const idx = new Uint32Array(idxList);
-		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
-		// Pas de computeVertexNormals() (#184) : MeshBasicMaterial est
-		// non-éclairé, les normales ne sont jamais lues — c'était un parcours
-		// complet de la géométrie par nœud pour rien.
-
-		// Sans attribut `uv`, chaque mesh est peint du seul texel (0,0) de sa
-		// texture — des aplats de couleur, pas une photo aérienne (#180). Même
-		// normalisation que le décodeur de référence (tools/lib/decoders/
-		// rocktree.mjs, « UV : delta-décodés puis normalisés ») : offset+scale du
-		// proto quand il est là, sinon le repli (0.5, 1/mod) du protocole.
-		if (m.texCoords) {
-			const { uv: rawUv, uMod, vMod } = unpackTexCoords(m.texCoords, count);
-			const [ou, ov, su, sv] = m.uvOffsetAndScale ?? [0.5, 0.5, 1 / uMod, 1 / vMod];
-			const uvs = new Float32Array(count * 2);
-			for (let v = 0; v < count; v++) {
-				uvs[v * 2] = (rawUv[v * 2] + ou) * su;
-				uvs[v * 2 + 1] = (rawUv[v * 2 + 1] + ov) * sv;
-			}
-			geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-		}
+		geometry.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+		geometry.setIndex(new THREE.BufferAttribute(m.indices, 1));
+		if (m.uvs) geometry.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+		// boundingSphere du Worker (même algorithme que computeBoundingSphere) :
+		// sinon Three la calcule PARESSEUSEMENT au premier frustum culling de
+		// chaque mesh — un parcours O(n) par mesh, en pleine vague, pile quand
+		// la frame est déjà chargée (#187).
+		geometry.boundingSphere = new THREE.Sphere(
+			new THREE.Vector3(...m.boundingSphere.center), m.boundingSphere.radius,
+		);
 
 		let material;
-		if (m.bitmap && m.texCoords) {
+		if (m.bitmap && m.uvs) {
 			const texture = new THREE.CanvasTexture(m.bitmap);
 			// PAS d'inversion de V et flipY coupé : le protocole rocktree a son
 			// origine UV en HAUT-gauche (mesuré sur #158, voir le commentaire du
@@ -1825,13 +1795,26 @@ function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
 			// createImageBitmap() la stocke. Le flipY par défaut de CanvasTexture
 			// remettrait l'origine en bas et retournerait chaque tuile.
 			texture.flipY = false;
+			// Pas de mipmaps sur les tuiles live (#187) : leur génération à
+			// l'upload était le pire item du budget de drain (4,6 ms pour une
+			// 512², mesuré) — et le niveau d'octree constant fait que la
+			// minification reste modérée (la tuile la plus lointaine de la
+			// fenêtre de 600 m max est à ~2-3× sa taille écran, pas ~100×).
+			// Vérifié à l'image : pas de moiré notable à distance de fenêtre.
+			texture.generateMipmaps = false;
+			texture.minFilter = THREE.LinearFilter;
 			material = new THREE.MeshBasicMaterial({ map: texture });
 		} else {
 			material = new THREE.MeshBasicMaterial({ color: 0x808080 });
 		}
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = `rocktree-${path}-${i}`;
-		built.push({ mesh, colliderPath: `${path}#${i}`, vertices: positions, indices: idx });
+		// Terrain statique en repère ENU local : la matrice est l'identité et ne
+		// changera jamais — sans ce flag, Three recompose la matrice de ~1600
+		// meshes à CHAQUE updateMatrixWorld de frame (#187).
+		mesh.matrixAutoUpdate = false;
+		mesh.updateMatrix();
+		built.push({ mesh, colliderPath: `${path}#${i}`, vertices: m.positions, indices: m.indices });
 	});
 	return built;
 }

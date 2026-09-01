@@ -15,6 +15,7 @@
 // le fil principal (worker.terminate()), pas de celui-ci.
 import { nodeUrl } from '../tools/lib/rocktree/url.mjs';
 import { parseNode } from '../tools/lib/rocktree/proto.mjs';
+import { buildNodeGeometries } from '../tools/lib/rocktree/build-node.mjs';
 
 // Persistant (#170) : ce worker traite UN message, répond, et REVIENT
 // écouter — contrairement à un usage un-coup comme celui que loadChunks()
@@ -22,8 +23,14 @@ import { parseNode } from '../tools/lib/rocktree/proto.mjs';
 // nombre de ces workers une fois pour toute la session de vol et les
 // réutilise ; `id` corrèle chaque réponse à sa requête, plusieurs pouvant
 // être en vol en même temps sur des workers différents du pool.
+//
+// Le build géométrique (ECEF→ENU, strip→triangles, UV, boundingSphere)
+// tourne ICI (#187) : sur le fil principal il participait à faire déborder
+// la frame de 16,7 ms pendant les vagues, ce qui amorçait la spirale de
+// rattrapage de l'accumulateur physique. sphereRadius/originEcef/originBasis
+// arrivent avec chaque requête (stateless), fournis par la fenêtre.
 self.onmessage = async (e) => {
-	const { id, path, epoch, imageryEpoch, flags } = e.data;
+	const { id, path, epoch, imageryEpoch, flags, sphereRadius, originEcef, originBasis, exclude } = e.data;
 	try {
 		const url = nodeUrl({ path, epoch, imageryEpoch, flags });
 		const res = await fetch(url);
@@ -31,21 +38,28 @@ self.onmessage = async (e) => {
 		const buf = new Uint8Array(await res.arrayBuffer());
 		const node = parseNode(buf);
 
-		const bitmaps = [];
-		const meshes = await Promise.all(node.meshes.map(async (m) => {
-			if (!m.texture) return { ...m, bitmap: null };
-			const bitmap = await createImageBitmap(new Blob([m.texture.data]));
-			bitmaps.push(bitmap);
-			return { ...m, bitmap };
+		const geoms = buildNodeGeometries({
+			matrix: node.matrix, meshes: node.meshes, sphereRadius, originEcef, originBasis, exclude,
+		});
+		const transfers = [];
+		const meshes = await Promise.all(node.meshes.map(async (m, i) => {
+			const g = geoms[i];
+			transfers.push(g.positions.buffer, g.indices.buffer);
+			if (g.uvs) transfers.push(g.uvs.buffer);
+			let bitmap = null;
+			if (m.texture) {
+				bitmap = await createImageBitmap(new Blob([m.texture.data]));
+				transfers.push(bitmap);
+			}
+			return { ...g, bitmap };
 		}));
 
-		// Le worker est terminé juste après ce postMessage : transférer buf.buffer
-		// ne coûte rien (plus besoin de buf ici) et évite le clonage structuré du
-		// buffer brut du protobuf (les vues qui en dépendent, ex. texture.data,
-		// sont déjà extraites dans meshes avant ce point).
+		// Les buffers construits et les bitmaps sont TRANSFÉRÉS (zéro copie).
+		// buf (le protobuf brut) meurt ici : plus rien côté fil principal n'en
+		// consomme une vue depuis que le build se fait dans ce worker.
 		self.postMessage(
 			{ id, ok: true, matrix: node.matrix, copyrightIds: node.copyrightIds, meshes },
-			[buf.buffer, ...bitmaps],
+			transfers,
 		);
 	} catch (err) {
 		// status: 404/410 = nœud absent, résultat NORMAL du protocole rocktree

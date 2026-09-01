@@ -20,7 +20,14 @@ function ensurePool() {
 		w.onmessage = (e) => {
 			const msg = e.data;
 			const p = pending.get(msg.id);
-			if (!p) return;   // réponse arrivée après annulation (Step suivant) : ignorée
+			if (!p) {
+				// Réponse arrivée après annulation : ignorée — mais ses ImageBitmap
+				// sont des ressources GPU/décodeur qui ne partent pas au GC aussi
+				// vite qu'un buffer (#187) ; les fermer explicitement, sinon une
+				// vague annulée en laisse des dizaines en vie.
+				if (msg.ok) for (const m of msg.meshes) m.bitmap?.close();
+				return;
+			}
 			pending.delete(msg.id);
 			if (!msg.ok) {
 				const err = new Error(msg.error);
@@ -49,7 +56,7 @@ function ensurePool() {
 	return workers;
 }
 
-export function fetchNode({ path, epoch, imageryEpoch, flags }, { signal } = {}) {
+export function fetchNode({ path, epoch, imageryEpoch, flags, sphereRadius, originEcef, originBasis, exclude }, { signal } = {}) {
 	if (signal?.aborted) return Promise.reject(new DOMException('aborted', 'AbortError'));
 
 	const pool = ensurePool();
@@ -75,6 +82,6 @@ export function fetchNode({ path, epoch, imageryEpoch, flags }, { signal } = {})
 			resolve: (v) => { signal?.removeEventListener('abort', onAbort); resolve(v); },
 			reject: (e) => { signal?.removeEventListener('abort', onAbort); reject(e); },
 		});
-		worker.postMessage({ id, path, epoch, imageryEpoch, flags });
+		worker.postMessage({ id, path, epoch, imageryEpoch, flags, sphereRadius, originEcef, originBasis, exclude });
 	});
 }
