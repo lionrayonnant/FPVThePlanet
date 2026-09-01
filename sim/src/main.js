@@ -108,6 +108,12 @@ export const OPTS = {
 	// plan d'implémentation pour ce qui est volontairement hors périmètre.
 	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
 };
+// `?live=foo` donnait [NaN] : origine ENU NaN, spawn NaN, requêtes rocktree sur
+// une tuile inexistante — un monde silencieusement invalide où le drone dérive
+// dans le vide sans le moindre message. Planter ici, tôt et lisiblement.
+if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
+	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
+}
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
 }
@@ -847,7 +853,15 @@ async function bootLive([lat, lon]) {
 	exposeDebugGlobal();
 	// Sans ça frame() n'est jamais programmée en mode ?live= — le drone ne
 	// vole jamais, l'écran reste figé. Miroir du dernier geste de
-	// finishBoot() pour le chemin scène.
+	// finishBoot() pour le chemin scène, y compris les deux lignes qui le
+	// précèdent là-bas et manquaient ici :
+	//  - flightActive : sinon le panneau Settings continue de manger la manette
+	//    en vol (issue #123, voir settings.js) ;
+	//  - lastTime : sans ce recalage, la 1ʳᵉ frame mesure dt depuis le
+	//    chargement du module (des secondes), clampé à 0,25 s — une bourrasque
+	//    de physique de 250 ms d'un coup au tout premier pas.
+	settings.flightActive = true;
+	lastTime = performance.now();
 	renderer.setAnimationLoop(frame);
 }
 
@@ -1156,7 +1170,12 @@ function frame() {
 				// (Tâche 8/9), pas une formule ad hoc.
 				const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
 				const droneGeo = ecefToGeodetic(...droneEcef);
-				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon });
+				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+				// lève devient une unhandled promise rejection silencieuse.
+				// Observabilité seulement : pas de retry ici (ticket de suivi).
+				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
