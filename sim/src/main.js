@@ -820,7 +820,7 @@ async function bootLive([lat, lon]) {
 
 	audio.start();
 	renderer.compile(scene, camera);
-	hud.hide();
+	hud.ready();
 	// window.__sim doit exister avant la première frame : c'est ce que toute
 	// vérification navigateur de ce dépôt lit (Tâche 11 comprise).
 	exposeDebugGlobal();
@@ -1867,7 +1867,7 @@ async function chooseScene() {
 // BOOT_SIGNATURE à sa résolution (ou immédiatement, si skip), donc jamais les
 // deux — un seul motif de démarrage par chargement de page, jamais un
 // doublon. Elle passe AVANT la résolution de l'opérateur/Home.
-if (OPTS.scene) {
+if (OPTS.scene || OPTS.live) {
 	uiAudio.armBoot();
 	const kick = () => { audio.start(); };
 	window.addEventListener('pointerdown', kick, { once: true });
@@ -1913,7 +1913,7 @@ async function startMenuMusic() {
 }
 
 async function startup() {
-	if (!OPTS.scene) {
+	if (!OPTS.scene && !OPTS.live) {
 		// Décodage lancé avant l'intro, lecture déclenchée par son gate.
 		prepareMenuMusic();
 		await runIntro(document.getElementById('ui'), {
