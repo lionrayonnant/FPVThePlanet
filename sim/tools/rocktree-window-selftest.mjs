@@ -120,4 +120,43 @@ await t('le rayon ne descend jamais sous FALLBACK_RADIUS_M une fois la latence m
 	assert.equal(win.nearestTrustedRadius(), FALLBACK_RADIUS_M - TRUST_MARGIN_M);
 });
 
+// Le curseur Settings (#182) pilote le plancher : setFloorRadiusM() doit
+// (1) remplacer le plancher rendu par nearestTrustedRadius(), et (2) invalider
+// le cache de position — sans ça, update() ignore le nouveau rayon tant que le
+// drone n'a pas bougé de REFRESH_THRESHOLD_M, et le curseur semble mort.
+await t('setFloorRadiusM() change le rayon rendu et force le recalcul au prochain update() sans déplacement (#182)', async () => {
+	// Un nœud déjà chargé ne doit PAS être re-fetché quand le rayon change —
+	// l'observable du recalcul est donc traverse(), pas fetchNode() : appelée
+	// une seconde fois, avec une zone élargie au nouveau rayon.
+	const zones = [];
+	const traverse = async (zone) => { zones.push(zone); return { nodes: [NODE_A], radius: RADIUS }; };
+	const { fetchNode, fetched } = fakeDeps({ traverseNodes: [NODE_A] });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.equal(zones.length, 1);
+	assert.equal(win.nearestTrustedRadius(), FALLBACK_RADIUS_M - TRUST_MARGIN_M);
+	win.setFloorRadiusM(500);
+	assert.equal(win.nearestTrustedRadius(), 500 - TRUST_MARGIN_M);
+	// Même position : sans l'invalidation, cet update() serait un no-op et la
+	// couronne 200→500 m ne serait jamais chargée.
+	await win.update(ORIGIN);
+	assert.equal(zones.length, 2, 'update() après setFloorRadiusM() n\'a pas re-traversé');
+	// La zone (bbox degrés, zoneOf) doit s'être élargie dans le rapport des
+	// rayons : 500/200 = 2,5.
+	const height = (z) => z.north - z.south;
+	assert.ok(Math.abs(height(zones[1]) / height(zones[0]) - 500 / FALLBACK_RADIUS_M) < 1e-9,
+		`zone pas élargie : ${height(zones[0])} → ${height(zones[1])}`);
+	// Et le nœud déjà chargé n'a pas été re-fetché.
+	assert.equal(fetched.length, 1, `re-fetch inutile : ${fetched}`);
+});
+
+// Le constructeur accepte le plancher initial (la valeur stockée du curseur) :
+// démarrer à 200 puis élargir à 300 une frame plus tard fetcherait le boot en
+// deux vagues pour rien.
+await t('floorRadiusM au constructeur : le rayon de boot est celui du curseur, pas le repli (#182)', async () => {
+	const { traverse, fetchNode } = fakeDeps({ traverseNodes: [NODE_A] });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, floorRadiusM: 300, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	assert.equal(win.nearestTrustedRadius(), 300 - TRUST_MARGIN_M);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);

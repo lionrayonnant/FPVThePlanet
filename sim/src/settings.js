@@ -10,6 +10,7 @@ const SHUTTER_KEY = 'fpvmaps.lensShutter';
 const LENS_ON_KEY = 'fpvmaps.lensOn';
 const LINK_KEY = 'fpvmaps.link';
 const LINK_MODE_KEY = 'fpvmaps.linkMode';
+const VIEW_RANGE_KEY = 'fpvmaps.viewRange';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -34,6 +35,22 @@ export const loadBrightness = () => loadPercent(BRIGHTNESS_KEY, 0.5);
 // Réglage SÉPARÉ du volume global, pour qu'on puisse baisser la musique sans
 // baisser le moteur : le vol reste un exercice d'écoute de la machine.
 export const loadMusicVolume = () => loadPercent(MUSIC_KEY, 0.7);
+
+// Distance d'affichage du mode ?live= (#182), en MÈTRES — pas un pourcentage,
+// donc pas loadPercent(). Bornes du curseur : 100-600 m. Le coût est
+// QUADRATIQUE en rayon (nœuds ∝ r², mesuré : 200 m ≈ 1032 meshes) — 600 m
+// ≈ ×9, c'est le GPU et kh.google.com de l'utilisateur, son choix. Défaut
+// 300 m : choisi par l'utilisateur à la première écoute du curseur.
+export const VIEW_RANGE_MIN_M = 100;
+export const VIEW_RANGE_MAX_M = 600;
+export function loadViewRange() {
+	try {
+		const raw = localStorage.getItem(VIEW_RANGE_KEY);
+		const saved = raw === null ? NaN : Number(raw);
+		if (Number.isFinite(saved) && saved >= VIEW_RANGE_MIN_M && saved <= VIEW_RANGE_MAX_M) return saved;
+	} catch { }
+	return 300;
+}
 
 // The FPV look is on by default — a clean rectilinear camera is the thing this
 // is here to stop looking like. Every part of it is a slider away from off, and
@@ -99,6 +116,10 @@ export class Settings {
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
 				<label>Tone <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
 				<label>Music <input id="music" type="range" min="0" max="100" step="1"> <span id="music-val"></span> %</label>
+				<div id="viewrange-row" hidden>
+					<h2>View</h2>
+					<label>Range <input id="viewrange" type="range" min="${VIEW_RANGE_MIN_M}" max="${VIEW_RANGE_MAX_M}" step="50"> <span id="viewrange-val"></span> m</label>
+				</div>
 				<button id="reset-settings">Reset settings</button>
 				<button id="close-settings">Close (Tab)</button>
 			</div>`;
@@ -112,6 +133,9 @@ export class Settings {
 			toneVal: el.querySelector('#tone-val'),
 			music: el.querySelector('#music'),
 			musicVal: el.querySelector('#music-val'),
+			viewRangeRow: el.querySelector('#viewrange-row'),
+			viewRange: el.querySelector('#viewrange'),
+			viewRangeVal: el.querySelector('#viewrange-val'),
 			padName: el.querySelector('#pad-name'),
 			padMap: el.querySelector('#pad-map'),
 		};
@@ -170,6 +194,27 @@ export class Settings {
 		this.el.tone.oninput = emit;
 		this.el.music.oninput = emit;
 		emit();
+	}
+
+	// Curseur de distance d'affichage du mode ?live= (#182). La ligne reste
+	// cachée hors mode live (le rayon de fenêtre n'existe pas pour une scène
+	// pré-cuite) : c'est CET appel, fait par bootLive(), qui la révèle.
+	// L'affichage suit le doigt (oninput) mais le callback ne part qu'au
+	// relâchement (onchange) : chaque cran déclenche traverse() + une vague de
+	// fetchs vers kh.google.com — pas pendant un glissement.
+	setViewRange(meters, onChange) {
+		this.el.viewRangeRow.hidden = false;
+		const show = () => { this.el.viewRangeVal.textContent = this.el.viewRange.value; };
+		const commit = () => {
+			const m = Number(this.el.viewRange.value);
+			show();
+			try { localStorage.setItem(VIEW_RANGE_KEY, String(m)); } catch { }
+			onChange(m);
+		};
+		this.el.viewRange.value = meters;
+		this.el.viewRange.oninput = show;
+		this.el.viewRange.onchange = commit;
+		commit();
 	}
 
 	toggleSettings(force) {

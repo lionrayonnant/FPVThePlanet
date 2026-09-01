@@ -1122,6 +1122,18 @@ Plan d'origine (contexte de la décision d'architecture) :
     objet de cette tentative.
   - Rapport complet (5ᵉ tentative, remplace celui de la 4ᵉ) :
     `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`.
+- **Curseur « View range » + spawn calé sur le sol réel** (#182) vérifiés en
+  navigateur le 2026-09-01 : curseur Settings 100–600 m (défaut 300, persisté
+  `fpvmaps.viewRange`), appliqué en vol via `setFloorRadiusM()` (selftest
+  fenêtre 8/8, rouge/vert). En chassant un blocage du boot à 300 m, deux
+  défauts pré-existants corrigés : le spawn ellipsoïdal fixe (+80 m) mettait
+  le drone SOUS le terrain à Versailles (~175 m ellipsoïdaux — chute infinie,
+  `ecefToGeodetic` → NaN, streaming gelé en silence) et gagnait de justesse
+  une course de 0,5 s au Champ de Mars (~79 m) ; `bootLive()` attend
+  maintenant le premier collider de la colonne (timeout 20 s) et cale
+  `physics.spawn` dessus, et `frame()` saute `update()` sur lat/lon non finis.
+  Vérifié à froid sur Versailles-ville (spawn recalé à 198,5 m, posé à 118 m,
+  1568 meshes) et Caen (1543 meshes) à 300 m.
 
 ## Non vérifié / à faire
 

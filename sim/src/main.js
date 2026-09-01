@@ -8,7 +8,7 @@ import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
-import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink } from './settings.js';
+import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
@@ -771,11 +771,10 @@ async function bootLive([lat, lon]) {
 	// avant même la première requête réseau vers kh.google.com (#174).
 	await initPhysics();
 	const emptyCollision = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
-	// Spawn à 80 m au-dessus du point demandé : aucun relief n'est encore
-	// chargé au moment de la construction de Physics (le premier nœud rocktree
-	// arrive de façon asynchrone, après), donc pas de hauteur de terrain
-	// connaissable ici. 80 m est CHOISI — assez pour dominer un immeuble
-	// parisien courant, à revoir si un terrain plus haut est visé.
+	// Position PROVISOIRE : aucun relief n'est chargé au moment de la
+	// construction de Physics. Le vrai point de spawn est calé sur le sol réel
+	// plus bas, une fois le premier collider de la colonne arrivé (#182) —
+	// cette valeur ne survit que si aucun sol n'apparaît (spawn en mer).
 	physics = new Physics(emptyCollision, { x: 0, y: 80, z: 0 }, PROFILE ? { profile: PROFILE } : {});
 	PROFILE = physics.profile;
 	audio.setProfile(physics.profile);
@@ -795,6 +794,10 @@ async function bootLive([lat, lon]) {
 	const rocktreeWindow = new RocktreeWindow({
 		level: ROCKTREE_LEVEL,
 		origin: { lat, lon },
+		// La distance d'affichage vient du curseur Settings (#182), dès le boot
+		// — démarrer au repli puis élargir une frame plus tard fetcherait le
+		// boot en deux vagues.
+		floorRadiusM: loadViewRange(),
 		onNodeReady: (path, matrix, meshes, sphereRadius) => {
 			const built = buildNodeMesh(path, matrix, meshes, sphereRadius, rocktreeWindow.originEcef, rocktreeWindow.originBasis);
 			for (const { mesh, colliderPath, vertices, indices } of built) {
@@ -815,19 +818,49 @@ async function bootLive([lat, lon]) {
 		},
 	});
 	liveWindow = rocktreeWindow;
+	// Révèle le curseur « View range » (caché hors mode live) et le branche :
+	// setFloorRadiusM() invalide le cache de position de la fenêtre, le
+	// prochain update() de frame() charge la couronne manquante (ou libère
+	// l'excédent) sans redémarrage.
+	settings.setViewRange(loadViewRange(), (m) => rocktreeWindow.setFloorRadiusM(m));
 	// Amorce la fenêtre autour du spawn avant la première frame : sans ce
 	// premier appel, le drone tombe dans le vide jusqu'au premier update()
 	// de la boucle de rendu.
 	await rocktreeWindow.update({ lat, lon });
 
+	// Attend le SOL RÉEL avant de lâcher le drone (#182). L'origine ENU est à
+	// l'altitude 0 de l'ellipsoïde et le spawn à +80 m — or le terrain, lui,
+	// est où il veut : ~175 m ellipsoïdaux à Versailles (spawn 95 m SOUS le
+	// sol, chute sans fin), ~79 m au Champ de Mars (1 m de marge, une course
+	// de 0,5 s entre la chute et le premier collider — perdue à froid dès que
+	// la vague de boot grossit, cf. le curseur de distance). update() ci-dessus
+	// n'attend PAS les fetchs : on guette donc le premier collider dans la
+	// colonne du spawn, puis on cale le point de spawn dessus. Timeout généreux
+	// (réseau froid) ; au-delà, on garde l'ancien comportement plutôt que de
+	// bloquer le boot pour toujours (spawn en mer : aucun sol ne viendra).
+	const SPAWN_ABOVE_GROUND_M = 80;
+	const groundDeadline = performance.now() + 20000;
+	let groundHere = null;
+	while (groundHere === null && performance.now() < groundDeadline) {
+		groundHere = physics.groundBelow(0, 3000, 0, 6000);
+		if (groundHere === null) await new Promise((r) => setTimeout(r, 250));
+	}
+	if (groundHere !== null) {
+		// physics.reset() renvoie au spawn ET re-prime les moteurs — c'est
+		// aussi ce que la touche R rejouera : muter spawn.y d'abord, pour que
+		// les respawns retombent au-dessus du sol réel, pas de l'ellipsoïde.
+		physics.spawn.y = groundHere + SPAWN_ABOVE_GROUND_M;
+		physics.reset();
+	} else {
+		console.warn('[rocktree] aucun sol sous le spawn après 20 s — spawn ellipsoïdal conservé');
+	}
+
 	// Le chemin scène le pose dans finishBoot() (avec en plus une recherche de
 	// plafond pour les spawns sous un pont — hors périmètre ici). frame() lit
 	// emitter.x/y/z SANS garde, hors du bloc `if (!frozen)` (obstructionBetween
 	// pour le lien) — resté à `null` (sa valeur de départ), il plante dès la
-	// première frame. Le premier rocktreeWindow.update() ci-dessus vient de
-	// poser les colliders sous le spawn ; s'il n'y en a encore aucun pile sous
-	// (x=0, z=0), retomber sur le point de spawn lui-même plutôt que null.
-	const groundHere = physics.groundBelow(0, 80, 0);
+	// première frame. S'il n'y a aucun collider pile sous (x=0, z=0), retomber
+	// sur le point de spawn lui-même plutôt que null.
 	emitter = { x: 0, y: (groundHere !== null ? groundHere : physics.spawn.y) + ANTENNA_HEIGHT, z: 0 };
 
 	// Boucle de vol : frame() lit fence.*/controller.* sans garde nulle part
@@ -1170,12 +1203,20 @@ function frame() {
 				// (Tâche 8/9), pas une formule ad hoc.
 				const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
 				const droneGeo = ecefToGeodetic(...droneEcef);
-				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
-				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
-				// lève devient une unhandled promise rejection silencieuse.
-				// Observabilité seulement : pas de retry ici (ticket de suivi).
-				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
-					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
+				// Garde (#182) : une position dégénérée (drone passé sous le terrain
+				// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
+				// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
+				// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
+				// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
+				// dernière position saine que la vider.
+				if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+					// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+					// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+					// lève devient une unhandled promise rejection silencieuse.
+					// Observabilité seulement : pas de retry ici (ticket de suivi).
+					liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+						.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
+				}
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
