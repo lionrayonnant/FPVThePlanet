@@ -1063,21 +1063,32 @@ Plan d'origine (contexte de la décision d'architecture) :
   `issue-170-rocktree-window`, 11 tâches TDD). Les 10 premières tâches
   (`RocktreeWindow`, pool de Workers, `buildNodeMesh`, `physics.
   addNodeCollider`/`removeNodeCollider`, entrée `?live=lat,lon`) sont vertes
-  en tests headless mais **jamais vérifiées en conditions réelles** : la
-  Tâche 11 (vérification navigateur — Worker réel, `fetch()` réel vers
-  `kh.google.com`, Rapier réel, pilotage effectif) tentée le 2026-09-01 est
-  **BLOQUÉE** par un bug trouvé pendant cette vérification, pas par
-  l'environnement : `bootLive()` (`src/main.js`) construit `physics = new
-  Physics(...)` sans jamais appeler `await initPhysics()` au préalable
-  (contrairement à `preloadScene()`, qui l'appelle avant `finishBoot()`) —
-  `new RAPIER.World(...)` échoue alors sur un module WASM non initialisé
-  (`TypeError: Cannot read properties of undefined (reading
-  'rawintegrationparameters_new')`), avant même la première requête réseau
-  rocktree. `window.__sim` n'existe jamais, `nodeMeshCount` reste à 0, aucun
-  pilotage ni vérification de collision possibles. Diagnostic complet :
+  en tests headless mais **jamais vérifiées en conditions réelles**. Deux
+  tentatives de Tâche 11 (vérification navigateur — Worker réel, `fetch()`
+  réel vers `kh.google.com`, Rapier réel, pilotage effectif), toutes deux
+  **BLOQUÉES** par un bug trouvé pendant la vérification elle-même, pas par
+  l'environnement :
+  - **1ʳᵉ tentative (2026-09-01)** : `bootLive()` construisait `physics = new
+    Physics(...)` sans jamais appeler `await initPhysics()` au préalable —
+    `new RAPIER.World(...)` échouait sur un module WASM non initialisé, avant
+    même la première requête réseau rocktree. Corrigé (#174, commit
+    `ef5fbaf`).
+  - **2ᵉ tentative (2026-09-01, après correctif #174)** : `initPhysics()`
+    fonctionne désormais, mais `?live=` ne saute pas `runIntro()` (seul
+    `OPTS.scene` est testé dans `startup()`) — un geste `PRESS ANY KEY` reste
+    nécessaire (contourné en pilotage par la touche envoyée par l'outil de
+    contrôle navigateur). Une fois ce geste passé, l'animation demoscene du
+    titre se termine sur l'écran d'erreur intégré de l'app : `hud.hide is not
+    a function` — `bootLive()` (`src/main.js:823`) appelle `hud.hide()`, une
+    méthode qui n'a jamais existé sur `Hud` (le chemin scène utilise
+    `hud.ready()`, qui masque l'écran de chargement). `window.__sim` n'existe
+    toujours jamais, `nodeMeshCount` reste à 0, aucun pilotage ni vérification
+    de collision possibles — le crash a lieu avant tout appel à
+    `rocktreeWindow.update()`. Diagnostic complet et correctif suggéré : #175.
+
+  Rapport complet de la 2ᵉ tentative (remplace celui de la 1ʳᵉ) :
   `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`,
-  issue de suivi #174 (correctif suggéré : `await initPhysics();` en tête de
-  `bootLive()`), commentaire sur #173.
+  commentaire sur #173.
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
   Le monde répond : retard, quantité et couleur des réflexions suivent la
   géométrie.
