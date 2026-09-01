@@ -1149,6 +1149,25 @@ Plan d'origine (contexte de la décision d'architecture) :
   longtasks 726 → ≤ 72 ms (reste : parse de `traverse()` sur le fil
   principal, ticket de suivi avec la politique de retry des fetchs).
 
+- **Streaming ?live= : plus aucun gel mesurable en vol** (#187, vérifié
+  navigateur le 2026-09-01). Baseline : gels continus de 60-105 ms pendant
+  chaque vague. Causes trouvées par ventilation instrumentée puis piles du
+  profileur : (1) le build géométrique par nœud sur le fil principal →
+  déplacé dans les Workers du pool (`tools/lib/rocktree/build-node.mjs`,
+  selftest de PARITÉ contre le décodeur de référence sur fixtures) ;
+  (2) `traverse()` sur le fil principal → Worker dédié
+  (`rocktree-traverse-worker.js` + client paresseux, sûr à l'import Node) ;
+  (3) SURTOUT : le drain + la géodésie + le dispatch d'update tournaient
+  DANS la boucle d'accumulation physique — une fois PAR STEP, ×12-15 en
+  rattrapage, ce qui entretenait la spirale → une fois par frame ;
+  (4) refit du query-BVH par add/remove de collider (164 ms/vague) → un
+  `flushNodeColliders()` par frame ; (5) mipmaps des tuiles live (pire item
+  du budget, 4,6 ms) → coupés, `LinearFilter` (grain léger à la
+  minification, pas de moiré à l'échelle d'une fenêtre ≤ 600 m — regardé ;
+  réversible en une ligne) ; + `matrixAutoUpdate=false` et boundingSphere
+  précalculée dans le Worker. Résultat mesuré : 3 frames > 17 ms sur 2392
+  (pire 31 ms, GC) sur deux vagues aller-retour de ~600 nœuds.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
