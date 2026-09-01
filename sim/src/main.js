@@ -787,9 +787,28 @@ async function bootLive([lat, lon]) {
 	// de la boucle de rendu.
 	await rocktreeWindow.update({ lat, lon });
 
+	// Boucle de vol : frame() lit fence.*/controller.* sans garde nulle part
+	// (elle suppose toujours une scène pré-cuite complète) — le mode ?live=
+	// doit donc lui fournir de vraies instances, pas les laisser null.
+	// Geofence avec une bbox démesurée : le VRAI code testé (pas un stub),
+	// mais dimensionné pour ne jamais s'engager (scale plafonne à 1, le
+	// drone n'approche jamais un bord à 1000 km) — zone toujours NOMINAL,
+	// push toujours nul. Cohérent avec le hors-périmètre explicite du plan
+	// ("pas de Geofence" en mode direct) : elle existe juste pour ne pas
+	// planter frame(), elle n'agit jamais.
+	fence = new Geofence({ min: [-1e6, -1e6, -1e6], max: [1e6, 1e6, 1e6] });
+	// Pas de sélection TARGET SCAN en mode direct : rates par défaut du
+	// contrôleur (opts.rates est optionnel dans flightController.js,
+	// retombe sur RATE_PRESETS[this.preset]).
+	controller = new FlightController({ profile: PROFILE });
+
 	audio.start();
 	renderer.compile(scene, camera);
 	hud.hide();
+	// Sans ça frame() n'est jamais programmée en mode ?live= — le drone ne
+	// vole jamais, l'écran reste figé. Miroir du dernier geste de
+	// finishBoot() pour le chemin scène.
+	renderer.setAnimationLoop(frame);
 }
 
 // Yields long enough for the loading screen to actually repaint.
