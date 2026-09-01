@@ -120,6 +120,16 @@ export class RocktreeWindow {
 		this._lastPos = null;
 	}
 
+	// Nombre de fetchs encore en vol (#189) : ce que bootLive() attend
+	// derrière l'écran de chargement avant de lâcher le drone — décoller
+	// au-dessus d'un monde à trous, c'est atterrir dedans (passage sous la
+	// carte mesuré à Lyon, churn de fenêtre infini ensuite).
+	pendingCount() {
+		let count = 0;
+		for (const entry of this._nodes.values()) if (entry.status === 'pending') count++;
+		return count;
+	}
+
 	// Rayon de CONFIANCE, distinct du rayon de chargement ci-dessus : « radius
 	// moins une marge de sécurité » (la spec). C'est ce que l'appelant compare à
 	// distance(drone, windowCenterLocal) pour le rappel doux — donc il doit

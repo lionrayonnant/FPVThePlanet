@@ -192,4 +192,23 @@ await t('_fetchNode reçoit sphereRadius/originEcef/originBasis avec le nœud (#
 	assert.deepEqual(got[0].originBasis, win.originBasis);
 });
 
+// pendingCount() (#189) : ce que bootLive() attend derrière l'écran de
+// chargement — le nombre de fetchs encore en vol. Sans lui, le drone est
+// lâché dès le premier collider de sa colonne et peut atterrir dans un trou
+// pas encore construit (passage sous la carte, churn infini mesuré à Lyon).
+await t('pendingCount() suit les fetchs en vol : n pendant, 0 une fois résolus (#189)', async () => {
+	const { traverse } = fakeDeps({ traverseNodes: [NODE_A, NODE_B] });
+	let release;
+	const gate = new Promise((r) => { release = r; });
+	const fetchNode = async () => { await gate; return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	assert.equal(win.pendingCount(), 0);
+	await win.update(ORIGIN);
+	assert.equal(win.pendingCount(), 2, 'deux fetchs dispatchés, encore en vol');
+	release();
+	// laisse les continuations async retomber
+	await new Promise((r) => setTimeout(r, 20));
+	assert.equal(win.pendingCount(), 0, 'tous résolus');
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
