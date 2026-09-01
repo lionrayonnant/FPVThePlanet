@@ -43,6 +43,10 @@ import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
+import { unpackVertices, unpackIndices } from '../tools/lib/rocktree/unpack.mjs';
+import { sphereToWgs84Ecef, ecefToLocalEnu, localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
+import { push as rocktreeFencePush } from './rocktree-fence.js';
+import { RocktreeWindow } from './rocktree-window.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -99,7 +103,17 @@ export const OPTS = {
 		const d = params.has('date') ? new Date(params.get('date')) : null;
 		return d && Number.isFinite(d.getTime()) ? d : null;
 	})(),
+	// Dev-only : ?live=48.8584,2.2945 vole en direct depuis rocktree, sans
+	// scène pré-cuite (#168). Pas de météo/geofence/écran de crédit — voir le
+	// plan d'implémentation pour ce qui est volontairement hors périmètre.
+	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
 };
+// `?live=foo` donnait [NaN] : origine ENU NaN, spawn NaN, requêtes rocktree sur
+// une tuile inexistante — un monde silencieusement invalide où le drone dérive
+// dans le vide sans le moindre message. Planter ici, tôt et lisiblement.
+if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
+	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
+}
 if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
 }
@@ -168,6 +182,8 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
+const liveMeshes = new Map();   // colliderPath -> THREE.Mesh, mode ?live= (#168)
+let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
 // Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
 // a ni clôture ni horizon à dessiner.
@@ -345,185 +361,13 @@ async function preloadScene(slug) {
 // hold that already follows TARGET SCAN. Takes preloadScene()'s return value
 // (or its promise — awaited here, not by the caller) so the two stages chain
 // without the caller needing to know boot() is split in two.
-async function finishBoot(preloading) {
-	const { manifest, meshes, collision, t0 } = await preloading;
-
-	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
-	// de cet instant la zone est engagée, on ne revient plus en arrière.
-	sceneManifest = manifest;
-	fpvtpOsd.setCredit(creditText(manifest));
-	for (const m of meshes) scene.add(m);
-
-	// In the scene, not over it: the streaks go through the RenderPass, so the
-	// lens distorts, vignettes, smears and breaks them up like everything else,
-	// and the city occludes them.
-	rainfall = new Rainfall(scene, { sky: SKY });
-	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
-
-	stage('collision-build');
-	hud.progress('construction de l’arbre de collision…', 0.76);
-	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
-	await nextPaint();
-	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
-	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
-	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
-	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
-	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
-	PROFILE = physics.profile;
-	audio.setProfile(physics.profile);
-	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
-	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
-	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
-	// pur) chaque fois que boot() fixe l'appareil pour la session.
-	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
-	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
-
-	// Les limites de la zone (#139). Construites AVANT le tirage du point
-	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
-	// sert désormais pour ne jamais naître dans l'avertissement.
-	fence = new Geofence(manifest.bbox);
-	const ec = fence.effectiveCorridor;
-	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
-		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
-	// Et ce qu'on voit au-delà du dernier chunk. Monté ici, avant le
-	// renderer.compile() de la fin du chargement : sa matière doit compiler
-	// derrière l'écran de chargement, pas à la première frame de vol.
-	//
-	// Un seul par page : finishBoot() n'est appelé qu'une fois (ses deux
-	// appelants s'excluent) et changer de zone recharge la page. Si un
-	// démontage de scène apparaît un jour, il devra faire dispose() PUIS
-	// setDistantGround(null) — l'enregistrement de loader.js ne doit pas
-	// survivre à l'objet, setFog/setNight/setDim écriraient sur une matière
-	// libérée.
-	//
-	// La météo n'a pas encore été appliquée à ce stade : ces deux valeurs sont
-	// l'air clair du départ, et la première frame les réécrit toutes les deux
-	// par setFog() (lastDensity/lastSkyHex partent à -1, donc elle passe).
-	distantGround = new DistantGround(scene, manifest.bbox, {
-		fogColor: scene.background, fogDensity: fog.density,
-	});
-	setDistantGround(distantGround);
-
-	physics.applyEntryState(generateEntryState({
-		physics,
-		manifest,
-		seed: Math.random().toString(16).slice(2, 12),
-	}));
-
-	// Where the pilot is standing, plus antenna height. A spawn under a bridge
-	// or an arch would put the ground station inside geometry and leave the link
-	// dead from the first frame, so look for a ceiling first and stand on top of
-	// it if there is one.
-	const sp = physics.spawn;
-	const ceiling = physics.groundBelow(sp.x, sp.y + 40, sp.z, 40);
-	emitter = {
-		x: sp.x,
-		y: (ceiling !== null && ceiling > sp.y + 2 ? ceiling : sp.y) + ANTENNA_HEIGHT,
-		z: sp.z,
-	};
-
-	// Textures only reach the GPU on first use. Doing it here, one chunk at a
-	// time, turns an invisible multi-second freeze into visible progress.
-	stage('gpu-upload');
-	hud.detail('');
-	for (let i = 0; i < meshes.length; i++) {
-		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
-		await nextPaint();
-		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
-	}
-
-	// compileAsync() polls the driver's KHR_parallel_shader_compile status every
-	// 10ms and only resolves once it reports ready — on drivers that never flip
-	// that flag it waits forever. compile() does the same work synchronously and
-	// always returns, so use that instead.
-	stage('shader-compile');
-	hud.progress('compilation du shader…', 0.95);
-	await nextPaint();
-	renderer.compile(scene, camera);
-
-	// Draw one frame here so any remaining driver-side work happens behind the
-	// loading screen rather than as a frozen first frame.
-	// Draw one frame here so any remaining driver-side work happens behind the
-	// loading screen rather than as a frozen first frame.
-	stage('first-frame');
-	hud.progress('premier rendu…', 0.98);
-	hud.detail('');
-	await nextPaint();
-	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
-	// Through the composer, not the renderer: otherwise the lens pass compiles its
-	// shader on the first frame of flight instead of behind the loading screen.
-	lens.render(camera, 1 / 60);
-
-	stage('done');
-	freeCam = new OrbitControls(camera, renderer.domElement);
-	freeCam.enabled = false;
-	freeCam.target.set(0, 0, 0);
-
-	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
-	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
-	// qu'écrire les paramètres des trois modèles, qui n'ont pas changé.
-	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
-	// de zone que celle vue par le terminal avant le décollage.
-	const o = manifest.origin ?? {};
-	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
-	// météo, et la seule chose dont la position du soleil a besoin en plus de
-	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
-	// fonction de l'instant UTC et du lieu, point.
-	sun = SunField.forOrigin(o);
-	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
-	if (weather) {
-		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
-			+ `${headline(weather.days[0])}`, applied);
-	} else {
-		// Scène sans origine connue : monde neutre plutôt que météo inventée.
-		physics.setWeather(CALM.wind);
-		rain.setParams(CALM.rain);
-		fog.setParams(CALM.fog);
-		cloud.setParams(CALM.cloud);
-		sun?.setWeather(CALM.sun);
-	}
-
-	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
-	// (loader.js) à leurs valeurs par défaut (uDim=1, uNight=0) : setFog/setDim/
-	// setNight ne les a jamais touchés. La boucle de rendu ne les pousse que
-	// sur CHANGEMENT (lastDensity/lastSkyHex/lastDim/lastNight ci-dessous) — si
-	// la nuit était déjà installée à la scène précédente, la valeur n'a pas
-	// changé et ces matériaux restent bloqués à leurs défauts pour toujours.
-	// Invalider le cache force le prochain frame à les resynchroniser même
-	// quand la valeur elle-même n'a pas bougé depuis la scène d'avant.
-	lastDensity = NaN;
-	lastSkyHex = NaN;
-	lastDim = NaN;
-	lastNight = NaN;
-
-	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
-		audio.setVolume(volume);
-		audio.setBrightness(brightness);
-		music.setVolume(musicVolume);
-	});
-
-	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
-	// une fois ici depuis leurs valeurs stockées (cf. settings.js).
-	const lensCfg = loadLens();
-	const lensParams = { on: lensCfg.on, lens: lensCfg.lens, vignette: lensCfg.vignette, shutter: lensCfg.shutter / 1000 };
-	lens.setEnabled(lensParams.on);
-	lens.setParams(lensParams);
-	lensShutter = lensParams.shutter;
-
-	const linkCfg = loadLink();
-	link.setSeverity(linkCfg.severity);
-	// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
-	// même si le joueur a coupé la modélisation du lien.
-	lensLinkMode = linkCfg.severity === 0 ? LINK_OFF
-		: linkCfg.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
-	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
-
-
-	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
-	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
-	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-
+// Extrait pour être appelable aussi depuis bootLive() (#168, #170) — mode
+// ?live= sans finishBoot(). Même objet de contrôle/debug des deux côtés ;
+// certains champs (weather, distantGround, sun, rain, fog, cloud) restent
+// null en mode direct, ce qui ne pose problème que si un appelant invoque
+// debug()/teleport()/setWeather() dans ce mode — aucune vérification
+// existante ne le fait.
+function exposeDebugGlobal() {
 	window.__sim = {
 		physics, controller, camera, renderer, scene, input, timeline, audio, music, space, lens, link, rain, fog, cloud, sun,
 		fence, distantGround,
@@ -710,6 +554,188 @@ async function finishBoot(preloading) {
 		},
 	};
 	window.__simInput = null;
+}
+
+async function finishBoot(preloading) {
+	const { manifest, meshes, collision, t0 } = await preloading;
+
+	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
+	// de cet instant la zone est engagée, on ne revient plus en arrière.
+	sceneManifest = manifest;
+	fpvtpOsd.setCredit(creditText(manifest));
+	for (const m of meshes) scene.add(m);
+
+	// In the scene, not over it: the streaks go through the RenderPass, so the
+	// lens distorts, vignettes, smears and breaks them up like everything else,
+	// and the city occludes them.
+	rainfall = new Rainfall(scene, { sky: SKY });
+	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
+
+	stage('collision-build');
+	hud.progress('construction de l’arbre de collision…', 0.76);
+	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
+	await nextPaint();
+	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
+	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
+	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
+	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
+	PROFILE = physics.profile;
+	audio.setProfile(physics.profile);
+	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
+	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
+	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
+	// pur) chaque fois que boot() fixe l'appareil pour la session.
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+
+	// Les limites de la zone (#139). Construites AVANT le tirage du point
+	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
+	// sert désormais pour ne jamais naître dans l'avertissement.
+	fence = new Geofence(manifest.bbox);
+	const ec = fence.effectiveCorridor;
+	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
+		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
+	// Et ce qu'on voit au-delà du dernier chunk. Monté ici, avant le
+	// renderer.compile() de la fin du chargement : sa matière doit compiler
+	// derrière l'écran de chargement, pas à la première frame de vol.
+	//
+	// Un seul par page : finishBoot() n'est appelé qu'une fois (ses deux
+	// appelants s'excluent) et changer de zone recharge la page. Si un
+	// démontage de scène apparaît un jour, il devra faire dispose() PUIS
+	// setDistantGround(null) — l'enregistrement de loader.js ne doit pas
+	// survivre à l'objet, setFog/setNight/setDim écriraient sur une matière
+	// libérée.
+	//
+	// La météo n'a pas encore été appliquée à ce stade : ces deux valeurs sont
+	// l'air clair du départ, et la première frame les réécrit toutes les deux
+	// par setFog() (lastDensity/lastSkyHex partent à -1, donc elle passe).
+	distantGround = new DistantGround(scene, manifest.bbox, {
+		fogColor: scene.background, fogDensity: fog.density,
+	});
+	setDistantGround(distantGround);
+
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
+
+	// Where the pilot is standing, plus antenna height. A spawn under a bridge
+	// or an arch would put the ground station inside geometry and leave the link
+	// dead from the first frame, so look for a ceiling first and stand on top of
+	// it if there is one.
+	const sp = physics.spawn;
+	const ceiling = physics.groundBelow(sp.x, sp.y + 40, sp.z, 40);
+	emitter = {
+		x: sp.x,
+		y: (ceiling !== null && ceiling > sp.y + 2 ? ceiling : sp.y) + ANTENNA_HEIGHT,
+		z: sp.z,
+	};
+
+	// Textures only reach the GPU on first use. Doing it here, one chunk at a
+	// time, turns an invisible multi-second freeze into visible progress.
+	stage('gpu-upload');
+	hud.detail('');
+	for (let i = 0; i < meshes.length; i++) {
+		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
+		await nextPaint();
+		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
+	}
+
+	// compileAsync() polls the driver's KHR_parallel_shader_compile status every
+	// 10ms and only resolves once it reports ready — on drivers that never flip
+	// that flag it waits forever. compile() does the same work synchronously and
+	// always returns, so use that instead.
+	stage('shader-compile');
+	hud.progress('compilation du shader…', 0.95);
+	await nextPaint();
+	renderer.compile(scene, camera);
+
+	// Draw one frame here so any remaining driver-side work happens behind the
+	// loading screen rather than as a frozen first frame.
+	// Draw one frame here so any remaining driver-side work happens behind the
+	// loading screen rather than as a frozen first frame.
+	stage('first-frame');
+	hud.progress('premier rendu…', 0.98);
+	hud.detail('');
+	await nextPaint();
+	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
+	// Through the composer, not the renderer: otherwise the lens pass compiles its
+	// shader on the first frame of flight instead of behind the loading screen.
+	lens.render(camera, 1 / 60);
+
+	stage('done');
+	freeCam = new OrbitControls(camera, renderer.domElement);
+	freeCam.enabled = false;
+	freeCam.target.set(0, 0, 0);
+
+	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
+	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
+	// qu'écrire les paramètres des trois modèles, qui n'ont pas changé.
+	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
+	// de zone que celle vue par le terminal avant le décollage.
+	const o = manifest.origin ?? {};
+	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
+	// météo, et la seule chose dont la position du soleil a besoin en plus de
+	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
+	// fonction de l'instant UTC et du lieu, point.
+	sun = SunField.forOrigin(o);
+	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
+	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
+	if (weather) {
+		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
+			+ `${headline(weather.days[0])}`, applied);
+	} else {
+		// Scène sans origine connue : monde neutre plutôt que météo inventée.
+		physics.setWeather(CALM.wind);
+		rain.setParams(CALM.rain);
+		fog.setParams(CALM.fog);
+		cloud.setParams(CALM.cloud);
+		sun?.setWeather(CALM.sun);
+	}
+
+	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
+	// (loader.js) à leurs valeurs par défaut (uDim=1, uNight=0) : setFog/setDim/
+	// setNight ne les a jamais touchés. La boucle de rendu ne les pousse que
+	// sur CHANGEMENT (lastDensity/lastSkyHex/lastDim/lastNight ci-dessous) — si
+	// la nuit était déjà installée à la scène précédente, la valeur n'a pas
+	// changé et ces matériaux restent bloqués à leurs défauts pour toujours.
+	// Invalider le cache force le prochain frame à les resynchroniser même
+	// quand la valeur elle-même n'a pas bougé depuis la scène d'avant.
+	lastDensity = NaN;
+	lastSkyHex = NaN;
+	lastDim = NaN;
+	lastNight = NaN;
+
+	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
+		audio.setVolume(volume);
+		audio.setBrightness(brightness);
+		music.setVolume(musicVolume);
+	});
+
+	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
+	// une fois ici depuis leurs valeurs stockées (cf. settings.js).
+	const lensCfg = loadLens();
+	const lensParams = { on: lensCfg.on, lens: lensCfg.lens, vignette: lensCfg.vignette, shutter: lensCfg.shutter / 1000 };
+	lens.setEnabled(lensParams.on);
+	lens.setParams(lensParams);
+	lensShutter = lensParams.shutter;
+
+	const linkCfg = loadLink();
+	link.setSeverity(linkCfg.severity);
+	// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
+	// même si le joueur a coupé la modélisation du lien.
+	lensLinkMode = linkCfg.severity === 0 ? LINK_OFF
+		: linkCfg.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
+	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
+
+
+	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
+	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
+	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+
+	exposeDebugGlobal();
 
 	hud.ready();
 	// À partir d'ici les sticks pilotent le drone : le panneau Settings ouvert
@@ -725,6 +751,118 @@ async function finishBoot(preloading) {
 // before the PHASE 13 split.
 async function boot(slug) {
 	return finishBoot(preloadFor(slug));
+}
+
+// Niveau d'octree constant pour ce jalon (Global Constraints) — la vraie
+// sélection de LOD par distance/altitude reste un ticket de suivi. 21 :
+// ZOOM_TO_LEVEL[20] dans google-earth.mjs — le niveau que produit le zoom
+// par défaut d'`add-map` (CLAUDE.md, --zoom 20), donc déjà le niveau que
+// toutes les cartes existantes utilisent couramment.
+const ROCKTREE_LEVEL = 21;
+
+// Boot minimal pour ?live=lat,lon (#168) : pas de manifest, pas de
+// collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
+// spawn — pas de recentrage en vol (hors périmètre, voir la spec).
+async function bootLive([lat, lon]) {
+	// Le chemin scène le fait dans preloadScene() (avant tout usage de
+	// Rapier/Physics) — bootLive() ne passe jamais par preloadScene(), donc
+	// jamais par cet appel sans le reproduire ici. Sans lui, `new
+	// Physics(...)` plante immédiatement (module WASM Rapier non initialisé),
+	// avant même la première requête réseau vers kh.google.com (#174).
+	await initPhysics();
+	const emptyCollision = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
+	// Spawn à 80 m au-dessus du point demandé : aucun relief n'est encore
+	// chargé au moment de la construction de Physics (le premier nœud rocktree
+	// arrive de façon asynchrone, après), donc pas de hauteur de terrain
+	// connaissable ici. 80 m est CHOISI — assez pour dominer un immeuble
+	// parisien courant, à revoir si un terrain plus haut est visé.
+	physics = new Physics(emptyCollision, { x: 0, y: 80, z: 0 }, PROFILE ? { profile: PROFILE } : {});
+	PROFILE = physics.profile;
+	audio.setProfile(physics.profile);
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+	// Le chemin scène le fait via applyEntryState() (finishBoot(), plus haut) —
+	// reset() en est le cas simple (spawn/identité/zéro, déjà ce que le
+	// constructeur pose) mais il fait AUSSI this.propulsion.primeFor(hoverThrottle(...)),
+	// ce que le constructeur seul ne fait pas : sans lui les 4 moteurs
+	// démarrent à omega=0/thrust=0 (« à froid ») et doivent remonter par le
+	// lag moteur réaliste de quad.js avant de produire une poussée utile.
+	// Mesuré : même à throttle 0.85 soutenu dès la 1ʳᵉ frame, le drone
+	// s'écrase avant que les moteurs n'aient rattrapé leur retard — la marge
+	// de 80 m au-dessus du sol (commentaire ci-dessus) est mangée par ce
+	// retard, pas par un défaut du maillage de collision.
+	physics.reset();
+
+	const rocktreeWindow = new RocktreeWindow({
+		level: ROCKTREE_LEVEL,
+		origin: { lat, lon },
+		onNodeReady: (path, matrix, meshes, sphereRadius) => {
+			const built = buildNodeMesh(path, matrix, meshes, sphereRadius, rocktreeWindow.originEcef, rocktreeWindow.originBasis);
+			for (const { mesh, colliderPath, vertices, indices } of built) {
+				scene.add(mesh);
+				physics.addNodeCollider(colliderPath, vertices, indices);
+				liveMeshes.set(colliderPath, mesh);
+			}
+		},
+		onNodeReleased: (path) => {
+			for (const [colliderPath, mesh] of [...liveMeshes.entries()]) {
+				if (!colliderPath.startsWith(`${path}#`)) continue;
+				scene.remove(mesh);
+				mesh.geometry.dispose();
+				mesh.material.dispose();
+				physics.removeNodeCollider(colliderPath);
+				liveMeshes.delete(colliderPath);
+			}
+		},
+	});
+	liveWindow = rocktreeWindow;
+	// Amorce la fenêtre autour du spawn avant la première frame : sans ce
+	// premier appel, le drone tombe dans le vide jusqu'au premier update()
+	// de la boucle de rendu.
+	await rocktreeWindow.update({ lat, lon });
+
+	// Le chemin scène le pose dans finishBoot() (avec en plus une recherche de
+	// plafond pour les spawns sous un pont — hors périmètre ici). frame() lit
+	// emitter.x/y/z SANS garde, hors du bloc `if (!frozen)` (obstructionBetween
+	// pour le lien) — resté à `null` (sa valeur de départ), il plante dès la
+	// première frame. Le premier rocktreeWindow.update() ci-dessus vient de
+	// poser les colliders sous le spawn ; s'il n'y en a encore aucun pile sous
+	// (x=0, z=0), retomber sur le point de spawn lui-même plutôt que null.
+	const groundHere = physics.groundBelow(0, 80, 0);
+	emitter = { x: 0, y: (groundHere !== null ? groundHere : physics.spawn.y) + ANTENNA_HEIGHT, z: 0 };
+
+	// Boucle de vol : frame() lit fence.*/controller.* sans garde nulle part
+	// (elle suppose toujours une scène pré-cuite complète) — le mode ?live=
+	// doit donc lui fournir de vraies instances, pas les laisser null.
+	// Geofence avec une bbox démesurée : le VRAI code testé (pas un stub),
+	// mais dimensionné pour ne jamais s'engager (scale plafonne à 1, le
+	// drone n'approche jamais un bord à 1000 km) — zone toujours NOMINAL,
+	// push toujours nul. Cohérent avec le hors-périmètre explicite du plan
+	// ("pas de Geofence" en mode direct) : elle existe juste pour ne pas
+	// planter frame(), elle n'agit jamais.
+	fence = new Geofence({ min: [-1e6, -1e6, -1e6], max: [1e6, 1e6, 1e6] });
+	// Pas de sélection TARGET SCAN en mode direct : rates par défaut du
+	// contrôleur (opts.rates est optionnel dans flightController.js,
+	// retombe sur RATE_PRESETS[this.preset]).
+	controller = new FlightController({ profile: PROFILE });
+
+	audio.start();
+	renderer.compile(scene, camera);
+	hud.ready();
+	// window.__sim doit exister avant la première frame : c'est ce que toute
+	// vérification navigateur de ce dépôt lit (Tâche 11 comprise).
+	exposeDebugGlobal();
+	// Sans ça frame() n'est jamais programmée en mode ?live= — le drone ne
+	// vole jamais, l'écran reste figé. Miroir du dernier geste de
+	// finishBoot() pour le chemin scène, y compris les deux lignes qui le
+	// précèdent là-bas et manquaient ici :
+	//  - flightActive : sinon le panneau Settings continue de manger la manette
+	//    en vol (issue #123, voir settings.js) ;
+	//  - lastTime : sans ce recalage, la 1ʳᵉ frame mesure dt depuis le
+	//    chargement du module (des secondes), clampé à 0,25 s — une bourrasque
+	//    de physique de 250 ms d'un coup au tout premier pas.
+	settings.flightActive = true;
+	lastTime = performance.now();
+	renderer.setAnimationLoop(frame);
 }
 
 // Yields long enough for the loading screen to actually repaint.
@@ -1004,6 +1142,40 @@ function frame() {
 				const a = fence.out.push, m = physics.profile.mass;
 				_fenceForce.x = a.x * m; _fenceForce.y = a.y * m; _fenceForce.z = a.z * m;
 				fenceForce = _fenceForce;
+			}
+			if (liveWindow) {
+				const dronePos = physics.position;
+				const centerLocal = liveWindow.windowCenterLocal;
+				if (centerLocal) {
+					const dist = Math.hypot(dronePos.x - centerLocal.x, dronePos.z - centerLocal.z);
+					const a = rocktreeFencePush(dist, liveWindow.nearestTrustedRadius());
+					if (a > 0) {
+						const dx = dronePos.x - centerLocal.x, dz = dronePos.z - centerLocal.z;
+						const len = Math.hypot(dx, dz) || 1;
+						const m = physics.profile.mass;
+						// fenceForce peut déjà être posé par le rappel de zone
+						// ci-dessus (mode scène) ; en mode ?live= fence est toujours
+						// NOMINAL (pas de Geofence construite), donc fenceForce est
+						// encore null ici — les deux rappels ne se cumulent jamais.
+						_fenceForce.x = -(dx / len) * a * m;
+						_fenceForce.z = -(dz / len) * a * m;
+						_fenceForce.y = 0;
+						fenceForce = _fenceForce;
+					}
+				}
+				// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
+				// tâche de fond, la frame courante vole avec ce qui est déjà là.
+				// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
+				// de la conversion que buildNodeMesh fait dans l'autre sens
+				// (Tâche 8/9), pas une formule ad hoc.
+				const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
+				const droneGeo = ecefToGeodetic(...droneEcef);
+				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+				// lève devient une unhandled promise rejection silencieuse.
+				// Observabilité seulement : pas de retry ici (ticket de suivi).
+				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
 			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
@@ -1286,7 +1458,13 @@ if (!frozen) {
 	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
-	rainfall.update({
+	// `?.` : rainfall ne naît que dans finishBoot() (chemin scène) — en mode
+	// ?live= (#168, #170) il reste null, hors périmètre comme la météo (voir
+	// le commentaire sur OPTS.live). Sans la garde, ce code non protégé par
+	// `if (!frozen)` (contrairement au reste de la météo, cf. plus haut) plante
+	// dès la première frame, animation loop comprise (mesuré : Uncaught
+	// TypeError: Cannot read properties of null (reading 'update') at frame()).
+	rainfall?.update({
 		rain, wind: physics.wind.out, velocity: physics.velocity,
 		shutter: lensShutter, dt: frozen ? 0 : dt, camera,
 	});
@@ -1477,6 +1655,64 @@ if (!frozen) {
 // Global Scanner (PHASE 03/05). Le terrain acquis porte { level, range } ;
 // on mappe le level normalisé (0..1, log) sur 2..5, la même échelle que le
 // Global Scanner. Terrain sans densité (cache ancien, terrain local) → 4.
+// Convertit la sortie de fetchNode() (matrix/copyrightIds/meshes, forme de
+// parseNode()) en meshes THREE affichables + géométrie de collision brute,
+// pour un nœud rocktree reçu en vol (#168). Un nœud rocktree peut porter
+// plusieurs meshes (voir tools/lib/rocktree/proto.mjs:parseMesh) — chacun
+// devient son propre THREE.Mesh ET son propre appel à
+// physics.addNodeCollider(), avec un chemin de collider dérivé (`${path}#${i}`)
+// puisque addNodeCollider() suit un collider par CLÉ, pas par nœud.
+//
+// matrix (node.matrix) place les sommets sur une SPHÈRE, pas l'ellipsoïde
+// WGS84 (voir Tâche 8) — sphereToWgs84Ecef() est la correction, PAS une
+// formalité : l'omettre a mesuré 5 km d'erreur sur #18 Task 9.
+function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
+	const ma = matrix;
+	const built = [];
+	meshes.forEach((m, i) => {
+		const { xyz, count } = unpackVertices(m.vertices);
+		const positions = new Float32Array(count * 3);
+		for (let v = 0; v < count; v++) {
+			const x = xyz[v * 3], y = xyz[v * 3 + 1], z = xyz[v * 3 + 2];
+			const ecef = sphereToWgs84Ecef(
+				x * ma[0] + y * ma[4] + z * ma[8] + ma[12],
+				x * ma[1] + y * ma[5] + z * ma[9] + ma[13],
+				x * ma[2] + y * ma[6] + z * ma[10] + ma[14],
+				sphereRadius,
+			);
+			const local = ecefToLocalEnu(ecef, originEcef, basis);
+			positions[v * 3] = local.x; positions[v * 3 + 1] = local.y; positions[v * 3 + 2] = local.z;
+		}
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+		const strip = unpackIndices(m.indices);
+		// Triangle strip -> triangles indépendants, en sautant les triangles
+		// dégénérés (aire nulle, courants aux points de jonction d'un strip) —
+		// même garde que forEachDrawnTriangle() dans tools/lib/decoders/
+		// rocktree.mjs (le décodeur de référence déjà en prod). Une géométrie de
+		// collision avec des triangles d'aire nulle déstabilise la résolution de
+		// contact Rapier (#176) — la taille de sortie n'est donc plus fixe.
+		const idxList = [];
+		for (let s = 0; s + 2 < strip.length; s++) {
+			const a = strip[s], b = strip[s + 1], c = strip[s + 2];
+			if (a === b || a === c || b === c) continue;
+			if (s % 2 === 0) { idxList.push(a, b, c); }
+			else { idxList.push(b, a, c); }
+		}
+		const idx = new Uint32Array(idxList);
+		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
+		geometry.computeVertexNormals();
+
+		const material = m.bitmap
+			? new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(m.bitmap) })
+			: new THREE.MeshBasicMaterial({ color: 0x808080 });
+		const mesh = new THREE.Mesh(geometry, material);
+		mesh.name = `rocktree-${path}-${i}`;
+		built.push({ mesh, colliderPath: `${path}#${i}`, vertices: positions, indices: idx });
+	});
+	return built;
+}
+
 // Une ligne de console par exemplaire. C'est du debug, pas de l'UI : le joueur
 // n'apprend la masse et le pack de sa cible qu'en vol (PHASE 08 : la fiche
 // pré-hack les donne UNKNOWN).
@@ -1543,6 +1779,11 @@ function dropPreloadsExcept(keepSlug) {
 
 async function chooseScene() {
 	const ui = document.getElementById('ui');
+
+	if (OPTS.live) {
+		await bootLive(OPTS.live);
+		return null;   // pas de slug : le reste du pipeline scène ne doit pas s'exécuter
+	}
 
 	if (OPTS.scene) {
 		await operator.ensureDevOperator();
@@ -1678,7 +1919,7 @@ async function chooseScene() {
 // BOOT_SIGNATURE à sa résolution (ou immédiatement, si skip), donc jamais les
 // deux — un seul motif de démarrage par chargement de page, jamais un
 // doublon. Elle passe AVANT la résolution de l'opérateur/Home.
-if (OPTS.scene) {
+if (OPTS.scene || OPTS.live) {
 	uiAudio.armBoot();
 	const kick = () => { audio.start(); };
 	window.addEventListener('pointerdown', kick, { once: true });
@@ -1724,7 +1965,7 @@ async function startMenuMusic() {
 }
 
 async function startup() {
-	if (!OPTS.scene) {
+	if (!OPTS.scene && !OPTS.live) {
 		// Décodage lancé avant l'intro, lecture déclenchée par son gate.
 		prepareMenuMusic();
 		await runIntro(document.getElementById('ui'), {
@@ -1744,6 +1985,10 @@ startup()
 		// Still inside the menu button's click, which is the user gesture the
 		// browser's autoplay policy demands before an AudioContext will run.
 		audio.start();
+		// ?live= : bootLive() a déjà tout fait à l'intérieur de chooseScene()
+		// (pas de manifest à charger, pas de TARGET SCAN) — chooseScene()
+		// renvoie null pour le dire (#168), rien de plus à faire ici.
+		if (choice === null) return;
 		// Session fraîche : PROFILE / controller / boot() ont déjà été
 		// lancés dans chooseScene() et le hack a couvert le chargement.
 		if (choice.prepared) return;
@@ -1776,6 +2021,15 @@ startup()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
+	// `return;` dans le `.then((choice) => { if (choice === null) return; ... })`
+	// juste au-dessus ne coupe QUE ce callback, pas la chaîne : `.then(openFlightSession)`
+	// s'exécute quand même avec `undefined` (mesuré — #168, #170). En mode
+	// ?live=, bootLive() a déjà tout ouvert (pas de session serveur, pas de
+	// caméra de cible, droneOsd reste null — voir le commentaire sur OPTS.live) ;
+	// sans cette garde, session.open() échoue silencieusement (aucun opérateur
+	// chargé) puis applyTargetCamera()/droneOsdLayout() réécrivent un état que
+	// bootLive() avait délibérément laissé de côté.
+	if (OPTS.live) return;
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.

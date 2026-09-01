@@ -1056,6 +1056,72 @@ Plan d'origine (contexte de la décision d'architecture) :
 - `fetchNode()` (#168) vérifiée en direct le 2026-09-01, contre
   `kh.google.com`, chemin `0370` epoch `1005` — 1 mesh, texture décodée sans
   `sharp`.
+- **Fenêtre de streaming rocktree + collision progressive** (#168, #170,
+  #173, #176, branche `issue-170-rocktree-window`) vérifiées en vol le
+  2026-09-01 (5ᵉ tentative de Tâche 11) sur `?live=48.8578,2.2950` (~55 m de
+  la Tour Eiffel) — `Worker` réel, `fetch()` réel contre `kh.google.com`,
+  Rapier réel. **Les 4 tentatives précédentes n'avaient jamais fait voler le
+  drone assez loin (max ~11 m) pour déclencher un second recalcul de
+  fenêtre** ; une revue finale de branche a trouvé à cette occasion un bug
+  d'unité dans `nearestTrustedRadius()` (ms confondues avec des s, facteur
+  ~1000) qui aurait fait planter `traverse()` à CHAQUE recalcul après le
+  premier — corrigé par le commit `68ea1dd` avant cette tentative. Cette 5ᵉ
+  tentative vérifie donc, pour la première fois, le comportement de
+  streaming LUI-MÊME (pas seulement le boot) :
+  - **Boot + streaming initial** : après 5 s, 1055 nœuds rocktree chargés,
+    `window.__sim.physics`/`controller` réels et pilotables. Aucune
+    régression.
+  - **Vol horizontal soutenu sur ≥ 200 m** : le pilotage manuel en stick
+    figé (`{throttle 0.6, pitch -0.3}`, comme le suggérait le brief) s'est
+    révélé insuffisant en pratique — le contrôleur est en mode taux/acro, pas
+    auto-nivelant : une commande de tangage soutenue fait boucler le drone au
+    lieu de tenir une assiette. Piloté via un petit asservissement
+    d'assiette maison (`window.__sim` + `physics.applyEntryState`, cible
+    -25°, throttle 0.80) construit pour ce test, le drone a parcouru en
+    continu **plus de 450 m** en ligne droite (`hypot(x,z)`), avec 9
+    recalculs consécutifs de fenêtre observés (tous les ~50 m,
+    `REFRESH_THRESHOLD_M`).
+  - **`windowCenterLocal` suit bien le drone** à chaque recalcul :
+    `{0,0}` → `{-0.01,-49.99}` → `{-0.06,-99.96}` → `{-0.11,-149.95}` →
+    `{-0.17,-199.95}` → `{-0.22,-249.93}` → `{-0.28,-299.93}` →
+    `{-0.33,-349.9}` → `{-0.38,-399.88}` → `{-0.44,-449.84}`.
+  - **`nearestTrustedRadius()` reste sain sur toute la durée** : 31 à 38 m
+    observés (jamais des km) — le correctif du bug d'unité tient sous
+    recalculs répétés, pas seulement au premier appel.
+  - **`physics._nodeColliders.size` change réellement** au fil du vol,
+    confirmant que la fenêtre charge ET décharge des nœuds en vol, pas
+    seulement au boot : 217 → 246 → 225 → 103 → 91 → 66 → 47 → 56 → 48 → 34.
+  - **Aucune erreur console sur toute la session** (~10 min réelles) —
+    en particulier aucune exception `traverse()`/`MAX_NODES`.
+  - **FPS de rendu très bas dans cet environnement de vérification**
+    (~1,16 fps mesuré — scène lourde à 1000+ nœuds rocktree, pas
+    d'accélération GPU complète), ce qui, combiné à l'accumulateur à pas
+    fixe (`FIXED_STEP=1/250s`, `MAX_STEPS_PER_FRAME=12`, `main.js`), fait
+    tourner le temps simulé ~18× plus lentement que le temps réel — voulu
+    (anti-spirale de la mort), mais qui explique pourquoi ce vol a demandé
+    plusieurs minutes réelles pour quelques dizaines de secondes simulées.
+    Sans lien avec la correction du bug d'unité elle-même.
+  - **Rendu regardé, pas seulement mesuré** : capture d'écran à basse
+    altitude (46 m au-dessus d'un sol à 26 m) montre un relief 3D net (crête
+    avec face éclairée et face à l'ombre, ombrage cohérent) — pas de terrain
+    plat. Comme documenté séparément (suivi hors périmètre), les textures ne
+    sont pas câblées : les faces sont en couleur unie, pas en photo. Un petit
+    objet isolé flottant dans le ciel a été observé sur une capture prise à
+    très haute altitude (~1000 m, hors du vol normal) — pas creusé, à noter
+    si revu.
+  - **Rappel doux (`rocktree-fence.js`)** : observé indirectement — la
+    progression horizontale reste continue et lisse sur les intervalles où
+    `distance(drone, centre) > nearestTrustedRadius()` (le rayon de confiance
+    ~31-38 m est inférieur au seuil de recalcul 50 m, donc le drone en sort
+    forcément avant chaque recalcul), sans à-coup ni recul visible dans la
+    trajectoire enregistrée. La magnitude exacte de la poussée (`pushMs2`)
+    n'a pas été journalisée pendant ce vol précis — à mesurer directement si
+    un doute apparaît.
+  - **Collision après crash** : déjà vérifiée en détail à la tentative
+    précédente (13,5 s tenues après impact violent) ; non rejouée ici, hors
+    objet de cette tentative.
+  - Rapport complet (5ᵉ tentative, remplace celui de la 4ᵉ) :
+    `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`.
 
 ## Non vérifié / à faire
 

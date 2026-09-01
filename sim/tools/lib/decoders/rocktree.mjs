@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import {
 	createGroundRaster, paintTriangleGround, dilateRaster, repairTexels, BLACK_THRESHOLD,
 } from '../rocktree/imagery.mjs';
+import { sphereToWgs84Ecef, ecefToGeodetic } from '../rocktree/geodesy.mjs';
 
 export const id = 'rocktree';
 
@@ -31,10 +32,10 @@ export function sniff(tileDir) {
 // geodesy — origin, ENU basis, every downstream ground query — sees the same
 // contract Flyover's OBJ decoder already gives it, without prep.mjs needing
 // to know which decoder produced its input.
-const WGS84_A = 6378137.0;
-const WGS84_F = 1 / 298.257223563;
-const WGS84_B = WGS84_A * (1 - WGS84_F);
-const WGS84_E2 = 1 - (WGS84_B * WGS84_B) / (WGS84_A * WGS84_A);
+// sphereToWgs84Ecef/ecefToGeodetic themselves live in ../rocktree/geodesy.mjs
+// (#168 Task 8) — shared, unchanged formula, so Task 9/10's live-render path
+// can reuse them without importing this file (which pulls in `sharp`).
+//
 // The sphere's own radius travels with the tile (PlanetoidMetadata field 2,
 // read by providers/google-earth.mjs and written into rocktree-tile.json as
 // `radius`) — this is only the fallback for a tileDir cut before that field
@@ -42,33 +43,6 @@ const WGS84_E2 = 1 - (WGS84_B * WGS84_B) / (WGS84_A * WGS84_A);
 // sur la capture Paris du 2026-08-31 (tools/testdata/rocktree/planetoid.pb) —
 // not IUGG's rounded 6 371 000, which biased every converted altitude +10 m.
 const PLANETOID_RADIUS_FALLBACK = 6371010;
-
-function sphereToWgs84Ecef(x, y, z, radius) {
-	const r = Math.hypot(x, y, z);
-	const lat = Math.asin(z / r), lon = Math.atan2(y, x);
-	const alt = r - radius;
-	const sl = Math.sin(lat), cl = Math.cos(lat);
-	const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * sl * sl);
-	return [
-		(n + alt) * cl * Math.cos(lon),
-		(n + alt) * cl * Math.sin(lon),
-		(n * (1 - WGS84_E2) + alt) * sl,
-	];
-}
-
-
-// ECEF WGS84 -> géodésique (Bowring). Le décodeur en a besoin pour situer ses
-// texels au sol ; prep.mjs a la sienne mais ne l'exporte pas, et CLAUDE.md
-// demande de ne pas retoucher sa géodésie — on ne la modifie donc pas, on
-// écrit ici la conversion dont le repli d'imagerie a besoin.
-const WGS84_EP2 = (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
-function ecefToGeodetic(x, y, z) {
-	const p = Math.hypot(x, y);
-	const th = Math.atan2(z * WGS84_A, p * WGS84_B);
-	const lat = Math.atan2(z + WGS84_EP2 * WGS84_B * Math.sin(th) ** 3, p - WGS84_E2 * WGS84_A * Math.cos(th) ** 3);
-	const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * Math.sin(lat) ** 2);
-	return { lat: (lat * 180) / Math.PI, lon: (Math.atan2(y, x) * 180) / Math.PI, alt: p / Math.cos(lat) - n };
-}
 
 // Résolution de la trame au sol. Assez fine pour ne pas gâcher l'imagerie des
 // nœuds valables qui l'alimentent (~0,10 m/texel au niveau 21), assez grossière
