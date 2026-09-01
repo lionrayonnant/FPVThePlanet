@@ -355,185 +355,13 @@ async function preloadScene(slug) {
 // hold that already follows TARGET SCAN. Takes preloadScene()'s return value
 // (or its promise — awaited here, not by the caller) so the two stages chain
 // without the caller needing to know boot() is split in two.
-async function finishBoot(preloading) {
-	const { manifest, meshes, collision, t0 } = await preloading;
-
-	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
-	// de cet instant la zone est engagée, on ne revient plus en arrière.
-	sceneManifest = manifest;
-	fpvtpOsd.setCredit(creditText(manifest));
-	for (const m of meshes) scene.add(m);
-
-	// In the scene, not over it: the streaks go through the RenderPass, so the
-	// lens distorts, vignettes, smears and breaks them up like everything else,
-	// and the city occludes them.
-	rainfall = new Rainfall(scene, { sky: SKY });
-	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
-
-	stage('collision-build');
-	hud.progress('construction de l’arbre de collision…', 0.76);
-	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
-	await nextPaint();
-	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
-	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
-	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
-	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
-	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
-	PROFILE = physics.profile;
-	audio.setProfile(physics.profile);
-	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
-	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
-	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
-	// pur) chaque fois que boot() fixe l'appareil pour la session.
-	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
-	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
-
-	// Les limites de la zone (#139). Construites AVANT le tirage du point
-	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
-	// sert désormais pour ne jamais naître dans l'avertissement.
-	fence = new Geofence(manifest.bbox);
-	const ec = fence.effectiveCorridor;
-	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
-		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
-	// Et ce qu'on voit au-delà du dernier chunk. Monté ici, avant le
-	// renderer.compile() de la fin du chargement : sa matière doit compiler
-	// derrière l'écran de chargement, pas à la première frame de vol.
-	//
-	// Un seul par page : finishBoot() n'est appelé qu'une fois (ses deux
-	// appelants s'excluent) et changer de zone recharge la page. Si un
-	// démontage de scène apparaît un jour, il devra faire dispose() PUIS
-	// setDistantGround(null) — l'enregistrement de loader.js ne doit pas
-	// survivre à l'objet, setFog/setNight/setDim écriraient sur une matière
-	// libérée.
-	//
-	// La météo n'a pas encore été appliquée à ce stade : ces deux valeurs sont
-	// l'air clair du départ, et la première frame les réécrit toutes les deux
-	// par setFog() (lastDensity/lastSkyHex partent à -1, donc elle passe).
-	distantGround = new DistantGround(scene, manifest.bbox, {
-		fogColor: scene.background, fogDensity: fog.density,
-	});
-	setDistantGround(distantGround);
-
-	physics.applyEntryState(generateEntryState({
-		physics,
-		manifest,
-		seed: Math.random().toString(16).slice(2, 12),
-	}));
-
-	// Where the pilot is standing, plus antenna height. A spawn under a bridge
-	// or an arch would put the ground station inside geometry and leave the link
-	// dead from the first frame, so look for a ceiling first and stand on top of
-	// it if there is one.
-	const sp = physics.spawn;
-	const ceiling = physics.groundBelow(sp.x, sp.y + 40, sp.z, 40);
-	emitter = {
-		x: sp.x,
-		y: (ceiling !== null && ceiling > sp.y + 2 ? ceiling : sp.y) + ANTENNA_HEIGHT,
-		z: sp.z,
-	};
-
-	// Textures only reach the GPU on first use. Doing it here, one chunk at a
-	// time, turns an invisible multi-second freeze into visible progress.
-	stage('gpu-upload');
-	hud.detail('');
-	for (let i = 0; i < meshes.length; i++) {
-		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
-		await nextPaint();
-		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
-	}
-
-	// compileAsync() polls the driver's KHR_parallel_shader_compile status every
-	// 10ms and only resolves once it reports ready — on drivers that never flip
-	// that flag it waits forever. compile() does the same work synchronously and
-	// always returns, so use that instead.
-	stage('shader-compile');
-	hud.progress('compilation du shader…', 0.95);
-	await nextPaint();
-	renderer.compile(scene, camera);
-
-	// Draw one frame here so any remaining driver-side work happens behind the
-	// loading screen rather than as a frozen first frame.
-	// Draw one frame here so any remaining driver-side work happens behind the
-	// loading screen rather than as a frozen first frame.
-	stage('first-frame');
-	hud.progress('premier rendu…', 0.98);
-	hud.detail('');
-	await nextPaint();
-	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
-	// Through the composer, not the renderer: otherwise the lens pass compiles its
-	// shader on the first frame of flight instead of behind the loading screen.
-	lens.render(camera, 1 / 60);
-
-	stage('done');
-	freeCam = new OrbitControls(camera, renderer.domElement);
-	freeCam.enabled = false;
-	freeCam.target.set(0, 0, 0);
-
-	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
-	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
-	// qu'écrire les paramètres des trois modèles, qui n'ont pas changé.
-	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
-	// de zone que celle vue par le terminal avant le décollage.
-	const o = manifest.origin ?? {};
-	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
-	// météo, et la seule chose dont la position du soleil a besoin en plus de
-	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
-	// fonction de l'instant UTC et du lieu, point.
-	sun = SunField.forOrigin(o);
-	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
-	if (weather) {
-		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
-			+ `${headline(weather.days[0])}`, applied);
-	} else {
-		// Scène sans origine connue : monde neutre plutôt que météo inventée.
-		physics.setWeather(CALM.wind);
-		rain.setParams(CALM.rain);
-		fog.setParams(CALM.fog);
-		cloud.setParams(CALM.cloud);
-		sun?.setWeather(CALM.sun);
-	}
-
-	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
-	// (loader.js) à leurs valeurs par défaut (uDim=1, uNight=0) : setFog/setDim/
-	// setNight ne les a jamais touchés. La boucle de rendu ne les pousse que
-	// sur CHANGEMENT (lastDensity/lastSkyHex/lastDim/lastNight ci-dessous) — si
-	// la nuit était déjà installée à la scène précédente, la valeur n'a pas
-	// changé et ces matériaux restent bloqués à leurs défauts pour toujours.
-	// Invalider le cache force le prochain frame à les resynchroniser même
-	// quand la valeur elle-même n'a pas bougé depuis la scène d'avant.
-	lastDensity = NaN;
-	lastSkyHex = NaN;
-	lastDim = NaN;
-	lastNight = NaN;
-
-	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
-		audio.setVolume(volume);
-		audio.setBrightness(brightness);
-		music.setVolume(musicVolume);
-	});
-
-	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
-	// une fois ici depuis leurs valeurs stockées (cf. settings.js).
-	const lensCfg = loadLens();
-	const lensParams = { on: lensCfg.on, lens: lensCfg.lens, vignette: lensCfg.vignette, shutter: lensCfg.shutter / 1000 };
-	lens.setEnabled(lensParams.on);
-	lens.setParams(lensParams);
-	lensShutter = lensParams.shutter;
-
-	const linkCfg = loadLink();
-	link.setSeverity(linkCfg.severity);
-	// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
-	// même si le joueur a coupé la modélisation du lien.
-	lensLinkMode = linkCfg.severity === 0 ? LINK_OFF
-		: linkCfg.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
-	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
-
-
-	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
-	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
-	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-
+// Extrait pour être appelable aussi depuis bootLive() (#168, #170) — mode
+// ?live= sans finishBoot(). Même objet de contrôle/debug des deux côtés ;
+// certains champs (weather, distantGround, sun, rain, fog, cloud) restent
+// null en mode direct, ce qui ne pose problème que si un appelant invoque
+// debug()/teleport()/setWeather() dans ce mode — aucune vérification
+// existante ne le fait.
+function exposeDebugGlobal() {
 	window.__sim = {
 		physics, controller, camera, renderer, scene, input, timeline, audio, music, space, lens, link, rain, fog, cloud, sun,
 		fence, distantGround,
@@ -720,6 +548,188 @@ async function finishBoot(preloading) {
 		},
 	};
 	window.__simInput = null;
+}
+
+async function finishBoot(preloading) {
+	const { manifest, meshes, collision, t0 } = await preloading;
+
+	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
+	// de cet instant la zone est engagée, on ne revient plus en arrière.
+	sceneManifest = manifest;
+	fpvtpOsd.setCredit(creditText(manifest));
+	for (const m of meshes) scene.add(m);
+
+	// In the scene, not over it: the streaks go through the RenderPass, so the
+	// lens distorts, vignettes, smears and breaks them up like everything else,
+	// and the city occludes them.
+	rainfall = new Rainfall(scene, { sky: SKY });
+	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
+
+	stage('collision-build');
+	hud.progress('construction de l’arbre de collision…', 0.76);
+	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
+	await nextPaint();
+	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
+	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
+	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
+	// image : on adopte ici celui qui vole réellement, une fois pour toutes.
+	PROFILE = physics.profile;
+	audio.setProfile(physics.profile);
+	// La famille pilote le manche de gaz coupés (issue pose trop dure, PHASE 14) :
+	// un appareil qui ne peut déjà plus tenir la moitié de son poids à ce manche
+	// n'est pas en train de voler. Repris ici (pas dans flight-end.js, qui reste
+	// pur) chaque fois que boot() fixe l'appareil pour la session.
+	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+	if (OPTS.family) console.log(`[family] ${physics.profile.family} — ${physics.profile.label}`);
+
+	// Les limites de la zone (#139). Construites AVANT le tirage du point
+	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
+	// sert désormais pour ne jamais naître dans l'avertissement.
+	fence = new Geofence(manifest.bbox);
+	const ec = fence.effectiveCorridor;
+	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
+		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
+	// Et ce qu'on voit au-delà du dernier chunk. Monté ici, avant le
+	// renderer.compile() de la fin du chargement : sa matière doit compiler
+	// derrière l'écran de chargement, pas à la première frame de vol.
+	//
+	// Un seul par page : finishBoot() n'est appelé qu'une fois (ses deux
+	// appelants s'excluent) et changer de zone recharge la page. Si un
+	// démontage de scène apparaît un jour, il devra faire dispose() PUIS
+	// setDistantGround(null) — l'enregistrement de loader.js ne doit pas
+	// survivre à l'objet, setFog/setNight/setDim écriraient sur une matière
+	// libérée.
+	//
+	// La météo n'a pas encore été appliquée à ce stade : ces deux valeurs sont
+	// l'air clair du départ, et la première frame les réécrit toutes les deux
+	// par setFog() (lastDensity/lastSkyHex partent à -1, donc elle passe).
+	distantGround = new DistantGround(scene, manifest.bbox, {
+		fogColor: scene.background, fogDensity: fog.density,
+	});
+	setDistantGround(distantGround);
+
+	physics.applyEntryState(generateEntryState({
+		physics,
+		manifest,
+		seed: Math.random().toString(16).slice(2, 12),
+	}));
+
+	// Where the pilot is standing, plus antenna height. A spawn under a bridge
+	// or an arch would put the ground station inside geometry and leave the link
+	// dead from the first frame, so look for a ceiling first and stand on top of
+	// it if there is one.
+	const sp = physics.spawn;
+	const ceiling = physics.groundBelow(sp.x, sp.y + 40, sp.z, 40);
+	emitter = {
+		x: sp.x,
+		y: (ceiling !== null && ceiling > sp.y + 2 ? ceiling : sp.y) + ANTENNA_HEIGHT,
+		z: sp.z,
+	};
+
+	// Textures only reach the GPU on first use. Doing it here, one chunk at a
+	// time, turns an invisible multi-second freeze into visible progress.
+	stage('gpu-upload');
+	hud.detail('');
+	for (let i = 0; i < meshes.length; i++) {
+		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
+		await nextPaint();
+		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
+	}
+
+	// compileAsync() polls the driver's KHR_parallel_shader_compile status every
+	// 10ms and only resolves once it reports ready — on drivers that never flip
+	// that flag it waits forever. compile() does the same work synchronously and
+	// always returns, so use that instead.
+	stage('shader-compile');
+	hud.progress('compilation du shader…', 0.95);
+	await nextPaint();
+	renderer.compile(scene, camera);
+
+	// Draw one frame here so any remaining driver-side work happens behind the
+	// loading screen rather than as a frozen first frame.
+	// Draw one frame here so any remaining driver-side work happens behind the
+	// loading screen rather than as a frozen first frame.
+	stage('first-frame');
+	hud.progress('premier rendu…', 0.98);
+	hud.detail('');
+	await nextPaint();
+	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
+	// Through the composer, not the renderer: otherwise the lens pass compiles its
+	// shader on the first frame of flight instead of behind the loading screen.
+	lens.render(camera, 1 / 60);
+
+	stage('done');
+	freeCam = new OrbitControls(camera, renderer.domElement);
+	freeCam.enabled = false;
+	freeCam.target.set(0, 0, 0);
+
+	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
+	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
+	// qu'écrire les paramètres des trois modèles, qui n'ont pas changé.
+	// L'origine du manifest est la lat/lon exacte de la scène, donc la même clé
+	// de zone que celle vue par le terminal avant le décollage.
+	const o = manifest.origin ?? {};
+	// La lat/lon exacte de la scène : la même qui sert de clé de zone à la
+	// météo, et la seule chose dont la position du soleil a besoin en plus de
+	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
+	// fonction de l'instant UTC et du lieu, point.
+	sun = SunField.forOrigin(o);
+	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
+	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
+	if (weather) {
+		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
+			+ `${headline(weather.days[0])}`, applied);
+	} else {
+		// Scène sans origine connue : monde neutre plutôt que météo inventée.
+		physics.setWeather(CALM.wind);
+		rain.setParams(CALM.rain);
+		fog.setParams(CALM.fog);
+		cloud.setParams(CALM.cloud);
+		sun?.setWeather(CALM.sun);
+	}
+
+	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
+	// (loader.js) à leurs valeurs par défaut (uDim=1, uNight=0) : setFog/setDim/
+	// setNight ne les a jamais touchés. La boucle de rendu ne les pousse que
+	// sur CHANGEMENT (lastDensity/lastSkyHex/lastDim/lastNight ci-dessous) — si
+	// la nuit était déjà installée à la scène précédente, la valeur n'a pas
+	// changé et ces matériaux restent bloqués à leurs défauts pour toujours.
+	// Invalider le cache force le prochain frame à les resynchroniser même
+	// quand la valeur elle-même n'a pas bougé depuis la scène d'avant.
+	lastDensity = NaN;
+	lastSkyHex = NaN;
+	lastDim = NaN;
+	lastNight = NaN;
+
+	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
+		audio.setVolume(volume);
+		audio.setBrightness(brightness);
+		music.setVolume(musicVolume);
+	});
+
+	// Issue #120 : lens et link n'ont plus de UI dans le panneau Tab — appliqués
+	// une fois ici depuis leurs valeurs stockées (cf. settings.js).
+	const lensCfg = loadLens();
+	const lensParams = { on: lensCfg.on, lens: lensCfg.lens, vignette: lensCfg.vignette, shutter: lensCfg.shutter / 1000 };
+	lens.setEnabled(lensParams.on);
+	lens.setParams(lensParams);
+	lensShutter = lensParams.shutter;
+
+	const linkCfg = loadLink();
+	link.setSeverity(linkCfg.severity);
+	// Mémorisé : la séquence de crash doit pouvoir forcer une dégradation
+	// même si le joueur a coupé la modélisation du lien.
+	lensLinkMode = linkCfg.severity === 0 ? LINK_OFF
+		: linkCfg.mode === 'digital' ? LINK_DIGITAL : LINK_ANALOG;
+	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
+
+
+	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
+	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
+	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+
+	exposeDebugGlobal();
 
 	hud.ready();
 	// À partir d'ici les sticks pilotent le drone : le panneau Settings ouvert
@@ -805,6 +815,9 @@ async function bootLive([lat, lon]) {
 	audio.start();
 	renderer.compile(scene, camera);
 	hud.hide();
+	// window.__sim doit exister avant la première frame : c'est ce que toute
+	// vérification navigateur de ce dépôt lit (Tâche 11 comprise).
+	exposeDebugGlobal();
 	// Sans ça frame() n'est jamais programmée en mode ?live= — le drone ne
 	// vole jamais, l'écran reste figé. Miroir du dernier geste de
 	// finishBoot() pour le chemin scène.
