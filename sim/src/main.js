@@ -758,6 +758,12 @@ const ROCKTREE_LEVEL = 21;
 // collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
 // spawn — pas de recentrage en vol (hors périmètre, voir la spec).
 async function bootLive([lat, lon]) {
+	// Le chemin scène le fait dans preloadScene() (avant tout usage de
+	// Rapier/Physics) — bootLive() ne passe jamais par preloadScene(), donc
+	// jamais par cet appel sans le reproduire ici. Sans lui, `new
+	// Physics(...)` plante immédiatement (module WASM Rapier non initialisé),
+	// avant même la première requête réseau vers kh.google.com (#174).
+	await initPhysics();
 	const emptyCollision = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
 	// Spawn à 80 m au-dessus du point demandé : aucun relief n'est encore
 	// chargé au moment de la construction de Physics (le premier nœud rocktree
