@@ -774,6 +774,17 @@ async function bootLive([lat, lon]) {
 	PROFILE = physics.profile;
 	audio.setProfile(physics.profile);
 	flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+	// Le chemin scène le fait via applyEntryState() (finishBoot(), plus haut) —
+	// reset() en est le cas simple (spawn/identité/zéro, déjà ce que le
+	// constructeur pose) mais il fait AUSSI this.propulsion.primeFor(hoverThrottle(...)),
+	// ce que le constructeur seul ne fait pas : sans lui les 4 moteurs
+	// démarrent à omega=0/thrust=0 (« à froid ») et doivent remonter par le
+	// lag moteur réaliste de quad.js avant de produire une poussée utile.
+	// Mesuré : même à throttle 0.85 soutenu dès la 1ʳᵉ frame, le drone
+	// s'écrase avant que les moteurs n'aient rattrapé leur retard — la marge
+	// de 80 m au-dessus du sol (commentaire ci-dessus) est mangée par ce
+	// retard, pas par un défaut du maillage de collision.
+	physics.reset();
 
 	const rocktreeWindow = new RocktreeWindow({
 		level: ROCKTREE_LEVEL,
@@ -802,6 +813,16 @@ async function bootLive([lat, lon]) {
 	// premier appel, le drone tombe dans le vide jusqu'au premier update()
 	// de la boucle de rendu.
 	await rocktreeWindow.update({ lat, lon });
+
+	// Le chemin scène le pose dans finishBoot() (avec en plus une recherche de
+	// plafond pour les spawns sous un pont — hors périmètre ici). frame() lit
+	// emitter.x/y/z SANS garde, hors du bloc `if (!frozen)` (obstructionBetween
+	// pour le lien) — resté à `null` (sa valeur de départ), il plante dès la
+	// première frame. Le premier rocktreeWindow.update() ci-dessus vient de
+	// poser les colliders sous le spawn ; s'il n'y en a encore aucun pile sous
+	// (x=0, z=0), retomber sur le point de spawn lui-même plutôt que null.
+	const groundHere = physics.groundBelow(0, 80, 0);
+	emitter = { x: 0, y: (groundHere !== null ? groundHere : physics.spawn.y) + ANTENNA_HEIGHT, z: 0 };
 
 	// Boucle de vol : frame() lit fence.*/controller.* sans garde nulle part
 	// (elle suppose toujours une scène pré-cuite complète) — le mode ?live=
@@ -1418,7 +1439,13 @@ if (!frozen) {
 	skyDome.update(camera, frozen ? 0 : dt);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
-	rainfall.update({
+	// `?.` : rainfall ne naît que dans finishBoot() (chemin scène) — en mode
+	// ?live= (#168, #170) il reste null, hors périmètre comme la météo (voir
+	// le commentaire sur OPTS.live). Sans la garde, ce code non protégé par
+	// `if (!frozen)` (contrairement au reste de la météo, cf. plus haut) plante
+	// dès la première frame, animation loop comprise (mesuré : Uncaught
+	// TypeError: Cannot read properties of null (reading 'update') at frame()).
+	rainfall?.update({
 		rain, wind: physics.wind.out, velocity: physics.velocity,
 		shutter: lensShutter, dt: frozen ? 0 : dt, camera,
 	});
@@ -1969,6 +1996,15 @@ startup()
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
 // vol — la session est du décor, pas une dépendance du moteur.
 async function openFlightSession() {
+	// `return;` dans le `.then((choice) => { if (choice === null) return; ... })`
+	// juste au-dessus ne coupe QUE ce callback, pas la chaîne : `.then(openFlightSession)`
+	// s'exécute quand même avec `undefined` (mesuré — #168, #170). En mode
+	// ?live=, bootLive() a déjà tout ouvert (pas de session serveur, pas de
+	// caméra de cible, droneOsd reste null — voir le commentaire sur OPTS.live) ;
+	// sans cette garde, session.open() échoue silencieusement (aucun opérateur
+	// chargé) puis applyTargetCamera()/droneOsdLayout() réécrivent un état que
+	// bootLive() avait délibérément laissé de côté.
+	if (OPTS.live) return;
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
