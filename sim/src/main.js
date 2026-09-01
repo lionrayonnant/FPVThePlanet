@@ -1667,14 +1667,20 @@ function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
 		const geometry = new THREE.BufferGeometry();
 		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 		const strip = unpackIndices(m.indices);
-		// Triangle strip -> triangles indépendants : trois sommets consécutifs
-		// du strip forment un triangle, en alternant le sens tous les deux pas
-		// (convention triangle strip standard).
-		const idx = new Uint32Array((strip.length - 2) * 3);
+		// Triangle strip -> triangles indépendants, en sautant les triangles
+		// dégénérés (aire nulle, courants aux points de jonction d'un strip) —
+		// même garde que forEachDrawnTriangle() dans tools/lib/decoders/
+		// rocktree.mjs (le décodeur de référence déjà en prod). Une géométrie de
+		// collision avec des triangles d'aire nulle déstabilise la résolution de
+		// contact Rapier (#176) — la taille de sortie n'est donc plus fixe.
+		const idxList = [];
 		for (let s = 0; s + 2 < strip.length; s++) {
-			if (s % 2 === 0) { idx[s * 3] = strip[s]; idx[s * 3 + 1] = strip[s + 1]; idx[s * 3 + 2] = strip[s + 2]; }
-			else { idx[s * 3] = strip[s + 1]; idx[s * 3 + 1] = strip[s]; idx[s * 3 + 2] = strip[s + 2]; }
+			const a = strip[s], b = strip[s + 1], c = strip[s + 2];
+			if (a === b || a === c || b === c) continue;
+			if (s % 2 === 0) { idxList.push(a, b, c); }
+			else { idxList.push(b, a, c); }
 		}
+		const idx = new Uint32Array(idxList);
 		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
 		geometry.computeVertexNormals();
 
