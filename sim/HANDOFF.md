@@ -1059,6 +1059,25 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Non vérifié / à faire
 
+- **Fenêtre de streaming rocktree + collision progressive** (#173, branche
+  `issue-170-rocktree-window`, 11 tâches TDD). Les 10 premières tâches
+  (`RocktreeWindow`, pool de Workers, `buildNodeMesh`, `physics.
+  addNodeCollider`/`removeNodeCollider`, entrée `?live=lat,lon`) sont vertes
+  en tests headless mais **jamais vérifiées en conditions réelles** : la
+  Tâche 11 (vérification navigateur — Worker réel, `fetch()` réel vers
+  `kh.google.com`, Rapier réel, pilotage effectif) tentée le 2026-09-01 est
+  **BLOQUÉE** par un bug trouvé pendant cette vérification, pas par
+  l'environnement : `bootLive()` (`src/main.js`) construit `physics = new
+  Physics(...)` sans jamais appeler `await initPhysics()` au préalable
+  (contrairement à `preloadScene()`, qui l'appelle avant `finishBoot()`) —
+  `new RAPIER.World(...)` échoue alors sur un module WASM non initialisé
+  (`TypeError: Cannot read properties of undefined (reading
+  'rawintegrationparameters_new')`), avant même la première requête réseau
+  rocktree. `window.__sim` n'existe jamais, `nodeMeshCount` reste à 0, aucun
+  pilotage ni vérification de collision possibles. Diagnostic complet :
+  `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`,
+  issue de suivi #174 (correctif suggéré : `await initPhysics();` en tête de
+  `bootLive()`), commentaire sur #173.
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
   Le monde répond : retard, quantité et couleur des réflexions suivent la
   géométrie.
