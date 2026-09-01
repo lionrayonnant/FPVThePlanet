@@ -148,8 +148,19 @@ export class RocktreeWindow {
 			this._nodes.delete(path);
 		}
 
-		for (const [path, meta] of desired) {
-			if (this._nodes.has(path)) continue;
+		// Fetch dans l'ordre de la distance au drone, pas de la marche de
+		// l'octree (#184) : le nœud SOUS le drone part dans la première vague —
+		// c'est lui que l'attente du sol de bootLive() guette (elle expirait à
+		// froid quand il arrivait dernier, drone mesuré à −917 m), et le terrain
+		// proche apparaît avant le lointain. Les nœuds sans box (ne devrait pas
+		// arriver depuis traverse()) passent en dernier plutôt que de planter.
+		const dist = (n) => (n.box
+			? metersBetween(dronePos, { lat: (n.box.s + n.box.n) / 2, lon: (n.box.w + n.box.e) / 2 })
+			: Infinity);
+		const missing = [...desired.values()].filter((n) => !this._nodes.has(n.path));
+		missing.sort((a, b) => dist(a) - dist(b));
+		for (const meta of missing) {
+			const path = meta.path;
 			const controller = new AbortController();
 			this._nodes.set(path, { status: 'pending', controller });
 			const t0 = performance.now();

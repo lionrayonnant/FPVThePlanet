@@ -744,6 +744,13 @@ await t('fournisseur : traversée sur fixtures — plan/probe/fetch sans réseau
 		assert.equal(plan.columns, nodes.length,
 			'plan() doit rendre le compte réel de la traversée, pas une estimation');
 		assert.ok(plan.columns >= 1, `plan.columns = ${plan.columns}`);
+		// Chaque nœud retenu porte sa box (#184) : la fenêtre de streaming trie
+		// les fetchs par distance au drone — sans box, l'ordre retombe sur celui
+		// de la marche de l'octree et le nœud sous le spawn peut arriver dernier.
+		for (const nd of nodes) {
+			assert.ok(nd.box && [nd.box.s, nd.box.n, nd.box.w, nd.box.e].every(Number.isFinite),
+				`nœud ${nd.path} sans box exploitable : ${JSON.stringify(nd.box)}`);
+		}
 
 		const probe = await ge.probe({ ...zone, zoom });
 		assert.equal(probe.status, 'ok', probe.message);
