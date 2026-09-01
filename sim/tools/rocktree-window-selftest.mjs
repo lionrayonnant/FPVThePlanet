@@ -176,4 +176,20 @@ await t('update() fetche les nœuds par distance croissante au drone (#184)', as
 	assert.deepEqual(fetched, ['near', 'mid', 'far']);
 });
 
+// Le build tourne dans le Worker (#187) : la conversion ECEF→ENU y a besoin
+// du rayon de la sphère ET de l'origine ENU de la session — la fenêtre est
+// la seule à les connaître, elle doit les joindre à chaque requête de fetch.
+await t('_fetchNode reçoit sphereRadius/originEcef/originBasis avec le nœud (#187)', async () => {
+	const { traverse } = fakeDeps({ traverseNodes: [NODE_A] });
+	const got = [];
+	const fetchNode = async (nd) => { got.push(nd); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.equal(got.length, 1);
+	assert.equal(got[0].path, NODE_A.path);
+	assert.equal(got[0].sphereRadius, RADIUS, 'sphereRadius du traverse() doit voyager avec la requête');
+	assert.deepEqual(got[0].originEcef, win.originEcef);
+	assert.deepEqual(got[0].originBasis, win.originBasis);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
