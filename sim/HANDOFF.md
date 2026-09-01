@@ -1168,6 +1168,22 @@ Plan d'origine (contexte de la décision d'architecture) :
   précalculée dans le Worker. Résultat mesuré : 3 frames > 17 ms sur 2392
   (pire 31 ms, GC) sur deux vagues aller-retour de ~600 nœuds.
 
+- **Boot ?live= bloquant jusqu'à la vague complète + filet anti-trou**
+  (#189, vérifié navigateur le 2026-09-01). Deux causes du « chargement
+  impossible » : (1) le drone était lâché dès le premier collider de sa
+  colonne — en dérivant il atterrissait parfois dans du terrain pas encore
+  construit ; (2) surtout, le terrain Google Earth a de VRAIS trous (nœuds
+  absents/404 : l'eau du Vieux-Port de Marseille) — le drone posé GLISSE
+  (moteurs primés) jusqu'au trou, tombe sous la carte, et la fenêtre le
+  suivait en chargeant/déchargeant à l'infini. Correctifs : bootLive()
+  draine à plein budget derrière l'écran de chargement jusqu'à vague
+  complète (`pendingCount()` sur RocktreeWindow, TDD ; plafond 45 s),
+  budget de drain adaptatif en vol (8 ms quand la file > 50), et
+  crash-respawn quand vy < −20 avec rien en dessous jusqu'à −6 km (une
+  vallée a toujours du sol dessous, un trou non). Mesuré : Paris chaud boot
+  complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
+  (plus jamais −500), monde stable.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
