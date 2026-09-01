@@ -1,0 +1,86 @@
+// Selftest de la politique de fenêtre de streaming rocktree (#168), SANS
+// réseau réel : traverse() et fetchNode() sont injectés (mêmes fixtures que
+// tools/rocktree-selftest.mjs, capture Paris epoch 1014). traverse() rend
+// { nodes, radius } — même forme que le vrai traverse() de traverse.mjs
+// (radius vient de PlanetoidMetadata) — PAS un tableau nu.
+import assert from 'node:assert/strict';
+import { RocktreeWindow, REFRESH_THRESHOLD_M } from '../src/rocktree-window.js';
+
+let n = 0;
+const t = async (name, fn) => { await Promise.resolve(fn()); n++; console.log(`  ok  ${name}`); };
+
+const ORIGIN = { lat: 48.85, lon: 2.29 };
+// Deux nœuds synthétiques : la fenêtre initiale en retient un, un déplacement
+// suffisant fait apparaître l'autre et disparaître le premier.
+const NODE_A = { path: '3060', epoch: 1014, imageryEpoch: null, flags: 0 };
+const NODE_B = { path: '3061', epoch: 1014, imageryEpoch: null, flags: 0 };
+const RADIUS = 6371010;
+
+function fakeDeps({ traverseNodes, fetchDelayMs = 0 }) {
+	const fetched = [];
+	const traverse = async () => ({ nodes: traverseNodes, radius: RADIUS });
+	const fetchNode = async (n) => {
+		fetched.push(n.path);
+		if (fetchDelayMs) await new Promise((r) => setTimeout(r, fetchDelayMs));
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [{ vertices: new Uint8Array(0), indices: new Uint8Array(0) }] };
+	};
+	return { traverse, fetchNode, fetched };
+}
+
+await t('premier update() : fetch le nœud désiré, onNodeReady appelé avec matrix+radius', async () => {
+	const { traverse, fetchNode, fetched } = fakeDeps({ traverseNodes: [NODE_A] });
+	const ready = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: (p, matrix, meshes, radius) => ready.push({ p, radius, hasMatrix: matrix.length === 16 }), onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(fetched, ['3060']);
+	assert.equal(ready.length, 1);
+	assert.equal(ready[0].p, '3060');
+	assert.equal(ready[0].radius, RADIUS);
+	assert.ok(ready[0].hasMatrix);
+});
+
+await t('update() sous le seuil de distance ne refait rien', async () => {
+	const { traverse, fetchNode, fetched } = fakeDeps({ traverseNodes: [NODE_A] });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	await win.update(ORIGIN);   // même position, pile
+	assert.equal(fetched.length, 1, `refetché sans avoir bougé : ${fetched}`);
+});
+
+await t('déplacement au-delà du seuil : diff correcte (nouveau fetché, ancien libéré)', async () => {
+	let call = 0;
+	const traverse = async () => ({ nodes: call++ === 0 ? [NODE_A] : [NODE_B], radius: RADIUS });
+	const fetchNode = async (n) => ({ matrix: new Float64Array(16), copyrightIds: [], meshes: [] });
+	const ready = [], released = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: (p) => ready.push(p), onNodeReleased: (p) => released.push(p), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	// ~1 km plus loin en latitude — largement au-dessus de REFRESH_THRESHOLD_M
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	assert.deepEqual(ready, ['3060', '3061']);
+	assert.deepEqual(released, ['3060']);
+});
+
+await t('windowCenterLocal se déplace vers le nord (z négatif, convention -Z=nord) après le second update()', async () => {
+	let call = 0;
+	const traverse = async () => ({ nodes: call++ === 0 ? [NODE_A] : [NODE_B], radius: RADIUS });
+	const fetchNode = async () => ({ matrix: new Float64Array(16), copyrightIds: [], meshes: [] });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	assert.equal(win.windowCenterLocal, null);
+	await win.update(ORIGIN);
+	assert.ok(Math.hypot(win.windowCenterLocal.x, win.windowCenterLocal.z) < 1, 'au premier update(), le centre EST l\'origine');
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	assert.ok(win.windowCenterLocal.z < -500, `z=${win.windowCenterLocal.z} — attendu très négatif (nord, ~1000 m)`);
+});
+
+await t('nearestTrustedRadius() décroît quand la latence observée augmente', async () => {
+	const { traverse } = fakeDeps({ traverseNodes: [NODE_A] });
+	const slow = fakeDeps({ traverseNodes: [NODE_A], fetchDelayMs: 5 }).fetchNode;
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: slow });
+	const r0 = win.nearestTrustedRadius();   // avant toute mesure : valeur de repli
+	await win.update(ORIGIN);
+	// Une seule mesure ne doit pas faire s'effondrer le rayon de repli à zéro.
+	assert.ok(win.nearestTrustedRadius() > 0);
+	assert.ok(r0 > 0);
+});
+
+console.log(`rocktree-window-selftest : ${n} tests ok`);
