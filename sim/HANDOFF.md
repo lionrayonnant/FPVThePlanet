@@ -1056,71 +1056,36 @@ Plan d'origine (contexte de la décision d'architecture) :
 - `fetchNode()` (#168) vérifiée en direct le 2026-09-01, contre
   `kh.google.com`, chemin `0370` epoch `1005` — 1 mesh, texture décodée sans
   `sharp`.
-- **Fenêtre de streaming rocktree — boot et affichage** (#173, branche
-  `issue-170-rocktree-window`) : `?live=lat,lon` vérifié en direct le
-  2026-09-01 (3ᵉ tentative, après correction des 4 lacunes listées ci-dessous
-  dans « Non vérifié »/commit `281f37d`) — `Worker` réel, `fetch()` réel
-  contre `kh.google.com`, Rapier réel. Sur `?live=48.8578,2.2950` (~55 m de
-  la Tour Eiffel), après 5 s : **1055 nœuds rocktree** affichés
-  (`scene.children` préfixés `rocktree-`), `window.__sim.physics` et
-  `controller` réels et pilotables. La fenêtre de streaming charge donc
-  effectivement un monde traversable en conditions réelles.
-  **Collision NON vérifiée tenue** — voir entrée dédiée ci-dessous, bug
-  trouvé pendant ce même passage.
-
-## Non vérifié / à faire
-
-- **Fenêtre de streaming rocktree + collision progressive** (#173, branche
-  `issue-170-rocktree-window`, 11 tâches TDD). Trois tentatives de Tâche 11
-  (vérification navigateur). Les deux premières étaient **BLOQUÉES** avant
-  même d'atteindre le vol, par des lacunes de `bootLive()` (écrit comme un
-  chemin de boot séparé de `preloadScene()`/`finishBoot()` — chaque geste de
-  ces deux fonctions doit y être repéré et reproduit à la main) :
-  - **1ʳᵉ tentative (2026-09-01)** : `await initPhysics()` manquant avant
-    `new Physics(...)` → crash WASM immédiat. Corrigé (#174, commit
-    `ef5fbaf`).
-  - **2ᵉ tentative (2026-09-01)** : `hud.hide()` (méthode inexistante) au
-    lieu de `hud.ready()`, plus `?live=` ne sautait pas l'écran d'intro.
-    Corrigé (#175, commit `53a4e2d`).
-  - **3ᵉ tentative (2026-09-01, ce commit `281f37d`)** : `bootLive()`
-    atteint enfin le vol, mais 3 lacunes de plus du même genre s'y sont
-    ajoutées, toutes trouvées et corrigées dans ce passage : `emitter` posé
-    seulement par `finishBoot()` mais lu sans garde par `frame()` (plante
-    hors du bloc `if (!frozen)`) ; `rainfall` idem, gardé désormais par
-    `?.` (météo hors périmètre en mode direct) ; `openFlightSession()`
-    s'exécutait à tort en mode `?live=` — un `return;` dans le `.then()`
-    précédent ne coupe pas la chaîne de promesses, seulement ce callback ;
-    gardé par `if (OPTS.live) return;`. Plus `physics.reset()` ajouté
-    (moteurs primés pour `hoverThrottle()` au lieu de démarrer à froid,
-    comme `applyEntryState()` le fait côté scène).
-
-    Une fois ces 5 lacunes réglées, `bootLive()` tourne jusqu'au vol piloté
-    et la fenêtre de streaming affiche bien un monde réel (voir entrée
-    « Vérifié » ci-dessus) — mais un **bug de collision distinct et non
-    résolu** est apparu : sur un point non adversarial (~55 m de la tour,
-    donc hors du cas particulier « spawn sous la structure de la tour »
-    décrit ci-dessous), un crash contrôlé (throttle 0.6 confirmé sur les 4
-    moteurs, piqué -0.3, attitude quasi identité — pas de vrille) déclenche
-    bien un impact réel à l'altitude de sol mesurée (y≈32, confirmée par
-    `groundBelow()` constant tout du long), mais **le corps continue ensuite
-    de traverser ce même collider** — jamais évincé (`physics._nodeColliders.size`
-    constant à 1055 sur toute la durée du test) — et tombe en chute libre
-    non rattrapée : mesuré sur 9+ s, `y` passe de 32 à **-788**, vitesse
-    verticale stabilisée à la vitesse terminale du modèle aéro
-    (~-34 m/s). Diagnostic complet, hypothèses (génération de maillage par
-    nœud, winding/normales) et note d'outillage (`window.__simInput` posé
-    via un script d'init MCP se fait écraser par `exposeDebugGlobal()` —
-    contournement décrit dans l'issue) : #176, non corrigé.
-
-    Cas à part signalé dans #176 mais pas creusé : au point exact de la
-    Tour Eiffel (48.8584, 2.2945), `groundBelow()` depuis le haut trouve un
-    premier obstacle vers y≈200 (vraisemblablement la structure de la tour
-    elle-même), bien au-dessus du spawn `y=80` — spawn probablement
-    adversarial (sous la structure), à distinguer du bug général ci-dessus.
-
-  Rapport complet de la 3ᵉ tentative (remplace celui de la 2ᵉ) :
-  `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`,
-  commentaire sur #173.
+- **Fenêtre de streaming rocktree + collision progressive** (#168, #170,
+  #173, #176, branche `issue-170-rocktree-window`) vérifiées en vol le
+  2026-09-01 (4ᵉ tentative de Tâche 11) sur `?live=48.8578,2.2950` (~55 m de
+  la Tour Eiffel) — `Worker` réel, `fetch()` réel contre `kh.google.com`,
+  Rapier réel :
+  - **Boot + streaming** : après 5 s, **1055 nœuds rocktree** affichés
+    (`scene.children` préfixés `rocktree-`), `window.__sim.physics`/
+    `controller` réels et pilotables. Aucune régression depuis la 3ᵉ
+    tentative (mêmes 5 correctifs `bootLive()`, commits `ef5fbaf`/`53a4e2d`/
+    `281f37d`, revérifiés sans changement).
+  - **Collision tenue après un crash violent** : protocole exact de #176
+    rejoué (chute libre depuis le spawn `y=80`, throttle 0, piqué -0.3) →
+    impact réel à `y≈33` (t≈3,5 s), `controller.armed` bascule à `false`,
+    moteurs à 0 — séquence de crash normale. **Le corps ne traverse plus le
+    collider** : `y` se stabilise à 32,35 et reste inchangé sur **13,5 s
+    consécutives** (20 s d'observation totale post-chute), contre une chute
+    jusqu'à y≈-788 avant correctif. Confirmé par raycast indépendant
+    `groundBelow()` ≈ 32,2 depuis 100 m au-dessus, `physics._nodeColliders.size`
+    constant à 1055 (pas d'éviction de nœud). Un second test à throttle 0.6
+    (descente lente, jamais au-delà du seuil `CRASH_IMPULSE`) atterrit en
+    douceur, `armed` reste `true`, le drone bascule sur le flanc et reste
+    immobile sans traverser le sol non plus — comportement cohérent dans les
+    deux régimes.
+  - **Correctif** : `buildNodeMesh()` filtre désormais les triangles
+    dégénérés (aire nulle) de la géométrie de collision, comme le fait déjà
+    `forEachDrawnTriangle()` du décodeur de référence (commit `2a3d43b`,
+    #176). Avant ce correctif, ces triangles déstabilisaient la résolution
+    de contact Rapier après un impact.
+  - Rapport complet (4ᵉ tentative, remplace celui de la 3ᵉ) :
+    `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`.
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
   Le monde répond : retard, quantité et couleur des réflexions suivent la
   géométrie.
