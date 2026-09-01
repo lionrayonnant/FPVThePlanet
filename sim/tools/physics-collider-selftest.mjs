@@ -32,11 +32,23 @@ t('removeNodeCollider sur un chemin absent lève', () => {
 	assert.throws(() => phys.removeNodeCollider('999'), /999/);
 });
 
-t('un collider ajouté est bien interrogeable par groundBelow()', () => {
+t('un collider ajouté est bien interrogeable par groundBelow() après flushNodeColliders()', () => {
 	phys.addNodeCollider('306', vertices, indices);
+	// Le refit du query-BVH est différé (#187) : add/remove ne le paient plus
+	// chacun (~0,4 ms × chaque opération, 164 ms cumulés mesurés sur une vague
+	// de 400 nœuds) — c'est flushNodeColliders(), appelé une fois par frame de
+	// drain, qui rend les changements visibles aux requêtes.
+	phys.flushNodeColliders();
 	const g = phys.groundBelow(0, 0, 0);
 	assert.ok(g !== null && Math.abs(g - -99.5) < 1, `ground=${g}`);
 	phys.removeNodeCollider('306');
+	phys.flushNodeColliders();
+	assert.equal(phys.groundBelow(0, 0, 0), null, 'le collider retiré ne doit plus répondre après flush');
+});
+
+t('flushNodeColliders() sans opération en attente est un no-op sûr', () => {
+	phys.flushNodeColliders();
+	phys.flushNodeColliders();
 });
 
 console.log(`physics-collider-selftest : ${n} tests ok`);

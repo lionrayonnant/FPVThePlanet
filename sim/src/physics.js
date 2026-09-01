@@ -181,12 +181,7 @@ export class Physics {
 				.setRestitution(0.15),
 		);
 		this._nodeColliders.set(path, collider);
-		// Rapier ne rafraîchit l'accélération des requêtes (castRay etc.) que
-		// dans world.step() — un collider ajouté/retiré hors step() reste
-		// invisible à groundBelow() tant qu'on ne force pas cette mise à jour.
-		// Le streaming rocktree doit être interrogeable au frame même où le
-		// nœud arrive, pas seulement au prochain tick physique.
-		this.world.queryPipeline.update(this.world.colliders);
+		this._queryDirty = true;
 	}
 
 	removeNodeCollider(path) {
@@ -194,6 +189,19 @@ export class Physics {
 		if (!collider) throw new Error(`removeNodeCollider: "${path}" n'est pas chargé`);
 		this.world.removeCollider(collider, true);
 		this._nodeColliders.delete(path);
+		this._queryDirty = true;
+	}
+
+	// Rapier ne rafraîchit l'accélération des requêtes (castRay etc.) que dans
+	// world.step() — un collider ajouté/retiré hors step() reste invisible à
+	// groundBelow() tant qu'on ne force pas la mise à jour. Mais la forcer À
+	// CHAQUE opération coûtait ~0,4 ms × opération (164 ms cumulés mesurés sur
+	// une vague de 400 nœuds, #187) : add/remove posent un flag, et l'appelant
+	// (processLiveNodeWork, la boucle d'attente du sol de bootLive) paie UN
+	// refit par lot, ici.
+	flushNodeColliders() {
+		if (!this._queryDirty) return;
+		this._queryDirty = false;
 		this.world.queryPipeline.update(this.world.colliders);
 	}
 

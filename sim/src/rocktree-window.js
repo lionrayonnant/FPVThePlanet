@@ -3,7 +3,12 @@
 // c'est le problème de l'appelant (main.js, Tâche 9), via onNodeReady()/
 // onNodeReleased(). Même frontière que fetchNode() dans la tranche
 // précédente : testable seule, remplaçable seule.
-import { traverse as realTraverse, zoneOf } from '../tools/lib/rocktree/traverse.mjs';
+import { zoneOf } from '../tools/lib/rocktree/traverse.mjs';
+// La traversée par défaut tourne dans un Worker (#187) : le parse des bulks
+// produisait ~10 longtasks de 59-72 ms par recalcul sur le fil principal.
+// Les tests injectent toujours leur _traverse — l'import du client est sans
+// effet en Node (Worker créé paresseusement au premier appel réel).
+import { traverseInWorker } from './rocktree-traverse-client.js';
 import { fetchNode as realFetchNode } from './rocktree-loader.js';
 import { WORST_MEASURED_SPEED_MS } from './geofence.js';
 import { geodeticToEcef, enuBasis, ecefToLocalEnu } from '../tools/lib/rocktree/geodesy.mjs';
@@ -47,7 +52,7 @@ function p95(samples) {
 }
 
 export class RocktreeWindow {
-	constructor({ level, origin, floorRadiusM = FALLBACK_RADIUS_M, onNodeReady, onNodeReleased, _traverse = realTraverse, _fetchNode = realFetchNode }) {
+	constructor({ level, origin, floorRadiusM = FALLBACK_RADIUS_M, onNodeReady, onNodeReleased, _traverse = traverseInWorker, _fetchNode = realFetchNode }) {
 		this._level = level;
 		this._origin = origin;
 		// Plancher du rayon (mètres) : la valeur du curseur Settings (#182).
@@ -179,7 +184,16 @@ export class RocktreeWindow {
 			(async () => {
 				let result;
 				try {
-					result = await this._fetchNode(meta, { signal: controller.signal });
+					// Le build (ECEF→ENU, strip, UV) tourne dans le Worker (#187) :
+					// il lui faut le rayon de la sphère rocktree et l'origine ENU
+					// de la session, que seule la fenêtre connaît. Joints à chaque
+					// requête (stateless — le Worker ne garde aucun état de session).
+					result = await this._fetchNode({
+						...meta,
+						sphereRadius: this._sphereRadius,
+						originEcef: this._originEcef,
+						originBasis: this._originBasis,
+					}, { signal: controller.signal });
 				} catch {
 					// this._nodes est déjà nettoyé par la boucle de libération
 					// ci-dessus si c'était un abort ; sinon on le retire ici.
