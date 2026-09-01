@@ -195,10 +195,18 @@ const pendingNodeReleases = [];         // paths dont mesh+collider sont à reti
 // (~1,1 s de travail) s'étale ainsi sur ~5 s au lieu de geler l'image —
 // le tri par distance de rocktree-window.js fait apparaître le proche d'abord.
 const NODE_WORK_BUDGET_MS = 3;
+// Budget adaptatif (#189) : quand la file est profonde (recentrage de
+// fenêtre en vol), 3 ms/frame étalent une vague de 300 m sur 10-15 s de
+// remplissage visible. 8 ms restent sous une frame de 60 fps (steps ~1,6 ms
+// + rendu ~5 ms + 8 ≈ 15 ms, mesuré #187) et remplissent ~2,5× plus vite.
+// Le seuil évite de payer 8 ms sur le goutte-à-goutte normal (file quasi
+// vide : les nœuds arrivent au rythme du réseau).
+const DEEP_QUEUE_JOBS = 50;
+const DEEP_QUEUE_BUDGET_MS = 8;
 
 // Draine les files sous budget. Les libérations d'abord : elles rendent de la
 // mémoire et leur retard laisserait des meshes fantômes hors fenêtre.
-function processLiveNodeWork(budgetMs = NODE_WORK_BUDGET_MS) {
+function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOBS ? DEEP_QUEUE_BUDGET_MS : NODE_WORK_BUDGET_MS)) {
 	if (!liveWindow) return;
 	const start = performance.now();
 	while (performance.now() - start < budgetMs) {
@@ -888,17 +896,34 @@ async function bootLive([lat, lon]) {
 	// (réseau froid) ; au-delà, on garde l'ancien comportement plutôt que de
 	// bloquer le boot pour toujours (spawn en mer : aucun sol ne viendra).
 	const SPAWN_ABOVE_GROUND_M = 80;
-	const groundDeadline = performance.now() + 20000;
+	// Le boot attend la VAGUE COMPLÈTE, pas seulement la colonne du spawn
+	// (#189). Lâché dès le premier collider, le drone dérive pendant sa chute
+	// de 80 m et atterrit parfois dans un trou pas encore construit — mesuré à
+	// Lyon : passage sous la carte, puis la fenêtre suit le drone sous terre
+	// en chargeant/déchargeant à l'infini (le « chargement impossible »).
+	// Accessoirement, remplir derrière l'écran de chargement à plein budget
+	// (25 ms) évite les 10-90 s de remplissage au compte-goutte (3 ms/frame)
+	// sous les yeux du joueur. Plafond : à froid le réseau peut traîner, on
+	// finit par lâcher le drone plutôt que bloquer pour toujours — le sol de
+	// SA colonne, lui, reste exigé (sinon spawn en mer : ancien comportement).
+	const bootDeadline = performance.now() + 45000;
 	let groundHere = null;
-	while (groundHere === null && performance.now() < groundDeadline) {
+	for (;;) {
 		// La boucle de rendu n'a pas démarré : personne d'autre ne draine les
 		// files de nœuds (#184) — sans cet appel, aucun collider n'apparaîtrait
-		// jamais et l'attente expirerait à chaque boot. Budget large : l'écran
-		// de chargement n'a pas de frame à tenir, autant construire vite (le
-		// tri par distance met le nœud sous le spawn dans la première vague).
+		// jamais. Le tri par distance met le nœud sous le spawn dans la
+		// première vague, le sol arrive donc en premier.
 		processLiveNodeWork(25);
-		groundHere = physics.groundBelow(0, 3000, 0, 6000);
-		if (groundHere === null) await new Promise((r) => setTimeout(r, 10));
+		if (groundHere === null) groundHere = physics.groundBelow(0, 3000, 0, 6000);
+		const waveDone = rocktreeWindow.pendingCount() === 0
+			&& pendingNodeBuilds.size === 0 && pendingNodeReleases.length === 0;
+		if (groundHere !== null && waveDone) break;
+		if (performance.now() > bootDeadline) {
+			console.warn(`[rocktree] boot lâché au plafond de 45 s — sol ${groundHere !== null ? 'trouvé' : 'ABSENT'}, `
+				+ `${rocktreeWindow.pendingCount()} fetchs et ${pendingNodeBuilds.size} builds encore en vol`);
+			break;
+		}
+		await new Promise((r) => setTimeout(r, 10));
 	}
 	if (groundHere !== null) {
 		// physics.reset() renvoie au spawn ET re-prime les moteurs — c'est
@@ -907,7 +932,7 @@ async function bootLive([lat, lon]) {
 		physics.spawn.y = groundHere + SPAWN_ABOVE_GROUND_M;
 		physics.reset();
 	} else {
-		console.warn('[rocktree] aucun sol sous le spawn après 20 s — spawn ellipsoïdal conservé');
+		console.warn('[rocktree] aucun sol sous le spawn — spawn ellipsoïdal conservé');
 	}
 
 	// Le chemin scène le pose dans finishBoot() (avec en plus une recherche de
@@ -1278,6 +1303,23 @@ function frame() {
 		// devait justement empêcher. La poussée de clôture, elle, reste par
 		// step : elle dépend de la position, qui change à chaque step.
 		if (liveWindow && !frozen) {
+			// Filet anti-trou (#189) : le terrain Google Earth a de VRAIS trous —
+			// les nœuds absents (404, résultat normal du protocole) ne produisent
+			// aucune géométrie, l'eau du Vieux-Port de Marseille en est un de
+			// plusieurs hectares. Un drone qui y glisse ou y vole tombe SOUS la
+			// carte pour toujours, et la fenêtre le suit en chargeant/déchargeant
+			// en boucle (mesuré : le « chargement impossible »). Critère : chute
+			// franche (vy < −20, ~2 s de chute libre) ET rien en dessous jusqu'à
+			// −6 km — une vraie vallée a toujours du sol dessous, pas un trou.
+			// L'eau devient donc un crash-respawn, cohérent avec le FPV réel.
+			{
+				const p = physics.position;
+				if (physics.body.linvel().y < -20 && physics.groundBelow(p.x, p.y + 2, p.z, 6000) === null) {
+					console.warn('[rocktree] drone tombé dans un trou de la carte (nœud absent) — respawn');
+					physics.reset();
+					flightEnd.reset();
+				}
+			}
 			// Étale le travail des nœuds reçus/libérés sous budget (#184).
 			processLiveNodeWork();
 			// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
