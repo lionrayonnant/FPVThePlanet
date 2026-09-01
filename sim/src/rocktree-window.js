@@ -47,9 +47,14 @@ function p95(samples) {
 }
 
 export class RocktreeWindow {
-	constructor({ level, origin, onNodeReady, onNodeReleased, _traverse = realTraverse, _fetchNode = realFetchNode }) {
+	constructor({ level, origin, floorRadiusM = FALLBACK_RADIUS_M, onNodeReady, onNodeReleased, _traverse = realTraverse, _fetchNode = realFetchNode }) {
 		this._level = level;
 		this._origin = origin;
+		// Plancher du rayon (mètres) : la valeur du curseur Settings (#182).
+		// Passé au constructeur pour que le BOOT charge déjà au rayon choisi —
+		// démarrer au repli puis élargir une frame plus tard fetcherait le boot
+		// en deux vagues pour rien.
+		this._floorRadiusM = floorRadiusM;
 		this._originEcef = geodeticToEcef(origin.lat, origin.lon, 0);
 		this._originBasis = enuBasis(origin.lat, origin.lon);
 		this._onNodeReady = onNodeReady;
@@ -89,15 +94,25 @@ export class RocktreeWindow {
 	// se déclenche. p95 est en SECONDES (voir _latencies dans le constructeur).
 	_loadRadiusM() {
 		const latencySeconds = p95(this._latencies);
-		if (latencySeconds == null) return FALLBACK_RADIUS_M;   // aucune mesure encore
-		// Plancher à FALLBACK_RADIUS_M : la formule latence×vitesse garantit la
-		// COLLISION, mais ce rayon est aussi toute la portée VISUELLE du jalon
-		// (pas de LOD). Mesuré en vol (#180) : à faible latence elle tombait à
-		// 60-150 m — la fenêtre passait de 1032 meshes au boot à ~340 au premier
-		// recalcul, l'horizon reculait en volant. Le plancher rend la portée du
-		// boot permanente ; voir plus loin que 200 m est le travail de la vraie
-		// sélection de LOD (tranche suivante), pas de ce rayon-ci.
-		return Math.max(FALLBACK_RADIUS_M, REFRESH_THRESHOLD_M + latencySeconds * WORST_MEASURED_SPEED_MS);
+		if (latencySeconds == null) return this._floorRadiusM;   // aucune mesure encore
+		// Plancher : la formule latence×vitesse garantit la COLLISION, mais ce
+		// rayon est aussi toute la portée VISUELLE du jalon (pas de LOD). Mesuré
+		// en vol (#180) : à faible latence elle tombait à 60-150 m — la fenêtre
+		// passait de 1032 meshes au boot à ~340 au premier recalcul, l'horizon
+		// reculait en volant. Le plancher rend la portée du boot permanente ; sa
+		// valeur vient du curseur Settings (#182), FALLBACK_RADIUS_M n'étant que
+		// le défaut sans curseur.
+		return Math.max(this._floorRadiusM, REFRESH_THRESHOLD_M + latencySeconds * WORST_MEASURED_SPEED_MS);
+	}
+
+	// Le curseur Settings (#182) en vol. Invalide le cache de position : sans
+	// ça, update() early-return tant que le drone n'a pas bougé de
+	// REFRESH_THRESHOLD_M et le curseur semble mort — la couronne
+	// ancien→nouveau rayon n'est jamais fetchée (ni l'excédent libéré).
+	setFloorRadiusM(m) {
+		if (m === this._floorRadiusM) return;
+		this._floorRadiusM = m;
+		this._lastPos = null;
 	}
 
 	// Rayon de CONFIANCE, distinct du rayon de chargement ci-dessus : « radius
