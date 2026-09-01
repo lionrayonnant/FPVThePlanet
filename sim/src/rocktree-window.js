@@ -14,8 +14,9 @@ import { geodeticToEcef, enuBasis, ecefToLocalEnu } from '../tools/lib/rocktree/
 export const REFRESH_THRESHOLD_M = 50;
 
 // Rayon de repli avant toute mesure de latence réelle — CHOISI, la première
-// fenêtre doit bien démarrer avec quelque chose.
-const FALLBACK_RADIUS_M = 200;
+// fenêtre doit bien démarrer avec quelque chose. Sert AUSSI de plancher une
+// fois la latence mesurée (voir _loadRadiusM, #180).
+export const FALLBACK_RADIUS_M = 200;
 
 // Marge de sécurité entre le rayon de CHARGEMENT (la zone qu'on fetch) et le
 // rayon de CONFIANCE que nearestTrustedRadius() rend à l'appelant : à
@@ -89,7 +90,14 @@ export class RocktreeWindow {
 	_loadRadiusM() {
 		const latencySeconds = p95(this._latencies);
 		if (latencySeconds == null) return FALLBACK_RADIUS_M;   // aucune mesure encore
-		return REFRESH_THRESHOLD_M + latencySeconds * WORST_MEASURED_SPEED_MS;
+		// Plancher à FALLBACK_RADIUS_M : la formule latence×vitesse garantit la
+		// COLLISION, mais ce rayon est aussi toute la portée VISUELLE du jalon
+		// (pas de LOD). Mesuré en vol (#180) : à faible latence elle tombait à
+		// 60-150 m — la fenêtre passait de 1032 meshes au boot à ~340 au premier
+		// recalcul, l'horizon reculait en volant. Le plancher rend la portée du
+		// boot permanente ; voir plus loin que 200 m est le travail de la vraie
+		// sélection de LOD (tranche suivante), pas de ce rayon-ci.
+		return Math.max(FALLBACK_RADIUS_M, REFRESH_THRESHOLD_M + latencySeconds * WORST_MEASURED_SPEED_MS);
 	}
 
 	// Rayon de CONFIANCE, distinct du rayon de chargement ci-dessus : « radius

@@ -43,7 +43,7 @@ import { FlightEnd, LANDING, FLYING, LANDING_READY } from './flight-end.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { runPostFlightAnalysis } from './post-flight.js';
-import { unpackVertices, unpackIndices } from '../tools/lib/rocktree/unpack.mjs';
+import { unpackVertices, unpackIndices, unpackTexCoords } from '../tools/lib/rocktree/unpack.mjs';
 import { sphereToWgs84Ecef, ecefToLocalEnu, localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
@@ -1703,9 +1703,35 @@ function buildNodeMesh(path, matrix, meshes, sphereRadius, originEcef, basis) {
 		geometry.setIndex(new THREE.BufferAttribute(idx, 1));
 		geometry.computeVertexNormals();
 
-		const material = m.bitmap
-			? new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(m.bitmap) })
-			: new THREE.MeshBasicMaterial({ color: 0x808080 });
+		// Sans attribut `uv`, chaque mesh est peint du seul texel (0,0) de sa
+		// texture — des aplats de couleur, pas une photo aérienne (#180). Même
+		// normalisation que le décodeur de référence (tools/lib/decoders/
+		// rocktree.mjs, « UV : delta-décodés puis normalisés ») : offset+scale du
+		// proto quand il est là, sinon le repli (0.5, 1/mod) du protocole.
+		if (m.texCoords) {
+			const { uv: rawUv, uMod, vMod } = unpackTexCoords(m.texCoords, count);
+			const [ou, ov, su, sv] = m.uvOffsetAndScale ?? [0.5, 0.5, 1 / uMod, 1 / vMod];
+			const uvs = new Float32Array(count * 2);
+			for (let v = 0; v < count; v++) {
+				uvs[v * 2] = (rawUv[v * 2] + ou) * su;
+				uvs[v * 2 + 1] = (rawUv[v * 2 + 1] + ov) * sv;
+			}
+			geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+		}
+
+		let material;
+		if (m.bitmap && m.texCoords) {
+			const texture = new THREE.CanvasTexture(m.bitmap);
+			// PAS d'inversion de V et flipY coupé : le protocole rocktree a son
+			// origine UV en HAUT-gauche (mesuré sur #158, voir le commentaire du
+			// décodeur de référence) — c'est la convention d'une image telle que
+			// createImageBitmap() la stocke. Le flipY par défaut de CanvasTexture
+			// remettrait l'origine en bas et retournerait chaque tuile.
+			texture.flipY = false;
+			material = new THREE.MeshBasicMaterial({ map: texture });
+		} else {
+			material = new THREE.MeshBasicMaterial({ color: 0x808080 });
+		}
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = `rocktree-${path}-${i}`;
 		built.push({ mesh, colliderPath: `${path}#${i}`, vertices: positions, indices: idx });
