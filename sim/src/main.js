@@ -24,6 +24,7 @@ import { SunField, SKY_REF, nightSensor, NIGHT_FLOOR_DEG } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
+import { FenceDome } from './fence-dome.js';
 import { worldWeather, applyWeather, headline, CALM } from './weather.js';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
@@ -187,6 +188,7 @@ let physics = null;
 // libéré — quadratique sur le recentrage d'une fenêtre de plusieurs centaines.
 const liveMeshes = new Map();
 let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
+let fenceDome = null;           // FenceDome actif en mode ?live=, sinon null (#198)
 
 // Files du mode ?live= (#184) : les nœuds reçus/libérés attendent ici, et
 // processLiveNodeWork() les traite sous un budget par frame — le travail par
@@ -883,6 +885,11 @@ async function bootLive([lat, lon]) {
 		// dans la même frame — gels de 70 à 330 ms à chaque vague, GPU oisif.
 		onNodeReady: (path, matrix, meshes, sphereRadius) => {
 			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
+			// Signal "la fenêtre bouge" pour le dôme numérique (#198) — au
+			// moment où le nœud est REÇU, pas où processLiveNodeWork() le
+			// construit sous budget : ce dernier peut traîner plusieurs
+			// frames, le churn perçu commence dès l'arrivée du réseau.
+			fenceDome?.markChurn();
 		},
 		onNodeReleased: (path) => {
 			// Un nœud libéré encore en file de build n'a jamais existé côté
@@ -892,9 +899,11 @@ async function bootLive([lat, lon]) {
 			// orphelins, que plus rien ne libérerait jamais.
 			if (pendingNodeBuilds.delete(path)) return;
 			pendingNodeReleases.push(path);
+			fenceDome?.markChurn();
 		},
 	});
 	liveWindow = rocktreeWindow;
+	fenceDome = new FenceDome(scene);
 	// Révèle le curseur « View range » (caché hors mode live) et le branche :
 	// setFloorRadiusM() invalide le cache de position de la fenêtre, le
 	// prochain update() de frame() charge la couronne manquante (ou libère
@@ -1626,6 +1635,16 @@ if (!frozen) {
 			}
 		}
 	skyDome.update(camera, frozen ? 0 : dt);
+	// Dôme numérique du bord de fenêtre live (#198) : uniquement en mode
+	// ?live=, hors du bloc météo ci-dessus qui n'existe pas dans ce mode
+	// (voir le commentaire sur rainfall?. juste en dessous).
+	if (fenceDome) {
+		fenceDome.update(frozen ? 0 : dt, {
+			windowCenterLocal: liveWindow?.windowCenterLocal,
+			loadRadiusM: liveWindow?.loadRadiusM(),
+			dronePosLocal: physics.position,
+		});
+	}
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
 	// `?.` : rainfall ne naît que dans finishBoot() (chemin scène) — en mode
