@@ -13,7 +13,7 @@ import * as model from '../tools/lib/weather.mjs';
 import { getOperator } from './operator.js';
 
 export const {
-	toSimParams, formatForecast, headline, today, dayRows,
+	toSimParams, simParamsOf, formatForecast, headline, today, dayRows,
 	confidenceBar, windLabel, compass, formatVisibility, zoneKey, dayKey,
 	conditionsBlock, conditionsLine, severity,
 } = model;
@@ -56,18 +56,28 @@ export async function worldWeather({ lat, lon }) {
 	return snapshot;
 }
 
-// Écrit les paramètres du jour dans les quatre modèles. Aucun d'eux n'est
-// réimplémenté ici : on ne fait que poser leurs entrées.
-export function applyWeather(snapshot, { physics, rain, fog, cloud, sun } = {}) {
-	const d = model.today(snapshot);
-	if (!d) return null;
-	const p = model.toSimParams(d);
+// Pose des paramètres de sim déjà traduits dans les cinq modèles. Aucun d'eux
+// n'est réimplémenté ici : on ne fait qu'écrire leurs entrées.
+//
+// Séparé de applyWeather() pour le banc (PHASE 26), qui a des paramètres mais
+// pas de bulletin. Les deux passent par ces cinq lignes et par aucune autre :
+// c'est ce qui garantit qu'un banc à 12 m/s et un monde à 12 m/s se pilotent
+// exactement pareil.
+export function applySimParams(p, { physics, rain, fog, cloud, sun } = {}) {
+	if (!p) return null;
 	physics?.setWeather(p.wind);
 	rain?.setParams(p.rain);
 	fog?.setParams(p.fog);
 	cloud?.setParams(p.cloud);
 	sun?.setWeather(p.sun);
 	return p;
+}
+
+// Écrit les paramètres du jour dans les quatre modèles.
+export function applyWeather(snapshot, targets = {}) {
+	const d = model.today(snapshot);
+	if (!d) return null;
+	return applySimParams(model.toSimParams(d), targets);
 }
 
 // Le monde neutre : ce que tools/selftest.mjs suppose, et ce sur quoi on se

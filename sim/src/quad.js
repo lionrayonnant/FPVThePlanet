@@ -152,13 +152,26 @@ export class Battery {
 		this.capacityMah = spec.capacityMah;
 		this.internalOhm = spec.internalOhm;
 		this.maxCurrent = spec.maxCurrent;   // A at four motors flat out
+		// Whether the pack actually empties. Off is the bench's BATTERY HELD
+		// (PHASE 26): the charge stops draining, and NOTHING else changes —
+		// sag under load is instantaneous and physical, so it stays. A held
+		// pack still bends when you pull on it, it just never runs out.
+		this.drain = true;
 		this.reset();
 	}
 
+	// `reset()` deliberately does not touch `drain`: it is a bench setting for
+	// the session, not part of the pack's state, and a respawn must not
+	// silently hand the charge back to the physics.
 	reset() {
 		this.usedMah = 0;
 		this.current = 0;
 		this.voltage = this.openCircuit();
+	}
+
+	setDrain(enabled) {
+		this.drain = enabled !== false;
+		return this;
 	}
 
 	get soc() { return Math.max(0, 1 - this.usedMah / this.capacityMah); }
@@ -178,7 +191,7 @@ export class Battery {
 	update(load, dt) {
 		this.current = this.maxCurrent * Math.min(1, load / 4);
 		this.voltage = Math.max(this.cells * 3.0, this.openCircuit() - this.current * this.internalOhm);
-		this.usedMah += (this.current * dt * 1000) / 3600;
+		if (this.drain) this.usedMah += (this.current * dt * 1000) / 3600;
 		return this.voltage;
 	}
 

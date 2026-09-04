@@ -425,8 +425,23 @@ function rainVariability(day) {
 }
 
 export function toSimParams(day) {
-	const d = sanitize(day);
+	return simParamsOf(sanitize(day));
+}
 
+// La traduction seule, sur un bulletin DÉJÀ passé par sanitize().
+//
+// Séparée de toSimParams() pour le banc (PHASE 26) : sanitize() n'est pas
+// qu'un clamp, c'est un jeu de règles de cohérence physique — le vent chasse
+// le brouillard, il ne pleut pas sous un ciel bleu. Ces règles sont justes
+// pour un bulletin, et fausses pour un banc, où l'opérateur a le droit de
+// demander une averse sous un ciel dégagé et de la voir arriver.
+//
+// Le banc appelle donc simParamsOf() directement, avec ses propres bornes.
+// Ce qu'il PARTAGE est la traduction elle-même : à 12 m/s le banc et le monde
+// écrivent exactement les mêmes paramètres dans wind.js/rain.js/fog.js, donc
+// ils volent pareil. C'est tout l'intérêt de ne pas s'en fabriquer une
+// deuxième.
+export function simParamsOf(d) {
 	// Vent. rain.js/fog.js sont en 0..1, wind.js est en unités physiques : la
 	// vitesse part telle quelle, seule la rafale est convertie en « knob ».
 	const speed = clamp(d.windSpeed, 0, 25);

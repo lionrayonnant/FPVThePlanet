@@ -5,7 +5,10 @@
 //
 //   node tools/entry-state-selftest.mjs
 
-import { CATEGORIES, WEIGHTS, rngFrom, pickCategory, occupancyOf, sampleCandidate } from '../src/entry-state.js';
+import {
+	CATEGORIES, WEIGHTS, rngFrom, pickCategory, occupancyOf, sampleCandidate,
+	resolveCategory, fallbackCandidate, generateEntryState,
+} from '../src/entry-state.js';
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -116,6 +119,67 @@ const fallback = (p) => p ** 20;
 check('corridor: fallback to a resting spawn becomes negligible',
 	fallback(after) < 1e-6 && fallback(before) > 1e-3,
 	`${(fallback(before) * 100).toFixed(2)}% → ${(fallback(after) * 100).toExponential(1)}%`);
+
+// ------------------------------------------------- bench overrides (PHASE 26)
+//
+// The bench asks for a category, or for the ground. Everything here must leave
+// the FIELD draw exactly as it was — that is the whole point of checking it.
+
+console.log('\nentry-state: bench overrides');
+
+{
+	// Forcing does what it says, for every category.
+	for (const cat of CATEGORIES) {
+		check(`forcing ${cat} returns ${cat}`, resolveCategory(cat, rngFrom('x')) === cat);
+	}
+	// And anything that isn't a category falls back to the draw rather than
+	// throwing or returning undefined — a bad value must not stop a flight.
+	for (const junk of [null, undefined, '', 'IDLE', 'COMFY', 0, 42, {}, []]) {
+		const got = resolveCategory(junk, rngFrom('x'));
+		check(`a non-category (${JSON.stringify(junk)}) falls back to the draw`, CATEGORIES.includes(got));
+	}
+}
+
+{
+	// The FIELD path is untouched, seed for seed: no forced category means the
+	// exact same sequence as before this parameter existed.
+	const a = rngFrom('field-seed');
+	const b = rngFrom('field-seed');
+	const seqA = Array.from({ length: 50 }, () => pickCategory(a));
+	const seqB = Array.from({ length: 50 }, () => resolveCategory(null, b));
+	check('no override reproduces the weighted draw exactly', seqA.every((v, i) => v === seqB[i]));
+}
+
+{
+	// IDLE ON GROUND: manifest.spawn, at rest, no draw at all. Checked with a
+	// stub physics because that branch touches nothing else — which is itself
+	// the property worth pinning down.
+	const manifest = manifestOf(BBOX);
+	let applied = null;
+	let sampled = 0;
+	const physics = {
+		applyEntryState: (c) => { applied = c; },
+		groundBelow: () => { sampled++; return 0; },
+	};
+	const got = generateEntryState({ physics, manifest, seed: 'ignored', idle: true });
+
+	check('idle spawns at manifest.spawn', got.position.x === manifest.spawn.x
+		&& got.position.y === manifest.spawn.y && got.position.z === manifest.spawn.z);
+	check('idle spawns at rest', got.linvel.x === 0 && got.linvel.y === 0 && got.linvel.z === 0
+		&& got.angvel.x === 0 && got.angvel.y === 0 && got.angvel.z === 0);
+	check('idle spawns level', got.quaternion.w === 1
+		&& got.quaternion.x === 0 && got.quaternion.y === 0 && got.quaternion.z === 0);
+	check('idle is named IDLE, not COMFORTABLE', got.category === 'IDLE');
+	check('idle draws nothing at all', sampled === 0);
+	check('idle still pushes the state into physics', applied === got);
+	// The fallback keeps its own name: it is what FIELD lands on after twenty
+	// failed draws, and that is a COMFORTABLE entry, not an operator's choice.
+	check('the shared fallback is still COMFORTABLE for FIELD',
+		fallbackCandidate(manifest).category === 'COMFORTABLE');
+	// And it hands out a copy, not the manifest's own spawn object.
+	check('the fallback copies the spawn rather than aliasing it',
+		fallbackCandidate(manifest).position !== manifest.spawn);
+}
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

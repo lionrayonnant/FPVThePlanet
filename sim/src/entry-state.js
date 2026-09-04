@@ -284,7 +284,25 @@ export function rolloutSafe(candidate, physics) {
 
 const DEFAULT_MAX_ATTEMPTS = 20;
 
-function fallbackCandidate(manifest) {
+// Which category this entry uses: the one the bench asked for, or the weighted
+// draw of Bible §20. Split out of generateEntryState() so it can be checked
+// without a scene and without a Physics — the rest of that function cannot.
+//
+// An unknown forced value falls back to the draw rather than throwing: the
+// bench normalises its own config, so anything arriving here that isn't a
+// category is a bug elsewhere, and a bug elsewhere should not stop a flight.
+//
+// Note that forcing skips pickCategory(), so the sampling stream starts one
+// draw earlier for the same seed. FIELD never forces, so its sequence is
+// untouched, seed for seed.
+export function resolveCategory(forced, rand) {
+	return forced && CATEGORIES.includes(forced) ? forced : pickCategory(rand);
+}
+
+// manifest.spawn at rest. Exported for the bench (PHASE 26), where sitting on
+// the ground with the motors idling is a state you ask for, not a state you
+// end up in after twenty failed draws.
+export function fallbackCandidate(manifest) {
 	return {
 		category: 'COMFORTABLE',
 		position: { ...manifest.spawn },
@@ -297,9 +315,28 @@ function fallbackCandidate(manifest) {
 // Never returns null: after maxAttempts unsuccessful draws it falls back to
 // manifest.spawn at rest, which trivially satisfies both safety nets (it's
 // exactly what physics.reset() has always spawned into).
-export function generateEntryState({ physics, manifest, seed, maxAttempts = DEFAULT_MAX_ATTEMPTS }) {
+//
+// `category` and `idle` are the bench's two overrides (PHASE 26) and nothing
+// else passes them. Omitted, the draw is the weighted one of Bible §20, seed
+// for seed and bit for bit — which is what keeps FIELD untouched by the
+// existence of a bench.
+//   category: 'ACTIVE'  force that category, still through both safety nets
+//   idle: true          spawn at rest on the ground, no draw at all
+export function generateEntryState({
+	physics, manifest, seed, maxAttempts = DEFAULT_MAX_ATTEMPTS,
+	category: forced = null, idle = false,
+} = {}) {
+	if (idle) {
+		const at = fallbackCandidate(manifest);
+		// IDLE ON GROUND, not IDLE IN THE AIR: the sampled categories carry
+		// their own AGL, but manifest.spawn is the ground station's own point
+		// and is already the one physics.reset() uses.
+		at.category = 'IDLE';
+		physics.applyEntryState(at);
+		return at;
+	}
 	const rand = rngFrom(seed);
-	const category = pickCategory(rand);
+	const category = resolveCategory(forced, rand);
 	for (let i = 0; i < maxAttempts; i++) {
 		const candidate = sampleCandidate(category, manifest, physics, rand);
 		if (candidate && geometrySafe(candidate, physics) && rolloutSafe(candidate, physics)) {
