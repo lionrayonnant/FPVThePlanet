@@ -4,7 +4,7 @@
 // { nodes, radius } — même forme que le vrai traverse() de traverse.mjs
 // (radius vient de PlanetoidMetadata) — PAS un tableau nu.
 import assert from 'node:assert/strict';
-import { RocktreeWindow, REFRESH_THRESHOLD_M, TRUST_MARGIN_M, FALLBACK_RADIUS_M } from '../src/rocktree-window.js';
+import { RocktreeWindow, REFRESH_THRESHOLD_M, TRUST_MARGIN_M, FALLBACK_RADIUS_M, RETRY_MAX_ATTEMPTS, RETRY_DELAY_MS } from '../src/rocktree-window.js';
 import { WORST_MEASURED_SPEED_MS } from '../src/geofence.js';
 
 let n = 0;
@@ -209,6 +209,81 @@ await t('pendingCount() suit les fetchs en vol : n pendant, 0 une fois résolus 
 	// laisse les continuations async retomber
 	await new Promise((r) => setTimeout(r, 20));
 	assert.equal(win.pendingCount(), 0, 'tous résolus');
+});
+
+// Retry des fetchs échoués (#186) : un échec transitoire (réseau, 5xx, status
+// null) laissait un trou permanent jusqu'au prochain recalcul de fenêtre
+// (jusqu'à REFRESH_THRESHOLD_M de vol). update() doit désormais retenter sur
+// place, avec backoff, SANS attendre ce recalcul.
+await t('un échec non-404 (réseau/5xx) est retenté et finit par réussir (#186)', async () => {
+	const { traverse } = fakeDeps({ traverseNodes: [NODE_A] });
+	let calls = 0;
+	// Échoue aux deux premières tentatives (status null = coupure réseau,
+	// comme le rend rocktree-worker.js quand fetch() lève avant même la
+	// réponse HTTP), réussit à la 3e — dans le budget de RETRY_MAX_ATTEMPTS.
+	const fetchNode = async () => {
+		calls++;
+		if (calls < 3) { const err = new Error('réseau'); err.status = null; throw err; }
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const ready = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: (p) => ready.push(p), onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	// Le budget total de backoff avant la dernière tentative est borné par
+	// RETRY_DELAY_MS × 2^(RETRY_MAX_ATTEMPTS-1) environ ; large marge pour le
+	// jitter de setTimeout.
+	const deadline = Date.now() + RETRY_DELAY_MS * 2 ** RETRY_MAX_ATTEMPTS + 3000;
+	while (ready.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+	assert.equal(ready.length, 1, `jamais réussi après retry — tentatives=${calls}`);
+	assert.equal(calls, 3, `nombre de tentatives inattendu : ${calls}`);
+});
+
+// 404/410 : résultat NORMAL du protocole (nœud absent), pas une panne — ne
+// doit JAMAIS déclencher de retry, contrairement au cas ci-dessus.
+await t('un 404 n\'est jamais retenté (#186)', async () => {
+	const { traverse } = fakeDeps({ traverseNodes: [NODE_A] });
+	let calls = 0;
+	const fetchNode = async () => { calls++; const err = new Error('absent'); err.status = 404; throw err; };
+	const win = new RocktreeWindow({
+		level: 21, origin: ORIGIN,
+		onNodeReady: () => { throw new Error('onNodeReady ne doit jamais être appelé pour un 404'); },
+		onNodeReleased: () => {},
+		_traverse: traverse, _fetchNode: fetchNode,
+	});
+	await win.update(ORIGIN);
+	assert.equal(calls, 1);
+	// Attend largement plus que le premier délai de backoff : s'il y avait un
+	// (mauvais) retry, il se serait déclenché dans cette fenêtre.
+	await new Promise((r) => setTimeout(r, RETRY_DELAY_MS + 200));
+	assert.equal(calls, 1, `404 retenté à tort : ${calls} appels`);
+	assert.equal(win.pendingCount(), 0, 'entrée doit être nettoyée, pas laissée pending, après un 404');
+});
+
+// Un retry en attente de backoff doit s'annuler proprement si le nœud sort de
+// la fenêtre entre-temps (drone qui s'est déplacé) — même contrat que
+// l'abort d'un fetch en vol : pas de fetch fantôme, pas d'appel à
+// onNodeReleased (le nœud n'a jamais fini 'ready'), pas d'exception.
+await t('un retry en attente est abandonné si le nœud n\'est plus désiré entre-temps (#186)', async () => {
+	let call = 0;
+	const traverse = async () => ({ nodes: call++ === 0 ? [NODE_A] : [NODE_B], radius: RADIUS });
+	const fetchedPaths = [];
+	const fetchNode = async (meta) => {
+		fetchedPaths.push(meta.path);
+		if (meta.path === NODE_A.path) { const err = new Error('réseau'); err.status = 500; throw err; }
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const released = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p) => released.push(p), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);   // NODE_A échoue, part en attente de backoff
+	// La fenêtre bouge avant que le backoff n'expire : NODE_A n'est plus désiré.
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	// Laisse largement passer le délai de backoff qui aurait dû se déclencher
+	// si l'annulation avait échoué.
+	await new Promise((r) => setTimeout(r, RETRY_DELAY_MS + 300));
+	assert.equal(fetchedPaths.filter((p) => p === NODE_A.path).length, 1,
+		`NODE_A retenté après avoir quitté la fenêtre : ${JSON.stringify(fetchedPaths)}`);
+	assert.deepEqual(released, [], 'NODE_A était encore pending — abort silencieux attendu, pas onNodeReleased');
+	assert.equal(win.pendingCount(), 0, 'plus aucun fetch en vol une fois NODE_B résolu');
 });
 
 console.log(`rocktree-window-selftest : ${n} tests ok`);

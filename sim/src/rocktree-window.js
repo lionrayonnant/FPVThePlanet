@@ -37,6 +37,34 @@ export const TRUST_MARGIN_M = 20;
 // Nombre d'échantillons de latence gardés pour le p95 glissant.
 const LATENCY_SAMPLES = 20;
 
+// Politique de retry des fetchs de nœud échoués (#186) : sans elle, un échec
+// (étranglement réseau transitoire sur la rafale de boot — observé une fois,
+// vague figée à 331 meshes sans erreur — ou 5xx passager) était simplement
+// oublié : le nœud restait un trou dans le terrain jusqu'au PROCHAIN recalcul
+// de fenêtre, donc jusqu'à REFRESH_THRESHOLD_M (50 m) de vol. On retente donc
+// À L'INTÉRIEUR de la fenêtre courante, pas en attendant le prochain update().
+//
+// RETRY_DELAY_MS/RETRY_BACKOFF_FACTOR : CHOISI, pas mesuré — le plan #172
+// n'a qu'une observation ponctuelle de l'incident, pas de distribution de
+// pannes réseau à mesurer. 300 ms est du même ordre que les latences de fetch
+// réel observées ailleurs dans ce fichier (_loadRadiusM : 60-150 ms en vol,
+// #180) — assez pour laisser passer un étranglement transitoire sans
+// l'aggraver, assez court pour ne pas laisser un trou visible pendant des
+// secondes. Le facteur ×2 est le backoff exponentiel standard : un nœud
+// injoignable retente de moins en moins souvent plutôt que de marteler le
+// réseau au même rythme à chaque essai.
+export const RETRY_DELAY_MS = 300;
+export const RETRY_BACKOFF_FACTOR = 2;
+
+// RETRY_MAX_ATTEMPTS : CHOISI. 3 tentatives (1 initiale + 2 retries, donc
+// jusqu'à 300 + 600 = 900 ms de patience) couvrent l'ordre de grandeur d'un
+// étranglement transitoire de boot. Au-delà, un nœud vraiment injoignable ne
+// doit pas retenter indéfiniment ni brûler des workers du pool (#179) pour
+// rien : le prochain recalcul de fenêtre (REFRESH_THRESHOLD_M) le retentera
+// de toute façon tant qu'il reste désiré — la boucle de secours existante,
+// pas supprimée par ce ticket.
+export const RETRY_MAX_ATTEMPTS = 3;
+
 const M_PER_DEG_LAT = 111320;
 
 function metersBetween(a, b) {
@@ -177,49 +205,74 @@ export class RocktreeWindow {
 		for (const meta of missing) {
 			const path = meta.path;
 			const controller = new AbortController();
-			this._nodes.set(path, { status: 'pending', controller });
-			const t0 = performance.now();
-			// Deux échecs de nature TOTALEMENT différente, donc deux try/catch
-			// séparés — les confondre en un seul .catch() était un vrai bug :
-			//   - le fetch peut légitimement échouer (404/410 : nœud absent, c'est
-			//     normal dans ce protocole ; ou abort). Silencieux.
-			//   - onNodeReady() ne devrait JAMAIS lever ; s'il lève, c'est un bug
-			//     de l'appelant (ex. addNodeCollider sur une clé dupliquée). Le
-			//     traiter comme un 404 le rendait invisible ET fuyait : l'ancien
-			//     code faisait _nodes.delete(path) alors qu'onNodeReady avait
-			//     peut-être déjà ajouté mesh/collider au monde — plus aucune
-			//     entrée pour les libérer un jour. On garde donc l'entrée 'ready'
-			//     (une libération future appellera bien onNodeReleased) et on
-			//     hurle dans la console au lieu d'avaler.
-			(async () => {
-				let result;
-				try {
-					// Le build (ECEF→ENU, strip, UV) tourne dans le Worker (#187) :
-					// il lui faut le rayon de la sphère rocktree et l'origine ENU
-					// de la session, que seule la fenêtre connaît. Joints à chaque
-					// requête (stateless — le Worker ne garde aucun état de session).
-					result = await this._fetchNode({
-						...meta,
-						sphereRadius: this._sphereRadius,
-						originEcef: this._originEcef,
-						originBasis: this._originBasis,
-					}, { signal: controller.signal });
-				} catch {
-					// this._nodes est déjà nettoyé par la boucle de libération
-					// ci-dessus si c'était un abort ; sinon on le retire ici.
-					this._nodes.delete(path);
-					return;
-				}
-				if (!this._nodes.has(path)) return;   // libéré entre-temps
-				this._latencies.push((performance.now() - t0) / 1000);
-				if (this._latencies.length > LATENCY_SAMPLES) this._latencies.shift();
-				this._nodes.set(path, { status: 'ready' });
-				try {
-					this._onNodeReady(path, result.matrix, result.meshes, this._sphereRadius);
-				} catch (err) {
-					console.error(`[rocktree] onNodeReady a levé pour ${path} — bug de l'appelant, pas un 404`, err);
-				}
-			})();
+			const entry = { status: 'pending', controller };
+			this._nodes.set(path, entry);
+			this._runFetch(path, meta, entry, performance.now(), 0);
+		}
+	}
+
+	// Une tentative de fetch pour `path`, avec retry en cas d'échec transitoire
+	// (#186). `entry` est l'objet stocké dans this._nodes : son identité (pas
+	// juste this._nodes.has(path)) sert à détecter qu'un nœud a été libéré OU
+	// remplacé par une entrée plus récente (nouvel update() sur le même path)
+	// pendant qu'une tentative ou une attente de backoff était en cours — dans
+	// les deux cas, cette tentative n'a plus rien à faire. `t0` reste celui de
+	// la PREMIÈRE tentative : la latence mesurée est le temps total jusqu'à ce
+	// que le nœud soit prêt, pas celui du dernier essai seul.
+	async _runFetch(path, meta, entry, t0, attempt) {
+		let result;
+		try {
+			// Le build (ECEF→ENU, strip, UV) tourne dans le Worker (#187) : il
+			// lui faut le rayon de la sphère rocktree et l'origine ENU de la
+			// session, que seule la fenêtre connaît. Joints à chaque requête
+			// (stateless — le Worker ne garde aucun état de session).
+			result = await this._fetchNode({
+				...meta,
+				sphereRadius: this._sphereRadius,
+				originEcef: this._originEcef,
+				originBasis: this._originBasis,
+			}, { signal: entry.controller.signal });
+		} catch (err) {
+			if (this._nodes.get(path) !== entry) return;   // libéré/remplacé entre-temps
+			// Trois issues de nature différente pour ce catch :
+			//   - abort : la boucle de libération de update() a déjà retiré
+			//     l'entrée (elle ne l'a délibérément plus voulue) ; rien à
+			//     retenter, rien à nettoyer de plus ici.
+			if (err?.name === 'AbortError') return;
+			//   - 404/410 : nœud réellement absent, résultat NORMAL de ce
+			//     protocole (pas une panne). Jamais de retry.
+			if (err?.status === 404 || err?.status === 410) { this._nodes.delete(path); return; }
+			//   - tout le reste (coupure réseau, 5xx, status null) : échec
+			//     transitoire, on retente sur place plutôt que d'attendre le
+			//     prochain recalcul de fenêtre.
+			if (attempt + 1 >= RETRY_MAX_ATTEMPTS) {
+				// Tentatives épuisées : on abandonne pour CE recalcul. Le nœud
+				// reste désiré (il n'a jamais été retiré de `desired`) donc le
+				// prochain recalcul de fenêtre le retentera tant qu'il l'est
+				// toujours — la boucle de secours d'origine, conservée.
+				this._nodes.delete(path);
+				return;
+			}
+			await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * RETRY_BACKOFF_FACTOR ** attempt));
+			if (this._nodes.get(path) !== entry) return;   // libéré pendant l'attente
+			return this._runFetch(path, meta, entry, t0, attempt + 1);
+		}
+		if (this._nodes.get(path) !== entry) return;   // libéré entre-temps
+		this._latencies.push((performance.now() - t0) / 1000);
+		if (this._latencies.length > LATENCY_SAMPLES) this._latencies.shift();
+		entry.status = 'ready';
+		// onNodeReady() ne devrait JAMAIS lever ; s'il lève, c'est un bug de
+		// l'appelant (ex. addNodeCollider sur une clé dupliquée). Le traiter
+		// comme un échec de fetch le rendait invisible ET fuyait : l'ancien
+		// code faisait _nodes.delete(path) alors qu'onNodeReady avait peut-être
+		// déjà ajouté mesh/collider au monde — plus aucune entrée pour les
+		// libérer un jour. On garde donc l'entrée 'ready' (une libération
+		// future appellera bien onNodeReleased) et on hurle dans la console au
+		// lieu d'avaler.
+		try {
+			this._onNodeReady(path, result.matrix, result.meshes, this._sphereRadius);
+		} catch (err) {
+			console.error(`[rocktree] onNodeReady a levé pour ${path} — bug de l'appelant, pas un 404`, err);
 		}
 	}
 }
