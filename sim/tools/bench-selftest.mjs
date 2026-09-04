@@ -203,7 +203,10 @@ t('benchDate : minuit et 23:59 tiennent tous les deux', () => {
 t('benchRows : une ligne par réglage, toutes lisibles', () => {
 	const rows = benchRows(BENCH_DEFAULTS);
 	const keys = rows.map((r) => r.key);
-	assert.deepEqual(keys, ['family', 'seed', 'terrain', 'entry', 'fence', 'time', 'wind', 'rain', 'fog', 'cloud', 'link', 'battery']);
+	// gust et dir ont leur propre ligne : trois curseurs de vent, trois lectures.
+	// Un curseur sans valeur affichée laisse un trou dans la colonne de droite et
+	// ne se règle pas au chiffre.
+	assert.deepEqual(keys, ['family', 'seed', 'terrain', 'entry', 'fence', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']);
 	for (const r of rows) {
 		assert.ok(r.label && typeof r.label === 'string', 'un libellé');
 		assert.ok(r.value !== undefined && r.value !== null && String(r.value).length, `une valeur pour ${r.key}`);

@@ -2247,7 +2247,10 @@ async function chooseScene() {
 	// remonter ici. Les deux boucles rendent `null` pour dire « je remonte »,
 	// et n'importe quoi d'autre pour dire « on vole ».
 	for (;;) {
-		const mode = await selectOperationMode(ui, { last: loadLastMode() });
+		const mode = await selectOperationMode(ui, {
+			last: loadLastMode(),
+			operatorName: operator.getOperator()?.name ?? null,
+		});
 		const choice = mode === 'bench' ? await benchLoop(ui) : await fieldLoop(ui);
 		if (choice) return choice;
 	}

@@ -76,6 +76,25 @@ await ta('mode select : l\'écran est démonté derrière lui', async () => {
 	assert.equal(dom.root.children.length, 0, 'rien ne reste dans #ui');
 });
 
+await ta('mode select : l\'identité est écrite au-dessus du choix', async () => {
+	reset();
+	// Bible §48 : « OPERATOR // NEO » puis SELECT OPERATION MODE. La racine dit
+	// d'abord qui tu es. Elle reste montable sans opérateur (?scene= n'en charge
+	// pas toujours un) : la ligne disparaît, l'écran ne casse pas.
+	const p = selectOperationMode(dom.root, { last: 'field', operatorName: 'neo' });
+	const who = dom.root.querySelector('.bench-operator');
+	assert.ok(who, 'la ligne opérateur');
+	assert.equal(who.textContent, 'OPERATOR // NEO', 'en capitales, comme la Home');
+	btn('FIELD').click();
+	await p;
+
+	reset();
+	const p2 = selectOperationMode(dom.root, { last: 'field' });
+	assert.equal(dom.root.querySelector('.bench-operator'), null, 'pas de ligne vide sans opérateur');
+	btn('FIELD').click();
+	await p2;
+});
+
 // ---------------------------------------------------------------------------
 // L'écran du banc
 
@@ -90,6 +109,56 @@ await ta('banc : toutes les lignes sont montées et lisibles', async () => {
 	const text = dom.root.textContent;
 	assert.ok(text.includes(BENCH_SEAL), 'le sceau est affiché');
 	assert.ok(!/undefined|NaN|\[object/.test(text), `aucune fuite technique à l'écran :\n${text}`);
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('banc : chaque ligne a sa conduite et sa colonne de valeur', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	const rows = dom.root.querySelectorAll('.bench-row');
+	assert.ok(rows.length >= 14, `au moins 14 lignes, vu ${rows.length}`);
+	for (const r of rows) {
+		const label = r.querySelectorAll('.bench-label');
+		const lead = r.querySelectorAll('.bench-leader');
+		const val = r.querySelectorAll('.bench-value');
+		// Les quatre colonnes sont toujours là, même vides : c'est ce qui aligne
+		// les valeurs d'un bout à l'autre. Une ligne qui saute sa valeur laisse
+		// un trou, et l'œil perd la colonne.
+		assert.equal(label.length, 1, `une étiquette sur « ${r.textContent} »`);
+		assert.equal(lead.length, 1, `une conduite sur « ${r.textContent} »`);
+		assert.equal(val.length, 1, `une valeur sur « ${r.textContent} »`);
+	}
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('banc : les trois curseurs de vent disent chacun ce qu\'ils règlent', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	// Le mock de la Bible §48 résume le vent sur une ligne, mais il y a trois
+	// curseurs : chacun doit porter sa lecture, sinon on règle à l'aveugle.
+	for (const key of ['wind', 'gust', 'dir']) {
+		const v = lineOf(key).querySelector('.bench-value');
+		assert.ok(v.textContent.trim().length, `la ligne ${key} affiche sa valeur`);
+	}
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('banc : le titre et le credo sont deux blocs distincts', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	const title = dom.root.querySelector('.bench-title');
+	const creed = dom.root.querySelector('.bench-creed');
+	assert.ok(title && title.textContent.includes('BENCH'), 'le titre');
+	// Séparés parce qu'ils ne parlent pas du même niveau : le credo n'est pas
+	// une seconde ligne de titre, c'est ce que le banc dit de lui-même.
+	assert.ok(creed, 'le credo a son propre bloc');
+	for (const term of ['NO TARGET', 'NO LINK', 'NO HACK', 'NO LOSS']) {
+		assert.ok(creed.textContent.includes(term), `le credo porte « ${term} »`);
+	}
+	assert.ok(!title.textContent.includes('NO TARGET'), 'le credo n\'est pas dans le titre');
 	btn('SPIN UP').click();
 	await p;
 });

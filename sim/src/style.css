@@ -836,52 +836,133 @@ button.terminal-row:focus::before { left: 0; }
 
 /* SELECT OPERATION MODE — la racine du jeu. Deux voies, et ce que chacune
    coûte écrit dessous. La sous-ligne est en DATA : c'est de la description,
-   pas la machine qui parle. */
-.bench-mode { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+   pas la machine qui parle.
+
+   Aligné à GAUCHE, sur le fer du bouton : c'est ce que dessine le mock de la
+   Bible §48, et c'est ce qui rattache la sous-ligne à sa voie. Centrer la
+   sous-ligne la détachait — `.bootstrap button` pose align-self: flex-start,
+   donc le bouton restait à gauche pendant que son texte partait au milieu. */
+.bench-mode { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 .bootstrap-box pre.bench-mode-sub {
 	color: var(--light-grey);
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
-	text-align: center; margin: 0;
+	text-align: left; margin: 0;
+}
+/* L'identité avant la question : « OPERATOR // NEO » se lit comme le pied de la
+   Home, en encre éteinte — il informe, il n'appelle pas. */
+.bootstrap-box pre.bench-operator {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: 0;
 }
 .bench-modes .terminal-box { gap: var(--space-5); }
 
 /* L'écran de configuration. */
-.bench-config .terminal-box { width: min(760px, 94vw); gap: var(--space-2); }
-.bootstrap-box pre.bench-head { margin-bottom: var(--space-3); }
+.bench-config .terminal-box { width: min(860px, 94vw); gap: var(--space-1); }
+.bootstrap-box pre.bench-title { margin: 0; }
+/* Le credo n'est pas un sous-titre : c'est ce que le banc dit de lui-même. Au
+   niveau UI, en encre éteinte, espacé comme une rangée de quatre termes. */
+.bootstrap-box pre.bench-creed {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: 0 0 var(--space-3);
+}
 
+/* Une ligne de banc : ÉTIQUETTE · conduite · contrôle · valeur.
+   Les quatre colonnes sont toujours présentes, et les deux dernières ont une
+   largeur fixe : c'est ce qui aligne les valeurs d'un bout à l'autre du tableau
+   et fait lire le banc comme un banc. Hauteur de ligne constante aussi — un
+   curseur et un menu ne doivent pas donner deux rythmes différents. */
 .bench-row {
-	display: flex; align-items: center; gap: var(--space-3);
-	width: 100%;
+	display: flex; align-items: center; gap: var(--space-2);
+	width: 100%; min-height: 2.2em;
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 }
-/* Une colonne d'étiquettes de largeur fixe : c'est ce qui fait lire le banc
-   comme un tableau et non comme un formulaire. */
 .bench-label {
 	min-width: 9.5em; flex: none;
 	color: var(--light-grey);
 	font-family: var(--font-ui); letter-spacing: var(--track-ui);
 	text-transform: uppercase;
 }
+/* La conduite. De vrais points, dans la police DATA, comme `dotted()` en écrit
+   sur l'écran de bootstrap — un filet CSS pointillé se poserait sur la ligne de
+   base et n'aurait pas la même main. On en écrit plus qu'il n'en faut et on
+   coupe : rien à mesurer, et ça suit la largeur de la fenêtre tout seul. */
+.bench-leader {
+	flex: 1 1 auto; min-width: 2ch;
+	overflow: hidden; white-space: nowrap;
+	color: var(--faint); user-select: none;
+}
+.bench-leader::before { content: "................................................................"; }
 /* La valeur lue est à droite, tabulaire, pour que les chiffres ne dansent pas
    quand on tient une flèche enfoncée. */
 .bench-value {
-	min-width: 11em; flex: none; text-align: right;
+	width: 9.5em; flex: none; text-align: right;
 	color: var(--ink); font-variant-numeric: tabular-nums;
 }
-.bench-inline { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
+.bench-inline { display: flex; align-items: center; gap: var(--space-2); }
+/* La colonne des contrôles : même largeur pour un menu et pour un curseur.
+   Sélecteur en `.bench-row input` et non en `.bench-slider` seul : `.bootstrap
+   input` (plus haut) est plus spécifique qu'une simple classe et imposait
+   --fs-ui-l aux <input>. Comme la largeur est en em et que <select> n'était,
+   lui, pas concerné, la colonne se décalait de 110 px entre une ligne à menu et
+   une ligne à curseur. */
+.bench-select, .bench-inline, .bench-row input.bench-slider {
+	flex: none; width: 22em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+}
 
 .bench-select, .bench-coord {
-	flex: 1; min-width: 0;
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong); border-radius: 0;
 	padding: 2px var(--space-2);
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 }
+/* Le menu déroulant du navigateur est du mobilier de navigateur : coins
+   arrondis, dégradé, flèche système. Bible §38/§44 — on le remet à plat.
+   Et pas de chevron dessiné à la place : il faudrait une image, donc une
+   couleur en dur hors de tokens.css (palette-selftest la refuse, et
+   l'encoder %23 pour passer dessous serait exactement la dérive qu'il
+   surveille). Le cadre d'un pixel suffit à dire que c'est manipulable —
+   c'est déjà ce qui le dit pour `.bootstrap input`. */
+.bench-select {
+	appearance: none; -webkit-appearance: none;
+}
+/* Même raison que la colonne des contrôles : `.bootstrap input` gagnerait. */
+.bench-row input.bench-coord {
+	width: 8em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	padding: 2px var(--space-2);
+}
 .bench-select:focus, .bench-coord:focus { outline: none; border-color: var(--warm-white); }
-.bench-slider { flex: 1; min-width: 0; accent-color: var(--warm-white); }
+
+/* Le curseur, à plat lui aussi : une glissière d'un pixel et un curseur
+   rectangulaire. `accent-color` rendait la pastille ronde du système. */
+.bench-slider {
+	appearance: none; -webkit-appearance: none;
+	background: none; height: 1.4em; cursor: pointer;
+}
+.bench-slider::-webkit-slider-runnable-track {
+	height: var(--rule-w); background: var(--rule-strong);
+}
+.bench-slider::-moz-range-track { height: var(--rule-w); background: var(--rule-strong); }
+.bench-slider::-webkit-slider-thumb {
+	appearance: none; -webkit-appearance: none;
+	width: 5px; height: 13px; margin-top: -6px;
+	background: var(--ink); border: 0; border-radius: 0;
+}
+.bench-slider::-moz-range-thumb {
+	width: 5px; height: 13px;
+	background: var(--ink); border: 0; border-radius: 0;
+}
+.bench-slider:focus { outline: none; }
+.bench-slider:focus::-webkit-slider-thumb { background: var(--warm-white); }
+.bench-slider:focus::-moz-range-thumb { background: var(--warm-white); }
 .bench-inline button.terminal-link { flex: none; }
 
 /* Un avertissement dit ce qui va se passer ; il n'interdit rien (Bible §2,
@@ -899,5 +980,5 @@ button.terminal-row:focus::before { left: 0; }
 	color: var(--faint);
 	font-family: var(--font-data); font-size: var(--fs-micro);
 	letter-spacing: var(--track-ui);
-	margin: var(--space-3) 0 0;
+	margin: var(--space-4) 0 var(--space-2);
 }
