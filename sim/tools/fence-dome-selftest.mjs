@@ -1,16 +1,18 @@
 // Selftest des courbes pures du dôme numérique de fenêtre live (#198).
 import assert from 'node:assert/strict';
-import { opacityFor, glitchFor } from '../src/fence-dome.js';
+import { opacityFor, glitchFor, OPACITY_FLOOR, OPACITY_CEIL, GLITCH_DECAY_S } from '../src/fence-dome.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 t('opacityFor : plancher au centre (ratio 0)', () => {
-	assert.equal(opacityFor(0), 0.08);
+	assert.equal(opacityFor(0), OPACITY_FLOOR);
 });
 
 t('opacityFor : plafond au bord réel (ratio 1)', () => {
-	assert.equal(opacityFor(1), 0.75);
+	// Tolérance flottante : OPACITY_FLOOR + (OPACITY_CEIL - OPACITY_FLOOR) * 1
+	// n'est pas bit-exact à OPACITY_CEIL (arithmétique binaire).
+	assert.ok(Math.abs(opacityFor(1) - OPACITY_CEIL) < 1e-9, `${opacityFor(1)} != ${OPACITY_CEIL}`);
 });
 
 t('opacityFor : croissante et continue entre les deux', () => {
@@ -28,7 +30,7 @@ t('glitchFor : plein juste après un churn (t=0)', () => {
 });
 
 t('glitchFor : éteint une fois la décroissance passée', () => {
-	assert.equal(glitchFor(1.2), 0);
+	assert.equal(glitchFor(GLITCH_DECAY_S), 0);
 	assert.equal(glitchFor(5), 0);
 });
 

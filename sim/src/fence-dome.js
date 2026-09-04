@@ -20,13 +20,14 @@ export const CYAN = 0x4dd8e8;
 
 // Opacité de base, du centre de la fenêtre (ratio 0) au bord réel (ratio 1).
 // CHOISI, pas mesuré — même statut que RAMP_M/TRUST_MARGIN_M dans ce coin du
-// code : la bonne courbe dépend de ce qui se voit bien en vol réel, pas
-// encore observé avec cet effet. Plancher non nul et rampe sur TOUTE la
-// fenêtre (pas seulement les 20 derniers mètres) : choix explicite d'un
-// repère visuel continu plutôt qu'un effet qui n'apparaît qu'au dernier
-// moment.
-const OPACITY_FLOOR = 0.08;
-const OPACITY_CEIL = 0.75;
+// code. Première passe (0.08 -> 0.75) jugée quasi invisible en vol réel (voir
+// 5a958e6) : le pattern du fragment shader multiplie encore ce nombre par
+// 0.25-1.0 selon les lignes de scan (voir plus bas), donc un plancher de 0.08
+// finissait sous les 0.02 d'alpha réel entre deux lignes — sous le seuil de
+// perception face à un terrain photo. Remonté ici (0.20 -> 0.92) ; à retoucher
+// encore si ce n'est toujours pas assez au prochain retour en vol.
+export const OPACITY_FLOOR = 0.20;
+export const OPACITY_CEIL = 0.92;
 
 // Le ratio est clampé : un léger dépassement du rayon (churn en cours, drone
 // qui vient de sortir de la fenêtre juste avant recentrage) ne doit pas faire
@@ -39,7 +40,7 @@ export function opacityFor(distanceRatio) {
 // Durée du pulse de glitch après un churn et forme de sa décroissance —
 // linéaire, simple : un aller-retour visuel de ~1,2 s reste perceptible sans
 // traîner. CHOISI, même statut que ci-dessus.
-const GLITCH_DECAY_S = 1.2;
+export const GLITCH_DECAY_S = 1.2;
 
 export function glitchFor(secondsSinceChurn) {
 	if (secondsSinceChurn <= 0) return 1;
@@ -94,7 +95,10 @@ export class FenceDome {
 					// scan horizontales, qui balaient dans le temps.
 					float elevation = asin(clamp(d.y, -1.0, 1.0));
 					float scan = 0.5 + 0.5 * sin(elevation * 40.0 - uTime * 1.5);
-					scan = pow(scan, 8.0);   // lignes fines, pas un dégradé large
+					// Bandes plus larges (pow 3 au lieu de 8, #198 v1 quasi
+					// invisible en vol réel) : la ligne doit rester lisible
+					// entre deux passages, pas juste un pixel de large.
+					scan = pow(scan, 3.0);
 
 					// Bruit/glitch : hash sur la direction ET un temps quantifié en
 					// blocs — un scintillement numérique, pas un fondu doux.
@@ -102,7 +106,11 @@ export class FenceDome {
 					float glitch = hash21(d.xz * 37.0 + t) * uGlitch;
 
 					float pattern = clamp(scan * 0.6 + glitch * 0.8, 0.0, 1.0);
-					outColor = vec4(uColor, uOpacity * (0.25 + 0.75 * pattern));
+					// Plancher de motif remonté (0.45 au lieu de 0.25, même
+					// raison que OPACITY_FLOOR/CEIL plus haut) : la brume cyan
+					// entre les lignes de scan doit se voir, pas seulement les
+					// lignes elles-mêmes.
+					outColor = vec4(uColor, uOpacity * (0.45 + 0.55 * pattern));
 				}
 			`,
 		});
