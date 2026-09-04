@@ -219,6 +219,16 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 			for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
 				scene.remove(mesh);
 				mesh.geometry.dispose();
+				// material.dispose() ne libère pas .map (#191) : la texture live
+				// pèse ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU —
+				// sans ces deux lignes ça fuit à chaque nœud sorti de la fenêtre,
+				// donc avec la distance parcourue et non la taille du monde. Le seul
+				// cas sans .map est le matériau gris plat (pas de bitmap/uvs, voir
+				// buildNodeMesh) : rien à fermer alors.
+				if (mesh.material.map) {
+					mesh.material.map.dispose();
+					mesh.material.map.image.close();
+				}
 				mesh.material.dispose();
 				physics.removeNodeCollider(colliderPath);
 			}
