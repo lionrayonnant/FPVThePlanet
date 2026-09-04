@@ -25,6 +25,7 @@ import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { FenceDome } from './fence-dome.js';
+import { GeofenceWall } from './geofence-dome.js';
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
@@ -349,6 +350,7 @@ async function toggleBenchPanel() {
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
 // a ni clôture ni horizon à dessiner.
 let fence = null;
+let geofenceWall = null;   // GeofenceWall actif hors ?live=/banc, sinon null (#199)
 let distantGround = null;
 // La force du rappel, écrite une fois par PAS de physique plutôt qu'allouée —
 // même règle que `drift` plus bas : ceci tourne à 250 Hz. Rapier recopie le
@@ -763,6 +765,10 @@ async function finishBoot(preloading) {
 	fence = MODE.bench && !MODE.config.fence
 		? new Geofence({ min: [-1e6, -1e6, -1e6], max: [1e6, 1e6, 1e6] })
 		: new Geofence(manifest.bbox);
+	// Muraille numérique (#199) : seulement pour une vraie bbox de carte —
+	// la bbox ±1e6 du banc sans clôture n'a rien à border visuellement, même
+	// logique que le fence géant plus bas en mode ?live=/bootLive().
+	geofenceWall = (MODE.bench && !MODE.config.fence) ? null : new GeofenceWall(scene, manifest.bbox);
 	const ec = fence.effectiveCorridor;
 	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
 		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
@@ -1831,6 +1837,9 @@ if (!frozen) {
 			dronePosLocal: physics.position,
 		});
 	}
+	// Muraille numérique du bord de carte pré-cuite (#199) : même principe,
+	// géométrie de bbox plutôt que de rayon — voir geofence-dome.js.
+	if (geofenceWall) geofenceWall.update(frozen ? 0 : dt, physics.position);
 	// Zero dt while the sim is frozen, which is all it takes to stop the rain
 	// dead on a picture that is not moving.
 	// `?.` : rainfall ne naît que dans finishBoot() (chemin scène) — en mode
