@@ -17,7 +17,7 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
-	sourceChoices, chosenSource,
+	sourceChoices, chosenSource, zoneCentre,
 } from '../tools/scanner-model.mjs';
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
@@ -114,7 +114,22 @@ const PANEL = `
 	<pre class="sc-h">DESIGNATION</pre>
 	<input class="sc-name" type="text" autocomplete="off" spellcheck="false" placeholder="AREA NAME">
 	<pre class="sc-note sc-slug" hidden></pre>
-	<button type="button" class="sc-cta sc-acquire" disabled>[ ACQUIRE AREA ]</button>
+</section>
+
+<!-- Les deux voies du jeu, côte à côte, sur la carte — là où le choix se pose
+     réellement. Voler en direct ne garde rien et demande le réseau ; acquérir
+     cuit la zone sur le disque et la rend jouable hors ligne. Les mettre dans
+     deux blocs différents laisserait croire que l'un est l'étape de l'autre. -->
+<section class="sc-block sc-verbs">
+	<pre class="sc-h">FLY</pre>
+	<div class="sc-verb">
+		<button type="button" class="sc-cta sc-fly-live" disabled>[ FLY LIVE ]</button>
+		<pre class="sc-hint">STREAMED NOW · NOTHING KEPT · NEEDS THE LINK</pre>
+	</div>
+	<div class="sc-verb">
+		<button type="button" class="sc-cta sc-acquire" disabled>[ ACQUIRE AREA ]</button>
+		<pre class="sc-hint">BAKED TO DISK · KEPT · PLAYS OFFLINE</pre>
+	</div>
 	<pre class="sc-note sc-acquire-note" hidden></pre>
 </section>
 
@@ -419,11 +434,9 @@ export function runScanner(root) {
 		clearTimeout(surveyTimer);
 		if (!state.zone) return;
 		// Sur un tracé en L, le centre de l'emprise tombe dans l'encoche : on
-		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde.
-		const { lat, lon } = state.zone.poly
-			? polygonProbePoint(state.zone.poly, state.zoom)
-			: { lat: (state.zone.bbox.south + state.zone.bbox.north) / 2,
-			    lon: (state.zone.bbox.west + state.zone.bbox.east) / 2 };
+		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde, et
+		// que le décollage en direct — d'où zoneCentre(), partagé.
+		const { lat, lon } = zoneCentre(state.zone, state.zoom);
 		const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
 		if (surveyCache.has(key)) { state.place = surveyCache.get(key); return renderDensity(); }
 		surveyTimer = setTimeout(async () => {
@@ -593,6 +606,10 @@ export function runScanner(root) {
 		const src = provider();
 		$('.sc-probe').disabled = !state.zone || !src;
 		$('.sc-acquire').disabled = !state.zone || !slug || !src;
+		// Voler en direct ne demande qu'une zone. Ni source, ni sonde, ni nom :
+		// rien n'est écrit sur le disque, donc il n'y a rien à nommer, et la
+		// couverture d'un fournisseur d'extraction ne dit rien du streaming.
+		$('.sc-fly-live').disabled = !state.zone;
 		const existing = state.scenes.find((s) => s.slug === slug);
 		note('.sc-slug', slug ? (existing ? `ID ${slug} — ALREADY IN CACHE, ACQUIRING OVERWRITES IT` : `ID ${slug}`) : null, existing ? 'warn' : null);
 	}
@@ -653,11 +670,14 @@ export function runScanner(root) {
 	// ------------------------------------------------------------ acquisition
 	let resolveScanner;
 	let finished = false;
-	const done = (slug) => {
+	// Le scanner résout une FORME de vol, plus un slug nu : depuis qu'il porte
+	// les deux verbes, il peut rendre une zone cuite (`{ slug }`) ou un point où
+	// décoller en direct (`{ live: [lat, lon] }`). `undefined` = on remonte.
+	const done = (choice) => {
 		if (finished) return;
 		finished = true;
 		cleanup();
-		resolveScanner(slug);
+		resolveScanner(choice);
 	};
 
 	function cleanup() {
@@ -682,6 +702,16 @@ export function runScanner(root) {
 		focusFirst: false,
 	});
 	$('.sc-back').onclick = () => done(undefined);
+
+	// Voler en direct : on résout un point, et c'est tout. Rien n'est planifié,
+	// rien n'est sondé, rien n'est écrit — le monde arrive pendant le vol.
+	// C'est le même point que celui qu'on vient de décrire (zoneCentre), sinon
+	// le scanner désignerait un quartier et en ouvrirait un autre.
+	$('.sc-fly-live').onclick = () => {
+		const c = zoneCentre(state.zone, state.zoom);
+		if (!c) return;
+		done({ live: [c.lat, c.lon] });
+	};
 
 	$('.sc-acquire').onclick = async () => {
 		// La sonde n'est pas obligatoire, mais acquérir sans elle est le meilleur
@@ -905,7 +935,7 @@ export function runScanner(root) {
 				box.querySelector('.sc-row').remove();
 				const fly = panel.querySelector('.sc-fly');
 				fly.hidden = false;
-				fly.onclick = () => done(d.slug);
+				fly.onclick = () => done({ slug: d.slug });
 				panel.querySelector('.sc-job-back').hidden = false;
 				panel.querySelector('.sc-job-back').onclick = () => done(undefined);
 			}

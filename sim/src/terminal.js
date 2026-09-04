@@ -71,7 +71,8 @@ function stub(root, title, line) {
 // ---------- GLOBAL SCANNER ----------
 
 // Chargé à la demande : Leaflet et Geoman ne partent dans le navigateur que si
-// l'opérateur ouvre le scanner. Résout un slug (→ vol) ou undefined.
+// l'opérateur ouvre le scanner. Résout une forme de vol — `{ slug }` pour une
+// zone cuite, `{ live: [lat, lon] }` pour un décollage en direct — ou undefined.
 //
 // Un seul scanner à la fois : la Home est masquée pendant l'opération, donc
 // l'utilisateur ne peut pas rouvrir le scanner — mais un second appel monterait
@@ -431,7 +432,8 @@ export async function operatorSelect(root, choices) {
 // Monte l'Operator Terminal et résout le slug de la zone à survoler.
 // `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
 // le même panneau que Tab en vol.
-// Résout { slug, resume } pour voler, ou null pour remonter au choix de mode
+// Résout { slug, resume } pour voler une zone cuite, { live: [lat, lon] } pour
+// décoller en direct depuis le scanner, ou null pour remonter au choix de mode
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
 export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
 	let scenes = await fetchScenes();
@@ -472,8 +474,11 @@ OPERATOR // ${model.operatorName}</pre>`;
 			// Le scanner masque le terminal le temps de l'opération ; au retour la
 			// Home est reconstruite, car une acquisition a pu changer le cache.
 			s.el.hidden = true;
-			const slug = await globalScanner(root);
-			if (slug) return fly(slug);
+			const choice = await globalScanner(root);
+			// Une zone cuite se vole par son slug ; un décollage en direct remonte
+			// tel quel jusqu'à fieldLoop(), qui sait le faire traverser bootLive().
+			if (choice?.slug) return fly(choice.slug);
+			if (choice?.live) return flyLive(choice.live);
 			scenes = await fetchScenes();
 			s.el.hidden = false;
 			render();
@@ -510,6 +515,9 @@ OPERATOR // ${model.operatorName}</pre>`;
 	};
 
 	const fly = (slug, resume) => { nav?.detach(); s.remove(); resolveFly({ slug, resume }); };
+	// Vol en direct : pas de slug, rien sur le disque. La Home ne fait que
+	// transmettre — c'est fieldLoop() qui sait ce qu'un vol sans zone veut dire.
+	const flyLive = (coords) => { nav?.detach(); s.remove(); resolveFly({ live: coords }); };
 	// Remonter d'un cran : SELECT OPERATION MODE. Depuis PHASE 26 la Home n'est
 	// plus la racine — mais elle l'est encore pour ?scene=, qui saute le choix
 	// de mode, d'où le drapeau plutôt qu'un `back` inconditionnel.

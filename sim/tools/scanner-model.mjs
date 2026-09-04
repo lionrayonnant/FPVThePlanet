@@ -12,6 +12,24 @@ export {
 	polygonGrid, maskOutline, polygonBounds, polygonArea, polygonProbePoint,
 };
 
+// ------------------------------------------------------------- centre de zone
+
+// Le point qui REPRÉSENTE une zone dessinée : celui qu'on décrit à Nominatim,
+// et celui d'où l'on décolle en direct.
+//
+// Sur un tracé libre, le centre de l'emprise peut tomber dans une encoche — au
+// milieu d'un L il n'y a rien de ce qu'on a désigné. polygonProbePoint() rend un
+// point réellement DANS le tracé, et c'est déjà ce que fait la sonde : décrire,
+// sonder et décoller doivent viser le même endroit, sinon le scanner promet une
+// zone et en ouvre une autre.
+export function zoneCentre(zone, zoom) {
+	if (!zone) return null;
+	if (zone.poly) return polygonProbePoint(zone.poly, zoom);
+	const b = zone.bbox;
+	if (!b) return null;
+	return { lat: (b.south + b.north) / 2, lon: (b.west + b.east) / 2 };
+}
+
 // ---------------------------------------------------------------- formats
 
 const NF = new Intl.NumberFormat('en-US');

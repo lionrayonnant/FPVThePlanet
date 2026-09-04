@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
 	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands, sourceChoices, chosenSource,
 	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
-	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline,
+	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline, zoneCentre, polygonProbePoint,
 } from './scanner-model.mjs';
 import { slugify as coreSlugify, parsePrepLine } from './lib/add-map-core.mjs';
 import { tileGrid as estimatesTileGrid, estimateCost } from './lib/estimates.mjs';
@@ -392,6 +392,44 @@ t('areaAnalysis : une réponse de polygone se lit comme une réponse de rectangl
 	assert.equal(a.tiles, `${new Intl.NumberFormat('en-US').format(g.columns)} / ${new Intl.NumberFormat('en-US').format(g.cols * g.rows)}`);
 	// L'aire vient du tracé : 0.41 km², pas les 0.81 de son emprise.
 	assert.equal(a.surface, '0.41 km²');
+});
+
+// --------------------------------------------------------------- zoneCentre
+//
+// Le point qui représente la zone : ce qu'on décrit à Nominatim, et ce d'où
+// l'on décolle en direct. Les deux DOIVENT viser le même endroit, sinon le
+// scanner désigne un quartier et en ouvre un autre.
+
+t('zoneCentre : sur une emprise, le milieu', () => {
+	const c = zoneCentre({ bbox: { south: 48, west: 2, north: 49, east: 4 } }, 20);
+	assert.equal(c.lat, 48.5);
+	assert.equal(c.lon, 3);
+});
+
+t('zoneCentre : sur un tracé, le point de la sonde et non le milieu', () => {
+	// Une vraie zone, à l'échelle d'une acquisition (≈450 m de côté près de
+	// Paris), en L franc : bande sud + bande ouest, quadrant nord-est vide.
+	// Anneau PLAT [lat, lon, lat, lon, …], comme partout dans tools/lib/tiles.mjs.
+	const S = 48.850, W = 2.290, N = 48.854, E = 2.294;
+	const hi = S + (N - S) * 0.25, wi = W + (E - W) * 0.25;
+	const poly = [S, W, N, W, N, wi, hi, wi, hi, E, S, E, S, W];
+
+	const c = zoneCentre({ poly }, 20);
+	assert.ok(c && Number.isFinite(c.lat) && Number.isFinite(c.lon), 'un point utilisable');
+	// L'invariant qui compte, et la raison d'être de la fonction partagée :
+	// décrire, sonder et décoller visent le MÊME point. On ne réclame pas mieux
+	// que la sonde — polygonProbePoint() rend le centre d'une tuile RETENUE, et
+	// une tuile de bord peut déborder de quelques mètres hors du tracé.
+	assert.deepEqual(c, polygonProbePoint(poly, 20), 'le point est celui de la sonde');
+	// Et ce n'est pas le milieu de l'emprise, qui tomberait dans l'encoche.
+	const mid = { lat: (S + N) / 2, lon: (W + E) / 2 };
+	assert.notDeepEqual(c, mid, 'pas le centre naïf de l\'emprise');
+	assert.ok(c.lat >= S && c.lat <= N && c.lon >= W && c.lon <= E, 'dans l\'emprise');
+});
+
+t('zoneCentre : pas de zone, pas de point inventé', () => {
+	assert.equal(zoneCentre(null, 20), null);
+	assert.equal(zoneCentre({}, 20), null);
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

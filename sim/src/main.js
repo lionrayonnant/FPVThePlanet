@@ -284,7 +284,13 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 // settings.flightActive, lastTime, exposeDebugGlobal oubliés tour à tour). Le
 // banc réutilise boot(slug) et bootLive() tels quels ; tout ce qu'il ajoute
 // est ce drapeau et les gardes qui le lisent.
-const MODE = { bench: false, config: null };
+// `live` : un vol de RECONNAISSANCE en FIELD, décollé depuis le scanner sans
+// rien cuire (D7 — un mode ne se donne pas son propre chemin de boot, il
+// traverse celui qui existe avec un drapeau ; ici bootLive(), le même que
+// ?live= et que le banc). Il ne laisse rien : ni session, ni cible, ni ligne de
+// journal — un vol live ne garde aucun terrain, il ne doit donc garder aucun vol
+// (§2.2, terrain persistent, flights ephemeral).
+const MODE = { bench: false, live: false, config: null };
 // Les rates d'un exemplaire tiré au banc, posés avant bootLive() qui construit
 // son contrôleur lui-même. null en FIELD et pour ?live= : le contrôleur
 // retombe alors sur RATE_PRESETS[preset], comme avant.
@@ -1120,7 +1126,11 @@ async function bootLive([lat, lon]) {
 	// hors-périmètre assumé (#168). Ici la lat/lon est réelle et vient de
 	// l'opérateur, donc le soleil est légitime — c'est la même construction que
 	// le chemin scène, à partir de la même donnée.
-	if (MODE.bench) {
+	// Vaut aussi pour la reconnaissance FIELD : la lat/lon y vient du rectangle
+	// que l'opérateur vient de dessiner, elle est donc tout aussi réelle qu'au
+	// banc. applyBenchConfig() reste au banc — il n'y a pas de config à appliquer
+	// ici, et il se garde lui-même sur MODE.bench.
+	if (MODE.bench || MODE.live) {
 		sun = SunField.forOrigin({ latitude: lat, longitude: lon });
 		applyBenchConfig();
 	}
@@ -1241,7 +1251,10 @@ async function capturePhoto() {
 	// logged » parle de ce que FPVTP! enregistre, pas de ce que tu emportes —
 	// et dumper une frame dans un fichier est de toute façon le geste juste au
 	// banc, là où le vol de terrain rédige un rapport.
-	if (MODE.bench) {
+	// Même geste en reconnaissance : sans session ouverte, session.capturePhoto()
+	// n'aurait nulle part où écrire et échouerait en silence. Ce qu'on emporte
+	// part sur le disque de l'opérateur, comme au banc.
+	if (MODE.bench || MODE.live) {
 		const url = URL.createObjectURL(cap.blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -2272,6 +2285,27 @@ async function fieldLoop(ui) {
 		// racine depuis PHASE 26, et il faut pouvoir repartir au banc sans
 		// recharger la page.
 		if (!flyChoice) return null;
+
+		// Reconnaissance : le scanner rend un point, pas une zone. On décolle
+		// tout de suite — ni TARGET SCAN, ni hack, ni rituel. Les cibles sont un
+		// attribut d'une zone RELEVÉE (signalCountFor() lit la densité que
+		// l'acquisition a écrite) : en inventer sur un terrain qu'on n'a jamais
+		// relevé fabriquerait un relevé qui n'a pas eu lieu.
+		//
+		// Exactement le chemin de ?live= : bootLive() construit sa physique et son
+		// contrôleur lui-même et rend { prepared: true }. PROFILE n'est PAS posé
+		// ici — il reste undefined comme sous ?live=, et Physics choisit son
+		// défaut (main.js:126, bootLive: `PROFILE ? { profile: PROFILE } : {}`).
+		// Le banc, lui, doit le poser parce qu'il a une cellule choisie ; la
+		// reconnaissance n'en a pas.
+		if (flyChoice.live) {
+			MODE.live = true;
+			audio.start();
+			console.log(`[field] reconnaissance en direct → ${flyChoice.live[0].toFixed(4)}, ${flyChoice.live[1].toFixed(4)}`);
+			await bootLive(flyChoice.live);
+			return { prepared: true };
+		}
+
 		const { slug, resume } = flyChoice;
 
 		if (resume) {
@@ -2522,7 +2556,11 @@ async function openFlightSession() {
 	// sans cette garde, session.open() échoue silencieusement (aucun opérateur
 	// chargé) puis applyTargetCamera()/droneOsdLayout() réécrivent un état que
 	// bootLive() avait délibérément laissé de côté.
-	if (OPTS.live) return;
+	// MODE.live emprunte exactement ce chemin : une reconnaissance FIELD est
+	// passée par bootLive() elle aussi, et pour la même raison — pas de session
+	// serveur, pas de caméra de cible, droneOsd null. C'est la garde éprouvée,
+	// on ne s'en fabrique pas une deuxième.
+	if (OPTS.live || MODE.live) return;
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
