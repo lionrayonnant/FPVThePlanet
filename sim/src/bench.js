@@ -70,7 +70,9 @@ function saveLastMode(mode) {
 
 export function selectOperationMode(root, { last = loadLastMode() } = {}) {
 	const s = screen(root, 'terminal-home bench-modes');
-	s.box.innerHTML = `<pre>${MODE_SELECT.title}</pre>`;
+	const title = document.createElement('pre');
+	title.textContent = MODE_SELECT.title;
+	s.box.appendChild(title);
 
 	return new Promise((resolve) => {
 		let nav = null;
@@ -192,7 +194,7 @@ export function runBench(root, { scenes = [], settings = null, live = false, onC
 			// (lat/lon n'existent qu'en vol libre) et un index mentirait.
 			const focusKey = document.activeElement?.dataset?.benchKey ?? null;
 
-			s.box.innerHTML = '';
+			s.box.replaceChildren();
 
 			const head = document.createElement('pre');
 			head.className = 'bench-head';

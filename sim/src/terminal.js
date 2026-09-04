@@ -14,9 +14,15 @@ const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 export function screen(root, cls = '') {
 	const el = document.createElement('div');
 	el.className = `bootstrap terminal ${cls}`.trim();
-	el.innerHTML = '<div class="bootstrap-box terminal-box"></div>';
+	// createElement plutôt qu'innerHTML : rigoureusement le même arbre, mais
+	// sans passer par l'analyseur HTML — ce qui rend l'écran montable sur le
+	// faux DOM de tools/lib/fake-dom.mjs, comme le faux AudioContext rend le
+	// son testable sans navigateur.
+	const box = document.createElement('div');
+	box.className = 'bootstrap-box terminal-box';
+	el.appendChild(box);
 	root.appendChild(el);
-	return { el, box: el.querySelector('.terminal-box'), remove: () => el.remove() };
+	return { el, box, remove: () => el.remove() };
 }
 
 export function button(label, onClick, cls = 'terminal-link') {
