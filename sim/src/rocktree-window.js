@@ -166,6 +166,15 @@ export class RocktreeWindow {
 		return Math.max(0, this._loadRadiusM() - TRUST_MARGIN_M);
 	}
 
+	// Rayon de CHARGEMENT exposé publiquement : le dôme numérique (fence-dome.js)
+	// en a besoin pour sa propre échelle — reconstruire nearestTrustedRadius() +
+	// TRUST_MARGIN_M serait fragile (silencieusement faux si le clamp à 0 de
+	// nearestTrustedRadius() joue jamais). Ne fait rien de plus que _loadRadiusM(),
+	// juste un nom public pour un consommateur hors de cette classe.
+	loadRadiusM() {
+		return this._loadRadiusM();
+	}
+
 	async update(dronePos) {
 		if (this._lastPos && metersBetween(dronePos, this._lastPos) < REFRESH_THRESHOLD_M) return;
 		this._lastPos = dronePos;
