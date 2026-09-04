@@ -1074,6 +1074,23 @@ async function bootLive([lat, lon]) {
 	// sur le point de spawn lui-même plutôt que null.
 	emitter = { x: 0, y: (groundHere !== null ? groundHere : physics.spawn.y) + ANTENNA_HEIGHT, z: 0 };
 
+	// Les conditions du banc, en vol libre (PHASE 26).
+	//
+	// Ce chemin ne passe pas par finishBoot(), donc rien de ce que finishBoot()
+	// pose n'existe ici : sans ces trois lignes, TOUT le panneau de conditions
+	// du banc était ignoré en silence — et pire, la première ouverture du
+	// panneau en vol (touche B) appelait applyBenchConfig() et faisait
+	// apparaître la météo d'un coup, au milieu du vol.
+	//
+	// `?live=` seul ne change pas : il reste sans météo ni soleil, c'est son
+	// hors-périmètre assumé (#168). Ici la lat/lon est réelle et vient de
+	// l'opérateur, donc le soleil est légitime — c'est la même construction que
+	// le chemin scène, à partir de la même donnée.
+	if (MODE.bench) {
+		sun = SunField.forOrigin({ latitude: lat, longitude: lon });
+		applyBenchConfig();
+	}
+
 	// Boucle de vol : frame() lit fence.*/controller.* sans garde nulle part
 	// (elle suppose toujours une scène pré-cuite complète) — le mode ?live=
 	// doit donc lui fournir de vraies instances, pas les laisser null.
@@ -1262,12 +1279,20 @@ function respawn() {
 	if (crashed && !OPTS.scene && !MODE.bench) { location.href = location.pathname; return; }
 	fpvtpOsd.setSessionStatus(null);
 	controller.arm();
-	physics.applyEntryState(generateEntryState({
-		physics,
-		manifest: sceneManifest,
-		seed: Math.random().toString(16).slice(2, 12),
-		...(MODE.bench ? benchEntryRequest(MODE.config) : {}),
-	}));
+	// En vol libre il n'y a pas de manifeste : ni bbox pour tirer un point, ni
+	// spawn à recopier. generateEntryState() y planterait sur manifest.spawn.
+	// physics.reset() est exactement ce que bootLive() utilise — il renvoie au
+	// spawn ET re-prime les moteurs, ce que le constructeur seul ne fait pas.
+	if (!sceneManifest) {
+		physics.reset();
+	} else {
+		physics.applyEntryState(generateEntryState({
+			physics,
+			manifest: sceneManifest,
+			seed: Math.random().toString(16).slice(2, 12),
+			...(MODE.bench ? benchEntryRequest(MODE.config) : {}),
+		}));
+	}
 	link.reset();
 	// Pour l'HYSTÉRÉSIS, et pour elle seule : sans ce reset, zoneOf() jugerait
 	// la première frame d'après-respawn à l'aune de la zone d'avant. La perte

@@ -259,6 +259,13 @@ export function benchBlockers(config, { scenes = [] } = {}) {
 	// vérité des données. Le terrain s'arrête au bord du rectangle acquis, et
 	// ça doit se lire AVANT le vol plutôt que se découvrir dans le vide.
 	if (!c.fence && c.terrain.kind === 'cached') out.push('FENCE OFF — TERRAIN ENDS AT THE EDGE OF THE ACQUIRED AREA');
+	// En vol libre il n'y a pas de manifeste, donc pas de bbox où tirer un
+	// point d'entrée : le drone part du sol, sous la station. Le dire plutôt
+	// que d'ignorer le réglage en silence — un réglage qui n'agit pas et ne
+	// l'annonce pas est pire que pas de réglage du tout.
+	if (c.terrain.kind === 'live' && c.entry !== 'IDLE') {
+		out.push(`ENTRY ${c.entry.replace('_', ' ')} IS IGNORED IN LIVE FLIGHT — NO SURVEYED AREA TO DROP INTO`);
+	}
 	return out;
 }
 

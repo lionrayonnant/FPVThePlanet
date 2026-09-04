@@ -248,6 +248,22 @@ t('benchBlockers : fence coupée sur scène cuite se dit avant le vol', () => {
 	assert.deepEqual(benchBlockers({ fence: false, terrain: { kind: 'live' } }), []);
 });
 
+t('benchBlockers : un réglage sans effet en vol libre le DIT', () => {
+	// Le vol libre n'a pas de manifeste, donc pas de bbox où tirer un point
+	// d'entrée. Un réglage qui n'agit pas et ne l'annonce pas est pire que pas
+	// de réglage : l'opérateur croirait tomber en HOLY SHIT et partirait du sol.
+	for (const cat of CATEGORIES) {
+		const b = benchBlockers({ entry: cat, terrain: { kind: 'live' } });
+		assert.ok(b.some((l) => /IGNORED IN LIVE FLIGHT/.test(l)), `${cat} est annoncé comme ignoré`);
+	}
+	// IDLE, lui, est bien ce qui se passe : rien à annoncer.
+	assert.deepEqual(benchBlockers({ entry: 'IDLE', terrain: { kind: 'live' } }), []);
+	// Et sur terrain caché, toutes les catégories fonctionnent.
+	assert.deepEqual(
+		benchBlockers({ entry: 'HOLY_SHIT', terrain: { kind: 'cached', slug: 'paristest' } }, { scenes: [{ slug: 'paristest' }] }),
+		[]);
+});
+
 // ---------------------------------------------------------------------------
 // Persistance
 

@@ -246,6 +246,25 @@ await ta('banc : un terrain disparu du disque est signalé, pas subi', async () 
 	await p;
 });
 
+await ta('banc : en vol libre, un ENTRY sans effet est annoncé à l\'écran', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: [] });   // cache vide → vol libre
+	assert.equal(rowOf('terrain').value, 'live');
+	const sel = rowOf('entry');
+	sel.value = 'HOLY_SHIT';
+	sel.onchange();
+	// Sans cet avertissement, l'opérateur croirait tomber en HOLY SHIT et
+	// partirait du sol sans jamais comprendre pourquoi.
+	assert.match(dom.root.textContent, /IGNORED IN LIVE FLIGHT/);
+	// Mais ça reste un avertissement : on décolle quand même.
+	assert.ok(!btn('SPIN UP').disabled);
+	sel.value = 'IDLE';
+	sel.onchange();
+	assert.ok(!/IGNORED IN LIVE FLIGHT/.test(dom.root.textContent), 'IDLE n\'a rien à annoncer');
+	btn('SPIN UP').click();
+	await p;
+});
+
 await ta('banc : FENCE OFF prévient que le terrain s\'arrête au bord', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
