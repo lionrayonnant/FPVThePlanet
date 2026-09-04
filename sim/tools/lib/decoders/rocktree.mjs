@@ -88,7 +88,11 @@ export function loadMeshes(tileDir, entries, radius, onCopyright) {
 // strip et même exclusion d'octants que la boucle de sortie plus bas — les
 // deux doivent voir EXACTEMENT la même géométrie, sinon on réparerait des
 // texels que personne ne regarde et on en laisserait de visibles).
-function forEachDrawnTriangle(m, exclude, cb) {
+//
+// Exporté pour servir d'oracle au selftest de parité de build-node.mjs (#178) :
+// le chemin ?live= doit dessiner et rendre solides les MÊMES triangles que le
+// bake. La copie plutôt que l'import y aurait laissé les deux dériver.
+export function forEachDrawnTriangle(m, exclude, cb) {
 	for (let i = 0; i + 2 < m.end; i++) {
 		let a = m.strip[i], b = m.strip[i+1], c = m.strip[i+2];
 		if (a === b || a === c || b === c) continue;

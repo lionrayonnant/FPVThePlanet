@@ -181,7 +181,11 @@ let rainfall = null;
 let weather = null;
 
 let physics = null;
-const liveMeshes = new Map();   // colliderPath -> THREE.Mesh, mode ?live= (#168)
+// path de nœud -> [{ colliderPath, mesh }], mode ?live= (#168). Clé le NŒUD et
+// non le collider (#179) : une libération retrouvait ses sous-maillages en
+// balayant TOUTE la table (copie comprise), soit O(nœuds chargés) par nœud
+// libéré — quadratique sur le recentrage d'une fenêtre de plusieurs centaines.
+const liveMeshes = new Map();
 let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
 
 // Files du mode ?live= (#184) : les nœuds reçus/libérés attendent ici, et
@@ -212,14 +216,13 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 	while (performance.now() - start < budgetMs) {
 		if (pendingNodeReleases.length > 0) {
 			const path = pendingNodeReleases.shift();
-			for (const [colliderPath, mesh] of [...liveMeshes.entries()]) {
-				if (!colliderPath.startsWith(`${path}#`)) continue;
+			for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
 				scene.remove(mesh);
 				mesh.geometry.dispose();
 				mesh.material.dispose();
 				physics.removeNodeCollider(colliderPath);
-				liveMeshes.delete(colliderPath);
 			}
+			liveMeshes.delete(path);
 			continue;
 		}
 		const next = pendingNodeBuilds.entries().next();
@@ -227,14 +230,21 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 		const [path, job] = next.value;
 		pendingNodeBuilds.delete(path);
 		const built = buildNodeMesh(path, job.meshes);
+		const entries = [];
+		liveMeshes.set(path, entries);
 		for (const { mesh, colliderPath, vertices, indices } of built) {
+			// Le collider EN PREMIER (#179) : c'est la seule de ces étapes qui
+			// puisse lever (chemin déjà chargé, trimesh refusé par Rapier). Le
+			// mesh était auparavant ajouté à la scène avant elle et enregistré
+			// après — une exception sur le premier sous-maillage d'un nœud
+			// laissait donc un mesh dans la scène que plus rien ne libérait.
+			physics.addNodeCollider(colliderPath, vertices, indices);
 			scene.add(mesh);
 			// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
 			// rendu — sinon Three téléverse toutes les textures de la vague
 			// dans la frame où elles deviennent visibles.
 			if (mesh.material.map) renderer.initTexture(mesh.material.map);
-			physics.addNodeCollider(colliderPath, vertices, indices);
-			liveMeshes.set(colliderPath, mesh);
+			entries.push({ colliderPath, mesh });
 		}
 	}
 	// UN refit du query-BVH pour tout le lot de la frame (#187) — add/remove

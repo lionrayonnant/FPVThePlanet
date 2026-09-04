@@ -48,28 +48,34 @@ export function buildNodeGeometries({ matrix, meshes, sphereRadius, originEcef, 
 			if (d2 > r2) r2 = d2;
 		}
 
-		// Triangle strip -> triangles indépendants, en sautant les triangles
-		// dégénérés (aire nulle, courants aux points de jonction d'un strip) —
-		// même garde que forEachDrawnTriangle() dans tools/lib/decoders/
-		// rocktree.mjs. Une géométrie de collision avec des triangles d'aire
-		// nulle déstabilise la résolution de contact Rapier (#176). Écrit
-		// directement dans un Uint32Array surdimensionné (3 index par pas de
-		// strip au plus) puis tronqué : pas de tableau JS intermédiaire à
-		// faire collecter pendant une vague.
+		// Triangle strip -> triangles indépendants. Écrit directement dans un
+		// Uint32Array surdimensionné (3 index par pas de strip au plus) puis
+		// tronqué : pas de tableau JS intermédiaire à faire collecter pendant
+		// une vague.
 		const strip = unpackIndices(m.indices);
-		// exclude : octants dont un enfant retenu dessine déjà la géométrie
-		// (z-fight sinon) — même sémantique que forEachDrawnTriangle() du
-		// décodeur de référence. octantOf n'est calculé que si nécessaire :
-		// exclude est normalement vide après dropFillinAncestors().
-		const octantOf = excludeSet.size
-			? unpackLayerBoundsAndOctants(m.layerAndOctantCounts, strip, count).octantOf
-			: null;
-		const idxAll = new Uint32Array(Math.max(0, strip.length - 2) * 3);
+		// Deux gardes, pas une, toutes deux reprises de forEachDrawnTriangle()
+		// du décodeur de référence :
+		//  - layerBounds[3] = début de TERRAIN_HIDDEN. Au-delà, le strip décrit
+		//    du relief que le protocole ne fait PAS dessiner ; le parcourir
+		//    quand même superposait cette couche au terrain visible ET la
+		//    rendait solide côté Rapier (#178).
+		//  - exclude : octants dont un enfant retenu dessine déjà la géométrie
+		//    (z-fight sinon), normalement vide après dropFillinAncestors().
+		// layerBounds impose de lire layer_and_octant_counts pour CHAQUE mesh,
+		// donc le calcul paresseux d'octantOf n'a plus de raison d'être : c'est
+		// la même passe. Surcoût payé dans le Worker, pas sur le fil principal
+		// (#187).
+		const { layerBounds, octantOf } = unpackLayerBoundsAndOctants(m.layerAndOctantCounts, strip, count);
+		const end = Math.min(layerBounds[3], strip.length);
+		// Triangles dégénérés (aire nulle, courants aux jonctions d'un strip)
+		// écartés au passage : une géométrie de collision qui en contient
+		// déstabilise la résolution de contact Rapier (#176).
+		const idxAll = new Uint32Array(Math.max(0, end - 2) * 3);
 		let w = 0;
-		for (let s = 0; s + 2 < strip.length; s++) {
+		for (let s = 0; s + 2 < end; s++) {
 			const a = strip[s], b = strip[s + 1], c = strip[s + 2];
 			if (a === b || a === c || b === c) continue;
-			if (octantOf && excludeSet.has(octantOf[a])) continue;
+			if (excludeSet.size && excludeSet.has(octantOf[a])) continue;
 			if (s % 2 === 0) { idxAll[w++] = a; idxAll[w++] = b; idxAll[w++] = c; }
 			else { idxAll[w++] = b; idxAll[w++] = a; idxAll[w++] = c; }
 		}

@@ -11,8 +11,10 @@
 // s'affiche et n'est pas dans ce périmètre.
 //
 // Pas de `signal` dans le message reçu : un AbortSignal n'est pas clonable
-// par postMessage(). L'annulation est le problème de rocktree-loader.js, sur
-// le fil principal (worker.terminate()), pas de celui-ci.
+// par postMessage(). L'annulation est le problème du fil principal
+// (rocktree-worker-pool.js), pas de celui-ci : ce worker étant PARTAGÉ, elle
+// ne peut plus le terminer — elle saute la requête si elle est encore en file,
+// et sinon laisse celle-ci finir et ignore sa réponse.
 import { nodeUrl } from '../tools/lib/rocktree/url.mjs';
 import { parseNode } from '../tools/lib/rocktree/proto.mjs';
 import { buildNodeGeometries } from '../tools/lib/rocktree/build-node.mjs';
@@ -22,7 +24,9 @@ import { buildNodeGeometries } from '../tools/lib/rocktree/build-node.mjs';
 // fait de worker.js. L'appelant (rocktree-worker-pool.js) crée un petit
 // nombre de ces workers une fois pour toute la session de vol et les
 // réutilise ; `id` corrèle chaque réponse à sa requête, plusieurs pouvant
-// être en vol en même temps sur des workers différents du pool.
+// être en vol en même temps sur le même worker comme sur d'autres du pool —
+// ce handler est asynchrone, donc rien ne les sérialise ici. C'est le pool
+// qui borne leur nombre (#179), pas ce fichier.
 //
 // Le build géométrique (ECEF→ENU, strip→triangles, UV, boundingSphere)
 // tourne ICI (#187) : sur le fil principal il participait à faire déborder
