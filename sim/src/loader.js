@@ -16,7 +16,26 @@ export function sceneBase(slug) {
 export async function loadSceneList() {
 	const res = await fetch(`${import.meta.env.BASE_URL}scenes.json`);
 	if (!res.ok) throw new Error(`scenes.json: HTTP ${res.status} — run "npm run add-map" first`);
-	return res.json();
+	const all = await res.json();
+	// Garde-fou : ignorer les scènes dont le dossier n'existe pas physiquement
+	// (typiquement après un clone fresh où scenes.json est commité mais pas
+	// public/scenes/, qui est dans .gitignore).  fetch HEAD est plus fiable
+	// qu'une simple existence de fichier : il vérifie ce que le serveur statique
+	// sert réellement.
+	const checks = await Promise.all(all.map(async (s) => {
+		try {
+			const r = await fetch(sceneBase(s.slug) + 'manifest.json', { method: 'HEAD' });
+			return r.ok ? s : null;
+		} catch {
+			return null;
+		}
+	}));
+	const present = checks.filter(Boolean);
+	if (present.length < all.length) {
+		const missing = all.filter((s, i) => !checks[i]).map((s) => s.slug);
+		console.warn(`[loader] ${missing.length} scène(s) listée(s) dans scenes.json mais absente(s) du disque : ${missing.join(', ')}`);
+	}
+	return present;
 }
 
 export async function loadManifest(base) {
