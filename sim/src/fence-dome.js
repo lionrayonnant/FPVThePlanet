@@ -15,8 +15,34 @@
 // rocktree-window.js pour ce signal.
 
 import * as THREE from 'three';
+import { fogDensity } from './rain.js';
 
 export const CYAN = 0x4dd8e8;
+
+// Brouillard local qui épaissit près du VRAI bord (#198, retour "rupture
+// nette" après vérification en vol) : le terrain live n'a AUCUN brouillard
+// aujourd'hui (météo hors périmètre en ?live=, main.js), donc il s'arrêtait
+// net contre le vide au lieu de se dissoudre dans le dôme. main.js pousse
+// fogDensityFor() sur scene.fog (THREE.FogExp2, teinté CYAN) — même formule
+// exp-carré que le brouillard des tuiles pré-cuites (TileMaterial.js) et
+// même fonction fogDensity()/FOG_SHAPE que fog.js, pour rester dans la même
+// unité (une visibilité en mètres) que le reste du modèle météo.
+//
+// Volontairement une courbe DIFFÉRENTE d'opacityFor() : celle-ci reste
+// perceptible en continu sur toute la fenêtre par choix (#198), le
+// brouillard lui ne doit épaissir que près du bord réel — sinon voler au
+// centre d'une grande fenêtre serait perpétuellement embrumé. ratio^4 reste
+// plat jusqu'à ~70 % du rayon puis monte vite.
+//
+// EDGE_VISIBILITY_M : CHOISI — même ordre que le préréglage « purée » de
+// fog.js (50 m), assez dense pour dissoudre la coupure plutôt que la laisser
+// nette, pas encore mesuré en vol avec cet effet précis.
+const EDGE_VISIBILITY_M = 60;
+
+export function fogDensityFor(distanceRatio) {
+	const r = Math.min(1, Math.max(0, distanceRatio));
+	return fogDensity(EDGE_VISIBILITY_M) * r ** 4;
+}
 
 // Opacité de base, du centre de la fenêtre (ratio 0) au bord réel (ratio 1).
 // CHOISI, pas mesuré — même statut que RAMP_M/TRUST_MARGIN_M dans ce coin du
@@ -54,6 +80,10 @@ export class FenceDome {
 		// Infinity : aucun churn encore vu, le glitch part éteint (glitchFor
 		// applique déjà 0 dès que secondsSinceChurn >= GLITCH_DECAY_S).
 		this._secondsSinceChurn = Infinity;
+		// Dernier ratio calculé par update() (0 au centre, 1 au bord réel) —
+		// exposé via distanceRatio pour que main.js pousse fogDensityFor() sur
+		// scene.fog sans recalculer la même géométrie deux fois.
+		this._lastRatio = 0;
 
 		this.material = new THREE.ShaderMaterial({
 			glslVersion: THREE.GLSL3,
@@ -141,6 +171,7 @@ export class FenceDome {
 		this._secondsSinceChurn += dt;
 		if (!windowCenterLocal || !(loadRadiusM > 0) || !dronePosLocal) {
 			this.mesh.visible = false;
+			this._lastRatio = 0;
 			return this;
 		}
 		this.mesh.visible = true;
@@ -155,11 +186,16 @@ export class FenceDome {
 			dronePosLocal.x - windowCenterLocal.x,
 			dronePosLocal.z - windowCenterLocal.z,
 		) / loadRadiusM;
+		this._lastRatio = Math.min(1, Math.max(0, distanceRatio));
 		this.material.uniforms.uOpacity.value = opacityFor(distanceRatio);
 		this.material.uniforms.uGlitch.value = glitchFor(this._secondsSinceChurn);
 		this.material.uniforms.uTime.value += dt;
 		return this;
 	}
+
+	// 0 au centre de la fenêtre, 1 au bord réel (clampé) — main.js s'en sert
+	// pour fogDensityFor() sans recalculer la même géométrie deux fois.
+	get distanceRatio() { return this._lastRatio; }
 
 	dispose() {
 		this.scene.remove(this.mesh);

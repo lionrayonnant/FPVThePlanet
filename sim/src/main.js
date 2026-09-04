@@ -24,7 +24,7 @@ import { SunField, SKY_REF, nightSensor, NIGHT_FLOOR_DEG } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
-import { FenceDome } from './fence-dome.js';
+import { FenceDome, fogDensityFor as liveFogDensityFor, CYAN as FENCE_CYAN } from './fence-dome.js';
 import { GeofenceWall } from './geofence-dome.js';
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
@@ -1021,6 +1021,14 @@ async function bootLive([lat, lon]) {
 	});
 	liveWindow = rocktreeWindow;
 	fenceDome = new FenceDome(scene);
+	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
+	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
+	// météo est hors périmètre en ?live=), donc scene.fog est entièrement
+	// libre ici — densité poussée chaque frame par fogDensityFor() plus bas.
+	// MeshBasicMaterial (buildNodeMesh) respecte scene.fog par défaut
+	// (material.fog non désactivé) ; SkyDome a fog:false et n'en est pas
+	// affecté.
+	scene.fog = new THREE.FogExp2(FENCE_CYAN, 0);
 	// Révèle le curseur « View range » (caché hors mode live) et le branche :
 	// setFloorRadiusM() invalide le cache de position de la fenêtre, le
 	// prochain update() de frame() charge la couronne manquante (ou libère
@@ -1836,6 +1844,12 @@ if (!frozen) {
 			loadRadiusM: liveWindow?.loadRadiusM(),
 			dronePosLocal: physics.position,
 		});
+		// Le terrain se dissout dans le brouillard près du vrai bord plutôt
+		// que de s'arrêter net (retour "rupture nette" après vérification) —
+		// même ratio que le dôme, courbe différente (fogDensityFor() reste
+		// nulle jusqu'à mi-fenêtre, contrairement à l'opacité du dôme qui
+		// reste perceptible en continu par choix).
+		scene.fog.density = liveFogDensityFor(fenceDome.distanceRatio);
 	}
 	// Muraille numérique du bord de carte pré-cuite (#199) : même principe,
 	// géométrie de bbox plutôt que de rayon — voir geofence-dome.js.
