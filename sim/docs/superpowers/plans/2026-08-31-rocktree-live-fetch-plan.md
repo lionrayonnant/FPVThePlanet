@@ -736,8 +736,14 @@ de `window.testFetchNode` dans `public/rocktree-live-test.html` par :
 		const [relPath, meta] = [...bulk.nodes.entries()][0];
 		return fetchNode({
 			path: relPath,
-			epoch: meta.epoch ?? bulk.epoch,
-			imageryEpoch: meta.imageryEpoch,
+			// meta.epoch absent -> epoch du bulk courant, ici rootEpoch (parseBulk
+			// n'a pas de champ `epoch` top-level — voir proto.mjs). bulk.epoch
+			// est undefined et aurait provoqué un 404 garanti.
+			epoch: meta.epoch ?? rootEpoch,
+			// Même repli que traverse.mjs:269 et google-earth.mjs : sans lui,
+			// un flag imagerie posé mais sans imageryEpoch propre part avec
+			// `undefined` dans l'URL.
+			imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? bulk.defaultImageryEpoch) : null,
 			flags: meta.flags,
 		});
 	};
