@@ -828,3 +828,76 @@ button.terminal-row:focus::before { left: 0; }
 	opacity: 0;
 	transition: opacity .3s ease;
 }
+
+/* ---------- BENCH (PHASE 26) ---------- */
+/* Le banc est un banc : un tableau d'étiquettes et de contrôles alignés, pas
+   un panneau de réglages moderne. Même grammaire que le reste — traits fins,
+   angles droits, aucune ombre, aucune couleur qui ne porte pas d'information. */
+
+/* SELECT OPERATION MODE — la racine du jeu. Deux voies, et ce que chacune
+   coûte écrit dessous. La sous-ligne est en DATA : c'est de la description,
+   pas la machine qui parle. */
+.bench-mode { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.bootstrap-box pre.bench-mode-sub {
+	color: var(--light-grey);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	text-align: center; margin: 0;
+}
+.bench-modes .terminal-box { gap: var(--space-5); }
+
+/* L'écran de configuration. */
+.bench-config .terminal-box { width: min(760px, 94vw); gap: var(--space-2); }
+.bootstrap-box pre.bench-head { margin-bottom: var(--space-3); }
+
+.bench-row {
+	display: flex; align-items: center; gap: var(--space-3);
+	width: 100%;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+/* Une colonne d'étiquettes de largeur fixe : c'est ce qui fait lire le banc
+   comme un tableau et non comme un formulaire. */
+.bench-label {
+	min-width: 9.5em; flex: none;
+	color: var(--light-grey);
+	font-family: var(--font-ui); letter-spacing: var(--track-ui);
+	text-transform: uppercase;
+}
+/* La valeur lue est à droite, tabulaire, pour que les chiffres ne dansent pas
+   quand on tient une flèche enfoncée. */
+.bench-value {
+	min-width: 11em; flex: none; text-align: right;
+	color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.bench-inline { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
+
+.bench-select, .bench-coord {
+	flex: 1; min-width: 0;
+	background: var(--dark-grey); color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong); border-radius: 0;
+	padding: 2px var(--space-2);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+.bench-select:focus, .bench-coord:focus { outline: none; border-color: var(--warm-white); }
+.bench-slider { flex: 1; min-width: 0; accent-color: var(--warm-white); }
+.bench-inline button.terminal-link { flex: none; }
+
+/* Un avertissement dit ce qui va se passer ; il n'interdit rien (Bible §2,
+   « Information, not assistance »). D'où l'orange — ça se produit maintenant —
+   et jamais le rouge, qui veut dire perdu. */
+.bootstrap-box pre.bench-warn {
+	color: var(--orange);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	margin: var(--space-2) 0 0; text-align: left; white-space: pre-wrap;
+}
+/* Le sceau. C'est une promesse tenue par le code, pas une décoration : si un
+   jour le banc écrit quelque chose, cette ligne devient un mensonge. */
+.bootstrap-box pre.bench-seal {
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui);
+	margin: var(--space-3) 0 0;
+}

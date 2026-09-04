@@ -24,7 +24,9 @@ import { SunField, SKY_REF, nightSensor, NIGHT_FLOOR_DEG } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
-import { worldWeather, applyWeather, headline, CALM } from './weather.js';
+import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
+import { selectOperationMode, runBench, loadLastMode } from './bench.js';
+import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan } from '../tools/target-model.mjs';
@@ -262,6 +264,85 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 	// (spawn, AGL) lit le pipeline au plus tard à la frame suivante.
 	physics.flushNodeColliders();
 }
+// Le mode d'opération de ce chargement (PHASE 26, Bible §48).
+//
+// FIELD est le jeu : une cible qui n'est pas à toi, un lien qui se dégrade,
+// une session écrite, un crash qui perd la machine.
+// BENCH est le banc : NO TARGET, NO LINK, NO HACK, NO LOSS, NOTHING LOGGED.
+//
+// Un objet traversé, et surtout PAS un second pipeline de boot. bootLive() a
+// forké la fin de finishBoot() à la main et l'a payé trois fois (#168, #170 —
+// settings.flightActive, lastTime, exposeDebugGlobal oubliés tour à tour). Le
+// banc réutilise boot(slug) et bootLive() tels quels ; tout ce qu'il ajoute
+// est ce drapeau et les gardes qui le lisent.
+const MODE = { bench: false, config: null };
+// Les rates d'un exemplaire tiré au banc, posés avant bootLive() qui construit
+// son contrôleur lui-même. null en FIELD et pour ?live= : le contrôleur
+// retombe alors sur RATE_PRESETS[preset], comme avant.
+let benchRates = null;
+// L'instant que le banc donne au soleil. Recalculé quand l'heure change, et
+// pas à chaque frame : sun.update() tourne à 60 Hz et n'a pas besoin qu'on lui
+// fabrique une Date soixante fois par seconde.
+let benchClock = null;
+
+// Le panneau du banc est-il ouvert par-dessus le vol ? Gèle la sim comme le
+// fait le panneau Settings : on règle une machine à l'arrêt, pas en vol libre.
+let benchPanelOpen = false;
+
+// Applique au monde vivant tout ce que la config du banc décide. Appelée au
+// boot ET à chaque changement du panneau en vol : c'est le même chemin, donc
+// un réglage se comporte pareil avant et pendant le vol.
+function applyBenchConfig() {
+	if (!MODE.bench || !MODE.config) return;
+	const c = MODE.config;
+	benchClock = benchDate(c);
+	applySimParams(benchSimParams(c), { physics, rain, fog, cloud, sun });
+
+	// La cellule, à chaud. physics.setProfile() reconstruit la Propulsion et
+	// les propriétés de masse du corps Rapier sans recharger la scène ; c'est
+	// déjà ce que fait tools/selftest.mjs pour parcourir les six familles.
+	// Le contrôleur suit : ses PID sont ceux du profil, pas des constantes.
+	const build = c.airframe.seed ? targetBuild({ seed: c.airframe.seed, family: c.airframe.family }) : null;
+	const profile = build ? build.profile : PROFILES[c.airframe.family];
+	if (physics && profile && physics.profile?.family !== profile.family) {
+		physics.setProfile(profile);
+		PROFILE = physics.profile;
+		audio.setProfile(physics.profile);
+		flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
+		controller = new FlightController({ profile: PROFILE, rates: build?.rates });
+		console.log(`[bench] cellule → ${PROFILE.family} (${PROFILE.label})`);
+	}
+	// physics.battery est un getter vers propulsion.battery, et setProfile()
+	// reconstruit la Propulsion — donc le pack. Reposer le drapeau ICI, après
+	// le changement de cellule et non une seule fois au boot, est ce qui fait
+	// qu'un changement de cellule en vol ne rend pas la charge en douce.
+	physics?.battery?.setDrain(c.battery !== 'HELD');
+}
+
+// Le panneau du banc, ouvert par-dessus le vol (touche B). Le MÊME écran que
+// la configuration d'avant décollage, en mode `live` : un réglage doit se
+// comporter pareil avant et pendant, sinon le banc ment sur ce qu'il règle.
+async function toggleBenchPanel() {
+	if (benchPanelOpen) return;
+	benchPanelOpen = true;
+	// Le curseur souris appartient au vol : sans ça, le pointer lock avale les
+	// clics du panneau et rien n'est réglable.
+	document.exitPointerLock?.();
+	try {
+		MODE.config = await runBench(document.getElementById('ui'), {
+			settings,
+			live: true,
+			onChange: (c) => { MODE.config = c; applyBenchConfig(); },
+		}) ?? MODE.config;
+	} finally {
+		benchPanelOpen = false;
+		// Même recalage que la sortie de pause : ne pas rejouer l'écart
+		// d'horloge accumulé pendant le réglage comme un pas de physique géant.
+		accumulator = 0;
+		lastTime = performance.now();
+	}
+}
+
 // Les limites de la zone (#139) et ce qu'on voit au-delà. Les deux naissent
 // dans finishBoot(), une fois la bbox du manifeste connue : sans carte, il n'y
 // a ni clôture ni horizon à dessiner.
@@ -670,7 +751,16 @@ async function finishBoot(preloading) {
 	// Les limites de la zone (#139). Construites AVANT le tirage du point
 	// d'entrée juste en dessous : c'est la même bbox, et entry-state.js s'en
 	// sert désormais pour ne jamais naître dans l'avertissement.
-	fence = new Geofence(manifest.bbox);
+	//
+	// FENCE OFF au banc : une clôture immense plutôt qu'une branche dans
+	// frame(). Même motif que le mode ?live= plus bas — la zone reste toujours
+	// NOMINAL et le rappel toujours nul, donc tout ce qui lit fence.out (la
+	// force, l'OSD, la fin de vol hors couverture) continue de fonctionner sans
+	// rien savoir du banc. Le terrain, lui, s'arrête quand même au bord du
+	// rectangle acquis : c'est dit avant le décollage, pas découvert dans le vide.
+	fence = MODE.bench && !MODE.config.fence
+		? new Geofence({ min: [-1e6, -1e6, -1e6], max: [1e6, 1e6, 1e6] })
+		: new Geofence(manifest.bbox);
 	const ec = fence.effectiveCorridor;
 	console.log(`[fence] couloir ${ec.caution.toFixed(0)}/${ec.hold.toFixed(0)} m`
 		+ ` (échelle ${ec.scale.toFixed(2)}, demi-côté ${ec.halfMinM.toFixed(0)} m)`);
@@ -693,10 +783,14 @@ async function finishBoot(preloading) {
 	});
 	setDistantGround(distantGround);
 
+	// L'entrée. En FIELD c'est le tirage pondéré de la Bible §20 — tu hérites
+	// d'un drone déjà en vol et tu ne choisis pas dans quel état. Au banc, c'est
+	// une demande : ta machine, ta position de départ.
 	physics.applyEntryState(generateEntryState({
 		physics,
 		manifest,
 		seed: Math.random().toString(16).slice(2, 12),
+		...(MODE.bench ? benchEntryRequest(MODE.config) : {}),
 	}));
 
 	// Where the pilot is standing, plus antenna height. A spawn under a bridge
@@ -759,18 +853,35 @@ async function finishBoot(preloading) {
 	// l'instant. Aucun fuseau horaire n'entre ici — la position du soleil est
 	// fonction de l'instant UTC et du lieu, point.
 	sun = SunField.forOrigin(o);
-	weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
-	const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
-	if (weather) {
-		console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
-			+ `${headline(weather.days[0])}`, applied);
+
+	// Au banc, la météo n'appartient pas au monde : elle appartient à
+	// l'opérateur. C'est le SEUL endroit du jeu où c'est vrai, et c'est
+	// pourquoi les curseurs retirés de SETTINGS en PHASE 04 ne reviennent pas
+	// dans SETTINGS — la décision D3 tient, le banc est simplement hors monde.
+	//
+	// Aucun worldWeather() dans cette branche : pas d'aller-retour serveur, pas
+	// de snapshot écrit, aucune clé de zone touchée. Le banc ne consulte pas le
+	// monde et ne lui laisse rien.
+	if (MODE.bench) {
+		// `weather` reste null : c'est ce que lisent l'OSD et __sim.debug(),
+		// et il ne doit pas y avoir de bulletin là où il n'y a pas de monde.
+		weather = null;
+		applyBenchConfig();
+		console.log('[bench] conditions', benchSimParams(MODE.config));
 	} else {
-		// Scène sans origine connue : monde neutre plutôt que météo inventée.
-		physics.setWeather(CALM.wind);
-		rain.setParams(CALM.rain);
-		fog.setParams(CALM.fog);
-		cloud.setParams(CALM.cloud);
-		sun?.setWeather(CALM.sun);
+		weather = await worldWeather({ lat: o.latitude, lon: o.longitude });
+		const applied = applyWeather(weather, { physics, rain, fog, cloud, sun }) ?? CALM;
+		if (weather) {
+			console.log(`[weather] ${weather.zone} ${weather.day} (${weather.source}) — `
+				+ `${headline(weather.days[0])}`, applied);
+		} else {
+			// Scène sans origine connue : monde neutre plutôt que météo inventée.
+			physics.setWeather(CALM.wind);
+			rain.setParams(CALM.rain);
+			fog.setParams(CALM.fog);
+			cloud.setParams(CALM.cloud);
+			sun?.setWeather(CALM.sun);
+		}
 	}
 
 	// Les matériaux de cette zone viennent d'apparaître dans tileMaterials
@@ -976,7 +1087,10 @@ async function bootLive([lat, lon]) {
 	// Pas de sélection TARGET SCAN en mode direct : rates par défaut du
 	// contrôleur (opts.rates est optionnel dans flightController.js,
 	// retombe sur RATE_PRESETS[this.preset]).
-	controller = new FlightController({ profile: PROFILE });
+	//
+	// Sauf au banc, qui peut voler un exemplaire tiré : ses rates sont posés
+	// juste avant l'appel, puisqu'il n'y a pas de TARGET SCAN pour les fournir.
+	controller = new FlightController({ profile: PROFILE, rates: benchRates ?? undefined });
 
 	audio.start();
 	renderer.compile(scene, camera);
@@ -1006,6 +1120,12 @@ function nextPaint() {
 input.onAction = (key, event) => {
 	// Pas de respawn : on ne fait pas réapparaître un drone qu'on a perdu.
 	// terrain persistent, flights ephemeral.
+	//
+	// Sauf au banc, où il n'y a rien à faire réapparaître : la machine est
+	// locale, la remettre en état n'est pas un rembobinage. La touche n'existe
+	// QUE là — FIELD ne gagne rien, pas même une touche inerte à découvrir.
+	if (MODE.bench && key === 'r') { respawn(); return; }
+	if (MODE.bench && key === 'b') { event.preventDefault(); toggleBenchPanel(); return; }
 	if (key === 'disarm') doDisarm();
 	else if (key === ' ') { event.preventDefault(); togglePause(); }
 	else if (key === 'p') controller?.cyclePreset();
@@ -1064,6 +1184,25 @@ renderer.domElement.addEventListener('click', () => {
 async function capturePhoto() {
 	const cap = await lens.capture();
 	if (!cap) return;
+
+	// Au banc, l'image part directement sur le disque de l'opérateur et NULLE
+	// PART ailleurs : ni session, ni serveur, ni journal. « Nothing here is
+	// logged » parle de ce que FPVTP! enregistre, pas de ce que tu emportes —
+	// et dumper une frame dans un fichier est de toute façon le geste juste au
+	// banc, là où le vol de terrain rédige un rapport.
+	if (MODE.bench) {
+		const url = URL.createObjectURL(cap.blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `bench-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+		a.click();
+		// Révoqué au tour suivant : révoquer tout de suite couperait l'URL
+		// sous le téléchargement que le clic vient à peine de démarrer.
+		setTimeout(() => URL.revokeObjectURL(url), 10_000);
+		fpvtpOsd.flashCaptured(null);
+		return;
+	}
+
 	const reader = new FileReader();
 	reader.onload = () => {
 		session.capturePhoto({ dataUrl: reader.result, w: cap.w, h: cap.h })
@@ -1116,13 +1255,18 @@ function respawn() {
 	// terrain persistent, flights ephemeral : après un crash le drone a disparu,
 	// on ne réapparaît pas en place — retour au terminal. En mode ?scene= (dev)
 	// on garde le respawn local pour ne pas casser le flow de debug.
-	if (crashed && !OPTS.scene) { location.href = location.pathname; return; }
+	//
+	// Et au banc (PHASE 26), où il n'y a rien à perdre : NO LOSS. La règle de
+	// FIELD n'est pas assouplie, elle ne s'applique simplement pas — il n'y a
+	// aucune machine distante ici, donc aucune machine distante à perdre.
+	if (crashed && !OPTS.scene && !MODE.bench) { location.href = location.pathname; return; }
 	fpvtpOsd.setSessionStatus(null);
 	controller.arm();
 	physics.applyEntryState(generateEntryState({
 		physics,
 		manifest: sceneManifest,
 		seed: Math.random().toString(16).slice(2, 12),
+		...(MODE.bench ? benchEntryRequest(MODE.config) : {}),
 	}));
 	link.reset();
 	// Pour l'HYSTÉRÉSIS, et pour elle seule : sans ce reset, zoneOf() jugerait
@@ -1182,7 +1326,7 @@ function latLonOf(p) {
 	return { lat, lon: o.longitude + p.x / (111320 * Math.cos(lat * Math.PI / 180)) };
 }
 
-function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen; }
+function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen || benchPanelOpen; }
 
 const _q = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
@@ -1298,7 +1442,15 @@ function frame() {
 				}
 			}
 			const impact = physics.step(motors, FIXED_STEP, fenceForce);
-			if (impact > 0 && !flightEnd.out.linkDead && !crashed) {
+			// NO LOSS (PHASE 26) : au banc le choc reste un choc — la physique
+			// ne se négocie pas, la machine encaisse, culbute et s'arrête. Mais
+			// rien n'est perdu, donc rien ne meurt : ni l'image, ni le son, ni
+			// la session. On repart d'une touche.
+			//
+			// C'est bien la règle de FIELD qui ne s'applique pas, et non une
+			// règle assouplie : « le drone est détruit » suppose un drone
+			// distant qui appartient à quelqu'un, et il n'y en a aucun ici.
+			if (impact > 0 && !flightEnd.out.linkDead && !crashed && !MODE.bench) {
 				const r = physics.rotation;
 				if (impact > crashThreshold(r)) {
 					crashedThisFrame = true;
@@ -1412,7 +1564,12 @@ function frame() {
 		crashed: crashedThisFrame,
 		// Sortie de zone : même phase que le crash, autre table de texte
 		// (FENCE_TIMELINE). Le verdict de session reste CRASHED.
-		outOfZone: fence.out.over,
+		//
+		// Jamais au banc : la clôture y avertit et résiste — l'OSD passe en
+		// CAUTION puis HOLD, le rappel pousse — mais elle n'exécute plus. Un
+		// pilote qui insiste sort et se retrouve au-dessus de rien, ce qui est
+		// une conséquence honnête du terrain, pas une sanction.
+		outOfZone: MODE.bench ? false : fence.out.over,
 	});
 	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
 	// crashedThisFrame (bonus, revue finale) : un choc encaissé après un
@@ -1555,7 +1712,11 @@ if (!frozen) {
 		// `?night=1` la rétablit pour la vérifier.
 		sun.update(dt, {
 			sunInFrame,
-			...(OPTS.date ? { date: OPTS.date } : {}),
+			// L'heure du banc emprunte le chemin de ?date= — sun.js ne connaît
+			// que « un instant, un lieu », et n'a pas à apprendre ce qu'est un
+			// banc. benchClock est recalculé quand l'opérateur bouge le curseur
+			// en vol, d'où la variable plutôt qu'un appel par frame.
+			...(MODE.bench ? { date: benchClock } : OPTS.date ? { date: OPTS.date } : {}),
 			...(OPTS.night ? {} : { minElevationDeg: NIGHT_FLOOR_DEG }),
 		});
 	}
@@ -1672,7 +1833,14 @@ if (!frozen) {
 	// de la zone n'est pas une nuisance dont on doit pouvoir se relever, c'est
 	// la fin de la session.
 	link.setTerminalLoss(fence.out.lossDb);
-	link.update({ distance: linkState.distance, blocked: shadow.blocked, span: shadow.span, dt });
+	// LOOPBACK (PHASE 26) : le flux ne traverse rien, donc rien ne le dégrade.
+	// On nourrit quand même le modèle — distance nulle, aucune occultation —
+	// plutôt que de le contourner : il continue de produire un `out` cohérent
+	// que l'OSD et lens.js lisent sans savoir qu'on est au banc.
+	const loopback = MODE.bench && MODE.config?.link === 'LOOPBACK';
+	link.update(loopback
+		? { distance: 0, blocked: false, span: 0, dt }
+		: { distance: linkState.distance, blocked: shadow.blocked, span: shadow.span, dt });
 
 	// Free camera is not looking down the drone's video feed, so it gets a clean
 	// picture — same reasoning as muting the motors there. The model keeps
@@ -1697,14 +1865,19 @@ if (!frozen) {
 	// pas un enregistrement image par image. dt=0 quand la sim est gelée, pour
 	// ne pas gonfler la durée pendant une pause.
 	const av = physics.angularVelocity;
-	session.feed({
-		speed: Math.hypot(v.x, v.y, v.z),
-		horizontalSpeed: Math.hypot(v.x, v.z),
-		rateDps: Math.max(Math.abs(av.x), Math.abs(av.y), Math.abs(av.z)) * 180 / Math.PI,
-		altitudeAboveSpawn: p.y - spawnY,
-		dt: frozen ? 0 : dt,
-		armed: controller.armed,
-	});
+	// NOTHING HERE IS LOGGED : au banc il n'y a pas de session ouverte, donc
+	// rien à nourrir. Le garde est ici plutôt que dans session.js pour que la
+	// promesse se lise à l'endroit où elle serait rompue.
+	if (!MODE.bench) {
+		session.feed({
+			speed: Math.hypot(v.x, v.y, v.z),
+			horizontalSpeed: Math.hypot(v.x, v.z),
+			rateDps: Math.max(Math.abs(av.x), Math.abs(av.y), Math.abs(av.z)) * 180 / Math.PI,
+			altitudeAboveSpawn: p.y - spawnY,
+			dt: frozen ? 0 : dt,
+			armed: controller.armed,
+		});
+	}
 
 	// L'arc musical en vol (issue #122). Un seul appel, un seul scalaire, et
 	// setIntensity ne déplace que des AudioParams : aucun nœud n'est créé par
@@ -1771,6 +1944,7 @@ if (!frozen) {
 		operator: operator.getOperator()?.name,
 		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,
 		propwash: physics.propulsion.propwash,
+		bench: MODE.bench,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setPhotoReady(photoReady);
@@ -1977,13 +2151,33 @@ async function chooseScene() {
 	// lancerait la source sur un contexte encore suspendu, laissant le geste
 	// suivant sans rien à démarrer.
 
+	// Boucle de MODE (PHASE 26). La racine du jeu est désormais SELECT
+	// OPERATION MODE ; la Home de FIELD est un cran plus bas et peut donc
+	// remonter ici. Les deux boucles rendent `null` pour dire « je remonte »,
+	// et n'importe quoi d'autre pour dire « on vole ».
+	for (;;) {
+		const mode = await selectOperationMode(ui, { last: loadLastMode() });
+		const choice = mode === 'bench' ? await benchLoop(ui) : await fieldLoop(ui);
+		if (choice) return choice;
+	}
+}
+
+// La boucle FIELD : le jeu de la Bible, inchangé. Extraite telle quelle de
+// chooseScene() pour que le banc puisse vivre à côté sans s'y mêler.
+//
+// Rend la forme de vol, ou null pour remonter au choix de mode.
+async function fieldLoop(ui) {
 	// Boucle du choix de zone : Échap au TARGET SCAN revient ici. Rien n'est
 	// démonté et rien n'est rechargé — c'est ce qui permet à l'ambiance du
 	// terminal de continuer sans la moindre coupure, et au préchargement de la
 	// zone qu'on vient de quitter de rester acquis.
 	for (;;) {
 		// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
-		const flyChoice = await runTerminal(ui, { settings });
+		const flyChoice = await runTerminal(ui, { settings, back: true });
+		// Échap sur la Home : on remonte au choix de mode. La Home n'est plus la
+		// racine depuis PHASE 26, et il faut pouvoir repartir au banc sans
+		// recharger la page.
+		if (!flyChoice) return null;
 		const { slug, resume } = flyChoice;
 
 		if (resume) {
@@ -2076,6 +2270,43 @@ async function chooseScene() {
 		lastTime = performance.now();
 		return { prepared: true };
 	}
+}
+
+// La boucle BENCH (PHASE 26). Rend la forme de vol, ou null pour remonter.
+//
+// Beaucoup plus courte que fieldLoop(), et c'est le sujet : il n'y a ni scan,
+// ni cible, ni hack, ni rituel, ni musique de tension à installer. On règle,
+// on décolle. Le banc n'a pas de cérémonie parce qu'il n'y a personne à
+// surprendre au bout.
+async function benchLoop(ui) {
+	const scenes = await loadSceneList().catch(() => []);
+	const config = await runBench(ui, { scenes, settings });
+	if (!config) return null;
+
+	MODE.bench = true;
+	MODE.config = config;
+	const family = config.airframe.family;
+
+	// Terrain caché : on rend EXACTEMENT la forme que rendent déjà le resume et
+	// l'override ?family=, et la chaîne de startup() construit PROFILE et le
+	// contrôleur comme d'habitude. Rien n'est dupliqué ici — un exemplaire
+	// (buildSeed) passe par targetBuild() comme une vraie cible, NOMINAL vole
+	// le profil de référence, celui du banc tune-pid.
+	if (config.terrain.kind === 'cached') {
+		return { slug: config.terrain.slug, resume: undefined, target: undefined, family, buildSeed: config.airframe.seed ?? undefined };
+	}
+
+	// Vol libre : bootLive() construit lui-même sa physique et son contrôleur,
+	// donc PROFILE et les rates doivent être posés AVANT l'appel — c'est ce que
+	// fait déjà ?live= via l'override ?family=.
+	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
+	PROFILE = build ? build.profile : PROFILES[family];
+	benchRates = build?.rates ?? null;
+	if (build) logBuild(build);
+	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (nominal)`);
+	audio.start();
+	await bootLive([config.terrain.lat, config.terrain.lon]);
+	return { prepared: true };
 }
 
 // ?scene= saute Home et menu : aucun geste utilisateur n'a lieu avant boot().
@@ -2209,36 +2440,55 @@ async function openFlightSession() {
 	// Résolue dans le try, lue après : une ouverture de session ratée ne doit
 	// pas laisser le vol sans caméra ni sans OSD.
 	let tgt = null;
+	// NOTHING HERE IS LOGGED. C'est LE point d'étanchéité du banc : aucune
+	// session n'est ouverte, donc rien n'est jamais posté, rien n'apparaît au
+	// SESSION LOG ni au TARGET LOG, aucun Randomart n'est tiré et les
+	// compteurs du pied de page de la Home ne bougent pas — ce dont dépend
+	// l'échelle BUILD NOTES, qui compte des sessions.
+	//
+	// Tout ce qui suit (caméra, OSD drone, OSD FPVTP!) continue de tourner :
+	// une machine de banc a une caméra et un OSD comme les autres. Le chemin
+	// est celui qu'emprunte déjà une ouverture de session ratée, où `tgt`
+	// reste null — il est éprouvé, on ne s'en fabrique pas un deuxième.
 	try {
-		await session.open({
-			area: flyArea,
-			weatherSnapshot: session.snapshotWeather(weather),
-			resume: resumeId || OPTS.resume || undefined,
-			target: flyTarget || undefined,
-		});
-		// La cible résolue (scan frais ou relue du disque au resume) arme le lien
-		// vidéo avec le RSSI du signal adverse.
-		tgt = session.current()?.target;
-		if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
-			console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
-		}
-		// Le serveur régénère le scan et donc le buildSeed. S'ils divergent, le
-		// drone volé n'est pas celui enregistré : ça ne casse pas le vol, mais le
-		// post-flight mentirait, donc on le dit.
-		if (tgt?.buildSeed && flyTarget && tgt.buildSeed !== `${flyTarget.seed}::${flyTarget.index}`) {
-			console.warn(`[target] buildSeed serveur ${tgt.buildSeed} ≠ client ${flyTarget.seed}::${flyTarget.index}`);
-		}
-		if (tgt?.signal) {
-			link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
-			console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);
+		if (!MODE.bench) {
+			await session.open({
+				area: flyArea,
+				weatherSnapshot: session.snapshotWeather(weather),
+				resume: resumeId || OPTS.resume || undefined,
+				target: flyTarget || undefined,
+			});
+			// La cible résolue (scan frais ou relue du disque au resume) arme le
+			// lien vidéo avec le RSSI du signal adverse.
+			tgt = session.current()?.target;
+			if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
+				console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
+			}
+			// Le serveur régénère le scan et donc le buildSeed. S'ils divergent,
+			// le drone volé n'est pas celui enregistré : ça ne casse pas le vol,
+			// mais le post-flight mentirait, donc on le dit.
+			if (tgt?.buildSeed && flyTarget && tgt.buildSeed !== `${flyTarget.seed}::${flyTarget.index}`) {
+				console.warn(`[target] buildSeed serveur ${tgt.buildSeed} ≠ client ${flyTarget.seed}::${flyTarget.index}`);
+			}
+			if (tgt?.signal) {
+				link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
+				console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);
+			}
 		}
 	} catch (e) {
 		console.warn('[session] ouverture échouée, ce vol ne sera pas enregistré', e);
 	}
 
-	// La graine : la cible si on en a une, la famille du profil sinon (mode dev,
-	// ?scene=). Il y a toujours une caméra et toujours un OSD.
-	const seed = session.current()?.id ?? `dev::${PROFILE.family}`;
+	// La graine : la cible si on en a une, l'exemplaire du banc s'il y en a un,
+	// la famille du profil sinon (mode dev, ?scene=). Il y a toujours une
+	// caméra et toujours un OSD.
+	//
+	// L'exemplaire du banc entre ici pour que INDIVIDUAL veuille dire quelque
+	// chose de bout en bout : deux tirages de la même famille doivent différer
+	// par leur caméra et leur OSD, pas seulement par leurs rates.
+	const benchSeed = MODE.bench && MODE.config?.airframe.seed
+		? `bench::${MODE.config.airframe.seed}` : null;
+	const seed = session.current()?.id ?? benchSeed ?? `dev::${PROFILE.family}`;
 	const family = tgt?.family ?? PROFILE.family;
 	const mode = tgt?.signal?.mode === 'DIGITAL' ? 'DIGITAL' : 'ANALOG';
 

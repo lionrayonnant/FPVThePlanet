@@ -94,6 +94,11 @@ export class FpvtpOsd {
 
 	// `count` est celui que le serveur a renvoyé — il fait autorité, pas un
 	// compteur client optimiste qui pourrait diverger d'un échec réseau silencieux.
+	//
+	// `null` veut dire « rien n'a été compté » : c'est le banc (PHASE 26), où
+	// l'image part sur le disque de l'opérateur sans que rien ne l'enregistre.
+	// Il n'y a donc pas de total à afficher, et en inventer un serait mentir
+	// sur ce que le mode promet.
 	flashCaptured(count) {
 		this._photoCount = count;
 		this._flashUntil = performance.now() + 900;
@@ -103,7 +108,9 @@ export class FpvtpOsd {
 	_renderPhoto() {
 		const e = this.el.photo;
 		if (performance.now() < this._flashUntil) {
-			e.textContent = `CAPTURED · CAPTURES ${this._photoCount}`;
+			e.textContent = this._photoCount === null
+				? 'FRAME DUMPED'
+				: `CAPTURED · CAPTURES ${this._photoCount}`;
 			e.dataset.flash = '1';
 			return;
 		}
@@ -161,12 +168,15 @@ export class FpvtpOsd {
 	get fps() { return this._fps; }
 
 	update({ mode, rates, usingGamepad, windMs, windRelRad, visibilityM,
-	         rssiDbm, operator, sessionSeconds, propwash }) {
+	         rssiDbm, operator, sessionSeconds, propwash, bench = false }) {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
 		this.el.operator.textContent = `OPERATOR // ${operator ?? '—'}`;
-		this.el.session.textContent = `SESSION ${clock(sessionSeconds ?? 0)}`;
+		// Au banc il n'y a pas de session : la ligne dit ce qu'elle est plutôt
+		// que de compter le temps d'une chose qui n'existe pas. C'est le seul
+		// endroit du HUD où le banc se signale, et il suffit.
+		this.el.session.textContent = bench ? 'BENCH' : `SESSION ${clock(sessionSeconds ?? 0)}`;
 
 		// Une seule ligne d'environnement : trois nombres que l'opérateur lit
 		// d'un coup, pas trois blocs qui se disputent un coin.
@@ -178,7 +188,11 @@ export class FpvtpOsd {
 			parts.push('WIND CALM');
 		}
 		if (Number.isFinite(visibilityM)) parts.push(`VIS ${(visibilityM / 1000).toFixed(1)} km`);
-		if (Number.isFinite(rssiDbm)) parts.push(`LINK ${Math.round(rssiDbm)} dBm`);
+		// LOOPBACK plutôt qu'un RSSI : afficher −41 dBm là où le flux ne
+		// traverse rien serait un chiffre inventé, et ce HUD ne montre que ce
+		// qu'il sait (Bible §2, « Information, not assistance »).
+		if (bench) parts.push('LINK LOOPBACK');
+		else if (Number.isFinite(rssiDbm)) parts.push(`LINK ${Math.round(rssiDbm)} dBm`);
 		this.el.env.textContent = parts.join(' · ');
 		// Rafraîchi ici aussi pour que le flash de capture (PHASE 16) s'éteigne
 		// de lui-même, sans minuteur séparé : cette fonction tourne déjà à 60 Hz.

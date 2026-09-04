@@ -200,6 +200,12 @@ export class Input {
 					'escape',
 					'enter',
 					' ',
+					// PHASE 26 : `r` remet la machine en état, `b` ouvre le
+					// panneau du banc. Transmises inconditionnellement — c'est
+					// main.js qui décide qu'elles n'existent qu'au banc, ce
+					// module ne connaît aucun mode de jeu.
+					'r',
+					'b',
 				].includes(k)
 			) {
 				this.onAction(k, e);

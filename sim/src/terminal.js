@@ -425,7 +425,9 @@ export async function operatorSelect(root, choices) {
 // Monte l'Operator Terminal et résout le slug de la zone à survoler.
 // `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
 // le même panneau que Tab en vol.
-export async function runTerminal(root, { settings, api = operatorApi } = {}) {
+// Résout { slug, resume } pour voler, ou null pour remonter au choix de mode
+// quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
+export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
 	let scenes = await fetchScenes();
 	const s = screen(root, 'terminal-home');
 	let resolveFly;
@@ -472,6 +474,7 @@ OPERATOR // ${model.operatorName}</pre>`;
 		}, 'terminal-cta terminal-scanner-cta'));
 
 		s.box.appendChild(navRow([
+			...(back ? [['MODE', () => leave()]] : []),
 			['SESSION LOG', async () => {
 				s.el.hidden = true;
 				const { runSessionLog } = await import('./session-log.js');
@@ -501,8 +504,11 @@ OPERATOR // ${model.operatorName}</pre>`;
 	};
 
 	const fly = (slug, resume) => { nav?.detach(); s.remove(); resolveFly({ slug, resume }); };
+	// Remonter d'un cran : SELECT OPERATION MODE. Depuis PHASE 26 la Home n'est
+	// plus la racine — mais elle l'est encore pour ?scene=, qui saute le choix
+	// de mode, d'où le drapeau plutôt qu'un `back` inconditionnel.
+	const leave = () => { nav?.detach(); s.remove(); resolveFly(null); };
 	render();
-	// Pas de `back` : la Home est la racine, il n'y a rien au-dessus.
-	nav = menuNav(s.el, {});
+	nav = menuNav(s.el, back ? { back: leave } : {});
 	return new Promise((resolve) => { resolveFly = resolve; });
 }
