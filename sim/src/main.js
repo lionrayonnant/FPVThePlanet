@@ -26,6 +26,7 @@ import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { FenceDome, fogDensityFor as liveFogDensityFor, CYAN as FENCE_CYAN } from './fence-dome.js';
 import { GeofenceWall } from './geofence-dome.js';
+import { createRocktreeMaterial, createLiveEdgeUniforms } from './RocktreeMaterial.js';
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
@@ -192,6 +193,7 @@ let physics = null;
 const liveMeshes = new Map();
 let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon null
 let fenceDome = null;           // FenceDome actif en mode ?live=, sinon null (#198)
+let liveEdgeUniforms = null;    // uniformes partagés du fondu de bord du terrain live, sinon null (#202)
 
 // Files du mode ?live= (#184) : les nœuds reçus/libérés attendent ici, et
 // processLiveNodeWork() les traite sous un budget par frame — le travail par
@@ -224,15 +226,18 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 			for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
 				scene.remove(mesh);
 				mesh.geometry.dispose();
-				// material.dispose() ne libère pas .map (#191) : la texture live
-				// pèse ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU —
-				// sans ces deux lignes ça fuit à chaque nœud sorti de la fenêtre,
-				// donc avec la distance parcourue et non la taille du monde. Le seul
-				// cas sans .map est le matériau gris plat (pas de bitmap/uvs, voir
-				// buildNodeMesh) : rien à fermer alors.
-				if (mesh.material.map) {
-					mesh.material.map.dispose();
-					mesh.material.map.image.close();
+				// material.dispose() ne libère pas la texture (#191) : elle pèse
+				// ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU — sans
+				// ces deux lignes ça fuit à chaque nœud sorti de la fenêtre, donc
+				// avec la distance parcourue et non la taille du monde. Le seul cas
+				// sans texture est le matériau gris plat (pas de bitmap/uvs, voir
+				// buildNodeMesh) : rien à fermer alors. .uniforms.uMap, pas .map :
+				// createRocktreeMaterial() (#202) est un ShaderMaterial, qui n'a pas
+				// le raccourci .map des matériaux standard de Three.
+				const liveMap = mesh.material.uniforms?.uMap?.value;
+				if (liveMap) {
+					liveMap.dispose();
+					liveMap.image.close();
 				}
 				mesh.material.dispose();
 				physics.removeNodeCollider(colliderPath);
@@ -258,7 +263,8 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 			// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
 			// rendu — sinon Three téléverse toutes les textures de la vague
 			// dans la frame où elles deviennent visibles.
-			if (mesh.material.map) renderer.initTexture(mesh.material.map);
+			const liveMap = mesh.material.uniforms?.uMap?.value;
+			if (liveMap) renderer.initTexture(liveMap);
 			entries.push({ colliderPath, mesh });
 		}
 	}
@@ -1025,10 +1031,15 @@ async function bootLive([lat, lon]) {
 	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
 	// météo est hors périmètre en ?live=), donc scene.fog est entièrement
 	// libre ici — densité poussée chaque frame par fogDensityFor() plus bas.
-	// MeshBasicMaterial (buildNodeMesh) respecte scene.fog par défaut
-	// (material.fog non désactivé) ; SkyDome a fog:false et n'en est pas
-	// affecté.
+	// SkyDome a fog:false et n'en est pas affecté.
 	scene.fog = new THREE.FogExp2(FENCE_CYAN, 0);
+	// Fondu de bord DU TERRAIN LUI-MÊME (#202, suite de #200 : même retour
+	// utilisateur, la silhouette du disque chargé se découpait encore net
+	// contre le ciel vue de haut — scene.fog ci-dessus ne dépend que de la
+	// position du DRONE, pas de si le fragment regardé est près du bord).
+	// buildNodeMesh() lit ce module-scope pour chaque nouveau nœud ; posé
+	// AVANT que RocktreeWindow ne puisse livrer son premier nœud.
+	liveEdgeUniforms = createLiveEdgeUniforms(FENCE_CYAN);
 	// Révèle le curseur « View range » (caché hors mode live) et le branche :
 	// setFloorRadiusM() invalide le cache de position de la fenêtre, le
 	// prochain update() de frame() charge la couronne manquante (ou libère
@@ -1850,6 +1861,19 @@ if (!frozen) {
 		// nulle jusqu'à mi-fenêtre, contrairement à l'opacité du dôme qui
 		// reste perceptible en continu par choix).
 		scene.fog.density = liveFogDensityFor(fenceDome.distanceRatio);
+		// Fondu de bord DU TERRAIN (#202) : contrairement à la ligne
+		// ci-dessus (scalaire global, fonction de la position du DRONE), ce
+		// terme est PAR FRAGMENT et suit le vrai bord de la fenêtre — voir
+		// RocktreeMaterial.js. windowCenterLocal reste null tant que
+		// RocktreeWindow n'a pas posé sa première fenêtre (tout premier
+		// frame) ; uLoadRadiusM reste alors à 0, et le shader s'en sert déjà
+		// comme garde (edgeFadeFor()).
+		if (liveWindow?.windowCenterLocal) {
+			const { x, z } = liveWindow.windowCenterLocal;
+			liveEdgeUniforms.uWindowCenter.value.set(x, z);
+			liveEdgeUniforms.uLoadRadiusM.value = liveWindow.loadRadiusM();
+		}
+		liveEdgeUniforms.uFogDensity.value = scene.fog.density;
 	}
 	// Muraille numérique du bord de carte pré-cuite (#199) : même principe,
 	// géométrie de bbox plutôt que de rayon — voir geofence-dome.js.
@@ -2106,9 +2130,9 @@ function buildNodeMesh(path, meshes) {
 			// Vérifié à l'image : pas de moiré notable à distance de fenêtre.
 			texture.generateMipmaps = false;
 			texture.minFilter = THREE.LinearFilter;
-			material = new THREE.MeshBasicMaterial({ map: texture });
+			material = createRocktreeMaterial(liveEdgeUniforms, { map: texture });
 		} else {
-			material = new THREE.MeshBasicMaterial({ color: 0x808080 });
+			material = createRocktreeMaterial(liveEdgeUniforms, { color: 0x808080 });
 		}
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = `rocktree-${path}-${i}`;
