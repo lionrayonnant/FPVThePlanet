@@ -140,7 +140,7 @@ export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = I
 			geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
 
 			const texture = createArrayTexture(msg.pixels, msg.cell, g.layerCount, { mipmaps, anisotropy });
-			const material = createTileMaterial(texture, fogColor, fogDensity);
+			const material = createTileMaterial(texture, fogColor, fogDensity, manifest.bbox);
 			tileMaterials.push(material);
 			const mesh = new THREE.Mesh(geometry, material);
 			mesh.frustumCulled = true;
