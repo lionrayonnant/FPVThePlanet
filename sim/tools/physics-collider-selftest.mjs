@@ -51,4 +51,24 @@ t('flushNodeColliders() sans opération en attente est un no-op sûr', () => {
 	phys.flushNodeColliders();
 });
 
+// Un nœud rocktree dont la géométrie tronque entièrement à layerBounds[3]
+// (#178) ou dont tous les triangles sont dégénérés/exclus arrive ici avec un
+// indices vide. RAPIER.ColliderDesc.trimesh() avec 0 triangle ne lève PAS une
+// exception JS propre : ça plante le module WASM entier (RuntimeError:
+// unreachable), observé en vol réel via processLiveNodeWork(). addNodeCollider
+// doit avaler ce cas sans jamais appeler trimesh(), et rester symétrique avec
+// removeNodeCollider() ensuite.
+t('addNodeCollider avec 0 triangle n\'appelle jamais trimesh() et ne plante pas', () => {
+	phys.addNodeCollider('empty-node', vertices, new Uint32Array(0));
+	phys.flushNodeColliders();
+	phys.removeNodeCollider('empty-node');
+	phys.flushNodeColliders();
+});
+
+t('addNodeCollider avec 0 triangle : le path est bien "chargé" (deux fois lève)', () => {
+	phys.addNodeCollider('empty-node-2', vertices, new Uint32Array(0));
+	assert.throws(() => phys.addNodeCollider('empty-node-2', vertices, new Uint32Array(0)), /empty-node-2/);
+	phys.removeNodeCollider('empty-node-2');
+});
+
 console.log(`physics-collider-selftest : ${n} tests ok`);

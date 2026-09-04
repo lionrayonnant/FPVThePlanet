@@ -168,6 +168,19 @@ export class Physics {
 		if (this._nodeColliders.has(path)) {
 			throw new Error(`addNodeCollider: "${path}" est déjà chargé — removeNodeCollider() d'abord`);
 		}
+		// Un trimesh à 0 triangle (nœud dont la géométrie tronque entièrement à
+		// layerBounds[3], ou dont tous les triangles sont dégénérés/exclus)
+		// plante le WASM de Rapier — RuntimeError: unreachable, PAS une
+		// exception JS propre — au lieu de lever une erreur pour indices vides.
+		// Reproduit hors navigateur : ColliderDesc.trimesh(v, new Uint32Array(0))
+		// suffit. Rien à collisionner de toute façon : path reste enregistré
+		// (collider null) pour que removeNodeCollider() reste symétrique, sans
+		// jamais appeler trimesh().
+		if (indices.length < 3) {
+			console.warn(`[physics] addNodeCollider("${path}") : 0 triangle après troncature, collider ignoré`);
+			this._nodeColliders.set(path, null);
+			return;
+		}
 		// SANS corps parent (#184) : un collider attaché à groundBody force
 		// Rapier à recalculer les propriétés de masse du corps au step suivant
 		// en sommant TOUS ses trimesh — mesuré à ~57 ms par step dès qu'une
@@ -185,9 +198,11 @@ export class Physics {
 	}
 
 	removeNodeCollider(path) {
+		if (!this._nodeColliders.has(path)) throw new Error(`removeNodeCollider: "${path}" n'est pas chargé`);
+		// null : path enregistré par addNodeCollider() pour un nœud à 0 triangle
+		// (voir plus haut) — jamais passé à Rapier, rien à lui retirer.
 		const collider = this._nodeColliders.get(path);
-		if (!collider) throw new Error(`removeNodeCollider: "${path}" n'est pas chargé`);
-		this.world.removeCollider(collider, true);
+		if (collider) this.world.removeCollider(collider, true);
 		this._nodeColliders.delete(path);
 		this._queryDirty = true;
 	}

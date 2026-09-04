@@ -46,8 +46,15 @@ self.onmessage = async (e) => {
 			matrix: node.matrix, meshes: node.meshes, sphereRadius, originEcef, originBasis, exclude,
 		});
 		const transfers = [];
-		const meshes = await Promise.all(node.meshes.map(async (m, i) => {
+		const meshes = (await Promise.all(node.meshes.map(async (m, i) => {
 			const g = geoms[i];
+			// 0 triangle : le sous-maillage tronque entièrement à layerBounds[3]
+			// (ou tous ses triangles sont dégénérés/exclus). Rien à dessiner NI
+			// à collisionner — passer quand même sa texture (jusqu'à 580 Kio
+			// d'ImageBitmap décodé, #191) au fil principal serait du travail
+			// jeté, et lui faire atteindre physics.addNodeCollider() plante le
+			// WASM de Rapier (trimesh à 0 triangle, mesuré hors navigateur).
+			if (g.indices.length === 0) return null;
 			transfers.push(g.positions.buffer, g.indices.buffer);
 			if (g.uvs) transfers.push(g.uvs.buffer);
 			let bitmap = null;
@@ -56,7 +63,7 @@ self.onmessage = async (e) => {
 				transfers.push(bitmap);
 			}
 			return { ...g, bitmap };
-		}));
+		}))).filter(Boolean);
 
 		// Les buffers construits et les bitmaps sont TRANSFÉRÉS (zéro copie).
 		// buf (le protobuf brut) meurt ici : plus rien côté fil principal n'en
