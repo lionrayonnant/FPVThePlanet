@@ -22,7 +22,8 @@ le numéro de ligne de chaque titre, puis lire la plage voulue.
 35. Signature sonore du boot · 36. Son des rituels · 37. Voix ·
 38. Direction visuelle · 39. Typographie · 40. ASCII · 41. Pixel art · 42. CRT et image ·
 43. Le double système de rendu · 44. Principes anti-dérive · 45. La règle maîtresse ·
-46. État actuel / priorités · 47. La phrase qui résume FPVThePlanet!
+46. État actuel / priorités · 47. La phrase qui résume FPVThePlanet! ·
+48. BENCH — le banc
 
 ---
 
@@ -1743,6 +1744,7 @@ Le joueur reprend immédiatement les sticks.
 - son sans musique pendant le vol ;
 - IDM / demo scene pour les rituels ;
 - crew décoratif.
+- BENCH — le banc, seconde voie du jeu (§48).
 
 ## À PROTOTYPER
 
@@ -1786,3 +1788,136 @@ Et la philosophie du système :
 Enfin, le ton général :
 
 > **A clandestine FPV reverse-engineering tool from an alternate 2001, built by obsessive hackers who took radio, flight and software much too seriously.**
+
+---
+
+# 48. BENCH — le banc
+
+### Le problème
+
+Tout ce qui précède décrit **une** boucle, et cette boucle est faite de
+contraintes : le drone est tiré au sort, la météo appartient au monde, le crash
+est terminal, et les réglages qui touchent au monde ont quitté `SETTINGS`.
+
+C'est juste, et ça doit le rester. Mais il manquait l'autre moitié : un endroit
+où l'opérateur a le contrôle total, sans contrainte ni frustration.
+
+### Pourquoi un banc existe dans cet univers
+
+FPVTP! est un outil de reverse engineering écrit par des hackers hardware. Un
+tel outil a **toujours** un banc : le montage local sur lequel on teste la
+chaîne d'interception contre une cible synthétique, avant de la pointer sur une
+vraie. C'est la pratique réelle de l'époque, RF comprise — on ne débugge pas son
+stack sur une cible qu'on peut griller.
+
+Le banc synthétise donc la cible localement :
+
+```text
+NO TARGET       il n'y a personne au bout — un modèle, pas une machine
+NO LINK         le flux revient de ta propre installation
+NO HACK         on ne s'introduit pas dans son propre banc
+NO LOSS         rien de distant n'existe, donc rien ne peut être perdu
+NOTHING LOGGED  rien ne s'est passé dans le monde, donc rien n'est écrit
+```
+
+Les cinq lignes sont **la même phrase**. C'est simultanément la fiction et la
+règle technique, et c'est ce qui empêche le banc d'être une dérogation.
+
+### Ce que le banc ne contredit pas
+
+- **§2.2 — Terrain persistent, flights ephemeral.** Non contredit, poussé à sa
+  limite : le vol au banc est maximalement éphémère, il ne laisse *rien*.
+- **§24 — pas de GAME OVER, le crash perd la machine.** Non contredit : il n'y a
+  aucune machine distante à perdre. « Le drone est détruit » suppose un drone
+  qui appartient à quelqu'un. Le choc, lui, reste un choc — la physique ne se
+  négocie pas, la machine encaisse et culbute. C'est la *conséquence* qui
+  n'existe pas, pas l'impact.
+- **§31 — SETTINGS.** Non contredit, et c'est le point important : les curseurs
+  météo retirés de `SETTINGS` **n'y reviennent pas**. Ils vivent au banc, qui est
+  le seul endroit où la météo n'appartient pas au monde.
+- **§47 — The world persists. The machine doesn't.** Au banc il n'y a ni monde
+  ni machine : il y a un modèle.
+
+### La structure
+
+La racine du jeu devient :
+
+```text
+OPERATOR // NEO
+
+SELECT OPERATION MODE
+
+[ FIELD ]
+acquire terrain · find a signal
+take a machine that is not yours
+
+[ BENCH ]
+your airframe · your conditions
+nothing to lose
+```
+
+Le curseur se pose sur le dernier mode utilisé : un joueur FIELD fait une touche
+de plus par lancement, pas un choix de plus. La Home n'est donc plus la racine —
+elle remonte ici.
+
+### Le banc
+
+```text
+BENCH
+
+NO TARGET   NO LINK   NO HACK   NO LOSS
+
+AIRFRAME ....... 5" FREESTYLE
+BUILD .......... NOMINAL          [ INDIVIDUAL · ROLL ]
+TERRAIN ........ PARISTEST        [ LIVE — ANYWHERE ]
+ENTRY .......... IDLE ON GROUND   [ COMFORTABLE … HOLY SHIT ]
+FENCE .......... ON
+TIME ........... 14:30
+WIND ........... 0.0 m/s  000°  ×1.0
+RAIN ........... 0.0 mm/h
+FOG ............ VIS 25.0 km
+CLOUD .......... 0 %
+LINK ........... LOOPBACK
+BATTERY ........ REAL             [ HELD ]
+
+NOTHING HERE IS LOGGED.
+
+[ SPIN UP ]
+```
+
+Le même écran s'ouvre **pendant** le vol (touche `B`), et chaque changement part
+tout de suite. Un réglage doit se comporter pareil avant et pendant, sinon le
+banc ment sur ce qu'il règle.
+
+### Deux principes du banc
+
+**Il informe, il n'interdit pas.** Le banc a exactement un refus : pas de terrain
+du tout. Tout le reste est un avertissement. Couper la clôture sur une scène
+pré-cuite affiche `FENCE OFF — TERRAIN ENDS AT THE EDGE OF THE ACQUIRED AREA`,
+et laisse décoller. C'est le §2.1 appliqué à l'opérateur au lieu du monde.
+
+**Rien n'y est rejeté.** Une valeur hors bornes est ramenée, une configuration
+corrompue redevient jouable. Le banc est l'endroit sans frustration : il n'a pas
+le droit de refuser d'ouvrir parce qu'une clé lui déplaît.
+
+Et la météo du banc n'obéit pas aux règles de cohérence d'un bulletin — « le vent
+chasse le brouillard », « il ne pleut pas sous un ciel bleu ». Elles sont justes
+pour un monde et fausses pour un banc : une purée de pois dans une tempête est
+précisément le genre de chose qu'on vient y tester. La *traduction*, elle, est la
+même que celle du monde : à 12 m/s, le banc et FIELD se pilotent identiquement.
+
+### Ce qui persiste, et ce qui ne persiste pas
+
+La **configuration** du banc persiste ; ce qui s'y est **passé**, non. Reposer
+douze réglages à chaque lancement serait exactement la frustration qu'on
+supprime. Rien de ce qui est stocké ne dit qu'un vol a eu lieu.
+
+Une photo prise au banc part directement sur le disque de l'opérateur —
+`FRAME DUMPED` — et nulle part ailleurs. « Nothing here is logged » parle de ce
+que FPVTP! enregistre, pas de ce que tu emportes ; et dumper une frame dans un
+fichier est de toute façon le geste juste au banc, là où le vol de terrain rédige
+un rapport.
+
+### La phrase du banc
+
+> **Your airframe. Your conditions. Nothing to lose, and nothing to show for it.**

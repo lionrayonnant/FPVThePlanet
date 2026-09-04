@@ -1184,6 +1184,91 @@ Plan d'origine (contexte de la décision d'architecture) :
   complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
   (plus jamais −500), monde stable.
 
+## PHASE 26 — BENCH (issue #194)
+
+Le jeu a deux voies : `SELECT OPERATION MODE` est la nouvelle racine, FIELD est
+la boucle de la Bible inchangée, BENCH est le banc. Fiction et copie : Bible §48.
+Contrainte d'architecture : **D7** dans `docs/fpv-rework-architecture.md`.
+
+### Vérifié — sans navigateur
+
+- `node tools/bench-selftest.mjs` : **27/27**. Bornes, normalisation qui ramène
+  au lieu de rejeter, sérialisation, et surtout la météo — à conditions égales le
+  banc écrit **exactement** ce que le monde écrit dans `wind.js`/`rain.js`/
+  `fog.js` (`simParamsOf()` partagé), tout en ayant le droit d'être physiquement
+  incohérent (pluie sous ciel dégagé, purée de pois dans une tempête).
+- `node tools/bench-render-selftest.mjs` : **22/22**, sur le faux DOM de
+  `tools/lib/fake-dom.mjs` (même intention que `fake-audio-ctx.mjs`). Les écrans
+  sont réellement montés et actionnés : sliders, selects, persistance, curseur
+  qui survit au re-rendu, cas dégradés, panneau en vol.
+  - **Le harnais a été vérifié par mutation** : six régressions introduites
+    exprès, six détectées. Un test vert du premier coup sur un harnais neuf ne
+    prouve rien tant qu'on ne l'a pas vu rougir.
+- `node tools/entry-state-selftest.mjs` : + 23 checks. Sans override, le tirage
+  pondéré de la Bible §20 est **inchangé graine pour graine** — c'est ce qui
+  garantit que FIELD ne paie rien pour l'existence du banc.
+- `Battery.setDrain(false)` mesuré : 60 s plein gaz, charge à 100 %, et **1,00 V
+  de sag conservé**. Le pack tenu bend toujours sous la charge, il ne se vide pas.
+- `node tools/selftest.mjs public/scenes/paristest` : diff avec la ligne de base
+  d'avant travaux — **aucune**.
+- `npm run build` : vert.
+
+### NON vérifié — rien de tout ça n'a été VU
+
+Les outils navigateur n'étaient pas disponibles dans la session qui a écrit
+PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
+
+- **L'apparence de `SELECT OPERATION MODE` et de l'écran du banc.** Ils sont
+  montés et câblés, ils n'ont jamais été regardés. Le CSS (`style.css`, bloc
+  `BENCH`) n'a jamais été rendu.
+- **La navigation manette** sur les deux écrans. `menuNav` gère nativement
+  `<select>` et `<input type=range>` aux flèches, donc ça *devrait* marcher — ce
+  n'est pas une mesure.
+- **Le panneau en vol (touche `B`)** : le gel de la sim, la sortie du pointer
+  lock, le recalage de l'accumulateur au retour, et surtout le **changement de
+  cellule à chaud** (`physics.setProfile()` en plein vol) — jamais exécuté en vol
+  réel, seulement au banc headless de `selftest.mjs`.
+- **Le respawn au banc (`R`)** après un choc.
+- **Le dump de frame (`F`)** : le téléchargement navigateur n'a jamais été
+  déclenché.
+- **Le vol libre au banc** (`terrain: live`), qui hérite de l'état de `?live=` et
+  donc des issues ouvertes #178, #179, #186, #191.
+- **La non-régression de FIELD de bout en bout.** Prouvée par construction et par
+  les selftests, pas par un parcours joué.
+
+### Le parcours à jouer pour clore la phase
+
+1. **FIELD non régressé** : mode select → FIELD → Home → FLY → TARGET SCAN →
+   hack → rituel → vol → pose → POST-FLIGHT → note → KEEP TERRAIN → Home. La
+   session doit apparaître au SESSION LOG et les compteurs du pied de page avoir
+   bougé. Puis un crash : LINK LOST → TARGET LOST → sortie, **et pas de respawn**.
+2. **BENCH** : mode select → BENCH → régler → SPIN UP → vol → choc → **respawn
+   immédiat** → `B` → changer de famille, monter le vent, bouger l'heure, couper
+   la clôture **sans redémarrer** → sortie.
+3. **Étanchéité** : juste après (2), SESSION LOG, TARGET LOG et le pied de page
+   sont **identiques à avant**. C'est l'assertion centrale du mode.
+4. Les raccourcis dev sautent toujours le mode select : `?scene=paristest`,
+   `?live=48.8584,2.2945`, `?family=race5`.
+
+### Deux découvertes faites en mesurant la ligne de base (pas causées par PHASE 26)
+
+- **#195** — `fog off reproduces the rain-only density to the bit` échoue sur
+  `main`. Le check construit `FogField`/`RainField` isolément : aucune dépendance
+  au disque, c'est un vrai écart de modèle.
+- **#196** — `npm run selftest:operator` **s'arrête net** au milieu de la chaîne
+  quand `public/scenes/tour-eiffel` n'est pas sur le disque, et la trentaine de
+  selftests qui suivent `landing-selftest` ne tournent jamais. On croit la suite
+  verte alors qu'elle n'a pas tourné. Sur cette machine il n'y a que `paristest`,
+  et `public/scenes/` est gitignored.
+
+  **Conséquence pratique pour toute reprise** : lancer
+  `node tools/selftest.mjs public/scenes/<slug-présent>`, et ne pas se fier au
+  code de sortie de `selftest:operator` tant que #196 n'est pas corrigée.
+
+- **#124** (« régression : le selftest rituel est rouge sur main ») est **verte**
+  aujourd'hui — l'issue est périmée, elle peut être fermée.
+
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

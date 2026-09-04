@@ -54,6 +54,7 @@ donne la ligne de chaque phase ; lire ensuite la plage voulue plutôt que tout l
 - PHASE 23 — Multiplayer / shared server operator isolation
 - PHASE 24 — Performance / persistence / cleanup
 - PHASE 25 — Cohérence finale
+- PHASE 26 — BENCH (le banc)
 - Ordre de priorité recommandé (P0 → P3)
 - Critère de réussite global
 
@@ -1419,6 +1420,56 @@ SECOND OPERATOR
 
 ---
 
+# PHASE 26 — BENCH (le banc)
+
+### Objectif
+
+Donner au jeu sa seconde voie : un endroit où l'opérateur a le contrôle total,
+sans contrainte ni frustration — sans rien retirer à FIELD, et sans que la
+fiction ait à faire une exception.
+
+Voir **Bible §48** pour la justification diégétique et la copie. En deux mots :
+un outil de reverse engineering écrit par des hackers hardware a toujours un
+banc, et sur un banc il n'y a ni cible, ni lien, ni hack, ni perte, ni trace.
+
+### Structure
+
+La racine du jeu devient `SELECT OPERATION MODE` (FIELD / BENCH), et la Home
+descend d'un cran — elle peut donc remonter.
+
+### Implémenter
+
+- `tools/bench-model.mjs` — schéma, bornes, normalisation, sérialisation. La
+  normalisation **ramène**, elle ne rejette jamais.
+- `SELECT OPERATION MODE`, curseur sur le dernier mode utilisé.
+- L'écran du banc, et **le même** en mode `live` pendant le vol (touche `B`).
+- L'étanchéité : aucune session, donc aucun journal, aucun Randomart, aucun
+  compteur.
+- `NO LOSS` : respawn libre, pas de séquence de mort, la clôture avertit et
+  résiste mais n'exécute plus.
+
+### Ce qu'il ne faut PAS faire
+
+Un `bootBench()`. Voir **D7** dans `fpv-rework-architecture.md` : `bootLive()`
+a forké la fin de `finishBoot()` et l'a payé trois fois. Le banc réutilise
+`boot(slug)` et `bootLive()` tels quels.
+
+### Ne PAS rouvrir
+
+- Les curseurs météo **ne reviennent pas dans `SETTINGS`** (PHASE 04, D3). Ils
+  vivent au banc, qui est hors monde.
+- Le respawn **ne revient pas en FIELD** (PHASE 14). La règle n'y est pas
+  assouplie ; elle ne s'applique simplement pas là où il n'y a aucune machine
+  distante.
+
+### Critère
+
+Après un vol de banc, `SESSION LOG`, `TARGET LOG` et le pied de page de la Home
+sont **strictement inchangés**. L'échelle `BUILD NOTES` compte des sessions :
+une fuite s'y verrait.
+
+---
+
 # Ordre de priorité recommandé
 
 ## P0 — rendre la nouvelle boucle fonctionnelle
@@ -1464,6 +1515,7 @@ Crew lore
 ## P3 — polish / futur
 
 ```text
+BENCH (PHASE 26)
 additional drones
 additional hacks
 additional ritual variants

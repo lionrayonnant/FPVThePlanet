@@ -88,15 +88,15 @@ Sources of truth:
 sim/README.md: commands, maps, prep pipeline.
 sim/HANDOFF.md: current verified/unverified state only. Detailed per-subsystem session narratives are split into sim/docs/handoff-archive/*.md — read one only when touching that subsystem.
 sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md: the art direction and the target experience. Validated; do not re-litigate it, implement it.
-sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md: the 26 phases turning the sim into that experience.
-sim/docs/fpv-rework-architecture.md: audit of the existing code, the cross-cutting decisions (D1-D6), and what each module becomes. Read before touching the rework.
-GitHub Issues + Project: roadmap/status. The rework is issues PHASE 00-25, label roadmap-da, milestones P0-P3.
+sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
+sim/docs/fpv-rework-architecture.md: audit of the existing code, the cross-cutting decisions (D1-D7), and what each module becomes. Read before touching the rework.
+GitHub Issues + Project: roadmap/status. The rework is issues PHASE 00-26, label roadmap-da, milestones P0-P3.
 
 Prefer updating these docs rather than duplicating information here.
 
 GitHub workflow
 
-Repo: private lionrayonnant/FPVMaps.
+Repo: private lionrayonnant/FPVTP.
 
 At the start of substantive work:
 

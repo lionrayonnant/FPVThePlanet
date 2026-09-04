@@ -38,6 +38,32 @@ phases et ne doivent pas être re-tranchées issue par issue.
 | D4 | **Les six familles de drones sont implémentées d'emblée**, PID re-mesurés par famille via `tools/tune-pid.mjs`. | `QUAD` devient un profil. `selftest` doit passer sur les six. |
 | D5 | **Le jeu est en anglais** ; les issues, commits et docs internes restent en français. | Toute chaîne visible par le joueur est à traduire, y compris le HUD et les écrans de chargement actuels. |
 | D6 | **Aucun élément de DA ne devient une dépendance du moteur physique.** | `quad.js`, `flightController.js`, `physics.js`, `wind.js`, `rain.js`, `fog.js`, `link.js` restent testables sans navigateur. |
+| D7 | **Un mode de jeu ne se donne jamais son propre chemin de boot.** Il traverse ceux qui existent, avec un drapeau. | Ajoutée après PHASE 26. Voir ci-dessous. |
+
+### D7 — pourquoi, en détail
+
+`bootLive()` (`main.js`) a recopié à la main la fin de `finishBoot()` pour se
+donner un second chemin de démarrage. Il a fallu trois correctifs pour rattraper
+ce qu'il avait oublié de recopier — `settings.flightActive`, `lastTime`,
+`exposeDebugGlobal()` (#168, #170) — et chacun de ces oublis était invisible
+jusqu'à ce qu'on tombe dessus en vol.
+
+La leçon est générale : deux chemins de boot qui doivent rester d'accord ne le
+restent pas. Un mode ajoute donc **un drapeau traversé**, jamais un pipeline
+parallèle.
+
+PHASE 26 l'applique : sur terrain caché, le banc rend exactement la forme que
+rendent déjà le `resume` et l'override `?family=`, et c'est la chaîne existante
+qui construit `PROFILE` et le contrôleur. Même chose pour `FENCE OFF`, qui
+construit une clôture immense (motif déjà employé par `?live=`) plutôt qu'une
+branche dans `frame()` : tout ce qui lit `fence.out` continue de fonctionner sans
+rien savoir du banc.
+
+Corollaire pratique : quand un mode a besoin d'une variante d'un système
+existant, on **scinde ce système** plutôt que de le dupliquer. `toSimParams()`
+est devenu `sanitize()` + `simParamsOf()` pour que le banc partage la traduction
+météo du monde sans hériter de ses règles de cohérence — une seule traduction,
+donc un banc à 12 m/s et un monde à 12 m/s se pilotent identiquement.
 
 ---
 
