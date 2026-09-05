@@ -109,8 +109,8 @@ export class Settings {
 				<h2>Controls</h2>
 				<div id="keymap" class="spec">
 					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
-					<b>R</b> respawn · <b>J</b> disarm · <b>M</b> mode · <b>P</b> rates<br>
-					<b>C</b> free camera · <b>Space</b> pause · <b>Tab</b> settings
+					<b>J</b> disarm · <b>K</b> (hold) cut link, field · <b>M</b> mode · <b>P</b> rates<br>
+					<b>C</b> free camera · <b>Space</b> pause · <b>Tab</b> settings · <b>R</b> respawn, bench
 				</div>
 				<h2>Sound</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>

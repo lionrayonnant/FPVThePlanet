@@ -1642,6 +1642,18 @@ function frame() {
 		// pilote qui insiste sort et se retrouve au-dessus de rien, ce qui est
 		// une conséquence honnête du terrain, pas une sanction.
 		outOfZone: MODE.bench ? false : fence.out.over,
+		// La coupure volontaire du lien (#216) : K tenue deux secondes. Sans
+		// elle, un drone coincé dans une façade — ni pose reconnue, ni crash —
+		// ne fermait jamais sa session, et RIEN ne rendait la main au terminal.
+		//
+		// Jamais au banc : R y remet la machine en état, il n'y a aucune
+		// machine distante à perdre ni aucune session à clore. La reconnaissance
+		// FIELD, elle, l'a — elle vole une vraie machine sur un vrai terrain.
+		//
+		// Lue en direct plutôt que par onAction : un maintien n'est pas un
+		// appui, et input.js ne connaît aucun mode de jeu (il n'a donc pas à
+		// savoir que cette touche existe ici et pas au banc).
+		cutHeld: !MODE.bench && input.keys.has('k'),
 	});
 	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
 	// crashedThisFrame (bonus, revue finale) : un choc encaissé après un
@@ -2052,6 +2064,7 @@ if (!frozen) {
 		recon: MODE.live,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
+	fpvtpOsd.setCut(flightEnd.out);
 	fpvtpOsd.setPhotoReady(photoReady);
 	settings.updateAxisBars();
 

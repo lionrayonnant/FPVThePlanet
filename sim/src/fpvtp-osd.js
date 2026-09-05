@@ -54,6 +54,7 @@ export class FpvtpOsd {
 				</div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
+				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
 				<div id="flight-end" hidden></div>
 				<div id="fo-reticle"></div>
 			</div>`);
@@ -72,6 +73,9 @@ export class FpvtpOsd {
 			credit: q('#fo-credit'),
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
+			cut: q('#fo-cut'),
+			cutText: q('#fo-cut-text'),
+			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
 			reticle: q('#fo-reticle'),
 		};
@@ -88,6 +92,8 @@ export class FpvtpOsd {
 		this._photoReady = false;
 		this._photoCount = 0;
 		this._flashUntil = 0;
+		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
+		this._cutText = '';
 	}
 
 	show() { this.el.root.hidden = false; }
@@ -151,6 +157,35 @@ export class FpvtpOsd {
 		}
 		e.hidden = !this._status;
 		this.el.pause.hidden = !!this._status || !this._paused;
+	}
+
+	// La coupure du lien (#216). Deux choses au même endroit, et jamais en même
+	// temps : le RAPPEL qu'elle existe, quand la machine a l'air coincée, et la
+	// JAUGE du maintien en cours. Le rappel est conditionnel ; le geste, lui,
+	// est toujours disponible — c'est ce qui fait qu'un rappel manqué ne
+	// bloque personne, et c'est pour ça que rien ici ne décide de quoi que ce
+	// soit : flight-end.js a déjà tranché, on peint.
+	//
+	// Nommer la touche à l'écran est le sujet même de l'issue : sans ça le
+	// geste existe et personne ne le trouve.
+	setCut({ stuck = false, cutProgress = 0 } = {}) {
+		const e = this.el.cut;
+		const cutting = cutProgress > 0;
+		if (!cutting && !stuck) {
+			if (!e.hidden) { e.hidden = true; this._cutText = ''; }
+			return;
+		}
+		e.hidden = false;
+		const text = cutting ? 'CUTTING LINK' : '[HOLD K] CUT LINK';
+		if (text !== this._cutText) {
+			this._cutText = text;
+			this.el.cutText.textContent = text;
+		}
+		// La barre ne vit que pendant le maintien : hors maintien, le rappel est
+		// une phrase, pas une jauge à zéro qui laisserait croire qu'il se passe
+		// déjà quelque chose.
+		this.el.cutBar.hidden = !cutting;
+		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
 	}
 
 	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre

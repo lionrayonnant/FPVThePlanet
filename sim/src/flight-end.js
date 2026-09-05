@@ -78,6 +78,50 @@ export const FENCE_TIMELINE = {
 	exitAt: 3.0,
 };
 
+// Quatrième table : la coupure volontaire du lien (#216). Un drone coincé
+// dans une façade, calé sur un toit en pente ou retourné n'atteint jamais
+// LANDING_READY et ne percute plus rien : sans ce geste il n'y a ni pose, ni
+// crash, ni sortie — la session ne se ferme jamais et rien ne rend la main au
+// terminal. Ce n'est pas un respawn : le drone est perdu comme après un crash,
+// c'est seulement l'opérateur qui prononce la fin plutôt que la façade.
+// Comme FENCE_TIMELINE, le noir monte tout de suite : les 0,9 s d'image morte
+// de TIMELINE supposent une épave qui roule, et il n'y en a pas ici. Et comme
+// elle, la première ligne nomme la cause plutôt que de la faire deviner.
+// Mise en scène, pas mesure — comme les trois tables au-dessus.
+export const CUT_TIMELINE = {
+	blackoutAt: 0.3,
+	blackoutFade: 0.5,
+	lines: [
+		[0, 'SIGNAL CUT'],
+		[1.2, ''],
+		[1.2, 'TARGET LOST'],
+		[2.0, 'SESSION TERMINATED'],
+		[3.0, ''],
+		[3.0, '[ENTER] DISCONNECT'],
+	],
+	exitAt: 3.0,
+};
+
+// Le geste, et le rappel qui le fait découvrir. Choix, pas mesures.
+//
+// HOLD_S : couper le lien détruit la machine, donc ça ne peut pas être un
+// appui. Deux secondes, c'est assez long pour qu'aucune touche effleurée ne le
+// déclenche, assez court pour ne pas se sentir comme une punition.
+//
+// STUCK_S / V_STUCK / W_STUCK : quand afficher le RAPPEL, jamais quand
+// autoriser le geste. Le geste, lui, est toujours disponible — c'est
+// exactement ce qui fait qu'un faux négatif ici ne bloque personne, et
+// pourquoi ces trois seuils n'ont pas à séparer un blocage d'un stationnaire
+// tenu (V_STUCK est d'ailleurs bien au-dessus de LANDING.V_ON : on ne cherche
+// pas la même chose). Au pire, le rappel s'affiche pour un pilote qui n'en
+// avait pas besoin ; il ne manque à personne.
+export const CUT = {
+	HOLD_S: 2,      // s de maintien pour couper
+	STUCK_S: 4,     // s d'immobilité avant que le rappel s'affiche
+	V_STUCK: 0.5,   // m/s
+	W_STUCK: 0.5,   // rad/s
+};
+
 // Seuils de pose, mesurés par tools/landing-selftest.mjs sur
 // public/scenes/tour-eiffel le 2026-08-29 : quatre poses (1 m, 3 m, 8 m, vent
 // de travers 8 m/s) se stabilisent toutes sous h=0,1488 m / v=0,0050 m/s /
@@ -129,16 +173,23 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 export class FlightEnd {
 	constructor({ timeline = TIMELINE, landingTimeline = LANDING_TIMELINE,
-	              fenceTimeline = FENCE_TIMELINE, landing = LANDING } = {}) {
+	              fenceTimeline = FENCE_TIMELINE, cutTimeline = CUT_TIMELINE,
+	              landing = LANDING, cut = CUT } = {}) {
 		this.timeline = timeline;
 		this.landingTimeline = landingTimeline;
 		this.fenceTimeline = fenceTimeline;
+		this.cutTimeline = cutTimeline;
 		this.landing = landing;
+		this.cut = cut;
 		// Muté chaque frame plutôt que recréé, comme link.out et wind.out : ceci
 		// tourne à la fréquence d'affichage.
 		this.out = {
 			phase: FLYING, lines: [], linkDead: false,
 			blackout: 0, exitArmed: false, closes: null,
+			// #216 : le maintien en cours (0..1) et le rappel qui le fait
+			// découvrir. Les deux sont de l'affichage : main.js les peint,
+			// personne d'autre ne décide sur eux.
+			cutProgress: 0, stuck: false,
 		};
 		this.reset();
 	}
@@ -150,6 +201,8 @@ export class FlightEnd {
 		this._t = 0;        // secondes depuis l'impact (ou depuis disarm(), en pose)
 		this._hold = 0;     // secondes de pose stable accumulées
 		this._pending = null;
+		this._cutHold = 0;  // secondes de coupure tenue (#216)
+		this._still = 0;    // secondes d'immobilité, pour le rappel (#216)
 		// Quelle table _advanceTimeline() lit : posée à l'entrée en CRASHING ou en
 		// LANDED, et jamais changée ensuite — TERMINATED doit continuer à lire la
 		// table de celui qui l'y a mené, pas systématiquement celle du crash.
@@ -161,6 +214,8 @@ export class FlightEnd {
 		o.blackout = 0;
 		o.exitArmed = false;
 		o.closes = null;
+		o.cutProgress = 0;
+		o.stuck = false;
 	}
 
 	// Le geste explicite du joueur. Ne ferme la session que sur une pose
@@ -195,7 +250,7 @@ export class FlightEnd {
 
 	update({ dt = 0, armed = false, height = Infinity, speed = 0,
 	         angularSpeed = 0, throttle = 0, crashed = false,
-	         outOfZone = false } = {}) {
+	         outOfZone = false, cutHeld = false } = {}) {
 		const o = this.out;
 		// `closes` est un événement : visible une frame, jamais deux.
 		o.closes = this._pending;
@@ -209,17 +264,32 @@ export class FlightEnd {
 		// 2) — il faut à la fois que la fermeture soit partie *et* que le
 		// joueur ait vu la séquence en entier.
 
-		// Deux causes, une seule phase : l'écran meurt de la même façon, seule
-		// la table change. `outOfZone` passe en premier — si les deux arrivent
-		// sur la même frame (on percute une façade en franchissant le bord),
-		// c'est la sortie qui est l'événement, pas le choc.
-		const ends = outOfZone || crashed;
+		// Le maintien de la coupure (#216). Il ne s'accumule que tant qu'il y a
+		// quelque chose à couper : une fois la fin de vol engagée, tenir la
+		// touche ne rejoue rien, et le compteur retombe de lui-même. Le
+		// relâchement remet à zéro plutôt que de décroître — un geste
+		// destructeur se tient d'un trait, il ne se grignote pas en plusieurs
+		// fois. À dt=0 (sim gelée) rien n'avance : on ne coupe pas en pause.
+		const cuttable = this._phase === FLYING || this._phase === LANDING_READY;
+		this._cutHold = (cutHeld && cuttable) ? this._cutHold + dt : 0;
+		const cut = this._cutHold >= this.cut.HOLD_S;
+		o.cutProgress = cuttable ? clamp01(this._cutHold / this.cut.HOLD_S) : 0;
+
+		// Trois causes, une seule phase : l'écran meurt de la même façon, seule
+		// la table change. L'ordre est celui de ce qui EST l'événement quand
+		// plusieurs arrivent sur la même frame. `outOfZone` passe en premier —
+		// si on percute une façade en franchissant le bord, c'est la sortie
+		// l'événement, pas le choc. La coupure passe en dernier : elle n'est
+		// jamais la cause quand le terrain, lui, a déjà tranché.
+		const ends = outOfZone || crashed || cut;
 		if (ends && this._phase !== CRASHING && this._phase !== TERMINATED
 			&& this._phase !== LANDED) {
 			this._phase = CRASHING;
 			this._t = 0;
 			this._hold = 0;
-			this._activeTimeline = outOfZone ? this.fenceTimeline : this.timeline;
+			this._activeTimeline = outOfZone ? this.fenceTimeline
+				: crashed ? this.timeline
+				: this.cutTimeline;
 			o.lines.length = 0;
 			// L'image meurt à l'instant du choc, avant tout texte.
 			o.linkDead = true;
@@ -232,6 +302,9 @@ export class FlightEnd {
 		// finie, plutôt que de retomber sur celle du crash par défaut.
 		if (this._phase === CRASHING || this._phase === LANDED || this._phase === TERMINATED) {
 			this._advanceTimeline(dt);
+			// Plus rien à débloquer : le rappel n'a plus lieu d'être.
+			this._still = 0;
+			o.stuck = false;
 		} else if (this._phase === FLYING || this._phase === LANDING_READY) {
 			this._advanceLanding({ dt, armed, height, speed, angularSpeed, throttle });
 		}
@@ -266,6 +339,9 @@ export class FlightEnd {
 		const o = this.out, L = this.landing;
 
 		if (this._phase === LANDING_READY) {
+			// Une pose reconnue n'est pas un blocage : elle a déjà sa sortie (J).
+			this._still = 0;
+			o.stuck = false;
 			// Hystérésis : on sort de la pose plus facilement qu'on n'y entre. Un
 			// drone qui repart n'a pas à attendre T_HOLD pour cesser d'être posé.
 			if (height > L.H_OFF || speed > L.V_OFF || !armed) {
@@ -275,6 +351,15 @@ export class FlightEnd {
 			}
 			return;
 		}
+
+		// Le rappel « tu peux couper » (#216). Immobile et armé sans qu'une pose
+		// soit reconnue : coincé dans une façade, calé sur un toit, retourné —
+		// ou simplement en stationnaire, et c'est sans conséquence, parce que
+		// ceci n'autorise rien. Le geste, lui, reste toujours disponible.
+		const C = this.cut;
+		const still = armed && speed < C.V_STUCK && angularSpeed < C.W_STUCK;
+		this._still = still ? this._still + dt : 0;
+		o.stuck = this._still >= C.STUCK_S;
 
 		const stable = armed
 			&& height < L.H_ON

@@ -3,8 +3,8 @@
 // Lancer : node tools/flight-end-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	FlightEnd, TIMELINE, LANDING_TIMELINE, FENCE_TIMELINE, LANDING,
-	FLYING, LANDING_READY, LANDED, CRASHING, TERMINATED,
+	FlightEnd, TIMELINE, LANDING_TIMELINE, FENCE_TIMELINE, CUT_TIMELINE, LANDING,
+	CUT, FLYING, LANDING_READY, LANDED, CRASHING, TERMINATED,
 } from '../src/flight-end.js';
 
 let n = 0;
@@ -309,6 +309,142 @@ t('un crash pendant une sortie de zone ne rejoue pas la séquence', () => {
 	assert.equal(fe.phase, CRASHING);
 	assert.ok(fe.out.lines.length >= first);
 	assert.equal(fe.out.closes, null, 'closes ne se déclenche qu\'une fois');
+});
+
+// Quatrième chronologie : la coupure volontaire du lien (#216). Un drone
+// coincé dans une façade n'atteint jamais LANDING_READY et ne crashe pas :
+// sans ce geste, la session ne se ferme jamais et rien ne rend la main au
+// terminal. Le maintien vit ici plutôt que dans main.js pour que ces tests
+// puissent l'avancer à la main, comme tout le reste de ce banc.
+t('maintien complet : le lien est coupé, image morte, verdict CRASHED', () => {
+	const fe = new FlightEnd();
+	// `closes` est un événement d'une frame : on le cueille au passage plutôt
+	// que de le chercher à la fin, comme le fait main.js.
+	let closes = null;
+	for (let i = 0; i < Math.round((CUT.HOLD_S + 0.1) * 60); i++) {
+		fe.update(frame({ cutHeld: true }));
+		if (fe.out.closes) closes = fe.out.closes;
+	}
+	assert.equal(fe.phase, CRASHING);
+	assert.equal(fe.out.linkDead, true);
+	assert.equal(closes, 'CRASHED');
+});
+
+t('maintien trop court : rien ne se passe, et le compteur repart de zéro', () => {
+	const fe = new FlightEnd();
+	advance(fe, CUT.HOLD_S * 0.75, { cutHeld: true });
+	assert.equal(fe.phase, FLYING);
+	fe.update(frame({ cutHeld: false }));
+	assert.equal(fe.out.cutProgress, 0, 'relâcher remet le maintien à zéro');
+	// Un second maintien de la même durée ne doit pas conclure : sans remise à
+	// zéro, les deux moitiés s'additionneraient et couperaient le lien.
+	advance(fe, CUT.HOLD_S * 0.75, { cutHeld: true });
+	assert.equal(fe.phase, FLYING);
+});
+
+t('le maintien se voit avancer : cutProgress monte de 0 à 1', () => {
+	const fe = new FlightEnd();
+	assert.equal(fe.out.cutProgress, 0);
+	advance(fe, CUT.HOLD_S / 2, { cutHeld: true });
+	assert.ok(fe.out.cutProgress > 0.4 && fe.out.cutProgress < 0.6,
+		`à mi-maintien on attend ~0,5, vu ${fe.out.cutProgress}`);
+});
+
+t('coupure : la table de la coupure, pas celle du crash', () => {
+	const fe = new FlightEnd();
+	advance(fe, CUT.HOLD_S + 0.1, { cutHeld: true });
+	advance(fe, CUT_TIMELINE.exitAt + 0.2, { cutHeld: true });
+	assert.deepEqual(
+		fe.out.lines,
+		CUT_TIMELINE.lines.map(([, text]) => text),
+	);
+	assert.equal(fe.out.exitArmed, true);
+});
+
+t('la coupure noircit plus tôt que le crash : pas d\'épave à regarder', () => {
+	assert.ok(CUT_TIMELINE.blackoutAt < TIMELINE.blackoutAt);
+});
+
+t('la première ligne de la coupure nomme la cause', () => {
+	assert.equal(CUT_TIMELINE.lines[0][1], 'SIGNAL CUT');
+});
+
+t('un crash pendant le maintien : le crash gagne', () => {
+	const fe = new FlightEnd();
+	advance(fe, CUT.HOLD_S * 0.5, { cutHeld: true });
+	fe.update(frame({ cutHeld: true, crashed: true }));
+	assert.equal(fe.phase, CRASHING);
+	advance(fe, TIMELINE.exitAt + 0.2, { cutHeld: false, crashed: true });
+	assert.deepEqual(fe.out.lines, TIMELINE.lines.map(([, text]) => text));
+});
+
+t('maintien après un crash : rien ne se rejoue', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ crashed: true }));
+	assert.equal(fe.out.closes, 'CRASHED');
+	advance(fe, CUT.HOLD_S + 1, { cutHeld: true, crashed: false });
+	assert.equal(fe.out.closes, null, 'la session ne se ferme pas deux fois');
+	assert.deepEqual(fe.out.lines, TIMELINE.lines.filter(([at]) => at <= CUT.HOLD_S + 1)
+		.map(([, text]) => text));
+});
+
+t('maintien après une pose : la pose reste la pose', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + 0.3);
+	assert.equal(fe.disarm(), true);
+	advance(fe, CUT.HOLD_S + 0.1, { cutHeld: true });
+	assert.notEqual(fe.phase, CRASHING);
+	assert.equal(fe.out.linkDead, false, 'une pose ne tue pas l\'image');
+	assert.equal(fe.out.cutProgress, 0, 'plus rien à couper');
+});
+
+t('sim gelée : un maintien n\'avance pas pendant la pause', () => {
+	const fe = new FlightEnd();
+	for (let i = 0; i < 600; i++) fe.update(frame({ dt: 0, cutHeld: true }));
+	assert.equal(fe.phase, FLYING);
+	assert.equal(fe.out.cutProgress, 0);
+});
+
+t('reset() oublie un maintien en cours', () => {
+	const fe = new FlightEnd();
+	advance(fe, CUT.HOLD_S * 0.9, { cutHeld: true });
+	fe.reset();
+	assert.equal(fe.out.cutProgress, 0);
+	advance(fe, CUT.HOLD_S * 0.9, { cutHeld: true });
+	assert.equal(fe.phase, FLYING);
+});
+
+// Le rappel « tu peux couper » : conditionnel, contrairement au geste. Un faux
+// négatif ne bloque donc personne — il prive seulement d'un rappel.
+t('coincé : armé et immobile assez longtemps sans pose reconnue', () => {
+	const fe = new FlightEnd();
+	assert.equal(fe.out.stuck, false);
+	// Coincé dans une façade : haut (donc pas de pose possible), immobile, gaz mis.
+	const wedged = { height: 18, speed: 0.05, angularSpeed: 0.01, throttle: 0.4 };
+	advance(fe, CUT.STUCK_S + 0.2, wedged);
+	assert.equal(fe.out.stuck, true);
+});
+
+t('coincé : un vol normal ne l\'est jamais', () => {
+	const fe = new FlightEnd();
+	advance(fe, CUT.STUCK_S + 5);
+	assert.equal(fe.out.stuck, false);
+});
+
+t('coincé : un drone qui repart cesse de l\'être', () => {
+	const fe = new FlightEnd();
+	const wedged = { height: 18, speed: 0.05, angularSpeed: 0.01, throttle: 0.4 };
+	advance(fe, CUT.STUCK_S + 0.2, wedged);
+	assert.equal(fe.out.stuck, true);
+	fe.update(frame());
+	assert.equal(fe.out.stuck, false);
+});
+
+t('coincé : une pose reconnue n\'est pas un blocage', () => {
+	const fe = new FlightEnd();
+	hold(fe, LANDING.T_HOLD + CUT.STUCK_S + 1);
+	assert.equal(fe.phase, LANDING_READY);
+	assert.equal(fe.out.stuck, false);
 });
 
 console.log(`\n${n} tests OK`);

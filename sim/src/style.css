@@ -179,6 +179,34 @@ button:focus::before {
 	letter-spacing: .1em;
 	color: var(--dim);
 }
+/* La coupure du lien (#216). Sous le réticule, hors des quatre coins : ce
+   n'est ni un verdict (#fo-status) ni un état de la sim (#fo-pause), c'est un
+   geste disponible. Discret tant qu'il n'est qu'un rappel. */
+#fo-cut {
+	position: absolute;
+	left: 50%;
+	top: 60%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: 12px;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+}
+/* La jauge du maintien : une règle qui se remplit, pas une barre de
+   chargement. Elle n'existe que pendant le geste. */
+#fo-cut-bar {
+	display: block;
+	height: var(--rule-w);
+	margin-top: var(--space-2);
+	background: var(--red);
+}
+#fo-cut-bar[hidden] { display: none; }
+
 /* Le seul arrondi du fichier, et il est légitime : c'est un réticule optique,
    pas un coin de card. */
 #fo-reticle {
