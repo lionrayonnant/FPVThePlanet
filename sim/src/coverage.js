@@ -90,3 +90,90 @@ export function stampCells(lat, lon, rM = R_M) {
 	}
 	return out;
 }
+
+// ---------------------------------------------------------------------------
+// Le magasin
+//
+// Une Map clé "x,y" → { x, y, w }, qui garde son ordre d'insertion : c'est
+// l'ancienneté, dont l'éviction se sert pour départager les poids égaux.
+//
+// Forme persistée : { v: 1, z: 20, cells: [[x, y, w], ...] }. Un tableau de
+// triplets plutôt qu'un objet indexé — moins d'octets par cellule en JSON, et
+// l'ordre porte l'ancienneté. Au plafond, ~160 ko : gros pour une clé
+// d'opérateur, et la raison pour laquelle session.js l'écrit UNE fois à la
+// clôture et jamais en vol.
+const key = (x, y) => `${x},${y}`;
+
+export class Coverage {
+	constructor() {
+		this._cells = new Map();
+	}
+
+	// N'importe quoi d'invalide rend une couverture VIERGE : pas de migration,
+	// pas de bump de schéma, un opérateur d'avant #245 marche tel quel — la
+	// même promesse que dialogueMemory (src/dialogue.js). Une cellule mal
+	// formée invalide tout : mieux vaut repartir de zéro que garder un fichier
+	// à moitié lu qu'on croirait complet.
+	static fromStored(stored) {
+		const c = new Coverage();
+		if (!stored || typeof stored !== 'object') return c;
+		if (stored.v !== 1 || stored.z !== Z || !Array.isArray(stored.cells)) return c;
+		const ok = (v) => Number.isInteger(v);
+		for (const t of stored.cells) {
+			if (!Array.isArray(t) || t.length !== 3) return new Coverage();
+			const [x, y, w] = t;
+			if (!ok(x) || !ok(y) || !ok(w) || w < 1 || w > W_MAX) return new Coverage();
+			c._cells.set(key(x, y), { x, y, w });
+		}
+		return c;
+	}
+
+	get size() { return this._cells.size; }
+
+	weightAt(x, y) { return this._cells.get(key(x, y))?.w ?? 0; }
+
+	cells() { return [...this._cells.values()]; }
+
+	mark(lat, lon) {
+		for (const { x, y } of stampCells(lat, lon)) {
+			const k = key(x, y);
+			const cell = this._cells.get(k);
+			if (cell) cell.w = Math.min(W_MAX, cell.w + 1);
+			else this._cells.set(k, { x, y, w: 1 });
+		}
+		return this;
+	}
+
+	// Une NOUVELLE couverture : les deux entrées restent intactes. Les cellules
+	// du receveur d'abord, dans leur ordre, puis celles de l'autre qu'il ne
+	// connaissait pas — c'est ce qui fait que fusionner l'ancien opérateur avec
+	// la session du jour garde l'ancienneté de l'ancien.
+	merge(other) {
+		const out = new Coverage();
+		for (const c of this._cells.values()) out._cells.set(key(c.x, c.y), { ...c });
+		for (const c of other._cells.values()) {
+			const k = key(c.x, c.y);
+			const mine = out._cells.get(k);
+			if (mine) mine.w = Math.min(W_MAX, mine.w + c.w);
+			else out._cells.set(k, { ...c });
+		}
+		return out;
+	}
+
+	// Évince jusqu'au plafond : ce qu'on a le moins vu s'efface avant ce qu'on
+	// connaît bien, et à poids égal le plus ancien part le premier. Stable en
+	// place : les survivants gardent leur ordre d'insertion.
+	cap(max = MAX_CELLS) {
+		const excess = this._cells.size - max;
+		if (excess <= 0) return this;
+		const ranked = [...this._cells.entries()]
+			.map(([k, c], i) => ({ k, w: c.w, i }))
+			.sort((a, b) => (a.w - b.w) || (a.i - b.i));
+		for (let j = 0; j < excess; j++) this._cells.delete(ranked[j].k);
+		return this;
+	}
+
+	toStored() {
+		return { v: 1, z: Z, cells: [...this._cells.values()].map((c) => [c.x, c.y, c.w]) };
+	}
+}

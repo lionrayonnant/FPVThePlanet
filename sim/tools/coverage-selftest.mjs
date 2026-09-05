@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
 	Z, R_M, W_MAX, MAX_CELLS,
 	cellOf, cellCenter, cellSizeM, distanceM, stampCells,
+	Coverage,
 } from '../src/coverage.js';
 
 let n = 0;
@@ -108,6 +109,103 @@ t('stampCells : aucun trou le long d\'une trajectoire à 42,72 m/s échantillonn
 		const c = cellOf(EIFFEL.lat, lon);
 		assert.ok(marked.has(`${c.x},${c.y}`), `trou à ${m} m`);
 	}
+});
+
+// ---------------------------------------------------------------------------
+// Le magasin
+
+t('Coverage vierge : rien dedans, et toStored() a la forme de la spec', () => {
+	const c = new Coverage();
+	assert.equal(c.size, 0);
+	assert.deepEqual(c.toStored(), { v: 1, z: Z, cells: [] });
+});
+
+t('mark : une empreinte, puis les poids montent et saturent à W_MAX', () => {
+	const c = new Coverage();
+	c.mark(EIFFEL.lat, EIFFEL.lon);
+	const first = c.size;
+	assert.ok(first >= 4 && first <= 5, `${first} cellules`);
+	const { x, y } = cellOf(EIFFEL.lat, EIFFEL.lon);
+	assert.equal(c.weightAt(x, y), 1);
+	for (let i = 0; i < 50; i++) c.mark(EIFFEL.lat, EIFFEL.lon);
+	assert.equal(c.size, first, 'repasser au même endroit n\'ajoute pas de cellule');
+	assert.equal(c.weightAt(x, y), W_MAX, 'le poids sature');
+	for (const cell of c.cells()) assert.ok(cell.w <= W_MAX);
+});
+
+t('toStored / fromStored : aller-retour exact, ordre d\'insertion conservé', () => {
+	const c = new Coverage();
+	c.mark(EIFFEL.lat, EIFFEL.lon);
+	c.mark(EIFFEL.lat + 0.01, EIFFEL.lon);
+	const stored = c.toStored();
+	assert.equal(stored.v, 1);
+	assert.equal(stored.z, Z);
+	for (const triple of stored.cells) {
+		assert.equal(triple.length, 3);
+		for (const v of triple) assert.ok(Number.isInteger(v));
+	}
+	const back = Coverage.fromStored(JSON.parse(JSON.stringify(stored)));
+	assert.deepEqual(back.toStored(), stored);
+});
+
+t('fromStored : n\'importe quoi d\'invalide se relit comme une couverture vierge', () => {
+	// Pas de migration, pas de bump de schéma : un opérateur d'avant #245 marche
+	// tel quel — la même promesse que dialogueMemory.
+	for (const bad of [undefined, null, 42, 'x', {}, { v: 2, z: Z, cells: [] },
+		{ v: 1, z: 19, cells: [] }, { v: 1, z: Z, cells: 'nope' },
+		{ v: 1, z: Z, cells: [[1, 2]] }, { v: 1, z: Z, cells: [[1.5, 2, 3]] },
+		{ v: 1, z: Z, cells: [[1, 2, 0]] }, { v: 1, z: Z, cells: [[1, 2, W_MAX + 1]] }]) {
+		const c = Coverage.fromStored(bad);
+		assert.equal(c.size, 0, `devrait être vierge pour ${JSON.stringify(bad)}`);
+	}
+});
+
+t('merge : commutative sur le contenu, élément neutre, poids additionnés puis saturés', () => {
+	const a = new Coverage(); a.mark(EIFFEL.lat, EIFFEL.lon);
+	const b = new Coverage(); b.mark(EIFFEL.lat, EIFFEL.lon); b.mark(EIFFEL.lat + 0.01, EIFFEL.lon);
+	const ab = a.merge(b), ba = b.merge(a);
+	// Même contenu (l'ordre peut différer, c'est celui du receveur d'abord).
+	const key = (c) => c.cells().map((k) => `${k.x},${k.y}:${k.w}`).sort().join('|');
+	assert.equal(key(ab), key(ba));
+	const { x, y } = cellOf(EIFFEL.lat, EIFFEL.lon);
+	assert.equal(ab.weightAt(x, y), 2, 'les poids s\'additionnent');
+	// Élément neutre : fusionner la couverture vide ne change rien. (Pas
+	// « idempotente » : les poids s'additionnent par construction — repasser
+	// densifie — donc merge(b) deux fois compte b deux fois, et c'est voulu.)
+	assert.equal(key(ab.merge(new Coverage())), key(ab));
+	assert.equal(key(new Coverage().merge(ab)), key(ab));
+	// Saturation à la fusion.
+	const full = new Coverage(); for (let i = 0; i < 20; i++) full.mark(EIFFEL.lat, EIFFEL.lon);
+	assert.equal(full.merge(full).weightAt(x, y), W_MAX);
+	// Les entrées ne sont pas modifiées : merge rend une NOUVELLE couverture.
+	assert.equal(a.weightAt(x, y), 1);
+});
+
+t('cap : au-delà du plafond, les poids faibles partent d\'abord, puis les plus anciens', () => {
+	const c = new Coverage();
+	// 12 cellules posées à la main via fromStored, pour tester les deux critères.
+	const cells = [];
+	// Deux « 1 » en tête (le critère poids), deux « 2 » aux index 2 et 7 (le
+	// critère ancienneté à poids égal), tout le reste à 3.
+	for (let i = 0; i < 12; i++) cells.push([1000 + i, 2000, i < 2 ? 1 : (i === 2 || i === 7) ? 2 : 3]);
+	const cov = Coverage.fromStored({ v: 1, z: Z, cells });
+	cov.cap(9);
+	assert.equal(cov.size, 9);
+	// Les deux « 1 » (les plus faibles) sont partis…
+	assert.equal(cov.weightAt(1000, 2000), 0);
+	assert.equal(cov.weightAt(1001, 2000), 0);
+	// …puis, à poids égal (2), le plus ANCIEN : index 2 (w=2) avant index 7 (w=2).
+	assert.equal(cov.weightAt(1002, 2000), 0);
+	assert.equal(cov.weightAt(1007, 2000), 2);
+	// Sous le plafond : no-op.
+	const before = cov.toStored();
+	cov.cap(9);
+	assert.deepEqual(cov.toStored(), before);
+	// Le plafond par défaut est MAX_CELLS.
+	const big = new Coverage();
+	const many = [];
+	for (let i = 0; i < MAX_CELLS + 100; i++) many.push([i, 0, 1]);
+	assert.equal(Coverage.fromStored({ v: 1, z: Z, cells: many }).cap().size, MAX_CELLS);
 });
 
 console.log(`\n${n} tests coverage OK`);
