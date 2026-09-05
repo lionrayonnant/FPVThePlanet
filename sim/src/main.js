@@ -1414,6 +1414,27 @@ function latLonOf(p) {
 	return { lat, lon: o.longitude + p.x / (111320 * Math.cos(lat * Math.PI / 180)) };
 }
 
+// La position géographique du drone pour la couverture (issue #245), cuit ou
+// live, un seul chemin de sortie : { lat, lon }, éventuellement NaN — c'est
+// session.feed() qui ignore un résultat non fini.
+//
+// - terrain cuit : latLonOf(), l'approximation plate déjà jugée suffisante sur
+//   une scène de deux kilomètres ;
+// - live : la même conversion ENU → ECEF → géodésique que la fenêtre de
+//   streaming fait déjà chaque frame plus haut (#182 pour la garde NaN, qui
+//   vit côté session).
+//
+// Appelée SEULEMENT aux échantillons (5 Hz) : session.feed() reçoit la fonction,
+// pas la valeur.
+function droneGeo(p) {
+	if (liveWindow) {
+		const ecef = localEnuToEcef(p, liveWindow.originEcef, liveWindow.originBasis);
+		const g = ecefToGeodetic(...ecef);
+		return { lat: g.lat, lon: g.lon };
+	}
+	return latLonOf(p);
+}
+
 function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen || benchPanelOpen; }
 
 const _q = new THREE.Quaternion();
@@ -2008,6 +2029,9 @@ if (!frozen) {
 			altitudeAboveSpawn: p.y - spawnY,
 			dt: frozen ? 0 : dt,
 			armed: controller.armed,
+			// La couverture (issue #245) : une fonction, appelée par session.js
+			// seulement quand un échantillon est dû — rien entre deux.
+			geo: () => droneGeo(p),
 		});
 	}
 
