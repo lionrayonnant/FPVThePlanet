@@ -26,7 +26,7 @@ import {
 	droneOsdLayout, ELEMENTS, ELEMENT_WIDTH, GPS_ELEMENTS, GRIDS, DENSITY,
 	PANEL_MODES, ARCHETYPES, FIRMWARES, DIGITAL_TINTS, PATHOLOGIES,
 } from './drone-osd-model.mjs';
-import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT } from '../src/quad.js';
+import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT, idleThrottle } from '../src/quad.js';
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
 import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
@@ -114,6 +114,17 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	if (at) phys.body.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
 	if (velocity) phys.body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
 	fc.reset();
+	// Même règle de pose que main.js (et que tools/landing-selftest.mjs) : gaz
+	// coupés au ras du sol → moteurs à zéro et groundHold. Sans elle, le banc
+	// simule un monde que le sim n'a plus : la sphère de 0,15 m descend la pente
+	// du spawn sans jamais s'arrêter (l'amortissement exponentiel divise le
+	// fluage, la gravité le réinjecte), et la vitesse lue à la fin ne mesure que
+	// la pente sous la scène. C'est ce qui faisait sortir race5 à 1,83 m/s.
+	// THR_IDLE est le seuil dérivé de la famille en vol, pas 0,06 en dur.
+	const thrIdle = idleThrottle(PROFILE);
+	phys.setGroundHold(false);
+	const p0 = { ...phys.position };
+	let touchdownSteps = 0;
 	let maxImpact = 0;
 	let peakSpin = 0;
 	let peakOffAxis = 0;
@@ -128,7 +139,20 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	for (let i = 0; i < Math.round(seconds * 250); i++) {
 		const t = i * STEP;
 		const s = typeof sticks === 'function' ? sticks(t) : sticks;
+		// `fc.armed` d'abord, `s.throttle` ensuite, le rayon en dernier : main.js
+		// teste dans cet ordre, et le raycast de 500 m ne doit pas être payé
+		// 250 fois par seconde sur les runs à 150 m d'altitude plein gaz, où la
+		// pose est impossible par construction.
+		let touchdown = false;
+		if (fc.armed && s.throttle < thrIdle) {
+			const pp = phys.position;
+			const gb = phys.groundBelow(pp.x, pp.y, pp.z);
+			touchdown = gb !== null && (pp.y - gb) < 0.6;
+		}
+		if (touchdown) touchdownSteps++;
+		phys.setGroundHold(touchdown);
 		const { motors } = fc.update(s, phys, STEP);
+		if (touchdown) motors.fill(0);
 		maxImpact = Math.max(maxImpact, phys.step(motors, STEP));
 		const a = phys.angularVelocity;
 		const mag = Math.hypot(a.x, a.y, a.z) * 180 / Math.PI;
@@ -145,7 +169,7 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	}
 	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
 	const heldSpin = tail.length ? tail.reduce((a, b) => a + b, 0) / tail.length : 0;
-	return { p, v, w, peakSpin, heldSpin, peakOffAxis, battery: phys.battery,
+	return { p, p0, v, w, peakSpin, heldSpin, peakOffAxis, battery: phys.battery, touchdownSteps,
 		speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
 }
 
@@ -258,11 +282,38 @@ for (const fam of FAMILIES) {
 	useFamily(fam);
 	console.log(`\nflight envelope — ${fam}`);
 
-	// "Still" is generous: the collider is a 0.15 m sphere for every family, so a
-	// featherweight airframe on idle props can roll it a little. The check is
-	// that it does not take off or wander off the map.
+	// "Still" means still. Le seuil était à 1,5 m/s parce que simulate() ne
+	// posait pas le drone : la sphère de 0,15 m descendait la pente du spawn et
+	// la mesure ne disait que « quelle pente, quelle famille, lue à quel instant
+	// du roulement » (race5 sortait à 1,83 m/s, freestyle5 et longrange à 1,22 —
+	// et toothpick passait par 3,02 m/s à t=1,2 s avant de rebondir sous le
+	// seuil). Depuis que simulate() applique la règle de pose de main.js, la
+	// friction statique de Coulomb ANNULE le mouvement, et les six familles
+	// sortent à zéro. Ce qui reste toléré est un résidu de pas de temps, pas un
+	// roulement.
+	//
+	// Immobile à zéro gaz est donc devenu une conséquence de la règle plutôt
+	// qu'une mesure : on vérifie AUSSI que la règle s'est bien appliquée sur
+	// toute la durée (sinon le zéro ne dirait plus rien — un spawn qui monterait
+	// au-dessus de 0,6 m du sol la désarmerait en silence), et le « il ne décolle
+	// pas », que la règle masque en coupant les moteurs, est repris juste en
+	// dessous à un gaz où elle ne s'applique plus.
+	const REST_STEPS = 2 * 250;
 	const rest = simulate({ seconds: 2, sticks: { throttle: 0, roll: 0, pitch: 0, yaw: 0 } });
-	check(`[${fam}] sits still on the ground at zero throttle`, rest.speed < 1.5, `${rest.speed.toFixed(2)} m/s`);
+	check(`[${fam}] sits still on the ground at zero throttle`,
+		rest.speed < 0.1 && rest.touchdownSteps === REST_STEPS,
+		`${rest.speed.toFixed(2)} m/s, posé ${rest.touchdownSteps}/${REST_STEPS} pas`);
+
+	// Au ralenti HAUT — une fois et demie le seuil de pose, donc au-dessus de la
+	// fenêtre où main.js coupe les moteurs — le drone ne doit toujours pas
+	// quitter le sol. C'est la moitié « il ne décolle pas » de l'ancien contrôle,
+	// et elle est falsifiable : à deux fois le ralenti, les six familles montent
+	// de 1,6 à 4,3 m en deux secondes. Mesuré en altitude et non en vitesse : la
+	// sphère roule librement ici, et rouler n'est pas décoller.
+	const idle = simulate({ seconds: 2, sticks: { throttle: idleThrottle(PROFILE) * 1.5, roll: 0, pitch: 0, yaw: 0 } });
+	check(`[${fam}] does not lift off at high idle`,
+		idle.touchdownSteps === 0 && idle.p.y - idle.p0.y < 0.1,
+		`${(idle.p.y - idle.p0.y).toFixed(3)} m in 2s at ${(idleThrottle(PROFILE) * 1.5).toFixed(3)} stick`);
 
 	const hover = simulate({ seconds: 4, sticks: { throttle: HOVER, roll: 0, pitch: 0, yaw: 0 }, at: [0, 150, 300] });
 	check(`[${fam}] holds altitude at hover throttle`, Math.abs(hover.p.y - 150) < 4, `drifted ${(hover.p.y - 150).toFixed(2)} m in 4s`);
@@ -1281,11 +1332,40 @@ console.log('\nbrouillard');
 			total < f.range && total < r.visibility
 			&& Math.abs(1 / total - (1 / f.range + 1 / r.visibility)) < 1e-9,
 			`${Math.round(f.range)} m fog + ${Math.round(r.visibility)} m rain = ${Math.round(total)} m`);
-		// And with the fog off, that sum is exactly the rain-only expression the
-		// previous instalment shipped.
+		// Et le brouillard coupé ne doit rien laisser derrière lui. Le contrôle
+		// comparait la somme additive au facteur multiplicatif hérité,
+		// FOG × fogScale, et demandait le bit près : impossible par
+		// construction — un produit et une somme algébriquement égaux ne
+		// s'arrondissent pas au même double (mesuré : ~28 % des rapports
+		// pluie/scène s'écartent d'un ulp, et celui-ci s'en écartait déjà au
+		// commit qui l'a écrit, 9a541e7). Le doublon a donc été supprimé plutôt
+		// que l'égalité desserrée : `rain.extinction` est le seul chemin entre la
+		// pluie et l'air qu'elle épaissit, main.js le lit, et `fogScale` en
+		// dérive (issue #233). Restent trois propriétés qui peuvent réellement
+		// échouer.
 		const off = new FogField(13, FOG).update(1 / 50);
-		check('fog off reproduces the rain-only density to the bit',
-			off.density + extinctionOf(r.visibility) === FOG * r.fogScale);
+		// 1. Le curseur à zéro rend l'air de la scène EXACTEMENT.
+		check('fog off leaves the scene air exactly as it was',
+			off.density === FOG);
+		// 2. Les deux lectures publiques du champ de pluie décrivent le même air :
+		// la portée affichée au HUD et l'extinction envoyée au shader. Le contrat
+		// est que la seconde est exactement l'extinction de la première — ce qui
+		// casserait si `extinction` gagnait un terme (mouillage, plafond) que
+		// `visibility` n'a pas, ou si les deux modules cessaient de partager
+		// fogDensity(). La réciproque n'est PAS demandée : fogRange(extinction)
+		// ne redonne la visibilité au bit que pour 91 % des taux, l'inverse d'une
+		// division n'étant pas exact.
+		check('the rain publishes one air: its extinction is its own visibility',
+			r.extinction === extinctionOf(r.visibility),
+			`${Math.round(r.visibility)} m`);
+		// 3. Et le facteur hérité, que sky.js lit encore, reste une lecture du
+		// même air — à l'arrondi près, la seule chose qu'un produit puisse
+		// promettre face à une somme. Borne vérifiée sur toute la plage de pluie
+		// (0 à MAX_RATE) : pire écart 1,15 ulp.
+		check('the legacy multiplicative reading agrees to a rounding',
+			Math.abs(FOG * r.fogScale - (FOG + r.extinction))
+				<= 2 * Number.EPSILON * (FOG + r.extinction),
+			`${((FOG * r.fogScale - (FOG + r.extinction)) / Number.EPSILON / (FOG + r.extinction)).toFixed(2)} ulp`);
 	}
 
 	// Turning it back down gives the picture back, and the same seed gives the
