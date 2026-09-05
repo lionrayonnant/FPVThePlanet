@@ -1252,9 +1252,26 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
 
 ### Deux découvertes faites en mesurant la ligne de base (pas causées par PHASE 26)
 
-- **#195** — `fog off reproduces the rain-only density to the bit` échoue sur
-  `main`. Le check construit `FogField`/`RainField` isolément : aucune dépendance
-  au disque, c'est un vrai écart de modèle.
+- **#195 / #233 — corrigée.** `fog off reproduces the rain-only density to the
+  bit` comparait la somme additive `FOG + extinction(pluie)` au facteur hérité
+  `FOG × rain.fogScale`, au bit près. Ce n'était pas un écart de modèle : les
+  deux expressions sont algébriquement égales et ne peuvent pas s'arrondir au
+  même double (~28 % des rapports pluie/scène s'écartent d'un ulp — le check
+  était déjà faux au commit qui l'a écrit, 9a541e7). `rain.extinction` est
+  désormais le seul chemin entre la pluie et l'air qu'elle épaissit, et
+  `fogScale` en dérive au lieu de refaire le trajet par la portée. Le check
+  porte maintenant sur ce qui est réellement garanti par construction.
+
+- **#232 — corrigée.** `[race5] sits still on the ground at zero throttle`
+  sortait à 1,83 m/s. Ce n'était ni une dérive de profil ni un mauvais seuil :
+  `simulate()` de `tools/selftest.mjs` n'appliquait pas la règle de pose de
+  `main.js` (gaz coupés + < 0,6 m sol → moteurs à zéro et `setGroundHold`), que
+  `tools/landing-selftest.mjs` applique pourtant déjà. Le banc simulait donc un
+  monde d'avant le groundHold : la sphère de 0,15 m descendait la pente du spawn
+  sans jamais s'arrêter, et la vitesse lue à 2 s ne mesurait que la pente
+  (toothpick passait par 3,02 m/s à t=1,2 s avant de rebondir sous le seuil).
+  Règle appliquée, les six familles sortent à 0,00 m/s et le seuil est passé de
+  1,5 à 0,1 m/s.
 - **#196** — `npm run selftest:operator` **s'arrête net** au milieu de la chaîne
   quand `public/scenes/tour-eiffel` n'est pas sur le disque, et la trentaine de
   selftests qui suivent `landing-selftest` ne tournent jamais. On croit la suite

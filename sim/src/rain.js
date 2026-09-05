@@ -126,7 +126,7 @@ export class RainField {
 	constructor(seed = 0x7a12, baseFogDensity = 0.00085) {
 		this.seed = seed >>> 0;
 		this.rng = mulberry32(this.seed);
-		this.baseRange = fogRange(baseFogDensity);
+		this.baseDensity = baseFogDensity;
 
 		this.intensity = 0;      // 0..1, the mean; MAX_RATE is what 1 means
 		this.variability = 0;    // 0..1, how much it breathes
@@ -141,6 +141,14 @@ export class RainField {
 		this.dropDiameter = 0;   // mm
 		this.fallSpeed = 0;      // m/s, terminal
 		this.dropsPerM3 = 0;
+		// L'extinction que la pluie AJOUTE à celle de la scène, dans les unités
+		// du shader — le seul nombre que main.js additionne. `fogScale` en est
+		// une lecture multiplicative, pour sky.js qui veut savoir « à quel point
+		// le ciel est mouillé » et non une densité ; elle en dérive au lieu de
+		// refaire le trajet par la portée, qui donnait un aller-retour
+		// division/multiplication et un dernier bit d'écart avec le chemin
+		// additif (issue #233).
+		this.extinction = 0;     // densité shader ajoutée, 0 quand sec
 		this.fogScale = 1;       // multiplier on FOG_DENSITY, 1 when dry
 		this.visibility = Infinity;  // metres, rain alone — for the debug readout
 		this.reset();
@@ -161,6 +169,7 @@ export class RainField {
 		this.dropDiameter = 0;
 		this.fallSpeed = 0;
 		this.dropsPerM3 = 0;
+		this.extinction = 0;
 		this.fogScale = 1;
 		this.visibility = Infinity;
 	}
@@ -189,6 +198,7 @@ export class RainField {
 			this.rate = 0;
 			this.mmPerHour = 0;
 			this.dropsPerM3 = 0;
+			this.extinction = 0;
 			this.fogScale = 1;
 			this.visibility = Infinity;
 			// The one thing that does keep running: glass that was already wet
@@ -218,12 +228,16 @@ export class RainField {
 		const lwc = LWC_A * Math.pow(R, LWC_B);
 		this.dropsPerM3 = lwc / (1e-3 * (Math.PI / 6) * Math.pow(this.dropDiameter, 3));
 
-		// Extinctions add, so visibilities combine as reciprocals. The result is
-		// handed out as a multiplier on the fog the scene already has rather
-		// than as a second fog term, which keeps one exp-squared in the tile
-		// shader and leaves issue #21 a single knob to take over.
+		// Extinctions add, so visibilities combine as reciprocals. Depuis #21 le
+		// brouillard est un curseur et main.js additionne les extinctions
+		// (brouillard + pluie + plafond) en une seule densité exp² : c'est
+		// `extinction` qu'il lit, pas `fogScale`. Le facteur reste publié pour
+		// sky.js, qui n'en fait pas une densité mais une mesure de « ciel
+		// mouillé » — et il DÉRIVE de l'extinction, pour qu'il n'existe qu'un
+		// seul chemin entre la pluie et l'air qu'elle épaissit.
 		this.visibility = rainVisibility(R);             // metres
-		this.fogScale = 1 + this.baseRange / this.visibility;
+		this.extinction = fogDensity(this.visibility);
+		this.fogScale = 1 + this.extinction / this.baseDensity;
 
 		this.wetness = clamp01(this.wetness
 			+ (WET_DEPOSIT * this.rate * (1 - this.wetness)
