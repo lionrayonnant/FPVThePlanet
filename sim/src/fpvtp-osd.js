@@ -16,6 +16,20 @@ const clock = (s) => {
 	return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
 
+// Ce que la ligne de vol du HUD annonce. Sorti en fonction PURE parce que c'est
+// un invariant de fiction, pas de la mise en forme : un vol qui n'ouvre aucune
+// session ne doit pas écrire SESSION — le HUD mentirait sur ce que le vol est en
+// train de faire.
+//
+//   BENCH  — le banc : pas de session, et pas de temps à compter non plus.
+//   RECON  — une reconnaissance FIELD (#206) : rien n'est écrit, mais le temps
+//            de vol se lit quand même.
+//   SESSION — un vol de terrain, le seul qui laisse une trace.
+export function flightLabel({ bench = false, recon = false, sessionSeconds = 0 } = {}) {
+	if (bench) return 'BENCH';
+	return `${recon ? 'RECON' : 'SESSION'} ${clock(sessionSeconds ?? 0)}`;
+}
+
 export class FpvtpOsd {
 	constructor(root) {
 		root.insertAdjacentHTML('beforeend', `
@@ -40,6 +54,7 @@ export class FpvtpOsd {
 				</div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
+				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
 				<div id="flight-end" hidden></div>
 				<div id="fo-reticle"></div>
 			</div>`);
@@ -58,6 +73,9 @@ export class FpvtpOsd {
 			credit: q('#fo-credit'),
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
+			cut: q('#fo-cut'),
+			cutText: q('#fo-cut-text'),
+			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
 			reticle: q('#fo-reticle'),
 		};
@@ -74,6 +92,8 @@ export class FpvtpOsd {
 		this._photoReady = false;
 		this._photoCount = 0;
 		this._flashUntil = 0;
+		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
+		this._cutText = '';
 	}
 
 	show() { this.el.root.hidden = false; }
@@ -139,6 +159,35 @@ export class FpvtpOsd {
 		this.el.pause.hidden = !!this._status || !this._paused;
 	}
 
+	// La coupure du lien (#216). Deux choses au même endroit, et jamais en même
+	// temps : le RAPPEL qu'elle existe, quand la machine a l'air coincée, et la
+	// JAUGE du maintien en cours. Le rappel est conditionnel ; le geste, lui,
+	// est toujours disponible — c'est ce qui fait qu'un rappel manqué ne
+	// bloque personne, et c'est pour ça que rien ici ne décide de quoi que ce
+	// soit : flight-end.js a déjà tranché, on peint.
+	//
+	// Nommer la touche à l'écran est le sujet même de l'issue : sans ça le
+	// geste existe et personne ne le trouve.
+	setCut({ stuck = false, cutProgress = 0 } = {}) {
+		const e = this.el.cut;
+		const cutting = cutProgress > 0;
+		if (!cutting && !stuck) {
+			if (!e.hidden) { e.hidden = true; this._cutText = ''; }
+			return;
+		}
+		e.hidden = false;
+		const text = cutting ? 'CUTTING LINK' : '[HOLD K] CUT LINK';
+		if (text !== this._cutText) {
+			this._cutText = text;
+			this.el.cutText.textContent = text;
+		}
+		// La barre ne vit que pendant le maintien : hors maintien, le rappel est
+		// une phrase, pas une jauge à zéro qui laisserait croire qu'il se passe
+		// déjà quelque chose.
+		this.el.cutBar.hidden = !cutting;
+		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
+	}
+
 	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre
 	// un lien qui s'éteint. `blackout` est l'opacité du noir qui recouvre la
 	// dernière image, `lines` ce qui s'écrit dessus, une ligne à la fois.
@@ -168,7 +217,7 @@ export class FpvtpOsd {
 	get fps() { return this._fps; }
 
 	update({ mode, rates, usingGamepad, windMs, windRelRad, visibilityM,
-	         rssiDbm, operator, sessionSeconds, propwash, bench = false }) {
+	         rssiDbm, operator, sessionSeconds, propwash, bench = false, recon = false }) {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
@@ -176,7 +225,12 @@ export class FpvtpOsd {
 		// Au banc il n'y a pas de session : la ligne dit ce qu'elle est plutôt
 		// que de compter le temps d'une chose qui n'existe pas. C'est le seul
 		// endroit du HUD où le banc se signale, et il suffit.
-		this.el.session.textContent = bench ? 'BENCH' : `SESSION ${clock(sessionSeconds ?? 0)}`;
+		//
+		// Une reconnaissance (#206) n'en ouvre pas non plus — rien n'est écrit,
+		// donc écrire SESSION serait un mensonge du HUD sur ce que le vol est en
+		// train de faire. Elle garde son chronomètre : le temps de vol se lit,
+		// même quand il ne s'enregistre nulle part.
+		this.el.session.textContent = flightLabel({ bench, recon, sessionSeconds });
 
 		// Une seule ligne d'environnement : trois nombres que l'opérateur lit
 		// d'un coup, pas trois blocs qui se disputent un coin.

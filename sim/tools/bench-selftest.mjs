@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	BENCH_DEFAULTS, BENCH_VERSION, BENCH_CREED, BENCH_SEAL, MODE_SELECT, MODES,
-	ENTRY_MODES, LINK_MODES, BATTERY_MODES, LIMITS,
+	ENTRY_MODES, LINK_MODES, BATTERY_MODES, HUD_MODES, LIMITS,
 	normalizeBenchConfig, benchSimParams, benchEntryRequest, benchDate,
 	benchRows, benchBlockers, formatClock,
 	serializeBenchConfig, parseBenchConfig, BENCH_STORAGE_KEY,
@@ -11,6 +11,7 @@ import {
 import { simParamsOf, toSimParams } from './lib/weather.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 import { CATEGORIES } from '../src/entry-state.js';
+import { flightLabel } from '../src/fpvtp-osd.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -206,7 +207,7 @@ t('benchRows : une ligne par réglage, toutes lisibles', () => {
 	// gust et dir ont leur propre ligne : trois curseurs de vent, trois lectures.
 	// Un curseur sans valeur affichée laisse un trou dans la colonne de droite et
 	// ne se règle pas au chiffre.
-	assert.deepEqual(keys, ['family', 'seed', 'terrain', 'entry', 'fence', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']);
+	assert.deepEqual(keys, ['family', 'seed', 'terrain', 'entry', 'fence', 'hud', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']);
 	for (const r of rows) {
 		assert.ok(r.label && typeof r.label === 'string', 'un libellé');
 		assert.ok(r.value !== undefined && r.value !== null && String(r.value).length, `une valeur pour ${r.key}`);
@@ -323,6 +324,52 @@ t('les énumérations exposées sont non vides et sans doublon', () => {
 		assert.ok(list.length > 1, `${name} propose un choix`);
 		assert.equal(new Set(list).size, list.length, `${name} sans doublon`);
 	}
+});
+
+// --- HUD : clear / classic (#217) -------------------------------------------
+
+t('hud : CLASSIC par défaut — un drone a un OSD', () => {
+	assert.equal(BENCH_DEFAULTS.hud, 'CLASSIC');
+	assert.deepEqual(HUD_MODES, ['CLASSIC', 'CLEAR']);
+});
+
+t('hud : une valeur inconnue retombe sur le défaut, elle ne casse rien', () => {
+	// Même règle que link et battery : normalizeBenchConfig RAMÈNE au lieu de
+	// rejeter — une config venue du disque ne doit jamais empêcher de voler.
+	assert.equal(normalizeBenchConfig({ hud: 'HOLOGRAM' }).hud, 'CLASSIC');
+	assert.equal(normalizeBenchConfig({ hud: null }).hud, 'CLASSIC');
+	assert.equal(normalizeBenchConfig({ hud: 'CLEAR' }).hud, 'CLEAR');
+});
+
+t('hud : la ligne du banc dit sa valeur', () => {
+	const rows = benchRows(normalizeBenchConfig({ hud: 'CLEAR' }));
+	const row = rows.find((r) => r.key === 'hud');
+	assert.ok(row, 'la ligne existe');
+	assert.equal(row.label, 'HUD');
+	assert.equal(row.value, 'CLEAR');
+});
+
+t('hud : survit à un aller-retour disque', () => {
+	const c = normalizeBenchConfig({ hud: 'CLEAR' });
+	assert.equal(parseBenchConfig(serializeBenchConfig(c)).hud, 'CLEAR');
+});
+
+// --- ce que la ligne de vol annonce (#217, #206) ----------------------------
+
+t('flightLabel : un vol qui n\'ouvre pas de session ne dit pas SESSION', () => {
+	// Le banc n'ouvre rien et ne compte rien — « NOTHING HERE IS LOGGED ».
+	assert.equal(flightLabel({ bench: true, sessionSeconds: 34 }), 'BENCH');
+	// Une reconnaissance n'écrit rien non plus (#206), mais le temps de vol se
+	// lit quand même : écrire SESSION serait un mensonge du HUD.
+	assert.equal(flightLabel({ recon: true, sessionSeconds: 34 }), 'RECON 00:34');
+	// Le vol de terrain est le seul qui laisse une trace.
+	assert.equal(flightLabel({ sessionSeconds: 34 }), 'SESSION 00:34');
+});
+
+t('flightLabel : le banc l\'emporte, et l\'absence de durée ne casse rien', () => {
+	assert.equal(flightLabel({ bench: true, recon: true }), 'BENCH');
+	assert.equal(flightLabel({}), 'SESSION 00:00');
+	assert.equal(flightLabel({ recon: true, sessionSeconds: null }), 'RECON 00:00');
 });
 
 console.log(`\n${n} tests bench OK`);
