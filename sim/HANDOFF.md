@@ -1591,6 +1591,152 @@ décision, pas un ajustement — un écran quotidien qui se met à piocher dans 
 vocabulaire des événements les banalise, et c'est précisément ce que #57
 protégeait.
 
+## Clôture de zone — geofence (issues #139, #141, #142, #143, #146, #149, #151)
+
+Livré et mergé depuis le 2026-08-30/31, jamais consigné ici : c'est l'objet de
+l'issue #193.
+
+### Piège de nommage, à lire en premier
+
+`geofence.js` (la clôture de zone) et `rocktree-fence.js` (la **fenêtre de
+streaming rocktree**, HANDOFF:1112 « rappel doux ») n'ont **rien à voir**. Les
+deux mécanismes sont indépendants, seuls leurs noms se ressemblent. Le seul lien
+réel est un chiffre : `WORST_MEASURED_SPEED_MS` (42,72 m/s) est exporté par
+`geofence.js` pour que la fenêtre rocktree dimensionne son rayon de chargement
+sur la même mesure — un chiffre mesuré, deux consommateurs.
+
+### Ce que c'est
+
+La fiction n'est pas la portée radio, c'est **la zone scannée** : hors du
+rectangle que le joueur a dessiné lui-même dans le Global Scanner, il n'y a pas
+de données, donc pas de couverture, donc pas de lien. Quatre zones — `NOMINAL`,
+`CAUTION` (averti), `HOLD` (averti et retenu), `LOST` (dehors, l'image meurt) —
+horizontalement sur la bbox et verticalement **sous** `bbox.min.y`, la pire des
+deux gagnant.
+
+`src/geofence.js` est pur : ni THREE, ni Rapier, ni DOM. Qui pousse la force dans
+Rapier, l'avertissement dans l'OSD et la perte dans le budget de liaison est le
+problème de `main.js`.
+
+### Ce qui est MESURÉ
+
+Par `tools/geofence-measure.mjs` sur `public/scenes/tour-eiffel`, six familles,
+re-figé le 2026-08-31 (#141, #142). Le protocole est **en ACRO** — le mode du
+jeu — ce qui change tout : manches centrés, l'ACRO *tient* l'assiette au lieu de
+remettre à plat, donc « obéir » doit être un programme de manche explicite, et
+il est écrit en entier dans l'en-tête du module.
+
+| constante | valeur | d'où elle vient |
+|---|---|---|
+| `R_HOLD` | 73 m | distance d'arrêt du pilote qui obéit, pire famille (race5, 72,26 m arrondi au mètre supérieur) |
+| `R_CAUTION` | 138 m | `R_HOLD` + 1,5 s à la vitesse maximale mesurée — 3 clignotements à `BLINK_PERIOD_MS` = 500 ms |
+| `WORST_MEASURED_SPEED_MS` | 42,72 m/s | race5, plein gaz à 85° d'assiette |
+| `HOLD_STOP_GUARANTEE_M` | 60 m | bissection `--guarantee` : `59,433 < hold* <= 59,446`, arrondi vers le **haut** |
+| `MARGIN_M` | 12 m | dispersion du point d'arrêt sur le balayage des gaz de freinage plausibles (6,69 m au pire), arrondie au mètre supérieur — constante **du banc** (`tools/geofence-measure.mjs`), pas du module ; le banc la re-mesure et refuse de livrer un chiffre si elle la dépasse |
+
+Deux corrections de méthode, toutes deux fermées : #141 (l'approche était
+plafonnée à 42° d'assiette — rien ne plafonne le tangage en ACRO, ce plafond
+n'existe que pour le mode ANGLE, absent du jeu ; le balayage 42/55/70/85° change
+le classement, race5 dépasse heavy5) et #142 (le pire cas de freinage
+dimensionnait sur un gaz qui fait tomber l'appareil de plus de 40 m, donc sur un
+pilote qui s'écrase ; il reste dans le balayage, plus dans la sélection).
+
+`R_HOLD` n'est pas une soustraction mais un **point fixe** : la rampe du rappel
+s'étale sur `R_HOLD` mètres, donc rétrécir le couloir durcit la rampe et change
+la distance qu'on mesure avec. Trouvé par itération directe, famille par famille.
+
+### Ce qui est POSÉ, pas mesuré, et pourquoi
+
+- **Le couloir vertical** (`FLOOR_CAUTION` 2 m, `FLOOR_HOLD` 5, `FLOOR_EDGE` 8,
+  `FLOOR_LOST` 10, tous **sous** `bbox.min.y`). Une distance d'arrêt n'a pas de
+  sens ici : on n'arrive pas sous la dalle en fonçant, on s'y faufile. Deux
+  mètres sous la surface la plus basse, on est forcément sous quelque chose — il
+  n'y a aucun faux positif à écarter, donc rien à mesurer. **Le signe est ce qui
+  compte le plus** : poser ce couloir au-dessus pousserait le drone vers le haut
+  au point le plus bas de la carte, la Seine sur `ile-de-la-cite`, où voler à
+  deux mètres de l'eau est parfaitement normal.
+- **`A_MAX`**, le rappel : 60 % de ce que coûte un stationnaire. Choisi pour ce
+  qu'il ne fait pas — un pilote qui insiste **doit** pouvoir passer, c'est la
+  moitié du design. `R_HOLD` dimensionne le cas où on obéit, pas l'autre.
+- **`HYST_M`** = 3 m, l'hystérésis. #143 l'a rendue **absolue** : c'était une
+  fraction du couloir, dont la justification parlait de centimètres, et sur une
+  grande carte elle pouvait laisser `NO COVERAGE` affiché jusqu'à 5,4 s après un
+  retour bien à l'intérieur — un avertissement sans rien derrière. Choisie et
+  non mesurée, pour la même raison qu'`A_MAX` : ce qu'elle couvre (jitter
+  d'affichage, arrondi de simulation) n'a pas de protocole de mesure qui ait un
+  sens. 3 m est l'unité déjà en usage dans le fichier pour « petite marge
+  physique ».
+- **La borne de couloir sur petite carte** : `scale = min(1, (halfMin/3) /
+  R_CAUTION)`, le même facteur sur les deux seuils pour que leur **rapport**
+  survive — et avec lui le temps d'avertissement, qui est tout ce que
+  `R_CAUTION` apporte. Le cœur volable ne descend jamais sous 67 % du plus petit
+  côté ; une grande carte garde la valeur mesurée bit pour bit. C'est une borne,
+  pas une mesure : elle dit ce qu'on garde des chiffres quand la carte ne peut
+  pas les payer. Une mesure par scène a été écartée parce que le banc **ne
+  tourne pas** sur les petites cartes — il lui faut l'élan d'amener la famille à
+  sa vitesse de pic plus le couloir d'essai devant la face.
+
+### La garantie d'arrêt, et ce qu'elle échange
+
+Sous `HOLD_STOP_GUARANTEE_M` de couloir effectif, le pilote qui **obéit**
+franchit quand même le bord des données. C'est irréparable en gardant le design :
+durcir `A_MAX` assez pour arrêter la pire famille sur une carte de poche
+détruirait le « ce n'est pas un mur » qui *est* le principe de la clôture.
+
+Ce qui rend l'échange tenable : le mode de défaillance reste doux. Tant que la
+pénétration n'atteint pas `lost`, `over` reste faux et **la session n'est pas
+perdue** — l'image agonise et le rappel repousse encore. On paie en image, pas en
+session.
+
+### État des cartes installées
+
+**C'est la commande qui fait foi, jamais un chiffre recopié** — ni ici, ni dans
+le commentaire du module, dont le décompte (« 9 des 24 ») date du 2026-08-31 :
+
+```bash
+node tools/geofence-check-scenes.mjs
+```
+
+Sur cette machine, `public/scenes.json` ne liste plus que deux scènes (le
+garde-fou anti-scènes-fantômes, `b33d535`, l'a réduit à ce qui existe
+réellement), et **les deux sont sous la garantie** : `paristest` (69 m
+d'avertissement / 37 m de rappel) et
+`conservatoire-national-des-arts-et-metiers` (99 / 52). Elles restent jouables :
+ce n'est pas une erreur, c'est l'échange décrit au-dessus.
+
+`tools/lib/add-map-core.mjs` fait le même contrôle à l'ajout d'une carte, en
+important la même constante — c'est ce que #146 a fermé.
+
+### Ce qui est VÉRIFIÉ, et ce qui ne l'est pas
+
+**Vérifié sans navigateur** — `node tools/geofence-selftest.mjs`, 32
+vérifications : les quatre zones dans l'ordre sur les deux axes, la pire des deux
+qui gagne, l'hystérésis (aucun aller-retour ne double une transition, #143 l'a
+rendue absolue), la poussée nulle à l'entrée de HOLD et pleine au bord, sa
+croissance sans à-coup et son signe rentrant sur les quatre faces, la perte de
+liaison monotone sur les deux couloirs, la borne petite carte (le rapport des
+seuils survit, le couloir vertical n'est **pas** touché), `FENCE_SPAN` cohérent
+avec `link.js`, et #151 (tout OSD posé porte l'élément `WARNINGS`, sans quoi
+`R_CAUTION` ne paierait rien).
+
+**NON vérifié — jamais vu en vol.** Aucun commit de la clôture ne revendique de
+vérification au navigateur, et je n'en ai pas fait. Ce qui reste à voir de ses
+propres yeux :
+
+- l'avertissement `NO COVERAGE` qui apparaît vraiment, à la bonne distance, et
+  qui se lit avant d'être dedans ;
+- le rappel qui se **sent** comme un rappel et non comme un mur ;
+- la mort de l'image au franchissement, et son retrait quand on rentre ;
+- le couloir vertical sous une dalle réelle ;
+- le comportement sur une carte sous la garantie (les deux d'ici), là où le
+  pilote qui obéit sort quand même.
+
+#149 (spawn de repli dans la clôture) et #151 (l'élément `WARNINGS` était un
+tirage, donc l'avertissement pouvait n'être affiché nulle part) sont **fermées** —
+contrairement à ce que supposait #193, qui les décrivait comme ouvertes.
+
+---
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
