@@ -31,6 +31,13 @@ const LIMIT = { threshold: -3, ratio: 20, attack: 0.003, release: 0.1 };
 // sons d'UI sont rares et doivent porter sans écraser les moteurs.
 const UI_TRIM = 0.5;
 
+// Trim moteur. Réglé à l'oreille après le retrait du trim musical (issue
+// #122) : la musique portait mieux, mais le bruit du drone restait la
+// référence et l'écrasait encore un peu — ce trim-ci baisse le moteur au lieu
+// de remonter encore la musique, pour ne pas dépasser le calibrage -14 LUFS
+// de la bibliothèque de morceaux.
+const ENGINE_TRIM = 0.55;
+
 // Pas de trim musical, contrairement à UI_TRIM. C'est délibéré, et c'est une
 // correction : il y en avait un à 0.7, multiplié par un slider dont le défaut
 // était lui aussi à 0.7 — la musique sortait donc à 0.49, atténuée deux fois
@@ -92,7 +99,7 @@ export function ensureContext() {
 	volume.gain.value = 1;
 
 	engine = ctx.createGain();
-	engine.gain.value = 1;
+	engine.gain.value = ENGINE_TRIM;
 	ui = ctx.createGain();
 	ui.gain.value = UI_TRIM;
 	music = ctx.createGain();

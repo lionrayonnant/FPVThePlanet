@@ -379,6 +379,14 @@ let emitter = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
+// Horodatage du début RÉEL de vol (sticks actifs), posé à chaque endroit qui
+// remet lastTime à zéro pour cette raison. Sert à ignorer Espace pendant les
+// 5 premières secondes : sans ça, une pause prise par réflexe pendant le
+// Control Vector (qui gèle le monde mais pas les touches) arrive telle
+// quelle au lâcher des sticks, et le joueur atterrit sur un jeu en pause sans
+// avoir voulu y entrer.
+let flightStartTime = 0;
+const PAUSE_GUARD_MS = 5000;
 // Le hack + le rituel (vector code, demo scene) tournent devant un monde déjà
 // chargé et physiquement actif (#22) : sans ce gel, le drone tombe pendant que
 // le joueur regarde encore l'écran d'analyse, avant d'avoir touché les sticks.
@@ -956,6 +964,7 @@ async function finishBoot(preloading) {
 	// en vol n'écoute plus la manette (issue #123, voir settings.js).
 	settings.flightActive = true;
 	lastTime = performance.now();
+	flightStartTime = lastTime;
 	renderer.setAnimationLoop(frame);
 	uiAudio.play('TERRAIN_READY');
 }
@@ -1175,6 +1184,7 @@ async function bootLive([lat, lon]) {
 	//    de physique de 250 ms d'un coup au tout premier pas.
 	settings.flightActive = true;
 	lastTime = performance.now();
+	flightStartTime = lastTime;
 	renderer.setAnimationLoop(frame);
 }
 
@@ -1365,6 +1375,10 @@ function respawn() {
 }
 
 function togglePause(force) {
+	// Espace pendant le Control Vector (introFrozen) arrive quand même ici —
+	// le gel arrête la physique, pas les touches. Ignorer la bascule
+	// manuelle sur cette fenêtre évite d'atterrir en vol déjà en pause.
+	if (force === undefined && performance.now() - flightStartTime < PAUSE_GUARD_MS) return;
 	paused = force ?? !paused;
 	// Coming back should not replay the wall-clock gap as one giant physics step.
 	if (!paused) { accumulator = 0; lastTime = performance.now(); }
@@ -2374,6 +2388,7 @@ async function fieldLoop(ui) {
 			introFrozen = false;
 			accumulator = 0;
 			lastTime = performance.now();
+			flightStartTime = lastTime;
 			return { prepared: true };
 		}
 
@@ -2467,6 +2482,7 @@ async function fieldLoop(ui) {
 		introFrozen = false;
 		accumulator = 0;
 		lastTime = performance.now();
+		flightStartTime = lastTime;
 		return { prepared: true };
 	}
 }
