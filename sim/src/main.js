@@ -1291,41 +1291,38 @@ async function capturePhoto() {
 }
 
 // Désarmement Betaflight. Le geste reste celui du joueur ; c'est la machine de
-// fin de vol qui sait si le drone était posé. Désarmer en l'air est permis : la
-// chute suit son cours, et c'est l'impact qui conclut.
+// fin de vol qui sait si le drone était posé.
+//
+// Désarmer EN VOL ne fait rien. Ce n'était pas un choix de réalisme qui tenait :
+// le geste est gaz au plancher + yaw plein gauche tenus 0,4 s (input.js), c'est
+// à dire une vrille à gauche moteurs coupés — une figure de freestyle ordinaire.
+// Elle coupait les quatre moteurs, et comme controller.arm() n'est appelé qu'au
+// départ d'un vol, il n'y avait aucun réarmement : le joueur regardait sa
+// machine tomber jusqu'à l'impact sans même un message, la branche « FREE FALL »
+// n'étant atteignable que depuis une pose reconnue qui rebondit. Un vrai quad a
+// un interrupteur d'armement ; ici le geste ne s'arme que sur une pose.
+//
+// Le gardien est flightEnd.disarm() : il ne rend vrai qu'en LANDING_READY, une
+// pose tenue 0,25 s à moins de 0,2 m du sol sous 0,06 m/s. C'est une définition
+// du « posé » plus stricte que le height < 2 m / v < 8 m/s qui vivait ici, et
+// c'est la seule maintenant. Rien n'est coupé tant qu'elle n'est pas remplie —
+// controller.disarm() vient APRÈS elle, et non plus avant.
 function doDisarm() {
 	if (!physics || !controller.armed) return;
+
+	if (!flightEnd.disarm()) {
+		console.log('[session] geste de désarmement ignoré — pas de pose reconnue');
+		return;
+	}
+
 	controller.disarm();
 
-	if (!flightEnd.disarm()) return;
-
-	const p = physics.position;
-	const g = physics.groundBelow(p.x, p.y, p.z);
-	const v = physics.velocity;
-
-	// Au sol = à portée de contact du sol, pas « parfaitement immobile » : une
-	// pose sur une sphère de collision est toujours un peu vivante. On rejette
-	// seulement un désarmement franchement en l'air (→ chute → CRASHED).
-	const height = g === null ? Infinity : p.y - g;
-	const onGround = height < 2 && Math.hypot(v.x, v.y, v.z) < 8;
-
-	console.log(
-		`[session] désarmement — sol:${onGround} ` +
-		`(h=${height === Infinity ? '?' : height.toFixed(2)}m ` +
-		`v=${Math.hypot(v.x, v.y, v.z).toFixed(2)}m/s)`
-	);
-
-	if (onGround) {
-		// Posé : on le fige, il ne roule pas et ne dérive pas.
-		physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-		physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-		fpvtpOsd.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
-		session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
-	} else {
-		// Désarmé en l'air : moteurs coupés, la chute suivra son cours et
-		// l'impact fermera la session en CRASHED.
-		fpvtpOsd.setSessionStatus('DISARMED<small>FREE FALL</small>', 'lost');
-	}
+	// Posé : on le fige, il ne roule pas et ne dérive pas.
+	physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+	physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+	fpvtpOsd.setSessionStatus('TARGET STATUS<small>LANDED</small>', 'landed');
+	console.log('[session] désarmement sur pose reconnue');
+	session.end('LANDED').then((s) => s && console.log('[session] LANDED', s));
 }
 
 function respawn() {

@@ -1250,6 +1250,27 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
 4. Les raccourcis dev sautent toujours le mode select : `?scene=paristest`,
    `?live=48.8584,2.2945`, `?family=race5`.
 
+### Désarmement en vol (#236)
+
+Le geste de désarmement (gaz au plancher + yaw plein gauche 0,4 s, ou `j`) ne
+s'arme plus que sur une **pose reconnue** — `flightEnd.disarm()`, c'est-à-dire
+LANDING_READY : moins de 0,2 m du sol sous 0,06 m/s, tenu 0,25 s. En vol le
+geste ne fait plus rien.
+
+Il coupait les quatre moteurs, et `controller.arm()` n'étant appelé qu'au départ
+d'un vol, il n'y avait aucun réarmement : la chute jusqu'à l'impact, sans message
+(la branche `DISARMED / FREE FALL` n'était atteignable que depuis une pose qui
+rebondit). Or le geste est une vrille à gauche moteurs coupés, une figure de
+freestyle ordinaire.
+
+`controller.disarm()` vient désormais APRÈS `flightEnd.disarm()` et non plus
+avant, et le test ad hoc `height < 2 m && v < 8 m/s` qui vivait dans main.js a
+disparu : LANDING_READY est la seule définition du « posé ».
+
+**L'échappatoire d'un drone coincé n'est pas celle-ci** : c'est la coupure de
+lien (`k` tenu 2 s, #216), disponible en `FLYING` comme en `LANDING_READY`, et
+elle est inchangée.
+
 ### Deux découvertes faites en mesurant la ligne de base (pas causées par PHASE 26)
 
 - **#195 / #233 — corrigée.** `fog off reproduces the rain-only density to the
