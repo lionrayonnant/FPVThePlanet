@@ -24,29 +24,9 @@ import { acquisitionContext, scanContext } from './dialogue-context.js';
 import { menuNav } from './menu-nav.js';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
+import { LAYERS } from './map-layers.js';
 
 const API = '/__map-api';
-
-// Fonds de carte. Tous passent par le même filtre monochrome (voir .scanner-map
-// dans style.css) : le scanner est N&B, quelle que soit la couche. Aucune couche
-// n'existe ici pour des raisons esthétiques — MONO pour lire une ville, SAT pour
-// reconnaître un bâtiment avant de le survoler, TERRAIN pour le relief.
-const LAYERS = {
-	// OSM standard, inversé et désaturé : un plan de ville lisible, blanc sur
-	// noir, sans clé d'API. (CARTO et Stamen en demandent une aujourd'hui.)
-	MONO: {
-		url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-		opts: { maxZoom: 19, className: 'sc-invert', attribution: '© OpenStreetMap contributors · search © Nominatim' },
-	},
-	SAT: {
-		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-		opts: { maxZoom: 21, maxNativeZoom: 19, className: 'sc-gray', attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' },
-	},
-	TERRAIN: {
-		url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-		opts: { maxZoom: 17, subdomains: 'abc', className: 'sc-gray', attribution: '© OpenTopoMap · © OpenStreetMap contributors' },
-	},
-};
 
 const DETAIL = [
 	{ zoom: 20, label: 'HIGH', side: '25 m' },
@@ -218,7 +198,7 @@ const post = (p, b) => api(p, { method: 'POST', body: JSON.stringify(b) });
 export function runScanner(root) {
 	const el = document.createElement('div');
 	el.className = 'scanner';
-	el.innerHTML = `<div class="scanner-map"></div><aside class="scanner-panel">${PANEL}</aside>`;
+	el.innerHTML = `<div class="scanner-map map-mono"></div><aside class="scanner-panel">${PANEL}</aside>`;
 	root.appendChild(el);
 
 	const $ = (sel) => el.querySelector(sel);

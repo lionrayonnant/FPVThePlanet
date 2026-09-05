@@ -463,38 +463,54 @@ button.terminal-row:focus::before { left: 0; }
 	z-index: 11;
 	pointer-events: auto;
 }
-.scanner-map { position: relative; height: 100%; background: var(--dark-grey); }
+/* Le fond monochrome, partagé par le GLOBAL SCANNER et la mini-carte de la
+   Home : une seule carte dans le jeu (Bible §4). Ces règles sont portées par
+   `.map-mono`, posée sur les deux — les dupliquer serait la garantie qu'elles
+   divergent au premier réglage. `.scanner-map` ne garde que sa géométrie. */
+.map-mono { position: relative; background: var(--dark-grey); }
+.scanner-map { height: 100%; }
 /* MONO : le filtre porte sur les tuiles de la couche seulement, pas sur les
    vecteurs — la grille, la zone et les repères gardent l'encre du terminal.
    Le fond OSM est inversé (blanc sur noir) ; les couches déjà sombres ou
    photographiques sont seulement désaturées. */
-.scanner-map .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
+.map-mono .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
 /* Un pixel de recouvrement entre tuiles. Sous filtre, le raccord de deux tuiles
    voisines s'éclaircit et dessine un faux quadrillage de 256 px par-dessus le
    vrai — mesuré ici à devicePixelRatio 0,9, et invisible sans filtre. Le décalage
    d'un pixel, lui, ne se voit pas à l'échelle d'une carte. */
-.scanner-map .leaflet-tile { width: 257px !important; height: 257px !important; }
-.scanner-map .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
-.scanner-map .leaflet-container { background: var(--dark-grey); font: inherit; }
-.scanner-map .leaflet-control-attribution {
+.map-mono .leaflet-tile { width: 257px !important; height: 257px !important; }
+.map-mono .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
+.map-mono .leaflet-container { background: var(--dark-grey); font: inherit; }
+.map-mono .leaflet-control-attribution {
 	background: var(--scrim); color: var(--faint);
 	font-family: var(--font-data); font-size: 10px; letter-spacing: var(--track-data);
 	border-radius: 0;
 }
-.scanner-map .leaflet-control-attribution a { color: var(--dim); }
-.scanner-map .leaflet-bar,
-.scanner-map .leaflet-bar a {
+.map-mono .leaflet-control-attribution a { color: var(--dim); }
+.map-mono .leaflet-bar,
+.map-mono .leaflet-bar a {
 	border-radius: 0; border-color: var(--rule-strong);
 	background: var(--dark-grey); color: var(--ink);
 }
-.scanner-map .leaflet-bar a:hover { background: var(--warm-white); color: var(--black); }
+.map-mono .leaflet-bar a:hover { background: var(--warm-white); color: var(--black); }
 /* Poignées Geoman : des carrés, pas des pastilles. */
-.scanner-map .leaflet-div-icon,
-.scanner-map .marker-icon {
+.map-mono .leaflet-div-icon,
+.map-mono .marker-icon {
 	border-radius: 0 !important; background: var(--dark-grey);
 	border: var(--rule-w) solid var(--warm-white);
 	width: 8px; height: 8px; margin: -4px 0 0 -4px;
 }
+/* Une tuile qui ne vient pas n'est pas une panne : la zone est jouable hors
+   ligne par définition. On le dit une fois, en encre éteinte, et le cadre de la
+   zone reste dessiné sur le fond nu. */
+.map-offline {
+	position: absolute; inset: auto 0 50% 0; margin: 0; text-align: center;
+	z-index: 400; pointer-events: none;
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+
 .sc-pin {
 	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
 	font-size: var(--fs-data); letter-spacing: .1em;
