@@ -1460,6 +1460,24 @@ rend pas de frame). `tools/motion-selftest.mjs` (12 tests) dans
 Non vérifié à l'œil : la cascade elle-même (200 ms, hors capture), Session Log,
 Target Log, post-flight, bootstrap — ils passent par le même `screen()`.
 
+## Fin de vol : plus de retour à l'intro (issue #226)
+
+Un crash en FIELD et la sortie Échap/Entrée rechargent la page
+(`location.href = location.pathname`, main.js) ; `startup()` rejouait alors
+l'intro à chaque fois. L'intro est le cracktro du lancement, pas du
+rechargement : `markIntroSeen()` pose `fpvtp.introSeen` dans `sessionStorage`
+(par onglet, survit au rechargement) après `runIntro()`, et
+`shouldPlayIntro(OPTS, store)` (tools/intro-model.mjs, testé) saute droit à
+SELECT OPERATION MODE, curseur sur le dernier mode. Le gate PRESS ANY KEY
+était aussi le premier geste qui débloque l'audio : sans intro, un écouteur
+`keydown`/`pointerdown` en capture, à usage unique, appelle le même
+`onFirstGesture` (audio + musique de menu). `?scene=`/`?live=` inchangés.
+
+Vérifié dans Chrome (MCP) : intro → marque posée → rechargement → SELECT
+OPERATION MODE sans intro, FIELD s'ouvre (clic simulé par script : l'onglet
+piloté ne recevait plus les clics de l'extension), aucune erreur. Non vérifié
+à l'oreille : la musique de menu au premier clic après rechargement.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

@@ -16,6 +16,7 @@ import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
+import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -2562,17 +2563,29 @@ async function startMenuMusic() {
 }
 
 async function startup() {
-	if (!OPTS.scene && !OPTS.live) {
+	// Synchrone dans le handler du geste : c'est ce qui autorise
+	// l'AudioContext. La lecture, elle, peut arriver après.
+	const onFirstGesture = () => { audio.start(); startMenuMusic(); };
+	const store = globalThis.sessionStorage;
+	if (shouldPlayIntro(OPTS, store)) {
 		// Décodage lancé avant l'intro, lecture déclenchée par son gate.
 		prepareMenuMusic();
-		await runIntro(document.getElementById('ui'), {
-			onFirstGesture: () => {
-				// Synchrone dans le handler du geste : c'est ce qui autorise
-				// l'AudioContext. La lecture, elle, peut arriver après.
-				audio.start();
-				startMenuMusic();
-			},
-		});
+		await runIntro(document.getElementById('ui'), { onFirstGesture });
+		markIntroSeen(store);
+	} else if (!OPTS.scene && !OPTS.live) {
+		// Rechargement de fin de vol (issue #226) : l'intro a déjà été vue dans
+		// cet onglet, on saute droit à SELECT OPERATION MODE. Le gate PRESS ANY
+		// KEY était aussi le premier geste qui débloque l'audio : sans lui, c'est
+		// la première touche ou le premier clic du menu qui le fournit.
+		prepareMenuMusic();
+		const once = (e) => {
+			if (e?.repeat) return;
+			window.removeEventListener('keydown', once, true);
+			window.removeEventListener('pointerdown', once, true);
+			try { onFirstGesture(); } catch (err) { console.warn('[startup]', err); }
+		};
+		window.addEventListener('keydown', once, { capture: true });
+		window.addEventListener('pointerdown', once, { capture: true });
 	}
 	return chooseScene();
 }

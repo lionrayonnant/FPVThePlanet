@@ -58,3 +58,22 @@ export function skipPhase() {
 // propre constante (INTRO_SKIP_FADE_S), plus courte encore — un fondu audio et
 // une transition visuelle n'ont pas à durer pareil.
 export const SKIP_WRAP_MS = 250;
+
+// --- rejouer ou non (issue #226) ---------------------------------------------
+//
+// La fin d'un vol recharge la page (main.js : crash en FIELD, finishSession).
+// L'intro est le cracktro DU LANCEMENT, pas de chaque rechargement : une
+// marque par onglet (sessionStorage — survit au rechargement, s'efface avec
+// l'onglet) dit qu'elle a déjà été vue, et startup() saute alors droit à
+// SELECT OPERATION MODE. `?scene=` et `?live=` la sautent toujours.
+export const INTRO_SEEN_KEY = 'fpvtp.introSeen';
+
+export function shouldPlayIntro(opts, store) {
+	if (opts.scene || opts.live) return false;
+	try { return store?.getItem(INTRO_SEEN_KEY) !== '1'; }
+	catch { return true; }
+}
+
+export function markIntroSeen(store) {
+	try { store?.setItem(INTRO_SEEN_KEY, '1'); } catch { /* navigation privée : on rejouera, sans planter */ }
+}
