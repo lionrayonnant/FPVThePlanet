@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	INTRO_PHASES, INTRO_TOTAL_MS, RESOLUTION_AT_MS,
-	phaseAt, skipPhase, SKIP_WRAP_MS,
+	phaseAt, skipPhase, SKIP_WRAP_MS, INTRO_SEEN_KEY, shouldPlayIntro, markIntroSeen,
 } from './intro-model.mjs';
 import { INTRO_SCORE_MS } from './ui-audio-model.mjs';
 
@@ -70,6 +70,36 @@ t('SKIP_WRAP_MS : plus court que la résolution jouée en entier — un skip cou
 	const resolution = INTRO_PHASES.find((p) => p.name === 'resolution');
 	assert.ok(SKIP_WRAP_MS > 0);
 	assert.ok(SKIP_WRAP_MS < resolution.durMs);
+});
+
+// --- rejouer ou non (issue #226) ---------------------------------------------
+
+const store = (init = {}) => {
+	const m = new Map(Object.entries(init));
+	return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), _m: m };
+};
+
+t('shouldPlayIntro : au premier chargement de l\'onglet, oui', () => {
+	assert.equal(shouldPlayIntro({ scene: null, live: null }, store()), true);
+});
+
+t('shouldPlayIntro : après un rechargement de fin de vol (marque posée), non', () => {
+	const s = store();
+	markIntroSeen(s);
+	assert.equal(s.getItem(INTRO_SEEN_KEY), '1');
+	assert.equal(shouldPlayIntro({ scene: null, live: null }, s), false);
+});
+
+t('shouldPlayIntro : ?scene= et ?live= la sautent toujours, comme avant', () => {
+	assert.equal(shouldPlayIntro({ scene: 'paristest', live: null }, store()), false);
+	assert.equal(shouldPlayIntro({ scene: null, live: [48.8, 2.3] }, store()), false);
+});
+
+t('shouldPlayIntro : sans stockage (navigation privée qui lève), on joue et on ne plante pas', () => {
+	const throwing = { getItem() { throw new Error('nope'); }, setItem() { throw new Error('nope'); } };
+	assert.equal(shouldPlayIntro({ scene: null, live: null }, throwing), true);
+	assert.doesNotThrow(() => markIntroSeen(throwing));
+	assert.equal(shouldPlayIntro({ scene: null, live: null }, null), true);
 });
 
 console.log(`\n${n} tests OK`);
