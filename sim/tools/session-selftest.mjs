@@ -452,6 +452,11 @@ function stubOperator(calls) {
 		if (/\/sessions\/[^/]+$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: body.result, flightTelemetry: body.telemetry } });
 		}
+		// La couverture (issue #245) : PATCH de la clé opérateur à la clôture.
+		if (method === 'PATCH' && /\/__operator\/[^/]+$/.test(url)) {
+			calls._operator = { ...(calls._operator ?? {}), [body.key]: body.value };
+			return json({ operator: { id: 'neo-0000', ...calls._operator } });
+		}
 		throw new Error(`fetch non stubbé : ${method} ${url}`);
 	});
 }
@@ -487,6 +492,101 @@ await ta('feed n\'accumule durée/distance que si armed ; open+end = 1 POST + 1 
 	// end est idempotent : un second verdict ne repart pas sur le réseau
 	await session.end('CRASHED');
 	assert.equal(calls.filter((c) => /\/sessions\//.test(c.url)).length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// La couverture (issue #245) : accumulée à 5 Hz en mémoire, écrite UNE fois.
+
+const EIFFEL = { lat: 48.8584, lon: 2.2945 };
+
+await ta('couverture : rien n\'est écrit pendant le vol, une seule écriture à la clôture', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+
+	// Une seconde de vol armé à 60 Hz, position fixe : 5 échantillons attendus.
+	let geoCalls = 0;
+	const geo = () => { geoCalls++; return EIFFEL; };
+	for (let i = 0; i < 60; i++) {
+		session.feed({ speed: 1, horizontalSpeed: 1, rateDps: 0, altitudeAboveSpawn: 5, dt: 1 / 60, armed: true, geo });
+	}
+	assert.equal(geoCalls, 5, 'geo() n\'est appelée qu\'aux échantillons, pas à chaque frame');
+	assert.ok(session.coverage().size >= 4, 'la couverture de la session a des cellules');
+	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
+		'aucune écriture opérateur pendant le vol');
+
+	await session.end('LANDED');
+	await op.flush();
+	const patches = calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
+	assert.equal(patches.length, 1, 'une seule écriture, à la clôture');
+	assert.equal(patches[0].body.key, 'coverage');
+	const stored = patches[0].body.value;
+	assert.equal(stored.v, 1);
+	assert.equal(stored.z, 20);
+	assert.ok(stored.cells.length >= 4);
+	// Le poids : 5 échantillons au même endroit → 5 sur la cellule du point.
+	const centre = stored.cells.find(([x, y]) => x === 530971 && y === 360731);
+	assert.ok(centre, 'la cellule de la Tour Eiffel est écrite');
+	assert.equal(centre[2], 5);
+});
+
+await ta('couverture : désarmé ou gelé, on n\'échantillonne pas ; geo non fini ignoré', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 60; i++) {
+		session.feed({ dt: 1 / 60, armed: false, geo: () => EIFFEL });   // posé
+		session.feed({ dt: 0, armed: true, geo: () => EIFFEL });          // gelé
+	}
+	assert.equal(session.coverage().size, 0);
+	for (let i = 0; i < 60; i++) {
+		session.feed({ dt: 1 / 60, armed: true, geo: () => ({ lat: NaN, lon: 2 }) });
+	}
+	assert.equal(session.coverage().size, 0, 'une position dégénérée ne marque rien');
+	await session.end('LANDED');
+	await op.flush();
+	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
+		'une session qui n\'a rien marqué n\'écrit pas la clé');
+});
+
+await ta('couverture : la clôture FUSIONNE avec ce que l\'opérateur avait déjà, puis borne', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	// L'opérateur arrive avec une couverture antérieure : la Tour Eiffel à w=3.
+	op.getOperator().coverage = { v: 1, z: 20, cells: [[530971, 360731, 3]] };
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 12; i++) {
+		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });   // 12 frames = 1 échantillon
+	}
+	await session.end('LANDED');
+	await op.flush();
+	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
+	const centre = patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731);
+	assert.equal(centre[2], 4, '3 (avant) + 1 (cette session)');
+	// Et la clé est aussi à jour dans le cache client, sans attendre le réseau.
+	assert.equal(op.getOperator().coverage.cells.find(([x, y]) => x === 530971 && y === 360731)[2], 4);
+});
+
+await ta('couverture : une couverture opérateur corrompue n\'empêche pas la clôture', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	op.getOperator().coverage = 'n\'importe quoi';
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
+	const s = await session.end('LANDED');
+	assert.ok(s, 'la session se ferme');
+	await op.flush();
+	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
+	assert.ok(patch, 'et la couverture repart de la session seule');
+	assert.equal(patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731)[2], 1);
 });
 
 await ta('open({ resume }) envoie { resume } et rien d\'autre', async () => {
