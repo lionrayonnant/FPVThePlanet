@@ -1269,6 +1269,69 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
   aujourd'hui — l'issue est périmée, elle peut être fermée.
 
 
+## PHASE 27 — FIELD est un seul écran (issues #209, #211)
+
+Bible §4, première ligne : « Le `GLOBAL SCANNER` est le menu principal après
+l'initialisation. » #208 avait construit l'inverse — une Home calme avec une
+vignette figée et le scanner derrière un CTA. Le « pas un dashboard » de §30
+vise l'empilement de panneaux froids, pas la carte.
+
+FIELD est désormais **un écran, deux colonnes, deux états** : à gauche ce qu'on
+lit et ce qu'on choisit, à droite le monde. Tracer une zone remplace la colonne
+GAUCHE par le rail du scanner ; la carte ne bouge pas d'un pixel. `[ GLOBAL
+SCANNER ]` a disparu — il n'y a plus d'ailleurs où aller.
+
+### Vérifié — sans navigateur
+
+- `terminal-render-selftest` : **13/13**. Dont la promesse centrale, testée sur
+  la RÉFÉRENCE du nœud de carte et pas sur sa présence : un équivalent
+  reconstruit serait un remontage de Leaflet.
+- `archive-render-selftest` : **5/5** (nouveau). Les écrans froids que la Home
+  range derrière ARCHIVE, convertis en `createElement` et donc montables sur le
+  faux DOM pour la première fois.
+- `scanner-selftest` : 29 → **36**, dont `acquireStep()`, l'enchaînement
+  sonde → acquisition en pur.
+- `session-log-selftest` : 17 → **20**, dont `fit()`.
+- Chaîne `selftest:operator` : **845 assertions, 0 échec** — hors
+  `landing-selftest`, qui reste rouge tant que #196 n'est pas corrigée.
+
+### Vérifié à l'œil — Chromium headless piloté en CDP
+
+Écran par écran, ce que #209 et #211 ont corrigé :
+
+- Un écran plus haut que la fenêtre était **injoignable** : `.bootstrap`
+  centrait puis coupait, et `html, body` sont en `overflow: hidden`. BUILD NOTES
+  et TARGET LOG perdaient titre ET `[ BACK ]`.
+- **BUILD NOTES était le seul écran sans `menuNav`** : Escape sans effet.
+- **OPERATOR annonçait TARGETS 0** en lisant `op.targetLog`, clé supprimée par
+  PHASE 17 (D1), pendant que le pied disait « 9 TARGETS LOGGED ».
+- Les tables de journal cessaient d'être des tables : `padEnd()` ne coupe pas.
+- L'attribution Leaflet se lisait comme un bandeau blanc de navigateur sur les
+  DEUX cartes : Leaflet injecte sa feuille en `<style>` inline **à l'exécution**,
+  à spécificité égale mais plus tard dans la cascade. Le `background:
+  var(--scrim)` de #207 n'avait jamais rien peint.
+- La mise en page de FIELD débordait sur `SELECT OPERATION MODE` et l'écran du
+  banc, qui montent avec `terminal-home` pour en partager la typographie. FIELD
+  a maintenant sa propre classe, `terminal-field`.
+
+Un manque que seul le rendu révèle : `DRAW BOX` vit dans le rail, caché au
+repos, donc **rien ne permettait de commencer**. D'où `[ DRAW AN AREA ]`.
+
+### Non vérifié
+
+- **La navigation manette dans les deux colonnes.** `menuNav` est attaché à
+  `s.el` pour la Home et au rail pour le scanner : deux navigations coexistent
+  désormais sur le même écran, ce qui n'était jamais arrivé. Demande une manette
+  réelle.
+- **Le lot B** (#212) : météo et densité de signal portées sur les cadres de la
+  carte. À décider après avoir vécu avec le lot A.
+- **Les fenêtres étroites** (< 1100 px) : la règle d'empilement est écrite,
+  jamais regardée.
+- #210 : une scrutation manette peut survivre à son écran.
+- #213 : deux `confirm()` subsistent (REMOVE terrain, RESET settings).
+- #214 : une rangée à nom long déborde sur l'écran complet `LOCAL TERRAIN`.
+
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
