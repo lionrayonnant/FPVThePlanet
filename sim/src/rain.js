@@ -230,11 +230,12 @@ export class RainField {
 
 		// Extinctions add, so visibilities combine as reciprocals. Depuis #21 le
 		// brouillard est un curseur et main.js additionne les extinctions
-		// (brouillard + pluie + plafond) en une seule densité exp² : c'est
-		// `extinction` qu'il lit, pas `fogScale`. Le facteur reste publié pour
-		// sky.js, qui n'en fait pas une densité mais une mesure de « ciel
-		// mouillé » — et il DÉRIVE de l'extinction, pour qu'il n'existe qu'un
-		// seul chemin entre la pluie et l'air qu'elle épaissit.
+		// (brouillard + pluie + plafond) en une seule densité exp². C'est
+		// `extinction` qu'il lit — le champ le publie, main.js ne le recalcule
+		// pas depuis `visibility`. `fogScale` reste publié pour sky.js, qui n'en
+		// fait pas une densité mais une mesure de « ciel mouillé », et il DÉRIVE
+		// de l'extinction : il n'existe qu'un seul chemin entre la pluie et l'air
+		// qu'elle épaissit (issue #233).
 		this.visibility = rainVisibility(R);             // metres
 		this.extinction = fogDensity(this.visibility);
 		this.fogScale = 1 + this.extinction / this.baseDensity;

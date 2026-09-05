@@ -21,7 +21,7 @@ import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
 import { RainField, dropDrift, fogRange } from './rain.js';
-import { FogField, extinctionOf } from './fog.js';
+import { FogField } from './fog.js';
 import { SunField, SKY_REF, nightSensor, NIGHT_FLOOR_DEG } from './sun.js';
 import { Rainfall } from './rainfall.js';
 import { CloudField } from './cloud.js';
@@ -668,7 +668,7 @@ function exposeDebugGlobal() {
 					// pour que la portée affichée corresponde à ce que l'image
 					// montre une fois qu'on approche le plafond. p et spawnY sont
 					// déjà en main plus haut, pas besoin d'un nouveau raycast.
-					rangeWithRain: Math.round(fogRange(fog.density + extinctionOf(rain.visibility) + cloud.extinctionAt(p.y - spawnY))),
+					rangeWithRain: Math.round(fogRange(fog.density + rain.extinction + cloud.extinctionAt(p.y - spawnY))),
 					density: +(fog.density).toFixed(6),
 					glare: +fog.glare.toFixed(3),
 				},
@@ -1753,7 +1753,7 @@ if (!frozen) {
 	// l'altitude de la caméra, plutôt qu'un calcul par fragment.
 	const density =
 		fog.density +
-		extinctionOf(rain.visibility) +
+		rain.extinction +
 		cloud.extinctionAt(altitudeAGL);
 
 	// Couleur réellement produite par le dôme cette frame.
@@ -2074,7 +2074,7 @@ if (!frozen) {
 		windRelRad: Math.atan2(physics.wind.out.x, physics.wind.out.z) - yawOf(physics.rotation),
 		// La visibilité réellement vue, brouillard ET pluie : le motif exact déjà
 		// employé en main.js:409, pour que les deux ne disent jamais deux choses.
-		visibilityM: fogRange(fog.density + extinctionOf(rain.visibility)),
+		visibilityM: fogRange(fog.density + rain.extinction),
 		rssiDbm: link.out.rssiDbm,
 		operator: operator.getOperator()?.name,
 		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,

@@ -1259,8 +1259,11 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
   même double (~28 % des rapports pluie/scène s'écartent d'un ulp — le check
   était déjà faux au commit qui l'a écrit, 9a541e7). `rain.extinction` est
   désormais le seul chemin entre la pluie et l'air qu'elle épaissit, et
-  `fogScale` en dérive au lieu de refaire le trajet par la portée. Le check
-  porte maintenant sur ce qui est réellement garanti par construction.
+  `fogScale` en dérive au lieu de refaire le trajet par la portée. main.js lit
+  ce champ au lieu de recalculer `extinctionOf(rain.visibility)` à trois
+  endroits, ce qui est ce qui rend l'unicité du chemin vraie et pas seulement
+  écrite. Le check porte maintenant sur trois propriétés qui peuvent
+  réellement échouer (vérifié par mutation).
 
 - **#232 — corrigée.** `[race5] sits still on the ground at zero throttle`
   sortait à 1,83 m/s. Ce n'était ni une dérive de profil ni un mauvais seuil :
@@ -1271,7 +1274,11 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
   sans jamais s'arrêter, et la vitesse lue à 2 s ne mesurait que la pente
   (toothpick passait par 3,02 m/s à t=1,2 s avant de rebondir sous le seuil).
   Règle appliquée, les six familles sortent à 0,00 m/s et le seuil est passé de
-  1,5 à 0,1 m/s.
+  1,5 à 0,1 m/s. Comme ce zéro est désormais une conséquence de la règle, le
+  contrôle vérifie aussi que la règle s'est appliquée sur les 500 pas, et la
+  moitié « il ne décolle pas » — que la coupure des moteurs masquait — est
+  reprise à 1,5 × le ralenti, où la règle ne s'applique plus (à 2 × le ralenti
+  les six familles montent de 1,6 à 4,3 m en 2 s : le contrôle est falsifiable).
 - **#196** — `npm run selftest:operator` **s'arrête net** au milieu de la chaîne
   quand `public/scenes/tour-eiffel` n'est pas sur le disque, et la trentaine de
   selftests qui suivent `landing-selftest` ne tournent jamais. On croit la suite
