@@ -1831,6 +1831,85 @@ la main ne juge pas une durée :
 
 ---
 
+## Couverture : la tache là où le drone est passé (issue #245)
+
+Une tache douce s'étend sur la carte de FIELD sous les trajectoires, se
+densifie quand on repasse, et survit aux sessions. Ce n'est PAS « la zone est
+acquise, donc explorée » : un cadre où l'on n'a jamais volé reste vierge.
+Spec : `docs/superpowers/specs/2026-09-06-couverture-carte-design.md`.
+
+**Trois contraintes du dépôt ont façonné le design, vérifiées avant d'écrire :**
+
+- **Le banc n'écrit rien, par construction.** BENCH n'ouvre aucune session
+  (`main.js:2680`) ; la couverture vit dans `session.js`, donc au banc `live`
+  est null et rien n'est marqué. Aucun `if (MODE.bench)` à maintenir.
+- **Une seule écriture, à la clôture.** `operator.patch()` réémet toute la
+  valeur à chaque flush : patcher en vol enverrait ~160 ko plusieurs fois par
+  seconde. `session.end()` fusionne, borne et patche une fois — AVANT le PATCH
+  de la session, pour qu'un vol dont on perd la fiche garde sa trace.
+- **`OP_WRITABLE_KEYS` est une liste blanche** (`map-api-plugin.mjs`) : `coverage`
+  y est, avec le même contrat que `dialogueMemory` — pas de validation serveur
+  parce que le client borne (`MAX_CELLS = 8000`, `W_MAX = 8`) et relit
+  défensivement (`fromStored()` rend une couverture vierge pour tout ce qui
+  n'est pas la forme attendue).
+
+**La grille** : tuiles slippy à zoom fixe 20 — 25,15 m à Paris, parce que
+Leaflet est déjà en Web Mercator. Empreinte de 30 m autour de chaque échantillon
+(4 à 5 cellules, pas un 3×3 : les diagonales sont à 35,6 m), échantillonné à
+5 Hz de vol armé — à 42,72 m/s ça fait 8,5 m entre deux, aucun trou possible.
+
+**Le plafond de 8 000 cellules est un pari**, écrit comme tel dans
+`coverage.js` : ~850 cellules par vol de dix minutes, donc une dizaine de vols
+sans recouvrement. À revoir sur du vrai usage, pas sur une intuition.
+
+**Perdu si l'onglet meurt** : `sendBeacon` ne fait que des POST, la couverture
+voyage par PATCH. La fiche de session part, sa trace non. Assumé.
+
+### Vérifié — sans navigateur
+
+`node tools/coverage-selftest.mjs` (17) : la tuile de la Tour Eiffel calculée à
+part, la taille de cellule à Paris et à l'équateur, l'empreinte (5 au centre,
+4 sur un coin, et aucune cellule traversée oubliée à 42,72 m/s), la saturation,
+l'aller-retour de sérialisation, une douzaine de formes corrompues qui rendent
+une couverture vierge, la fusion commutative sur le contenu et idempotente,
+l'éviction par poids puis ancienneté, et le plan de dessin avec une projection
+jouée. `session-selftest` (+4) : geo() n'est appelée qu'aux échantillons, aucun
+PATCH pendant le vol, un seul à la clôture, la fusion 3 + 1, un opérateur
+corrompu n'empêche pas la clôture. `session-api-selftest` (+2) : la clé fait
+l'aller-retour sur disque.
+
+`terminal-render-selftest` n'a PAS pu être joué : il pend sans sortie depuis le
+passage au 2026-09-06, sur `main` comme ici, et passe sous une date figée au
+2026-09-05 — issue #246, préexistante, sans rapport avec la couverture. Tant
+qu'elle est ouverte, `npm run selftest:operator` s'arrête là.
+
+### NON vérifié à l'œil — personne n'a encore vu la tache
+
+L'extension Chrome était injoignable pendant tout le lot : la vérification
+visuelle prévue (une couverture injectée dans le cache client, capture à
+l'appui) n'a pas eu lieu. Un banc headless jetable a confirmé la MÉCANIQUE
+(pane à z=350, canvas dimensionné au DPR, deux arcs encadrés par `lighter` /
+`source-over`, encre `rgba(236, 231, 221, …)`, `refresh()` sans carte
+inoffensif, `onRemove` propre) — pas le RENDU. Douceur, densité, ordre sous
+les cadres et stabilité au zoom restent à voir. Recette : sur SELECT OPERATION
+MODE → FIELD, injecter dans la console une couverture jouée
+(`getOperator().coverage = { v: 1, z: 20, cells: [...] }`), déplacer la carte,
+regarder. Recharger ensuite.
+
+### NON vérifié — demande un vrai vol
+
+La couverture injectée ne dit rien de la vraie : reste à voir, après un vol
+FIELD réel puis un retour à la Home, que la tache est bien là où l'on a volé et
+qu'elle survit à un rechargement ; qu'un vol LIVE marque au bon endroit ; que
+dix sessions ne noircissent pas la carte ; et ce que vaut le plafond.
+- le clignotement au zoom : `leaflet-zoom-hide` cache le calque pendant toute
+  l'animation (pas de handler `zoomanim`) — si c'est gênant, le remède est un
+  handler `zoomanim`, en suivi.
+- la garde de redimensionnement du canvas (`canvas.width !== size.x * dpr`) ne
+  tient pas en DPR fractionnaire (le dépôt en a mesuré 0,9) : réallocation à
+  chaque déplacement et bande sous-pixel au bord — un `Math.round` suffit, à
+  poser avant la fusion.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
