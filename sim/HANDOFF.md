@@ -1314,8 +1314,22 @@ SCANNER ]` a disparu — il n'y a plus d'ailleurs où aller.
   banc, qui montent avec `terminal-home` pour en partager la typographie. FIELD
   a maintenant sa propre classe, `terminal-field`.
 
-Un manque que seul le rendu révèle : `DRAW BOX` vit dans le rail, caché au
-repos, donc **rien ne permettait de commencer**. D'où `[ DRAW AN AREA ]`.
+Deux manques que seul le rendu révèle :
+
+- `DRAW BOX` vit dans le rail, caché au repos, donc **rien ne permettait de
+  commencer**. D'où `[ DRAW AN AREA ]`.
+- **La carte était visible mais SOURDE.** `#ui` est en `pointer-events: none` et
+  seuls `button, input, select, label` reprennent la main (`style.css:87-88`).
+  Une carte Leaflet est un `<div>`, ses contrôles de zoom sont des `<a>` :
+  l'ancienne règle `.scanner { pointer-events: auto }` était ce qui la rendait
+  manipulable, et elle a disparu avec le plein cadre. Aucun selftest de rendu ne
+  pouvait l'attraper — le faux DOM ne calcule pas de style et l'arbre était
+  correct. D'où le garde-fou dans `palette-selftest`, vérifié dans les deux sens.
+
+**Piège à retenir** : tout écran plein cadre qui porte autre chose qu'un
+`button`/`input`/`select`/`label` interactif doit reprendre `pointer-events`
+lui-même. Le symptôme est silencieux : ça s'affiche, ça se met à jour, ça
+n'écoute rien.
 
 ### Non vérifié
 
