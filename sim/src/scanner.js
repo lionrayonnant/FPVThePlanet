@@ -23,6 +23,8 @@ import {
 import { notify } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
+import { Coverage, planDraw } from './coverage.js';
+import { createCoverageLayer } from './map-coverage.js';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
@@ -276,6 +278,16 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	// avait dessiné doivent se reconnaître (#207). Cliquables, parce que la
 	// carte et la liste doivent désigner la même chose dans les deux sens.
 	const areaFrames = L.layerGroup().addTo(map);
+
+	// La couverture (issue #245) : là où le drone est passé, sous les cadres.
+	// Relue dans le cache opérateur à chaque redraw — operator.patch() y écrit
+	// de façon synchrone à la clôture d'une session, donc la Home qui suit un
+	// vol voit la tache sans attendre le réseau.
+	const coverage = createCoverageLayer(L, {
+		color: token('--warm-white') || '#ece7dd',
+		planDraw,
+		getCoverage: () => Coverage.fromStored(operatorApi.getOperator()?.coverage),
+	}).addTo(map);
 
 	// Dessine le cadre de chaque zone du cache. previewBounds() rend `null` pour
 	// une zone sans emprise connue : elle n'a alors PAS de cadre et reste
@@ -1116,6 +1128,9 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		setMode,
 		rest,
 		busy: () => !!state.jobId,
+		// Redessine la tache depuis le cache opérateur (issue #245) — la Home
+		// l'appelle quand elle relit les zones, au même moment que setAreaFrames.
+		refreshCoverage: () => coverage.refresh(),
 		// La carte ne meurt QU'ICI. `map.remove()` retire les écouteurs que
 		// Leaflet a posés sur window : sans lui, une Home ouverte trois fois
 		// laisse trois cartes vivantes derrière elle.

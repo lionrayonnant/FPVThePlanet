@@ -678,6 +678,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				if (slug) return fly(slug);
 				scenes = await fetchScenes();
 				scanner?.setAreaFrames(Array.isArray(scenes) ? scenes : []);
+				scanner?.refreshCoverage();
 				s.el.hidden = false;
 				renderLeft();
 			}]);
@@ -797,6 +798,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			});
 			scanner.setMode(tab);
 			scanner.setAreaFrames(Array.isArray(scenes) ? scenes : []);
+			scanner.refreshCoverage();
 			// Le scanner arrive après le premier rendu : la colonne gauche doit
 			// être refaite pour montrer DRAW BOX / DRAW SHAPE, qui n'ont de sens
 			// qu'avec lui.

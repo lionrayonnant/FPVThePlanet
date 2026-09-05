@@ -711,6 +711,14 @@ button.terminal-row:focus::before { left: 0; }
    `.map-mono`, posée sur les deux — les dupliquer serait la garantie qu'elles
    divergent au premier réglage. `.scanner-map` ne garde que sa géométrie. */
 .map-mono { position: relative; background: var(--dark-grey); }
+/* La tache de couverture (issue #245) : un canvas dans son pane, sous les
+   cadres de zone. `pointer-events: none` parce que c'est un fond — la carte
+   dessous doit rester déplaçable et les cadres cliquables. Le flou finit de
+   fondre les dégradés en tache ; il est petit parce que les cellules sont
+   déjà des dégradés radiaux qui se recouvrent. Non filtré par `.sc-invert` /
+   `.sc-gray`, qui ne portent que sur la couche de tuiles : l'encre reste
+   celle du terminal. */
+.map-coverage { pointer-events: none; filter: blur(1.5px); }
 .scanner-map { height: 100%; }
 /* MONO : le filtre porte sur les tuiles de la couche seulement, pas sur les
    vecteurs — la grille, la zone et les repères gardent l'encre du terminal.
