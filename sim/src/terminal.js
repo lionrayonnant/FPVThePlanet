@@ -7,6 +7,7 @@ import { captureControlVector, bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
 import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
+import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 
@@ -372,7 +373,7 @@ function lastSessionScreen(root, model) {
 		const when = ls.end ?? ls.endedAt ?? ls.start ?? ls.startedAt ?? ls.at ?? '';
 		s.box.innerHTML = `<pre>LAST SESSION
 
-AREA     ${area ?? 'UNKNOWN'}
+AREA     ${area ? areaLabel(area) : 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
@@ -410,12 +411,24 @@ async function operatorScreen(root, api) {
 	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
 	const render = () => {
 		const op = api.getOperator();
-		s.box.innerHTML = `<pre>OPERATOR // ${op.name.toUpperCase()}
-
-REGISTERED   ${String(op.createdAt).replace('T', ' ').slice(0, 16)}
-SESSIONS     ${op.sessions?.length ?? 0}
-TARGETS      ${op.targetLog?.length ?? 0}</pre>
-			<div class="op-portrait" hidden></div>`;
+		s.box.replaceChildren();
+		const pre = document.createElement('pre');
+		// Le compteur de cibles est DÉRIVÉ des sessions depuis PHASE 17 (spec
+		// D1) : `op.targetLog` n'existe plus, et le lire rendait toujours 0 —
+		// cet écran annonçait TARGETS 0 pendant que le pied de la Home disait
+		// « 9 TARGETS LOGGED » et que le Target Log en listait neuf.
+		pre.textContent = [
+			`OPERATOR // ${op.name.toUpperCase()}`,
+			'',
+			`REGISTERED   ${String(op.createdAt).replace('T', ' ').slice(0, 16)}`,
+			`SESSIONS     ${op.sessions?.length ?? 0}`,
+			`TARGETS      ${targetLogEntries(op.sessions).length}`,
+		].join('\n');
+		s.box.appendChild(pre);
+		const portrait = document.createElement('div');
+		portrait.className = 'op-portrait';
+		portrait.hidden = true;
+		s.box.appendChild(portrait);
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
 		nav?.focusAt(0);
 	};
@@ -432,13 +445,40 @@ TARGETS      ${op.targetLog?.length ?? 0}</pre>
 function buildNotesScreen(root, operator) {
 	const s = screen(root);
 	const c = countersOf(operator);
-	s.box.innerHTML = `<pre>BUILD NOTES
+	// createElement, et une ligne de note = un <pre>. En un seul bloc, une note
+	// trop longue se repliait en colonne 0 : la suite d'« fixed: session
+	// timestamp off by one hour on the » se lisait comme une NOUVELLE entrée de
+	// premier niveau, au même rang que le numéro de version. Un élément par
+	// ligne, c'est la seule façon de donner à la ligne repliée un retrait
+	// suspendu (`.terminal-note`) — deux espaces littéraux ne survivent pas au
+	// repli. Effet de bord voulu : l'écran devient montable sur le faux DOM.
+	const head = document.createElement('pre');
+	head.textContent = `BUILD NOTES\n\nCURRENT BUILD   ${currentBuild(c)}`;
+	s.box.appendChild(head);
 
-CURRENT BUILD   ${currentBuild(c)}
-
-${unlockedNotes(c).map((n) => `${n.build}\n${n.lines.map((l) => `  ${l}`).join('\n')}`).join('\n\n')}</pre>`;
+	for (const n of unlockedNotes(c)) {
+		const block = document.createElement('div');
+		block.className = 'terminal-note-block';
+		const build = document.createElement('pre');
+		build.textContent = n.build;
+		block.appendChild(build);
+		for (const line of n.lines) {
+			const p = document.createElement('pre');
+			p.className = 'terminal-note';
+			p.textContent = line;
+			block.appendChild(p);
+		}
+		s.box.appendChild(block);
+	}
 	return new Promise((resolve) => {
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		// Seul écran de la maison qui n'appelait pas menuNav : ni curseur, ni
+		// clavier, ni manette, et surtout Escape sans effet. Sur une liste de
+		// notes assez longue pour passer sous la ligne de flottaison, le seul
+		// BACK était hors de vue — l'écran se refermait sur l'opérateur.
+		let nav = null;
+		const close = () => { nav?.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		nav = menuNav(s.el, { back: close });
 	});
 }
 

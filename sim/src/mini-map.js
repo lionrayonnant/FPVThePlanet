@@ -33,6 +33,13 @@ export function mountMiniMap(el, { bounds, interactive = false, onPick = null, p
 		touchZoom: interactive,
 	});
 
+	// Le crédit des couches reste — OSM l'exige. Ce qui part, c'est
+	// l'auto-promotion de Leaflet (« Leaflet | » et son fanion), qui n'est due à
+	// personne et qui est du meuble de navigateur sur un écran que la Bible §30
+	// veut calme. `attributionControl` n'accepte qu'un booléen (Leaflet le lit
+	// comme un test de vérité) : le préfixe se retire sur le contrôle, après.
+	map.attributionControl.setPrefix('');
+
 	const base = L.tileLayer(LAYERS.MONO.url, LAYERS.MONO.opts).addTo(map);
 
 	// Le cadre de la zone, dans le style EXACT du rectangle que le scanner

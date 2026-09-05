@@ -214,14 +214,25 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 export function runTargetLog(root, { operator } = {}) {
 	const entries = targetLogEntries(operator?.sessions);
 	const s = screen(root);
-	const body = entries.length
+	// createElement plutôt qu'innerHTML : le titre et le credo restent la machine
+	// qui parle (niveau DISPLAY), la table descend au niveau DATA — 97 colonnes
+	// à 22px ne tiennent dans aucune boîte raisonnable et repliaient chaque
+	// entrée sur trois lignes. Même arbitrage que `pre.terminal-foot`. Effet de
+	// bord voulu : l'écran devient montable sur le faux DOM, donc testable.
+	const head = document.createElement('pre');
+	head.textContent = 'TARGET LOG';
+	s.box.appendChild(head);
+
+	const credo = document.createElement('pre');
+	credo.textContent = 'A TARGET IS A TRACE. A CRASHED TARGET IS LOST, A LANDED ONE IS DONE.';
+	s.box.appendChild(credo);
+
+	const table = document.createElement('pre');
+	table.className = 'terminal-log';
+	table.textContent = entries.length
 		? entries.map((e) => `  ${targetRow(e)}`).join('\n')
 		: '  NO TARGETS LOGGED';
-	s.box.innerHTML = `<pre>TARGET LOG
-
-A TARGET IS A TRACE. A CRASHED TARGET IS LOST, A LANDED ONE IS DONE.
-
-${body}</pre>`;
+	s.box.appendChild(table);
 	return new Promise((resolve) => {
 		let done = false;
 		let nav = null;

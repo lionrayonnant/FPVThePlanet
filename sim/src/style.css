@@ -283,7 +283,15 @@ button:focus::before {
 
 .bootstrap {
 	position: fixed; inset: 0;
-	display: grid; place-items: center;
+	/* `place-items: center` seul CENTRE puis COUPE : un écran plus haut que la
+	   fenêtre (BUILD NOTES, TARGET LOG sur un opérateur qui a volé) perdait son
+	   titre en haut ET son [ BACK ] en bas, sans rien pour aller les chercher —
+	   `html, body` sont en `overflow: hidden`. `safe center` retombe sur `start`
+	   dès que ça déborde, donc on garde le centrage des écrans courts, qui sont
+	   la règle, sans enfermer les longs. */
+	display: grid; justify-items: center; align-content: safe center;
+	overflow-y: auto; overscroll-behavior: contain;
+	padding: var(--space-5) 0;
 	background: var(--dark-grey);
 	z-index: 11;
 }
@@ -366,6 +374,13 @@ button:focus::before {
 	font-variant-numeric: tabular-nums;
 	margin-top: var(--space-1); white-space: nowrap;
 }
+
+/* BUILD NOTES : un numéro de version, puis ses lignes en retrait. Le retrait
+   est suspendu — première ligne à 2ch, repli à 4ch — pour qu'une note qui
+   déborde reste visiblement subordonnée à sa version au lieu de remonter en
+   colonne 0 et de se faire passer pour une entrée de plus. */
+.terminal-note-block { display: flex; flex-direction: column; }
+.bootstrap-box pre.terminal-note { padding-left: 4ch; text-indent: -2ch; }
 
 /* La Home carte-first. Un seul axe : l'endroit, puis les deux choses qui
    décollent, puis le cache. Ce n'est PAS un tableau de bord (Bible §30, §44) —
@@ -473,14 +488,29 @@ button.terminal-area:focus::before { left: 0; }
 	display: flex; flex-direction: column;
 	max-height: 55vh; overflow-y: auto;
 }
+/* Une rangée de journal est une TABLE : des colonnes de largeur fixe qu'on
+   balaie, pas une phrase qu'on lit. Mesuré : à --fs-display-s (22px Departure
+   Mono, tracking .12em) un caractère fait 16,6px, donc la boîte tient 56
+   signes — quand une ligne de session en fait 69 et une ligne de cible 97. Le
+   journal descend donc du niveau DISPLAY vers DATA, exactement comme
+   `pre.terminal-foot` et pour la même raison : c'est de la donnée dense. */
+button.terminal-row,
+.bootstrap-box pre.terminal-log {
+	font-family: var(--font-data);
+	font-size: var(--fs-data);
+	line-height: 1.6;
+	letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+	color: var(--ink);
+	/* Une colonne qui se replie n'est plus une colonne : on ne replie pas, et
+	   si la fenêtre est vraiment trop étroite la table défile pour elle seule
+	   plutôt que de pousser la page entière (Bible §38, angles droits, pas de
+	   débordement horizontal du cadre). */
+	white-space: pre; overflow-x: auto;
+}
 button.terminal-row {
 	padding: 1px 0 1px 1.2em; border: 0; background: none;
-	text-align: left; white-space: pre; cursor: pointer;
-	font-family: var(--font-display);
-	font-size: var(--fs-display-s);
-	line-height: 1.45;
-	letter-spacing: var(--track-display);
-	color: var(--ink);
+	text-align: left; cursor: pointer;
 }
 button.terminal-row:hover { background: var(--warm-white); color: var(--black); }
 /* Dans une liste qui défile, le marqueur vit DANS la colonne réservée : à
@@ -529,10 +559,20 @@ button.terminal-row:focus::before { left: 0; }
 .map-mono .leaflet-tile { width: 257px !important; height: 257px !important; }
 .map-mono .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
 .map-mono .leaflet-container { background: var(--dark-grey); font: inherit; }
-.map-mono .leaflet-control-attribution {
+/* `.leaflet-container` dans le sélecteur n'est pas décoratif : Leaflet injecte
+   sa propre feuille en <style> inline À L'EXÉCUTION, avec exactement
+   `.leaflet-container .leaflet-control-attribution { background: rgba(255,255,255,.8) }`
+   — même spécificité que `.map-mono .leaflet-control-attribution`, mais plus
+   tard dans la cascade, donc gagnante. Mesuré : le fond calculé était blanc sur
+   les DEUX cartes, et l'attribution se lisait comme un bandeau de navigateur en
+   travers du bas. Le troisième niveau reprend la main quel que soit l'ordre.
+   `.map-mono.leaflet-container` sans espace : Leaflet pose sa classe sur le
+   conteneur qu'on lui donne, donc c'est le MÊME élément que `.map-mono`. */
+.map-mono.leaflet-container .leaflet-control-attribution {
 	background: var(--scrim); color: var(--faint);
 	font-family: var(--font-data); font-size: 10px; letter-spacing: var(--track-data);
 	border-radius: 0;
+	padding: 1px var(--space-2);
 }
 .map-mono .leaflet-control-attribution a { color: var(--dim); }
 /* L'attribution OSM embarque un drapeau en couleur. Le jeu est N&B (Bible §38) :

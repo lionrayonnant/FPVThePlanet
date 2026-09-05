@@ -239,6 +239,9 @@ export function runScanner(root) {
 	const map = L.map($('.scanner-map'), {
 		zoomControl: false, attributionControl: true, worldCopyJump: true,
 	}).setView(lastView.center, lastView.zoom);
+	// Une seule carte dans le jeu (Bible §4) : même règle que la mini-carte —
+	// le crédit des couches reste, « Leaflet | » et son fanion partent.
+	map.attributionControl.setPrefix('');
 	L.control.zoom({ position: 'bottomright' }).addTo(map);
 	map.on('moveend zoomend', () => { lastView = { center: map.getCenter(), zoom: map.getZoom() }; });
 
