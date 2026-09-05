@@ -128,10 +128,10 @@ for (const fam of FAMILIES) {
 		`${lo.toFixed(2)}..${hi.toFixed(2)} pour ${twr0.toFixed(2)} nominal`);
 	// Perceptible : deux exemplaires de la même famille doivent pouvoir différer
 	// d'assez pour se sentir au manche. 15 % d'écart de masse, c'est un pack de
-	// plus ou de moins. Une famille à variation nulle (MICRO — voir le
-	// commentaire de FAMILY_VARIATION, son bouclage n'a plus de marge
-	// d'overshoot) doit au contraire rendre le nominal À LA VALEUR PRÈS : c'est
-	// le garde-fou qui empêche de lui rouvrir la variation sans re-mesurer.
+	// plus ou de moins. Une famille gelée devrait au contraire rendre le nominal
+	// À LA VALEUR PRÈS — le garde-fou qui empêche de rouvrir une variation sans
+	// re-mesurer. Aucune ne l'est depuis #234, donc cette seconde branche dort ;
+	// elle se réveille dès qu'une famille retourne dans FAMILY_VARIATION.
 	if (varies) {
 		check(`[${fam}] deux exemplaires diffèrent de façon perceptible`,
 			hiM / loM > 1.15 && hi / lo > 1.15,

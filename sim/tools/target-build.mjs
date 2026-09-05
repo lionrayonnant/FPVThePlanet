@@ -60,22 +60,34 @@ export const BUILD_BOUNDS = {
 // Amplitude de variation par famille, 0..1, appliquée à TOUTES les bornes
 // ci-dessus (0 = l'exemplaire est exactement le profil nominal).
 //
-// MICRO est à 0, et c'est une mesure, pas une prudence : au banc Rapier, le
-// toothpick nominal overshoote déjà de 24 % sur un flick plein manche (les cinq
-// autres familles : 0 à 7 %), pour un plafond de 25 %. Un balayage masse × rates
-// le fait monter à 131 % à rate ×0.97 QUELLE QUE SOIT la masse — une résonance
-// du bouclage, pas du bruit — et jusqu'à 139 % combiné à une masse haute. La
-// moyenne du taux tenu, elle, ne descend jamais sous 93 % : ce n'est pas qu'il
-// n'atteint pas son taux, c'est que son bouclage est marginalement stable.
+// Vide aujourd'hui : plus aucune famille n'est gelée. MICRO y était à 0, et
+// c'était une mesure — le toothpick nominal overshootait de 24 % sur un flick
+// plein manche pour un plafond de 25 %, un balayage masse × rates le poussant à
+// 131 % à rate ×0.97 quelle que soit la masse, et jusqu'à 139 % sur une masse
+// haute. Pas du bruit : une résonance du bouclage.
 //
-// C'est le défaut du tune MICRO, déjà connu (le 1S whoop a été retiré de PHASE
-// 07 pour la même raison : modèle de vol non calibré à cette masse), pas quelque
-// chose que la variation d'exemplaire doit contourner. On ne desserre pas le
-// plafond et on ne re-tune pas à la main : MICRO reprendra sa variation quand
-// son tune sera re-mesuré. Voir le suivi #71.
-export const FAMILY_VARIATION = {
-	toothpick: 0,
-};
+// La cause n'était pas le tune, c'était #144. La secousse de propwash valait
+// 0,05 N·m en dur, soit 596 % de l'autorité d'un toothpick, et elle suit
+// maintenant poussée × bras. Re-mesuré depuis (issue #234) : 1200 exemplaires
+// MICRO tirés à variation PLEINE, contrôle de roulis du selftest, masses de
+// 79,2 à 100,8 g —
+//
+//   pic  : pire 106 % du commandé (plafond 125 %), 0/1200 au-dessus
+//   tenu : pire  99 % du commandé (plancher  90 %), 0/1200 en dessous
+//
+// le nominal lui-même étant redescendu de 124 % à 102 % de pic. Le gel n'avait
+// plus d'objet ; il est levé.
+//
+// Ce qui RESTE de #71 est distinct et n'est pas traité ici : un profil ~34 g
+// TIENT 492 °/s pour 420 commandés — un tune trop nerveux pour cette masse, pas
+// une divergence. Celui-là demande bien un re-mesurage (`npm run tune`), et
+// c'est pourquoi le 1S whoop reste hors de PHASE 07.
+//
+// La mécanique de gel, elle, reste en place : y remettre une famille suffit à
+// figer ses exemplaires sur le nominal, et les deux garde-fous de
+// tools/target-build-selftest.mjs qui la vérifient rebasculent tout seuls — ils
+// se mettent simplement en sommeil tant que l'objet est vide.
+export const FAMILY_VARIATION = {};
 export const DEFAULT_VARIATION = 1;
 
 // Champs qui définissent la famille et ne bougent jamais. Le selftest les
