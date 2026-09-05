@@ -367,6 +367,54 @@ button:focus::before {
 	margin-top: var(--space-1); white-space: nowrap;
 }
 
+/* La Home carte-first. Un seul axe : l'endroit, puis les deux choses qui
+   décollent, puis le cache. Ce n'est PAS un tableau de bord (Bible §30, §44) —
+   la carte est là parce que c'est le lieu, pas parce que c'est une métrique. */
+.terminal-map {
+	height: min(38vh, 320px);
+	border: var(--rule-w) solid var(--rule-strong);
+	position: relative;
+}
+/* Sans emprise connue, ou sans terrain du tout : on le dit dans le cadre plutôt
+   que de dessiner une carte fausse. */
+.terminal-map-none {
+	position: absolute; inset: 0; margin: 0;
+	display: flex; align-items: center; justify-content: center;
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+/* Les deux verbes de la Home, sur une ligne : voler là, ou aller voir ailleurs. */
+.terminal-acts { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.terminal-acts .terminal-cta { align-self: auto; }
+/* Un intertitre, pas un titre : il nomme la liste sans peser autant que la
+   ligne FPVTP! du haut. */
+.bootstrap-box pre.terminal-sub {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: var(--space-2) 0 0;
+}
+/* La liste compacte sélectionne, elle ne fait pas voler : pas de défilement, pas
+   de recherche, pas d'actions — tout ça vit dans MORE…. */
+.terminal-areas-compact { max-height: none; overflow: visible; gap: 0; }
+/* La zone que la carte cadre et que [ FLY ] volera. Un filet à gauche plutôt
+   qu'un aplat : le blanc plein est réservé au curseur. */
+.terminal-areas-compact button.terminal-area[data-selected] {
+	box-shadow: inset 2px 0 0 0 var(--ink);
+}
+/* Sur l'écran complet, la météo est en DISPLAY à dessein : c'est la ligne qu'on
+   vient y lire (#76). Sur la Home elle redescend au niveau UI — la couleur
+   continue de porter l'information, mais la Home reste calme (Bible §30, §45).
+   Et le nom cesse d'être une colonne fixe : à deux zones, un min-width de 260 px
+   pousse la météo hors du cadre et la fait tronquer pour rien. */
+.terminal-areas-compact .terminal-area-weather {
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+}
+.terminal-areas-compact .terminal-area > span:first-child { min-width: 0; flex: none; }
+.terminal-areas-compact .terminal-area-size { margin-left: auto; }
+
 .terminal-search { width: 100%; box-sizing: border-box; }
 .terminal-areas {
 	display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-1) 0;
@@ -487,6 +535,11 @@ button.terminal-row:focus::before { left: 0; }
 	border-radius: 0;
 }
 .map-mono .leaflet-control-attribution a { color: var(--dim); }
+/* L'attribution OSM embarque un drapeau en couleur. Le jeu est N&B (Bible §38) :
+   il passe au gris comme le reste, sans être retiré — l'attribution doit rester
+   lisible, c'est la contrepartie des tuiles. */
+.map-mono .leaflet-control-attribution img,
+.map-mono .leaflet-control-attribution svg { filter: grayscale(1) brightness(.7); }
 .map-mono .leaflet-bar,
 .map-mono .leaflet-bar a {
 	border-radius: 0; border-color: var(--rule-strong);
