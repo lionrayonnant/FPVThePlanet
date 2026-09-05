@@ -10,8 +10,6 @@ import { menuNav } from './menu-nav.js';
 import { formatBytes } from '../tools/terminal-model.mjs';
 import { analyzeFlight } from '../tools/post-flight-model.mjs';
 import * as operatorApi from './operator.js';
-import { sayOnce, appendRtc, paintRtc } from './dialogue.js';
-import { sessionContext } from './dialogue-context.js';
 
 function mmss(durationS) {
 	const s = Math.max(0, Math.round(durationS));
@@ -58,15 +56,6 @@ OPERATOR NOTE</pre>
 	const note = s.box.querySelector('#pf-note');
 	note.value = session.comment ?? '';
 
-	// SESSION_COMPLETE (issue #126, critère 10 de #58). POST-FLIGHT est l'écran
-	// où le joueur s'arrête et lit : c'est là que le crew a quelque chose à
-	// dire, pas pendant le vol — la Bible §9 donne le RTC à l'attente. Jamais
-	// attendu et jamais bloquant : le rapport et la note sont déjà à l'écran, et
-	// un silence rendu par sayOnce ne laisse même pas de bloc vide.
-	const rtc = appendRtc(s.box);
-	sayOnce('SESSION_COMPLETE', sessionContext({ area: session.area ?? session.slug ?? null }))
-		.then((lines) => paintRtc(rtc, lines))
-		.catch(() => { /* cosmétique : un écran de rapport muet reste un rapport */ });
 	return new Promise((resolve) => {
 		s.box.appendChild(button('CONTINUE', async () => {
 			const text = note.value.trim();

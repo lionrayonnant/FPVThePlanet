@@ -27,7 +27,7 @@ import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
 import { runRitual } from './ritual.js';
 import { ritualVector } from '../tools/ritual-model.mjs';
 import { getOperator } from './operator.js';
-import { mount } from './dialogue.js';
+import { notify } from './dialogue.js';
 import { scanContext } from './dialogue-context.js';
 
 const DOT_MIN = 3;
@@ -62,17 +62,17 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 	// non négociable — le crew se tait avant l'armement du CONTROL VECTOR, et
 	// stopHack() coupe net avant arm() plus bas. MANUAL_OVERRIDE et JACK_IN ne
 	// sont volontairement jamais montés ici : ce sont les instants du rituel.
-	const rtcSection = document.createElement('section');
-	rtcSection.className = 'sc-block sc-log-block sc-rtc-block';
-	rtcSection.innerHTML = '<pre class="sc-h">RTC // INTERNAL</pre><pre class="sc-log sc-rtc"></pre>';
-	s.box.appendChild(rtcSection);
+	// Depuis #243 : un toast en surimpression, pas un bloc qui pousse la colonne.
+	// Le hack est une attente qu'on REGARDE (la grille tourne) — un log qui
+	// grandit sous elle déplaçait ce qu'on regardait.
 	// candidate : le même exemplaire que main.js a tiré du scan (facultatif —
 	// les chemins de preview ?scene=/?family= n'en ont pas). Le fournir ouvre
 	// {signal} et {video_type} en plus de {hack_type} pour TARGET_ANALYSIS/HACK ;
 	// candidate: null reste le comportement par défaut (issue #58 finding 2).
-	const stopHack = mount(s.box.querySelector('.sc-rtc'), {
+	const stopHack = notify({
 		event: 'TARGET_ANALYSIS',
 		context: () => scanContext({ candidate, hackType, family }),
+		host: s.box,
 	});
 
 	return new Promise((resolve, reject) => {

@@ -20,7 +20,7 @@ import {
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 	sourceChoices, chosenSource, zoneCentre, acquireStep,
 } from '../tools/scanner-model.mjs';
-import { mount, sayOnce } from './dialogue.js';
+import { notify } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import * as operatorApi from './operator.js';
@@ -91,10 +91,6 @@ const PANEL = `
 	<pre class="sc-note sc-acquire-note" hidden></pre>
 </section>
 
-<section class="sc-block sc-log-block sc-rtc-block">
-	<pre class="sc-h">RTC // INTERNAL</pre>
-	<pre class="sc-log sc-rtc"></pre>
-</section>
 
 <section class="sc-block sc-foot">
 	<button type="button" class="sc-cta sc-back">[ BACK ]</button>
@@ -155,10 +151,6 @@ const JOB_PANEL = `
 <section class="sc-block sc-log-block">
 	<pre class="sc-h">PIPELINE</pre>
 	<pre class="sc-log"></pre>
-</section>
-<section class="sc-block sc-log-block sc-rtc-block">
-	<pre class="sc-h">RTC // INTERNAL</pre>
-	<pre class="sc-log sc-rtc"></pre>
 </section>
 <section class="sc-block sc-job-done" hidden>
 	<pre class="sc-h">TERRAIN ACQUIRED</pre>
@@ -227,16 +219,12 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	};
 	const panel = railHost;
 
-	// RTC du panneau de recherche : de la couleur, jamais une source
-	// d'information sur le pipeline réel (mêmes invariants que watchJob()).
-	// Ce panneau n'est monté qu'une fois — il n'est jamais réaffiché après
-	// avoir été remplacé par JOB_PANEL — mais on arrête quand même le montage
-	// avant ce remplacement (voir watchJob()) : c'est stop() qui existe pour
-	// éviter qu'un minuteur ne survive à son nœud.
-	let stopSearch = mount(panel.querySelector('.sc-rtc'), {
-		event: 'AREA_SEARCH',
-		context: () => scanContext({}),
-	});
+	// Plus de RTC sur le panneau de RECHERCHE depuis #243 : c'est un formulaire,
+	// pas une attente, et son bloc de log grandissait dans le rail de gauche à
+	// côté du champ et de l'estimation. Le crew reprend la parole à
+	// l'acquisition (en toast) et sur la racine. `stopSearch` reste une fonction
+	// pour que watchJob() n'ait pas à savoir qu'il n'y a plus rien à arrêter.
+	let stopSearch = () => {};
 
 	const state = {
 		zone: null,         // { bbox } ou { poly } — la zone dessinée, brute
@@ -569,15 +557,10 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 			state.describe = d; state.plan = plan; state.probe = null;
 			renderAnalysis(); drawPruned(); renderCoverage();
 
-			// Un seul échange, jamais un blocage : la sonde continue sans attendre
-			// le crew (pas d'await sur ce chemin d'interaction, PHASE 05).
-			sayOnce('PROBE_AREA', acquisitionContext({ name: $('.sc-name').value.trim(), tiles: state.describe?.estimate?.tiles }))
-				.then((lines) => {
-					const rtcEl = $('.sc-rtc');
-					if (!lines || !rtcEl) return;
-					for (const l of lines) rtcEl.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
-					rtcEl.scrollTop = rtcEl.scrollHeight;
-				});
+			// PROBE_AREA ne parle plus ici depuis #243 : la sonde est un résultat
+			// dans un formulaire, pas une attente, et son échange atterrissait
+			// dans le bloc de log qui alourdissait le rail. L'événement reste
+			// dans le flux mêlé de la racine, il n'est pas perdu.
 
 			if (plan.columns === 0) return;
 
@@ -935,9 +918,10 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		// réel. Le corpus est tiré par le moteur de dialogue (PHASE 21) — le
 		// contexte est une FONCTION parce que `pipeline` se remplit en cours de
 		// route et que le crew doit pouvoir en parler quand il arrive.
-		const stopRtc = mount(panel.querySelector('.sc-rtc'), {
+		const stopRtc = notify({
 			event: 'ACQUIRE_AREA',
 			context: () => acquisitionContext({ name, tiles: expected, pipeline }),
+			host: panel,
 		});
 
 		const es = new EventSource(`${API}/jobs/${id}/events`);

@@ -12,25 +12,11 @@ import { menuNav } from './menu-nav.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
 import { conditionsBlock, conditionsLine } from './weather.js';
 import { uiAudio } from './ui-audio.js';
-import { mount, sayOnce } from './dialogue.js';
-import { scanContext } from './dialogue-context.js';
 
-// Bloc RTC partagé par la liste et la fiche : même markup que scanner.js
-// (`.sc-block .sc-log-block .sc-rtc-block`), pour une seule langue visuelle
-// entre toutes les voix du crew.
-function appendRtc(box) {
-	const el = document.createElement('section');
-	el.className = 'sc-block sc-log-block sc-rtc-block';
-	const h = document.createElement('pre');
-	h.className = 'sc-h';
-	h.textContent = 'RTC // INTERNAL';
-	const log = document.createElement('pre');
-	log.className = 'sc-log sc-rtc';
-	el.appendChild(h);
-	el.appendChild(log);
-	box.appendChild(el);
-	return el;
-}
+// Plus de RTC sur TARGET SCAN depuis #243 : ni sur la liste, ni sur la fiche.
+// Le crew ne commente plus l'écran qu'on regarde — il parle sur la racine, et
+// en toast pendant le hack et l'acquisition. TARGET_SCAN, TARGET_SELECTED et
+// WEATHER restent dans le flux mêlé de la racine.
 
 // `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
 // scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
@@ -56,22 +42,12 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 		});
 		s.box.appendChild(wrap);
 
-		// Le RTC vit sous la liste. Depuis l'issue #123 la liste n'est plus
-		// redessinée — chaque signal est un vrai bouton et le curseur est le
-		// focus natif — donc ce nœud survit jusqu'au démontage explicite.
-		appendRtc(s.box);
-		const stopScan = mount(s.box.querySelector('.sc-rtc'), {
-			event: 'TARGET_SCAN',
-			context: () => scanContext({ scan, weather }),
-		});
-
 		// Échap / bouton B ressort vers le choix de zone. L'écran ne sait pas ce
 		// que ça coûte — à cet instant main.js a déjà lancé le préchargement de
 		// la carte — donc il se contente de le signaler et laisse l'appelant
 		// décider : les écrans restent des clients purs.
 		const cancel = () => {
 			listNav.detach();
-			stopScan();
 			s.remove();
 			resolve({ cancelled: true });
 		};
@@ -87,7 +63,6 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 
 		const finish = (index) => {
 			listNav.detach();
-			stopScan();
 			s.remove();
 			resolve({ seed: scan.seed, count: scan.count, index });
 		};
@@ -111,23 +86,6 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 				`FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}`,
 			].join('\n');
 			s2.box.appendChild(sheetPre);
-			appendRtc(s2.box);
-
-			// Un seul échange à l'ouverture de la fiche. La météo est déjà affichée
-			// juste au-dessus par CONDITIONS : on ne la fait commenter par le crew
-			// que si la cible n'a rien dit — cascade sur le `null` que sayOnce rend
-			// déjà pour « silence », sans exposer la mémoire hors de dialogue.js.
-			// Ni l'un ni l'autre n'est attendu : ça ne bloque jamais CONFIRM/BACK.
-			const paint = (lines) => {
-				const el = s2.box.querySelector('.sc-rtc');
-				if (!el) return;
-				for (const l of lines) el.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
-				el.scrollTop = el.scrollHeight;
-			};
-			sayOnce('TARGET_SELECTED', scanContext({ scan, weather, candidate: scan.candidates[index] }))
-				.then((lines) => lines
-					? paint(lines)
-					: sayOnce('WEATHER', scanContext({ scan, weather })).then((w) => w && paint(w)));
 
 			let done = false;
 			const confirm = () => {

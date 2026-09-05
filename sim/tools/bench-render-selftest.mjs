@@ -22,6 +22,21 @@ const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); 
 
 const reset = () => { dom.storage.clear(); dom.root.replaceChildren(); dom.setActive(null); };
 
+// Combien de minuteurs sont encore armés. Le flux RTC de la racine (issue #243)
+// en pose un par tick, et un écran qui part sans appeler son stop() les laisse
+// battre sur un nœud détaché. On compte en RELATIF (avant/après) : d'autres
+// modules arment aussi des minuteurs, et ce n'est pas eux qu'on surveille.
+const _live = new Set();
+const _setTimeout = globalThis.setTimeout;
+const _clearTimeout = globalThis.clearTimeout;
+globalThis.setTimeout = (fn, ms, ...rest) => {
+	const id = _setTimeout((...a) => { _live.delete(id); return fn(...a); }, ms, ...rest);
+	_live.add(id);
+	return id;
+};
+globalThis.clearTimeout = (id) => { _live.delete(id); return _clearTimeout(id); };
+const timersAlive = () => _live.size;
+
 // Le bouton dont le libellé contient `label`. Les CTA sont rendus « [ X ] ».
 const btn = (label) => dom.root.querySelectorAll('button').find((b) => b.textContent.includes(label));
 const rowOf = (key) => dom.root.querySelector(`[data-bench-key="${key}"]`);
@@ -93,6 +108,38 @@ await ta('mode select : l\'identité est écrite au-dessus du choix', async () =
 	assert.equal(dom.root.querySelector('.bench-operator'), null, 'pas de ligne vide sans opérateur');
 	btn('FIELD').click();
 	await p2;
+});
+
+await ta('mode select : deux colonnes, le RTC à droite des voies', async () => {
+	reset();
+	// Issue #243 : la racine est le SEUL écran qui porte encore un bloc RTC.
+	// Le vérifier ici et pas seulement à l'œil, parce que le premier tick du
+	// flux est différé de plusieurs secondes : un RTC qui n'aurait jamais été
+	// monté passerait inaperçu au banc comme à l'écran pendant tout ce temps.
+	const p = selectOperationMode(dom.root, { last: 'field' });
+	const left = dom.root.querySelector('.terminal-left');
+	const right = dom.root.querySelector('.terminal-right');
+	assert.ok(left, 'la colonne des voies');
+	assert.ok(right, 'la colonne du RTC');
+	// Les voies sont à GAUCHE, le RTC à DROITE : c'est tout le propos de #243.
+	assert.ok(left.querySelector('.bench-mode'), 'les voies sont dans la colonne gauche');
+	assert.equal(right.querySelector('.bench-mode'), null, 'et pas dans celle de droite');
+	assert.ok(right.querySelector('.sc-rtc'), 'le RTC est dans la colonne droite');
+	btn('FIELD').click();
+	assert.equal(await p, 'field');
+});
+
+await ta('mode select : le flux RTC est arrêté quand on choisit', async () => {
+	reset();
+	// Un minuteur qui survit à son écran rejoue un tick sur un nœud détaché à
+	// chaque lancement suivant. `mount()` rend un stop() POUR ça, et pick() doit
+	// l'appeler comme il appelle nav.detach().
+	const before = timersAlive();
+	const p = selectOperationMode(dom.root, { last: 'field' });
+	assert.ok(timersAlive() > before, 'le flux a bien armé un minuteur');
+	btn('FIELD').click();
+	await p;
+	assert.equal(timersAlive(), before, 'et il ne reste rien après le choix');
 });
 
 // ---------------------------------------------------------------------------

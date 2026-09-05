@@ -65,15 +65,11 @@ export function appendRtc(box) {
 	return log;
 }
 
-// Peint un échange dans un <pre> RTC. `null` (le silence que sayOnce rend
-// légitimement) ne fait rien du tout, y compris pas de bloc vide.
-export function paintRtc(log, lines) {
-	if (!log || !lines) return;
-	for (const l of lines) log.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
-	log.scrollTop = log.scrollHeight;
-}
-
 // Un seul échange, sans minuteur : pour les écrans qui parlent une fois.
+// Sans appelant depuis #243 — les deux qu'il avait (la fiche de cible et la
+// sonde du scanner) ont perdu leur RTC. Gardé parce que c'est la moitié « une
+// fois » de l'API du moteur, en face de mount() : le jour où un écran d'attente
+// veut une réplique et pas un flux, il n'y a rien à réécrire.
 export async function sayOnce(event, context) {
 	const pool = await loadShard(event);
 	const mem = hydrateMemory();
@@ -85,44 +81,126 @@ export async function sayOnce(event, context) {
 	catch (e) { console.warn('[dialogue] entrée non rendable, ignorée', e); return null; }
 }
 
-// Flux continu dans un <pre>. Rend un `stop()` — l'appeler est OBLIGATOIRE
-// quand l'écran disparaît, sinon les minuteurs survivent à leur conteneur.
-export function mount(el, { event, context }) {
+// ---------------------------------------------------------------------------
+// LE MOTEUR DE FLUX, UNE SEULE FOIS
+//
+// Minuteur, mémoire, cadence et découpage de l'échange sont ici ; la
+// PRÉSENTATION est le `emit` que l'appelant fournit. C'est ce qui fait que le
+// bloc du terminal et le toast en surimpression (issue #243) tirent exactement
+// le même dialogue, à la même cadence, avec la même anti-répétition — deux
+// copies de cette boucle auraient divergé au premier réglage.
+//
+// `event` accepte un TABLEAU : la racine (SELECT OPERATION MODE) mêle les
+// treize événements câblés, parce qu'elle n'est aucun d'eux et que le corpus
+// n'a plus d'autre écran où être lu. Un événement est tiré par tick, et c'est
+// LUI qui donne la cadence — un flux mêlé ne doit pas parler plus vite que
+// l'écran le plus bavard qu'il contient.
+function runStream({ event, context, emit, alive }) {
 	let stopped = false;
 	const timers = new Set();
 	const later = (fn, ms) => { const id = setTimeout(fn, ms); timers.add(id); return id; };
 	const rng = Math.random;
-
-	const append = (speaker, text) => {
-		if (stopped || !el.isConnected) return;
-		el.appendChild(document.createTextNode(`\n> ${speaker}\n${text}\n`));
-		while (el.childNodes.length > 400) el.removeChild(el.firstChild);
-		el.scrollTop = el.scrollHeight;
-	};
+	const pickEvent = () => (Array.isArray(event)
+		? event[Math.floor(rng() * event.length)]
+		: event);
 
 	const tick = async () => {
 		if (stopped) return;
+		const ev = pickEvent();
 		const ctx = typeof context === 'function' ? context() : context;
-		const pool = await loadShard(event);
+		const pool = await loadShard(ev);
 		if (stopped) return;
 		const mem = hydrateMemory();
-		const r = select({ event, pool, ctx, memory: mem, rng });
+		const r = select({ event: ev, pool, ctx, memory: mem, rng });
 		memory = r.memory;
 		persistMemory();
 		if (r.entry) {
 			let lines = null;
 			try { lines = render(r.entry, ctx); }
 			catch (e) { console.warn('[dialogue] entrée non rendable, ignorée', e); }
-			if (lines) for (const l of planExchange(lines, event, rng)) later(() => append(l.speaker, l.text), l.atMs);
+			if (lines) {
+				const beats = planExchange(lines, ev, rng);
+				// Le toast veut l'échange ENTIER d'un coup (il fabrique une carte),
+				// le <pre> veut ses répliques une par une au rythme du battement.
+				// `emit` reçoit donc les deux : la réplique et son instant.
+				for (const l of beats) later(() => { if (!stopped && alive()) emit(l); }, l.atMs);
+			}
 		}
-		later(tick, nextGapMs(event, rng));
+		later(tick, nextGapMs(ev, rng));
 	};
 
-	later(tick, nextGapMs(event, rng));
+	later(tick, nextGapMs(pickEvent(), rng));
 
 	return () => {
 		stopped = true;
 		for (const id of timers) clearTimeout(id);
 		timers.clear();
 	};
+}
+
+// Flux continu dans un <pre>. Rend un `stop()` — l'appeler est OBLIGATOIRE
+// quand l'écran disparaît, sinon les minuteurs survivent à leur conteneur.
+export function mount(el, { event, context }) {
+	return runStream({
+		event, context,
+		alive: () => el.isConnected,
+		emit: ({ speaker, text }) => {
+			el.appendChild(document.createTextNode(`\n> ${speaker}\n${text}\n`));
+			while (el.childNodes.length > 400) el.removeChild(el.firstChild);
+			el.scrollTop = el.scrollHeight;
+		},
+	});
+}
+
+// ---------------------------------------------------------------------------
+// LE TOAST (issue #243)
+//
+// Même flux, rendu en surimpression au coin bas-droit de `host` au lieu d'un
+// bloc qui pousse la colonne. C'est la SEULE surimpression du jeu — tout le
+// reste vit dans le flux du terminal — et c'est un choix assumé : le rail de
+// gauche du scanner portait deux blocs de log qui grandissaient à côté du
+// formulaire et de la progression.
+//
+// Une carte par réplique, empilée du plus ancien au plus récent, effacée au
+// bout de TOAST_MS. `TOAST_MAX` borne la pile : sur une acquisition longue, un
+// écran de cartes cesserait d'être une notification.
+const TOAST_MS = 6500;
+const TOAST_MAX = 3;
+
+export function notify({ event, context, host }) {
+	if (!host) return () => {};
+	const layer = document.createElement('div');
+	layer.className = 'rtc-toasts';
+	// aria-live off : le crew est décoratif (Bible §10), un lecteur d'écran n'a
+	// pas à réciter une conversation qu'on peut ignorer.
+	layer.setAttribute('aria-hidden', 'true');
+	host.appendChild(layer);
+
+	const drop = (card) => {
+		if (!card.isConnected) return;
+		card.dataset.out = '1';
+		setTimeout(() => card.remove(), 400);
+	};
+
+	const stop = runStream({
+		event, context,
+		alive: () => layer.isConnected,
+		emit: ({ speaker, text }) => {
+			const card = document.createElement('div');
+			card.className = 'rtc-toast';
+			const who = document.createElement('pre');
+			who.className = 'rtc-toast-who';
+			who.textContent = speaker;
+			const what = document.createElement('pre');
+			what.className = 'rtc-toast-text';
+			what.textContent = text;
+			card.appendChild(who);
+			card.appendChild(what);
+			layer.appendChild(card);
+			while (layer.childElementCount > TOAST_MAX) drop(layer.firstElementChild);
+			setTimeout(() => drop(card), TOAST_MS);
+		},
+	});
+
+	return () => { stop(); layer.remove(); };
 }

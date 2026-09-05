@@ -939,6 +939,61 @@ button.terminal-row:focus::before { left: 0; }
 .sc-rtc-block { flex: 0 0 auto; }
 .sc-rtc { max-height: 18vh; color: var(--faint); }
 
+/* ---------------------------------------------------------------------------
+   LE TOAST RTC (issue #243)
+
+   La seule surimpression du jeu. Tout le reste vit dans le flux du terminal, et
+   c'est délibéré ici : pendant le hack et l'acquisition, le crew parlait dans un
+   bloc de log qui GRANDISSAIT sous la grille ou à côté de la progression — il
+   déplaçait ce qu'on était en train de regarder. Un calque ne déplace rien.
+
+   `fixed` et non `absolute`, pour deux raisons mesurées sur les hôtes réels :
+   ni `.scanner-panel` ni `.bootstrap-box` n'est positionné (un enfant absolu
+   serait donc parti se caler sur le viewport de toute façon, mais par accident),
+   et surtout `.scanner-panel` comme `.bootstrap` portent `overflow-y: auto` —
+   un enfant absolu y suit le défilement du CONTENU et serait sorti du cadre
+   visible dès que le log du pipeline s'allonge. L'appartenance du toast à son
+   écran est portée par sa durée de vie (`notify()` rend un `stop()`, et le flux
+   s'arrête si le calque quitte le document), pas par sa place dans le DOM.
+
+   z-index 12 : juste au-dessus de `.bootstrap` (11), qui est l'écran terminal.
+
+   `pointer-events: none` : le crew est décoratif (Bible §10), il ne doit jamais
+   intercepter un clic destiné au formulaire en dessous. */
+.rtc-toasts {
+	position: fixed; right: var(--space-5); bottom: var(--space-5);
+	z-index: 12; pointer-events: none;
+	display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);
+	max-width: min(320px, 60vw);
+}
+.rtc-toast {
+	border: var(--rule-w) solid var(--rule);
+	background: var(--black);
+	padding: var(--space-2) var(--space-3);
+	max-width: 100%;
+	animation: rtc-toast-in .28s ease both;
+}
+/* Sortie pilotée par un attribut et non par un retrait sec : le nœud reste
+   400 ms de plus pour que le fondu ait lieu (voir notify() dans dialogue.js). */
+.rtc-toast[data-out="1"] { animation: rtc-toast-out .4s ease both; }
+.rtc-toast-who {
+	margin: 0; color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui); text-transform: uppercase;
+}
+.rtc-toast-text {
+	margin: 0; color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	white-space: pre-wrap; overflow-wrap: anywhere;
+}
+@keyframes rtc-toast-in  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rtc-toast-out { from { opacity: 1; } to { opacity: 0; } }
+/* Le mouvement est du confort, pas de l'information : qui n'en veut pas garde
+   l'apparition et la disparition, sans le glissement ni la durée. */
+@media (prefers-reduced-motion: reduce) {
+	.rtc-toast, .rtc-toast[data-out="1"] { animation-duration: .01ms; }
+}
+
 @media (max-width: 900px) {
 	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
 	.scanner-panel { border-left: 0; border-top: var(--rule-w) solid var(--rule-strong); }
@@ -1179,7 +1234,33 @@ button.terminal-row:focus::before { left: 0; }
 	letter-spacing: var(--track-ui);
 	margin: 0;
 }
-.bench-modes .terminal-box { gap: var(--space-5); }
+/* La racine en deux colonnes depuis #243 : les voies à gauche, le RTC à droite.
+   Mêmes proportions et même filet que FIELD — c'est la seule autre page du jeu
+   qui partage l'écran en deux, et deux grammaires pour la même idée auraient
+   été une de trop. Le `gap` de la colonne gauche remplace celui de la boîte,
+   qui n'a plus d'enfants directs à espacer. */
+.bench-modes .terminal-box {
+	width: 100%; max-width: none; height: 100vh;
+	display: grid; grid-template-columns: minmax(340px, 42%) 1fr; gap: 0;
+}
+.bench-modes .terminal-left { gap: var(--space-5); justify-content: center; }
+/* La colonne droite porte le bloc RTC, pas une carte : elle a besoin d'un
+   rembourrage que `.terminal-right` de FIELD n'a pas (la carte y est en
+   `inset: 0`). Centré verticalement comme les voies en face. */
+.bench-modes .terminal-right {
+	display: flex; flex-direction: column; justify-content: center;
+	padding: var(--space-5); min-width: 0;
+}
+.bench-modes .terminal-right .sc-rtc { max-height: 46vh; }
+@media (max-width: 1100px) {
+	.bench-modes .terminal-box { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+	.bench-modes .terminal-left { border-right: 0; }
+	/* Empilé, le RTC passe SOUS les voies : la question posée par l'écran garde
+	   le haut, le décor prend ce qui reste. C'est l'inverse de FIELD, où c'est
+	   la carte qui monte — parce qu'ici la colonne droite n'est pas le sujet. */
+	.bench-modes .terminal-right { border-top: var(--rule-w) solid var(--rule-strong); }
+	.bench-modes .terminal-right .sc-rtc { max-height: 22vh; }
+}
 
 /* L'écran de configuration. */
 .bench-config .terminal-box { width: min(860px, 94vw); gap: var(--space-1); }

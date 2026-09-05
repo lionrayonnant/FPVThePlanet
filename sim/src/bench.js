@@ -11,6 +11,8 @@
 
 import { screen, button } from './terminal.js';
 import { menuNav } from './menu-nav.js';
+import { mount, appendRtc } from './dialogue.js';
+import { sessionContext } from './dialogue-context.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import {
 	MODE_SELECT, BENCH_CREED, BENCH_SEAL, LIMITS,
@@ -62,6 +64,17 @@ function saveLastMode(mode) {
 	try { store().setItem(MODE_KEY, mode); } catch { /* pas grave */ }
 }
 
+// Les treize événements câblés, mêlés sur la racine (issue #243). Écrite ici
+// et pas dérivée d'EVENTS : le catalogue déclare aussi huit événements sans
+// corpus ni secours (BOOTSTRAP, SYSTEM, FLIGHT, LINK_*, REVISIT — issue #242),
+// et les tirer ne produirait que du silence. Cette liste dit « ce qui a de quoi
+// parler », ce qui n'est pas la même chose que « ce qui est déclaré ».
+const RTC_EVENTS = [
+	'AREA_SEARCH', 'PROBE_AREA', 'ACQUIRE_AREA', 'TERRAIN_PROGRESS',
+	'TARGET_SCAN', 'TARGET_SELECTED', 'TARGET_ANALYSIS', 'HACK',
+	'MANUAL_OVERRIDE', 'JACK_IN', 'WEATHER', 'CRASH', 'SESSION_COMPLETE',
+];
+
 // ---------------------------------------------------------------------------
 // SELECT OPERATION MODE
 //
@@ -70,6 +83,16 @@ function saveLastMode(mode) {
 
 export function selectOperationMode(root, { last = loadLastMode(), operatorName = null } = {}) {
 	const s = screen(root, 'terminal-home bench-modes');
+	// Deux colonnes (issue #243) : les voies à gauche, le RTC à droite. Même
+	// grammaire que FIELD (`.terminal-left` / `.terminal-right`, filet vertical,
+	// empilement sous 1100 px) — une seconde langue de mise en page pour deux
+	// colonnes de plus n'aurait servi personne.
+	const left = document.createElement('div');
+	left.className = 'terminal-left';
+	const right = document.createElement('div');
+	right.className = 'terminal-right';
+	s.box.appendChild(left);
+	s.box.appendChild(right);
 	// « OPERATOR // NEO » au-dessus du titre (Bible §48) : la racine dit d'abord
 	// qui tu es, puis demande ce que tu vas faire. C'est la même ligne que la
 	// Home — la Home n'est plus la racine, mais l'identité, elle, ne descend pas.
@@ -77,16 +100,27 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 		const who = document.createElement('pre');
 		who.className = 'bench-operator';
 		who.textContent = `OPERATOR // ${String(operatorName).toUpperCase()}`;
-		s.box.appendChild(who);
+		left.appendChild(who);
 	}
 	const title = document.createElement('pre');
 	title.textContent = MODE_SELECT.title;
-	s.box.appendChild(title);
+	left.appendChild(title);
+
+	// Le flux mêlé : la racine n'est aucun événement du catalogue, et depuis
+	// #243 elle est le seul écran qui porte encore un bloc RTC — sans ce mélange
+	// le corpus généré ne serait plus lu nulle part. CRASH et SESSION_COMPLETE
+	// en font partie : #126 leur avait donné POST-FLIGHT et LAST SESSION, qui
+	// n'ont plus de RTC.
+	const stopRtc = mount(appendRtc(right), {
+		event: RTC_EVENTS,
+		context: () => sessionContext({}),
+	});
 
 	return new Promise((resolve) => {
 		let nav = null;
 		const pick = (mode) => {
 			nav?.detach();
+			stopRtc();
 			s.remove();
 			saveLastMode(mode);
 			resolve(mode);
@@ -101,7 +135,7 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 			sub.className = 'bench-mode-sub';
 			sub.textContent = m.lines.join('\n');
 			wrap.appendChild(sub);
-			s.box.appendChild(wrap);
+			left.appendChild(wrap);
 		}
 
 		// Pas de `back` : c'est la racine, il n'y a rien au-dessus.

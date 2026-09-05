@@ -1741,6 +1741,67 @@ contrairement à ce que supposait #193, qui les décrivait comme ouvertes.
 
 ---
 
+## RTC : un bloc sur la racine, des toasts ailleurs (issue #243)
+
+Le RTC était monté sur six surfaces. Il en reste trois, et une seule est un bloc.
+
+| écran | forme | événement |
+|---|---|---|
+| SELECT OPERATION MODE | bloc `RTC // INTERNAL`, colonne droite | flux mêlé des treize câblés |
+| hack | toast, bas-droite | `TARGET_ANALYSIS` |
+| acquisition | toast, bas-droite | `ACQUIRE_AREA` |
+
+Retiré du panneau de recherche du scanner, de la liste et de la fiche de TARGET
+SCAN, de POST-FLIGHT et de LAST SESSION.
+
+**Un moteur, deux rendus.** La boucle de tick de `dialogue.js` (minuteur,
+mémoire, cadence, `planExchange`) est factorisée dans `runStream()` et prend un
+`emit`. `mount()` écrit dans un `<pre>`, `notify()` fabrique un toast. Deux
+copies de cette boucle auraient divergé au premier réglage de cadence.
+
+**`event` accepte un tableau.** La racine n'est aucun événement du catalogue, et
+c'est maintenant le seul écran qui porte un bloc : sans le mélange, 1,35 Mo de
+corpus généré ne serait plus lu nulle part. `RTC_EVENTS` (dans `bench.js`) est
+écrite à la main et **pas** dérivée d'`EVENTS` — le catalogue déclare aussi huit
+événements sans corpus ni secours (#242), et les tirer ne produirait que du
+silence.
+
+**Le toast est la seule surimpression du jeu.** Choix assumé : dans le rail du
+scanner et sous la grille du hack, le RTC était un bloc de log qui grandissait et
+déplaçait ce qu'on regardait. `position: fixed` et non `absolute`, pour une
+raison mesurée : `.scanner-panel` et `.bootstrap` portent `overflow-y: auto`, et
+un enfant absolu y suit le défilement du contenu — il serait sorti du cadre dès
+que le log du pipeline s'allonge. L'appartenance du toast à son écran tient à sa
+durée de vie (`stop()`), pas à sa place dans le DOM.
+
+**Ce que ça change de nature.** Sur la racine, le crew ne commente plus l'écran
+qu'on regarde : il bavarde en fond. La Bible §9 donne le RTC à l'attente, et la
+racine est le seul écran où l'on n'attend rien. C'est le prix du regroupement, il
+est payé sciemment.
+
+### Vérifié — sans navigateur
+
+`node tools/dialogue-render-selftest.mjs` (6, nouveau) : le calque est posé sur
+son hôte, il est `aria-hidden`, `stop()` le retire, aucun minuteur ne survit, et
+un hôte nul est un no-op et pas une exception. `bench-render` (29, +2) : les deux
+colonnes, les voies à gauche et le RTC à droite, et le flux arrêté au choix.
+Les deux nouveaux contrôles de `bench-render` sont vérifiés par mutation (poser
+le RTC à gauche, retirer `stopRtc()` du `pick()` : chacun rougit son contrôle).
+
+### NON vérifié — demande un œil
+
+Un banc headless ne juge pas une surimpression. Restent à voir :
+
+- l'apparition et l'effacement en fondu, et si 6,5 s est la bonne durée ;
+- la pile bornée à trois cartes sur une acquisition longue ;
+- le coin bas-droite : est-ce le bon endroit sur le hack, où la grille occupe
+  déjà le centre ;
+- la racine en deux colonnes à différentes largeurs, et son empilement sous
+  1100 px, où le RTC passe **sous** les voies (l'inverse de FIELD, où c'est la
+  carte qui monte).
+
+---
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
