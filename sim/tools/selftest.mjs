@@ -91,6 +91,18 @@ function check(label, ok, detail) {
 
 const CALM = { speed: 0, gust: 0, turbulence: 0 };
 
+// Repère monde -> repère corps. Rapier rend la vitesse angulaire en MONDE ;
+// séparer roulis, tangage et lacet exige de la ramener dans le corps.
+function unrotateBody(q, x, y, z) {
+	const iq = { x: -q.x, y: -q.y, z: -q.z, w: q.w };
+	const tx = 2 * (iq.y * z - iq.z * y), ty = 2 * (iq.z * x - iq.x * z), tz = 2 * (iq.x * y - iq.y * x);
+	return {
+		x: x + iq.w * tx + (iq.y * tz - iq.z * ty),
+		y: y + iq.w * ty + (iq.z * tx - iq.x * tz),
+		z: z + iq.w * tz + (iq.x * ty - iq.y * tx),
+	};
+}
+
 function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	phys.reset();
 	// Explicit rather than remembered. There is one Physics instance for the
@@ -104,6 +116,7 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	fc.reset();
 	let maxImpact = 0;
 	let peakSpin = 0;
+	let peakOffAxis = 0;
 	// Le taux tenu, moyenné sur le dernier tiers du run plutôt que lu à l'instant
 	// final. Un bouclage qui ondule (MICRO ondule de 16 % au nominal, les 5" de
 	// 0 à 2 %) donne un échantillon instantané qui dépend de l'endroit où l'on
@@ -120,11 +133,19 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 		const a = phys.angularVelocity;
 		const mag = Math.hypot(a.x, a.y, a.z) * 180 / Math.PI;
 		peakSpin = Math.max(peakSpin, mag);
+		// Le pic HORS AXE DE ROULIS, en repère corps. La magnitude totale
+		// ci-dessus ne peut pas voir « le roulis tient mais le tangage part » :
+		// un roulis franc la remplit à lui seul. C'est exactement l'angle mort
+		// qui a laissé passer #144, où le tangage montait à 816 deg/s sous un
+		// roulis correct. Roulis = z du corps, tangage = x, lacet = y.
+		const bq = phys.rotation;
+		const bw = unrotateBody(bq, a.x, a.y, a.z);
+		peakOffAxis = Math.max(peakOffAxis, Math.max(Math.abs(bw.x), Math.abs(bw.y)) * 180 / Math.PI);
 		if (t >= tailFrom) tail.push(mag);
 	}
 	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
 	const heldSpin = tail.length ? tail.reduce((a, b) => a + b, 0) / tail.length : 0;
-	return { p, v, w, peakSpin, heldSpin, battery: phys.battery,
+	return { p, v, w, peakSpin, heldSpin, peakOffAxis, battery: phys.battery,
 		speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
 }
 
@@ -258,6 +279,28 @@ for (const fam of FAMILIES) {
 	check(`[${fam}] reaches the commanded roll rate (${commanded} deg/s)`,
 		roll.heldSpin > commanded * 0.9 && roll.peakSpin < commanded * 1.25,
 		`${roll.heldSpin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
+
+	// ROULIS TENU (issue #144). Le contrôle ci-dessus dure 1,2 s et ne lit que
+	// la magnitude totale : un tangage qui explose sous un roulis correct lui
+	// est doublement invisible. Or le couple de secousse de propwash valait
+	// 0,05 N·m EN DUR, quelle que soit la machine — 40 % de l'autorité d'un
+	// 5 pouces, 596 % de celle d'un toothpick. Tangage et lacet divergeaient
+	// donc à l'échelle micro (pic 816 deg/s à t≈2,75 s), et aucun réglage de
+	// PID ne pouvait rattraper une perturbation six fois supérieure à ce que
+	// les moteurs peuvent opposer.
+	//
+	// Six secondes, parce que l'apparition se compte en secondes ; et le pic
+	// HORS AXE, parce que c'est lui qui part. Le seuil est une fraction du taux
+	// commandé, pas un chiffre plat : une machine qui roule à 1100 deg/s brasse
+	// plus d'air qu'une qui roule à 360.
+	const sustained = simulate({ seconds: 6, at: [0, 300, 300],
+		sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+	check(`[${fam}] un roulis TENU ne fait pas diverger tangage/lacet (#144)`,
+		sustained.peakOffAxis < commanded * 0.25,
+		`hors axe ${sustained.peakOffAxis.toFixed(0)} deg/s pour ${commanded} commandés`);
+	check(`[${fam}] et le roulis lui-même tient sur la durée (#144)`,
+		sustained.peakSpin < commanded * 1.3,
+		`pic ${sustained.peakSpin.toFixed(0)} deg/s`);
 
 	check(`[${fam}] hovers at a plausible stick position`, HOVER > 0.15 && HOVER < 0.62, `${(HOVER * 100).toFixed(0)}% throttle`);
 

@@ -1478,6 +1478,53 @@ OPERATION MODE sans intro, FIELD s'ouvre (clic simulé par script : l'onglet
 piloté ne recevait plus les clics de l'extension), aucune erreur. Non vérifié
 à l'oreille : la musique de menu au premier clic après rechargement.
 
+## Roulis tenu : la secousse de propwash n'était pas à l'échelle (issue #144)
+
+Un roulis plein manche tenu faisait diverger tangage et lacet à l'échelle
+MICRO — pic mesuré à 816 °/s sous un roulis pourtant correct, apparition vers
+2,75 s. Le selftest ne pouvait pas le voir : son contrôle de roulis dure 1,2 s
+et ne lit que la MAGNITUDE totale, que le roulis remplit à lui seul.
+
+Ce n'était pas de la dynamique de corps rigide, contrairement à ce que l'issue
+supposait. Un banc découplé (attitude figée comme dans `tune-pid`, puis
+attitude intégrée) ne diverge dans AUCUN des deux cas : un roulis pur annule
+`w × Iw`, et pour ce jeu d'inerties le roulis se fait autour de l'axe de plus
+petite inertie, donc gyroscopiquement stable. La divergence n'apparaît qu'avec
+la vraie physique, et elle est déclenchée par la descente.
+
+La cause : dans `quad.js`, le couple de secousse de propwash valait `propwash ×
+0,05` N·m — une constante ABSOLUE, identique pour toutes les machines. Rapporté
+à ce que les moteurs peuvent opposer (poussée × bras), ça fait 40 % de
+l'autorité d'un 5 pouces et **596 %** de celle d'un toothpick. En accélération
+parasite : 895 °/s² sur freestyle5, **50 300 °/s²** sur toothpick. Aucun réglage
+de PID ne rattrape une perturbation six fois supérieure à l'autorité — ce qui
+explique pourquoi le balayage P/D/I/F de l'issue n'avait rien donné.
+
+Le correctif est celui que le terme de buffet, juste en dessous dans le même
+fichier, appliquait déjà : l'amplitude n'est pas une constante de goût. La
+turbulence déplace une FRACTION de la poussée réellement produite, et ça agit
+sur le bras. La fraction (0,402) est calibrée pour rendre exactement les
+0,05 N·m historiques sur freestyle5 au vol stationnaire, donc le ressenti de
+référence est conservé au centième — seule l'échelle entre familles change.
+
+Mesuré après correctif, roulis tenu 6 s, pic hors axe : toothpick 816 → 35 °/s,
+et les cinq autres familles inchangées (18-38 → 20-29 °/s). Le banc `npm run
+tune` rend exactement le même verdict avant et après (2 combinaisons hors
+cible) : il n'y a pas de descente sur ce banc, donc pas de propwash, donc aucun
+PID à re-mesurer.
+
+Deux contrôles ajoutés à `tools/selftest.mjs`, sur 6 s et sur le pic HORS AXE
+en repère corps — les deux angles morts qui avaient laissé passer le défaut.
+
+Conséquence pour #71 : les douze exemplaires MICRO tirés à variation PLEINE
+passent désormais le contrôle de roulis (tenu 418-419 pour 420 commandés, pic
+101-102 %) sans divergence sur 6 s. `FAMILY_VARIATION.toothpick = 0` n'est plus
+justifié par ce défaut-là et peut être rouvert. Un profil ~34 g, lui, échoue
+encore — mais pour une autre raison, lisible : il TIENT 492 °/s pour 420
+commandés, c'est-à-dire un tune trop nerveux pour cette masse, pas une
+divergence. C'est bien un re-mesurage de tune qu'il lui faut, ce que #71 disait
+déjà.
+
 ## Les primitives demo scene sont partagées rituel + intro (issue #124)
 
 Règle amendée, et c'est la règle qui bouge — pas le test. L'acceptation de la

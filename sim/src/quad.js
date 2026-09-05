@@ -127,6 +127,13 @@ export function kBuffetOf(profile = QUAD) {
 	return BUFFET_K0 * base * (profile.buffetGain ?? 1);
 }
 
+// Fraction de la poussée d'un rotor que la turbulence de propwash déplace, à
+// propwash plein. Calibrée sur le comportement historique : 0,05 N·m sur
+// freestyle5 au vol stationnaire (poussée 1,594 N par moteur, bras 0,078 m)
+// donne 0,05 / (1,594 × 0,078) = 0,402. Voir l'usage dans step() pour ce que
+// cette mise à l'échelle corrige (issue #144).
+export const PROPWASH_TORQUE_FRAC = 0.402;
+
 export function kLateralOf(profile = QUAD) {
 	return LATERAL_K0 * diskAreaOf(profile) * (profile.lateralGain ?? 1);
 }
@@ -376,7 +383,25 @@ export class Propulsion {
 			// Turbulent thrust across the disc is uneven, so the airframe gets
 			// shaken about all three axes. 15 Hz-ish, which is where propwash
 			// oscillation actually sits on video.
-			const s = this.propwash * 0.05;
+			//
+			// L'amplitude n'est PAS une constante de goût — même règle que le
+			// buffet juste en dessous, et pour la même raison. Elle valait 0,05
+			// N·m en dur, quelle que soit la machine (issue #144). Rapporté à ce
+			// que les moteurs peuvent produire (poussée × bras), ça fait 40 % de
+			// l'autorité d'un 5 pouces… et 596 % de celle d'un toothpick. Le
+			// couple de perturbation dépassait donc SIX FOIS ce que la machine
+			// pouvait opposer : aucun réglage de PID ne rattrape ça, et c'est ce
+			// qui faisait diverger tangage et lacet sous un roulis tenu, à
+			// l'échelle micro seulement. Mesuré : 895 °/s² d'accélération
+			// parasite sur freestyle5, 50 300 °/s² sur toothpick.
+			//
+			// La turbulence perturbe une FRACTION de la poussée réellement
+			// produite, et cette perturbation agit sur le bras : le couple est
+			// donc ce produit-là. La fraction est calibrée pour rendre exactement
+			// les 0,05 N·m historiques sur freestyle5 au vol stationnaire — le
+			// ressenti de référence est conservé au centième, seule l'échelle
+			// entre familles change.
+			const s = this.propwash * PROPWASH_TORQUE_FRAC * (thrustTotal / 4) * P.armZ;
 			tx += this._wash[0].next(dt) * s;
 			ty += this._wash[1].next(dt) * s * 0.5;
 			tz += this._wash[2].next(dt) * s;
