@@ -356,20 +356,21 @@ t('hud : survit à un aller-retour disque', () => {
 
 // --- ce que la ligne de vol annonce (#217, #206) ----------------------------
 
-t('flightLabel : un vol qui n\'ouvre pas de session ne dit pas SESSION', () => {
+t('flightLabel : la ligne dit sur quoi on vole, pas ce qu\'on croit', () => {
 	// Le banc n'ouvre rien et ne compte rien — « NOTHING HERE IS LOGGED ».
 	assert.equal(flightLabel({ bench: true, sessionSeconds: 34 }), 'BENCH');
-	// Une reconnaissance n'écrit rien non plus (#206), mais le temps de vol se
-	// lit quand même : écrire SESSION serait un mensonge du HUD.
-	assert.equal(flightLabel({ recon: true, sessionSeconds: 34 }), 'RECON 00:34');
-	// Le vol de terrain est le seul qui laisse une trace.
+	// Terrain streamé (#218) : c'est une session comme une autre, mais le
+	// terrain n'est pas sur le disque — pas de clôture, le relief arrive en
+	// vol. La ligne le signale.
+	assert.equal(flightLabel({ live: true, sessionSeconds: 34 }), 'LIVE 00:34');
+	// Zone acquise.
 	assert.equal(flightLabel({ sessionSeconds: 34 }), 'SESSION 00:34');
 });
 
 t('flightLabel : le banc l\'emporte, et l\'absence de durée ne casse rien', () => {
-	assert.equal(flightLabel({ bench: true, recon: true }), 'BENCH');
+	assert.equal(flightLabel({ bench: true, live: true }), 'BENCH');
 	assert.equal(flightLabel({}), 'SESSION 00:00');
-	assert.equal(flightLabel({ recon: true, sessionSeconds: null }), 'RECON 00:00');
+	assert.equal(flightLabel({ live: true, sessionSeconds: null }), 'LIVE 00:00');
 });
 
 console.log(`\n${n} tests bench OK`);

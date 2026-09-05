@@ -251,6 +251,21 @@ export function coverageLine({ plan, probe, provider }) {
 	return { status: 'unprobed', label: 'UNPROBED', detail: `${who} only serves photogrammetry over part of the world. Probe before acquiring.` };
 }
 
+// ---------------------------------------------------------------- ligne du rail
+//
+// Le rail de FIELD ne montre plus le tableau AREA ANALYSIS ni le bloc COVERAGE
+// (#222) : une seule ligne sous [ ACQUIRE AREA ] dit ce qu'on va extraire et ce
+// que la source en pense. « 1 240 TILES · 310 MB · UNPROBED » — trois choses,
+// séparées par des points médians, et la couleur du verdict porte le statut.
+// `describe` vient de /__map-api/describe, le reste comme coverageLine().
+export function railLine({ describe, plan, probe, provider }) {
+	const v = coverageLine({ plan, probe, provider });
+	const a = areaAnalysis(describe);
+	const parts = a ? [`${a.columns} TILES`, a.data.toUpperCase()] : [];
+	parts.push(v.label);
+	return { status: v.status, text: parts.join(' · '), detail: v.detail ?? '' };
+}
+
 // La part de la zone scannée que la région Flyover déclare NE PAS couvrir.
 // Emprise de région = rectangle en coordonnées de tuiles (cf. printPlan dans
 // cmd/export-obj/main.go), donc l'élagage est une intersection de rectangles :

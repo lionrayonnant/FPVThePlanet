@@ -1,6 +1,8 @@
 // Sticks are normalised to { throttle 0..1, roll/pitch/yaw -1..1 }
 // regardless of whether they came from a radio or the keyboard.
 
+import { isTextEntry } from './menu-nav.js';
+
 const STORAGE_KEY = 'fpvmaps.gamepadMap';
 const DEADBAND = 0.06;
 const GAMEPAD_MOVE_THRESHOLD = 0.15;
@@ -185,6 +187,11 @@ export class Input {
 
 			const k = e.key.toLowerCase();
 
+			// Un champ de saisie garde ses touches (#222) : Espace y est un
+			// espace, pas une pause — main.js fait preventDefault sur l'action.
+			// Même règle que menu-nav. Échap passe quand même : il n'édite rien.
+			if (isTextEntry(e.target) && k !== 'escape') return;
+
 			this.keys.add(k);
 
 			// `j` : équivalent clavier du geste de désarmement Betaflight.
@@ -211,10 +218,9 @@ export class Input {
 				this.onAction(k, e);
 			}
 
-			if (
-				k === ' ' ||
-				k.startsWith('arrow')
-			) {
+			// Espace et les flèches sont des commandes de vol : on empêche le
+			// défilement de la page.
+			if (k === ' ' || k.startsWith('arrow')) {
 				e.preventDefault();
 			}
 		});

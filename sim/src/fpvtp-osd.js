@@ -21,13 +21,15 @@ const clock = (s) => {
 // session ne doit pas écrire SESSION — le HUD mentirait sur ce que le vol est en
 // train de faire.
 //
-//   BENCH  — le banc : pas de session, et pas de temps à compter non plus.
-//   RECON  — une reconnaissance FIELD (#206) : rien n'est écrit, mais le temps
-//            de vol se lit quand même.
-//   SESSION — un vol de terrain, le seul qui laisse une trace.
-export function flightLabel({ bench = false, recon = false, sessionSeconds = 0 } = {}) {
+//   BENCH   — le banc : pas de session, et pas de temps à compter non plus.
+//   LIVE    — terrain streamé (#218). Le vol est une session comme une autre —
+//             cible, exemplaire, hack, rituel, trace au journal — mais le
+//             terrain n'est PAS sur le disque : pas de clôture, et le relief
+//             arrive pendant qu'on vole. C'est ce que la ligne signale.
+//   SESSION — un vol de terrain sur une zone acquise.
+export function flightLabel({ bench = false, live = false, sessionSeconds = 0 } = {}) {
 	if (bench) return 'BENCH';
-	return `${recon ? 'RECON' : 'SESSION'} ${clock(sessionSeconds ?? 0)}`;
+	return `${live ? 'LIVE' : 'SESSION'} ${clock(sessionSeconds ?? 0)}`;
 }
 
 export class FpvtpOsd {
@@ -217,7 +219,7 @@ export class FpvtpOsd {
 	get fps() { return this._fps; }
 
 	update({ mode, rates, usingGamepad, windMs, windRelRad, visibilityM,
-	         rssiDbm, operator, sessionSeconds, propwash, bench = false, recon = false }) {
+	         rssiDbm, operator, sessionSeconds, propwash, bench = false, live = false }) {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
@@ -230,7 +232,7 @@ export class FpvtpOsd {
 		// donc écrire SESSION serait un mensonge du HUD sur ce que le vol est en
 		// train de faire. Elle garde son chronomètre : le temps de vol se lit,
 		// même quand il ne s'enregistre nulle part.
-		this.el.session.textContent = flightLabel({ bench, recon, sessionSeconds });
+		this.el.session.textContent = flightLabel({ bench, live, sessionSeconds });
 
 		// Une seule ligne d'environnement : trois nombres que l'opérateur lit
 		// d'un coup, pas trois blocs qui se disputent un coin.

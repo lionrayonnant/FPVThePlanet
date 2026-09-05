@@ -18,6 +18,10 @@ const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 // liste — c'est justement ce qu'on est en train de sortir de la Home.
 const COMPACT_AREAS = 5;
 
+// L'onglet de FIELD où l'on était, pour la session : LOCAL (voler ou acquérir
+// une zone cuite) ou LIVE (décoller en direct depuis une épingle) (#222).
+let lastTab = 'local';
+
 export function screen(root, cls = '') {
 	const el = document.createElement('div');
 	el.className = `bootstrap terminal ${cls}`.trim();
@@ -547,9 +551,13 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	// Home : c'est lui qui possède la carte, et la carte ne se démonte jamais
 	// entre l'état de repos et l'état de travail (#211).
 	let scanner = null;
-	// Vrai dès qu'une zone est tracée sur la carte. C'est le seul basculement de
-	// l'écran : la colonne gauche passe du menu au rail du scanner.
+	// Vrai dès qu'une zone est tracée sur la carte. C'est le basculement de
+	// l'onglet LOCAL : le corps de la colonne gauche passe de la liste au rail
+	// du scanner.
 	let drawing = false;
+	// LOCAL ou LIVE (#222). Les deux onglets partagent la tête, la recherche et
+	// le pied ; seul le corps change.
+	let tab = lastTab;
 
 	// --- les deux colonnes, créées UNE fois
 	//
@@ -566,7 +574,13 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	const mapHost = document.createElement('div');
 	mapHost.className = 'terminal-map';
 	right.appendChild(mapHost);
+	// Les trois hôtes du scanner, créés une fois : la recherche au-dessus des
+	// onglets, le rail LOCAL au travail, l'onglet LIVE. Le scanner les remplit,
+	// la Home les place.
+	const searchHost = document.createElement('div');
+	searchHost.className = 'terminal-search';
 	const rail = document.createElement('aside');
+	const liveRail = document.createElement('aside');
 	s.box.append(left, right);
 
 	const renderLeft = () => {
@@ -585,90 +599,109 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 
 		left.replaceChildren();
 
-		// État de TRAVAIL : une zone est tracée, la colonne gauche devient le rail
-		// du scanner. La carte, elle, n'a pas bougé d'un pixel — c'est tout
-		// l'intérêt de l'écran.
-		if (drawing) {
-			left.appendChild(rail);
-			nav?.focusAt(0);
-			return;
-		}
-
 		const head = document.createElement('pre');
 		head.textContent = `FPVTP! // 0.97b\nOPERATOR // ${model.operatorName}`;
 		left.appendChild(head);
 
-		// --- la seule chose qui décolle
-		//
-		// [ GLOBAL SCANNER ] a disparu : il n'y a plus d'ailleurs où aller, le
-		// scanner est la colonne de droite.
-		const acts = document.createElement('div');
-		acts.className = 'terminal-acts';
-		if (flyArea) {
-			acts.appendChild(button(`FLY — ${flyArea.name.toUpperCase()}`, () => fly(flyArea.slug), 'terminal-cta'));
-		}
-		// Tracer n'est pas voler, mais il faut bien pouvoir commencer : au repos
-		// le rail est caché, donc DRAW BOX avec lui. Ce bouton arme l'outil et
-		// fait basculer l'écran au travail — la recherche, la sonde et
-		// l'acquisition arrivent alors avec le rail, là où elles ont toujours été.
-		if (scanner) {
-			acts.appendChild(button('DRAW AN AREA', () => {
-				drawing = true;
-				renderLeft();
-				scanner.startDraw('Rectangle');
-			}, 'terminal-cta terminal-scanner-cta'));
-		}
-		left.appendChild(acts);
+		// La recherche est commune aux deux onglets : elle ne fait que déplacer
+		// la carte. Son hôte reste vide tant que le scanner n'est pas monté.
+		left.appendChild(searchHost);
 
-		// --- le cache terrain
+		// --- les onglets (#222)
 		//
-		// La liste SÉLECTIONNE, elle ne fait pas voler : cliquer une zone recadre
-		// la carte et réétiquette le CTA. [ FLY ] reste la seule chose qui
-		// décolle — deux façons de partir, ce serait deux axes sur un écran qui
-		// n'en veut qu'un.
-		if (areas.length) {
-			const h = document.createElement('pre');
-			h.className = 'terminal-sub';
-			h.textContent = 'LOCAL TERRAIN';
-			left.appendChild(h);
+		// LOCAL : ce qui est sur le disque, et comment y ajouter une zone.
+		// LIVE : une épingle et un décollage en direct. Deux façons de voler,
+		// une seule carte.
+		const tabs = document.createElement('div');
+		tabs.className = 'terminal-tabs';
+		for (const [id, label] of [['local', 'LOCAL'], ['live', 'LIVE']]) {
+			const b = button(label, () => setTab(id), 'terminal-tab');
+			b.dataset.on = String(tab === id);
+			tabs.appendChild(b);
+		}
+		left.appendChild(tabs);
 
-			const list = document.createElement('div');
-			list.className = 'terminal-areas terminal-areas-compact';
-			for (const sc of areas.slice(0, COMPACT_AREAS)) {
-				const row = areaRow(sc, { onActivate: (picked) => pickArea(picked.slug) });
-				if (sc.slug === selected) row.dataset.selected = '1';
-				list.appendChild(row);
-			}
-			left.appendChild(list);
+		if (tab === 'live') {
+			left.appendChild(liveRail);
+		} else if (drawing) {
+			// État de TRAVAIL : une zone est tracée, le corps devient le rail du
+			// scanner. La carte, elle, n'a pas bougé d'un pixel — c'est tout
+			// l'intérêt de l'écran.
+			left.appendChild(rail);
 		} else {
-			const none = document.createElement('pre');
-			none.className = 'terminal-sub';
-			none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
-			left.appendChild(none);
-		}
+			// --- la seule chose qui décolle
+			const acts = document.createElement('div');
+			acts.className = 'terminal-acts';
+			if (flyArea) {
+				acts.appendChild(button(`FLY — ${flyArea.name.toUpperCase()}`, () => fly(flyArea.slug), 'terminal-cta'));
+			}
+			left.appendChild(acts);
 
-		// MORE… n'apparaît que s'il y a réellement plus à voir, ou de quoi
-		// chercher/trier/supprimer — c'est l'écran complet, inchangé.
-		const tail = [];
-		if (areas.length) tail.push(['MORE…', async () => {
-			s.el.hidden = true;
-			const slug = await localTerrain(root, scenes);
-			if (slug) return fly(slug);
-			scenes = await fetchScenes();
-			scanner?.setAreaFrames(Array.isArray(scenes) ? scenes : []);
-			s.el.hidden = false;
-			renderLeft();
-		}]);
-		tail.push(['ARCHIVE', async () => {
-			s.el.hidden = true;
-			const r = await archiveScreen(root, { model, api, scenes, settings });
-			if (typeof r === 'string') return fly(r);
-			if (r) return fly(r.slug, r.resume);
-			s.el.hidden = false;
-			// Une suppression a pu changer les compteurs du pied.
-			renderLeft();
-		}]);
-		left.appendChild(navRow(tail));
+			// --- le cache terrain
+			//
+			// La liste SÉLECTIONNE, elle ne fait pas voler : cliquer une zone
+			// recadre la carte et réétiquette le CTA. [ FLY ] reste la seule chose
+			// qui décolle — deux façons de partir, ce serait deux axes sur un
+			// écran qui n'en veut qu'un.
+			if (areas.length) {
+				const h = document.createElement('pre');
+				h.className = 'terminal-sub';
+				h.textContent = 'LOCAL TERRAIN';
+				left.appendChild(h);
+
+				const list = document.createElement('div');
+				list.className = 'terminal-areas terminal-areas-compact';
+				for (const sc of areas.slice(0, COMPACT_AREAS)) {
+					const row = areaRow(sc, { onActivate: (picked) => pickArea(picked.slug) });
+					if (sc.slug === selected) row.dataset.selected = '1';
+					list.appendChild(row);
+				}
+				left.appendChild(list);
+			} else {
+				const none = document.createElement('pre');
+				none.className = 'terminal-sub';
+				none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
+				left.appendChild(none);
+			}
+
+			// ALL TERRAIN… n'apparaît que s'il y a réellement de quoi chercher,
+			// trier ou supprimer — c'est l'écran complet, inchangé.
+			const tail = [];
+			if (areas.length) tail.push(['ALL TERRAIN…', async () => {
+				s.el.hidden = true;
+				const slug = await localTerrain(root, scenes);
+				if (slug) return fly(slug);
+				scenes = await fetchScenes();
+				scanner?.setAreaFrames(Array.isArray(scenes) ? scenes : []);
+				s.el.hidden = false;
+				renderLeft();
+			}]);
+			tail.push(['ARCHIVE', async () => {
+				s.el.hidden = true;
+				const r = await archiveScreen(root, { model, api, scenes, settings });
+				if (typeof r === 'string') return fly(r);
+				if (r) return fly(r.slug, r.resume);
+				s.el.hidden = false;
+				// Une suppression a pu changer les compteurs du pied.
+				renderLeft();
+			}]);
+			left.appendChild(navRow(tail));
+
+			// Tracer n'est pas voler, mais il faut bien pouvoir commencer : au
+			// repos le rail est caché, donc les deux tracés avec lui. Un clic
+			// arme l'outil et met l'écran au travail — la source, le nom et
+			// l'acquisition arrivent alors avec le rail.
+			if (scanner) {
+				const draw = (shape) => () => { drawing = true; renderLeft(); scanner.startDraw(shape); };
+				const row = document.createElement('div');
+				row.className = 'terminal-acts';
+				row.append(
+					button('DRAW BOX', draw('Rectangle'), 'terminal-cta terminal-scanner-cta'),
+					button('DRAW SHAPE', draw('Polygon'), 'terminal-cta terminal-scanner-cta'),
+				);
+				left.appendChild(row);
+			}
+		}
 
 		// --- le pied : ce qui n'est ni un lieu ni une action de vol
 		left.appendChild(navRow([
@@ -680,7 +713,18 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
 		left.appendChild(foot);
-		nav?.focusAt(0);
+		// « Une seule touche pour voler » (issue #123) : le curseur se pose sur
+		// [ FLY ], pas sur la recherche ni sur un onglet, qui le précèdent
+		// désormais dans la colonne (#222).
+		const cta = [...left.querySelectorAll('button')].find((b) => b.textContent.startsWith('[ FLY'));
+		if (cta) cta.focus(); else nav?.focusAt(0);
+	};
+
+	const setTab = (id) => {
+		if (tab === id) return;
+		tab = lastTab = id;
+		scanner?.setMode(id);
+		renderLeft();
 	};
 
 	// Sélectionner une zone recadre la carte et réétiquette [ FLY ]. On ne
@@ -690,6 +734,8 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		selected = slug;
 		const sc = (Array.isArray(scenes) ? scenes : []).find((a) => a.slug === slug);
 		if (sc) scanner?.focusBounds(previewBounds(sc));
+		// Un cadre cliqué sur la carte est une sélection LOCAL, même depuis LIVE.
+		if (tab !== 'local') { tab = lastTab = 'local'; scanner?.setMode('local'); }
 		renderLeft();
 	};
 
@@ -699,16 +745,29 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	// cartes vivantes derrière elle.
 	const quit = (value) => { scanner?.destroy(); scanner = null; nav?.detach(); s.remove(); resolveFly(value); };
 	const fly = (slug, resume) => quit({ slug, resume });
-	// Vol en direct : pas de slug, rien sur le disque. La Home ne fait que
-	// transmettre — c'est fieldLoop() qui sait ce qu'un vol sans zone veut dire.
-	const flyLive = (coords) => quit({ live: coords });
+	// Vol en direct. La Home ne fait que TRANSMETTRE, sans rien lire ni rien
+	// décider : le scanner joint au point le relevé qu'il vient de faire de la
+	// zone (densité de signal, nom du lieu), et c'est fieldLoop() qui sait ce
+	// qu'un vol en direct veut dire.
+	const flyLive = (live) => quit(live);
 	// Remonter d'un cran : SELECT OPERATION MODE. Depuis PHASE 26 la Home n'est
 	// plus la racine — mais elle l'est encore pour ?scene=, qui saute le choix
 	// de mode, d'où le drapeau plutôt qu'un `back` inconditionnel.
 	const leave = () => quit(null);
 
 	renderLeft();
-	nav = menuNav(s.el, back ? { back: leave } : {});
+	// Échap / B : au travail, repose l'outil (le rail n'a plus de nav à lui,
+	// #222) ; au repos, remonte au choix de mode si l'on peut.
+	nav = menuNav(s.el, {
+		// renderLeft() a déjà posé le curseur sur [ FLY ] ; focusFirst le
+		// déplacerait sur l'onglet LOCAL.
+		focusFirst: false,
+		back: () => {
+			if (scanner?.busy()) return;
+			if (drawing && tab === 'local') return scanner?.rest();
+			if (back) leave();
+		},
+	});
 
 	// Le scanner est monté après le premier rendu : la Home doit tenir même s'il
 	// ne vient pas (hors ligne, chunk absent). Sans lui, la colonne de droite
@@ -719,23 +778,28 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			if (!mapHost.isConnected) return;
 			scanner = runScanner({
 				mapHost,
+				searchHost,
 				railHost: rail,
+				liveHost: liveRail,
 				// Une zone tracée met l'écran au travail ; l'effacer ne l'en sort
 				// PAS — on peut vouloir redessiner. C'est BACK qui repose l'outil.
 				onZone: (zone) => { if (zone) { drawing = true; renderLeft(); } },
 				onPickArea: pickArea,
 				onRest: () => { drawing = false; renderLeft(); },
+				// Une acquisition reprise au montage : le rail doit se voir.
+				onBusy: () => { drawing = true; tab = lastTab = 'local'; renderLeft(); },
 			});
+			scanner.setMode(tab);
 			scanner.setAreaFrames(Array.isArray(scenes) ? scenes : []);
 			// Le scanner arrive après le premier rendu : la colonne gauche doit
-			// être refaite pour montrer [ DRAW AN AREA ], qui n'a de sens qu'avec
-			// lui.
+			// être refaite pour montrer DRAW BOX / DRAW SHAPE, qui n'ont de sens
+			// qu'avec lui.
 			renderLeft();
 			// Une zone cuite se vole par son slug ; un décollage en direct remonte
 			// tel quel jusqu'à fieldLoop(), qui sait le faire traverser bootLive().
 			scanner.done.then((choice) => {
 				if (choice?.slug) return fly(choice.slug);
-				if (choice?.live) return flyLive(choice.live);
+				if (choice?.live) return flyLive(choice);
 			});
 		})
 		.catch(() => {

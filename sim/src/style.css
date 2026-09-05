@@ -450,10 +450,30 @@ button:focus::before {
    n'a rien à faire défiler. Le filet passe à droite : le rail est à GAUCHE de
    l'écran maintenant, un filet à gauche le décollerait du bord. */
 .terminal-left > .scanner-panel {
-	margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) calc(var(--space-4) * -1);
-	flex: 1 1 auto; min-height: 0;
-	border-left: 0; border-right: var(--rule-w) solid var(--rule-strong);
+	margin: 0; padding: 0; border: 0;
+	flex: 0 0 auto; min-height: 0; overflow: visible;
 }
+/* La recherche, au-dessus des onglets : commune aux deux (#222). Ses règles
+   d'input sont celles du rail, pour que le champ AREA NAME et la recherche se
+   reconnaissent. */
+.terminal-search { display: flex; flex-direction: column; gap: 11px; }
+.terminal-search:empty { display: none; }
+/* Les onglets LOCAL · LIVE (#222) : deux mots sur un filet, l'actif en vidéo
+   inverse — le même signe d'état que les commutateurs du scanner. */
+.terminal-tabs {
+	display: flex; gap: var(--space-3);
+	border-bottom: var(--rule-w) solid var(--rule); padding-bottom: var(--space-2);
+}
+/* `.bootstrap button` encadre tout bouton : l'onglet est un mot, pas un
+   cadre — même spécificité, donc `.bootstrap` dans le sélecteur. */
+.bootstrap button.terminal-tab {
+	background: none; border: 0; padding: 2px var(--space-2);
+	color: var(--light-grey); font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); text-transform: uppercase; cursor: pointer;
+}
+.bootstrap button.terminal-tab[data-on="true"] { background: var(--warm-white); color: var(--black); }
+.bootstrap button.terminal-tab:hover { background: none; color: var(--ink); }
+.bootstrap button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
 .terminal-right { position: relative; min-width: 0; }
 .terminal-map { position: absolute; inset: 0; }
 /* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la
@@ -486,7 +506,10 @@ button:focus::before {
 }
 /* La liste compacte sélectionne, elle ne fait pas voler : pas de défilement, pas
    de recherche, pas d'actions — tout ça vit dans MORE…. */
-.terminal-areas-compact { max-height: none; overflow: visible; gap: 0; }
+/* `flex: none` : la colonne gauche est une flex column à défilement, et dès
+   que la recherche déroule ses résultats la liste se faisait écraser à zéro
+   pixel — LOCAL TERRAIN titrait une liste vide. */
+.terminal-areas-compact { max-height: none; overflow: visible; gap: 0; flex: none; }
 /* La zone que la carte cadre et que [ FLY ] volera. Un filet à gauche plutôt
    qu'un aplat : le blanc plein est réservé au curseur. */
 .terminal-areas-compact button.terminal-area[data-selected] {
@@ -708,13 +731,14 @@ button.terminal-row:focus::before { left: 0; }
 .sc-hint { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); color: var(--faint); }
 .sc-row { display: flex; gap: 11px; align-items: stretch; }
 
-.scanner input {
+.scanner-panel input, .scanner-search input {
 	flex: 1; min-width: 0;
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
 	padding: 10px 13px; font: inherit; letter-spacing: .12em;
 }
-.scanner input:focus { outline: none; border-color: var(--warm-white); }
+.scanner-panel input:focus, .scanner-search input:focus { outline: none; border-color: var(--warm-white); }
+.scanner-search { font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
 
 .sc-btn, .sc-cta {
 	align-self: flex-start;
@@ -778,6 +802,23 @@ button.terminal-row:focus::before { left: 0; }
 .sc-switch button:hover { color: var(--ink); }
 
 .sc-foot { margin-top: auto; gap: var(--space-2); border-top: var(--rule-w) solid var(--rule); padding-top: var(--space-3); }
+
+/* Les couches et le détail SUR la carte (#222) : un contrôle Leaflet en haut à
+   gauche, sur le même scrim que l'attribution. Les deux rangées s'empilent ;
+   la seconde se retire en LIVE. */
+.map-mono .sc-map-controls {
+	display: flex; flex-direction: column; gap: var(--space-1);
+	margin: var(--space-3); padding: var(--space-1) var(--space-2);
+	background: var(--scrim);
+	font-family: var(--font-ui); font-weight: 500;
+}
+.map-mono .sc-map-controls .sc-switch { display: flex; gap: 0; align-items: baseline; white-space: nowrap; }
+.map-mono .sc-map-controls .sc-switch[hidden] { display: none; }
+
+/* L'épingle de LIVE : la même encre que les repères du cache, mais elle se
+   saisit — le curseur le dit. */
+.sc-pin-live { cursor: grab; }
+.sc-pin-place { margin: 0; letter-spacing: var(--track-ui); text-transform: uppercase; }
 
 .sc-bar { height: 3px; background: var(--rule); overflow: hidden; }
 .sc-bar i { display: block; height: 100%; width: 0; background: var(--warm-white); transition: width .3s linear; }

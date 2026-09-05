@@ -150,7 +150,7 @@ await ta('home : sans terrain, la carte reste l\'entrée', async () => {
 	assert.equal(btn('FLY —'), undefined, 'rien à voler');
 	assert.ok(dom.root.querySelector('.terminal-map'), "la carte est là, c'est par elle qu'on part");
 	assert.ok(text().includes('NO LOCAL TERRAIN'), 'et la colonne gauche le dit');
-	assert.equal(btn('MORE…'), undefined, 'pas de MORE… sur une liste vide');
+	assert.equal(btn('ALL TERRAIN…'), undefined, 'pas de ALL TERRAIN… sur une liste vide');
 	await close(p);
 });
 
