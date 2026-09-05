@@ -5,6 +5,7 @@ import {
 	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands, sourceChoices, chosenSource,
 	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
 	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline, zoneCentre, polygonProbePoint,
+	acquireStep,
 } from './scanner-model.mjs';
 import { slugify as coreSlugify, parsePrepLine } from './lib/add-map-core.mjs';
 import { tileGrid as estimatesTileGrid, estimateCost } from './lib/estimates.mjs';
@@ -430,6 +431,71 @@ t('zoneCentre : sur un tracé, le point de la sonde et non le milieu', () => {
 t('zoneCentre : pas de zone, pas de point inventé', () => {
 	assert.equal(zoneCentre(null, 20), null);
 	assert.equal(zoneCentre({}, 20), null);
+});
+
+// --- acquireStep : un seul bouton pour sonder et acquérir ------------------
+
+const SRC = { id: 'flyover', label: 'APPLE FLYOVER' };
+const ZONE = { bbox: { south: 48.84, west: 2.33, north: 48.86, east: 2.35 } };
+
+t('acquireStep : sans zone, le bouton est fermé et dit ce qui manque', () => {
+	const s = acquireStep({ zone: null, source: SRC, name: 'paris' });
+	assert.equal(s.disabled, true);
+	assert.equal(s.action, null);
+	assert.match(s.why, /AREA/);
+});
+
+t('acquireStep : sans source, fermé — la source est désignée, jamais devinée', () => {
+	const s = acquireStep({ zone: ZONE, source: null, name: 'paris' });
+	assert.equal(s.disabled, true);
+	assert.match(s.why, /SOURCE/);
+});
+
+t('acquireStep : sans nom, fermé — acquérir écrit sur le disque', () => {
+	const s = acquireStep({ zone: ZONE, source: SRC, name: '   ' });
+	assert.equal(s.disabled, true);
+	assert.match(s.why, /DESIGNATION/);
+});
+
+t("acquireStep : tout est là et rien n'est sondé → on sonde", () => {
+	const s = acquireStep({ zone: ZONE, source: SRC, name: 'paris' });
+	assert.equal(s.disabled, false);
+	assert.equal(s.action, 'probe');
+	assert.equal(s.label, 'ACQUIRE AREA');
+});
+
+t('acquireStep : couverture confirmée → on acquiert, sans 2e pression', () => {
+	const s = acquireStep({
+		zone: ZONE, source: SRC, name: 'paris',
+		plan: { columns: 4 }, probe: { status: 'ok' },
+	});
+	assert.equal(s.action, 'acquire');
+	assert.equal(s.label, 'ACQUIRE AREA');
+});
+
+t('acquireStep : rien ici → arrêt, et le libellé demande la confirmation', () => {
+	const s = acquireStep({
+		zone: ZONE, source: SRC, name: 'paris',
+		plan: { columns: 0 }, probe: null,
+	});
+	assert.equal(s.action, 'acquire');
+	assert.equal(s.label, 'ACQUIRE ANYWAY');
+	assert.equal(s.disabled, false);
+});
+
+t('acquireStep : sonde injoignable → même arrêt, détail différent', () => {
+	// Un échec de sonde n'est PAS un verdict de couverture : coverageLine
+	// distingue déjà les deux, et c'est à l'opérateur de décider s'il engage
+	// dix minutes sur une sonde qui n'a pas répondu.
+	const s = acquireStep({
+		zone: ZONE, source: SRC, name: 'paris',
+		plan: { columns: 4 }, probe: { status: 'error', message: 'network' },
+	});
+	assert.equal(s.action, 'acquire');
+	assert.equal(s.label, 'ACQUIRE ANYWAY');
+	assert.notEqual(s.why, acquireStep({
+		zone: ZONE, source: SRC, name: 'paris', plan: { columns: 0 }, probe: null,
+	}).why, 'injoignable et « rien ici » ne se disent pas pareil');
 });
 
 console.log(`\n${n} vérifications, tout passe.`);
