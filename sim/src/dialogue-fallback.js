@@ -1,7 +1,12 @@
 // Pack de secours du moteur de dialogue (PHASE 21, D2). Sans aucun
 // `requires` : c'est ce qui s'affiche quand le shard n'a pas pu être
-// chargé. Un écran muet serait pire qu'un écran répétitif. Couvre les onze
+// chargé. Un écran muet serait pire qu'un écran répétitif. Couvre les treize
 // événements câblés, quatre entrées minimum chacun (voir dialogue-selftest).
+//
+// CRASH et SESSION_COMPLETE (issue #126) n'ont PAS de corpus généré : leur
+// shard n'existe pas dans public/dialogue/, donc ces entrées-ci sont tout ce
+// que le joueur lira jusqu'à une prochaine génération. Elles sont écrites sans
+// contractions, registre arrêté par l'issue #135.
 export const FALLBACK = [
 	{ id: 'fallback/0001', events: ['AREA_SEARCH', 'PROBE_AREA'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
@@ -14,7 +19,7 @@ export const FALLBACK = [
 	{ id: 'fallback/0003', events: ['ACQUIRE_AREA', 'TERRAIN_PROGRESS'], rarity: 'COMMON',
 	  characters: ['cron'], requires: [],
 	  lines: [{ speaker: 'cron', text: 'index rebuilt' }] },
-	{ id: 'fallback/0004', events: ['TARGET_SCAN', 'TARGET_SELECTED', 'WEATHER'], rarity: 'COMMON',
+	{ id: 'fallback/0004', events: ['TARGET_SCAN', 'TARGET_SELECTED'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
 	  lines: [{ speaker: 'mikhail', text: 'that one is not worth the trip' },
 	          { speaker: 'root', text: 'noted' }] },
@@ -39,13 +44,13 @@ export const FALLBACK = [
 	          { speaker: 'root', text: 'call it what you want' }] },
 	{ id: 'fallback/0009', events: ['AREA_SEARCH'], rarity: 'COMMON',
 	  characters: ['mikhail'], requires: [],
-	  lines: [{ speaker: 'mikhail', text: "half of what's down there was never mapped properly to begin with" }] },
+	  lines: [{ speaker: 'mikhail', text: 'half of what is down there was never mapped properly to begin with' }] },
 
 	// -- PROBE_AREA -----------------------------------------------------------
 	{ id: 'fallback/0010', events: ['PROBE_AREA'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
 	  lines: [{ speaker: 'root', text: 'worth it' },
-	          { speaker: 'mikhail', text: "depends what you're comparing it to" }] },
+	          { speaker: 'mikhail', text: 'depends what you are comparing it to' }] },
 	{ id: 'fallback/0011', events: ['PROBE_AREA'], rarity: 'COMMON',
 	  characters: ['mikhail', 'root'], requires: [],
 	  lines: [{ speaker: 'mikhail', text: 'dense reading, for what it is worth' },
@@ -87,7 +92,7 @@ export const FALLBACK = [
 	          { speaker: 'mikhail', text: 'nothing jumps out' }] },
 	{ id: 'fallback/0019', events: ['TARGET_SCAN'], rarity: 'COMMON',
 	  characters: ['root'], requires: [],
-	  lines: [{ speaker: 'root', text: "that's more than usual" }] },
+	  lines: [{ speaker: 'root', text: 'that is more than usual' }] },
 	{ id: 'fallback/0020', events: ['TARGET_SCAN'], rarity: 'COMMON',
 	  characters: ['cron'], requires: [],
 	  lines: [{ speaker: 'cron', text: 'hits logged' }] },
@@ -99,14 +104,14 @@ export const FALLBACK = [
 	// -- TARGET_SELECTED ------------------------------------------------------
 	{ id: 'fallback/0022', events: ['TARGET_SELECTED'], rarity: 'COMMON',
 	  characters: ['mikhail'], requires: [],
-	  lines: [{ speaker: 'mikhail', text: "signal's steady, video's clean" }] },
+	  lines: [{ speaker: 'mikhail', text: 'signal is steady, video is clean' }] },
 	{ id: 'fallback/0023', events: ['TARGET_SELECTED'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
 	  lines: [{ speaker: 'root', text: 'old gear' },
 	          { speaker: 'mikhail', text: 'cheap gear. not the same thing.' }] },
 	{ id: 'fallback/0024', events: ['TARGET_SELECTED'], rarity: 'RARE',
 	  characters: ['jensen', 'root'], requires: [],
-	  lines: [{ speaker: 'jensen', text: "i've seen this one before" },
+	  lines: [{ speaker: 'jensen', text: 'i have seen this one before' },
 	          { speaker: 'root', text: 'when' },
 	          { speaker: 'jensen', text: 'no comment' }] },
 	{ id: 'fallback/0025', events: ['TARGET_SELECTED'], rarity: 'COMMON',
@@ -116,7 +121,7 @@ export const FALLBACK = [
 	// -- WEATHER --------------------------------------------------------------
 	{ id: 'fallback/0026', events: ['WEATHER'], rarity: 'COMMON',
 	  characters: ['mikhail'], requires: [],
-	  lines: [{ speaker: 'mikhail', text: "visibility's still bad" }] },
+	  lines: [{ speaker: 'mikhail', text: 'visibility is still bad' }] },
 	{ id: 'fallback/0027', events: ['WEATHER'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
 	  lines: [{ speaker: 'root', text: 'flyable' },
@@ -133,11 +138,11 @@ export const FALLBACK = [
 	  characters: ['mikhail', 'root'], requires: [],
 	  lines: [{ speaker: 'mikhail', text: 'same path as before' },
 	          { speaker: 'root', text: 'again' },
-	          { speaker: 'mikhail', text: "it's the one that works" }] },
+	          { speaker: 'mikhail', text: 'it is the one that works' }] },
 	{ id: 'fallback/0031', events: ['TARGET_ANALYSIS'], rarity: 'COMMON',
 	  characters: ['root', 'mikhail'], requires: [],
 	  lines: [{ speaker: 'root', text: 'should we be watching this more closely' },
-	          { speaker: 'mikhail', text: "you always ask that once it's already running" }] },
+	          { speaker: 'mikhail', text: 'you always ask that once it is already running' }] },
 	{ id: 'fallback/0032', events: ['TARGET_ANALYSIS'], rarity: 'COMMON',
 	  characters: ['cron'], requires: [],
 	  lines: [{ speaker: 'cron', text: 'override sequence: running' }] },
@@ -162,7 +167,7 @@ export const FALLBACK = [
 	// -- MANUAL_OVERRIDE (no call site yet, kept sparsest and driest) -----
 	{ id: 'fallback/0037', events: ['MANUAL_OVERRIDE'], rarity: 'COMMON',
 	  characters: ['root'], requires: [],
-	  lines: [{ speaker: 'root', text: "automation's out. someone has to decide." }] },
+	  lines: [{ speaker: 'root', text: 'automation is out. someone has to decide.' }] },
 	{ id: 'fallback/0038', events: ['MANUAL_OVERRIDE'], rarity: 'COMMON',
 	  characters: ['cron'], requires: [],
 	  lines: [{ speaker: 'cron', text: 'bypass: suspended' }] },
@@ -187,5 +192,40 @@ export const FALLBACK = [
 	          { speaker: 'mikhail', text: 'noted' }] },
 	{ id: 'fallback/0044', events: ['JACK_IN'], rarity: 'COMMON',
 	  characters: ['mikhail'], requires: [],
-	  lines: [{ speaker: 'mikhail', text: "channel's quiet from here" }] },
+	  lines: [{ speaker: 'mikhail', text: 'channel is quiet from here' }] },
+
+	// -- CRASH ----------------------------------------------------------------
+	// La Bible §24 refuse le grand écran de mort : ces répliques ne se jouent
+	// donc pas à l'impact mais sur LAST SESSION, quand le joueur revient
+	// regarder ce qui s'est passé. Le crew constate, il ne commente pas.
+	{ id: 'fallback/0045', events: ['CRASH'], rarity: 'COMMON',
+	  characters: ['root', 'mikhail'], requires: [],
+	  lines: [{ speaker: 'root', text: 'we lost that one' },
+	          { speaker: 'mikhail', text: 'we lose most of them' }] },
+	{ id: 'fallback/0046', events: ['CRASH'], rarity: 'COMMON',
+	  characters: ['cron'], requires: [],
+	  lines: [{ speaker: 'cron', text: 'telemetry ends mid frame' }] },
+	{ id: 'fallback/0047', events: ['CRASH'], rarity: 'COMMON',
+	  characters: ['mikhail'], requires: [],
+	  lines: [{ speaker: 'mikhail', text: 'the terrain is still there. that is the part that matters.' }] },
+	{ id: 'fallback/0048', events: ['CRASH'], rarity: 'UNCOMMON',
+	  characters: ['root', 'jensen'], requires: [],
+	  lines: [{ speaker: 'root', text: 'anything worth keeping' },
+	          { speaker: 'jensen', text: 'no comment' }] },
+
+	// -- SESSION_COMPLETE -----------------------------------------------------
+	{ id: 'fallback/0049', events: ['SESSION_COMPLETE'], rarity: 'COMMON',
+	  characters: ['root', 'mikhail'], requires: [],
+	  lines: [{ speaker: 'root', text: 'it came back' },
+	          { speaker: 'mikhail', text: 'they do sometimes' }] },
+	{ id: 'fallback/0050', events: ['SESSION_COMPLETE'], rarity: 'COMMON',
+	  characters: ['cron'], requires: [],
+	  lines: [{ speaker: 'cron', text: 'session closed. archive written.' }] },
+	{ id: 'fallback/0051', events: ['SESSION_COMPLETE'], rarity: 'COMMON',
+	  characters: ['mikhail'], requires: [],
+	  lines: [{ speaker: 'mikhail', text: 'the numbers are the numbers. read them or do not.' }] },
+	{ id: 'fallback/0052', events: ['SESSION_COMPLETE'], rarity: 'UNCOMMON',
+	  characters: ['root', 'mikhail'], requires: [],
+	  lines: [{ speaker: 'root', text: 'is that a good run' },
+	          { speaker: 'mikhail', text: 'it is a run' }] },
 ];

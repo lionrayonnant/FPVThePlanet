@@ -597,10 +597,15 @@ t('pack de secours : valide, et surtout sans aucun requires', () => {
 	// Un seul secours par écran s'épuise dès la première session (l'anti-
 	// répétition du moteur exclut ce qui vient d'être joué) : quatre est le
 	// plancher voulu par PHASE 21 (D2 étendu), pas juste "au moins une".
+	//
+	// CRASH et SESSION_COMPLETE (issue #126) ne sont PAS dans le même cas que les
+	// onze autres : leur shard n'existe pas dans public/dialogue/, donc le secours
+	// n'est pas un filet, c'est la SEULE source. Le plancher de quatre y compte
+	// double, et c'est pour ça qu'ils rejoignent cette liste dès leur câblage.
 	const MIN_FALLBACK_PER_EVENT = 4;
 	for (const id of ['AREA_SEARCH', 'PROBE_AREA', 'ACQUIRE_AREA', 'TERRAIN_PROGRESS',
 		'TARGET_SCAN', 'TARGET_SELECTED', 'TARGET_ANALYSIS', 'HACK', 'MANUAL_OVERRIDE',
-		'JACK_IN', 'WEATHER']) {
+		'JACK_IN', 'WEATHER', 'CRASH', 'SESSION_COMPLETE']) {
 		const count = FALLBACK.filter((e) => e.events.includes(id)).length;
 		assert.ok(count >= MIN_FALLBACK_PER_EVENT,
 			`secours insuffisant pour ${id} : ${count} (minimum ${MIN_FALLBACK_PER_EVENT})`);

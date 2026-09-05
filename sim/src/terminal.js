@@ -11,6 +11,8 @@ import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { watchReveal, countUp } from './motion.js';
+import { sayOnce, appendRtc, paintRtc } from './dialogue.js';
+import { sessionContext } from './dialogue-context.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -348,6 +350,17 @@ function lastSessionScreen(root, model) {
 AREA     ${area ? areaLabel(area) : 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
+		// CRASH (issue #126). Pas à l'impact : la Bible §24 refuse le grand écran
+		// de mort, et §9 donne le RTC à l'attente. LAST SESSION est l'écran où le
+		// joueur revient regarder ce qui s'est passé — le crew y constate. Sur une
+		// session LANDED, POST-FLIGHT a déjà parlé (SESSION_COMPLETE) : ici, rien.
+		if (ls.result === 'CRASHED') {
+			const rtc = appendRtc(s.box);
+			sayOnce('CRASH', sessionContext({ area }))
+				.then((lines) => paintRtc(rtc, lines))
+				.catch(() => { /* cosmétique */ });
+		}
+
 		s.box.appendChild(button('VIEW SESSION', async () => {
 			s.el.style.display = 'none';
 			const { runSessionDetail } = await import('./session-log.js');
