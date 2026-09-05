@@ -202,7 +202,7 @@ export class FpvtpOsd {
 			return;
 		}
 		e.hidden = false;
-		e.style.background = `rgba(0, 0, 0, ${blackout})`;
+		e.style.background = `rgba(10, 9, 8, ${blackout})`; // --black (issue #224)
 		// Le DOM n'est reconstruit que quand le texte change : ceci tourne à la
 		// fréquence d'affichage pendant toute la séquence.
 		const key = lines.join('\n');

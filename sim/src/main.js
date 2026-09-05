@@ -12,6 +12,7 @@ import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLi
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
 import { operatorSelect, runTerminal } from './terminal.js';
+import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
@@ -153,6 +154,8 @@ let camSpec = null;
 // changements, et pour que applyTargetCamera() recompose la nuit en cours.
 let lastNightGain = 0;
 const settings = new Settings(document.getElementById('ui'), input);
+// Une touche de menu pressée s'inverse un instant (issue #224).
+installClickFlash();
 // Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
 // Aucune ligne avant le gate ne l'utilise à l'exécution.
 let controller;

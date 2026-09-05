@@ -27,7 +27,7 @@ html, body {
 	margin: 0;
 	height: 100%;
 	overflow: hidden;
-	background: var(--dark-grey);
+	background: var(--black);
 	font: 400 14px/1.45 var(--font-data);
 	letter-spacing: var(--track-data);
 	color: var(--ink);
@@ -58,6 +58,7 @@ button:focus::before {
 	/* Le marqueur est le curseur, pas une cible : un clic dessus doit toucher
 	   ce qu'il y a derrière, pas agrandir le bouton. */
 	pointer-events: none;
+	animation: cursor-blink 1.1s step-end infinite;
 }
 /* Un contrôle réglable (slider, select, checkbox) porte le marqueur sur sa
    ligne entière : c'est la ligne que ←/→ règle (issue #123, Settings). */
@@ -71,6 +72,7 @@ button:focus::before {
 	font-family: var(--font-ascii);
 	color: var(--ink);
 	pointer-events: none;
+	animation: cursor-blink 1.1s step-end infinite;
 }
 #pad-map td:first-child { position: relative; }
 #pad-map tr:focus-within td:first-child::before {
@@ -82,6 +84,33 @@ button:focus::before {
 	font-family: var(--font-ascii);
 	color: var(--ink);
 	pointer-events: none;
+	animation: cursor-blink 1.1s step-end infinite;
+}
+
+/* ---------- mouvement des menus (issue #224) ---------- */
+/* Quiet by default (Bible §45) : les menus bougent comme un terminal, pas
+   comme une page web. Un écran s'imprime de haut en bas (src/motion.js
+   tamponne le délai de chaque bloc), le curseur cligne, une touche pressée
+   s'inverse un instant, un compteur roule. En pas, jamais en fondu long ;
+   jamais de cyan/magenta ici. */
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes reveal-in { 0% { opacity: 0; } 50% { opacity: .45; } 100% { opacity: 1; } }
+[data-reveal] { animation: reveal-in var(--dur-2) steps(2, end) both; }
+/* L'encre d'un bouton s'allume en une touche, pas instantanément. */
+.bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta {
+	transition: color var(--dur-1) linear, background-color var(--dur-1) linear, border-color var(--dur-1) linear;
+}
+/* Une touche pressée : inversée le temps d'un pas (src/motion.js,
+   installClickFlash). Sous la souris le bouton est déjà inversé par :hover,
+   alors le flash part dans l'autre sens — il se voit dans les deux cas. */
+@keyframes key-flash { 0%, 100% { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); } }
+@keyframes key-flash-off { 0%, 100% { background: transparent; color: var(--ink); } }
+button.flash { animation: key-flash var(--dur-1) steps(1, end); }
+button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
+@media (prefers-reduced-motion: reduce) {
+	[data-reveal], button.flash, button.flash:hover, button:focus::before,
+	.panel label:focus-within::before, #pad-map tr:focus-within td:first-child::before { animation: none; }
+	.bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta { transition: none; }
 }
 
 #ui { position: fixed; inset: 0; pointer-events: none; }
@@ -92,7 +121,7 @@ button:focus::before {
 #loading {
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
-	background: var(--dark-grey);
+	background: var(--black);
 	z-index: 10;
 }
 #loading .box { width: min(420px, 80vw); text-align: center; }
@@ -320,7 +349,10 @@ button:focus::before {
 	display: grid; justify-items: center; align-content: safe center;
 	overflow-y: auto; overscroll-behavior: contain;
 	padding: var(--space-5) 0;
-	background: var(--dark-grey);
+	/* Le même noir que le rituel et que la perte de signal (issue #224) : du
+	   crash au rapport puis à la Home, un seul noir continu, sans saut de
+	   teinte. Les panneaux posés dessus (Settings, carte) gardent leur gris. */
+	background: var(--black);
 	z-index: 11;
 }
 .bootstrap-box {
@@ -561,7 +593,7 @@ button.terminal-area:focus::before { left: 0; }
    la rangée au-dessus n'est pas activée (Entrée/clic) — Échap la referme. */
 .terminal-area-actions { padding-left: 1.2em; margin: 2px 0 0; display: flex; align-items: center; gap: var(--space-2); }
 .terminal-area-actions[hidden] { display: none; }
-.terminal-area-size { color: var(--light-grey); font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
+.terminal-area-size { white-space: pre; color: var(--light-grey); font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
 /* Le temps qu'il fait sur la zone. Retour utilisateur du 2026-08-29 : « au
    lancement d'un vol on ne pense pas aux conditions ». Il fallait donc le
    rendre saillant sans le rendre criard — c'est une ligne de relevé, pas une
