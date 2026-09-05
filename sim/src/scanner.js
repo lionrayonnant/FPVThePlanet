@@ -17,7 +17,7 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
-	sourceChoices, chosenSource, zoneCentre,
+	sourceChoices, chosenSource, zoneCentre, acquireStep,
 } from '../tools/scanner-model.mjs';
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
@@ -87,7 +87,6 @@ const PANEL = `
 	<pre class="sc-note sc-source-note" hidden></pre>
 	<pre class="sc-verdict" data-status="unprobed">UNPROBED</pre>
 	<pre class="sc-detail"></pre>
-	<button type="button" class="sc-cta sc-probe" disabled>[ PROBE AREA ]</button>
 </section>
 
 <section class="sc-block">
@@ -448,8 +447,10 @@ export function runScanner(root) {
 		updateButtons();
 	}
 
-	$('.sc-probe').onclick = async () => {
-		const btn = $('.sc-probe');
+	// Sonder n'est plus un bouton : c'est la première moitié de [ ACQUIRE AREA ]
+	// (#211). Le corps est inchangé — seul son déclencheur a bougé.
+	async function runProbe() {
+		const btn = $('.sc-acquire');
 		// La source est désignée, jamais devinée : sans elle, il n'y a rien à
 		// sonder. Le bouton est déjà fermé dans ce cas (updateButtons) — cette
 		// garde protège le chemin clavier/manette.
@@ -488,9 +489,9 @@ export function runScanner(root) {
 			state.probe = { status: 'error', message: e.message };
 			renderCoverage();
 		} finally {
-			btn.disabled = !state.zone || !provider();
+			updateButtons();
 		}
-	};
+	}
 
 	// ------------------------------------------------------------ recherche
 	const search = $('.sc-search');
@@ -587,8 +588,17 @@ export function runScanner(root) {
 		// fournisseur par défaut ici, et en inventer un enverrait l'opérateur
 		// chercher une imagerie qu'il n'a pas demandée.
 		const src = provider();
-		$('.sc-probe').disabled = !state.zone || !src;
-		$('.sc-acquire').disabled = !state.zone || !slug || !src;
+		// Un seul bouton, et c'est acquireStep() qui décide de son libellé comme
+		// de son état : la séquence sonde→acquisition vit dans le modèle pur, pas
+		// ici (#211). ACQUIRE ANYWAY est la seule confirmation, il n'y a plus de
+		// modale de navigateur.
+		const step = acquireStep({
+			zone: state.zone, source: src, name, plan: state.plan, probe: state.probe,
+		});
+		const acq = $('.sc-acquire');
+		acq.disabled = step.disabled;
+		acq.textContent = `[ ${step.label} ]`;
+		note('.sc-acquire-note', step.disabled ? step.why : null, null);
 		// Voler en direct ne demande qu'une zone. Ni source, ni sonde, ni nom :
 		// rien n'est écrit sur le disque, donc il n'y a rien à nommer, et la
 		// couverture d'un fournisseur d'extraction ne dit rien du streaming.
@@ -696,17 +706,11 @@ export function runScanner(root) {
 		done({ live: [c.lat, c.lon] });
 	};
 
-	$('.sc-acquire').onclick = async () => {
-		// La sonde n'est pas obligatoire, mais acquérir sans elle est le meilleur
-		// moyen d'attendre dix minutes pour rien.
+	// Lance réellement le job. N'est appelée que par le gestionnaire ci-dessous,
+	// qui a déjà obtenu du modèle le droit d'acquérir.
+	async function startJob() {
 		const src = provider();
 		if (!src) return;
-		if (state.probe?.status !== 'ok') {
-			const why = state.probe || state.plan
-				? coverageLine({ plan: state.plan, probe: state.probe, provider: src }).detail
-				: `${src.label} coverage has not been probed for this area.`;
-			if (!confirm(`${why}\n\nAcquire anyway?`)) return;
-		}
 		try {
 			// On acquiert chez la source désignée, toujours explicitement : le
 			// pipeline a un défaut, mais il ne doit jamais décider ici.
@@ -718,6 +722,31 @@ export function runScanner(root) {
 		} catch (e) {
 			note('.sc-acquire-note', e.message.toUpperCase(), 'alarm');
 		}
+	}
+
+	// UN bouton pour sonder et acquérir (#211). La première pression sonde ; si
+	// la couverture est confirmée elle enchaîne, sans en demander une seconde.
+	// Sinon elle s'arrête, le verdict dit pourquoi, et le bouton devient
+	// ACQUIRE ANYWAY — la deuxième pression EST la confirmation. Ce gestionnaire
+	// ne décide de rien : acquireStep() décide, il exécute.
+	$('.sc-acquire').onclick = async () => {
+		const ask = () => acquireStep({
+			zone: state.zone, source: provider(), name: $('.sc-name').value,
+			plan: state.plan, probe: state.probe,
+		});
+		const step = ask();
+		if (step.disabled || !step.action) return;
+		if (step.action === 'probe') {
+			await runProbe();
+			// La sonde a rempli state.plan / state.probe : on redemande au modèle
+			// s'il faut enchaîner. Un ACQUIRE ANYWAY ici veut dire « la couverture
+			// n'est pas confirmée » — on s'arrête et on laisse l'opérateur voir le
+			// verdict avant d'engager dix minutes.
+			const next = ask();
+			if (next.action === 'acquire' && next.label === 'ACQUIRE AREA') await startJob();
+			return;
+		}
+		await startJob();
 	};
 
 	// Vue « acquisition » : le panneau change, la carte reste. Les chiffres
