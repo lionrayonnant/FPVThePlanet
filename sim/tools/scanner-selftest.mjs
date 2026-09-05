@@ -5,7 +5,7 @@ import {
 	slugify, signalDensity, areaAnalysis, coverageLine, prunedBands, sourceChoices, chosenSource,
 	acquisitionProgress, pipelineBars, pipelineStats, phaseLabel, bytes, duration, elapsed, bar, designationFrom,
 	latticeEdges, tileGrid, intersectBox, polygonGrid, maskOutline, zoneCentre, polygonProbePoint,
-	acquireStep,
+	acquireStep, railLine,
 } from './scanner-model.mjs';
 import { slugify as coreSlugify, parsePrepLine } from './lib/add-map-core.mjs';
 import { tileGrid as estimatesTileGrid, estimateCost } from './lib/estimates.mjs';
@@ -496,6 +496,25 @@ t('acquireStep : sonde injoignable → même arrêt, détail différent', () => 
 	assert.notEqual(s.why, acquireStep({
 		zone: ZONE, source: SRC, name: 'paris', plan: { columns: 0 }, probe: null,
 	}).why, 'injoignable et « rien ici » ne se disent pas pareil');
+});
+
+t('railLine : sans /describe, seulement le verdict', () => {
+	const l = railLine({ describe: null, plan: null, probe: null, provider: SRC });
+	assert.equal(l.text, 'UNPROBED');
+	assert.equal(l.status, 'unprobed');
+});
+
+t('railLine : tuiles · poids · verdict, dans cet ordre', () => {
+	const describe = {
+		grid: { cols: 4, rows: 3, columns: 12, masked: false },
+		estimate: { probes: 12, prepBytes: 310e6, prepBytesRange: [200e6, 400e6], rawBytes: 1e9, totalSeconds: 90, warn: false },
+		dimensions: { area: 1e6, width: 1000, height: 1000 },
+		tileMeters: 25,
+	};
+	const l = railLine({ describe, plan: null, probe: { status: 'ok', exported: 9 }, provider: SRC });
+	assert.equal(l.status, 'ok');
+	assert.equal(l.text, '12 TILES · 310 MB · PHOTOGRAMMETRY CONFIRMED');
+	assert.ok(l.detail.includes('APPLE FLYOVER'), 'le détail nomme la source');
 });
 
 console.log(`\n${n} vérifications, tout passe.`);

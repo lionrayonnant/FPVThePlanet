@@ -15,13 +15,12 @@ import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
-	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
+	areaAnalysis, signalDensity, railLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
 	sourceChoices, chosenSource, zoneCentre, acquireStep,
 } from '../tools/scanner-model.mjs';
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
-import { menuNav } from './menu-nav.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
@@ -40,54 +39,39 @@ const RE_COORDS = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/;
 // Dernière vue du scanner, pour rouvrir là où on s'était arrêté dans la session.
 let lastView = { center: [48.8582, 2.297], zoom: 13 };
 
+// La recherche vit hors du rail : elle ne fait que déplacer la carte, et elle
+// sert aux deux onglets de FIELD (#222). La Home lui donne son propre hôte,
+// au-dessus des onglets, pour qu'elle survive au remplacement du rail par
+// JOB_PANEL.
+const SEARCH_PANEL = `
+<div class="sc-row">
+	<input class="sc-search" type="search" autocomplete="off" spellcheck="false" placeholder="SEARCH — TOKYO, OR 48.85, 2.35">
+	<button type="button" class="sc-btn sc-find">FIND</button>
+</div>
+<div class="sc-results"></div>
+<pre class="sc-note sc-search-note" hidden></pre>`;
+
+// Le rail LOCAL, une fois qu'on trace (#222) : la zone, la source, le nom,
+// et UN bouton. Les blocs AREA ANALYSIS, SIGNAL DENSITY et COVERAGE ont
+// disparu — ce qu'ils disaient d'utile tient sur la ligne sous le bouton
+// (railLine), et la densité se calcule toujours, en silence, pour le KEEP et
+// le TARGET SCAN.
 const PANEL = `
-<pre class="sc-title">GLOBAL SCANNER</pre>
-
 <section class="sc-block">
-	<pre class="sc-h">SEARCH LOCATION</pre>
-	<div class="sc-row">
-		<input class="sc-search" type="search" autocomplete="off" spellcheck="false" placeholder="TOKYO">
-		<button type="button" class="sc-btn sc-find">FIND</button>
-	</div>
-	<div class="sc-results"></div>
-	<pre class="sc-note sc-search-note" hidden></pre>
-</section>
-
-<section class="sc-block">
-	<pre class="sc-h">AREA ANALYSIS</pre>
-	<pre class="sc-hint sc-area-hint">NO AREA — DRAW A BOX OR A SHAPE</pre>
-	<dl class="sc-readout" hidden>
-		<dt>TILES</dt><dd class="sc-tiles">—</dd>
-		<dt>REQUESTS</dt><dd class="sc-requests">—</dd>
-		<dt>SURFACE</dt><dd class="sc-surface">—</dd>
-		<dt>EST. DATA</dt><dd class="sc-data">—</dd>
-		<dt>EST. TIME</dt><dd class="sc-time">—</dd>
-	</dl>
-	<pre class="sc-note sc-heavy" hidden></pre>
+	<pre class="sc-h">AREA</pre>
+	<pre class="sc-hint sc-area-hint">DRAW A BOX OR A SHAPE ON THE MAP</pre>
 	<div class="sc-row">
 		<button type="button" class="sc-btn sc-draw">DRAW BOX</button>
 		<button type="button" class="sc-btn sc-draw-poly">DRAW SHAPE</button>
 		<button type="button" class="sc-btn sc-clear" hidden>CLEAR</button>
 	</div>
+	<pre class="sc-note sc-heavy" hidden></pre>
 </section>
 
 <section class="sc-block">
-	<pre class="sc-h">SIGNAL DENSITY</pre>
-	<pre class="sc-density">LOW ░░░░░░░░░░ HIGH</pre>
-	<dl class="sc-readout">
-		<dt>LEVEL</dt><dd class="sc-level">—</dd>
-		<dt>TARGETS EST.</dt><dd class="sc-targets">—</dd>
-		<dt>SURVEY</dt><dd class="sc-survey">UNSURVEYED</dd>
-	</dl>
-</section>
-
-<section class="sc-block">
-	<pre class="sc-h">COVERAGE</pre>
-	<pre class="sc-hint sc-source-hint">SOURCE — PICK ONE</pre>
+	<pre class="sc-h">SOURCE</pre>
 	<div class="sc-switch sc-source-switch"></div>
 	<pre class="sc-note sc-source-note" hidden></pre>
-	<pre class="sc-verdict" data-status="unprobed">UNPROBED</pre>
-	<pre class="sc-detail"></pre>
 </section>
 
 <section class="sc-block">
@@ -96,20 +80,13 @@ const PANEL = `
 	<pre class="sc-note sc-slug" hidden></pre>
 </section>
 
-<!-- Les deux voies du jeu, côte à côte, sur la carte — là où le choix se pose
-     réellement. Voler en direct ne garde rien et demande le réseau ; acquérir
-     cuit la zone sur le disque et la rend jouable hors ligne. Les mettre dans
-     deux blocs différents laisserait croire que l'un est l'étape de l'autre. -->
 <section class="sc-block sc-verbs">
-	<pre class="sc-h">FLY</pre>
-	<div class="sc-verb">
-		<button type="button" class="sc-cta sc-fly-live" disabled>[ FLY LIVE ]</button>
-		<pre class="sc-hint">STREAMED NOW · NOTHING KEPT · NEEDS THE LINK</pre>
-	</div>
 	<div class="sc-verb">
 		<button type="button" class="sc-cta sc-acquire" disabled>[ ACQUIRE AREA ]</button>
 		<pre class="sc-hint">BAKED TO DISK · KEPT · PLAYS OFFLINE</pre>
 	</div>
+	<pre class="sc-verdict" data-status="unprobed">UNPROBED</pre>
+	<pre class="sc-detail"></pre>
 	<pre class="sc-note sc-acquire-note" hidden></pre>
 </section>
 
@@ -119,9 +96,24 @@ const PANEL = `
 </section>
 
 <section class="sc-block sc-foot">
-	<div class="sc-switch sc-layers"></div>
-	<div class="sc-switch sc-detail-switch"></div>
 	<button type="button" class="sc-cta sc-back">[ BACK ]</button>
+</section>`;
+
+// L'onglet LIVE (#222) : une épingle sur la carte, et c'est tout. Rien n'est
+// planifié, rien n'est sondé, rien n'est écrit — le monde arrive pendant le vol.
+const LIVE_PANEL = `
+<section class="sc-block">
+	<pre class="sc-h">DROP POINT</pre>
+	<pre class="sc-hint sc-pin-hint">CLICK THE MAP TO DROP A PIN</pre>
+	<pre class="sc-pin-place" hidden></pre>
+	<pre class="sc-hint sc-pin-coords" hidden></pre>
+</section>
+
+<section class="sc-block sc-verbs">
+	<div class="sc-verb">
+		<button type="button" class="sc-cta sc-fly-live" disabled>[ FLY LIVE ]</button>
+		<pre class="sc-hint">STREAMED NOW · NOTHING KEPT · NEEDS THE LINK</pre>
+	</div>
 </section>`;
 
 // Une rangée de barre : label fixe + `.sc-bar` que watchJob() pilote par sélecteur.
@@ -194,28 +186,44 @@ async function api(path, opts) {
 }
 const post = (p, b) => api(p, { method: 'POST', body: JSON.stringify(b) });
 
-// Monte le scanner dans DEUX hôtes fournis par l'appelant, et rend une poignée.
+// Monte le scanner dans les hôtes fournis par l'appelant, et rend une poignée.
 //
 // Le plein cadre a disparu (#211) : depuis que FIELD est un seul écran, c'est la
 // Home qui possède les deux colonnes. `mapHost` ne nous appartient PAS — c'est
 // exactement ce qui permet à la carte de survivre au passage repos → travail,
-// qui est la promesse centrale de l'écran. `railHost`, si : on le vide et on le
-// remplit.
+// qui est la promesse centrale de l'écran. Les trois autres, si : on les vide
+// et on les remplit.
+//
+//   searchHost   la recherche, commune aux deux onglets (#222)
+//   railHost     le rail LOCAL au travail : zone, source, nom, ACQUIRE
+//   liveHost     l'onglet LIVE : l'épingle et [ FLY LIVE ]
 //
 //   onZone(zone | null)   une zone apparaît ou disparaît — le signal repos ↔ travail
 //   onPickArea(slug)      clic sur le cadre d'une zone déjà acquise
 //   onRest()              BACK depuis le rail : on repose l'outil, on ne quitte PAS
 //                         FIELD. Quitter, c'est MODE, et c'est la Home qui le tient.
+//   onBusy()              une acquisition tourne (reprise au montage) : la Home
+//                         doit montrer le rail, sinon le job tourne sans visage.
 //
-// Rend { done, setAreaFrames, focusBounds, destroy }. `done` résout une FORME de
-// vol : `{ slug }` pour une zone cuite, `{ live: [lat, lon] }` pour un décollage
-// en direct, `undefined` pour remonter.
-export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null, onRest = null } = {}) {
+// Rend { done, setAreaFrames, focusBounds, startDraw, setMode, rest, busy,
+// destroy }. `done` résout une FORME de vol : `{ slug }` pour une zone cuite,
+// `{ live: [lat, lon] }` pour un décollage en direct, `undefined` pour remonter.
+export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = null, onPickArea = null, onRest = null, onBusy = null } = {}) {
 	mapHost.classList.add('scanner-map', 'map-mono');
+	searchHost.classList.add('scanner-search');
 	railHost.classList.add('scanner-panel');
+	liveHost.classList.add('scanner-panel');
+	searchHost.innerHTML = SEARCH_PANEL;
 	railHost.innerHTML = PANEL;
+	liveHost.innerHTML = LIVE_PANEL;
 
-	const $ = (sel) => railHost.querySelector(sel);
+	// Trois hôtes, un seul sélecteur : les classes `sc-*` sont uniques d'un
+	// hôte à l'autre, donc la première réponse est la bonne.
+	const hosts = [searchHost, railHost, liveHost];
+	const $ = (sel) => {
+		for (const h of hosts) { const el = h.querySelector(sel); if (el) return el; }
+		return null;
+	};
 	const panel = railHost;
 
 	// RTC du panneau de recherche : de la couleur, jamais une source
@@ -235,6 +243,8 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		plan: null,         // dernière réponse /plan
 		probe: null,        // dernier verdict de sonde
 		place: null,        // { class, type } Nominatim, pour la densité de signal
+		mode: 'local',      // 'local' | 'live' — l'onglet de la Home (#222)
+		pin: null,          // { lat, lon } — l'épingle de LIVE
 		zoom: 20,
 		source: null,       // id du fournisseur DÉSIGNÉ par l'opérateur, jamais deviné
 		nameEdited: false,
@@ -288,7 +298,9 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 			const b = previewBounds(sc);
 			if (!b) continue;
 			L.rectangle(b, { color: token('--warm-white'), weight: 1, fill: true, fillOpacity: 0, interactive: true })
-				.on('click', () => onPickArea?.(sc.slug))
+				// Un cadre est une sélection LOCAL, même depuis LIVE : le clic ne
+				// remonte pas jusqu'à la carte, sinon il poserait aussi une épingle.
+				.on('click', (e) => { L.DomEvent.stopPropagation(e); onPickArea?.(sc.slug); })
 				.addTo(areaFrames);
 		}
 	}
@@ -395,10 +407,9 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		lattice.clearLayers(); pruned.clearLayers(); outline.clearLayers(); map.removeLayer(snapped);
 		onZone?.(null);
 		$('.sc-area-hint').hidden = false;
-		$('.sc-readout').hidden = true;
 		$('.sc-clear').hidden = true;
 		$('.sc-heavy').hidden = true;
-		renderDensity();
+		updateDensity();
 		renderCoverage();
 		updateButtons();
 	}
@@ -422,71 +433,119 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		const a = areaAnalysis(state.describe);
 		if (!a) return;
 		$('.sc-area-hint').hidden = true;
-		$('.sc-readout').hidden = false;
 		$('.sc-clear').hidden = false;
-		$('.sc-tiles').textContent = a.tiles;
-		$('.sc-requests').textContent = a.requests;
-		$('.sc-surface').textContent = a.surface;
-		$('.sc-data').textContent = a.data;
-		$('.sc-time').textContent = a.time;
 		note('.sc-heavy', a.heavy ? `HEAVY AREA — ${a.dataRange} ON DISK. SHRINK IT OR DROP DETAIL.` : null, 'warn');
 		drawLattice();
-		renderDensity();
+		updateDensity();
+		// La ligne sous ACQUIRE porte les tuiles et le poids : elle change avec
+		// la zone, pas seulement avec la sonde.
+		renderCoverage();
 		updateButtons();
 	}
 
 	// -------------------------------------------------- densité de signal (§6)
 	//
-	// L'estimation part de ce qu'OSM dit du centre de la zone, pas d'un tirage :
-	// deux sondes de la même zone lisent le même chiffre. La génération de cibles
-	// reste PHASE 7 — ici on n'affiche qu'une fourchette.
-	function renderDensity() {
+	// Plus rien ne l'affiche (#222) : elle se calcule en silence, parce que le
+	// KEEP l'écrit dans le manifeste et que le TARGET SCAN d'un vol en direct
+	// en dépend. L'estimation part de ce qu'OSM dit du point (Nominatim
+	// reverse), pas d'un tirage : deux relevés du même endroit lisent le même
+	// chiffre.
+	function updateDensity() {
 		const areaKm2 = (state.describe?.dimensions.area ?? 0) / 1e6;
-		const s = signalDensity({ place: state.place, areaKm2 });
-		// Mémorisé pour le KEEP : acquired() n'a pas accès proprement à l'aire.
-		state.lastDensity = s;
-		$('.sc-density').textContent = `LOW ${s.bar} HIGH`;
-		$('.sc-level').textContent = s.label;
-		$('.sc-targets').textContent = s.targets;
-		$('.sc-survey').textContent = s.known ? s.source.toUpperCase() : 'UNSURVEYED';
+		state.lastDensity = signalDensity({ place: state.place, areaKm2 });
 	}
 
-	// Nominatim reverse au centre de la zone : une requête par zone, mise en
-	// cache, jamais martelée (la politique d'usage demande 1 req/s au plus).
+	// Nominatim reverse en un point : une requête par point, mise en cache,
+	// jamais martelée (la politique d'usage demande 1 req/s au plus). `then`
+	// reçoit la réponse, ou null quand la recherche est indisponible.
 	const surveyCache = new Map();
 	let surveyTimer = null;
-	function surveyCentre() {
+	function survey(lat, lon, then) {
 		clearTimeout(surveyTimer);
-		if (!state.zone) return;
-		// Sur un tracé en L, le centre de l'emprise tombe dans l'encoche : on
-		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde, et
-		// que le décollage en direct — d'où zoneCentre(), partagé.
-		const { lat, lon } = zoneCentre(state.zone, state.zoom);
 		const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-		if (surveyCache.has(key)) { state.place = surveyCache.get(key); return renderDensity(); }
+		if (surveyCache.has(key)) return then(surveyCache.get(key));
 		surveyTimer = setTimeout(async () => {
+			let hit = null;
 			try {
 				const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&lat=${lat}&lon=${lon}`, { headers: { accept: 'application/json' } });
 				if (!r.ok) throw new Error(String(r.status));
 				// On garde la réponse telle quelle : c'est le modèle qui décide
 				// quel champ Nominatim porte l'information (addresstype > type > category).
-				const hit = await r.json();
-				surveyCache.set(key, hit ?? null);
-				state.place = hit ?? null;
+				hit = (await r.json()) ?? null;
+				surveyCache.set(key, hit);
 			} catch {
-				state.place = null;   // « on ne sait pas » s'affiche tel quel.
+				hit = null;   // « on ne sait pas » se transmet tel quel.
 			}
-			renderDensity();
+			then(hit);
 		}, 1100);
 	}
 
+	function surveyCentre() {
+		if (!state.zone) return;
+		// Sur un tracé en L, le centre de l'emprise tombe dans l'encoche : on
+		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde —
+		// d'où zoneCentre(), partagé.
+		const { lat, lon } = zoneCentre(state.zone, state.zoom);
+		survey(lat, lon, (hit) => { state.place = hit; updateDensity(); });
+	}
+
+	// ------------------------------------------------------------ épingle LIVE
+	//
+	// Un clic sur la carte, dans l'onglet LIVE, pose l'épingle ; la glisser la
+	// déplace. Le rail LIVE montre le lieu et les coordonnées, et [ FLY LIVE ]
+	// s'ouvre. La densité se relève au même point, en silence, pour le TARGET
+	// SCAN du vol.
+	let pinLayer = null;
+	function setPin(lat, lon) {
+		state.pin = { lat, lon };
+		if (!pinLayer) {
+			pinLayer = L.marker([lat, lon], {
+				draggable: true,
+				icon: L.divIcon({ className: 'sc-pin sc-pin-live', html: '◎ LIVE', iconSize: null }),
+			}).addTo(map);
+			pinLayer.on('dragend', () => { const ll = pinLayer.getLatLng(); setPin(ll.lat, ll.lng); });
+		} else pinLayer.setLatLng([lat, lon]);
+		$('.sc-pin-hint').hidden = true;
+		const place = $('.sc-pin-place');
+		place.hidden = false;
+		place.textContent = 'SURVEYING…';
+		const coords = $('.sc-pin-coords');
+		coords.hidden = false;
+		coords.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+		$('.sc-fly-live').disabled = false;
+		survey(lat, lon, (hit) => {
+			state.place = hit;
+			updateDensity();
+			// L'épingle a pu bouger pendant la requête : on n'écrit que si c'est
+			// encore elle qu'on décrit.
+			if (state.pin?.lat === lat && state.pin?.lon === lon) {
+				place.textContent = hit ? designationFrom(hit).toUpperCase() : 'UNSURVEYED';
+			}
+		});
+	}
+	map.on('click', (e) => {
+		if (state.mode !== 'live') return;
+		setPin(e.latlng.lat, e.latlng.lng);
+	});
+
+	// L'onglet de la Home. En LIVE le clic pose une épingle et le commutateur de
+	// détail (qui ne concerne que l'extraction) se retire de la carte.
+	function setMode(mode) {
+		state.mode = mode;
+		if (mode === 'live') map.pm.disableDraw();
+		controls.detail.hidden = mode === 'live';
+	}
+
 	// ------------------------------------------------------------ couverture
+	// La ligne sous [ ACQUIRE AREA ] : tuiles · poids · verdict (#222). Le
+	// détail ne sort que quand la source a parlé — avant, il ne ferait que
+	// répéter « sondez d'abord ».
 	function renderCoverage() {
-		const v = coverageLine({ plan: state.plan, probe: state.probe, provider: provider() });
+		const v = railLine({ describe: state.describe, plan: state.plan, probe: state.probe, provider: provider() });
 		const el2 = $('.sc-verdict');
 		el2.dataset.status = v.status;
-		el2.textContent = v.label;
-		$('.sc-detail').textContent = v.detail ?? '';
+		el2.textContent = v.text;
+		$('.sc-detail').textContent = v.status === 'unprobed' ? '' : v.detail;
 		updateButtons();
 	}
 
@@ -592,7 +651,7 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 				// La catégorie OSM du lieu cherché sert d'estimation immédiate ;
 				// le reverse au centre de la zone la corrigera quand elle sera dessinée.
 				state.place = h;
-				renderDensity();
+				updateDensity();
 				// Nominatim rend une emprise : on s'en sert pour cadrer, pas pour
 				// dessiner — le choix de la zone reste un geste explicite.
 				if (h.boundingbox) {
@@ -642,10 +701,6 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		acq.disabled = step.disabled;
 		acq.textContent = `[ ${step.label} ]`;
 		note('.sc-acquire-note', step.disabled ? step.why : null, null);
-		// Voler en direct ne demande qu'une zone. Ni source, ni sonde, ni nom :
-		// rien n'est écrit sur le disque, donc il n'y a rien à nommer, et la
-		// couverture d'un fournisseur d'extraction ne dit rien du streaming.
-		$('.sc-fly-live').disabled = !state.zone;
 		const existing = state.scenes.find((s) => s.slug === slug);
 		note('.sc-slug', slug ? (existing ? `ID ${slug} — ALREADY IN CACHE, ACQUIRING OVERWRITES IT` : `ID ${slug}`) : null, existing ? 'warn' : null);
 	}
@@ -663,7 +718,7 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 	// couches et le détail, qui ont un état de départ légitime ; FAUX pour la
 	// source, où rien n'est choisi tant que l'opérateur n'a pas choisi.
 	function switchRow(sel, entries, { preselect = true } = {}) {
-		const row = $(sel);
+		const row = typeof sel === 'string' ? $(sel) : sel;
 		row.innerHTML = '';
 		entries.forEach(([label, fn], i) => {
 			if (i) row.appendChild(document.createTextNode(' · '));
@@ -693,8 +748,23 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 	}
 	renderSourceSwitch();
 
-	switchRow('.sc-layers', Object.keys(LAYERS).map((k) => [k, () => setLayer(k)]));
-	switchRow('.sc-detail-switch', DETAIL.map((d) => [`${d.label} ${d.side}`, () => {
+	// Les couches et le détail SUR la carte (#222), pas au fond du rail : c'est
+	// la carte qu'ils changent. Un contrôle Leaflet, en haut à gauche, pour
+	// qu'il suive la carte et que ses clics ne traversent pas jusqu'à elle.
+	const controls = { layers: document.createElement('div'), detail: document.createElement('div') };
+	controls.layers.className = 'sc-switch sc-layers';
+	controls.detail.className = 'sc-switch sc-detail-switch';
+	const overlay = L.control({ position: 'topleft' });
+	overlay.onAdd = () => {
+		const box = L.DomUtil.create('div', 'sc-map-controls');
+		box.append(controls.layers, controls.detail);
+		L.DomEvent.disableClickPropagation(box);
+		L.DomEvent.disableScrollPropagation(box);
+		return box;
+	};
+	overlay.addTo(map);
+	switchRow(controls.layers, Object.keys(LAYERS).map((k) => [k, () => setLayer(k)]));
+	switchRow(controls.detail, DETAIL.map((d) => [`${d.label} ${d.side}`, () => {
 		state.zoom = d.zoom;
 		state.plan = null; state.probe = null;
 		pruned.clearLayers();
@@ -724,25 +794,20 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		// RTC s'il tourne encore (BACK/Échap depuis la recherche, avant tout
 		// job). stopSearch() est idempotent.
 		stopSearch?.();
-		nav.detach();
-		railHost.replaceChildren();
+		for (const h of hosts) h.replaceChildren();
 	}
 
-	// Navigation clavier + manette du panneau (issue #123) — le panneau seul :
-	// attaché à `el`, le curseur circulerait aussi dans les contrôles Leaflet
-	// de la carte. menu-nav ignore les champs de saisie : la recherche et la
-	// désignation restent éditables, et leurs flèches leur appartiennent.
-	// Échap / B remonte comme avant — jamais pendant une acquisition (la fermer
-	// se fait par ABORT ou LEAVE, un geste explicite). Pas de focusFirst :
-	// l'écran pose déjà son focus sur la recherche au montage.
-	const nav = menuNav(panel, {
-		back: () => { if (!state.jobId) rest(); },
-		focusFirst: false,
-	});
+	// Pas de menuNav ici (#222) : le rail vit DANS la colonne gauche de la Home,
+	// et c'est le nav de la Home qui porte Échap / B — il appelle rest() quand
+	// l'écran est au travail. Les champs de saisie gardent leurs touches (règle
+	// de menu-nav), la recherche et la désignation restent éditables.
 	// BACK ne résout plus rien : depuis #211 le scanner n'est pas un écran qu'on
 	// quitte, c'est la colonne de droite de FIELD. BACK repose l'outil et rend
 	// la colonne gauche à la Home ; `done` ne sert plus qu'à une forme de vol.
 	function rest() {
+		// Jamais pendant une acquisition : la fermer se fait par ABORT ou LEAVE,
+		// un geste explicite.
+		if (state.jobId) return;
 		map.pm.disableDraw();
 		clearZone();
 		onRest?.();
@@ -754,9 +819,16 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 	// C'est le même point que celui qu'on vient de décrire (zoneCentre), sinon
 	// le scanner désignerait un quartier et en ouvrirait un autre.
 	$('.sc-fly-live').onclick = () => {
-		const c = zoneCentre(state.zone, state.zoom);
-		if (!c) return;
-		done({ live: [c.lat, c.lon] });
+		if (!state.pin) return;
+		// On ne rend pas seulement un point : `lastDensity` est la densité de
+		// signal relevée à l'épingle (survey → updateDensity), et le TARGET SCAN
+		// du vol en dépend. `place` nomme la session au journal — « LIVE ODEON »
+		// dit quelque chose que 48.8499, 2.3419 ne dit pas.
+		done({
+			live: [state.pin.lat, state.pin.lon],
+			density: Number.isFinite(state.lastDensity?.level) ? state.lastDensity.level : null,
+			place: state.place ? designationFrom(state.place) : null,
+		});
 	};
 
 	// Lance réellement le job. N'est appelée que par le gestionnaire ci-dessous,
@@ -813,6 +885,7 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		// éviter.
 		stopSearch?.(); stopSearch = null;
 		state.jobId = id;
+		onBusy?.();
 		panel.innerHTML = JOB_PANEL;
 		panel.querySelector('.sc-job-name').textContent = name.toUpperCase();
 		const log = panel.querySelector('.sc-log');
@@ -1043,7 +1116,8 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		if (running) watchJob(running.id, running.name, 0);
 	}).catch(() => {});
 	setTimeout(() => map.invalidateSize(), 0);
-	search.focus();
+	// Pas de search.focus() : le curseur de la Home est sur [ FLY ] (issue
+	// #123), et la recherche est désormais attachée au repos aussi (#222).
 
 	return {
 		done: new Promise((resolve) => { resolveScanner = resolve; }),
@@ -1052,6 +1126,9 @@ export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null
 		// La Home arme l'outil depuis sa colonne gauche : au repos, le rail est
 		// caché, et sans ça rien ne permettrait de commencer à tracer.
 		startDraw,
+		setMode,
+		rest,
+		busy: () => !!state.jobId,
 		// La carte ne meurt QU'ICI. `map.remove()` retire les écouteurs que
 		// Leaflet a posés sur window : sans lui, une Home ouverte trois fois
 		// laisse trois cartes vivantes derrière elle.

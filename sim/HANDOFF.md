@@ -1388,6 +1388,42 @@ Non vérifié : `HUD CLEAR` en vol au banc (la ligne est rendue et le modèle
 testé, le vol lui-même ne l'a pas été).
 
 
+## FIELD : onglets LOCAL / LIVE, rail simplifié (issue #222)
+
+Le rail de FIELD était trop fouilli. La colonne gauche est désormais : tête,
+recherche (commune), deux onglets, corps, pied.
+
+- **LOCAL** au repos : `[ FLY — <dernière zone> ]`, les 5 derniers terrains,
+  `ALL TERRAIN…` (l'écran complet, inchangé), `ARCHIVE`, `[ DRAW BOX ]` /
+  `[ DRAW SHAPE ]`. Une zone tracée : AREA (les deux tracés + CLEAR), SOURCE
+  (Google Earth / Apple Flyover), DESIGNATION, `[ ACQUIRE AREA ]` et **une
+  ligne** `tuiles · poids · verdict` (`railLine()` dans `scanner-model.mjs`,
+  testée). Les blocs AREA ANALYSIS, SIGNAL DENSITY et COVERAGE ont disparu ;
+  la densité se calcule toujours en silence (KEEP, TARGET SCAN).
+- **LIVE** : un clic sur la carte pose une épingle déplaçable, le rail montre
+  le lieu (reverse Nominatim) et les coordonnées, `[ FLY LIVE ]` s'ouvre. Le
+  point rendu à `fieldLoop()` a la même forme qu'avant (`live`, `density`,
+  `place`).
+- **MONO · SAT · TERRAIN** et **HIGH / MED / LOW** sont un contrôle Leaflet en
+  haut à gauche de la carte ; le second se retire en LIVE.
+- Le scanner n'a plus de `menuNav` à lui : c'est celui de la Home qui porte
+  Échap / B (`scanner.rest()` au travail, MODE au repos, rien pendant un job).
+  Le curseur initial reste sur `[ FLY ]` (`focusFirst: false`).
+- **Bug corrigé** : la recherche refusait les espaces. `Input` (input.js)
+  écoutait `keydown` sur `window` sans regarder la cible : Espace partait en
+  `onAction(' ')` (pause + `preventDefault`). Un champ de saisie garde ses
+  touches, Échap excepté — même règle que menu-nav.
+
+Vérifié dans Chrome (MCP) : recherche « Saint Cloud », onglet LIVE → épingle →
+vol en direct lancé, DRAW BOX → rail → source + nom avec espace → ACQUIRE
+ouvert, Échap repose l'outil. `selftest:operator` passe hors `landing-selftest`
+(rouge sur `main` aussi, scène absente).
+
+Non vérifié : une acquisition complète depuis le nouveau rail (le job et
+KEEP/REMOVE n'ont pas changé) ; le pied du rail après `done(undefined)` (BACK
+après un job) laissait déjà un rail vide avant ce changement.
+
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
