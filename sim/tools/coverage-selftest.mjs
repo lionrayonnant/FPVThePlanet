@@ -38,9 +38,31 @@ t('cellSizeM : 25,1 m à Paris, 38,2 m à l\'équateur — la spec le dit', () =
 	assert.ok(Math.abs(cellSizeM(0) - 38.22) < 0.05, `${cellSizeM(0)}`);
 });
 
-t('distanceM : 30 m vers l\'est font 30 m', () => {
-	const east = { lat: EIFFEL.lat, lon: EIFFEL.lon + 30 / (111320 * Math.cos(EIFFEL.lat * Math.PI / 180)) };
-	assert.ok(Math.abs(distanceM(EIFFEL, east) - 30) < 0.01);
+// Référence INDÉPENDANTE : une haversine sur le rayon moyen terrestre, qui ne
+// partage rien avec la formule plate du module. La spec dit que l'approximation
+// plate suffit à l'échelle de l'empreinte — on le vérifie au lieu de le supposer.
+const haversineM = (a, b) => {
+	const R = 6371008.8, d = Math.PI / 180;
+	const dLat = (b.lat - a.lat) * d, dLon = (b.lon - a.lon) * d;
+	const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.sin(dLon / 2) ** 2;
+	return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+t('distanceM : à 0,2 % près d\'une haversine indépendante, à 30 m comme à 1 km', () => {
+	// Décalages posés en DEGRÉS, pas dérivés de la formule testée.
+	const east30 = { lat: EIFFEL.lat, lon: EIFFEL.lon + 0.00041 };   // ~30 m à cette latitude
+	const north30 = { lat: EIFFEL.lat + 0.00027, lon: EIFFEL.lon };  // ~30 m
+	const diag1km = { lat: EIFFEL.lat + 0.0064, lon: EIFFEL.lon + 0.0097 };
+	// L'écart attendu est CONSTANT en relatif, ~0,113 % : 111320 m/° (la
+	// convention du module, la même que latLonOf() dans main.js — les deux
+	// doivent tomber dans les mêmes cellules) contre 111194,9 m/° pour le rayon
+	// moyen de la haversine. Deux conventions, pas une erreur ; on borne à 0,2 %.
+	for (const [p, about] of [[east30, 30], [north30, 30], [diag1km, 1000]]) {
+		const ref = haversineM(EIFFEL, p);
+		assert.ok(ref > about * 0.85 && ref < about * 1.15, `le point de test est bien à ~${about} m (${ref.toFixed(2)})`);
+		const rel = Math.abs(distanceM(EIFFEL, p) - ref) / ref;
+		assert.ok(rel < 0.002, `écart relatif ${(rel * 100).toFixed(3)} % à ${about} m`);
+	}
 	assert.equal(distanceM(EIFFEL, EIFFEL), 0);
 });
 
