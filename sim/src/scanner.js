@@ -280,9 +280,17 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	const areaFrames = L.layerGroup().addTo(map);
 
 	// La couverture (issue #245) : là où le drone est passé, sous les cadres.
-	// Relue dans le cache opérateur à chaque redraw — operator.patch() y écrit
-	// de façon synchrone à la clôture d'une session, donc la Home qui suit un
-	// vol voit la tache sans attendre le réseau.
+	// Relue dans le cache opérateur à chaque redraw. Attention à ce que ça
+	// veut dire après un vol : la Home y revient par un RECHARGEMENT complet
+	// (main.js, `location.href = location.pathname`), donc le cache client ne
+	// survit pas — ce qu'on relit est ce que le serveur a reçu. La tache est là
+	// parce que le debounce de patch() (500 ms) est plus court que la séquence
+	// de fin de vol (≥ 1,4 s avant exitArmed), la même marge dont la fiche de
+	// session dépend déjà ; `beforeunload → flush()` n'est qu'un filet non
+	// garanti (un fetch ordinaire, sans keepalive — qui ne porterait de toute
+	// façon pas 160 ko). Sur un serveur lent, un PATCH coupé par le rechargement
+	// perd la trace de la session : même classe de perte que sendBeacon, voir
+	// HANDOFF.
 	const coverage = createCoverageLayer(L, {
 		color: token('--warm-white') || '#ece7dd',
 		planDraw,

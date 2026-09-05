@@ -114,6 +114,11 @@ export class Coverage {
 	// même promesse que dialogueMemory (src/dialogue.js). Une cellule mal
 	// formée invalide tout : mieux vaut repartir de zéro que garder un fichier
 	// à moitié lu qu'on croirait complet.
+	//
+	// Ne borne PAS à la lecture : un blob au-dessus de MAX_CELLS (édité à la
+	// main, ou constante abaissée) est dessiné entier jusqu'au cap() du vol
+	// suivant. Voulu — le client est le seul écrivain — et surtout : ce n'est
+	// pas une invitation à valider côté serveur, voir OP_WRITABLE_KEYS.
 	static fromStored(stored) {
 		const c = new Coverage();
 		if (!stored || typeof stored !== 'object') return c;
@@ -203,7 +208,8 @@ export function planDraw(coverage, project, size) {
 		// La taille projetée de la cellule : la distance au centre de la voisine.
 		// Mesurée par cellule et non une fois pour toutes, parce que Mercator
 		// étire avec la latitude et qu'une tache peut couvrir un pays.
-		const q = project(cellCenter(x + 1, y).lat, cellCenter(x + 1, y).lon);
+		const east = cellCenter(x + 1, y);
+		const q = project(east.lat, east.lon);
 		const r = Math.hypot(q.x - p.x, q.y - p.y) * BLOB_RADIUS_CELLS;
 		if (p.x < -r || p.x > size.w + r || p.y < -r || p.y > size.h + r) continue;
 		const alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * (w - 1) / (W_MAX - 1);

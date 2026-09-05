@@ -154,7 +154,9 @@ qu'on désigne. Elle n'est jamais interactive.
   d'une trajectoire échantillonnée à 5 Hz jusqu'à 42,72 m/s (la pire vitesse
   mesurée du dépôt) ;
 - `w` sature à `W_MAX` et ne le dépasse jamais ;
-- la fusion de deux couvertures est commutative et idempotente ;
+- la fusion de deux couvertures est commutative sur le contenu, a la couverture
+  vide pour élément neutre, et additionne les poids jusqu'à saturation — elle
+  n'est PAS idempotente, et c'est voulu : repasser densifie ;
 - au-delà de `MAX_CELLS`, l'éviction retire bien les poids les plus faibles
   d'abord, et le résultat reste sous le plafond ;
 - une couverture absente ou corrompue se relit comme une couverture vierge — pas

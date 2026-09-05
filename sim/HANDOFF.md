@@ -1865,6 +1865,15 @@ sans recouvrement. À revoir sur du vrai usage, pas sur une intuition.
 **Perdu si l'onglet meurt** : `sendBeacon` ne fait que des POST, la couverture
 voyage par PATCH. La fiche de session part, sa trace non. Assumé.
 
+**Et fragile au rechargement** : après un vol, la Home revient par un
+rechargement complet, donc le cache client ne survit pas — ce qu'on relit est
+ce que le serveur a reçu. Le PATCH part grâce au debounce de 500 ms, plus court
+que la séquence de fin de vol ; `beforeunload → flush()` est un filet non
+garanti (fetch ordinaire, sans `keepalive`, qui ne porterait pas 160 ko). Sur
+un serveur lent, la trace d'une session peut être coupée par le rechargement.
+Suivi : issue sur `operator.flush()` à l'unload, qui concerne aussi `settings`
+et `dialogueMemory`.
+
 ### Vérifié — sans navigateur
 
 `node tools/coverage-selftest.mjs` (17) : la tuile de la Tour Eiffel calculée à
@@ -1902,13 +1911,12 @@ La couverture injectée ne dit rien de la vraie : reste à voir, après un vol
 FIELD réel puis un retour à la Home, que la tache est bien là où l'on a volé et
 qu'elle survit à un rechargement ; qu'un vol LIVE marque au bon endroit ; que
 dix sessions ne noircissent pas la carte ; et ce que vaut le plafond.
+
+Et en suivi, une fois la tache vue :
+
 - le clignotement au zoom : `leaflet-zoom-hide` cache le calque pendant toute
   l'animation (pas de handler `zoomanim`) — si c'est gênant, le remède est un
   handler `zoomanim`, en suivi.
-- la garde de redimensionnement du canvas (`canvas.width !== size.x * dpr`) ne
-  tient pas en DPR fractionnaire (le dépôt en a mesuré 0,9) : réallocation à
-  chaque déplacement et bande sous-pixel au bord — un `Math.round` suffit, à
-  poser avant la fusion.
 
 ## Non vérifié / à faire
 

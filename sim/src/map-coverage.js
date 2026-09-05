@@ -49,9 +49,14 @@ export function createCoverageLayer(L, { getCoverage, color = '#ece7dd', planDra
 			// coin haut-gauche du conteneur dans le repère du calque : c'est ce
 			// qui le garde en place pendant un déplacement de carte.
 			const dpr = window.devicePixelRatio || 1;
-			if (canvas.width !== size.x * dpr || canvas.height !== size.y * dpr) {
-				canvas.width = size.x * dpr;
-				canvas.height = size.y * dpr;
+			// Arrondis AVANT de comparer : `canvas.width` tronque à l'entier, donc
+			// à DPR fractionnaire (le dépôt en a mesuré 0,9) `811 × 0,9 = 729,9`
+			// ne vaudrait jamais 729 et le tampon serait réalloué à chaque
+			// moveend, avec une bande sous-pixel au bord.
+			const bw = Math.round(size.x * dpr), bh = Math.round(size.y * dpr);
+			if (canvas.width !== bw || canvas.height !== bh) {
+				canvas.width = bw;
+				canvas.height = bh;
 				canvas.style.width = `${size.x}px`;
 				canvas.style.height = `${size.y}px`;
 			}
