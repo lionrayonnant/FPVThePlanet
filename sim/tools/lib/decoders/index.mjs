@@ -59,6 +59,16 @@
 //                  (ex. asset.copyright glTF). Prime sur l'attribution annoncée
 //                  par le fournisseur, qui prime sur le défaut. Un décodeur qui
 //                  ne sait rien dire (OBJ) rend [].
+//   textures(tileDir) -> Promise<(string|null)[]>   — OPTIONNEL (issue #110)
+//     La liste ORDONNÉE des textures du dossier, une par couche, dans l'ordre
+//     que prep.mjs assigne aux couches ; chemin absolu, ou null pour un
+//     matériau sans texture. Sert au contrôle de convention UV de
+//     tools/selftest.mjs, qui relisait jusqu'ici exp_model.mtl lui-même —
+//     la dernière hypothèse « l'entrée est de l'OBJ » hors de ce dossier.
+//     Un décodeur ne l'expose QUE s'il peut répondre sans décoder toute la
+//     tuile : rocktree.mjs ne le peut pas (ses atlas sont des Buffers
+//     construits pendant le décodage, réparation d'imagerie comprise) et ne
+//     l'expose donc pas. Le contrôle se met alors en SKIP, en le disant.
 import * as obj from './obj.mjs';
 import * as rocktree from './rocktree.mjs';
 

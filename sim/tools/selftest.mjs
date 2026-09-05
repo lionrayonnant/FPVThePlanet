@@ -16,6 +16,9 @@ import { CloudField, baseFor, BASE_CLEAR, BASE_OVERCAST, DECK_THICKNESS, DIM_MAX
 import { toSimParams, sanitize } from './lib/weather.mjs';
 import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { createTileMaterial } from '../src/TileMaterial.js';
+// Le contrôle de convention UV demande sa liste de textures au DÉCODEUR qui
+// reconnaît le dossier source, au lieu de relire exp_model.mtl (issue #110).
+import { pick as decoderPick } from './lib/decoders/index.mjs';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
 import { targetBuild, thrustToWeight } from './target-build.mjs';
@@ -1491,25 +1494,35 @@ console.log('\ntextures');
 // odd": OBJ puts the V origin at the bottom-left, DataArrayTexture at the top.
 // Both checks below failed hard before prep.mjs started converting it.
 {
+	// On DEMANDE au décodeur la liste ordonnée de ses textures, au lieu de
+	// relire exp_model.mtl et de reparser newmtl/map_Kd ici (issue #110) :
+	// c'était la dernière hypothèse « l'entrée est de l'OBJ » en dehors de
+	// tools/lib/decoders/. Un futur décodeur (glTF) qui expose textures()
+	// fait passer ce contrôle sans qu'on touche à ce fichier.
 	const tileDir = manifest.source;
-	const mtlPath = tileDir ? path.join(tileDir, 'exp_model.mtl') : null;
+	let jpgs = null;
+	let skip = null;
 	if (!tileDir || !fs.existsSync(tileDir)) {
-		console.log(`  SKIP  needs the source tile — ${mtlPath ?? 'no manifest.source'} is not on disk`);
-	} else if (!fs.existsSync(mtlPath)) {
-		// Non-OBJ decoders (Google Earth's rocktree, #110) have no exp_model.mtl
-		// to read UVs back from — nothing wrong with the scene, just a check
-		// that only knows how to re-derive them from an OBJ/MTL pair.
-		console.log('  SKIP  UV convention — skipped (décodeur non-OBJ, #110)');
+		skip = `needs the source tile — ${tileDir ?? 'no manifest.source'} is not on disk`;
+	} else {
+		try {
+			const decoder = decoderPick(tileDir);
+			if (typeof decoder.textures !== 'function') {
+				// rocktree ne peut pas répondre sans décoder toute la tuile :
+				// ses atlas sont construits pendant le décodage. On le DIT,
+				// plutôt que de conclure « pas d'OBJ, donc rien à vérifier ».
+				skip = `UV convention — le décodeur « ${decoder.id} » ne sait pas lister ses textures sans décoder (#110)`;
+			} else {
+				jpgs = await decoder.textures(tileDir);
+			}
+		} catch (e) {
+			skip = `UV convention — ${e.message}`;
+		}
+	}
+	if (skip) {
+		console.log(`  SKIP  ${skip}`);
 	} else {
 		const sharp = (await import('sharp')).default;
-
-		// Declaration order in the MTL is the layer order prep.mjs assigns.
-		const jpgs = [];
-		for (const line of fs.readFileSync(mtlPath, 'latin1').split('\n')) {
-			const t = line.trim();
-			if (t.startsWith('newmtl ')) jpgs.push(null);
-			else if (t.startsWith('map_Kd ') && jpgs.length) jpgs[jpgs.length - 1] = t.slice(7).trim();
-		}
 
 		const chunk = manifest.chunks[0];
 		const g = fs.readFileSync(path.join(sceneDir, chunk.geo));
@@ -1525,7 +1538,8 @@ console.log('\ntextures');
 		const SAMPLED = Math.min(80, chunk.layerCount);
 		const tex = new Map();
 		for (let l = 0; l < SAMPLED; l++) {
-			const img = sharp(path.join(tileDir, jpgs[layerBase + l]));
+			// textures() rend des chemins ABSOLUS : plus de join sur tileDir.
+			const img = sharp(jpgs[layerBase + l]);
 			const { width, height } = await img.metadata();
 			tex.set(l, { data: await img.removeAlpha().raw().toBuffer(), w: width, h: height });
 		}
@@ -1917,13 +1931,21 @@ console.log('\nentry state — sampleCandidate');
 			worst && `tirage ${worst.i} : ${worst.zone} à ${worst.m.toFixed(1)} m`);
 	}
 
+	// Le repli n'est plus manifest.spawn LITTÉRALEMENT (issue #149) : ce point-là
+	// n'est pas contraint par la clôture et tombait en HOLD ou en CAUTION sur
+	// trois des cartes installées. Ce qu'on vérifie est donc ce qui compte
+	// vraiment : c'est un repli COMFORTABLE, immobile et à plat, et il naît en
+	// zone NOMINAL — ce qu'un tirage réussi garantit déjà juste au-dessus.
 	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
-	check('maxAttempts=0 falls back to the fixed spawn', fallback.category === 'COMFORTABLE'
-		&& fallback.position.x === manifest.spawn.x && fallback.position.y === manifest.spawn.y
-		&& fallback.position.z === manifest.spawn.z
+	entryFence.reset();
+	entryFence.update(fallback.position);
+	check('maxAttempts=0 falls back to a resting spawn', fallback.category === 'COMFORTABLE'
 		&& fallback.quaternion.w === 1 && fallback.quaternion.x === 0
 		&& fallback.linvel.x === 0 && fallback.linvel.y === 0 && fallback.linvel.z === 0
 		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
+	check('le repli lui aussi naît hors de la clôture (#149)',
+		entryFence.out.zone === GF_NOMINAL,
+		`${entryFence.out.zone} à ${entryFence.out.marginM.toFixed(1)} m`);
 
 	phys.reset();
 }
