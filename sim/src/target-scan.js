@@ -18,11 +18,16 @@ import { scanContext } from './dialogue-context.js';
 // Bloc RTC partagé par la liste et la fiche : même markup que scanner.js
 // (`.sc-block .sc-log-block .sc-rtc-block`), pour une seule langue visuelle
 // entre toutes les voix du crew.
-const rtcMarkup = '<pre class="sc-h">RTC // INTERNAL</pre><pre class="sc-log sc-rtc"></pre>';
 function appendRtc(box) {
 	const el = document.createElement('section');
 	el.className = 'sc-block sc-log-block sc-rtc-block';
-	el.innerHTML = rtcMarkup;
+	const h = document.createElement('pre');
+	h.className = 'sc-h';
+	h.textContent = 'RTC // INTERNAL';
+	const log = document.createElement('pre');
+	log.className = 'sc-log sc-rtc';
+	el.appendChild(h);
+	el.appendChild(log);
 	box.appendChild(el);
 	return el;
 }
@@ -36,9 +41,12 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 	const condLine = conditionsLine(weather);
 	return new Promise((resolve) => {
 		const s = screen(root);
-		s.box.innerHTML = `<pre>TARGET SCAN
-
-${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
+		// createElement plutôt qu'innerHTML, comme screen() lui-même : c'est ce
+		// qui rend l'écran montable sur le faux DOM, donc testable sans
+		// navigateur (tools/target-scan-render-selftest.mjs, issue #73).
+		const head = document.createElement('pre');
+		head.textContent = `TARGET SCAN\n\n${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED`;
+		s.box.appendChild(head);
 
 		const wrap = document.createElement('div');
 		wrap.className = 'terminal-list';
@@ -70,6 +78,13 @@ ${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
 
 		const listNav = menuNav(s.el, { back: cancel });
 
+		// Vue courante de l'écran. Une fiche déjà ouverte interdit d'en ouvrir
+		// une seconde (issue #73) : quand la même frappe atteint à la fois le
+		// bouton focalisé et un autre chemin d'activation, `sheet()` était
+		// appelée deux fois et deux fiches s'empilaient sur la liste. Récupérable
+		// au BACK, mais l'écran mentait sur l'endroit où on se trouve.
+		let activeView = 'list';
+
 		const finish = (index) => {
 			listNav.detach();
 			stopScan();
@@ -78,18 +93,24 @@ ${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED</pre>`;
 		};
 
 		const sheet = (index) => {
+			if (activeView !== 'list') return;
+			activeView = 'sheet';
 			s.el.style.display = 'none'; // la liste attend derrière la fiche
 
 			const d = describeTarget(scan.candidates[index]);
 			const s2 = screen(root);
-			s2.box.innerHTML = `<pre>TARGET ${scan.candidates[index].id}
-
-LOCATION       ${d.location}
-SIGNAL         ${d.signal}
-DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}
-VIDEO          ${d.video}
-CONTROL        ${d.control}
-FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}</pre>`;
+			const sheetPre = document.createElement('pre');
+			sheetPre.textContent = [
+				`TARGET ${scan.candidates[index].id}`,
+				'',
+				`LOCATION       ${d.location}`,
+				`SIGNAL         ${d.signal}`,
+				`DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}`,
+				`VIDEO          ${d.video}`,
+				`CONTROL        ${d.control}`,
+				`FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}`,
+			].join('\n');
+			s2.box.appendChild(sheetPre);
 			appendRtc(s2.box);
 
 			// Un seul échange à l'ouverture de la fiche. La météo est déjà affichée
@@ -120,6 +141,7 @@ FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : '
 			const back = () => {
 				if (done) return;
 				done = true;
+				activeView = 'list';
 				sheetNav.detach();
 				s2.remove();
 				s.el.style.display = ''; // la liste reprend la main (pile de navs)
