@@ -11,6 +11,27 @@ import { PROFILES } from '../src/drone-profiles.js';
 
 export const SESSION_FILTERS = ['ALL', 'LANDED', 'CRASHED', 'WITH PHOTOS'];
 
+// L'identifiant de zone d'un vol EN DIRECT (#218). Une zone streamée n'existe
+// pas sur le disque : elle n'a donc pas de slug, et il faut lui en forger un
+// pour que la session ait un nom au journal — `openSession()` refuse une zone
+// qui ne se slugifie pas.
+//
+// Le préfixe `live-` n'est pas décoratif. `terminal.js` conditionne REVISIT et
+// RESUME à `model.areas.some((a) => a.slug === area)` : sans préfixe, un vol en
+// direct au-dessus d'un quartier qui porte le nom d'une zone acquise
+// proposerait de « revisiter » un terrain qui n'est pas celui qu'on a survolé.
+// Le préfixe rend la collision impossible plutôt qu'improbable.
+//
+// Les coordonnées servent de repli quand Nominatim n'a rien rendu : une zone
+// sans nom reste identifiable, et deux vols au même endroit portent le même
+// identifiant.
+export function liveAreaId(place, lat, lon) {
+	const named = String(place ?? '').trim();
+	if (named) return `live-${named}`;
+	const n = (v) => (Number.isFinite(v) ? v.toFixed(4) : '0');
+	return `live-${n(lat)}-${n(lon)}`;
+}
+
 export function pad(n, width = 5) {
 	const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 	return String(v).padStart(width, '0');

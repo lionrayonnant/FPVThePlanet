@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
-	targetLogEntries, targetRow, areaLabel, stamp, duration, pad, fit,
+	targetLogEntries, targetRow, areaLabel, stamp, duration, pad, fit, liveAreaId,
 } from './session-log-model.mjs';
 
 let n = 0;
@@ -220,6 +220,26 @@ t('fit : complète à droite, coupe avec une ellipse, ne rend jamais plus long',
 	assert.equal(fit('ABCDEF', 5), 'ABCD…');
 	assert.equal(fit('', 3), '   ');
 	assert.equal(fit('ABCDEF', 1), '…');
+});
+
+t('liveAreaId : préfixé, pour ne jamais se confondre avec une zone acquise', () => {
+	// REVISIT est conditionné à `model.areas.some(a => a.slug === area)` : sans
+	// préfixe, un vol en direct au-dessus d'un quartier homonyme d'une zone
+	// acquise proposerait de revisiter le mauvais terrain.
+	assert.equal(liveAreaId('Odeon', 48.8499, 2.3419), 'live-Odeon');
+	assert.match(liveAreaId('paristest', 48.85, 2.34), /^live-/);
+	assert.notEqual(liveAreaId('paristest', 48.85, 2.34), 'paristest');
+});
+
+t('liveAreaId : sans nom, les coordonnées — deux vols au même endroit se rejoignent', () => {
+	assert.equal(liveAreaId(null, 48.8499, 2.3419), 'live-48.8499-2.3419');
+	assert.equal(liveAreaId('   ', 48.8499, 2.3419), liveAreaId(null, 48.8499, 2.3419));
+	// Rien d'exploitable : on ne fabrique pas de coordonnées, on met zéro.
+	assert.equal(liveAreaId(null, NaN, undefined), 'live-0-0');
+});
+
+t('liveAreaId : le libellé du journal reste lisible', () => {
+	assert.equal(areaLabel(liveAreaId('Odeon', 48.85, 2.34)), 'LIVE ODEON');
 });
 
 console.log(`\n${n} ok`);

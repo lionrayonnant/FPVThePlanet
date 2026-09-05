@@ -41,6 +41,7 @@ import { music } from './music.js';
 import { space } from './space.js';
 import { flightIntensity, PHASE_INTENSITY, FADE } from '../tools/music-model.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
+import { liveAreaId } from '../tools/session-log-model.mjs';
 import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
 import { creditText } from './provider-credit.js';
@@ -1145,12 +1146,12 @@ async function bootLive([lat, lon]) {
 	// ("pas de Geofence" en mode direct) : elle existe juste pour ne pas
 	// planter frame(), elle n'agit jamais.
 	fence = new Geofence({ min: [-1e6, -1e6, -1e6], max: [1e6, 1e6, 1e6] });
-	// Pas de sélection TARGET SCAN en mode direct : rates par défaut du
-	// contrôleur (opts.rates est optionnel dans flightController.js,
-	// retombe sur RATE_PRESETS[this.preset]).
-	//
-	// Sauf au banc, qui peut voler un exemplaire tiré : ses rates sont posés
-	// juste avant l'appel, puisqu'il n'y a pas de TARGET SCAN pour les fournir.
+	// `benchRates` porte les rates de l'exemplaire quand il y en a un : le banc
+	// les pose depuis sa cellule tirée, le vol en direct depuis sa cible
+	// (#218) — bootLive() construit lui-même son contrôleur, donc dans les deux
+	// cas ils doivent être posés AVANT l'appel. Sans exemplaire (?live= nu),
+	// `opts.rates` est optionnel dans flightController.js et retombe sur
+	// RATE_PRESETS[this.preset].
 	controller = new FlightController({ profile: PROFILE, rates: benchRates ?? undefined });
 
 	audio.start();
@@ -2061,7 +2062,7 @@ if (!frozen) {
 		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,
 		propwash: physics.propulsion.propwash,
 		bench: MODE.bench,
-		recon: MODE.live,
+		live: MODE.live,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setCut(flightEnd.out);
@@ -2187,9 +2188,17 @@ function logBuild(build) {
 
 function signalCountFor(slug) {
 	const t = operator.getOperator()?.terrainCache?.find((e) => e.slug === slug);
-	const lvl = t?.signalDensity?.level;
-	if (!Number.isFinite(lvl)) return 4;              // terrain sans densité (cache ancien, terrain local)
-	return 2 + Math.round(Math.max(0, Math.min(1, lvl)) * 3);   // 2..5, échelle du Global Scanner
+	return signalCountFrom(t?.signalDensity?.level);
+}
+
+// La même échelle, à partir du NIVEAU nu. Un vol en direct n'a pas d'entrée de
+// cache terrain — sa densité vient du relevé que le scanner vient de faire sur
+// la zone tracée, et voyage avec le point (#218). Les deux chemins doivent
+// compter les signaux pareil, sinon le TARGET SCAN ne dit pas la même chose que
+// le GLOBAL SCANNER qui vient de l'annoncer.
+function signalCountFrom(level) {
+	if (!Number.isFinite(level)) return 4;            // pas de densité connue (cache ancien, terrain local)
+	return 2 + Math.round(Math.max(0, Math.min(1, level)) * 3);   // 2..5, échelle du Global Scanner
 }
 
 // Un préchargement par zone, conservé d'un passage au TARGET SCAN à l'autre.
@@ -2300,23 +2309,67 @@ async function fieldLoop(ui) {
 		// recharger la page.
 		if (!flyChoice) return null;
 
-		// Reconnaissance : le scanner rend un point, pas une zone. On décolle
-		// tout de suite — ni TARGET SCAN, ni hack, ni rituel. Les cibles sont un
-		// attribut d'une zone RELEVÉE (signalCountFor() lit la densité que
-		// l'acquisition a écrite) : en inventer sur un terrain qu'on n'a jamais
-		// relevé fabriquerait un relevé qui n'a pas eu lieu.
+		// Vol en direct : EXACTEMENT le pipeline d'une carte cuite — TARGET SCAN,
+		// cible, exemplaire, musique, hack, rituel du Control Vector. Seul le
+		// terrain diffère : il est streamé au lieu d'être lu du disque.
 		//
-		// Exactement le chemin de ?live= : bootLive() construit sa physique et son
-		// contrôleur lui-même et rend { prepared: true }. PROFILE n'est PAS posé
-		// ici — il reste undefined comme sous ?live=, et Physics choisit son
-		// défaut (main.js:126, bootLive: `PROFILE ? { profile: PROFILE } : {}`).
-		// Le banc, lui, doit le poser parce qu'il a une cellule choisie ; la
-		// reconnaissance n'en a pas.
+		// #206 avait tranché l'inverse (« ni TARGET SCAN, ni hack, ni rituel »)
+		// au motif que les cibles sont un attribut d'une zone RELEVÉE. C'était
+		// une erreur de lecture du code : le relevé, le scanner vient de le
+		// faire — `lastDensity` est la densité de signal calculée sur la zone
+		// tracée, depuis Nominatim. Elle voyage désormais avec le point, et il
+		// n'y a rien à inventer. Sans cette chaîne, tout vol en direct rendait
+		// la même cellule freestyle et le même OSD, puisque rien ne tirait ni
+		// famille ni exemplaire.
 		if (flyChoice.live) {
 			MODE.live = true;
+			introFrozen = true;
+			const [lat, lon] = flyChoice.live;
+
+			const seed = Math.random().toString(16).slice(2, 12);
+			const count = signalCountFrom(flyChoice.density);
+			const scan = generateTargetScan({ seed, count });
+			const scanWeather = await worldWeather({ lat, lon });
+			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather });
+
+			// Échap au TARGET SCAN : retour au choix de zone. Rien n'a encore été
+			// monté — contrairement au chemin cuit, bootLive() n'est appelé
+			// qu'APRÈS le choix, parce qu'il MONTE la scène là où preloadScene()
+			// se contente de télécharger. L'annuler laisserait un terrain vivant
+			// sans vol.
+			if (choice.cancelled) {
+				MODE.live = false;
+				introFrozen = false;
+				continue;
+			}
+
+			const cand = scan.candidates[choice.index];
 			audio.start();
-			console.log(`[field] reconnaissance en direct → ${flyChoice.live[0].toFixed(4)}, ${flyChoice.live[1].toFixed(4)}`);
-			await bootLive(flyChoice.live);
+			// Une zone en direct n'a pas de slug sur le disque. On lui en forge un,
+			// préfixé `live-` : il nomme la session au journal sans jamais pouvoir
+			// se confondre avec une zone acquise, donc REVISIT ne proposera jamais
+			// de retourner sur un terrain qu'on n'a pas gardé.
+			flyArea = liveAreaId(flyChoice.place, lat, lon);
+			flyTarget = choice;
+			const buildSeed = `${seed}::${choice.index}`;
+			const build = targetBuild({ seed: buildSeed, family: cand._family });
+			// AVANT bootLive(), qui construit sa physique avec `PROFILE` s'il est
+			// posé — c'est déjà ce que fait le vol libre du banc.
+			PROFILE = build.profile;
+			benchRates = build.rates;
+			logBuild(build);
+			console.log(`[field] vol en direct → ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+			const booting = bootLive(flyChoice.live);
+
+			await music.loadManifest();
+			await music.prepare(music.trackForFamily(cand._family, buildSeed));
+			music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
+			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
+			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
+			await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+			introFrozen = false;
+			accumulator = 0;
+			lastTime = performance.now();
 			return { prepared: true };
 		}
 
@@ -2606,7 +2659,12 @@ async function openFlightSession() {
 	// est celui qu'emprunte déjà une ouverture de session ratée, où `tgt`
 	// reste null — il est éprouvé, on ne s'en fabrique pas un deuxième.
 	try {
-		if (!MODE.bench && !MODE.live) {
+		// Le banc reste étanche. Le vol EN DIRECT, lui, ouvre bien une session
+		// depuis #218 : il a une cible, un exemplaire et un hack comme un vol de
+		// terrain, donc il laisse la même trace. Sa zone est préfixée `live-`,
+		// ce qui rend REVISIT impossible dessus — on ne revisite pas un terrain
+		// qu'on n'a pas gardé.
+		if (!MODE.bench) {
 			await session.open({
 				area: flyArea,
 				weatherSnapshot: session.snapshotWeather(weather),

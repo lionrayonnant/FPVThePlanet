@@ -745,9 +745,11 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	// cartes vivantes derrière elle.
 	const quit = (value) => { scanner?.destroy(); scanner = null; nav?.detach(); s.remove(); resolveFly(value); };
 	const fly = (slug, resume) => quit({ slug, resume });
-	// Vol en direct : pas de slug, rien sur le disque. La Home ne fait que
-	// transmettre — c'est fieldLoop() qui sait ce qu'un vol sans zone veut dire.
-	const flyLive = (coords) => quit({ live: coords });
+	// Vol en direct. La Home ne fait que TRANSMETTRE, sans rien lire ni rien
+	// décider : le scanner joint au point le relevé qu'il vient de faire de la
+	// zone (densité de signal, nom du lieu), et c'est fieldLoop() qui sait ce
+	// qu'un vol en direct veut dire.
+	const flyLive = (live) => quit(live);
 	// Remonter d'un cran : SELECT OPERATION MODE. Depuis PHASE 26 la Home n'est
 	// plus la racine — mais elle l'est encore pour ?scene=, qui saute le choix
 	// de mode, d'où le drapeau plutôt qu'un `back` inconditionnel.
@@ -797,7 +799,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			// tel quel jusqu'à fieldLoop(), qui sait le faire traverser bootLive().
 			scanner.done.then((choice) => {
 				if (choice?.slug) return fly(choice.slug);
-				if (choice?.live) return flyLive(choice.live);
+				if (choice?.live) return flyLive(choice);
 			});
 		})
 		.catch(() => {
