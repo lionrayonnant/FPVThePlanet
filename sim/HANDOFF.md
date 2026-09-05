@@ -1346,6 +1346,48 @@ n'écoute rien.
 - #214 : une rangée à nom long déborde sur l'écran complet `LOCAL TERRAIN`.
 
 
+## Reconnaissance FIELD : OSD et ligne HUD du banc (issue #217)
+
+Signalé en jouant : un vol live depuis le scanner donnait le drone par défaut
+**sans aucun HUD**.
+
+`openFlightSession()` sortait sur `if (OPTS.live || MODE.live) return;`, avant
+toute la section caméra + OSD. Le banc, lui, la traverse — sa seule garde est
+`if (!MODE.bench)` autour de `session.open()`. La garde avait été écrite pour
+`?live=`, un raccourci de **dev** où rien n'est monté ; #206 a fait de
+`MODE.live` un vrai mode joueur et lui a fait hériter de la garde telle quelle.
+
+Ce n'était **pas** la panne `NO_OSD` de `drone-osd-model.mjs` : avec la graine
+`dev::<famille>`, les douze combinaisons famille × mode rendent une disposition.
+Le code d'installation n'était jamais atteint.
+
+- La reconnaissance emprunte maintenant le **chemin du banc** : tout tourne sauf
+  `session.open()`. `?live=` garde sa sortie immédiate.
+- Le drone d'une reconnaissance est le **tien** — pas de hack, pas de cible —
+  donc graine stable et la même machine d'un vol à l'autre. C'est ce qui la
+  distingue d'un vol de terrain, où la machine volée est celle de la cible.
+- **`HUD : CLASSIC / CLEAR`** est une ligne du BANC. `CLEAR` coupe l'OSD du
+  **drone** seulement, ce que `droneOsdLayout()` rend déjà pour `NO_OSD` — rien
+  en aval n'a à connaître le réglage. L'incrustation FPVTP! ne bouge pas : elle
+  porte `PHOTO READY` et la fin de vol. Une reconnaissance ne lit pas ce
+  réglage : `applyBenchConfig()` se garde sur `MODE.bench`, et #194 a coûté un
+  bug entier à démêler l'inverse.
+- Le HUD annonçait `SESSION` sur un vol qui n'ouvre aucune session. La décision
+  sort en fonction pure `flightLabel()` — invariant de fiction, pas de mise en
+  forme — et dit `BENCH`, `RECON` ou `SESSION`.
+
+### Vérifié en vol réel
+
+Terrain Google streamé, Chromium headless piloté en CDP : l'OSD drone est dans
+l'image (`00:06`, `16.8V`, `F4`), la ligne dit `RECON 00:07`, et
+`operator-state/*.json` ne bouge pas d'un octet — sessions 22 → 22,
+`sessionSeq` 22 → 22, `targetSeq` 10 → 10. **L'invariant de #206 tient** : une
+reconnaissance n'écrit rien.
+
+Non vérifié : `HUD CLEAR` en vol au banc (la ligne est rendue et le modèle
+testé, le vol lui-même ne l'a pas été).
+
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
