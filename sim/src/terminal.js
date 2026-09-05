@@ -10,6 +10,7 @@ import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-mod
 import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
+import { watchReveal, countUp } from './motion.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -33,7 +34,10 @@ export function screen(root, cls = '') {
 	box.className = 'bootstrap-box terminal-box';
 	el.appendChild(box);
 	root.appendChild(el);
-	return { el, box, remove: () => el.remove() };
+	// L'écran s'imprime de haut en bas (issue #224) : chaque bloc ajouté dans
+	// la boîte — maintenant ou après un fetch — reçoit son délai.
+	const unwatch = watchReveal(box);
+	return { el, box, remove: () => { unwatch(); el.remove(); } };
 }
 
 export function button(label, onClick, cls = 'terminal-link') {
@@ -112,6 +116,7 @@ function areaRow(sc, { onActivate, onWeather = null } = {}) {
 	const size = document.createElement('span');
 	size.className = 'terminal-area-size';
 	size.textContent = formatBytes(sc.bytes);
+	countUp(size);
 	// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit quand le
 	// world state répond, et reste vide s'il ne répond pas.
 	const sky = document.createElement('span');
@@ -713,6 +718,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
 		left.appendChild(foot);
+		countUp(foot);
 		// « Une seule touche pour voler » (issue #123) : le curseur se pose sur
 		// [ FLY ], pas sur la recherche ni sur un onglet, qui le précèdent
 		// désormais dans la colonne (#222).

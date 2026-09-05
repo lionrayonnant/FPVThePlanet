@@ -1424,6 +1424,42 @@ KEEP/REMOVE n'ont pas changé) ; le pied du rail après `done(undefined)` (BACK
 après un job) laissait déjà un rail vide avant ce changement.
 
 
+## Menus : terminal vivant, fond noir (issue #224)
+
+Les menus étaient statiques et sur `--dark-grey`. Registre validé : « terminal
+vivant » (Bible §45, quiet by default) — aucun cyan/magenta, glitch ni scanline.
+
+- `src/motion.js` : `watchReveal(box)` (branché dans `screen()` de terminal.js
+  et bootstrap.js) tamponne `data-reveal` + `animation-delay` sur chaque bloc de
+  l'écran dans l'ordre de lecture — 90 ms de noir (lead), puis 40 ms par ligne,
+  plafonné à 520 ms. Une colonne (`terminal-left`), une liste (`terminal-areas`,
+  `terminal-list`) ou une rangée de liens s'ouvre sur ses lignes ; les résultats
+  du scanner restent un bloc (ils se réécrivent à chaque touche). Un bloc
+  ajouté après un fetch reçoit ce qui reste du lead (la Home rend sa colonne
+  deux fois au montage), puis plus rien. `countUp(el)` fait rouler les entiers
+  d'un texte (pied de la Home, tailles de terrain) en 360 ms après le délai de
+  leur ligne, largeur conservée. `installClickFlash()` (main.js) inverse une
+  touche pressée 90 ms.
+- CSS : tokens `--dur-1/2/3` (90/180/360 ms), `[data-reveal]` en `steps(2)`,
+  curseur ▌ qui cligne (1.1 s), encre des boutons en transition 90 ms,
+  `prefers-reduced-motion` coupe tout (les helpers sautent à l'état final).
+- Fond : `body`, `#loading`, `.bootstrap` et le noir de perte de signal
+  (`fpvtp-osd.js`) sur `--black`, le noir du rituel — un seul noir continu du
+  crash au rapport puis à la Home. Panneaux (Settings, carte, champs) inchangés.
+- Le point « extinction de 90 ms avant suppression d'un écran » du design est
+  porté par le lead de l'écran suivant : un fondu de sortie serait invisible
+  sous un écran opaque et contredirait la coupure sèche vers le vol (Bible §14).
+
+Vérifié dans Chrome (MCP) : mode → FIELD, délais tamponnés dans l'ordre
+(tête 90 → pied 520 → carte), curseur `cursor-blink` actif sur `[ FLY ]`,
+`key-flash` au clic sur SETTINGS, compteur du pied roulé de 0 à sa valeur
+(avec un `requestAnimationFrame` simulé : l'onglet piloté est masqué et ne
+rend pas de frame). `tools/motion-selftest.mjs` (12 tests) dans
+`selftest:operator`, qui passe hors `landing-selftest` (rouge sur `main` aussi).
+
+Non vérifié à l'œil : la cascade elle-même (200 ms, hors capture), Session Log,
+Target Log, post-flight, bootstrap — ils passent par le même `screen()`.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

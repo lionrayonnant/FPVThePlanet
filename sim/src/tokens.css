@@ -112,6 +112,13 @@
 	--space-4: 22px;
 	--space-5: 34px;
 
+	/* ---------- mouvement (issue #224) ----------
+	   Trois durées, en pas plutôt qu'en fondus : une touche, une ligne qui
+	   s'imprime, un compteur qui roule. Rien de plus long dans les menus. */
+	--dur-1: 90ms;
+	--dur-2: 180ms;
+	--dur-3: 360ms;
+
 	/* Traits fins, angles droits, très peu d'ombres (Bible §38). L'ombre ne
 	   sert qu'au texte posé sur l'image FPV, qui n'a aucun fond à lui. */
 	--rule-w: 1px;

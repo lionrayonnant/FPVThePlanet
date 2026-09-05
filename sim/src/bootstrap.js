@@ -5,6 +5,7 @@ import * as operatorApi from './operator.js';
 import { readGamepadDir } from './gamepad-dir.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
+import { watchReveal } from './motion.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -120,10 +121,12 @@ function screen(root) {
 	el.className = 'bootstrap';
 	el.innerHTML = '<div class="bootstrap-box"></div>';
 	root.appendChild(el);
+	const box = el.querySelector('.bootstrap-box');
+	const unwatch = watchReveal(box); // issue #224
 	return {
 		el,
-		box: el.querySelector('.bootstrap-box'),
-		remove: () => el.remove(),
+		box,
+		remove: () => { unwatch(); el.remove(); },
 	};
 }
 
