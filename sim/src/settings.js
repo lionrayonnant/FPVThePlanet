@@ -1,4 +1,5 @@
 import { CHANNELS } from './input.js';
+import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
 const VOLUME_KEY = 'fpvmaps.audioVolume';
@@ -143,15 +144,16 @@ export class Settings {
 		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
 		this.flightActive = false;
 		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
-		el.querySelector('#reset-settings').onclick = () => {
-			if (!confirm('Reset all settings (controller, sound)?')) return;
+		// Pas de confirm() de navigateur (§44, issue #213) : le bouton se
+		// réétiquette et la DEUXIÈME pression est la confirmation.
+		armConfirm(el.querySelector('#reset-settings'), () => {
 			try {
 				for (const key of Object.keys(localStorage)) {
 					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
 				}
 			} catch { }
 			location.reload();
-		};
+		});
 		this._axisRows = [];
 		// Populate every control from storage now, with inert callbacks, so the
 		// panel reads correctly when opened from the terminal before boot(). boot()

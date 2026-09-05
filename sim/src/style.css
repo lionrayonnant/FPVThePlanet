@@ -783,6 +783,11 @@ button.terminal-row:focus::before { left: 0; }
 .sc-cta { border: 0; padding: var(--space-2) 0; }
 .sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
+/* Bouton ARMÉ : deuxième pression = confirmation (issue #213). Le libellé dit
+   déjà « — CONFIRM » ; la couleur d'alarme le rend visible sans le lire, et
+   c'est la même que celle de tout ce qui refuse ou détruit ailleurs. */
+.cta-armed { color: var(--red); border-color: var(--red); }
+.cta-armed:hover:not(:disabled) { background: var(--red); color: var(--black); border-color: var(--red); }
 
 /* Les deux verbes. Empilés dans le rail — il est étroit, les mettre côte à côte
    les tasserait — mais dans le MÊME bloc, sous le même titre : c'est un choix,
