@@ -299,13 +299,81 @@ export function resolveCategory(forced, rand) {
 	return forced && CATEGORIES.includes(forced) ? forced : pickCategory(rand);
 }
 
-// manifest.spawn at rest. Exported for the bench (PHASE 26), where sitting on
-// the ground with the motors idling is a state you ask for, not a state you
-// end up in after twenty failed draws.
-export function fallbackCandidate(manifest) {
+// Le rectangle où un vol a le droit de commencer : la bbox moins le couloir
+// CAUTION effectif de la scène, exactement celui qu'utilise occupancyOf() pour
+// le tirage. Sorti en fonction parce que le REPLI doit désormais s'y ramener
+// lui aussi (issue #149).
+//
+// La borne du couloir (halfMin/3, geofence.js) interdit à l'encart de croiser
+// sur une carte réelle. Une bbox dégénérée — le banc, où il n'y a pas de carte
+// — le peut : on retombe alors sur le centre plutôt que de rendre un intervalle
+// à l'envers.
+export function insetRect(manifest) {
+	const m = edgeMarginOf(manifest);
+	const { min, max } = manifest.bbox;
+	let x0 = min[0] + m, x1 = max[0] - m;
+	let z0 = min[2] + m, z1 = max[2] - m;
+	if (x0 > x1) { const c = (min[0] + max[0]) / 2; x0 = x1 = c; }
+	if (z0 > z1) { const c = (min[2] + max[2]) / 2; z0 = z1 = c; }
+	return { x0, x1, z0, z1 };
+}
+
+// zoneOf() bascule en CAUTION dès que la marge est <= caution : se poser PILE
+// sur le bord de l'encart naîtrait donc encore dans l'avertissement. On rentre
+// d'une petite longueur, bornée par la moitié du côté pour ne jamais traverser.
+const INSET_EPS_M = 0.5;
+
+const clampInto = (v, lo, hi) => {
+	const eps = Math.min(INSET_EPS_M, (hi - lo) / 2);
+	return Math.min(hi - eps, Math.max(lo + eps, v));
+};
+
+// Hauteur au-dessus du sol qu'on redonne à un repli qu'on a dû déplacer :
+// geometrySafe() exige déjà plus d'un mètre, et un repli est censé être le
+// point le plus tranquille de la scène, pas le plus juste.
+const FALLBACK_CLEARANCE_M = 2;
+
+// Le point de repli, au repos. Exporté pour le banc (PHASE 26), où se poser au
+// sol moteurs au ralenti est un état qu'on demande, pas celui où l'on finit
+// après vingt tirages ratés.
+//
+// manifest.spawn N'EST PAS contraint par la clôture : mesuré sur les 25
+// manifestes de public/scenes/, il tombe en HOLD sur parcdesprinces et en
+// CAUTION sur bastille et triomphe (issue #149). Un repli — ou tout chemin qui
+// repart de là — commençait donc le vol sur un « NO COVERAGE », et sur
+// parcdesprinces avec le rappel de clôture déjà actif.
+//
+// On ramène donc le point dans l'encart. Le déplacer horizontalement sans
+// retoucher son altitude le poserait dans un bâtiment ou sous le terrain : dès
+// qu'on a une Physics, on le REPOSE sur le sol qui est réellement là. Sans
+// Physics (appel purement manifeste), on corrige ce qu'on peut — les x/z — et
+// on laisse le y, ce qui reste strictement mieux que le point d'origine.
+//
+// manifest.spawn lui-même n'est pas touché : il reste la position de la station
+// sol (l'`emitter` de main.js), qui, elle, n'a aucune raison de bouger.
+export function fallbackCandidate(manifest, physics = null) {
+	const { x0, x1, z0, z1 } = insetRect(manifest);
+	const spawn = manifest.spawn;
+	const x = clampInto(spawn.x, x0, x1);
+	const z = clampInto(spawn.z, z0, z1);
+
+	let y = spawn.y;
+	const moved = x !== spawn.x || z !== spawn.z;
+	if (moved && physics) {
+		const ground = groundAt(physics, manifest, x, z);
+		if (ground !== null) {
+			// On garde la garde au sol d'origine quand elle est mesurable et
+			// plus généreuse : un spawn déjà perché ne doit pas se retrouver
+			// collé au toit sur lequel on vient de le déplacer.
+			const from = groundAt(physics, manifest, spawn.x, spawn.z);
+			const agl = from === null ? FALLBACK_CLEARANCE_M : Math.max(FALLBACK_CLEARANCE_M, spawn.y - from);
+			y = ground + agl;
+		}
+	}
+
 	return {
 		category: 'COMFORTABLE',
-		position: { ...manifest.spawn },
+		position: { x, y, z },
 		quaternion: { x: 0, y: 0, z: 0, w: 1 },
 		linvel: { x: 0, y: 0, z: 0 },
 		angvel: { x: 0, y: 0, z: 0 },
@@ -327,7 +395,7 @@ export function generateEntryState({
 	category: forced = null, idle = false,
 } = {}) {
 	if (idle) {
-		const at = fallbackCandidate(manifest);
+		const at = fallbackCandidate(manifest, physics);
 		// IDLE ON GROUND, not IDLE IN THE AIR: the sampled categories carry
 		// their own AGL, but manifest.spawn is the ground station's own point
 		// and is already the one physics.reset() uses.
@@ -344,7 +412,7 @@ export function generateEntryState({
 			return candidate;
 		}
 	}
-	const fallback = fallbackCandidate(manifest);
+	const fallback = fallbackCandidate(manifest, physics);
 	physics.applyEntryState(fallback);
 	return fallback;
 }
