@@ -241,7 +241,12 @@ t('LANDED : update(dt=0) vidange closes sans avancer la machine (sim gelée)', (
 	assert.equal(fe.phase, LANDED);
 });
 
-t('désarmement en vol : rien ne se ferme, la chute suit son cours', () => {
+// Le geste en vol est REFUSÉ par le module, et depuis que main.js n'appelle
+// controller.disarm() qu'après un disarm() vrai, ce refus est la seule chose qui
+// se produit : plus de coupure moteur ni de chute. Ce qui suit reste le contrat
+// du module — si l'appareil se retrouve désarmé par un autre chemin, rien ne se
+// ferme tant qu'il n'y a pas d'impact.
+t('désarmement en vol : refusé, et rien ne se ferme', () => {
 	const fe = new FlightEnd();
 	fe.update(frame());
 	assert.equal(fe.disarm(), false);
