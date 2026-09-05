@@ -814,6 +814,23 @@ button.terminal-row:focus::before { left: 0; }
 .sc-cta { border: 0; padding: var(--space-2) 0; }
 .sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
+/* La liste des périphériques que le navigateur énumère (issue #162). Une
+   ligne par manette : identifiant, classe déduite, axes, boutons. Le
+   périphérique actif porte le même marqueur ▌ que le curseur des menus, pour
+   qu'« actif » se lise partout de la même façon. */
+#pad-list { display: flex; flex-direction: column; gap: 2px; margin: var(--space-1) 0; }
+#pad-list button.pad-entry {
+	border: 0; background: none; text-align: left; cursor: pointer;
+	color: var(--light-grey); padding: 1px 0;
+	font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data);
+	/* Ces lignes se REPLIENT au lieu de se tronquer : les identifiants sont
+	   longs, et les chiffres du diagnostic (classe, axes, boutons) sont en fin
+	   de ligne — une ellipse mangeait exactement ce qu'on vient y lire. */
+	white-space: normal; overflow-wrap: anywhere;
+}
+#pad-list button.pad-entry:hover, #pad-list button.pad-entry:focus { color: var(--ink); }
+#pad-list button.pad-entry[data-active] { color: var(--ink); }
+
 /* Bouton ARMÉ : deuxième pression = confirmation (issue #213). Le libellé dit
    déjà « — CONFIRM » ; la couleur d'alarme le rend visible sans le lire, et
    c'est la même que celle de tout ce qui refuse ou détruit ailleurs. */

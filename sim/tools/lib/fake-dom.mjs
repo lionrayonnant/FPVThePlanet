@@ -211,6 +211,11 @@ export function fakeDom() {
 		body: root,
 		getElementById: (id) => root.querySelector(`[id="${id}"]`),
 		exitPointerLock: () => {},
+		// src/input.js s'abonne sur `document` (clavier, souris, pointer lock) :
+		// sans ces deux-là, instancier Input() lève et rien de ce qui en dépend
+		// n'est testable sans navigateur.
+		addEventListener: () => {},
+		removeEventListener: () => {},
 	};
 
 	const window_ = {

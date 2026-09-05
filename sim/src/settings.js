@@ -1,4 +1,4 @@
-import { CHANNELS } from './input.js';
+import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY } from './input.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
@@ -106,6 +106,12 @@ export class Settings {
 			<div class="panel">
 				<h2>Controller</h2>
 				<p id="pad-name">no controller detected</p>
+				<!-- Ce que le NAVIGATEUR voit, et le choix quand il en voit
+				     plusieurs (issue #162). Sans cette liste, une radio mal
+				     classée — ou simplement absente de l'énumération — laissait
+				     le pilote sans aucun recours : il ne pouvait ni constater ce
+				     qui était détecté, ni désigner le bon périphérique. -->
+				<div id="pad-list" class="spec"></div>
 				<table id="pad-map"></table>
 				<h2>Controls</h2>
 				<div id="keymap" class="spec">
@@ -138,6 +144,7 @@ export class Settings {
 			viewRange: el.querySelector('#viewrange'),
 			viewRangeVal: el.querySelector('#viewrange-val'),
 			padName: el.querySelector('#pad-name'),
+			padList: el.querySelector('#pad-list'),
 			padMap: el.querySelector('#pad-map'),
 		};
 		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
@@ -242,9 +249,58 @@ export class Settings {
 
 	// One row per channel: pick which axis drives it and whether to invert.
 	// Live bars next to each let you see which physical stick is which.
+	// Ce que le navigateur énumère, tel quel : identifiant, nombre d'axes,
+	// nombre de boutons, et la classe que padKind() en déduit — c'est elle qui
+	// décide du mappage par défaut, donc c'est elle qu'il faut pouvoir LIRE
+	// quand « ça ne marche pas » (issue #162). Un clic désigne le périphérique
+	// actif, ce qui compte dès qu'il y en a deux branchés.
+	//
+	// Rappel utile au diagnostic : l'API Gamepad n'expose un périphérique
+	// qu'après une action de l'utilisateur DESSUS. Une liste vide ne veut donc
+	// pas dire « non reconnu », elle peut vouloir dire « pas encore touché » —
+	// et le texte le dit, plutôt que de laisser conclure.
+	buildPadList() {
+		const pads = this.input.listGamepads();
+		const box = this.el.padList;
+		// updateAxisBars() rappelle buildAxisRows() à chaque frame tant qu'aucune
+		// ligne n'a pu être construite (manette pas encore annoncée). Sans cette
+		// signature, la liste se reconstruirait 60 fois par seconde et un clic
+		// tomberait sur un bouton déjà remplacé.
+		const sig = `${this.input.gamepadIndex}|${pads.map((g) => `${g.index}:${g.id}:${g.axes}:${g.buttons}`).join('|')}`;
+		if (sig === this._padListSig) return;
+		this._padListSig = sig;
+		box.replaceChildren();
+		// Ce qu'on montre est décidé par padListEntries() (input.js, pur et
+		// testé) ; ici on ne fait que le peindre et le rendre cliquable.
+		const entries = padListEntries(pads, this.input.gamepadIndex);
+		if (!entries.length) {
+			const p = document.createElement('p');
+			p.textContent = PAD_LIST_EMPTY;
+			box.appendChild(p);
+			return;
+		}
+		for (const g of entries) {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'pad-entry';
+			if (g.active) b.dataset.active = '1';
+			b.textContent = g.label;
+			b.onclick = () => {
+				this.input.selectGamepad(g.index);
+				// Le mappage par défaut change avec la classe du périphérique :
+				// les lignes d'axes doivent se reconstruire, pas se rafraîchir.
+				this._axisRows = [];
+				this._padListSig = null;
+				this.buildAxisRows();
+			};
+			box.appendChild(b);
+		}
+	}
+
 	buildAxisRows() {
+		this.buildPadList();
 		const pad = this.input.getGamepad();
-		this.el.padName.textContent = pad ? pad.id : 'no controller detected';
+		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'no controller detected';
 		if (!pad) { this.el.padMap.innerHTML = ''; this._axisRows = []; return; }
 
 		this.el.padMap.innerHTML = '';
