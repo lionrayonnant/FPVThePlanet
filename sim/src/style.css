@@ -588,7 +588,32 @@ button.terminal-area:hover .terminal-area-weather, button.terminal-area:focus .t
 	color: inherit;
 }
 button.terminal-area:focus::before { left: 0; }
-.terminal-area > span:first-child { min-width: 260px; }
+/* Le nom tient une COLONNE de 260 px — c'est ce qui aligne les rangées entre
+   elles — mais il peut rétrécir, et lui seul le peut (issue #214). Avec un
+   simple `min-width: 260px`, un nom long (CONSERVATOIRE NATIONAL DES ARTS ET
+   MÉTIERS) poussait la ligne au-delà du cadre et c'est la MÉTÉO qui se faisait
+   rogner — or la météo est précisément ce qu'on vient lire sur cet écran (#76),
+   et elle est en DISPLAY pour ça.
+   Le partage est donc renversé : la MÉTÉO prend sa largeur naturelle
+   (`flex: 0 0 auto`, plus bas), et le NOM est le seul à rendre de la place.
+   `flex: 0 1000 260px` : base 260 px — c'est la colonne, et elle ne bouge PAS
+   tant que la ligne tient, sinon les poids et les météos ne s'alignent plus
+   d'une rangée à l'autre ; aucune croissance ; et un facteur de rétrécissement
+   ÉNORME devant celui de la météo, ce qui donne l'ordre de sacrifice voulu —
+   le nom rend tout avant que la météo ne rende quoi que ce soit. Un simple
+   `1` de chaque côté les ferait rétrécir ensemble, au prorata. `min-width: 0` lève le minimum intrinsèque, sans quoi un mot long
+   refuse de se réduire et l'ellipse ne se déclenche jamais.
+   Mesuré au rendu réel (tools/area-row-measure.html, cadre de 720 px) : le nom
+   de 43 caractères se tronque, la colonne reste à 260 px sur les rangées
+   normales, et aucune des quatre rangées témoins ne rogne sa météo ni ne
+   déborde du cadre. Avant, un simple `min-width: 260px` gardait la colonne
+   coûte que coûte et c'était la météo qui sautait — or c'est elle qu'on vient
+   lire ici (#76), et elle est en DISPLAY pour ça. Même arbitrage que la liste
+   compacte de la Home (#211), posé avec la colonne que l'écran complet garde. */
+.terminal-area > span:first-child {
+	flex: 0 1000 260px; min-width: 0;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 /* Rangée d'actions (OPEN · FORECAST · REMOVE) : masquée tant que la carte de
    la rangée au-dessus n'est pas activée (Entrée/clic) — Échap la referme. */
 .terminal-area-actions { padding-left: 1.2em; margin: 2px 0 0; display: flex; align-items: center; gap: var(--space-2); }
@@ -601,7 +626,13 @@ button.terminal-area:focus::before { left: 0; }
    filet : il se distingue par la forme et non par la couleur. Departure Mono
    porte aussi les quatre flèches ↑ → ↓ ← du vent, que Plex Mono n'a pas. */
 .terminal-area-weather {
-	flex: 1; min-width: 0;
+	/* `flex: 0 1 auto` et non `flex: 1` : la ligne prend sa largeur NATURELLE au
+	   lieu d'absorber ce qui reste, et c'est le nom (facteur de rétrécissement
+	   1000 fois plus grand) qui rend la place avant elle (issue #214). Elle
+	   garde tout de même le droit de céder en tout dernier — sur une fenêtre si
+	   étroite que le nom réduit à rien ne suffit plus, mieux vaut une météo
+	   tronquée qu'une rangée qui déborde du cadre. */
+	flex: 0 1 auto; min-width: 0;
 	font-family: var(--font-ascii);
 	font-size: var(--fs-display-s);
 	letter-spacing: .06em;

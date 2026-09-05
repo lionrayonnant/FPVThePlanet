@@ -1,0 +1,77 @@
+<!doctype html>
+<!--
+  Banc de mesure de la rangée LOCAL TERRAIN (issue #214).
+
+  L'issue demandait explicitement de reprendre le sujet « avec une mesure, pas
+  à l'intuition » : une première tentative avait été écartée faute d'avoir pu
+  la vérifier au rendu. Cette page monte les rangées RÉELLES (mêmes classes,
+  même ordre de nœuds que areaRow() dans src/terminal.js) contre le VRAI
+  src/style.css, et expose window.__measure() qui rend, par rangée, la largeur
+  de chaque cellule et si son texte est tronqué (scrollWidth > clientWidth).
+
+  Ouvrir : npm run dev puis /tools/area-row-measure.html
+  Ou la piloter en CDP et lire window.__measure().
+-->
+<meta charset="utf-8">
+<title>LOCAL TERRAIN — mesure de rangée</title>
+<link rel="stylesheet" href="/src/style.css">
+<style>
+	/* Le cadre que l'écran complet donne réellement à la liste. Rien d'autre
+	   n'est simulé : tout le reste vient de style.css. */
+	body { background: #000; margin: 0; padding: 24px; }
+	#frame { width: 720px; outline: 1px dashed #444; }
+</style>
+<div id="frame"><div class="terminal-areas" id="list"></div></div>
+<script type="module">
+	// Les deux rangées de la capture de l'issue, plus deux témoins.
+	const ROWS = [
+		{ name: 'CONSERVATOIRE NATIONAL DES ARTS ET MÉTIERS', bytes: '168 MB', sky: 'CLOUD / LOW WIND' },
+		{ name: 'PARISTEST', bytes: '109 MB', sky: 'CLOUD / LOW WIND' },
+		{ name: 'TOUR EIFFEL', bytes: '1.2 GB', sky: 'RAIN / GUSTING 42 KM/H' },
+		{ name: 'UN NOM ABSOLUMENT DÉRAISONNABLE DE ZONE TRÈS TRÈS LONGUE', bytes: '9 GB', sky: 'FOG / CALM' },
+	];
+
+	const list = document.getElementById('list');
+	for (const r of ROWS) {
+		const row = document.createElement('button');
+		row.type = 'button';
+		row.className = 'terminal-area';
+		const name = document.createElement('span');
+		name.textContent = r.name;
+		const size = document.createElement('span');
+		size.className = 'terminal-area-size';
+		size.textContent = r.bytes;
+		const sky = document.createElement('span');
+		sky.className = 'terminal-area-weather';
+		sky.textContent = r.sky;
+		row.append(name, size, sky);
+		list.appendChild(row);
+	}
+
+	// Tronqué = le contenu déborde de la boîte. C'est la mesure qui compte :
+	// « la météo est rognée » veut dire exactement ça.
+	const cut = (el) => el.scrollWidth > el.clientWidth + 1;
+
+	window.__measure = () => [...list.querySelectorAll('.terminal-area')].map((row) => {
+		const [name, size, sky] = [
+			row.children[0],
+			row.querySelector('.terminal-area-size'),
+			row.querySelector('.terminal-area-weather'),
+		];
+		const frame = document.getElementById('frame').getBoundingClientRect();
+		const skyBox = sky.getBoundingClientRect();
+		return {
+			name: name.textContent.slice(0, 24),
+			frameW: Math.round(frame.width),
+			rowW: Math.round(row.getBoundingClientRect().width),
+			nameW: Math.round(name.getBoundingClientRect().width),
+			sizeW: Math.round(size.getBoundingClientRect().width),
+			skyW: Math.round(skyBox.width),
+			nameCut: cut(name),
+			skyCut: cut(sky),
+			// Déborde-t-elle du cadre ? C'est l'autre moitié du symptôme.
+			overflows: Math.round(skyBox.right) > Math.round(frame.right) + 1,
+		};
+	});
+	document.title = 'prêt';
+</script>

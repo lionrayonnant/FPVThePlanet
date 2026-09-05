@@ -1478,6 +1478,27 @@ OPERATION MODE sans intro, FIELD s'ouvre (clic simulé par script : l'onglet
 piloté ne recevait plus les clics de l'extension), aucune erreur. Non vérifié
 à l'oreille : la musique de menu au premier clic après rechargement.
 
+## Les primitives demo scene sont partagées rituel + intro (issue #124)
+
+Règle amendée, et c'est la règle qui bouge — pas le test. L'acceptation de la
+PHASE 20 (#57) disait que les primitives demo scene appartiennent au **rituel**
+et n'en sortent pas ; `tools/ritual-selftest.mjs` le vérifiait en refusant toute
+référence à `RITUAL_PRIMITIVES` / `FAMILY_PRIMITIVES` hors `ritual.js` et
+`hack-grammars.js`. La PR #118 a fait piocher `src/intro.js` dedans pour son
+cracktro, et le selftest est passé au rouge sur `main`.
+
+Arbitrage retenu : la réutilisation est **voulue**. Le cracktro de lancement est
+un événement au sens de la Bible §19, pas un écran quotidien — la même famille
+que le rituel, donc le même vocabulaire. La règle se lit désormais « aucune
+primitive demo scene hors ÉVÉNEMENT », et `EVENT_MODULES` en tient la liste
+close : `ritual.js`, `hack-grammars.js`, `intro.js`.
+
+Ce qui n'a pas changé : tout autre module de `src/` qui référencerait ces
+primitives fait toujours échouer le selftest. Élargir cette liste est une
+décision, pas un ajustement — un écran quotidien qui se met à piocher dans le
+vocabulaire des événements les banalise, et c'est précisément ce que #57
+protégeait.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).
