@@ -940,6 +940,41 @@ button.terminal-row:focus::before { left: 0; }
 .sc-rtc { max-height: 18vh; color: var(--faint); }
 
 /* ---------------------------------------------------------------------------
+   LES BARRES DE DÉFILEMENT
+
+   Par défaut le navigateur en dessine une en gris clair, avec ses deux flèches,
+   posée sur un fond noir : c'est la seule chose à l'écran qui ne soit pas de ce
+   jeu. On la ramène à un filet, dans l'encre des filets — elle dit qu'il y a
+   quelque chose au-dessus ou en dessous, et rien d'autre.
+
+   Les deux syntaxes ne cohabitent PAS, et c'est mesuré à l'écran : depuis
+   Chrome 121, poser `scrollbar-width` ou `scrollbar-color` fait IGNORER tous les
+   pseudo-éléments `::-webkit-scrollbar`. Les écrire ensemble donnait donc un
+   pouce correctement assourdi mais les deux flèches toujours là — la règle qui
+   les retire n'était jamais appliquée. Le `@supports` sépare les deux mondes :
+   WebKit prend les pseudo-éléments (seuls à savoir retirer les flèches), tout le
+   reste garde la propriété standard.
+
+   La barre reste PRÉSENTE et non masquée : un journal RTC qu'on veut relire, ou
+   un écran plus haut que la fenêtre (BUILD NOTES, TARGET LOG), a besoin qu'on
+   sache qu'il y a de la matière hors cadre. C'est l'argument qui a déjà décidé
+   `align-content: safe center` sur `.bootstrap`. */
+* { scrollbar-width: thin; scrollbar-color: var(--rule-strong) transparent; }
+@supports selector(::-webkit-scrollbar) {
+	/* Rendues à `auto` pour que Chrome cesse de les préférer aux pseudo-éléments
+	   ci-dessous — c'est la seule façon de reprendre la main sur les flèches. */
+	* { scrollbar-width: auto; scrollbar-color: auto; }
+	::-webkit-scrollbar { width: 8px; height: 8px; }
+	::-webkit-scrollbar-track { background: transparent; }
+	::-webkit-scrollbar-thumb { background: var(--rule-strong); }
+	::-webkit-scrollbar-thumb:hover { background: var(--light-grey); }
+	/* Les deux flèches : c'est ce qui fait le plus « fenêtre de système » sur une
+	   barre de huit pixels. */
+	::-webkit-scrollbar-button { display: none; }
+	::-webkit-scrollbar-corner { background: transparent; }
+}
+
+/* ---------------------------------------------------------------------------
    LE TOAST RTC (issue #243)
 
    La seule surimpression du jeu. Tout le reste vit dans le flux du terminal, et
@@ -1234,6 +1269,13 @@ button.terminal-row:focus::before { left: 0; }
 	letter-spacing: var(--track-ui);
 	margin: 0;
 }
+/* La racine reprend le cadre entier, comme FIELD. Sans ça, la boîte en `100vh`
+   s'ajoutait au `padding: var(--space-5) 0` de `.bootstrap` : l'écran débordait
+   d'exactement ce rembourrage, `.bootstrap` sortait sa barre de défilement, et
+   on pouvait faire glisser la colonne des voies hors du cadre. C'est le même
+   trio que `.terminal-field` pose pour la même raison. */
+.bench-modes { align-content: stretch; justify-items: stretch; padding: 0; overflow: hidden; }
+
 /* La racine en deux colonnes depuis #243 : les voies à gauche, le RTC à droite.
    Mêmes proportions et même filet que FIELD — c'est la seule autre page du jeu
    qui partage l'écran en deux, et deux grammaires pour la même idée auraient

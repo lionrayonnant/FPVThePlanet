@@ -1779,6 +1779,24 @@ qu'on regarde : il bavarde en fond. La Bible §9 donne le RTC à l'attente, et l
 racine est le seul écran où l'on n'attend rien. C'est le prix du regroupement, il
 est payé sciemment.
 
+### Deux défauts visuels trouvés à l'écran, pas au banc
+
+Le premier était une régression que rien n'aurait attrapée sans regarder :
+`.bench-modes` héritait du `padding: var(--space-5) 0` de `.bootstrap` alors que
+sa boîte fait `100vh`. L'écran débordait d'exactement ce rembourrage, sortait une
+barre de défilement, et on pouvait faire glisser la colonne des voies hors du
+cadre. `.terminal-field` posait déjà `padding: 0; align-content: stretch;
+overflow: hidden` pour cette raison précise ; `.bench-modes` le pose maintenant
+aussi.
+
+Le second : les barres de défilement étaient celles du navigateur, gris clair
+avec leurs deux flèches sur un fond noir. Elles sont ramenées à un filet dans
+l'encre des filets. **Piège à connaître** : depuis Chrome 121, poser
+`scrollbar-width` ou `scrollbar-color` fait IGNORER tous les pseudo-éléments
+`::-webkit-scrollbar`. Les écrire côte à côte donnait un pouce correctement
+assourdi mais les flèches toujours là — la règle qui les retire n'était jamais
+appliquée. Un `@supports selector(::-webkit-scrollbar)` sépare les deux mondes.
+
 ### Vérifié — sans navigateur
 
 `node tools/dialogue-render-selftest.mjs` (6, nouveau) : le calque est posé sur
@@ -1788,17 +1806,28 @@ colonnes, les voies à gauche et le RTC à droite, et le flux arrêté au choix.
 Les deux nouveaux contrôles de `bench-render` sont vérifiés par mutation (poser
 le RTC à gauche, retirer `stopRtc()` du `pick()` : chacun rougit son contrôle).
 
-### NON vérifié — demande un œil
+### Vérifié à l'œil — Chrome sur le serveur de dev, 1456 × 819
 
-Un banc headless ne juge pas une surimpression. Restent à voir :
+- la racine en deux colonnes : filet vertical, les voies à gauche, le RTC à
+  droite, **aucune barre de défilement d'écran** ;
+- le journal RTC qui se remplit et défile, barre réduite à un filet sans flèches
+  ni piste ;
+- le toast : `position: fixed`, coin bas-droite, `z-index` 12,
+  `pointer-events: none`, trois cartes empilées aux bords droits alignés au pixel
+  (mesuré au `getBoundingClientRect`, l'écart apparent sur une capture JPEG étant
+  un artefact de compression).
+
+### NON vérifié — demande encore un œil
+
+Un banc headless ne juge pas une surimpression, et le peu que j'ai pu injecter à
+la main ne juge pas une durée :
 
 - l'apparition et l'effacement en fondu, et si 6,5 s est la bonne durée ;
-- la pile bornée à trois cartes sur une acquisition longue ;
-- le coin bas-droite : est-ce le bon endroit sur le hack, où la grille occupe
-  déjà le centre ;
-- la racine en deux colonnes à différentes largeurs, et son empilement sous
-  1100 px, où le RTC passe **sous** les voies (l'inverse de FIELD, où c'est la
-  carte qui monte).
+- la pile bornée à trois cartes sur une acquisition longue **réelle** (les trois
+  cartes ci-dessus étaient injectées, pas produites par le flux) ;
+- le coin bas-droite sur le hack, où la grille occupe déjà le centre ;
+- la racine à d'autres largeurs, et son empilement sous 1100 px, où le RTC passe
+  **sous** les voies (l'inverse de FIELD, où c'est la carte qui monte).
 
 ---
 
