@@ -326,7 +326,7 @@ t('les énumérations exposées sont non vides et sans doublon', () => {
 	}
 });
 
-// --- HUD : clear / classic (#216) -------------------------------------------
+// --- HUD : clear / classic (#217) -------------------------------------------
 
 t('hud : CLASSIC par défaut — un drone a un OSD', () => {
 	assert.equal(BENCH_DEFAULTS.hud, 'CLASSIC');
@@ -354,7 +354,7 @@ t('hud : survit à un aller-retour disque', () => {
 	assert.equal(parseBenchConfig(serializeBenchConfig(c)).hud, 'CLEAR');
 });
 
-// --- ce que la ligne de vol annonce (#216, #206) ----------------------------
+// --- ce que la ligne de vol annonce (#217, #206) ----------------------------
 
 t('flightLabel : un vol qui n\'ouvre pas de session ne dit pas SESSION', () => {
 	// Le banc n'ouvre rien et ne compte rien — « NOTHING HERE IS LOGGED ».

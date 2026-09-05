@@ -2565,7 +2565,7 @@ async function openFlightSession() {
 	// Conséquence non vue : la section caméra + OSD plus bas ne tournait JAMAIS,
 	// donc une reconnaissance volait la machine par défaut SANS AUCUN OSD. Un
 	// drone a un OSD ; l'absence d'OSD est un choix qui se pose au banc
-	// (ligne HUD), pas un accident du chemin live (#216).
+	// (ligne HUD), pas un accident du chemin live (#217).
 	//
 	// La reconnaissance emprunte désormais le chemin du BANC : tout tourne, sauf
 	// session.open(). C'est le chemin éprouvé, on ne s'en fabrique pas un
@@ -2639,7 +2639,7 @@ async function openFlightSession() {
 	droneOsd?.dispose();
 	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines
 	// cibles n'ont simplement pas d'OSD, ou le leur est éteint/HS.
-	// HUD CLEAR au banc : une machine montée sans OSD, pour filmer (#216). On
+	// HUD CLEAR au banc : une machine montée sans OSD, pour filmer (#217). On
 	// ne tire pas de disposition du tout — c'est exactement l'état que
 	// `droneOsdLayout()` rend déjà pour sa panne NO_OSD, donc rien en aval n'a
 	// à connaître ce réglage. Le réglage est du BANC : une reconnaissance FIELD
