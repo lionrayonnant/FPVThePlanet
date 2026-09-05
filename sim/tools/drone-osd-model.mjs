@@ -200,7 +200,20 @@ export function droneOsdLayout({ seed, family, mode } = {}) {
 	const sparse = archetype === 'MINIMAL' || firmware === 'DJI_NATIVE';
 	const wanted = sparse ? lo : lo + Math.floor(rand() * (hi - lo + 1));
 
-	const picked = ['BAT_V', TIMERS[Math.floor(rand() * TIMERS.length)]];
+	// BAT_V et WARNINGS sont les deux indispensables. WARNINGS l'est devenu
+	// (issue #151) : R_CAUTION vaut R_HOLD PLUS 1,5 s « pour lire
+	// l'avertissement », et c'est toute sa raison d'être. Or l'élément était
+	// tiré comme les autres — mesuré sur 2 000 graines de session, il ne
+	// sortait que dans 7,5 % des habillages. Le seuil était donc calibré sur le
+	// temps de lecture d'un texte absent de plus de neuf vols sur dix, et le
+	// trou valait déjà pour LOW VOLTAGE et RXLOSS, qui passent par le même
+	// élément.
+	//
+	// Ce n'est pas une entorse au réalisme : sur un Betaflight réel l'élément
+	// d'avertissements est actif par défaut, et c'est précisément celui qu'on
+	// ne désactive pas. Il reste absent des OSD tirés NO_OSD, exactement comme
+	// BAT_V — un OSD éteint n'affiche rien, et c'est lisible comme tel.
+	const picked = ['BAT_V', 'WARNINGS', TIMERS[Math.floor(rand() * TIMERS.length)]];
 	if (craftName) picked.push('CRAFT_NAME');
 
 	const allowed = firmware === 'DJI_NATIVE' ? new Set(DJI_NATIVE_POOL) : null;
