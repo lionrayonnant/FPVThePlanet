@@ -10,6 +10,8 @@ import {
 	throttleFromAxis,
 	THROTTLE_MODE,
 	CHANNELS,
+	padListEntries,
+	PAD_LIST_EMPTY,
 } from '../src/input.js';
 
 let n = 0;
@@ -133,6 +135,72 @@ t('throttleFromAxis : borné dans 0..1 même sur un axe qui déborde', () => {
 		assert.equal(throttleFromAxis(-3, mode), 0);
 		assert.equal(throttleFromAxis(3, mode), 1);
 	}
+});
+
+// --- l'écran de périphériques (issue #162) ----------------------------------
+
+// La détection par nom de marque laissait un TBS Tango 2 en `generic` — et ce
+// n'est pas cosmétique : les QUATRE canaux diffèrent entre EDGETX_MAP et
+// GAMEPAD_MAP, et le mode de gaz passe de pleine course à demi-course. Le
+// pilote ne perçoit pas « mal mappé », il perçoit « ça ne marche pas ».
+// La détection passe donc par l'identifiant USB, et un ÉCRAN rend la
+// reconnaissance par nom accessoire — c'est lui qui est testé plus bas.
+
+t('#162 : une radio OpenTX/EdgeTX est reconnue par son identifiant USB', () => {
+	// 1209:4f54 — « OT » en ASCII chez pid.codes. Les firmwares dérivés
+	// d'OpenTX (dont FreedomTX, celui du Tango 2) le partagent.
+	assert.equal(padKind('1209-4f54-RadioMaster Pocket Joystick'), 'radio');
+	assert.equal(padKind('Unknown Gamepad (Vendor: 1209 Product: 4f54)'), 'radio');
+	// Et par le nom, en second rideau, pour ce qui ne s'énumère pas ainsi.
+	assert.equal(padKind('TBS TANGO 2'), 'radio');
+	assert.equal(padKind('FreedomTX Joystick'), 'radio');
+});
+
+t('#162 : une radio ne se fait pas passer pour une manette de jeu', () => {
+	// Le cœur du signalement : classée `generic`, elle recevait GAMEPAD_MAP.
+	const radio = defaultMapForKind('radio');
+	const generic = defaultMapForKind('generic');
+	const diff = CHANNELS.filter((c) => radio[c].axis !== generic[c].axis);
+	assert.equal(diff.length, CHANNELS.length, 'les quatre canaux diffèrent bien entre les deux profils');
+	assert.notEqual(throttleModeForKind('radio'), throttleModeForKind('generic'),
+		'le mode de gaz aussi : pleine course contre demi-course');
+});
+
+t('#162 : la liste montre CE QUE LE NAVIGATEUR VOIT, pas une supposition', () => {
+	// listGamepads() et selectGamepad() existaient et n'étaient appelés NULLE
+	// PART : il n'y avait aucun écran pour voir ce qui est détecté, ni pour
+	// choisir quand deux périphériques sont branchés. C'est ce que padListEntries
+	// décide désormais, et que le panneau Settings se contente de peindre.
+	const pads = [
+		{ index: 0, id: 'Xbox Wireless Controller (045e:02fd)', axes: 4, buttons: 16 },
+		{ index: 1, id: 'TBS TANGO 2 (1209:4f54)', axes: 8, buttons: 0 },
+	];
+	const rows = padListEntries(pads, 1);
+	assert.equal(rows.length, 2, 'une ligne par périphérique énuméré');
+
+	// La classe déduite, qui est ce qui DÉCIDE du mappage : sans elle, « ça ne
+	// marche pas » reste indiagnosticable.
+	assert.equal(rows[0].kind, 'xbox');
+	assert.equal(rows[1].kind, 'radio');
+
+	// Les chiffres qu'on demande à un utilisateur dont la radio ne répond pas.
+	assert.match(rows[1].label, /8 axes/);
+	assert.match(rows[1].label, /0 buttons/);
+	assert.match(rows[1].label, /TBS TANGO 2/);
+
+	// Et lequel est actif, marqué comme le curseur des menus.
+	assert.equal(rows[1].active, true);
+	assert.equal(rows[0].active, false);
+	assert.match(rows[1].label, /^▌/);
+});
+
+t('#162 : une énumération vide se DIT, au lieu de laisser conclure', () => {
+	// L'API Gamepad n'expose un périphérique qu'après une action DESSUS :
+	// « rien listé » n'est pas « non reconnu ». Une radio sans aucun bouton ne
+	// peut pas satisfaire cette condition en bougeant seulement ses manches.
+	assert.deepEqual(padListEntries([], 0), []);
+	assert.deepEqual(padListEntries(null, 0), [], 'pas d\'énumération du tout : pas de plantage');
+	assert.match(PAD_LIST_EMPTY, /only reveals it after an input/);
 });
 
 console.log(`input-selftest: ${n} tests ok`);

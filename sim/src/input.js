@@ -98,6 +98,32 @@ export function padKind(id) {
 	return 'generic';
 }
 
+// Ce que l'écran de périphériques doit MONTRER, décidé sans DOM (issue #162).
+//
+// `pads` : la sortie de listGamepads(). `activeIndex` : l'index du périphérique
+// réellement lu par Input. Rend une ligne par périphérique — identifiant,
+// classe déduite (c'est ELLE qui décide du mappage par défaut, donc c'est elle
+// qu'il faut pouvoir lire quand « ça ne marche pas »), nombre d'axes et de
+// boutons, et l'état actif.
+//
+// Une liste vide n'est pas « non reconnu » : l'API Gamepad n'expose un
+// périphérique qu'APRÈS une action de l'utilisateur dessus. `empty` porte cette
+// nuance pour que l'écran la dise au lieu de laisser conclure.
+export function padListEntries(pads, activeIndex) {
+	return (pads ?? []).map((g) => ({
+		index: g.index,
+		id: g.id,
+		kind: padKind(g.id),
+		axes: g.axes,
+		buttons: g.buttons,
+		active: g.index === activeIndex,
+		label: `${g.index === activeIndex ? '▌' : ' '} ${g.id} — ${padKind(g.id)} · ${g.axes} axes · ${g.buttons} buttons`,
+	}));
+}
+
+export const PAD_LIST_EMPTY = 'nothing enumerated — move a stick or press a button on the device, '
+	+ 'the browser only reveals it after an input on it';
+
 export function defaultMapForKind(kind) {
 	return structuredClone(kind === 'radio' ? EDGETX_MAP : GAMEPAD_MAP);
 }

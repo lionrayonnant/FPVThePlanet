@@ -5,10 +5,14 @@
 //
 //   node tools/entry-state-selftest.mjs
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	CATEGORIES, WEIGHTS, rngFrom, pickCategory, occupancyOf, sampleCandidate,
-	resolveCategory, fallbackCandidate, generateEntryState,
+	resolveCategory, fallbackCandidate, generateEntryState, insetRect,
 } from '../src/entry-state.js';
+import { Geofence } from '../src/geofence.js';
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -179,6 +183,89 @@ console.log('\nentry-state: bench overrides');
 	// And it hands out a copy, not the manifest's own spawn object.
 	check('the fallback copies the spawn rather than aliasing it',
 		fallbackCandidate(manifest).position !== manifest.spawn);
+}
+
+// --- issue #149 : le REPLI ne naît plus dans la clôture ----------------------
+
+console.log('\nentry-state: le point de repli contre la clôture (#149)');
+
+// La zone de clôture d'un point, telle que l'OSD la lirait au premier pas.
+const zoneAt = (bbox, p) => new Geofence(bbox).update(p).zone;
+
+{
+	// Une carte dont le spawn est PILE au bord : la forme du défaut mesuré sur
+	// parcdesprinces, bastille et triomphe, où manifest.spawn tombait en HOLD
+	// ou en CAUTION alors qu'un tirage réussi, lui, était déjà contraint.
+	const bbox = { min: [-140, 0, -150], max: [140, 60, 150] };
+	const manifest = { bbox, spawn: { x: 128, y: 10, z: 0 } };
+	check('témoin : ce spawn-là est bien DANS la clôture',
+		zoneAt(bbox, manifest.spawn) !== 'NOMINAL', zoneAt(bbox, manifest.spawn));
+
+	const at = fallbackCandidate(manifest).position;
+	check('le repli est ramené en zone NOMINAL', zoneAt(bbox, at) === 'NOMINAL', zoneAt(bbox, at));
+
+	const r = insetRect(manifest);
+	check('le repli est STRICTEMENT dans l\'encart, pas posé sur son bord',
+		at.x > r.x0 && at.x < r.x1 && at.z > r.z0 && at.z < r.z1);
+
+	check('manifest.spawn lui-même n\'a pas bougé (c\'est la station sol)',
+		manifest.spawn.x === 128 && manifest.spawn.z === 0);
+}
+
+{
+	// Un spawn déjà au centre ne doit pas être déplacé pour rien : sans quoi
+	// les 22 cartes qui allaient bien changeraient de point d'entrée.
+	const bbox = { min: [-140, 0, -150], max: [140, 60, 150] };
+	const manifest = { bbox, spawn: { x: 3, y: 12, z: -4 } };
+	const at = fallbackCandidate(manifest).position;
+	check('un spawn déjà NOMINAL est laissé exactement où il est',
+		at.x === 3 && at.y === 12 && at.z === -4);
+}
+
+{
+	// Déplacé horizontalement, le point doit être REPOSÉ sur le sol qui est là :
+	// garder l'ancien y le mettrait dans un bâtiment ou sous le terrain.
+	const bbox = { min: [-140, 0, -150], max: [140, 60, 150] };
+	const manifest = { bbox, spawn: { x: 135, y: 10, z: 0 } };
+	const physics = { groundBelow: () => 25 };   // un toit à 25 m sous le point visé
+	const at = fallbackCandidate(manifest, physics).position;
+	check('le repli déplacé est reposé au-dessus du sol réel', at.y > 25, `y=${at.y}`);
+	check('et il garde une garde au sol utilisable', at.y - 25 >= 2, `agl=${at.y - 25}`);
+}
+
+{
+	// Une bbox dégénérée (le banc : pas de carte) ne doit pas produire un
+	// encart à l'envers ni un NaN.
+	const bbox = { min: [0, 0, 0], max: [0, 0, 0] };
+	const manifest = { bbox, spawn: { x: 0, y: 1, z: 0 } };
+	const r = insetRect(manifest);
+	check('bbox dégénérée : encart non croisé', r.x0 <= r.x1 && r.z0 <= r.z1);
+	const at = fallbackCandidate(manifest).position;
+	check('bbox dégénérée : le repli reste un point fini',
+		Number.isFinite(at.x) && Number.isFinite(at.y) && Number.isFinite(at.z));
+}
+
+{
+	// Et sur les manifestes RÉELLEMENT installés : c'est la mesure de l'issue.
+	// La suite ne dépend pas d'une scène précise — elle vérifie ce qui est là.
+	const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+	const scenesDir = path.join(SIM_ROOT, 'public/scenes');
+	const slugs = fs.existsSync(scenesDir)
+		? fs.readdirSync(scenesDir).filter((d) => fs.existsSync(path.join(scenesDir, d, 'manifest.json')))
+		: [];
+	if (!slugs.length) {
+		console.log('  SKIP  aucune scène installée : rien à mesurer ici');
+	} else {
+		const bad = [];
+		for (const slug of slugs) {
+			const m = JSON.parse(fs.readFileSync(path.join(scenesDir, slug, 'manifest.json'), 'utf8'));
+			if (!m.bbox || !m.spawn) continue;
+			const z = zoneAt(m.bbox, fallbackCandidate(m).position);
+			if (z !== 'NOMINAL') bad.push(`${slug}:${z}`);
+		}
+		check(`les ${slugs.length} scène(s) installée(s) replient toutes en NOMINAL`,
+			bad.length === 0, bad.join(', '));
+	}
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);

@@ -10,6 +10,7 @@ import {
 } from '../src/geofence.js';
 import { VideoLink } from '../src/link.js';
 import { fenceNote } from './lib/add-map-core.mjs';
+import { droneOsdLayout } from './drone-osd-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -431,6 +432,36 @@ t('FENCE_SPAN vaut bien LOSS_DEAD − LOSS_CLEAN de link.js', () => {
 	m.setTerminalLoss(FENCE_SPAN - 0.5);
 	m.update(CLEAR);
 	assert.ok(m.out.quality > 0, 'un demi-dB de moins doit laisser une image');
+});
+
+// --- issue #151 : l'avertissement que R_CAUTION paie doit être PEINT --------
+
+t('#151 : tout OSD posé porte WARNINGS — sans quoi R_CAUTION ne paie rien', () => {
+	// R_CAUTION = R_HOLD + 1,5 s « pour LIRE l'avertissement » : c'est toute sa
+	// raison d'être, et elle suppose que l'avertissement soit à l'écran.
+	// L'élément était tiré comme les autres : mesuré sur 2 000 graines, il ne
+	// sortait que dans 7,5 % des habillages. Le seuil était calibré sur le
+	// temps de lecture d'un texte absent de plus de neuf vols sur dix.
+	const familles = ['freestyle5', 'race5', 'cinewhoop', 'longrange', 'heavy5', 'toothpick'];
+	let posés = 0, avec = 0, éteints = 0;
+	for (let i = 0; i < 400; i++) {
+		for (const family of familles) {
+			for (const mode of ['ANALOG', 'DIGITAL']) {
+				const l = droneOsdLayout({ seed: `fence::${i}`, family, mode });
+				if (!l) { éteints++; continue; }   // NO_OSD : rien n'est peint, BAT_V non plus
+				posés++;
+				if (l.elements.some((e) => e.key === 'WARNINGS')) avec++;
+			}
+		}
+	}
+	assert.ok(posés > 1000, `échantillon trop maigre : ${posés}`);
+	assert.equal(avec, posés, `${posés - avec} OSD posés sans WARNINGS`);
+	// Le trou qui SUBSISTE, assumé : un OSD éteint n'affiche rien du tout, pas
+	// plus BAT_V que l'avertissement. C'est une panne lisible comme telle, pas
+	// un tirage silencieux — mais elle reste une part des vols, et ce chiffre
+	// est là pour qu'elle se voie si elle enfle.
+	const partÉteinte = éteints / (posés + éteints);
+	assert.ok(partÉteinte < 0.10, `trop de vols sans aucun OSD : ${(partÉteinte * 100).toFixed(1)} %`);
 });
 
 console.log(`\n${n} vérifications OK`);

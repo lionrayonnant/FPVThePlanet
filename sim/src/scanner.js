@@ -11,6 +11,7 @@
 // portage du Go) : pas de seconde représentation graphique — voir la réponse
 // d'investigation sur l'issue #40.
 import L from 'leaflet';
+import { armConfirm } from './confirm-button.js';
 import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
@@ -1055,8 +1056,10 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 					note('.sc-keep-note', e.message.toUpperCase(), 'alarm');
 				}
 			};
-			panel.querySelector('.sc-discard').onclick = async () => {
-				if (!confirm('Remove the downloaded terrain data? This cannot be undone.')) return;
+			// Pas de confirm() de navigateur (§44, issue #213) : le bouton se
+			// réétiquette en REMOVE TERRAIN — CONFIRM et la DEUXIÈME pression
+			// est la confirmation. L'armement retombe si le curseur s'en va.
+			armConfirm(panel.querySelector('.sc-discard'), async () => {
 				try {
 					await api(`/scenes/${d.slug}?raw=1`, { method: 'DELETE' });
 					box.querySelector('.sc-row').remove();
@@ -1067,7 +1070,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 				} catch (e) {
 					note('.sc-keep-note', e.message.toUpperCase(), 'alarm');
 				}
-			};
+			});
 
 			function reveal() {
 				box.querySelector('.sc-row').remove();

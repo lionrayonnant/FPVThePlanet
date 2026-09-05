@@ -58,7 +58,34 @@ const stack = [];
 
 const isShown = (el) => el.isConnected && (el.checkVisibility?.() ?? true);
 
+// Un écran RETIRÉ du DOM sans que son detach() ait été appelé laissait derrière
+// lui sa scrutation manette et son écouteur clavier (issue #210) : la pile est
+// au niveau du module, donc chaque écran traversé dans la session ajoutait un
+// timer à 80 ms et un `back` déclenchable depuis un écran mort. On ne peut pas
+// se contenter de `isShown` pour conclure à la mort : une liste MASQUÉE derrière
+// sa fiche (target-scan) est invisible mais bien vivante, et doit reprendre la
+// main au retour. `isConnected` fait exactement la différence — masqué reste
+// connecté, retiré ne l'est plus. Le drapeau `seen` évite de tuer un nav créé
+// juste avant l'insertion de son écran dans le document : il est posé au
+// montage (le cas courant) et rafraîchi à chaque balayage (le cas d'un écran
+// abonné puis inséré). Ne le poser QU'au balayage ne suffisait pas — un écran
+// retiré avant le premier tick n'aurait jamais été vu vivant, donc jamais
+// ramassé.
+function isDead(entry) {
+	if (entry.container.isConnected) { entry.seen = true; return false; }
+	return !!entry.seen;
+}
+
+// Balayage paresseux : tout chemin qui consulte la pile en profite, sans
+// imposer un timer de ménage à part.
+function reap() {
+	for (let i = stack.length - 1; i >= 0; i--) {
+		if (isDead(stack[i])) stack[i].release?.();
+	}
+}
+
 function topNav() {
+	reap();
 	for (let i = stack.length - 1; i >= 0; i--) {
 		if (isShown(stack[i].container)) return stack[i];
 	}
@@ -69,12 +96,13 @@ function topNav() {
 // CONTROL VECTOR, rituel) est monté par-dessus. Retourne la fonction qui
 // libère la pile.
 export function blockNav(container) {
-	const entry = { container, blocker: true };
-	stack.push(entry);
-	return () => {
+	const entry = { container, blocker: true, seen: !!container.isConnected };
+	entry.release = () => {
 		const i = stack.indexOf(entry);
 		if (i >= 0) stack.splice(i, 1);
 	};
+	stack.push(entry);
+	return entry.release;
 }
 
 const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), '
@@ -100,7 +128,7 @@ const PAD_POLL_MS = 80; // même cadence que bootstrap.js / ritual.js
 //             VOL, où ils pilotent le drone et déplaceraient le curseur et les
 //             sliders à chaque geste.
 export function menuNav(container, { back = null, onDir = null, focusFirst = true, gamepad = true } = {}) {
-	const nav = { container };
+	const nav = { container, seen: !!container.isConnected };
 
 	const focusables = () => [...container.querySelectorAll(FOCUSABLE)].filter(isShown);
 
@@ -193,7 +221,9 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 	}, PAD_POLL_MS);
 
 	nav.focusAt = focusAt;
-	nav.detach = () => {
+	// `release` est le nom que la pile connaît (reap), `detach` celui que les
+	// écrans appellent : une seule et même fonction, idempotente.
+	nav.detach = nav.release = () => {
 		clearInterval(padPoll);
 		window.removeEventListener('keydown', onKey);
 		const i = stack.indexOf(nav);

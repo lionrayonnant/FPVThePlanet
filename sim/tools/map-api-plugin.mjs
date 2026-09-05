@@ -13,7 +13,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
 	addMap, planScan, probeCoverage, slugify, readScenes, writeScenes,
-	dirSize, tileDirPath, listProviders, Cancelled, SCENES_DIR,
+	dirSize, tileDirPath, rawTileDirFor, listProviders, Cancelled, SCENES_DIR,
 } from './lib/add-map-core.mjs';
 import * as providers from './lib/providers/index.mjs';
 import {
@@ -596,17 +596,10 @@ const routes = [
 		let raw = false;
 		if (url.searchParams.get('raw') === '1') {
 			// On retrouve la tuile brute par son nom, quelle que soit la forme de
-			// la zone : « centre + rayon », « bbox », ou « poly ». Le fournisseur
-			// vient de l'entrée elle-même (scenes.json le porte depuis le Stage 1) —
-			// les entrées historiques, d'avant le multi-fournisseur, n'en ont pas et
-			// retombent sur 'flyover' : jamais un chemin Flyover pour des octets
-			// Google, ni l'inverse.
-			const dir = await tileDirPath({
-				...(entry.poly || entry.bbox
-					? entry
-					: { lat: entry.lat, lon: entry.lon, zoom: entry.zoom ?? 20, radius: entry.radius ?? 25, altitude: entry.altitude ?? 20 }),
-				provider: entry.provider ?? 'flyover',
-			});
+			// la zone, et chez SON fournisseur. La règle vit dans add-map-core
+			// (rawTileDirFor) : le CLI remove-map.mjs la partage, au lieu de
+			// recalculer un chemin Flyover pour toute scène (issue #154).
+			const dir = await rawTileDirFor(entry);
 			if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); raw = true; }
 		}
 		json(res, 200, { removed: slug, raw });

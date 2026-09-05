@@ -16,6 +16,9 @@ import { CloudField, baseFor, BASE_CLEAR, BASE_OVERCAST, DECK_THICKNESS, DIM_MAX
 import { toSimParams, sanitize } from './lib/weather.mjs';
 import { CALM as CALM_WEATHER } from '../src/weather.js';
 import { createTileMaterial } from '../src/TileMaterial.js';
+// Le contrôle de convention UV demande sa liste de textures au DÉCODEUR qui
+// reconnaît le dossier source, au lieu de relire exp_model.mtl (issue #110).
+import { pick as decoderPick } from './lib/decoders/index.mjs';
 import { generateTargetScan, resolveTarget } from './target-model.mjs';
 import { targetCamera, CAMERA_FAMILIES, RES_LOW, RES_HIGH } from './target-camera.mjs';
 import { targetBuild, thrustToWeight } from './target-build.mjs';
@@ -88,6 +91,18 @@ function check(label, ok, detail) {
 
 const CALM = { speed: 0, gust: 0, turbulence: 0 };
 
+// Repère monde -> repère corps. Rapier rend la vitesse angulaire en MONDE ;
+// séparer roulis, tangage et lacet exige de la ramener dans le corps.
+function unrotateBody(q, x, y, z) {
+	const iq = { x: -q.x, y: -q.y, z: -q.z, w: q.w };
+	const tx = 2 * (iq.y * z - iq.z * y), ty = 2 * (iq.z * x - iq.x * z), tz = 2 * (iq.x * y - iq.y * x);
+	return {
+		x: x + iq.w * tx + (iq.y * tz - iq.z * ty),
+		y: y + iq.w * ty + (iq.z * tx - iq.x * tz),
+		z: z + iq.w * tz + (iq.x * ty - iq.y * tx),
+	};
+}
+
 function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	phys.reset();
 	// Explicit rather than remembered. There is one Physics instance for the
@@ -101,6 +116,7 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	fc.reset();
 	let maxImpact = 0;
 	let peakSpin = 0;
+	let peakOffAxis = 0;
 	// Le taux tenu, moyenné sur le dernier tiers du run plutôt que lu à l'instant
 	// final. Un bouclage qui ondule (MICRO ondule de 16 % au nominal, les 5" de
 	// 0 à 2 %) donne un échantillon instantané qui dépend de l'endroit où l'on
@@ -117,11 +133,19 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 		const a = phys.angularVelocity;
 		const mag = Math.hypot(a.x, a.y, a.z) * 180 / Math.PI;
 		peakSpin = Math.max(peakSpin, mag);
+		// Le pic HORS AXE DE ROULIS, en repère corps. La magnitude totale
+		// ci-dessus ne peut pas voir « le roulis tient mais le tangage part » :
+		// un roulis franc la remplit à lui seul. C'est exactement l'angle mort
+		// qui a laissé passer #144, où le tangage montait à 816 deg/s sous un
+		// roulis correct. Roulis = z du corps, tangage = x, lacet = y.
+		const bq = phys.rotation;
+		const bw = unrotateBody(bq, a.x, a.y, a.z);
+		peakOffAxis = Math.max(peakOffAxis, Math.max(Math.abs(bw.x), Math.abs(bw.y)) * 180 / Math.PI);
 		if (t >= tailFrom) tail.push(mag);
 	}
 	const p = phys.position, v = phys.velocity, w = phys.angularVelocity;
 	const heldSpin = tail.length ? tail.reduce((a, b) => a + b, 0) / tail.length : 0;
-	return { p, v, w, peakSpin, heldSpin, battery: phys.battery,
+	return { p, v, w, peakSpin, heldSpin, peakOffAxis, battery: phys.battery,
 		speed: Math.hypot(v.x, v.y, v.z), spin: Math.hypot(w.x, w.y, w.z) * 180 / Math.PI, maxImpact };
 }
 
@@ -255,6 +279,28 @@ for (const fam of FAMILIES) {
 	check(`[${fam}] reaches the commanded roll rate (${commanded} deg/s)`,
 		roll.heldSpin > commanded * 0.9 && roll.peakSpin < commanded * 1.25,
 		`${roll.heldSpin.toFixed(0)} deg/s held, ${roll.peakSpin.toFixed(0)} peak`);
+
+	// ROULIS TENU (issue #144). Le contrôle ci-dessus dure 1,2 s et ne lit que
+	// la magnitude totale : un tangage qui explose sous un roulis correct lui
+	// est doublement invisible. Or le couple de secousse de propwash valait
+	// 0,05 N·m EN DUR, quelle que soit la machine — 40 % de l'autorité d'un
+	// 5 pouces, 596 % de celle d'un toothpick. Tangage et lacet divergeaient
+	// donc à l'échelle micro (pic 816 deg/s à t≈2,75 s), et aucun réglage de
+	// PID ne pouvait rattraper une perturbation six fois supérieure à ce que
+	// les moteurs peuvent opposer.
+	//
+	// Six secondes, parce que l'apparition se compte en secondes ; et le pic
+	// HORS AXE, parce que c'est lui qui part. Le seuil est une fraction du taux
+	// commandé, pas un chiffre plat : une machine qui roule à 1100 deg/s brasse
+	// plus d'air qu'une qui roule à 360.
+	const sustained = simulate({ seconds: 6, at: [0, 300, 300],
+		sticks: (t) => ({ throttle: HOVER, roll: t > 0.15 ? 1 : 0, pitch: 0, yaw: 0 }) });
+	check(`[${fam}] un roulis TENU ne fait pas diverger tangage/lacet (#144)`,
+		sustained.peakOffAxis < commanded * 0.25,
+		`hors axe ${sustained.peakOffAxis.toFixed(0)} deg/s pour ${commanded} commandés`);
+	check(`[${fam}] et le roulis lui-même tient sur la durée (#144)`,
+		sustained.peakSpin < commanded * 1.3,
+		`pic ${sustained.peakSpin.toFixed(0)} deg/s`);
 
 	check(`[${fam}] hovers at a plausible stick position`, HOVER > 0.15 && HOVER < 0.62, `${(HOVER * 100).toFixed(0)}% throttle`);
 
@@ -1491,25 +1537,35 @@ console.log('\ntextures');
 // odd": OBJ puts the V origin at the bottom-left, DataArrayTexture at the top.
 // Both checks below failed hard before prep.mjs started converting it.
 {
+	// On DEMANDE au décodeur la liste ordonnée de ses textures, au lieu de
+	// relire exp_model.mtl et de reparser newmtl/map_Kd ici (issue #110) :
+	// c'était la dernière hypothèse « l'entrée est de l'OBJ » en dehors de
+	// tools/lib/decoders/. Un futur décodeur (glTF) qui expose textures()
+	// fait passer ce contrôle sans qu'on touche à ce fichier.
 	const tileDir = manifest.source;
-	const mtlPath = tileDir ? path.join(tileDir, 'exp_model.mtl') : null;
+	let jpgs = null;
+	let skip = null;
 	if (!tileDir || !fs.existsSync(tileDir)) {
-		console.log(`  SKIP  needs the source tile — ${mtlPath ?? 'no manifest.source'} is not on disk`);
-	} else if (!fs.existsSync(mtlPath)) {
-		// Non-OBJ decoders (Google Earth's rocktree, #110) have no exp_model.mtl
-		// to read UVs back from — nothing wrong with the scene, just a check
-		// that only knows how to re-derive them from an OBJ/MTL pair.
-		console.log('  SKIP  UV convention — skipped (décodeur non-OBJ, #110)');
+		skip = `needs the source tile — ${tileDir ?? 'no manifest.source'} is not on disk`;
+	} else {
+		try {
+			const decoder = decoderPick(tileDir);
+			if (typeof decoder.textures !== 'function') {
+				// rocktree ne peut pas répondre sans décoder toute la tuile :
+				// ses atlas sont construits pendant le décodage. On le DIT,
+				// plutôt que de conclure « pas d'OBJ, donc rien à vérifier ».
+				skip = `UV convention — le décodeur « ${decoder.id} » ne sait pas lister ses textures sans décoder (#110)`;
+			} else {
+				jpgs = await decoder.textures(tileDir);
+			}
+		} catch (e) {
+			skip = `UV convention — ${e.message}`;
+		}
+	}
+	if (skip) {
+		console.log(`  SKIP  ${skip}`);
 	} else {
 		const sharp = (await import('sharp')).default;
-
-		// Declaration order in the MTL is the layer order prep.mjs assigns.
-		const jpgs = [];
-		for (const line of fs.readFileSync(mtlPath, 'latin1').split('\n')) {
-			const t = line.trim();
-			if (t.startsWith('newmtl ')) jpgs.push(null);
-			else if (t.startsWith('map_Kd ') && jpgs.length) jpgs[jpgs.length - 1] = t.slice(7).trim();
-		}
 
 		const chunk = manifest.chunks[0];
 		const g = fs.readFileSync(path.join(sceneDir, chunk.geo));
@@ -1525,7 +1581,8 @@ console.log('\ntextures');
 		const SAMPLED = Math.min(80, chunk.layerCount);
 		const tex = new Map();
 		for (let l = 0; l < SAMPLED; l++) {
-			const img = sharp(path.join(tileDir, jpgs[layerBase + l]));
+			// textures() rend des chemins ABSOLUS : plus de join sur tileDir.
+			const img = sharp(jpgs[layerBase + l]);
 			const { width, height } = await img.metadata();
 			tex.set(l, { data: await img.removeAlpha().raw().toBuffer(), w: width, h: height });
 		}
@@ -1917,13 +1974,21 @@ console.log('\nentry state — sampleCandidate');
 			worst && `tirage ${worst.i} : ${worst.zone} à ${worst.m.toFixed(1)} m`);
 	}
 
+	// Le repli n'est plus manifest.spawn LITTÉRALEMENT (issue #149) : ce point-là
+	// n'est pas contraint par la clôture et tombait en HOLD ou en CAUTION sur
+	// trois des cartes installées. Ce qu'on vérifie est donc ce qui compte
+	// vraiment : c'est un repli COMFORTABLE, immobile et à plat, et il naît en
+	// zone NOMINAL — ce qu'un tirage réussi garantit déjà juste au-dessus.
 	const fallback = generateEntryState({ physics: phys, manifest, seed: 'unreachable', maxAttempts: 0 });
-	check('maxAttempts=0 falls back to the fixed spawn', fallback.category === 'COMFORTABLE'
-		&& fallback.position.x === manifest.spawn.x && fallback.position.y === manifest.spawn.y
-		&& fallback.position.z === manifest.spawn.z
+	entryFence.reset();
+	entryFence.update(fallback.position);
+	check('maxAttempts=0 falls back to a resting spawn', fallback.category === 'COMFORTABLE'
 		&& fallback.quaternion.w === 1 && fallback.quaternion.x === 0
 		&& fallback.linvel.x === 0 && fallback.linvel.y === 0 && fallback.linvel.z === 0
 		&& fallback.angvel.x === 0 && fallback.angvel.y === 0 && fallback.angvel.z === 0);
+	check('le repli lui aussi naît hors de la clôture (#149)',
+		entryFence.out.zone === GF_NOMINAL,
+		`${entryFence.out.zone} à ${entryFence.out.marginM.toFixed(1)} m`);
 
 	phys.reset();
 }

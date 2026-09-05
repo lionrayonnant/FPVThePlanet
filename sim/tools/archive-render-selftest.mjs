@@ -144,6 +144,13 @@ await ta('target log : le titre parle en DISPLAY, la table est de la donnée', a
 	assert.doesNotMatch(table.textContent, /TARGET LOG/, 'le titre n\'est pas dans la table');
 	assert.match(dom.root.textContent, /TARGET LOG/, 'mais il est bien à l\'écran');
 	assert.match(dom.root.textContent, /A TARGET IS A TRACE/);
+	// On REFERME (#210) : un écran laissé monté garde son nav, sa scrutation
+	// manette et son écouteur clavier, et Node ne rend jamais la main. Le
+	// `reset()` du test suivant le retire du DOM, ce que menu-nav.js balaie
+	// désormais tout seul — mais compter là-dessus pour le DERNIER écran de la
+	// suite reviendrait à laisser le processus dépendre d'un ramassage.
+	btn('BACK').click();
+	await p;
 });
 
 await ta('target log : rien qui remette un drone en vol (#54)', async () => {
@@ -152,6 +159,8 @@ await ta('target log : rien qui remette un drone en vol (#54)', async () => {
 	await tick();
 	const labels = dom.root.querySelectorAll('button').map((b) => b.textContent);
 	assert.deepEqual(labels, ['[ BACK ]'], 'un seul bouton, et il ne vole pas');
+	btn('BACK').click();
+	await p;
 });
 
 // Comme bench-render-selftest : on rend les globals avant de conclure. Sans ça
@@ -159,9 +168,8 @@ await ta('target log : rien qui remette un drone en vol (#54)', async () => {
 // vie et le test « passe » sans jamais rendre la main.
 dom.restore();
 console.log(`\n${n} tests archive-render OK`);
-// Sortie explicite : menu-nav.js tient une pile de navigations au niveau du
-// MODULE et une scrutation manette par écran (`setInterval`), et il en survit
-// une à la fin de cette suite — assez pour que Node ne rende jamais la main et
-// bloque toute la chaîne npm. Les cinq assertions sont passées si on arrive
-// ici : une seule qui échoue lève avant. Suivi ouvert (#210).
-process.exit(0);
+// Plus de `process.exit(0)` ici : menu-nav.js balaie désormais les navs dont
+// l'écran a quitté le DOM (#210), donc plus aucune scrutation manette ne
+// survit à cette suite et Node rend la main tout seul. Si ce fichier se
+// remettait à pendre, c'est ce balayage qu'il faut regarder — pas rajouter la
+// sortie forcée.

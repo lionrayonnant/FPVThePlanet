@@ -27,6 +27,25 @@ function parseMtl(file) {
 	return { materials, byName };
 }
 
+// Liste ORDONNÉE des textures du dossier, une par couche, dans l'ordre que
+// prep.mjs assigne aux couches. Chemins absolus, `null` pour un matériau sans
+// texture.
+//
+// Existe pour tools/selftest.mjs (issue #110), dont le contrôle de convention
+// UV relisait exp_model.mtl lui-même et reparsait newmtl/map_Kd à la main :
+// c'était la dernière hypothèse « l'entrée est de l'OBJ » hors de ce dossier.
+// Elle se mettait en SKIP dès que la tuile source n'était plus sur le disque,
+// donc elle cessait simplement de vérifier quoi que ce soit — le pire état
+// pour un contrôle dont le rôle est d'attraper les régressions de l'axe V.
+//
+// Beaucoup moins cher que decode() : on ne lit que le .mtl, pas la géométrie.
+export async function textures(tileDir) {
+	const mtlFile = path.join(tileDir, 'exp_model.mtl');
+	if (!fs.existsSync(mtlFile)) throw new Error(`missing ${mtlFile}`);
+	return parseMtl(mtlFile).materials
+		.map((m) => (m.jpg ? path.join(tileDir, m.jpg) : null));
+}
+
 // ---------------------------------------------------------------- OBJ streaming
 
 // Reads the OBJ in large blocks rather than line-by-line; at 512MB the

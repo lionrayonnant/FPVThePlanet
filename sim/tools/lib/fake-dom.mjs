@@ -153,16 +153,33 @@ class FakeElement {
 	// --- interaction
 
 	focus() { ACTIVE = this; }
-	blur() { if (ACTIVE === this) ACTIVE = null; }
+	blur() {
+		if (ACTIVE === this) ACTIVE = null;
+		this.dispatchEvent({ type: 'blur' });
+	}
 
 	click() {
 		if (this.disabled) return;   // comme un vrai bouton désactivé
-		this.onclick?.({ preventDefault() {} });
+		this.dispatchEvent({ type: 'click', preventDefault() {} });
+	}
+
+	// Un élément accepte les DEUX conventions : la propriété `onclick`, que le
+	// gros du code utilise, et addEventListener, dont se sert tout ce qui doit
+	// cohabiter avec un gestionnaire déjà posé (src/confirm-button.js, #213).
+	// Sans ça, un module écrit en DOM idiomatique n'était pas testable ici.
+	addEventListener(type, fn) {
+		(this._listeners ??= new Map()).set(type, [...(this._listeners.get(type) ?? []), fn]);
+	}
+
+	removeEventListener(type, fn) {
+		const l = this._listeners?.get(type);
+		if (l) this._listeners.set(type, l.filter((f) => f !== fn));
 	}
 
 	dispatchEvent(ev) {
 		const h = this[`on${ev.type}`];
 		if (h) h.call(this, ev);
+		for (const fn of this._listeners?.get(ev.type) ?? []) fn.call(this, ev);
 		return true;
 	}
 
@@ -194,6 +211,11 @@ export function fakeDom() {
 		body: root,
 		getElementById: (id) => root.querySelector(`[id="${id}"]`),
 		exitPointerLock: () => {},
+		// src/input.js s'abonne sur `document` (clavier, souris, pointer lock) :
+		// sans ces deux-là, instancier Input() lève et rien de ce qui en dépend
+		// n'est testable sans navigateur.
+		addEventListener: () => {},
+		removeEventListener: () => {},
 	};
 
 	const window_ = {
