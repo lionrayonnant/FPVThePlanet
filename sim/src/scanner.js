@@ -22,6 +22,7 @@ import {
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
 import { menuNav } from './menu-nav.js';
+import { previewBounds } from '../tools/map-preview-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
@@ -193,15 +194,29 @@ async function api(path, opts) {
 }
 const post = (p, b) => api(p, { method: 'POST', body: JSON.stringify(b) });
 
-// Résout le slug de la carte à survoler, ou undefined pour revenir au terminal.
-export function runScanner(root) {
-	const el = document.createElement('div');
-	el.className = 'scanner';
-	el.innerHTML = `<div class="scanner-map map-mono"></div><aside class="scanner-panel">${PANEL}</aside>`;
-	root.appendChild(el);
+// Monte le scanner dans DEUX hôtes fournis par l'appelant, et rend une poignée.
+//
+// Le plein cadre a disparu (#211) : depuis que FIELD est un seul écran, c'est la
+// Home qui possède les deux colonnes. `mapHost` ne nous appartient PAS — c'est
+// exactement ce qui permet à la carte de survivre au passage repos → travail,
+// qui est la promesse centrale de l'écran. `railHost`, si : on le vide et on le
+// remplit.
+//
+//   onZone(zone | null)   une zone apparaît ou disparaît — le signal repos ↔ travail
+//   onPickArea(slug)      clic sur le cadre d'une zone déjà acquise
+//   onRest()              BACK depuis le rail : on repose l'outil, on ne quitte PAS
+//                         FIELD. Quitter, c'est MODE, et c'est la Home qui le tient.
+//
+// Rend { done, setAreaFrames, focusBounds, destroy }. `done` résout une FORME de
+// vol : `{ slug }` pour une zone cuite, `{ live: [lat, lon] }` pour un décollage
+// en direct, `undefined` pour remonter.
+export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null, onRest = null } = {}) {
+	mapHost.classList.add('scanner-map', 'map-mono');
+	railHost.classList.add('scanner-panel');
+	railHost.innerHTML = PANEL;
 
-	const $ = (sel) => el.querySelector(sel);
-	const panel = $('.scanner-panel');
+	const $ = (sel) => railHost.querySelector(sel);
+	const panel = railHost;
 
 	// RTC du panneau de recherche : de la couleur, jamais une source
 	// d'information sur le pipeline réel (mêmes invariants que watchJob()).
@@ -235,7 +250,7 @@ export function runScanner(root) {
 	const provider = () => chosenSource(registry, state.source);
 
 	// ------------------------------------------------------------ carte
-	const map = L.map($('.scanner-map'), {
+	const map = L.map(mapHost, {
 		zoomControl: false, attributionControl: true, worldCopyJump: true,
 	}).setView(lastView.center, lastView.zoom);
 	// Une seule carte dans le jeu (Bible §4) : même règle que la mini-carte —
@@ -257,6 +272,30 @@ export function runScanner(root) {
 	const pins = L.layerGroup().addTo(map);
 	const outline = L.layerGroup().addTo(map);
 	const snapped = L.rectangle([[0, 0], [0, 0]], { color: token('--warm-white'), weight: 1, fill: false, interactive: false });
+	// Les zones DÉJÀ acquises, à leur vraie place sur la carte vivante (#211).
+	// Même encre que `snapped` : ce que la Home montre et ce que l'acquisition
+	// avait dessiné doivent se reconnaître (#207). Cliquables, parce que la
+	// carte et la liste doivent désigner la même chose dans les deux sens.
+	const areaFrames = L.layerGroup().addTo(map);
+
+	// Dessine le cadre de chaque zone du cache. previewBounds() rend `null` pour
+	// une zone sans emprise connue : elle n'a alors PAS de cadre et reste
+	// sélectionnable par la liste seule — un repli sur (0, 0) montrerait le
+	// golfe de Guinée pour une zone parisienne.
+	function setAreaFrames(scenes) {
+		areaFrames.clearLayers();
+		for (const sc of scenes ?? []) {
+			const b = previewBounds(sc);
+			if (!b) continue;
+			L.rectangle(b, { color: token('--warm-white'), weight: 1, fill: true, fillOpacity: 0, interactive: true })
+				.on('click', () => onPickArea?.(sc.slug))
+				.addTo(areaFrames);
+		}
+	}
+
+	// Recadre sans toucher au tracé en cours : la liste de la Home s'en sert
+	// pour montrer la zone qu'on vient de sélectionner.
+	function focusBounds(b) { if (b) map.fitBounds(b, { padding: [24, 24] }); }
 	let zoneLayer = null;
 
 	// ---------------------------------------------- la grille réellement scannée
@@ -338,6 +377,9 @@ export function runScanner(root) {
 		renderCoverage();
 		describe();
 		surveyCentre();
+		// L'écran passe au travail : c'est la Home qui remplace sa colonne
+		// gauche par ce rail. Le scanner ne connaît pas la Home, il signale.
+		onZone?.(state.zone);
 	}
 
 	map.on('pm:create', (e) => {
@@ -351,6 +393,7 @@ export function runScanner(root) {
 		if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
 		state.zone = state.describe = state.plan = state.probe = null;
 		lattice.clearLayers(); pruned.clearLayers(); outline.clearLayers(); map.removeLayer(snapped);
+		onZone?.(null);
 		$('.sc-area-hint').hidden = false;
 		$('.sc-readout').hidden = true;
 		$('.sc-clear').hidden = true;
@@ -673,14 +716,16 @@ export function runScanner(root) {
 		resolveScanner(choice);
 	};
 
+	// Ne détruit QUE ce que le scanner a créé dans le rail. La carte survit :
+	// elle appartient à l'écran, pas à l'état de travail (#211). Elle ne se
+	// démonte que par destroy(), quand la Home meurt.
 	function cleanup() {
-		// `el.remove()` détruit le sous-arbre mais pas le minuteur du montage RTC
-		// s'il tourne encore (BACK/Échap depuis la recherche, avant tout job).
-		// stopSearch() est idempotent.
+		// `replaceChildren()` vide le sous-arbre mais pas le minuteur du montage
+		// RTC s'il tourne encore (BACK/Échap depuis la recherche, avant tout
+		// job). stopSearch() est idempotent.
 		stopSearch?.();
 		nav.detach();
-		map.remove();
-		el.remove();
+		railHost.replaceChildren();
 	}
 
 	// Navigation clavier + manette du panneau (issue #123) — le panneau seul :
@@ -691,10 +736,18 @@ export function runScanner(root) {
 	// se fait par ABORT ou LEAVE, un geste explicite). Pas de focusFirst :
 	// l'écran pose déjà son focus sur la recherche au montage.
 	const nav = menuNav(panel, {
-		back: () => { if (!state.jobId) done(undefined); },
+		back: () => { if (!state.jobId) rest(); },
 		focusFirst: false,
 	});
-	$('.sc-back').onclick = () => done(undefined);
+	// BACK ne résout plus rien : depuis #211 le scanner n'est pas un écran qu'on
+	// quitte, c'est la colonne de droite de FIELD. BACK repose l'outil et rend
+	// la colonne gauche à la Home ; `done` ne sert plus qu'à une forme de vol.
+	function rest() {
+		map.pm.disableDraw();
+		clearZone();
+		onRest?.();
+	}
+	$('.sc-back').onclick = rest;
 
 	// Voler en direct : on résout un point, et c'est tout. Rien n'est planifié,
 	// rien n'est sondé, rien n'est écrit — le monde arrive pendant le vol.
@@ -992,5 +1045,16 @@ export function runScanner(root) {
 	setTimeout(() => map.invalidateSize(), 0);
 	search.focus();
 
-	return new Promise((resolve) => { resolveScanner = resolve; });
+	return {
+		done: new Promise((resolve) => { resolveScanner = resolve; }),
+		setAreaFrames,
+		focusBounds,
+		// La Home arme l'outil depuis sa colonne gauche : au repos, le rail est
+		// caché, et sans ça rien ne permettrait de commencer à tracer.
+		startDraw,
+		// La carte ne meurt QU'ICI. `map.remove()` retire les écouteurs que
+		// Leaflet a posés sur window : sans lui, une Home ouverte trois fois
+		// laisse trois cartes vivantes derrière elle.
+		destroy: () => { cleanup(); map.remove(); },
+	};
 }

@@ -51,13 +51,12 @@ const api = (op) => ({ getOperator: () => op, patch: () => {}, flush: async () =
 // La Home résout une forme de vol ; on la ferme par MODE pour ne rien voler.
 const close = async (p) => { btn('MODE').click(); return p; };
 
-await ta('home : la carte, puis les deux seules choses qui décollent', async () => {
+await ta('home : la carte, puis la seule chose qui décolle', async () => {
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));   // fetchScenes()
 	assert.ok(dom.root.querySelector('.terminal-map'), 'le cadre de la carte');
 	assert.ok(btn('FLY — PARISTEST'), 'le CTA de vol, étiqueté par la zone');
-	assert.ok(btn('GLOBAL SCANNER'), 'l\'entrée sur le monde');
 	await close(p);
 });
 
@@ -139,14 +138,18 @@ await ta('home : le pied est exactement celui du modèle', async () => {
 	await close(p);
 });
 
-await ta('home : sans terrain, le scanner reste l\'entrée', async () => {
+await ta('home : sans terrain, la carte reste l\'entrée', async () => {
+	// Depuis #211 il n'y a plus de CTA [ GLOBAL SCANNER ] : la carte du scanner
+	// EST la colonne de droite, et on part en chercher en traçant dessus. La
+	// colonne gauche doit donc le dire, sinon un opérateur neuf ne voit qu'un
+	// écran vide à côté d'une carte.
 	reset();
 	scenesReply = [];
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
 	assert.equal(btn('FLY —'), undefined, 'rien à voler');
-	assert.ok(btn('GLOBAL SCANNER'), 'mais toujours de quoi partir en chercher');
-	assert.ok(text().includes('NO LOCAL TERRAIN'), 'et on le dit dans le cadre de la carte');
+	assert.ok(dom.root.querySelector('.terminal-map'), "la carte est là, c'est par elle qu'on part");
+	assert.ok(text().includes('NO LOCAL TERRAIN'), 'et la colonne gauche le dit');
 	assert.equal(btn('MORE…'), undefined, 'pas de MORE… sur une liste vide');
 	await close(p);
 });
@@ -156,7 +159,7 @@ await ta('home : cache injoignable — la Home monte quand même', async () => {
 	scenesReply = null;
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
-	assert.ok(btn('GLOBAL SCANNER'), 'l\'écran tient');
+	assert.ok(dom.root.querySelector('.terminal-right'), 'l\'écran tient');
 	assert.ok(dom.root.querySelector('.terminal-foot'), 'le pied aussi');
 	await close(p);
 });
@@ -170,6 +173,46 @@ await ta('home : MODE n\'apparaît que si l\'on peut remonter', async () => {
 	assert.equal(btn('MODE'), undefined, 'pas de MODE sans back');
 	btn('FLY —').click();
 	await p;
+});
+
+// --- FIELD est un seul écran (#211) -----------------------------------------
+
+await ta('home : deux colonnes, et la carte est dans celle de droite', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const left = dom.root.querySelector('.terminal-left');
+	const right = dom.root.querySelector('.terminal-right');
+	assert.ok(left, 'la colonne des menus');
+	assert.ok(right, 'la colonne du monde');
+	assert.ok(right.querySelector('.terminal-map'), 'la carte est à droite');
+	assert.equal(left.querySelector('.terminal-map'), null, 'et pas à gauche');
+	await close(p);
+});
+
+await ta('home : [ GLOBAL SCANNER ] a disparu — il n\'y a plus d\'ailleurs où aller', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	assert.equal(btn('GLOBAL SCANNER'), undefined);
+	assert.ok(btn('FLY —'), 'FLY reste la seule chose qui décolle');
+	await close(p);
+});
+
+await ta('home : la carte SURVIT au re-rendu de la colonne gauche', async () => {
+	// C'est la promesse centrale de l'écran. Si ce test tombe, la fusion n'a plus
+	// d'intérêt : autant garder deux écrans. On compare la RÉFÉRENCE du nœud, pas
+	// sa présence — un équivalent reconstruit serait un remontage de Leaflet.
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const carte = dom.root.querySelector('.terminal-map');
+	const droite = dom.root.querySelector('.terminal-right');
+	dom.root.querySelectorAll('.terminal-area').at(1).click();
+	await new Promise((r) => setTimeout(r, 0));
+	assert.equal(dom.root.querySelector('.terminal-map'), carte, 'le MÊME nœud de carte');
+	assert.equal(dom.root.querySelector('.terminal-right'), droite, 'la MÊME colonne');
+	await close(p);
 });
 
 console.log(`\n${n} tests terminal-render OK`);
