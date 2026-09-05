@@ -450,10 +450,11 @@ for (const fam of FAMILIES) {
 	check(`[${fam}] tout exemplaire tient l'altitude à son stick de hover`,
 		worstHoverDrift < 4, `pire dérive ${worstHoverDrift.toFixed(2)} m (${hoverSeed})`);
 	// La famille reste la famille : la fourchette de poussée/poids de ses
-	// exemplaires reste centrée sur son nominal. Une famille à variation nulle
-	// (MICRO, voir FAMILY_VARIATION) rend exactement le nominal — c'est ce qu'on
-	// vérifie alors, et le fait qu'elle y soit encore est le garde-fou : le jour
-	// où son tune est re-mesuré et sa variation rouverte, ce check bascule.
+	// exemplaires reste centrée sur son nominal. Une famille gelée (variation
+	// nulle, voir FAMILY_VARIATION) rendrait exactement le nominal — c'est ce
+	// qu'on vérifierait alors. Plus aucune ne l'est depuis #234 : MICRO a repris
+	// sa variation quand #144 a retiré la cause de son overshoot. La branche
+	// reste, elle bascule d'elle-même si une famille est regelée.
 	const twr0 = thrustToWeight(nominal);
 	const varies = (targetBuild({ seed: 'selftest-build-0', family: fam }).variation ?? 1) > 0;
 	check(`[${fam}] poussée/poids des exemplaires ${varies ? 'encadre le' : '= le'} nominal`,
