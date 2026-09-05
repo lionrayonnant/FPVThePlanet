@@ -2049,6 +2049,7 @@ if (!frozen) {
 		sessionSeconds: (Date.now() - sessionStartedAt) / 1000,
 		propwash: physics.propulsion.propwash,
 		bench: MODE.bench,
+		recon: MODE.live,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setPhotoReady(photoReady);
@@ -2556,11 +2557,20 @@ async function openFlightSession() {
 	// sans cette garde, session.open() échoue silencieusement (aucun opérateur
 	// chargé) puis applyTargetCamera()/droneOsdLayout() réécrivent un état que
 	// bootLive() avait délibérément laissé de côté.
-	// MODE.live emprunte exactement ce chemin : une reconnaissance FIELD est
-	// passée par bootLive() elle aussi, et pour la même raison — pas de session
-	// serveur, pas de caméra de cible, droneOsd null. C'est la garde éprouvée,
-	// on ne s'en fabrique pas une deuxième.
-	if (OPTS.live || MODE.live) return;
+	// `?live=` est un raccourci de DEV : rien n'y est monté, pas même une
+	// caméra. Il garde donc sa sortie immédiate.
+	//
+	// `MODE.live` ne l'est plus. #206 en a fait un vrai mode joueur — une
+	// reconnaissance FIELD — et lui a fait hériter de cette garde telle quelle.
+	// Conséquence non vue : la section caméra + OSD plus bas ne tournait JAMAIS,
+	// donc une reconnaissance volait la machine par défaut SANS AUCUN OSD. Un
+	// drone a un OSD ; l'absence d'OSD est un choix qui se pose au banc
+	// (ligne HUD), pas un accident du chemin live (#216).
+	//
+	// La reconnaissance emprunte désormais le chemin du BANC : tout tourne, sauf
+	// session.open(). C'est le chemin éprouvé, on ne s'en fabrique pas un
+	// deuxième.
+	if (OPTS.live) return;
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
@@ -2583,7 +2593,7 @@ async function openFlightSession() {
 	// est celui qu'emprunte déjà une ouverture de session ratée, où `tgt`
 	// reste null — il est éprouvé, on ne s'en fabrique pas un deuxième.
 	try {
-		if (!MODE.bench) {
+		if (!MODE.bench && !MODE.live) {
 			await session.open({
 				area: flyArea,
 				weatherSnapshot: session.snapshotWeather(weather),
@@ -2629,7 +2639,13 @@ async function openFlightSession() {
 	droneOsd?.dispose();
 	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines
 	// cibles n'ont simplement pas d'OSD, ou le leur est éteint/HS.
-	const osdLayout = droneOsdLayout({ seed, family, mode });
+	// HUD CLEAR au banc : une machine montée sans OSD, pour filmer (#216). On
+	// ne tire pas de disposition du tout — c'est exactement l'état que
+	// `droneOsdLayout()` rend déjà pour sa panne NO_OSD, donc rien en aval n'a
+	// à connaître ce réglage. Le réglage est du BANC : une reconnaissance FIELD
+	// ne le lit pas, elle a toujours son OSD.
+	const hudClear = MODE.bench && MODE.config?.hud === 'CLEAR';
+	const osdLayout = hudClear ? null : droneOsdLayout({ seed, family, mode });
 	droneOsd = osdLayout ? new DroneOsd(osdLayout) : null;
 	lens.setOsd(droneOsd);
 	fpvtpOsd.show();

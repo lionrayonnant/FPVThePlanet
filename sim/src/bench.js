@@ -14,7 +14,7 @@ import { menuNav } from './menu-nav.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import {
 	MODE_SELECT, BENCH_CREED, BENCH_SEAL, LIMITS,
-	ENTRY_MODES, LINK_MODES, BATTERY_MODES,
+	ENTRY_MODES, LINK_MODES, BATTERY_MODES, HUD_MODES,
 	BENCH_STORAGE_KEY, BENCH_DEFAULTS,
 	normalizeBenchConfig, benchRows, benchBlockers, formatClock,
 	serializeBenchConfig, parseBenchConfig,
@@ -302,6 +302,11 @@ export function runBench(root, { scenes = [], settings = null, live = false, onC
 				config.fence ? 'on' : 'off',
 				(v) => set({ fence: v === 'on' }),
 			), 'fence'));
+
+			// L'OSD du DRONE seulement : celui de FPVTP! ne se coupe pas, il porte
+			// PHOTO READY et la fin de vol. CLEAR, c'est une machine montée sans
+			// OSD pour filmer — pas un vol à l'aveugle.
+			row(s.box, 'HUD', tag(select(HUD_MODES.map((h) => [h, h]), config.hud, (v) => set({ hud: v })), 'hud'));
 
 			// --- les conditions
 			row(s.box, 'TIME', tag(slider(LIMITS.timeMin, config.timeMin, (v) => set({ timeMin: v })), 'time'),

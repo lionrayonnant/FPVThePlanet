@@ -16,6 +16,20 @@ const clock = (s) => {
 	return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
 
+// Ce que la ligne de vol du HUD annonce. Sorti en fonction PURE parce que c'est
+// un invariant de fiction, pas de la mise en forme : un vol qui n'ouvre aucune
+// session ne doit pas écrire SESSION — le HUD mentirait sur ce que le vol est en
+// train de faire.
+//
+//   BENCH  — le banc : pas de session, et pas de temps à compter non plus.
+//   RECON  — une reconnaissance FIELD (#206) : rien n'est écrit, mais le temps
+//            de vol se lit quand même.
+//   SESSION — un vol de terrain, le seul qui laisse une trace.
+export function flightLabel({ bench = false, recon = false, sessionSeconds = 0 } = {}) {
+	if (bench) return 'BENCH';
+	return `${recon ? 'RECON' : 'SESSION'} ${clock(sessionSeconds ?? 0)}`;
+}
+
 export class FpvtpOsd {
 	constructor(root) {
 		root.insertAdjacentHTML('beforeend', `
@@ -168,7 +182,7 @@ export class FpvtpOsd {
 	get fps() { return this._fps; }
 
 	update({ mode, rates, usingGamepad, windMs, windRelRad, visibilityM,
-	         rssiDbm, operator, sessionSeconds, propwash, bench = false }) {
+	         rssiDbm, operator, sessionSeconds, propwash, bench = false, recon = false }) {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
@@ -176,7 +190,12 @@ export class FpvtpOsd {
 		// Au banc il n'y a pas de session : la ligne dit ce qu'elle est plutôt
 		// que de compter le temps d'une chose qui n'existe pas. C'est le seul
 		// endroit du HUD où le banc se signale, et il suffit.
-		this.el.session.textContent = bench ? 'BENCH' : `SESSION ${clock(sessionSeconds ?? 0)}`;
+		//
+		// Une reconnaissance (#206) n'en ouvre pas non plus — rien n'est écrit,
+		// donc écrire SESSION serait un mensonge du HUD sur ce que le vol est en
+		// train de faire. Elle garde son chronomètre : le temps de vol se lit,
+		// même quand il ne s'enregistre nulle part.
+		this.el.session.textContent = flightLabel({ bench, recon, sessionSeconds });
 
 		// Une seule ligne d'environnement : trois nombres que l'opérateur lit
 		// d'un coup, pas trois blocs qui se disputent un coin.

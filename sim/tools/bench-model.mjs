@@ -64,6 +64,12 @@ export const BENCH_SEAL = 'NOTHING HERE IS LOGGED.';
 export const ENTRY_MODES = ['IDLE', 'COMFORTABLE', 'ACTIVE', 'CHALLENGING', 'HOLY_SHIT'];
 export const LINK_MODES = ['LOOPBACK', 'SIMULATED'];
 export const BATTERY_MODES = ['REAL', 'HELD'];
+// L'OSD du drone, pas celui de FPVTP! (PHASE 12, double HUD). CLEAR rend
+// exactement ce que `droneOsdLayout()` sait déjà rendre — `null`, son mode de
+// panne NO_OSD : une machine montée sans OSD, pour filmer. L'incrustation
+// FPVTP! ne bouge jamais : ce n'est pas le drone qui la dessine, c'est
+// l'opérateur, et elle porte PHOTO READY et la fin de vol.
+export const HUD_MODES = ['CLASSIC', 'CLEAR'];
 export const TERRAIN_KINDS = ['cached', 'live'];
 
 // Bornes. Larges à dessein — le banc n'est pas un bulletin, il doit pouvoir
@@ -89,6 +95,7 @@ export const BENCH_DEFAULTS = Object.freeze({
 	terrain: { kind: 'cached', slug: null, lat: 48.8584, lon: 2.2945 },
 	entry: 'IDLE',
 	fence: true,
+	hud: 'CLASSIC',
 	timeMin: 14 * 60 + 30,
 	weather: {
 		windSpeed: 0,
@@ -149,6 +156,7 @@ export function normalizeBenchConfig(raw, { families = null } = {}) {
 		},
 		entry: oneOf(r.entry, ENTRY_MODES, d.entry),
 		fence: typeof r.fence === 'boolean' ? r.fence : d.fence,
+		hud: oneOf(r.hud, HUD_MODES, d.hud),
 		timeMin: Math.round(num(r.timeMin, d.timeMin, LIMITS.timeMin)),
 		weather: {
 			windSpeed: num(w.windSpeed, d.weather.windSpeed, LIMITS.windSpeed),
@@ -233,6 +241,7 @@ export function benchRows(config, { familyLabel = (f) => f } = {}) {
 				: (c.terrain.slug ? c.terrain.slug.toUpperCase() : 'NONE') },
 		{ key: 'entry',   label: 'ENTRY',    value: c.entry === 'IDLE' ? 'IDLE ON GROUND' : c.entry.replace('_', ' ') },
 		{ key: 'fence',   label: 'FENCE',    value: c.fence ? 'ON' : 'OFF' },
+		{ key: 'hud',     label: 'HUD',      value: c.hud },
 		{ key: 'time',    label: 'TIME',     value: formatClock(c.timeMin) },
 		// Le mock de la Bible §48 écrit le vent sur UNE ligne — mais il décrit un
 		// écran, pas des contrôles : régler la rafale et la direction demande
