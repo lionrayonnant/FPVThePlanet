@@ -532,7 +532,12 @@ export async function operatorSelect(root, choices) {
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
 export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
 	let scenes = await fetchScenes();
-	const s = screen(root, 'terminal-home');
+	// `terminal-field` en plus de `terminal-home` : le banc monte ses deux écrans
+	// avec `terminal-home` aussi (bench.js:72 et :196) pour en partager la
+	// typographie. La mise en page en deux colonnes, elle, n'appartient qu'à
+	// FIELD — l'accrocher à `terminal-home` la posait sur SELECT OPERATION MODE
+	// et sur l'écran du banc, qui se retrouvaient en pleine largeur.
+	const s = screen(root, 'terminal-home terminal-field');
 	let resolveFly;
 
 	let nav = null;
