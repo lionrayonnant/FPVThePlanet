@@ -6,6 +6,7 @@ import {
 	Z, R_M, W_MAX, MAX_CELLS,
 	cellOf, cellCenter, cellSizeM, distanceM, stampCells,
 	Coverage,
+	BLOB_RADIUS_CELLS, ALPHA_MIN, ALPHA_MAX, planDraw,
 } from '../src/coverage.js';
 
 let n = 0;
@@ -206,6 +207,57 @@ t('cap : au-delà du plafond, les poids faibles partent d\'abord, puis les plus 
 	const many = [];
 	for (let i = 0; i < MAX_CELLS + 100; i++) many.push([i, 0, 1]);
 	assert.equal(Coverage.fromStored({ v: 1, z: Z, cells: many }).cap().size, MAX_CELLS);
+});
+
+// ---------------------------------------------------------------------------
+// Planifier le dessin — sans Leaflet, avec une projection linéaire jouée
+
+t('planDraw : une cellule visible devient un disque au bon endroit, au bon rayon', () => {
+	const cov = Coverage.fromStored({ v: 1, z: Z, cells: [[530971, 360731, 1]] });
+	// Projection jouée : 10 px par cellule, origine au centre de la cellule.
+	const c0 = cellCenter(530971, 360731), c1 = cellCenter(530972, 360731);
+	const pxPerDegLon = 10 / (c1.lon - c0.lon);
+	const pxPerDegLat = -10 / (cellCenter(530971, 360730).lat - c0.lat); // y vers le bas
+	const project = (lat, lon) => ({ x: 100 + (lon - c0.lon) * pxPerDegLon, y: 100 - (lat - c0.lat) * pxPerDegLat });
+	const plan = planDraw(cov, project, { w: 200, h: 200 });
+	assert.equal(plan.length, 1);
+	assert.ok(Math.abs(plan[0].cx - 100) < 1e-6 && Math.abs(plan[0].cy - 100) < 1e-6);
+	assert.ok(Math.abs(plan[0].r - 10 * BLOB_RADIUS_CELLS) < 1e-6, `r=${plan[0].r}`);
+	assert.ok(Math.abs(plan[0].alpha - ALPHA_MIN) < 1e-9, 'w=1 → ALPHA_MIN');
+});
+
+t('planDraw : l\'alpha monte linéairement avec le poids jusqu\'à ALPHA_MAX', () => {
+	const cells = [];
+	for (let w = 1; w <= W_MAX; w++) cells.push([530971 + w, 360731, w]);
+	const cov = Coverage.fromStored({ v: 1, z: Z, cells });
+	const project = (lat, lon) => ({ x: 100, y: 100 });
+	const plan = planDraw(cov, project, { w: 200, h: 200 });
+	assert.equal(plan.length, W_MAX);
+	assert.ok(Math.abs(plan[0].alpha - ALPHA_MIN) < 1e-9);
+	assert.ok(Math.abs(plan[W_MAX - 1].alpha - ALPHA_MAX) < 1e-9);
+	for (let i = 1; i < plan.length; i++) assert.ok(plan[i].alpha > plan[i - 1].alpha);
+});
+
+t('planDraw : hors du cadre (au-delà du rayon), on ne dessine pas', () => {
+	const cov = Coverage.fromStored({ v: 1, z: Z, cells: [[530971, 360731, 1], [530971, 360732, 1]] });
+	// Première cellule loin dehors, seconde juste au bord (dans la marge r).
+	let call = 0;
+	// Chaque cellule projette deux fois (centre + voisine) : on rend la même
+	// réponse pour les deux appels d'une cellule.
+	const plan = planDraw(cov, (lat, lon) => {
+		const i = Math.floor(call++ / 2);
+		return i === 0 ? { x: -500, y: -500 } : { x: 205, y: 100 };
+	}, { w: 200, h: 200 });
+	// La première est hors cadre. La seconde est à 5 px du bord : gardée si
+	// r >= 5 — or r vaut 0 quand centre et voisine projettent au même point, et
+	// alors elle est hors cadre aussi. Ce qu'on vérifie : rien n'est dessiné
+	// franchement dehors, et rien ne plante.
+	assert.ok(plan.length <= 1);
+	for (const p of plan) assert.ok(p.cx > -p.r && p.cx < 200 + p.r);
+});
+
+t('planDraw : une couverture vide rend un plan vide, quelle que soit la projection', () => {
+	assert.deepEqual(planDraw(new Coverage(), () => ({ x: 0, y: 0 }), { w: 10, h: 10 }), []);
 });
 
 console.log(`\n${n} tests coverage OK`);

@@ -177,3 +177,37 @@ export class Coverage {
 		return { v: 1, z: Z, cells: [...this._cells.values()].map((c) => [c.x, c.y, c.w]) };
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Planifier le dessin
+//
+// La partie du rendu qui se teste sans Leaflet : quelles cellules sont
+// visibles, où, à quel rayon, à quel alpha. map-coverage.js ne fait plus que
+// tracer ce plan sur un canvas. `project` est la projection lat/lon → pixels
+// conteneur que Leaflet fournit (map.latLngToContainerPoint), passée en
+// fonction pour rester pur ici.
+//
+// Chaque cellule devient un dégradé radial de 1,6 cellule de rayon, accumulé
+// en 'lighter' par le dessinateur : les voisines se recouvrent et se fondent,
+// c'est ce qui fait une tache et non une grille. L'alpha suit le poids : plus
+// on repasse, plus c'est dense — jusqu'à W_MAX, où ça sature.
+export const BLOB_RADIUS_CELLS = 1.6;
+export const ALPHA_MIN = 0.06;
+export const ALPHA_MAX = 0.16;
+
+export function planDraw(coverage, project, size) {
+	const out = [];
+	for (const { x, y, w } of coverage.cells()) {
+		const c = cellCenter(x, y);
+		const p = project(c.lat, c.lon);
+		// La taille projetée de la cellule : la distance au centre de la voisine.
+		// Mesurée par cellule et non une fois pour toutes, parce que Mercator
+		// étire avec la latitude et qu'une tache peut couvrir un pays.
+		const q = project(cellCenter(x + 1, y).lat, cellCenter(x + 1, y).lon);
+		const r = Math.hypot(q.x - p.x, q.y - p.y) * BLOB_RADIUS_CELLS;
+		if (p.x < -r || p.x > size.w + r || p.y < -r || p.y > size.h + r) continue;
+		const alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * (w - 1) / (W_MAX - 1);
+		out.push({ cx: p.x, cy: p.y, r, alpha });
+	}
+	return out;
+}
