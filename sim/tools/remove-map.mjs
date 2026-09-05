@@ -1,16 +1,22 @@
 // Undo of add-map.mjs: removes a map from public/scenes.json and deletes its
-// prepped scene directory. The raw downloaded Flyover tile under
-// flyover-reverse-engineering/downloaded_files/obj/ is left alone by default
+// prepped scene directory. The raw downloaded tile is left alone by default
 // (it's the slow part to re-fetch) — pass --raw to delete it too.
 //
 //   node tools/remove-map.mjs <slug> [--raw]
+//
+// Le cache brut se résout chez LE FOURNISSEUR de l'entrée, via rawTileDirFor
+// (issue #154). Ce fichier gardait sa propre constante Flyover et ne
+// l'importait pas : supprimer une scène google-earth avec --raw laissait son
+// cache sim/.cache/google-earth/ orphelin, et prétendait pourtant l'avoir
+// cherché. La GUI (DELETE ?raw=1) passait déjà par cette voie ; le CLI la
+// partage désormais au lieu d'en avoir une seconde.
 
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import { rawTileDirFor, providerOf } from './lib/add-map-core.mjs';
 
 const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const FLYOVER_ROOT = path.resolve(SIM_ROOT, '../flyover-reverse-engineering');
 const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
 const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
 
@@ -29,7 +35,7 @@ function parseArgs(argv) {
 	return opts;
 }
 
-function main() {
+async function main() {
 	const { slug, raw } = parseArgs(process.argv.slice(2));
 
 	const scenes = fs.existsSync(SCENES_JSON) ? JSON.parse(fs.readFileSync(SCENES_JSON, 'utf8')) : [];
@@ -49,21 +55,27 @@ function main() {
 	}
 
 	if (raw) {
-		const objDir = path.join(FLYOVER_ROOT, 'downloaded_files/obj');
-		let removed = false;
-		if (fs.existsSync(objDir)) {
-			for (const d of fs.readdirSync(objDir)) {
-				if (d.startsWith(`${entry.lat.toFixed(6)}-${entry.lon.toFixed(6)}-`)) {
-					fs.rmSync(path.join(objDir, d), { recursive: true, force: true });
-					console.log(`Supprimé (brut) : ${path.join(objDir, d)}`);
-					removed = true;
-				}
+		const providerId = entry.provider ?? 'flyover';
+		let label = providerId;
+		try { label = providerOf(providerId).label; }
+		catch { /* fournisseur inconnu : on le nomme quand même dans le message */ }
+		try {
+			const dir = await rawTileDirFor(entry);
+			if (fs.existsSync(dir)) {
+				fs.rmSync(dir, { recursive: true, force: true });
+				console.log(`Supprimé (brut, ${label}) : ${dir}`);
+			} else {
+				console.log(`Aucune tuile brute ${label} à ${dir} (déjà absente).`);
 			}
+		} catch (e) {
+			// Un fournisseur inconnu ne doit pas faire passer la suppression du
+			// cache pour un succès : on le DIT, et on sort en échec.
+			console.error(`Cache brut non résolu (${label}) : ${e.message}`);
+			process.exitCode = 1;
 		}
-		if (!removed) console.log('Aucune tuile brute correspondante trouvée (déjà absente ou coordonnées différentes).');
 	}
 
 	console.log(`\n✓ "${entry.name}" retiré.`);
 }
 
-main();
+main().catch((e) => { console.error(e.message); process.exit(1); });

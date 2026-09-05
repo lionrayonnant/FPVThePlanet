@@ -40,6 +40,32 @@ export const planScan = async (o, x) => providerOf(o.provider).plan(o, x);
 export const probeCoverage = async (o, x) => providerOf(o.provider).probe(o, x);
 export const listProviders = () => providers.list().map((p) => ({ id: p.id, label: p.label }));
 
+// Répertoire des octets BRUTS d'une entrée de scenes.json, chez SON fournisseur.
+// C'est la seule voie autorisée pour retrouver un cache à supprimer : le
+// fournisseur vient de l'entrée elle-même, et les entrées historiques —
+// d'avant le multi-fournisseur — retombent sur 'flyover'. Jamais un chemin
+// Flyover pour des octets Google, ni l'inverse (issue #154).
+//
+// La forme de la zone est reprise telle quelle quand l'entrée porte un `poly`
+// ou une `bbox` ; sinon on reconstruit « centre + rayon » avec les mêmes
+// valeurs par défaut que l'acquisition, sans quoi la clé de cache ne
+// retomberait pas sur le dossier réellement écrit.
+// `async`, comme planScan/probeCoverage juste au-dessus et pour la même
+// raison : un fournisseur inconnu doit REJETER la promesse rendue, pas jeter
+// de façon synchrone au milieu d'un appelant qui l'attend.
+export const rawTileDirFor = async (entry) => tileDirPath({
+	...(entry.poly || entry.bbox
+		? entry
+		: {
+			lat: entry.lat,
+			lon: entry.lon,
+			zoom: entry.zoom ?? 20,
+			radius: entry.radius ?? 25,
+			altitude: entry.altitude ?? 20,
+		}),
+	provider: entry.provider ?? 'flyover',
+});
+
 // Les ligatures et les lettres barrées ne se décomposent pas en NFD : sans cette
 // table, « Sacré-Cœur » donne « sacre-c-ur ». Le slug est visible dans la GUI et
 // sert de nom de dossier, il ne peut pas se permettre d'avaler des lettres.
