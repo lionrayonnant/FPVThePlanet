@@ -123,6 +123,16 @@ try {
 	check('dialogueMemory fait l\'aller-retour sur disque',
 		JSON.stringify(reread.body.operator.dialogueMemory) === JSON.stringify(memory));
 
+	// `coverage` (issue #245) : même contrat que dialogueMemory — acceptée,
+	// persistée, et bornée côté client seulement (cap() dans src/coverage.js).
+	const coverage = { v: 1, z: 20, cells: [[530971, 360731, 3], [530972, 360731, 1]] };
+	const covPatched = await call('PATCH', `/__operator/${id}`, { key: 'coverage', value: coverage });
+	check('PATCH coverage : acceptée et persistée',
+		covPatched.status === 200 && covPatched.body.operator.coverage !== undefined);
+	const covReread = await call('GET', `/__operator/${id}`);
+	check('coverage fait l\'aller-retour sur disque',
+		JSON.stringify(covReread.body.operator.coverage) === JSON.stringify(coverage));
+
 	const rejected = await call('PATCH', `/__operator/${id}`, { key: 'notAKey', value: 1 });
 	check('PATCH clé inconnue → 400', rejected.status === 400
 		&& /clé non modifiable/.test(rejected.body.error ?? ''));

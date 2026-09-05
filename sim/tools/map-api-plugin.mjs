@@ -95,7 +95,14 @@ function operatorSummary(s) {
 // neuve (src/dialogue.js) — donc pas de validation de forme côté serveur, au
 // même titre que `settings` : elle est bornée côté client (anneau de 256
 // entrées, table de 512 vus, dans tools/dialogue/engine.mjs).
-const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings', 'dialogueMemory']);
+//
+// `coverage` (issue #245) : là où le drone est passé, en cellules slippy z=20.
+// Même contrat que dialogueMemory — écrite par operator.patch() une fois par
+// session (src/session.js), cosmétique, sans validation de forme ici parce que
+// bornée côté client : MAX_CELLS = 8000 et W_MAX = 8 dans src/coverage.js, et
+// fromStored() y rend une couverture vierge pour tout ce qui n'est pas la
+// forme attendue. Un opérateur sans cette clé se relit comme une carte vierge.
+const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings', 'dialogueMemory', 'coverage']);
 
 // Traduit une erreur de lecture d'opérateur en code HTTP : id malformé → 400,
 // fichier d'un schéma trop récent → 409, tout le reste (JSON corrompu, E/S) → 500.
