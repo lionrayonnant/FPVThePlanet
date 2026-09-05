@@ -1697,12 +1697,16 @@ le commentaire du module, dont le décompte (« 9 des 24 ») date du 2026-08-31 
 node tools/geofence-check-scenes.mjs
 ```
 
-Sur cette machine, `public/scenes.json` ne liste plus que deux scènes (le
-garde-fou anti-scènes-fantômes, `b33d535`, l'a réduit à ce qui existe
-réellement), et **les deux sont sous la garantie** : `paristest` (69 m
-d'avertissement / 37 m de rappel) et
-`conservatoire-national-des-arts-et-metiers` (99 / 52). Elles restent jouables :
-ce n'est pas une erreur, c'est l'échange décrit au-dessus.
+Aucun décompte n'est recopié ici, et c'est délibéré : celui du commentaire de
+`geofence.js` (« 9 des 24 ») est périmé, celui que cette section portait à sa
+première rédaction l'a été en quelques heures — `havre` est arrivée entre-temps
+et a fait passer « les deux sont sous la garantie » à faux. La liste bouge à
+chaque `npm run add-map`, donc elle n'a pas sa place dans un document.
+
+Ce qui est stable, en revanche : **une petite carte est normalement sous la
+garantie**, et ce n'est pas une erreur — c'est l'échange décrit au-dessus, la
+carte reste jouable. Le garde-fou de `tools/lib/add-map-core.mjs` le dit déjà au
+moment de l'ajout ; la commande ci-dessus le redit pour l'existant.
 
 `tools/lib/add-map-core.mjs` fait le même contrôle à l'ajout d'une carte, en
 important la même constante — c'est ce que #146 a fermé.
