@@ -2715,6 +2715,29 @@ async function openFlightSession() {
 			if (tgt?.signal) {
 				link.setSignal({ rssiDbm: tgt.signal.rssiDbm });
 				console.log(`[link] target signal ${tgt.signal.rssiDbm} dBm (${tgt.signal.mode})`);
+				// Issue #74 : la cible pilote le RENDU du lien, pas seulement son
+				// RSSI. Une cible DIGITAL s'affichait en macroblocs analogiques si
+				// le curseur du joueur était sur analogique.
+				//
+				// Deux précisions qui comptent :
+				//
+				// - `signal.mode` porte `_videoHint`, qui vaut toujours ANALOG ou
+				//   DIGITAL. Le `UNKNOWN` que la fiche affiche parfois est ce
+				//   qu'on a RÉVÉLÉ au joueur, pas ce que la cible est. Le rendu
+				//   montre donc ce que la fiche taisait — c'est voulu : on
+				//   reconnaît un lien numérique en le regardant.
+				// - la sévérité reste au joueur. À severity 0 il a coupé la
+				//   modélisation du lien, et une cible n'a pas à la rallumer : on
+				//   reste LINK_OFF. Le réglage garde aussi le mode sur le chemin
+				//   dev sans cible (?scene=), où ce bloc ne s'exécute pas.
+				if (lensLinkMode !== LINK_OFF) {
+					const m = String(tgt.signal.mode ?? '').toUpperCase();
+					if (m === 'DIGITAL' || m === 'ANALOG') {
+						lensLinkMode = m === 'DIGITAL' ? LINK_DIGITAL : LINK_ANALOG;
+						lens.setLink({ mode: lensLinkMode, severity: loadLink().severity });
+						console.log(`[link] rendu ${m} imposé par la cible`);
+					}
+				}
 			}
 		}
 	} catch (e) {

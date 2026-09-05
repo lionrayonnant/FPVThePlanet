@@ -86,6 +86,19 @@ export function acquisitionContext({ name, tiles, pipeline } = {}) {
 	};
 }
 
+// Fin de session : POST-FLIGHT (SESSION_COMPLETE) et LAST SESSION (CRASH).
+// Ni météo ni cible : au moment où ces deux écrans parlent, la première n'est
+// plus vraie et la seconde n'existe plus. Ce qui n'est pas connu vaut `null`,
+// et les entrées qui en dépendaient deviennent simplement inéligibles.
+export function sessionContext({ area, family } = {}) {
+	return {
+		operator: operatorContext(),
+		machine: machineContext(),
+		area: { name: area ?? null },
+		drone: droneContext(family),
+	};
+}
+
 export function scanContext({ scan, weather, candidate, hackType, family } = {}) {
 	return {
 		operator: operatorContext(),

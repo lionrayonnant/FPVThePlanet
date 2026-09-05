@@ -47,6 +47,32 @@ function persistMemory() {
 	try { patch('dialogueMemory', memory); } catch { /* pas d'opérateur chargé : tant pis, c'est cosmétique */ }
 }
 
+// Le bloc RTC, en un seul endroit. Même markup que scanner.js et
+// target-scan.js — qui gardent chacun leur copie pour l'instant : les unifier
+// touche deux écrans que cette issue ne touche pas, et ce n'est pas le moment.
+// Rend le <pre> où écrire, pas la section.
+export function appendRtc(box) {
+	const el = document.createElement('section');
+	el.className = 'sc-block sc-log-block sc-rtc-block';
+	const h = document.createElement('pre');
+	h.className = 'sc-h';
+	h.textContent = 'RTC // INTERNAL';
+	const log = document.createElement('pre');
+	log.className = 'sc-log sc-rtc';
+	el.appendChild(h);
+	el.appendChild(log);
+	box.appendChild(el);
+	return log;
+}
+
+// Peint un échange dans un <pre> RTC. `null` (le silence que sayOnce rend
+// légitimement) ne fait rien du tout, y compris pas de bloc vide.
+export function paintRtc(log, lines) {
+	if (!log || !lines) return;
+	for (const l of lines) log.appendChild(document.createTextNode(`\n> ${l.speaker}\n${l.text}\n`));
+	log.scrollTop = log.scrollHeight;
+}
+
 // Un seul échange, sans minuteur : pour les écrans qui parlent une fois.
 export async function sayOnce(event, context) {
 	const pool = await loadShard(event);
