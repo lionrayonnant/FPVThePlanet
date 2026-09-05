@@ -20,6 +20,18 @@ export function pad(n, width = 5) {
 // `scenes.json` ni du `terrainCache` : une session doit rester lisible après la
 // suppression de son terrain (Bible §29, « supprimer le terrain ne supprime pas
 // le souvenir »).
+// Une colonne de largeur fixe : complétée à droite, et COUPÉE si elle déborde.
+// `padEnd` seul ne coupe pas — une zone au nom long (CONSERVATOIRE NATIONAL DES
+// ARTS ET METIERS, 41 signes pour une colonne de 26) poussait alors toutes les
+// colonnes suivantes vers la droite, et la table cessait d'être une table :
+// chaque ligne s'alignait sur le nom de SA zone. L'ellipse dit que c'est coupé,
+// plutôt que de laisser croire à un nom qui finit là.
+export function fit(s, width) {
+	const v = String(s ?? '');
+	if (v.length <= width) return v.padEnd(width);
+	return width <= 1 ? '…' : `${v.slice(0, width - 1)}…`;
+}
+
 export function areaLabel(slug) {
 	const s = String(slug ?? '').trim();
 	return s ? s.replace(/-+/g, ' ').toUpperCase() : 'UNKNOWN AREA';
@@ -59,10 +71,10 @@ function familyLabel(family) {
 export function sessionRow(s) {
 	const target = s?.targetSeq ? `TARGET ${pad(s.targetSeq, 3)}` : 'NO TARGET';
 	return [
-		`SESSION ${pad(s?.seq)}`.padEnd(14),
-		areaLabel(s?.area).padEnd(26),
-		target.padEnd(11),
-		String(s?.result ?? 'UNKNOWN').padEnd(8),
+		fit(`SESSION ${pad(s?.seq)}`, 14),
+		fit(areaLabel(s?.area), 26),
+		fit(target, 11),
+		fit(String(s?.result ?? 'UNKNOWN'), 8),
 		duration(s?.flightTelemetry?.durationS),
 	].join(' ');
 }
@@ -140,11 +152,11 @@ export function targetLogEntries(sessions) {
 export function targetRow(e) {
 	const signal = e.rssiDbm == null ? 'NO SIGNAL' : `${String(e.rssiDbm).padStart(4)} dBm ${e.mode}`;
 	return [
-		`TARGET ${pad(e.targetSeq, 3)}`.padEnd(11),
-		e.label.padEnd(14),
-		signal.padEnd(17),
-		areaLabel(e.area).padEnd(26),
-		stamp(e.at).padEnd(17),
+		fit(`TARGET ${pad(e.targetSeq, 3)}`, 11),
+		fit(e.label, 14),
+		fit(signal, 17),
+		fit(areaLabel(e.area), 26),
+		fit(stamp(e.at), 17),
 		String(e.result ?? 'UNKNOWN'),
 	].join(' ');
 }

@@ -7,9 +7,16 @@ import { captureControlVector, bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
 import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
+import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
+import { previewBounds } from '../tools/map-preview-model.mjs';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
+
+// Combien de zones la Home montre sous la carte avant de renvoyer sur MORE….
+// Assez pour reconnaître son cache d'un coup d'œil, pas assez pour redevenir la
+// liste — c'est justement ce qu'on est en train de sortir de la Home.
+const COMPACT_AREAS = 5;
 
 export function screen(root, cls = '') {
 	const el = document.createElement('div');
@@ -56,42 +63,6 @@ export async function fetchScenes() {
 	}
 }
 
-// ---------- écrans souches (assumés, jusqu'aux phases dédiées) ----------
-
-function stub(root, title, line) {
-	const s = screen(root);
-	s.box.innerHTML = `<pre>${title}\n\n${line}</pre>`;
-	return new Promise((resolve) => {
-		const close = () => { nav.detach(); s.remove(); resolve(); };
-		s.box.appendChild(button('BACK', close, 'terminal-cta'));
-		const nav = menuNav(s.el, { back: close });
-	});
-}
-
-// ---------- GLOBAL SCANNER ----------
-
-// Chargé à la demande : Leaflet et Geoman ne partent dans le navigateur que si
-// l'opérateur ouvre le scanner. Résout un slug (→ vol) ou undefined.
-//
-// Un seul scanner à la fois : la Home est masquée pendant l'opération, donc
-// l'utilisateur ne peut pas rouvrir le scanner — mais un second appel monterait
-// une deuxième carte Leaflet par-dessus la première, et deux acquisitions
-// concurrentes. Le verrou rend ce cas impossible plutôt qu'improbable.
-let scannerOpen = false;
-async function globalScanner(root) {
-	if (scannerOpen) return;
-	scannerOpen = true;
-	try {
-		const { runScanner } = await import('./scanner.js');
-		return await runScanner(root);
-	} catch (e) {
-		console.error(e);
-		await stub(root, 'GLOBAL SCANNER', `SCANNER UNAVAILABLE — ${e.message}`);
-	} finally {
-		scannerOpen = false;
-	}
-}
-
 // ---------- FORECAST ----------
 
 // La prévision 7 jours d'une zone (PHASE 04, Bible §5). Rien à régler ici :
@@ -112,6 +83,53 @@ async function forecastScreen(root, scene) {
 			: `FORECAST // ${scene.name.toUpperCase()}\n\nNO COORDINATES FOR THIS AREA`;
 	}
 	return back;
+}
+
+// ---------- une rangée de zone ----------
+
+// La rangée entière est le curseur (issue #123) : ↑/↓ la survolent, elle prend
+// le ton blanc de la DA — Entrée/clic l'active.
+//
+// Sortie de localTerrain() pour que la liste compacte de la Home et l'écran
+// complet montrent EXACTEMENT la même chose : un nom, un poids, et le temps
+// qu'il fait là-bas. Deux implémentations, ce serait deux façons de lire la
+// même zone, et un seul des deux appels à worldWeather() serait mis à jour le
+// jour où la ligne change.
+//
+// `onWeather` : la sévérité, une fois connue, pour un appelant qui trie dessus.
+function areaRow(sc, { onActivate, onWeather = null } = {}) {
+	const row = document.createElement('button');
+	row.type = 'button';
+	row.className = 'terminal-area';
+	row.dataset.slug = sc.slug;
+
+	const name = document.createElement('span');
+	name.textContent = sc.name;
+	const size = document.createElement('span');
+	size.className = 'terminal-area-size';
+	size.textContent = formatBytes(sc.bytes);
+	// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit quand le
+	// world state répond, et reste vide s'il ne répond pas.
+	const sky = document.createElement('span');
+	sky.className = 'terminal-area-weather';
+	sky.textContent = '…';
+	worldWeather({ lat: sc.lat, lon: sc.lon })
+		.then((snap) => {
+			const t = snap && weatherToday(snap);
+			sky.textContent = t ? headline(t) : '';
+			// La couleur ne sort que si les conditions changent la décision de
+			// voler (PHASE 19, Bible §38) : `nominal` ne pose rien et la ligne
+			// reste en encre neutre.
+			const sev = t ? weatherSeverity(t) : 'nominal';
+			if (sev !== 'nominal') sky.dataset.severity = sev;
+			else delete sky.dataset.severity;
+			onWeather?.(sc.slug, sev);
+		})
+		.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
+
+	row.append(name, size, sky);
+	row.onclick = () => onActivate?.(sc);
+	return row;
 }
 
 // ---------- LOCAL TERRAIN ----------
@@ -212,41 +230,24 @@ function localTerrain(root, scenes) {
 			shown.forEach((sc, i) => {
 				const item = document.createElement('div');
 
-				// La rangée entière est le curseur (issue #123) : ↑/↓ la survolent,
-				// elle prend le ton blanc de la DA — Entrée/clic ouvre ses actions.
-				const row = document.createElement('button');
-				row.type = 'button';
-				row.className = 'terminal-area';
-				const name = document.createElement('span');
-				name.textContent = sc.name;
-				const size = document.createElement('span');
-				size.className = 'terminal-area-size';
-				size.textContent = formatBytes(sc.bytes);
-				// Le temps qu'il fait là-bas, pas un réglage : la ligne se remplit
-				// quand le world state répond, et reste vide s'il ne répond pas.
-				const sky = document.createElement('span');
-				sky.className = 'terminal-area-weather';
-				sky.textContent = '…';
-				worldWeather({ lat: sc.lat, lon: sc.lon })
-					.then((snap) => {
-						const t = snap && weatherToday(snap);
-						sky.textContent = t ? headline(t) : '';
-						// La couleur ne sort que si les conditions changent la décision
-						// de voler (PHASE 19, Bible §38) : `nominal` ne pose rien et la
-						// ligne reste en encre neutre.
-						const sev = t ? weatherSeverity(t) : 'nominal';
-						if (sev !== 'nominal') sky.dataset.severity = sev;
-						else delete sky.dataset.severity;
-						weatherSeverityBySlug.set(sc.slug, sev);
-						if (sortBy === 'WEATHER' && !weatherReordered.has(sc.slug)) {
-							weatherReordered.add(sc.slug);
+				// Ici la rangée OUVRE ses actions (OPEN / FORECAST / REMOVE) ; sur
+				// la Home elle sélectionne la zone. Même rangée, deux gestes —
+				// c'est tout ce qui distingue les deux listes.
+				const actions = document.createElement('div');
+				const row = areaRow(sc, {
+					onActivate: () => {
+						if (subNav) return;
+						actions.hidden = false;
+						subNav = menuNav(actions, { back: () => { closeSub(); actions.hidden = true; row.focus(); } });
+					},
+					onWeather: (slug, sev) => {
+						weatherSeverityBySlug.set(slug, sev);
+						if (sortBy === 'WEATHER' && !weatherReordered.has(slug)) {
+							weatherReordered.add(slug);
 							render(focusIdx, focusSearch, focusSortIdx);
 						}
-					})
-					.catch(() => { sky.textContent = ''; delete sky.dataset.severity; });
-				row.append(name, size, sky);
-
-				const actions = document.createElement('div');
+					},
+				});
 				actions.className = 'terminal-nav terminal-area-actions';
 				actions.hidden = true;
 				actions.append(
@@ -259,11 +260,6 @@ function localTerrain(root, scenes) {
 						scenes = scenes.filter((x) => x.slug !== sc.slug);
 						render(Math.min(i, scenes.length - 1));
 					}));
-				row.onclick = () => {
-					if (subNav) return;
-					actions.hidden = false;
-					subNav = menuNav(actions, { back: () => { closeSub(); actions.hidden = true; row.focus(); } });
-				};
 
 				item.append(row, actions);
 				list.appendChild(item);
@@ -340,7 +336,7 @@ function lastSessionScreen(root, model) {
 		const when = ls.end ?? ls.endedAt ?? ls.start ?? ls.startedAt ?? ls.at ?? '';
 		s.box.innerHTML = `<pre>LAST SESSION
 
-AREA     ${area ?? 'UNKNOWN'}
+AREA     ${area ? areaLabel(area) : 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		s.box.appendChild(button('VIEW SESSION', async () => {
@@ -378,12 +374,24 @@ async function operatorScreen(root, api) {
 	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
 	const render = () => {
 		const op = api.getOperator();
-		s.box.innerHTML = `<pre>OPERATOR // ${op.name.toUpperCase()}
-
-REGISTERED   ${String(op.createdAt).replace('T', ' ').slice(0, 16)}
-SESSIONS     ${op.sessions?.length ?? 0}
-TARGETS      ${op.targetLog?.length ?? 0}</pre>
-			<div class="op-portrait" hidden></div>`;
+		s.box.replaceChildren();
+		const pre = document.createElement('pre');
+		// Le compteur de cibles est DÉRIVÉ des sessions depuis PHASE 17 (spec
+		// D1) : `op.targetLog` n'existe plus, et le lire rendait toujours 0 —
+		// cet écran annonçait TARGETS 0 pendant que le pied de la Home disait
+		// « 9 TARGETS LOGGED » et que le Target Log en listait neuf.
+		pre.textContent = [
+			`OPERATOR // ${op.name.toUpperCase()}`,
+			'',
+			`REGISTERED   ${String(op.createdAt).replace('T', ' ').slice(0, 16)}`,
+			`SESSIONS     ${op.sessions?.length ?? 0}`,
+			`TARGETS      ${targetLogEntries(op.sessions).length}`,
+		].join('\n');
+		s.box.appendChild(pre);
+		const portrait = document.createElement('div');
+		portrait.className = 'op-portrait';
+		portrait.hidden = true;
+		s.box.appendChild(portrait);
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
 		nav?.focusAt(0);
 	};
@@ -400,13 +408,101 @@ TARGETS      ${op.targetLog?.length ?? 0}</pre>
 function buildNotesScreen(root, operator) {
 	const s = screen(root);
 	const c = countersOf(operator);
-	s.box.innerHTML = `<pre>BUILD NOTES
+	// createElement, et une ligne de note = un <pre>. En un seul bloc, une note
+	// trop longue se repliait en colonne 0 : la suite d'« fixed: session
+	// timestamp off by one hour on the » se lisait comme une NOUVELLE entrée de
+	// premier niveau, au même rang que le numéro de version. Un élément par
+	// ligne, c'est la seule façon de donner à la ligne repliée un retrait
+	// suspendu (`.terminal-note`) — deux espaces littéraux ne survivent pas au
+	// repli. Effet de bord voulu : l'écran devient montable sur le faux DOM.
+	const head = document.createElement('pre');
+	head.textContent = `BUILD NOTES\n\nCURRENT BUILD   ${currentBuild(c)}`;
+	s.box.appendChild(head);
 
-CURRENT BUILD   ${currentBuild(c)}
-
-${unlockedNotes(c).map((n) => `${n.build}\n${n.lines.map((l) => `  ${l}`).join('\n')}`).join('\n\n')}</pre>`;
+	for (const n of unlockedNotes(c)) {
+		const block = document.createElement('div');
+		block.className = 'terminal-note-block';
+		const build = document.createElement('pre');
+		build.textContent = n.build;
+		block.appendChild(build);
+		for (const line of n.lines) {
+			const p = document.createElement('pre');
+			p.className = 'terminal-note';
+			p.textContent = line;
+			block.appendChild(p);
+		}
+		s.box.appendChild(block);
+	}
 	return new Promise((resolve) => {
-		s.box.appendChild(button('BACK', () => { s.remove(); resolve(); }, 'terminal-cta'));
+		// Seul écran de la maison qui n'appelait pas menuNav : ni curseur, ni
+		// clavier, ni manette, et surtout Escape sans effet. Sur une liste de
+		// notes assez longue pour passer sous la ligne de flottaison, le seul
+		// BACK était hors de vue — l'écran se refermait sur l'opérateur.
+		let nav = null;
+		const close = () => { nav?.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		nav = menuNav(s.el, { back: close });
+	});
+}
+
+// ---------- ARCHIVE ----------
+
+// Tout ce qui est FROID. La Home ne garde que ce qui sert à décoller ; ce qui se
+// consulte — les journaux, le vecteur, l'opérateur, les notes — descend d'un
+// cran. La Bible §30 le disait déjà : « La Home est calme. Elle ne doit pas
+// devenir un dashboard. »
+//
+// Cet écran ne RÉIMPLÉMENTE rien : il appelle les écrans existants tels quels.
+// Il doit en revanche résoudre VERS LE HAUT, parce que REVISIT (depuis SESSION
+// LOG) et RESUME (depuis LAST SESSION) rendent tous deux un vol : les avaler ici
+// laisserait l'opérateur sur un écran de journal après avoir demandé à voler.
+//
+// Résout undefined (retour à la Home), un slug, ou { slug, resume }.
+function archiveScreen(root, { model, api, scenes, settings }) {
+	const s = screen(root, 'terminal-archive');
+	return new Promise((resolve) => {
+		let nav = null;
+		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
+
+		// Un écran plein cadre en masque un autre : on cache celui-ci pendant, et
+		// on le rend au retour. Même geste que la Home avec le scanner.
+		const behind = async (fn) => {
+			s.el.hidden = true;
+			const r = await fn();
+			if (r !== undefined && r !== null) return done(r);
+			s.el.hidden = false;
+			nav?.focusAt(0);
+		};
+
+		const title = document.createElement('pre');
+		title.textContent = 'ARCHIVE';
+		s.box.appendChild(title);
+
+		s.box.appendChild(navRow([
+			['LAST SESSION', () => behind(async () => {
+				const r = await lastSessionScreen(root, model);
+				// lastSessionScreen rend un slug, { slug, resume }, ou rien.
+				return typeof r === 'string' ? r : r ?? undefined;
+			})],
+			['SESSION LOG', () => behind(async () => {
+				const { runSessionLog } = await import('./session-log.js');
+				return await runSessionLog(root, { operator: api.getOperator(), scenes });
+			})],
+			['TARGET LOG', () => behind(async () => {
+				const { runTargetLog } = await import('./session-log.js');
+				await runTargetLog(root, { operator: api.getOperator() });
+			})],
+		]));
+
+		s.box.appendChild(navRow([
+			['CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api))],
+			['OPERATOR', () => behind(() => operatorScreen(root, api))],
+			['BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator()))],
+			['SETTINGS', () => settings?.toggleSettings(true)],
+		]));
+
+		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+		nav = menuNav(s.el, { back: () => done() });
 	});
 }
 
@@ -431,90 +527,223 @@ export async function operatorSelect(root, choices) {
 // Monte l'Operator Terminal et résout le slug de la zone à survoler.
 // `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
 // le même panneau que Tab en vol.
-// Résout { slug, resume } pour voler, ou null pour remonter au choix de mode
+// Résout { slug, resume } pour voler une zone cuite, { live: [lat, lon] } pour
+// décoller en direct depuis le scanner, ou null pour remonter au choix de mode
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
 export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
 	let scenes = await fetchScenes();
-	const s = screen(root, 'terminal-home');
+	// `terminal-field` en plus de `terminal-home` : le banc monte ses deux écrans
+	// avec `terminal-home` aussi (bench.js:72 et :196) pour en partager la
+	// typographie. La mise en page en deux colonnes, elle, n'appartient qu'à
+	// FIELD — l'accrocher à `terminal-home` la posait sur SELECT OPERATION MODE
+	// et sur l'écran du banc, qui se retrouvaient en pleine largeur.
+	const s = screen(root, 'terminal-home terminal-field');
 	let resolveFly;
 
 	let nav = null;
-	const render = () => {
+	// La zone sous le curseur : ce que [ FLY ] volera et ce que la carte recadre.
+	let selected = null;
+	// La poignée du scanner. Il est monté UNE fois et vit aussi longtemps que la
+	// Home : c'est lui qui possède la carte, et la carte ne se démonte jamais
+	// entre l'état de repos et l'état de travail (#211).
+	let scanner = null;
+	// Vrai dès qu'une zone est tracée sur la carte. C'est le seul basculement de
+	// l'écran : la colonne gauche passe du menu au rail du scanner.
+	let drawing = false;
+
+	// --- les deux colonnes, créées UNE fois
+	//
+	// FIELD est un seul écran (Bible §4 : « le GLOBAL SCANNER est le menu
+	// principal après l'initialisation »). À gauche ce qu'on lit et ce qu'on
+	// choisit ; à droite le monde. Seule la colonne gauche est reconstruite —
+	// `right` et le nœud de la carte qu'elle contient ne sont JAMAIS remplacés,
+	// sans quoi Leaflet se remonterait à chaque re-rendu et la promesse de
+	// l'écran tomberait.
+	const left = document.createElement('div');
+	left.className = 'terminal-left';
+	const right = document.createElement('div');
+	right.className = 'terminal-right';
+	const mapHost = document.createElement('div');
+	mapHost.className = 'terminal-map';
+	right.appendChild(mapHost);
+	const rail = document.createElement('aside');
+	s.box.append(left, right);
+
+	const renderLeft = () => {
 		const model = terminalModel({ operator: api.getOperator(), scenes });
-		s.box.innerHTML = `<pre>FPVTP! // 0.97b
-OPERATOR // ${model.operatorName}</pre>`;
+		const areas = Array.isArray(scenes) ? scenes : [];
 
 		// Voler est ce qu'on fait à chaque session : l'action la plus fréquente a
 		// une entrée directe et le curseur au repos (issue #123, point 5) — la
 		// zone de la dernière session si elle est encore sur disque, sinon la
-		// première zone locale. Sans terrain, le scanner reste l'entrée.
-		const flyArea = model.areas.find((a) => a.slug === model.lastSession?.area) ?? model.areas[0];
-		if (flyArea) {
-			s.box.appendChild(button(`FLY — ${flyArea.name.toUpperCase()}`, () => fly(flyArea.slug), 'terminal-cta'));
+		// première zone locale.
+		if (!selected || !areas.some((a) => a.slug === selected)) {
+			selected = areas.find((a) => a.slug === model.lastSession?.area)?.slug
+				?? areas[0]?.slug ?? null;
+		}
+		const flyArea = areas.find((a) => a.slug === selected) ?? null;
+
+		left.replaceChildren();
+
+		// État de TRAVAIL : une zone est tracée, la colonne gauche devient le rail
+		// du scanner. La carte, elle, n'a pas bougé d'un pixel — c'est tout
+		// l'intérêt de l'écran.
+		if (drawing) {
+			left.appendChild(rail);
+			nav?.focusAt(0);
+			return;
 		}
 
-		s.box.appendChild(navRow([
-			['LAST SESSION', async () => {
-				const r = await lastSessionScreen(root, model);
-				if (typeof r === 'string') fly(r);
-				else if (r) fly(r.slug, r.resume);
-				else nav?.focusAt(0);
-			}],
-			['LOCAL TERRAIN', async () => {
-				const slug = await localTerrain(root, scenes);
-				if (slug) fly(slug);
-				else nav?.focusAt(0);
-			}],
-			['CONTROL VECTOR', async () => { await controlVectorScreen(root, api); render(); }],
-		]));
+		const head = document.createElement('pre');
+		head.textContent = `FPVTP! // 0.97b\nOPERATOR // ${model.operatorName}`;
+		left.appendChild(head);
 
-		s.box.appendChild(button('GLOBAL SCANNER', async () => {
-			// Le scanner masque le terminal le temps de l'opération ; au retour la
-			// Home est reconstruite, car une acquisition a pu changer le cache.
+		// --- la seule chose qui décolle
+		//
+		// [ GLOBAL SCANNER ] a disparu : il n'y a plus d'ailleurs où aller, le
+		// scanner est la colonne de droite.
+		const acts = document.createElement('div');
+		acts.className = 'terminal-acts';
+		if (flyArea) {
+			acts.appendChild(button(`FLY — ${flyArea.name.toUpperCase()}`, () => fly(flyArea.slug), 'terminal-cta'));
+		}
+		// Tracer n'est pas voler, mais il faut bien pouvoir commencer : au repos
+		// le rail est caché, donc DRAW BOX avec lui. Ce bouton arme l'outil et
+		// fait basculer l'écran au travail — la recherche, la sonde et
+		// l'acquisition arrivent alors avec le rail, là où elles ont toujours été.
+		if (scanner) {
+			acts.appendChild(button('DRAW AN AREA', () => {
+				drawing = true;
+				renderLeft();
+				scanner.startDraw('Rectangle');
+			}, 'terminal-cta terminal-scanner-cta'));
+		}
+		left.appendChild(acts);
+
+		// --- le cache terrain
+		//
+		// La liste SÉLECTIONNE, elle ne fait pas voler : cliquer une zone recadre
+		// la carte et réétiquette le CTA. [ FLY ] reste la seule chose qui
+		// décolle — deux façons de partir, ce serait deux axes sur un écran qui
+		// n'en veut qu'un.
+		if (areas.length) {
+			const h = document.createElement('pre');
+			h.className = 'terminal-sub';
+			h.textContent = 'LOCAL TERRAIN';
+			left.appendChild(h);
+
+			const list = document.createElement('div');
+			list.className = 'terminal-areas terminal-areas-compact';
+			for (const sc of areas.slice(0, COMPACT_AREAS)) {
+				const row = areaRow(sc, { onActivate: (picked) => pickArea(picked.slug) });
+				if (sc.slug === selected) row.dataset.selected = '1';
+				list.appendChild(row);
+			}
+			left.appendChild(list);
+		} else {
+			const none = document.createElement('pre');
+			none.className = 'terminal-sub';
+			none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
+			left.appendChild(none);
+		}
+
+		// MORE… n'apparaît que s'il y a réellement plus à voir, ou de quoi
+		// chercher/trier/supprimer — c'est l'écran complet, inchangé.
+		const tail = [];
+		if (areas.length) tail.push(['MORE…', async () => {
 			s.el.hidden = true;
-			const slug = await globalScanner(root);
+			const slug = await localTerrain(root, scenes);
 			if (slug) return fly(slug);
 			scenes = await fetchScenes();
+			scanner?.setAreaFrames(Array.isArray(scenes) ? scenes : []);
 			s.el.hidden = false;
-			render();
-		}, 'terminal-cta terminal-scanner-cta'));
+			renderLeft();
+		}]);
+		tail.push(['ARCHIVE', async () => {
+			s.el.hidden = true;
+			const r = await archiveScreen(root, { model, api, scenes, settings });
+			if (typeof r === 'string') return fly(r);
+			if (r) return fly(r.slug, r.resume);
+			s.el.hidden = false;
+			// Une suppression a pu changer les compteurs du pied.
+			renderLeft();
+		}]);
+		left.appendChild(navRow(tail));
 
-		s.box.appendChild(navRow([
+		// --- le pied : ce qui n'est ni un lieu ni une action de vol
+		left.appendChild(navRow([
 			...(back ? [['MODE', () => leave()]] : []),
-			['SESSION LOG', async () => {
-				s.el.hidden = true;
-				const { runSessionLog } = await import('./session-log.js');
-				const slug = await runSessionLog(root, { operator: api.getOperator(), scenes });
-				if (slug) return fly(slug);
-				s.el.hidden = false;
-				// Une suppression a pu changer les compteurs du footer.
-				render();
-			}],
-			['TARGET LOG', async () => {
-				s.el.hidden = true;
-				const { runTargetLog } = await import('./session-log.js');
-				await runTargetLog(root, { operator: api.getOperator() });
-				s.el.hidden = false;
-				render();
-			}],
 			['SETTINGS', () => settings?.toggleSettings(true)],
-			['OPERATOR', async () => { await operatorScreen(root, api); render(); }],
-			['BUILD NOTES', async () => { await buildNotesScreen(root, api.getOperator()); render(); }],
 		]));
 
 		const foot = document.createElement('pre');
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
-		s.box.appendChild(foot);
+		left.appendChild(foot);
 		nav?.focusAt(0);
 	};
 
-	const fly = (slug, resume) => { nav?.detach(); s.remove(); resolveFly({ slug, resume }); };
+	// Sélectionner une zone recadre la carte et réétiquette [ FLY ]. On ne
+	// reconstruit QUE la colonne gauche : tout re-rendre remonterait la carte,
+	// ce que cet écran promet de ne jamais faire.
+	const pickArea = (slug) => {
+		selected = slug;
+		const sc = (Array.isArray(scenes) ? scenes : []).find((a) => a.slug === slug);
+		if (sc) scanner?.focusBounds(previewBounds(sc));
+		renderLeft();
+	};
+
+	// Toute sortie passe par ici. `s.remove()` détruit le nœud de la carte mais
+	// pas les écouteurs que Leaflet a posés sur window : c'est destroy() qui
+	// appelle map.remove(), sans quoi une Home ouverte trois fois laisse trois
+	// cartes vivantes derrière elle.
+	const quit = (value) => { scanner?.destroy(); scanner = null; nav?.detach(); s.remove(); resolveFly(value); };
+	const fly = (slug, resume) => quit({ slug, resume });
+	// Vol en direct : pas de slug, rien sur le disque. La Home ne fait que
+	// transmettre — c'est fieldLoop() qui sait ce qu'un vol sans zone veut dire.
+	const flyLive = (coords) => quit({ live: coords });
 	// Remonter d'un cran : SELECT OPERATION MODE. Depuis PHASE 26 la Home n'est
 	// plus la racine — mais elle l'est encore pour ?scene=, qui saute le choix
 	// de mode, d'où le drapeau plutôt qu'un `back` inconditionnel.
-	const leave = () => { nav?.detach(); s.remove(); resolveFly(null); };
-	render();
+	const leave = () => quit(null);
+
+	renderLeft();
 	nav = menuNav(s.el, back ? { back: leave } : {});
+
+	// Le scanner est monté après le premier rendu : la Home doit tenir même s'il
+	// ne vient pas (hors ligne, chunk absent). Sans lui, la colonne de droite
+	// reste vide et tout le reste fonctionne — c'est déjà ce que faisait la
+	// vignette de #208.
+	import('./scanner.js')
+		.then(({ runScanner }) => {
+			if (!mapHost.isConnected) return;
+			scanner = runScanner({
+				mapHost,
+				railHost: rail,
+				// Une zone tracée met l'écran au travail ; l'effacer ne l'en sort
+				// PAS — on peut vouloir redessiner. C'est BACK qui repose l'outil.
+				onZone: (zone) => { if (zone) { drawing = true; renderLeft(); } },
+				onPickArea: pickArea,
+				onRest: () => { drawing = false; renderLeft(); },
+			});
+			scanner.setAreaFrames(Array.isArray(scenes) ? scenes : []);
+			// Le scanner arrive après le premier rendu : la colonne gauche doit
+			// être refaite pour montrer [ DRAW AN AREA ], qui n'a de sens qu'avec
+			// lui.
+			renderLeft();
+			// Une zone cuite se vole par son slug ; un décollage en direct remonte
+			// tel quel jusqu'à fieldLoop(), qui sait le faire traverser bootLive().
+			scanner.done.then((choice) => {
+				if (choice?.slug) return fly(choice.slug);
+				if (choice?.live) return flyLive(choice.live);
+			});
+		})
+		.catch(() => {
+			const none = document.createElement('pre');
+			none.className = 'terminal-map-none';
+			none.textContent = 'NO MAP LINK';
+			mapHost.appendChild(none);
+		});
+
 	return new Promise((resolve) => { resolveFly = resolve; });
 }

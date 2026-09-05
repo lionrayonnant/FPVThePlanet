@@ -68,8 +68,17 @@ function saveLastMode(mode) {
 // La racine du jeu. Le curseur se pose sur le dernier mode utilisé : un joueur
 // FIELD fait une touche de plus par lancement, pas un choix de plus.
 
-export function selectOperationMode(root, { last = loadLastMode() } = {}) {
+export function selectOperationMode(root, { last = loadLastMode(), operatorName = null } = {}) {
 	const s = screen(root, 'terminal-home bench-modes');
+	// « OPERATOR // NEO » au-dessus du titre (Bible §48) : la racine dit d'abord
+	// qui tu es, puis demande ce que tu vas faire. C'est la même ligne que la
+	// Home — la Home n'est plus la racine, mais l'identité, elle, ne descend pas.
+	if (operatorName) {
+		const who = document.createElement('pre');
+		who.className = 'bench-operator';
+		who.textContent = `OPERATOR // ${String(operatorName).toUpperCase()}`;
+		s.box.appendChild(who);
+	}
 	const title = document.createElement('pre');
 	title.textContent = MODE_SELECT.title;
 	s.box.appendChild(title);
@@ -108,17 +117,29 @@ export function selectOperationMode(root, { last = loadLastMode() } = {}) {
 
 const familyLabel = (f) => PROFILES[f]?.label ?? f;
 
+// La grammaire d'une ligne de banc : ÉTIQUETTE · conduite · contrôle · valeur.
+//
+// Les quatre parties sont TOUJOURS là, même vides. C'est ce qui aligne la
+// colonne des valeurs d'un bout à l'autre du tableau et fait lire le banc comme
+// un banc plutôt que comme un formulaire — une ligne qui saute sa valeur laisse
+// un trou, et l'œil perd la colonne.
+//
+// La conduite est un vrai chapelet de points, pas un filet CSS : l'écran de
+// bootstrap en écrit déjà (`dotted()` dans bootstrap.js) et le banc doit avoir
+// la même main. Elle est décorative — d'où aria-hidden, pour qu'un lecteur
+// d'écran ne récite pas quarante points entre l'étiquette et sa valeur.
 function row(box, label, control, readout) {
 	const r = document.createElement('div');
 	r.className = 'bench-row';
 	const l = document.createElement('span');
 	l.className = 'bench-label';
 	l.textContent = label;
-	r.append(l, control);
-	if (readout) {
-		readout.className = 'bench-value';
-		r.appendChild(readout);
-	}
+	const lead = document.createElement('span');
+	lead.className = 'bench-leader';
+	lead.setAttribute('aria-hidden', 'true');
+	const val = readout ?? document.createElement('span');
+	val.className = 'bench-value';
+	r.append(l, lead, control, val);
 	box.appendChild(r);
 	return r;
 }
@@ -196,10 +217,19 @@ export function runBench(root, { scenes = [], settings = null, live = false, onC
 
 			s.box.replaceChildren();
 
+			// Titre et credo séparés : le credo n'est pas une seconde ligne de
+			// titre, c'est ce que le banc dit de lui-même. Au niveau UI et en
+			// encre éteinte, il se lit comme une rangée de quatre termes — dans
+			// le même <pre> il criait aussi fort que BENCH.
 			const head = document.createElement('pre');
-			head.className = 'bench-head';
-			head.textContent = `BENCH\n\n${BENCH_CREED.join('   ')}`;
+			head.className = 'bench-title';
+			head.textContent = 'BENCH';
 			s.box.appendChild(head);
+
+			const creed = document.createElement('pre');
+			creed.className = 'bench-creed';
+			creed.textContent = BENCH_CREED.join('   ');
+			s.box.appendChild(creed);
 
 			const rows = new Map(benchRows(config, { familyLabel }).map((r) => [r.key, r]));
 			const val = (k) => { const e = document.createElement('span'); e.textContent = rows.get(k).value; return e; };
@@ -278,8 +308,8 @@ export function runBench(root, { scenes = [], settings = null, live = false, onC
 				(() => { const e = document.createElement('span'); e.textContent = formatClock(config.timeMin); return e; })());
 
 			row(s.box, 'WIND', tag(slider(LIMITS.windSpeed, config.weather.windSpeed, (v) => setWeather({ windSpeed: v })), 'wind'), val('wind'));
-			row(s.box, 'GUST', tag(slider(LIMITS.gustFactor, config.weather.gustFactor, (v) => setWeather({ gustFactor: v })), 'gust'));
-			row(s.box, 'FROM', tag(slider(LIMITS.windDir, config.weather.windDir, (v) => setWeather({ windDir: v })), 'dir'));
+			row(s.box, 'GUST', tag(slider(LIMITS.gustFactor, config.weather.gustFactor, (v) => setWeather({ gustFactor: v })), 'gust'), val('gust'));
+			row(s.box, 'FROM', tag(slider(LIMITS.windDir, config.weather.windDir, (v) => setWeather({ windDir: v })), 'dir'), val('dir'));
 			row(s.box, 'RAIN', tag(slider(LIMITS.rateMmH, config.weather.rateMmH, (v) => setWeather({ rateMmH: v })), 'rain'), val('rain'));
 			row(s.box, 'FOG', tag(slider(LIMITS.visibilityM, config.weather.visibilityM, (v) => setWeather({ visibilityM: v })), 'fog'), val('fog'));
 			row(s.box, 'CLOUD', tag(slider(LIMITS.cloudPct, config.weather.cloudPct, (v) => setWeather({ cloudPct: v })), 'cloud'), val('cloud'));

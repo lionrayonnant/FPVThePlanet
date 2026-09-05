@@ -12,6 +12,24 @@ export {
 	polygonGrid, maskOutline, polygonBounds, polygonArea, polygonProbePoint,
 };
 
+// ------------------------------------------------------------- centre de zone
+
+// Le point qui REPRÉSENTE une zone dessinée : celui qu'on décrit à Nominatim,
+// et celui d'où l'on décolle en direct.
+//
+// Sur un tracé libre, le centre de l'emprise peut tomber dans une encoche — au
+// milieu d'un L il n'y a rien de ce qu'on a désigné. polygonProbePoint() rend un
+// point réellement DANS le tracé, et c'est déjà ce que fait la sonde : décrire,
+// sonder et décoller doivent viser le même endroit, sinon le scanner promet une
+// zone et en ouvre une autre.
+export function zoneCentre(zone, zoom) {
+	if (!zone) return null;
+	if (zone.poly) return polygonProbePoint(zone.poly, zoom);
+	const b = zone.bbox;
+	if (!b) return null;
+	return { lat: (b.south + b.north) / 2, lon: (b.west + b.east) / 2 };
+}
+
 // ---------------------------------------------------------------- formats
 
 const NF = new Intl.NumberFormat('en-US');
@@ -351,4 +369,43 @@ export function pipelineStats(pipeline) {
 	if (p.textureBytes != null) lines.push(['TEXTURES', `${num(p.textureSheets ?? 0)} sheets, ${bytes(p.textureBytes)}`]);
 	if (p.collisionBytes != null) lines.push(['COLLISION', `${num(p.collisionTris ?? 0)} tris, ${bytes(p.collisionBytes)}`]);
 	return lines;
+}
+
+// L'enchaînement sonde → acquisition, réduit à UN bouton (issue #211).
+//
+// Avant, deux boutons et une modale : [ PROBE AREA ], puis [ ACQUIRE AREA ] qui
+// ouvrait un `confirm()` si l'on n'avait pas sondé. Une modale de navigateur est
+// exactement le meuble que la Bible §44 refuse, et que #205 a chassé des
+// <select> et des <input type=range>.
+//
+// Désormais : une pression sonde, et enchaîne sur l'acquisition si la couverture
+// est confirmée. Si elle ne l'est pas — rien ici, ou sonde injoignable — la
+// séquence S'ARRÊTE, le verdict dit pourquoi, et le bouton devient
+// ACQUIRE ANYWAY. La deuxième pression EST la confirmation, dans la langue du
+// jeu plutôt que dans celle du navigateur.
+//
+// Fonction pure : c'est elle qu'on teste, scanner.js ne fait que l'exécuter.
+export function acquireStep({ zone, source, name, plan = null, probe = null } = {}) {
+	const clean = String(name ?? '').trim();
+	// Ordre délibéré : on nomme le PREMIER manque, pas tous. « DRAW AN AREA » et
+	// « PICK A SOURCE » ne se disent pas en même temps sur un bouton.
+	if (!zone) return { action: null, label: 'ACQUIRE AREA', disabled: true, why: 'DRAW AN AREA FIRST' };
+	// La source est désignée, jamais devinée : en inventer une enverrait
+	// l'opérateur chercher une imagerie qu'il n'a pas demandée.
+	if (!source) return { action: null, label: 'ACQUIRE AREA', disabled: true, why: 'PICK A SOURCE FIRST' };
+	// Acquérir écrit sur le disque, donc il faut un nom. Voler en direct n'en
+	// demande pas — rien n'y est écrit (#206).
+	if (!slugify(clean)) return { action: null, label: 'ACQUIRE AREA', disabled: true, why: 'DESIGNATION REQUIRED' };
+
+	// Rien n'a encore été demandé au fournisseur : la pression sonde.
+	if (!plan && !probe) return { action: 'probe', label: 'ACQUIRE AREA', disabled: false, why: null };
+
+	const v = coverageLine({ plan, probe, provider: source });
+	// Couverture confirmée : on enchaîne sans demander une deuxième pression.
+	if (v.status === 'ok') return { action: 'acquire', label: 'ACQUIRE AREA', disabled: false, why: null };
+	// Tout le reste — rien ici, injoignable, pas encore concluant — s'arrête et
+	// demande un geste explicite. `why` porte le détail de coverageLine, qui
+	// distingue déjà « injoignable » de « rien ici » : c'est cette différence
+	// qui permet à l'opérateur de décider s'il engage dix minutes.
+	return { action: 'acquire', label: 'ACQUIRE ANYWAY', disabled: false, why: v.detail ?? v.label };
 }

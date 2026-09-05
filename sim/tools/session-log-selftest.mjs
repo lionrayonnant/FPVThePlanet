@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
-	targetLogEntries, targetRow, areaLabel, stamp, duration, pad,
+	targetLogEntries, targetRow, areaLabel, stamp, duration, pad, fit,
 } from './session-log-model.mjs';
 
 let n = 0;
@@ -194,6 +194,32 @@ t('targetRow : numéro, famille, signal, zone, date, verdict', () => {
 	assert.match(row, /-71 dBm ANALOG/);
 	assert.match(row, /TOUR EIFFEL/);
 	assert.match(row, /LANDED/);
+});
+
+t('sessionRow : une zone longue est coupée, elle ne pousse pas les colonnes', () => {
+	const court = sessionRow(mk());
+	const long = sessionRow(mk({ area: 'conservatoire-national-des-arts-et-metiers' }));
+	// Le décalage d'une colonne, c'est la fin de la table : chaque ligne doit
+	// avoir exactement la même longueur, quelle que soit la longueur du nom.
+	assert.equal(long.length, court.length);
+	assert.match(long, /CONSERVATOIRE/);
+	assert.match(long, /LANDED/);          // le verdict survit à la coupe
+	assert.match(long, /…/);               // et la coupe se voit
+});
+
+t('targetRow : une zone longue est coupée, elle ne pousse pas les colonnes', () => {
+	const court = targetRow(targetLogEntries([mk()])[0]);
+	const long = targetRow(targetLogEntries([mk({ area: 'conservatoire-national-des-arts-et-metiers' })])[0]);
+	assert.equal(long.length, court.length);
+	assert.match(long, /LANDED/);
+});
+
+t('fit : complète à droite, coupe avec une ellipse, ne rend jamais plus long', () => {
+	assert.equal(fit('AB', 5), 'AB   ');
+	assert.equal(fit('ABCDE', 5), 'ABCDE');
+	assert.equal(fit('ABCDEF', 5), 'ABCD…');
+	assert.equal(fit('', 3), '   ');
+	assert.equal(fit('ABCDEF', 1), '…');
 });
 
 console.log(`\n${n} ok`);

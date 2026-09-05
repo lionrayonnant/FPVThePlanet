@@ -221,4 +221,27 @@ t('plus aucune couleur en dur dans les couches vectorielles du scanner', () => {
 	assert.deepEqual(hits, [], `scanner.js peint encore en dur : ${hits.join(', ')}`);
 });
 
+// --- le piège `pointer-events` de #ui ---------------------------------------
+
+// `#ui` est en `pointer-events: none` et SEULS `button, input, select, label`
+// reprennent la main. Tout écran plein cadre qui contient un élément
+// interactif d'un autre genre — une carte Leaflet est un <div>, ses contrôles
+// de zoom sont des <a> — doit donc reprendre le pointeur lui-même.
+//
+// Ce test existe parce que la règle a été perdue une fois : `.scanner` la
+// portait, elle a disparu avec le plein cadre du scanner (#211), et FIELD s'est
+// retrouvé avec une carte VISIBLE MAIS SOURDE — on la voyait sans pouvoir la
+// déplacer. Aucun selftest de rendu ne peut l'attraper : le faux DOM ne calcule
+// pas de style, et l'arbre était parfaitement correct.
+t('pointer-events : tout écran portant une carte reprend la main sur le pointeur', () => {
+	assert.match(GAME, /#ui\s*\{[^}]*pointer-events:\s*none/,
+		'la prémisse du test : #ui laisse passer les clics');
+	// `.terminal-field` est le plein cadre de FIELD, qui porte la carte du
+	// GLOBAL SCANNER dans sa colonne de droite.
+	const bloc = GAME.match(/\.terminal-field\s*\{[\s\S]*?\}/);
+	assert.ok(bloc, '.terminal-field existe');
+	assert.match(bloc[0], /pointer-events:\s*auto/,
+		'sans quoi la carte est visible mais sourde');
+});
+
 console.log(`\n  ${n} tests OK — langage visuel (PHASE 19)`);

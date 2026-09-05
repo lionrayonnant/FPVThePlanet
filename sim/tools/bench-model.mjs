@@ -234,8 +234,14 @@ export function benchRows(config, { familyLabel = (f) => f } = {}) {
 		{ key: 'entry',   label: 'ENTRY',    value: c.entry === 'IDLE' ? 'IDLE ON GROUND' : c.entry.replace('_', ' ') },
 		{ key: 'fence',   label: 'FENCE',    value: c.fence ? 'ON' : 'OFF' },
 		{ key: 'time',    label: 'TIME',     value: formatClock(c.timeMin) },
-		{ key: 'wind',    label: 'WIND',
-			value: `${w.windSpeed.toFixed(1)} m/s  ${String(w.windDir).padStart(3, '0')}°  ×${w.gustFactor.toFixed(1)}` },
+		// Le mock de la Bible §48 écrit le vent sur UNE ligne — mais il décrit un
+		// écran, pas des contrôles : régler la rafale et la direction demande
+		// trois curseurs. Chacun dit donc ce qu'il fait, plutôt qu'un résumé sur
+		// le premier et rien sur les deux autres — sinon la colonne des valeurs a
+		// des trous, et un curseur sans lecture ne se règle pas au chiffre.
+		{ key: 'wind',    label: 'WIND',     value: `${w.windSpeed.toFixed(1)} m/s` },
+		{ key: 'gust',    label: 'GUST',     value: `×${w.gustFactor.toFixed(1)}` },
+		{ key: 'dir',     label: 'FROM',     value: `${String(w.windDir).padStart(3, '0')}°` },
 		{ key: 'rain',    label: 'RAIN',     value: `${w.rateMmH.toFixed(1)} mm/h` },
 		{ key: 'fog',     label: 'FOG',      value: `VIS ${formatVis(w.visibilityM)}` },
 		{ key: 'cloud',   label: 'CLOUD',    value: `${Math.round(w.cloudPct)} %` },

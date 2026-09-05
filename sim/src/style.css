@@ -283,7 +283,15 @@ button:focus::before {
 
 .bootstrap {
 	position: fixed; inset: 0;
-	display: grid; place-items: center;
+	/* `place-items: center` seul CENTRE puis COUPE : un écran plus haut que la
+	   fenêtre (BUILD NOTES, TARGET LOG sur un opérateur qui a volé) perdait son
+	   titre en haut ET son [ BACK ] en bas, sans rien pour aller les chercher —
+	   `html, body` sont en `overflow: hidden`. `safe center` retombe sur `start`
+	   dès que ça déborde, donc on garde le centrage des écrans courts, qui sont
+	   la règle, sans enfermer les longs. */
+	display: grid; justify-items: center; align-content: safe center;
+	overflow-y: auto; overscroll-behavior: contain;
+	padding: var(--space-5) 0;
 	background: var(--dark-grey);
 	z-index: 11;
 }
@@ -339,7 +347,6 @@ button:focus::before {
    inline text; the one framed control is [ GLOBAL SCANNER ]. */
 
 .terminal-box { gap: 24px; }
-.terminal-home .terminal-box { width: min(940px, 92vw); }
 .terminal-nav {
 	line-height: 1.9;
 	font-family: var(--font-ui); font-weight: 500;
@@ -366,6 +373,117 @@ button:focus::before {
 	font-variant-numeric: tabular-nums;
 	margin-top: var(--space-1); white-space: nowrap;
 }
+/* Dans la colonne gauche, `nowrap` faisait couper le pied en plein mot. Il se
+   replie — c'est une ligne d'état, pas une table : rien n'y est aligné sur une
+   colonne, donc le repli ne lui coûte rien. */
+.terminal-left pre.terminal-foot { white-space: normal; }
+
+/* BUILD NOTES : un numéro de version, puis ses lignes en retrait. Le retrait
+   est suspendu — première ligne à 2ch, repli à 4ch — pour qu'une note qui
+   déborde reste visiblement subordonnée à sa version au lieu de remonter en
+   colonne 0 et de se faire passer pour une entrée de plus. */
+.terminal-note-block { display: flex; flex-direction: column; }
+.bootstrap-box pre.terminal-note { padding-left: 4ch; text-indent: -2ch; }
+
+/* La Home carte-first. Un seul axe : l'endroit, puis les deux choses qui
+   décollent, puis le cache. Ce n'est PAS un tableau de bord (Bible §30, §44) —
+   la carte est là parce que c'est le lieu, pas parce que c'est une métrique. */
+/* FIELD est un seul écran (Bible §4 : « le GLOBAL SCANNER est le menu principal
+   après l'initialisation »). Deux colonnes : à gauche ce qu'on lit et ce qu'on
+   choisit, à droite le monde. La colonne gauche bascule du menu au rail du
+   scanner dès qu'une zone est tracée ; la carte, elle, ne bouge JAMAIS — c'est
+   toute la raison d'être de cette mise en page, pas un effet de bord. */
+.terminal-field {
+	align-content: stretch; justify-items: stretch; padding: 0; overflow: hidden;
+	/* `#ui` est en `pointer-events: none` et seuls button/input/select/label
+	   reprennent la main (ligne 87-88) : c'est ce qui laisse les clics traverser
+	   le HUD jusqu'à la scène. Une carte est un <div>, pas un contrôle — elle
+	   n'entre dans aucune de ces catégories, et les contrôles de zoom de Leaflet
+	   sont des <a>. L'ancienne règle `.scanner` portait donc `pointer-events:
+	   auto` sur tout l'écran ; en la supprimant avec le plein cadre, la carte est
+	   devenue visible mais SOURDE — on la voyait sans pouvoir la déplacer.
+	   FIELD est un écran plein cadre comme le scanner l'était : il reprend la
+	   main sur le pointeur, entièrement. */
+	pointer-events: auto;
+}
+.terminal-field .terminal-box {
+	width: 100%; max-width: none; height: 100vh;
+	display: grid; grid-template-columns: minmax(340px, 32%) 1fr; gap: 0;
+}
+.terminal-left {
+	display: flex; flex-direction: column; gap: var(--space-4);
+	padding: var(--space-5) var(--space-5) var(--space-4);
+	overflow-y: auto; min-width: 0;
+	border-right: var(--rule-w) solid var(--rule-strong);
+}
+/* Le rail du scanner remplit la colonne : il porte déjà son propre défilement
+   et son propre rembourrage. `min-height: 0` n'est pas décoratif — sans lui un
+   enfant flex ne descend jamais sous sa hauteur de contenu, et `overflow-y`
+   n'a rien à faire défiler. Le filet passe à droite : le rail est à GAUCHE de
+   l'écran maintenant, un filet à gauche le décollerait du bord. */
+.terminal-left > .scanner-panel {
+	margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) calc(var(--space-4) * -1);
+	flex: 1 1 auto; min-height: 0;
+	border-left: 0; border-right: var(--rule-w) solid var(--rule-strong);
+}
+.terminal-right { position: relative; min-width: 0; }
+.terminal-map { position: absolute; inset: 0; }
+/* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la
+   carte : la promesse « la carte ne bouge pas » tient aussi empilée. */
+@media (max-width: 1100px) {
+	.terminal-field .terminal-box { grid-template-columns: 1fr; grid-template-rows: 38vh 1fr; }
+	.terminal-left { border-right: 0; border-top: var(--rule-w) solid var(--rule-strong); }
+	.terminal-field .terminal-box > .terminal-right { grid-row: 1; }
+	.terminal-field .terminal-box > .terminal-left { grid-row: 2; }
+}
+/* Sans emprise connue, ou sans terrain du tout : on le dit dans le cadre plutôt
+   que de dessiner une carte fausse. */
+.terminal-map-none {
+	position: absolute; inset: 0; margin: 0;
+	display: flex; align-items: center; justify-content: center;
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+/* Les deux verbes de la Home, sur une ligne : voler là, ou aller voir ailleurs. */
+.terminal-acts { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.terminal-acts .terminal-cta { align-self: auto; }
+/* Un intertitre, pas un titre : il nomme la liste sans peser autant que la
+   ligne FPVTP! du haut. */
+.bootstrap-box pre.terminal-sub {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: var(--space-2) 0 0;
+}
+/* La liste compacte sélectionne, elle ne fait pas voler : pas de défilement, pas
+   de recherche, pas d'actions — tout ça vit dans MORE…. */
+.terminal-areas-compact { max-height: none; overflow: visible; gap: 0; }
+/* La zone que la carte cadre et que [ FLY ] volera. Un filet à gauche plutôt
+   qu'un aplat : le blanc plein est réservé au curseur. */
+.terminal-areas-compact button.terminal-area[data-selected] {
+	box-shadow: inset 2px 0 0 0 var(--ink);
+}
+/* Sur l'écran complet, la météo est en DISPLAY à dessein : c'est la ligne qu'on
+   vient y lire (#76). Sur la Home elle redescend au niveau UI — la couleur
+   continue de porter l'information, mais la Home reste calme (Bible §30, §45).
+   Et le nom cesse d'être une colonne fixe : à deux zones, un min-width de 260 px
+   pousse la météo hors du cadre et la fait tronquer pour rien. */
+.terminal-areas-compact .terminal-area-weather {
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+}
+/* Dans la colonne gauche de l'écran fusionné (#211), un nom long — CONSERVATOIRE
+   NATIONAL DES ARTS ET METIERS — dépassait la colonne et se faisait couper NET
+   par l'overflow, sans rien qui dise que c'était coupé. Il se tronque avec une
+   ellipse et rend la place au reste de la ligne, comme fit() le fait pour les
+   tables du journal. */
+.terminal-areas-compact .terminal-area > span:first-child {
+	min-width: 0; flex: 1 1 auto;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.terminal-areas-compact .terminal-area-size { margin-left: auto; flex: none; }
+.terminal-areas-compact .terminal-area-weather { flex: none; }
 
 .terminal-search { width: 100%; box-sizing: border-box; }
 .terminal-areas {
@@ -425,14 +543,29 @@ button.terminal-area:focus::before { left: 0; }
 	display: flex; flex-direction: column;
 	max-height: 55vh; overflow-y: auto;
 }
+/* Une rangée de journal est une TABLE : des colonnes de largeur fixe qu'on
+   balaie, pas une phrase qu'on lit. Mesuré : à --fs-display-s (22px Departure
+   Mono, tracking .12em) un caractère fait 16,6px, donc la boîte tient 56
+   signes — quand une ligne de session en fait 69 et une ligne de cible 97. Le
+   journal descend donc du niveau DISPLAY vers DATA, exactement comme
+   `pre.terminal-foot` et pour la même raison : c'est de la donnée dense. */
+button.terminal-row,
+.bootstrap-box pre.terminal-log {
+	font-family: var(--font-data);
+	font-size: var(--fs-data);
+	line-height: 1.6;
+	letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+	color: var(--ink);
+	/* Une colonne qui se replie n'est plus une colonne : on ne replie pas, et
+	   si la fenêtre est vraiment trop étroite la table défile pour elle seule
+	   plutôt que de pousser la page entière (Bible §38, angles droits, pas de
+	   débordement horizontal du cadre). */
+	white-space: pre; overflow-x: auto;
+}
 button.terminal-row {
 	padding: 1px 0 1px 1.2em; border: 0; background: none;
-	text-align: left; white-space: pre; cursor: pointer;
-	font-family: var(--font-display);
-	font-size: var(--fs-display-s);
-	line-height: 1.45;
-	letter-spacing: var(--track-display);
-	color: var(--ink);
+	text-align: left; cursor: pointer;
 }
 button.terminal-row:hover { background: var(--warm-white); color: var(--black); }
 /* Dans une liste qui défile, le marqueur vit DANS la colonne réservée : à
@@ -456,45 +589,72 @@ button.terminal-row:focus::before { left: 0; }
    aucun aplat de couleur. La carte est le seul élément « photographique » de
    l'écran, et elle est passée en monochrome pour ne pas hurler. */
 
-.scanner {
-	position: fixed; inset: 0;
-	display: grid; grid-template-columns: 1fr 480px;
-	background: var(--dark-grey);
-	z-index: 11;
-	pointer-events: auto;
-}
-.scanner-map { position: relative; height: 100%; background: var(--dark-grey); }
+/* `.scanner` n'existe plus : depuis #211 le scanner n'a pas de plein cadre à
+   lui, il se monte dans les deux colonnes de la Home. `.scanner-panel` garde
+   son allure de rail, `.scanner-map` sa géométrie. */
+/* Le fond monochrome, partagé par le GLOBAL SCANNER et la mini-carte de la
+   Home : une seule carte dans le jeu (Bible §4). Ces règles sont portées par
+   `.map-mono`, posée sur les deux — les dupliquer serait la garantie qu'elles
+   divergent au premier réglage. `.scanner-map` ne garde que sa géométrie. */
+.map-mono { position: relative; background: var(--dark-grey); }
+.scanner-map { height: 100%; }
 /* MONO : le filtre porte sur les tuiles de la couche seulement, pas sur les
    vecteurs — la grille, la zone et les repères gardent l'encre du terminal.
    Le fond OSM est inversé (blanc sur noir) ; les couches déjà sombres ou
    photographiques sont seulement désaturées. */
-.scanner-map .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
+.map-mono .sc-invert { filter: grayscale(1) invert(1) contrast(1.08) brightness(.9); }
 /* Un pixel de recouvrement entre tuiles. Sous filtre, le raccord de deux tuiles
    voisines s'éclaircit et dessine un faux quadrillage de 256 px par-dessus le
    vrai — mesuré ici à devicePixelRatio 0,9, et invisible sans filtre. Le décalage
    d'un pixel, lui, ne se voit pas à l'échelle d'une carte. */
-.scanner-map .leaflet-tile { width: 257px !important; height: 257px !important; }
-.scanner-map .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
-.scanner-map .leaflet-container { background: var(--dark-grey); font: inherit; }
-.scanner-map .leaflet-control-attribution {
+.map-mono .leaflet-tile { width: 257px !important; height: 257px !important; }
+.map-mono .sc-gray { filter: grayscale(1) contrast(1.15) brightness(.85); }
+.map-mono .leaflet-container { background: var(--dark-grey); font: inherit; }
+/* `.leaflet-container` dans le sélecteur n'est pas décoratif : Leaflet injecte
+   sa propre feuille en <style> inline À L'EXÉCUTION, avec exactement
+   `.leaflet-container .leaflet-control-attribution { background: rgba(255,255,255,.8) }`
+   — même spécificité que `.map-mono .leaflet-control-attribution`, mais plus
+   tard dans la cascade, donc gagnante. Mesuré : le fond calculé était blanc sur
+   les DEUX cartes, et l'attribution se lisait comme un bandeau de navigateur en
+   travers du bas. Le troisième niveau reprend la main quel que soit l'ordre.
+   `.map-mono.leaflet-container` sans espace : Leaflet pose sa classe sur le
+   conteneur qu'on lui donne, donc c'est le MÊME élément que `.map-mono`. */
+.map-mono.leaflet-container .leaflet-control-attribution {
 	background: var(--scrim); color: var(--faint);
 	font-family: var(--font-data); font-size: 10px; letter-spacing: var(--track-data);
 	border-radius: 0;
+	padding: 1px var(--space-2);
 }
-.scanner-map .leaflet-control-attribution a { color: var(--dim); }
-.scanner-map .leaflet-bar,
-.scanner-map .leaflet-bar a {
+.map-mono .leaflet-control-attribution a { color: var(--dim); }
+/* L'attribution OSM embarque un drapeau en couleur. Le jeu est N&B (Bible §38) :
+   il passe au gris comme le reste, sans être retiré — l'attribution doit rester
+   lisible, c'est la contrepartie des tuiles. */
+.map-mono .leaflet-control-attribution img,
+.map-mono .leaflet-control-attribution svg { filter: grayscale(1) brightness(.7); }
+.map-mono .leaflet-bar,
+.map-mono .leaflet-bar a {
 	border-radius: 0; border-color: var(--rule-strong);
 	background: var(--dark-grey); color: var(--ink);
 }
-.scanner-map .leaflet-bar a:hover { background: var(--warm-white); color: var(--black); }
+.map-mono .leaflet-bar a:hover { background: var(--warm-white); color: var(--black); }
 /* Poignées Geoman : des carrés, pas des pastilles. */
-.scanner-map .leaflet-div-icon,
-.scanner-map .marker-icon {
+.map-mono .leaflet-div-icon,
+.map-mono .marker-icon {
 	border-radius: 0 !important; background: var(--dark-grey);
 	border: var(--rule-w) solid var(--warm-white);
 	width: 8px; height: 8px; margin: -4px 0 0 -4px;
 }
+/* Une tuile qui ne vient pas n'est pas une panne : la zone est jouable hors
+   ligne par définition. On le dit une fois, en encre éteinte, et le cadre de la
+   zone reste dessiné sur le fond nu. */
+.map-offline {
+	position: absolute; inset: auto 0 50% 0; margin: 0; text-align: center;
+	z-index: 400; pointer-events: none;
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+}
+
 .sc-pin {
 	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
 	font-size: var(--fs-data); letter-spacing: .1em;
@@ -539,6 +699,14 @@ button.terminal-row:focus::before { left: 0; }
 .sc-cta { border: 0; padding: var(--space-2) 0; }
 .sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
+
+/* Les deux verbes. Empilés dans le rail — il est étroit, les mettre côte à côte
+   les tasserait — mais dans le MÊME bloc, sous le même titre : c'est un choix,
+   pas deux étapes. Chacun porte sous lui ce qu'il coûte, en encre éteinte, pour
+   qu'on n'ait pas à savoir ce que « live » veut dire avant de choisir. */
+.sc-verbs { gap: var(--space-3); }
+.sc-verb { display: flex; flex-direction: column; gap: 2px; }
+.sc-verb .sc-hint { padding-left: 0; }
 
 .sc-results { display: flex; flex-direction: column; }
 .sc-result {
@@ -836,52 +1004,133 @@ button.terminal-row:focus::before { left: 0; }
 
 /* SELECT OPERATION MODE — la racine du jeu. Deux voies, et ce que chacune
    coûte écrit dessous. La sous-ligne est en DATA : c'est de la description,
-   pas la machine qui parle. */
-.bench-mode { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+   pas la machine qui parle.
+
+   Aligné à GAUCHE, sur le fer du bouton : c'est ce que dessine le mock de la
+   Bible §48, et c'est ce qui rattache la sous-ligne à sa voie. Centrer la
+   sous-ligne la détachait — `.bootstrap button` pose align-self: flex-start,
+   donc le bouton restait à gauche pendant que son texte partait au milieu. */
+.bench-mode { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 .bootstrap-box pre.bench-mode-sub {
 	color: var(--light-grey);
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
-	text-align: center; margin: 0;
+	text-align: left; margin: 0;
+}
+/* L'identité avant la question : « OPERATOR // NEO » se lit comme le pied de la
+   Home, en encre éteinte — il informe, il n'appelle pas. */
+.bootstrap-box pre.bench-operator {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: 0;
 }
 .bench-modes .terminal-box { gap: var(--space-5); }
 
 /* L'écran de configuration. */
-.bench-config .terminal-box { width: min(760px, 94vw); gap: var(--space-2); }
-.bootstrap-box pre.bench-head { margin-bottom: var(--space-3); }
+.bench-config .terminal-box { width: min(860px, 94vw); gap: var(--space-1); }
+.bootstrap-box pre.bench-title { margin: 0; }
+/* Le credo n'est pas un sous-titre : c'est ce que le banc dit de lui-même. Au
+   niveau UI, en encre éteinte, espacé comme une rangée de quatre termes. */
+.bootstrap-box pre.bench-creed {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
+	margin: 0 0 var(--space-3);
+}
 
+/* Une ligne de banc : ÉTIQUETTE · conduite · contrôle · valeur.
+   Les quatre colonnes sont toujours présentes, et les deux dernières ont une
+   largeur fixe : c'est ce qui aligne les valeurs d'un bout à l'autre du tableau
+   et fait lire le banc comme un banc. Hauteur de ligne constante aussi — un
+   curseur et un menu ne doivent pas donner deux rythmes différents. */
 .bench-row {
-	display: flex; align-items: center; gap: var(--space-3);
-	width: 100%;
+	display: flex; align-items: center; gap: var(--space-2);
+	width: 100%; min-height: 2.2em;
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 }
-/* Une colonne d'étiquettes de largeur fixe : c'est ce qui fait lire le banc
-   comme un tableau et non comme un formulaire. */
 .bench-label {
 	min-width: 9.5em; flex: none;
 	color: var(--light-grey);
 	font-family: var(--font-ui); letter-spacing: var(--track-ui);
 	text-transform: uppercase;
 }
+/* La conduite. De vrais points, dans la police DATA, comme `dotted()` en écrit
+   sur l'écran de bootstrap — un filet CSS pointillé se poserait sur la ligne de
+   base et n'aurait pas la même main. On en écrit plus qu'il n'en faut et on
+   coupe : rien à mesurer, et ça suit la largeur de la fenêtre tout seul. */
+.bench-leader {
+	flex: 1 1 auto; min-width: 2ch;
+	overflow: hidden; white-space: nowrap;
+	color: var(--faint); user-select: none;
+}
+.bench-leader::before { content: "................................................................"; }
 /* La valeur lue est à droite, tabulaire, pour que les chiffres ne dansent pas
    quand on tient une flèche enfoncée. */
 .bench-value {
-	min-width: 11em; flex: none; text-align: right;
+	width: 9.5em; flex: none; text-align: right;
 	color: var(--ink); font-variant-numeric: tabular-nums;
 }
-.bench-inline { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
+.bench-inline { display: flex; align-items: center; gap: var(--space-2); }
+/* La colonne des contrôles : même largeur pour un menu et pour un curseur.
+   Sélecteur en `.bench-row input` et non en `.bench-slider` seul : `.bootstrap
+   input` (plus haut) est plus spécifique qu'une simple classe et imposait
+   --fs-ui-l aux <input>. Comme la largeur est en em et que <select> n'était,
+   lui, pas concerné, la colonne se décalait de 110 px entre une ligne à menu et
+   une ligne à curseur. */
+.bench-select, .bench-inline, .bench-row input.bench-slider {
+	flex: none; width: 22em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+}
 
 .bench-select, .bench-coord {
-	flex: 1; min-width: 0;
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong); border-radius: 0;
 	padding: 2px var(--space-2);
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 }
+/* Le menu déroulant du navigateur est du mobilier de navigateur : coins
+   arrondis, dégradé, flèche système. Bible §38/§44 — on le remet à plat.
+   Et pas de chevron dessiné à la place : il faudrait une image, donc une
+   couleur en dur hors de tokens.css (palette-selftest la refuse, et
+   l'encoder %23 pour passer dessous serait exactement la dérive qu'il
+   surveille). Le cadre d'un pixel suffit à dire que c'est manipulable —
+   c'est déjà ce qui le dit pour `.bootstrap input`. */
+.bench-select {
+	appearance: none; -webkit-appearance: none;
+}
+/* Même raison que la colonne des contrôles : `.bootstrap input` gagnerait. */
+.bench-row input.bench-coord {
+	width: 8em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	padding: 2px var(--space-2);
+}
 .bench-select:focus, .bench-coord:focus { outline: none; border-color: var(--warm-white); }
-.bench-slider { flex: 1; min-width: 0; accent-color: var(--warm-white); }
+
+/* Le curseur, à plat lui aussi : une glissière d'un pixel et un curseur
+   rectangulaire. `accent-color` rendait la pastille ronde du système. */
+.bench-slider {
+	appearance: none; -webkit-appearance: none;
+	background: none; height: 1.4em; cursor: pointer;
+}
+.bench-slider::-webkit-slider-runnable-track {
+	height: var(--rule-w); background: var(--rule-strong);
+}
+.bench-slider::-moz-range-track { height: var(--rule-w); background: var(--rule-strong); }
+.bench-slider::-webkit-slider-thumb {
+	appearance: none; -webkit-appearance: none;
+	width: 5px; height: 13px; margin-top: -6px;
+	background: var(--ink); border: 0; border-radius: 0;
+}
+.bench-slider::-moz-range-thumb {
+	width: 5px; height: 13px;
+	background: var(--ink); border: 0; border-radius: 0;
+}
+.bench-slider:focus { outline: none; }
+.bench-slider:focus::-webkit-slider-thumb { background: var(--warm-white); }
+.bench-slider:focus::-moz-range-thumb { background: var(--warm-white); }
 .bench-inline button.terminal-link { flex: none; }
 
 /* Un avertissement dit ce qui va se passer ; il n'interdit rien (Bible §2,
@@ -899,5 +1148,5 @@ button.terminal-row:focus::before { left: 0; }
 	color: var(--faint);
 	font-family: var(--font-data); font-size: var(--fs-micro);
 	letter-spacing: var(--track-ui);
-	margin: var(--space-3) 0 0;
+	margin: var(--space-4) 0 var(--space-2);
 }

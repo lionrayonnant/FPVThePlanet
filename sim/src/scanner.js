@@ -17,36 +17,17 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {
 	areaAnalysis, signalDensity, coverageLine, prunedBands, acquisitionProgress,
 	pipelineBars, pipelineStats, latticeEdges, maskOutline, polygonBounds, polygonProbePoint, slugify, designationFrom, phaseLabel, elapsed, bytes, num,
-	sourceChoices, chosenSource,
+	sourceChoices, chosenSource, zoneCentre, acquireStep,
 } from '../tools/scanner-model.mjs';
 import { mount, sayOnce } from './dialogue.js';
 import { acquisitionContext, scanContext } from './dialogue-context.js';
 import { menuNav } from './menu-nav.js';
+import { previewBounds } from '../tools/map-preview-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
+import { LAYERS } from './map-layers.js';
 
 const API = '/__map-api';
-
-// Fonds de carte. Tous passent par le même filtre monochrome (voir .scanner-map
-// dans style.css) : le scanner est N&B, quelle que soit la couche. Aucune couche
-// n'existe ici pour des raisons esthétiques — MONO pour lire une ville, SAT pour
-// reconnaître un bâtiment avant de le survoler, TERRAIN pour le relief.
-const LAYERS = {
-	// OSM standard, inversé et désaturé : un plan de ville lisible, blanc sur
-	// noir, sans clé d'API. (CARTO et Stamen en demandent une aujourd'hui.)
-	MONO: {
-		url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-		opts: { maxZoom: 19, className: 'sc-invert', attribution: '© OpenStreetMap contributors · search © Nominatim' },
-	},
-	SAT: {
-		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-		opts: { maxZoom: 21, maxNativeZoom: 19, className: 'sc-gray', attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' },
-	},
-	TERRAIN: {
-		url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-		opts: { maxZoom: 17, subdomains: 'abc', className: 'sc-gray', attribution: '© OpenTopoMap · © OpenStreetMap contributors' },
-	},
-};
 
 const DETAIL = [
 	{ zoom: 20, label: 'HIGH', side: '25 m' },
@@ -107,14 +88,28 @@ const PANEL = `
 	<pre class="sc-note sc-source-note" hidden></pre>
 	<pre class="sc-verdict" data-status="unprobed">UNPROBED</pre>
 	<pre class="sc-detail"></pre>
-	<button type="button" class="sc-cta sc-probe" disabled>[ PROBE AREA ]</button>
 </section>
 
 <section class="sc-block">
 	<pre class="sc-h">DESIGNATION</pre>
 	<input class="sc-name" type="text" autocomplete="off" spellcheck="false" placeholder="AREA NAME">
 	<pre class="sc-note sc-slug" hidden></pre>
-	<button type="button" class="sc-cta sc-acquire" disabled>[ ACQUIRE AREA ]</button>
+</section>
+
+<!-- Les deux voies du jeu, côte à côte, sur la carte — là où le choix se pose
+     réellement. Voler en direct ne garde rien et demande le réseau ; acquérir
+     cuit la zone sur le disque et la rend jouable hors ligne. Les mettre dans
+     deux blocs différents laisserait croire que l'un est l'étape de l'autre. -->
+<section class="sc-block sc-verbs">
+	<pre class="sc-h">FLY</pre>
+	<div class="sc-verb">
+		<button type="button" class="sc-cta sc-fly-live" disabled>[ FLY LIVE ]</button>
+		<pre class="sc-hint">STREAMED NOW · NOTHING KEPT · NEEDS THE LINK</pre>
+	</div>
+	<div class="sc-verb">
+		<button type="button" class="sc-cta sc-acquire" disabled>[ ACQUIRE AREA ]</button>
+		<pre class="sc-hint">BAKED TO DISK · KEPT · PLAYS OFFLINE</pre>
+	</div>
 	<pre class="sc-note sc-acquire-note" hidden></pre>
 </section>
 
@@ -199,15 +194,29 @@ async function api(path, opts) {
 }
 const post = (p, b) => api(p, { method: 'POST', body: JSON.stringify(b) });
 
-// Résout le slug de la carte à survoler, ou undefined pour revenir au terminal.
-export function runScanner(root) {
-	const el = document.createElement('div');
-	el.className = 'scanner';
-	el.innerHTML = `<div class="scanner-map"></div><aside class="scanner-panel">${PANEL}</aside>`;
-	root.appendChild(el);
+// Monte le scanner dans DEUX hôtes fournis par l'appelant, et rend une poignée.
+//
+// Le plein cadre a disparu (#211) : depuis que FIELD est un seul écran, c'est la
+// Home qui possède les deux colonnes. `mapHost` ne nous appartient PAS — c'est
+// exactement ce qui permet à la carte de survivre au passage repos → travail,
+// qui est la promesse centrale de l'écran. `railHost`, si : on le vide et on le
+// remplit.
+//
+//   onZone(zone | null)   une zone apparaît ou disparaît — le signal repos ↔ travail
+//   onPickArea(slug)      clic sur le cadre d'une zone déjà acquise
+//   onRest()              BACK depuis le rail : on repose l'outil, on ne quitte PAS
+//                         FIELD. Quitter, c'est MODE, et c'est la Home qui le tient.
+//
+// Rend { done, setAreaFrames, focusBounds, destroy }. `done` résout une FORME de
+// vol : `{ slug }` pour une zone cuite, `{ live: [lat, lon] }` pour un décollage
+// en direct, `undefined` pour remonter.
+export function runScanner({ mapHost, railHost, onZone = null, onPickArea = null, onRest = null } = {}) {
+	mapHost.classList.add('scanner-map', 'map-mono');
+	railHost.classList.add('scanner-panel');
+	railHost.innerHTML = PANEL;
 
-	const $ = (sel) => el.querySelector(sel);
-	const panel = $('.scanner-panel');
+	const $ = (sel) => railHost.querySelector(sel);
+	const panel = railHost;
 
 	// RTC du panneau de recherche : de la couleur, jamais une source
 	// d'information sur le pipeline réel (mêmes invariants que watchJob()).
@@ -241,9 +250,12 @@ export function runScanner(root) {
 	const provider = () => chosenSource(registry, state.source);
 
 	// ------------------------------------------------------------ carte
-	const map = L.map($('.scanner-map'), {
+	const map = L.map(mapHost, {
 		zoomControl: false, attributionControl: true, worldCopyJump: true,
 	}).setView(lastView.center, lastView.zoom);
+	// Une seule carte dans le jeu (Bible §4) : même règle que la mini-carte —
+	// le crédit des couches reste, « Leaflet | » et son fanion partent.
+	map.attributionControl.setPrefix('');
 	L.control.zoom({ position: 'bottomright' }).addTo(map);
 	map.on('moveend zoomend', () => { lastView = { center: map.getCenter(), zoom: map.getZoom() }; });
 
@@ -260,6 +272,30 @@ export function runScanner(root) {
 	const pins = L.layerGroup().addTo(map);
 	const outline = L.layerGroup().addTo(map);
 	const snapped = L.rectangle([[0, 0], [0, 0]], { color: token('--warm-white'), weight: 1, fill: false, interactive: false });
+	// Les zones DÉJÀ acquises, à leur vraie place sur la carte vivante (#211).
+	// Même encre que `snapped` : ce que la Home montre et ce que l'acquisition
+	// avait dessiné doivent se reconnaître (#207). Cliquables, parce que la
+	// carte et la liste doivent désigner la même chose dans les deux sens.
+	const areaFrames = L.layerGroup().addTo(map);
+
+	// Dessine le cadre de chaque zone du cache. previewBounds() rend `null` pour
+	// une zone sans emprise connue : elle n'a alors PAS de cadre et reste
+	// sélectionnable par la liste seule — un repli sur (0, 0) montrerait le
+	// golfe de Guinée pour une zone parisienne.
+	function setAreaFrames(scenes) {
+		areaFrames.clearLayers();
+		for (const sc of scenes ?? []) {
+			const b = previewBounds(sc);
+			if (!b) continue;
+			L.rectangle(b, { color: token('--warm-white'), weight: 1, fill: true, fillOpacity: 0, interactive: true })
+				.on('click', () => onPickArea?.(sc.slug))
+				.addTo(areaFrames);
+		}
+	}
+
+	// Recadre sans toucher au tracé en cours : la liste de la Home s'en sert
+	// pour montrer la zone qu'on vient de sélectionner.
+	function focusBounds(b) { if (b) map.fitBounds(b, { padding: [24, 24] }); }
 	let zoneLayer = null;
 
 	// ---------------------------------------------- la grille réellement scannée
@@ -341,6 +377,9 @@ export function runScanner(root) {
 		renderCoverage();
 		describe();
 		surveyCentre();
+		// L'écran passe au travail : c'est la Home qui remplace sa colonne
+		// gauche par ce rail. Le scanner ne connaît pas la Home, il signale.
+		onZone?.(state.zone);
 	}
 
 	map.on('pm:create', (e) => {
@@ -354,6 +393,7 @@ export function runScanner(root) {
 		if (zoneLayer) { map.removeLayer(zoneLayer); zoneLayer = null; }
 		state.zone = state.describe = state.plan = state.probe = null;
 		lattice.clearLayers(); pruned.clearLayers(); outline.clearLayers(); map.removeLayer(snapped);
+		onZone?.(null);
 		$('.sc-area-hint').hidden = false;
 		$('.sc-readout').hidden = true;
 		$('.sc-clear').hidden = true;
@@ -419,11 +459,9 @@ export function runScanner(root) {
 		clearTimeout(surveyTimer);
 		if (!state.zone) return;
 		// Sur un tracé en L, le centre de l'emprise tombe dans l'encoche : on
-		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde.
-		const { lat, lon } = state.zone.poly
-			? polygonProbePoint(state.zone.poly, state.zoom)
-			: { lat: (state.zone.bbox.south + state.zone.bbox.north) / 2,
-			    lon: (state.zone.bbox.west + state.zone.bbox.east) / 2 };
+		// décrirait un quartier qu'on n'extrait pas. Même règle que la sonde, et
+		// que le décollage en direct — d'où zoneCentre(), partagé.
+		const { lat, lon } = zoneCentre(state.zone, state.zoom);
 		const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
 		if (surveyCache.has(key)) { state.place = surveyCache.get(key); return renderDensity(); }
 		surveyTimer = setTimeout(async () => {
@@ -452,8 +490,10 @@ export function runScanner(root) {
 		updateButtons();
 	}
 
-	$('.sc-probe').onclick = async () => {
-		const btn = $('.sc-probe');
+	// Sonder n'est plus un bouton : c'est la première moitié de [ ACQUIRE AREA ]
+	// (#211). Le corps est inchangé — seul son déclencheur a bougé.
+	async function runProbe() {
+		const btn = $('.sc-acquire');
 		// La source est désignée, jamais devinée : sans elle, il n'y a rien à
 		// sonder. Le bouton est déjà fermé dans ce cas (updateButtons) — cette
 		// garde protège le chemin clavier/manette.
@@ -492,9 +532,9 @@ export function runScanner(root) {
 			state.probe = { status: 'error', message: e.message };
 			renderCoverage();
 		} finally {
-			btn.disabled = !state.zone || !provider();
+			updateButtons();
 		}
-	};
+	}
 
 	// ------------------------------------------------------------ recherche
 	const search = $('.sc-search');
@@ -591,8 +631,21 @@ export function runScanner(root) {
 		// fournisseur par défaut ici, et en inventer un enverrait l'opérateur
 		// chercher une imagerie qu'il n'a pas demandée.
 		const src = provider();
-		$('.sc-probe').disabled = !state.zone || !src;
-		$('.sc-acquire').disabled = !state.zone || !slug || !src;
+		// Un seul bouton, et c'est acquireStep() qui décide de son libellé comme
+		// de son état : la séquence sonde→acquisition vit dans le modèle pur, pas
+		// ici (#211). ACQUIRE ANYWAY est la seule confirmation, il n'y a plus de
+		// modale de navigateur.
+		const step = acquireStep({
+			zone: state.zone, source: src, name, plan: state.plan, probe: state.probe,
+		});
+		const acq = $('.sc-acquire');
+		acq.disabled = step.disabled;
+		acq.textContent = `[ ${step.label} ]`;
+		note('.sc-acquire-note', step.disabled ? step.why : null, null);
+		// Voler en direct ne demande qu'une zone. Ni source, ni sonde, ni nom :
+		// rien n'est écrit sur le disque, donc il n'y a rien à nommer, et la
+		// couverture d'un fournisseur d'extraction ne dit rien du streaming.
+		$('.sc-fly-live').disabled = !state.zone;
 		const existing = state.scenes.find((s) => s.slug === slug);
 		note('.sc-slug', slug ? (existing ? `ID ${slug} — ALREADY IN CACHE, ACQUIRING OVERWRITES IT` : `ID ${slug}`) : null, existing ? 'warn' : null);
 	}
@@ -653,21 +706,26 @@ export function runScanner(root) {
 	// ------------------------------------------------------------ acquisition
 	let resolveScanner;
 	let finished = false;
-	const done = (slug) => {
+	// Le scanner résout une FORME de vol, plus un slug nu : depuis qu'il porte
+	// les deux verbes, il peut rendre une zone cuite (`{ slug }`) ou un point où
+	// décoller en direct (`{ live: [lat, lon] }`). `undefined` = on remonte.
+	const done = (choice) => {
 		if (finished) return;
 		finished = true;
 		cleanup();
-		resolveScanner(slug);
+		resolveScanner(choice);
 	};
 
+	// Ne détruit QUE ce que le scanner a créé dans le rail. La carte survit :
+	// elle appartient à l'écran, pas à l'état de travail (#211). Elle ne se
+	// démonte que par destroy(), quand la Home meurt.
 	function cleanup() {
-		// `el.remove()` détruit le sous-arbre mais pas le minuteur du montage RTC
-		// s'il tourne encore (BACK/Échap depuis la recherche, avant tout job).
-		// stopSearch() est idempotent.
+		// `replaceChildren()` vide le sous-arbre mais pas le minuteur du montage
+		// RTC s'il tourne encore (BACK/Échap depuis la recherche, avant tout
+		// job). stopSearch() est idempotent.
 		stopSearch?.();
 		nav.detach();
-		map.remove();
-		el.remove();
+		railHost.replaceChildren();
 	}
 
 	// Navigation clavier + manette du panneau (issue #123) — le panneau seul :
@@ -678,22 +736,34 @@ export function runScanner(root) {
 	// se fait par ABORT ou LEAVE, un geste explicite). Pas de focusFirst :
 	// l'écran pose déjà son focus sur la recherche au montage.
 	const nav = menuNav(panel, {
-		back: () => { if (!state.jobId) done(undefined); },
+		back: () => { if (!state.jobId) rest(); },
 		focusFirst: false,
 	});
-	$('.sc-back').onclick = () => done(undefined);
+	// BACK ne résout plus rien : depuis #211 le scanner n'est pas un écran qu'on
+	// quitte, c'est la colonne de droite de FIELD. BACK repose l'outil et rend
+	// la colonne gauche à la Home ; `done` ne sert plus qu'à une forme de vol.
+	function rest() {
+		map.pm.disableDraw();
+		clearZone();
+		onRest?.();
+	}
+	$('.sc-back').onclick = rest;
 
-	$('.sc-acquire').onclick = async () => {
-		// La sonde n'est pas obligatoire, mais acquérir sans elle est le meilleur
-		// moyen d'attendre dix minutes pour rien.
+	// Voler en direct : on résout un point, et c'est tout. Rien n'est planifié,
+	// rien n'est sondé, rien n'est écrit — le monde arrive pendant le vol.
+	// C'est le même point que celui qu'on vient de décrire (zoneCentre), sinon
+	// le scanner désignerait un quartier et en ouvrirait un autre.
+	$('.sc-fly-live').onclick = () => {
+		const c = zoneCentre(state.zone, state.zoom);
+		if (!c) return;
+		done({ live: [c.lat, c.lon] });
+	};
+
+	// Lance réellement le job. N'est appelée que par le gestionnaire ci-dessous,
+	// qui a déjà obtenu du modèle le droit d'acquérir.
+	async function startJob() {
 		const src = provider();
 		if (!src) return;
-		if (state.probe?.status !== 'ok') {
-			const why = state.probe || state.plan
-				? coverageLine({ plan: state.plan, probe: state.probe, provider: src }).detail
-				: `${src.label} coverage has not been probed for this area.`;
-			if (!confirm(`${why}\n\nAcquire anyway?`)) return;
-		}
 		try {
 			// On acquiert chez la source désignée, toujours explicitement : le
 			// pipeline a un défaut, mais il ne doit jamais décider ici.
@@ -705,6 +775,31 @@ export function runScanner(root) {
 		} catch (e) {
 			note('.sc-acquire-note', e.message.toUpperCase(), 'alarm');
 		}
+	}
+
+	// UN bouton pour sonder et acquérir (#211). La première pression sonde ; si
+	// la couverture est confirmée elle enchaîne, sans en demander une seconde.
+	// Sinon elle s'arrête, le verdict dit pourquoi, et le bouton devient
+	// ACQUIRE ANYWAY — la deuxième pression EST la confirmation. Ce gestionnaire
+	// ne décide de rien : acquireStep() décide, il exécute.
+	$('.sc-acquire').onclick = async () => {
+		const ask = () => acquireStep({
+			zone: state.zone, source: provider(), name: $('.sc-name').value,
+			plan: state.plan, probe: state.probe,
+		});
+		const step = ask();
+		if (step.disabled || !step.action) return;
+		if (step.action === 'probe') {
+			await runProbe();
+			// La sonde a rempli state.plan / state.probe : on redemande au modèle
+			// s'il faut enchaîner. Un ACQUIRE ANYWAY ici veut dire « la couverture
+			// n'est pas confirmée » — on s'arrête et on laisse l'opérateur voir le
+			// verdict avant d'engager dix minutes.
+			const next = ask();
+			if (next.action === 'acquire' && next.label === 'ACQUIRE AREA') await startJob();
+			return;
+		}
+		await startJob();
 	};
 
 	// Vue « acquisition » : le panneau change, la carte reste. Les chiffres
@@ -905,7 +1000,7 @@ export function runScanner(root) {
 				box.querySelector('.sc-row').remove();
 				const fly = panel.querySelector('.sc-fly');
 				fly.hidden = false;
-				fly.onclick = () => done(d.slug);
+				fly.onclick = () => done({ slug: d.slug });
 				panel.querySelector('.sc-job-back').hidden = false;
 				panel.querySelector('.sc-job-back').onclick = () => done(undefined);
 			}
@@ -950,5 +1045,16 @@ export function runScanner(root) {
 	setTimeout(() => map.invalidateSize(), 0);
 	search.focus();
 
-	return new Promise((resolve) => { resolveScanner = resolve; });
+	return {
+		done: new Promise((resolve) => { resolveScanner = resolve; }),
+		setAreaFrames,
+		focusBounds,
+		// La Home arme l'outil depuis sa colonne gauche : au repos, le rail est
+		// caché, et sans ça rien ne permettrait de commencer à tracer.
+		startDraw,
+		// La carte ne meurt QU'ICI. `map.remove()` retire les écouteurs que
+		// Leaflet a posés sur window : sans lui, une Home ouverte trois fois
+		// laisse trois cartes vivantes derrière elle.
+		destroy: () => { cleanup(); map.remove(); },
+	};
 }
