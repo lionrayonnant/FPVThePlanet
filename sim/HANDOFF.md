@@ -2448,6 +2448,83 @@ d'un encodeur DXT1 et d'une chaîne de mips à écrire dans `prep.mjs` et de
 ~620 Mo de binaire à servir. À trancher seulement si 16 cm/texel gêne
 réellement en vol.
 
+## Versionnage du dépôt (issue #257)
+
+SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
+`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `README.md`, section
+« Versionner et publier ».
+
+### Vérifié — sans navigateur
+
+- `npm run selftest:release` : **15/15 PASS** (bump, refus d'un numéro qui ne
+  monte pas, découpe et re-rendu du CHANGELOG, régénération des liens de
+  comparaison, refus d'une section « Non publié » vide ou d'un doublon).
+  Également câblé en tête de `npm run selftest:operator`.
+- `npm run build` avec la version injectée : `__APP_VERSION__` sort en
+  `"0.0.0"` dans le bundle, `window.FPVTP_VERSION` et une ligne de console.
+- `npm run release -- minor` joué **en réel dans un clone jetable** : bump
+  package.json + lockfile, section datée `## [0.1.0] - 2026-09-06`, nouvelle
+  section « Non publié » vide, liens régénérés, commit `chore(release): v0.1.0`,
+  tag annoté `v0.1.0`, aucun push. Relancé aussitôt, il refuse (« Non publié »
+  vide). `node tools/release-notes.mjs v0.1.0` rend bien le corps de la section.
+
+### CI — vérifié en local, pas encore sur un runner
+
+- `.github/workflows/ci.yml` : deux jobs, `sim` (`npm run selftest:ci` +
+  `npm run build`) et `flyover-reverse-engineering` (`go vet` / `go build` /
+  `go test`), sur push `main` et sur chaque PR.
+- `npm run selftest:ci` = `selftest:operator` + `selftest:api` : **1 360
+  vérifications en 132 s**, sans scène installée, sans réseau, sans navigateur.
+  Mesuré ici, sur ce dépôt, `public/scenes/` vide, après rebasage sur `main` —
+  la chaîne a gagné les cinq selftests d'ambiants de #250 (`ambient`,
+  `drone-shape`, `drone-mesh`, `ambient-audio`, `ambient-drones`), qui pèsent
+  297 vérifications et l'essentiel de la minute supplémentaire.
+  Compte = lignes `ok` (1 015) + lignes `PASS` (345) ; la mesure précédente
+  (1 009 en 58 s) ne comptait que les `ok`, sur une chaîne plus courte.
+- `tools/landing-selftest.mjs` — le seul de la chaîne qui lisait une scène —
+  se retire maintenant en `SKIP` quand `public/scenes/tour-eiffel` est absente.
+  C'est le modèle pour tout selftest qui aurait besoin de données de scène.
+- Côté Go : `go build ./...`, `go vet ./...`, `go test ./...` passent
+  (1 paquet testé, `pkg/mth`) sans `config.json`, qui n'est lu qu'à l'exécution.
+- `npm run selftest` et `npm run selftest:scenes` restent **hors CI** par
+  nature : ils lisent `public/scenes/`. `selftest:scenes` échoue d'ailleurs ici
+  (3 scènes fantômes dans `scenes.json` : `paristest`,
+  `conservatoire-national-des-arts-et-metiers`, `havre`) — c'est un état local,
+  `node tools/sync-scenes.mjs` le règle.
+- La release rejoue exactement `selftest:ci` avant de publier : ce qui sort en
+  version a passé les mêmes vérifications que la CI.
+
+### Pas de CD, et pourquoi
+
+Le build statique **ne sait pas démarrer seul**. `src/operator.js` charge l'état
+opérateur depuis `/__operator`, une API servie par `tools/map-api-plugin.mjs`,
+qui est un plugin Vite `apply: 'serve'` — il n'existe qu'en `npm run dev`. Sans
+lui, `loadOperator()` jette au boot : pas de terminal, pas de vol. S'y ajoute
+que `public/scenes/` (~900 Mo) n'est ni versionné ni hébergé.
+
+Déployer demanderait donc, au choix :
+1. un repli statique pour l'état opérateur (localStorage) et pour la liste des
+   scènes — la voie la moins chère, et la seule qui rende GitHub Pages jouable ;
+2. ou un vrai serveur qui porte `/__operator` (+ les scènes) en production.
+
+Rien de tout ça n'est fait. Tant que ce n'est pas tranché, la « livraison »
+d'une version est l'archive `dist` attachée à la GitHub Release.
+
+### NON vérifié
+
+- `.github/workflows/ci.yml` n'a **jamais tourné sur un runner** : les commandes
+  sont vérifiées ici, pas l'enchaînement GitHub Actions (cache npm, versions
+  d'actions, `setup-go` sur un `go.mod` en `go 1.26.5`).
+- `.github/workflows/release.yml` n'a **jamais tourné** : aucun tag n'a encore
+  été poussé, aucune release n'existe. La première coupe (`npm run release --
+  minor` → `v0.1.0`, puis `git push origin v0.1.0`) est son premier test.
+  Points à surveiller ce jour-là : le `npm ci` du runner, le `npm run build`
+  sans `public/scenes/` (gitignoré), et le droit d'écriture du `GITHUB_TOKEN`
+  sur les releases.
+- Rien n'affiche la version **dans l'UI** : elle n'est que dans la console et
+  sur `window`. À décider si l'écran BOOT ou FIELD doit la porter — sachant que
+  `BUILD NOTES` occupe déjà ce registre visuel avec des numéros diégétiques.
+
 ## Leviers de secours si besoin
 
 - `npm run prep:light` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,

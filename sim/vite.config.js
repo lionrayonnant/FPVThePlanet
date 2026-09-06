@@ -1,4 +1,9 @@
+import { readFileSync } from 'node:fs';
 import mapApiPlugin from './tools/map-api-plugin.mjs';
+
+// La version du build vient de package.json (voir CHANGELOG.md et
+// tools/release.mjs) : une seule source de vérité, injectée à la compilation.
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default {
 	server: { port: 5173 },
@@ -7,5 +12,6 @@ export default {
 	plugins: [mapApiPlugin()],
 	// Rapier ships as wasm; keeping it unbundled in dev avoids a re-optimise loop.
 	optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
+	define: { __APP_VERSION__: JSON.stringify(version) },
 	build: { target: 'es2022' },
 };

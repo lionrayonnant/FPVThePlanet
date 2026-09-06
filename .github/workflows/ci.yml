@@ -1,0 +1,65 @@
+# Intégration continue.
+#
+# Deux jobs, un par moitié du dépôt. Rien ici ne dépend de `sim/public/scenes/`
+# (gitignoré, ~900 Mo) ni du réseau : `npm run selftest:ci` tourne en ~2 min et
+# les tests qui ont besoin d'une scène installée se retirent d'eux-mêmes en
+# disant SKIP.
+#
+# C'est la même commande que .github/workflows/release.yml lance avant de
+# publier un tag : ce qui sort en version a passé exactement ces vérifications.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Un push qui en remplace un autre sur la même branche annule le job précédent.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sim:
+    name: sim — selftests et build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sim/package-lock.json
+
+      - run: npm ci
+
+      - name: Selftests (sans navigateur, sans scène, sans réseau)
+        run: npm run selftest:ci
+
+      - name: Build
+        run: npm run build
+
+  exporter:
+    name: flyover-reverse-engineering — vet, build, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flyover-reverse-engineering
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: flyover-reverse-engineering/go.mod
+          cache-dependency-path: flyover-reverse-engineering/go.sum
+
+      # config.json (le token Flyover) est gitignoré et n'est lu qu'à
+      # l'exécution : compiler et tester s'en passent.
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
