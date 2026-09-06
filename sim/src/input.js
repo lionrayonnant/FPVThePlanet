@@ -2,8 +2,20 @@
 // regardless of whether they came from a radio or the keyboard.
 
 import { isTextEntry } from './menu-nav.js';
+import {
+	CAL_CHANNELS,
+	calibrationToMap,
+	normalizeChannel,
+	throttleFromCalibrated,
+} from './calibration.js';
 
 const STORAGE_KEY = 'fpvmaps.gamepadMap';
+// Calibrages mesurés, indexés PAR PÉRIPHÉRIQUE (issue #277). STORAGE_KEY, lui,
+// n'a jamais tenu qu'un seul mappage pour tout le monde : brancher une manette
+// après avoir remappé une radio récupérait le mappage de la radio.
+const CAL_STORAGE_KEY = 'fpvmaps.gamepadCal';
+// Deadband par défaut, utilisé tant que le périphérique n'a pas été calibré.
+// Un calibrage le remplace par le bruit RÉELLEMENT mesuré au repos.
 const DEADBAND = 0.06;
 const GAMEPAD_MOVE_THRESHOLD = 0.15;
 
@@ -146,6 +158,110 @@ export const CHANNELS = [
 ];
 
 // -----------------------------------------------------------------------------
+// CALIBRAGE MESURÉ (issue #277)
+//
+// Le calibrage produit par src/calibration.js décrit le périphérique tel qu'il
+// est : neutre, course et bruit mesurés, mode de course du gaz observé. Il
+// prime sur `map` + `throttleMode`, qui restent le chemin des périphériques
+// jamais calibrés.
+// -----------------------------------------------------------------------------
+
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+
+export function isValidCalibration(cal) {
+	if (!cal || typeof cal !== 'object') return false;
+	if (cal.throttleMode !== 'full' && cal.throttleMode !== 'half') return false;
+	if (!isNum(cal.deadband)) return false;
+	const ch = cal.channels;
+	if (!ch || typeof ch !== 'object') return false;
+	return CAL_CHANNELS.every((name) => {
+		const c = ch[name];
+		if (!c || typeof c !== 'object' || !isNum(c.axis)) return false;
+		return name === 'throttle'
+			? isNum(c.lo) && isNum(c.hi)
+			: isNum(c.center) && isNum(c.span) && typeof c.invert === 'boolean';
+	});
+}
+
+// Le calibrage d'UN périphérique, ou null. Un stockage illisible retombe sur
+// null plutôt que de jeter : une clé corrompue ne doit pas empêcher de booter,
+// même règle que loadMap().
+export function calStoreGet(store, padId) {
+	if (!store || typeof store !== 'object') return null;
+	const cal = store[padId];
+	return isValidCalibration(cal) ? cal : null;
+}
+
+export function calStoreSet(store, padId, cal) {
+	return { ...(store && typeof store === 'object' ? store : {}), [padId]: cal };
+}
+
+// Les quatre sticks lus à travers le calibrage. Aucune supposition : ni « le
+// neutre est à 0 », ni « la course vaut ±1 », ni « ce gaz revient au centre ».
+export function sticksFromCalibration(axes, cal) {
+	const c = cal.channels;
+	const at = (name) => axes[c[name].axis] ?? 0;
+	return {
+		throttle: throttleFromCalibrated(at('throttle'), c.throttle),
+		yaw: normalizeChannel(at('yaw'), c.yaw, cal.deadband),
+		pitch: normalizeChannel(at('pitch'), c.pitch, cal.deadband),
+		roll: normalizeChannel(at('roll'), c.roll, cal.deadband),
+	};
+}
+
+// Un calibrage « supposé » à partir d'un profil écrit à la main : c'est ce que
+// devient un remap manuel fait sur un périphérique jamais calibré. Les valeurs
+// de course y sont des suppositions (neutre 0, course ±1) — exactement celles
+// qu'un vrai calibrage remplace par des mesures.
+export function assumedCalibration(map, throttleMode) {
+	const channels = {};
+	for (const name of CAL_CHANNELS) {
+		const m = map[name];
+		channels[name] = name === 'throttle'
+			? throttleEndpoints(m.axis, m.invert, throttleMode)
+			: { axis: m.axis, center: 0, span: 1, invert: !!m.invert };
+	}
+	return { channels, deadband: DEADBAND, throttleMode };
+}
+
+// Un remap manuel appliqué à un calibrage. Le panneau Tab laisse toujours
+// choisir l'axe et le sens à la main : ce chemin doit continuer à marcher SUR
+// un périphérique calibré, sinon la case « inv » n'aurait plus aucun effet.
+//
+// Ce qu'on garde et ce qu'on jette : sur le même axe, le pilote conteste un
+// SENS, pas une mesure — neutre et course restent. Sur un autre axe, rien n'a
+// jamais été mesuré, on retombe sur les suppositions.
+export function remapChannel(cal, channel, axis, invert) {
+	const previous = cal.channels[channel];
+	const sameAxis = previous?.axis === axis;
+
+	let next;
+	if (channel === 'throttle') {
+		// Le plancher reste le plancher. Sur un gaz auto-centré c'est le
+		// neutre : le déplacer mettrait du gaz manette lâchée.
+		next = sameAxis
+			? { axis, lo: previous.lo, hi: previous.lo + (invert ? -1 : 1) * Math.abs(previous.hi - previous.lo) }
+			: throttleEndpoints(axis, invert, cal.throttleMode);
+	} else {
+		next = sameAxis
+			? { ...previous, invert: !!invert }
+			: { axis, center: 0, span: 1, invert: !!invert };
+	}
+
+	return { ...cal, channels: { ...cal.channels, [channel]: next } };
+}
+
+// Plancher et plafond d'un gaz dont on ne connaît que le sens : pleine course
+// d'une butée à l'autre, ou demi-course à partir du neutre.
+function throttleEndpoints(axis, invert, throttleMode) {
+	// Pleine course : d'une butée à l'autre, soit 2 unités d'axe. Demi-course :
+	// du neutre à une butée, soit 1.
+	const span = throttleMode === THROTTLE_MODE.radio ? 2 : 1;
+	const lo = throttleMode === THROTTLE_MODE.radio ? (invert ? 1 : -1) : 0;
+	return { axis, lo, hi: lo + (invert ? -span : span) };
+}
+
+// -----------------------------------------------------------------------------
 // DEADZONE
 // -----------------------------------------------------------------------------
 
@@ -173,6 +289,12 @@ export class Input {
 		this.map =
 			saved ??
 			defaultMapForKind('generic');
+
+		// Calibrages mesurés, un par périphérique (issue #277). `calibration`
+		// est celui du périphérique ACTIF : tant qu'il est nul, on lit les axes
+		// comme avant, avec le profil deviné.
+		this._calStore = loadCalStore();
+		this.calibration = null;
 
 		// Réévalué à l'activation d'une manette : une radio garde la pleine
 		// course, tout le reste passe en demi-course.
@@ -433,10 +555,45 @@ export class Input {
 			this.map = defaultMapForKind(kind);
 		}
 
+		// Un calibrage MESURÉ pour CE périphérique prime sur tout le reste :
+		// c'est la seule source qui ne devine rien. Il fixe aussi le mode de
+		// course du gaz, qui n'est alors plus déduit de la marque.
+		this.applyCalibration(calStoreGet(this._calStore, p.id));
+
 		console.log('[input] using gamepad:', p.id, `(${kind})`);
 		console.log('[input] active map:', this.map, this.throttleMode);
+		console.log('[input] calibrated:', this.calibration ? 'yes' : 'no');
 
 		return p;
+	}
+
+	// ---------------------------------------------------------------------------
+	// CALIBRAGE
+	// ---------------------------------------------------------------------------
+
+	// Le calibrage du périphérique actif, ou null pour revenir au profil deviné.
+	applyCalibration(cal) {
+		this.calibration = cal;
+		if (!cal) return;
+		this.map = calibrationToMap(cal);
+		this.throttleMode = cal.throttleMode;
+	}
+
+	// Fin de l'assistant : on persiste SOUS L'IDENTIFIANT du périphérique, pour
+	// que brancher l'autre manette ne récupère pas ce calibrage-ci.
+	setCalibration(padId, cal) {
+		this._calStore = calStoreSet(this._calStore, padId, cal);
+		saveCalStore(this._calStore);
+		this.applyCalibration(cal);
+	}
+
+	// L'identifiant du périphérique actif — la clé de stockage d'un calibrage.
+	activePadId() {
+		return (navigator.getGamepads?.() ?? [])[this.gamepadIndex]?.id ?? null;
+	}
+
+	isCalibrated(padId = this.activePadId()) {
+		return padId !== null && calStoreGet(this._calStore, padId) !== null;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -473,6 +630,7 @@ export class Input {
 
 			this.map = defaultMapForKind(kind);
 			this.throttleMode = throttleModeForKind(kind);
+			this.applyCalibration(calStoreGet(this._calStore, pad.id));
 
 			console.log(
 				'[input] manually selected:',
@@ -506,6 +664,15 @@ export class Input {
 			STORAGE_KEY,
 			JSON.stringify(this.map)
 		);
+
+		// Sur un périphérique calibré, le mappage lu en vol vient du calibrage :
+		// sans cette ligne, changer l'axe ou cocher « inv » n'aurait tout
+		// simplement plus d'effet. Le remap suit, et reste attaché à CE
+		// périphérique.
+		const padId = this.activePadId();
+		if (this.calibration && padId) {
+			this.setCalibration(padId, remapChannel(this.calibration, channel, axis, invert));
+		}
 	}
 
 	// ---------------------------------------------------------------------------
@@ -550,6 +717,14 @@ export class Input {
 	// ---------------------------------------------------------------------------
 
 	readStandardGamepad(pad) {
+		// Périphérique calibré : on lit ses axes avec ses propres mesures —
+		// neutre, course et bruit relevés sur CE matériel. Le chemin ci-dessous
+		// reste celui des périphériques jamais calibrés, avec ses suppositions.
+		if (this.calibration) {
+			Object.assign(this.sticks, sticksFromCalibration(pad.axes, this.calibration));
+			return true;
+		}
+
 		const raw = (channel) => {
 			const m =
 				this.map[channel];
@@ -712,6 +887,27 @@ export class Input {
 // -----------------------------------------------------------------------------
 // LOAD SAVED MAP
 // -----------------------------------------------------------------------------
+
+// Les calibrages mesurés, tous périphériques confondus. Illisible -> {} : une
+// clé corrompue ne doit pas empêcher le sim de booter.
+function loadCalStore() {
+	try {
+		const saved = JSON.parse(localStorage.getItem(CAL_STORAGE_KEY));
+		if (saved && typeof saved === 'object') return saved;
+	} catch {
+		// Ignore invalid saved data.
+	}
+	return {};
+}
+
+function saveCalStore(store) {
+	try {
+		localStorage.setItem(CAL_STORAGE_KEY, JSON.stringify(store));
+	} catch {
+		// Un stockage plein ou refusé ne doit pas casser la fin de l'assistant :
+		// le calibrage reste actif pour la session en cours.
+	}
+}
 
 function loadMap() {
 	try {
