@@ -1,6 +1,8 @@
 // node tools/drone-shape-selftest.mjs — la recette PURE du quad (issue #250).
 import { shapeOf } from '../src/drone-shape.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
+import { motorsOf } from '../src/quad.js';
+import { createHash } from 'node:crypto';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 
@@ -29,6 +31,62 @@ for (const family of FAMILIES) {
 	check(`${family}: caméra inclinée du uptilt`, Math.abs(roles(s, 'camera')[0].rotX - targetCamera({ seed: `shape::${family}`, family }).uptiltDeg * Math.PI / 180) < 1e-9);
 	check(`${family}: LED à l'arrière (+Z)`, roles(s, 'led')[0].at[2] > 0);
 	check(`${family}: caméra à l'avant (−Z)`, roles(s, 'camera')[0].at[2] < 0);
+}
+
+// Issue #264 : la géométrie visible et le mixeur lisent la MÊME table.
+// quad.js:64-71 — 1 arrière-droit spin +1, 2 avant-droit spin −1,
+// 3 arrière-gauche spin −1, 4 avant-gauche spin +1.
+for (const family of FAMILIES) {
+	const s = make(family);
+	const props = roles(s, 'prop');
+	const motors = motorsOf(PROFILES[family]);
+	check(`${family}: chaque hélice porte son index moteur`,
+		props.every((p, i) => p.motor === i) && props.length === 4,
+		props.map((p) => p.motor).join(','));
+	check(`${family}: l'hélice k est à la position du moteur k`,
+		props.every((p) => {
+			const m = motors[p.motor];
+			return Math.abs(p.at[0] - m.x) < 1e-9 && Math.abs(p.at[2] - m.z) < 1e-9;
+		}));
+	check(`${family}: l'hélice k porte le spin du moteur k`,
+		props.every((p) => p.spin === motors[p.motor].spin));
+	// Les deux hélices DANS LE CHAMP sont les avant : moteurs 1 et 3.
+	const front = props.filter((p) => p.at[2] < 0).map((p) => p.motor).sort();
+	check(`${family}: les deux hélices avant sont les moteurs 1 et 3`,
+		front.join(',') === '1,3', front.join(','));
+	check(`${family}: les deux avant tournent en sens opposés`,
+		props[1].spin === -props[3].spin);
+	// Bras, moteurs et conduits portent le même index que leur hélice.
+	for (const role of ['arm', 'motor', 'duct']) {
+		const r = roles(s, role);
+		if (!r.length) continue;
+		check(`${family}: chaque ${role} porte son index moteur`,
+			r.every((p, i) => p.motor === i) && r.length === 4,
+			r.map((p) => p.motor).join(','));
+	}
+}
+// Issue #264 : non-régression. shapeOf() SANS `detail` doit rendre exactement
+// la géométrie d'aujourd'hui — mêmes primitives, mêmes positions, mêmes tailles
+// —, sinon les drones ambiants changeraient d'aspect en douce. L'empreinte est
+// insensible à l'ORDRE des parts (les hélices naissent maintenant de motorsOf(),
+// qui les énumère dans l'ordre Betaflight) et ignore les champs ajoutés
+// (`motor`, `spin`) : ce qu'on gèle, c'est la forme, pas la recette.
+{
+	const GOLDEN = {
+		freestyle5: '7a53adf12c1da863',
+		race5: '57200a88c5d0043c',
+		cinewhoop: '0365daed5be86ae2',
+		longrange: 'a69ea76cf782fb07',
+		heavy5: '7b5d1b2a28f29660',
+		toothpick: '4debf646ed4fb693',
+	};
+	for (const family of FAMILIES) {
+		const rows = make(family).parts
+			.map((p) => JSON.stringify({ kind: p.kind, role: p.role, at: p.at, size: p.size, rotX: p.rotX ?? 0, rotY: p.rotY ?? 0, blades: p.blades ?? 0 }))
+			.sort();
+		const digest = createHash('sha256').update(rows.join('\n')).digest('hex').slice(0, 16);
+		check(`${family}: géométrie par défaut inchangée`, digest === GOLDEN[family], digest);
+	}
 }
 check('long range : disques de 88,9 mm', Math.abs(roles(make('longrange'), 'prop')[0].size[0] - 0.0889) < 1e-4);
 check('micro : deux pales', roles(make('toothpick'), 'prop')[0].blades === 2);
