@@ -29,6 +29,14 @@ rapport avec les versions ci-dessous.
   poussés ensemble, ou un axe déjà pris, font redemander la consigne au lieu
   d'attribuer un mappage faux en silence. `src/calibration.js` est une machine à
   états pure, couverte par `tools/calibration-selftest.mjs`.
+- `node tools/sync-scenes.mjs --adopt` réenregistre dans `scenes.json` les
+  scènes présentes dans `public/scenes/` mais absentes du catalogue (#275) :
+  les deux dérivent dans les deux sens, l'outil ne savait retirer que les
+  fantômes. Chaque entrée est reconstruite depuis le `manifest.json` de la
+  scène. L'adoption est explicite : `scenes.json` est versionné.
+- `npm run selftest:ci` couvre le chargeur face à un fichier absent
+  (`tools/loader-guard-selftest.mjs`).
+
 - Versionnage du dépôt (#257) : `CHANGELOG.md`, version SemVer dans
   `sim/package.json`, tags `vX.Y.Z`.
 - `npm run release -- patch|minor|major|X.Y.Z` : bump de la version, datation
@@ -63,6 +71,15 @@ rapport avec les versions ci-dessous.
   qu'un remap fait pour une radio restait collé en branchant une DualShock 4 —
   dont les axes sont dans un autre ordre ET dont le gaz est en demi-course. Les
   calibrages sont désormais rangés par identifiant de périphérique.
+- Une scène absente ne fait plus échouer le boot sur un `SyntaxError:
+  Unexpected token '<'` (#275). Un fichier statique manquant ne rend **pas**
+  404 : Vite, et tout hébergement avec un fallback SPA, rabat la requête sur
+  `index.html` et répond 200 `text/html`. `res.ok` ne disait donc rien, et le
+  `res.json()` suivant mourait sur `<!doctype`. Le chargeur regarde désormais le
+  type de contenu, et son message nomme la scène et dit quoi lancer.
+- Le garde-fou anti-scènes-fantômes de `loadSceneList()` filtre enfin quelque
+  chose (#275) : il gardait toute scène dont le `HEAD` répondait `ok`, ce qui
+  était **toujours** vrai — c'est lui qui laissait choisir une scène absente.
 
 - La vue embarquée montrait la machine entière (#264) : le boîtier de caméra,
   centré sur l'oeil, plus la batterie et la GoPro derrière lui remplissaient le
