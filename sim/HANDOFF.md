@@ -1,6 +1,6 @@
 # Handoff — POC simulateur de drone FPV (Paris / Tour Eiffel)
 
-État au 2026-08-27, réorganisé le 2026-08-29. Écrit pour reprendre le travail
+État au 2026-09-06, réorganisé le 2026-08-29. Écrit pour reprendre le travail
 sans redériver le contexte.
 
 Ce fichier ne garde que **l'état courant**. Les récits de session détaillés —
@@ -2007,6 +2007,111 @@ Personne n'a encore écouté le résultat en jeu. Pour écouter vite sans passer
 par TARGET SCAN : `?scene=<slug>&hack=<type>` (types dans
 `tools/hack-model.mjs`, ex. `?scene=paristest&hack=gnss+spoof`) déclenche
 l'écran de hack directement au chargement.
+
+## Drones ambiants (issue #250)
+
+Les candidats du TARGET SCAN non pris volent autour du joueur pendant la
+session (FIELD seulement) : un ensemble de quads sans lien, chacun sur une
+routine par famille (race en virages couchés, cinewhoop nez vers son ancre,
+long range en stade, micro nerveux au ras du sol), rendus en un maillage
+fusionné auto-éclairé avec LED billboard et flou d'hélice, et quatre voix
+audio (distance, ombre du dos, Doppler, envoi vers l'acoustique du lieu).
+Implémenté sur `main`, commits `92643a1..5f071b4`.
+
+### Vérifié — sans navigateur
+
+- `tools/ambient-selftest.mjs` (~150 checks) : ensemble des candidats non
+  pris, routines par famille, courbes, bulle/ancres/validation, modèle
+  d'attitude.
+- `tools/drone-shape-selftest.mjs` (66) : recette géométrique paramétrique par
+  famille.
+- `tools/drone-mesh-selftest.mjs` (23) : Three en Node — maillage fusionné,
+  matériau auto-éclairé, LED clampée dans le vertex shader, pas de lumière
+  Three.
+- `tools/ambient-audio-selftest.mjs` (11) : synthèse des quatre voix contre un
+  faux contexte Web Audio.
+- `tools/ambient-drones-selftest.mjs` (27) : l'instance branchée sur une scène
+  et une caméra factices, espion sur les voix (régime établi, positions
+  finies, dispose).
+- Les cinq fichiers ci-dessus sont chaînés en queue de `npm run
+  selftest:operator`, tous verts.
+- Bloc scène ajouté à la fin de `tools/selftest.mjs` (« ambient drones (real
+  trimesh) ») : 10 graines × 4 naissances contre le vrai trimesh, rejeu à
+  257 points par courbe (9 766 points au total). Sur `havre` :
+  **38/40 nés, 38/38 sans mur, 38/38 au-dessus de l'AGL de leur famille**.
+
+**Décisions prises pendant l'implémentation, absentes de la spec/plan** :
+
+- Profil de sol à **64 échantillons** (obstruction testée sur 16 segments) au
+  lieu d'un nombre plus faible, après qu'un rejeu sur `havre` a montré un
+  immeuble logé entre deux nœuds d'un profil plus grossier.
+- La composante verticale des figures est contrainte **non négative** : l'AGL
+  tiré pour une courbe est celui de son point le plus bas.
+- Le huit (cinewhoop) est reparamétré par **abscisse curviligne C1** (Simpson
+  pour la longueur, Hermite pour la position) ; les dérivées (vitesse,
+  attitude) sont prises à **pas fixe 1/60**, pas au pas de rendu.
+- Jitter du micro ramené à **0,15 m** (la valeur de spec, 0,3 m, cassait la
+  vitesse dérivée — issue de suivi ci-dessous).
+- `TILT_MAX_DEG = 70` ajouté en plus de la borne par TWR (v²/r) — cette
+  dernière seule ne suffisait pas à garantir ≤ 75° (issue de suivi).
+- Le plancher de la clôture (geofence) est vérifié **à la hauteur de vol** de
+  la courbe, pas au sol.
+- `spawnOne` fait tourner le slot de départ à chaque appel (pas toujours le
+  même index en tête).
+- Les voix audio démarrent **paresseusement**, seulement quand un
+  `AudioContext` existe déjà (pas de création anticipée).
+- `silence()` est **verrouillé** jusqu'au prochain `reset()`/`setScan()` (un
+  appel répété ne redémarre rien tant que la scène n'a pas changé).
+
+### Non vérifié — marche à suivre pour l'opérateur, dans Chrome
+
+Sur cette machine, `public/scenes/tour-eiffel` n'est pas installé — `npm run
+selftest` (scène par défaut) échoue par `ENOENT` avant même de démarrer.
+Utiliser `npm run selftest public/scenes/havre` (la seule carte installée
+avec `corridor.scale = 1`) pour le bloc scène ci-dessus ; les trois autres
+cartes locales (`paristest`, `conservatoire-national-des-arts-et-metiers`)
+n'ont pas été essayées pour ce bloc.
+
+```text
+1. npm run dev, FIELD, une zone, TARGET SCAN avec ≥ 3 signaux, prendre un, hack, JACK IN.
+2. Console : __sim.debug().ambient → count = signaux − 1, families, positions.
+   Au banc : __sim.debug().ambient === undefined.
+3. Regarder autour : un point qui bat (LED) doit se voir avant le corps ;
+   s'en approcher à 30 m → un quad avec hélices floues, incliné dans ses virages.
+   race : couché ; cinewhoop : à plat, nez vers son sujet ; long range : haut et droit ;
+   micro : au ras du sol, nerveux.
+4. Écoute : au casque, le passage d'un drone doit aller d'une oreille à l'autre,
+   plus sourd dans le dos, glissando au passage (Doppler). Le moteur du joueur
+   ne doit jamais pomper (limiteur) : si oui, baisser VOICE.g0.
+5. __sim.debug().drawCalls avant/après = +2 par drone visible ; ambient.audioNodes
+   constant en vol ; longtask nul (Performance panel, 30 s de vol).
+6. Traverser la carte en long range : jamais de ciel vide, jamais de drone qui
+   apparaît dans le champ (ambient.relocations monte, count reste = n).
+7. Mode direct (LIVE) : même chose, count peut mettre quelques secondes à monter
+   (terrain non chargé → spawnFailures monte puis se stabilise).
+8. Resume d'une session LANDED : mêmes familles qu'à la première session.
+```
+
+Points supplémentaires à surveiller pendant ce parcours :
+
+- **(a) Luminosité au crépuscule (`?night=1`)** : le maillage ambiant prend
+  `sun.ambient` et sa propre atténuation de nuit, alors que les tuiles
+  prennent `cloud.dim`. Si les drones ambiants lisent noirs la nuit alors que
+  le sol reste visible, c'est le contrat d'uniformes de `src/drone-mesh.js`
+  qu'il faut harmoniser (issue de suivi ci-dessous).
+- **(b) En `?live=`** : la densité de brouillard des ambiants peut rester à
+  0 (chemin dev, terrain pas nécessairement chargé) — normal sur ce mode, pas
+  un bug à signaler seul.
+- **(c) Flou d'hélice** : tourne à 36 rad/s ; vérifier qu'il se lit comme un
+  flou continu et non comme un strobe.
+- **(d) `npm run selftest public/scenes/havre`** pour rejouer le bloc scène
+  ci-dessus en un coup.
+
+**Suites** (issues créées pendant cette tâche pour les écarts constatés en
+relisant le code, non bloquantes pour la fermeture de #250) : #260 (borne
+conjointe d'inclinaison), #261 (long range impossible sur petite carte),
+#262 (tremblé du micro à 0,15 m au lieu de 0,3 m), #263 (luminosité des
+maillages au crépuscule, à vérifier au navigateur).
 
 ## Non vérifié / à faire
 
