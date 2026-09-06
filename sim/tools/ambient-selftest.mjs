@@ -173,7 +173,9 @@ console.log('\nambient: bulle, ancres, validation');
 		n++;
 		const d = Math.hypot(a.x - player.x, a.z - player.z);
 		const inRing = d >= R_SPAWN[0] - 1e-9 && d <= R_SPAWN[1] + 1e-9;
-		const hidden = outOfView(a.x - player.x, a.z - player.z, a.y - player.y, cam, 120) || d >= 220;
+		// À la hauteur de VOL (y + agl), comme pickAnchor : une ancre au sol
+		// serait jugée cachée pour une raison qu'elle ne vivra jamais.
+		const hidden = outOfView(a.x - player.x, a.z - player.z, (a.y + 10) - player.y, cam, 120) || d >= 220;
 		if (inRect(a) && inRing && hidden) ok++;
 	}
 	function inRect(a) { return insideBounds(bigRect, a.x, a.z, a.y + 10, 20); }
@@ -303,6 +305,23 @@ console.log('\nambient: modèle');
 				mc.count >= 1 && mc.count === found.set.length - 1, `${mc.count}/${found.set.length - 1}`);
 			check('slot impossible : c\'est bien le long range qui manque', mc.alive[0] === 0);
 			check('slot impossible : les échecs sont comptés', mc.stats.spawnFailures > 0, `${mc.stats.spawnFailures}`);
+			// … et il ne coûte plus de RAYONS non plus. La clôture HORIZONTALE
+			// se tranche AVANT le rayon de sol : un long range qui demande 320 m
+			// de marge sur une carte qui en offre 80 est rejeté sans lancer un
+			// seul rayon. Avant le réordonnancement, c'étaient 3 rayons de
+			// maillage complet par frame — 180 par seconde, pour toujours.
+			//
+			// Borne à 3 rayons/s : le slot impossible en coûte 0, et rien
+			// d'autre ne tente de naître (les trois autres volent). La veille
+			// (10 échecs consécutifs → 1 s de pause) borne de toute façon un
+			// slot qui échouerait APRÈS son rayon à ~10 rayons/s, très loin
+			// des 180 d'avant.
+			for (let i = 0; i < 60; i++) frame(mc, player);   // 1 s : régime établi
+			const raysAt1s = mc.stats.raysCast;
+			for (let i = 0; i < 600; i++) frame(mc, player);  // 10 s de plus
+			const perSecond = (mc.stats.raysCast - raysAt1s) / 10;
+			check('slot impossible : ≤ 3 rayons/s en régime établi', perSecond <= 3, `${perSecond.toFixed(1)} rayons/s`);
+			check('slot impossible : les autres volent toujours', mc.count === found.set.length - 1, `${mc.count}`);
 		}
 	}
 

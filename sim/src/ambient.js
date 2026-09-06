@@ -439,6 +439,12 @@ export const VIEW_MARGIN_DEG = 15;
 export const BLOCK_SPAN_M = 2;      // règle de geometrySafe : un mur, pas un toit frôlé
 export const FLOOR_MARGIN_M = 5;    // au-dessus de FLOOR_HOLD de la clôture
 const SPAWN_TRIES_PER_FRAME = 3;
+// Un slot qui échoue en boucle se met en veille : après SPAWN_FAILS_BEFORE_BACKOFF
+// essais consécutifs ratés, on ne le retente plus pendant SPAWN_BACKOFF_S. Le
+// ciel est une ambiance, pas une urgence — une seconde de retard sur une
+// naissance ne se voit pas, trois rayons par frame se paient.
+const SPAWN_FAILS_BEFORE_BACKOFF = 10;
+const SPAWN_BACKOFF_S = 1;
 // Pas de dérivation fixe : l'attitude ne doit pas dépendre du taux de rafraîchissement.
 const DERIVE_H = 1 / 60;
 // Attitude initiale au spawn : sans vent (voir spawnOne).
@@ -488,21 +494,37 @@ export function outOfView(dx, dz, dy, cam, fovDeg) {
 }
 
 // Une ancre dans la couronne, hors champ, dans la clôture, sur du sol. Un
-// rayon. `top`/`span` : d'où et sur quelle longueur lancer vers le bas
+// rayon AU PLUS. `top`/`span` : d'où et sur quelle longueur lancer vers le bas
 // (haut de bbox + 50 et hauteur + 100, comme groundAt de l'entry state).
 // Le plancher se vérifie à la hauteur de VOL (sol + agl) : l'ancre elle-même
 // reste au sol (`y = g`), seule la clôture est testée à `g + agl`.
-export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, agl, stats }) {
-	const { rMin, rMax } = bubbleFor(bounds, player);
+//
+// L'ORDRE des tests est la moitié du travail. La clôture HORIZONTALE ne
+// dépend d'aucune hauteur : elle se tranche avant le rayon, gratuitement. Un
+// slot qui ne peut PAS naître ici (un long range demande 320 m de marge sur
+// une carte qui en offre 80) est donc rejeté sans lancer un seul rayon, au
+// lieu de trois par frame pour toujours.
+//
+// Le cône de vue, lui, vient APRÈS le rayon : il se mesure à la hauteur de
+// VOL (g + agl), pas à celle de l'ancre au sol — un long range à 90 m d'AGL
+// jugé « caché » parce que son ancre est basse naîtrait en plein champ.
+// Ce test-là coûte donc son rayon ; c'est le prix d'une réponse juste.
+//
+// `bubble`, si fourni, évite de recalculer la couronne à chaque essai (et
+// l'objet littéral qui allait avec).
+export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, agl, stats, bubble }) {
+	const { rMin, rMax } = bubble || bubbleFor(bounds, player);
 	const d = rMin + rand() * (rMax - rMin);
 	const a = rand() * TWO_PI;
 	const x = player.x + d * Math.cos(a), z = player.z + d * Math.sin(a);
+	// Clôture horizontale seule : y = +∞ passe toujours la règle du plancher.
+	if (!insideBounds(bounds, x, z, Infinity, radius)) return null;
 	if (stats) stats.raysCast++;
 	const g = rays.groundBelow(x, top, z, span);
 	if (g == null) return null;
 	const y = g;
 	if (!insideBounds(bounds, x, z, y + agl, radius)) return null;
-	if (d < IN_VIEW_MIN_M && !outOfView(x - player.x, z - player.z, y - player.y, cam, fovDeg)) return null;
+	if (d < IN_VIEW_MIN_M && !outOfView(x - player.x, z - player.z, (y + agl) - player.y, cam, fovDeg)) return null;
 	return { x, y, z };
 }
 
@@ -566,7 +588,12 @@ export class AmbientModel {
 		this._att = { ax: 0, ay: 0, az: 0, vx: 0, vy: 0, vz: 0, wind: null, drag: null, mass: 1, yawX: 0, yawZ: -1 };
 		this._q = new Float64Array(4);
 		this._bubble = { rMin: 0, rMax: 0, rLeave: 0 };
-		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0 };
+		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0, bubble: this._bubble };
+		// Veille des slots qui échouent : compteur d'échecs consécutifs et date
+		// (horloge du modèle, cumulée depuis dt) avant laquelle on ne retente pas.
+		this._clock = 0;
+		this._fails = new Uint8Array(MAX_DRONES);
+		this._retryAt = new Float64Array(MAX_DRONES);
 		// Le slot par lequel spawnOne() commence son balayage. Il TOURNE — voir
 		// spawnOne().
 		this._spawnCursor = 0;
@@ -579,6 +606,9 @@ export class AmbientModel {
 		this.alive.fill(0);
 		this.t.fill(0);
 		this._spawnCursor = 0;
+		this._clock = 0;
+		this._fails.fill(0);
+		this._retryAt.fill(0);
 		this.rand = rngFrom(`${this.seed}::ambient`);
 		for (let k = 0; k < this.n; k++) {
 			this.routines[k] = routineFor({
@@ -596,22 +626,26 @@ export class AmbientModel {
 	// arrivait à un long range (rayon leg/2 + radius = 320 m) sur une carte
 	// qui ne peut pas le loger : 0 naissance sur 4, pour toujours.
 	// Rend true si un drone est né.
-	spawnOne({ player, cam, fovDeg, rays, top, span }) {
+	spawnOne({ player, cam, fovDeg, rays, top, span, bubble }) {
+		const bb = bubble || bubbleFor(this.bounds, player, this._bubble);
 		for (let j = 0; j < this.n; j++) {
 			const k = (this._spawnCursor + j) % this.n;
 			if (this.alive[k]) continue;
+			// En veille : on passe au suivant sans consommer l'essai de la frame.
+			if (this._retryAt[k] > this._clock) continue;
 			this._spawnCursor = (k + 1) % this.n;
 			const r = this.routines[k];
 			const radius = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
 			for (let tries = 0; tries < SPAWN_TRIES_PER_FRAME; tries++) {
-				const a = pickAnchor({ rand: this.rand, player, cam, fovDeg, bounds: this.bounds, radius, rays, top, span, agl: r.agl, stats: this.stats });
-				if (!a) { this.stats.spawnFailures++; continue; }
+				const a = pickAnchor({ rand: this.rand, player, cam, fovDeg, bounds: this.bounds, radius, rays, top, span, agl: r.agl, stats: this.stats, bubble: bb });
+				if (!a) { this._fail(k); continue; }
 				if (!validateCurve({ routine: r, anchor: a, rays, heights: this.heights[k], top, span, stats: this.stats })) {
-					this.stats.spawnFailures++; continue;
+					this._fail(k); continue;
 				}
 				this.anchors[3 * k] = a.x; this.anchors[3 * k + 1] = a.y; this.anchors[3 * k + 2] = a.z;
 				this.t[k] = this.rand() * r.period;
 				this.alive[k] = 1;
+				this._fails[k] = 0; this._retryAt[k] = 0;
 				this._place(k, DERIVE_H);
 				this._attitude(k, 10, NO_WIND);
 				return true;
@@ -619,6 +653,14 @@ export class AmbientModel {
 			return false;   // un slot par frame, réussi ou non
 		}
 		return false;
+	}
+
+	_fail(k) {
+		this.stats.spawnFailures++;
+		if (++this._fails[k] >= SPAWN_FAILS_BEFORE_BACKOFF) {
+			this._fails[k] = 0;
+			this._retryAt[k] = this._clock + SPAWN_BACKOFF_S;
+		}
 	}
 
 	_place(k, h) {
@@ -632,6 +674,7 @@ export class AmbientModel {
 
 	update({ dt, player, cam, fovDeg, rays, top, span, wind }) {
 		if (dt <= 0) return;
+		this._clock += dt;
 		bubbleFor(this.bounds, player, this._bubble);
 		const rLeave = this._bubble.rLeave;
 		// Départs : l'ancre a quitté la bulle.
