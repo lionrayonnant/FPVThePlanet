@@ -7,7 +7,7 @@
 
 import {
 	rngFrom, ambientSet, ROUTINES, lateralAccelMax, routineFor,
-	MAX_DRONES, G, TURN_MARGIN,
+	MAX_DRONES, G, TURN_MARGIN, TILT_MAX_DEG,
 	curveLocal, curveHeights, curveAt, derive, SAMPLES,
 	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
 	attitudeFrom, tiltOf,
@@ -53,6 +53,8 @@ console.log('\nambient: routines');
 		check(`${family}: AGL dans la plage`, r.agl >= spec.agl[0] && r.agl <= spec.agl[1]);
 		check(`${family}: v²/r ≤ 0,6·a_max`, r.speed * r.speed / r.radius <= TURN_MARGIN * lateralAccelMax(build.spec.twr) + 1e-9,
 			`${(r.speed * r.speed / r.radius).toFixed(1)} vs ${(TURN_MARGIN * lateralAccelMax(build.spec.twr)).toFixed(1)}`);
+		check(`${family}: v²/r ≤ g·tan(TILT_MAX)`, r.speed * r.speed / r.radius <= G * Math.tan(TILT_MAX_DEG * Math.PI / 180) + 1e-9,
+			`${(r.speed * r.speed / r.radius).toFixed(1)} vs ${(G * Math.tan(TILT_MAX_DEG * Math.PI / 180)).toFixed(1)}`);
 		check(`${family}: période > 0`, r.period > 0);
 	}
 	const a = routineFor({ family: 'race5', twr: 8, rand: rngFrom('same') });

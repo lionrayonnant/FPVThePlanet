@@ -14,6 +14,10 @@ export const G = 9.81;
 export const MAX_DRONES = 4;
 // v²/r ≤ TURN_MARGIN · a_max : un quad ne vire pas en butée de poussée.
 export const TURN_MARGIN = 0.6;
+// L'attitude dérive de a : une accélération latérale au-delà de G·tan(70°)
+// pencherait le corps au-delà des 75° que la spec autorise (drag et
+// accélération verticale inclus) — garanti par construction, pas mesuré.
+export const TILT_MAX_DEG = 70;
 
 // Hash FNV-1a d'une chaîne → graine 32 bits, puis xorshift (même idiome que
 // tools/target-model.mjs, src/entry-state.js et src/link.js).
@@ -77,8 +81,8 @@ export function routineFor({ family, twr, rand }) {
 	const radius = lerp(rand, spec.radius);
 	const agl = lerp(rand, spec.agl);
 	let speed = lerp(rand, spec.speed);
-	// Le TWR borne le virage.
-	const vMax = Math.sqrt(TURN_MARGIN * lateralAccelMax(twr) * radius);
+	// Le TWR borne le virage ; l'inclinaison résultante aussi (garantie par construction).
+	const vMax = Math.sqrt(Math.min(TURN_MARGIN * lateralAccelMax(twr), G * Math.tan(TILT_MAX_DEG * Math.PI / 180)) * radius);
 	if (speed > vMax) speed = vMax;
 	const dir = rand() < 0.5 ? -1 : 1;
 	const phase = rand() * Math.PI * 2;
