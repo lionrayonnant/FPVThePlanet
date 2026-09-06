@@ -1,7 +1,7 @@
 # Intégration continue.
 #
 # Deux jobs, un par moitié du dépôt. Rien ici ne dépend de `sim/public/scenes/`
-# (gitignoré, ~900 Mo) ni du réseau : `npm run selftest:ci` tourne en ~1 min et
+# (gitignoré, ~900 Mo) ni du réseau : `npm run selftest:ci` tourne en ~2 min et
 # les tests qui ont besoin d'une scène installée se retirent d'eux-mêmes en
 # disant SKIP.
 #

@@ -128,7 +128,7 @@ The `BUILD NOTES` build numbers (`sim/tools/buildnotes-model.mjs`) are diegetic 
 
 CI
 
-`.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~1 min) and `npm run build` for `sim/`, plus `go vet` / `go build` / `go test` for `flyover-reverse-engineering/`. The release workflow runs the same `selftest:ci` before publishing a tag.
+`.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~2 min) and `npm run build` for `sim/`, plus `go vet` / `go build` / `go test` for `flyover-reverse-engineering/`. The release workflow runs the same `selftest:ci` before publishing a tag.
 
 Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/landing-selftest.mjs` is the pattern.
 
