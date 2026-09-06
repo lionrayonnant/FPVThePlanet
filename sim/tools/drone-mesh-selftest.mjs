@@ -1,7 +1,8 @@
 // node tools/drone-mesh-selftest.mjs — l'assemblage Three du quad (issue #250),
 // en Node : la géométrie et les uniformes se vérifient sans GPU.
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { buildDroneMesh, DroneMaterial, LedMaterial, setSun, setFog } from '../src/drone-mesh.js';
+import { buildDroneMesh, DroneMaterial, LedMaterial, setSun, setFog, setTime, setResolution } from '../src/drone-mesh.js';
 import { shapeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
@@ -35,20 +36,29 @@ console.log('drone-mesh');
 	check('uniformes attendus', ['uSunDir', 'uAmbient', 'uNight', 'uFogColor', 'uFogDensity', 'uTime'].every((u) => u in m.material.uniforms));
 	check('LED additive', m.ledMaterial.blending === THREE.AdditiveBlending && m.ledMaterial.depthWrite === false);
 	check('LED : uMinPx et uResolution', 'uMinPx' in m.ledMaterial.uniforms && 'uResolution' in m.ledMaterial.uniforms);
+	check('LED : frustumCulled false', m.led.frustumCulled === false);
 	check('matrixAutoUpdate false', m.group.matrixAutoUpdate === false);
 	check('frustumCulled', m.body.frustumCulled === true);
 	setSun(m.material, { x: 0, y: 1, z: 0 }, 0.8, 0.2);
 	check('setSun écrit', m.material.uniforms.uAmbient.value === 0.8 && m.material.uniforms.uNight.value === 0.2);
 	setFog(m.material, 0x9fb8cc, 0.002);
 	check('setFog écrit', m.material.uniforms.uFogDensity.value === 0.002);
+	setTime(m.material, 1.5);
+	check('setTime écrit', m.material.uniforms.uTime.value === 1.5);
+	setResolution(m.ledMaterial, 1280, 720);
+	check('setResolution écrit', m.ledMaterial.uniforms.uResolution.value.x === 1280 && m.ledMaterial.uniforms.uResolution.value.y === 720);
+	const parent = new THREE.Group();
+	parent.add(m.group);
 	const before = geo.attributes.position.count;
 	m.dispose();
 	check('dispose ne jette pas et retire du parent', m.group.parent === null && before > 0);
 }
 {
+	const tileSrc = readFileSync(new URL('../src/TileMaterial.js', import.meta.url), 'utf8');
+	const fogFormula = tileSrc.match(/1\.0 - exp\([^)]*\)/)[0];
 	const shader = new DroneMaterial().fragmentShader;
-	check('formule de brouillard identique à TileMaterial', shader.includes('1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth)'));
-	check('sinus seulement… non : pas de lumière Three', !shader.includes('directionalLights'));
+	check('formule de brouillard identique à TileMaterial', shader.includes(fogFormula), fogFormula);
+	check('pas de lumière Three (directionalLights absent)', !shader.includes('directionalLights'));
 	check('LED : clamp en pixels dans le vertex shader', new LedMaterial().vertexShader.includes('uMinPx'));
 }
 {

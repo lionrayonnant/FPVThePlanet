@@ -72,11 +72,11 @@ export function DroneMaterial() {
 			out vec4 vColor;
 			out vec3 vNormalW;
 			out float vDepth;
-			out vec3 vLocal;
+			out vec2 vUv;
 			void main() {
 				vColor = color;
 				vNormalW = normalize(mat3(modelMatrix) * normal);
-				vLocal = position;
+				vUv = uv;
 				vec4 mv = modelViewMatrix * vec4(position, 1.0);
 				vDepth = -mv.z;
 				gl_Position = projectionMatrix * mv;
@@ -92,7 +92,7 @@ export function DroneMaterial() {
 			in vec4 vColor;
 			in vec3 vNormalW;
 			in float vDepth;
-			in vec3 vLocal;
+			in vec2 vUv;
 			out vec4 outColor;
 			void main() {
 				// Éclairage à la main : hémisphère + soleil, mis à l'échelle par
@@ -101,9 +101,15 @@ export function DroneMaterial() {
 				vec3 c = vColor.rgb * lit * uAmbient * (1.0 - 0.75 * uNight);
 				float a = vColor.a;
 				// Disques d'hélice : un bruit radial qui tourne, flou d'hélice sans
-				// géométrie animée (alpha < 1 ⇔ disque).
+				// géométrie animée (alpha < 1 ⇔ disque). L'angle est mesuré en UV
+				// (coordonnées normalisées du disque, écrites par CircleGeometry et
+				// qui survivent à la fusion), PAS en position fusionnée — sinon
+				// l'angle serait mesuré autour de l'origine du corps et ne
+				// couvrirait qu'une fraction de tour sur chaque disque.
+				// 12 rad/s : 36 rad/s avec l'harmonique ×3, sous le seuil
+				// d'aliasing à 60 fps (120 rad/s ≈ 19 Hz serait replié).
 				if (a < 0.99) {
-					float ang = atan(vLocal.z, vLocal.x) + uTime * 40.0;
+					float ang = atan(vUv.y - 0.5, vUv.x - 0.5) + uTime * 12.0;
 					a *= 0.7 + 0.3 * sin(ang * 3.0);
 				}
 				// Dupliqué depuis TileMaterial.js, DÉLIBÉRÉMENT : les deux formules
@@ -183,6 +189,7 @@ export function setFog(mat, color, density) {
 	mat.uniforms.uFogDensity.value = density;
 }
 export function setTime(mat, t) { mat.uniforms.uTime.value = t; }
+export function setResolution(mat, w, h) { mat.uniforms.uResolution.value.set(w, h); }
 
 export function buildDroneMesh(shape, { colors }) {
 	const geos = [];
