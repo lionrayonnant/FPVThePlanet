@@ -126,6 +126,10 @@ export function resolveTarget(scan, index) {
 		// le même aujourd'hui. Distincte de l'id de session, qui n'existe pas
 		// encore au moment où le FlightController doit être construit.
 		buildSeed: `${scan.seed}::${index}`,
+		// Le scan lui-même (issue #250) : ce qu'il faut pour REGÉNÉRER les
+		// candidats non pris au resume — les drones ambiants — et pour
+		// reconstruire buildSeed côté client sans le stocker deux fois.
+		scan: { seed: String(scan.seed), count: scan.candidates.length, index },
 		signal: { rssiDbm: c.rssiDbm, mode: c._videoHint },
 		scannedAt: new Date().toISOString(),
 		// Ce que le joueur savait AU MOMENT DE CHOISIR, pas ce qui est vrai : le

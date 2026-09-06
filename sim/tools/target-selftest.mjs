@@ -69,6 +69,15 @@ const check = (name, cond, detail = '') => {
 	check('resolveTarget : index hors borne → throw', threw);
 }
 
+{
+	const scan = generateTargetScan({ seed: 'scan-kept', count: 4 });
+	const t = resolveTarget(scan, 2);
+	check('resolveTarget porte scan.seed', t.scan?.seed === 'scan-kept');
+	check('resolveTarget porte scan.count', t.scan?.count === 4);
+	check('resolveTarget porte scan.index', t.scan?.index === 2);
+	check('buildSeed dérive de scan', t.buildSeed === `${t.scan.seed}::${t.scan.index}`);
+}
+
 // --- hackType : propriété de cible (PHASE 09)
 {
 	check('HACK_TYPES : 6 familles, ordre Bible §17',

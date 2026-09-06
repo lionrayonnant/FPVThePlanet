@@ -9,6 +9,7 @@ import {
 	sanitizeComment, annotateSession,
 	sanitizePhoto, addPhoto,
 	stripPhotoData, stripOperatorPhotoData, deleteSession,
+	sanitizeTarget, SESSION_SCHEMA_VERSION,
 } from './session-model.mjs';
 import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
@@ -187,6 +188,31 @@ t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent tolé
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'NOPE' },
 	}), /hackType de cible inconnu/);
+});
+
+t('sanitizeTarget : garde scan {seed,count,index} et rejette une forme fausse', () => {
+	const scan = generateTargetScan({ seed: 'keep-me', count: 3 });
+	const kept = sanitizeTarget(resolveTarget(scan, 1));
+	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1 });
+	// Session v1 : pas de scan → null, pas d'erreur.
+	const v1 = { ...resolveTarget(scan, 1) };
+	delete v1.scan;
+	assert.equal(sanitizeTarget(v1).scan, null);
+	// Formes fausses.
+	for (const bad of [
+		{ seed: '', count: 3, index: 1 },
+		{ seed: 'x', count: 1, index: 0 },
+		{ seed: 'x', count: 6, index: 0 },
+		{ seed: 'x', count: 3, index: 3 },
+		{ seed: 'x', count: 3, index: -1 },
+		{ seed: 'x', count: 3.5, index: 0 },
+	]) {
+		assert.throws(() => sanitizeTarget({ ...resolveTarget(scan, 1), scan: bad }), /target\.scan/);
+	}
+});
+
+t('schéma de session : version 2', () => {
+	assert.equal(SESSION_SCHEMA_VERSION, 2);
 });
 
 t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur', () => {

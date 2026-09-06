@@ -13,7 +13,7 @@ import { slugify } from './operator-store.mjs';
 import { randomart } from './randomart.mjs';
 import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
 
-export const SESSION_SCHEMA_VERSION = 1;
+export const SESSION_SCHEMA_VERSION = 2;
 export const SESSION_RESULTS = ['PENDING', 'LANDED', 'CRASHED'];
 export const SESSION_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{4}$/;
 
@@ -61,6 +61,17 @@ export function sanitizeWeatherSnapshot(raw) {
 	};
 }
 
+// Le scan d'origine (issue #250). `null` pour une session v1, qui n'en a
+// jamais eu : au resume elle rejoue sa cible mais pas ses ambiants.
+function sanitizeScan(raw) {
+	if (raw == null) return null;
+	if (typeof raw !== 'object') throw new Error('target.scan invalide');
+	if (typeof raw.seed !== 'string' || raw.seed.length === 0) throw new Error('target.scan.seed invalide');
+	if (!Number.isInteger(raw.count) || raw.count < 2 || raw.count > 5) throw new Error('target.scan.count invalide');
+	if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index >= raw.count) throw new Error('target.scan.index invalide');
+	return { seed: raw.seed, count: raw.count, index: raw.index };
+}
+
 // Ne garde que la forme connue du descripteur de cible (PHASE 08). `null` est
 // licite : une session peut s'ouvrir sans cible (chemin dev ?scene=).
 export function sanitizeTarget(raw) {
@@ -81,6 +92,7 @@ export function sanitizeTarget(raw) {
 		hackType: raw.hackType ?? null,
 		signal: { rssiDbm: sig.rssiDbm, mode: sig.mode },
 		scannedAt: raw.scannedAt ?? null,
+		scan: sanitizeScan(raw.scan),
 		intel: { ...raw.intel },
 	};
 }

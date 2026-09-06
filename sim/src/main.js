@@ -2529,12 +2529,15 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			// cible (le serveur la relit du disque). On récupère juste la famille pour
 			// le PROFILE de vol.
 			const prev = operator.getOperator()?.sessions?.find((s) => s.id === resume);
+			// L'exemplaire est rejoué depuis le scan persisté (issue #250) : le
+			// serveur ne stocke pas buildSeed, il stocke ce qui permet de le
+			// reconstruire. Une session v1 n'a pas de scan → profil nominal,
+			// comme avant.
+			const sc = prev?.target?.scan;
 			return {
 				slug, resume, target: undefined,
 				family: prev?.target?.family ?? OPTS.family ?? undefined,
-				// L'exemplaire aussi est rejoué : reprendre une session, c'est
-				// reprendre CE drone, pas un autre de la même famille.
-				buildSeed: prev?.target?.buildSeed ?? undefined,
+				buildSeed: sc ? `${sc.seed}::${sc.index}` : undefined,
 			};
 		}
 
