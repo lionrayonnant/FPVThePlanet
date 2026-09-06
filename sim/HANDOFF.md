@@ -2473,14 +2473,15 @@ SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
 - `.github/workflows/ci.yml` : deux jobs, `sim` (`npm run selftest:ci` +
   `npm run build`) et `flyover-reverse-engineering` (`go vet` / `go build` /
   `go test`), sur push `main` et sur chaque PR.
-- `npm run selftest:ci` = `selftest:operator` + `selftest:api` : **1 360
-  vérifications en 132 s**, sans scène installée, sans réseau, sans navigateur.
+- `npm run selftest:ci` = `selftest:operator` + `selftest:api` : **1 430
+  vérifications en 129 s**, sans scène installée, sans réseau, sans navigateur.
   Mesuré ici, sur ce dépôt, `public/scenes/` vide, après rebasage sur `main` —
   la chaîne a gagné les cinq selftests d'ambiants de #250 (`ambient`,
   `drone-shape`, `drone-mesh`, `ambient-audio`, `ambient-drones`), qui pèsent
   297 vérifications et l'essentiel de la minute supplémentaire.
-  Compte = lignes `ok` (1 015) + lignes `PASS` (345) ; la mesure précédente
+  Compte = lignes `ok` (1 015) + lignes `PASS` (415) ; la mesure précédente
   (1 009 en 58 s) ne comptait que les `ok`, sur une chaîne plus courte.
+  Les trois selftests `onboard-*` de #266 pèsent les 70 `PASS` de plus.
 - `tools/landing-selftest.mjs` — le seul de la chaîne qui lisait une scène —
   se retire maintenant en `SKIP` quand `public/scenes/tour-eiffel` est absente.
   C'est le modèle pour tout selftest qui aurait besoin de données de scène.

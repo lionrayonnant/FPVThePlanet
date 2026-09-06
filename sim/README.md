@@ -467,7 +467,7 @@ request, en deux jobs :
 - **flyover-reverse-engineering** — `go vet`, `go build`, `go test`.
 
 ```bash
-npm run selftest:ci   # ~1 360 vérifications, ~2 min — à lancer avant de pousser
+npm run selftest:ci   # ~1 430 vérifications, ~2 min — à lancer avant de pousser
 ```
 
 `selftest:ci` est la chaîne qui ne demande **ni scène installée, ni réseau, ni
