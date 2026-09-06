@@ -167,7 +167,12 @@ Deux rayons autour du joueur, en mètres horizontaux :
 Sur un écran 1920 px à FOV 120, un quad de 25 cm à 250 m fait 0,55 px : une
 naissance à cette distance est invisible même de face. On la place quand même
 **hors du champ** (produit scalaire entre la direction du drone et l'axe caméra
-inférieur à `cos(FOV/2 + 15°)`) ou au-delà de 220 m, par sécurité. Un drone
+inférieur à `cos(FOV/2 + 15°)`), et si elle tombe dans le champ, seulement
+au-delà de 220 m, par sécurité. Les naissances n'ont lieu que sur une frame
+**non gelée** : avant, la caméra n'est pas encore posée sur le drone
+(`src/main.js:1654-1660` est dans le bloc `!frozen`) et « hors champ » ne
+voudrait rien dire. La première frame de vol en fait naître un, la suivante un
+autre : le ciel est peuplé en quatre frames, toutes hors champ. Un drone
 dont l'ancre passe `R_LEAVE` disparaît sans transition : à 320 m et 0,4 px,
 personne ne le voit partir, et une animation de départ serait du travail pour
 un événement que l'œil ne perçoit pas. Sa famille renaît aussitôt dans la
@@ -189,6 +194,15 @@ Sur une petite carte, la couronne se resserre : `R_SPAWN.max` devient
 `min(250, halfMin - corridor.hold)` et `R_LEAVE` suit à `+70`. Si la carte ne
 peut pas loger la couronne minimale (120 m), les drones naissent où ils
 peuvent dans la clôture et ne quittent jamais : `R_LEAVE = ∞`.
+
+En direct, la même règle s'applique au cercle de confiance, et elle mord
+souvent : `FALLBACK_RADIUS_M = 200` (`rocktree-window.js:24`) donne un rayon
+de confiance de **180 m** par défaut, sous les 250 m de la couronne.
+`R_SPAWN.max = min(250, nearestTrustedRadius() − r_routine)`, relu à chaque
+naissance parce que le rayon est adaptatif (`:128-138`). Un drone dont le
+terrain se décharge derrière le joueur continue sa courbe pré-validée
+au-dessus de rien : le terrain n'est plus dessiné non plus, et `R_LEAVE` le
+rattrape.
 
 ## Les routines
 
@@ -263,9 +277,9 @@ poussée dans `a + g − a_drag`, avec `a_drag = bodyDrag · |v_air| · v_air / 
 et `v_air = v − wind`. Le vent est lu une fois par frame sur `physics.wind.out`
 (`wind.js:398`, déjà calculé pour le joueur) et appliqué avec une phase par
 drone : les ambiants se **penchent dans le vent** avec le drag de leur
-famille, sans rosette de rayons. L'axe Z du corps = direction de poussée
-normalisée ; le lacet = cap de `v` (ou vers `A` pour le cinewhoop) ; le roulis
-en découle. Un lissage exponentiel à τ = 80 ms évite les sauts aux
+famille, sans rosette de rayons. L'axe **Y** du corps (le haut du quad) =
+direction de poussée normalisée ; le lacet = cap de `v` (ou vers `A` pour le
+cinewhoop) ; le roulis en découle. Un lissage exponentiel à τ = 80 ms évite les sauts aux
 changements de segment.
 
 Les positions, vitesses et quaternions vivent dans des `Float64Array`
@@ -301,8 +315,9 @@ la caméra : c'est ce que le build sait varier, et rien d'autre (contrainte 9).
 Une seule `BufferGeometry` fusionnée (plaque, bras, moteurs, conduits, caméra,
 batterie, antenne ≈ 300 triangles) avec **couleurs par sommet** tirées de la
 rampe : carbone `--dark-grey`, moteurs et caméra `--grey`, disques
-`--light-grey` à 35 % d'alpha, LED `--warm-white`. Un `ShaderMaterial` maison,
-motif `ground.js` :
+`--light-grey` à 35 % d'alpha (alpha par sommet, `transparent: true`,
+`depthWrite` gardé : à cette taille un tri des disques ne s'y verrait pas),
+LED `--warm-white`. Un `ShaderMaterial` maison, motif `ground.js` :
 
 - éclairage à la main : `0.55 + 0.45 · max(0, n · sunDir)` par `sun.dir`,
   multiplié par `sun.ambient` ; la nuit suit `setNight` comme les tuiles ;
@@ -392,8 +407,9 @@ Niveaux relatifs **choisis, pas mesurés**, comme le reste du son
 `AmbientDrones` est créé dans `finishBoot()` à côté de `distantGround`
 (`src/main.js:822`) et dans `bootLive()` à côté de `fenceDome` (`:1061`), les
 deux fois sous `if (!MODE.bench)`. Il reçoit `{ scene, physics, fenceBounds,
-scan, index, sun, seed }` où `fenceBounds` est soit `{ bbox, corridor }` soit
-`{ liveWindow }`.
+scan, sun }` avec `scan = { seed, count, index }` et `fenceBounds` soit
+`{ bbox, corridor }` (scène pré-cuite) soit `{ liveWindow }` (direct, sans
+manifest).
 
 Dans `frame()`, **après** le bloc caméra (`:1654-1660`) et avant
 `lens.render` (`:2014`), à côté de `skyDome.update` :
