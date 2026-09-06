@@ -2020,19 +2020,20 @@ Implémenté sur `main`, commits `92643a1..5f071b4`.
 
 ### Vérifié — sans navigateur
 
-- `tools/ambient-selftest.mjs` (~150 checks) : ensemble des candidats non
+- `tools/ambient-selftest.mjs` (154 checks) : ensemble des candidats non
   pris, routines par famille, courbes, bulle/ancres/validation, modèle
   d'attitude.
-- `tools/drone-shape-selftest.mjs` (66) : recette géométrique paramétrique par
+- `tools/drone-shape-selftest.mjs` (69) : recette géométrique paramétrique par
   famille.
 - `tools/drone-mesh-selftest.mjs` (23) : Three en Node — maillage fusionné,
   matériau auto-éclairé, LED clampée dans le vertex shader, pas de lumière
   Three.
 - `tools/ambient-audio-selftest.mjs` (11) : synthèse des quatre voix contre un
   faux contexte Web Audio.
-- `tools/ambient-drones-selftest.mjs` (27) : l'instance branchée sur une scène
-  et une caméra factices, espion sur les voix (régime établi, positions
-  finies, dispose).
+- `tools/ambient-drones-selftest.mjs` (24 PASS + 1 SKIP sans `--expose-gc` ;
+  25 PASS avec — le contrôle d'allocation de `update()` ne s'exécute que sous
+  `node --expose-gc`) : l'instance branchée sur une scène et une caméra
+  factices, espion sur les voix (régime établi, positions finies, dispose).
 - Les cinq fichiers ci-dessus sont chaînés en queue de `npm run
   selftest:operator`, tous verts.
 - Bloc scène ajouté à la fin de `tools/selftest.mjs` (« ambient drones (real
