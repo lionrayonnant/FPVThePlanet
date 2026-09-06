@@ -848,6 +848,21 @@ button.terminal-row:focus::before { left: 0; }
 #cal-screen .axisbar { margin-bottom: var(--space-3); }
 #cal-summary { margin: var(--space-2) 0; color: var(--light-grey); white-space: pre; }
 
+/* La machine qui réagit au manche (issue #281). Monochrome : le trait prend
+   currentColor, donc la couleur vient d'ici et jamais du module de dessin —
+   même règle que les portraits d'archive et les icônes pixel.
+   Hauteur réservée en permanence : sans elle, la machine qui apparaît à la fin
+   de la mesure ferait sauter tout ce qui la suit dans le panneau. */
+#cal-drone {
+	display: flex; justify-content: center;
+	min-height: 200px; margin: var(--space-2) 0;
+	/* L'encre vive, pas le gris de commentaire : les arêtes lointaines
+	   s'atténuent déjà jusqu'à 35 % d'opacité, et sur un gris à mi-chemin du
+	   fond il ne reste rien à voir. Rendu dans le panneau et regardé. */
+	color: var(--warm-white);
+}
+#cal-drone .cal-drone { display: block; }
+
 /* Bouton ARMÉ : deuxième pression = confirmation (issue #213). Le libellé dit
    déjà « — CONFIRM » ; la couleur d'alarme le rend visible sans le lire, et
    c'est la même que celle de tout ce qui refuse ou détruit ailleurs. */

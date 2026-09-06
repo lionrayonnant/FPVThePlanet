@@ -20,6 +20,20 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Une machine qui réagit au manche pendant le calibrage (#281), comme l'onglet
+  Receiver de Betaflight : le pilote poussait un manche et ne voyait qu'une
+  barre, rien ne disait ce que ce manche allait FAIRE au drone. C'est le fil de
+  fer des portraits d'archive — la vraie recette du quad projetée en segments,
+  sans Three ni WebGL. Pendant `YAW` le signal le plus écarté fait lacer la
+  machine, pendant `ROLL` il l'incline, le gaz la fait monter dans le cadre, et
+  `HANDS OFF` la laisse immobile parce que c'est la consigne. Un canal qui vient
+  d'être attribué rejoue son geste une fois, seul : la confirmation que le
+  mappage est le bon. Une fois la mesure finie elle suit les quatre manches
+  calibrés — le banc d'essai vient gratuitement.
+- `wireOf()` accepte une **attitude de la machine** (roulis, tangage, lacet) en
+  plus de l'orbite de caméra. Attitude nulle : sortie identique au portrait
+  d'archive, qui ne bouge pas.
+
 - Calibrage automatique des radios et des manettes (#277) : un assistant guidé
   dans le panneau Tab (`CALIBRATE`) qui MESURE le périphérique au lieu de le
   deviner à partir de sa chaîne USB. Une consigne à la fois — neutre, gaz,

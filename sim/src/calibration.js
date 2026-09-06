@@ -167,6 +167,32 @@ export function beginCalibration(signalCount, axisCount = signalCount) {
 }
 
 // -----------------------------------------------------------------------------
+// CE QUE LE PILOTE EST EN TRAIN DE POUSSER
+//
+// La barre du panneau appliquait déjà cette règle en la recopiant. L'assistant
+// dessine maintenant une machine qui suit le même geste (issue #281) : les deux
+// doivent regarder le MÊME signal, sinon la barre et le drone se contredisent.
+// -----------------------------------------------------------------------------
+
+export function strongestSignal(state, signals) {
+	const centers = state?.centers;
+	if (!centers) return { index: 0, dev: 0, span: PUSH_MIN, at: 0 };
+
+	let index = 0, dev = 0;
+	for (let i = 0; i < centers.length; i++) {
+		const d = (signals[i] ?? 0) - centers[i];
+		if (Math.abs(d) > Math.abs(dev)) { index = i; dev = d; }
+	}
+
+	// La référence de pleine course est la CRÊTE que ce pilote a lui-même
+	// atteinte sur ce signal, avec PUSH_MIN pour plancher. La machine arrive donc
+	// à pleine inclinaison quand il arrive à SA butée — une radio dont les
+	// endpoints ne sont pas réglés ne donne pas une machine molle.
+	const span = Math.max(PUSH_MIN, Math.abs(state._peaks?.[index] ?? 0), Math.abs(dev));
+	return { index, dev, span, at: dev / span };
+}
+
+// -----------------------------------------------------------------------------
 // REPOS
 // -----------------------------------------------------------------------------
 

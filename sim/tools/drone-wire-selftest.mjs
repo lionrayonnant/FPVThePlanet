@@ -138,5 +138,65 @@ check('la vue tourne vraiment',
 	check('vue par défaut : le portrait sort quand même', wireOf(portrait('cinewhoop')).segments.length > 0);
 }
 
+// --- attitude de la MACHINE (issue #281) -------------------------------------
+//
+// Jusqu'ici wireOf() ne savait qu'orbiter la caméra autour d'un objet immobile.
+// L'assistant de calibrage a besoin de l'inverse : une caméra fixe et une
+// machine qui s'incline, cabre et lace avec le manche que le pilote tient.
+//
+// Ces tests ne lisent aucune coordonnée : ils vérifient des propriétés — une
+// attitude nulle ne change RIEN, une attitude non nulle change quelque chose,
+// un roulis fait basculer la gauche et la droite en sens opposés, et rien ne
+// sort des bornes ni ne devient NaN.
+{
+	const shape = portrait('freestyle5');
+	const base = wireOf(shape, VIEW);
+
+	// Le contrat qui protège le portrait d'archive : il n'a pas d'attitude, et il
+	// doit continuer à rendre exactement ce qu'il rendait.
+	const zero = wireOf(shape, { ...VIEW, roll: 0, pitch: 0, yaw: 0 });
+	check('attitude nulle : sortie identique au portrait d\'archive',
+		Array.from(zero.segments).every((v, i) => v === base.segments[i])
+		&& Array.from(zero.depth).every((v, i) => v === base.depth[i]));
+
+	const rolled = wireOf(shape, { ...VIEW, roll: 30 });
+	check('un roulis change le dessin', Array.from(rolled.segments).some((v, i) => v !== base.segments[i]));
+	check('un roulis garde le même nombre de segments', rolled.segments.length === base.segments.length);
+
+	// Un roulis à droite doit DESCENDRE ce qui est à droite et MONTER ce qui est
+	// à gauche. Mesuré sur une barre transversale, pour ne dépendre d'aucune
+	// recette : vue de face, sans orbite, l'effet est sans ambiguïté.
+	const barre = { parts: [{ kind: 'box', role: 'plate', at: [0, 0, 0], size: [2, 0.01, 0.01] }], boundingRadius: 1 };
+	const flat = wireOf(barre, { yawDeg: 0, pitchDeg: 0 });
+	const bank = wireOf(barre, { yawDeg: 0, pitchDeg: 0, roll: 25 });
+	const hauteurA = (w, cote) => {
+		let somme = 0, n = 0;
+		for (let i = 0; i < w.segments.length; i += 4) {
+			for (const k of [0, 2]) {
+				const x = w.segments[i + k], y = w.segments[i + k + 1];
+				if (Math.sign(x) === cote && Math.abs(x) > 0.5) { somme += y; n++; }
+			}
+		}
+		return n ? somme / n : 0;
+	};
+	check('à plat, les deux bouts de la barre sont à la même hauteur',
+		Math.abs(hauteurA(flat, 1) - hauteurA(flat, -1)) < 1e-6);
+	check('roulis à droite : le bout droit descend, le gauche monte',
+		hauteurA(bank, 1) < -1e-3 && hauteurA(bank, -1) > 1e-3,
+		`droite ${hauteurA(bank, 1).toFixed(3)} / gauche ${hauteurA(bank, -1).toFixed(3)}`);
+
+	// Un cabré doit lever le nez. Le nez est en -Z (drone-mesh.js monte la caméra
+	// vers l'avant), vu de dessus sans orbite ni tangage de caméra.
+	const fleche = { parts: [{ kind: 'box', role: 'plate', at: [0, 0, -0.9], size: [0.01, 0.01, 0.2] }], boundingRadius: 1 };
+	const nez = (w) => { let m = 0, n = 0; for (let i = 0; i < w.segments.length; i += 4) { m += w.segments[i + 1] + w.segments[i + 3]; n += 2; } return m / n; };
+	check('cabrer lève le nez', nez(wireOf(fleche, { yawDeg: 0, pitchDeg: 0, pitch: 25 })) > nez(wireOf(fleche, { yawDeg: 0, pitchDeg: 0 })));
+
+	const tout = wireOf(shape, { ...VIEW, roll: 20, pitch: -15, yaw: 40 });
+	check('attitude complète : rien ne sort des bornes',
+		Array.from(tout.segments).every((v) => v >= -1 && v <= 1));
+	check('attitude complète : aucune coordonnée NaN',
+		Array.from(tout.segments).every(Number.isFinite) && Array.from(tout.depth).every(Number.isFinite));
+}
+
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
 process.exit(failures ? 1 : 0);
