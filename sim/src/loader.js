@@ -3,29 +3,45 @@ import { createTileMaterial, createArrayTexture } from './TileMaterial.js';
 
 // Absolute, because the worker resolves relative URLs against /src/, not the
 // page. import.meta.env.BASE_URL keeps this correct under a deployed subpath.
+// Vite l'inline au build ; sous Node nu — les selftests importent ce module —
+// `import.meta.env` n'existe pas, d'où le repli sur la racine.
+const BASE = (import.meta.env && import.meta.env.BASE_URL) || '/';
+
+// UN FICHIER ABSENT NE REND PAS 404. Vite, et tout hébergement statique avec un
+// fallback SPA, rabat la requête inconnue sur index.html et répond 200
+// text/html. `res.ok` ne dit donc RIEN de la présence du fichier — mesuré :
+// une scène absente et une scène présente donnent toutes deux 200, et ne se
+// distinguent que par le type de contenu (issue #275). Sans ce contrôle, le
+// `res.json()` qui suit meurt sur « Unexpected token '<' », et le joueur reçoit
+// une erreur qui ne nomme rien.
+function servedJson(res) {
+	return res.ok && (res.headers.get('content-type') || '').includes('json');
+}
+
 // Le préfixe d'URL d'une scène. Explicite, et CAPTURÉ au départ d'un
 // chargement plutôt que relu à chaque requête : le TARGET SCAN est annulable
 // (retour au choix de zone), et un préchargement déjà en vol doit continuer de
 // lire SA scène même si le joueur en désigne une autre entre-temps. Un global
 // mutable rendait ce mélange possible — d'où sa disparition.
 export function sceneBase(slug) {
-	return `${import.meta.env.BASE_URL}scenes/${slug}/`;
+	return `${BASE}scenes/${slug}/`;
 }
 
 // Lists maps prepared with tools/add-map.mjs, for the pre-flight menu.
 export async function loadSceneList() {
-	const res = await fetch(`${import.meta.env.BASE_URL}scenes.json`);
-	if (!res.ok) throw new Error(`scenes.json: HTTP ${res.status} — run "npm run add-map" first`);
+	const res = await fetch(`${BASE}scenes.json`);
+	if (!servedJson(res)) throw new Error(`scenes.json introuvable (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — lancez « npm run add-map » d'abord`);
 	const all = await res.json();
 	// Garde-fou : ignorer les scènes dont le dossier n'existe pas physiquement
 	// (typiquement après un clone fresh où scenes.json est commité mais pas
-	// public/scenes/, qui est dans .gitignore).  fetch HEAD est plus fiable
-	// qu'une simple existence de fichier : il vérifie ce que le serveur statique
-	// sert réellement.
+	// public/scenes/, qui est dans .gitignore).  fetch HEAD dit ce que le
+	// serveur sert réellement — mais il faut regarder le TYPE, pas le statut :
+	// sur `r.ok` seul ce filtre ne filtrait jamais rien, et c'est lui qui
+	// laissait le joueur choisir une scène fantôme (issue #275).
 	const checks = await Promise.all(all.map(async (s) => {
 		try {
 			const r = await fetch(sceneBase(s.slug) + 'manifest.json', { method: 'HEAD' });
-			return r.ok ? s : null;
+			return servedJson(r) ? s : null;
 		} catch {
 			return null;
 		}
@@ -40,7 +56,9 @@ export async function loadSceneList() {
 
 export async function loadManifest(base) {
 	const res = await fetch(base + 'manifest.json');
-	if (!res.ok) throw new Error(`manifest.json: HTTP ${res.status} — run "npm run add-map" (or "npm run prep") first`);
+	// Le message doit nommer CE qui manque : c'est tout ce que le joueur voit
+	// sur l'écran de chargement quand le boot échoue.
+	if (!servedJson(res)) throw new Error(`${base}manifest.json : scène non installée (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — lancez « npm run add-map », ou « node tools/sync-scenes.mjs » si scenes.json a dérivé du disque`);
 	return res.json();
 }
 
@@ -190,7 +208,13 @@ export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = I
 
 export async function loadCollision(manifest, base, onProgress) {
 	const res = await fetch(base + manifest.collision.file);
-	if (!res.ok) throw new Error(`${manifest.collision.file}: HTTP ${res.status}`);
+	// Même piège que pour le manifeste (issue #275) : absent, ce binaire arrive
+	// en 200 text/html. Sans ce contrôle on décode l'index.html du jeu comme une
+	// soupe de triangles, et l'échec se produit bien plus loin, sans rapport
+	// visible avec sa cause. Le fichier réel est servi en octet-stream.
+	if (!res.ok || (res.headers.get('content-type') || '').includes('text/html')) {
+		throw new Error(`${manifest.collision.file} : collision introuvable (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — scène incomplète, relancez « npm run prep »`);
+	}
 
 	// ~90MB: stream it so the loading screen can show real progress.
 	const total = Number(res.headers.get('content-length')) || 0;
