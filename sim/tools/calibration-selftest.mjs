@@ -19,6 +19,8 @@ import {
 	calProgress,
 	calSummaryLines,
 	CAL_PROMPTS,
+	CAL_TIMING,
+	padSignals,
 } from '../src/calibration.js';
 import { defaultMapForKind } from '../src/input.js';
 
@@ -271,7 +273,9 @@ t('calibrationResult : ne garde QUE la mesure, pas les accumulateurs', () => {
 	let s = beginCalibration(4);
 	s = play(s, DS4);
 	const out = calibrationResult(s);
-	assert.deepEqual(Object.keys(out).sort(), ['channels', 'deadband', 'throttleMode']);
+	// axisCount depuis #279 : la frontière axes/boutons, sans laquelle le
+	// récapitulatif relu plus tard ne peut plus nommer « btn 6 ».
+	assert.deepEqual(Object.keys(out).sort(), ['axisCount', 'channels', 'deadband', 'throttleMode']);
 	assert.deepEqual(out.channels, s.channels);
 	// Ce qui part dans localStorage doit survivre à un aller-retour JSON.
 	assert.deepEqual(JSON.parse(JSON.stringify(out)), out);
@@ -334,6 +338,94 @@ t('les consignes tiennent sur une ligne du panneau', () => {
 		assert.ok(text.length <= 22, `${key} : « ${text} » fait ${text.length} caractères`);
 		assert.equal(text, text.toUpperCase(), `${key} : les consignes sont en capitales`);
 	}
+});
+
+// --- un gaz rangé en gâchette (issue #279) -----------------------------------
+//
+// Mesuré sur une Radiomaster Pocket, EdgeTX en mode Joystick, sous Firefox :
+//
+//   id      1209-4f54-EdgeTX Radiomaster Pocket Joystick
+//   mapping standard   axes=8  boutons=28
+//   axe 0,1,2  vu -1.00..1.00      axe 3 à 7  vu 0.00..0.00
+//   btn 6      0.997               vu 0.00..1.00
+//
+// Firefox applique le mapping « standard » à la radio et range son manche des
+// gaz dans l'emplacement de la gâchette L2. Le gaz sort donc sur
+// `buttons[6].value`, ANALOGIQUE — un bouton numérique rendrait exactement
+// 1.000, jamais 0.997 — et le quatrième axe reste mort.
+//
+// C'est la supposition que #277 avait gardée sans la mesurer : « un manche est
+// sur un axe ». Elle rendait le gaz de cette radio structurellement invisible.
+
+// L'instantané du périphérique tel que le navigateur le rapporte, passé par
+// padSignals() : c'est la fonction sous test autant que la machine à états.
+const pocket = (a0, a1, a2, btn6) => padSignals({
+	axes: [a0, a1, a2, 0, 0, 0, 0, 0],
+	buttons: Array.from({ length: 28 }, (_, i) => ({ value: i === 6 ? btn6 : 0 })),
+});
+
+// Le gaz est à friction : il TIENT sa position, le pilote l'a laissé en bas.
+const POCKET = [
+	[pocket(0, 0, 0, 0), 1200],        // repos, gaz parqué en bas
+	[pocket(0, 0, 0, 0.997), 700],     // gaz à fond — sur le BOUTON 6
+	[pocket(0, 0, 0, 0.997), 900],     // lâché : il RESTE en haut
+	[pocket(0, 0, 0, 0), 700],         // gaz au minimum
+	[pocket(0, 0, 1, 0), 700],         // lacet à droite
+	[pocket(0, 0, 0, 0), 400],
+	[pocket(0, -1, 0, 0), 700],        // cabrer
+	[pocket(0, 0, 0, 0), 400],
+	[pocket(1, 0, 0, 0), 700],         // roulis à droite
+];
+
+t('#279 : padSignals expose les boutons sur la même course que les axes', () => {
+	// Un bouton au repos doit se lire comme un manche parqué en butée basse :
+	// c'est ce qui laisse aux seuils du module (tous calibrés sur une course de
+	// 2) le sens qu'on leur a mesuré.
+	const v = padSignals({ axes: [0.5, -1], buttons: [{ value: 0 }, { value: 1 }, { value: 0.5 }] });
+	assert.deepEqual(v, [0.5, -1, -1, 1, 0]);
+});
+
+t('#279 : le gaz sur la gâchette L2 est trouvé, et nommé btn 6', () => {
+	const s = play(beginCalibration(8 + 28, 8), POCKET);
+	const cal = calibrationResult(s);
+	assert.ok(cal, `le calibrage doit aboutir — bloqué sur « ${s.prompt} »`);
+
+	// 8 axes puis 28 boutons : le bouton 6 est le signal 14.
+	assert.equal(cal.channels.throttle.axis, 14, 'le gaz est sur le bouton 6');
+	assert.equal(cal.throttleMode, 'full', 'un gimbal à friction est en pleine course');
+	assert.ok(cal.channels.throttle.hi > cal.channels.throttle.lo);
+
+	// Et les trois autres manches restent sur leurs axes.
+	assert.equal(cal.channels.yaw.axis, 2);
+	assert.equal(cal.channels.pitch.axis, 1);
+	assert.equal(cal.channels.roll.axis, 0);
+
+	// Le récapitulatif doit dire « btn 6 » : un pilote qui lit « axis 14 » sur un
+	// périphérique qui annonce 8 axes croit à un bug.
+	assert.match(calSummaryLines(cal)[0], /btn 6/);
+});
+
+t('#279 : le gaz calibré sur un bouton rend bien 0 en bas et 1 en haut', () => {
+	const s = play(beginCalibration(8 + 28, 8), POCKET);
+	const cal = calibrationResult(s);
+	const lire = (btn6) => throttleFromCalibrated(pocket(0, 0, 0, btn6)[14], cal.channels.throttle);
+	assert.ok(lire(0) < 0.02, `gaz en bas = ${lire(0)}`);
+	assert.ok(lire(0.997) > 0.98, `gaz en haut = ${lire(0.997)}`);
+	// Le geste de désarmement (throttle < 0.08) doit rester joignable au repos.
+	assert.ok(lire(0) < 0.08);
+});
+
+t('#279 : un périphérique qui ne rapporte rien finit par le DIRE', () => {
+	// Un pad muet passe l'étape du repos MIEUX qu'un vrai — bruit nul, donc
+	// aucun rejet — puis laisse le pilote devant une consigne qui ne bougera
+	// jamais. Sans ce garde-fou, rien ne nomme le problème.
+	let s = beginCalibration(8 + 28, 8);
+	s = feedFor(s, still(pocket(0, 0, 0, 0)), 1200);
+	assert.equal(s.phase, 'channel', 'le repos passe : un pad muet est parfaitement stable');
+	assert.equal(s.message, null, 'rien à signaler tant que le pilote peut être en train de viser');
+	s = feedFor(s, still(pocket(0, 0, 0, 0)), CAL_TIMING.idleWarnMs + 200);
+	assert.match(s.message ?? '', /no movement/i, 'après une longue attente immobile, il faut le dire');
+	assert.equal(s.phase, 'channel', 'mais on ne renonce pas : le pilote peut encore bouger');
 });
 
 console.log(`\n  ${n} tests OK`);

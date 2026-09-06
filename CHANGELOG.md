@@ -66,6 +66,21 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- Le calibrage ne voyait pas un gaz rangé en gâchette (#279) : Firefox applique
+  le `mapping: "standard"` à une Radiomaster Pocket et range son manche des gaz
+  dans l'emplacement de la gâchette L2 — le gaz sort sur `buttons[6].value`,
+  analogique (`0.997`, valeur qu'un bouton numérique ne peut pas rendre), et le
+  quatrième axe reste mort. `calibration.js` ne lisait que `pad.axes` : la
+  consigne `THROTTLE — FULL UP` ne pouvait pas aboutir, quel que soit le geste.
+  Axes et boutons entrent désormais dans un vecteur unique (`padSignals()`), les
+  boutons ramenés sur la course des axes — repos à `-1`, comme un manche à
+  friction parqué en bas. Le remap manuel et le récapitulatif suivent, et
+  nomment `btn 6` plutôt qu'un `axis 14` qui n'existe pas.
+- L'assistant de calibrage restait muet devant un périphérique qui ne rapporte
+  rien (#279) : un pad muet passe l'étape `HANDS OFF` *mieux* qu'un vrai — bruit
+  nul, donc aucun rejet — puis laissait le pilote devant une consigne qui ne
+  bougeait jamais. Après six secondes sans le moindre geste, il le dit.
+
 - Le mappage manette n'était pas attaché au périphérique (#277) : `_savedMap`
   était un booléen global et `fpvmaps.gamepadMap` une entrée unique, si bien
   qu'un remap fait pour une radio restait collé en branchant une DualShock 4 —

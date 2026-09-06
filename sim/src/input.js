@@ -5,6 +5,7 @@ import { isTextEntry } from './menu-nav.js';
 import {
 	CAL_CHANNELS,
 	calibrationToMap,
+	padSignals,
 	normalizeChannel,
 	throttleFromCalibrated,
 } from './calibration.js';
@@ -197,10 +198,13 @@ export function calStoreSet(store, padId, cal) {
 }
 
 // Les quatre sticks lus à travers le calibrage. Aucune supposition : ni « le
-// neutre est à 0 », ni « la course vaut ±1 », ni « ce gaz revient au centre ».
-export function sticksFromCalibration(axes, cal) {
+// neutre est à 0 », ni « la course vaut ±1 », ni « ce gaz revient au centre »,
+// ni « un manche est sur un axe » (#279 : `signals` porte les axes PUIS les
+// boutons, parce qu'une radio en mapping « standard » sort son gaz sur une
+// gâchette).
+export function sticksFromCalibration(signals, cal) {
 	const c = cal.channels;
-	const at = (name) => axes[c[name].axis] ?? 0;
+	const at = (name) => signals[c[name].axis] ?? 0;
 	return {
 		throttle: throttleFromCalibrated(at('throttle'), c.throttle),
 		yaw: normalizeChannel(at('yaw'), c.yaw, cal.deadband),
@@ -721,7 +725,7 @@ export class Input {
 		// neutre, course et bruit relevés sur CE matériel. Le chemin ci-dessous
 		// reste celui des périphériques jamais calibrés, avec ses suppositions.
 		if (this.calibration) {
-			Object.assign(this.sticks, sticksFromCalibration(pad.axes, this.calibration));
+			Object.assign(this.sticks, sticksFromCalibration(padSignals(pad), this.calibration));
 			return true;
 		}
 
@@ -733,8 +737,11 @@ export class Input {
 				return null;
 			}
 
+			// Même espace d'indices que le calibrage : les axes, puis les
+			// boutons (#279). Un remap manuel doit pouvoir désigner une
+			// gâchette, sinon il ne rattrape pas ce que le calibrage rattrape.
 			const v =
-				pad.axes[m.axis];
+				padSignals(pad)[m.axis];
 
 			if (v === undefined) {
 				return null;

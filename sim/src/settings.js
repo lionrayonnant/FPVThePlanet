@@ -1,5 +1,5 @@
 import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY } from './input.js';
-import { beginCalibration, feedSample, calibrationResult, calProgress, calSummaryLines } from './calibration.js';
+import { beginCalibration, feedSample, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel } from './calibration.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
@@ -315,7 +315,9 @@ export class Settings {
 		const pad = this.input.getGamepad();
 		if (!pad) return;
 		this._calPadId = pad.id;
-		this._cal = beginCalibration(pad.axes.length);
+		// Axes ET boutons : sur une radio que le navigateur mappe en
+		// « standard », le gaz sort sur une gâchette (#279).
+		this._cal = beginCalibration(padSignals(pad).length, pad.axes.length);
 		this._calLast = performance.now();
 		this.el.calSummary.hidden = true;
 		this.renderCalibration(pad);
@@ -358,7 +360,7 @@ export class Settings {
 		const dt = Math.min(100, now - this._calLast);
 		this._calLast = now;
 
-		this._cal = feedSample(this._cal, pad.axes, dt);
+		this._cal = feedSample(this._cal, padSignals(pad), dt);
 
 		const result = calibrationResult(this._cal);
 		if (result) {
@@ -410,14 +412,14 @@ export class Settings {
 		// La barre suit l'axe le plus écarté de son neutre : pendant une
 		// consigne, c'est celui que le pilote est en train de pousser. Tant que
 		// le neutre n'est pas mesuré, elle suit l'axe le plus écarté de zéro.
-		const axes = pad?.axes ?? [];
+		const signals = pad ? padSignals(pad) : [];
 		const centers = this._cal.centers;
 		let best = 0;
-		for (let i = 0; i < axes.length; i++) {
-			const d = Math.abs(axes[i] - (centers?.[i] ?? 0));
-			if (d > Math.abs(axes[best] - (centers?.[best] ?? 0))) best = i;
+		for (let i = 0; i < signals.length; i++) {
+			const d = Math.abs(signals[i] - (centers?.[i] ?? 0));
+			if (d > Math.abs(signals[best] - (centers?.[best] ?? 0))) best = i;
 		}
-		this.el.calBar.style.left = `${(((axes[best] ?? 0) + 1) / 2) * 100}%`;
+		this.el.calBar.style.left = `${(((signals[best] ?? 0) + 1) / 2) * 100}%`;
 	}
 
 	buildPadList() {
@@ -468,7 +470,11 @@ export class Settings {
 		this.el.padMap.innerHTML = '';
 		this._axisRows = CHANNELS.map((ch) => {
 			const tr = document.createElement('tr');
-			const opts = pad.axes.map((_, i) => `<option value="${i}">axis ${i}</option>`).join('');
+			// Les boutons sont proposés comme les axes : un remap manuel doit
+			// pouvoir désigner la gâchette où le navigateur a rangé le gaz.
+			const opts = padSignals(pad)
+				.map((_, i) => `<option value="${i}">${signalLabel(i, pad.axes.length)}</option>`)
+				.join('');
 			tr.innerHTML = `<td>${ch}</td>
 				<td><select>${opts}</select></td>
 				<td><label><input type="checkbox"> inv</label></td>
@@ -500,7 +506,7 @@ export class Settings {
 		const pad = this.input.getGamepad();
 		if (!pad) return;
 		for (const row of this._axisRows) {
-			const v = pad.axes[Number(row.sel.value)] ?? 0;
+			const v = padSignals(pad)[Number(row.sel.value)] ?? 0;
 			row.fill.style.left = `${((v + 1) / 2) * 100}%`;
 		}
 	}
