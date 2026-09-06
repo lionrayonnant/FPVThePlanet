@@ -36,6 +36,10 @@ rapport avec les versions ci-dessous.
   l'exporteur. La release passe par les mêmes selftests avant de publier.
 - `npm run selftest:ci` : la chaîne qui ne demande ni scène installée, ni
   réseau, ni navigateur.
+- `npm run add-music` refuse une graine de base déjà présente dans
+  `public/music.json` et en propose une libre (#122) : la réutiliser ne
+  générait pas d'autres morceaux mais exactement les mêmes, que le worker
+  sautait ensuite comme déjà présents — un échec silencieux.
 
 ### Modifié
 
