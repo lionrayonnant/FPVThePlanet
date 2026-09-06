@@ -89,15 +89,33 @@ export function routineFor({ family, twr, rand }) {
 	// par abscisse curviligne. 64 segments, longueurs cumulées dans arc[1..64],
 	// arc[0] = 0 ; la période est la vraie longueur du parcours / speed (et non
 	// l'approximation "deux tours de cercle") pour que |v| ≈ speed tienne.
-	let arc = null;
+	// arcSlope[k] = dw/ds au nœud k (1/|dp/dw|) : l'inversion s → w se fait en
+	// Hermite cubique (C1) sur chaque segment, pas en linéaire (C0 seulement),
+	// sinon chaque nœud casse la dérivée de w(t) et l'accélération y pique.
+	// arc[] s'intègre par Simpson (pas par corde) : une corde sous-estime la
+	// vraie longueur d'arc là où la courbure est là plus forte, ce qui la rend
+	// incohérente avec la pente ANALYTIQUE d'arcSlope — Hermite doit alors
+	// « rattraper » l'écart en milieu de segment et la vitesse y dépasse la
+	// cible de 25+ % (mesuré) quel que soit le pas de dérivation. Simpson (1
+	// point milieu par segment, même fonction speedW que pour arcSlope) rend
+	// arc[] fidèle à la vraie longueur : voir le rapport pour les chiffres.
+	let arc = null, arcSlope = null;
 	if (spec.kind === 'eight') {
 		arc = new Float64Array(65);
-		let px = 2 * radius, pz = 0;
+		arcSlope = new Float64Array(65);
+		const V = spec.vertical ?? 0;
+		const speedW = (w) => {
+			const dxdw = -2 * radius * Math.sin(w);
+			const dzdw = 2 * radius * Math.cos(2 * w);
+			const dydw = 2 * V * Math.cos(2 * w + 1);
+			return Math.hypot(dxdw, dzdw, dydw);
+		};
+		arcSlope[0] = 1 / speedW(0);
 		for (let k = 1; k <= 64; k++) {
-			const w = (Math.PI * 2 * k) / 64;
-			const x = 2 * radius * Math.cos(w), z = radius * Math.sin(2 * w);
-			arc[k] = arc[k - 1] + Math.hypot(x - px, z - pz);
-			px = x; pz = z;
+			const w0 = (Math.PI * 2 * (k - 1)) / 64, w1 = (Math.PI * 2 * k) / 64, wm = (w0 + w1) / 2;
+			const dw = w1 - w0;
+			arc[k] = arc[k - 1] + (dw / 6) * (speedW(w0) + 4 * speedW(wm) + speedW(w1));
+			arcSlope[k] = 1 / speedW(w1);
 		}
 	}
 	let period;
@@ -121,7 +139,7 @@ export function routineFor({ family, twr, rand }) {
 	return {
 		kind: spec.kind, family, aglMin: spec.agl[0], agl, speed, radius, dir, phase,
 		tiltPlane, vertical: spec.vertical ?? 0, leg: spec.leg ?? 0,
-		faceAnchor: !!spec.faceAnchor, jitter, period, arc,
+		faceAnchor: !!spec.faceAnchor, jitter, period, arc, arcSlope,
 	};
 }
 
@@ -155,14 +173,26 @@ export function curveLocal(r, t, out) {
 			// abscisse curviligne (r.arc, précalculée dans routineFor) pour une
 			// vitesse constante : w n'avance pas linéairement avec t, mais avec
 			// la longueur déjà parcourue, retrouvée par interpolation dans arc[].
+			// Inversion s → w en Hermite cubique (C1, valeur ET pente dw/ds
+			// raccordées à chaque nœud) — une interpolation linéaire de w serait
+			// C0 seulement et ferait piquer l'accélération à chaque nœud (64
+			// pics par tour), voir r.arcSlope dans routineFor.
 			const frac = (((t / r.period) * r.dir + r.phase / (Math.PI * 2)) % 1 + 1) % 1;
 			const target = frac * r.arc[64];
 			let k = 0;
 			while (k < 64 && r.arc[k + 1] < target) k++;
 			if (k >= 64) k = 63;
-			const segLen = r.arc[k + 1] - r.arc[k];
-			const a = segLen > 1e-9 ? (target - r.arc[k]) / segLen : 0;
-			const w = (Math.PI * 2 * (k + a)) / 64;
+			const s0 = r.arc[k], s1 = r.arc[k + 1];
+			const segLen = s1 - s0;
+			const tau = segLen > 1e-9 ? (target - s0) / segLen : 0;
+			const w0 = (Math.PI * 2 * k) / 64, w1 = (Math.PI * 2 * (k + 1)) / 64;
+			const m0 = r.arcSlope[k] * segLen, m1 = r.arcSlope[k + 1] * segLen;
+			const tau2 = tau * tau, tau3 = tau2 * tau;
+			const h00 = 2 * tau3 - 3 * tau2 + 1;
+			const h10 = tau3 - 2 * tau2 + tau;
+			const h01 = -2 * tau3 + 3 * tau2;
+			const h11 = tau3 - tau2;
+			const w = h00 * w0 + h10 * m0 + h01 * w1 + h11 * m1;
 			out.x = 2 * r.radius * Math.cos(w);
 			out.z = r.radius * Math.sin(2 * w);
 			// Jamais négatif, même raison que le loop.
@@ -248,11 +278,16 @@ export const VIEW_MARGIN_DEG = 15;
 export const BLOCK_SPAN_M = 2;      // règle de geometrySafe : un mur, pas un toit frôlé
 export const FLOOR_MARGIN_M = 5;    // au-dessus de FLOOR_HOLD de la clôture
 const SPAWN_TRIES_PER_FRAME = 3;
+// Pas de dérivation fixe : l'attitude ne doit pas dépendre du taux de rafraîchissement.
+const DERIVE_H = 1 / 60;
 
 // La couronne, bornée par la clôture. Rect : `halfMin - hold` ; direct : le
 // rayon de confiance (180 m par défaut, sous les 250 nominaux). Une carte qui
 // ne loge pas la couronne minimale garde ses drones pour toujours.
-export function bubbleFor(bounds, player) {
+// `out`, si fourni, est muté et rendu (update() y passe son scratch : zéro
+// allocation par frame). Sans `out`, alloue un littéral (chemin des tests).
+export function bubbleFor(bounds, player, out) {
+	const o = out || { rMin: 0, rMax: 0, rLeave: 0 };
 	let rMax = R_SPAWN[1];
 	if (bounds.bbox) {
 		const halfMin = Math.min(
@@ -263,9 +298,9 @@ export function bubbleFor(bounds, player) {
 	} else {
 		rMax = Math.min(rMax, bounds.trusted);
 	}
-	if (rMax < R_SPAWN[0]) return { rMin: 0, rMax: Math.max(rMax, 10), rLeave: Infinity };
-	const rLeave = rMax < R_SPAWN[1] ? rMax + R_LEAVE_GAP : R_LEAVE;
-	return { rMin: R_SPAWN[0], rMax, rLeave };
+	if (rMax < R_SPAWN[0]) { o.rMin = 0; o.rMax = Math.max(rMax, 10); o.rLeave = Infinity; return o; }
+	o.rMin = R_SPAWN[0]; o.rMax = rMax; o.rLeave = rMax < R_SPAWN[1] ? rMax + R_LEAVE_GAP : R_LEAVE;
+	return o;
 }
 
 // Un point tient-il dans la clôture, avec `margin` (rayon de routine) en plus ?
@@ -357,6 +392,8 @@ export class AmbientModel {
 		this.stats = { relocations: 0, raysCast: 0, spawnFailures: 0 };
 		this._pos = { x: 0, y: 0, z: 0 }; this._vel = { x: 0, y: 0, z: 0 }; this._acc = { x: 0, y: 0, z: 0 };
 		this._anchor = { x: 0, y: 0, z: 0 };
+		this._bubble = { rMin: 0, rMax: 0, rLeave: 0 };
+		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0 };
 		this.reset();
 	}
 
@@ -390,7 +427,7 @@ export class AmbientModel {
 				this.anchors[3 * k] = a.x; this.anchors[3 * k + 1] = a.y; this.anchors[3 * k + 2] = a.z;
 				this.t[k] = this.rand() * r.period;
 				this.alive[k] = 1;
-				this._place(k, 1 / 60);
+				this._place(k, DERIVE_H);
 				return true;
 			}
 			return false;   // un slot par frame, réussi ou non
@@ -409,20 +446,24 @@ export class AmbientModel {
 
 	update({ dt, player, cam, fovDeg, rays, top, span, wind }) {
 		if (dt <= 0) return;
-		const { rLeave } = bubbleFor(this.bounds, player);
+		bubbleFor(this.bounds, player, this._bubble);
+		const rLeave = this._bubble.rLeave;
 		// Départs : l'ancre a quitté la bulle.
 		for (let k = 0; k < this.n; k++) {
 			if (!this.alive[k]) continue;
 			const d = Math.hypot(this.anchors[3 * k] - player.x, this.anchors[3 * k + 2] - player.z);
 			if (d > rLeave) { this.alive[k] = 0; this.stats.relocations++; }
 		}
-		// Une naissance au plus par frame.
-		this.spawnOne({ player, cam, fovDeg, rays, top, span });
-		// Avance et pose.
+		// Une naissance au plus par frame. Args dans un scratch réutilisé : pas
+		// de littéral alloué ici, même quand tous les slots volent déjà.
+		const sa = this._spawnArgs;
+		sa.player = player; sa.cam = cam; sa.fovDeg = fovDeg; sa.rays = rays; sa.top = top; sa.span = span;
+		this.spawnOne(sa);
+		// Avance et pose. Pas fixe (DERIVE_H) : l'attitude ne dépend pas du dt réel.
 		for (let k = 0; k < this.n; k++) {
 			if (!this.alive[k]) continue;
 			this.t[k] += dt;
-			this._place(k, Math.min(dt, 1 / 60));
+			this._place(k, DERIVE_H);
 			this._attitude(k, dt, wind);
 		}
 	}

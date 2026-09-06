@@ -95,6 +95,30 @@ console.log('\nambient: courbes');
 		check(`${family}: |v| dérivée ≈ speed`, Math.abs(vAvg - r.speed) / r.speed < 0.12, `${vAvg.toFixed(1)} vs ${r.speed.toFixed(1)}`);
 		check(`${family}: accélération finie`, Number.isFinite(acc.x) && Number.isFinite(acc.y) && Number.isFinite(acc.z));
 	}
+	// Le huit reparamétré par abscisse curviligne (arc[], 64 cordes) ne doit pas
+	// piquer d'accélération à chaque nœud, ni dépendre du taux de rafraîchissement
+	// (dt de la dérivation, pas dt de la boucle de jeu — DERIVE_H est fixe).
+	{
+		const flatGround = () => 0;
+		const anchor0 = { x: 0, y: 0, z: 0 };
+		for (const [family] of [['freestyle5'], ['heavy5']]) {
+			const r = routineFor({ family, twr: 6, rand: rngFrom('v') });
+			const heights = new Float64Array(SAMPLES);
+			curveHeights(r, anchor0, flatGround, heights);
+			const pos = { x: 0, y: 0, z: 0 }, vel = { x: 0, y: 0, z: 0 }, acc = { x: 0, y: 0, z: 0 };
+			const scan = (h) => {
+				let maxA = 0;
+				for (let i = 0; i < 600; i++) {
+					derive(r, anchor0, heights, r.period * i / 600, h, pos, vel, acc);
+					maxA = Math.max(maxA, Math.hypot(acc.x, acc.y, acc.z));
+				}
+				return maxA;
+			};
+			const a60 = scan(1 / 60), a240 = scan(1 / 240);
+			check(`${family}: accélération sans pic de corde`, a60 <= 3 * G, `${a60.toFixed(1)} vs 3G=${(3 * G).toFixed(1)}`);
+			check(`${family}: accélération indépendante du pas`, Math.abs(a240 - a60) / a60 < 0.25, `${a60.toFixed(1)} (1/60) vs ${a240.toFixed(1)} (1/240)`);
+		}
+	}
 	// Un sol manquant fait échouer les hauteurs.
 	const r = routineFor({ family: 'race5', twr: 6, rand: rngFrom('hole') });
 	const heights = new Float64Array(SAMPLES);
