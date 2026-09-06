@@ -66,19 +66,28 @@ for (const family of FAMILIES) {
 	}
 }
 // Issue #264 : non-régression. shapeOf() SANS `detail` doit rendre exactement
-// la géométrie d'aujourd'hui — mêmes primitives, mêmes positions, mêmes tailles
-// —, sinon les drones ambiants changeraient d'aspect en douce. L'empreinte est
-// insensible à l'ORDRE des parts (les hélices naissent maintenant de motorsOf(),
-// qui les énumère dans l'ordre Betaflight) et ignore les champs ajoutés
-// (`motor`, `spin`) : ce qu'on gèle, c'est la forme, pas la recette.
+// la même géométrie d'une session à l'autre — mêmes primitives, mêmes
+// positions, mêmes tailles —, sinon les drones ambiants changeraient d'aspect
+// en douce. L'empreinte est insensible à l'ORDRE des parts (les hélices
+// naissent maintenant de motorsOf(), qui les énumère dans l'ordre Betaflight)
+// et ignore les champs ajoutés (`motor`, `spin`) : ce qu'on gèle, c'est la
+// forme, pas la recette.
+//
+// Les six empreintes ont été recalculées quand la part caméra est passée
+// AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
+// tools/tune-mount.mjs) l'a montée de quelques millimètres, son avancée étant
+// restée celle de la recette. Rien d'autre n'a bougé, et les ambiants ne sont
+// pas rendus autrement pour autant : src/drone-mesh.js traite la part `camera`
+// comme toutes les autres, c'est une boîte de 19×19×10 mm qui a changé de
+// hauteur. Toute autre dérive de ces empreintes est une régression.
 {
 	const GOLDEN = {
-		freestyle5: '7a53adf12c1da863',
-		race5: '57200a88c5d0043c',
-		cinewhoop: '0365daed5be86ae2',
-		longrange: 'a69ea76cf782fb07',
-		heavy5: '7b5d1b2a28f29660',
-		toothpick: '4debf646ed4fb693',
+		freestyle5: '16587a6f69b64570',
+		race5: 'd8da56b6dd4c251f',
+		cinewhoop: 'd09dde63cf3be300',
+		longrange: 'afdf242d80843cd8',
+		heavy5: '51005da4a6e8c3e9',
+		toothpick: 'e7e0549102e45774',
 	};
 	for (const family of FAMILIES) {
 		const rows = make(family).parts
@@ -118,6 +127,50 @@ check('freestyle : plaque de 6 mm', Math.abs(roles(make('freestyle5'), 'plate')[
 	check('freestyle léger : pas de GoPro', roles(make('freestyle5', light), 'gopro').length === 0, light);
 }
 check('même build → même recette', JSON.stringify(make('race5', 'same')) === JSON.stringify(make('race5', 'same')));
+
+// Issue #264 : trois niveaux de détail, et le défaut ne bouge PAS.
+{
+	const seed = 'lod::freestyle5';
+	const build = targetBuild({ seed, family: 'freestyle5' });
+	const camera = targetCamera({ seed, family: 'freestyle5' });
+	const base = shapeOf({ profile: build.profile, build, camera });
+	const silhouette = shapeOf({ profile: build.profile, build, camera, detail: 'silhouette' });
+	const onboard = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
+	const portrait = shapeOf({ profile: build.profile, build, camera, detail: 'portrait' });
+
+	check('detail absent ≡ silhouette', JSON.stringify(base) === JSON.stringify(silhouette));
+	check('silhouette : aucune pale', silhouette.parts.every((p) => p.role !== 'blade'));
+	check('onboard : 3 pales par hélice (freestyle)', onboard.parts.filter((p) => p.role === 'blade').length === 12);
+	check('onboard : le disque enveloppe est conservé', onboard.parts.filter((p) => p.role === 'prop').length === 4);
+	// L'enveloppe balayée est ce que tools/prop-coverage.mjs mesure et ce que le
+	// shader fond en flou : si un niveau la retirait, la borne DA deviendrait
+	// aveugle. Les pales S'AJOUTENT au disque, elles ne le remplacent pas.
+	check('le disque enveloppe survit aux trois niveaux',
+		[silhouette, onboard, portrait].every((s) => s.parts.filter((p) => p.role === 'prop').length === 4));
+	check('onboard ajoute, ne retire rien',
+		silhouette.parts.every((p) => onboard.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+	check('portrait ajoute, ne retire rien',
+		onboard.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+	check('portrait ⊇ onboard', onboard.parts.length < portrait.parts.length);
+	check('portrait : cloches moteur', portrait.parts.filter((p) => p.role === 'bell').length === 4);
+	check('rayon englobant identique aux trois niveaux',
+		silhouette.boundingRadius === onboard.boundingRadius && onboard.boundingRadius === portrait.boundingRadius);
+	check('chaque pale porte le moteur et le sens de son hélice',
+		onboard.parts.filter((p) => p.role === 'blade').every((p) => Number.isInteger(p.motor) && Math.abs(p.spin) === 1));
+	check('micro : 2 pales par hélice', shapeOf({
+		profile: targetBuild({ seed: 'lod::tp', family: 'toothpick' }).profile,
+		build: targetBuild({ seed: 'lod::tp', family: 'toothpick' }),
+		camera: targetCamera({ seed: 'lod::tp', family: 'toothpick' }),
+		detail: 'onboard',
+	}).parts.filter((p) => p.role === 'blade').length === 8);
+	// Un niveau inconnu est une faute de frappe, pas un silhouette silencieux.
+	let threw = false;
+	try { shapeOf({ profile: build.profile, build, camera, detail: 'moyen' }); } catch { threw = true; }
+	check('un niveau inconnu lève', threw);
+	// Toutes les pièces des trois niveaux restent sous le rayon englobant.
+	check('les pales et les cloches tiennent sous le rayon englobant',
+		portrait.parts.every((p) => Math.hypot(...p.at) <= portrait.boundingRadius + 1e-9));
+}
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
 process.exit(failures ? 1 : 0);
