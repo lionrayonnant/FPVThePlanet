@@ -8,7 +8,7 @@
 import {
 	rngFrom, ambientSet, ROUTINES, lateralAccelMax, routineFor,
 	MAX_DRONES, G, TURN_MARGIN, TILT_MAX_DEG,
-	curveLocal, curveHeights, curveAt, derive, SAMPLES,
+	curveLocal, curveHeights, curveAt, derive, SAMPLES, HEIGHT_SAMPLES,
 	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
 	attitudeFrom, tiltOf,
 } from '../src/ambient.js';
@@ -86,7 +86,7 @@ console.log('\nambient: courbes');
 		const bound = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
 		check(`${family}: rayon horizontal ≤ borne`, maxR <= bound + 1.0, `${maxR.toFixed(1)} vs ${bound.toFixed(1)}`);
 		// Hauteurs : sol plat à 20 → courbe à 20 + agl partout (± sinus vertical).
-		const heights = new Float64Array(SAMPLES);
+		const heights = new Float64Array(HEIGHT_SAMPLES);
 		check(`${family}: hauteurs calculées`, curveHeights(r, anchor, flat.groundBelow, heights));
 		check(`${family}: hauteur = sol + agl`, Array.from(heights).every((h) => Math.abs(h - (20 + r.agl)) < 1e-9));
 		curveAt(r, anchor, heights, r.period * 0.37, out);
@@ -106,7 +106,7 @@ console.log('\nambient: courbes');
 		const anchor0 = { x: 0, y: 0, z: 0 };
 		for (const [family] of [['freestyle5'], ['heavy5']]) {
 			const r = routineFor({ family, twr: 6, rand: rngFrom('v') });
-			const heights = new Float64Array(SAMPLES);
+			const heights = new Float64Array(HEIGHT_SAMPLES);
 			curveHeights(r, anchor0, flatGround, heights);
 			const pos = { x: 0, y: 0, z: 0 }, vel = { x: 0, y: 0, z: 0 }, acc = { x: 0, y: 0, z: 0 };
 			const scan = (h) => {
@@ -124,7 +124,7 @@ console.log('\nambient: courbes');
 	}
 	// Un sol manquant fait échouer les hauteurs.
 	const r = routineFor({ family: 'race5', twr: 6, rand: rngFrom('hole') });
-	const heights = new Float64Array(SAMPLES);
+	const heights = new Float64Array(HEIGHT_SAMPLES);
 	check('sol null → false', curveHeights(r, anchor, (x) => (x > 100 ? null : 0), heights) === false);
 	// Le relief est suivi : sol en pente → hauteurs différentes aux deux bouts.
 	const slope = (x) => x * 0.1;
@@ -185,7 +185,7 @@ console.log('\nambient: bulle, ancres, validation');
 
 	// Validation : plat → ok ; mur → rejet ; sol trop haut sous un point → rejet.
 	const r = routineFor({ family: 'freestyle5', twr: 6, rand: rngFrom('v') });
-	const heights = new Float64Array(SAMPLES);
+	const heights = new Float64Array(HEIGHT_SAMPLES);
 	check('courbe sur du plat : valide', validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays, heights, top: 250, span: 400 }));
 	check('courbe contre un mur : rejetée', !validateCurve({ routine: r, anchor: { x: 40, y: 0, z: 0 }, rays: wallRays, heights, top: 250, span: 400 }));
 	const bump = { groundBelow: (x) => (x > 10 ? 200 : 0), obstructionBetween: () => ({ blocked: false, span: 0 }) };
@@ -193,6 +193,24 @@ console.log('\nambient: bulle, ancres, validation');
 	// Un toit frôlé (span ≤ 2) passe.
 	const roof = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: true, span: 1.5 }) };
 	check('toit frôlé : accepté', validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: roof, heights, top: 250, span: 400 }));
+
+	// LE mode d'échec de `havre` (rapport Task 9) : un bâtiment ENTRE deux
+	// nœuds de la grille grossière. Le huit 'v' ci-dessus passe par x = 7,51
+	// puis x = 14,08 aux nœuds 16-ièmes ; la fenêtre 9 < x < 12 ne contient
+	// donc AUCUN nœud grossier, mais deux nœuds fins (x = 10,31 et 11,29).
+	// Un immeuble de 30 m posé là était invisible à 16 rayons et se voit à 64.
+	// Aucun segment ne le coupe non plus : la courbe passe 14 m au-dessus du
+	// sol plat et 16 m AU-DESSUS du toit — la règle du mur ne peut rien voir.
+	const _o = { x: 0, y: 0, z: 0 };
+	const inWindow = (x) => x > 9 && x < 12;
+	let coarseHits = 0, fineHits = 0;
+	for (let i = 0; i < SAMPLES; i++) { curveLocal(r, r.period * i / SAMPLES, _o); if (inWindow(_o.x)) coarseHits++; }
+	for (let i = 0; i < HEIGHT_SAMPLES; i++) { curveLocal(r, r.period * i / HEIGHT_SAMPLES, _o); if (inWindow(_o.x)) fineHits++; }
+	check('prémisse : la bosse tombe entre deux nœuds grossiers, sur des nœuds fins',
+		coarseHits === 0 && fineHits > 0, `${coarseHits} nœud(s)/${SAMPLES} vs ${fineHits} nœud(s)/${HEIGHT_SAMPLES}`);
+	const hidden = { groundBelow: (x) => (inWindow(x) ? 30 : 0), obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	check('bâtiment caché entre deux nœuds grossiers : rejeté',
+		!validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: hidden, heights, top: 250, span: 400 }));
 }
 
 console.log('\nambient: modèle');
@@ -258,6 +276,35 @@ console.log('\nambient: modèle');
 	for (let i = 0; i < 60; i++) frame(ms, { x: 80, y: 30, z: 80 });
 	check('petite carte : jamais de départ', ms.stats.relocations === 0);
 	check('petite carte : positions dans la clôture', [...Array(ms.count).keys()].every((k) => Math.abs(ms.pos[3 * k]) < 90 && Math.abs(ms.pos[3 * k + 2]) < 90));
+
+	// Un slot IMPOSSIBLE ne bloque plus les autres. Sur cette même petite carte
+	// (demi-côté 90, hold 10), un long range demande `leg/2 + radius = 320 m`
+	// de marge : il ne peut JAMAIS naître ici. Avant la rotation du curseur,
+	// spawnOne() repartait toujours du slot 0 — un long range en tête gelait
+	// tout le ciel derrière lui, pour toujours (0/4 mesuré sur `paristest`).
+	{
+		// La graine se CHERCHE plutôt qu'elle ne se recopie : la table des
+		// familles peut bouger, l'invariant qu'on veut est « le premier
+		// candidat non pris est un long range, et c'est le seul ».
+		let found = null;
+		for (let i = 0; i < 200 && !found; i++) {
+			const sc = { seed: `cursor${i}`, count: 5, index: 0 };
+			const st = ambientSet(sc);
+			if (st.length >= 2 && st[0].family === 'longrange' && !st.slice(1).some((d) => d.family === 'longrange')) {
+				found = { scan: sc, set: st };
+			}
+		}
+		check('graine à long range en tête trouvée', found !== null, found && `${found.scan.seed} : ${found.set.map((d) => d.family).join(',')}`);
+		if (found) {
+			const bs = found.set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
+			const mc = new AmbientModel({ set: found.set, builds: bs, bounds: small, seed: found.scan.seed });
+			for (let i = 0; i < 12; i++) frame(mc, player);
+			check('slot impossible : les autres naissent quand même',
+				mc.count >= 1 && mc.count === found.set.length - 1, `${mc.count}/${found.set.length - 1}`);
+			check('slot impossible : c\'est bien le long range qui manque', mc.alive[0] === 0);
+			check('slot impossible : les échecs sont comptés', mc.stats.spawnFailures > 0, `${mc.stats.spawnFailures}`);
+		}
+	}
 
 	// Sol absent (direct pas chargé) : rien ne naît, échecs comptés, pas d'exception.
 	const mh = new AmbientModel({ set, builds, bounds: { center: { x: 0, z: 0 }, trusted: 180 }, seed: 'h' });

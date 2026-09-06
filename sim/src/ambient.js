@@ -7,6 +7,10 @@
 // famille vole), les courbes (où), la bulle (autour de qui), les ancres et
 // leur validation, l'attitude (comment le corps se tient). Tout est
 // déterministe sur la graine du scan, et update() n'alloue rien.
+//
+// La validation travaille sur DEUX grilles, et c'est délibéré : le sol se
+// mesure fin (HEIGHT_SAMPLES), les murs se testent grossier (SAMPLES). Le
+// pourquoi est au-dessus des deux constantes.
 
 import { generateTargetScan } from '../tools/target-model.mjs';
 
@@ -147,7 +151,24 @@ export function routineFor({ family, twr, rand }) {
 	};
 }
 
+// Deux grilles, deux métiers.
+//
+// SAMPLES : le nombre de SEGMENTS sur lesquels on teste l'obstruction. Un
+// segment est une corde, `obstructionBetween` la traverse d'un rayon : la
+// densifier ne révèle rien de neuf, elle rejoue le même mur.
+//
+// HEIGHT_SAMPLES : le nombre de RAYONS DE SOL du profil de hauteur. Le sol,
+// lui, n'est pas une corde : c'est une nappe continue sous la courbe, et
+// entre deux nœuds elle peut monter sans jamais couper le segment. À 16
+// nœuds, deux rayons voisins sont distants de 22 m sur un huit et de 74 m
+// sur un cruise (leg 400 m) — mesuré sur `havre` (tools/selftest.mjs) : un
+// immeuble de +37 m se cachait entre deux nœuds sous un long range (AGL réel
+// 45,8 m pour un plancher de 60), et un heavy5 passait à 1,06 m d'un quai
+// pour un plancher de 10. La règle du mur ne pouvait rien y voir — la courbe
+// passe AU-DESSUS du toit, aucun segment ne le coupe. 64 rayons ramènent le
+// pas à 5,5 m (huit) / 18 m (cruise), sous la taille d'un bâtiment.
 export const SAMPLES = 16;
+export const HEIGHT_SAMPLES = 64;
 const TWO_PI = Math.PI * 2;
 
 // Offset par rapport à l'ancre, à l'instant t, dans le plan de la routine.
@@ -238,11 +259,12 @@ export function curveLocal(r, t, out) {
 
 const _c = { x: 0, y: 0, z: 0 };
 
-// Hauteur absolue de la courbe à chacun des SAMPLES échantillons : sol + agl.
-// `groundBelow(x, z)` rend la hauteur du sol ou null (pas de terrain).
+// Hauteur absolue de la courbe à chacun des HEIGHT_SAMPLES échantillons :
+// sol + agl. `groundBelow(x, z)` rend la hauteur du sol ou null (pas de
+// terrain). `heights` fait HEIGHT_SAMPLES de long.
 export function curveHeights(r, anchor, groundBelow, heights) {
-	for (let i = 0; i < SAMPLES; i++) {
-		curveLocal(r, r.period * i / SAMPLES, _c);
+	for (let i = 0; i < HEIGHT_SAMPLES; i++) {
+		curveLocal(r, r.period * i / HEIGHT_SAMPLES, _c);
 		const g = groundBelow(anchor.x + _c.x, anchor.z + _c.z);
 		if (g == null) return false;
 		heights[i] = g + r.agl;
@@ -254,8 +276,8 @@ export function curveHeights(r, anchor, groundBelow, heights) {
 // échantillonnées (le micro épouse le relief) plus l'offset de la figure.
 export function curveAt(r, anchor, heights, t, out) {
 	curveLocal(r, t, out);
-	const f = ((t / r.period) % 1 + 1) % 1 * SAMPLES;
-	const i = Math.floor(f) % SAMPLES, j = (i + 1) % SAMPLES, a = f - Math.floor(f);
+	const f = ((t / r.period) % 1 + 1) % 1 * HEIGHT_SAMPLES;
+	const i = Math.floor(f) % HEIGHT_SAMPLES, j = (i + 1) % HEIGHT_SAMPLES, a = f - Math.floor(f);
 	const y = heights[i] * (1 - a) + heights[j] * a;
 	out.x += anchor.x; out.z += anchor.z; out.y += y;
 	return out;
@@ -403,23 +425,31 @@ export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, to
 
 const _a = { x: 0, y: 0, z: 0 }, _b = { x: 0, y: 0, z: 0 };
 
-// 16 rayons vers le bas (hauteurs), 16 obstructions entre voisins.
+// 64 rayons vers le bas (le profil de sol, et le plancher testé dessus), puis
+// 16 obstructions entre segments voisins. Les deux grilles sont volontairement
+// différentes — voir SAMPLES / HEIGHT_SAMPLES plus haut.
 export function validateCurve({ routine, anchor, rays, heights, top, span, stats }) {
 	const ground = (x, z) => { if (stats) stats.raysCast++; return rays.groundBelow(x, top, z, span); };
 	if (!curveHeights(routine, anchor, ground, heights)) return false;
-	for (let i = 0; i < SAMPLES; i++) {
+	// Le plancher, sur la grille FINE : c'est là que se cachait le relief.
+	for (let i = 0; i < HEIGHT_SAMPLES; i++) {
 		// La figure peut descendre sous l'AGL tiré (sinus, plan incliné) :
 		// c'est l'AGL MINIMAL de la famille qui compte, au point le plus bas.
-		curveAt(routine, anchor, heights, routine.period * i / SAMPLES, _a);
+		curveAt(routine, anchor, heights, routine.period * i / HEIGHT_SAMPLES, _a);
 		// À l'échantillon i pile, heights[i] EST le sol sous _a (curveHeights l'y a
 		// mis) : `_a.y - (heights[i] - agl)` retombe donc toujours exactement sur
 		// `curveLocal.y + agl`, quel que soit le relief — une tautologie qui ne
 		// verrait jamais un point sous le relief. On compare plutôt au pire des
 		// deux sols voisins (i et i+1) : si le relief grimpe fort entre les deux,
 		// c'est entre eux (où la courbe interpole linéairement) que ça râcle.
-		const j = (i + 1) % SAMPLES;
+		const j = (i + 1) % HEIGHT_SAMPLES;
 		const g = Math.max(heights[i], heights[j]) - routine.agl;
 		if (_a.y - g < routine.aglMin) return false;
+	}
+	// Les murs, sur la grille GROSSIÈRE : un segment est une corde, la
+	// densifier rejouerait le même rayon sur la même géométrie.
+	for (let i = 0; i < SAMPLES; i++) {
+		curveAt(routine, anchor, heights, routine.period * i / SAMPLES, _a);
 		curveAt(routine, anchor, heights, routine.period * (i + 1) / SAMPLES, _b);
 		if (stats) stats.raysCast += 2;
 		const o = rays.obstructionBetween(_a.x, _a.y, _a.z, _b.x, _b.y, _b.z);
@@ -444,7 +474,7 @@ export class AmbientModel {
 		this.acc = new Float64Array(3 * MAX_DRONES);
 		this.quat = new Float64Array(4 * MAX_DRONES);
 		this.anchors = new Float64Array(3 * MAX_DRONES);
-		this.heights = Array.from({ length: MAX_DRONES }, () => new Float64Array(SAMPLES));
+		this.heights = Array.from({ length: MAX_DRONES }, () => new Float64Array(HEIGHT_SAMPLES));
 		this.routines = new Array(MAX_DRONES).fill(null);
 		this.t = new Float64Array(MAX_DRONES);
 		this.stats = { relocations: 0, raysCast: 0, spawnFailures: 0 };
@@ -454,6 +484,9 @@ export class AmbientModel {
 		this._q = new Float64Array(4);
 		this._bubble = { rMin: 0, rMax: 0, rLeave: 0 };
 		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0 };
+		// Le slot par lequel spawnOne() commence son balayage. Il TOURNE — voir
+		// spawnOne().
+		this._spawnCursor = 0;
 		this.reset();
 	}
 
@@ -462,6 +495,7 @@ export class AmbientModel {
 	reset() {
 		this.alive.fill(0);
 		this.t.fill(0);
+		this._spawnCursor = 0;
 		this.rand = rngFrom(`${this.seed}::ambient`);
 		for (let k = 0; k < this.n; k++) {
 			this.routines[k] = routineFor({
@@ -472,10 +506,18 @@ export class AmbientModel {
 		}
 	}
 
-	// Fait naître le premier slot mort. Rend true si un drone est né.
+	// Fait naître UN slot mort — un seul par frame, réussi ou non. Le balayage
+	// commence à `_spawnCursor`, qui avance après chaque slot TENTÉ : sans
+	// cette rotation, le premier slot mort était toujours le même, et un slot
+	// impossible gelait tout le ciel derrière lui. C'est exactement ce qui
+	// arrivait à un long range (rayon leg/2 + radius = 320 m) sur une carte
+	// qui ne peut pas le loger : 0 naissance sur 4, pour toujours.
+	// Rend true si un drone est né.
 	spawnOne({ player, cam, fovDeg, rays, top, span }) {
-		for (let k = 0; k < this.n; k++) {
+		for (let j = 0; j < this.n; j++) {
+			const k = (this._spawnCursor + j) % this.n;
 			if (this.alive[k]) continue;
+			this._spawnCursor = (k + 1) % this.n;
 			const r = this.routines[k];
 			const radius = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
 			for (let tries = 0; tries < SPAWN_TRIES_PER_FRAME; tries++) {
