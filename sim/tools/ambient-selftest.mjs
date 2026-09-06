@@ -8,6 +8,7 @@
 import {
 	rngFrom, ambientSet, ROUTINES, lateralAccelMax, routineFor,
 	MAX_DRONES, G, TURN_MARGIN,
+	curveLocal, curveHeights, curveAt, derive, SAMPLES,
 } from '../src/ambient.js';
 import { generateTargetScan, TARGET_FAMILIES } from './target-model.mjs';
 import { targetBuild } from './target-build.mjs';
@@ -62,6 +63,45 @@ console.log('\nambient: routines');
 	check('TWR faible plafonne la vitesse', slow.speed * slow.speed / slow.radius <= TURN_MARGIN * lateralAccelMax(1.5) + 1e-9);
 	const veryLowTWR = routineFor({ family: 'race5', twr: 1.01, rand: rngFrom('twr-1.01') });
 	check('twr 1.01: invariant v²/r ≤ 0,6·a_max tient', veryLowTWR.speed * veryLowTWR.speed / veryLowTWR.radius <= TURN_MARGIN * lateralAccelMax(1.01) + 1e-9);
+}
+
+console.log('\nambient: courbes');
+{
+	const out = { x: 0, y: 0, z: 0 };
+	const anchor = { x: 100, y: 0, z: -50 };
+	const flat = { groundBelow: () => 20 };
+	for (const family of TARGET_FAMILIES) {
+		const r = routineFor({ family, twr: 6, rand: rngFrom(`c::${family}`) });
+		// Fermée : p(0) = p(period).
+		curveLocal(r, 0, out); const p0 = { ...out };
+		curveLocal(r, r.period, out);
+		check(`${family}: courbe fermée`, Math.hypot(out.x - p0.x, out.y - p0.y, out.z - p0.z) < 1e-6);
+		// Rayon respecté (hors jitter : ±0,9 m max pour 3 sinus de 0,3).
+		let maxR = 0;
+		for (let i = 0; i < 200; i++) { curveLocal(r, r.period * i / 200, out); maxR = Math.max(maxR, Math.hypot(out.x, out.z)); }
+		const bound = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
+		check(`${family}: rayon horizontal ≤ borne`, maxR <= bound + 1.0, `${maxR.toFixed(1)} vs ${bound.toFixed(1)}`);
+		// Hauteurs : sol plat à 20 → courbe à 20 + agl partout (± sinus vertical).
+		const heights = new Float64Array(SAMPLES);
+		check(`${family}: hauteurs calculées`, curveHeights(r, anchor, flat.groundBelow, heights));
+		check(`${family}: hauteur = sol + agl`, Array.from(heights).every((h) => Math.abs(h - (20 + r.agl)) < 1e-9));
+		curveAt(r, anchor, heights, r.period * 0.37, out);
+		check(`${family}: curveAt au-dessus du sol`, out.y >= 20 + r.aglMin - r.vertical - 1e-9);
+		// Vitesse dérivée ≈ vitesse tirée (à 10 % : les huit et le jitter déforment).
+		const pos = { x: 0, y: 0, z: 0 }, vel = { x: 0, y: 0, z: 0 }, acc = { x: 0, y: 0, z: 0 };
+		let vAvg = 0; const N = 100;
+		for (let i = 0; i < N; i++) { derive(r, anchor, heights, r.period * i / N, 1 / 60, pos, vel, acc); vAvg += Math.hypot(vel.x, vel.z) / N; }
+		check(`${family}: |v| dérivée ≈ speed`, Math.abs(vAvg - r.speed) / r.speed < 0.12, `${vAvg.toFixed(1)} vs ${r.speed.toFixed(1)}`);
+		check(`${family}: accélération finie`, Number.isFinite(acc.x) && Number.isFinite(acc.y) && Number.isFinite(acc.z));
+	}
+	// Un sol manquant fait échouer les hauteurs.
+	const r = routineFor({ family: 'race5', twr: 6, rand: rngFrom('hole') });
+	const heights = new Float64Array(SAMPLES);
+	check('sol null → false', curveHeights(r, anchor, (x) => (x > 100 ? null : 0), heights) === false);
+	// Le relief est suivi : sol en pente → hauteurs différentes aux deux bouts.
+	const slope = (x) => x * 0.1;
+	curveHeights(r, anchor, slope, heights);
+	check('le relief est suivi', Math.max(...heights) - Math.min(...heights) > 1);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
