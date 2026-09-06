@@ -76,17 +76,46 @@ function place(p, part) {
 	return [x + part.at[0], y + part.at[1], z + part.at[2]];
 }
 
-export function wireOf(shape, { yawDeg = 30, pitchDeg = 20 } = {}) {
+// L'ATTITUDE de la machine, à ne pas confondre avec l'orbite de la caméra
+// (issue #281). Le portrait d'archive fait tourner le point de vue autour d'un
+// objet immobile ; l'assistant de calibrage a besoin de l'inverse — un point de
+// vue fixe et une machine qui s'incline avec le manche que le pilote tient.
+//
+// Repère du corps, comme src/drone-mesh.js : X à droite, Y en haut, Z vers
+// l'arrière — le nez est en -Z. Les signes sont posés pour que le geste demandé
+// par CAL_PROMPTS soit celui qu'on voit : roulis à droite = le côté droit
+// DESCEND, cabrer = le nez MONTE, lacet à droite = le nez part à droite.
+//
+// Ordre : lacet, puis tangage, puis roulis. C'est celui d'un corps qui vole, et
+// il n'a d'importance que hors des petits angles — l'assistant reste bien en
+// deçà.
+function attituded(roll, pitch, yaw) {
+	if (!roll && !pitch && !yaw) return null;   // le portrait d'archive : rien à faire
+	const r = -roll * Math.PI / 180, p = pitch * Math.PI / 180, y = -yaw * Math.PI / 180;
+	const cr = Math.cos(r), sr = Math.sin(r);
+	const cp = Math.cos(p), sp = Math.sin(p);
+	const cy = Math.cos(y), sy = Math.sin(y);
+	return (x0, y0, z0) => {
+		let x = x0 * cy + z0 * sy, y1 = y0, z = -x0 * sy + z0 * cy;   // lacet (autour de Y)
+		[y1, z] = [y1 * cp - z * sp, y1 * sp + z * cp];               // tangage (autour de X)
+		[x, y1] = [x * cr - y1 * sr, x * sr + y1 * cr];               // roulis (autour de Z)
+		return [x, y1, z];
+	};
+}
+
+export function wireOf(shape, { yawDeg = 30, pitchDeg = 20, roll = 0, pitch = 0, yaw = 0 } = {}) {
 	if (!shape?.parts?.length) return { segments: new Float32Array(0), depth: new Float32Array(0) };
 
 	const cy = Math.cos(yawDeg * Math.PI / 180), sy = Math.sin(yawDeg * Math.PI / 180);
 	const cp = Math.cos(pitchDeg * Math.PI / 180), sp = Math.sin(pitchDeg * Math.PI / 180);
+	const att = attituded(roll, pitch, yaw);
 
 	const xs = [], ys = [], ds = [];
 	for (const part of shape.parts) {
 		for (const [a, b] of edgesOf(part)) {
 			for (const p of [a, b]) {
-				const [wx, wy, wz] = place(p, part);
+				const placed = place(p, part);
+				const [wx, wy, wz] = att ? att(placed[0], placed[1], placed[2]) : placed;
 				// Rotation d'orbite (lacet puis tangage), projection orthographique :
 				// un portrait technique n'a pas de perspective.
 				const rx = wx * cy + wz * sy;

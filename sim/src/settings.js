@@ -1,5 +1,6 @@
 import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY } from './input.js';
 import { beginCalibration, feedSample, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel } from './calibration.js';
+import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
@@ -126,6 +127,15 @@ export class Settings {
 					<p id="cal-hint" class="spec"></p>
 					<p id="cal-message" class="spec"></p>
 					<div class="axisbar"><i id="cal-bar"></i></div>
+				</div>
+				<!-- La machine qui réagit au manche (#281). Hors de #cal-screen
+				     à dessein : une fois la mesure finie elle reste, et suit les
+				     quatre manches calibrés — le banc d'essai vient gratuitement.
+				     C'est aussi pourquoi CANCEL est descendu sous elle : sinon
+				     la machine apparaît SOUS un bouton d'abandon, alors qu'elle
+				     illustre la consigne écrite au-dessus. -->
+				<div id="cal-drone" hidden></div>
+				<div id="cal-cancel-row" hidden>
 					<button id="cal-cancel" type="button">Cancel</button>
 				</div>
 				<div id="cal-summary" class="spec" hidden></div>
@@ -172,6 +182,8 @@ export class Settings {
 			calHint: el.querySelector('#cal-hint'),
 			calMessage: el.querySelector('#cal-message'),
 			calBar: el.querySelector('#cal-bar'),
+			calDrone: el.querySelector('#cal-drone'),
+			calCancelRow: el.querySelector('#cal-cancel-row'),
 			calSummary: el.querySelector('#cal-summary'),
 		};
 		// État de l'assistant de calibrage, ou null. C'est la seule chose qui
@@ -286,6 +298,9 @@ export class Settings {
 		} else {
 			this._nav?.detach();
 			this._nav = null;
+			// Panneau fermé : la boucle de la machine s'arrête avec lui, comme
+			// celle de l'assistant.
+			this.unmountCalDrone();
 		}
 	}
 
@@ -351,6 +366,52 @@ export class Settings {
 		this._calPadId = null;
 	}
 
+	// ---------------------------------------------------------------------------
+	// LA MACHINE QUI RÉAGIT AU MANCHE (issue #281)
+	//
+	// Le calibrage mesurait juste et ne montrait rien : le pilote poussait un
+	// manche et ne voyait qu'une barre. Elle vit tant que le panneau est
+	// ouvert et qu'il y a quelque chose à montrer — une mesure en cours, ou un
+	// périphérique déjà calibré, et c'est alors un banc d'essai.
+	// ---------------------------------------------------------------------------
+
+	// Ce que la machine doit refléter à cette frame, ou null pour la pose de
+	// repos. Aucune horloge ici : calibration-drone.js tient la sienne.
+	calDroneSample() {
+		const pad = this.input.getGamepad();
+		if (!pad) return null;
+		const signals = padSignals(pad);
+		if (this._cal) return { state: this._cal, signals };
+
+		// Mesure finie : la pose vient du calibrage écrit, par le même chemin
+		// que le vol. `phase: 'done'` est tout ce que calibrationPose() lit.
+		const cal = this.input.calibration;
+		if (!cal) return null;
+		return { state: { phase: 'done', channels: cal.channels, deadband: cal.deadband }, signals };
+	}
+
+	syncCalDrone() {
+		const show = this.settingsOpen
+			&& this.input.gamepadIndex !== null
+			&& (this._cal !== null || this.input.isCalibrated());
+		if (show) this.mountCalDrone(); else this.unmountCalDrone();
+	}
+
+	mountCalDrone() {
+		if (this._calDrone) return;
+		this._calDrone = calibrationDrone({ sample: () => this.calDroneSample() });
+		this.el.calDrone.appendChild(this._calDrone.el);
+		this.el.calDrone.hidden = false;
+	}
+
+	unmountCalDrone() {
+		if (!this._calDrone) return;
+		this._calDrone.stop();
+		this._calDrone.el.remove();
+		this._calDrone = null;
+		this.el.calDrone.hidden = true;
+	}
+
 	// Une trame de mesure. Le dt vient d'ici et non de main.js : la machine
 	// raisonne en millisecondes réelles, et updateAxisBars() n'en reçoit pas.
 	stepCalibration(pad) {
@@ -383,7 +444,9 @@ export class Settings {
 
 	renderCalibration(pad) {
 		const running = this._cal !== null;
+		this.syncCalDrone();
 		this.el.calScreen.hidden = !running;
+		this.el.calCancelRow.hidden = !running;
 		this.el.calRow.hidden = running;
 		this.el.padMap.hidden = running;
 		this.el.padList.hidden = running;
