@@ -2145,6 +2145,186 @@ micro à 0,15 m au lieu de 0,3 m), ouverte ; #263 (luminosité des maillages au
 crépuscule) **traitée** au code (`uAmbient = cloud.dim`), reste à confirmer à
 l'œil (point (a) ci-dessus).
 
+## Le drone du joueur en 3D (issue #264)
+
+Le quad procédural de #250 revient sous les yeux du joueur, à trois distances :
+ses deux hélices avant **dans le champ** pendant le vol (seconde passe du
+composer, caméra à `near = 0.005`), la **machine entière en caméra libre**
+(touche `C`), et un **portrait fil de fer** en SVG au crash puis dans
+`SESSION LOG` / `TARGET LOG`. Les hélices tournent au régime réel des quatre
+moteurs (`physics.propulsion.omega`), lu par index moteur : le mixeur se lit
+directement à l'image. Aucune migration — `session.target` porte déjà `family`
+et `buildSeed` en clair, donc tout l'historique déjà journalisé sait se
+dessiner. Commits `f5077b6..87c8c73`.
+
+### Vérifié — sans navigateur
+
+- `tools/onboard-frame-selftest.mjs` (24) : la **borne DA garantie par
+  construction**, rasterisation pure sans GPU, 6 familles × 300 graines contre
+  le bloc `MOUNT` tel qu'il est écrit. Mesuré : aire au pire **7,5 à 7,9 %**,
+  hauteur médiane **31 à 44 %**, hauteur au pire **40 à 48 %**. Contient aussi
+  l'étalonnage de la sonde (objectif exactement dans le plan d'hélice ⇒
+  couverture nulle ; monotonie de l'écart au plan ; déterminisme).
+- `tools/onboard-drone-selftest.mjs` (26) : **exclusivité** embarqué / free cam
+  (jamais deux, jamais zéro en vol), l'œil qui retombe exactement à l'origine
+  (5,2e-18), les hélices avant devant l'œil et sous l'axe optique, la caméra
+  embarquée qui copie le champ de la caméra de vol, `dt = 0` qui n'avance pas le
+  temps du maillage, `dispose()` qui vide la scène. Et la **boucle fermée** : le
+  bord des disques projeté par la vraie caméra embarquée à travers la vraie
+  matrice de montage retombe sur la mesure de la sonde à moins d'une ligne de sa
+  grille, pour les six familles (p. ex. cinewhoop, sonde 45,7 % vs projeté
+  46,2 %). La caméra qu'on monte est donc bien celle qu'on mesure.
+- `tools/onboard-regime-selftest.mjs` (10) : **le câblage hélice ↔ moteur contre
+  la physique**, pas contre le rendu. Lacet à gauche ⇒ l'avant-droite accélère
+  et l'avant-gauche ralentit (3050 vs 0 rad/s), lacet à droite ⇒ l'inverse,
+  tangage ⇒ les deux ensemble, roulis ⇒ en sens contraires ; montée en régime
+  plus raide que la descente (+1371 puis −1231 rad/s, `tauSpinUp` 0,022 <
+  `tauSpinDown` 0,045) ; pack vidé ⇒ plafond abaissé de 374 rad/s. **Correction
+  de spec au passage** : la spec annonçait « roulis → une seule hélice bouge ».
+  C'est faux — `mixOf()` donne `roll: ±1` aux deux avant, donc le roulis les
+  sépare exactement comme le lacet (mesuré `+1080 / −1970` contre `+1080 /
+  +1080` au tangage). Sur la paire visible, **seul le tangage a une signature
+  propre** ; roulis et lacet partagent la leur. Corrigé dans la spec et dans la
+  Bible §22 ; le commentaire de tête du bloc 2 de ce selftest
+  (`tools/onboard-regime-selftest.mjs:45`) porte encore l'ancienne phrase — à
+  corriger.
+- `tools/drone-shape-selftest.mjs` (134, étendu) : les hélices naissent de
+  `motorsOf()` — même table que le mixeur — et portent leur index moteur et leur
+  `spin` ; les trois niveaux de détail ; et l'**empreinte de non-régression** :
+  `shapeOf()` sans `detail` rend exactement la géométrie d'avant pour les six
+  familles, donc les ambiants ne bougent pas.
+- `tools/drone-mesh-selftest.mjs` (46, étendu) : les quatre régimes arrivent au
+  shader, le fondu pales → disque, le soleil ramené dans le repère du modèle.
+- `tools/drone-wire-selftest.mjs` (45) : la **projection fil de fer**, module
+  pur sans Three ni DOM. Le test ne connaît aucune coordonnée — nombre d'arêtes
+  recalculé depuis le `kind` de chaque primitive, bornes de la boîte,
+  déterminisme, invariance d'échelle, sens de la profondeur, absence de NaN —
+  donc il survit à un remontage de la caméra. Les six familles donnent six
+  portraits distincts, de 628 à 784 segments.
+- `tools/drone-portrait-render-selftest.mjs` (7) : l'**arbre SVG** sur le faux
+  DOM — un SVG produit, tout en `currentColor` (aucune couleur en dur), `stop()`
+  qui coupe l'animation, le dessin qui change d'une frame à l'autre sans lui,
+  une famille inconnue qui ne casse pas la fiche, une session sans graine qui
+  rend un blanc et non un jeton.
+- `tools/archive-render-selftest.mjs` et `tools/flight-end-selftest.mjs`
+  (étendus) : le portrait au `TARGET LOG` (sans graine, aucun `<svg>`), et la
+  **place** du jeton `[PORTRAIT]` dans la timeline — après `SESSION TERMINATED`,
+  avant qu'on rende la main, `TIMELINE.exitAt` toujours à 4,6 s.
+- Les cinq nouveaux fichiers sont chaînés en queue de `npm run
+  selftest:operator`, dans l'ordre du plan. La chaîne est verte (hors
+  `landing-selftest.mjs`, qui échoue sur cette machine par `ENOENT` faute de
+  `public/scenes/tour-eiffel` — échec d'environnement pré-existant).
+
+### La borne DA a été révisée à la mesure
+
+C'est la révision la plus importante de cette issue. La spec et l'issue
+annonçaient « couverture ≤ 8 % de l'image, **rien au-dessus de 45 % de la
+hauteur** ». Les 45 % sont **géométriquement intenables** pour freestyle5,
+cinewhoop, heavy5 et toothpick : le plan d'hélice a un **horizon**, à
+`(1 − tan(uptilt) / tan(champ/2)) / 2` de la hauteur du cadre — soit 50 % pour
+une caméra plate. Les hélices vivent dans ce plan, elles tendent donc vers cet
+horizon, et **aucune hauteur d'objectif ne les fait passer dessous** tant que
+l'œil reste derrière elles. Les 45 % de la spec avaient été mesurés sur **une
+graine par famille**, puis affirmés sur tout le domaine d'uptilt.
+
+Arbitrage rendu : l'objectif **reste dans le châssis** (avancée figée au bord
+avant de la plaque, `−0,55·armZ` — un objectif en porte-à-faux devant les
+hélices tiendrait mieux la borne mais ne serait plus une machine crédible en
+free cam ni au portrait), l'aire reste **≤ 8 %**, et la borne de hauteur devient
+**≤ 50 % au pire tirage et ≤ 45 % en médiane**. La borne qui protège vraiment
+l'image est celle de la surface. `tools/onboard-frame-selftest.mjs` et l'en-tête
+de `tools/tune-mount.mjs` portent cette formulation ; la Bible §22 et la spec
+ont été mises d'accord avec elle.
+
+Autre correction de mesure : le tableau de l'issue #264 donnait le toothpick à
+−8 mm à **30,9 %** de couverture médiane. C'est faux et hors d'atteinte — un
+balayage exhaustif de son enveloppe caméra donne 20,9 % à 28,8 %, et deux
+mesures indépendantes donnent **24,6 % en médiane, 28,7 % au pire**. Toutes les
+autres cases du tableau se reproduisent au chiffre près. Corrigé dans
+`docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md`.
+
+### Un bug pré-existant, corrigé au passage
+
+`toggleFreeCam()` **n'avait jamais été écrite**, alors que `src/main.js`
+l'appelait sur la touche `C` (`else if (key === 'c') toggleFreeCam();`). La
+caméra libre n'a donc **jamais** fonctionné avant cette issue : chaque appui sur
+`C` levait une `ReferenceError`. `OrbitControls` était bien construit, mais avec
+sa cible sur `(0,0,0)` et personne pour l'activer.
+
+### Points connus, assumés
+
+- **`src/lens.js` n'est couvert par aucun selftest** — il n'y a pas de GPU dans
+  la chaîne. La seconde passe (`setOnboard()`, `clear: false`,
+  `clearDepth: true`, insérée avant la passe d'objectif) et son **gel** par le
+  même drapeau que la passe principale ne sont vérifiés que **par lecture et par
+  `vite build`**. Le reste du chemin embarqué (la scène, la caméra, les régimes,
+  l'exclusivité) l'est bien par `onboard-drone-selftest.mjs`, qui ne passe pas
+  par `lens.js`.
+- **`.session-portrait` et `.drone-portrait` n'ont aucune règle dans
+  `src/style.css`.** Les nœuds existent et sont monochromes par héritage
+  (`currentColor`), mais leur mise en page est celle par défaut du navigateur —
+  à voir à l'œil avant de décider s'il faut des règles.
+- **La touche `C` reste inerte sur le chemin de dev `?live=`** : `freeCam` naît
+  dans `finishBoot()`, que ce chemin ne traverse pas. `toggleFreeCam()` rend la
+  main plutôt que de lever — inerte, pas fatal.
+- **Le `TARGET LOG` ne montre qu'UNE machine**, la plus récente, pas une
+  machine par entrée. La spec l'appelait « l'étagère de la collection » : elle
+  ne l'est pas encore. À rouvrir si le besoin d'un vrai mur de machines se
+  confirme (la spec avait déjà écarté un écran de collection dédié).
+- **`applyBenchConfig()` peut changer la cellule à chaud sans reconstruire le
+  maillage du joueur.** `physics.setProfile()` change le profil qui vole, mais
+  `playerDrone` n'est construit qu'à l'ouverture de session : au banc, changer de
+  famille sans relancer laisse les hélices de l'ancienne machine dans le champ.
+
+### NON vérifié — rien de tout ça n'a été VU
+
+Aucun navigateur n'a été ouvert. Trois choses se jugent à l'œil et ne sont pas
+vérifiées :
+
+1. **La free cam.** Le recul de 1,5 m (`FREE_CAM_BACK_M`) et le
+   `freeCam.minDistance = 0.4` sont choisis **au jugé**, pas mesurés : à
+   confirmer qu'un 5 pouces tient dans le cadre sans être un point, et qu'on ne
+   rentre pas dans la machine en zoomant.
+2. **Les hélices dans le champ.** La quantité à l'image (la borne dit ≤ 8 %,
+   elle ne dit pas que c'est joli), le **fondu pales → disque** à la montée en
+   gaz (continu, pas un strobe — même piège que le flou des ambiants), et le
+   **lacet**, qui doit faire partir les deux hélices en sens contraires de façon
+   lisible (le roulis fait la même chose : c'est le tangage, qui les bouge
+   ensemble, qui se distingue).
+3. **Le portrait.** La lisibilité du fil de fer à 160 px (sans élimination des
+   faces cachées, il y a 628 à 784 segments), la vitesse de rotation (un tour en
+   24 s), et surtout **le ton** : au crash, il doit arriver comme ce qu'il
+   reste, pas comme une récompense. C'est la révision de Bible §24 ; si l'effet
+   est celui d'un trophée, c'est la révision qu'il faut refaire, pas le code.
+
+```text
+1. npm run dev, puis FIELD → une zone → TARGET SCAN → hack → JACK IN
+   (ou ?family=<famille> pour sauter le scan et voler une famille précise :
+   freestyle5, race5, cinewhoop, longrange, heavy5, toothpick).
+2. En vol : regarder le bas du cadre. Deux hélices, pas quatre, confinées en
+   bas. Gaz plein puis coupés : le fondu pales → disque et le retard moteur.
+3. Lacet seul, à fond à gauche puis à droite : les deux hélices doivent partir
+   en sens contraires, et s'inverser avec le manche. Tangage : les deux
+   ensemble — c'est le seul axe qui a sa signature à lui. Roulis : en sens
+   contraires aussi, comme le lacet.
+4. Fin de pack : le régime plafonne plus bas — les hélices doivent l'annoncer
+   avant l'OSD.
+5. Touche `C` : la machine entière, éclairée comme les ambiants. Orbiter,
+   zoomer à fond (on ne doit pas rentrer dedans), ressortir : les hélices
+   reviennent, jamais les deux exemplaires à la fois.
+6. Se crasher. Après SESSION TERMINATED, le portrait doit tourner lentement.
+   Juger le ton, pas seulement le dessin.
+7. SESSION LOG, ouvrir une fiche de session : le portrait sous la fiche (qui
+   porte le Randomart), avant les photos. TARGET LOG : le portrait de la
+   DERNIÈRE cible, en tête, légendé `LAST TARGET // …`. Une session d'avant
+   #264 doit se dessiner aussi (aucune migration) ; une session sans graine ne
+   doit rien montrer — ni cadre vide, ni jeton en clair.
+8. Photos (touche F) : les hélices doivent y être — elles passent par
+   l'objectif, donc elles sont dans la sortie du composer.
+9. Mode DIGITAL, image perdue : les hélices doivent geler AVEC l'image, et non
+   continuer à tourner derrière.
+```
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

@@ -97,6 +97,22 @@ class FakeElement {
 		throw new Error('fake-dom: innerHTML non vide non supporté — construis l\'arbre avec createElement');
 	}
 
+	// Sérialisation minimale, pour les rares tests qui inspectent le BALISAGE
+	// plutôt que l'arbre — le portrait SVG (#264) doit prouver qu'aucune
+	// couleur littérale n'y est écrite, et ça ne se lit que sur le texte rendu.
+	// Ce n'est pas un moteur de rendu : pas d'échappement, pas de balises
+	// auto-fermantes, pas d'ordre canonique des attributs.
+	get outerHTML() {
+		const tag = this.tagName.toLowerCase();
+		const attrs = { ...this.attributes };
+		if (this.className) attrs.class = this.className;
+		const a = Object.entries(attrs).map(([k, v]) => ` ${k}="${v}"`).join('');
+		const inner = this.children.length
+			? this.children.map((c) => c.outerHTML ?? c.textContent).join('')
+			: this._text;
+		return `<${tag}${a}>${inner}</${tag}>`;
+	}
+
 	setAttribute(k, v) { this.attributes[k] = String(v); }
 	getAttribute(k) { return this.attributes[k] ?? null; }
 
@@ -206,6 +222,13 @@ export function fakeDom() {
 
 	const document_ = {
 		createElement: (tag) => new FakeElement(tag),
+		// Le SVG en ligne passe par createElementNS ; ici l'espace de noms n'est
+		// que retenu, rien n'en dépend — tagName suffit à la sélection.
+		createElementNS: (ns, tag) => {
+			const el = new FakeElement(tag);
+			el.namespaceURI = String(ns);
+			return el;
+		},
 		createTextNode: (t) => new FakeTextNode(t),
 		get activeElement() { return ACTIVE; },
 		body: root,
@@ -224,7 +247,18 @@ export function fakeDom() {
 			listeners.get(type).add(fn);
 		},
 		removeEventListener: (type, fn) => { listeners.get(type)?.delete(fn); },
+		// Nombre de rappels d'animation RÉELLEMENT rejoués. C'est la mesure qui
+		// permet à un test d'affirmer qu'un écran démonté a bien cessé de
+		// tourner : après stop(), tick() ne doit plus rien faire monter.
+		__rafCount: 0,
 	};
+
+	// L'horloge d'animation. La file est tenue ici, mais les globals ne sont
+	// installés que sur demande (installFakeDom({ raf: true })) — voir là-bas
+	// pourquoi ce n'est pas le défaut.
+	let rafSeq = 0;
+	let rafNow = 0;
+	const rafPending = new Map();
 
 	const storage = new Map();
 	const localStorage_ = {
@@ -252,16 +286,36 @@ export function fakeDom() {
 		},
 		setActive(el) { ACTIVE = el; },
 		get active() { return ACTIVE; },
+		requestAnimationFrame(fn) { const id = ++rafSeq; rafPending.set(id, fn); return id; },
+		cancelAnimationFrame(id) { rafPending.delete(id); },
+		// Avance l'horloge de `ms` et rejoue les rappels EN ATTENTE, une seule
+		// fois : un rappel qui se réinscrit repart au tick suivant, jamais dans
+		// celui-ci — sinon une boucle d'animation ferait tourner Node à l'infini.
+		tick(ms = 16) {
+			rafNow += ms;
+			const due = [...rafPending.values()];
+			rafPending.clear();
+			for (const fn of due) { window_.__rafCount++; fn(rafNow); }
+			return rafNow;
+		},
 	};
 }
 
 // Installe le faux DOM sur les globals que lisent les modules d'écran, et rend
 // la fonction qui remet tout en place.
-export function installFakeDom() {
+// `raf` installe requestAnimationFrame/cancelAnimationFrame, pilotés par
+// fake.tick(). Ce n'est PAS le défaut, et c'est délibéré : src/motion.js teste
+// `typeof requestAnimationFrame === 'function'` pour décider s'il anime, et
+// countUp() commence par écrire ses compteurs à zéro. Sur un DOM où rien ne
+// pousse les frames, les compteurs resteraient à zéro pour toujours — les
+// écrans se testeraient sur un texte qu'aucun navigateur n'affiche. Seul un
+// test qui rejoue lui-même les frames demande cette horloge.
+export function installFakeDom({ raf = false } = {}) {
 	const fake = fakeDom();
 	const saved = {};
 	const g = globalThis;
-	for (const k of ['document', 'window', 'localStorage', 'navigator', 'requestAnimationFrame']) {
+	for (const k of ['document', 'window', 'localStorage', 'navigator',
+		'requestAnimationFrame', 'cancelAnimationFrame']) {
 		saved[k] = Object.getOwnPropertyDescriptor(g, k);
 	}
 	Object.defineProperty(g, 'document', { value: fake.document, configurable: true, writable: true });
@@ -269,6 +323,10 @@ export function installFakeDom() {
 	Object.defineProperty(g, 'localStorage', { value: fake.localStorage, configurable: true, writable: true });
 	// menu-nav.js interroge la manette à chaque tick ; aucune ici.
 	Object.defineProperty(g, 'navigator', { value: { getGamepads: () => [] }, configurable: true, writable: true });
+	if (raf) {
+		Object.defineProperty(g, 'requestAnimationFrame', { value: (fn) => fake.requestAnimationFrame(fn), configurable: true, writable: true });
+		Object.defineProperty(g, 'cancelAnimationFrame', { value: (id) => fake.cancelAnimationFrame(id), configurable: true, writable: true });
+	}
 
 	fake.restore = () => {
 		ACTIVE = null;

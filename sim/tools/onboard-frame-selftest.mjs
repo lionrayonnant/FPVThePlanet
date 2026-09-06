@@ -42,14 +42,42 @@ console.log('onboard-frame');
 	check('même build → même mesure', a.area === b.area && a.top === b.top);
 }
 
-// --- DÉBUT DU BLOC 3 — remplacé par les assertions de borne DA (tâche 3) -----
-// 3. L'état des lieux, consigné : la recette d'aujourd'hui est HORS borne.
-//    Ce bloc n'affirme rien, il documente le point de départ de la tâche 3.
+// 3. La borne DA, garantie par construction (spec §« La borne DA, chiffrée »).
+//    Elle porte sur la recette TELLE QU'ELLE EST — aucun montage passé en
+//    surcharge : ce qu'on mesure ici, c'est le bloc MOUNT que
+//    tools/tune-mount.mjs a écrit dans src/drone-shape.js. Un mount qui dérive
+//    casse en rouge.
+//
+//    La hauteur atteinte est bornée à 50 % au pire et à 45 % en MÉDIANE, et non
+//    à 45 % partout comme l'écrivait la spec : le plan d'hélice a un horizon, à
+//    (1 − tan(uptilt) / tan(champ/2)) / 2 de la hauteur du cadre, soit 50 %
+//    pour une caméra plate. Les hélices vivent dans ce plan — aucune hauteur
+//    d'objectif ne les fait passer sous cet horizon. Les 45 % étaient une mesure
+//    faite sur une graine par famille, promue en règle sur tout le domaine ; sur
+//    une caméra normale ils tiennent, et c'est la médiane qui l'affirme. La
+//    borne qui protège vraiment l'image reste la couverture ≤ 8 %.
+const MAX_AREA = 0.08;      // 8 % de l'image
+const MAX_TOP = 0.50;       // au pire : l'horizon du plan d'hélice, rien de plus
+const MAX_MEDIAN_TOP = 0.45;   // sur une caméra normale : le tiers bas
 for (const family of FAMILIES) {
-	const c = at(family, `probe-${family}-0`, {});
-	console.log(`  ..    ${family} aujourd'hui : ${(100 * c.area).toFixed(1)} % de l'image, jusqu'à ${(100 * c.top).toFixed(0)} % de la hauteur`);
+	let worstArea = 0, worstTop = 0, worstSeed = '';
+	const tops = [];
+	for (let i = 0; i < 300; i++) {
+		const seed = `probe-${family}-${i}`;
+		const c = at(family, seed, {});
+		if (c.area > worstArea) { worstArea = c.area; worstSeed = seed; }
+		if (c.top > worstTop) worstTop = c.top;
+		tops.push(c.top);
+	}
+	tops.sort((a, b) => a - b);
+	const median = tops[tops.length >> 1];
+	check(`${family} : couverture \u2264 8 % de l'image`, worstArea <= MAX_AREA,
+		`${(100 * worstArea).toFixed(1)} % au pire (${worstSeed})`);
+	check(`${family} : rien au-dessus de 50 % de la hauteur`, worstTop <= MAX_TOP,
+		`${(100 * worstTop).toFixed(0)} % au pire`);
+	check(`${family} : hauteur m\u00e9diane \u2264 45 %`, median <= MAX_MEDIAN_TOP,
+		`${(100 * median).toFixed(0)} % en m\u00e9diane`);
 }
-// --- FIN DU BLOC 3 ----------------------------------------------------------
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
 process.exit(failures ? 1 : 0);

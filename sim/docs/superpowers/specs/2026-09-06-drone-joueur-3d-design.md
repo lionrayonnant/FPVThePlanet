@@ -110,18 +110,29 @@ Trois faits, obtenus en rasterisant réellement le champ (200×150 rayons, 300
 builds par famille, six familles) plutôt qu'en estimant des angles. `dy` est la
 hauteur de l'objectif **par rapport au plan d'hélice**.
 
-| `dy` | couverture médiane de l'image | hauteur atteinte (0 % = bas) |
+| `dy` | couverture médiane de l'image | hauteur atteinte, médiane (0 % = bas) |
 |---|---|---|
-| −8 mm (état actuel) | 9,8 % (cinewhoop) → 30,9 % (toothpick) | 66 % → 100 % |
+| −8 mm (état d'alors) | 9,8 % (cinewhoop) → 24,6 % (toothpick) | 67 % → 93 % (100 % au pire) |
 | 0 mm | 0,0 % partout | — |
-| +3 mm | 3,7 % → 14,8 % | 30 % → 45 % |
-| +10 mm | 12,4 % → 26,6 % | 27 % → 42 % |
+| +3 mm | 3,7 % → 11,3 % | 30 % → 46 % |
+| +10 mm | 12,4 % → 26,1 % | 27 % → 42 % |
 
-1. **L'état actuel est faux et le serait visiblement.** La recette pose le
-   disque à `y = 0,020` et l'objectif à `y = 0,012` : l'œil est 8 mm **sous** le
-   plan d'hélice, donc le disque passe au-dessus de lui — sur le toothpick il le
-   survole entièrement (100 % de la hauteur). Une image FPV réelle montre
-   quelques pour cent d'hélice, confinés au bas du cadre.
+> **Table refaite après implémentation (2026-09-06).** Les colonnes ci-dessus
+> sont maintenant celles de `tools/prop-coverage.mjs`, 300 graines par famille,
+> six familles, médianes. Les cases du toothpick de la première rédaction
+> étaient fausses : 30,9 % à −8 mm en particulier est **hors d'atteinte** — un
+> balayage exhaustif de l'enveloppe caméra du toothpick donne 20,9 % à 28,8 %,
+> et deux mesures indépendantes donnent 24,6 % en médiane, 28,7 % au pire.
+> Toutes les autres cases se reproduisent au chiffre près. Rien de ce que la
+> table sert à démontrer ne change : l'objectif sous le plan d'hélice reste
+> intenable, et le toothpick reste la famille qui en voit le plus.
+
+1. **L'état d'alors était faux, et il l'aurait été visiblement.** La recette
+   posait le disque à `y = 0,020` et l'objectif à `y = 0,012` : l'œil est 8 mm
+   **sous** le plan d'hélice, donc le disque passe au-dessus de lui — sur le
+   toothpick il le survole entièrement au pire tirage (100 % de la hauteur,
+   93 % en médiane). Une image FPV réelle montre quelques pour cent d'hélice,
+   confinés au bas du cadre.
 
    Ce n'est pas un bug : ces 8 mm n'ont jamais eu à être justes. Vus de 100 m,
    ils ne coûtent rien. La vue embarquée les rend soudain visibles.
@@ -136,8 +147,10 @@ hauteur de l'objectif **par rapport au plan d'hélice**.
 
 3. **L'objectif doit être au-dessus du plan d'hélice**, comme sur un vrai
    freestyle où la caméra est dans le stack avant : la hauteur atteinte tombe de
-   66-100 % à 27-45 %, c'est-à-dire que les hélices se confinent au tiers bas de
-   l'image. C'est la forme qu'a le vrai médium.
+   67-93 % à 27-46 % en médiane, c'est-à-dire que les hélices se confinent au
+   tiers bas de l'image sur une caméra normale. C'est la forme qu'a le vrai
+   médium. (Sur le pire tirage de caméra, elle monte à 50 % — voir la borne
+   révisée plus bas.)
 
 ## La recette : `drone-shape.js`
 
@@ -153,19 +166,48 @@ comme la sonde ci-dessus, exactement comme `tools/tune-pid.mjs --write` écrit
 les blocs `pid`. L'en-tête de `drone-shape.js` porte la même mention que
 `drone-profiles.js` : ce bloc n'est pas modifié à la main.
 
+**L'avancée a finalement été FIGÉE** à `-0.55·armZ` (implémentation) : celle de
+la recette d'origine, c'est-à-dire le bord avant de la plaque. Le champ reste
+nommé et écrit par l'outil, il n'est simplement plus cherché — un objectif en
+porte-à-faux devant les hélices tiendrait mieux la borne de hauteur, mais ce ne
+serait plus une machine crédible en free cam ni au portrait. Seule la hauteur
+est donc optimisée.
+
 **La borne DA, chiffrée.** Mesurée sur l'enveloppe balayée (le disque), qui est
 ce qu'on voit réellement comme un arc flou :
 
 - **couverture ≤ 8 % de l'image** ;
-- **rien au-dessus de 45 % de la hauteur** du cadre.
+- **hauteur atteinte ≤ 50 % du cadre au pire tirage de caméra, ≤ 45 % en
+  médiane** (borne révisée — voir juste en dessous).
 
-Les 45 % sortent directement de la mesure : dès que l'objectif passe au-dessus
-du plan d'hélice, la hauteur atteinte tombe dans 27-45 % pour les six familles.
 Les 8 % sont tenus à `dy = +3 mm` par cinq familles sur six — le toothpick y est
-à 14,8 %, parce que son disque est grand devant son empattement. **C'est
+à 14,3 % au pire, parce que son disque est grand devant son empattement. **C'est
 précisément pourquoi le bloc est par famille et écrit par l'outil** : un chiffre
 unique fixé à la main serait faux pour au moins une famille, et personne ne s'en
 apercevrait.
+
+> **Révision de la borne de hauteur (mesurée pendant l'implémentation).** Cette
+> spec annonçait « rien au-dessus de 45 % de la hauteur ». C'est
+> **géométriquement intenable** pour freestyle5, cinewhoop, heavy5 et toothpick,
+> et l'affirmation ne pouvait pas tenir : les 45 % avaient été mesurés sur **une
+> graine par famille**, puis promus en règle sur toute l'étendue d'uptilt.
+>
+> La raison est dans la primitive, pas dans le réglage. Le plan d'hélice a un
+> **horizon**, situé à `(1 − tan(uptilt) / tan(champ/2)) / 2` de la hauteur du
+> cadre — soit **50 % pour une caméra plate**. Les hélices vivent dans ce plan :
+> elles tendent donc vers cet horizon, et **aucune hauteur d'objectif ne les
+> fait passer dessous** tant que l'œil reste derrière elles ; monter l'objectif
+> ne fait que les en écarter. Le pire tirage de chaque famille est la caméra
+> plate à champ large, et il monte à 45-48 %.
+>
+> Arbitrage rendu : l'objectif **reste dans le châssis** (avancée figée au bord
+> avant de la plaque), l'aire reste **≤ 8 %**, et la borne de hauteur devient
+> **≤ 50 % au pire tirage, ≤ 45 % en médiane** — le tiers bas sur une caméra
+> normale, ce que la DA voulait dire. La borne qui protège vraiment l'image
+> reste la couverture.
+>
+> Mesuré sur 300 graines par famille, six familles : **aire au pire 7,5 à
+> 7,9 %**, **hauteur médiane 31 à 44 %**, **hauteur au pire 40 à 48 %**.
 
 L'outil optimise sous ces deux critères, par famille, sur toute l'étendue
 d'uptilt que `targetCamera` peut tirer pour elle.
@@ -208,11 +250,21 @@ avant, donc les moteurs 2 (avant-droit, `spin −1`) et 4 (avant-gauche,
 - **lacet à gauche** → l'avant-droite accélère, l'avant-gauche ralentit ; à
   droite, l'inverse ;
 - **tangage** → les deux ensemble ;
-- **roulis** → une seule.
+- **roulis** → les deux, en sens contraires.
 
-Les deux hélices visibles sont donc un affichage direct du mixeur, chaque axe
-avec sa signature propre. C'est « apprendre la machine par les sensations » sans
-une ligne d'interface.
+Les deux hélices visibles sont donc un affichage direct du mixeur. C'est
+« apprendre la machine par les sensations » sans une ligne d'interface.
+
+> **Corrigé à la mesure.** Cette liste disait « roulis → une seule ». C'est
+> faux : `mixOf()` donne un coefficient de roulis non nul aux quatre moteurs, et
+> les deux avant sont de part et d'autre de l'axe — `mix[1] = {roll +1,
+> pitch +1, yaw +1}`, `mix[3] = {roll −1, pitch +1, yaw −1}` sur freestyle5.
+> Le roulis les sépare donc exactement comme le lacet. Sur la paire avant,
+> **seul le tangage a une signature propre** ; roulis et lacet partagent la
+> leur, et rien dans la paire visible ne les distingue à lui seul. Le lien
+> hélices ↔ mixeur reste direct et lisible ; il ne suffit simplement pas à
+> nommer l'axe. `tools/onboard-regime-selftest.mjs` mesure les trois ainsi
+> (tangage `+1080 / +1080`, roulis `+1080 / −1970`).
 
 ## Le vol : la vue embarquée et la free cam
 
@@ -292,8 +344,12 @@ graine par défaut. Aucun chemin ne se retrouve sans machine.
 ### `drone-wire.js`, module pur
 
 Entrée : la recette au niveau `portrait` — dont il dérive les arêtes primitive
-par primitive — et une vue (azimut, élévation). Sortie : des segments 2D dans une boîte normalisée, chacun avec sa
-profondeur. Aucun Three, aucun DOM, testable en Node — même statut que
+par primitive — et une vue (azimut, élévation). Sortie : des segments 2D dans
+une boîte normalisée, chacun avec sa profondeur. La projection est
+**orthographique** et il n'y a pas de distance : un portrait technique n'a pas
+de perspective, et la normalisation se fait sur le `boundingRadius` de la
+recette, pour qu'un toothpick reste plus petit qu'un heavy5 dans le même cadre.
+Aucun Three, aucun DOM, testable en Node — même statut que
 `tools/session-log-model.mjs`, qui porte déjà tout le formatage des journaux.
 
 **Pas d'élimination des faces cachées** : les arêtes lointaines s'atténuent au
@@ -356,8 +412,8 @@ Tout en Node, sans navigateur.
 **`onboard-frame-selftest.mjs`** (neuf) — la borne DA garantie par construction
 - rasterise l'enveloppe balayée, 6 familles × 300 graines — la sonde de
   conception, telle quelle ;
-- affirme : couverture ≤ 8 % de l'image et rien au-dessus de 45 % de la
-  hauteur, sur **toute** l'étendue d'uptilt de chaque famille ;
+- affirme : couverture ≤ 8 % de l'image, hauteur atteinte ≤ 50 % au pire et
+  ≤ 45 % en médiane, sur **toute** l'étendue d'uptilt de chaque famille ;
 - c'est la sonde de conception promue en garde-fou : un `mount` qui dérive
   casse en rouge.
 
@@ -400,7 +456,7 @@ Tous ajoutés à la chaîne `selftest:operator` de `package.json`.
 ## Écarté
 
 - **Le disque plat pour la vue embarquée** — mesuré impossible : 0 % à l'œil,
-  10-31 % ailleurs.
+  10-29 % ailleurs.
 - **Le portrait éclairé comme en vol** — met du photographique dans le terminal
   et exige une recette bien plus riche. Le fil de fer est le langage du
   terminal ; le monde et le terminal restent étanches.

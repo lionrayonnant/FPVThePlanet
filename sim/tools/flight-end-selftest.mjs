@@ -75,6 +75,16 @@ t('séquence de crash : le noir avant le texte, puis les lignes dans l\'ordre', 
 	}
 });
 
+t('le portrait arrive après SESSION TERMINATED et avant la sortie', () => {
+	// #264 : le jeton que src/fpvtp-osd.js remplace par le dessin de la machine
+	// perdue. Sa PLACE est le sujet — après le constat, avant qu'on rende la
+	// main : ce qu'il reste, pas une récompense.
+	const at = (txt) => TIMELINE.lines.find(([, s]) => s === txt)?.[0];
+	assert.ok(at('[PORTRAIT]') > at('SESSION TERMINATED'), 'le portrait précède la fin');
+	assert.ok(at('[PORTRAIT]') <= TIMELINE.exitAt, 'le portrait arrive après la sortie');
+	assert.equal(TIMELINE.exitAt, 4.6, 'la sortie a bougé : la timeline n\'est plus celle de la spec');
+});
+
 t('la sortie ne s\'arme qu\'à la fin de la séquence', () => {
 	const fe = new FlightEnd();
 	fe.update(frame({ crashed: true }));

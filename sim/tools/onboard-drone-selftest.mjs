@@ -2,8 +2,11 @@
 // Le maillage et la règle d'exclusivité se vérifient sans GPU.
 import * as THREE from 'three';
 import { PlayerDrone } from '../src/onboard-drone.js';
+import { shapeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
+import { propCoverage } from './prop-coverage.mjs';
+import { FAMILIES } from '../src/drone-profiles.js';
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -24,7 +27,9 @@ const make = (family = 'freestyle5') => {
 console.log('onboard-drone');
 {
 	const d = make();
-	check('au repos : rien de visible', !d.worldVisible && !d.onboardVisible);
+	// Au repos, on est en vue pilote : l'embarqué est monté, le monde est
+	// caché. « Jamais les deux » est la vraie règle — pas « jamais aucun ».
+	check('au repos : l\'embarqu\u00e9 seul', d.onboardVisible && !d.worldVisible);
 	d.setFreeCam(true);
 	check('free cam : l\'exemplaire monde est visible', d.worldVisible);
 	check('free cam : l\'embarqué est caché', !d.onboardVisible);
@@ -57,6 +62,100 @@ console.log('onboard-drone');
 	const before = scene.children.length;
 	d.dispose();
 	check('dispose() retire tout de la scène', scene.children.length === 0, `${before} → ${scene.children.length}`);
+}
+
+// Issue #264 : la vue embarquée.
+{
+	const d = make();
+	check('une scène embarquée existe', d.onboardScene instanceof THREE.Scene);
+	check('sa caméra a un near de 5 mm', Math.abs(d.onboardCamera.near - 0.005) < 1e-9);
+	check('en vue pilote, l\'embarqué est visible', d.onboardVisible);
+	check('en vue pilote, le monde est caché', !d.worldVisible);
+
+	// Le drone est posé à −mount : l'oeil est EXACTEMENT à l'origine de la
+	// scène embarquée, le corps est derrière lui, et les hélices avant sont
+	// devant et SOUS l'axe optique — c'est ce montage-là, et pas un autre, que
+	// tools/prop-coverage.mjs rasterise pour tenir la borne DA.
+	//
+	// « Sous » se lit sur les hélices, pas sur la translation du groupe : avec
+	// un uptilt franc (au-delà de ~28°, que targetCamera tire), l'axe optique
+	// passe sous le plan d'hélice et le centre du corps remonte au-dessus.
+	{
+		const seed = 'player::freestyle5';
+		const build = targetBuild({ seed, family: 'freestyle5' });
+		const camera = targetCamera({ seed, family: 'freestyle5' });
+		const shape = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
+		const m = d.onboard.group.matrix;
+		const p = new THREE.Vector3().setFromMatrixPosition(m);
+		check('le corps est posé derrière l\'oeil', p.z > 0, `${p.toArray().map((v) => v.toFixed(3))}`);
+		const cam = shape.parts.find((q) => q.role === 'camera');
+		const eye = new THREE.Vector3(cam.at[0], cam.at[1], cam.at[2]).applyMatrix4(m);
+		check('l\'oeil retombe exactement à l\'origine', eye.length() < 1e-9, `${eye.length().toExponential(1)}`);
+		const front = shape.parts.filter((q) => q.role === 'prop').sort((a, b) => a.at[2] - b.at[2])[0];
+		const v = new THREE.Vector3(front.at[0], front.at[1], front.at[2]).applyMatrix4(m);
+		check('les hélices avant sont devant l\'oeil et sous l\'axe optique', v.z < 0 && v.y < 0, `${v.toArray().map((q) => q.toFixed(3))}`);
+	}
+
+	d.update({ dt: 1 / 60, omega: [111, 222, 333, 444], camera: { fov: 118, aspect: 4 / 3 } });
+	check('la caméra embarquée copie le champ de la caméra de vol', d.onboardCamera.fov === 118 && Math.abs(d.onboardCamera.aspect - 4 / 3) < 1e-9);
+	const u = d.onboard.material.uniforms.uOmega.value;
+	check('le régime arrive dans le maillage embarqué', u[1] === 222 && u[3] === 444);
+
+	// Exclusivité.
+	d.setFreeCam(true);
+	check('free cam : l\'embarqué se cache', !d.onboardVisible && d.worldVisible);
+	d.setFreeCam(false);
+	check('vue pilote : l\'embarqué revient', d.onboardVisible && !d.worldVisible);
+	check('jamais les deux à la fois', !(d.onboardVisible && d.worldVisible));
+	d.dispose();
+}
+
+// Le gel : une image perdue ne doit pas montrer des hélices qui tournent.
+{
+	const d = make();
+	d.update({ dt: 1 / 60, omega: [500, 500, 500, 500], camera: { fov: 120, aspect: 1 } });
+	const t0 = d.onboard.material.uniforms.uTime.value;
+	d.update({ dt: 0, omega: [500, 500, 500, 500], camera: { fov: 120, aspect: 1 } });
+	check('dt = 0 : le temps du maillage n\'avance pas', d.onboard.material.uniforms.uTime.value === t0);
+	d.dispose();
+}
+
+// La cohérence avec la sonde de la borne DA (tools/prop-coverage.mjs). La borne
+// « ≤ 8 % de l'image, rien au-dessus de 50 % de la hauteur » est mesurée par une
+// rasterisation qui MODÉLISE le montage : oeil à la part `camera`, champ
+// vertical de la caméra tirée, format du capteur, uptilt autour de +X. Si la
+// caméra qu'on monte ici s'en écarte, la borne devient un mensonge.
+//
+// On le vérifie sur le seul chiffre commun aux deux : la hauteur atteinte par
+// l'enveloppe balayée. À gauche la sonde ; à droite le bord des disques projeté
+// par la VRAIE caméra embarquée, à travers la VRAIE matrice de montage. La
+// tolérance est la taille d'une ligne de la grille de la sonde (1/150).
+for (const family of FAMILIES) {
+	const seed = `coh::${family}`;
+	const build = targetBuild({ seed, family });
+	const camera = targetCamera({ seed, family });
+	const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
+	const shape = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
+	const sonde = propCoverage({ shape, camera }).top;
+
+	const m = d.onboard.group.matrix;
+	const viewProj = d.onboardCamera.projectionMatrix.clone().multiply(d.onboardCamera.matrixWorldInverse);
+	const v = new THREE.Vector3();
+	let top = 0;
+	for (const disc of shape.parts.filter((q) => q.role === 'prop')) {
+		for (let i = 0; i < 512; i++) {
+			const a = 2 * Math.PI * i / 512;
+			v.set(disc.at[0] + disc.size[0] * Math.cos(a), disc.at[1], disc.at[2] + disc.size[0] * Math.sin(a));
+			v.applyMatrix4(m);
+			if (v.z >= -1e-6) continue;                  // derrière l'oeil
+			v.applyMatrix4(viewProj);
+			if (Math.abs(v.x) > 1) continue;             // hors cadre latéralement
+			top = Math.max(top, (Math.min(v.y, 1) + 1) / 2);
+		}
+	}
+	check(`${family} : la caméra montée est celle que la sonde mesure`, Math.abs(top - sonde) <= 1 / 150,
+		`sonde ${(100 * sonde).toFixed(1)} % vs projeté ${(100 * top).toFixed(1)} %`);
+	d.dispose();
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
