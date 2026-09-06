@@ -8,6 +8,9 @@
 import { screen, button, fetchScenes } from './terminal.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import * as operatorApi from './operator.js';
+// Le portrait est du SVG en ligne (issue #264) : il n'ouvre aucun contexte
+// WebGL, et cet écran reste le client pur qu'annonce l'en-tête.
+import { dronePortrait } from './drone-portrait.js';
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
 	targetLogEntries, targetRow,
@@ -27,6 +30,28 @@ function gallery(photos) {
 		wrap.appendChild(img);
 	}
 	return wrap;
+}
+
+// La machine, redessinée depuis `family` + `buildSeed` — les deux champs que le
+// serveur persiste en clair sur la session depuis PHASE 07. Rien à migrer :
+// tout l'historique déjà journalisé sait se dessiner. Une session qui n'a ni
+// l'un ni l'autre (chemins dev, override NOMINAL, journaux d'avant la cible)
+// ne rend RIEN — pas un cadre vide qui tiendrait la place.
+//
+// Rend `null` ou `{ el, stop }` : l'appelant doit garder `stop` et l'appeler en
+// quittant l'écran, sinon le portrait continue de tourner sur un arbre démonté.
+function portraitOf(target, { caption = null } = {}) {
+	const p = dronePortrait({ family: target?.family, buildSeed: target?.buildSeed });
+	if (!p) return null;
+	const wrap = document.createElement('div');
+	wrap.className = 'session-portrait';
+	if (caption) {
+		const head = document.createElement('pre');
+		head.textContent = caption;
+		wrap.appendChild(head);
+	}
+	wrap.appendChild(p.el);
+	return { el: wrap, stop: p.stop };
 }
 
 // SESSION LOG (Bible §28). Liste filtrable, curseur ↑/↓, ←/→ change de filtre,
@@ -170,15 +195,23 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 	return new Promise((resolve) => {
 		let done = false;
 		let nav = null;
+		// Tenu ici pour que `finish` puisse le couper : une fiche refermée ne
+		// doit pas laisser une animation tourner sur un arbre démonté.
+		let portrait = null;
 		const finish = (value) => {
 			if (done) return;
 			done = true;
+			portrait?.stop();
 			nav?.detach();
 			s.remove();
 			resolve(value);
 		};
 
 		s.box.innerHTML = `<pre>${sessionDetail(session)}</pre>`;
+		// La machine avant ses images : la fiche parle de ce qui a volé, les
+		// captures de ce qu'elle a vu.
+		portrait = portraitOf(session.target);
+		if (portrait) s.box.appendChild(portrait.el);
 		if (session.photos?.length) s.box.appendChild(gallery(session.photos));
 
 		if (areaKnown) {
@@ -233,12 +266,30 @@ export function runTargetLog(root, { operator } = {}) {
 		? entries.map((e) => `  ${targetRow(e)}`).join('\n')
 		: '  NO TARGETS LOGGED';
 	s.box.appendChild(table);
+
+	// Le portrait de la DERNIÈRE cible portée au journal. Le plan disait
+	// « l'entrée sous le curseur » : il n'y en a pas ici, et il ne peut pas y en
+	// avoir — le Target Log est en lecture seule et n'a qu'un bouton, BACK
+	// (#54), ce qui est vérifié par tools/archive-render-selftest.mjs. Rendre
+	// chaque ligne focalisable ferait de cet écran une liste d'actions, ce
+	// qu'il refuse d'être. La plus récente est donc celle qu'on montre : c'est
+	// aussi celle que l'opérateur vient de perdre.
+	//
+	// La graine de l'exemplaire ne remonte pas par targetLogEntries (le modèle
+	// reste ce qu'il est : du texte) : on la relit sur la session d'origine.
+	const last = entries[0];
+	const lastSession = last
+		&& (operator?.sessions ?? []).find((x) => x?.id === last.sessionId);
+	const portrait = portraitOf(lastSession?.target, { caption: `LAST TARGET // ${last?.label ?? ''}`.trim() });
+	if (portrait) s.box.appendChild(portrait.el);
+
 	return new Promise((resolve) => {
 		let done = false;
 		let nav = null;
 		const finish = () => {
 			if (done) return;
 			done = true;
+			portrait?.stop();
 			nav?.detach();
 			s.remove();
 			resolve(undefined);

@@ -42,7 +42,13 @@ console.log('onboard-regime');
 		Math.sign(mix[1].yaw) === -Math.sign(mix[3].yaw));
 }
 
-// 2. Le tangage bouge les deux avant ENSEMBLE, le roulis n'en bouge qu'une.
+// 2. Le tangage bouge les deux avant ENSEMBLE. Le roulis les SÉPARE — et il
+//    faut le dire exactement : mixOf() donne un coefficient de roulis non nul
+//    aux quatre moteurs, et les deux avant sont de part et d'autre de l'axe,
+//    donc le roulis a sur la paire visible la MÊME signature de signes que le
+//    lacet. L'issue #264 annonçait « le roulis n'en bouge qu'une » : c'est
+//    faux. Sur les deux hélices du champ, seul le tangage a une signature
+//    propre.
 {
 	const p = settle(cmd(0.5, { pitch: +0.5 }));
 	const neutral = settle(cmd(0.5));

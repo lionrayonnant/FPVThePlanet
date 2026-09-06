@@ -798,6 +798,18 @@ export class FpvLens {
 		this.pass.needsSwap = false;
 		this.composer.addPass(this.pass);
 
+		// La vue embarquée (#264) : une seconde passe, sa propre caméra à
+		// near = 0.005, sans effacer la couleur mais en effaçant la profondeur —
+		// rien ne peut s'interposer entre l'oeil et ses propres hélices.
+		//
+		// Elle est DANS le composer, avant la passe d'objectif, délibérément :
+		// la caméra voit ses hélices, PUIS l'image est transmise. Les poser
+		// au-dessus de l'objectif les rendrait plus nettes que le monde.
+		this.onboardPass = null;
+		this.onboardScene = null;
+		this.onboardCamera = null;
+		this._onboardOn = false;
+
 		this._u = this.pass.uniforms;
 		this._taps = MAX_TAPS;
 		this._shutter = 0;
@@ -1074,6 +1086,28 @@ export class FpvLens {
 		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
 	}
 
+	// Branche la scène embarquée (#264). `null` la débranche — c'est ce qui
+	// cache les hélices du joueur en free cam. La passe naît à la première
+	// scène non nulle : un vol qui n'en monte pas n'en paie rien.
+	setOnboard(scene, camera) {
+		this.onboardScene = scene ?? null;
+		this.onboardCamera = camera ?? this.onboardCamera;
+		this._onboardOn = !!scene;
+		if (!scene) { if (this.onboardPass) this.onboardPass.enabled = false; return; }
+		if (!this.onboardPass) {
+			this.onboardPass = new RenderPass(scene, camera);
+			this.onboardPass.clear = false;
+			this.onboardPass.clearDepth = true;
+			this.onboardPass.needsSwap = false;
+			// Insérée juste avant la passe d'objectif, qui est toujours la
+			// dernière.
+			this.composer.insertPass(this.onboardPass, this.composer.passes.length - 1);
+		}
+		this.onboardPass.scene = scene;
+		this.onboardPass.camera = camera;
+		this.onboardPass.enabled = true;
+	}
+
 	// Renders the frame, effect or not. dt is the real frame time: the smear has
 	// to be as long as the exposure, not as long as the frame. `link` is
 	// {quality, frozen} straight from VideoLink.
@@ -1081,6 +1115,16 @@ export class FpvLens {
 		this.renderer.info.reset();
 		if (!this.enabled) {
 			this.renderer.render(this.scene, camera);
+			// Objectif coupé (le rendu propre, à un clic) : le composer ne
+			// tourne pas, donc la passe embarquée non plus. On la refait à la
+			// main, sinon couper l'objectif ferait disparaître les hélices du
+			// joueur — ce que personne ne lit comme un réglage d'objectif.
+			if (this._onboardOn && this.onboardScene) {
+				this.renderer.autoClear = false;
+				this.renderer.clearDepth();
+				this.renderer.render(this.onboardScene, this.onboardCamera);
+				this.renderer.autoClear = true;
+			}
 			this._hasPrev = false;
 			this._hasRendered = false;
 			this.frozen = false;
@@ -1104,6 +1148,9 @@ export class FpvLens {
 		// in that buffer yet.
 		const frozen = this._linkMode === LINK_DIGITAL && !!(link && link.frozen) && this._hasRendered;
 		this.renderPass.enabled = !frozen;
+		// Gelée avec la principale : sur une image perdue, des hélices qui
+		// tournent trahiraient que le monde bouge encore derrière l'image morte.
+		if (this.onboardPass) this.onboardPass.enabled = !frozen && this._onboardOn;
 		this.frozen = frozen;
 
 		// A held frame is a picture that stopped arriving, so the water on the

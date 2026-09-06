@@ -23,9 +23,29 @@ function colored(geo, hex, alpha) {
 }
 
 function place(geo, part) {
+	// L'ordre est celui de la recette : rotZ (le vrillage du pas d'une pale
+	// autour de son propre axe long) d'abord, puis rotX, puis rotY (son
+	// azimut autour de l'axe moteur). Inverser les deux dernières vrillerait
+	// les pales dans le plan de l'hélice au lieu de leur donner du pas.
+	if (part.rotZ) geo.rotateZ(part.rotZ);
 	if (part.rotX) geo.rotateX(part.rotX);
 	if (part.rotY) geo.rotateY(part.rotY);
 	geo.translate(part.at[0], part.at[1], part.at[2]);
+	return geo;
+}
+
+// À quel moteur ce morceau appartient (index Betaflight 0-3, `-1` pour tout ce
+// qui n'appartient à aucun : plaque, batterie, caméra, antennes) et dans quel
+// sens il tourne (±1, `0` pour ce qui ne tourne pas). C'est par là que le
+// régime des quatre moteurs entre dans le maillage (issue #264). TOUTES les
+// branches de partGeometry le posent, même celles qui n'en ont pas l'usage :
+// mergeGeometries refuse des géométries aux attributs dépareillés.
+function tagged(geo, part) {
+	const n = geo.attributes.position.count;
+	const motor = new Float32Array(n).fill(Number.isInteger(part.motor) ? part.motor : -1);
+	const spin = new Float32Array(n).fill(part.spin ?? 0);
+	geo.setAttribute('aMotor', new THREE.BufferAttribute(motor, 1));
+	geo.setAttribute('aSpin', new THREE.BufferAttribute(spin, 1));
 	return geo;
 }
 
@@ -34,20 +54,20 @@ function partGeometry(part, colors) {
 		case 'box': {
 			const g = new THREE.BoxGeometry(part.size[0], part.size[1], part.size[2]);
 			const hex = part.role === 'plate' || part.role === 'arm' || part.role === 'battery' ? colors.frame : colors.metal;
-			return colored(place(g, part), hex, 1);
+			return tagged(colored(place(g, part), hex, 1), part);
 		}
 		case 'cylinder': {
 			const g = new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 8);
-			return colored(place(g, part), colors.metal, 1);
+			return tagged(colored(place(g, part), colors.metal, 1), part);
 		}
 		case 'ring': {
 			const g = new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 12, 1, true);
-			return colored(place(g, part), colors.frame, 1);
+			return tagged(colored(place(g, part), colors.frame, 1), part);
 		}
 		case 'disc': {
 			const g = new THREE.CircleGeometry(part.size[0], 12);
 			g.rotateX(-Math.PI / 2);
-			return colored(place(g, part), colors.prop, PROP_ALPHA);
+			return tagged(colored(place(g, part), colors.prop, PROP_ALPHA), part);
 		}
 		default: return null;   // 'point' (LED) : maillage séparé
 	}
@@ -66,15 +86,33 @@ export function DroneMaterial() {
 			uFogColor: { value: new THREE.Color(0x000000) },
 			uFogDensity: { value: 0 },
 			uTime: { value: 0 },
+			// Régime des quatre moteurs, rad/s, ordre Betaflight. C'est LUI qui
+			// fait que le lacet, le roulis et le tangage se lisent dans les deux
+			// hélices du champ : les avant sont sur des diagonales opposées, donc
+			// un lacet en accélère une et ralentit l'autre.
+			uOmega: { value: new Float32Array([0, 0, 0, 0]) },
+			// 1 quand ce maillage a de vraies pales (niveau `onboard` ou
+			// `portrait`), 0 sinon. Un maillage SANS pales — la silhouette des
+			// ambiants — n'a que le disque pour dire l'hélice : il garde donc le
+			// rendu d'avant #264, plein en permanence, et personne ne lui pose
+			// jamais de régime. Un maillage AVEC pales fait l'inverse : le disque
+			// n'apparaît qu'avec le régime, quand les pales s'effacent.
+			uBlades: { value: 0 },
 		},
 		vertexShader: /* glsl */`
 			in vec4 color;
+			in float aMotor;
+			in float aSpin;
+			out float vMotor;
+			out float vSpin;
 			out vec4 vColor;
 			out vec3 vNormalW;
 			out float vDepth;
 			out vec2 vUv;
 			void main() {
 				vColor = color;
+				vMotor = aMotor;
+				vSpin = aSpin;
 				vNormalW = normalize(mat3(modelMatrix) * normal);
 				vUv = uv;
 				vec4 mv = modelViewMatrix * vec4(position, 1.0);
@@ -89,7 +127,11 @@ export function DroneMaterial() {
 			uniform vec3 uFogColor;
 			uniform float uFogDensity;
 			uniform float uTime;
+			uniform float uOmega[4];
+			uniform float uBlades;
 			in vec4 vColor;
+			in float vMotor;
+			in float vSpin;
 			in vec3 vNormalW;
 			in float vDepth;
 			in vec2 vUv;
@@ -105,6 +147,14 @@ export function DroneMaterial() {
 				float lit = 0.55 + 0.45 * max(0.0, dot(normalize(vNormalW), uSunDir));
 				vec3 c = vColor.rgb * lit * uAmbient * (1.0 - 0.75 * uNight);
 				float a = vColor.a;
+				// Le régime du moteur de ce sommet, zéro pour tout ce qui
+				// n'appartient à aucun (aMotor = -1 : plaque, batterie, caméra,
+				// antennes). Rien de tout cela ne bouge, quel que soit uOmega.
+				float w = vMotor >= 0.0 ? uOmega[int(vMotor)] : 0.0;
+				// Le fondu pales → disque. Au ralenti on distingue les pales une à
+				// une ; au-delà d'un tour par image elles ne sont plus qu'un
+				// disque. Le seuil est en rad/s : 2π/dt à 60 fps ≈ 377 rad/s.
+				float blur = clamp(w / 377.0, 0.0, 1.0);
 				// Disques d'hélice : un bruit radial qui tourne, flou d'hélice sans
 				// géométrie animée (alpha < 1 ⇔ disque). L'angle est mesuré en UV
 				// (coordonnées normalisées du disque, écrites par CircleGeometry et
@@ -114,9 +164,21 @@ export function DroneMaterial() {
 				// 12 rad/s : 36 rad/s avec l'harmonique ×3, sous le seuil
 				// d'aliasing à 60 fps (120 rad/s ≈ 19 Hz serait replié).
 				if (a < 0.99) {
-					float ang = atan(vUv.y - 0.5, vUv.x - 0.5) + uTime * 12.0;
-					a *= 0.7 + 0.3 * sin(ang * 3.0);
+					// Sa rotation propre reste ces 12 rad/s — le régime
+					// s'y AJOUTE, signé du sens, il ne la remplace pas : à uOmega
+					// nul (les ambiants) le terme s'annule et l'image est celle
+					// d'avant #264, au sommet près.
+					float ang = atan(vUv.y - 0.5, vUv.x - 0.5) + uTime * (12.0 + w * 0.03 * vSpin);
+					// Sans pales, le disque EST l'hélice : plein, comme avant.
+					// Avec pales, il n'est que leur enveloppe : invisible à
+					// l'arrêt, plein en régime.
+					a *= (0.7 + 0.3 * sin(ang * 3.0)) * mix(1.0, blur, uBlades);
+				} else if (vMotor >= 0.0 && vSpin != 0.0) {
+					// Une pale : pleine à l'arrêt, effacée quand le disque prend
+					// le relais. Les deux ne sont jamais visibles ensemble.
+					a *= 1.0 - blur;
 				}
+				if (a <= 0.001) discard;
 				// Dupliqué depuis TileMaterial.js, DÉLIBÉRÉMENT : les deux formules
 				// doivent rester identiques terme à terme.
 				float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
@@ -203,6 +265,13 @@ export function setFog(mat, color, density) {
 	mat.uniforms.uFogDensity.value = density;
 }
 export function setTime(mat, t) { mat.uniforms.uTime.value = t; }
+// Le régime des quatre moteurs, rad/s, ordre Betaflight. Appelée UNE fois par
+// frame sur le chemin de vol : elle écrit dans le tableau déjà alloué de
+// l'uniforme, elle n'en crée pas.
+export function setOmega(mat, omega) {
+	const u = mat.uniforms.uOmega.value;
+	u[0] = omega[0]; u[1] = omega[1]; u[2] = omega[2]; u[3] = omega[3];
+}
 // Fondu de distance de la LED : pleine à `near`, éteinte à `far`.
 export function setLedFade(mat, near, far) {
 	mat.uniforms.uFadeNear.value = near;
@@ -223,6 +292,9 @@ export function buildDroneMesh(shape, { colors }) {
 	geometry.computeBoundingSphere();
 
 	const material = DroneMaterial();
+	// Le niveau de détail se lit dans la recette, pas dans un argument : c'est
+	// la présence de pales qui décide de la façon dont le disque se rend.
+	material.uniforms.uBlades.value = shape.parts.some((p) => p.role === 'blade') ? 1 : 0;
 	const body = new THREE.Mesh(geometry, material);
 	body.frustumCulled = true;
 

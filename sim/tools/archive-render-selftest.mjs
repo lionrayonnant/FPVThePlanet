@@ -163,6 +163,31 @@ await ta('target log : rien qui remette un drone en vol (#54)', async () => {
 	await p;
 });
 
+await ta('target log : la dernière cible se dessine, et une entrée sans graine n\'en dessine pas', async () => {
+	// « Aucune migration » (#264) : `family` et `buildSeed` sont persistés en
+	// clair sur la session depuis PHASE 07, donc tout l'historique déjà
+	// journalisé sait montrer sa machine. Une entrée qui n'a pas la graine — un
+	// chemin dev, un override NOMINAL — ne doit ni lever, ni laisser un cadre
+	// vide tenir la place.
+	reset();
+	const sans = runTargetLog(dom.root, { operator: operator() });
+	await tick();
+	assert.equal(dom.root.querySelectorAll('svg').length, 0, 'sans graine, aucun portrait');
+	btn('BACK').click();
+	await sans;
+
+	reset();
+	const avec = session({ target: { family: 'race5', buildSeed: 'scan-7::2' } });
+	const p = runTargetLog(dom.root, { operator: operator({ sessions: [avec] }) });
+	await tick();
+	const svg = dom.root.querySelector('svg');
+	assert.ok(svg, 'la dernière cible se dessine');
+	assert.ok(svg.querySelectorAll('line').length > 60, 'trop peu de traits');
+	assert.match(dom.root.textContent, /LAST TARGET/, 'et le dessin dit de quelle cible il parle');
+	btn('BACK').click();
+	await p;
+});
+
 // Comme bench-render-selftest : on rend les globals avant de conclure. Sans ça
 // les abonnements posés par menuNav sur le faux window gardent le processus en
 // vie et le test « passe » sans jamais rendre la main.

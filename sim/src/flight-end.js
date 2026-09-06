@@ -11,6 +11,12 @@ export const LANDED = 'LANDED';                 // posé, désarmé : fin propre
 export const CRASHING = 'CRASHING';             // l'écran est en train de mourir
 export const TERMINATED = 'TERMINATED';         // la séquence est finie
 
+// Le jeton de la ligne « portrait » (#264). Une ligne comme les autres pour ce
+// module, qui ne connaît que du texte ; c'est src/fpvtp-osd.js qui la remplace
+// par le dessin de la machine. Exporté pour que les deux ne se contentent pas
+// de tomber d'accord sur une chaîne recopiée.
+export const PORTRAIT_LINE = '[PORTRAIT]';
+
 // Mise en scène, pas mesure : ces durées sont un choix, et elles se relisent
 // d'un coup d'œil. Secondes depuis l'impact.
 export const TIMELINE = {
@@ -27,6 +33,12 @@ export const TIMELINE = {
 		[2.8, ''],
 		[2.8, 'TARGET LOST'],
 		[3.6, 'SESSION TERMINATED'],
+		// Le portrait de la machine perdue (#264). Révision assumée de Bible §24
+		// (« pas de grand écran de mort ») : ce n'est pas une récompense, c'est
+		// ce qu'il reste. La sortie ne bouge pas — exitAt vaut toujours 4,6 s.
+		// C'est src/fpvtp-osd.js qui remplace ce jeton par le dessin ; le module
+		// reste pur, il ne connaît que des lignes.
+		[4.0, PORTRAIT_LINE],
 		[4.6, ''],
 		[4.6, '[ENTER] DISCONNECT'],
 		// #253 : REDEPLOY partage l'horodatage de DISCONNECT — les deux gestes
