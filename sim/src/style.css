@@ -236,19 +236,6 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #fo-cut-bar[hidden] { display: none; }
 
-/* Le seul arrondi du fichier, et il est légitime : c'est un réticule optique,
-   pas un coin de card. */
-#fo-reticle {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 14px;
-	height: 14px;
-	margin: -7px 0 0 -7px;
-	border: var(--rule-w) solid var(--dim);
-	border-radius: 50%;
-}
-
 /* Fin de vol (PHASE 14) : pas un écran de mort, un lien qui s'éteint. */
 #flight-end {
 	position: absolute; inset: 0;

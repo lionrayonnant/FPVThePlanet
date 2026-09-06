@@ -58,7 +58,6 @@ export class FpvtpOsd {
 				<div id="fo-status" hidden></div>
 				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
 				<div id="flight-end" hidden></div>
-				<div id="fo-reticle"></div>
 			</div>`);
 
 		const q = (s) => root.querySelector(s);
@@ -79,7 +78,6 @@ export class FpvtpOsd {
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
-			reticle: q('#fo-reticle'),
 		};
 		this._frames = 0;
 		this._fpsAt = performance.now();
@@ -253,12 +251,6 @@ export class FpvtpOsd {
 		// Rafraîchi ici aussi pour que le flash de capture (PHASE 16) s'éteigne
 		// de lui-même, sans minuteur séparé : cette fonction tourne déjà à 60 Hz.
 		this._renderPhoto();
-
-		// Le propwash est invisible sur un HUD immobile, donc le réticule
-		// frissonne avec (repris tel quel de hud.js).
-		if (propwash !== undefined) {
-			this.el.reticle.style.opacity = propwash > 0.05 ? String(1 - 0.4 * propwash) : '1';
-		}
 
 		this._frames++;
 		const now = performance.now();

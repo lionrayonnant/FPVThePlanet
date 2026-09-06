@@ -369,7 +369,7 @@ const LensShader = {
 				// Never quite every block at once: a decoder that has lost
 				// everything freezes instead, and the freeze is handled on the JS
 				// side by simply not rendering the frame.
-				blocky = step(1.0 - dfade * dfade * 0.85, bn);
+				blocky = step(1.0 - dfade * dfade * 0.6375, bn);
 				// A failed block shows a block from somewhere else — the decoder
 				// following a motion vector it never received a correction for.
 				vec2 disp = (vec2(hash12(blockId + 11.0), hash12(blockId + 29.0)) - 0.5)
