@@ -2763,6 +2763,68 @@ d'une version est l'archive `dist` attachée à la GitHub Release.
   sur `window`. À décider si l'écran BOOT ou FIELD doit la porter — sachant que
   `BUILD NOTES` occupe déjà ce registre visuel avec des numéros diégétiques.
 
+## Calibrage automatique des radios et manettes (issue #277)
+
+Le panneau Tab a un bouton `CALIBRATE` qui **mesure** le périphérique au lieu de
+le deviner. Avant : `padKind()` lisait la chaîne USB et appliquait un des deux
+profils écrits à la main ; une radio absente de la liste des marques tombait sur
+un ordre d'axes faux **et** un gaz en demi-course.
+
+`src/calibration.js` est une machine à états pure — `feedSample(state, axes,
+dt)` — sans DOM ni `localStorage`, ce qui permet de rejouer du vrai matériel
+dans `tools/calibration-selftest.mjs`. Elle produit `{ channels, deadband,
+throttleMode }`, rangé dans `fpvmaps.gamepadCal` **par `pad.id`**.
+
+Ce que la mesure remplace, et qui était supposé :
+
+- le **neutre** de chaque axe (supposé à 0 — faux dès qu'un gimbal dérive ou
+  qu'un manche à friction est parqué ailleurs) ;
+- la **course** (supposée ±1 — faux sur toute radio dont les endpoints ne sont
+  pas réglés : le pilote n'avait alors jamais son plein débattement) ;
+- le **deadband**, désormais le bruit relevé au repos et non `DEADBAND = 0.06` ;
+- le **mode de course du gaz**, observé en lâchant le manche (revient-il au
+  neutre ?) et non déduit de la marque.
+
+L'assistant tourne sur **sa propre boucle rAF** : `renderer.setAnimationLoop`
+ne démarre qu'au décollage, or le panneau Tab s'ouvre aussi depuis le terminal.
+
+### Vérifié — sans navigateur
+
+- `tools/calibration-selftest.mjs`, 26 vérifications, dans `selftest:ci`.
+  Deux d'entre elles rejouent des séquences d'axes de vrai matériel et
+  vérifient que le calibrage **retrouve exactement** les profils écrits à la
+  main (`defaultMapForKind('radio')` et `defaultMapForKind('generic')`).
+- `tools/input-selftest.mjs` couvre le stockage par `pad.id`, la lecture des
+  sticks à travers le calibrage, et le remap manuel appliqué à un calibrage.
+
+### Vérifié à l'œil — Chromium piloté en CDP, manette injectée
+
+`navigator.getGamepads` remplacée dans la page, axes pilotés depuis la console.
+Constaté en direct sur l'écran SELECT OPERATION MODE (donc avant `boot()`) :
+
+- les six consignes s'enchaînent, la radio simulée finit en `full travel`
+  `-1.00 → 1.00` et la DS4 simulée en `half travel` — mode **mesuré** ;
+- une diagonale volontaire et un axe déjà pris font redemander la consigne,
+  message jaune à l'appui ;
+- le calibrage survit à un rechargement et s'applique à `input.map` ;
+- **le défaut de l'issue est reproduit puis corrigé en direct** : passer à la
+  DS4 ne récupère plus le calibrage de la radio, les deux coexistent dans
+  `fpvmaps.gamepadCal` ;
+- Échap ferme le panneau et abandonne la mesure sans rien écrire ;
+- cocher `inv` sur un canal calibré suit dans le calibrage et **garde** le
+  neutre et la course mesurés.
+
+### NON vérifié
+
+- **Aucune vraie radio ni vraie DualShock 4 n'a été branchée.** Tout ce qui
+  précède passe par une manette injectée : la machine à états, l'écran et le
+  stockage sont vérifiés, la lecture du matériel réel ne l'est pas. C'est le
+  critère d'acceptation de l'issue, et il appartient au pilote.
+- Personne n'a **volé** avec un calibrage. Que la course mesurée donne un
+  meilleur ressenti que la course supposée reste à sentir, pas à lire.
+- Les butées des trois axes centrés sont mesurées **d'un seul côté** et
+  supposées symétriques. Une radio franchement asymétrique n'est pas couverte.
+
 ## Leviers de secours si besoin
 
 - `npm run prep:light` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,

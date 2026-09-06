@@ -20,6 +20,15 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Calibrage automatique des radios et des manettes (#277) : un assistant guidé
+  dans le panneau Tab (`CALIBRATE`) qui MESURE le périphérique au lieu de le
+  deviner à partir de sa chaîne USB. Une consigne à la fois — neutre, gaz,
+  lacet, tangage, roulis — d'où sortent le neutre réel de chaque axe, la course
+  réelle, le bruit au repos (qui devient le deadband) et le mode de course du
+  gaz, observé en lâchant le manche plutôt que déduit de la marque. Deux axes
+  poussés ensemble, ou un axe déjà pris, font redemander la consigne au lieu
+  d'attribuer un mappage faux en silence. `src/calibration.js` est une machine à
+  états pure, couverte par `tools/calibration-selftest.mjs`.
 - `node tools/sync-scenes.mjs --adopt` réenregistre dans `scenes.json` les
   scènes présentes dans `public/scenes/` mais absentes du catalogue (#275) :
   les deux dérivent dans les deux sens, l'outil ne savait retirer que les
@@ -57,6 +66,11 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- Le mappage manette n'était pas attaché au périphérique (#277) : `_savedMap`
+  était un booléen global et `fpvmaps.gamepadMap` une entrée unique, si bien
+  qu'un remap fait pour une radio restait collé en branchant une DualShock 4 —
+  dont les axes sont dans un autre ordre ET dont le gaz est en demi-course. Les
+  calibrages sont désormais rangés par identifiant de périphérique.
 - Une scène absente ne fait plus échouer le boot sur un `SyntaxError:
   Unexpected token '<'` (#275). Un fichier statique manquant ne rend **pas**
   404 : Vite, et tout hébergement avec un fallback SPA, rabat la requête sur

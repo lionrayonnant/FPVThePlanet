@@ -12,6 +12,10 @@ import {
 	CHANNELS,
 	padListEntries,
 	PAD_LIST_EMPTY,
+	calStoreGet,
+	calStoreSet,
+	sticksFromCalibration,
+	remapChannel,
 } from '../src/input.js';
 
 let n = 0;
@@ -201,6 +205,115 @@ t('#162 : une énumération vide se DIT, au lieu de laisser conclure', () => {
 	assert.deepEqual(padListEntries([], 0), []);
 	assert.deepEqual(padListEntries(null, 0), [], 'pas d\'énumération du tout : pas de plantage');
 	assert.match(PAD_LIST_EMPTY, /only reveals it after an input/);
+});
+
+// --- calibrage stocké PAR PÉRIPHÉRIQUE (issue #277) -------------------------
+//
+// Le défaut que ça corrige : `_savedMap` était un booléen global, et le mappage
+// une seule entrée de localStorage. Un remap fait pour une radio restait donc
+// collé quand on branchait une DualShock 4 — dont les axes sont dans un ordre
+// différent ET dont le gaz est en demi-course.
+
+const RADIO_CAL = {
+	channels: {
+		throttle: { axis: 2, lo: -1, hi: 1 },
+		yaw: { axis: 3, center: 0, span: 1, invert: false },
+		pitch: { axis: 1, center: 0, span: 1, invert: true },
+		roll: { axis: 0, center: 0, span: 1, invert: false },
+	},
+	deadband: 0.02,
+	throttleMode: 'full',
+};
+
+const DS4_CAL = {
+	channels: {
+		throttle: { axis: 1, lo: 0, hi: -1 },
+		yaw: { axis: 0, center: 0, span: 1, invert: false },
+		pitch: { axis: 3, center: 0, span: 1, invert: false },
+		roll: { axis: 2, center: 0, span: 1, invert: false },
+	},
+	deadband: 0.03,
+	throttleMode: 'half',
+};
+
+t('#277 : calibrer une manette ne touche pas au calibrage de la radio', () => {
+	let store = calStoreSet({}, 'EdgeTX Radiomaster Pocket', RADIO_CAL);
+	store = calStoreSet(store, 'Wireless Controller (054c)', DS4_CAL);
+
+	assert.equal(calStoreGet(store, 'EdgeTX Radiomaster Pocket').throttleMode, 'full');
+	assert.equal(calStoreGet(store, 'Wireless Controller (054c)').throttleMode, 'half');
+	assert.equal(calStoreGet(store, 'EdgeTX Radiomaster Pocket').channels.throttle.axis, 2);
+});
+
+t('#277 : un périphérique jamais calibré ne récupère pas celui d\'un autre', () => {
+	const store = calStoreSet({}, 'EdgeTX Radiomaster Pocket', RADIO_CAL);
+	assert.equal(calStoreGet(store, 'Xbox Wireless Controller'), null);
+});
+
+t('#277 : un stockage corrompu ne fait pas tomber le démarrage', () => {
+	// Même règle que loadMap() : une clé illisible retombe sur le comportement
+	// par défaut, elle n'empêche pas le sim de booter.
+	assert.equal(calStoreGet(null, 'x'), null);
+	assert.equal(calStoreGet({ x: 'pas un objet' }, 'x'), null);
+	assert.equal(calStoreGet({ x: { channels: {} } }, 'x'), null, 'quatre canaux ou rien');
+	assert.equal(calStoreGet({ x: { ...DS4_CAL, channels: { ...DS4_CAL.channels, roll: null } } }, 'x'), null);
+});
+
+t('#277 : les sticks sortent du calibrage, pas de suppositions', () => {
+	// Radio : gaz à friction parqué en bas -> 0 % de gaz, pas 50 %.
+	assert.deepEqual(sticksFromCalibration([0, 0, -1, 0], RADIO_CAL), {
+		throttle: 0, yaw: 0, pitch: 0, roll: 0,
+	});
+
+	const plein = sticksFromCalibration([0, 0, 1, 0], RADIO_CAL);
+	assert.equal(plein.throttle, 1);
+
+	// DS4 : manche lâché -> 0 % de gaz. C'est ce qui garde le geste de
+	// désarmement (throttle < 0,08) joignable au repos.
+	assert.equal(sticksFromCalibration([0, 0, 0, 0], DS4_CAL).throttle, 0);
+	assert.equal(sticksFromCalibration([0, -1, 0, 0], DS4_CAL).throttle, 1);
+});
+
+t('#277 : le tangage calibré respecte la convention « tiré vers soi = cabrer »', () => {
+	// flightController : pitch > 0 = cabrer. Sur la radio l'axe vaut -1 quand
+	// le manche est tiré vers soi, d'où invert:true.
+	assert.ok(sticksFromCalibration([0, -1, -1, 0], RADIO_CAL).pitch > 0.9);
+	// Sur la DS4 le même geste met l'axe Y droit à +1, sans inversion.
+	assert.ok(sticksFromCalibration([0, 0, 0, 1], DS4_CAL).pitch > 0.9);
+});
+
+t('#277 : un remap manuel sur le MÊME axe garde la course mesurée', () => {
+	// Le pilote inverse le tangage à la main : il conteste un SENS, pas une
+	// mesure. Jeter la course mesurée à cette occasion lui reprendrait ce que
+	// le calibrage venait de lui donner.
+	const cal = {
+		...DS4_CAL,
+		channels: { ...DS4_CAL.channels, pitch: { axis: 3, center: 0.05, span: 0.8, invert: false } },
+	};
+	const out = remapChannel(cal, 'pitch', 3, true);
+	assert.equal(out.channels.pitch.span, 0.8);
+	assert.equal(out.channels.pitch.center, 0.05);
+	assert.equal(out.channels.pitch.invert, true);
+});
+
+t('#277 : un remap manuel vers un AUTRE axe n\'invente pas de mesure', () => {
+	// Rien n'a jamais été mesuré sur l'axe 2 pour ce canal : on retombe sur les
+	// suppositions (neutre 0, course ±1), pas sur les chiffres de l'axe 3.
+	const cal = {
+		...DS4_CAL,
+		channels: { ...DS4_CAL.channels, pitch: { axis: 3, center: 0.05, span: 0.8, invert: false } },
+	};
+	const out = remapChannel(cal, 'pitch', 2, false);
+	assert.deepEqual(out.channels.pitch, { axis: 2, center: 0, span: 1, invert: false });
+});
+
+t('#277 : inverser un gaz demi-course NE MET PAS de gaz au repos', () => {
+	// Le cas dangereux. Le plancher d'un gaz auto-centré est le neutre : c'est
+	// LUI qui doit rester en place quand on inverse, sinon manette lâchée =
+	// plein gaz, et le geste de désarmement devient injoignable.
+	const out = remapChannel(DS4_CAL, 'throttle', 1, false);
+	assert.equal(sticksFromCalibration([0, 0, 0, 0], out).throttle, 0);
+	assert.equal(sticksFromCalibration([0, 1, 0, 0], out).throttle, 1);
 });
 
 console.log(`input-selftest: ${n} tests ok`);

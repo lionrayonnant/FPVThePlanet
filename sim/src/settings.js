@@ -1,4 +1,5 @@
 import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY } from './input.js';
+import { beginCalibration, feedSample, calibrationResult, calProgress, calSummaryLines } from './calibration.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
@@ -112,6 +113,22 @@ export class Settings {
 				     le pilote sans aucun recours : il ne pouvait ni constater ce
 				     qui était détecté, ni désigner le bon périphérique. -->
 				<div id="pad-list" class="spec"></div>
+				<!-- Calibrage mesuré (issue #277). Le bouton est toujours là ;
+				     la note à côté ne parle que d'un périphérique JAMAIS
+				     calibré — proposer, pas imposer. -->
+				<div id="cal-row">
+					<button id="calibrate" type="button">Calibrate</button>
+					<span id="cal-note" class="spec"></span>
+				</div>
+				<div id="cal-screen" hidden>
+					<p id="cal-step" class="spec"></p>
+					<p id="cal-prompt"></p>
+					<p id="cal-hint" class="spec"></p>
+					<p id="cal-message" class="spec"></p>
+					<div class="axisbar"><i id="cal-bar"></i></div>
+					<button id="cal-cancel" type="button">Cancel</button>
+				</div>
+				<div id="cal-summary" class="spec" hidden></div>
 				<table id="pad-map"></table>
 				<h2>Controls</h2>
 				<div id="keymap" class="spec">
@@ -146,7 +163,25 @@ export class Settings {
 			padName: el.querySelector('#pad-name'),
 			padList: el.querySelector('#pad-list'),
 			padMap: el.querySelector('#pad-map'),
+			calRow: el.querySelector('#cal-row'),
+			calButton: el.querySelector('#calibrate'),
+			calNote: el.querySelector('#cal-note'),
+			calScreen: el.querySelector('#cal-screen'),
+			calStep: el.querySelector('#cal-step'),
+			calPrompt: el.querySelector('#cal-prompt'),
+			calHint: el.querySelector('#cal-hint'),
+			calMessage: el.querySelector('#cal-message'),
+			calBar: el.querySelector('#cal-bar'),
+			calSummary: el.querySelector('#cal-summary'),
 		};
+		// État de l'assistant de calibrage, ou null. C'est la seule chose qui
+		// distingue le panneau ouvert du panneau en train de mesurer.
+		this._cal = null;
+		this._calPadId = null;
+		this._calLast = 0;
+		this._calRaf = null;
+		this.el.calButton.onclick = () => this.startCalibration();
+		this.el.calScreen.querySelector('#cal-cancel').onclick = () => this.cancelCalibration();
 		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
 		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
 		this.flightActive = false;
@@ -229,6 +264,15 @@ export class Settings {
 	toggleSettings(force) {
 		const show = force ?? this.el.settings.hidden;
 		this.el.settings.hidden = !show;
+		// Fermer le panneau abandonne une mesure en cours, et rien n'est écrit :
+		// un calibrage à moitié fait ne doit pas survivre à un panneau fermé, et
+		// sa boucle rAF ne doit pas continuer à tourner derrière.
+		//
+		// Échap ferme donc le panneau, comme partout ailleurs — il n'annule pas
+		// « juste l'assistant ». C'est aussi ce qui arrivait de fait : Échap est
+		// traité DEUX fois (main.js et le `back` de menu-nav), et une garde qui
+		// annulait au premier passage laissait le second fermer quand même.
+		if (!show && this._cal) this.cancelCalibration();
 		if (show) {
 			this.buildAxisRows();
 			// Navigation clavier + manette (issue #123) : ↑/↓ circule entre les
@@ -259,6 +303,123 @@ export class Settings {
 	// qu'après une action de l'utilisateur DESSUS. Une liste vide ne veut donc
 	// pas dire « non reconnu », elle peut vouloir dire « pas encore touché » —
 	// et le texte le dit, plutôt que de laisser conclure.
+	// ---------------------------------------------------------------------------
+	// ASSISTANT DE CALIBRAGE (issue #277)
+	//
+	// Le panneau ne décide de rien : src/calibration.js tient la machine à états
+	// et dit quelle consigne afficher. Ici on lui donne une trame et un dt, et on
+	// peint ce qu'elle rend.
+	// ---------------------------------------------------------------------------
+
+	startCalibration() {
+		const pad = this.input.getGamepad();
+		if (!pad) return;
+		this._calPadId = pad.id;
+		this._cal = beginCalibration(pad.axes.length);
+		this._calLast = performance.now();
+		this.el.calSummary.hidden = true;
+		this.renderCalibration(pad);
+
+		// L'assistant tourne sur SA PROPRE boucle, pas sur celle du vol :
+		// renderer.setAnimationLoop(frame) ne démarre qu'au décollage, et le
+		// panneau Tab s'ouvre aussi depuis le terminal, avant boot(). Sans
+		// cette boucle, l'assistant y resterait figé sur sa première consigne —
+		// c'est-à-dire cassé, exactement là où un pilote dont « ça ne marche
+		// pas » va le chercher.
+		const tick = () => {
+			if (!this._cal) { this._calRaf = null; return; }
+			this._calRaf = requestAnimationFrame(tick);
+			const p = this.input.getGamepad();
+			if (p) this.stepCalibration(p);
+		};
+		this._calRaf = requestAnimationFrame(tick);
+	}
+
+	cancelCalibration() {
+		// Rien n'est écrit : un calibrage abandonné laisse le périphérique
+		// exactement comme il était.
+		this.stopCalibration();
+		this.renderCalibration(this.input.getGamepad());
+	}
+
+	stopCalibration() {
+		if (this._calRaf !== null) cancelAnimationFrame(this._calRaf);
+		this._calRaf = null;
+		this._cal = null;
+		this._calPadId = null;
+	}
+
+	// Une trame de mesure. Le dt vient d'ici et non de main.js : la machine
+	// raisonne en millisecondes réelles, et updateAxisBars() n'en reçoit pas.
+	stepCalibration(pad) {
+		const now = performance.now();
+		// Un onglet en arrière-plan rend un dt énorme au retour ; le borner
+		// évite de valider une consigne que personne n'a tenue.
+		const dt = Math.min(100, now - this._calLast);
+		this._calLast = now;
+
+		this._cal = feedSample(this._cal, pad.axes, dt);
+
+		const result = calibrationResult(this._cal);
+		if (result) {
+			this.input.setCalibration(this._calPadId, result);
+			// stopCalibration() efface _calPadId : la persistance passe AVANT.
+			this.el.calSummary.textContent = '';
+			for (const line of calSummaryLines(result)) {
+				const div = document.createElement('div');
+				div.textContent = line;
+				this.el.calSummary.appendChild(div);
+			}
+			this.el.calSummary.hidden = false;
+			this.stopCalibration();
+			// Le mappage vient de changer sous les lignes d'axes : elles se
+			// reconstruisent, elles ne se rafraîchissent pas.
+			this._axisRows = [];
+		}
+		this.renderCalibration(pad);
+	}
+
+	renderCalibration(pad) {
+		const running = this._cal !== null;
+		this.el.calScreen.hidden = !running;
+		this.el.calRow.hidden = running;
+		this.el.padMap.hidden = running;
+		this.el.padList.hidden = running;
+
+		if (!running) {
+			// La consigne ne doit pas survivre à la mesure : sinon rouvrir le
+			// panneau ferait clignoter la dernière consigne d'un calibrage fini.
+			this.el.calStep.textContent = '';
+			this.el.calPrompt.textContent = '';
+			this.el.calHint.textContent = '';
+			this.el.calMessage.textContent = '';
+			const calibrated = this.input.isCalibrated();
+			this.el.calButton.disabled = this.input.gamepadIndex === null;
+			this.el.calNote.textContent = this.el.calButton.disabled ? ''
+				: calibrated ? 'this device is calibrated'
+					: 'never calibrated — measured neutral, travel and throttle mode, about 20 s';
+			return;
+		}
+
+		const { step, total } = calProgress(this._cal);
+		this.el.calStep.textContent = `STEP ${step}/${total}`;
+		this.el.calPrompt.textContent = this._cal.prompt;
+		this.el.calHint.textContent = this._cal.hint;
+		this.el.calMessage.textContent = this._cal.message ?? '';
+
+		// La barre suit l'axe le plus écarté de son neutre : pendant une
+		// consigne, c'est celui que le pilote est en train de pousser. Tant que
+		// le neutre n'est pas mesuré, elle suit l'axe le plus écarté de zéro.
+		const axes = pad?.axes ?? [];
+		const centers = this._cal.centers;
+		let best = 0;
+		for (let i = 0; i < axes.length; i++) {
+			const d = Math.abs(axes[i] - (centers?.[i] ?? 0));
+			if (d > Math.abs(axes[best] - (centers?.[best] ?? 0))) best = i;
+		}
+		this.el.calBar.style.left = `${(((axes[best] ?? 0) + 1) / 2) * 100}%`;
+	}
+
 	buildPadList() {
 		const pads = this.input.listGamepads();
 		const box = this.el.padList;
@@ -301,6 +462,7 @@ export class Settings {
 		this.buildPadList();
 		const pad = this.input.getGamepad();
 		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'no controller detected';
+		this.renderCalibration(pad);
 		if (!pad) { this.el.padMap.innerHTML = ''; this._axisRows = []; return; }
 
 		this.el.padMap.innerHTML = '';
@@ -325,6 +487,11 @@ export class Settings {
 
 	updateAxisBars() {
 		if (!this.settingsOpen) return;
+
+		// Une mesure en cours a sa propre boucle (startCalibration) et cache les
+		// lignes de remap : il n'y a rien à rafraîchir ici.
+		if (this._cal) return;
+
 		// La manette a pu se faire connaître après l'ouverture du panneau
 		// (ex. gamepadconnected pas encore levé par le navigateur au moment
 		// du premier buildAxisRows()) : on retente tant qu'aucune ligne n'a
