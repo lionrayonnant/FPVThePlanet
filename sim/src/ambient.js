@@ -239,3 +239,191 @@ export function derive(r, anchor, heights, t, h, pos, vel, acc) {
 	acc.y = (_pp.y - 2 * pos.y + _pm.y) / (h * h);
 	acc.z = (_pp.z - 2 * pos.z + _pm.z) / (h * h);
 }
+
+export const R_SPAWN = [120, 250];
+export const R_LEAVE = 320;
+export const R_LEAVE_GAP = 70;      // rLeave = rMax + gap quand la couronne se resserre
+export const IN_VIEW_MIN_M = 220;   // dans le champ, on ne naît qu'au-delà
+export const VIEW_MARGIN_DEG = 15;
+export const BLOCK_SPAN_M = 2;      // règle de geometrySafe : un mur, pas un toit frôlé
+export const FLOOR_MARGIN_M = 5;    // au-dessus de FLOOR_HOLD de la clôture
+const SPAWN_TRIES_PER_FRAME = 3;
+
+// La couronne, bornée par la clôture. Rect : `halfMin - hold` ; direct : le
+// rayon de confiance (180 m par défaut, sous les 250 nominaux). Une carte qui
+// ne loge pas la couronne minimale garde ses drones pour toujours.
+export function bubbleFor(bounds, player) {
+	let rMax = R_SPAWN[1];
+	if (bounds.bbox) {
+		const halfMin = Math.min(
+			(bounds.bbox.max[0] - bounds.bbox.min[0]) / 2,
+			(bounds.bbox.max[2] - bounds.bbox.min[2]) / 2,
+		);
+		rMax = Math.min(rMax, halfMin - bounds.corridor.hold);
+	} else {
+		rMax = Math.min(rMax, bounds.trusted);
+	}
+	if (rMax < R_SPAWN[0]) return { rMin: 0, rMax: Math.max(rMax, 10), rLeave: Infinity };
+	const rLeave = rMax < R_SPAWN[1] ? rMax + R_LEAVE_GAP : R_LEAVE;
+	return { rMin: R_SPAWN[0], rMax, rLeave };
+}
+
+// Un point tient-il dans la clôture, avec `margin` (rayon de routine) en plus ?
+export function insideBounds(bounds, x, z, y, margin) {
+	if (bounds.bbox) {
+		const b = bounds.bbox;
+		const m = bounds.corridor.hold + margin;
+		return x >= b.min[0] + m && x <= b.max[0] - m
+			&& z >= b.min[2] + m && z <= b.max[2] - m
+			&& y >= b.min[1] + FLOOR_MARGIN_M;
+	}
+	if (!bounds.center) return false;
+	return Math.hypot(x - bounds.center.x, z - bounds.center.z) + margin <= bounds.trusted;
+}
+
+// Hors du cône caméra (FOV + marge) ?
+export function outOfView(dx, dz, dy, cam, fovDeg) {
+	const d = Math.hypot(dx, dy, dz);
+	if (d === 0) return false;
+	const cosA = (dx * cam.fx + dy * cam.fy + dz * cam.fz) / d;
+	return cosA < Math.cos((fovDeg / 2 + VIEW_MARGIN_DEG) * Math.PI / 180);
+}
+
+// Une ancre dans la couronne, hors champ, dans la clôture, sur du sol. Un
+// rayon. `top`/`span` : d'où et sur quelle longueur lancer vers le bas
+// (haut de bbox + 50 et hauteur + 100, comme groundAt de l'entry state).
+export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, stats }) {
+	const { rMin, rMax } = bubbleFor(bounds, player);
+	const d = rMin + rand() * (rMax - rMin);
+	const a = rand() * TWO_PI;
+	const x = player.x + d * Math.cos(a), z = player.z + d * Math.sin(a);
+	if (stats) stats.raysCast++;
+	const g = rays.groundBelow(x, top, z, span);
+	if (g == null) return null;
+	const y = g;
+	if (!insideBounds(bounds, x, z, y, radius)) return null;
+	if (d < IN_VIEW_MIN_M && !outOfView(x - player.x, z - player.z, y - player.y, cam, fovDeg)) return null;
+	return { x, y, z };
+}
+
+const _a = { x: 0, y: 0, z: 0 }, _b = { x: 0, y: 0, z: 0 };
+
+// 16 rayons vers le bas (hauteurs), 16 obstructions entre voisins.
+export function validateCurve({ routine, anchor, rays, heights, top, span, stats }) {
+	const ground = (x, z) => { if (stats) stats.raysCast++; return rays.groundBelow(x, top, z, span); };
+	if (!curveHeights(routine, anchor, ground, heights)) return false;
+	for (let i = 0; i < SAMPLES; i++) {
+		// La figure peut descendre sous l'AGL tiré (sinus, plan incliné) :
+		// c'est l'AGL MINIMAL de la famille qui compte, au point le plus bas.
+		curveAt(routine, anchor, heights, routine.period * i / SAMPLES, _a);
+		// À l'échantillon i pile, heights[i] EST le sol sous _a (curveHeights l'y a
+		// mis) : `_a.y - (heights[i] - agl)` retombe donc toujours exactement sur
+		// `curveLocal.y + agl`, quel que soit le relief — une tautologie qui ne
+		// verrait jamais un point sous le relief. On compare plutôt au pire des
+		// deux sols voisins (i et i+1) : si le relief grimpe fort entre les deux,
+		// c'est entre eux (où la courbe interpole linéairement) que ça râcle.
+		const j = (i + 1) % SAMPLES;
+		const g = Math.max(heights[i], heights[j]) - routine.agl;
+		if (_a.y - g < routine.aglMin) return false;
+		curveAt(routine, anchor, heights, routine.period * (i + 1) / SAMPLES, _b);
+		if (stats) stats.raysCast += 2;
+		const o = rays.obstructionBetween(_a.x, _a.y, _a.z, _b.x, _b.y, _b.z);
+		if (o.blocked && o.span > BLOCK_SPAN_M) return false;
+	}
+	return true;
+}
+
+export class AmbientModel {
+	constructor({ set, builds, bounds, seed }) {
+		if (set.length > MAX_DRONES) throw new Error('trop d\'ambiants');
+		this.set = set;
+		this.builds = builds;
+		this.bounds = bounds;
+		this.seed = seed;
+		this.families = set.map((d) => d.family);
+		this.n = set.length;
+		// Un slot par ambiant possible ; `alive[k]` dit s'il vole.
+		this.alive = new Uint8Array(MAX_DRONES);
+		this.pos = new Float64Array(3 * MAX_DRONES);
+		this.vel = new Float64Array(3 * MAX_DRONES);
+		this.acc = new Float64Array(3 * MAX_DRONES);
+		this.quat = new Float64Array(4 * MAX_DRONES);
+		this.anchors = new Float64Array(3 * MAX_DRONES);
+		this.heights = Array.from({ length: MAX_DRONES }, () => new Float64Array(SAMPLES));
+		this.routines = new Array(MAX_DRONES).fill(null);
+		this.t = new Float64Array(MAX_DRONES);
+		this.stats = { relocations: 0, raysCast: 0, spawnFailures: 0 };
+		this._pos = { x: 0, y: 0, z: 0 }; this._vel = { x: 0, y: 0, z: 0 }; this._acc = { x: 0, y: 0, z: 0 };
+		this._anchor = { x: 0, y: 0, z: 0 };
+		this.reset();
+	}
+
+	get count() { let c = 0; for (let k = 0; k < this.n; k++) c += this.alive[k]; return c; }
+
+	reset() {
+		this.alive.fill(0);
+		this.t.fill(0);
+		this.rand = rngFrom(`${this.seed}::ambient`);
+		for (let k = 0; k < this.n; k++) {
+			this.routines[k] = routineFor({
+				family: this.set[k].family, twr: this.builds[k].spec.twr,
+				rand: rngFrom(`${this.set[k].buildSeed}::ambient::routine`),
+			});
+			this.quat[4 * k + 3] = 1;
+		}
+	}
+
+	// Fait naître le premier slot mort. Rend true si un drone est né.
+	spawnOne({ player, cam, fovDeg, rays, top, span }) {
+		for (let k = 0; k < this.n; k++) {
+			if (this.alive[k]) continue;
+			const r = this.routines[k];
+			const radius = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
+			for (let tries = 0; tries < SPAWN_TRIES_PER_FRAME; tries++) {
+				const a = pickAnchor({ rand: this.rand, player, cam, fovDeg, bounds: this.bounds, radius, rays, top, span, stats: this.stats });
+				if (!a) { this.stats.spawnFailures++; continue; }
+				if (!validateCurve({ routine: r, anchor: a, rays, heights: this.heights[k], top, span, stats: this.stats })) {
+					this.stats.spawnFailures++; continue;
+				}
+				this.anchors[3 * k] = a.x; this.anchors[3 * k + 1] = a.y; this.anchors[3 * k + 2] = a.z;
+				this.t[k] = this.rand() * r.period;
+				this.alive[k] = 1;
+				this._place(k, 1 / 60);
+				return true;
+			}
+			return false;   // un slot par frame, réussi ou non
+		}
+		return false;
+	}
+
+	_place(k, h) {
+		const r = this.routines[k];
+		this._anchor.x = this.anchors[3 * k]; this._anchor.y = this.anchors[3 * k + 1]; this._anchor.z = this.anchors[3 * k + 2];
+		derive(r, this._anchor, this.heights[k], this.t[k], h, this._pos, this._vel, this._acc);
+		this.pos[3 * k] = this._pos.x; this.pos[3 * k + 1] = this._pos.y; this.pos[3 * k + 2] = this._pos.z;
+		this.vel[3 * k] = this._vel.x; this.vel[3 * k + 1] = this._vel.y; this.vel[3 * k + 2] = this._vel.z;
+		this.acc[3 * k] = this._acc.x; this.acc[3 * k + 1] = this._acc.y; this.acc[3 * k + 2] = this._acc.z;
+	}
+
+	update({ dt, player, cam, fovDeg, rays, top, span, wind }) {
+		if (dt <= 0) return;
+		const { rLeave } = bubbleFor(this.bounds, player);
+		// Départs : l'ancre a quitté la bulle.
+		for (let k = 0; k < this.n; k++) {
+			if (!this.alive[k]) continue;
+			const d = Math.hypot(this.anchors[3 * k] - player.x, this.anchors[3 * k + 2] - player.z);
+			if (d > rLeave) { this.alive[k] = 0; this.stats.relocations++; }
+		}
+		// Une naissance au plus par frame.
+		this.spawnOne({ player, cam, fovDeg, rays, top, span });
+		// Avance et pose.
+		for (let k = 0; k < this.n; k++) {
+			if (!this.alive[k]) continue;
+			this.t[k] += dt;
+			this._place(k, Math.min(dt, 1 / 60));
+			this._attitude(k, dt, wind);
+		}
+	}
+
+	_attitude() { /* Task 5 */ }
+}

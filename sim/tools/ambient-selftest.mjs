@@ -9,6 +9,7 @@ import {
 	rngFrom, ambientSet, ROUTINES, lateralAccelMax, routineFor,
 	MAX_DRONES, G, TURN_MARGIN,
 	curveLocal, curveHeights, curveAt, derive, SAMPLES,
+	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
 } from '../src/ambient.js';
 import { generateTargetScan, TARGET_FAMILIES } from './target-model.mjs';
 import { targetBuild } from './target-build.mjs';
@@ -102,6 +103,138 @@ console.log('\nambient: courbes');
 	const slope = (x) => x * 0.1;
 	curveHeights(r, anchor, slope, heights);
 	check('le relief est suivi', Math.max(...heights) - Math.min(...heights) > 1);
+}
+
+console.log('\nambient: bulle, ancres, validation');
+{
+	const bigRect = { bbox: { min: [-2000, 0, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
+	const smallRect = { bbox: { min: [-90, 0, -90], max: [90, 100, 90] }, corridor: { hold: 10 } };
+	const live = { center: { x: 0, z: 0 }, trusted: 180 };
+	const noLive = { center: null, trusted: 180 };
+	const player = { x: 0, y: 30, z: 0 };
+	const cam = { fx: 0, fy: 0, fz: -1 };   // regarde vers −Z (nord)
+	const flat = (x, z) => 0;
+	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	const wallRays = { groundBelow: () => 0, obstructionBetween: (ax, ay, az, bx) => ({ blocked: bx > 50, span: bx > 50 ? 6 : 0 }) };
+
+	const b = bubbleFor(bigRect, player);
+	check('grande carte : couronne nominale', b.rMin === R_SPAWN[0] && b.rMax === R_SPAWN[1] && b.rLeave === R_LEAVE);
+	const s = bubbleFor(smallRect, player);
+	check('petite carte : couronne resserrée', s.rMax === 80 && s.rMin <= s.rMax);
+	check('petite carte : jamais de départ', s.rLeave === Infinity);
+	const l = bubbleFor(live, player);
+	check('direct : rMax = rayon de confiance', l.rMax === 180 && l.rLeave === 250);
+
+	check('outOfView : derrière', outOfView(0, 100, 0, cam, 120) === true);
+	check('outOfView : devant', outOfView(0, -100, 0, cam, 120) === false);
+	check('outOfView : sur le bord + marge', outOfView(Math.sin(70 * Math.PI / 180) * 100, -Math.cos(70 * Math.PI / 180) * 100, 0, cam, 120) === false);
+	check('outOfView : au-delà de la marge', outOfView(Math.sin(80 * Math.PI / 180) * 100, -Math.cos(80 * Math.PI / 180) * 100, 0, cam, 120) === true);
+
+	check('insideBounds rect : dedans', insideBounds(bigRect, 0, 0, 10, 30));
+	check('insideBounds rect : bord', !insideBounds(bigRect, 1990, 0, 10, 30));
+	check('insideBounds rect : sous le plancher', !insideBounds(bigRect, 0, 0, 2, 30));
+	check('insideBounds live : dedans', insideBounds(live, 100, 0, 10, 30));
+	check('insideBounds live : dehors', !insideBounds(live, 170, 0, 10, 30));
+	check('insideBounds live sans centre : jamais', !insideBounds(noLive, 0, 0, 10, 30));
+
+	// 200 ancres tirées : toutes dans la couronne, hors champ ou > 220 m, dans la clôture.
+	const rand = rngFrom('anchors');
+	let ok = 0, n = 0;
+	for (let i = 0; i < 200; i++) {
+		const a = pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays, top: 250, span: 400 });
+		if (!a) continue;
+		n++;
+		const d = Math.hypot(a.x - player.x, a.z - player.z);
+		const inRing = d >= R_SPAWN[0] - 1e-9 && d <= R_SPAWN[1] + 1e-9;
+		const hidden = outOfView(a.x - player.x, a.z - player.z, a.y - player.y, cam, 120) || d >= 220;
+		if (inRect(a) && inRing && hidden) ok++;
+	}
+	function inRect(a) { return insideBounds(bigRect, a.x, a.z, a.y, 20); }
+	check('200 ancres : toutes conformes', n > 150 && ok === n, `${ok}/${n}`);
+	check('pas de sol → pas d\'ancre', pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays: { ...rays, groundBelow: () => null }, top: 250, span: 400 }) === null);
+
+	// Validation : plat → ok ; mur → rejet ; sol trop haut sous un point → rejet.
+	const r = routineFor({ family: 'freestyle5', twr: 6, rand: rngFrom('v') });
+	const heights = new Float64Array(SAMPLES);
+	check('courbe sur du plat : valide', validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays, heights, top: 250, span: 400 }));
+	check('courbe contre un mur : rejetée', !validateCurve({ routine: r, anchor: { x: 40, y: 0, z: 0 }, rays: wallRays, heights, top: 250, span: 400 }));
+	const bump = { groundBelow: (x) => (x > 10 ? 200 : 0), obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	check('courbe dont un point est sous le relief : rejetée', !validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: bump, heights, top: 250, span: 400 }));
+	// Un toit frôlé (span ≤ 2) passe.
+	const roof = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: true, span: 1.5 }) };
+	check('toit frôlé : accepté', validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: roof, heights, top: 250, span: 400 }));
+}
+
+console.log('\nambient: modèle');
+{
+	const bigRect = { bbox: { min: [-2000, 0, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
+	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	const scan = { seed: 'model-a', count: 5, index: 0 };
+	const set = ambientSet(scan);
+	const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
+	const mk = () => new AmbientModel({ set, builds, bounds: bigRect, seed: scan.seed });
+	const cam = { fx: 0, fy: 0, fz: -1 };
+	const wind = { x: 0, y: 0, z: 0 };
+	const player = { x: 0, y: 30, z: 0 };
+	const frame = (m, p, dt = 1 / 60) => m.update({ dt, player: p, cam, fovDeg: 120, rays, top: 250, span: 400, wind });
+
+	const m = mk();
+	check('vide au départ', m.count === 0);
+	frame(m, player);
+	check('une naissance par frame', m.count === 1);
+	for (let i = 0; i < 3; i++) frame(m, player);
+	check('quatre après quatre frames', m.count === 4, `${m.count}`);
+	frame(m, player);
+	check('jamais plus que l\'ensemble', m.count === 4);
+	check('familles = ensemble', m.families.join() === set.map((d) => d.family).join());
+
+	// Déterminisme.
+	const m2 = mk();
+	for (let i = 0; i < 4; i++) frame(m2, player);
+	check('même graine → mêmes ancres', Array.from(m.anchors).every((v, i) => v === m2.anchors[i]));
+
+	// dt 0 : rien ne bouge, rien ne naît.
+	const before = Array.from(m.pos);
+	m.update({ dt: 0, player, cam, fovDeg: 120, rays, top: 250, span: 400, wind });
+	check('dt 0 : immobile', Array.from(m.pos).every((v, i) => v === before[i]));
+
+	// Zéro allocation : mêmes références.
+	const refs = [m.pos, m.vel, m.acc, m.quat, m.anchors];
+	for (let i = 0; i < 1000; i++) frame(m, player);
+	check('update n\'alloue pas', refs.every((r, i) => r === [m.pos, m.vel, m.acc, m.quat, m.anchors][i]));
+	check('positions finies', Array.from(m.pos).every(Number.isFinite));
+
+	// Relocalisation : joueur déplacé de 400 m → toutes les ancres renaissent.
+	const far = { x: 400, y: 30, z: 0 };
+	const anchorsBefore = Array.from(m.anchors);
+	for (let i = 0; i < 5; i++) frame(m, far);
+	check('400 m : toutes relocalisées', m.stats.relocations >= 4, `${m.stats.relocations}`);
+	check('400 m : nouvelles ancres dans la couronne autour du joueur',
+		[0, 1, 2, 3].every((k) => { const d = Math.hypot(m.anchors[3 * k] - far.x, m.anchors[3 * k + 2] - far.z); return d >= R_SPAWN[0] && d <= R_SPAWN[1]; }));
+	check('400 m : ancres différentes', anchorsBefore.some((v, i) => v !== m.anchors[i]));
+	// 60 m : aucune.
+	const before60 = m.stats.relocations;
+	for (let i = 0; i < 5; i++) frame(m, { x: 460, y: 30, z: 0 });
+	check('60 m : aucune relocalisation', m.stats.relocations === before60);
+
+	// Petite carte : tout dedans, jamais de départ.
+	const small = { bbox: { min: [-90, 0, -90], max: [90, 100, 90] }, corridor: { hold: 10 } };
+	const ms = new AmbientModel({ set, builds, bounds: small, seed: 's' });
+	for (let i = 0; i < 6; i++) frame(ms, player);
+	check('petite carte : des drones naissent', ms.count >= 1);
+	for (let i = 0; i < 60; i++) frame(ms, { x: 80, y: 30, z: 80 });
+	check('petite carte : jamais de départ', ms.stats.relocations === 0);
+	check('petite carte : positions dans la clôture', [...Array(ms.count).keys()].every((k) => Math.abs(ms.pos[3 * k]) < 90 && Math.abs(ms.pos[3 * k + 2]) < 90));
+
+	// Sol absent (direct pas chargé) : rien ne naît, échecs comptés, pas d'exception.
+	const mh = new AmbientModel({ set, builds, bounds: { center: { x: 0, z: 0 }, trusted: 180 }, seed: 'h' });
+	for (let i = 0; i < 20; i++) mh.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays: { ...rays, groundBelow: () => null }, top: 250, span: 400, wind });
+	check('sans sol : aucune naissance', mh.count === 0 && mh.stats.spawnFailures > 0);
+	check('rayons comptés', mh.stats.raysCast > 0);
+
+	// reset : recommence à zéro autour du joueur.
+	m.reset();
+	check('reset : vide', m.count === 0);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
