@@ -87,12 +87,14 @@ aujourd'hui invisible à 100 m, devient regardable.
    `post-flight.js:6-7`, *« Uniquement pour une session LANDED : une session
    CRASHED n'a pas de grand écran (Bible §24) »*.
 
-8. **La session stocke déjà de quoi reconstruire la machine.** `session.js:47`
-   garde `{ targetSeed, targetCount, targetIndex }`, et
-   `tools/target-model.mjs:128-131` reconstruit `buildSeed = "${seed}::${index}"`
-   avec le commentaire *« reconstruire buildSeed côté client sans le stocker deux
-   fois »*. **Aucune migration, et toutes les sessions déjà journalisées peuvent
-   afficher leur machine.**
+8. **La session stocke déjà la machine, et mieux qu'espéré.** Le client envoie
+   `{ targetSeed, targetCount, targetIndex }` (`session.js:47`), mais le serveur
+   appelle `resolveTarget(scan, index)` (`tools/map-api-plugin.mjs:267`) et
+   **persiste le résultat** : `session.target` contient `family` et `buildSeed`
+   **en clair** (`tools/target-model.mjs:117-133`), plus `scan: {seed, count,
+   index}`. Le portrait n'a donc rien à régénérer : deux lectures directes.
+   **Aucune migration, et toutes les sessions déjà journalisées peuvent afficher
+   leur machine.**
 
 9. **Les écrans du journal sont des clients purs.** `session-log.js:1-3` :
    *« Écrans client purs : screen/button de terminal.js, aucune dépendance
@@ -139,7 +141,7 @@ hauteur de l'objectif **par rapport au plan d'hélice**.
 
 ## La recette : `drone-shape.js`
 
-Quatre ajouts, tous dans le module pur. Il reste sans Three, sans DOM, en
+Trois ajouts, tous dans le module pur. Il reste sans Three, sans DOM, en
 mètres, repère corps nez −Z.
 
 ### Le bloc `mount`, mesuré et jamais écrit à la main
@@ -181,10 +183,13 @@ d'uptilt que `targetCamera` peut tirer pour elle.
 
 `boundingRadius` garde son sens à tous les niveaux.
 
-### Une liste d'arêtes
+### Pas de liste d'arêtes
 
-Le niveau `portrait` expose les segments du fil de fer, pour que `drone-wire.js`
-n'ait pas à les redécouvrir depuis une géométrie fusionnée.
+Envisagée puis écartée à l'écriture du plan : `drone-wire.js` lit les **mêmes
+primitives** que `drone-mesh.js` — une boîte donne douze arêtes, un cylindre deux
+cercles et des génératrices, un disque un cercle. Une liste d'arêtes dans la
+recette serait une seconde description de la même géométrie, à tenir
+synchronisée pour rien.
 
 ### Des hélices engendrées depuis `motorsOf()`
 
@@ -286,8 +291,8 @@ graine par défaut. Aucun chemin ne se retrouve sans machine.
 
 ### `drone-wire.js`, module pur
 
-Entrée : la liste d'arêtes du niveau `portrait` et une vue (azimut, élévation,
-distance). Sortie : des segments 2D dans une boîte normalisée, chacun avec sa
+Entrée : la recette au niveau `portrait` — dont il dérive les arêtes primitive
+par primitive — et une vue (azimut, élévation). Sortie : des segments 2D dans une boîte normalisée, chacun avec sa
 profondeur. Aucun Three, aucun DOM, testable en Node — même statut que
 `tools/session-log-model.mjs`, qui porte déjà tout le formatage des journaux.
 
@@ -331,9 +336,10 @@ déplace rien.
 
 ## Persistance
 
-Rien. Voir la contrainte 8 : `{ targetSeed, targetCount, targetIndex }` suffit à
-reconstruire `buildSeed`, donc le build, donc la caméra, donc la machine. Aucune
-migration, et l'historique déjà écrit devient consultable rétroactivement.
+Rien. Voir la contrainte 8 : `session.target.family` et `session.target.buildSeed`
+sont persistés en clair par le serveur, donc le build, donc la caméra, donc la
+machine — sans régénération. Aucune migration, et l'historique déjà écrit devient
+consultable rétroactivement.
 
 ## Ce qu'on vérifie
 
