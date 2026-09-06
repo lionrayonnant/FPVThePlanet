@@ -2448,6 +2448,38 @@ d'un encodeur DXT1 et d'une chaîne de mips à écrire dans `prep.mjs` et de
 ~620 Mo de binaire à servir. À trancher seulement si 16 cm/texel gêne
 réellement en vol.
 
+## Versionnage du dépôt (issue #257)
+
+SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
+`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `README.md`, section
+« Versionner et publier ».
+
+### Vérifié — sans navigateur
+
+- `npm run selftest:release` : **15/15 PASS** (bump, refus d'un numéro qui ne
+  monte pas, découpe et re-rendu du CHANGELOG, régénération des liens de
+  comparaison, refus d'une section « Non publié » vide ou d'un doublon).
+  Également câblé en tête de `npm run selftest:operator`.
+- `npm run build` avec la version injectée : `__APP_VERSION__` sort en
+  `"0.0.0"` dans le bundle, `window.FPVTP_VERSION` et une ligne de console.
+- `npm run release -- minor` joué **en réel dans un clone jetable** : bump
+  package.json + lockfile, section datée `## [0.1.0] - 2026-09-06`, nouvelle
+  section « Non publié » vide, liens régénérés, commit `chore(release): v0.1.0`,
+  tag annoté `v0.1.0`, aucun push. Relancé aussitôt, il refuse (« Non publié »
+  vide). `node tools/release-notes.mjs v0.1.0` rend bien le corps de la section.
+
+### NON vérifié
+
+- `.github/workflows/release.yml` n'a **jamais tourné** : aucun tag n'a encore
+  été poussé, aucune release n'existe. La première coupe (`npm run release --
+  minor` → `v0.1.0`, puis `git push origin v0.1.0`) est son premier test.
+  Points à surveiller ce jour-là : le `npm ci` du runner, le `npm run build`
+  sans `public/scenes/` (gitignoré), et le droit d'écriture du `GITHUB_TOKEN`
+  sur les releases.
+- Rien n'affiche la version **dans l'UI** : elle n'est que dans la console et
+  sur `window`. À décider si l'écran BOOT ou FIELD doit la porter — sachant que
+  `BUILD NOTES` occupe déjà ce registre visuel avec des numéros diégétiques.
+
 ## Leviers de secours si besoin
 
 - `npm run prep:light` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,
