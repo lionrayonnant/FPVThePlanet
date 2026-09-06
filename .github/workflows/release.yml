@@ -39,8 +39,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Selftest du versionnage
-        run: npm run selftest:release
+      - name: Selftests, les mêmes qu'en CI
+        run: npm run selftest:ci
 
       - name: Build du sim
         run: npm run build

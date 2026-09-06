@@ -23,6 +23,16 @@ const args = process.argv.slice(2);
 const REPORT = args.includes('--report');
 const sceneDir = path.resolve(args.find((a) => !a.startsWith('--')) ?? 'public/scenes/tour-eiffel');
 
+// Ce test rejoue de vraies trajectoires contre la collision d'une scène, et
+// `public/scenes/` est gitignoré (~900 Mo) : sur une machine — ou un runner CI —
+// où la scène n'est pas installée, il se retire bruyamment au lieu de casser la
+// chaîne sur un ENOENT.
+if (!fs.existsSync(path.join(sceneDir, 'manifest.json'))) {
+	console.log(`SKIP landing-selftest : scène absente (${path.relative(process.cwd(), sceneDir)}).`);
+	console.log('      Installez-la — npm run add-map — puis relancez ; en CI c\'est attendu.');
+	process.exit(0);
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(sceneDir, 'manifest.json')));
 const raw = fs.readFileSync(path.join(sceneDir, 'collision.bin'));
 const vc = raw.readUInt32LE(8), ic = raw.readUInt32LE(12);

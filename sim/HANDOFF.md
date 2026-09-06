@@ -2468,8 +2468,48 @@ SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
   tag annoté `v0.1.0`, aucun push. Relancé aussitôt, il refuse (« Non publié »
   vide). `node tools/release-notes.mjs v0.1.0` rend bien le corps de la section.
 
+### CI — vérifié en local, pas encore sur un runner
+
+- `.github/workflows/ci.yml` : deux jobs, `sim` (`npm run selftest:ci` +
+  `npm run build`) et `flyover-reverse-engineering` (`go vet` / `go build` /
+  `go test`), sur push `main` et sur chaque PR.
+- `npm run selftest:ci` = `selftest:operator` + `selftest:api` : **1 009
+  vérifications en 58 s**, sans scène installée, sans réseau, sans navigateur.
+  Mesuré ici, sur ce dépôt, `public/scenes/` vide.
+- `tools/landing-selftest.mjs` — le seul de la chaîne qui lisait une scène —
+  se retire maintenant en `SKIP` quand `public/scenes/tour-eiffel` est absente.
+  C'est le modèle pour tout selftest qui aurait besoin de données de scène.
+- Côté Go : `go build ./...`, `go vet ./...`, `go test ./...` passent
+  (1 paquet testé, `pkg/mth`) sans `config.json`, qui n'est lu qu'à l'exécution.
+- `npm run selftest` et `npm run selftest:scenes` restent **hors CI** par
+  nature : ils lisent `public/scenes/`. `selftest:scenes` échoue d'ailleurs ici
+  (3 scènes fantômes dans `scenes.json` : `paristest`,
+  `conservatoire-national-des-arts-et-metiers`, `havre`) — c'est un état local,
+  `node tools/sync-scenes.mjs` le règle.
+- La release rejoue exactement `selftest:ci` avant de publier : ce qui sort en
+  version a passé les mêmes vérifications que la CI.
+
+### Pas de CD, et pourquoi
+
+Le build statique **ne sait pas démarrer seul**. `src/operator.js` charge l'état
+opérateur depuis `/__operator`, une API servie par `tools/map-api-plugin.mjs`,
+qui est un plugin Vite `apply: 'serve'` — il n'existe qu'en `npm run dev`. Sans
+lui, `loadOperator()` jette au boot : pas de terminal, pas de vol. S'y ajoute
+que `public/scenes/` (~900 Mo) n'est ni versionné ni hébergé.
+
+Déployer demanderait donc, au choix :
+1. un repli statique pour l'état opérateur (localStorage) et pour la liste des
+   scènes — la voie la moins chère, et la seule qui rende GitHub Pages jouable ;
+2. ou un vrai serveur qui porte `/__operator` (+ les scènes) en production.
+
+Rien de tout ça n'est fait. Tant que ce n'est pas tranché, la « livraison »
+d'une version est l'archive `dist` attachée à la GitHub Release.
+
 ### NON vérifié
 
+- `.github/workflows/ci.yml` n'a **jamais tourné sur un runner** : les commandes
+  sont vérifiées ici, pas l'enchaînement GitHub Actions (cache npm, versions
+  d'actions, `setup-go` sur un `go.mod` en `go 1.26.5`).
 - `.github/workflows/release.yml` n'a **jamais tourné** : aucun tag n'a encore
   été poussé, aucune release n'existe. La première coupe (`npm run release --
   minor` → `v0.1.0`, puis `git push origin v0.1.0`) est son premier test.

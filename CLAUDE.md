@@ -126,6 +126,16 @@ Cut a version with `npm run release -- patch|minor|major|X.Y.Z` (from `sim/`). I
 
 The `BUILD NOTES` build numbers (`sim/tools/buildnotes-model.mjs`) are diegetic lore, unrelated to the real version.
 
+CI
+
+`.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~1 min) and `npm run build` for `sim/`, plus `go vet` / `go build` / `go test` for `flyover-reverse-engineering/`. The release workflow runs the same `selftest:ci` before publishing a tag.
+
+Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/landing-selftest.mjs` is the pattern.
+
+`npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
+
+There is no CD yet: a static build cannot boot on its own (see the `Versionnage` section of `sim/HANDOFF.md`).
+
 Secrets / large data
 
 flyover-reverse-engineering/config.json contains a real Apple Flyover token and is gitignored. Never remove it from .gitignore or commit it. config.json.example documents its shape.

@@ -27,7 +27,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
   `dialogue:check` · les deux dos · la politique de relecture
 - Cartes disponibles
 - Exporter une scène en `.glb`
-- Versionner et publier
+- Versionner et publier — l'intégration continue · couper une version
 - Architecture
 - Limite connue : `selftest` spécifique à la Tour Eiffel
 - Détails techniques du pré-traitement — fournisseurs et décodeurs · fixtures
@@ -458,7 +458,33 @@ Au fil du travail, les entrées s'ajoutent sous la section `## [Non publié]` du
 CHANGELOG — rubriques `Ajouté`, `Modifié`, `Corrigé`, `Retiré`, `Déprécié`,
 `Sécurité`.
 
-Pour couper une version :
+### L'intégration continue
+
+`.github/workflows/ci.yml` tourne sur chaque push vers `main` et chaque pull
+request, en deux jobs :
+
+- **sim** — `npm run selftest:ci` puis `npm run build`.
+- **flyover-reverse-engineering** — `go vet`, `go build`, `go test`.
+
+```bash
+npm run selftest:ci   # ~1 009 vérifications, ~1 min — à lancer avant de pousser
+```
+
+`selftest:ci` est la chaîne qui ne demande **ni scène installée, ni réseau, ni
+navigateur** : c'est ce qui la rend jouable sur un runner, où `public/scenes/`
+(gitignoré, ~900 Mo) n'existe pas. Un selftest qui a besoin de données de scène
+se retire en disant `SKIP` au lieu d'échouer — `tools/landing-selftest.mjs` est
+le modèle à suivre.
+
+Restent locaux, par nature : `npm run selftest` (rejoue la scène `tour-eiffel`)
+et `npm run selftest:scenes` (compare `scenes.json` aux scènes installées sur
+*cette* machine).
+
+Il n'y a **pas de déploiement continu** : le build statique ne sait pas démarrer
+seul, il lui faut l'API opérateur `/__operator` que seul le serveur de dev
+fournit. Voir `HANDOFF.md`, section « Versionnage du dépôt ».
+
+### Couper une version
 
 ```bash
 npm run release -- patch             # 0.1.0 → 0.1.1  (correctifs)
@@ -482,8 +508,8 @@ git push origin v0.1.0
 ```
 
 `.github/workflows/release.yml` prend le relais : il vérifie que le tag et
-`sim/package.json` disent le même numéro, lance `npm run selftest:release`,
-build le sim, puis crée la GitHub Release avec le corps repris du CHANGELOG
+`sim/package.json` disent le même numéro, rejoue `npm run selftest:ci`, build le
+sim, puis crée la GitHub Release avec le corps repris du CHANGELOG
 (`node tools/release-notes.mjs v0.1.0`) et `dist` en archive zip.
 
 La version est injectée dans le build par Vite (`__APP_VERSION__`), exposée sur

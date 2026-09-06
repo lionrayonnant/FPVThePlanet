@@ -30,5 +30,17 @@ rapport avec les versions ci-dessous.
 - La version est exposée au runtime : `__APP_VERSION__` injecté par Vite et
   `window.FPVTP_VERSION` dans la console au démarrage.
 - `npm run selftest:release` couvre le modèle pur du versionnage.
+- Intégration continue (`.github/workflows/ci.yml`) : sur push `main` et sur
+  chaque pull request, `npm run selftest:ci` (~1 009 vérifications, ~1 min) et
+  `npm run build` pour le sim, `go vet` / `go build` / `go test` pour
+  l'exporteur. La release passe par les mêmes selftests avant de publier.
+- `npm run selftest:ci` : la chaîne qui ne demande ni scène installée, ni
+  réseau, ni navigateur.
+
+### Modifié
+
+- `tools/landing-selftest.mjs` se retire en disant `SKIP` quand la scène
+  `public/scenes/tour-eiffel` (gitignorée) est absente, au lieu de casser la
+  chaîne sur un `ENOENT`.
 
 [Non publié]: https://github.com/lionrayonnant/FPVTP/commits/main
