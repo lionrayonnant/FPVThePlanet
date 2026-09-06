@@ -10,6 +10,7 @@ import {
 	MAX_DRONES, G, TURN_MARGIN,
 	curveLocal, curveHeights, curveAt, derive, SAMPLES,
 	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
+	attitudeFrom, tiltOf,
 } from '../src/ambient.js';
 import { generateTargetScan, TARGET_FAMILIES } from './target-model.mjs';
 import { targetBuild } from './target-build.mjs';
@@ -265,6 +266,48 @@ console.log('\nambient: modèle');
 	// reset : recommence à zéro autour du joueur.
 	m.reset();
 	check('reset : vide', m.count === 0);
+}
+
+console.log('\nambient: attitude');
+{
+	const q = new Float64Array(4);
+	const still = { ax: 0, ay: 0, az: 0, vx: 0, vy: 0, vz: 0, wind: { x: 0, y: 0, z: 0 }, drag: { x: 0.01, y: 0.028, z: 0.01 }, mass: 0.65, yawX: 0, yawZ: -1 };
+	attitudeFrom(still, q, 0);
+	check('immobile : à plat', tiltOf(q, 0) < 1e-6);
+	check('immobile : quaternion unitaire', Math.abs(Math.hypot(q[0], q[1], q[2], q[3]) - 1) < 1e-9);
+	// Accélération latérale g → 45°.
+	attitudeFrom({ ...still, ax: G }, q, 0);
+	check('a = g → 45°', Math.abs(tiltOf(q, 0) - Math.PI / 4) < 1e-6, `${(tiltOf(q, 0) * 180 / Math.PI).toFixed(1)}°`);
+	// Vent de face à 10 m/s : penché dans le vent (drag), donc tilt > 0 même immobile.
+	attitudeFrom({ ...still, wind: { x: 10, y: 0, z: 0 } }, q, 0);
+	check('vent : penché', tiltOf(q, 0) > 0.01);
+	// Le nez suit le lacet : yaw vers +X → l'axe −Z du corps pointe vers +X.
+	attitudeFrom({ ...still, yawX: 1, yawZ: 0 }, q, 0);
+	const fx = 2 * (q[0] * q[2] + q[3] * q[1]);   // composante X de R·(0,0,-1)… (voir impl)
+	check('lacet : nez vers +X', Math.abs(fx - 1) < 1e-6 || Math.abs(fx + 1) < 1e-6);
+
+	// Sur les courbes : race couché, cinewhoop à plat, jamais > 75°.
+	const bigRect = { bbox: { min: [-2000, 0, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
+	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	const scan = { seed: 'att3', count: 5, index: 4 };
+	const set = ambientSet(scan).filter((d) => d.family === 'race5' || d.family === 'cinewhoop');
+	if (set.length < 2) console.log('  SKIP  graine sans race5+cinewhoop — changer la graine');
+	const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
+	const m = new AmbientModel({ set, builds, bounds: bigRect, seed: 'att3' });
+	const cam = { fx: 0, fy: 0, fz: -1 }, player = { x: 0, y: 30, z: 0 }, wind = { x: 0, y: 0, z: 0 };
+	let maxTilt = new Float64Array(set.length), sumTilt = new Float64Array(set.length), N = 0;
+	for (let i = 0; i < 600; i++) {
+		m.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays, top: 250, span: 400, wind });
+		if (i < 10) continue;
+		N++;
+		for (let k = 0; k < set.length; k++) { const t = tiltOf(m.quat, 4 * k); maxTilt[k] = Math.max(maxTilt[k], t); sumTilt[k] += t; }
+	}
+	for (let k = 0; k < set.length; k++) {
+		const deg = sumTilt[k] / N * 180 / Math.PI;
+		check(`${set[k].family}: tilt max ≤ 75°`, maxTilt[k] <= 75 * Math.PI / 180, `${(maxTilt[k] * 180 / Math.PI).toFixed(0)}°`);
+		if (set[k].family === 'race5') check('race5 : couché (> 35° en moyenne)', deg > 35, `${deg.toFixed(0)}°`);
+		if (set[k].family === 'cinewhoop') check('cinewhoop : à plat (< 12°)', deg < 12, `${deg.toFixed(0)}°`);
+	}
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

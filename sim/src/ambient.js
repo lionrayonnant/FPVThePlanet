@@ -270,6 +270,58 @@ export function derive(r, anchor, heights, t, h, pos, vel, acc) {
 	acc.z = (_pp.z - 2 * pos.z + _pm.z) / (h * h);
 }
 
+export const ATTITUDE_TAU = 0.08;
+
+// Base orthonormée → quaternion (x,y,z,w). Colonnes : X = droite, Y = haut,
+// Z = arrière (le nez est −Z, comme la caméra Three du joueur).
+function quatFromBasis(xx, xy, xz, yx, yy, yz, zx, zy, zz, out, o) {
+	const tr = xx + yy + zz;
+	let x, y, z, w;
+	if (tr > 0) {
+		const s = Math.sqrt(tr + 1) * 2;
+		w = 0.25 * s; x = (yz - zy) / s; y = (zx - xz) / s; z = (xy - yx) / s;
+	} else if (xx > yy && xx > zz) {
+		const s = Math.sqrt(1 + xx - yy - zz) * 2;
+		w = (yz - zy) / s; x = 0.25 * s; y = (xy + yx) / s; z = (xz + zx) / s;
+	} else if (yy > zz) {
+		const s = Math.sqrt(1 + yy - xx - zz) * 2;
+		w = (zx - xz) / s; x = (xy + yx) / s; y = 0.25 * s; z = (yz + zy) / s;
+	} else {
+		const s = Math.sqrt(1 + zz - xx - yy) * 2;
+		w = (xy - yx) / s; x = (xz + zx) / s; y = (yz + zy) / s; z = 0.25 * s;
+	}
+	out[o] = x; out[o + 1] = y; out[o + 2] = z; out[o + 3] = w;
+}
+
+// Un quad incline sa poussée dans a + g − a_drag. Y corps = poussée
+// normalisée ; le nez (−Z) suit le lacet demandé projeté sur le plan du corps.
+export function attitudeFrom({ ax, ay, az, vx, vy, vz, wind, drag, mass, yawX, yawZ }, out, o) {
+	const rx = vx - wind.x, ry = vy - wind.y, rz = vz - wind.z;
+	const s = Math.hypot(rx, ry, rz);
+	// F_drag = −c·|v_air|·v_air par axe (le modèle de quad.js), a = F/m.
+	const dx = drag.x * s * rx / mass, dy = drag.y * s * ry / mass, dz = drag.z * s * rz / mass;
+	let ux = ax + dx, uy = ay + G + dy, uz = az + dz;
+	const n = Math.hypot(ux, uy, uz) || 1;
+	ux /= n; uy /= n; uz /= n;
+	// Nez : la direction de lacet, orthogonalisée contre Y.
+	let fx = yawX, fy = 0, fz = yawZ;
+	const fn = Math.hypot(fx, fz) || 1; fx /= fn; fz /= fn;
+	const dot = fx * ux + fy * uy + fz * uz;
+	fx -= dot * ux; fy -= dot * uy; fz -= dot * uz;
+	const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+	// Z corps = −nez ; X = Y × Z.
+	const zx = -fx, zy = -fy, zz = -fz;
+	const xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;
+	quatFromBasis(xx, xy, xz, ux, uy, uz, zx, zy, zz, out, o);
+}
+
+// Angle entre le Y du corps et le Y du monde.
+export function tiltOf(q, o) {
+	const x = q[o], y = q[o + 1], z = q[o + 2], w = q[o + 3];
+	const upY = 1 - 2 * (x * x + z * z);   // composante Y de R·(0,1,0)
+	return Math.acos(Math.max(-1, Math.min(1, upY)));
+}
+
 export const R_SPAWN = [120, 250];
 export const R_LEAVE = 320;
 export const R_LEAVE_GAP = 70;      // rLeave = rMax + gap quand la couronne se resserre
@@ -280,6 +332,8 @@ export const FLOOR_MARGIN_M = 5;    // au-dessus de FLOOR_HOLD de la clôture
 const SPAWN_TRIES_PER_FRAME = 3;
 // Pas de dérivation fixe : l'attitude ne doit pas dépendre du taux de rafraîchissement.
 const DERIVE_H = 1 / 60;
+// Attitude initiale au spawn : sans vent (voir spawnOne).
+const NO_WIND = { x: 0, y: 0, z: 0 };
 
 // La couronne, bornée par la clôture. Rect : `halfMin - hold` ; direct : le
 // rayon de confiance (180 m par défaut, sous les 250 nominaux). Une carte qui
@@ -392,6 +446,8 @@ export class AmbientModel {
 		this.stats = { relocations: 0, raysCast: 0, spawnFailures: 0 };
 		this._pos = { x: 0, y: 0, z: 0 }; this._vel = { x: 0, y: 0, z: 0 }; this._acc = { x: 0, y: 0, z: 0 };
 		this._anchor = { x: 0, y: 0, z: 0 };
+		this._att = { ax: 0, ay: 0, az: 0, vx: 0, vy: 0, vz: 0, wind: null, drag: null, mass: 1, yawX: 0, yawZ: -1 };
+		this._q = new Float64Array(4);
 		this._bubble = { rMin: 0, rMax: 0, rLeave: 0 };
 		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0 };
 		this.reset();
@@ -428,6 +484,7 @@ export class AmbientModel {
 				this.t[k] = this.rand() * r.period;
 				this.alive[k] = 1;
 				this._place(k, DERIVE_H);
+				this._attitude(k, 10, NO_WIND);
 				return true;
 			}
 			return false;   // un slot par frame, réussi ou non
@@ -468,5 +525,26 @@ export class AmbientModel {
 		}
 	}
 
-	_attitude() { /* Task 5 */ }
+	_attitude(k, dt, wind) {
+		const r = this.routines[k];
+		const b = this.builds[k].profile;
+		let yawX = this.vel[3 * k], yawZ = this.vel[3 * k + 2];
+		if (r.faceAnchor) { yawX = this.anchors[3 * k] - this.pos[3 * k]; yawZ = this.anchors[3 * k + 2] - this.pos[3 * k + 2]; }
+		if (Math.hypot(yawX, yawZ) < 1e-6) { yawX = 0; yawZ = -1; }
+		this._att.ax = this.acc[3 * k]; this._att.ay = this.acc[3 * k + 1]; this._att.az = this.acc[3 * k + 2];
+		this._att.vx = this.vel[3 * k]; this._att.vy = this.vel[3 * k + 1]; this._att.vz = this.vel[3 * k + 2];
+		this._att.wind = wind; this._att.drag = b.bodyDrag; this._att.mass = b.mass;
+		this._att.yawX = yawX; this._att.yawZ = yawZ;
+		attitudeFrom(this._att, this._q, 0);
+		// Lissage exponentiel (nlerp) : les changements de segment ne sautent pas.
+		const o = 4 * k, a = 1 - Math.exp(-dt / ATTITUDE_TAU);
+		let d = this.quat[o] * this._q[0] + this.quat[o + 1] * this._q[1] + this.quat[o + 2] * this._q[2] + this.quat[o + 3] * this._q[3];
+		const sgn = d < 0 ? -1 : 1;
+		let nx = this.quat[o] + a * (sgn * this._q[0] - this.quat[o]);
+		let ny = this.quat[o + 1] + a * (sgn * this._q[1] - this.quat[o + 1]);
+		let nz = this.quat[o + 2] + a * (sgn * this._q[2] - this.quat[o + 2]);
+		let nw = this.quat[o + 3] + a * (sgn * this._q[3] - this.quat[o + 3]);
+		const n = Math.hypot(nx, ny, nz, nw) || 1;
+		this.quat[o] = nx / n; this.quat[o + 1] = ny / n; this.quat[o + 2] = nz / n; this.quat[o + 3] = nw / n;
+	}
 }
