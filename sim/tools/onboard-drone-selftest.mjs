@@ -2,7 +2,7 @@
 // Le maillage et la règle d'exclusivité se vérifient sans GPU.
 import * as THREE from 'three';
 import { PlayerDrone } from '../src/onboard-drone.js';
-import { shapeOf } from '../src/drone-shape.js';
+import { shapeOf, eyeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 import { propCoverage } from './prop-coverage.mjs';
@@ -88,8 +88,10 @@ console.log('onboard-drone');
 		const m = d.onboard.group.matrix;
 		const p = new THREE.Vector3().setFromMatrixPosition(m);
 		check('le corps est posé derrière l\'oeil', p.z > 0, `${p.toArray().map((v) => v.toFixed(3))}`);
-		const cam = shape.parts.find((q) => q.role === 'camera');
-		const eye = new THREE.Vector3(cam.at[0], cam.at[1], cam.at[2]).applyMatrix4(m);
+		// L'oeil se lit sur eyeOf() : le niveau `onboard` ne porte plus de part
+		// `camera`, justement parce qu'un objectif ne filme pas son boîtier.
+		const e = eyeOf(build.profile);
+		const eye = new THREE.Vector3(e[0], e[1], e[2]).applyMatrix4(m);
 		check('l\'oeil retombe exactement à l\'origine', eye.length() < 1e-9, `${eye.length().toExponential(1)}`);
 		const front = shape.parts.filter((q) => q.role === 'prop').sort((a, b) => a.at[2] - b.at[2])[0];
 		const v = new THREE.Vector3(front.at[0], front.at[1], front.at[2]).applyMatrix4(m);
@@ -136,7 +138,11 @@ for (const family of FAMILIES) {
 	const camera = targetCamera({ seed, family });
 	const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
 	const shape = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
-	const sonde = propCoverage({ shape, camera }).top;
+	// La sonde travaille sur la recette COMPLÈTE : c'est là qu'elle trouve la
+	// part `camera` dont elle tire l'oeil. Le niveau `onboard` n'en a plus, et
+	// c'est justement ce qu'on veut vérifier — que les deux montages coïncident
+	// alors qu'ils lisent l'oeil par deux chemins différents.
+	const sonde = propCoverage({ shape: shapeOf({ profile: build.profile, build, camera }), camera }).top;
 
 	const m = d.onboard.group.matrix;
 	const viewProj = d.onboardCamera.projectionMatrix.clone().multiply(d.onboardCamera.matrixWorldInverse);
@@ -156,6 +162,78 @@ for (const family of FAMILIES) {
 	check(`${family} : la caméra montée est celle que la sonde mesure`, Math.abs(top - sonde) <= 1 / 150,
 		`sonde ${(100 * sonde).toFixed(1)} % vs projeté ${(100 * top).toFixed(1)} %`);
 	d.dispose();
+}
+
+// La MOITIÉ HAUTE du cadre est libre. C'est la borne DA (≤ 50 % de la hauteur),
+// mais portée sur TOUT le maillage embarqué et non sur les seuls disques que
+// tools/prop-coverage.mjs rasterise — et c'est la règle que rien ne vérifiait :
+// la recette portait un boîtier de caméra centré sur l'oeil, qui couvrait tout
+// l'écran. On ne voyait plus le monde, et surtout plus ses propres hélices.
+//
+// Le test ne regarde pas les rôles de la recette, il lance de vrais rayons sur
+// la VRAIE géométrie fusionnée : c'est elle qu'on affiche, et une pièce ajoutée
+// demain sera prise au même filet.
+{
+	const tanV = (fovDeg) => Math.tan(fovDeg * Math.PI / 360);
+	// Möller–Trumbore, rayon depuis l'origine (l'oeil) — la géométrie est déjà
+	// dans le repère de l'objectif.
+	const hits = (pos, idx, m, dir) => {
+		const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+		const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), pv = new THREE.Vector3(), qv = new THREE.Vector3();
+		for (let t = 0; t < idx.length; t += 3) {
+			a.fromBufferAttribute(pos, idx[t]).applyMatrix4(m);
+			b.fromBufferAttribute(pos, idx[t + 1]).applyMatrix4(m);
+			c.fromBufferAttribute(pos, idx[t + 2]).applyMatrix4(m);
+			e1.subVectors(b, a); e2.subVectors(c, a);
+			pv.crossVectors(dir, e2);
+			const det = e1.dot(pv);
+			if (Math.abs(det) < 1e-12) continue;
+			const inv = 1 / det;
+			// L'origine du rayon est (0,0,0), donc le vecteur origine→a vaut −a.
+			const u = -a.dot(pv) * inv;
+			if (u < 0 || u > 1) continue;
+			qv.crossVectors(a.clone().negate(), e1);
+			const v = dir.dot(qv) * inv;
+			if (v < 0 || u + v > 1) continue;
+			if (e2.dot(qv) * inv > 1e-5) return true;
+		}
+		return false;
+	};
+
+	for (const family of FAMILIES) {
+		let haut = 0, bas = 0, seeds = 0, pire = 0;
+		for (const tag of ['a', 'b', 'c', 'd', 'e']) {
+			const seed = `libre::${family}::${tag}`;
+			const build = targetBuild({ seed, family });
+			const camera = targetCamera({ seed, family });
+			const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
+			const geo = d.onboard.body.geometry;
+			const pos = geo.getAttribute('position');
+			const idx = geo.getIndex().array;
+			const m = d.onboard.group.matrix;
+			const tv = tanV(camera.fovDeg), th = tv * camera.aspect;
+			const dir = new THREE.Vector3();
+			// Toute la moitié haute, sur toute la largeur.
+			for (let i = 0; i <= 16; i++) for (let j = 0; j <= 8; j++) {
+				const nx = i / 8 - 1, ny = j / 8;
+				dir.set(nx * th, ny * tv, -1).normalize();
+				if (hits(pos, idx, m, dir)) { haut++; pire = Math.max(pire, 50 * (ny + 1)); }
+			}
+			// Et le contrôle en sens inverse : le bas du cadre, lui, DOIT être
+			// occupé — sinon « rien dans le cadre » passerait pour un succès.
+			let vu = false;
+			for (let i = 0; i <= 8 && !vu; i++) for (let j = 0; j <= 6 && !vu; j++) {
+				dir.set((i / 4 - 1) * th, (-0.35 - j * 0.09) * tv, -1).normalize();
+				if (hits(pos, idx, m, dir)) vu = true;
+			}
+			if (vu) bas++;
+			seeds++;
+			d.dispose();
+		}
+		check(`${family} : la moitié haute du cadre est libre`, haut === 0,
+			haut ? `${haut} rayons bloqués, jusqu'à ${pire.toFixed(0)} % de la hauteur` : 'aucun rayon bloqué');
+		check(`${family} : les hélices sont bien dans le bas du cadre`, bas === seeds, `${bas}/${seeds}`);
+	}
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

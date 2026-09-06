@@ -6,7 +6,7 @@
 // Ce module ne sait rien du contrôleur ni de Rapier : il reçoit une pose et
 // quatre régimes, il pose des matrices.
 import * as THREE from 'three';
-import { shapeOf } from './drone-shape.js';
+import { shapeOf, eyeOf } from './drone-shape.js';
 import { buildDroneMesh, setSun, setFog, setTime, setOmega, setResolution } from './drone-mesh.js';
 import { token } from './palette.js';
 
@@ -55,8 +55,11 @@ export class PlayerDrone {
 		// tools/prop-coverage.mjs rasterise pour tenir la borne DA : l'oeil à la
 		// part `camera` de la recette, le champ VERTICAL de la caméra de vol, le
 		// format du capteur, l'uptilt en rotation autour de +X.
+		// Le niveau `onboard` ne porte QUE les rotors : l'objectif ne filme ni son
+		// boîtier ni le pack derrière lui. L'oeil se lit donc sur eyeOf(), la
+		// définition du montage, et non sur une part de la recette.
 		const shape = shapeOf({ ...recipe, detail: 'onboard' });
-		const cam = shape.parts.find((p) => p.role === 'camera');
+		const eye = eyeOf(profile);
 		const up = camera.uptiltDeg * Math.PI / 180;
 		this.onboardScene = new THREE.Scene();
 		// far = 4 m : la machine tient dans 30 cm, et un near de 5 mm n'a de
@@ -66,7 +69,7 @@ export class PlayerDrone {
 		// Le passage repère du corps → repère de l'objectif : l'inverse du
 		// montage. D'où le −uptilt, et le −mount tourné avec.
 		const tilt = new THREE.Quaternion().setFromAxisAngle(X_AXIS, -up);
-		const at = new THREE.Vector3(-cam.at[0], -cam.at[1], -cam.at[2]).applyQuaternion(tilt);
+		const at = new THREE.Vector3(-eye[0], -eye[1], -eye[2]).applyQuaternion(tilt);
 		this.onboard.group.matrix.compose(at, tilt, this._s);
 		this.onboard.group.matrixWorldNeedsUpdate = true;
 		this.onboard.group.visible = true;

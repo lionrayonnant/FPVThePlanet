@@ -44,17 +44,33 @@ export const MOUNT = {
 // doit pas retomber en douce sur la silhouette.
 const DETAILS = new Set(['silhouette', 'onboard', 'portrait']);
 
+// La position de l'oeil dans le repère du corps : c'est le montage mesuré, et
+// c'est la SEULE définition. La recette y pose son boîtier de caméra, la vue
+// embarquée y pose son objectif, la sonde de couverture l'y trouve — les trois
+// doivent lire le même point, sinon la borne DA ne veut plus rien dire.
+export function eyeOf(profile) {
+	const mount = MOUNT[profile.family] ?? MOUNT.freestyle5;
+	return [0, propPlaneY + mount.y, mount.z];
+}
+
 export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	if (!DETAILS.has(detail)) throw new Error(`niveau de détail inconnu : ${detail}`);
 	const onboard = detail !== 'silhouette';
 	const portrait = detail === 'portrait';
+	// La vue embarquée ne montre QUE les quatre rotors. Un objectif ne filme pas
+	// son propre boîtier — la part `camera` est centrée sur l'oeil, elle
+	// couvrirait tout le cadre — ni le pack, la GoPro et les antennes, qui vivent
+	// derrière lui. Ce n'est pas une optimisation : c'est ce qu'une caméra FPV
+	// voit. La règle se teste, et le test est « le centre du cadre reste libre »
+	// (tools/onboard-drone-selftest.mjs).
+	const lensView = detail === 'onboard';
 	const { family, armX, armZ, propRadius, bladeCount, mass } = profile;
 	const parts = [];
 	const heavy = family === 'heavy5';
 	const micro = family === 'toothpick';
 
 	// Plaque centrale.
-	parts.push(box('plate', [0, 0, 0], [0.8 * armX, heavy ? 0.010 : 0.006, 1.1 * armZ]));
+	if (!lensView) parts.push(box('plate', [0, 0, 0], [0.8 * armX, heavy ? 0.010 : 0.006, 1.1 * armZ]));
 
 	// Bras, moteurs, hélices, conduits. L'ordre et le sens viennent de
 	// motorsOf() — la MÊME table que le mixeur (quad.js:65-77) — et pas d'une
@@ -109,12 +125,11 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// elle se compte depuis le PLAN D'HÉLICE, parce que c'est cet écart — et lui
 	// seul — qui décide de ce que la vue embarquée montre. Elle est mesurée par
 	// tools/tune-mount.mjs (bloc MOUNT ci-dessus).
-	const mount = MOUNT[family] ?? MOUNT.freestyle5;
-	parts.push(box('camera', [0, propPlaneY + mount.y, mount.z], [0.019, 0.019, 0.010], { rotX: camera.uptiltDeg * Math.PI / 180 }));
+	if (!lensView) parts.push(box('camera', eyeOf(profile), [0.019, 0.019, 0.010], { rotX: camera.uptiltDeg * Math.PI / 180 }));
 
 	// Batterie sur le dessus : 20 mm par cellule.
 	const cells = build.spec.cells;
-	parts.push(box('battery', [0, 0.008 + 0.0125, 0], [0.035, 0.025, 0.020 * cells]));
+	if (!lensView) parts.push(box('battery', [0, 0.008 + 0.0125, 0], [0.035, 0.025, 0.020 * cells]));
 
 	// GoPro : toujours sur le cinewhoop ; sur un freestyle/heavy lourd.
 	// heavyBuild compare la masse de l'exemplaire à la masse NOMINALE de la
@@ -122,19 +137,19 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// la NOTE du brief : build.variation est l'amplitude de tirage, pas le
 	// ratio de masse tiré.
 	const heavyBuild = mass > 1.05 * PROFILES[family].mass;
-	if (family === 'cinewhoop' || ((family === 'freestyle5' || heavy) && heavyBuild)) {
+	if (!lensView && (family === 'cinewhoop' || ((family === 'freestyle5' || heavy) && heavyBuild))) {
 		parts.push(box('gopro', [0, 0.008 + 0.025 + 0.0125, -0.35 * armZ], [0.040, 0.025, 0.030]));
 	}
 
 	// Antennes à l'arrière ; deux sur le long range.
-	const nAnt = family === 'longrange' ? 2 : 1;
+	const nAnt = lensView ? 0 : family === 'longrange' ? 2 : 1;
 	for (let i = 0; i < nAnt; i++) {
 		const x = nAnt === 2 ? (i === 0 ? -0.02 : 0.02) : 0;
 		parts.push(cyl('antenna', [x, 0.03, 0.5 * armZ], 0.0015, 0.060, { rotX: -Math.PI / 6 }));
 	}
 
 	// LED à l'arrière.
-	parts.push({ kind: 'point', role: 'led', at: [0, 0.004, 0.55 * armZ], size: [0.004] });
+	if (!lensView) parts.push({ kind: 'point', role: 'led', at: [0, 0.004, 0.55 * armZ], size: [0.004] });
 
 	const boundingRadius = Math.hypot(armX, armZ) + (DUCTED.has(family) ? 1.12 : 1) * propRadius + 0.02;
 	return { family, parts, boundingRadius };
