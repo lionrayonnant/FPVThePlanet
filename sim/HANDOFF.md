@@ -2020,26 +2020,31 @@ Implémenté sur `main`, commits `92643a1..5f071b4`.
 
 ### Vérifié — sans navigateur
 
-- `tools/ambient-selftest.mjs` (154 checks) : ensemble des candidats non
+- `tools/ambient-selftest.mjs` (175 checks) : ensemble des candidats non
   pris, routines par famille, courbes, bulle/ancres/validation, modèle
-  d'attitude.
+  d'attitude. Contient le **balayage d'inclinaison** : 6 familles × 50 graines
+  × 600 frames, `tilt max ≤ 75°` par famille (mesuré : 70,0° partout où le
+  plafond mord, 18,4° au cinewhoop), `race5 > 35°` de moyenne (61,1°),
+  `cinewhoop < 12°` (9,5°).
 - `tools/drone-shape-selftest.mjs` (69) : recette géométrique paramétrique par
   famille.
-- `tools/drone-mesh-selftest.mjs` (23) : Three en Node — maillage fusionné,
-  matériau auto-éclairé, LED clampée dans le vertex shader, pas de lumière
-  Three.
-- `tools/ambient-audio-selftest.mjs` (11) : synthèse des quatre voix contre un
-  faux contexte Web Audio.
-- `tools/ambient-drones-selftest.mjs` (24 PASS + 1 SKIP sans `--expose-gc` ;
-  25 PASS avec — le contrôle d'allocation de `update()` ne s'exécute que sous
-  `node --expose-gc`) : l'instance branchée sur une scène et une caméra
-  factices, espion sur les voix (régime établi, positions finies, dispose).
+- `tools/drone-mesh-selftest.mjs` (26) : Three en Node — maillage fusionné,
+  matériau auto-éclairé, LED clampée dans le vertex shader ET fondue en
+  distance (`smoothstep(uFadeNear, uFadeFar, …)`), pas de lumière Three.
+- `tools/ambient-audio-selftest.mjs` (13 tests) : synthèse des quatre voix
+  contre un faux contexte Web Audio, envoi vers `space` branché une seule
+  fois même quand `space.input` arrive après `start()`.
+- `tools/ambient-drones-selftest.mjs` (26 PASS + 1 SKIP sans `--expose-gc` ;
+  27 PASS avec) : l'instance branchée sur une scène et une caméra factices,
+  espion sur les voix (régime établi, positions finies, dispose), `uAmbient`
+  = `dim` et non `sun.ambient`. **La chaîne l'appelle avec `--expose-gc`** :
+  sinon le contrôle d'allocation SKIPait toujours.
 - Les cinq fichiers ci-dessus sont chaînés en queue de `npm run
   selftest:operator`, tous verts.
 - Bloc scène ajouté à la fin de `tools/selftest.mjs` (« ambient drones (real
   trimesh) ») : 10 graines × 4 naissances contre le vrai trimesh, rejeu à
   257 points par courbe (9 766 points au total). Sur `havre` :
-  **38/40 nés, 38/38 sans mur, 38/38 au-dessus de l'AGL de leur famille**.
+  **35/40 nés, 35/35 sans mur, 35/35 au-dessus de l'AGL de leur famille**.
 
 **Décisions prises pendant l'implémentation, absentes de la spec/plan** :
 
@@ -2053,8 +2058,27 @@ Implémenté sur `main`, commits `92643a1..5f071b4`.
   attitude) sont prises à **pas fixe 1/60**, pas au pas de rendu.
 - Jitter du micro ramené à **0,15 m** (la valeur de spec, 0,3 m, cassait la
   vitesse dérivée — issue de suivi ci-dessous).
-- `TILT_MAX_DEG = 70` ajouté en plus de la borne par TWR (v²/r) — cette
-  dernière seule ne suffisait pas à garantir ≤ 75° (issue de suivi).
+- `TILT_MAX_DEG = 70` est **imposé sur la poussée**, dans `attitudeFrom()`
+  puis sur le quaternion rendu (`clampTilt()`), pas seulement borné par
+  `v²/r` dans `routineFor()`. Borner l'accélération latérale ne bornait pas
+  la verticale (plan incliné du loop, sinus du huit, jitter du micro à
+  ~14 m/s²) : mesuré 157° sur un toothpick, 110° sur un race5, 100° sur un
+  freestyle5. Et le lissage lui-même sortait du cône (le nlerp suit le plus
+  court chemin en rotation, l'ensemble des attitudes sous 70° n'y est pas
+  convexe) : 83,9° entre deux cibles à 70° pile. Après : ≤ 70,0° partout.
+- `pickAnchor()` teste la clôture **horizontale d'abord**, le rayon de sol
+  ensuite, le cône de vue en dernier — et ce dernier à la hauteur de VOL
+  (`g + agl`), pas à celle de l'ancre au sol. Un slot qui ne peut pas naître
+  ici ne coûte donc **aucun rayon** (mesuré : 180 → 0 rayon/s sur le cas du
+  long range sur petite carte). Un slot qui échoue quand même 10 fois de
+  suite se met en veille 1 s.
+- Le maillage ambiant prend `cloud.dim` (l'obscurcissement des tuiles) comme
+  `uAmbient`, pas `sun.ambient` (l'exposition absolue, 0,059 au couchant, que
+  l'AGC de la lentille normalise pour tout le reste).
+- La LED a un **fondu de distance** (120 → 220 m, soit `R_SPAWN[0]` →
+  `IN_VIEW_MIN_M`) : son plancher de 3 px la rendait visible à toute
+  distance, et une naissance dans le champ (≥ 220 m) comme un départ
+  (≥ rLeave) allumaient donc une lumière sous les yeux du joueur.
 - Le plancher de la clôture (geofence) est vérifié **à la hauteur de vol** de
   la courbe, pas au sol.
 - `spawnOne` fait tourner le slot de départ à chaque appel (pas toujours le
@@ -2095,11 +2119,9 @@ n'ont pas été essayées pour ce bloc.
 
 Points supplémentaires à surveiller pendant ce parcours :
 
-- **(a) Luminosité au crépuscule (`?night=1`)** : le maillage ambiant prend
-  `sun.ambient` et sa propre atténuation de nuit, alors que les tuiles
-  prennent `cloud.dim`. Si les drones ambiants lisent noirs la nuit alors que
-  le sol reste visible, c'est le contrat d'uniformes de `src/drone-mesh.js`
-  qu'il faut harmoniser (issue de suivi ci-dessous).
+- **(a) Luminosité au crépuscule (`?night=1`)** : `uAmbient` reçoit désormais
+  `cloud.dim`, comme les tuiles (plus `sun.ambient`). À confirmer à l'œil :
+  les ambiants doivent lire comme le sol, ni plus sombres ni plus clairs.
 - **(b) En `?live=`** : la densité de brouillard des ambiants peut rester à
   0 (chemin dev, terrain pas nécessairement chargé) — normal sur ce mode, pas
   un bug à signaler seul.
@@ -2108,11 +2130,20 @@ Points supplémentaires à surveiller pendant ce parcours :
 - **(d) `npm run selftest public/scenes/havre`** pour rejouer le bloc scène
   ci-dessus en un coup.
 
+Ajouter au parcours : **(e)** regarder naître et partir un drone — aucune LED
+ne doit s'allumer ni s'éteindre d'un coup dans le champ (fondu 120 → 220 m) ;
+**(f)** au casque, l'envoi vers l'acoustique du lieu doit s'entendre même
+quand le premier son de la session est un son d'interface (le contexte audio
+naît alors avant `space.input`).
+
 **Suites** (issues créées pendant cette tâche pour les écarts constatés en
 relisant le code, non bloquantes pour la fermeture de #250) : #260 (borne
-conjointe d'inclinaison), #261 (long range impossible sur petite carte),
-#262 (tremblé du micro à 0,15 m au lieu de 0,3 m), #263 (luminosité des
-maillages au crépuscule, à vérifier au navigateur).
+conjointe d'inclinaison) **traitée** — plafond imposé sur la poussée et sur
+le quaternion rendu ; #261 (long range impossible sur petite carte)
+**traitée** — rotation du curseur, plus rejet sans rayon ; #262 (tremblé du
+micro à 0,15 m au lieu de 0,3 m), ouverte ; #263 (luminosité des maillages au
+crépuscule) **traitée** au code (`uAmbient = cloud.dim`), reste à confirmer à
+l'œil (point (a) ci-dessus).
 
 ## Non vérifié / à faire
 
