@@ -4,7 +4,9 @@
 // target-scan.js (screen/button de terminal.js, promesse par étape).
 //
 // Uniquement pour une session LANDED : une session CRASHED n'a pas de grand
-// écran (Bible §24, « pas de récompense, pas de grand écran de mort »).
+// écran (Bible §24, « pas de récompense, pas de grand écran de mort »). Le
+// portrait de la machine perdue (#264) n'est PAS une exception à cette règle :
+// il vit dans la timeline de flight-end.js et dans l'archive, jamais ici.
 import { screen, button, fetchScenes } from './terminal.js';
 import { menuNav } from './menu-nav.js';
 import { formatBytes } from '../tools/terminal-model.mjs';

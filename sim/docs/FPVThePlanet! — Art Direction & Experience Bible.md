@@ -887,7 +887,7 @@ Mais deux 5" Race peuvent être assez différents pour produire deux expérience
 
 ---
 
-# 22. Ce qui est connu du drone
+# 22. Ce qui est connu du drone (complété — issue #264)
 
 Avant l'acquisition :
 
@@ -908,6 +908,21 @@ Pendant le vol :
 > **Le joueur apprend la machine par ses sensations et son OSD.**
 
 FPVTP! ne fait pas apparaître de gros panneaux d'analyse.
+
+> **Révision (issue #264) — et par l'image.** Les deux hélices avant du drone
+> piloté sont dans le champ, comme sur toute image FPV réelle, et elles tournent
+> au régime des vrais moteurs : le tangage les bouge ensemble, le lacet et le
+> roulis les séparent. C'est un troisième canal d'apprentissage, sans une ligne
+> d'interface de plus — il ne nomme pas l'axe, il donne la machine à sentir.
+>
+> Ce qu'elles occupent est borné, et la borne est mesurée famille par famille,
+> jamais posée à la main : **au plus 8 % de l'image**, hauteur atteinte **au
+> plus 50 % du cadre au pire tirage de caméra, 45 % en médiane**. Le plafond de
+> moitié n'est pas un relâchement de la borne : le plan d'hélice a un horizon,
+> et pour une caméra plate cet horizon est exactement au milieu du cadre. Les
+> hélices vivent dans ce plan — aucune hauteur d'objectif ne les fait passer
+> dessous, elle ne fait que les en écarter. La borne qui protège vraiment
+> l'image est celle de la surface.
 
 Après le vol :
 
@@ -966,7 +981,7 @@ C'est une caractéristique voulue :
 
 ---
 
-# 24. Perte du signal et crash
+# 24. Perte du signal et crash (révisé — issue #264)
 
 Il n'y a pas de `GAME OVER`.
 
@@ -1007,6 +1022,15 @@ reste silencieux : c'est le contraste qui le rend lourd.
 Pas de récompense.
 
 Pas de grand écran de mort.
+
+> **Révision (issue #264).** Après `SESSION TERMINATED`, le portrait fil de fer
+> de la machine perdue apparaît. Ce n'est pas une récompense et pas un écran de
+> mort : c'est ce qu'il reste. La collection naît de la perte.
+>
+> Ce qui ne change pas : `POST-FLIGHT ANALYSIS` reste réservé aux sessions
+> LANDED, la musique reste coupée net au choc (§34, #122), et la timeline garde
+> ses temps — le portrait s'insère à 4,0 s, la sortie reste à 4,6 s. Il ne
+> déplace rien.
 
 Le sentiment recherché :
 
