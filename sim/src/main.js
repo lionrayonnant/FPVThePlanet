@@ -55,6 +55,7 @@ import { runPostFlightAnalysis } from './post-flight.js';
 import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
+import { AmbientDrones } from './ambient-drones.js';
 
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
@@ -370,6 +371,14 @@ async function toggleBenchPanel() {
 let fence = null;
 let geofenceWall = null;   // GeofenceWall actif hors ?live=/banc, sinon null (#199)
 let distantGround = null;
+// Les drones ambiants (issue #250) : null au banc (NO TARGET) et tant que la
+// carte n'est pas chargée. `liveBounds` est la bulle du DIRECT : muté à
+// chaque frame, jamais remplacé — le modèle en garde la référence.
+let ambient = null;
+const liveBounds = { center: null, trusted: 0 };
+// La résolution en pixels device, pour le billboard de LED des ambiants
+// (même piège que uResolution dans lens.js). Mise à jour dans resize().
+const ambientRes = { w: 1, h: 1 };
 // La force du rappel, écrite une fois par PAS de physique plutôt qu'allouée —
 // même règle que `drift` plus bas : ceci tourne à 250 Hz. Rapier recopie le
 // vecteur dans addForce(), rien ne le retient après le pas.
@@ -461,6 +470,8 @@ function resize() {
 	camera.aspect = camSpec ? camSpec.aspect : innerWidth / innerHeight;
 	camera.updateProjectionMatrix();
 	renderer.setSize(innerWidth, innerHeight);
+	ambientRes.w = renderer.domElement.width;
+	ambientRes.h = renderer.domElement.height;
 	lens.setSize(innerWidth, innerHeight);
 	// Device pixels and the live FOV: the streaks' minimum width is measured in
 	// pixels, and a CSS-pixel height would make it the wrong size on a HiDPI
@@ -586,6 +597,8 @@ function exposeDebugGlobal() {
 		weather: () => weather,
 		// La session de vol en cours (PHASE 06), ou null.
 		session: () => session.current(),
+		// Les drones ambiants (issue #250), ou null (banc, avant la carte).
+		ambient: () => ambient,
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -595,6 +608,8 @@ function exposeDebugGlobal() {
 			// Sinon un second crash dans la même page ne re-forcerait pas la
 			// dégradation du lien : setLink(true) ne s'exécute qu'un coup par vol.
 			linkForced = false;
+			// Un saut arbitraire laisserait les ambiants derrière, hors bulle.
+			ambient?.reset();
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -743,6 +758,9 @@ function exposeDebugGlobal() {
 					pushMs2: +Math.hypot(fence.out.push.x, fence.out.push.y, fence.out.push.z).toFixed(2),
 					corridor: fence.effectiveCorridor,
 				},
+				// Le ciel habité (issue #250) : undefined au banc, où il n'y a
+				// pas d'ambiants du tout.
+				ambient: ambient?.debug(),
 			};
 		},
 	};
@@ -827,6 +845,14 @@ async function finishBoot(preloading) {
 		fogColor: scene.background, fogDensity: fog.density,
 	});
 	setDistantGround(distantGround);
+
+	// Les drones ambiants (issue #250) — jamais au banc : NO TARGET.
+	if (!MODE.bench) {
+		ambient = new AmbientDrones({
+			scene,
+			bounds: { bbox: manifest.bbox, corridor: fence.effectiveCorridor },
+		});
+	}
 
 	// L'entrée. En FIELD c'est le tirage pondéré de la Bible §20 — tu hérites
 	// d'un drone déjà en vol et tu ne choisis pas dans quel état. Au banc, c'est
@@ -1063,6 +1089,17 @@ async function bootLive([lat, lon]) {
 	});
 	liveWindow = rocktreeWindow;
 	fenceDome = new FenceDome(scene);
+	if (!MODE.bench) {
+		ambient = new AmbientDrones({
+			scene,
+			// Direct : le cercle de confiance de la fenêtre, relu à chaque frame
+			// (bounds est muté, jamais remplacé — le modèle garde la référence).
+			bounds: liveBounds,
+		});
+		// ?live= est un raccourci de DEV : openFlightSession() en sort tout de
+		// suite, donc personne d'autre ne poserait de scan sur ce chemin.
+		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0 });
+	}
 	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
 	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
 	// météo est hors périmètre en ?live=), donc scene.fog est entièrement
@@ -1444,6 +1481,9 @@ function respawn() {
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
+	// Le ciel se retire aussi : les ambiants d'avant le respawn étaient nés
+	// autour d'un point de vol qui n'existe plus (issue #250).
+	ambient?.reset();
 }
 
 function togglePause(force) {
@@ -1520,6 +1560,10 @@ const _tilt = new THREE.Quaternion();
 // the mix has saturated, and the rain can recolour the sky at a density the
 // fog has already settled on.
 let lastDensity = -1;
+// La même extinction, sans le sentinel -1 : c'est elle que les drones ambiants
+// (#250) recopient dans leur propre matériau, qui duplique délibérément la
+// formule de TileMaterial.js.
+let lastFogDensity = 0;
 let lastSkyHex = -1;
 let lastDim = 1;
 let lastNight = 0;
@@ -1725,6 +1769,28 @@ function frame() {
 		freeCam.update();
 	}
 
+	// Les drones ambiants (issue #250). APRÈS la caméra : ils naissent hors du
+	// champ, donc le modèle veut l'orientation de CETTE frame, pas celle de la
+	// précédente. Gelé, dt = 0 et les voix se taisent — mais update() tourne
+	// quand même, sans quoi setMuted() ne viserait plus aucun AudioParam.
+	if (ambient) {
+		if (liveWindow) {
+			const c = liveWindow.windowCenterLocal;
+			liveBounds.center = c;
+			liveBounds.trusted = liveWindow.nearestTrustedRadius();
+		}
+		ambient.setMuted(frozen);
+		ambient.update({
+			dt: frozen ? 0 : dt,
+			player: physics.position, playerVel: physics.velocity, camera,
+			wind: physics.wind.out, rays: physics,
+			top: sceneManifest ? sceneManifest.bbox.max[1] + 50 : physics.position.y + 300,
+			span: sceneManifest ? (sceneManifest.bbox.max[1] - sceneManifest.bbox.min[1]) + 100 : 3000,
+			fogColor: scene.background, fogDensity: lastFogDensity, sun,
+			resolution: ambientRes,
+		});
+	}
+
 	// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt, quand
 	// la session se ferme. main.js ne fait que l'alimenter et obéir.
 	//
@@ -1783,6 +1849,8 @@ function frame() {
 		// dernière valeur de wet et l'énergie déjà accumulée dans ses boucles :
 		// le bruit continuait dans les menus après la fin de session.
 		space.silence();
+		// Le ciel se tait avec elle : plus de récepteur, plus de voix (#250).
+		ambient?.silence();
 		controller.disarm();
 		// Si le joueur avait coupé la modélisation du lien, il ne verrait
 		// aucune dégradation. La mort de l'image ne se négocie pas.
@@ -1919,6 +1987,7 @@ if (!frozen) {
 
 	if (density !== lastDensity || skyHex !== lastSkyHex) {
 		lastDensity = density;
+		lastFogDensity = density;
 		lastSkyHex = skyHex;
 
 		setFog(sky, density);
@@ -2906,6 +2975,13 @@ async function openFlightSession() {
 	const family = tgt?.family ?? PROFILE.family;
 	const mode = tgt?.signal?.mode === 'DIGITAL' ? 'DIGITAL' : 'ANALOG';
 
+	// Les ambiants (issue #250) : le scan du client (session fraîche), ou
+	// celui que la session persistée a gardé (resume, schéma v2), ou un scan
+	// de dev en ?scene=, ou rien.
+	ambient?.setScan(
+		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench ? { seed: `dev::${flyArea}`, count: 4, index: 0 } : null),
+	);
+
 	applyTargetCamera(targetCamera({ seed, family }));
 
 	droneOsd?.dispose();
@@ -2929,4 +3005,8 @@ async function openFlightSession() {
 // prochain chargement du terminal.
 window.addEventListener('beforeunload', () => {
 	if (session.current()?.result === 'PENDING') session.beacon('CRASHED');
+	// Le `droneOsd?.dispose()` d'openFlightSession() est un DÉBUT de vol, pas
+	// un démontage : les ambiants n'y ont rien à faire. Le seul démontage de
+	// page est ici (issue #250).
+	ambient?.dispose();
 });

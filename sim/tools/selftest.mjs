@@ -30,6 +30,7 @@ import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT, idleThrottle } from 
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
 import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
+import { AmbientModel, ambientSet, curveAt } from '../src/ambient.js';
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
@@ -2072,6 +2073,53 @@ console.log('\nentry state — sampleCandidate');
 		`${entryFence.out.zone} à ${entryFence.out.marginM.toFixed(1)} m`);
 
 	phys.reset();
+}
+
+// ---------------------------------------------------------------- ambient
+// 40 naissances contre le VRAI trimesh : aucune courbe ne coupe un mur (rejeu
+// de obstructionBetween sur 64 points), toutes au-dessus du sol.
+console.log('\nambient drones (real trimesh)');
+{
+	const fence = new Geofence(manifest.bbox);
+	const bounds = { bbox: manifest.bbox, corridor: fence.effectiveCorridor };
+	const top = manifest.bbox.max[1] + 50, span = (manifest.bbox.max[1] - manifest.bbox.min[1]) + 100;
+	const cam = { fx: 0, fy: 0, fz: -1 };
+	const wind = { x: 0, y: 0, z: 0 };
+	const sp = phys.spawn;
+	const player = { x: sp.x, y: sp.y + 30, z: sp.z };
+	let born = 0, clean = 0, aboveGround = 0, tested = 0;
+	for (let s = 0; s < 10; s++) {
+		const scan = { seed: `selftest-ambient-${s}`, count: 5, index: 0 };
+		const set = ambientSet(scan);
+		const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
+		const m = new AmbientModel({ set, builds, bounds, seed: scan.seed });
+		for (let f = 0; f < 30 && m.count < set.length; f++) {
+			m.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays: phys, top, span, wind });
+		}
+		for (let k = 0; k < set.length; k++) {
+			if (!m.alive[k]) continue;
+			born++;
+			const r = m.routines[k];
+			const a = { x: m.anchors[3 * k], y: m.anchors[3 * k + 1], z: m.anchors[3 * k + 2] };
+			let ok = true, above = true;
+			const pa = { x: 0, y: 0, z: 0 }, pb = { x: 0, y: 0, z: 0 };
+			for (let i = 0; i < 64; i++) {
+				curveAt(r, a, m.heights[k], r.period * i / 64, pa);
+				curveAt(r, a, m.heights[k], r.period * (i + 1) / 64, pb);
+				const o = phys.obstructionBetween(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+				if (o.blocked && o.span > 2) ok = false;
+				const g = phys.groundBelow(pa.x, pa.y, pa.z);
+				if (g == null || pa.y - g < r.aglMin - 0.5) above = false;
+				tested++;
+			}
+			if (ok) clean++;
+			if (above) aboveGround++;
+		}
+	}
+	check('at least 30 of 40 ambient drones are born on the reference scene', born >= 30, `${born}/40`);
+	check('no ambient curve cuts a wall (64-point replay)', clean === born, `${clean}/${born}`);
+	check('every ambient curve stays above its family AGL', aboveGround === born, `${aboveGround}/${born}`);
+	console.log(`    ${tested} points replayed`);
 }
 
 console.log('\nsoleil — position');

@@ -47,12 +47,18 @@ export function bladeFreq(profile, accelMag) {
 
 // Pan équi-puissance sur l'azimut dans le repère caméra (rx,rz = droite ;
 // fx,fz = avant, horizontaux). Au zénith (rel nul) : centre, devant.
-export function azimuthPan(relX, relZ, cam) {
+// `out`, si fourni, est muté et rendu — l'appelant par frame (AmbientDrones)
+// y passe son scratch pour n'allouer aucun objet ; sans `out`, alloue un
+// littéral (chemin des tests).
+export function azimuthPan(relX, relZ, cam, out) {
+	const o = out || { pan: 0, behind: 0 };
 	const n = Math.hypot(relX, relZ);
-	if (n < 1e-6) return { pan: 0, behind: 0 };
+	if (n < 1e-6) { o.pan = 0; o.behind = 0; return o; }
 	const r = (relX * cam.rx + relZ * cam.rz) / n;
 	const f = (relX * cam.fx + relZ * cam.fz) / n;
-	return { pan: Math.max(-1, Math.min(1, r)), behind: clamp01(-f) };
+	o.pan = Math.max(-1, Math.min(1, r));
+	o.behind = clamp01(-f);
+	return o;
 }
 
 export function voiceParams({ d, behind, pan, vRadial, accelMag, profile, detune }, out) {

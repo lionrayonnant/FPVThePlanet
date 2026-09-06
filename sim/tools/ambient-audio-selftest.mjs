@@ -61,6 +61,14 @@ test('azimut : droite → pan +, derrière → behind 1, continu au zénith', ()
 	// Zénith : relX = relZ = 0 → pan 0, behind 0, pas de NaN.
 	const z = azimuthPan(0, 0, cam);
 	assert.equal(z.pan, 0); assert.equal(z.behind, 0);
+	// `out` optionnel : muté et rendu, y compris sur le chemin du zénith —
+	// l'appel par frame de src/ambient-drones.js n'alloue rien.
+	const out = { pan: 9, behind: 9 };
+	const r = azimuthPan(10, 0, cam, out);
+	assert.equal(r, out);
+	assert.ok(out.pan > 0.5 && out.behind === 0);
+	assert.equal(azimuthPan(0, 0, cam, out), out);
+	assert.equal(out.pan, 0); assert.equal(out.behind, 0);
 });
 
 test('voiceParams mute out sans allouer', () => {
