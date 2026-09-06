@@ -1109,6 +1109,7 @@ async function bootLive([lat, lon]) {
 	// SA colonne, lui, reste exigé (sinon spawn en mer : ancien comportement).
 	const bootDeadline = performance.now() + 45000;
 	let groundHere = null;
+	let waveDone = false;
 	for (;;) {
 		// La boucle de rendu n'a pas démarré : personne d'autre ne draine les
 		// files de nœuds (#184) — sans cet appel, aucun collider n'apparaîtrait
@@ -1116,7 +1117,7 @@ async function bootLive([lat, lon]) {
 		// première vague, le sol arrive donc en premier.
 		processLiveNodeWork(25);
 		if (groundHere === null) groundHere = physics.groundBelow(0, 3000, 0, 6000);
-		const waveDone = rocktreeWindow.pendingCount() === 0
+		waveDone = rocktreeWindow.pendingCount() === 0
 			&& pendingNodeBuilds.size === 0 && pendingNodeReleases.length === 0;
 		if (groundHere !== null && waveDone) break;
 		if (performance.now() > bootDeadline) {
@@ -1127,11 +1128,42 @@ async function bootLive([lat, lon]) {
 		await new Promise((r) => setTimeout(r, 10));
 	}
 	if (groundHere !== null) {
-		// physics.reset() renvoie au spawn ET re-prime les moteurs — c'est
-		// aussi ce que la touche R rejouera : muter spawn.y d'abord, pour que
-		// les respawns retombent au-dessus du sol réel, pas de l'ellipsoïde.
+		// physics.reset() renvoie au spawn ET re-prime les moteurs — muter
+		// spawn.y d'abord garde ce point correct pour tout ce qui s'y ramène
+		// (touche R, et le repli de generateEntryState() ci-dessous si ses
+		// deux tirs de sécurité échouent) au-dessus du sol réel, pas de
+		// l'ellipsoïde.
 		physics.spawn.y = groundHere + SPAWN_ABOVE_GROUND_M;
-		physics.reset();
+
+		// Le chemin scène tire l'entrée par generateEntryState() (Bible §20,
+		// finishBoot() plus haut, et son pendant banc à 1417) — bootLive() se
+		// contentait jusqu'ici d'un reset() qui pose TOUJOURS le même point,
+		// moteurs coupés, chute verticale : jamais l'entrée « déjà en vol »
+		// que la carte cuite donne. On rejoue le même tirage pondéré (et,
+		// comme les deux autres appels, l'override du banc — sans lui un
+		// vol libre sur terrain live ignorait silencieusement IDLE/catégorie
+		// forcée alors que le même réglage marche sur une carte cuite), mais
+		// borné à un carré inscrit dans le disque qu'on vient d'attendre :
+		// c'est la seule zone dont la collision est vraiment posée à cet
+		// instant, contrairement à un manifest.bbox cuit qui couvre toute la
+		// carte. Facteur 0,5 : le carré inscrit exact vaudrait 1/√2 ≈ 0,71 du
+		// rayon, on se garde de la marge contre un chunk pas tout à fait fini
+		// en bord de vague — SAUF si la vague n'a justement pas fini (plafond
+		// de 45 s atteint, waveDone resté faux) : ce carré-là n'a plus rien
+		// de garanti, on retombe alors sur la seule colonne dont le sol est
+		// exigé plus haut (rayon nul, x=z=0).
+		const liveRadiusM = waveDone ? loadViewRange() * 0.5 : 0;
+		const liveManifest = {
+			bbox: {
+				min: [-liveRadiusM, groundHere - 50, -liveRadiusM],
+				max: [liveRadiusM, groundHere + 300, liveRadiusM],
+			},
+			spawn: { x: 0, y: physics.spawn.y, z: 0 },
+		};
+		generateEntryState({
+			physics, manifest: liveManifest, seed: Math.random().toString(16).slice(2, 12),
+			...(MODE.bench ? benchEntryRequest(MODE.config) : {}),
+		});
 	} else {
 		console.warn('[rocktree] aucun sol sous le spawn — spawn ellipsoïdal conservé');
 	}
