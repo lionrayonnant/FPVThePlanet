@@ -20,6 +20,40 @@
 // l'axe pour tout le reste de la session.
 export const CAL_CHANNELS = ['throttle', 'yaw', 'pitch', 'roll'];
 
+// -----------------------------------------------------------------------------
+// CE QU'ON MESURE : TOUT CE QUE LE PÉRIPHÉRIQUE RAPPORTE (issue #279)
+//
+// Un manche n'est pas forcément sur un axe. Firefox applique
+// `mapping: "standard"` à une radio EdgeTX et range son manche des gaz dans
+// l'emplacement de la gâchette L2 : le gaz sort alors sur `buttons[6].value`,
+// analogique, et le quatrième axe reste mort. Mesuré sur une Radiomaster
+// Pocket — `btn 6` y lit 0.997, valeur qu'un bouton NUMÉRIQUE ne peut pas
+// rendre.
+//
+// #277 refusait déjà de déduire quoi que ce soit du nom USB, mais gardait
+// cette supposition-là sans l'avoir mesurée. Ici, axes et boutons entrent dans
+// un vecteur unique et sont traités pareil.
+//
+// Les boutons y sont ramenés sur la course des axes — repos à -1, pleine
+// pression à +1 — pour deux raisons : tous les seuils du module (PUSH_MIN,
+// HOLD_TOL, REST_MAX_SPREAD…) sont calibrés sur une course de 2 et gardent
+// ainsi le sens qu'on leur a mesuré ; et une gâchette au repos se lit alors
+// exactement comme un manche des gaz à friction parqué en bas, ce qu'elle est.
+// -----------------------------------------------------------------------------
+
+export function padSignals(pad) {
+	const axes = pad?.axes ?? [];
+	const buttons = pad?.buttons ?? [];
+	return [...axes, ...buttons.map((b) => (b?.value ?? 0) * 2 - 1)];
+}
+
+// Un pilote qui lit « axis 14 » sur un périphérique qui annonce 8 axes croit à
+// un bug. Le récapitulatif doit nommer l'entrée telle que le navigateur la
+// nomme.
+export function signalLabel(i, axisCount) {
+	return i < axisCount ? `axis ${i}` : `btn ${i - axisCount}`;
+}
+
 // Le geste demandé désigne toujours la direction POSITIVE du canal, telle que
 // flightController l'attend : gaz en haut, lacet à droite, roulis à droite, et
 // tangage POSITIF = cabrer (input.js : « stick poussé vers l'avant = nez qui
@@ -63,7 +97,18 @@ export const CAL_TIMING = {
 	// Sans ce délai, on lirait le manche encore tenu à fond et on conclurait
 	// « à friction » sur une manette parfaitement auto-centrée.
 	releaseMinMs: 800,
+	// Au bout de ce temps sans le moindre geste, la consigne le dit. Assez long
+	// pour qu'un pilote qui cherche son manche ne soit pas accusé de rien faire,
+	// assez court pour ne pas laisser quelqu'un devant un écran mort.
+	idleWarnMs: 6000,
 };
+
+// Ce qu'on affiche quand plus rien ne bouge. Un périphérique muet — mauvais
+// pad sélectionné, radio pas en mode Joystick, manche sur une entrée que le
+// navigateur ne rapporte pas — passe l'étape du repos MIEUX qu'un vrai : bruit
+// nul, donc aucun rejet. Sans ce message, il ne reste qu'une consigne qui ne
+// bouge jamais et rien pour dire pourquoi (issue #279).
+const IDLE_MESSAGE = 'no movement seen — wrong device, or this stick is not reported';
 
 // Au-delà de cette amplitude pendant la fenêtre de repos, ce n'est plus du
 // bruit : quelqu'un tient un manche. On recommence la mesure.
@@ -90,7 +135,7 @@ const RETURN_TOL = 0.2;
 // d'attribuer au hasard un mappage qu'il croira ensuite calibré.
 const AMBIGUITY_RATIO = 2;
 
-function restState(axisCount, message = null) {
+function restState(signalCount, axisCount, message = null) {
 	return {
 		phase: 'rest',
 		channel: null,
@@ -98,6 +143,8 @@ function restState(axisCount, message = null) {
 		hint: CAL_HINTS.rest,
 		message,
 		done: false,
+		signalCount,
+		// Sert UNIQUEMENT à nommer : au-delà, c'est un bouton (signalLabel).
 		axisCount,
 		centers: null,
 		deadband: 0,
@@ -105,14 +152,18 @@ function restState(axisCount, message = null) {
 		throttleMode: null,
 		_elapsed: 0,
 		_n: 0,
-		_sum: new Array(axisCount).fill(0),
-		_min: new Array(axisCount).fill(Infinity),
-		_max: new Array(axisCount).fill(-Infinity),
+		_sum: new Array(signalCount).fill(0),
+		_min: new Array(signalCount).fill(Infinity),
+		_max: new Array(signalCount).fill(-Infinity),
 	};
 }
 
-export function beginCalibration(axisCount) {
-	return restState(axisCount);
+// `signalCount` est la longueur du vecteur rendu par padSignals(), `axisCount`
+// le nombre d'axes réels du périphérique — la frontière au-delà de laquelle un
+// signal est un bouton. Par défaut les deux coïncident : un appelant qui ne
+// passe que des axes garde le comportement d'avant #279.
+export function beginCalibration(signalCount, axisCount = signalCount) {
+	return restState(signalCount, axisCount);
 }
 
 // -----------------------------------------------------------------------------
@@ -125,7 +176,7 @@ function feedRest(state, axes, dt) {
 	s._n += 1;
 
 	let spread = 0;
-	for (let i = 0; i < s.axisCount; i++) {
+	for (let i = 0; i < s.signalCount; i++) {
 		const v = axes[i] ?? 0;
 		s._sum[i] += v;
 		s._min[i] = Math.min(s._min[i], v);
@@ -136,7 +187,7 @@ function feedRest(state, axes, dt) {
 	// Un manche tenu pendant la mesure décale le neutre, et avec lui TOUT le
 	// reste du calibrage : chaque déviation se mesure par rapport à ce neutre.
 	if (spread > REST_MAX_SPREAD) {
-		return restState(s.axisCount, 'stick moved — measuring neutral again');
+		return restState(s.signalCount, s.axisCount, 'stick moved — measuring neutral again');
 	}
 
 	if (s._elapsed < CAL_TIMING.restMs) return s;
@@ -163,8 +214,9 @@ function beginChannel(state, i, message = null) {
 		hint: CAL_HINTS[CAL_CHANNELS[i]],
 		message,
 		_channelIndex: i,
-		_peaks: new Array(state.axisCount).fill(0),
+		_peaks: new Array(state.signalCount).fill(0),
 		_holdMs: 0,
+		_idleMs: 0,
 		// Tant que les manches n'ont pas été vus au neutre, on n'accepte aucun
 		// geste : après un refus, ils sont encore poussés, et sans ce verrou on
 		// refuserait la même chose en boucle sans que le pilote ait rien fait.
@@ -185,6 +237,15 @@ function feedChannel(state, axes, dt) {
 		return centered ? { ...state, _armed: true } : state;
 	}
 
+	// Rien vu passer depuis assez longtemps : ce n'est plus « le pilote vise »,
+	// c'est un périphérique dont ce manche ne sort nulle part. On le dit sans
+	// renoncer — il lui reste peut-être un autre manche à essayer.
+	const quiet = dev.every((d) => Math.abs(d) < PUSH_MIN / 2);
+	const idleMs = quiet ? state._idleMs + dt : 0;
+	if (quiet && idleMs >= CAL_TIMING.idleWarnMs) {
+		return { ...state, _idleMs: idleMs, message: IDLE_MESSAGE };
+	}
+
 	const peaks = state._peaks.map((p, i) => (Math.abs(dev[i]) > Math.abs(p) ? dev[i] : p));
 
 	// L'axe candidat est celui dont la déviation crête est la plus grande, et le
@@ -197,7 +258,7 @@ function feedChannel(state, axes, dt) {
 		Math.abs(dev[win] - peaks[win]) <= HOLD_TOL;
 
 	const holdMs = held ? state._holdMs + dt : 0;
-	const s = { ...state, _peaks: peaks, _holdMs: holdMs };
+	const s = { ...state, _peaks: peaks, _holdMs: holdMs, _idleMs: idleMs };
 	if (holdMs < CAL_TIMING.holdMs) return s;
 
 	const second = Math.max(...peaks.map((p, i) => (i === win ? 0 : Math.abs(p))));
@@ -373,8 +434,8 @@ export function throttleFromCalibrated(v, cal) {
 // et rien qui ne survivrait pas à un aller-retour JSON.
 export function calibrationResult(state) {
 	if (!state.done) return null;
-	const { channels, deadband, throttleMode } = state;
-	return { channels, deadband, throttleMode };
+	const { channels, deadband, throttleMode, axisCount } = state;
+	return { channels, deadband, throttleMode, axisCount };
 }
 
 // L'ordre des écrans, pour dire au pilote où il en est. Le lâcher du gaz est une
@@ -400,13 +461,16 @@ export function calProgress(state) {
 // (une course de 0.80 est un problème de radio, et il doit se voir).
 export function calSummaryLines(cal) {
 	const pad = (s) => s.padEnd(9, ' ');
+	// Un calibrage d'avant #279 n'a pas d'axisCount : tous ses signaux sont des
+	// axes, et l'étiquette retombe dessus.
+	const where = (i) => signalLabel(i, cal.axisCount ?? Infinity);
 	const lines = CAL_CHANNELS.map((name) => {
 		const c = cal.channels[name];
 		if (name === 'throttle') {
 			const travel = cal.throttleMode === 'full' ? 'full travel' : 'half travel';
-			return `${pad(name)} axis ${c.axis}  ${travel}  ${c.lo.toFixed(2)} → ${c.hi.toFixed(2)}`;
+			return `${pad(name)} ${where(c.axis)}  ${travel}  ${c.lo.toFixed(2)} → ${c.hi.toFixed(2)}`;
 		}
-		return `${pad(name)} axis ${c.axis}  ±${c.span.toFixed(2)}${c.invert ? '  inverted' : ''}`;
+		return `${pad(name)} ${where(c.axis)}  ±${c.span.toFixed(2)}${c.invert ? '  inverted' : ''}`;
 	});
 	lines.push(`${pad('deadband')} ${cal.deadband.toFixed(3)}`);
 	return lines;

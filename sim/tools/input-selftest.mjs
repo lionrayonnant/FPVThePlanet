@@ -17,6 +17,7 @@ import {
 	sticksFromCalibration,
 	remapChannel,
 } from '../src/input.js';
+import { padSignals } from '../src/calibration.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -314,6 +315,45 @@ t('#277 : inverser un gaz demi-course NE MET PAS de gaz au repos', () => {
 	const out = remapChannel(DS4_CAL, 'throttle', 1, false);
 	assert.equal(sticksFromCalibration([0, 0, 0, 0], out).throttle, 0);
 	assert.equal(sticksFromCalibration([0, 1, 0, 0], out).throttle, 1);
+});
+
+t('#279 : une Pocket dont le gaz est sur la gâchette vole correctement', () => {
+	// Le chemin complet, tel que readStandardGamepad() l'emprunte : l'objet
+	// Gamepad du navigateur -> padSignals() -> sticksFromCalibration(). Sur une
+	// Radiomaster Pocket que Firefox mappe en « standard », le gaz sort sur
+	// buttons[6].value et le quatrième axe est mort — mesuré, voir #279.
+	const pocket = (roll, pitch, yaw, btn6) => ({
+		axes: [roll, pitch, yaw, 0, 0, 0, 0, 0],
+		buttons: Array.from({ length: 28 }, (_, i) => ({ value: i === 6 ? btn6 : 0 })),
+	});
+	// Le bouton 6 devient le signal 8 + 6 = 14, de course -1..1 comme un axe.
+	const cal = {
+		channels: {
+			throttle: { axis: 14, lo: -1, hi: 0.994 },
+			yaw: { axis: 2, center: 0, span: 1, invert: false },
+			pitch: { axis: 1, center: 0, span: 1, invert: true },
+			roll: { axis: 0, center: 0, span: 1, invert: false },
+		},
+		deadband: 0.02,
+		throttleMode: 'full',
+		axisCount: 8,
+	};
+
+	const repos = sticksFromCalibration(padSignals(pocket(0, 0, 0, 0)), cal);
+	assert.equal(repos.throttle, 0, 'gaz en bas = 0, sinon le désarmement est injoignable');
+	assert.equal(repos.yaw, 0);
+
+	const plein = sticksFromCalibration(padSignals(pocket(0, 0, 0, 0.997)), cal);
+	assert.ok(plein.throttle > 0.99, `gaz à fond = ${plein.throttle}`);
+
+	// Et le gaz sur un bouton ne parasite aucun des trois autres canaux.
+	assert.equal(plein.roll, 0);
+	assert.equal(plein.pitch, 0);
+	assert.equal(plein.yaw, 0);
+
+	const droite = sticksFromCalibration(padSignals(pocket(1, 0, 0, 0)), cal);
+	assert.ok(droite.roll > 0.97, `roulis à droite = ${droite.roll}`);
+	assert.equal(droite.throttle, 0, 'bouger un manche ne met pas de gaz');
 });
 
 console.log(`input-selftest: ${n} tests ok`);
