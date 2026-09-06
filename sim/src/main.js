@@ -56,6 +56,7 @@ import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mj
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 import { AmbientDrones } from './ambient-drones.js';
+import { PlayerDrone } from './onboard-drone.js';
 
 // La version du build, injectée par vite.config.js depuis package.json (voir
 // CHANGELOG.md et tools/release.mjs). Exposée sur window et écrite une fois
@@ -394,6 +395,14 @@ const _fenceForce = { x: 0, y: 0, z: 0 };
 // Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
 let sceneManifest = null;
 let emitter = null;
+// Le drone du joueur (issue #264) : monté à l'ouverture de session, une fois la
+// caméra de la cible connue — la recette lit son uptilt. Null au banc en vol
+// libre ?live=, comme les ambiants : ce chemin de dev ne monte pas de caméra.
+let playerDrone = null;
+// L'exemplaire tiré pour CE vol, hissé des quatre endroits qui le résolvent
+// (terrain, direct, banc, resume/override). PROFILE en porte déjà le profil ;
+// la recette veut le build lui-même. Null quand on vole un profil nominal.
+let flightBuild = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
@@ -924,6 +933,9 @@ async function finishBoot(preloading) {
 	freeCam = new OrbitControls(camera, renderer.domElement);
 	freeCam.enabled = false;
 	freeCam.target.set(0, 0, 0);
+	// On ne rentre pas DANS la machine : le plan proche du vol vaut 0,15 m et le
+	// drone lui-même fait autant de rayon (issue #264).
+	freeCam.minDistance = 0.4;
 
 	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
 	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
@@ -1505,6 +1517,41 @@ function togglePause(force) {
 	fpvtpOsd.setPaused(paused);
 }
 
+// De combien on recule pour entrer en caméra libre, en mètres. Un drone de 5
+// pouces mesure 0,25 m d'envergure : à 1,5 m et 120° de champ il tient dans le
+// cadre sans être un point, et le plan proche du vol (0,15 m) reste loin
+// derrière lui.
+const FREE_CAM_BACK_M = 1.5;
+const _freeCamBack = new THREE.Vector3();
+
+// La caméra libre (touche C). La physique se fige (simFrozen), le lien vidéo
+// est court-circuité (lens.render plus bas), et OrbitControls prend la souris —
+// donc on rend le pointeur, sans quoi il resterait verrouillé sur le canvas et
+// l'orbite ne recevrait aucun mouvement.
+function toggleFreeCam(force) {
+	// `freeCam` naît dans finishBoot() : le chemin ?live= n'en monte pas, la
+	// touche y est donc inerte plutôt que fatale.
+	if (!freeCam || !physics) return;
+	freeCamOn = force ?? !freeCamOn;
+	freeCam.enabled = freeCamOn;
+	if (freeCamOn) {
+		document.exitPointerLock?.();
+		// L'orbite se pose SUR le drone, et la caméra recule le long de son
+		// propre axe de vue : entrer à distance nulle laisserait OrbitControls
+		// tourner autour du point où il est déjà, c'est-à-dire ne rien montrer.
+		const p = physics.position;
+		freeCam.target.set(p.x, p.y, p.z);
+		_freeCamBack.set(0, 0, 1).applyQuaternion(camera.quaternion).multiplyScalar(FREE_CAM_BACK_M);
+		camera.position.set(p.x + _freeCamBack.x, p.y + _freeCamBack.y, p.z + _freeCamBack.z);
+	}
+	// Le drone du joueur suit la bascule (issue #264) : en free cam on voit la
+	// machine entière, en vue pilote on ne verra que ses hélices (tâche 7).
+	playerDrone?.setFreeCam(freeCamOn);
+	// Revenir au manche ne doit pas rejouer d'un coup l'écart d'horloge accumulé
+	// pendant l'orbite — même précaution que togglePause() juste au-dessus.
+	if (!freeCamOn) { accumulator = 0; lastTime = performance.now(); }
+}
+
 // Physics does not advance when the free camera is on, the sim is paused, or the
 // settings panel is up — so the motor speeds freeze and a held drone note would
 // be worse than silence.
@@ -1774,8 +1821,29 @@ function frame() {
 		_tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraTilt * Math.PI / 180);
 		camera.quaternion.copy(_q).multiply(_tilt);
 	} else if (freeCamOn) {
+		// La cible suit le drone : l'épave qui roule encore, ou le quad figé,
+		// restent au centre de l'orbite (issue #264).
+		freeCam.target.set(physics.position.x, physics.position.y, physics.position.z);
 		freeCam.update();
 	}
+
+	// Le drone du joueur (issue #264). APRÈS la caméra, comme les ambiants, et
+	// AVANT eux : les deux exemplaires sont du même bois, autant les éclairer
+	// dans le même souffle. Gelé, dt = 0 — le temps du shader ne dérive pas
+	// pendant une pause.
+	//
+	// Le soleil, l'obscurcissement, le brouillard et la résolution sont
+	// EXACTEMENT ceux passés aux ambiants juste en dessous : une machine qui
+	// s'assombrirait autrement que celles qui l'entourent se verrait.
+	playerDrone?.update({
+		dt: frozen ? 0 : dt,
+		position: physics.position,
+		quaternion: physics.rotation,
+		omega: physics.propulsion.omega,
+		sun, dim: cloud.dim,
+		fogColor: scene.background, fogDensity: lastFogDensity,
+		resolution: ambientRes,
+	});
 
 	// Les drones ambiants (issue #250). APRÈS la caméra : ils naissent hors du
 	// champ, donc le modèle veut l'orientation de CETTE frame, pas celle de la
@@ -2587,6 +2655,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			// AVANT bootLive(), qui construit sa physique avec `PROFILE` s'il est
 			// posé — c'est déjà ce que fait le vol libre du banc.
 			PROFILE = build.profile;
+			flightBuild = build;
 			benchRates = build.rates;
 			logBuild(build);
 			console.log(`[field] vol en direct → ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
@@ -2678,6 +2747,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		const buildSeed = `${seed}::${choice.index}`;
 		const build = targetBuild({ seed: buildSeed, family: cand._family });
 		PROFILE = build.profile;
+		flightBuild = build;
 		controller = new FlightController({ profile: PROFILE, rates: build.rates });
 		logBuild(build);
 		const booting = finishBoot(preloading);
@@ -2732,6 +2802,7 @@ async function benchLoop(ui) {
 	// fait déjà ?live= via l'override ?family=.
 	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
 	PROFILE = build ? build.profile : PROFILES[family];
+	flightBuild = build;
 	benchRates = build?.rates ?? null;
 	if (build) logBuild(build);
 	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (nominal)`);
@@ -2844,6 +2915,7 @@ startup()
 		// c'est le profil nominal de la famille.
 		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
 		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
+		flightBuild = build;
 		controller = new FlightController(
 			PROFILE ? { profile: PROFILE, rates: build?.rates } : undefined,
 		);
@@ -2998,6 +3070,19 @@ async function openFlightSession() {
 
 	applyTargetCamera(targetCamera({ seed, family }));
 
+	// Le drone du joueur (issue #264) — ICI et pas dans boot() : la recette lit
+	// l'uptilt de la caméra de la cible, qui vient d'être résolue à la ligne
+	// au-dessus. Le profil est celui qui VOLE (physics.profile), pas `PROFILE` :
+	// un changement de cellule au banc passe par physics.setProfile().
+	playerDrone?.dispose();
+	playerDrone = new PlayerDrone({
+		scene,
+		profile: physics.profile,
+		build: flightBuild,
+		camera: camSpec,
+	});
+	playerDrone.setFreeCam(freeCamOn);
+
 	droneOsd?.dispose();
 	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines
 	// cibles n'ont simplement pas d'OSD, ou le leur est éteint/HS.
@@ -3023,4 +3108,6 @@ window.addEventListener('beforeunload', () => {
 	// un démontage : les ambiants n'y ont rien à faire. Le seul démontage de
 	// page est ici (issue #250).
 	ambient?.dispose();
+	playerDrone?.dispose();
+	playerDrone = null;
 });
