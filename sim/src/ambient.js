@@ -77,9 +77,9 @@ export function routineFor({ family, twr, rand }) {
 	const radius = lerp(rand, spec.radius);
 	const agl = lerp(rand, spec.agl);
 	let speed = lerp(rand, spec.speed);
-	// Le TWR borne le virage — le seul point où le build change la routine.
+	// Le TWR borne le virage.
 	const vMax = Math.sqrt(TURN_MARGIN * lateralAccelMax(twr) * radius);
-	if (speed > vMax) speed = Math.max(spec.speed[0] * 0.5, vMax);
+	if (speed > vMax) speed = vMax;
 	const dir = rand() < 0.5 ? -1 : 1;
 	const phase = rand() * Math.PI * 2;
 	// Plan de la boucle du race : incliné de 10 à 35° pour que la boucle ne
