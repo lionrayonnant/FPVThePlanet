@@ -86,7 +86,16 @@ console.log('drone-mesh');
 	check('attribut de sens présent', !!geo.attributes.aSpin);
 	const idx = new Set(Array.from(geo.attributes.aMotor.array));
 	check('les quatre moteurs sont représentés', [0, 1, 2, 3].every((k) => idx.has(k)), [...idx].join(','));
-	check('le châssis n\'appartient à aucun moteur', idx.has(-1));
+	// Le châssis se vérifie sur la SILHOUETTE : depuis #264 le niveau `onboard`
+	// ne porte plus que les rotors — un objectif ne filme pas son propre
+	// boîtier — donc il n'y a plus de carrosserie à y trouver.
+	{
+		const plein = buildDroneMesh(shapeOf({ profile: build.profile, build, camera: targetCamera({ seed, family: 'freestyle5' }) }), { colors });
+		const sil = new Set(Array.from(plein.body.geometry.attributes.aMotor.array));
+		check('le châssis n\'appartient à aucun moteur', sil.has(-1), [...sil].join(','));
+		plein.dispose();
+	}
+	check('la vue embarquée n\'a plus de châssis à porter', !idx.has(-1), [...idx].join(','));
 	const spins = new Set(Array.from(geo.attributes.aSpin.array));
 	check('les deux sens sont représentés', spins.has(1) && spins.has(-1));
 

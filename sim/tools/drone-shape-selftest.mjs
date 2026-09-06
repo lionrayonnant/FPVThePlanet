@@ -12,9 +12,9 @@ function check(label, ok, detail) {
 	if (!ok) failures++;
 }
 const roles = (s, role) => s.parts.filter((p) => p.role === role);
-const make = (family, seed = `shape::${family}`) => {
+const make = (family, seed = `shape::${family}`, detail = undefined) => {
 	const build = targetBuild({ seed, family });
-	return shapeOf({ profile: build.profile, build, camera: targetCamera({ seed, family }) });
+	return shapeOf({ profile: build.profile, build, camera: targetCamera({ seed, family }), detail });
 };
 
 console.log('drone-shape');
@@ -73,8 +73,14 @@ for (const family of FAMILIES) {
 // et ignore les champs ajoutés (`motor`, `spin`) : ce qu'on gèle, c'est la
 // forme, pas la recette.
 //
-// Les six empreintes ont été recalculées quand la part caméra est passée
-// AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
+// Elles ont été recalculées une seconde fois quand tools/tune-mount.mjs a
+// re-mesuré le montage : sa règle de hauteur est passée de « la plus grande que
+// la borne autorise » à « celle qui rend les hélices le plus présentes sous la
+// borne » (les deux disent la même chose au bord de la plaque, la seconde reste
+// juste si l'objectif avance), ce qui a déplacé quatre familles de 0,1 à 0,2 mm.
+//
+// Les six empreintes ont été recalculées une première fois quand la part caméra
+// est passée AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
 // tools/tune-mount.mjs) l'a montée de quelques millimètres, son avancée étant
 // restée celle de la recette. Rien d'autre n'a bougé, et les ambiants ne sont
 // pas rendus autrement pour autant : src/drone-mesh.js traite la part `camera`
@@ -82,12 +88,12 @@ for (const family of FAMILIES) {
 // hauteur. Toute autre dérive de ces empreintes est une régression.
 {
 	const GOLDEN = {
-		freestyle5: '16587a6f69b64570',
+		freestyle5: '7060140541d230dd',
 		race5: 'd8da56b6dd4c251f',
-		cinewhoop: 'd09dde63cf3be300',
+		cinewhoop: 'e8adbcc42d131eb3',
 		longrange: 'afdf242d80843cd8',
-		heavy5: '51005da4a6e8c3e9',
-		toothpick: 'e7e0549102e45774',
+		heavy5: '962cbf465e9905b9',
+		toothpick: '0fd72cf210f35616',
 	};
 	for (const family of FAMILIES) {
 		const rows = make(family).parts
@@ -147,8 +153,17 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 	// aveugle. Les pales S'AJOUTENT au disque, elles ne le remplacent pas.
 	check('le disque enveloppe survit aux trois niveaux',
 		[silhouette, onboard, portrait].every((s) => s.parts.filter((p) => p.role === 'prop').length === 4));
-	check('onboard ajoute, ne retire rien',
-		silhouette.parts.every((p) => onboard.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+	// `onboard` RETIRE délibérément la carrosserie — l'objectif ne filme pas son
+	// propre boîtier — et n'ajoute que les pales. Ce qu'il ne doit jamais
+	// retirer, c'est un rotor : sans eux la vue embarquée n'a plus de sujet.
+	const ROTOR = new Set(['arm', 'motor', 'prop', 'duct']);
+	check('onboard garde tous les rotors de la silhouette',
+		silhouette.parts.filter((p) => ROTOR.has(p.role))
+			.every((p) => onboard.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+	check('onboard retire la carrosserie',
+		onboard.parts.every((p) => ROTOR.has(p.role) || p.role === 'blade'));
+	check('portrait ajoute à la silhouette, ne retire rien',
+		silhouette.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
 	check('portrait ajoute, ne retire rien',
 		onboard.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
 	check('portrait ⊇ onboard', onboard.parts.length < portrait.parts.length);
@@ -170,6 +185,26 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 	// Toutes les pièces des trois niveaux restent sous le rayon englobant.
 	check('les pales et les cloches tiennent sous le rayon englobant',
 		portrait.parts.every((p) => Math.hypot(...p.at) <= portrait.boundingRadius + 1e-9));
+}
+
+// Issue #264 : ce que l'objectif peut voir. Le niveau `onboard` ne porte QUE
+// les rotors — un objectif ne filme pas son propre boîtier (la part `camera`
+// est centrée sur l'oeil : rendue, elle couvre tout le cadre), ni le pack, la
+// GoPro et les antennes, qui vivent derrière lui. Le `portrait`, lui, montre la
+// machine entière : c'est une fiche, pas une vue subjective.
+{
+	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade']);
+	for (const family of FAMILIES) {
+		const embarque = new Set(make(family, `shape::${family}`, 'onboard').parts.map((p) => p.role));
+		check(`${family}: la vue embarquée ne porte que les rotors`,
+			[...embarque].every((r) => ROTORS.has(r)), [...embarque].join(' '));
+		check(`${family}: la vue embarquée porte bien ses hélices et ses pales`,
+			embarque.has('prop') && embarque.has('blade'));
+		const portrait = new Set(make(family, `shape::${family}`, 'portrait').parts.map((p) => p.role));
+		check(`${family}: le portrait garde la machine entière`,
+			portrait.has('camera') && portrait.has('battery') && portrait.has('plate') && portrait.has('led'),
+			[...portrait].join(' '));
+	}
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

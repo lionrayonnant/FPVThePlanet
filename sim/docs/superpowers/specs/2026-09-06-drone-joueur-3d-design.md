@@ -176,7 +176,12 @@ est donc optimisée.
 **La borne DA, chiffrée.** Mesurée sur l'enveloppe balayée (le disque), qui est
 ce qu'on voit réellement comme un arc flou :
 
-- **couverture ≤ 8 % de l'image** ;
+- **couverture des DISQUES ≤ 8 % de l'image** — et non de la machine entière :
+  les conduits, les bras et les moteurs sont dans le cadre eux aussi, et ce que
+  la machine occupe vraiment va de 8 % (long range) à 44 % (toothpick), mesuré
+  par `tools/lens-coverage.mjs`. Cette part-là est une signature de famille, pas
+  un réglage ; ce qui est garanti partout, c'est que la moitié haute du cadre
+  reste libre ;
 - **hauteur atteinte ≤ 50 % du cadre au pire tirage de caméra, ≤ 45 % en
   médiane** (borne révisée — voir juste en dessous).
 

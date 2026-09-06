@@ -47,4 +47,17 @@ rapport avec les versions ci-dessous.
   `public/scenes/tour-eiffel` (gitignorée) est absente, au lieu de casser la
   chaîne sur un `ENOENT`.
 
+### Corrigé
+
+- La vue embarquée montrait la machine entière (#264) : le boîtier de caméra,
+  centré sur l'oeil, plus la batterie et la GoPro derrière lui remplissaient le
+  cadre — on ne voyait plus ni le monde ni ses propres hélices. Le niveau
+  `onboard` ne porte plus que les quatre rotors, et `eyeOf(profile)` donne
+  enfin une définition unique à la position de l'oeil.
+- La borne DA ne mesurait que les disques d'hélice (#264) : les conduits, les
+  bras et les moteurs étaient dans le cadre sans que rien ne les regarde.
+  `tools/lens-coverage.mjs` mesure le maillage tel qu'il est affiché, et le
+  selftest borne famille par famille — ce qui est garanti pour les six, c'est
+  que la moitié haute du cadre reste libre.
+
 [Non publié]: https://github.com/lionrayonnant/FPVTP/commits/main

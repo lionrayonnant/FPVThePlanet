@@ -2,10 +2,11 @@
 // Le maillage et la règle d'exclusivité se vérifient sans GPU.
 import * as THREE from 'three';
 import { PlayerDrone } from '../src/onboard-drone.js';
-import { shapeOf } from '../src/drone-shape.js';
+import { shapeOf, eyeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 import { propCoverage } from './prop-coverage.mjs';
+import { lensCoverage, trianglesOf } from './lens-coverage.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 
 let failures = 0;
@@ -88,8 +89,10 @@ console.log('onboard-drone');
 		const m = d.onboard.group.matrix;
 		const p = new THREE.Vector3().setFromMatrixPosition(m);
 		check('le corps est posé derrière l\'oeil', p.z > 0, `${p.toArray().map((v) => v.toFixed(3))}`);
-		const cam = shape.parts.find((q) => q.role === 'camera');
-		const eye = new THREE.Vector3(cam.at[0], cam.at[1], cam.at[2]).applyMatrix4(m);
+		// L'oeil se lit sur eyeOf() : le niveau `onboard` ne porte plus de part
+		// `camera`, justement parce qu'un objectif ne filme pas son boîtier.
+		const e = eyeOf(build.profile);
+		const eye = new THREE.Vector3(e[0], e[1], e[2]).applyMatrix4(m);
 		check('l\'oeil retombe exactement à l\'origine', eye.length() < 1e-9, `${eye.length().toExponential(1)}`);
 		const front = shape.parts.filter((q) => q.role === 'prop').sort((a, b) => a.at[2] - b.at[2])[0];
 		const v = new THREE.Vector3(front.at[0], front.at[1], front.at[2]).applyMatrix4(m);
@@ -136,7 +139,11 @@ for (const family of FAMILIES) {
 	const camera = targetCamera({ seed, family });
 	const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
 	const shape = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
-	const sonde = propCoverage({ shape, camera }).top;
+	// La sonde travaille sur la recette COMPLÈTE : c'est là qu'elle trouve la
+	// part `camera` dont elle tire l'oeil. Le niveau `onboard` n'en a plus, et
+	// c'est justement ce qu'on veut vérifier — que les deux montages coïncident
+	// alors qu'ils lisent l'oeil par deux chemins différents.
+	const sonde = propCoverage({ shape: shapeOf({ profile: build.profile, build, camera }), camera }).top;
 
 	const m = d.onboard.group.matrix;
 	const viewProj = d.onboardCamera.projectionMatrix.clone().multiply(d.onboardCamera.matrixWorldInverse);
@@ -156,6 +163,58 @@ for (const family of FAMILIES) {
 	check(`${family} : la caméra montée est celle que la sonde mesure`, Math.abs(top - sonde) <= 1 / 150,
 		`sonde ${(100 * sonde).toFixed(1)} % vs projeté ${(100 * top).toFixed(1)} %`);
 	d.dispose();
+}
+
+// Ce que la machine occupe VRAIMENT du cadre — la mesure qui manquait.
+//
+// tools/prop-coverage.mjs ne rasterise que les disques d'hélice, et l'issue
+// #264 en a tiré « ≤ 8 % de l'image » comme si c'était toute la machine. Ce
+// n'en était qu'une pièce : les conduits, les bras et les moteurs sont dans le
+// cadre eux aussi. Faute de cette mesure, un boîtier de caméra centré sur
+// l'oeil est passé jusqu'à l'écran sans qu'aucun test bronche — il couvrait
+// 100 % de l'image.
+//
+// Ici on mesure le maillage TEL QU'IL EST AFFICHÉ (tools/lens-coverage.mjs :
+// un rayon par pixel contre les vrais triangles fusionnés), et on affirme deux
+// choses :
+//
+//   · la MOITIÉ HAUTE du cadre est libre, pour les six familles. C'est la borne
+//     de hauteur, portée sur tout le maillage et non sur les seuls disques ;
+//   · la machine tient sous une borne PAR FAMILLE. Par famille, parce qu'une
+//     machine carénée montre son carénage : le conduit pèse 19 points sur le
+//     cinewhoop et 25 sur le toothpick, et aucun montage ne l'enlève — avancer
+//     l'objectif jusqu'à la lèvre du carénage le ferait bien tomber à 10 %,
+//     mais les hélices disparaîtraient avec, et les hélices sont le sujet.
+//     Prétendre 8 % partout serait faux ; ces chiffres-ci sont mesurés.
+{
+	const BORNE = {
+		freestyle5: 0.20, race5: 0.20, cinewhoop: 0.40,
+		longrange: 0.14, heavy5: 0.18, toothpick: 0.50,
+	};
+	for (const family of FAMILIES) {
+		let aire = 0, haut = 0, vide = 0, n = 0;
+		for (const tag of ['a', 'b', 'c', 'd', 'e']) {
+			const seed = `libre::${family}::${tag}`;
+			const build = targetBuild({ seed, family });
+			const camera = targetCamera({ seed, family });
+			const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
+			const r = lensCoverage({
+				triangles: trianglesOf(d.onboard, d.onboard.group.matrix),
+				fovDeg: camera.fovDeg, aspect: camera.aspect, grid: 64,
+			});
+			aire = Math.max(aire, r.area); haut = Math.max(haut, r.top);
+			if (r.area <= 0) vide++;
+			n++;
+			d.dispose();
+		}
+		check(`${family} : la moitié haute du cadre est libre`, haut <= 0.50,
+			`la machine monte à ${(100 * haut).toFixed(0)} % de la hauteur`);
+		check(`${family} : la machine tient sous sa borne`, aire <= BORNE[family],
+			`${(100 * aire).toFixed(0)} % de l'image, borne ${(100 * BORNE[family]).toFixed(0)} %`);
+		// Le contrôle en sens inverse : sans lui, « rien dans le cadre »
+		// passerait pour un succès — c'est exactement ce qu'il s'est passé.
+		check(`${family} : la machine est bien dans le cadre`, vide === 0, `${n - vide}/${n} vues occupées`);
+	}
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

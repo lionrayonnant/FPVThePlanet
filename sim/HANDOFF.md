@@ -2184,10 +2184,9 @@ dessiner. Commits `f5077b6..87c8c73`.
   C'est faux — `mixOf()` donne `roll: ±1` aux deux avant, donc le roulis les
   sépare exactement comme le lacet (mesuré `+1080 / −1970` contre `+1080 /
   +1080` au tangage). Sur la paire visible, **seul le tangage a une signature
-  propre** ; roulis et lacet partagent la leur. Corrigé dans la spec et dans la
-  Bible §22 ; le commentaire de tête du bloc 2 de ce selftest
-  (`tools/onboard-regime-selftest.mjs:45`) porte encore l'ancienne phrase — à
-  corriger.
+  propre** ; roulis et lacet partagent la leur. Corrigé dans la spec, dans la
+  Bible §22 et dans le commentaire de tête du bloc 2 de ce selftest
+  (`tools/onboard-regime-selftest.mjs:45`).
 - `tools/drone-shape-selftest.mjs` (134, étendu) : les hélices naissent de
   `motorsOf()` — même table que le mixeur — et portent leur index moteur et leur
   `spin` ; les trois niveaux de détail ; et l'**empreinte de non-régression** :
@@ -2243,6 +2242,47 @@ mesures indépendantes donnent **24,6 % en médiane, 28,7 % au pire**. Toutes le
 autres cases du tableau se reproduisent au chiffre près. Corrigé dans
 `docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md`.
 
+### La borne ne mesurait pas ce qu'on affiche (corrigé après coup)
+
+`tools/prop-coverage.mjs` ne rasterise que les **disques d'hélice**. L'issue en
+a tiré « ≤ 8 % de l'image » comme si c'était toute la machine. C'en était une
+pièce : les conduits, les bras et les moteurs occupent le cadre eux aussi.
+
+Faute de cette mesure, **le boîtier de caméra de la recette est passé jusqu'à
+l'écran**. La part `camera` est centrée exactement sur l'oeil — c'est sa
+définition —, donc rendue dans la vue embarquée elle couvre tout le cadre :
+mesuré, 765 rayons sur 765 bloqués, jusqu'à 100 % de la hauteur, sur les six
+familles. Aucun test n'a bronché, parce qu'aucun ne regardait autre chose que
+les disques. Le niveau `onboard` ne porte donc plus que les rotors.
+
+`tools/lens-coverage.mjs` (neuf) mesure le maillage **tel qu'il est affiché** :
+un rayon par pixel contre les vrais triangles fusionnés. C'est lui qui fait foi.
+Ce que la machine occupe, au pire tirage de caméra :
+
+| famille | la machine occupe | dont le carénage |
+|---|---|---|
+| longrange | 9 % | — |
+| heavy5 | 14 % | — |
+| race5 | 15 % | — |
+| freestyle5 | 16 % | — |
+| cinewhoop | 35 % | 19 points |
+| toothpick | 44 % | 25 points |
+
+Cette part est une **signature de famille**, pas un réglage. Avancer l'objectif
+jusqu'à la lèvre du carénage fait bien tomber le cinewhoop à 10 %, mais les
+hélices disparaissent avec (disques à 0,7 %, médiane nulle) — et les hélices
+sont le sujet de l'issue. On ne casse pas la fonction pour tenir un nombre. Ce
+qui est garanti pour les six, et testé, c'est que la **moitié haute du cadre
+reste libre**.
+
+`tools/tune-mount.mjs` cherche donc la hauteur sur les disques (le seul levier
+dont ils dépendent), fige l'avancée au bord de la plaque, et **rapporte** ce que
+la machine occupe sans chercher à l'optimiser. Sa règle de hauteur est
+reformulée : « celle qui rend les hélices le plus présentes sous la borne » et
+non « la plus grande » — la relation entre hauteur et couverture s'inverse selon
+l'avancée, et l'ancienne formulation partait à la dérive dès qu'on essayait
+d'avancer.
+
 ### Un bug pré-existant, corrigé au passage
 
 `toggleFreeCam()` **n'avait jamais été écrite**, alors que `src/main.js`
@@ -2276,22 +2316,39 @@ sa cible sur `(0,0,0)` et personne pour l'activer.
   `playerDrone` n'est construit qu'à l'ouverture de session : au banc, changer de
   famille sans relancer laisse les hélices de l'ancienne machine dans le champ.
 
-### NON vérifié — rien de tout ça n'a été VU
+### Vu dans le navigateur — la vue embarquée et la free cam
 
-Aucun navigateur n'a été ouvert. Trois choses se jugent à l'œil et ne sont pas
-vérifiées :
+Vérifié sur le GPU de l'utilisateur (Chromium via MCP chrome-devtools), banc
+`BENCH` sur `tour-eiffel`, freestyle5, `__sim.teleport()` + `__sim.setInput()`
+pour tenir une pose stable :
 
-1. **La free cam.** Le recul de 1,5 m (`FREE_CAM_BACK_M`) et le
-   `freeCam.minDistance = 0.4` sont choisis **au jugé**, pas mesurés : à
-   confirmer qu'un 5 pouces tient dans le cadre sans être un point, et qu'on ne
-   rentre pas dans la machine en zoomant.
-2. **Les hélices dans le champ.** La quantité à l'image (la borne dit ≤ 8 %,
-   elle ne dit pas que c'est joli), le **fondu pales → disque** à la montée en
-   gaz (continu, pas un strobe — même piège que le flou des ambiants), et le
-   **lacet**, qui doit faire partir les deux hélices en sens contraires de façon
-   lisible (le roulis fait la même chose : c'est le tangage, qui les bouge
-   ensemble, qui se distingue).
-3. **Le portrait.** La lisibilité du fil de fer à 160 px (sans élimination des
+- **La carrosserie a bien disparu du champ.** Sur `main` avant ce correctif, le
+  boîtier de caméra et la batterie occupaient l'écran entier — c'est ce que
+  montrait la capture de reproduction. Après, le monde est visible de haut en
+  bas et la moitié haute du cadre est libre, comme le selftest le promet.
+- **Les hélices sont là et le fondu fonctionne.** À 1 744 rad/s (`uOmega` lu à
+  chaud sur le matériau embarqué, égal à `physics.propulsion.omega`) les pales
+  ont cédé la place au disque ; au ralenti ce sont des pales pleines.
+- **La free cam (`C`) marche** et montre la machine entière ; le retour à la vue
+  embarquée aussi (`lens._onboardOn` bascule dans les deux sens).
+
+### NON vérifié — ce qui reste à juger à l'œil
+
+1. **La taille de la machine en free cam.** Le recul de 1,5 m
+   (`FREE_CAM_BACK_M`) donne un freestyle5 dont le **châssis opaque mesure 80 px
+   de large dans un cadre de 1 686 px, soit 4,7 %** (mesuré sur capture, seuil
+   de luminance ; les disques d'hélice translucides élargissent un peu la
+   silhouette). C'est lisible mais petit — « enfin regardable » demanderait
+   sans doute un recul plus court. Le `minDistance = 0.4` n'a pas été éprouvé à
+   la molette.
+2. **La présence des hélices sur fond clair.** `PROP_ALPHA = 0.35` sur un
+   disque au-dessus d'une ville en plein soleil passe presque inaperçu ; sur
+   ciel, il se lit bien. À trancher : est-ce le comportement voulu (une hélice
+   en rotation EST translucide) ou faut-il remonter l'alpha ?
+3. **Le fondu à la montée en gaz** (continu ou strobe) et la **lisibilité du
+   lacet** sur la paire visible : ça demande une capture vidéo, pas des images
+   fixes.
+4. **Le portrait.** La lisibilité du fil de fer à 160 px (sans élimination des
    faces cachées, il y a 628 à 784 segments), la vitesse de rotation (un tour en
    24 s), et surtout **le ton** : au crash, il doit arriver comme ce qu'il
    reste, pas comme une récompense. C'est la révision de Bible §24 ; si l'effet
