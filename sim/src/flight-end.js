@@ -29,6 +29,9 @@ export const TIMELINE = {
 		[3.6, 'SESSION TERMINATED'],
 		[4.6, ''],
 		[4.6, '[ENTER] DISCONNECT'],
+		// #253 : REDEPLOY partage l'horodatage de DISCONNECT — les deux gestes
+		// de sortie s'arment ensemble, jamais l'un avant l'autre.
+		[4.6, '[R] REDEPLOY'],
 	],
 	exitAt: 4.6,            // la sortie s'arme avec la dernière ligne
 };
@@ -53,6 +56,7 @@ export const LANDING_TIMELINE = {
 		[1.4, 'END SESSION'],
 		[2.2, ''],
 		[2.2, '[ENTER] DISCONNECT'],
+		[2.2, '[R] REDEPLOY'],
 	],
 	exitAt: 2.2,            // la sortie s'arme avec la dernière ligne
 };
@@ -74,6 +78,7 @@ export const FENCE_TIMELINE = {
 		[2.0, 'SESSION TERMINATED'],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
+		[3.0, '[R] REDEPLOY'],
 	],
 	exitAt: 3.0,
 };
@@ -98,6 +103,7 @@ export const CUT_TIMELINE = {
 		[2.0, 'SESSION TERMINATED'],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
+		[3.0, '[R] REDEPLOY'],
 	],
 	exitAt: 3.0,
 };

@@ -437,6 +437,10 @@ let groundY = null;
 let flyArea = null;
 let resumeId = null;
 let flyTarget = null;
+// La zone du vol en cours, sous la forme attendue par fieldLoop() (#253) : posée
+// dès que le TARGET SCAN démarre, relue par finishSession({redeploy:true}) pour
+// permettre de relancer la même zone sans repasser par le terminal.
+let lastZone = null;
 let spawnY = 0;
 // Le point de départ complet, pas seulement son altitude : l'OSD drone affiche
 // une distance au point de décollage, donc il lui faut les trois coordonnées.
@@ -1228,7 +1232,27 @@ input.onAction = (key, event) => {
 	// délivre jamais de keydown à la page (comportement du navigateur, pas un
 	// bug — voir le clic ci-dessous pour la même raison).
 	else if ((key === 'escape' || key === 'enter') && flightEnd.out.exitArmed) finishSession();
+	// #253 : REDEPLOY, clavier seulement (comme les touches banc ci-dessus) —
+	// la manette garde son geste « n'importe quel bouton déconnecte » plus bas.
+	// FIELD only : au banc 'r' respawn déjà (garde tout en haut de ce handler).
+	else if (key === 'r' && flightEnd.out.exitArmed && !exiting) finishSession({ redeploy: true });
 };
+
+// #253 : clé sessionStorage portant la zone à rejouer d'un REDEPLOY à travers
+// le rechargement de page que finishSession() déclenche. sessionStorage et non
+// localStorage : ne doit pas survivre à la fermeture de l'onglet, et ne doit
+// jamais fuiter vers un autre onglet ouvert sur une zone différente.
+const QUICK_RESTART_KEY = 'fpvmaps.quickRestart';
+
+function consumeQuickRestart() {
+	try {
+		const raw = sessionStorage.getItem(QUICK_RESTART_KEY);
+		sessionStorage.removeItem(QUICK_RESTART_KEY);
+		return raw ? JSON.parse(raw) : null;
+	} catch {
+		return null;
+	}
+}
 
 // POST-FLIGHT ANALYSIS (PHASE 15, Bible §25) avant de rendre la main au
 // terminal — seulement pour une session posée (LANDED) : un crash n'a pas de
@@ -1237,12 +1261,19 @@ input.onAction = (key, event) => {
 // (1,4-4,6 s selon LANDING_TIMELINE/TIMELINE dans flight-end.js), largement
 // assez pour que le PATCH de clôture ait eu le temps de revenir du serveur
 // de dev local.
-async function finishSession() {
+// #253 : { redeploy: true } saute l'AUTOMATED ANALYSIS — le joueur a demandé
+// LE PLUS COURT chemin vers la prochaine cible, pas un grand écran de plus —
+// et laisse la zone du vol dans sessionStorage pour que chooseScene(), après
+// le rechargement, retombe directement dans le TARGET SCAN de cette zone.
+async function finishSession({ redeploy = false } = {}) {
 	if (exiting) return;
 	exiting = true;
 	const s = session.current();
-	if (s?.result === 'LANDED') {
+	if (s?.result === 'LANDED' && !redeploy) {
 		await runPostFlightAnalysis(document.getElementById('ui'), s);
+	}
+	if (redeploy && lastZone) {
+		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
 	location.href = location.pathname;
 }
@@ -2329,6 +2360,29 @@ async function chooseScene() {
 	// lancerait la source sur un contexte encore suspendu, laissant le geste
 	// suivant sans rien à démarrer.
 
+	// #253 : REDEPLOY a laissé la zone du dernier vol dans sessionStorage avant
+	// de recharger la page. Si elle est là, on saute SELECT OPERATION MODE et le
+	// terminal pour retomber directement dans le TARGET SCAN de cette zone.
+	//
+	// Un échec (zone disparue, carte introuvable) recharge la page plutôt que de
+	// retomber dans le terminal DANS CE MÊME chargement : fieldLoop() a pu poser
+	// introFrozen/MODE.live/flyArea/flyTarget/PROFILE avant d'échouer (ex. runHack()
+	// rejette — voir hack.js, « Rejetée -> on démonte et on propage »), et rien ne
+	// les nettoie ici. Un rechargement retombe sur un module tout neuf ; consumeQuickRestart()
+	// a déjà vidé sessionStorage, donc ce rechargement atterrit bien sur le terminal
+	// normal, pas sur un nouvel essai de la même zone en boucle.
+	const quickRestart = consumeQuickRestart();
+	if (quickRestart) {
+		try {
+			const choice = await fieldLoop(ui, { quickRestart });
+			if (choice) return choice;
+		} catch (err) {
+			console.warn('[field] REDEPLOY : zone indisponible, rechargement', err);
+			location.href = location.pathname;
+			return new Promise(() => {}); // la navigation est en cours ; ne rien rendre entre-temps
+		}
+	}
+
 	// Boucle de MODE (PHASE 26). La racine du jeu est désormais SELECT
 	// OPERATION MODE ; la Home de FIELD est un cran plus bas et peut donc
 	// remonter ici. Les deux boucles rendent `null` pour dire « je remonte »,
@@ -2347,18 +2401,29 @@ async function chooseScene() {
 // chooseScene() pour que le banc puisse vivre à côté sans s'y mêler.
 //
 // Rend la forme de vol, ou null pour remonter au choix de mode.
-async function fieldLoop(ui) {
+async function fieldLoop(ui, { quickRestart = null } = {}) {
 	// Boucle du choix de zone : Échap au TARGET SCAN revient ici. Rien n'est
 	// démonté et rien n'est rechargé — c'est ce qui permet à l'ambiance du
 	// terminal de continuer sans la moindre coupure, et au préchargement de la
 	// zone qu'on vient de quitter de rester acquis.
 	for (;;) {
-		// The Operator Terminal replaces the old map menu: it resolves the slug to fly.
-		const flyChoice = await runTerminal(ui, { settings, back: true });
+		// #253 : REDEPLOY reste sur la même zone — on rejoue le choix déjà connu
+		// UNE fois plutôt que de rouvrir le terminal. Consommé immédiatement :
+		// un Échap au TARGET SCAN qui suit doit retomber sur le terminal normal,
+		// pas rejouer la même zone en boucle.
+		const flyChoice = quickRestart ?? await runTerminal(ui, { settings, back: true });
+		quickRestart = null;
 		// Échap sur la Home : on remonte au choix de mode. La Home n'est plus la
 		// racine depuis PHASE 26, et il faut pouvoir repartir au banc sans
 		// recharger la page.
 		if (!flyChoice) return null;
+
+		// Posée dès la zone connue (avant TARGET SCAN, avant tout écran qui peut
+		// planter) : un REDEPLOY qui suit ce vol rejouera CETTE zone, jamais une
+		// reprise (`resume`) — repartir, c'est retirer une cible fraîche.
+		lastZone = flyChoice.live
+			? { live: flyChoice.live, place: flyChoice.place, density: flyChoice.density }
+			: { slug: flyChoice.slug };
 
 		// Vol en direct : EXACTEMENT le pipeline d'une carte cuite — TARGET SCAN,
 		// cible, exemplaire, musique, hack, rituel du Control Vector. Seul le
