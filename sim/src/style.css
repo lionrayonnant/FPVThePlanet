@@ -826,6 +826,28 @@ button.terminal-row:focus::before { left: 0; }
 #pad-list button.pad-entry:hover, #pad-list button.pad-entry:focus { color: var(--ink); }
 #pad-list button.pad-entry[data-active] { color: var(--ink); }
 
+/* Assistant de calibrage (issue #277). Pendant la mesure, la consigne est la
+   SEULE chose que le pilote doit lire : la liste des périphériques et le
+   tableau de remap s'effacent, et la consigne prend la taille d'affichage.
+   22 px est un multiple de 11 — Departure Mono n'est nette qu'à ces tailles. */
+/* Bouton puis note EN DESSOUS : la note fait trois lignes, et la centrer
+   verticalement contre un petit bouton la rendait illisible. */
+#cal-row { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); margin: var(--space-2) 0; }
+#cal-note { color: var(--light-grey); }
+#cal-screen { margin: var(--space-3) 0; }
+#cal-step { color: var(--light-grey); margin: 0; }
+#cal-prompt {
+	font-family: var(--font-display); font-size: var(--fs-display-s);
+	letter-spacing: var(--track-display); color: var(--ink);
+	margin: var(--space-2) 0;
+}
+/* Jaune = « surveille » : la consigne est à refaire, rien n'est perdu. La
+   ligne garde sa hauteur même vide, pour que la barre ne saute pas. */
+#cal-hint { color: var(--light-grey); margin: 0; }
+#cal-message { color: var(--yellow); margin: var(--space-1) 0 var(--space-2); min-height: 1.2em; }
+#cal-screen .axisbar { margin-bottom: var(--space-3); }
+#cal-summary { margin: var(--space-2) 0; color: var(--light-grey); white-space: pre; }
+
 /* Bouton ARMÉ : deuxième pression = confirmation (issue #213). Le libellé dit
    déjà « — CONFIRM » ; la couleur d'alarme le rend visible sans le lire, et
    c'est la même que celle de tout ce qui refuse ou détruit ailleurs. */
