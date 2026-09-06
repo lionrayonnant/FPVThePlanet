@@ -47,6 +47,12 @@ export async function loadManifest(base) {
 // Chunk downloads run in workers so fetching and JPEG decoding overlap. Each
 // worker holds ~135MB while unpacking its sheet, so only a few run at once.
 const MAX_CONCURRENT = 3;
+// Un worker de tuile qui ne dit plus rien pendant ce délai est tenu pour mort.
+// Chrome tue un worker à court de mémoire SANS déclencher worker.onerror
+// (issue #249) : sans ce délai, loadOne() ne se résolvait jamais et l'écran de
+// chargement restait sur « tuiles 1/2… » pour toujours. Mesuré : le décodage
+// d'une planche prend 0,3-0,9 s ; 60 s laissent la marge d'une machine lente.
+const WORKER_SILENCE_MS = 60_000;
 
 // One material per chunk, all sharing the same fog. Kept so the weather can
 // move it after load: the rain (#24) scales the density with the intensity, and
@@ -117,12 +123,23 @@ export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = I
 
 	const loadOne = (chunk, index) => new Promise((resolve, reject) => {
 		const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-		worker.onerror = (e) => { worker.terminate(); reject(new Error(`chunk ${index}: ${e.message}`)); };
+		let watchdog = null;
+		const arm = () => {
+			clearTimeout(watchdog);
+			watchdog = setTimeout(() => {
+				worker.terminate();
+				reject(new Error(`chunk ${index}: worker de tuile muet depuis ${WORKER_SILENCE_MS / 1000} s — mémoire insuffisante ? fermez les autres onglets du jeu, puis rechargez`));
+			}, WORKER_SILENCE_MS);
+		};
+		arm();
+		worker.onerror = (e) => { clearTimeout(watchdog); worker.terminate(); reject(new Error(`chunk ${index}: ${e.message}`)); };
 		worker.onmessage = (e) => {
 			const msg = e.data;
+			arm();
 			if (msg.progress) { bytes += msg.progress; report(); return; }
 			if (msg.stage === 'decoding') { decoding++; report(); return; }
 
+			clearTimeout(watchdog);
 			worker.terminate();
 			decoding--;
 			if (!msg.ok) return reject(new Error(`chunk ${index}: ${msg.error}`));

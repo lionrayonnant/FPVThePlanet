@@ -1918,6 +1918,60 @@ Et en suivi, une fois la tache vue :
   l'animation (pas de handler `zoomanim`) — si c'est gênant, le remède est un
   handler `zoomanim`, en suivi.
 
+## Mémoire : le boot échouait après quelques vols (issue #249)
+
+Symptôme rapporté : « le jeu crash systématiquement au démarrage, FIELD et
+LIVE ». Trois formes, toutes vues dans un même onglet Chrome au fil des
+rechargements (une page de vol est rechargée à chaque vol, #226) :
+`unreachable` en rouge sur l'écran de chargement (trap WASM Rapier pendant
+collision-build), chargement figé à « tuiles 1/2… » sans erreur (worker de
+tuile tué par manque de mémoire, Chrome ne déclenche pas `onerror`), et gels
+de 30 s. Le processus de rendu atteignait 4,1 Go de RSS, `usedJSHeapSize`
+1,0 → 1,9 Go sur des pages FRAÎCHES : les gros tampons des pages mortes
+s'empilaient jusqu'à ce qu'une allocation échoue. Rien à voir avec les
+données (selftest paristest vert, 150 graines d'état d'entrée en Node sans
+trap) ni avec le vol lui-même.
+
+Un instantané de tas (Chromium headless, CDP) a nommé les postes d'UNE page
+de paristest : 398 Mo de mémoire WASM Rapier, 268 + 75 Mo de pixels de
+textures gardés en JS après téléversement GPU, 36 Mo de collision.bin retenu
+par le cache `_shape` du Collider Rapier. Correctifs :
+
+- `releaseTexturePixels()` (TileMaterial.js), appelé juste après
+  `renderer.initTexture()` dans `finishBoot()` : `image.data = null` puis le
+  tampon est DÉTACHÉ (`structuredClone` avec transfer) pour être rendu tout de
+  suite, pas au prochain GC. three ne relit les pixels qu'à un nouvel upload,
+  que rien ne déclenche (pas de gestion de contexte perdu).
+- `Physics.releaseSourceArrays()` : vide `groundCollider._shape` (Rapier le
+  recharge à la demande, `ensureShapeIsCached`) et détache le tampon du
+  collision.bin ; `finishBoot()` lâche aussi la référence du cache des
+  préchargements.
+- `loadChunks()` : chien de garde de 60 s de silence par worker de tuile →
+  rejet avec un message explicite au lieu d'un écran figé pour toujours.
+- `startup().catch` : un `WebAssembly.RuntimeError` s'affiche « physique :
+  mémoire insuffisante — fermez les autres onglets du jeu, puis rechargez »
+  plutôt que « unreachable ».
+
+### Vérifié
+
+- `node tools/memory-release-selftest.mjs` : détachement effectif, `_shape`
+  vidé, raycast/step/`collider.shape` encore corrects après, no-op en ?live=.
+- Chromium headless (script CDP, scratchpad de la session) sur
+  `?scene=paristest`, GC forcé entre les mesures : tas JS 457 → 77 Mo, RSS du
+  renderer 1004 → 648 Mo, stable sur trois rechargements.
+- Chrome réel, même page, trois rechargements enchaînés : tas 77 Mo à chaque
+  fois, renderer 590 → 627 Mo (avant : 4,1 Go), textures rendues normalement.
+
+### Non vérifié / reste
+
+- Les 398 Mo de mémoire WASM Rapier par page ne sont pas réductibles d'ici
+  (un `WebAssembly.Memory` ne se détache pas) ; ils sont rendus au GC du
+  document mort, ce qui a suffi dans les mesures ci-dessus.
+- Le chien de garde n'a pas été vu se déclencher (il faudrait tuer un worker
+  à la main) ; le message du trap WASM non plus depuis le correctif.
+- Un onglet en arrière-plan n'avance pas (`nextPaint()` attend un rAF) :
+  c'est normal, mais ça ressemble à un gel si on regarde `[load]` en console.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

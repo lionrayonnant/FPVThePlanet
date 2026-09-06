@@ -25,6 +25,14 @@ export async function initPhysics() {
 }
 
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
+
+// Détache un ArrayBuffer (le transfère à personne) : sa mémoire est rendue
+// immédiatement, sans attendre le ramasse-miettes. Sans effet sur un
+// SharedArrayBuffer ou un tampon déjà détaché ; jamais d'exception.
+export function detachBuffer(buf) {
+	if (!(buf instanceof ArrayBuffer) || buf.byteLength === 0) return;
+	try { structuredClone(buf, { transfer: [buf] }); } catch { /* déjà détaché, ou non transférable */ }
+}
 const ZERO = { x: 0, y: 0, z: 0 };
 
 export class Physics {
@@ -41,8 +49,9 @@ export class Physics {
 		// wasm "unreachable" côté ColliderDesc.trimesh) — sauter la création
 		// dans ce cas et laisser groundBody nu, prêt à recevoir des colliders
 		// de nœuds rocktree via addNodeCollider().
+		this.groundCollider = null;
 		if (collision.vertices.length > 0 && collision.indices.length > 0) {
-			this.world.createCollider(
+			this.groundCollider = this.world.createCollider(
 				RAPIER.ColliderDesc.trimesh(collision.vertices, collision.indices)
 					.setFriction(0.9)
 					.setRestitution(0.15),
@@ -157,6 +166,20 @@ export class Physics {
 			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },
 			IDENTITY, true,
 		);
+	}
+
+	// Lâche les tableaux JS qui ont servi à construire le trimesh de scène
+	// (issue #249). Rapier en a fait sa propre copie dans la mémoire WASM ;
+	// côté JS il ne reste que le cache `_shape` du Collider, qui retient les
+	// vues `vertices`/`indices` et donc tout le collision.bin (36 Mo sur
+	// paristest, 100+ sur les grandes zones) pour toute la vie de la page.
+	// Rapier recharge ce cache à la demande (ensureShapeIsCached), donc le
+	// vider est sans effet sur les requêtes — et personne ici ne lit
+	// `collider.shape`. Le tampon est ensuite DÉTACHÉ pour être rendu tout de
+	// suite, sans attendre un GC qui, sous pression mémoire, arrive trop tard.
+	releaseSourceArrays(collision) {
+		if (this.groundCollider && '_shape' in this.groundCollider) this.groundCollider._shape = null;
+		detachBuffer(collision?.vertices?.buffer);
 	}
 
 	// #168, #170 : convertit la géométrie d'UN nœud rocktree fraîchement

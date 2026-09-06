@@ -138,6 +138,22 @@ export function createTileMaterial(arrayTexture, fogColor, fogDensity, bbox) {
 	});
 }
 
+// Une fois la texture téléversée (renderer.initTexture), ses pixels n'ont plus
+// de raison d'exister côté JS : three ne les relit qu'à un nouvel upload, que
+// rien ne déclenche ici (pas de needsUpdate, pas de gestion de contexte
+// perdu). Ils pesaient 268 + 75 Mo sur paristest, pour toute la vie de la
+// page, et une page de vol est rechargée à chaque vol (issue #249). Le tampon
+// est détaché pour être rendu tout de suite, pas au prochain GC.
+export function releaseTexturePixels(tex) {
+	const img = tex?.image;
+	const data = img?.data;
+	if (!data) return;
+	img.data = null;
+	const buf = data.buffer;
+	if (!(buf instanceof ArrayBuffer) || buf.byteLength === 0) return;
+	try { structuredClone(buf, { transfer: [buf] }); } catch { /* non transférable : le GC s'en chargera */ }
+}
+
 export function createArrayTexture(pixels, cell, layerCount, { mipmaps = true, anisotropy = 8 } = {}) {
 	const tex = new THREE.DataArrayTexture(pixels, cell, cell, layerCount);
 	tex.format = THREE.RGBAFormat;

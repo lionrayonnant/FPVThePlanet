@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
+import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { generateEntryState } from './entry-state.js';
@@ -745,7 +746,8 @@ function exposeDebugGlobal() {
 }
 
 async function finishBoot(preloading) {
-	const { manifest, meshes, collision, t0 } = await preloading;
+	const preloaded = await preloading;
+	const { manifest, meshes, collision, t0 } = preloaded;
 
 	// Le montage dans la scène a lieu ICI et pas dans preloadScene() : à partir
 	// de cet instant la zone est engagée, on ne revient plus en arrière.
@@ -764,6 +766,12 @@ async function finishBoot(preloading) {
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	// Le collision.bin a été copié dans la mémoire WASM : plus rien ici n'en
+	// relit les tableaux JS. On les rend tout de suite (issue #249) — le cache
+	// des préchargements retiendrait sinon la zone entière jusqu'au prochain
+	// rechargement, et le Collider Rapier en garde une vue de son côté.
+	physics.releaseSourceArrays(collision);
+	preloaded.collision = null;
 	// Sur les chemins sans cible (?scene=, mode dev sans ?family=), PROFILE n'a
 	// jamais été résolu et Physics est retombé sur son profil par défaut. Les
 	// deux couches d'OSD lisent la batterie et la masse du profil à chaque
@@ -846,6 +854,10 @@ async function finishBoot(preloading) {
 		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
 		await nextPaint();
 		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
+		// Sur le GPU, donc plus en RAM (issue #249) : ces pixels étaient le
+		// premier poste mémoire de la page, et une page de vol ne survit pas
+		// au vol suivant — chaque rechargement en empilait une copie de plus.
+		releaseTexturePixels(meshes[i].material.uniforms.uMap.value);
 	}
 
 	// compileAsync() polls the driver's KHR_parallel_shader_compile status every
@@ -2661,8 +2673,21 @@ startup()
 		console.error(err);
 		hud.show();
 		uiAudio.play('ERROR');
-		hud.fail(err.message);
+		hud.fail(bootFailureMessage(err));
 	});
+
+// Le message qu'affiche l'écran de chargement quand le boot échoue. Un trap
+// WASM de Rapier (« RuntimeError: unreachable ») n'est pas une exception JS
+// avec un sens lisible : dans les faits (issue #249) c'est une allocation qui a
+// échoué parce que le processus de rendu n'a plus de mémoire — d'autres onglets
+// du jeu, ou plusieurs vols enchaînés dans le même onglet. On le dit, et on dit
+// quoi faire, plutôt que d'afficher « unreachable ».
+function bootFailureMessage(err) {
+	if (err instanceof WebAssembly.RuntimeError) {
+		return 'physique : mémoire insuffisante — fermez les autres onglets du jeu, puis rechargez';
+	}
+	return err.message;
+}
 
 // Ouvre la session dès que la première image de vol est prête (PHASE 06). La
 // météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
