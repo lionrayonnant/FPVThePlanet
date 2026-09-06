@@ -40,12 +40,13 @@ export function screen(root, cls = '') {
 	return { el, box, remove: () => { unwatch(); el.remove(); } };
 }
 
-export function button(label, onClick, cls = 'terminal-link') {
+export function button(label, onClick, cls = 'terminal-link', title = '') {
 	const b = document.createElement('button');
 	b.type = 'button';
 	b.className = cls;
 	b.textContent = cls.split(' ').includes('terminal-cta') ? `[ ${label} ]` : label;
 	b.onclick = onClick;
+	if (title) b.title = title;
 	return b;
 }
 
@@ -53,9 +54,9 @@ export function button(label, onClick, cls = 'terminal-link') {
 function navRow(entries) {
 	const row = document.createElement('div');
 	row.className = 'terminal-nav';
-	entries.forEach(([label, fn], i) => {
+	entries.forEach(([label, fn, title], i) => {
 		if (i) row.appendChild(document.createTextNode(' · '));
-		row.appendChild(button(label, fn));
+		row.appendChild(button(label, fn, 'terminal-link', title));
 	});
 	return row;
 }
@@ -260,15 +261,15 @@ function localTerrain(root, scenes) {
 				actions.className = 'terminal-nav terminal-area-actions';
 				actions.hidden = true;
 				actions.append(
-					button('OPEN', () => done(sc.slug)),
-					button('FORECAST', () => forecastScreen(root, sc)),
+					button('OPEN', () => done(sc.slug), 'terminal-link', 'Fly this area'),
+					button('FORECAST', () => forecastScreen(root, sc), 'terminal-link', 'Preview weather over this area'),
 					button('REMOVE', async () => {
 						closeSub();
 						const r = await fetch(`/__map-api/scenes/${sc.slug}`, { method: 'DELETE' });
 						if (!r.ok) return;
 						scenes = scenes.filter((x) => x.slug !== sc.slug);
 						render(Math.min(i, scenes.length - 1));
-					}));
+					}, 'terminal-link', 'Delete this downloaded area'));
 
 				item.append(row, actions);
 				list.appendChild(item);
@@ -492,22 +493,22 @@ function archiveScreen(root, { model, api, scenes, settings }) {
 				const r = await lastSessionScreen(root, model);
 				// lastSessionScreen rend un slug, { slug, resume }, ou rien.
 				return typeof r === 'string' ? r : r ?? undefined;
-			})],
+			}), 'Review or resume your most recent flight'],
 			['SESSION LOG', () => behind(async () => {
 				const { runSessionLog } = await import('./session-log.js');
 				return await runSessionLog(root, { operator: api.getOperator(), scenes });
-			})],
+			}), 'Browse every past flight session'],
 			['TARGET LOG', () => behind(async () => {
 				const { runTargetLog } = await import('./session-log.js');
 				await runTargetLog(root, { operator: api.getOperator() });
-			})],
+			}), 'Browse targets captured across all sessions'],
 		]));
 
 		s.box.appendChild(navRow([
-			['CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api))],
-			['OPERATOR', () => behind(() => operatorScreen(root, api))],
-			['BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator()))],
-			['SETTINGS', () => settings?.toggleSettings(true)],
+			['CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api)), 'View or redefine your assigned control vector'],
+			['OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats'],
+			['BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version'],
+			['SETTINGS', () => settings?.toggleSettings(true), 'Controller mapping, controls, sound'],
 		]));
 
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
@@ -619,8 +620,9 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		// une seule carte.
 		const tabs = document.createElement('div');
 		tabs.className = 'terminal-tabs';
+		const tabTitles = { local: 'Fly a downloaded area', live: 'Take off live from a map pin' };
 		for (const [id, label] of [['local', 'LOCAL'], ['live', 'LIVE']]) {
-			const b = button(label, () => setTab(id), 'terminal-tab');
+			const b = button(label, () => setTab(id), 'terminal-tab', tabTitles[id]);
 			b.dataset.on = String(tab === id);
 			tabs.appendChild(b);
 		}
@@ -681,7 +683,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				scanner?.refreshCoverage();
 				s.el.hidden = false;
 				renderLeft();
-			}]);
+			}, 'Search, sort or remove every local area']);
 			tail.push(['ARCHIVE', async () => {
 				s.el.hidden = true;
 				const r = await archiveScreen(root, { model, api, scenes, settings });
@@ -690,7 +692,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				s.el.hidden = false;
 				// Une suppression a pu changer les compteurs du pied.
 				renderLeft();
-			}]);
+			}, 'Session history, control vector, operator, build notes']);
 			left.appendChild(navRow(tail));
 
 			// Tracer n'est pas voler, mais il faut bien pouvoir commencer : au
@@ -702,8 +704,8 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				const row = document.createElement('div');
 				row.className = 'terminal-acts';
 				row.append(
-					button('DRAW BOX', draw('Rectangle'), 'terminal-cta terminal-scanner-cta'),
-					button('DRAW SHAPE', draw('Polygon'), 'terminal-cta terminal-scanner-cta'),
+					button('DRAW BOX', draw('Rectangle'), 'terminal-cta terminal-scanner-cta', 'Trace a rectangular area on the map to download'),
+					button('DRAW SHAPE', draw('Polygon'), 'terminal-cta terminal-scanner-cta', 'Trace a free-form area on the map to download'),
 				);
 				left.appendChild(row);
 			}
