@@ -3,6 +3,10 @@
 // est dans src/coverage.js (planDraw) et vérifié là ; ici il ne reste qu'un
 // canvas et le cycle de vie d'un calque.
 //
+// Les constantes d'alpha viennent de coverage.js : c'est planDraw qui décide
+// de l'alpha, ce module ne fait que le lire comme curseur de teinte.
+import { ALPHA_MIN, ALPHA_MAX } from './coverage.js';
+//
 // Un pane dédié, sous les vecteurs : la tache est un FOND, pas un objet qu'on
 // désigne. overlayPane est à 400 et porte les cadres de zone (SVG) ; tilePane
 // à 200. À 350 le canvas passe au-dessus des tuiles et sous les cadres, sans
@@ -13,8 +17,38 @@
 const PANE = 'coverage';
 const PANE_Z = 350;
 
-export function createCoverageLayer(L, { getCoverage, color = '#ece7dd', planDraw }) {
-	const rgb = hexToRgb(color);
+// Le skin de la tache (issue #251) : magenta au cœur, cyan sur le halo,
+// transparent au bord. Ce sont les deux couleurs réservées au rituel (tokens
+// --magenta / --cyan) — choix assumé par l'auteur de la DA pour cette tache.
+// Le mélange suit la densité de passage : `alpha` est ce que planDraw a
+// décidé entre ALPHA_MIN et ALPHA_MAX, et sert aussi de curseur cyan → magenta
+// au cœur. Un passage isolé reste surtout cyan ; une zone survolée souvent
+// vire au magenta au centre ; en 'lighter', deux taches qui se recouvrent
+// s'additionnent vers un violet clair, le troisième token de la famille.
+const CORE_MIX_MIN = 0.35;   // part de magenta au cœur, passage isolé
+const CORE_MIX_MAX = 1.0;    // …et à saturation (W_MAX)
+const HALO_STOP = 0.55;      // où le cœur a fini de céder au cyan (fraction du rayon)
+const HALO_ALPHA = 0.6;      // alpha du halo, en fraction de celui du cœur
+
+export function mixHex(a, b, t) {
+	const A = hexToRgbArray(a), B = hexToRgbArray(b);
+	return A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(', ');
+}
+
+// Les arrêts du dégradé d'un disque : [[offset, 'rgba(...)'], …]. Pur, pour
+// être vérifié en Node ; le dessinateur ne fait que les poser.
+export function blobStops({ core, halo }, alpha) {
+	const t = Math.max(0, Math.min(1, (alpha - ALPHA_MIN) / (ALPHA_MAX - ALPHA_MIN)));
+	const mix = CORE_MIX_MIN + (CORE_MIX_MAX - CORE_MIX_MIN) * t;
+	const haloRgb = mixHex(halo, halo, 0);
+	return [
+		[0, `rgba(${mixHex(halo, core, mix)}, ${alpha})`],
+		[HALO_STOP, `rgba(${haloRgb}, ${alpha * HALO_ALPHA})`],
+		[1, `rgba(${haloRgb}, 0)`],
+	];
+}
+
+export function createCoverageLayer(L, { getCoverage, colors = { core: '#e34de0', halo: '#4dd8e8' }, planDraw }) {
 
 	const Layer = L.Layer.extend({
 		onAdd(map) {
@@ -81,8 +115,7 @@ export function createCoverageLayer(L, { getCoverage, color = '#ece7dd', planDra
 			for (const { cx, cy, r, alpha } of plan) {
 				const rr = Math.max(1.5, r);
 				const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
-				g.addColorStop(0, `rgba(${rgb}, ${alpha})`);
-				g.addColorStop(1, `rgba(${rgb}, 0)`);
+				for (const [offset, rgba] of blobStops(colors, alpha)) g.addColorStop(offset, rgba);
 				ctx.fillStyle = g;
 				ctx.beginPath();
 				ctx.arc(cx, cy, rr, 0, Math.PI * 2);
@@ -95,9 +128,9 @@ export function createCoverageLayer(L, { getCoverage, color = '#ece7dd', planDra
 	return new Layer();
 }
 
-// '#ece7dd' → '236, 231, 221'. Les tokens du dépôt sont en hex 6 chiffres.
-function hexToRgb(hex) {
+// '#ece7dd' → [236, 231, 221]. Les tokens du dépôt sont en hex 6 chiffres.
+function hexToRgbArray(hex) {
 	const h = hex.replace('#', '');
 	const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
-	return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+	return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }

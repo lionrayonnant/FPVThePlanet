@@ -8,6 +8,7 @@ import {
 	Coverage,
 	BLOB_RADIUS_CELLS, ALPHA_MIN, ALPHA_MAX, planDraw,
 } from '../src/coverage.js';
+import { blobStops, mixHex } from '../src/map-coverage.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -258,6 +259,46 @@ t('planDraw : hors du cadre (au-delà du rayon), on ne dessine pas', () => {
 
 t('planDraw : une couverture vide rend un plan vide, quelle que soit la projection', () => {
 	assert.deepEqual(planDraw(new Coverage(), () => ({ x: 0, y: 0 }), { w: 10, h: 10 }), []);
+});
+
+// ---------- skin de la tache (issue #251) : magenta au cœur, cyan au halo ----------
+// map-coverage.js reste importable ici (Leaflet arrive en paramètre) : la
+// couleur de chaque disque est une fonction pure de l'alpha planifié.
+const SKIN = { core: '#e34de0', halo: '#4dd8e8' };
+
+t('mixHex : 0 rend la première couleur, 1 la seconde, 0,5 le milieu arrondi', () => {
+	assert.equal(mixHex('#000000', '#ffffff', 0), '0, 0, 0');
+	assert.equal(mixHex('#000000', '#ffffff', 1), '255, 255, 255');
+	assert.equal(mixHex('#000000', '#ffffff', 0.5), '128, 128, 128');
+	assert.equal(mixHex('#4dd8e8', '#e34de0', 0), '77, 216, 232');
+});
+
+t('blobStops : trois arrêts, 0 → 0,55 → 1, le dernier transparent', () => {
+	const stops = blobStops(SKIN, ALPHA_MIN);
+	assert.equal(stops.length, 3);
+	assert.deepEqual(stops.map((s) => s[0]), [0, 0.55, 1]);
+	assert.match(stops[2][1], /, 0\)$/);
+});
+
+t('blobStops : un passage isolé reste surtout cyan au cœur, une zone saturée vire au magenta', () => {
+	const rgbOf = (stop) => stop[1].match(/rgba\((\d+), (\d+), (\d+)/).slice(1).map(Number);
+	const faint = rgbOf(blobStops(SKIN, ALPHA_MIN)[0]);
+	const dense = rgbOf(blobStops(SKIN, ALPHA_MAX)[0]);
+	// magenta = rouge fort, vert faible ; cyan = l'inverse.
+	assert.ok(dense[0] > faint[0], 'plus dense → plus de rouge (magenta)');
+	assert.ok(dense[1] < faint[1], 'plus dense → moins de vert (moins cyan)');
+	assert.ok(faint[1] > faint[0], 'un passage isolé garde une dominante cyan');
+});
+
+t('blobStops : le halo est toujours cyan pur et son alpha suit celui du cœur', () => {
+	for (const a of [ALPHA_MIN, (ALPHA_MIN + ALPHA_MAX) / 2, ALPHA_MAX]) {
+		const [core, halo] = blobStops(SKIN, a);
+		assert.match(halo[1], /^rgba\(77, 216, 232, /);
+		const ac = Number(core[1].match(/, ([\d.]+)\)$/)[1]);
+		const ah = Number(halo[1].match(/, ([\d.]+)\)$/)[1]);
+		assert.ok(Math.abs(ac - a) < 1e-9, 'le cœur porte l’alpha planifié');
+		assert.ok(ah < ac && ah > 0, 'le halo est plus léger que le cœur, jamais nul');
+	}
 });
 
 console.log(`\n${n} tests coverage OK`);

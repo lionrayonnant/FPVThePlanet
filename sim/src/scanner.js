@@ -292,7 +292,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	// perd la trace de la session : même classe de perte que sendBeacon, voir
 	// HANDOFF.
 	const coverage = createCoverageLayer(L, {
-		color: token('--warm-white') || '#ece7dd',
+		colors: { core: token('--magenta') || '#e34de0', halo: token('--cyan') || '#4dd8e8' },
 		planDraw,
 		getCoverage: () => Coverage.fromStored(operatorApi.getOperator()?.coverage),
 	}).addTo(map);

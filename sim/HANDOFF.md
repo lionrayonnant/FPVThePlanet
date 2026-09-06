@@ -1874,6 +1874,16 @@ un serveur lent, la trace d'une session peut être coupée par le rechargement.
 Suivi : issue sur `operator.flush()` à l'unload, qui concerne aussi `settings`
 et `dialogueMemory`.
 
+### Skin de la tache (issue #251)
+
+Magenta au cœur, cyan sur le halo, transparent au bord (tokens `--magenta` /
+`--cyan`, passés par scanner.js ; `blobStops()` dans map-coverage.js, pur et
+vérifié en Node). L'alpha planifié sert aussi de curseur : passage isolé
+surtout cyan, zone survolée souvent magenta au centre ; les recouvrements
+s'additionnent en 'lighter' vers un violet clair. La Bible réserve ces
+couleurs au rituel — choix assumé par l'auteur, validé à l'œil sur la carte
+FIELD le 2026-09-06.
+
 ### Vérifié — sans navigateur
 
 `node tools/coverage-selftest.mjs` (17) : la tuile de la Tour Eiffel calculée à
