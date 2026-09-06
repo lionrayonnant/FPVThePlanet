@@ -39,7 +39,17 @@ let n = 0;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 
 const reset = () => { dom.root.replaceChildren(); dom.setActive(null); scenesReply = SCENES; };
-const btn = (label) => dom.root.querySelectorAll('button').find((b) => b.textContent.includes(label));
+// Le libellé exact d'abord (« MODE », « ARCHIVE »), puis le CTA entre crochets,
+// et seulement ensuite un préfixe (« FLY — »). Un simple `includes` prenait la
+// ligne d'une zone pour le pied de page : la météo hors ligne est seedée par
+// jour, et « MODERATE WIND » contient « MODE » — le selftest bloquait certains
+// jours, la ligne de zone cliquée ne résolvant jamais l'écran.
+const btn = (label) => {
+	const all = dom.root.querySelectorAll('button');
+	return all.find((b) => b.textContent === label)
+		?? all.find((b) => b.textContent === `[ ${label} ]`)
+		?? all.find((b) => b.textContent.startsWith(label) || b.textContent.startsWith(`[ ${label}`));
+};
 const text = () => dom.root.textContent;
 
 // Un opérateur minimal : terminalModel() n'a besoin que de ça.
