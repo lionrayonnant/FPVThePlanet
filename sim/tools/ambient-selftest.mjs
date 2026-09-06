@@ -141,7 +141,7 @@ console.log('\nambient: bulle, ancres, validation');
 	const rand = rngFrom('anchors');
 	let ok = 0, n = 0;
 	for (let i = 0; i < 200; i++) {
-		const a = pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays, top: 250, span: 400 });
+		const a = pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays, top: 250, span: 400, agl: 10 });
 		if (!a) continue;
 		n++;
 		const d = Math.hypot(a.x - player.x, a.z - player.z);
@@ -149,9 +149,12 @@ console.log('\nambient: bulle, ancres, validation');
 		const hidden = outOfView(a.x - player.x, a.z - player.z, a.y - player.y, cam, 120) || d >= 220;
 		if (inRect(a) && inRing && hidden) ok++;
 	}
-	function inRect(a) { return insideBounds(bigRect, a.x, a.z, a.y, 20); }
-	check('200 ancres : toutes conformes', n > 150 && ok === n, `${ok}/${n}`);
-	check('pas de sol → pas d\'ancre', pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays: { ...rays, groundBelow: () => null }, top: 250, span: 400 }) === null);
+	function inRect(a) { return insideBounds(bigRect, a.x, a.z, a.y + 10, 20); }
+	// E[n] : P(d<220)=100/130≈0,769, P(visible)=150°/360°≈0,417 (fovDeg=120, marge=15)
+	// ⇒ P(rejet)≈0,320 ⇒ E[n]≈136, σ=√(200·0,68·0,32)≈6,6. Un outOfView cassé (signe
+	// de fz) rejette presque tout : n tombe à ≤ 46. Seuil à 110, large sous E[n]-σ.
+	check('200 ancres : toutes conformes', n > 110 && ok === n, `${ok}/${n}`);
+	check('pas de sol → pas d\'ancre', pickAnchor({ rand, player, cam, fovDeg: 120, bounds: bigRect, radius: 20, rays: { ...rays, groundBelow: () => null }, top: 250, span: 400, agl: 10 }) === null);
 
 	// Validation : plat → ok ; mur → rejet ; sol trop haut sous un point → rejet.
 	const r = routineFor({ family: 'freestyle5', twr: 6, rand: rngFrom('v') });
@@ -167,7 +170,9 @@ console.log('\nambient: bulle, ancres, validation');
 
 console.log('\nambient: modèle');
 {
-	const bigRect = { bbox: { min: [-2000, 0, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
+	// min[1] = -50 : le stub de sol plat à 0 se tient 50 m au-dessus du plancher,
+	// comme une vraie carte dont bbox.min[1] est son plus bas sommet de maillage.
+	const bigRect = { bbox: { min: [-2000, -50, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
 	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
 	const scan = { seed: 'model-a', count: 5, index: 0 };
 	const set = ambientSet(scan);
@@ -218,7 +223,8 @@ console.log('\nambient: modèle');
 	check('60 m : aucune relocalisation', m.stats.relocations === before60);
 
 	// Petite carte : tout dedans, jamais de départ.
-	const small = { bbox: { min: [-90, 0, -90], max: [90, 100, 90] }, corridor: { hold: 10 } };
+	// Même raison qu'au-dessus : le sol plat à 0 doit rester au-dessus du plancher.
+	const small = { bbox: { min: [-90, -50, -90], max: [90, 100, 90] }, corridor: { hold: 10 } };
 	const ms = new AmbientModel({ set, builds, bounds: small, seed: 's' });
 	for (let i = 0; i < 6; i++) frame(ms, player);
 	check('petite carte : des drones naissent', ms.count >= 1);

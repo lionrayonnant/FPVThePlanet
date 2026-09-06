@@ -292,7 +292,9 @@ export function outOfView(dx, dz, dy, cam, fovDeg) {
 // Une ancre dans la couronne, hors champ, dans la clôture, sur du sol. Un
 // rayon. `top`/`span` : d'où et sur quelle longueur lancer vers le bas
 // (haut de bbox + 50 et hauteur + 100, comme groundAt de l'entry state).
-export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, stats }) {
+// Le plancher se vérifie à la hauteur de VOL (sol + agl) : l'ancre elle-même
+// reste au sol (`y = g`), seule la clôture est testée à `g + agl`.
+export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, agl, stats }) {
 	const { rMin, rMax } = bubbleFor(bounds, player);
 	const d = rMin + rand() * (rMax - rMin);
 	const a = rand() * TWO_PI;
@@ -301,7 +303,7 @@ export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, to
 	const g = rays.groundBelow(x, top, z, span);
 	if (g == null) return null;
 	const y = g;
-	if (!insideBounds(bounds, x, z, y, radius)) return null;
+	if (!insideBounds(bounds, x, z, y + agl, radius)) return null;
 	if (d < IN_VIEW_MIN_M && !outOfView(x - player.x, z - player.z, y - player.y, cam, fovDeg)) return null;
 	return { x, y, z };
 }
@@ -380,7 +382,7 @@ export class AmbientModel {
 			const r = this.routines[k];
 			const radius = r.kind === 'cruise' ? r.leg / 2 + r.radius : r.kind === 'eight' ? 2 * r.radius : r.radius;
 			for (let tries = 0; tries < SPAWN_TRIES_PER_FRAME; tries++) {
-				const a = pickAnchor({ rand: this.rand, player, cam, fovDeg, bounds: this.bounds, radius, rays, top, span, stats: this.stats });
+				const a = pickAnchor({ rand: this.rand, player, cam, fovDeg, bounds: this.bounds, radius, rays, top, span, agl: r.agl, stats: this.stats });
 				if (!a) { this.stats.spawnFailures++; continue; }
 				if (!validateCurve({ routine: r, anchor: a, rays, heights: this.heights[k], top, span, stats: this.stats })) {
 					this.stats.spawnFailures++; continue;
