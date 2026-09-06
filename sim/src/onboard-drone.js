@@ -1,13 +1,13 @@
 // Le drone du joueur (issue #264) — deux exemplaires du MÊME build, et la
 // règle qui les sépare : en vue pilote on voit ses hélices (l'exemplaire
-// embarqué, tâche 7) ; en free cam on voit la machine entière (l'exemplaire
-// monde). Jamais les deux, jamais aucun pendant un vol.
+// embarqué) ; en free cam on voit la machine entière (l'exemplaire monde).
+// Jamais les deux, jamais aucun pendant un vol.
 //
 // Ce module ne sait rien du contrôleur ni de Rapier : il reçoit une pose et
 // quatre régimes, il pose des matrices.
 import * as THREE from 'three';
 import { shapeOf } from './drone-shape.js';
-import { buildDroneMesh, setSun, setFog, setTime, setResolution } from './drone-mesh.js';
+import { buildDroneMesh, setSun, setFog, setTime, setOmega, setResolution } from './drone-mesh.js';
 import { token } from './palette.js';
 
 const hex = (name) => new THREE.Color(token(name)).getHex();
@@ -17,6 +17,8 @@ const hex = (name) => new THREE.Color(token(name)).getHex();
 // profil le porte déjà — on ne fabrique pas un faux tirage pour autant.
 const buildFor = (profile, build) => build ?? { spec: { cells: profile.battery.cells } };
 
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+
 export class PlayerDrone {
 	constructor({ scene, profile, build, camera }) {
 		this.scene = scene;
@@ -24,20 +26,61 @@ export class PlayerDrone {
 			frame: hex('--dark-grey'), metal: hex('--grey'),
 			prop: hex('--light-grey'), led: hex('--warm-white'),
 		};
-		// L'exemplaire MONDE : la recette telle qu'elle est aujourd'hui
-		// (`silhouette` par défaut), posée à la transformation physique.
-		this.world = buildDroneMesh(shapeOf({ profile, build: buildFor(profile, build), camera }), { colors: this._colors });
-		this.world.group.visible = false;
-		scene.add(this.world.group);
-		this.onboard = null;   // tâche 7
-		this._freeCam = false;
-		this._time = 0;
 		// Pré-alloués : update() n'alloue rien.
 		this._p = new THREE.Vector3();
 		this._q = new THREE.Quaternion();
 		this._s = new THREE.Vector3(1, 1, 1);
+		this._qCam = new THREE.Quaternion();
+		this._sunCam = new THREE.Vector3(0, 1, 0);
 		this._lastFog = { color: -1, density: -1 };
 		this._lastRes = { w: -1, h: -1 };
+
+		const recipe = { profile, build: buildFor(profile, build), camera };
+		// L'exemplaire MONDE : la recette telle qu'elle est aujourd'hui
+		// (`silhouette` par défaut), posée à la transformation physique.
+		this.world = buildDroneMesh(shapeOf(recipe), { colors: this._colors });
+		this.world.group.visible = false;
+		scene.add(this.world.group);
+
+		// L'exemplaire EMBARQUÉ. Il vit dans sa propre scène, avec sa propre
+		// caméra : la caméra de vol a near = 0.15 (le rayon du collider, cf.
+		// drone-profiles.js) et est posée AU CENTRE du corps — tout le drone est
+		// donc dans son near plane, et il n'y a rien à afficher sans ce
+		// dispositif.
+		//
+		// Aucune transformation monde n'entre ici : l'oeil est à l'origine et la
+		// machine est posée UNE FOIS à −mount, dé-tiltée de l'uptilt. Les hélices
+		// sont rigides à l'objectif, donc leur place à l'image est un fait de
+		// construction, pas un calcul par frame. C'est exactement le montage que
+		// tools/prop-coverage.mjs rasterise pour tenir la borne DA : l'oeil à la
+		// part `camera` de la recette, le champ VERTICAL de la caméra de vol, le
+		// format du capteur, l'uptilt en rotation autour de +X.
+		const shape = shapeOf({ ...recipe, detail: 'onboard' });
+		const cam = shape.parts.find((p) => p.role === 'camera');
+		const up = camera.uptiltDeg * Math.PI / 180;
+		this.onboardScene = new THREE.Scene();
+		// far = 4 m : la machine tient dans 30 cm, et un near de 5 mm n'a de
+		// précision de profondeur que si le far reste court.
+		this.onboardCamera = new THREE.PerspectiveCamera(camera.fovDeg, camera.aspect, 0.005, 4);
+		this.onboard = buildDroneMesh(shape, { colors: this._colors });
+		// Le passage repère du corps → repère de l'objectif : l'inverse du
+		// montage. D'où le −uptilt, et le −mount tourné avec.
+		const tilt = new THREE.Quaternion().setFromAxisAngle(X_AXIS, -up);
+		const at = new THREE.Vector3(-cam.at[0], -cam.at[1], -cam.at[2]).applyQuaternion(tilt);
+		this.onboard.group.matrix.compose(at, tilt, this._s);
+		this.onboard.group.matrixWorldNeedsUpdate = true;
+		this.onboard.group.visible = true;
+		// La LED de nav est à l'arrière du corps, donc DERRIÈRE l'oeil : elle
+		// n'a rien à faire dans cette passe, et c'est un billboard qui n'est
+		// jamais culled.
+		this.onboard.led.visible = false;
+		this.onboardScene.add(this.onboard.group);
+		// L'orientation de l'objectif dans le corps, gardée pour ramener le
+		// soleil dans le repère embarqué à chaque frame.
+		this._tilt = new THREE.Quaternion().setFromAxisAngle(X_AXIS, up);
+
+		this._freeCam = false;
+		this._time = 0;
 	}
 
 	setFreeCam(on) {
@@ -49,12 +92,29 @@ export class PlayerDrone {
 	get worldVisible() { return !!this.world?.group.visible; }
 	get onboardVisible() { return !!this.onboard?.group.visible; }
 
-	update({ dt = 0, position, quaternion, omega, sun, dim = 1, fogColor, fogDensity, resolution } = {}) {
+	update({ dt = 0, position, quaternion, omega, camera, sun, dim = 1, fogColor, fogDensity, resolution } = {}) {
 		if (!this.world) return;
 		this._time += dt;
+		if (quaternion) this._q.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+
+		// La caméra embarquée suit le champ de la caméra de vol : c'est la même
+		// optique, et la borne DA est mesurée sur elle.
+		if (camera) {
+			this.onboardCamera.fov = camera.fov;
+			this.onboardCamera.aspect = camera.aspect;
+			this.onboardCamera.updateProjectionMatrix();
+		}
+		// Le régime des quatre moteurs va aux DEUX exemplaires : c'est lui qui
+		// fait tourner les hélices, et le lacet se lit dans les deux hélices du
+		// champ parce que les avant sont sur des diagonales opposées.
+		if (omega) {
+			setOmega(this.onboard.material, omega);
+			setOmega(this.world.material, omega);
+		}
+		setTime(this.onboard.material, this._time);
+
 		if (this.worldVisible && position && quaternion) {
 			this._p.set(position.x, position.y, position.z);
-			this._q.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 			this.world.group.matrix.compose(this._p, this._q, this._s);
 			this.world.group.matrixWorldNeedsUpdate = true;
 		}
@@ -70,13 +130,24 @@ export class PlayerDrone {
 		}
 		setTime(this.world.material, this._time);
 		setTime(this.world.ledMaterial, this._time);
-		if (sun) setSun(this.world.material, sun.dir, dim, sun.night);
-		void omega;   // tâche 6
+		if (sun) {
+			setSun(this.world.material, sun.dir, dim, sun.night);
+			// Le maillage embarqué est RIGIDE à l'objectif : son modelMatrix
+			// n'est pas une transformation monde, et le shader éclaire avec
+			// mat3(modelMatrix)·normal. Une direction monde y allumerait donc
+			// toujours le même côté des hélices, quoi que fasse la machine. On
+			// ramène le soleil dans le repère de l'objectif — l'inverse de
+			// (rotation du corps · uptilt).
+			this._qCam.copy(this._q).multiply(this._tilt).invert();
+			this._sunCam.set(sun.dir.x, sun.dir.y, sun.dir.z).applyQuaternion(this._qCam);
+			setSun(this.onboard.material, this._sunCam, dim, sun.night);
+		}
 	}
 
 	dispose() {
 		this.world?.dispose();
 		this.onboard?.dispose();
+		this.onboardScene?.clear();
 		this.world = null; this.onboard = null;
 	}
 }

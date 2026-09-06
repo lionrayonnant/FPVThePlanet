@@ -391,6 +391,9 @@ let emitter = null;
 // caméra de la cible connue — la recette lit son uptilt. Null au banc en vol
 // libre ?live=, comme les ambiants : ce chemin de dev ne monte pas de caméra.
 let playerDrone = null;
+// Le champ de la caméra de vol, tel que la vue embarquée le recopie. Alloué une
+// fois : le chemin de vol n'alloue rien par frame.
+const playerCam = { fov: 120, aspect: 1 };
 // L'exemplaire tiré pour CE vol, hissé des quatre endroits qui le résolvent
 // (terrain, direct, banc, resume/override). PROFILE en porte déjà le profil ;
 // la recette veut le build lui-même. Null quand on vole un profil nominal.
@@ -1537,8 +1540,10 @@ function toggleFreeCam(force) {
 		camera.position.set(p.x + _freeCamBack.x, p.y + _freeCamBack.y, p.z + _freeCamBack.z);
 	}
 	// Le drone du joueur suit la bascule (issue #264) : en free cam on voit la
-	// machine entière, en vue pilote on ne verra que ses hélices (tâche 7).
+	// machine entière, en vue pilote on ne voit que ses hélices — la seconde
+	// passe de lens.js, débranchée dès qu'on quitte les lunettes.
 	playerDrone?.setFreeCam(freeCamOn);
+	lens.setOnboard(freeCamOn ? null : playerDrone?.onboardScene, playerDrone?.onboardCamera);
 	// Revenir au manche ne doit pas rejouer d'un coup l'écart d'horloge accumulé
 	// pendant l'orbite — même précaution que togglePause() juste au-dessus.
 	if (!freeCamOn) { accumulator = 0; lastTime = performance.now(); }
@@ -1827,11 +1832,15 @@ function frame() {
 	// Le soleil, l'obscurcissement, le brouillard et la résolution sont
 	// EXACTEMENT ceux passés aux ambiants juste en dessous : une machine qui
 	// s'assombrirait autrement que celles qui l'entourent se verrait.
+	// Muté, pas remplacé : la vue embarquée relit ce champ à chaque frame.
+	playerCam.fov = camera.fov;
+	playerCam.aspect = camera.aspect;
 	playerDrone?.update({
 		dt: frozen ? 0 : dt,
 		position: physics.position,
 		quaternion: physics.rotation,
 		omega: physics.propulsion.omega,
+		camera: playerCam,
 		sun, dim: cloud.dim,
 		fogColor: scene.background, fogDensity: lastFogDensity,
 		resolution: ambientRes,
@@ -3066,6 +3075,7 @@ async function openFlightSession() {
 	// l'uptilt de la caméra de la cible, qui vient d'être résolue à la ligne
 	// au-dessus. Le profil est celui qui VOLE (physics.profile), pas `PROFILE` :
 	// un changement de cellule au banc passe par physics.setProfile().
+	lens.setOnboard(null);
 	playerDrone?.dispose();
 	playerDrone = new PlayerDrone({
 		scene,
@@ -3074,6 +3084,9 @@ async function openFlightSession() {
 		camera: camSpec,
 	});
 	playerDrone.setFreeCam(freeCamOn);
+	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
+	// near = 5 mm. Débranchée en free cam — c'est la même règle d'exclusivité.
+	lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
 
 	droneOsd?.dispose();
 	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines
@@ -3100,6 +3113,7 @@ window.addEventListener('beforeunload', () => {
 	// un démontage : les ambiants n'y ont rien à faire. Le seul démontage de
 	// page est ici (issue #250).
 	ambient?.dispose();
+	lens.setOnboard(null);
 	playerDrone?.dispose();
 	playerDrone = null;
 });
