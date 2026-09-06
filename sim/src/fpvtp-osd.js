@@ -5,6 +5,11 @@
 // Toujours métrique, même quand la cible affiche des pieds : c'est NOTRE
 // station. Le désaccord entre les deux systèmes fait partie du propos.
 
+import { PORTRAIT_LINE } from './flight-end.js';
+// Le portrait de la machine perdue (#264). Du SVG en ligne : la couche locale
+// est du DOM, elle n'ouvre pas de contexte de rendu.
+import { dronePortrait } from './drone-portrait.js';
+
 // Constante de lore, pas une version de paquet.
 export const FPVTP_VERSION = '0.97b';
 
@@ -94,6 +99,35 @@ export class FpvtpOsd {
 		this._flashUntil = 0;
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
+		// #264 : l'exemplaire en vol, et son dessin une fois le lien perdu. Le
+		// dessin n'est fabriqué qu'au moment où la ligne apparaît — un vol qui
+		// se termine bien n'en construit jamais.
+		this._target = null;
+		this._portrait = null;
+	}
+
+	// L'exemplaire que la station suit (#264) : `family` et `buildSeed`, les
+	// deux champs dont le portrait se déduit. Sans eux — chemins dev, override
+	// NOMINAL — la ligne du portrait reste un blanc, jamais son jeton.
+	setTarget(target) {
+		const family = target?.family ?? null;
+		const buildSeed = target?.buildSeed ?? null;
+		if (this._target?.family === family && this._target?.buildSeed === buildSeed) return;
+		this._dropPortrait();
+		this._target = (family && buildSeed) ? { family, buildSeed } : null;
+	}
+
+	// Le nœud du portrait, fabriqué une seule fois : la séquence de fin
+	// reconstruit ses lignes à chaque ligne qui apparaît, et un portrait
+	// reconstruit à chaque fois repartirait de son premier angle.
+	_portraitNode() {
+		if (!this._portrait && this._target) this._portrait = dronePortrait(this._target);
+		return this._portrait?.el ?? null;
+	}
+
+	_dropPortrait() {
+		this._portrait?.stop();
+		this._portrait = null;
 	}
 
 	show() { this.el.root.hidden = false; }
@@ -196,7 +230,11 @@ export class FpvtpOsd {
 	setFlightEnd({ lines, blackout }) {
 		const e = this.el.flightEnd;
 		if (!lines.length && blackout <= 0) {
-			if (!e.hidden) { e.hidden = true; e.textContent = ''; this._endLines = ''; }
+			if (!e.hidden) {
+				e.hidden = true; e.textContent = ''; this._endLines = '';
+				// L'écran est vidé : le portrait n'a plus de raison de tourner.
+				this._dropPortrait();
+			}
 			return;
 		}
 		e.hidden = false;
@@ -207,8 +245,15 @@ export class FpvtpOsd {
 		if (key !== this._endLines) {
 			this._endLines = key;
 			e.replaceChildren(...lines.map((text) => {
+				// La ligne du portrait n'est pas du texte : c'est le dessin de la
+				// machine. Faute d'exemplaire connu, elle retombe sur un blanc —
+				// jamais sur son jeton, qui n'est pas fait pour être lu.
+				if (text === PORTRAIT_LINE) {
+					const node = this._portraitNode();
+					if (node) return node;
+				}
 				const d = document.createElement('div');
-				d.textContent = text;
+				d.textContent = text === PORTRAIT_LINE ? '' : text;
 				return d;
 			}));
 		}

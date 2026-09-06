@@ -398,6 +398,10 @@ const playerCam = { fov: 120, aspect: 1 };
 // (terrain, direct, banc, resume/override). PROFILE en porte déjà le profil ;
 // la recette veut le build lui-même. Null quand on vole un profil nominal.
 let flightBuild = null;
+// Et sa GRAINE, la même que le serveur reconstruit dans resolveTarget(). Le
+// portrait fil de fer (#264) ne se déduit que de `family` + `buildSeed` : c'est
+// aussi ce qui fait qu'une session déjà journalisée sait afficher sa machine.
+let flightBuildSeed = null;
 let freeCam = null;
 let freeCamOn = false;
 let paused = false;
@@ -2657,6 +2661,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			// posé — c'est déjà ce que fait le vol libre du banc.
 			PROFILE = build.profile;
 			flightBuild = build;
+			flightBuildSeed = buildSeed;
 			benchRates = build.rates;
 			logBuild(build);
 			console.log(`[field] vol en direct → ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
@@ -2749,6 +2754,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		const build = targetBuild({ seed: buildSeed, family: cand._family });
 		PROFILE = build.profile;
 		flightBuild = build;
+		flightBuildSeed = buildSeed;
 		controller = new FlightController({ profile: PROFILE, rates: build.rates });
 		logBuild(build);
 		const booting = finishBoot(preloading);
@@ -2804,6 +2810,7 @@ async function benchLoop(ui) {
 	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
 	PROFILE = build ? build.profile : PROFILES[family];
 	flightBuild = build;
+	flightBuildSeed = build ? config.airframe.seed : null;
 	benchRates = build?.rates ?? null;
 	if (build) logBuild(build);
 	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (nominal)`);
@@ -2917,6 +2924,7 @@ startup()
 		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
 		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
 		flightBuild = build;
+		flightBuildSeed = build ? buildSeed : null;
 		controller = new FlightController(
 			PROFILE ? { profile: PROFILE, rates: build?.rates } : undefined,
 		);
@@ -3084,6 +3092,15 @@ async function openFlightSession() {
 		camera: camSpec,
 	});
 	playerDrone.setFreeCam(freeCamOn);
+	// La station suit le même exemplaire (#264) : c'est de là que la fin de vol
+	// tire son portrait. Le serveur fait foi quand il a répondu — c'est lui qui
+	// a tiré la cible ; sinon la graine du client, qui est la même. Sans
+	// exemplaire (profil nominal, chemins dev) la ligne du portrait reste un
+	// blanc, jamais son jeton.
+	fpvtpOsd.setTarget({
+		family: tgt?.family ?? (flightBuildSeed ? PROFILE?.family : null),
+		buildSeed: tgt?.buildSeed ?? flightBuildSeed,
+	});
 	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
 	// near = 5 mm. Débranchée en free cam — c'est la même règle d'exclusivité.
 	lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
