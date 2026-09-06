@@ -57,6 +57,14 @@ import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 import { AmbientDrones } from './ambient-drones.js';
 
+// La version du build, injectée par vite.config.js depuis package.json (voir
+// CHANGELOG.md et tools/release.mjs). Exposée sur window et écrite une fois
+// dans la console : un rapport de bug dit alors sur quelle version il porte,
+// au lieu de laisser deviner un SHA.
+const VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
+window.FPVTP_VERSION = VERSION;
+console.info(`FPVThePlanet! ${VERSION}`);
+
 // The whole colour pipeline is deliberately pass-through: the shader writes the
 // JPEG's sRGB byte unchanged and outputColorSpace is linear. Left enabled,
 // ColorManagement would convert SKY to linear on construction and that linear

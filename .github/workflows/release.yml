@@ -1,0 +1,62 @@
+# Publication d'une version (issue #257).
+#
+# Déclenché par le push d'un tag `vX.Y.Z` — celui que `npm run release` a créé.
+# Le job refuse de publier si le tag et sim/package.json ne disent pas le même
+# numéro : c'est le garde-fou contre un tag posé à la main sur le mauvais commit.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sim/package-lock.json
+
+      - name: Le tag et sim/package.json disent la même version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} contre version ${pkg} dans sim/package.json"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Selftest du versionnage
+        run: npm run selftest:release
+
+      - name: Build du sim
+        run: npm run build
+
+      - name: Notes de version, reprises du CHANGELOG
+        run: node tools/release-notes.mjs "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+
+      - name: Archive du build
+        run: zip -qr "${RUNNER_TEMP}/fpvtp-sim-${GITHUB_REF_NAME}.zip" dist
+
+      - name: Créer la GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            "${RUNNER_TEMP}/fpvtp-sim-${GITHUB_REF_NAME}.zip"

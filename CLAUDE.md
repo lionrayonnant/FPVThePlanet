@@ -116,6 +116,16 @@ Create a new issue for follow-up work discovered during a session rather than le
 
 Commit and push at good checkpoints. Normal commits/pushes need no confirmation. Do not force-push/rewrite history or bypass branch protection.
 
+Versioning
+
+SemVer. The number lives in `sim/package.json`, the entries in `CHANGELOG.md` at the repo root, each published version carries a `vX.Y.Z` git tag and a GitHub Release.
+
+Add entries under `## [Non publié]` as you work — that section is what a release turns into notes.
+
+Cut a version with `npm run release -- patch|minor|major|X.Y.Z` (from `sim/`). It bumps, dates the section, commits and tags; it never pushes. Pushing the tag is what triggers `.github/workflows/release.yml`. Do not hand-edit the version or the released sections.
+
+The `BUILD NOTES` build numbers (`sim/tools/buildnotes-model.mjs`) are diegetic lore, unrelated to the real version.
+
 Secrets / large data
 
 flyover-reverse-engineering/config.json contains a real Apple Flyover token and is gitignored. Never remove it from .gitignore or commit it. config.json.example documents its shape.
