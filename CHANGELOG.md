@@ -20,6 +20,15 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Calibrage automatique des radios et des manettes (#277) : un assistant guidé
+  dans le panneau Tab (`CALIBRATE`) qui MESURE le périphérique au lieu de le
+  deviner à partir de sa chaîne USB. Une consigne à la fois — neutre, gaz,
+  lacet, tangage, roulis — d'où sortent le neutre réel de chaque axe, la course
+  réelle, le bruit au repos (qui devient le deadband) et le mode de course du
+  gaz, observé en lâchant le manche plutôt que déduit de la marque. Deux axes
+  poussés ensemble, ou un axe déjà pris, font redemander la consigne au lieu
+  d'attribuer un mappage faux en silence. `src/calibration.js` est une machine à
+  états pure, couverte par `tools/calibration-selftest.mjs`.
 - Versionnage du dépôt (#257) : `CHANGELOG.md`, version SemVer dans
   `sim/package.json`, tags `vX.Y.Z`.
 - `npm run release -- patch|minor|major|X.Y.Z` : bump de la version, datation
@@ -48,6 +57,12 @@ rapport avec les versions ci-dessous.
   chaîne sur un `ENOENT`.
 
 ### Corrigé
+
+- Le mappage manette n'était pas attaché au périphérique (#277) : `_savedMap`
+  était un booléen global et `fpvmaps.gamepadMap` une entrée unique, si bien
+  qu'un remap fait pour une radio restait collé en branchant une DualShock 4 —
+  dont les axes sont dans un autre ordre ET dont le gaz est en demi-course. Les
+  calibrages sont désormais rangés par identifiant de périphérique.
 
 - La vue embarquée montrait la machine entière (#264) : le boîtier de caméra,
   centré sur l'oeil, plus la batterie et la GoPro derrière lui remplissaient le
