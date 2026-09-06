@@ -283,8 +283,10 @@ test('le HACK est bien « la pièce d\'à côté » et le DROP est plein', () =>
 	assert.ok(PHASE_INTENSITY.MENU < PHASE_INTENSITY.DROP);
 	assert.equal(PHASE_INTENSITY.DROP, 1);
 	// À l'intensité du hack, la coupure doit rester basse : sinon on n'entend
-	// pas une musique lointaine, on entend une musique moins forte.
-	assert.ok(intensityParams(PHASE_INTENSITY.HACK).cutoffHz < 900);
+	// pas une musique lointaine, on entend une musique moins forte. Relevée à
+	// 1,2 kHz avec HACK (issue retour terrain : le hack était inaudible) — la
+	// borne monte avec elle, mais reste loin des ~19 kHz du plein volume.
+	assert.ok(intensityParams(PHASE_INTENSITY.HACK).cutoffHz < 1200);
 });
 
 test('le plancher de vol laisse la musique VRAIMENT présente', () => {

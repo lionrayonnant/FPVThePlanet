@@ -1982,6 +1982,32 @@ par le cache `_shape` du Collider Rapier. Correctifs :
 - Un onglet en arrière-plan n'avance pas (`nextPaint()` attend un rAF) :
   c'est normal, mais ça ressemble à un gel si on regarde `[load]` en console.
 
+## Musique du hack/rituel trop sourde (issue #252)
+
+Retour terrain : « la musique doit être plus forte pendant le hack/vector
+code, là on entends rien ». HACK jouait à intensité 0,12 (« la pièce d'à
+côté » — coupure ~607 Hz, -17,6 dB), et le rituel du Control Vector duckait
+encore ce niveau à 0,25 (-12 dB de plus) : environ -30 dB cumulés, en dessous
+du bruit de fond d'un casque. `tools/music-model.mjs` gardait la logique
+volontairement simple (UN scalaire pour filtre + gain, calibré à l'oreille) —
+le défaut était dans les VALEURS, pas dans le modèle.
+
+- `PHASE_INTENSITY.HACK` : 0,12 → 0,28 (-14,4 dB, coupure ~1,1 kHz — reste
+  nettement filtré et sous MENU 0,55 / FLOOR 0,62).
+- `DUCK.ritual` : 0,25 → 0,55 (-5,2 dB au lieu de -12 pendant le rituel).
+- Net au moment le plus sourd (pendant le rituel) : environ +10 dB, soit
+  perceptiblement le double de volume.
+- `tools/music-selftest.mjs` : borne de coupure du HACK relevée de 900 Hz à
+  1200 Hz en conséquence (le reste du fichier, dont le plancher de vol
+  FLOOR, est inchangé). 65 tests verts.
+
+### Non vérifié — demande une oreille
+
+Personne n'a encore écouté le résultat en jeu. Pour écouter vite sans passer
+par TARGET SCAN : `?scene=<slug>&hack=<type>` (types dans
+`tools/hack-model.mjs`, ex. `?scene=paristest&hack=gnss+spoof`) déclenche
+l'écran de hack directement au chargement.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

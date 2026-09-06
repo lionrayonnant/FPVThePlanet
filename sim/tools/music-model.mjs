@@ -52,7 +52,13 @@ export function intensityParams(k) {
 // l'on est assis, le hack est une écoute volée.
 export const PHASE_INTENSITY = {
 	MENU: 0.55,
-	HACK: 0.12,
+	// Relevé de 0,12 à 0,28 (retour terrain, 2026-09-06) : à 0,12 le hack et le
+	// rituel du Control Vector qui le duck encore ne s'entendaient plus du
+	// tout — « la pièce d'à côté » avait fini porte fermée. À 0,28 la coupure
+	// (voir intensityParams) reste sous 1,2 kHz, donc toujours filtrée et
+	// nettement en retrait du MENU : la musique reste ailleurs, mais on sait
+	// qu'elle joue.
+	HACK: 0.28,
 	DROP: 1.0,
 	// Le vol ne descend JAMAIS en dessous. Relevé de 0,30 à 0,62 après écoute :
 	// en FPV on coupe les gaz sans arrêt — punch, chop, dive, coast — et à 0,30
@@ -76,7 +82,12 @@ export const FADE = {
 
 // Le rituel a sa propre partition synthétisée (Bible §36) et c'est elle qui doit
 // culminer, pas la musique.
-export const DUCK = { ritual: 0.25, ms: 250 };
+// Relevé de 0,25 à 0,55 avec HACK (2026-09-06) : le duck du rituel s'empilait
+// sur un HACK déjà très sourd (-17,6 dB × 0,25 ≈ -30 dB cumulés, en dessous du
+// bruit de fond d'un casque). Le rituel doit toujours dominer sa propre
+// partition synthétisée, pas disparaître dans le silence : 0,55 laisse le
+// hack reculer nettement (-5 dB de plus) sans l'éteindre.
+export const DUCK = { ritual: 0.55, ms: 250 };
 
 // NON CALIBRÉ. Ces trois valeurs sont un point de départ raisonné, PAS une
 // mesure, et le dépôt exige que les seuils soient mesurés.
