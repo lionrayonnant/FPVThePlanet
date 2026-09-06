@@ -292,8 +292,12 @@ graine par défaut. Aucun chemin ne se retrouve sans machine.
 ### `drone-wire.js`, module pur
 
 Entrée : la recette au niveau `portrait` — dont il dérive les arêtes primitive
-par primitive — et une vue (azimut, élévation). Sortie : des segments 2D dans une boîte normalisée, chacun avec sa
-profondeur. Aucun Three, aucun DOM, testable en Node — même statut que
+par primitive — et une vue (azimut, élévation). Sortie : des segments 2D dans
+une boîte normalisée, chacun avec sa profondeur. La projection est
+**orthographique** et il n'y a pas de distance : un portrait technique n'a pas
+de perspective, et la normalisation se fait sur le `boundingRadius` de la
+recette, pour qu'un toothpick reste plus petit qu'un heavy5 dans le même cadre.
+Aucun Three, aucun DOM, testable en Node — même statut que
 `tools/session-log-model.mjs`, qui porte déjà tout le formatage des journaux.
 
 **Pas d'élimination des faces cachées** : les arêtes lointaines s'atténuent au
