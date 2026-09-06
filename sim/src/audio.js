@@ -25,7 +25,7 @@ const TWO_PI = Math.PI * 2;
 // ~595 Hz at hover, ~1500 Hz at full throttle with the 5" freestyle constants.
 const bladePass = (omega, blades) => (omega / TWO_PI) * blades;
 
-const AUDIO = {
+export const AUDIO = {
 	// Relative level of the fundamental and its first two harmonics. A lone
 	// fundamental sounds like a synth test tone; the 2nd and 3rd are what make
 	// it read as a machine.
