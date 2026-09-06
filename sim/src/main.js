@@ -2385,7 +2385,9 @@ function signalCountFor(slug) {
 // le GLOBAL SCANNER qui vient de l'annoncer.
 function signalCountFrom(level) {
 	if (!Number.isFinite(level)) return 4;            // pas de densité connue (cache ancien, terrain local)
-	return 2 + Math.round(Math.max(0, Math.min(1, level)) * 3);   // 2..5, échelle du Global Scanner
+	// 4..5 : au moins 3 ambiants (count - 1), jamais deux (issue #250, retour
+	// opérateur — un ciel à un seul ambiant se voyait vide).
+	return 4 + Math.round(Math.max(0, Math.min(1, level)));
 }
 
 // Un préchargement par zone, conservé d'un passage au TARGET SCAN à l'autre.
