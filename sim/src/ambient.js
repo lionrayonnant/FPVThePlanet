@@ -18,9 +18,16 @@ export const G = 9.81;
 export const MAX_DRONES = 4;
 // v²/r ≤ TURN_MARGIN · a_max : un quad ne vire pas en butée de poussée.
 export const TURN_MARGIN = 0.6;
-// L'attitude dérive de a : une accélération latérale au-delà de G·tan(70°)
-// pencherait le corps au-delà des 75° que la spec autorise (drag et
-// accélération verticale inclus) — garanti par construction, pas mesuré.
+// L'inclinaison maximale du corps, en degrés. L'invariant « jamais au-delà des
+// 75° que la spec autorise » est IMPOSÉ dans attitudeFrom(), par construction,
+// sur la poussée elle-même : pour TOUTE courbe, tout vent, tout drag.
+// routineFor() garde son plafond en plus — il borne v²/r, donc les vitesses
+// tirées restent celles d'un quad, pas celles d'un jet qui vire à plat.
+//
+// Borner l'accélération LATÉRALE ne suffisait pas : la composante VERTICALE
+// des figures (plan incliné du loop, sinus du huit, jitter du micro à ~14 m/s²)
+// n'est pas dans v²/r et faisait basculer le vecteur de poussée sous
+// l'horizon — 157° mesurés sur un toothpick, 110° sur un race5.
 export const TILT_MAX_DEG = 70;
 
 // Hash FNV-1a d'une chaîne → graine 32 bits, puis xorshift (même idiome que
@@ -85,7 +92,10 @@ export function routineFor({ family, twr, rand }) {
 	const radius = lerp(rand, spec.radius);
 	const agl = lerp(rand, spec.agl);
 	let speed = lerp(rand, spec.speed);
-	// Le TWR borne le virage ; l'inclinaison résultante aussi (garantie par construction).
+	// Le TWR borne le virage, et g·tan(TILT_MAX) le borne encore : ce second
+	// plafond ne GARANTIT pas l'inclinaison (c'est attitudeFrom qui l'impose,
+	// verticale comprise), il garde les vitesses tirées dans le domaine d'un
+	// quad — un rayon de 20 m ne se prend pas à 40 m/s.
 	const vMax = Math.sqrt(Math.min(TURN_MARGIN * lateralAccelMax(twr), G * Math.tan(TILT_MAX_DEG * Math.PI / 180)) * radius);
 	if (speed > vMax) speed = vMax;
 	const dir = rand() < 0.5 ? -1 : 1;
@@ -319,8 +329,42 @@ function quatFromBasis(xx, xy, xz, yx, yy, yz, zx, zy, zz, out, o) {
 	out[o] = x; out[o + 1] = y; out[o + 2] = z; out[o + 3] = w;
 }
 
+const TILT_MAX_RAD = TILT_MAX_DEG * Math.PI / 180;
+const TILT_MAX_TAN = Math.tan(TILT_MAX_RAD);
+const TILT_MAX_COS = Math.cos(TILT_MAX_RAD);
+const TILT_MAX_SIN = Math.sin(TILT_MAX_RAD);
+const _u = { x: 0, y: 0, z: 0 };
+
+// Rabat une direction UNITAIRE sur le cône de TILT_MAX autour de la verticale,
+// en gardant sa direction horizontale : le drone penche du bon côté, il penche
+// juste moins. Rend `out` (unitaire).
+function clampToCone(x, y, z, out) {
+	const h = Math.hypot(x, z);
+	if (y <= 0) {
+		// Sous l'horizon : rien à interpoler, on se pose PILE sur le cône.
+		// Sans direction horizontale (pile vers le bas), il n'y a pas de « bon
+		// côté » : à plat, plutôt qu'une division par zéro.
+		if (h > 1e-9) { out.x = x / h * TILT_MAX_SIN; out.z = z / h * TILT_MAX_SIN; out.y = TILT_MAX_COS; }
+		else { out.x = 0; out.z = 0; out.y = 1; }
+		return out;
+	}
+	if (h <= TILT_MAX_TAN * y) { out.x = x; out.y = y; out.z = z; return out; }
+	const k = TILT_MAX_TAN * y / h;
+	const cx = x * k, cz = z * k;
+	const n = Math.hypot(cx, y, cz) || 1;
+	out.x = cx / n; out.y = y / n; out.z = cz / n;
+	return out;
+}
+
 // Un quad incline sa poussée dans a + g − a_drag. Y corps = poussée
 // normalisée ; le nez (−Z) suit le lacet demandé projeté sur le plan du corps.
+//
+// La poussée est ENSUITE ramenée sous TILT_MAX_DEG : c'est là, et nulle part
+// ailleurs, que l'invariant d'inclinaison se tient. Une figure ne demande pas
+// l'attitude, elle demande une accélération ; si celle-ci coucherait le corps
+// au-delà du plafond, on garde sa DIRECTION horizontale (le drone penche du
+// bon côté) et on relève simplement l'assiette. Un quad réel fait pareil : il
+// ne suit pas la trajectoire, il fait ce que sa poussée permet.
 export function attitudeFrom({ ax, ay, az, vx, vy, vz, wind, drag, mass, yawX, yawZ }, out, o) {
 	const rx = vx - wind.x, ry = vy - wind.y, rz = vz - wind.z;
 	const s = Math.hypot(rx, ry, rz);
@@ -329,6 +373,9 @@ export function attitudeFrom({ ax, ay, az, vx, vy, vz, wind, drag, mass, yawX, y
 	let ux = ax + dx, uy = ay + G + dy, uz = az + dz;
 	const n = Math.hypot(ux, uy, uz) || 1;
 	ux /= n; uy /= n; uz /= n;
+	// Plafond d'inclinaison, sur le vecteur unitaire.
+	clampToCone(ux, uy, uz, _u);
+	ux = _u.x; uy = _u.y; uz = _u.z;
 	// Nez : la direction de lacet, orthogonalisée contre Y.
 	let fx = yawX, fy = 0, fz = yawZ;
 	const fn = Math.hypot(fx, fz) || 1; fx /= fn; fz /= fn;
@@ -339,6 +386,42 @@ export function attitudeFrom({ ax, ay, az, vx, vy, vz, wind, drag, mass, yawX, y
 	const zx = -fx, zy = -fy, zz = -fz;
 	const xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;
 	quatFromBasis(xx, xy, xz, ux, uy, uz, zx, zy, zz, out, o);
+}
+
+// Rabat un quaternion DÉJÀ FORMÉ sous TILT_MAX, en place.
+//
+// attitudeFrom() borne la poussée qu'elle reçoit, mais le lissage de
+// _attitude() interpole ENTRE deux attitudes (nlerp, qui suit le plus court
+// chemin en rotation) — et ce chemin-là sort du cône. L'ensemble des
+// attitudes sous 70° n'est pas convexe en rotation : deux cibles penchées de
+// 70° dans des directions différentes se rejoignent en passant PLUS penché.
+// Mesuré sur un toothpick, dont le jitter renverse la direction du penché
+// plusieurs fois par seconde : 83,9° entre deux cibles à 70° pile.
+// L'invariant se tient donc là où il se voit : sur le quaternion RENDU.
+export function clampTilt(q, o) {
+	const x = q[o], y = q[o + 1], z = q[o + 2], w = q[o + 3];
+	// Y du corps dans le monde (colonne 1 de la matrice de rotation).
+	const uy = 1 - 2 * (x * x + z * z);
+	const ux = 2 * (x * y - w * z), uz = 2 * (y * z + w * x);
+	if (uy > 0 && Math.hypot(ux, uz) <= TILT_MAX_TAN * uy) return false;
+	clampToCone(ux, uy, uz, _u);
+	// Le nez (−Z du corps), réorthogonalisé contre la nouvelle verticale : le
+	// cap survit au redressement, seule l'assiette bouge.
+	let fx = -2 * (x * z + w * y), fy = -2 * (y * z - w * x), fz = -(1 - 2 * (x * x + y * y));
+	const dot = fx * _u.x + fy * _u.y + fz * _u.z;
+	fx -= dot * _u.x; fy -= dot * _u.y; fz -= dot * _u.z;
+	const fl = Math.hypot(fx, fy, fz);
+	if (fl < 1e-9) {
+		// Nez devenu parallèle à la nouvelle verticale : on en prend un
+		// horizontal, orthogonal à elle par construction (u × ŷ).
+		const cx = -_u.z, cz = _u.x, cl = Math.hypot(cx, cz);
+		if (cl > 1e-9) { fx = cx / cl; fy = 0; fz = cz / cl; }
+		else { fx = 0; fy = 0; fz = -1; }
+	} else { fx /= fl; fy /= fl; fz /= fl; }
+	const zx = -fx, zy = -fy, zz = -fz;
+	const xx = _u.y * zz - _u.z * zy, xy = _u.z * zx - _u.x * zz, xz = _u.x * zy - _u.y * zx;
+	quatFromBasis(xx, xy, xz, _u.x, _u.y, _u.z, zx, zy, zz, q, o);
+	return true;
 }
 
 // Angle entre le Y du corps et le Y du monde.
@@ -592,5 +675,9 @@ export class AmbientModel {
 		let nw = this.quat[o + 3] + a * (sgn * this._q[3] - this.quat[o + 3]);
 		const n = Math.hypot(nx, ny, nz, nw) || 1;
 		this.quat[o] = nx / n; this.quat[o + 1] = ny / n; this.quat[o + 2] = nz / n; this.quat[o + 3] = nw / n;
+		// Le nlerp peut sortir du cône même entre deux cibles qui y sont : voir
+		// clampTilt(). C'est ce quaternion-ci qui est rendu, c'est donc lui qui
+		// doit tenir l'invariant.
+		clampTilt(this.quat, o);
 	}
 }

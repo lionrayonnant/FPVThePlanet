@@ -10,7 +10,7 @@ import {
 	MAX_DRONES, G, TURN_MARGIN, TILT_MAX_DEG,
 	curveLocal, curveHeights, curveAt, derive, SAMPLES, HEIGHT_SAMPLES,
 	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
-	attitudeFrom, tiltOf,
+	attitudeFrom, tiltOf, clampTilt,
 } from '../src/ambient.js';
 import { generateTargetScan, TARGET_FAMILIES } from './target-model.mjs';
 import { targetBuild } from './target-build.mjs';
@@ -335,27 +335,73 @@ console.log('\nambient: attitude');
 	const fx = 2 * (q[0] * q[2] + q[3] * q[1]);   // composante X de R·(0,0,-1)… (voir impl)
 	check('lacet : nez vers +X', Math.abs(fx - 1) < 1e-6 || Math.abs(fx + 1) < 1e-6);
 
-	// Sur les courbes : race couché, cinewhoop à plat, jamais > 75°.
-	const bigRect = { bbox: { min: [-2000, 0, -2000], max: [2000, 200, 2000] }, corridor: { hold: 24 } };
-	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
-	const scan = { seed: 'att3', count: 5, index: 4 };
-	const set = ambientSet(scan).filter((d) => d.family === 'race5' || d.family === 'cinewhoop');
-	if (set.length < 2) console.log('  SKIP  graine sans race5+cinewhoop — changer la graine');
-	const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
-	const m = new AmbientModel({ set, builds, bounds: bigRect, seed: 'att3' });
-	const cam = { fx: 0, fy: 0, fz: -1 }, player = { x: 0, y: 30, z: 0 }, wind = { x: 0, y: 0, z: 0 };
-	let maxTilt = new Float64Array(set.length), sumTilt = new Float64Array(set.length), N = 0;
-	for (let i = 0; i < 600; i++) {
-		m.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays, top: 250, span: 400, wind });
-		if (i < 10) continue;
-		N++;
-		for (let k = 0; k < set.length; k++) { const t = tiltOf(m.quat, 4 * k); maxTilt[k] = Math.max(maxTilt[k], t); sumTilt[k] += t; }
+	// Le plafond d'inclinaison lui-même : la poussée demandée est rabattue sur
+	// le cône de TILT_MAX_DEG, quelle que soit l'accélération demandée.
+	attitudeFrom({ ...still, ax: 100 * G }, q, 0);
+	check('a latérale énorme → plafonnée à TILT_MAX', Math.abs(tiltOf(q, 0) - TILT_MAX_DEG * Math.PI / 180) < 1e-9,
+		`${(tiltOf(q, 0) * 180 / Math.PI).toFixed(1)}°`);
+	// Le cas qui cassait tout : une accélération VERTICALE vers le bas plus
+	// forte que g renverse la poussée sous l'horizon. C'est le sinus du huit,
+	// le plan incliné du loop, le jitter du micro — rien dans v²/r ne la borne.
+	attitudeFrom({ ...still, ay: -3 * G, ax: G }, q, 0);
+	check('a verticale sous −g → toujours ≤ TILT_MAX', tiltOf(q, 0) <= TILT_MAX_DEG * Math.PI / 180 + 1e-9,
+		`${(tiltOf(q, 0) * 180 / Math.PI).toFixed(1)}°`);
+	check('a verticale sous −g → quaternion unitaire', Math.abs(Math.hypot(q[0], q[1], q[2], q[3]) - 1) < 1e-9);
+	// Poussée exactement à la verticale vers le bas : aucune direction
+	// horizontale à garder, on se remet à plat plutôt que de diviser par zéro.
+	attitudeFrom({ ...still, ay: -3 * G }, q, 0);
+	check('poussée pile vers le bas → à plat, pas de NaN', tiltOf(q, 0) < 1e-9 && Number.isFinite(q[3]));
+
+	// clampTilt : le filet posé sur le quaternion RENDU (le nlerp du lissage
+	// sort du cône même entre deux cibles qui y sont).
+	{
+		// Roulis de 120° autour de X : q = (sin60, 0, 0, cos60).
+		const r = new Float64Array([Math.sin(Math.PI / 3), 0, 0, Math.cos(Math.PI / 3)]);
+		check('clampTilt : prémisse à 120°', Math.abs(tiltOf(r, 0) - 2 * Math.PI / 3) < 1e-9, `${(tiltOf(r, 0) * 180 / Math.PI).toFixed(1)}°`);
+		check('clampTilt : rabat et le dit', clampTilt(r, 0) === true);
+		check('clampTilt : pile sur le cône', Math.abs(tiltOf(r, 0) - TILT_MAX_DEG * Math.PI / 180) < 1e-9, `${(tiltOf(r, 0) * 180 / Math.PI).toFixed(1)}°`);
+		check('clampTilt : quaternion unitaire', Math.abs(Math.hypot(r[0], r[1], r[2], r[3]) - 1) < 1e-9);
+		// Déjà dans le cône : ne touche à rien, et le dit.
+		attitudeFrom({ ...still, ax: G }, q, 0);
+		const before = Array.from(q);
+		check('clampTilt : à 45°, ne touche à rien', clampTilt(q, 0) === false && Array.from(q).every((v, i) => v === before[i]));
 	}
-	for (let k = 0; k < set.length; k++) {
-		const deg = sumTilt[k] / N * 180 / Math.PI;
-		check(`${set[k].family}: tilt max ≤ 75°`, maxTilt[k] <= 75 * Math.PI / 180, `${(maxTilt[k] * 180 / Math.PI).toFixed(0)}°`);
-		if (set[k].family === 'race5') check('race5 : couché (> 35° en moyenne)', deg > 35, `${deg.toFixed(0)}°`);
-		if (set[k].family === 'cinewhoop') check('cinewhoop : à plat (< 12°)', deg < 12, `${deg.toFixed(0)}°`);
+
+	// Sur les courbes, BALAYAGE par famille : 50 graines, 600 frames chacune.
+	// Une seule graine ne prouvait rien — elle tirait un rayon et une vitesse,
+	// pas la famille. À 50, on voit les cas extrêmes : c'est ce balayage qui a
+	// mesuré 157° sur un toothpick et 110° sur un race5 quand le plafond ne
+	// bornait que l'accélération LATÉRALE (v²/r), la verticale des figures
+	// passant tout droit.
+	//
+	// min[1] = −50 : le sol plat à 0 se tient au-dessus du plancher de la
+	// clôture, sinon un micro à 1 m d'AGL ne naîtrait jamais (FLOOR_MARGIN_M).
+	const bigRect = { bbox: { min: [-4000, -50, -4000], max: [4000, 200, 4000] }, corridor: { hold: 24 } };
+	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	const cam = { fx: 0, fy: 0, fz: -1 }, player = { x: 0, y: 30, z: 0 }, wind = { x: 0, y: 0, z: 0 };
+	const SEEDS = 50, FRAMES = 600, WARMUP = 10;
+	for (const family of TARGET_FAMILIES) {
+		let maxTilt = 0, sumTilt = 0, n = 0, born = 0;
+		for (let i = 0; i < SEEDS; i++) {
+			// Un ensemble d'UN SEUL drone de la famille : le balayage exerce la
+			// famille, pas la table des candidats d'un scan.
+			const buildSeed = `sweep::${family}::${i}`;
+			const set = [{ i: 0, id: 'x', family, buildSeed, rssiDbm: -60, mode: 'analog' }];
+			const builds = [targetBuild({ seed: buildSeed, family })];
+			const m = new AmbientModel({ set, builds, bounds: bigRect, seed: buildSeed });
+			for (let f = 0; f < FRAMES; f++) {
+				m.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays, top: 250, span: 400, wind });
+				if (f < WARMUP || !m.alive[0]) continue;
+				const t = tiltOf(m.quat, 0);
+				maxTilt = Math.max(maxTilt, t); sumTilt += t; n++;
+			}
+			if (m.alive[0]) born++;
+		}
+		const maxDeg = maxTilt * 180 / Math.PI, meanDeg = n ? sumTilt / n * 180 / Math.PI : 0;
+		check(`${family}: ${born}/${SEEDS} graines volent`, born > SEEDS / 2, `${born}`);
+		check(`${family}: tilt max ≤ 75° sur ${SEEDS} graines`, maxDeg <= 75 + 1e-9, `${maxDeg.toFixed(1)}°`);
+		if (family === 'race5') check('race5 : couché (> 35° en moyenne)', meanDeg > 35, `${meanDeg.toFixed(1)}°`);
+		if (family === 'cinewhoop') check('cinewhoop : à plat (< 12°)', meanDeg < 12, `${meanDeg.toFixed(1)}°`);
 	}
 }
 
