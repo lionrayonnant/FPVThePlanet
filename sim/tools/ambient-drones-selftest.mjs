@@ -23,7 +23,11 @@ const bounds = { bbox: { min: [-900, -50, -900], max: [900, 60, 900] }, corridor
 const player = { x: 0, y: 40, z: 0 };
 const playerVel = { x: 0, y: 0, z: 0 };
 const wind = { x: 1, y: 0, z: 0 };
-const sun = { dir: { x: 0.3, y: 0.8, z: 0.5 }, ambient: 1, night: 0 };
+// `ambient` volontairement ABSURDE ici : les ambiants ne doivent PAS le lire.
+// L'exposition absolue du soleil (0,059 au couchant) est le métier de l'AGC de
+// la lentille ; les drones reçoivent `dim`, l'obscurcissement des tuiles.
+const sun = { dir: { x: 0.3, y: 0.8, z: 0.5 }, ambient: 0.059, night: 0 };
+const DIM = 0.82;
 
 function makeScene() {
 	const scene = new THREE.Scene();
@@ -41,6 +45,7 @@ function stepper(a, camera, opts) {
 	const arg = {
 		dt: 0, player, playerVel, camera, wind, rays,
 		top: 110, span: 210, fogColor: opts.fogColor, fogDensity: opts.fogDensity, sun,
+		dim: opts.dim ?? DIM,
 		resolution: opts.resolution,
 	};
 	return (dt) => { arg.dt = dt; a.update(arg); };
@@ -95,6 +100,19 @@ console.log('\nambient-drones : les uniformes du monde atteignent les drones À 
 	check('nés APRÈS le dernier changement, ils ont quand même le brouillard',
 		a.meshes.every((m) => m.material.uniforms.uFogDensity.value === 0.004));
 	check('visibles = vivants', a.meshes.every((m, k) => m.group.visible === (a.model.alive[k] === 1)));
+	// uAmbient = `dim` (l'obscurcissement des tuiles), PAS `sun.ambient`
+	// (l'exposition absolue, 0,059 au couchant, que l'AGC de la lentille
+	// normalise pour tout le reste) : sinon les ambiants sont noirs dès qu'on
+	// sort du plein midi.
+	check('uAmbient = dim, pas sun.ambient',
+		a.meshes.every((m) => m.material.uniforms.uAmbient.value === DIM),
+		a.meshes.map((m) => m.material.uniforms.uAmbient.value).join(' '));
+	// La LED s'éteint avec la distance : sans ce fondu, le plancher de 3 px
+	// fait naître et partir les drones en ALLUMANT une lumière.
+	check('LED : fondu de distance calé sur la bulle',
+		a.meshes.every((m) => m.ledMaterial.uniforms.uFadeFar.value <= 220
+			&& m.ledMaterial.uniforms.uFadeNear.value < m.ledMaterial.uniforms.uFadeFar.value),
+		a.meshes.map((m) => `${m.ledMaterial.uniforms.uFadeNear.value}→${m.ledMaterial.uniforms.uFadeFar.value}`).join(' '));
 	// Un nouveau scan repart de maillages neufs : les verrous doivent s'invalider.
 	a.setScan({ seed: 'drones-c', count: 5, index: 1 });
 	check('nouveau scan : maillages neufs sans uniformes du monde',

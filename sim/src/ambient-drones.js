@@ -6,9 +6,9 @@
 // update() n'alloue RIEN : tous les objets Three, le scratch de pan et les
 // six champs de chaque voix sont pré-alloués au constructeur.
 import * as THREE from 'three';
-import { AmbientModel, ambientSet } from './ambient.js';
+import { AmbientModel, ambientSet, R_SPAWN, IN_VIEW_MIN_M } from './ambient.js';
 import { shapeOf } from './drone-shape.js';
-import { buildDroneMesh, setSun, setFog, setTime, setResolution } from './drone-mesh.js';
+import { buildDroneMesh, setSun, setFog, setTime, setResolution, setLedFade } from './drone-mesh.js';
 import { AmbientAudio } from './ambient-audio.js';
 import { azimuthPan } from '../tools/ambient-audio-model.mjs';
 import { targetBuild } from '../tools/target-build.mjs';
@@ -71,6 +71,15 @@ export class AmbientDrones {
 			const rand = ((s) => { let x = 0; for (const ch of s) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); })(`${set[k].buildSeed}::led`);
 			m.ledMaterial.uniforms.uPhase.value = rand();
 			m.ledMaterial.uniforms.uDuty.value = 0.3 + rand() * 0.5;
+			// Le fondu de la LED est calé sur la BULLE, pas sur des chiffres à
+			// part : pleine jusqu'au rayon de naissance le plus proche
+			// (R_SPAWN[0] = 120 m), éteinte à IN_VIEW_MIN_M (220 m). Une
+			// naissance DANS le champ n'arrive qu'au-delà de ce dernier et un
+			// départ encore plus loin (rLeave ≥ rMax) : ni l'une ni l'autre
+			// n'allume donc jamais une lumière sous les yeux du joueur. Un
+			// fondu qui finirait à R_LEAVE (320 m) laisserait la LED à 78 %
+			// pour une naissance visible à 250 m — le pop qu'on veut tuer.
+			setLedFade(m.ledMaterial, R_SPAWN[0], IN_VIEW_MIN_M);
 			this.scene.add(m.group);
 			this.meshes.push(m);
 		}
@@ -96,8 +105,11 @@ export class AmbientDrones {
 
 	// Une fois par frame, dt = 0 quand gelé. `player`/`playerVel` : Rapier
 	// {x,y,z} ; `camera` : la caméra Three posée ; `wind` : physics.wind.out ;
-	// `rays` : physics (groundBelow/obstructionBetween) ; `sun` : SunField|null.
-	update({ dt, player, playerVel, camera, wind, rays, top, span, fogColor, fogDensity, sun, resolution }) {
+	// `rays` : physics (groundBelow/obstructionBetween) ; `sun` : SunField|null ;
+	// `dim` : le MÊME facteur d'obscurcissement que les tuiles (cloud.dim), pas
+	// l'exposition absolue du soleil — voir le commentaire du fragment shader
+	// dans drone-mesh.js.
+	update({ dt, player, playerVel, camera, wind, rays, top, span, fogColor, fogDensity, sun, dim, resolution }) {
 		const m = this.model;
 		if (!m) return;
 		// Le graphe audio, dès que le contexte existe (geste utilisateur) :
@@ -106,10 +118,19 @@ export class AmbientDrones {
 			const ctx = audioContext();
 			if (ctx) this.audio.start(ctx, engineIn(), space.input);
 		}
+		const dimV = typeof dim === 'number' ? dim : 1;
 		this._camF.set(0, 0, -1).applyQuaternion(camera.quaternion);
 		this._camR.set(1, 0, 0).applyQuaternion(camera.quaternion);
 		this._cam.fx = this._camF.x; this._cam.fy = this._camF.y; this._cam.fz = this._camF.z;
-		this._camPan.fx = this._camF.x; this._camPan.fz = this._camF.z; this._camPan.rx = this._camR.x; this._camPan.rz = this._camR.z;
+		// Le pan est RELATIF À L'APPAREIL, délibérément : le joueur entend par
+		// sa caméra, qui roule et tangue avec le quad. Les deux bases
+		// horizontales se renormalisent — azimuthPan lit un cosinus, il lui
+		// faut des vecteurs unitaires, et la projection au sol d'un avant
+		// piqué à 45° ne l'est plus (les nadirs feraient dériver le pan).
+		const fn = Math.hypot(this._camF.x, this._camF.z) || 1;
+		const rn = Math.hypot(this._camR.x, this._camR.z) || 1;
+		this._camPan.fx = this._camF.x / fn; this._camPan.fz = this._camF.z / fn;
+		this._camPan.rx = this._camR.x / rn; this._camPan.rz = this._camR.z / rn;
 
 		const ma = this._modelArgs;
 		ma.dt = dt; ma.player = player; ma.fovDeg = camera.fov;
@@ -143,7 +164,7 @@ export class AmbientDrones {
 			mesh.group.matrixWorldNeedsUpdate = true;
 			setTime(mesh.material, this._time);
 			setTime(mesh.ledMaterial, this._time);
-			if (sun) setSun(mesh.material, sun.dir, sun.ambient, sun.night);
+			if (sun) setSun(mesh.material, sun.dir, dimV, sun.night);
 
 			// La voix.
 			const relX = m.pos[3 * k] - player.x, relY = m.pos[3 * k + 1] - player.y, relZ = m.pos[3 * k + 2] - player.z;

@@ -2,7 +2,7 @@
 // en Node : la géométrie et les uniformes se vérifient sans GPU.
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { buildDroneMesh, DroneMaterial, LedMaterial, setSun, setFog, setTime, setResolution } from '../src/drone-mesh.js';
+import { buildDroneMesh, DroneMaterial, LedMaterial, setSun, setFog, setTime, setResolution, setLedFade } from '../src/drone-mesh.js';
 import { shapeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
@@ -36,6 +36,7 @@ console.log('drone-mesh');
 	check('uniformes attendus', ['uSunDir', 'uAmbient', 'uNight', 'uFogColor', 'uFogDensity', 'uTime'].every((u) => u in m.material.uniforms));
 	check('LED additive', m.ledMaterial.blending === THREE.AdditiveBlending && m.ledMaterial.depthWrite === false);
 	check('LED : uMinPx et uResolution', 'uMinPx' in m.ledMaterial.uniforms && 'uResolution' in m.ledMaterial.uniforms);
+	check('LED : uFadeNear et uFadeFar', 'uFadeNear' in m.ledMaterial.uniforms && 'uFadeFar' in m.ledMaterial.uniforms);
 	check('LED : frustumCulled false', m.led.frustumCulled === false);
 	check('matrixAutoUpdate false', m.group.matrixAutoUpdate === false);
 	check('frustumCulled', m.body.frustumCulled === true);
@@ -47,6 +48,8 @@ console.log('drone-mesh');
 	check('setTime écrit', m.material.uniforms.uTime.value === 1.5);
 	setResolution(m.ledMaterial, 1280, 720);
 	check('setResolution écrit', m.ledMaterial.uniforms.uResolution.value.x === 1280 && m.ledMaterial.uniforms.uResolution.value.y === 720);
+	setLedFade(m.ledMaterial, 120, 220);
+	check('setLedFade écrit', m.ledMaterial.uniforms.uFadeNear.value === 120 && m.ledMaterial.uniforms.uFadeFar.value === 220);
 	const parent = new THREE.Group();
 	parent.add(m.group);
 	const before = geo.attributes.position.count;
@@ -60,6 +63,11 @@ console.log('drone-mesh');
 	check('formule de brouillard identique à TileMaterial', shader.includes(fogFormula), fogFormula);
 	check('pas de lumière Three (directionalLights absent)', !shader.includes('directionalLights'));
 	check('LED : clamp en pixels dans le vertex shader', new LedMaterial().vertexShader.includes('uMinPx'));
+	// Le plancher de 3 px rend la LED visible à toute distance : sans fondu,
+	// une naissance ou un départ ALLUMENT une lumière. Le fondu est donc dans
+	// le fragment, sur l'alpha, pas seulement dans un uniforme oublié.
+	check('LED : fondu de distance dans le fragment shader',
+		new LedMaterial().fragmentShader.includes('smoothstep(uFadeNear'));
 }
 {
 	const a = make('cinewhoop'), b = make('longrange');

@@ -95,8 +95,13 @@ export function DroneMaterial() {
 			in vec2 vUv;
 			out vec4 outColor;
 			void main() {
-				// Éclairage à la main : hémisphère + soleil, mis à l'échelle par
-				// l'ambiant du monde ; la nuit assombrit comme les tuiles.
+				// Éclairage à la main : hémisphère + soleil, assombri comme les
+				// tuiles. uAmbient N'EST PAS l'exposition absolue du soleil
+				// (sun.ambient vaut 0,059 au couchant, ce qui rendrait un ambiant
+				// quasi noir) : l'exposition est le métier de l'AGC de la lentille,
+				// qui la normalise pour toute la scène. uAmbient reçoit le MÊME
+				// facteur d'obscurcissement que les tuiles (cloud.dim, cf. setDim
+				// dans main.js) ; la nuit assombrit ensuite, comme elles.
 				float lit = 0.55 + 0.45 * max(0.0, dot(normalize(vNormalW), uSunDir));
 				vec3 c = vColor.rgb * lit * uAmbient * (1.0 - 0.75 * uNight);
 				float a = vColor.a;
@@ -137,6 +142,12 @@ export function LedMaterial() {
 			uResolution: { value: new THREE.Vector2(1920, 1080) },
 			uFogColor: { value: new THREE.Color(0x000000) },
 			uFogDensity: { value: 0 },
+			// Fondu de distance de la LED. uMinPx la garde à 3 px quoi qu'il
+			// arrive — sans ce fondu, un drone qui NAÎT ou qui PART le fait donc
+			// en allumant une lumière, à 250 m comme à 320. Le brouillard ne
+			// suffit pas : par temps clair il n'éteint rien.
+			uFadeNear: { value: 200 },
+			uFadeFar: { value: 320 },
 		},
 		vertexShader: /* glsl */`
 			uniform float uMinPx;
@@ -163,6 +174,8 @@ export function LedMaterial() {
 			uniform float uTime;
 			uniform vec3 uFogColor;
 			uniform float uFogDensity;
+			uniform float uFadeNear;
+			uniform float uFadeFar;
 			in vec2 vUv;
 			in float vDepth;
 			out vec4 outColor;
@@ -172,7 +185,8 @@ export function LedMaterial() {
 				// Strobe : période 1,2 s, rapport tiré par drone.
 				float on = fract(uTime / 1.2 + uPhase) < uDuty ? 1.0 : 0.15;
 				float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
-				float a = (1.0 - r * r) * on * (1.0 - clamp(f, 0.0, 1.0));
+				float far = 1.0 - smoothstep(uFadeNear, uFadeFar, vDepth);
+				float a = (1.0 - r * r) * on * (1.0 - clamp(f, 0.0, 1.0)) * far;
 				outColor = vec4(uColor * a, a);
 			}
 		`,
@@ -189,6 +203,11 @@ export function setFog(mat, color, density) {
 	mat.uniforms.uFogDensity.value = density;
 }
 export function setTime(mat, t) { mat.uniforms.uTime.value = t; }
+// Fondu de distance de la LED : pleine à `near`, éteinte à `far`.
+export function setLedFade(mat, near, far) {
+	mat.uniforms.uFadeNear.value = near;
+	mat.uniforms.uFadeFar.value = far;
+}
 export function setResolution(mat, w, h) { mat.uniforms.uResolution.value.set(w, h); }
 
 export function buildDroneMesh(shape, { colors }) {

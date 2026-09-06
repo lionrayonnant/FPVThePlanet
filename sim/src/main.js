@@ -1787,6 +1787,10 @@ function frame() {
 			top: sceneManifest ? sceneManifest.bbox.max[1] + 50 : physics.position.y + 300,
 			span: sceneManifest ? (sceneManifest.bbox.max[1] - sceneManifest.bbox.min[1]) + 100 : 3000,
 			fogColor: scene.background, fogDensity: lastFogDensity, sun,
+			// `cloud.dim`, pas `sun.ambient` : les ambiants s'assombrissent
+			// comme les tuiles (setDim plus bas). L'exposition absolue est le
+			// métier de l'AGC de la lentille, pas celui d'un matériau.
+			dim: cloud.dim,
 			resolution: ambientRes,
 		});
 	}
