@@ -916,13 +916,20 @@ FPVTP! ne fait pas apparaître de gros panneaux d'analyse.
 > d'interface de plus — il ne nomme pas l'axe, il donne la machine à sentir.
 >
 > Ce qu'elles occupent est borné, et la borne est mesurée famille par famille,
-> jamais posée à la main : **au plus 8 % de l'image**, hauteur atteinte **au
-> plus 50 % du cadre au pire tirage de caméra, 45 % en médiane**. Le plafond de
-> moitié n'est pas un relâchement de la borne : le plan d'hélice a un horizon,
-> et pour une caméra plate cet horizon est exactement au milieu du cadre. Les
-> hélices vivent dans ce plan — aucune hauteur d'objectif ne les fait passer
-> dessous, elle ne fait que les en écarter. La borne qui protège vraiment
-> l'image est celle de la surface.
+> jamais posée à la main : les **hélices** au plus **8 % de l'image**, hauteur
+> atteinte **au plus 50 % du cadre au pire tirage de caméra, 45 % en médiane**.
+> La MACHINE, elle, occupe davantage — les bras, les moteurs et le carénage
+> sont dans le cadre eux aussi — et cette part-là est une **signature de
+> famille**, pas un réglage : 8 % sur un long range, 14 % sur un freestyle,
+> 35 % sur un cinewhoop, 44 % sur un toothpick. Un quad caréné montre son
+> carénage ; aucun montage ne l'enlève sans faire disparaître les hélices avec.
+> Ce qui est garanti pour toutes, c'est que la **moitié haute du cadre reste
+> libre** : on voit toujours où l'on va.
+>
+> Ce plafond de moitié n'est pas un relâchement : le plan d'hélice a un
+> horizon, et pour une caméra plate cet horizon est exactement au milieu du
+> cadre. Les hélices vivent dans ce plan — aucune hauteur d'objectif ne les
+> fait passer dessous, elle ne fait que les en écarter.
 
 Après le vol :
 

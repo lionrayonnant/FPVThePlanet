@@ -16,13 +16,22 @@
 //
 // ─── La règle de recherche ──────────────────────────────────────────────────
 //
-// 1. l'AVANCÉE est FIGÉE à −0,55·armZ, l'avancée de la recette d'origine,
-//    c'est-à-dire le bord avant de la plaque : l'objectif ne sort jamais du
-//    châssis. Un objectif en porte-à-faux devant les hélices tiendrait mieux la
-//    borne de hauteur, mais ce ne serait plus une machine crédible en free cam
-//    ni au portrait. Le champ `z` reste nommé et écrit ici — il n'est
-//    simplement plus cherché ;
-// 2. la HAUTEUR est la PLUS GRANDE qui tienne la couverture ≤ 8 % de l'image,
+// Deux leviers, et chacun se mesure avec son propre instrument.
+//
+// 1. l'AVANCÉE est FIGÉE au bord avant de la plaque (−0,55·armZ) : l'objectif
+//    ne sort jamais du châssis. Le champ `z` reste nommé et écrit ici, il n'est
+//    pas cherché.
+//
+//    Ç'a été essayé, et mesuré, et écarté. Sur les familles carénées l'objectif
+//    est posé dans le créneau entre les deux conduits avant et les regarde de
+//    l'intérieur : le maillage embarqué occupe 33 % de l'image sur le cinewhoop
+//    (38 % sur le toothpick), dont 19 à 25 points de conduit. Avancer l'objectif
+//    jusqu'à la lèvre avant du carénage fait bien tomber ce chiffre à 10 % —
+//    mais les HÉLICES disparaissent avec (couverture des disques 0,7 %,
+//    médiane nulle). Or les hélices dans le champ sont le sujet de cette issue.
+//    On ne casse pas la fonction pour tenir un nombre : le carénage reste dans
+//    le cadre, et c'est la signature de ces familles ;
+// 2. la HAUTEUR est la PLUS GRANDE qui tienne la couverture des DISQUES ≤ 8 %,
 //    sur toute l'enveloppe de caméra que targetCamera() peut tirer pour la
 //    famille. « La plus grande » parce que monter fait DESCENDRE les hélices
 //    dans le cadre : on prend donc tout ce que la borne d'aire autorise, et on
@@ -45,14 +54,31 @@
 // 50 %. La borne qui protège vraiment l'image reste la couverture ≤ 8 %.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { propCoverage } from './prop-coverage.mjs';
-import { shapeOf } from '../src/drone-shape.js';
+import { lensCoverage, trianglesOf } from './lens-coverage.mjs';
+import { shapeOf, propPlaneY } from '../src/drone-shape.js';
+import { buildDroneMesh } from '../src/drone-mesh.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera, CAMERA_FAMILIES } from './target-camera.mjs';
 import { FAMILIES, PROFILES } from '../src/drone-profiles.js';
 
-// La borne d'aire elle-même. Ce nombre est celui du selftest
-// (tools/onboard-frame-selftest.mjs) : il ne se règle pas ici.
+// Les deux bornes. Ces nombres sont ceux des selftests
+// (tools/onboard-frame-selftest.mjs et tools/onboard-drone-selftest.mjs) : ils
+// ne se règlent pas ici.
+//
+// MAX_AREA porte sur les DISQUES seuls, et c'est lui qui commande la hauteur :
+// le disque est la seule pièce dont la place à l'image dépend du montage.
+//
+// Ce que la machine occupe VRAIMENT est une autre grandeur, mesurée par
+// tools/lens-coverage.mjs et seulement RAPPORTÉE ici — aucun réglage ne la
+// commande, elle est ce que la famille est. La première version de cette issue
+// annonçait « ≤ 8 % de l'image » : c'était la mesure des disques, promue en
+// mesure de tout. La vraie va de 8 % (long range) à 38 % (toothpick). Les
+// bornes par famille sont écrites, mesurées, dans
+// tools/onboard-drone-selftest.mjs.
 const MAX_AREA = 0.08;
+// Et la hauteur atteinte, la troisième borne : rien au-dessus de la moitié du
+// cadre au pire tirage (l'horizon du plan d'hélice — voir plus haut).
+const MAX_TOP = 0.50;
 
 // Pas et plafond de la recherche, en mètres. 0,2 mm est aussi la résolution à
 // laquelle le bloc est écrit (4 décimales), pour que ce qui est mesuré soit
@@ -62,6 +88,10 @@ const Y_COARSE = 0.001;
 const Y_MAX = 0.030;
 
 // Deux résolutions : la grossière encadre, la fine tranche.
+// La sonde d'objectif est chère (un rayon par pixel contre tous les triangles) :
+// on cherche sur les coins de l'enveloppe caméra, on vérifie finement à la fin.
+const LENS_SCAN = { n: 2, grid: 32 };
+const LENS_FINE = { grid: 56 };
 const SCAN = { n: 4, grid: 120 };
 const FINE = { n: 15, grid: 200 };
 const SEEDS = 300;
@@ -105,6 +135,31 @@ function shapeFor(family) {
 	return shapeOf({ profile: build.profile, build, camera: targetCamera({ seed, family }) });
 }
 
+// Les triangles du niveau `onboard`, dans le repère du corps. Ce niveau ne
+// porte que les rotors, donc il ne dépend PAS du montage : une seule
+// construction sert à tous les montages essayés.
+function lensGeometryFor(family) {
+	const seed = `mount::${family}`;
+	const build = targetBuild({ seed, family });
+	const camera = targetCamera({ seed, family });
+	const mesh = buildDroneMesh(shapeOf({ profile: build.profile, build, camera, detail: 'onboard' }),
+		{ colors: { frame: 0x333333, metal: 0x888888, prop: 0xcccccc, led: 0xffffff } });
+	const tri = trianglesOf(mesh);
+	mesh.dispose();
+	return tri;
+}
+
+// Le pire cas de ce que l'objectif voit, sur un jeu de caméras.
+function worstLens(tri, cams, y, z, grid) {
+	let area = 0, top = 0;
+	for (const c of cams) {
+		const r = lensCoverage({ triangles: tri, eye: [0, y, z], uptiltDeg: c.uptiltDeg, fovDeg: c.fovDeg, aspect: c.aspect, grid });
+		if (r.area > area) area = r.area;
+		if (r.top > top) top = r.top;
+	}
+	return { area, top };
+}
+
 // Le pire cas sur un jeu de caméras.
 function worst(shape, cams, y, z, grid) {
 	let area = 0, top = 0, cam = null;
@@ -122,36 +177,56 @@ function medianTop(shape, cams, y, z, grid) {
 	return tops[tops.length >> 1];
 }
 
+// La hauteur : celle qui rend les hélices LE PLUS PRÉSENTES sans dépasser la
+// borne des disques. Formulée ainsi et non « la plus grande », parce que la
+// relation entre hauteur et couverture s'inverse selon l'avancée : au bord de
+// la plaque, monter fait grossir les disques (le maximum admissible est donc la
+// plus grande hauteur) ; une fois l'objectif avancé devant les hélices, monter
+// les fait fuir et la plus grande hauteur donnerait une vue où l'on ne voit
+// plus rien. « Le plus présentes sous la borne » dit la même chose dans le
+// premier cas et la bonne chose dans le second.
+function searchY(shape, scan, fine, z, verbose, trail) {
+	// 1. Balayage grossier : on retient tous les paliers admissibles, classés
+	//    par ce qu'ils montrent.
+	const cand = [];
+	for (let y = Y_COARSE / 2; y <= Y_MAX + 1e-12; y += Y_COARSE / 2) {
+		const m = worst(shape, scan, q4(y), z, SCAN.grid);
+		if (verbose) trail.push(`  y = ${(1000 * y).toFixed(1)} mm  →  ${(100 * m.area).toFixed(1)} % / ${(100 * m.top).toFixed(0)} %`);
+		if (m.area <= MAX_AREA && m.top <= MAX_TOP) cand.push({ y: q4(y), area: m.area });
+	}
+	cand.sort((a, b) => b.area - a.area);
+	// 2. Vérification fine, du plus généreux au plus sage : la sonde grossière
+	//    sous-estime un peu, le meilleur palier grossier peut donc casser.
+	for (const c of cand.slice(0, 12)) {
+		const m = worst(shape, fine, c.y, z, FINE.grid);
+		if (m.area <= MAX_AREA && m.top <= MAX_TOP) return { y: c.y, ...m };
+	}
+	return null;
+}
+
 function search(family, verbose) {
 	const shape = shapeFor(family);
+	const tri = lensGeometryFor(family);
 	const scan = envelope(family, SCAN.n);
 	const seeds = seedCameras(family);
 	const fine = [...envelope(family, FINE.n), ...seeds];
-	// L'avancée n'est pas cherchée : c'est le bord avant de la plaque.
-	const z = q4(-0.55 * PROFILES[family].armZ);
+	const lensCams = envelope(family, LENS_SCAN.n);
+	const plate = q4(-0.55 * PROFILES[family].armZ);
 	const trail = [];
 
-	// 1. Encadrement au millimètre sur l'enveloppe grossière.
-	let bracket = 0;
-	for (let y = Y_COARSE; y <= Y_MAX + 1e-12; y += Y_COARSE) {
-		const m = worst(shape, scan, q4(y), z, SCAN.grid);
-		if (verbose) trail.push(`  y = ${(1000 * y).toFixed(1)} mm  →  ${(100 * m.area).toFixed(1)} % / ${(100 * m.top).toFixed(0)} %`);
-		if (m.area > MAX_AREA) break;
-		bracket = y;
-	}
-
-	// 2. Pas fin sur l'enveloppe fine ET sur les graines du selftest, depuis un
-	//    millimètre sous l'encadrement : la sonde grossière sous-estime un peu
-	//    la couverture, la fine peut donc casser plus tôt.
-	let keep = null;
-	const from = Math.max(Y_STEP, bracket - Y_COARSE + Y_STEP);
-	for (let y = from; y <= bracket + Y_COARSE + 1e-12; y += Y_STEP) {
-		const m = worst(shape, fine, q4(y), z, FINE.grid);
-		if (m.area > MAX_AREA) break;
-		keep = { y: q4(y), ...m };
-	}
+	// La hauteur se cherche, l'avancée non (voir l'en-tête). Ce que la machine
+	// occupe est ensuite mesuré et rapporté, jamais optimisé.
+	const z = plate;
+	const keep = searchY(shape, scan, fine, z, verbose, trail);
 	if (!keep) return { family, y: null, z, trail };
-	return { family, y: keep.y, z, area: keep.area, top: keep.top, cam: keep.cam, median: medianTop(shape, seeds, keep.y, z, FINE.grid), trail };
+
+	const lens = worstLens(tri, [...lensCams, ...seeds], propPlaneY + keep.y, z, LENS_FINE.grid);
+	return {
+		family, y: keep.y, z, area: keep.area, top: keep.top, cam: keep.cam,
+		median: medianTop(shape, seeds, keep.y, z, FINE.grid),
+		lens: lens.area,
+		trail,
+	};
 }
 
 const argv = process.argv.slice(2);
@@ -162,7 +237,7 @@ const families = !only || only === 'all' ? FAMILIES : [only];
 
 const found = {};
 let missing = 0;
-console.log('famille        y      aire pire   hauteur méd   hauteur pire');
+console.log('famille        y      disques    hauteur méd   hauteur pire   la machine occupe');
 for (const family of families) {
 	const b = search(family, verbose);
 	if (verbose) console.log(`${family} :\n${b.trail.join('\n')}`);
@@ -174,7 +249,7 @@ for (const family of families) {
 		continue;
 	}
 	found[family] = b;
-	console.log(`${family.padEnd(11)} ${(1000 * b.y).toFixed(1)} mm   ${(100 * b.area).toFixed(1)} %       ${(100 * b.median).toFixed(0)} %          ${(100 * b.top).toFixed(0)} %`);
+	console.log(`${family.padEnd(11)} ${(1000 * b.y).toFixed(1)} mm   ${(100 * b.area).toFixed(1)} %       ${(100 * b.median).toFixed(0)} %          ${(100 * b.top).toFixed(0)} %          ${(100 * b.lens).toFixed(0)} %`);
 	if (verbose && b.cam) console.log(`            pire caméra : uptilt ${b.cam.uptiltDeg.toFixed(1)}°, champ ${b.cam.fovDeg.toFixed(0)}°, format ${b.cam.aspect.toFixed(2)}`);
 }
 

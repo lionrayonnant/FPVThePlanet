@@ -6,6 +6,7 @@ import { shapeOf, eyeOf } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 import { propCoverage } from './prop-coverage.mjs';
+import { lensCoverage, trianglesOf } from './lens-coverage.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 
 let failures = 0;
@@ -164,75 +165,55 @@ for (const family of FAMILIES) {
 	d.dispose();
 }
 
-// La MOITIÉ HAUTE du cadre est libre. C'est la borne DA (≤ 50 % de la hauteur),
-// mais portée sur TOUT le maillage embarqué et non sur les seuls disques que
-// tools/prop-coverage.mjs rasterise — et c'est la règle que rien ne vérifiait :
-// la recette portait un boîtier de caméra centré sur l'oeil, qui couvrait tout
-// l'écran. On ne voyait plus le monde, et surtout plus ses propres hélices.
+// Ce que la machine occupe VRAIMENT du cadre — la mesure qui manquait.
 //
-// Le test ne regarde pas les rôles de la recette, il lance de vrais rayons sur
-// la VRAIE géométrie fusionnée : c'est elle qu'on affiche, et une pièce ajoutée
-// demain sera prise au même filet.
+// tools/prop-coverage.mjs ne rasterise que les disques d'hélice, et l'issue
+// #264 en a tiré « ≤ 8 % de l'image » comme si c'était toute la machine. Ce
+// n'en était qu'une pièce : les conduits, les bras et les moteurs sont dans le
+// cadre eux aussi. Faute de cette mesure, un boîtier de caméra centré sur
+// l'oeil est passé jusqu'à l'écran sans qu'aucun test bronche — il couvrait
+// 100 % de l'image.
+//
+// Ici on mesure le maillage TEL QU'IL EST AFFICHÉ (tools/lens-coverage.mjs :
+// un rayon par pixel contre les vrais triangles fusionnés), et on affirme deux
+// choses :
+//
+//   · la MOITIÉ HAUTE du cadre est libre, pour les six familles. C'est la borne
+//     de hauteur, portée sur tout le maillage et non sur les seuls disques ;
+//   · la machine tient sous une borne PAR FAMILLE. Par famille, parce qu'une
+//     machine carénée montre son carénage : le conduit pèse 19 points sur le
+//     cinewhoop et 25 sur le toothpick, et aucun montage ne l'enlève — avancer
+//     l'objectif jusqu'à la lèvre du carénage le ferait bien tomber à 10 %,
+//     mais les hélices disparaîtraient avec, et les hélices sont le sujet.
+//     Prétendre 8 % partout serait faux ; ces chiffres-ci sont mesurés.
 {
-	const tanV = (fovDeg) => Math.tan(fovDeg * Math.PI / 360);
-	// Möller–Trumbore, rayon depuis l'origine (l'oeil) — la géométrie est déjà
-	// dans le repère de l'objectif.
-	const hits = (pos, idx, m, dir) => {
-		const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-		const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), pv = new THREE.Vector3(), qv = new THREE.Vector3();
-		for (let t = 0; t < idx.length; t += 3) {
-			a.fromBufferAttribute(pos, idx[t]).applyMatrix4(m);
-			b.fromBufferAttribute(pos, idx[t + 1]).applyMatrix4(m);
-			c.fromBufferAttribute(pos, idx[t + 2]).applyMatrix4(m);
-			e1.subVectors(b, a); e2.subVectors(c, a);
-			pv.crossVectors(dir, e2);
-			const det = e1.dot(pv);
-			if (Math.abs(det) < 1e-12) continue;
-			const inv = 1 / det;
-			// L'origine du rayon est (0,0,0), donc le vecteur origine→a vaut −a.
-			const u = -a.dot(pv) * inv;
-			if (u < 0 || u > 1) continue;
-			qv.crossVectors(a.clone().negate(), e1);
-			const v = dir.dot(qv) * inv;
-			if (v < 0 || u + v > 1) continue;
-			if (e2.dot(qv) * inv > 1e-5) return true;
-		}
-		return false;
+	const BORNE = {
+		freestyle5: 0.20, race5: 0.20, cinewhoop: 0.40,
+		longrange: 0.14, heavy5: 0.18, toothpick: 0.50,
 	};
-
 	for (const family of FAMILIES) {
-		let haut = 0, bas = 0, seeds = 0, pire = 0;
+		let aire = 0, haut = 0, vide = 0, n = 0;
 		for (const tag of ['a', 'b', 'c', 'd', 'e']) {
 			const seed = `libre::${family}::${tag}`;
 			const build = targetBuild({ seed, family });
 			const camera = targetCamera({ seed, family });
 			const d = new PlayerDrone({ scene: new THREE.Scene(), profile: build.profile, build, camera });
-			const geo = d.onboard.body.geometry;
-			const pos = geo.getAttribute('position');
-			const idx = geo.getIndex().array;
-			const m = d.onboard.group.matrix;
-			const tv = tanV(camera.fovDeg), th = tv * camera.aspect;
-			const dir = new THREE.Vector3();
-			// Toute la moitié haute, sur toute la largeur.
-			for (let i = 0; i <= 16; i++) for (let j = 0; j <= 8; j++) {
-				const nx = i / 8 - 1, ny = j / 8;
-				dir.set(nx * th, ny * tv, -1).normalize();
-				if (hits(pos, idx, m, dir)) { haut++; pire = Math.max(pire, 50 * (ny + 1)); }
-			}
-			// Et le contrôle en sens inverse : le bas du cadre, lui, DOIT être
-			// occupé — sinon « rien dans le cadre » passerait pour un succès.
-			let vu = false;
-			for (let i = 0; i <= 8 && !vu; i++) for (let j = 0; j <= 6 && !vu; j++) {
-				dir.set((i / 4 - 1) * th, (-0.35 - j * 0.09) * tv, -1).normalize();
-				if (hits(pos, idx, m, dir)) vu = true;
-			}
-			if (vu) bas++;
-			seeds++;
+			const r = lensCoverage({
+				triangles: trianglesOf(d.onboard, d.onboard.group.matrix),
+				fovDeg: camera.fovDeg, aspect: camera.aspect, grid: 64,
+			});
+			aire = Math.max(aire, r.area); haut = Math.max(haut, r.top);
+			if (r.area <= 0) vide++;
+			n++;
 			d.dispose();
 		}
-		check(`${family} : la moitié haute du cadre est libre`, haut === 0,
-			haut ? `${haut} rayons bloqués, jusqu'à ${pire.toFixed(0)} % de la hauteur` : 'aucun rayon bloqué');
-		check(`${family} : les hélices sont bien dans le bas du cadre`, bas === seeds, `${bas}/${seeds}`);
+		check(`${family} : la moitié haute du cadre est libre`, haut <= 0.50,
+			`la machine monte à ${(100 * haut).toFixed(0)} % de la hauteur`);
+		check(`${family} : la machine tient sous sa borne`, aire <= BORNE[family],
+			`${(100 * aire).toFixed(0)} % de l'image, borne ${(100 * BORNE[family]).toFixed(0)} %`);
+		// Le contrôle en sens inverse : sans lui, « rien dans le cadre »
+		// passerait pour un succès — c'est exactement ce qu'il s'est passé.
+		check(`${family} : la machine est bien dans le cadre`, vide === 0, `${n - vide}/${n} vues occupées`);
 	}
 }
 

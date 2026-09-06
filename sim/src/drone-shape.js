@@ -32,12 +32,12 @@ export const propPlaneY = 0.020;
 // Seule la hauteur est cherchée, et c'est la plus grande que la borne de
 // couverture autorise.
 export const MOUNT = {
-	freestyle5: { y: 0.0032, z: -0.0429 },
+	freestyle5: { y: 0.0030, z: -0.0429 },
 	race5: { y: 0.0020, z: -0.0407 },
-	cinewhoop: { y: 0.0062, z: -0.0330 },
+	cinewhoop: { y: 0.0060, z: -0.0330 },
 	longrange: { y: 0.0040, z: -0.0577 },
-	heavy5: { y: 0.0042, z: -0.0440 },
-	toothpick: { y: 0.0016, z: -0.0209 },
+	heavy5: { y: 0.0040, z: -0.0440 },
+	toothpick: { y: 0.0015, z: -0.0209 },
 };
 
 // Les trois niveaux de détail. Un niveau inconnu lève : une faute de frappe ne

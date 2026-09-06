@@ -73,8 +73,14 @@ for (const family of FAMILIES) {
 // et ignore les champs ajoutés (`motor`, `spin`) : ce qu'on gèle, c'est la
 // forme, pas la recette.
 //
-// Les six empreintes ont été recalculées quand la part caméra est passée
-// AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
+// Elles ont été recalculées une seconde fois quand tools/tune-mount.mjs a
+// re-mesuré le montage : sa règle de hauteur est passée de « la plus grande que
+// la borne autorise » à « celle qui rend les hélices le plus présentes sous la
+// borne » (les deux disent la même chose au bord de la plaque, la seconde reste
+// juste si l'objectif avance), ce qui a déplacé quatre familles de 0,1 à 0,2 mm.
+//
+// Les six empreintes ont été recalculées une première fois quand la part caméra
+// est passée AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
 // tools/tune-mount.mjs) l'a montée de quelques millimètres, son avancée étant
 // restée celle de la recette. Rien d'autre n'a bougé, et les ambiants ne sont
 // pas rendus autrement pour autant : src/drone-mesh.js traite la part `camera`
@@ -82,12 +88,12 @@ for (const family of FAMILIES) {
 // hauteur. Toute autre dérive de ces empreintes est une régression.
 {
 	const GOLDEN = {
-		freestyle5: '16587a6f69b64570',
+		freestyle5: '7060140541d230dd',
 		race5: 'd8da56b6dd4c251f',
-		cinewhoop: 'd09dde63cf3be300',
+		cinewhoop: 'e8adbcc42d131eb3',
 		longrange: 'afdf242d80843cd8',
-		heavy5: '51005da4a6e8c3e9',
-		toothpick: 'e7e0549102e45774',
+		heavy5: '962cbf465e9905b9',
+		toothpick: '0fd72cf210f35616',
 	};
 	for (const family of FAMILIES) {
 		const rows = make(family).parts
