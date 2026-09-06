@@ -69,11 +69,21 @@ pilote. Ces usages ne sont pas dans cette version.
    `CYAN = 0x4dd8e8`). La palette demo (cyan, magenta, violet, electric) est
    réservée aux rituels ; un drone ambiant est un écran quotidien.
 
-5. **Son.** Il n'existe **aucune** spatialisation (seul `StereoPannerNode`,
-   `audio.js:208`) ; `EngineAudio` fait ~60 nœuds et se branche sur un `space`
-   singleton (`space.js:246`) dont un second `build()` renverrait la même
-   entrée, donc la réverbération des ambiants entrerait dans l'`air` du
-   joueur. Le pire cas mesuré ne laisse que **1,6 dB** de marge au limiteur
+5. **Son.** L'audio spatial qui existe est celui de l'issue #122 :
+   l'**acoustique du lieu** (`src/space.js`, modèle `tools/space-model.mjs`),
+   un réseau de Schroeder dont pré-delay, durée et couleur suivent la rosette
+   de rayons du vent — c'est le lieu **autour de l'auditeur** ; et le
+   panoramique des quatre moteurs selon leur position sur le châssis
+   (`audio.js:208-210`). Il n'existe en revanche **aucun placement d'une
+   source par sa position dans le monde** : ni `PannerNode`, ni atténuation
+   par la distance, ni Doppler d'une source (le seul Doppler est un effet de
+   bord du lissage du pré-delay, `space.js:62-66`). `space` est un singleton
+   (`space.js:246`) à l'entrée publique et au `build()` idempotent ; son
+   mouillé revient dans l'`air` du joueur, à dessein (« on l'entend à travers
+   les mêmes lunettes »). Son `wet` est tenu 15 dB sous le sec par prudence
+   (issue #122) et **non réécouté** depuis la correction de l'accumulation
+   (`HANDOFF.md`, « Audio spatial »). `EngineAudio` fait ~60 nœuds. Le pire
+   cas mesuré ne laisse que **1,6 dB** de marge au limiteur
    (`docs/handoff-archive/son.md:92-98`). Règles non négociables du même
    document : sinus seulement (`:79-83`), détune entre voix obligatoire
    (`:84-90`), rien qui renvoie de l'énergie dans 2–4 kHz (`:66-75`), graphe
@@ -324,12 +334,27 @@ rien faire.
 une fois** dans `start()` (une par ambiant possible), inactives à gain zéro :
 
     osc(sine, f_blade)  ──┐
-    noise ─ bandpass ─────┼→ gain(distance) → lowpass(distance) → panner → engineIn()
+    noise ─ bandpass ─────┼→ gain(distance) → lowpass(distance, dos) → panner ─┬→ engineIn()
+                                                                              └→ space.input
 
 Six nœuds par voix, vingt-quatre en tout, plus un `BufferSource` de bruit
-partagé. Ni `space`, ni `air` du joueur : le son des ambiants n'a pas de raison
-d'être « dans les lunettes » ; il vient du monde, et le passe-bas par distance
-est sa propre justification physique (l'air absorbe les aigus).
+partagé.
+
+**Ce que #122 a décidé, et pourquoi ça ne s'applique pas ici.**
+`tools/space-model.mjs:6-14` explique l'absence de panner : les moteurs du
+joueur sont solidaires de sa tête, une source immobile par rapport à
+l'auditeur n'a rien à spatialiser, et c'est ce que le monde **renvoie** qui
+donne la proximité. Un drone ambiant est exactement le cas inverse : une
+source qui **bouge** par rapport à l'auditeur. Le placement de source est donc
+justifié pour lui, et il complète l'acoustique du lieu au lieu de la
+contredire : le sec est placé, et le lieu autour de l'auditeur le renvoie comme
+il renvoie les moteurs du joueur. D'où l'envoi vers `space.input` (entrée
+publique, `build()` idempotent : on ne reconstruit rien), à un gain égal au
+sec, le `wet` de `space` faisant le niveau. Un race qui passe dans la même cour
+que toi y résonne.
+
+Le placement est volontairement **léger** : quatre indices, tous physiques,
+aucun HRTF.
 
 - `f_blade = ω · bladeCount / 2π`, avec `ω = 0.55 · maxOmega` en croisière,
   modulé de ±15 % par `|a|` (le moteur monte en virage) ;
@@ -340,12 +365,15 @@ est sa propre justification physique (l'air absorbe les aigus).
   près (`d = 8 m`) reste **12 dB sous** l'`idleLevel` du joueur : la marge de
   1,6 dB du limiteur n'est pas à nous ; zéro au-delà de 250 m ;
 - passe-bas : `f_c = 2600 Hz` à 0 m → `800 Hz` à 250 m, en log de la
-  distance ; rien ne revient dans la bande 2–4 kHz ;
+  distance (l'air absorbe les aigus), **× 0,6 quand la source est dans le
+  dos** (ombre de la tête, lissée sur l'azimut) : c'est l'indice devant/derrière
+  qu'un panoramique seul ne donne pas ; rien ne revient dans la bande 2–4 kHz ;
 - Doppler écrit **à la main** sur `osc.frequency` :
   `f · c / (c + v_r)`, `c = 343`, `v_r` vitesse radiale relative au joueur,
   bornée à ±40 m/s ; jamais le Doppler du `PannerNode`, retiré de la spec ;
-- panoramique `StereoPanner` sur l'azimut dans le repère caméra (le
-  `PannerNode` HRTF coûte et n'apporte rien à 2 px) ;
+- panoramique `StereoPanner` équi-puissance sur l'azimut dans le repère
+  caméra, lissé (τ = 60 ms) pour qu'un passage au-dessus ne saute pas d'une
+  oreille à l'autre (le `PannerNode` HRTF coûte et n'apporte rien à 2 px) ;
 - `update()` une fois par frame, `setTargetAtTime` avec les τ de `AUDIO` ;
   `setMuted(frozen)` comme `EngineAudio` ; silence sur `linkDead` (le retour
   vidéo est mort, le son aussi).
@@ -436,7 +464,10 @@ bord, c'est la promesse de `tools/target-model.mjs:124-127` tenue.
   même build → même recette ;
 - audio (modèle pur, sans `AudioContext`) : gain décroissant en `d`, nul à
   250 m, somme des quatre à 8 m ≤ −12 dB sous `idleLevel` ; passe-bas
-  décroissant ; Doppler à ±40 m/s dans ±12 % ; détunes distincts.
+  décroissant, et plus bas dans le dos qu'en face à distance égale ; azimut
+  continu au passage du zénith ; Doppler à ±40 m/s dans ±12 % ; détunes
+  distincts ; l'envoi vers `space` égal au sec (le faux contexte de
+  `tools/space-selftest.mjs` a déjà `createDelay`).
 
 **Avec la scène** — un bloc dans `tools/selftest.mjs` (Physics réel,
 tour-eiffel) : 40 naissances sur 40 graines, toutes validées contre le vrai
@@ -454,8 +485,12 @@ FIELD, `undefined` au banc ; `drawCalls` monte de `2·n` ; regarder à 30 m,
   propriétés de masse (~57 ms/pas, #184) et une collision drone-drone
   n'apporte rien à cette version.
 - **`MeshLambertMaterial` / `scene.fog`.** Contraintes 2 et 3.
-- **Un `EngineAudio` par drone.** 240 nœuds, quatre buffers de bruit, et la
-  collision du singleton `space`. Contrainte 5.
+- **Un `EngineAudio` par drone.** 240 nœuds et quatre buffers de bruit pour
+  un son qui, à 30 m et plus, n'a plus aucun des détails que cette classe
+  existe pour produire. Contrainte 5.
+- **HRTF / binaural.** Coûteux, et inaudible sur une source de deux pixels ;
+  les quatre indices (azimut, distance, ombre du dos, Doppler) suffisent, et
+  chacun est une mesure.
 - **Doppler du `PannerNode`.** Retiré de la spec Web Audio ; à la main.
 - **Sprites.** Le maillage sert ensuite au drone du joueur ; un sprite non.
 - **Autonomie et ancres fixes.** Décision du 2026-09-06 : le ciel ne se vide
