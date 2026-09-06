@@ -193,7 +193,7 @@ export class Settings {
 		this._calLast = 0;
 		this._calRaf = null;
 		this.el.calButton.onclick = () => this.startCalibration();
-		this.el.calScreen.querySelector('#cal-cancel').onclick = () => this.cancelCalibration();
+		el.querySelector('#cal-cancel').onclick = () => this.cancelCalibration();
 		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
 		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
 		this.flightActive = false;
