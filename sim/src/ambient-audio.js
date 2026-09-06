@@ -18,6 +18,10 @@
 // start(ctx, destination, spaceInput) les résoudre au moment où l'appelant
 // les a enfin : les overrides, s'ils sont fournis, remplacent ceux du
 // constructeur avant que le graphe ne soit construit.
+//
+// `spaceInput` peut même arriver APRÈS start() : le contexte s'ouvre au
+// premier son d'interface, l'acoustique du lieu se bâtit au décollage.
+// update(voices, now, spaceInput) le rattrape — voir _connectSpace().
 import { voiceParams, VOICE } from '../tools/ambient-audio-model.mjs';
 import { AUDIO } from './audio.js';
 
@@ -39,6 +43,9 @@ export class AmbientAudio {
 	constructor({ destination, spaceInput = null } = {}) {
 		this._dest = destination;
 		this._spaceIn = spaceInput;
+		// L'envoi vers `space` est-il déjà branché ? Il peut ne pas l'être même
+		// une fois le graphe construit : voir _connectSpace().
+		this._spaceConnected = false;
 		this.ctx = null;
 		this._voices = [];
 		this._muted = false;
@@ -79,18 +86,35 @@ export class AmbientAudio {
 			osc.connect(gain);
 			this._noise.connect(band).connect(bandGain).connect(gain);
 			gain.connect(low).connect(pan).connect(this._dest);
-			if (this._spaceIn) pan.connect(this._spaceIn);
 			osc.start();
 			this.nodesCreated += 6;
 			this._voices.push({ osc, band, bandGain, gain, low, pan, detuneCents: detunes[i] });
 		}
+		this._connectSpace(this._spaceIn);
+	}
+
+	// L'envoi vers l'acoustique du lieu (#122), branché UNE fois, dès que le
+	// nœud existe. Il peut arriver après start() : ensureContext() ouvre le
+	// contexte au premier son d'interface — donc AmbientAudio démarre — alors
+	// que `space.input` n'est bâti qu'à EngineAudio.start(), au décollage.
+	// Sans ce rattrapage, l'envoi était perdu pour toute la session et les
+	// ambiants sonnaient à sec, hors du lieu.
+	_connectSpace(node) {
+		if (this._spaceConnected || !node || !this._voices.length) return;
+		for (const v of this._voices) v.pan.connect(node);
+		this._spaceIn = node;
+		this._spaceConnected = true;
 	}
 
 	setMuted(m) { this._muted = !!m; }
 
 	// `voices[i]` = { d, behind, pan, vRadial, accelMag, profile } ou null.
-	update(voices, now) {
+	// `spaceInput` : le nœud d'entrée de l'acoustique du lieu, relu à chaque
+	// frame par l'appelant (lecture de propriété, aucune allocation) — voir
+	// _connectSpace().
+	update(voices, now, spaceInput) {
 		if (!this.ctx) return;
+		if (!this._spaceConnected && spaceInput) this._connectSpace(spaceInput);
 		const t = now ?? this.ctx.currentTime;
 		for (let i = 0; i < N_VOICES; i++) {
 			const v = this._voices[i], src = voices[i];
@@ -120,6 +144,6 @@ export class AmbientAudio {
 			for (const v of this._voices) { v.osc.stop(); v.osc.disconnect(); v.band.disconnect(); v.bandGain.disconnect(); v.gain.disconnect(); v.low.disconnect(); v.pan.disconnect(); }
 			this._noise.stop(); this._noise.disconnect();
 		} catch { /* déjà démonté */ }
-		this._voices = []; this.ctx = null;
+		this._voices = []; this.ctx = null; this._spaceConnected = false;
 	}
 }

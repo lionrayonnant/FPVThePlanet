@@ -86,7 +86,13 @@ test('voiceParams mute out sans allouer', () => {
 function fakeContext() {
 	let created = 0;
 	const param = (v) => ({ value: v, setTargetAtTime(t) { this.value = t; }, setValueAtTime(t) { this.value = t; } });
-	const node = (extra = {}) => { created++; return { connect() { return this; }, disconnect() {}, start() {}, stop() {}, ...extra }; };
+	// `targets` : les nœuds vers lesquels celui-ci a été branché. connect()
+	// rend sa CIBLE, comme la vraie Web Audio — sinon les chaînes
+	// `a.connect(b).connect(c)` brancheraient tout sur `a`.
+	const node = (extra = {}) => {
+		created++;
+		return { targets: [], connect(t) { this.targets.push(t); return t; }, disconnect() {}, start() {}, stop() {}, ...extra };
+	};
 	return {
 		currentTime: 0, sampleRate: 48000, state: 'running',
 		get created() { return created; },
@@ -153,6 +159,42 @@ test('start(ctx, dest2, space2) : override après construction sans destination'
 	assert.ok(after >= 2 + 4 * 6 && after <= 2 + 4 * 6 + 3, `${after} nœuds`);
 	assert.equal(a._dest, dest2);
 	assert.equal(a._spaceIn, space2);
+});
+
+test('space : l\'envoi se branche même quand space.input arrive APRÈS start()', () => {
+	// ensureContext() ouvre le contexte au premier son d'interface, donc
+	// AmbientAudio démarre ; `space.input` n'est bâti qu'à EngineAudio.start().
+	// Sans rattrapage, l'envoi vers l'acoustique du lieu était perdu pour toute
+	// la session et les ambiants sonnaient à sec, hors du lieu.
+	const ctx = fakeContext();
+	const a = new AmbientAudio({ destination: ctx.createGain() });   // pas de spaceInput
+	a.start(ctx);
+	const spaceIn = ctx.createGain();
+	assert.ok(a._voices.every((v) => !v.pan.targets.includes(spaceIn)), 'branché trop tôt');
+	const nodesAfterStart = ctx.created;
+	const silent = [null, null, null, null];
+	a.update(silent, 0, spaceIn);
+	const sends = () => a._voices.map((v) => v.pan.targets.filter((t) => t === spaceIn).length);
+	assert.deepEqual(sends(), [1, 1, 1, 1], 'envoi non branché');
+	// … et UNE seule fois, quoi qu'il arrive ensuite.
+	for (let i = 1; i < 50; i++) a.update(silent, i / 60, spaceIn);
+	assert.deepEqual(sends(), [1, 1, 1, 1], 'branché plusieurs fois');
+	assert.equal(ctx.created, nodesAfterStart, 'un nœud a été créé pendant update');
+	// Un spaceInput toujours absent ne casse rien.
+	const b = new AmbientAudio({ destination: ctx.createGain() });
+	b.start(ctx);
+	b.update(silent, 0, null);
+	assert.equal(b._spaceConnected, false);
+});
+
+test('space : fourni à start(), branché une fois et pas deux', () => {
+	const ctx = fakeContext();
+	const spaceIn = ctx.createGain();
+	const a = new AmbientAudio({ destination: ctx.createGain(), spaceInput: spaceIn });
+	a.start(ctx);
+	assert.ok(a._voices.every((v) => v.pan.targets.filter((t) => t === spaceIn).length === 1));
+	a.update([null, null, null, null], 0, spaceIn);
+	assert.ok(a._voices.every((v) => v.pan.targets.filter((t) => t === spaceIn).length === 1));
 });
 
 console.log(`ambient-audio: ${passed} tests OK`);

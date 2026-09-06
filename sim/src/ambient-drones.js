@@ -182,7 +182,14 @@ export class AmbientDrones {
 		// que si quelqu'un vise encore les AudioParams (update() ne fait que
 		// ça, elle ne touche pas au graphe). Verrouillé après silence() : le
 		// lien mort ne se rouvre pas parce que l'épave roule encore.
-		this.audio.update(this._voices);
+		//
+		// `space.input` est passé À CHAQUE frame (une lecture de propriété, pas
+		// d'allocation) : le contexte audio peut naître AVANT l'acoustique du
+		// lieu — ensureContext() ouvre le contexte au premier son d'UI, tandis
+		// que space.input n'apparaît qu'à EngineAudio.start(). Sans ce rappel,
+		// start() branchait sur un spaceInput null et l'envoi était perdu pour
+		// la session ; AmbientAudio le branche au premier passage où il existe.
+		this.audio.update(this._voices, undefined, space.input);
 	}
 
 	debug() {
