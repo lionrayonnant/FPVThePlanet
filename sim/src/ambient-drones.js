@@ -42,6 +42,14 @@ export class AmbientDrones {
 		this._ap = { pan: 0, behind: 0 };
 		this._lastFog = { color: -1, density: -1 };
 		this._lastRes = { w: -1, h: -1 };
+		// Les arguments du modèle, écrits une fois par frame plutôt qu'alloués
+		// — même idiome que `_spawnArgs` dans AmbientModel.
+		this._modelArgs = { dt: 0, player: null, cam: this._cam, fovDeg: 0, rays: null, top: 0, span: 0, wind: null };
+		// Le lien est mort : les voix restent muettes jusqu'au prochain
+		// reset()/setScan(). `audio.silence()` ne rampe qu'UNE fois, alors que
+		// update() revise les gains à chaque frame — l'épave qui roule les
+		// rallumerait dès la frame suivante sans ce verrou.
+		this._silenced = false;
 		this._time = 0;
 		this._colors = { frame: hex('--dark-grey'), metal: hex('--grey'), prop: hex('--light-grey'), led: hex('--warm-white') };
 	}
@@ -74,10 +82,16 @@ export class AmbientDrones {
 		this.model = null;
 		this._voices[0] = this._voices[1] = this._voices[2] = this._voices[3] = null;
 		this.audio.update(this._voices);
+		this._silenced = false;
+		// Les maillages qui viennent n'ont AUCUN uniforme du monde : on
+		// invalide les deux verrous pour que la première frame les écrive.
+		this._lastFog.color = -1; this._lastFog.density = -1;
+		this._lastRes.w = -1; this._lastRes.h = -1;
 	}
 
-	reset() { this.model?.reset(); }
-	silence() { this.audio.silence(); }
+	reset() { this.model?.reset(); this._silenced = false; }
+	// Verrouille le silence : voir `_silenced` au constructeur.
+	silence() { this._silenced = true; this.audio.silence(); }
 	setMuted(b) { this.audio.setMuted(b); }
 
 	// Une fois par frame, dt = 0 quand gelé. `player`/`playerVel` : Rapier
@@ -97,7 +111,10 @@ export class AmbientDrones {
 		this._cam.fx = this._camF.x; this._cam.fy = this._camF.y; this._cam.fz = this._camF.z;
 		this._camPan.fx = this._camF.x; this._camPan.fz = this._camF.z; this._camPan.rx = this._camR.x; this._camPan.rz = this._camR.z;
 
-		m.update({ dt, player, cam: this._cam, fovDeg: camera.fov, rays, top, span, wind });
+		const ma = this._modelArgs;
+		ma.dt = dt; ma.player = player; ma.fovDeg = camera.fov;
+		ma.rays = rays; ma.top = top; ma.span = span; ma.wind = wind;
+		m.update(ma);
 		this._time += dt;
 
 		// Brouillard, résolution : écrits sur changement seulement.
@@ -111,6 +128,14 @@ export class AmbientDrones {
 			const mesh = this.meshes[k];
 			const alive = m.alive[k] === 1;
 			mesh.group.visible = alive;
+			// Le brouillard et la résolution s'écrivent sur TOUS les maillages,
+			// vivants ou non, et AVANT le tri : ces deux-là sont verrouillés
+			// globalement (`_lastFog`/`_lastRes`), donc un drone qui naît après
+			// le dernier changement ne les recevrait jamais — il volerait sans
+			// perspective aérienne et avec une LED calibrée pour 1920×1080.
+			// Quatre écritures d'uniformes au plus, on ne compte pas.
+			if (resChanged) setResolution(mesh.ledMaterial, resolution.w, resolution.h);
+			if (fogChanged) { setFog(mesh.material, fogHex, fogDensity); setFog(mesh.ledMaterial, fogHex, fogDensity); }
 			if (!alive) { this._voices[k] = null; continue; }
 			this._p.set(m.pos[3 * k], m.pos[3 * k + 1], m.pos[3 * k + 2]);
 			this._q.set(m.quat[4 * k], m.quat[4 * k + 1], m.quat[4 * k + 2], m.quat[4 * k + 3]);
@@ -118,8 +143,6 @@ export class AmbientDrones {
 			mesh.group.matrixWorldNeedsUpdate = true;
 			setTime(mesh.material, this._time);
 			setTime(mesh.ledMaterial, this._time);
-			if (resChanged) setResolution(mesh.ledMaterial, resolution.w, resolution.h);
-			if (fogChanged) { setFog(mesh.material, fogHex, fogDensity); setFog(mesh.ledMaterial, fogHex, fogDensity); }
 			if (sun) setSun(mesh.material, sun.dir, sun.ambient, sun.night);
 
 			// La voix.
@@ -132,11 +155,12 @@ export class AmbientDrones {
 			v.vRadial = (rvx * relX + rvy * relY + rvz * relZ) / d;
 			v.accelMag = Math.hypot(m.acc[3 * k], m.acc[3 * k + 1], m.acc[3 * k + 2]);
 			v.profile = m.builds[k].profile;
-			this._voices[k] = v;
+			this._voices[k] = this._silenced ? null : v;
 		}
 		// À CHAQUE appel, y compris dt = 0 : setMuted(frozen) ne coupe le son
 		// que si quelqu'un vise encore les AudioParams (update() ne fait que
-		// ça, elle ne touche pas au graphe).
+		// ça, elle ne touche pas au graphe). Verrouillé après silence() : le
+		// lien mort ne se rouvre pas parce que l'épave roule encore.
 		this.audio.update(this._voices);
 	}
 

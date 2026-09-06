@@ -30,7 +30,7 @@ import { crashThreshold, CRASH_IMPULSE, CRASH_IMPULSE_FLAT, idleThrottle } from 
 import { hoverThrottle } from '../src/flightController.js';
 import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generateEntryState, rngFrom } from '../src/entry-state.js';
 import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
-import { AmbientModel, ambientSet, curveAt } from '../src/ambient.js';
+import { AmbientModel, ambientSet, curveAt, HEIGHT_SAMPLES } from '../src/ambient.js';
 import {
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
@@ -2076,8 +2076,17 @@ console.log('\nentry state — sampleCandidate');
 }
 
 // ---------------------------------------------------------------- ambient
-// 40 naissances contre le VRAI trimesh : aucune courbe ne coupe un mur (rejeu
-// de obstructionBetween sur 64 points), toutes au-dessus du sol.
+// 40 naissances contre le VRAI trimesh : aucune courbe ne coupe un mur, toutes
+// au-dessus du sol de leur famille.
+//
+// REPLAY est PREMIER avec HEIGHT_SAMPLES, et c'est tout l'intérêt : si le rejeu
+// tombait sur des multiples de la grille du modèle (64 points contre 64 rayons),
+// chaque point testé retomberait exactement sur un rayon que validateCurve() a
+// déjà lancé, avec un critère plus strict — le contrôle serait une tautologie
+// et ne pourrait plus jamais rougir. 257 = 4·64 + 1 : les points tombent ENTRE
+// les nœuds du modèle, là où le relief se cache (c'est exactement le mode
+// d'échec que ce bloc a trouvé sur `havre` à 16 rayons).
+const REPLAY = HEIGHT_SAMPLES * 4 + 1;
 console.log('\nambient drones (real trimesh)');
 {
 	const fence = new Geofence(manifest.bbox);
@@ -2088,6 +2097,7 @@ console.log('\nambient drones (real trimesh)');
 	const sp = phys.spawn;
 	const player = { x: sp.x, y: sp.y + 30, z: sp.z };
 	let born = 0, clean = 0, aboveGround = 0, tested = 0;
+	const worst = [];
 	for (let s = 0; s < 10; s++) {
 		const scan = { seed: `selftest-ambient-${s}`, count: 5, index: 0 };
 		const set = ambientSet(scan);
@@ -2103,23 +2113,30 @@ console.log('\nambient drones (real trimesh)');
 			const a = { x: m.anchors[3 * k], y: m.anchors[3 * k + 1], z: m.anchors[3 * k + 2] };
 			let ok = true, above = true;
 			const pa = { x: 0, y: 0, z: 0 }, pb = { x: 0, y: 0, z: 0 };
-			for (let i = 0; i < 64; i++) {
-				curveAt(r, a, m.heights[k], r.period * i / 64, pa);
-				curveAt(r, a, m.heights[k], r.period * (i + 1) / 64, pb);
+			let worstAgl = Infinity, worstAt = -1;
+			for (let i = 0; i < REPLAY; i++) {
+				curveAt(r, a, m.heights[k], r.period * i / REPLAY, pa);
+				curveAt(r, a, m.heights[k], r.period * (i + 1) / REPLAY, pb);
 				const o = phys.obstructionBetween(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
 				if (o.blocked && o.span > 2) ok = false;
 				const g = phys.groundBelow(pa.x, pa.y, pa.z);
-				if (g == null || pa.y - g < r.aglMin - 0.5) above = false;
+				if (g == null) { above = false; tested++; continue; }
+				if (pa.y - g < worstAgl) { worstAgl = pa.y - g; worstAt = i; }
+				if (pa.y - g < r.aglMin - 0.5) above = false;
 				tested++;
 			}
 			if (ok) clean++;
 			if (above) aboveGround++;
+			else if (worstAt >= 0) {
+				worst.push(`${r.family} ${r.kind} aglMin=${r.aglMin} pire=${worstAgl.toFixed(2)} au point ${worstAt}/${REPLAY}`);
+			}
 		}
 	}
 	check('at least 30 of 40 ambient drones are born on the reference scene', born >= 30, `${born}/40`);
-	check('no ambient curve cuts a wall (64-point replay)', clean === born, `${clean}/${born}`);
-	check('every ambient curve stays above its family AGL', aboveGround === born, `${aboveGround}/${born}`);
-	console.log(`    ${tested} points replayed`);
+	check(`no ambient curve cuts a wall (${REPLAY}-point replay)`, clean === born, `${clean}/${born}`);
+	check('every ambient curve stays above its family AGL', aboveGround === born,
+		`${aboveGround}/${born}${worst.length ? ` — ${worst.slice(0, 3).join(' ; ')}` : ''}`);
+	console.log(`    ${tested} points replayed (${REPLAY} per curve, premier avec les ${HEIGHT_SAMPLES} rayons du modèle)`);
 }
 
 console.log('\nsoleil — position');
