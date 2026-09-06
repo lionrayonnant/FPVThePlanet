@@ -9,7 +9,7 @@
 // Python est lancé UNE fois avec tout le lot.
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MUSIC_POOLS, POOLS, buildPrompt } from './music-prompts.mjs';
@@ -110,6 +110,20 @@ export function planFor({ pool, count, seedBase, duration, tag = '' }) {
 	return jobs;
 }
 
+/**
+ * Propose une graine libre. Suit la série vN quand elle existe, pour que
+ * l'ordre des vagues reste lisible dans le manifeste.
+ */
+export function suggestSeedBase(used) {
+	let n = 1;
+	for (const base of used) {
+		const m = /^v(\d+)$/.exec(base);
+		if (m) n = Math.max(n, Number(m[1]) + 1);
+	}
+	while (used.has(`v${n}`)) n++;
+	return `v${n}`;
+}
+
 async function run() {
 	const opts = parseArgs(process.argv.slice(2));
 	if (!opts.pool) throw new Error('--pool est requis : un pool, une liste séparée par des virgules, ou "all"');
@@ -120,6 +134,26 @@ async function run() {
 	for (const p of pools) {
 		if (!MUSIC_POOLS.includes(p)) throw new Error(`pool inconnu : ${p} (connus : ${MUSIC_POOLS.join(', ')})`);
 	}
+	// La graine de base détermine les prompts ET les identifiants. La réutiliser
+	// ne produit donc pas « d'autres morceaux » mais EXACTEMENT les mêmes, que
+	// le worker saute ensuite comme déjà générés — on croit avoir agrandi la
+	// bibliothèque et il ne s'est rien passé. C'est le piège le plus facile de
+	// tout le pipeline, et il est silencieux.
+	const manifest = join(SIM, 'public/music.json');
+	if (existsSync(manifest)) {
+		const used = new Set();
+		for (const t of JSON.parse(readFileSync(manifest, 'utf8')).tracks ?? []) {
+			const base = String(t.seed ?? '').split('::')[0];
+			if (base) used.add(base);
+		}
+		if (used.has(opts.seedBase)) {
+			throw new Error(`la graine « ${opts.seedBase} » est déjà dans la bibliothèque : `
+				+ 'elle rendrait les mêmes morceaux.\n'
+				+ `Graines utilisées : ${[...used].sort().join(', ')}\n`
+				+ 'Donne-en une neuve, par exemple --seed-base ' + suggestSeedBase(used));
+		}
+	}
+
 	if (!existsSync(PYTHON)) {
 		throw new Error(`python du venv Stable Audio introuvable : ${PYTHON}\n`
 			+ 'Donne le chemin de l\'installation avec FPVTP_STABLE_AUDIO=/chemin/vers/stableaudio3.0');

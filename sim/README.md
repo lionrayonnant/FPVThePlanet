@@ -181,15 +181,40 @@ les poids), hors du dépôt, désignée par `FPVTP_STABLE_AUDIO` :
 ```bash
 export FPVTP_STABLE_AUDIO=/chemin/vers/stableaudio3.0
 
-npm run add-music -- --pool all --count 10   # génère dans .music-staging/ (gitignoré)
-npm run music-gate                            # rejet automatique mesuré
-npm run music-loop                            # boucle sans couture + normalisation + Opus
-npm run music-review                          # écoute : o accepter, k refuser, l couture
+npm run add-music -- --pool all --count 10 --seed-base v6   # → .music-staging/ (gitignoré)
+npm run music-gate                                          # rejet automatique mesuré
+npm run music-loop                                          # boucle + normalisation + Opus
+npm run music-review                                        # écoute : o accepter, k refuser
 ```
 
-`--pool` accepte `all` ou l'une des sept clés : `menu`, `freestyle5`, `race5`,
-`cinewhoop`, `longrange`, `heavy5`, `toothpick` (les six dernières sont les
-familles de `src/drone-profiles.js`).
+**`--seed-base` est obligatoire en pratique, et c'est le piège du pipeline.**
+La graine détermine les prompts *et* les identifiants : la réutiliser ne produit
+pas d'autres morceaux, elle rend exactement les mêmes, que le générateur saute
+ensuite comme déjà présents. On croit avoir agrandi la bibliothèque et il ne
+s'est rien passé. `add-music` refuse désormais une graine déjà représentée au
+manifeste et propose la suivante — prends celle qu'il donne.
+
+`--pool` accepte `all`, une liste séparée par des virgules, ou l'une des sept
+clés : `menu`, `freestyle5`, `race5`, `cinewhoop`, `longrange`, `heavy5`,
+`toothpick` (les six dernières sont les familles de `src/drone-profiles.js`).
+Une liste vaut mieux que plusieurs commandes : le modèle met plus longtemps à
+charger qu'à générer, et un lot ne le charge qu'une fois.
+
+Compter environ **8 s par morceau** plus 20 s de chargement. Ne pas toucher au
+nombre de pas de diffusion : 8 est le régime nominal du modèle, pas un
+raccourci de vitesse — le monter dégrade la sortie de plusieurs dB et la fait
+partir hors-style (cf. le commentaire de `DEFAULTS` dans `tools/music-gen.mjs`).
+
+Pour retirer des morceaux — du manifeste **et** du disque, la règle write-once
+disant qu'un fichier n'est jamais réécrit, pas qu'il est éternel :
+
+```bash
+node tools/music-retire.mjs --before v6          # coup à blanc : ne garde que v6
+node tools/music-retire.mjs --id <id> --apply    # ou un par un
+```
+
+Il refuse de vider un pool : un pool sans musique rendrait le jeu muet pour
+toute une famille de drone.
 
 Trois choses à savoir :
 
