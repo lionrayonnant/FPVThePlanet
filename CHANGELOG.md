@@ -18,6 +18,8 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+## [0.1.0-beta] - 2026-09-07
+
 ### Ajouté
 
 - `sim/server/` — le jeu démarre sans Vite (#259, tranche T1 du design de
@@ -424,4 +426,5 @@ rapport avec les versions ci-dessous.
   selftest borne famille par famille — ce qui est garanti pour les six, c'est
   que la moitié haute du cadre reste libre.
 
-[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/commits/main
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0-beta...HEAD
+[0.1.0-beta]: https://github.com/lionrayonnant/FPVThePlanet/releases/tag/v0.1.0-beta
