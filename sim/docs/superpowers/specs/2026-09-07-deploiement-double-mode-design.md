@@ -177,52 +177,71 @@ machine » de « une machine sur Internet ».
 
 **`local`** (défaut ; la release le force, et le serveur refuse `--host`
 autre que `127.0.0.1`/`::1` sans `--mode shared`). Comportement d'aujourd'hui,
-intégral : opérateurs listés, `OPERATOR SELECT`, pas de clé. La frontière de
-sécurité est le socket local — la même qu'avec le serveur de dev depuis deux
-mois.
+intégral : opérateurs listés, `OPERATOR SELECT`, pas de clé, `ACQUIRE AREA`
+disponible — c'est le seul endroit où une nouvelle scène peut naître. La
+frontière de sécurité est le socket local — la même qu'avec le serveur de dev
+depuis deux mois.
 
-**`shared`** (le VPS). Quatre changements, tous côté serveur sauf l'écran de
-clé :
+**`shared`** (le VPS). **Révisé le 2026-09-07 (suite conversation) : aucune
+scène ne naît jamais sur le VPS.** Ni acquise par un visiteur (le problème de
+stockage d'origine — « je ne peux pas stocker les cartes de tout le monde »),
+ni détachée, ni garbage-collectée : ces mécanismes, envisagés dans une version
+précédente de cette section, disparaissent avec leur raison d'être. Ce qui
+reste :
 
-1. **Clé d'opérateur.** `POST /__operator` génère un secret de 128 bits
-   (`randomBytes(16)`, base32 sans ambiguïté, groupé par 4 :
-   `K7QP-3MZX-…`), stocké haché (SHA-256) dans le fichier opérateur, rendu
-   **une seule fois** dans la réponse de création. Le client le garde dans
-   `localStorage` à côté de `fpvmaps.operatorId` et l'envoie en
-   `Authorization: Bearer` sur **toutes** les routes `/__operator/:id/*` et
-   `/__map-api/*`. Mauvaise clé → 403 ; absente → 401 ; le client retombe sur
-   l'écran de clé. En mode `local`, l'en-tête est ignoré.
-2. **Plus de liste.** `GET /__operator` rend 404 en `shared`. Le client, sur ce
-   404, ne montre pas `OPERATOR SELECT` mais **`OPERATOR KEY`** : un champ pour
-   la clé (retrouver son opérateur depuis un autre navigateur), ou
-   `[ NEW OPERATOR ]` → bootstrap habituel, puis un écran qui affiche la clé
-   avec la consigne de la noter. L'écran `OPERATOR` de l'ARCHIVE la ré-affiche
-   derrière `[ SHOW KEY ]`, comme `SHOW VECTOR` le fait pour le vecteur. La
-   Bible §33 tient : le Control Vector n'est toujours pas le mécanisme de
-   connexion, la clé est une chose distincte et sans rituel.
-3. **`REMOVE TERRAIN` détache, il n'efface plus.** En `shared`, la route
-   `DELETE /__map-api/scenes/:slug` retire le slug du `terrainCache` de
-   l'appelant. Le fichier n'est effacé que par le **ramasse-miettes** : une
-   scène qu'aucun opérateur ne référence depuis plus de `FPVTP_SCENES_GRACE`
-   (défaut 7 jours) est supprimée, et au-delà de `FPVTP_SCENES_MAX_GB` les
-   scènes non référencées partent par ancienneté. Une scène référencée n'est
-   **jamais** évincée : la Bible §29 (« supprimer le terrain ne supprime pas le
-   souvenir ») reste vraie, et la réciproque aussi — garder un terrain, c'est
-   le tenir en vie pour tout le monde. Le texte de l'écran s'adapte
-   (`DETACH` au lieu de `REMOVE` quand le serveur annonce `shared` dans
-   `GET /__map-api/scenes`).
-4. **File d'attente d'acquisition.** `POST /__map-api/jobs` ne rend plus 409
-   quand un job tourne : il met en file (FIFO, un job actif à la fois, la
-   raison de « un seul job » — saturer la même liaison — reste vraie sur un
-   VPS). Chaque job porte l'`operatorId` de son auteur ; le SSE `state`
-   gagne `{ queued: n }` et le rail du scanner affiche `QUEUED · 2 AHEAD`.
-   `DELETE /jobs/:id` n'est permis qu'à l'auteur.
+- **`LOCAL TERRAIN` : un petit catalogue fixe, choisi par l'opérateur du VPS
+  (toi), pas par les visiteurs.** Quelques cartes (cinq-six pour commencer)
+  acquises une fois — depuis une installation `local`, ou directement sur le
+  VPS avec `FPVTP_MODE=local` le temps de la commande — puis servies telles
+  quelles. Aucun code neuf : c'est exactement le chemin `LOCAL TERRAIN` /
+  `TARGET SCAN` / hack / rituel / session / archive d'aujourd'hui, sur des
+  scènes qui existent déjà. Utile en particulier à qui a une connexion trop
+  faible pour LIVE (une scène pré-acquise se charge une fois puis tourne sans
+  dépendre du réseau pendant le vol) — but explicite de cette conversation.
+- **`GLOBAL SCANNER` → LIVE, avec la boucle complète.** Tracer une zone
+  n'ouvre plus `ACQUIRE AREA` en `shared` : ça lance un vol **LIVE** sur cette
+  zone — mais un LIVE qui passe désormais par TARGET SCAN → hack → rituel →
+  session → archive, pas le vol de reconnaissance nu d'aujourd'hui. **C'est le
+  développement réel de cette tranche** (détail au point suivant), pas une
+  bascule de configuration.
+- **`ACQUIRE AREA` disparaît de l'écran, remplacé par l'incitation.** Le bouton
+  qui écrirait une scène sur le VPS devient `[ GET THE CLIENT — KEEP THIS
+  TERRAIN ]`, pointant vers la page de téléchargement (D4). Le geste que le
+  joueur vient de faire (tracer CETTE zone) reste dans son contexte : c'est le
+  moment précis où « pourquoi installer » a une réponse concrète, pas un
+  bandeau générique ailleurs dans l'interface.
+- **Clé d'opérateur** (inchangé par rapport à la version précédente) :
+  `POST /__operator` génère un secret de 128 bits (`randomBytes(16)`, base32
+  sans ambiguïté, groupé par 4 : `K7QP-3MZX-…`), stocké haché (SHA-256),
+  rendu **une seule fois** à la création. Envoyé en `Authorization: Bearer`
+  sur toutes les routes `/__operator/:id/*` et `/__map-api/*`. Mauvaise clé →
+  403, absente → 401. `GET /__operator` rend 404 en `shared` (pas de liste) ;
+  le client montre alors `OPERATOR KEY` (retrouver son opérateur par sa clé,
+  ou `[ NEW OPERATOR ]` → bootstrap → écran qui affiche la clé une fois).
+  L'écran `OPERATOR` de l'ARCHIVE la ré-affiche derrière `[ SHOW KEY ]`, comme
+  `SHOW VECTOR` pour le vecteur — la Bible §33 tient, la clé reste distincte
+  du Control Vector.
+- **`POST /__map-api/jobs` (acquisition) refuse en `shared`.** Puisque
+  `ACQUIRE AREA` n'est plus dans l'écran, la route qui écrirait une scène
+  refuse aussi côté serveur (403) — la protection ne doit pas dépendre de
+  l'UI seule.
+
+**Le développement réel : brancher cible/session sur une zone LIVE.**
+Aujourd'hui `bootLive()` sort **exprès** de `openFlightSession()` (commentaire
+en toutes lettres dans `main.js`) — LIVE ne génère ni cible, ni session, ni
+ligne d'archive, par construction. Donner à LIVE la boucle complète demande
+que `tools/target-model.mjs`/`tools/session-model.mjs` acceptent une zone
+`{lat, lon}` comme clé d'un vol au même titre qu'un slug de scène — pas de
+`manifest.json`, pas de `terrainCache`, mais un `resolveTarget()` et un
+`openSession()` qui tiennent quand même. Portée précise (schéma, validation,
+ce qui change dans `main.js`/`session.js`) à trancher dans une spec dédiée
+avant d'implémenter — c'est un morceau de jeu, pas de l'infrastructure, et il
+mérite son propre cycle brainstorm → spec → plan comme les autres PHASE.
 
 Ce qui ne change pas en `shared`, assumé et documenté : Nominatim est appelé
 par chaque navigateur avec sa propre IP ; Open-Meteo est déjà mis en cache par
 zone et par jour côté serveur. Les plafonds existants
-(`readBody` 1 Mo, `PHOTO_BODY_MAX` 8 Mo, `requireBox`/`requirePoly`,
-`intIn` sur zoom/altitude/cell) restent.
+(`readBody` 1 Mo, `PHOTO_BODY_MAX` 8 Mo, `requireBox`/`requirePoly`) restent.
 
 **Migration des opérateurs existants.** Un fichier sans clé, lu en `shared`,
 est inutilisable jusqu'à ce qu'on lui en donne une :
@@ -320,17 +339,20 @@ doit pouvoir télécharger, contrairement à l'API `/__map-api`/`/__operator`.
 
 **Sauvegardes** : `/var/lib/fpvtp/operator-state` est petit (174 Ko par
 opérateur sans les captures, quelques Mo avec) — `tar` quotidien. Les scènes
-sont régénérables mais longues à régénérer — `rsync` hebdomadaire, ou rien, au
-choix du propriétaire ; le ramasse-miettes n'y touche jamais tant qu'elles
-sont référencées.
+du catalogue curé (D2) sont régénérables mais longues à régénérer — `rsync`
+hebdomadaire, ou rien ; leur nombre est fixe et choisi par l'opérateur, donc
+aucune surveillance de croissance n'est nécessaire.
 
-**Dimensionnement, à mesurer avant de louer** : une scène = ~450 Mo de disque
-et ~2,7 s de chargement local ; sur le fil, le premier vol d'un opérateur
-sur une scène tire ces 450 Mo une fois (puis cache navigateur `immutable`).
-Le pic mémoire de `prep.mjs` pendant `REBUILD` n'est **pas connu** — `export-glb`
-demande 8 Go de tas, `prep` probablement moins, mais personne ne l'a mesuré.
-Un VPS à 2 Go peut tuer l'acquisition en OOM : mesurer `prep.mjs` sur
-`paristest` avec `/usr/bin/time -v` **avant** de choisir la taille du VPS.
+**Dimensionnement, à mesurer avant de louer** : une scène du catalogue curé
+= ~450 Mo de disque et ~2,7 s de chargement local ; sur le fil, le premier vol
+d'un visiteur sur une scène tire ces 450 Mo une fois (puis cache navigateur
+`immutable`) — `× 5-6 scènes`, pas au-delà, puisque le catalogue est fixe. Le
+pic mémoire de `prep.mjs` pendant `REBUILD` reste à mesurer (`export-glb`
+demande 8 Go de tas, `prep` probablement moins), mais ne pèse plus sur le
+dimensionnement du VPS en usage courant : `REBUILD` ne tourne qu'aux mains de
+l'opérateur, quand il compose le catalogue — jamais déclenché par un visiteur
+depuis que `ACQUIRE AREA` est fermé en `shared` (D2). Le mesurer avant de
+curer le catalogue reste prudent, pas avant de louer le VPS.
 
 ### 5. Ce qui change côté client
 
@@ -343,20 +365,13 @@ Le moins possible, et rien sur les chemins de vol :
   `needsKey` → nouvel écran `OPERATOR KEY` dans `src/terminal.js` (même
   gabarit que `operatorSelect`). Le bootstrap gagne un dernier écran
   `YOUR OPERATOR KEY` quand la réponse de création en porte une.
-- `src/terminal.js` : `REMOVE` devient `DETACH` quand `scenes` annonce
-  `{ mode: 'shared' }` ; le rail du scanner affiche la position en file.
-- **Inciter à installer le client, en mode `shared` seulement** (2026-09-07,
-  suite conversation) : le VPS est la vitrine — un nouveau venu y joue au
-  navigateur sans rien installer, c'est le but — mais chaque session `shared`
-  coûte du calcul et de la bande passante côté serveur (acquisition,
-  websockets d'opérateur), alors qu'une installation Electron fait tourner
-  toute la boucle chez le joueur. `GET /__map-api/scenes` porte déjà `{ mode }` ;
-  un bandeau discret dans le terminal (Home, pied de page ou notice type RTC)
-  en mode `shared` uniquement, pointant vers la page de téléchargement du VPS
-  (D4). Jamais en `local` — installer serait déjà fait. Pas un mur ni un
-  compte à rebours : de l'information, pas de la pression (pilier 1 de la
-  Bible, « information, not assistance »). Détail d'écran à trancher au
-  moment de l'implémenter (T3), pas ici.
+- `src/terminal.js` : le bouton `ACQUIRE AREA` du scanner devient
+  `[ GET THE CLIENT — KEEP THIS TERRAIN ]` quand `scenes` annonce
+  `{ mode: 'shared' }` (voir D2) — pas un bandeau générique ailleurs dans
+  l'interface, l'incitation vit au moment précis où elle répond à une envie
+  réelle. Pas un mur : de l'information, pas de la pression (pilier 1 de la
+  Bible, « information, not assistance »). Détail visuel exact à trancher à
+  l'implémentation (T3), pas ici.
 - `?scene=`, `?live=`, `?family=`, le banc : inchangés.
 
 ### 6. Vérification
@@ -370,8 +385,9 @@ Le moins possible, et rien sur les chemins de vol :
   serveur) ; `Range` sur un fichier de scène ; `Cache-Control` immutable sur
   `/scenes/*` et `no-store` sur l'API ; en `shared` : 401 sans clé, 403 avec
   une mauvaise, 404 sur la liste, la clé rendue une fois et jamais relue en
-  clair ; `DETACH` ne supprime pas le dossier, le ramasse-miettes le fait
-  après la grâce et pas avant ; la file FIFO ; `local` refuse `--host 0.0.0.0`.
+  clair ; `POST /__map-api/jobs` refuse (403) en `shared` quelle que soit la
+  clé — aucune scène ne peut naître sur ce mode, ni par erreur ni par
+  contournement de l'UI ; `local` refuse `--host 0.0.0.0`.
 - `tools/session-api-selftest.mjs` bascule de `createServer` Vite sur
   `server/index.mjs` : il teste ce qui est livré, et la CI n'a plus à
   démarrer Vite (plus rapide). Un check de fumée garde l'adaptateur Vite
@@ -396,8 +412,12 @@ aucun selftest ne le remplace :
    manuel.
 3. Sur le VPS : créer un opérateur, noter la clé, ouvrir un navigateur privé,
    entrer la clé, retrouver le même opérateur. Un second opérateur ne voit
-   pas le premier. Un vol LIVE depuis le domaine réel — le CORS de
-   `kh.google.com` n'a été vérifié que depuis `localhost`.
+   pas le premier. `LOCAL TERRAIN` ne montre que le catalogue curé, jamais
+   `ACQUIRE AREA` (le bouton dit `GET THE CLIENT`, cliquer dessus ne déclenche
+   aucune requête d'acquisition). Un vol LIVE tracé sur le scanner rend la
+   boucle complète — TARGET SCAN, hack, rituel, session archivée à la fin —
+   depuis le domaine réel ; le CORS de `kh.google.com` n'a été vérifié que
+   depuis `localhost`.
 
 ### 7. Tranches, chacune livrable seule
 
@@ -405,15 +425,21 @@ aucun selftest ne le remplace :
 |---|---|---|
 | T1 | `server/` + `paths.mjs` + adaptateur Vite + `server-selftest` ; `session-api-selftest` sur le serveur autonome | #259 (le build démarre seul) |
 | T2 | `electron/main.js`, `electron-builder` (NSIS + AppImage), `electron-updater`, matrice Windows/Linux en CI et en release | l'app s'installe et se met à jour toute seule |
-| T3 | mode `shared` : clé, écran `OPERATOR KEY`, `DETACH` + ramasse-miettes, file, bandeau d'incitation à installer le client | #60 (PHASE 23) |
+| T3a | mode `shared` — infra : clé, écran `OPERATOR KEY`, `ACQUIRE AREA` refusé (403) + bouton `GET THE CLIENT`, catalogue curé (aucun code neuf, juste des scènes pré-acquises par l'opérateur) | #60 (PHASE 23), la moitié infra |
+| T3b | LIVE porte la boucle complète (TARGET SCAN/hack/rituel/session/archive sur une zone `{lat, lon}`) — **jeu, pas infra**, sa propre spec avant d'implémenter | #60, la moitié qui rend le VPS attractif |
 | T4 | `deploy/` + distribution Electron (D3) + première livraison manuelle sur le VPS | le serveur existe et sert les installeurs |
 
 T1 et T2 ne changent rien au comportement du jeu (T2 ajoute un point d'entrée
-Electron à côté du navigateur, pas une divergence de code). T3 est la seule
-tranche qui touche des écrans du jeu lui-même. T1 → T2 → T4 suffit à un
-« serveur pour les amis » en mode `local` derrière un tunnel, comme aujourd'hui
-avec ngrok — mais **pas** exposé sur Internet : le serveur refuse
-`--host 0.0.0.0` sans `--mode shared`, et c'est voulu.
+Electron à côté du navigateur, pas une divergence de code). T3a est de
+l'infrastructure pure (aucun écran de jeu ne change de comportement, sinon le
+libellé d'un bouton) et peut se livrer seule : le VPS sert alors son
+catalogue curé avec la boucle d'aujourd'hui, LIVE restant le vol nu en
+attendant T3b. T3b est la seule tranche qui touche vraiment le jeu, et la
+seule qui mérite un cycle brainstorm → spec → plan séparé avant d'être
+planifiée sérieusement. T1 → T2 → T4 suffit à un « serveur pour les amis » en
+mode `local` derrière un tunnel, comme aujourd'hui avec ngrok — mais **pas**
+exposé sur Internet : le serveur refuse `--host 0.0.0.0` sans `--mode shared`,
+et c'est voulu.
 
 ## Ce qui n'est pas dans ce design
 
@@ -445,7 +471,13 @@ avec ngrok — mais **pas** exposé sur Internet : le serveur refuse
   télécharge, redémarre dessus) contre un provider générique auto-hébergé —
   jamais fait, à vérifier avant d'annoncer « mise à jour automatique » comme
   acquis.
-- Le pic mémoire de `prep.mjs` (voir §4) — à mesurer avant de louer.
+- Le pic mémoire de `prep.mjs` (voir §4) — à mesurer avant de composer le
+  catalogue curé.
+- **T3b (LIVE + boucle complète) n'a pas de spec.** D2 en donne l'intention et
+  le point d'accroche technique (`bootLive()` sort exprès de
+  `openFlightSession()`), pas une conception — targeting/entry state/
+  randomart/photos tiennent-ils sans `manifest.json` ni `terrainCache` ? À
+  répondre dans son propre cycle avant de planifier le travail, pas ici.
 - Le CORS de `kh.google.com` depuis un vrai domaine.
 - Le `Range` et le cache `immutable` sur 450 Mo de scène : le comportement du
   cache navigateur au-delà de son quota n'a pas été regardé.
