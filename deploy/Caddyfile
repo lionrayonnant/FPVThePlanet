@@ -1,0 +1,96 @@
+# Caddy — les deux entrées publiques du VPS FPVTP!.
+#
+# Tranche T4 du design de déploiement :
+# sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md
+#
+# Installation : voir deploy/README.md.
+#   cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   # remplacer les deux `example.org` par le vrai domaine
+#   caddy validate --config /etc/caddy/Caddyfile
+#   systemctl reload caddy
+#
+# Caddy obtient et renouvelle les certificats TLS tout seul (Let's Encrypt),
+# à condition que les deux noms pointent bien sur l'IP de la machine et que
+# les ports 80 et 443 soient joignables.
+#
+# `fpvtp.example.org` et `updates.fpvtp.example.org` sont des exemples : ce
+# fichier est un gabarit, il n'est jamais déployé tel quel.
+
+# ---------------------------------------------------------------------------
+# 1. Le serveur de jeu — l'API et les fichiers du build.
+# ---------------------------------------------------------------------------
+fpvtp.example.org {
+	# Le serveur Node (fpvtp.service) n'écoute que sur 127.0.0.1:8080 ; c'est
+	# ce bloc, et lui seul, qui l'expose. Tout passe par le proxy : l'API
+	# (/__operator, /__map-api) comme les fichiers statiques, parce que
+	# sim/server/static.mjs porte des choses qu'un file_server ne saurait pas
+	# reproduire (le catalogue dynamique /scenes.json depuis le répertoire de
+	# données, l'absence délibérée de repli SPA, le Cache-Control immutable).
+	reverse_proxy 127.0.0.1:8080
+
+	# SSE — À LIRE AVANT DE S'INQUIÉTER.
+	# La progression des jobs d'acquisition est diffusée en
+	# `text/event-stream` (sim/server/api.mjs). Il n'y a RIEN à régler pour
+	# ça : le reverse_proxy de Caddy ne tamponne pas les réponses, il les
+	# écoule au fil de l'eau. Pas d'équivalent de `proxy_buffering off;`
+	# à chercher — cette directive n'existe pas, parce qu'elle n'a pas lieu
+	# d'être. (L'en-tête `x-accel-buffering: no` que le serveur envoie déjà
+	# couvrirait nginx si l'on changeait un jour de frontal.)
+	#
+	# Aucune compression (`encode`) n'est activée ici À DESSEIN : son
+	# interaction avec le flux SSE n'a pas pu être vérifiée sur cette machine
+	# (Caddy n'y est pas installé). Si vous l'ajoutez, vérifiez d'abord qu'un
+	# job d'acquisition affiche toujours sa progression en direct.
+
+	log {
+		output file /var/log/caddy/fpvtp.log
+	}
+}
+
+# ---------------------------------------------------------------------------
+# 2. La distribution des installeurs de bureau (Electron, D3).
+# ---------------------------------------------------------------------------
+#
+# CHOIX : un SOUS-DOMAINE dédié (`updates.`), pas un chemin sous le domaine
+# du jeu. Trois raisons :
+#
+#   1. Le bloc du jeu proxie TOUT vers Node. Servir un chemin statiquement
+#      depuis ce même bloc demanderait un `handle_path` placé avant le
+#      `reverse_proxy`, donc un site dont la lecture dépend d'un ordre de
+#      directives — exactement le genre de subtilité qui se casse à la
+#      prochaine modification, sur un fichier que personne ne relit souvent.
+#   2. `electron-updater` en provider générique veut une URL de base qui est
+#      la racine d'un répertoire (`latest.yml` y est cherché à côté des
+#      installeurs). Une racine de site est plus simple à donner, et plus
+#      simple à changer le jour où le dépôt devient public et où l'on
+#      repasse au provider `github`.
+#   3. Ces fichiers sont publics, sans authentification, alors que l'API du
+#      jeu ne le restera pas (clé d'opérateur, tranche T3). Deux régimes
+#      d'accès différents : deux blocs séparés, la séparation se voit.
+#
+# AUCUNE AUTHENTIFICATION ICI, C'EST VOULU : n'importe qui doit pouvoir
+# télécharger un installeur et recevoir les mises à jour automatiques.
+#
+# Le répertoire est rempli par deploy/deploy.sh (dernière étape).
+updates.fpvtp.example.org {
+	root * /srv/fpvtp-updates
+	file_server {
+		# Un listing, pour qu'un humain puisse choisir sa plateforme à la
+		# main sans connaître le nom exact du fichier.
+		browse
+	}
+
+	# electron-updater lit `latest.yml` (Windows) et `latest-linux.yml`
+	# (Linux) à chaque démarrage de l'app : ils doivent être revalidés, jamais
+	# servis depuis un cache. Les installeurs, eux, portent leur version dans
+	# leur nom et ne changent jamais sous ce nom.
+	@flux path /latest.yml /latest-linux.yml
+	header @flux Cache-Control "no-cache"
+
+	@installeurs path *.exe *.AppImage *.blockmap
+	header @installeurs Cache-Control "public, max-age=31536000, immutable"
+
+	log {
+		output file /var/log/caddy/fpvtp-updates.log
+	}
+}

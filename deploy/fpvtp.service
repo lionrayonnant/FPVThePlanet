@@ -1,0 +1,103 @@
+# Unité systemd du serveur de jeu FPVTP! sur le VPS (mode `shared`).
+#
+# Tranche T4 du design de déploiement :
+# sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md
+#
+# Installation : voir deploy/README.md (checklist humaine, à faire une fois).
+#   cp deploy/fpvtp.service /etc/systemd/system/fpvtp.service
+#   systemctl daemon-reload && systemctl enable --now fpvtp
+#
+# Arborescence attendue sur la machine (posée par deploy/deploy.sh) :
+#   /opt/fpvtp/releases/<tag>/app/     ← le programme (server/, tools/, src/, dist/)
+#   /opt/fpvtp/releases/<tag>/node/    ← le runtime Node embarqué dans l'archive
+#   /opt/fpvtp/current -> releases/<tag>   (lien symbolique, la bascule)
+#   /var/lib/fpvtp/                    ← les données (FPVTP_DATA_DIR)
+#
+# ATTENTION, prérequis non encore satisfait au 2026-09-07 : l'archive publiée
+# aujourd'hui par .github/workflows/release.yml ne contient QUE `dist/` — ni
+# `server/`, ni `tools/`, ni `src/`, ni un runtime Node. Cette unité ne
+# démarrera donc pas tant que la release ne produit pas l'archive `linux-x64`
+# décrite ci-dessus. Voir deploy/README.md, section « Le runtime Node ».
+
+[Unit]
+Description=FPVTP! — serveur de jeu (mode shared)
+Documentation=https://github.com/lionrayonnant/FPVTP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fpvtp
+Group=fpvtp
+
+WorkingDirectory=/opt/fpvtp/current/app
+ExecStart=/opt/fpvtp/current/node/bin/node server/index.mjs
+
+# Les quatre variables ci-dessous sont celles que sim/server/index.mjs lit
+# réellement (resolveOptions(), lignes 51-58) : FPVTP_DATA_DIR, FPVTP_PORT,
+# FPVTP_HOST, FPVTP_MODE. Vérifié en démarrant le serveur avec, le 2026-09-07.
+#
+# `shared` est le mode du VPS : c'est lui qui autorise une écoute hors boucle
+# locale et qui portera l'authentification par clé d'opérateur (tranche T3).
+Environment=FPVTP_MODE=shared
+# Les données sortent du dossier du programme : une mise à jour écrase
+# /opt/fpvtp/current, jamais /var/lib/fpvtp.
+Environment=FPVTP_DATA_DIR=/var/lib/fpvtp
+# On n'écoute QUE sur la boucle locale : c'est Caddy qui expose le service au
+# monde, avec le TLS. Rien ne doit joindre le port 8080 depuis l'extérieur.
+Environment=FPVTP_HOST=127.0.0.1
+Environment=FPVTP_PORT=8080
+#
+# FPVTP_ACQUIRE N'EST DÉLIBÉRÉMENT PAS POSÉE, ET NE DOIT JAMAIS L'ÊTRE ICI.
+# C'est le drapeau qui ouvre `ACQUIRE AREA` (naissance d'une scène sur disque,
+# appels à kh.google.com depuis le serveur). Le design (D2) le veut fermé sur
+# le VPS sans exception : rien n'acquiert jamais de terrain sur cette machine,
+# elle ne sert que du LIVE. Ne l'ajoutez pas « pour tester ».
+#
+# Le design cite aussi une variable FPVTP_SCENES_MAX_GB : elle N'EXISTE PAS
+# dans le code (aucune occurrence dans sim/, vérifié par grep le 2026-09-07).
+# Elle n'est donc pas posée ici — une variable inventée aurait été silencieuse
+# et inutile. Sans acquisition, il n'y a de toute façon aucune scène à plafonner.
+
+Restart=on-failure
+RestartSec=2
+
+# Journal : tout part dans journalctl -u fpvtp.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fpvtp
+
+# --- Durcissement ---------------------------------------------------------
+# Le serveur n'a besoin que de lire son propre répertoire de programme et
+# d'écrire dans son répertoire de données.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/fpvtp
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+# Rapier est du WASM : V8 a besoin de pages exécutables inscriptibles, donc
+# MemoryDenyWriteExecute reste à `no`. C'est le seul durcissement courant
+# volontairement écarté, et il l'est pour une raison précise.
+RemoveIPC=yes
+# IPv4/IPv6 et sockets Unix : rien d'autre.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
