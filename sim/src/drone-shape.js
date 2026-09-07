@@ -5,8 +5,12 @@
 // build sait varier (masse, cellules) ; la caméra vient de targetCamera().
 //
 // Rôles : plate arm motor prop duct camera battery gopro antenna led,
-// plus blade (dès `onboard`), bell, hub, stack, cage, mount, strap et ledbar
-// (`portrait` seulement).
+// plus blade et tape (dès `onboard`), bell, hub, stack, cage, mount, strap,
+// ledbar, rail, goprolens et sticker (`portrait` seulement).
+//
+// Le CHÂSSIS varie par build (issue #285, `build.frame`) aux niveaux `onboard`
+// et `portrait` : le patron dit d'où partent les bras et quelle plaque les
+// porte. La silhouette des ambiants ne le lit pas — elle est gelée.
 //
 // Trois niveaux de détail (issue #264) : `silhouette` (le défaut, ce que
 // voient les ambiants — inchangé), `onboard` (les hélices sont à 8 cm de
@@ -16,6 +20,7 @@
 
 import { PROFILES } from './drone-profiles.js';
 import { motorsOf } from './quad.js';
+import { armStart, plateOf } from '../tools/target-frame.mjs';
 
 const box = (role, at, size, extra = {}) => ({ kind: 'box', role, at, size, ...extra });
 const cyl = (role, at, r, h, extra = {}) => ({ kind: 'cylinder', role, at, size: [r, h], ...extra });
@@ -111,8 +116,20 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	const heavy = family === 'heavy5';
 	const micro = family === 'toothpick';
 
-	// Plaque centrale.
-	if (!lensView) parts.push(box('plate', [0, 0, 0], [0.8 * armX, heavy ? 0.010 : 0.006, 1.1 * armZ]));
+	// Le châssis de l'exemplaire (issue #285) : la silhouette ne le lit pas.
+	const frame = onboard ? build.frame ?? null : null;
+	const plateT = heavy ? 0.010 : 0.006;
+	// Plaque centrale — celle du patron dès `onboard`.
+	if (!lensView) {
+		if (frame) {
+			const pl = plateOf(frame, profile);
+			parts.push(box('plate', [0, 0, pl.shift], [pl.width, plateT, pl.length]));
+			// Le corps long d'un H : le rail qui relie les deux bouts.
+			if (frame.pattern === 'h') parts.push(box('rail', [0, 0, 0], [0.020, plateT, 1.30 * armZ]));
+		} else {
+			parts.push(box('plate', [0, 0, 0], [0.8 * armX, plateT, 1.1 * armZ]));
+		}
+	}
 
 	// Bras, moteurs, hélices, conduits. L'ordre et le sens viennent de
 	// motorsOf() — la MÊME table que le mixeur (quad.js:65-77) — et pas d'une
@@ -121,11 +138,24 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// silencieusement l'image de la physique. C'est ce qui fait que le lacet,
 	// le roulis et le tangage se LISENT dans les deux hélices du champ.
 	const armR = micro ? 0.005 : 0.008;
+	const armW = armR * (frame?.armK ?? 1);
 	const motors = motorsOf(profile);
 	for (let k = 0; k < motors.length; k++) {
 		const { x: mx, z: mz, spin } = motors[k];
-		const len = Math.hypot(mx, mz);
-		parts.push(box('arm', [mx / 2, 0, mz / 2], [armR, armR, len], { rotY: Math.atan2(mx, mz), motor: k }));
+		// D'où part le bras : le centre (silhouette, patron `x`), ou ce que le
+		// patron du châssis dit. Il arrive TOUJOURS au moteur.
+		const [sx, , sz] = frame ? armStart(frame, motors[k], profile) : [0, 0, 0];
+		const dx = mx - sx, dz = mz - sz;
+		const len = Math.hypot(dx, dz);
+		const rotY = Math.atan2(dx, dz);
+		parts.push(box('arm', [(mx + sx) / 2, 0, (mz + sz) / 2], [armW, armR, len], { rotY, motor: k }));
+		// Le ruban du propriétaire (issue #285) au bout du bras, côté moteur :
+		// un manchon de couleur, visible dans le champ — les bouts de bras y
+		// sont. Dès `onboard`, comme le bras.
+		if (onboard && build.livery?.owner?.tape) {
+			const t = 0.78;
+			parts.push(box('tape', [sx + dx * t, 0, sz + dz * t], [armW + 0.002, armR + 0.002, 0.014], { rotY, motor: k }));
+		}
 		parts.push(cyl('motor', [mx, 0.006 + 0.006, mz], 0.18 * propRadius, 0.012, { motor: k }));
 		parts.push({ kind: 'disc', role: 'prop', at: [mx, propPlaneY, mz], size: [propRadius], blades: bladeCount, motor: k, spin });
 		if (DUCTED.has(family)) parts.push({ kind: 'ring', role: 'duct', at: [mx, 0.012, mz], size: [1.12 * propRadius, 0.5 * propRadius], motor: k });
@@ -179,7 +209,7 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 		// cinewhoop non plus (ses conduits font le tour).
 		if (!micro && !DUCTED.has(family)) {
 			const eye = eyeOf(profile);
-			const top = eye[1] + 0.0095 + 0.004;
+			const top = eye[1] + (0.0095 + 0.004) * (frame?.cageK ?? 1);
 			for (const sx of [-1, 1]) {
 				parts.push(box('cage', [sx * 0.0135, (0.003 + top) / 2, eye[2]], [0.002, top - 0.003, 0.028]));
 			}
@@ -198,6 +228,11 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// Sa sangle, qui fait le tour du pack (#284, `portrait`) : une bande à
 	// peine plus large que lui, au milieu de sa longueur.
 	if (portrait) parts.push(box('strap', [0, 0.008 + 0.0125, 0], [0.037, 0.027, 0.020]));
+	// Le numéro du propriétaire (issue #285), collé sur le dessus du pack,
+	// derrière la sangle. Trois chiffres dessinés par le shader.
+	if (portrait && build.livery?.owner?.number) {
+		parts.push(box('sticker', [0, 0.008 + 0.025 + 0.0006, 0.010 + 0.007 * cells], [0.024, 0.0012, 0.014]));
+	}
 
 	// GoPro : toujours sur le cinewhoop ; sur un freestyle/heavy lourd.
 	// heavyBuild compare la masse de l'exemplaire à la masse NOMINALE de la
@@ -207,6 +242,10 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	const heavyBuild = mass > 1.05 * PROFILES[family].mass;
 	if (!lensView && (family === 'cinewhoop' || ((family === 'freestyle5' || heavy) && heavyBuild))) {
 		parts.push(box('gopro', [0, 0.008 + 0.025 + 0.0125, -0.35 * armZ], [0.040, 0.025, 0.030]));
+		// De près, une GoPro a un objectif (issue #285) : un cylindre sombre
+		// qui sort de la face avant, décalé vers le haut et un côté comme sur
+		// la vraie. Un boîtier sans lui est une brique.
+		if (portrait) parts.push(cyl('goprolens', [-0.010, 0.008 + 0.025 + 0.0125 + 0.004, -0.35 * armZ - 0.015 - 0.004], 0.0065, 0.008, { rotX: Math.PI / 2 }));
 	}
 
 	// Antennes à l'arrière ; deux sur le long range.

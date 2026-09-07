@@ -156,14 +156,18 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 	// `onboard` RETIRE délibérément la carrosserie — l'objectif ne filme pas son
 	// propre boîtier — et n'ajoute que les pales. Ce qu'il ne doit jamais
 	// retirer, c'est un rotor : sans eux la vue embarquée n'a plus de sujet.
-	const ROTOR = new Set(['arm', 'motor', 'prop', 'duct']);
+	// Les BRAS, eux, changent avec le châssis (#285) : leur point de départ
+	// dépend du patron. Ce qui ne bouge jamais, c'est le moteur au bout.
+	const ROTOR = new Set(['motor', 'prop', 'duct']);
 	check('onboard garde tous les rotors de la silhouette',
 		silhouette.parts.filter((p) => ROTOR.has(p.role))
 			.every((p) => onboard.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+	check('onboard : quatre bras, chacun arrivant à son moteur',
+		onboard.parts.filter((p) => p.role === 'arm').length === 4);
 	check('onboard retire la carrosserie',
-		onboard.parts.every((p) => ROTOR.has(p.role) || p.role === 'blade'));
-	check('portrait ajoute à la silhouette, ne retire rien',
-		silhouette.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
+		onboard.parts.every((p) => ROTOR.has(p.role) || ['arm', 'blade', 'tape'].includes(p.role)));
+	check('portrait ajoute à la silhouette, ne retire rien (la plaque et les bras suivent le châssis)',
+		silhouette.parts.filter((p) => !['plate', 'arm'].includes(p.role)).every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
 	check('portrait ajoute, ne retire rien',
 		onboard.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
 	check('portrait ⊇ onboard', onboard.parts.length < portrait.parts.length);
@@ -193,7 +197,7 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 // GoPro et les antennes, qui vivent derrière lui. Le `portrait`, lui, montre la
 // machine entière : c'est une fiche, pas une vue subjective.
 {
-	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade']);
+	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade', 'tape']);
 	for (const family of FAMILIES) {
 		const embarque = new Set(make(family, `shape::${family}`, 'onboard').parts.map((p) => p.role));
 		check(`${family}: la vue embarquée ne porte que les rotors`,

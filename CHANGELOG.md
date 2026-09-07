@@ -31,6 +31,31 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Le châssis varie par build (#285, `tools/target-frame.mjs`, `build.frame`,
+  flux de graine à part) : patron `x`, `h`, `deadcat` ou `unibody` pondéré par
+  famille, largeur des bras, hauteur de la cage — aux niveaux `onboard` et
+  `portrait`. Les moteurs ne bougent pas (invariants de famille que la
+  physique lit), la silhouette des ambiants non plus. Un bras arrive TOUJOURS
+  à son moteur, et c'est un test.
+- La GoPro a un objectif (#285) et son boîtier est dans la livrée : noir deux
+  fois sur trois, sinon en TPU de la couleur du montage, rarement blanc.
+- Le propriétaire laisse sa marque (#285) : un numéro de course sur le pack
+  — trois chiffres 3×5 dessinés par le shader, lus depuis l'arrière — pour un
+  peu plus d'un build sur deux, et du ruban de couleur au bout des bras pour un
+  peu moins. Le ruban est dès `onboard` : les bouts de bras sont dans le champ.
+  Le numéro entre dans la légende de la fiche SESSION LOG (`#042 · PROPS …`).
+- Dev : `?build=<graine>` à côté de `?family=` vole un exemplaire tiré ;
+  `VITE_ROCKTREE_BASE` surcharge le préfixe `kh.google.com` pour une
+  vérification headless derrière un proxy.
+
+### Modifié
+
+- Vu EN JEU, à travers l'objectif (#285, Chromium headless sur une scène
+  Google Earth) : le voile du disque d'hélice de #283 n'était qu'une ombre
+  brune au bas du cadre — densifié (2,0 − 1,1·r au lieu de 1,55 − 0,85·r) ;
+  la free cam recule de 0,55 m au lieu de 0,8 (à 0,8 m la machine faisait
+  encore 7 % du cadre).
+
 - Une livrée par build (#284) : chaque exemplaire a désormais SES couleurs —
   hélices, cloches moteur, TPU (fixations, conduits, brins), pack, LED — et le
   pas de son tissage carbone, tirés de la graine sur un flux à part

@@ -167,7 +167,7 @@ console.log('drone-mesh');
 	// Les fantômes courbés et le voile radial (#283) sont MULTIPLIÉS par
 	// uBlades : à zéro, l'expression retombe terme à terme sur celle d'avant.
 	check('ambiant : le bruit radial du disque est inchangé', frag.includes('0.7 + 0.3 * sin(ang * 3.0 - vSpin * rad * 2.2 * uBlades)'));
-	check('ambiant : le voile radial ne s\'applique qu\'avec des pales', frag.includes('mix(1.0, (1.55 - 0.85 * rad) * smoothstep(1.0, 0.86, rad), uBlades)'));
+	check('ambiant : le voile radial ne s\'applique qu\'avec des pales', frag.includes('mix(1.0, (2.0 - 1.1 * rad) * smoothstep(1.0, 0.86, rad), uBlades)'));
 	check('ambiant : le régime s\'AJOUTE aux 12 rad/s d\'origine, il ne les remplace pas',
 		frag.includes('uTime * (12.0 + w * 0.03 * vSpin)'));
 	check('ambiant : le fondu du disque est neutre sans pales', frag.includes('mix(1.0, blur, uBlades)'));

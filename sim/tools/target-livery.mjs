@@ -39,6 +39,8 @@ export const PACKS = [
 	['black', 0x171513],
 	['blue', 0x27438e], ['red', 0x8d2c27], ['grey', 0x7d7873], ['green', 0x33703a], ['yellow', 0xa08a2a],
 ];
+// Le boîtier de la GoPro : noir d'origine, en TPU coloré, ou blanc.
+export const GOPRO = [['black', 0x1a1917], ['tpu', null], ['white', 0xd8d3c9]];
 export const LEDS = [
 	['white', 0xece7dd], ['red', 0xff4a3c], ['green', 0x5cff6a], ['blue', 0x4a7cff],
 	['cyan', 0x4de6ff], ['purple', 0xb56cff], ['orange', 0xffa03c],
@@ -64,6 +66,7 @@ export const LOUD = {
 // quand la table d'en face la connaît. Le reste reste libre : les machines
 // dépareillées existent aussi.
 export const MATCH = { tpu: 0.55, bell: 0.35, led: 0.45, strap: 0.60 };
+export const OWNER = { number: 0.55, tape: 0.45 };
 const BELL_OF = { red: 'red', purple: 'purple', blue: 'blue', yellow: 'gold', cyan: 'teal', pink: 'purple' };
 const LED_OF = { red: 'red', 'neon green': 'green', blue: 'blue', cyan: 'cyan', purple: 'purple', orange: 'orange', pink: 'purple', yellow: 'orange' };
 const byName = (table, name) => { const e = table.find(([n]) => n === name); return e ? { name: e[0], hex: e[1] } : null; };
@@ -118,7 +121,18 @@ export function liveryOf(rand, family) {
 	}
 
 	const weave = WEAVE_M[0] + rand() * (WEAVE_M[1] - WEAVE_M[0]);
-	return { prop, tip, bell, tpu, pack, strap, led, weave };
+
+	// La GoPro : noire deux fois sur trois, sinon dans un boîtier TPU de la
+	// couleur du montage, rarement blanche.
+	const g = rand();
+	const gopro = g < 0.62 ? { name: 'black', hex: GOPRO[0][1] } : g < 0.88 ? { name: 'tpu', hex: tpu.hex } : { name: 'white', hex: GOPRO[2][1] };
+
+	// Ce que le PROPRIÉTAIRE a ajouté (issue #285) : un numéro de course sur le
+	// pack, du ruban de couleur au bout des bras. Pas tout le monde — un
+	// numéro se mérite en course, le ruban est une manie de pilote de freestyle.
+	const number = rand() < OWNER.number ? 1 + Math.floor(rand() * 999) : (rand(), null);
+	const tape = rand() < OWNER.tape;
+	return { prop, tip, bell, tpu, pack, strap, led, weave, gopro, owner: { number, tape } };
 }
 
 // Ce que src/drone-mesh.js consomme : des hex par RÔLE de couleur, et le pas
@@ -129,6 +143,8 @@ export function liveryColors(livery) {
 	return {
 		prop: livery.prop.hex, tip: livery.tip?.hex ?? null, bell: livery.bell.hex, tpu: livery.tpu.hex,
 		battery: livery.pack.hex, strap: livery.strap?.hex ?? livery.tpu.hex, led: livery.led.hex,
+		gopro: livery.gopro?.hex ?? null, tape: livery.tpu.hex,
+		number: livery.owner?.number ?? null,
 		weave: livery.weave,
 		// L'usure vient du BUILD (targetBuild la pose sur la livrée), pas d'un
 		// tirage de plus : un pack vieux et une machine qui traîne se voient.
@@ -140,5 +156,6 @@ export function liveryColors(livery) {
 export function liveryLabel(livery) {
 	if (!livery) return '';
 	const props = livery.tip ? `${livery.prop.name}/${livery.tip.name}` : livery.prop.name;
-	return `PROPS ${props} · BELLS ${livery.bell.name} · TPU ${livery.tpu.name}`.toUpperCase();
+	const num = livery.owner?.number ? `#${String(livery.owner.number).padStart(3, '0')} · ` : '';
+	return `${num}PROPS ${props} · BELLS ${livery.bell.name} · TPU ${livery.tpu.name}`.toUpperCase();
 }

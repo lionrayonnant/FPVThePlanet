@@ -1,6 +1,6 @@
 // node tools/target-livery-selftest.mjs — la livrée d'un exemplaire (issue #284).
 import { targetBuild, targetLivery } from './target-build.mjs';
-import { liveryOf, liveryColors, liveryLabel, PROPS, BELLS, TPU, PACKS, LEDS, LOUD, WEAVE_M } from './target-livery.mjs';
+import { liveryOf, liveryColors, liveryLabel, PROPS, BELLS, TPU, PACKS, LEDS, LOUD, WEAVE_M, OWNER } from './target-livery.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 
 let failures = 0;
@@ -110,13 +110,31 @@ for (const family of FAMILIES) {
 	check('50 builds : l\'usure varie', spread.size >= 4, `${[...spread].sort().join(' ')}`);
 }
 
+// Le propriétaire (#285) : un numéro pour une part des builds, du ruban pour
+// une autre, et la GoPro dans son boîtier.
+{
+	let nums = 0, tapes = 0, gop = { black: 0, tpu: 0, white: 0 }, n = 600;
+	for (let i = 0; i < n; i++) {
+		const l = targetLivery({ seed: `own::${i}`, family: 'freestyle5' });
+		if (l.owner.number) { nums++; if (!(l.owner.number >= 1 && l.owner.number <= 999)) { check('numéro dans 1..999', false, String(l.owner.number)); break; } }
+		if (l.owner.tape) tapes++;
+		gop[l.gopro.name]++;
+	}
+	check('numéro : proche de sa pondération', Math.abs(nums / n - OWNER.number) < 0.07, `${(nums / n).toFixed(2)}`);
+	check('ruban : proche de sa pondération', Math.abs(tapes / n - OWNER.tape) < 0.07, `${(tapes / n).toFixed(2)}`);
+	check('GoPro : noire le plus souvent, TPU parfois, blanche rarement', gop.black > gop.tpu && gop.tpu > gop.white && gop.white > 0, JSON.stringify(gop));
+	const withNum = [...Array(200).keys()].map((i) => targetLivery({ seed: `own::${i}`, family: 'race5' })).find((l) => l.owner.number);
+	check('liveryLabel porte le numéro', /^#\d{3} · /.test(liveryLabel(withNum)), liveryLabel(withNum));
+}
+
 // Ce que le maillage consomme.
 {
 	const l = targetLivery({ seed: 'liv::mesh', family: 'race5' });
 	const c = liveryColors(l);
 	check('liveryColors : prop bell tpu battery strap led weave wear', ['prop', 'bell', 'tpu', 'battery', 'strap', 'led'].every((k) => isHex(c[k])) && c.weave > 0 && c.wear >= 0 && (c.tip === null || isHex(c.tip)));
 	check('liveryColors(null) : objet vide (les gris restent)', Object.keys(liveryColors(null)).length === 0 && Object.keys(liveryColors(undefined)).length === 0);
-	check('liveryLabel : PROPS … · BELLS … · TPU …', /^PROPS .+ · BELLS .+ · TPU .+$/.test(liveryLabel(l)) && liveryLabel(l) === liveryLabel(l).toUpperCase());
+	check('liveryLabel : [#NNN ·] PROPS … · BELLS … · TPU …', /^(#\d{3} · )?PROPS .+ · BELLS .+ · TPU .+$/.test(liveryLabel(l)) && liveryLabel(l) === liveryLabel(l).toUpperCase(), liveryLabel(l));
+	check('liveryColors : gopro, tape, number', (c.gopro === null || isHex(c.gopro)) && isHex(c.tape) && (c.number === null || (c.number >= 1 && c.number <= 999)));
 	check('liveryLabel(null) : vide', liveryLabel(null) === '');
 }
 

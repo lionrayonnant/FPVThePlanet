@@ -2449,6 +2449,64 @@ identiques.
    (`.drone-portrait`, `.session-portrait`) : rendu sur faux DOM seulement.
 
 
+## Châssis par build, GoPro, marque du propriétaire — et la vérification en jeu (issue #285)
+
+### Comment la vérification en jeu a été faite (réutilisable)
+
+Il n'y a pas de GPU ni de scène installée sur cette machine ; il y a du réseau
+vers `kh.google.com` par le proxy de la session, que Chromium ne sait pas
+traverser (son CONNECT est réinitialisé). Le montage :
+
+1. `NODE_USE_ENV_PROXY=1 node tools/add-map.mjs "Trocadero test" 48.862 2.288
+   --provider google-earth --radius 12 --slug trocadero-test` — une scène de
+   1,4 MB en une seconde (Node passe par le proxy). L'entrée ajoutée à
+   `public/scenes.json` n'est PAS commitée.
+2. Un relais HTTP local (`fetch` Node vers `kh.google.com`, CORS ouvert) et
+   `VITE_ROCKTREE_BASE=http://127.0.0.1:8124/rt/earth/ npx vite` : le terrain
+   live du jeu passe par lui (`tools/lib/rocktree/url.mjs`).
+3. Chromium headless (`/opt/pw-browsers`, `--use-angle=swiftshader`) piloté
+   par CDP depuis Node 22 (WebSocket natif, sans Playwright) :
+   `Page.navigate`, `Runtime.evaluate` sur `window.__sim`, `Input.dispatchKeyEvent`
+   pour `C`, `Page.captureScreenshot`. 2 à 4 fps ; le jeu tourne.
+4. `?scene=trocadero-test&family=freestyle5&build=g1::0` : le chemin dev avec
+   un exemplaire tiré (`?build=`, ajouté pour ça). `?live=` ne construit pas le
+   drone du joueur (`openFlightSession()` en sort tout de suite) : inutile ici.
+
+### Vu en jeu
+
+- **POV** : les bras dans les coins bas du cadre, les disques d'hélice de la
+  couleur des pales (roses sur `g1::0`) à travers l'objectif, le brouillard et
+  l'AGC. Avant densification du voile, une ombre brune à peine visible.
+- **Lacet** : `physics.propulsion.omega` à `[2637, 2121, 2117, 2637]` sur un
+  lacet à droite — la paire avant se sépare comme le selftest le promet.
+- **Free cam** (`C`) à 0,55 m : la machine occupe ~170 px sur 1 280, les
+  disques translucides prennent la couleur des pales. Le corps reste une
+  silhouette sombre sur ciel clair : c'est l'exposition, pas un bug.
+- **Session terminée** par perte de lien (la scène est minuscule, le drone en
+  sort) : la séquence de fin se joue, `[ENTER] DISCONNECT / [R] REDEPLOY`.
+
+### NON vérifié en jeu
+
+1. **Le portrait au crash** : aucun crash obtenu — à 4 fps le pas de temps est
+   borné, la chute est lente, et la scène de 12 m de rayon est quittée avant
+   l'impact (perte de lien, pas crash). Le SVG lui-même a été rendu dans un
+   vrai Chromium hors jeu et le câblage est couvert par les selftests sur faux
+   DOM.
+2. Le sergé carbone, l'usure, le numéro et l'objectif GoPro à travers
+   l'objectif de vol : la free cam en jeu est trop loin et trop sombre pour
+   les lire ; ils ont été rendus et lus hors jeu (gros plans, gain ×2,5).
+3. Le strobe des pales au ralenti et le rolling shutter en mouvement.
+
+### Ce qui a été ajouté
+
+- `tools/target-frame.mjs` + `target-frame-selftest.mjs` (46) : patrons,
+  fréquences par famille à ±7 %, un bras arrive toujours à son moteur pour
+  les 6 familles × 4 patrons, la silhouette ne lit pas le châssis.
+- GoPro : objectif au `portrait`, boîtier dans la livrée. Propriétaire :
+  numéro (autocollant, classe `STICKER` du shader, police 3×5 lue depuis
+  l'arrière — rendu et lu, deux orientations fausses avant la bonne) et ruban.
+- `target-livery-selftest.mjs` : 43 vérifications.
+
 ## Une livrée par build (issue #284)
 
 Toutes les machines étaient peintes des quatre mêmes gris de la palette. Chaque

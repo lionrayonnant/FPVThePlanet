@@ -4,7 +4,10 @@
 // cache de préparation) — la garder à côté de lui aurait entraîné cet import
 // Node dans tout code qui voudrait construire une URL NodeData depuis un
 // navigateur (src/rocktree-worker.js, #168).
-export const PREFIX = 'https://kh.google.com/rt/earth/';
+// Surchargeable en dev par `VITE_ROCKTREE_BASE` (vérification headless
+// derrière un proxy qui refuse le CONNECT de Chromium : un relais local sert
+// les mêmes chemins). En Node, import.meta.env n'existe pas : Google direct.
+export const PREFIX = (typeof import.meta.env !== 'undefined' && import.meta.env.VITE_ROCKTREE_BASE) || 'https://kh.google.com/rt/earth/';
 
 // imageryEpoch peut rester null même avec le flag posé (ni meta.imageryEpoch
 // ni bulk.defaultImageryEpoch renseignés dans certaines captures, cf.

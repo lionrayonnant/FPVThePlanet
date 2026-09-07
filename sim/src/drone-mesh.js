@@ -98,25 +98,29 @@ function bladeGeometry(part) {
 // remplace en régime, et il ne doit pas changer de teinte en montant en
 // puissance. Un rôle inconnu est du carbone : la recette peut grandir sans
 // qu'une pièce nouvelle sorte en rose.
-export const CARBON = 0, METAL = 1, PLASTIC = 2, EMISSIVE = 3;
+export const CARBON = 0, METAL = 1, PLASTIC = 2, EMISSIVE = 3, STICKER = 4;
 const MATERIAL_OF = {
-	plate: ['frame', CARBON], arm: ['frame', CARBON], cage: ['frame', CARBON], stack: ['frame', CARBON],
+	plate: ['frame', CARBON], arm: ['frame', CARBON], cage: ['frame', CARBON], stack: ['frame', CARBON], rail: ['frame', CARBON],
+	tape: ['tape', PLASTIC], goprolens: ['lens', METAL], sticker: ['sticker', STICKER],
 	motor: ['metal', METAL], bell: ['bell', METAL], hub: ['bell', METAL],
 	prop: ['prop', PLASTIC], blade: ['prop', PLASTIC],
 	// Le boîtier de caméra est en TPU sur presque tous les montages : c'est
 	// la pièce colorée la plus visible de face.
 	duct: ['tpu', PLASTIC], mount: ['tpu', PLASTIC], antenna: ['tpu', PLASTIC], camera: ['tpu', PLASTIC],
 	battery: ['battery', PLASTIC], strap: ['strap', PLASTIC],
-	gopro: ['metal', PLASTIC],
+	gopro: ['gopro', PLASTIC],
 	ledbar: ['led', EMISSIVE],
 };
 // La livrée peut être partielle (les gris d'avant #284) : chaque rôle de
 // couleur retombe sur le gris qui le rendait avant.
-const FALLBACK = { bell: 'metal', tpu: 'frame', battery: 'frame', strap: 'frame' };
+const FALLBACK = { bell: 'metal', tpu: 'frame', battery: 'frame', strap: 'frame', gopro: 'metal', tape: 'frame', lens: 'frame', sticker: 'prop' };
+// Ce que la livrée ne porte pas et qui ne varie pas : l'objectif de la GoPro
+// (verre sombre) et le fond de l'autocollant (blanc cassé).
+const FIXED = { lens: 0x0d1014, sticker: 0xe9e4da };
 const TIP_FROM = 0.78;
 function dressed(geo, part, colors, alpha = 1) {
 	const [key, mat] = MATERIAL_OF[part.role] ?? ['frame', CARBON];
-	const hex = colors[key] ?? colors[FALLBACK[key]] ?? colors.frame;
+	const hex = colors[key] ?? FIXED[key] ?? colors[FALLBACK[key]] ?? colors.frame;
 	const n = geo.attributes.position.count;
 	geo.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mat), 1));
 	tagged(colored(geo, hex, alpha), part);
@@ -190,6 +194,8 @@ export function DroneMaterial() {
 			// disque en régime porte la même couronne que les pales.
 			uTip: { value: new THREE.Color(0xffffff) },
 			uTipOn: { value: 0 },
+			// Le numéro du propriétaire (#285), trois chiffres 0-9 (-1 : vide).
+			uDigits: { value: new THREE.Vector3(-1, -1, -1) },
 		},
 		vertexShader: /* glsl */`
 			uniform float uPhase[4];
@@ -251,6 +257,7 @@ export function DroneMaterial() {
 			uniform float uWear;
 			uniform vec3 uTip;
 			uniform float uTipOn;
+			uniform vec3 uDigits;
 			in vec4 vColor;
 			in float vMotor;
 			in float vSpin;
@@ -323,7 +330,31 @@ export function DroneMaterial() {
 				vec3 c = (albedo * lit + vec3(spec + rim)) * uAmbient * night;
 				// Émissif (la barre de LED) : sa propre lumière, ni soleil ni
 				// nuit — le brouillard, lui, s'applique comme à tout le reste.
-				if (vMat > 2.5) c = albedo * 1.4;
+				if (vMat > 2.5 && vMat < 3.5) c = albedo * 1.4;
+				// L'autocollant du numéro (#285) : fond de la couleur de la
+				// pièce, trois chiffres à l'encre sombre, police 3×5 dessinée
+				// en UV. Le bit k du masque dit si la cellule k est encrée.
+				if (vMat > 3.5) {
+					const int FONT[10] = int[10](31599, 29850, 29671, 31207, 18925, 31183, 31695, 18727, 31727, 31215);
+					// Lu depuis l'ARRIÈRE de la machine, comme un pilote debout
+					// derrière elle : u de la face du dessus d'une BoxGeometry va
+					// déjà vers sa droite, v part du nez — d'où le 1 − v. Rendu
+					// avec « 123 » et lu, dans les trois autres orientations
+					// avant celle-ci (#285).
+					vec2 uv = vec2(vUv.x, 1.0 - vUv.y);
+					float slot = floor(uv.x * 3.0);
+					vec2 cell = fract(vec2(uv.x * 3.0, uv.y)) * vec2(1.0, 1.0);
+					// Marge autour de chaque chiffre, puis grille 3×5.
+					vec2 g = (cell - vec2(0.12, 0.12)) / vec2(0.76, 0.76);
+					float ink = 0.0;
+					int d = int(slot < 0.5 ? uDigits.x : slot < 1.5 ? uDigits.y : uDigits.z);
+					if (d >= 0 && g.x >= 0.0 && g.x < 1.0 && g.y >= 0.0 && g.y < 1.0) {
+						int col = int(g.x * 3.0), row = int(g.y * 5.0);
+						int bit = row * 3 + col;
+						ink = float((FONT[d] >> bit) & 1);
+					}
+					c = mix(albedo, vec3(0.08, 0.07, 0.06), ink) * lit * uAmbient * night;
+				}
 				float a = vColor.a;
 				// Le régime du moteur de ce sommet, zéro pour tout ce qui
 				// n'appartient à aucun (aMotor = -1 : plaque, batterie, caméra,
@@ -358,7 +389,10 @@ export function DroneMaterial() {
 					float ghost = 0.7 + 0.3 * sin(ang * 3.0 - vSpin * rad * 2.2 * uBlades);
 					// Le voile s'éteint en douceur au bout des pales : le bord
 					// d'un flou d'hélice n'est pas une arête.
-					float veil = mix(1.0, (1.55 - 0.85 * rad) * smoothstep(1.0, 0.86, rad), uBlades);
+					// 2,0 − 1,1·rad et non 1,55 − 0,85 : vu en jeu à travers
+					// l'objectif (AGC, bruit, brouillard), le disque d'avant
+					// n'était qu'une ombre brune au bas du cadre.
+					float veil = mix(1.0, (2.0 - 1.1 * rad) * smoothstep(1.0, 0.86, rad), uBlades);
 					// La couronne des hélices bicolores, sur le disque comme sur
 					// les pales (même seuil de rayon).
 					c = mix(c, uTip * (0.55 + 0.45 * max(0.0, dot(n, uSunDir))) * uAmbient * night, uTipOn * uBlades * smoothstep(0.74, 0.80, rad));
@@ -506,6 +540,10 @@ export function buildDroneMesh(shape, { colors }) {
 	if (colors.weave) material.uniforms.uWeave.value = colors.weave;
 	if (colors.wear) material.uniforms.uWear.value = colors.wear;
 	if (colors.tip) { material.uniforms.uTip.value.set(colors.tip); material.uniforms.uTipOn.value = 1; }
+	if (colors.number) {
+		const s = String(colors.number).padStart(3, '0');
+		material.uniforms.uDigits.value.set(+s[0], +s[1], +s[2]);
+	}
 	const body = new THREE.Mesh(geometry, material);
 	body.frustumCulled = true;
 
