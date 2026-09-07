@@ -42,7 +42,7 @@ npm run selftest:operator  # état opérateur, terminal, météo du monde — pu
 
 Deux cartes prêtes à l'emploi dans `public/scenes/` (gitignored, ~900 Mo à
 deux) : `tour-eiffel` et `ile-de-la-cite-et-ile-saint-louis`. Pour en ajouter
-une autre : `npm run add-map -- "Nom" <lat> <lon>` — voir `README.md` section
+une autre : `npm run add-map -- "Nom" <lat> <lon>` — voir `docs/manuel.md` section
 « Ajouter une carte » pour le détail des options et le dimensionnement de
 `--radius`.
 
@@ -2885,7 +2885,7 @@ réellement en vol.
 ## Versionnage du dépôt (issue #257)
 
 SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
-`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `README.md`, section
+`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `docs/manuel.md`, section
 « Versionner et publier ».
 
 ### Vérifié — sans navigateur

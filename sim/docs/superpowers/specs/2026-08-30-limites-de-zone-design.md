@@ -379,7 +379,7 @@ C'est aussi ce que la vérification 6 protège.
 | `src/drone-osd.js` | rien : le slot `warning` suffit |
 | `tools/geofence-selftest.mjs` | **nouveau** — la mesure de `R_HOLD` |
 | `tools/selftest.mjs` | les six vérifications |
-| `sim/README.md` | la section « limites de zone » |
+| `docs/manuel.md` | la section « limites de zone » |
 
 ## Critères d'acceptation
 

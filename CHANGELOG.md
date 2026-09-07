@@ -38,7 +38,7 @@ rapport avec les versions ci-dessous.
 - `sim/tools/server-selftest.mjs` (26 vérifications) et
   `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
 - `LICENSE` (GNU AGPL-3.0-only) et un `README.md` à la racine : le dépôt se
-  prépare à devenir public. `sim/README.md` reste le README technique.
+  prépare à devenir public. `docs/manuel.md` reste le README technique.
 - `.githooks/pre-commit` — refuse un commit signé par une adresse hors liste
   blanche. `git config core.hooksPath .githooks` l'active dans un clone.
 - **Le jeu s'installe comme un jeu** (#291, tranche T2) : un installeur `.exe`
@@ -152,6 +152,15 @@ rapport avec les versions ci-dessous.
 - L'archive `fpvtp-sim-<tag>.zip` (le `dist/` seul) disparaît : elle ne pouvait
   pas démarrer — c'est précisément ce que #259 reprochait aux « livraisons »
   d'avant.
+
+### Modifié
+
+- **Un seul README, à la racine.** Le dépôt en avait deux, et rien ne disait
+  lequel lire : `sim/README.md` devient `docs/manuel.md` — il reste entier,
+  mais ce n'est plus un README. La racine est la porte d'entrée, le manuel est
+  le manuel. Les références de la documentation vivante suivent ; les plans et
+  specs d'archive gardent les leurs, ils racontent ce qui a été édité ce
+  jour-là.
 
 ### Corrigé
 

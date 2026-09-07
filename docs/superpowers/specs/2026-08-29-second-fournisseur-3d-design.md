@@ -143,7 +143,7 @@ Flyover s'arrête au niveau 1, Google ira jusqu'au niveau 3.
 Deux points d'attention relevés dans le code existant :
 
 - L'inversion de l'axe V (`tv.push(1 - tmp[1])`) est une conversion
-  OBJ→moteur documentée dans `sim/README.md` ; elle reste **dans le décodeur
+  OBJ→moteur documentée dans `docs/manuel.md` ; elle reste **dans le décodeur
   OBJ**, pas dans le contrat partagé. Un décodeur glTF devra décider de son
   propre chef, glTF ayant déjà l'origine UV en haut à gauche — donc
   vraisemblablement pas d'inversion. C'est le piège le plus probable de ce

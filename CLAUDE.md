@@ -35,7 +35,7 @@ lat,lon
 → sim/tools/add-map.mjs
 → sim/public/scenes.json
 
-See sim/README.md for prep details. Do not re-derive or replace its ECEF→ENU, VRAM, draw-call, or texture-array logic without reason.
+See docs/manuel.md for prep details. Do not re-derive or replace its ECEF→ENU, VRAM, draw-call, or texture-array logic without reason.
 
 Scene loading
 
@@ -69,13 +69,13 @@ Drone collider is always a sphere radius 0.15 m. Camera near is exactly 0.15.
 Realism comes from quad.js mass/inertia, not a more detailed collider.
 Rapier linear/angular damping is zero intentionally; drag is computed by quad.js.
 Reset Rapier forces/torques every step (resetForces() / resetTorques()).
-UV V-axis is flipped in prep.mjs. Check sim/README.md before diagnosing grey textures as bad source data.
+UV V-axis is flipped in prep.mjs. Check docs/manuel.md before diagnosing grey textures as bad source data.
 Do not read raw/prepped scene data with Read.
 Documentation
 
 Sources of truth:
 
-sim/README.md: commands, maps, prep pipeline.
+docs/manuel.md: commands, maps, prep pipeline.
 sim/HANDOFF.md: current verified/unverified state only. Detailed per-subsystem session narratives are split into sim/docs/handoff-archive/*.md — read one only when touching that subsystem.
 sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md: the art direction and the target experience. Validated; do not re-litigate it, implement it.
 sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
@@ -94,7 +94,7 @@ Issue numbers quoted throughout this repo's history refer to that older repo
 and do not resolve here until the issues are migrated. Push here, never there.
 
 Licensed AGPL-3.0-only
-(`LICENSE` at the root, `README.md` is the public front door — `sim/README.md`
+(`LICENSE` at the root, `README.md` is the public front door — `docs/manuel.md`
 stays the technical one). Two things change the day the switch is flipped:
 `sim/electron-builder.yml` can move from `provider: generic` to
 `provider: github` (the generic HTTP feed only exists because a private repo

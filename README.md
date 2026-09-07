@@ -94,7 +94,7 @@ npm run selftest:ci     # la chaîne complète : ~1 200 vérifications, sans nav
 
 | | |
 |---|---|
-| [`sim/README.md`](sim/README.md) | commandes, ajout de cartes, pré-traitement, modèle de vol, réglage du PID |
+| [`docs/manuel.md`](docs/manuel.md) | commandes, ajout de cartes, pré-traitement, modèle de vol, réglage du PID |
 | [`sim/HANDOFF.md`](sim/HANDOFF.md) | ce qui est vérifié, et surtout ce qui ne l'est pas |
 | [`sim/docs/`](sim/docs/) | direction artistique, feuille de route, spécifications de conception |
 | [`deploy/README.md`](deploy/README.md) | installer le serveur sur une machine |

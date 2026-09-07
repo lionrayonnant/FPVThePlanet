@@ -1,20 +1,20 @@
-# FPVThePlanet! — simulateur de drone basé sur des données photogramétriques
+# Manuel — FPVThePlanet!
 
-Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques 3D, servies
-par **Google Earth** (protocole `rocktree`, sans clé ni jeton). Plusieurs
-cartes peuvent être téléchargées et se choisissent au lancement depuis le
-terminal opérateur (`LOCAL TERRAIN`).
+Le manuel technique : commandes, pipeline de cartes, modèle de vol, réglages.
+Pour savoir ce qu'est ce projet et comment y jouer, voir le
+[README](../README.md).
+
+Toutes les commandes de ce document se lancent depuis `sim/`.
 
 ```bash
-npm install
-npm run dev       # http://localhost:5173 — terminal opérateur, puis vol
-npm run selftest  # vérifications hors-navigateur (voir limite en bas de page)
+cd sim
+npm run selftest           # vérifications hors-navigateur (voir la limite en bas de page)
 npm run selftest:operator  # état opérateur, terminal, scanner, météo du monde
 ```
 
 ## Sommaire
 
-`grep -n '^#' README.md` pour la ligne exacte d'une section.
+`grep -n '^#' docs/manuel.md` pour la ligne exacte d'une section.
 
 - Contrôles
 - Ajouter une carte — depuis le jeu (GLOBAL SCANNER) · l'ancienne GUI ·

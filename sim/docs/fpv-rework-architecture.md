@@ -6,7 +6,7 @@ gameplay. Le but est double : dire ce que le simulateur fait aujourd'hui, et dir
 où chaque brique atterrit dans la boucle décrite par l'*Art Direction & Experience
 Bible*.
 
-Ce document est une source de vérité au même titre que `README.md` (pipeline) et
+Ce document est une source de vérité au même titre que `docs/manuel.md` (pipeline) et
 `HANDOFF.md` (état vérifié / non vérifié). Il ne les duplique pas : il décrit la
 **couche opérateur** que la refonte ajoute par-dessus.
 
@@ -305,7 +305,7 @@ par distraction :
 - Amortissements linéaire et angulaire de Rapier à **zéro** : la traînée est
   calculée par `quad.js`.
 - `resetForces()` / `resetTorques()` à **chaque** pas.
-- L'axe V des UV est retourné dans `prep.mjs` — voir `README.md` avant de
+- L'axe V des UV est retourné dans `prep.mjs` — voir `docs/manuel.md` avant de
   diagnostiquer une texture grise.
 - Le pipeline couleur est **pass-through** de bout en bout
   (`THREE.ColorManagement.enabled = false`, sortie linéaire) : toute conversion

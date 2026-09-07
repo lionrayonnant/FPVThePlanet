@@ -199,7 +199,7 @@ moteur, aucune constante physique touchée.
 | `src/hack.js` | **nouveau** — écran + motifs |
 | `src/main.js` | câblage `runHack`, hook `?hack=` |
 | `src/style.css` | namespace `.hack-*` |
-| `sim/HANDOFF.md`, `sim/README.md` | état vérifié/non vérifié, section hacking |
+| `sim/HANDOFF.md`, `docs/manuel.md` | état vérifié/non vérifié, section hacking |
 | issue #46 | statut → Done à la clôture |
 
 ## Hors périmètre (→ suites)

@@ -1247,7 +1247,7 @@ git commit -m "Issue #18 : selftest agnostique du décodeur (#110) — l'étape 
 
 **Files:**
 - Modify: `sim/HANDOFF.md` — l'entrée Stage 1-2 existante gagne son épilogue : Stage 3 livré, ce qui est vérifié (fixtures, selftests, cuisson réelle, navigateur), ce qui reste (reality meshes = étage 3 du design ; polygone exact dans la traversée ; #110 réglé ou toujours ouvert).
-- Modify: `sim/README.md` — section fournisseurs : les deux inscrits, le défaut, `--provider`, le cache `.cache/google-earth/`, la régénération des fixtures (`gen-rocktree-fixture.mjs` + un HAR frais).
+- Modify: `docs/manuel.md` — section fournisseurs : les deux inscrits, le défaut, `--provider`, le cache `.cache/google-earth/`, la régénération des fixtures (`gen-rocktree-fixture.mjs` + un HAR frais).
 - Modify: `docs/superpowers/specs/…-second-fournisseur-3d-design.md` — rien (l'amendement y est déjà).
 
 - [ ] **Step 1 : écrire les deux docs, dans le ton existant (vérifié / non vérifié explicites).**
@@ -1260,7 +1260,7 @@ npm run selftest:operator && npm run selftest && node tools/rocktree-selftest.mj
 - [ ] **Step 3 : commit + push + PR**
 
 ```bash
-git add sim/HANDOFF.md sim/README.md
+git add sim/HANDOFF.md docs/manuel.md
 git commit -m "Issue #18 : HANDOFF/README — le fournisseur google-earth est livré et vérifié"
 git push -u origin issue-18-google-earth
 gh pr create --title "Issue #18, Stage 3 : fournisseur Google Earth (protocole rocktree)" --body "..."

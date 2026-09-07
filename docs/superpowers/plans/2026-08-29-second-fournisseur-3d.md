@@ -848,7 +848,7 @@ git commit -m "Issue #18 : extraire le lecteur OBJ derrière un contrat sniff/de
 
 **Files:**
 - Modify: `sim/package.json` (script `selftest:operator`)
-- Modify: `sim/README.md` (section pipeline de préparation)
+- Modify: `docs/manuel.md` (section pipeline de préparation)
 - Modify: `sim/HANDOFF.md` (état vérifié)
 
 **Interfaces:**
@@ -870,7 +870,7 @@ Expected: tous les selftests PASS, y compris les deux nouveaux.
 
 - [ ] **Step 3 : documenter les deux seams dans le README**
 
-Ajouter à `sim/README.md`, dans la section du pipeline de préparation :
+Ajouter à `docs/manuel.md`, dans la section du pipeline de préparation :
 
 ```markdown
 ### Fournisseurs et décodeurs
@@ -907,7 +907,7 @@ Ajouter à l'état vérifié : les seams fournisseur et décodeur existent, Flyo
 - [ ] **Step 5 : commit**
 
 ```bash
-git add sim/package.json sim/README.md sim/HANDOFF.md
+git add sim/package.json docs/manuel.md sim/HANDOFF.md
 git commit -m "Issue #18 : inscrire les selftests fournisseur et documenter les deux seams"
 ```
 

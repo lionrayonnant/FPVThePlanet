@@ -1168,7 +1168,7 @@ git commit -m "feat(ground): un sol lointain sous le maillage (#139)"
 - Modify: `sim/src/main.js`
 - Modify: `sim/src/entry-state.js:57-59` et `:129-130`
 - Modify: `sim/tools/selftest.mjs`
-- Modify: `sim/README.md`
+- Modify: `docs/manuel.md`
 
 **Interfaces:**
 - Consumes: tout ce qui précède.
@@ -1364,7 +1364,7 @@ couleur. Ne pas le construire d'avance.
 
 - [ ] **Step 8 : documenter**
 
-Ajouter à `sim/README.md`, après la section sur le lien vidéo, une section
+Ajouter à `docs/manuel.md`, après la section sur le lien vidéo, une section
 « Limites de zone » : la fiction (la zone scannée), le tableau des quatre
 anneaux, d'où sortent `R_HOLD` et `R_CAUTION` (la commande
 `node tools/geofence-measure.mjs`), pourquoi le couloir vertical est sous
@@ -1373,7 +1373,7 @@ anneaux, d'où sortent `R_HOLD` et `R_CAUTION` (la commande
 - [ ] **Step 9 : commit et pousser**
 
 ```bash
-git add sim/src/main.js sim/README.md
+git add sim/src/main.js docs/manuel.md
 git commit -m "feat(geofence): câblage en vol — rappel, avertissement, fin de session (#139)"
 git push
 ```

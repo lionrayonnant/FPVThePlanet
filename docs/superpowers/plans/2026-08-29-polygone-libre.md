@@ -1865,7 +1865,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Rien n'est fini tant qu'une vraie carte n'est pas sortie du tuyau.
 
 **Files:**
-- Modify: `sim/README.md`
+- Modify: `docs/manuel.md`
 - Modify: `sim/HANDOFF.md`
 - Modify: `flyover-reverse-engineering/README.md`
 
@@ -1890,7 +1890,7 @@ Relancer l'acquisition **une seconde fois** sur le même tracé : le log doit di
 
 - [ ] **Step 2: Documenter**
 
-Dans `sim/README.md`, à la section de l'ajout de cartes : l'option `--poly` de `npm run add-map`, la règle de rétention (intersection, la zone extraite est un sur-ensemble du tracé), et le fait que le tracé libre est disponible dans le GLOBAL SCANNER comme dans `add-map.html`.
+Dans `docs/manuel.md`, à la section de l'ajout de cartes : l'option `--poly` de `npm run add-map`, la règle de rétention (intersection, la zone extraite est un sur-ensemble du tracé), et le fait que le tracé libre est disponible dans le GLOBAL SCANNER comme dans `add-map.html`.
 
 Dans `flyover-reverse-engineering/README.md` : l'option `--poly` de `export-obj`, son exclusivité avec `--bbox`, le champ `masked` de `--plan` et ce qui le distingue de `pruned`, et le nommage `poly-<hash>-<zoom>-<tryH>` du répertoire d'export.
 
@@ -1907,7 +1907,7 @@ Expected: tout vert.
 - [ ] **Step 4: Commit et pousser**
 
 ```bash
-git add sim/README.md sim/HANDOFF.md flyover-reverse-engineering/README.md sim/public/scenes.json
+git add docs/manuel.md sim/HANDOFF.md flyover-reverse-engineering/README.md sim/public/scenes.json
 git commit -m "Documente le tracé libre, et une carte extraite pour de vrai (#30)
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
