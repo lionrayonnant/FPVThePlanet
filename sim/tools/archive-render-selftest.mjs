@@ -45,7 +45,13 @@ const session = (over = {}) => ({
 const operator = (over = {}) => ({
 	name: 'neo', createdAt: '2026-09-01T10:00:00.000Z', sessions: [session()], ...over,
 });
-const api = (op) => ({ getOperator: () => op, patch: () => {}, flush: async () => {} });
+// `key` : la clé d'opérateur telle que le navigateur la garde (#60). Absente
+// par défaut — c'est le cas d'un serveur `local`, où elle n'existe pas.
+let storedKey = null;
+const api = (op) => ({
+	getOperator: () => op, patch: () => {}, flush: async () => {},
+	hasKey: () => Boolean(storedKey), getKey: () => storedKey,
+});
 
 // Ouvre la Home, entre dans ARCHIVE, clique une entrée. Rend une promesse de
 // vol qu'on ne dénoue jamais : on ne veut que l'arbre.
@@ -91,6 +97,40 @@ await ta('operator : le compteur de cibles vient des sessions, pas d\'une clé m
 	assert.match(t, /SESSIONS\s+2/);
 	assert.match(t, /TARGETS\s+1/, 'une seule des deux sessions a porté une cible');
 	assert.doesNotMatch(t, /TARGETS\s+0/);
+	await closeAll(home);
+});
+
+// La clé (#60) est un mécanisme TECHNIQUE, montré ici pour la même raison que le
+// Control Vector l'est sur SON écran : parce qu'on peut vouloir la relire. Les
+// deux ne se mélangent ni à l'écran ni dans le code (Bible §33) — c'est
+// justement ce que ces deux tests fixent.
+// La Home et ARCHIVE restent MONTÉES derrière (seulement `hidden`) : leur texte
+// est dans dom.root. On ne lit donc que la boîte du dernier écran ouvert.
+const topBox = () => { const b = dom.root.querySelectorAll('.terminal-box'); return b[b.length - 1]; };
+
+await ta('operator : sans clé (serveur local), aucun SHOW KEY à l\'écran', async () => {
+	storedKey = null;
+	const { home } = await openArchive(operator(), 'OPERATOR');
+	assert.equal(btn('SHOW KEY'), undefined);
+	assert.doesNotMatch(topBox().textContent, /OPERATOR KEY/);
+	await closeAll(home);
+});
+
+await ta('operator : avec une clé, elle est masquée jusqu\'à SHOW KEY', async () => {
+	storedKey = 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE';
+	const { home } = await openArchive(operator(), 'OPERATOR');
+	assert.match(topBox().textContent, /OPERATOR KEY\s+•/, 'masquée au premier rendu');
+	assert.doesNotMatch(topBox().textContent, /K7QP/);
+	btn('SHOW KEY').click();
+	await tick();
+	assert.match(topBox().textContent, /K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE/);
+	// La SEULE chose que le jeu dise jamais de la clé : l'inscription, elle, ne
+	// fait rien noter à personne (amendement du 2026-09-07).
+	assert.match(topBox().textContent, /THIS PROFILE LIVES IN THIS BROWSER/);
+	// La clé n'a rien à voir avec le Control Vector : cet écran ne parle pas de
+	// vecteur, et l'écran du vecteur ne parlera jamais de clé.
+	assert.doesNotMatch(topBox().textContent, /CONTROL VECTOR/);
+	storedKey = null;
 	await closeAll(home);
 });
 

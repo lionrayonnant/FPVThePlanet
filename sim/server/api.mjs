@@ -35,6 +35,10 @@ import {
 } from '../tools/lib/estimates.mjs';
 import { resolveWeather } from '../tools/weather-source.mjs';
 import { generateTargetScan, resolveTarget } from '../tools/target-model.mjs';
+import {
+	generateKey, hashKey, checkKey, acquireEnabled, invalidateKeyIndex, publicOperator,
+	operatorIdForKey, bearerOf, checkSignup, checkOperatorQuota,
+} from './auth.mjs';
 
 const BASE = '/__map-api';
 
@@ -45,6 +49,11 @@ const OP_BASE = '/__operator';
 // de module suffit ; createApi() le repose pour l'appelant qui en fournit
 // d'autres.
 let P = defaultPaths;
+
+// `local` ou `shared` (createApi). Deux choses en dépendent, et rien d'autre :
+// la clé d'opérateur (auth.mjs) et l'acquisition, fermée en `shared` quoi qu'il
+// arrive. Même raison d'être un état de module que P : un serveur par processus.
+let MODE = 'local';
 
 function ensureOperatorDir() {
 	fs.mkdirSync(P.OPERATOR_DIR, { recursive: true });
@@ -66,6 +75,7 @@ function _writeOperator(state) {
 	const tmp = `${file}.${process.pid}.tmp`;
 	fs.writeFileSync(tmp, JSON.stringify(state, null, '\t'));
 	fs.renameSync(tmp, file);
+	invalidateKeyIndex();
 	return state;
 }
 
@@ -122,6 +132,10 @@ const opRoutes = [
 	}],
 
 	['POST', /^\/$/, async (req, res) => {
+		// L'inscription est en libre service (c'est le cas nominal sur le VPS) :
+		// elle a donc un plafond par adresse, et lui seul. Rien en `local`.
+		const flood = checkSignup({ mode: MODE, req });
+		if (flood) return json(res, flood.status, { error: flood.error });
 		const b = await readBody(req);
 		let name;
 		try { name = validateName(b.name); }
@@ -130,8 +144,28 @@ const opRoutes = [
 		let state;
 		do { state = freshState({ id: newId(name), name }); }
 		while (fs.existsSync(path.join(P.OPERATOR_DIR, state.id + '.json')));
+		// La clé est rendue ICI et nulle part ailleurs : le serveur n'en garde que
+		// l'empreinte, et aucune route ne sait la relire en clair.
+		const key = generateKey();
+		state.keyHash = hashKey(key);
 		_writeOperator(state);
-		json(res, 201, { operator: state });
+		json(res, 201, { operator: publicOperator(state), key });
+	}],
+
+	// « Qui suis-je ? », répondu par la CLÉ et rien d'autre (issue #60). C'est ce
+	// qui permet de retrouver son opérateur depuis un autre navigateur sur un
+	// serveur `shared`, où aucune liste ne dit qui existe. Placée AVANT /:id :
+	// les deux motifs se recouvrent, et c'est la première trouvée qui répond.
+	['GET', /^\/whoami$/, async (req, res) => {
+		const id = operatorIdForKey(P.OPERATOR_DIR, bearerOf(req));
+		if (!id) return json(res, 404, { error: 'aucun opérateur pour cette clé' });
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: 'aucun opérateur pour cette clé' });
+		const rec = reconcileStaleSessions(state);
+		if (rec.changed) _writeOperator(rec.state);
+		json(res, 200, { operator: publicOperator(stripOperatorPhotoData(rec.state)) });
 	}],
 
 	['GET', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -149,7 +183,7 @@ const opRoutes = [
 		// recharge l'opérateur à chaque retour au menu, et une trentaine de
 		// sessions photographiées pèseraient des dizaines de mégaoctets à chaque
 		// fois. VIEW SESSION va les chercher une par une sur la route dédiée.
-		json(res, 200, { operator: stripOperatorPhotoData(rec.state) });
+		json(res, 200, { operator: publicOperator(stripOperatorPhotoData(rec.state)) });
 	}],
 
 	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -170,7 +204,7 @@ const opRoutes = [
 		}
 		state[b.key] = value;
 		_writeOperator(state);
-		json(res, 200, { operator: state });
+		json(res, 200, { operator: publicOperator(state) });
 	}],
 
 	// Météo du monde pour une zone (PHASE 04). Lecture d'abord : si le world
@@ -241,7 +275,7 @@ const opRoutes = [
 		state.terrainCache = (state.terrainCache ?? []).filter((t) => t.slug !== slug);
 		state.terrainCache.push(entry);
 		_writeOperator(state);
-		json(res, 200, { operator: state });
+		json(res, 200, { operator: publicOperator(state) });
 	}],
 
 	// Ouvre une session (squelette PENDING sur disque) ou ré-ouvre une session
@@ -328,6 +362,12 @@ const opRoutes = [
 	// de stockage binaire séparé. Plafond de body relevé rien que pour cette
 	// route : une capture dépasse largement le mégaoctet des autres requêtes.
 	['POST', /^\/([^/]+)\/sessions\/([^/]+)\/photos$/, async (req, res, [id, sid]) => {
+		// La SEULE écriture dont la taille dépende du client (base64 dans le JSON
+		// de session). PHOTO_BODY_MAX borne une requête, ce plafond-ci borne le
+		// cumul — sans quoi N inconnus remplissent le disque du VPS. Le vol, lui,
+		// n'est jamais bloqué : ouvrir et clore une session passe toujours.
+		const full = checkOperatorQuota({ mode: MODE, dir: P.OPERATOR_DIR, id });
+		if (full) return json(res, full.status, { error: full.error });
 		const b = await readBody(req, PHOTO_BODY_MAX);
 		let state;
 		try { state = _readOperator(id); }
@@ -589,7 +629,12 @@ function startJob(opts) {
 }
 
 const routes = [
-	['GET', /^\/scenes$/, async (req, res) => json(res, 200, { scenes: sceneList() })],
+	// `acquire` (issue #60) : l'état RÉEL du droit d'acquérir — le drapeau posé ET
+	// le mode local. Le client s'en sert pour masquer DRAW BOX / DRAW SHAPE /
+	// ACQUIRE AREA ; c'est de l'affichage, la garde est sur POST /jobs.
+	['GET', /^\/scenes$/, async (req, res) => json(res, 200, {
+		scenes: sceneList(), acquire: acquireEnabled(MODE),
+	})],
 
 	// Liste des fournisseurs inscrits + le défaut du registre (Task 7, issue
 	// #18) : la GUI en peuple son sélecteur plutôt que de coder les ids en dur.
@@ -656,6 +701,12 @@ const routes = [
 	})],
 
 	['POST', /^\/jobs$/, async (req, res) => {
+		// La seule route qui fait naître une scène sur disque, donc la seule qui
+		// porte la garde. Rien à voir avec la clé d'opérateur : celle-ci dit qui
+		// parle, celle-là ce qui a le droit d'exister ici (D2).
+		if (!acquireEnabled(MODE)) {
+			return json(res, 403, { error: 'acquisition de terrain désactivée sur ce serveur' });
+		}
 		if (current) return json(res, 409, { error: 'une extraction est déjà en cours', jobId: current.id });
 		const b = await readBody(req);
 		const zone = requireZone(b);
@@ -723,10 +774,27 @@ const routes = [
 // acquisition fermée en `shared`).
 export function createApi({ paths = defaultPaths, mode = 'local', logger = console } = {}) {
 	P = paths;
+	MODE = mode;
 	return async function api(req, res, next) {
 		if (req.url === OP_BASE || req.url?.startsWith(OP_BASE + '/') || req.url?.startsWith(OP_BASE + '?')) {
 			const url = new URL(req.url, 'http://localhost');
 			const p = url.pathname.slice(OP_BASE.length) || '/';
+			// En `shared`, la racine n'a que deux réponses possibles : créer un
+			// opérateur (sans clé — sinon personne ne pourrait jamais s'inscrire) ou
+			// rien. Pas de liste publique : sur un serveur qui reçoit des inconnus,
+			// énumérer les opérateurs est déjà une fuite.
+			if (MODE === 'shared' && p === '/' && req.method === 'GET') {
+				return json(res, 404, { error: 'pas d\'annuaire d\'opérateurs sur ce serveur' });
+			}
+			if (!(p === '/' && req.method === 'POST')) {
+				// /whoami ne nomme pas un opérateur, il en CHERCHE un : la clé seule
+				// décide, sans quoi il faudrait déjà savoir qui l'on est pour le
+				// demander. Un id généré porte toujours un suffixe hexadécimal
+				// (operator-store.newId), donc « whoami » n'en désigne jamais un.
+				const named = /^\/([^/]+)/.exec(p)?.[1] ?? null;
+				const denied = checkKey({ mode: MODE, dir: P.OPERATOR_DIR, req, id: named === 'whoami' ? null : named });
+				if (denied) return json(res, denied.status, { error: denied.error });
+			}
 			const onPath = opRoutes.filter(([, re]) => re.test(p));
 			if (!onPath.length) return json(res, 404, { error: `route inconnue : ${p}` });
 			const route = onPath.find(([method]) => method === req.method);
@@ -741,6 +809,12 @@ export function createApi({ paths = defaultPaths, mode = 'local', logger = conso
 		if (!req.url?.startsWith(BASE)) return next();
 		const url = new URL(req.url, 'http://localhost');
 		const p = url.pathname.slice(BASE.length) || '/';
+		// /__map-api/* ne nomme aucun opérateur : c'est la clé seule qui dit qui
+		// parle. En `local` l'en-tête n'est pas même lu.
+		{
+			const denied = checkKey({ mode: MODE, dir: P.OPERATOR_DIR, req });
+			if (denied) return json(res, denied.status, { error: denied.error });
+		}
 		// Plusieurs routes partagent un chemin (GET et POST /jobs) : on
 		// cherche la méthode parmi TOUTES celles qui matchent le chemin, et
 		// on ne répond 405 que si aucune ne convient.
