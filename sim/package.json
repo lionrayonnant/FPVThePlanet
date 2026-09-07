@@ -43,7 +43,7 @@
     "three": "^0.170.0"
   },
   "devDependencies": {
-    "electron": "^33.4.11",
+    "electron": "^39.8.10",
     "electron-builder": "^25.1.8",
     "vite": "^5.4.0"
   },
