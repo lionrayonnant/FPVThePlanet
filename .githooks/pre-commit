@@ -1,0 +1,33 @@
+#!/bin/sh
+# Refuse un commit signé par une adresse qui n'a rien à faire dans un dépôt
+# public. Deux accidents réels sont à l'origine de ce garde-fou :
+#
+#   - une identité globale laissée à `test <test>` : 442 commits signés par une
+#     adresse invalide, rattachés à aucun compte GitHub ;
+#   - une adresse personnelle utilisée sur 6 commits, qu'il a fallu retirer en
+#     réécrivant tout l'historique — opération qui change chaque SHA et que les
+#     refs `refs/pull/*` de GitHub gardent malgré tout.
+#
+# Activer dans un clone frais :  git config core.hooksPath .githooks
+#
+# Cette liste blanche est volontairement courte. Un contributeur qui s'ajoute
+# met SON adresse de commit (celle de son compte, `noreply` de préférence).
+
+ALLOWED='106342136+lionrayonnant@users\.noreply\.github\.com|noreply@anthropic\.com|[0-9]+\+[A-Za-z0-9-]+@users\.noreply\.github\.com'
+
+refuse() {
+	echo "pre-commit: adresse de commit refusée : $1" >&2
+	echo "" >&2
+	echo "  Ce dépôt est public. Configure une adresse qui ne t'expose pas :" >&2
+	echo "    git config user.email '<id>+<compte>@users.noreply.github.com'" >&2
+	echo "" >&2
+	echo "  Si cette adresse est légitime, ajoute-la à ALLOWED dans" >&2
+	echo "  .githooks/pre-commit — c'est une décision, pas une formalité." >&2
+	exit 1
+}
+
+author=$(git var GIT_AUTHOR_IDENT | sed -n 's/.*<\(.*\)>.*/\1/p')
+committer=$(git var GIT_COMMITTER_IDENT | sed -n 's/.*<\(.*\)>.*/\1/p')
+
+echo "$author" | grep -qE "^($ALLOWED)$" || refuse "$author (auteur)"
+echo "$committer" | grep -qE "^($ALLOWED)$" || refuse "$committer (committer)"

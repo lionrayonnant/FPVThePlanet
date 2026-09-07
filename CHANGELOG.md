@@ -39,6 +39,8 @@ rapport avec les versions ci-dessous.
   `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
 - `LICENSE` (GNU AGPL-3.0-only) et un `README.md` à la racine : le dépôt se
   prépare à devenir public. `sim/README.md` reste le README technique.
+- `.githooks/pre-commit` — refuse un commit signé par une adresse hors liste
+  blanche. `git config core.hooksPath .githooks` l'active dans un clone.
 - **Le jeu s'installe comme un jeu** (#291, tranche T2) : un installeur `.exe`
   sous Windows — entrée Menu Démarrer, désinstalleur — et une `AppImage` sous
   Linux. L'app est un seul process Electron qui démarre le serveur du jeu sur

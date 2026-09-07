@@ -132,6 +132,20 @@ Run `npm run selftest:ci` locally before pushing. A selftest that needs scene da
 
 There is no CD yet, but a build is no longer dead on its own: `sim/server/` (issue #259, tranche T1) serves `/__operator`, `/__map-api` and the `dist/` files without Vite. `sim/tools/map-api-plugin.mjs` is only the Vite adapter for it; the routes live in `sim/server/api.mjs`, and `sim/tools/lib/paths.mjs` is the single place that resolves the data directory (`FPVTP_DATA_DIR`, defaulting to today's dev paths). What still blocks a real deployment is T2-T4 of `sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md` — read it before touching `sim/server/`.
 
+Commit identity
+
+The repo is public: commits must never carry a personal address. `.githooks/pre-commit`
+refuses anything outside a short allowlist — enable it once per clone with
+`git config core.hooksPath .githooks`. Set `user.useConfigOnly true` globally so
+git errors instead of inventing an identity from the hostname. The account-level
+guard is the one that actually holds: GitHub → Settings → Emails → *Keep my email
+addresses private* + *Block command line pushes that expose my email*.
+
+This is not theoretical. A global identity left at `test <test>` signed 442
+commits, and a personal address reached 6 more; removing it took a full history
+rewrite, and GitHub's `refs/pull/*` kept the old commits anyway — which is why
+the public repo had to be a fresh one.
+
 Licensing
 
 AGPL-3.0-only. New files need no per-file header — the repo has none — but do
