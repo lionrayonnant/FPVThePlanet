@@ -56,8 +56,10 @@ Le format suit Keep a Changelog.
 [0.1.0]: https://github.com/lionrayonnant/FPVThePlanet/releases/tag/v0.1.0
 `;
 
-t('parseVersion ne lit que du X.Y.Z', () => {
-	assert.deepEqual(parseVersion('1.2.3'), { major: 1, minor: 2, patch: 3 });
+t('parseVersion ne lit que du X.Y.Z, avec suffixe pre-release optionnel', () => {
+	assert.deepEqual(parseVersion('1.2.3'), { major: 1, minor: 2, patch: 3, prerelease: null });
+	assert.deepEqual(parseVersion('0.1.0-beta'), { major: 0, minor: 1, patch: 0, prerelease: 'beta' });
+	assert.deepEqual(parseVersion('1.0.0-rc.1'), { major: 1, minor: 0, patch: 0, prerelease: 'rc.1' });
 	assert.equal(parseVersion('v1.2.3'), null, 'le préfixe v est un nom de tag, pas une version');
 	assert.equal(parseVersion('1.2'), null);
 	assert.equal(parseVersion(''), null);
@@ -69,6 +71,8 @@ t('compareVersions ordonne par champ, pas par chaîne', () => {
 	assert.ok(compareVersions('0.10.0', '0.9.0') > 0);
 	assert.equal(compareVersions('1.2.3', '1.2.3'), 0);
 	assert.ok(compareVersions('1.0.0', '1.0.1') < 0);
+	assert.ok(compareVersions('0.1.0-beta', '0.1.0') < 0, 'une pre-release passe avant la version stable');
+	assert.ok(compareVersions('0.1.0-beta', '0.1.0-alpha') > 0);
 });
 
 t('bumpVersion remet à zéro ce qui est à droite', () => {

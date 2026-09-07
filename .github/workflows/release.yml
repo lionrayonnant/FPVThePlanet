@@ -1,6 +1,7 @@
 # Publication d'une version (issue #257).
 #
-# Déclenché par le push d'un tag `vX.Y.Z` — celui que `npm run release` a créé.
+# Déclenché par le push d'un tag `vX.Y.Z` (suffixe pre-release optionnel,
+# `vX.Y.Z-beta`) — celui que `npm run release` a créé.
 # Le job refuse de publier si le tag et sim/package.json ne disent pas le même
 # numéro : c'est le garde-fou contre un tag posé à la main sur le mauvais commit.
 name: Release
@@ -9,6 +10,7 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
 
 permissions:
   contents: write

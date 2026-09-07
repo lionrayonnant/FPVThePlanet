@@ -13,23 +13,33 @@ export const REPO_URL = 'https://github.com/lionrayonnant/FPVThePlanet';
 
 const SECTION = /^## \[([^\]]+)\](?:\s+[-—]\s+(\d{4}-\d{2}-\d{2}))?\s*$/;
 const LINK = /^\[([^\]]+)\]:\s*(\S+)\s*$/;
-const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
+// Le suffixe pre-release (`-beta`, `-rc.1`, ...) est optionnel : une release
+// normale n'en a pas. Sa présence ne change pas le déclenchement du workflow
+// (issue #257 étendue), seulement le classement (une pre-release passe avant
+// la version stable qui porte le même major.minor.patch).
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 export function parseVersion(text) {
 	const m = SEMVER.exec(String(text ?? '').trim());
 	if (!m) return null;
-	return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
+	return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), prerelease: m[4] || null };
 }
 
 export function formatVersion(v) {
-	return `${v.major}.${v.minor}.${v.patch}`;
+	const core = `${v.major}.${v.minor}.${v.patch}`;
+	return v.prerelease ? `${core}-${v.prerelease}` : core;
 }
 
 export function compareVersions(a, b) {
 	const x = typeof a === 'string' ? parseVersion(a) : a;
 	const y = typeof b === 'string' ? parseVersion(b) : b;
 	if (!x || !y) throw new Error('comparaison de versions illisibles');
-	return (x.major - y.major) || (x.minor - y.minor) || (x.patch - y.patch);
+	const core = (x.major - y.major) || (x.minor - y.minor) || (x.patch - y.patch);
+	if (core) return core;
+	if (!x.prerelease && !y.prerelease) return 0;
+	if (!x.prerelease) return 1;
+	if (!y.prerelease) return -1;
+	return x.prerelease < y.prerelease ? -1 : x.prerelease > y.prerelease ? 1 : 0;
 }
 
 export function tagOf(version) {
