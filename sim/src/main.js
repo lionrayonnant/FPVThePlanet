@@ -1353,7 +1353,7 @@ input.onAction = (key, event) => {
 // le rechargement de page que finishSession() déclenche. sessionStorage et non
 // localStorage : ne doit pas survivre à la fermeture de l'onglet, et ne doit
 // jamais fuiter vers un autre onglet ouvert sur une zone différente.
-const QUICK_RESTART_KEY = 'fpvmaps.quickRestart';
+const QUICK_RESTART_KEY = 'fpvtp.quickRestart';
 
 function consumeQuickRestart() {
 	try {

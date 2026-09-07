@@ -761,7 +761,7 @@ PHASE 19 (issue #56) — le langage existe, la généralisation est hors périm�
 git add sim/HANDOFF.md
 git commit -m "PHASE 20 : état vérifié dans le HANDOFF"
 git push -u origin phase-20-impl
-gh pr create --repo lionrayonnant/FPVTP --base main --head phase-20-impl \
+gh pr create --repo lionrayonnant/FPVThePlanet --base main --head phase-20-impl \
   --title "PHASE 20 — ASCII / pixel art / demo scene" \
   --body "Closes #57 ... (résumé, chiffres bench, screenshot)"
 ```

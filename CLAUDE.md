@@ -86,7 +86,14 @@ Prefer updating these docs rather than duplicating information here.
 
 GitHub workflow
 
-Repo: lionrayonnant/FPVTP, being prepared to go public. Licensed AGPL-3.0-only
+Repo: lionrayonnant/FPVThePlanet, being prepared to go public. It carries a
+rewritten history and is NOT the repo the older docs were written against: the
+original, `lionrayonnant/FPVTP`, stays private forever because its
+`refs/pull/*` permanently pin commits that carried a personal email address.
+Issue numbers quoted throughout this repo's history refer to that older repo
+and do not resolve here until the issues are migrated. Push here, never there.
+
+Licensed AGPL-3.0-only
 (`LICENSE` at the root, `README.md` is the public front door — `sim/README.md`
 stays the technical one). Two things change the day the switch is flipped:
 `sim/electron-builder.yml` can move from `provider: generic` to

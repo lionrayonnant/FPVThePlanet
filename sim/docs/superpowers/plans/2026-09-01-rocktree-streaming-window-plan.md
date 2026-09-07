@@ -1324,8 +1324,8 @@ Comme la tranche précédente (Tâche 8 de son plan), rien ici ne se laisse vér
 - [ ] **Step 1: Démarrer un serveur de dev dédié à ce worktree**
 
 ```bash
-ln -sf /home/user/Documents/dev/FPVMaps/sim/node_modules node_modules
-ln -sf /home/user/Documents/dev/FPVMaps/sim/public/scenes public/scenes
+ln -sf ~/dev/FPVThePlanet/sim/node_modules node_modules
+ln -sf ~/dev/FPVThePlanet/sim/public/scenes public/scenes
 npx vite --port 5176 &
 ```
 

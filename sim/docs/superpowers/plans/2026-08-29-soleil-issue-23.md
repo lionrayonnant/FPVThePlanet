@@ -1605,7 +1605,7 @@ git push -u origin issue-23-soleil
 - [ ] **Step 7 : ouvrir la PR et fermer l'issue**
 
 ```bash
-gh pr create --repo lionrayonnant/FPVTP --base main \
+gh pr create --repo lionrayonnant/FPVThePlanet --base main \
   --title "Soleil : position depuis lat/lon + heure, éblouissement, exposition (#23)" \
   --body "Ferme #23. Voir sim/docs/superpowers/specs/2026-08-29-soleil-issue-23-design.md."
 ```

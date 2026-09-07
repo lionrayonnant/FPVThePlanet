@@ -203,7 +203,7 @@ plan n'existe pas.
 - **Panneau `Tab`.** Section « Lien vidéo » ; le sélecteur bascule bien le
   `#define`, le curseur à 0 compile l'effet hors du shader, la case maîtresse
   « Rendu FPV » grise les deux, et les deux clés survivent au rechargement. Le
-  balayage `fpvmaps.` du bouton de réinitialisation les couvre déjà.
+  balayage `fpvtp.` du bouton de réinitialisation les couvre déjà.
 - Aucun message d'erreur ni d'avertissement en console.
 
 ## Lien vidéo : la première calibration était injouable (corrigé 2026-08-27)

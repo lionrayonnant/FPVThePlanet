@@ -1,6 +1,6 @@
 # PHASE 01 — Operator / état local-first — Design
 
-GitHub : https://github.com/lionrayonnant/FPVMaps/issues/38
+GitHub : https://github.com/lionrayonnant/FPVThePlanet/issues/38
 Milestone : P0 — boucle fonctionnelle. Label : `roadmap-da`.
 
 Sources de vérité : `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md`
@@ -21,7 +21,7 @@ navigateur.
 | # | Décision |
 |---|---|
 | A | L'état opérateur vit **côté serveur**, un fichier JSON par opérateur, dans `sim/operator-state/` (gitignored), via une extension de `tools/map-api-plugin.mjs` (routes `/__operator`). Reprend D2. |
-| B | **Aucun champ « dernier opérateur actif » côté serveur.** L'identité du client vit dans `localStorage` (`fpvmaps.operatorId`) et accompagne chaque requête. C'est ce qui permet à deux personnes de jouer en même temps sur le même serveur de dev sans se marcher dessus. |
+| B | **Aucun champ « dernier opérateur actif » côté serveur.** L'identité du client vit dans `localStorage` (`fpvtp.operatorId`) et accompagne chaque requête. C'est ce qui permet à deux personnes de jouer en même temps sur le même serveur de dev sans se marcher dessus. |
 | C | Navigateur vierge / vidé : si le serveur a exactement un opérateur → on le charge ; s'il en a plusieurs → écran `OPERATOR SELECT` ; s'il n'en a aucun → bootstrapping. |
 | D | Control Vector = suite de **directions 4-way** (`up`/`right`/`down`/`left`), longueur 4–8, défaut 6. Saisie au clavier (flèches) **et** à la manette (d-pad + stick gauche). |
 | E | `home.js` est un **stub jetable** : PHASE 02 le remplace par l'Operator Terminal. Il existe pour satisfaire le critère d'acceptation « → operator home ». |
@@ -123,7 +123,7 @@ loadOperator() → Promise<{
 
 Logique de `loadOperator()` :
 
-1. `id = localStorage['fpvmaps.operatorId']`.
+1. `id = localStorage['fpvtp.operatorId']`.
 2. Si `id` : `GET /__operator/<id>`.
    - 200 → `{ operator, needsBootstrap: false, choices: null }`.
    - 404 → l'id local est périmé : on l'efface, on retombe en 3.
@@ -135,7 +135,7 @@ Logique de `loadOperator()` :
 Autres fonctions :
 
 - `createOperator(name)` → `POST /__operator` ; au succès :
-  `localStorage['fpvmaps.operatorId'] = operator.id` ; met le cache à jour ;
+  `localStorage['fpvtp.operatorId'] = operator.id` ; met le cache à jour ;
   renvoie l'état.
 - `selectOperator(id)` → `GET /__operator/<id>` ; stocke l'id ; met le cache.
 - `getOperator()` → l'état en cache (synchrone).
@@ -388,7 +388,7 @@ if (OPTS.scene) {                       // fast-path dev inchangé
 
 - Operator Terminal complet (PHASE 02).
 - Randomart, avatar (PHASE 02+).
-- Migration des clés `fpvmaps.*` (manette/audio/accessibilité) vers
+- Migration des clés `fpvtp.*` (manette/audio/accessibilité) vers
   `settings` de l'opérateur — commence ici la structure, la migration réelle
   est portée par les phases réglages.
 - Routes `terrainCache` / `sessions` / `targetLog` / `worldState` (phases

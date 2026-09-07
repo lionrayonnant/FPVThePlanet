@@ -1,6 +1,6 @@
 # PHASE 17 — Session Log / Target Log
 
-Issue : [#54](https://github.com/lionrayonnant/FPVTP/issues/54) · label `roadmap-da` · milestone P1
+Issue : [#54](https://github.com/lionrayonnant/FPVThePlanet/issues/54) · label `roadmap-da` · milestone P1
 Branche : `phase-17-session-log`
 Sources : Bible §28 (Session Log), §29 (Terrain et mémoire), §30 (Home) ·
 Roadmap PHASE 17

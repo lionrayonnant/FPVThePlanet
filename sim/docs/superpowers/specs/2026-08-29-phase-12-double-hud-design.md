@@ -1,6 +1,6 @@
 # PHASE 12 — Double HUD (spec)
 
-Issue : [#49](https://github.com/lionrayonnant/FPVTP/issues/49)
+Issue : [#49](https://github.com/lionrayonnant/FPVThePlanet/issues/49)
 Sources : `docs/FPVThePlanet! — Art Direction & Experience Bible.md` §43 ·
 `docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md` PHASE 12
 

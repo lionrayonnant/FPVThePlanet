@@ -32,9 +32,9 @@ import {
 //
 // localStorage plutôt que l'état opérateur : /__operator n'existe que sous le
 // serveur de dev, et le banc doit rester ouvrable sans lui. Le préfixe
-// fpvmaps. le fait emporter par le reset des réglages, comme le reste.
+// fpvtp. le fait emporter par le reset des réglages, comme le reste.
 
-const MODE_KEY = 'fpvmaps.mode';
+const MODE_KEY = 'fpvtp.mode';
 
 function store() {
 	try {

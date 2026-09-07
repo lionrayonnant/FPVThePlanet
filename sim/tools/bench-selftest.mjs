@@ -293,7 +293,7 @@ t('sérialisation : rien de ce qui est stocké ne dit qu\'un vol a eu lieu', () 
 	// Et aucun horodatage : `createdAt`, `fetchedAt`, `startedAt`… Cherché sur
 	// la casse d'origine, parce qu'en minuscules le motif attraperait « lat ».
 	assert.ok(!/[a-z]At"/.test(txt), `un horodatage a fuité dans la config du banc : ${txt}`);
-	assert.equal(BENCH_STORAGE_KEY, 'fpvmaps.bench', 'préfixe fpvmaps. : le reset des réglages doit l\'emporter avec lui');
+	assert.equal(BENCH_STORAGE_KEY, 'fpvtp.bench', 'préfixe fpvtp. : le reset des réglages doit l\'emporter avec lui');
 });
 
 // ---------------------------------------------------------------------------

@@ -74,7 +74,7 @@ linux:
       arch: [x64]
   category: Game
   icon: electron/build/icon.png
-  # Sinon l'exécutable hérite du `name` de package.json (fpvmaps-sim).
+  # Sinon l'exécutable hérite du `name` de package.json (fpvtp-sim).
   executableName: fpvtp
 
 # TODO (tranche T4) : remplacer par le domaine réel du VPS qui hébergera

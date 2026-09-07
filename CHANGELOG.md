@@ -120,6 +120,18 @@ rapport avec les versions ci-dessous.
   `deploy/deploy.sh` installe. Aucun `npm install` sur le VPS : le serveur
   démarre sans `node_modules`, mesuré.
 
+### Modifié
+
+- **Le nom `fpvmaps` disparaît du dépôt**, jusqu'au préfixe des clés
+  `localStorage` (`fpvmaps.` → `fpvtp.`), au nom du paquet npm (`fpvtp-sim`),
+  à celui du plugin Vite (`fpvtp-map-api`) et à la métadonnée `generator` des
+  `.glb` exportés. **Aucune migration** : un joueur qui met à jour repart avec
+  des réglages neufs — calibrage manette, volumes, réglages d'objectif. Son
+  opérateur, lui, n'est pas perdu : il vit côté serveur, et `OPERATOR SELECT`
+  le repropose.
+- Le dépôt est désormais `lionrayonnant/FPVThePlanet` : toutes les références
+  internes, `deploy/deploy.sh` et l'unité systemd comprises, pointent dessus.
+
 ### Retiré
 
 - `sim/qualite-test/` (6,3 Mo) : quatre extraits `.opus` et une page d'écoute
@@ -339,7 +351,7 @@ rapport avec les versions ci-dessous.
   bougeait jamais. Après six secondes sans le moindre geste, il le dit.
 
 - Le mappage manette n'était pas attaché au périphérique (#277) : `_savedMap`
-  était un booléen global et `fpvmaps.gamepadMap` une entrée unique, si bien
+  était un booléen global et `fpvtp.gamepadMap` une entrée unique, si bien
   qu'un remap fait pour une radio restait collé en branchant une DualShock 4 —
   dont les axes sont dans un autre ordre ET dont le gaz est en demi-course. Les
   calibrages sont désormais rangés par identifiant de périphérique.
@@ -364,4 +376,4 @@ rapport avec les versions ci-dessous.
   selftest borne famille par famille — ce qui est garanti pour les six, c'est
   que la moitié haute du cadre reste libre.
 
-[Non publié]: https://github.com/lionrayonnant/FPVTP/commits/main
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/commits/main

@@ -10,7 +10,7 @@ import { createApi } from '../server/api.mjs';
 
 export default function mapApiPlugin() {
 	return {
-		name: 'fpvmaps-map-api',
+		name: 'fpvtp-map-api',
 		apply: 'serve',
 		configureServer(server) {
 			server.middlewares.use(createApi({ mode: 'local', logger: server.config.logger }));

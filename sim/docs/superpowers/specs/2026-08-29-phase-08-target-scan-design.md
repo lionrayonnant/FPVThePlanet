@@ -2,7 +2,7 @@
 
 État : validé 2026-08-29.
 
-Issue : https://github.com/lionrayonnant/FPVMaps/issues/45
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/45
 Sources : Bible §15 (« Acquisition d'une cible »), §22 (« Ce qui est connu du
 drone »), Roadmap PHASE 8.
 

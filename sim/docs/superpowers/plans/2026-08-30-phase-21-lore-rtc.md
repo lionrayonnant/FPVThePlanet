@@ -10,7 +10,7 @@
 
 **Spec :** `sim/docs/superpowers/specs/2026-08-30-phase-21-lore-rtc-design.md`
 
-**Branche :** `phase-21-lore-rtc` · worktree `wt-p21` · issue [#58](https://github.com/lionrayonnant/FPVTP/issues/58)
+**Branche :** `phase-21-lore-rtc` · worktree `wt-p21` · issue [#58](https://github.com/lionrayonnant/FPVThePlanet/issues/58)
 
 ## Global Constraints
 
@@ -2361,11 +2361,11 @@ Dans `README.md`, une section sur le pipeline de dialogue : les trois commandes 
 Créer une issue pour chaque chose découverte et non faite, plutôt que de laisser des TODO dans le code :
 
 ```bash
-gh issue create --repo lionrayonnant/FPVTP --label roadmap-da \
+gh issue create --repo lionrayonnant/FPVThePlanet --label roadmap-da \
   --title "Dialogue : chemin API Messages pour generate.mjs (SDK officiel)" \
   --body "generate.mjs ne pilote que \`claude -p\`. Le chemin API Messages via le SDK officiel reste à écrire par quelqu'un qui a une clé pour le vérifier — du code jamais exécuté est du code faux qui s'ignore. Voir PHASE 21, Tâche 10."
 
-gh issue create --repo lionrayonnant/FPVTP --label roadmap-da \
+gh issue create --repo lionrayonnant/FPVThePlanet --label roadmap-da \
   --title "Dialogue : câbler les événements de vol, crash et session complete" \
   --body "FLIGHT, LINK_DEGRADED, LINK_RESTORED, CRASH, SESSION_COMPLETE, REVISIT et BOOTSTRAP sont déclarés au catalogue et alimentés par le corpus, sans point d'appel. En câbler un est une ligne — c'est le critère d'acceptation 10 de #58."
 ```
@@ -2385,7 +2385,7 @@ git add -A
 git commit -m "$(printf 'PHASE 21 : documentation, corrections de spec, état HANDOFF (#58)\n\nLa Bible §9 ne fait plus parler vex. La spec est corrigée sur les deux\npoints où l%simplémentation a divergé : entry-state.js n%'est pas un écran,\net callModel() n%sa qu%sun dos.\n\nHANDOFF distingue ce qui est vérifié sans navigateur, au navigateur, et\nce qui ne l%sest pas : la qualité perçue du corpus sur une longue partie\nreste un jugement de ton, pas une case cochée.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>' "'" "'" "'" "'")"
 
 git push -u origin phase-21-lore-rtc
-gh pr create --repo lionrayonnant/FPVTP --base main --title "PHASE 21 — Lore / RTC v0 (#58)" --body-file /tmp/pr-21.md
+gh pr create --repo lionrayonnant/FPVThePlanet --base main --title "PHASE 21 — Lore / RTC v0 (#58)" --body-file /tmp/pr-21.md
 ```
 
 Rédiger `/tmp/pr-21.md` avant d'appeler la commande. Le corps doit dire, sans arrondir : ce qui est vérifié et comment, ce qui ne l'est pas, et que **le critère d'acceptation réel de cette phase — un joueur qui ignore les RTC ne rate rien, et aucun dialogue ne promet une suite — est mécaniquement garanti pour la seconde moitié (le validateur) et humainement jugé pour la première.**

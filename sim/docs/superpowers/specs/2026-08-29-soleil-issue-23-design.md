@@ -1,6 +1,6 @@
 # Soleil — position depuis lat/lon + heure, éblouissement, exposition
 
-Spec de l'issue [#23](https://github.com/lionrayonnant/FPVTP/issues/23), volet
+Spec de l'issue [#23](https://github.com/lionrayonnant/FPVThePlanet/issues/23), volet
 soleil de #19, couche de rendu rattachée à PHASE 04 (#41).
 
 Date : 2026-08-29. Branche : `issue-23-soleil`.

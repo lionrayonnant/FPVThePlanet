@@ -292,7 +292,7 @@ export function benchBlockers(config, { scenes = [] } = {}) {
 // entorse à « rien n'est écrit » : reposer douze réglages à chaque lancement
 // serait exactement la frustration que le banc supprime. Rien de ce qui est
 // stocké ici ne dit qu'un vol a eu lieu.
-export const BENCH_STORAGE_KEY = 'fpvmaps.bench';
+export const BENCH_STORAGE_KEY = 'fpvtp.bench';
 
 export function serializeBenchConfig(config) {
 	return JSON.stringify(normalizeBenchConfig(config));

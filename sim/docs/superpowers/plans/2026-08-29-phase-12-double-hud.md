@@ -1915,7 +1915,7 @@ tourner.
 - [ ] **Step 2: Ouvrir les issues de suivi**
 
 ```bash
-gh issue create --repo lionrayonnant/FPVTP \
+gh issue create --repo lionrayonnant/FPVThePlanet \
   --title "Panneau Tab : passer les libellés en anglais" \
   --label roadmap-da \
   --body "PHASE 12 a mis les deux couches d'OSD en anglais, mais le panneau Tab (Manette, Caméra, Objectif, Lien vidéo, Son) est resté en français. La passe d'anglais globale est PHASE 19 (#56) ; cette issue est le rappel du reliquat laissé par PHASE 12."

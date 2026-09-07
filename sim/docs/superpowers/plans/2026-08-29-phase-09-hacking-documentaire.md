@@ -859,7 +859,7 @@ Dans `sim/HANDOFF.md` :
 - [ ] **Step 4 : Mettre à jour l'issue**
 
 ```bash
-gh issue comment 46 --repo lionrayonnant/FPVTP --body "PHASE 09 implémentée sur la branche phase-09-hacking : hackType comme propriété de cible (6 familles, tirage seedé indépendant), écran AUTOMATED ANALYSIS (log Bible §18 + motif par famille) jusqu'à MANUAL OVERRIDE REQUIRED + [ JACK IN ] provisoire. Rituel réel = PHASE 10. Revue de sûreté faite (git diff relu, aucune procédure offensive réelle)."
+gh issue comment 46 --repo lionrayonnant/FPVThePlanet --body "PHASE 09 implémentée sur la branche phase-09-hacking : hackType comme propriété de cible (6 familles, tirage seedé indépendant), écran AUTOMATED ANALYSIS (log Bible §18 + motif par famille) jusqu'à MANUAL OVERRIDE REQUIRED + [ JACK IN ] provisoire. Rituel réel = PHASE 10. Revue de sûreté faite (git diff relu, aucune procédure offensive réelle)."
 ```
 
 - [ ] **Step 5 : Commit**

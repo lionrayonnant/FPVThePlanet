@@ -2,7 +2,7 @@
 
 État : validé 2026-08-29.
 
-Issue : https://github.com/lionrayonnant/FPVTP/issues/22
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/22
 Chapeau : #19 (support de la météo). Couche de rendu consommée par #41 (PHASE 04
 — monde persistant), déjà livrée.
 

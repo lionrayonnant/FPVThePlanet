@@ -504,7 +504,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     `worldState.weather[zone]` ; le second appel sur la même zone le même jour
     relit le fichier sans toucher au réseau (même `fetchedAt`) ;
   - le panneau `Tab` ne contient plus que manette / caméra / objectif / lien
-    vidéo / son — aucun contrôle météo, aucune clé `fpvmaps.wind*|rain|fog` ;
+    vidéo / son — aucun contrôle météo, aucune clé `fpvtp.wind*|rain|fog` ;
   - vol sur `?scene=triomphe` : `__sim.debug().world` rend
     `{zone 48.87,2.30, open-meteo, LIGHT RAIN, confiance 0,96}`, le vent à 10 m
     vaut 6,85 m/s et la pluie 0,66 mm/h, la visibilité passe de 2035 m à 1883 m ;
@@ -1144,7 +1144,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     `sim/.superpowers/sdd/2026-09-01-rocktree-streaming-window-plan/task-11-report.md`.
 - **Curseur « View range » + spawn calé sur le sol réel** (#182) vérifiés en
   navigateur le 2026-09-01 : curseur Settings 100–600 m (défaut 300, persisté
-  `fpvmaps.viewRange`), appliqué en vol via `setFloorRadiusM()` (selftest
+  `fpvtp.viewRange`), appliqué en vol via `setFloorRadiusM()` (selftest
   fenêtre 8/8, rouge/vert). En chassant un blocage du boot à 300 m, deux
   défauts pré-existants corrigés : le spawn ellipsoïdal fixe (+80 m) mettait
   le drone SOUS le terrain à Versailles (~175 m ellipsoïdaux — chute infinie,
@@ -2655,7 +2655,7 @@ monotone).
     comme `ui-audio-model.mjs` / `ui-audio.js`. La musique n'est **pas** un
     neuvième événement d'interface : vocabulaire toujours clos à huit entrées,
     garde-fou toujours vert, la musique a son propre bus (`musicIn`) et son
-    propre volume (slider MUSIC, `fpvmaps.musicVolume`, défaut 0,7).
+    propre volume (slider MUSIC, `fpvtp.musicVolume`, défaut 0,7).
   - **L'arc tient dans un scalaire** `intensity` ∈ [0,1] qui pilote un lowpass
     (380 Hz → 19 kHz, en log) et un gain (-20 dB → 0 dB). MENU 0,55 · HACK 0,12
     (« la musique de la pièce d'à côté ») · DROP 1,0 en 0,4 s · vol =
@@ -3000,7 +3000,7 @@ un ordre d'axes faux **et** un gaz en demi-course.
 `src/calibration.js` est une machine à états pure — `feedSample(state, axes,
 dt)` — sans DOM ni `localStorage`, ce qui permet de rejouer du vrai matériel
 dans `tools/calibration-selftest.mjs`. Elle produit `{ channels, deadband,
-throttleMode }`, rangé dans `fpvmaps.gamepadCal` **par `pad.id`**.
+throttleMode }`, rangé dans `fpvtp.gamepadCal` **par `pad.id`**.
 
 Ce que la mesure remplace, et qui était supposé :
 
@@ -3036,7 +3036,7 @@ Constaté en direct sur l'écran SELECT OPERATION MODE (donc avant `boot()`) :
 - le calibrage survit à un rechargement et s'applique à `input.map` ;
 - **le défaut de l'issue est reproduit puis corrigé en direct** : passer à la
   DS4 ne récupère plus le calibrage de la radio, les deux coexistent dans
-  `fpvmaps.gamepadCal` ;
+  `fpvtp.gamepadCal` ;
 - Échap ferme le panneau et abandonne la mesure sans rien écrire ;
 - cocher `inv` sur un canal calibré suit dans le calibrage et **garde** le
   neutre et la course mesurés.

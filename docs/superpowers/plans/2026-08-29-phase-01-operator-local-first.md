@@ -19,7 +19,7 @@
 - `id` opérateur : `^[a-z0-9]+(-[a-z0-9]+)*$`, validé sur chaque route serveur qui le reçoit. Le `name` n'entre jamais dans un chemin de fichier.
 - Nom d'opérateur : trimé, non vide, `≤ 24` caractères, `slugify(name)` non vide.
 - Les modules d'écran montent leurs nœuds en **append** dans `#ui` et les retirent à la résolution. Ils ne touchent jamais `#ui.innerHTML` (le `Hud` a déjà construit son DOM dedans).
-- Tout `localStorage` : clé `fpvmaps.operatorId`, accès enveloppé dans `try/catch`.
+- Tout `localStorage` : clé `fpvtp.operatorId`, accès enveloppé dans `try/catch`.
 - Commits fréquents, un par tâche minimum. Messages de commit en français, terminés par la ligne `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 
 ---
@@ -498,9 +498,9 @@ git commit -m "PHASE 01 — routes serveur /__operator : CRUD, écriture atomiqu
 - Consumes: routes `/__operator` (Task 2).
 - Produces (exports de `src/operator.js`) :
   - `async loadOperator(): Promise<{ operator: object|null, needsBootstrap: boolean, choices: Array<{id,name}>|null }>` — résout l'opérateur actif :
-    1. lit `localStorage['fpvmaps.operatorId']` ; si présent → `GET /__operator/<id>` ; 200 → `{ operator, needsBootstrap:false, choices:null }` ; 404 → efface la clé, continue en 2.
+    1. lit `localStorage['fpvtp.operatorId']` ; si présent → `GET /__operator/<id>` ; 200 → `{ operator, needsBootstrap:false, choices:null }` ; 404 → efface la clé, continue en 2.
     2. `GET /__operator` : 0 → `{ operator:null, needsBootstrap:true, choices:null }` ; 1 → adopte (stocke l'id, refait le GET détaillé) → `{ operator, needsBootstrap:false, choices:null }` ; ≥2 → `{ operator:null, needsBootstrap:false, choices:[{id,name},...] }`.
-  - `async createOperator(name: string): Promise<object>` — `POST /__operator` ; au succès stocke `fpvmaps.operatorId`, met le cache, renvoie l'état. Sur `400` lève `Error(payload.error)`.
+  - `async createOperator(name: string): Promise<object>` — `POST /__operator` ; au succès stocke `fpvtp.operatorId`, met le cache, renvoie l'état. Sur `400` lève `Error(payload.error)`.
   - `async selectOperator(id: string): Promise<object>` — `GET /__operator/<id>` ; stocke l'id, met le cache, renvoie l'état.
   - `getOperator(): object|null` — l'état en cache (synchrone).
   - `patch(key: 'controlVector'|'settings', value: any): void` — met le cache à jour tout de suite, planifie un `PATCH` différé de ~500 ms coalescé par clé.
@@ -561,7 +561,7 @@ await t('un opérateur → adopté', async () => {
 	const r = await op.loadOperator();
 	assert.equal(r.needsBootstrap, false);
 	assert.equal(r.operator.id, 'neo-1');
-	assert.equal(store.getItem('fpvmaps.operatorId'), 'neo-1');
+	assert.equal(store.getItem('fpvtp.operatorId'), 'neo-1');
 });
 
 await t('plusieurs opérateurs → choices', async () => {
@@ -576,7 +576,7 @@ await t('plusieurs opérateurs → choices', async () => {
 });
 
 await t('id local valide → chargé direct', async () => {
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: ['up', 'up', 'up', 'up'] } }],
 	}));
@@ -586,7 +586,7 @@ await t('id local valide → chargé direct', async () => {
 });
 
 await t('id local périmé (404) → repli sur la liste', async () => {
-	const store = fakeStore({ 'fpvmaps.operatorId': 'ghost-9' });
+	const store = fakeStore({ 'fpvtp.operatorId': 'ghost-9' });
 	op._setStore(store);
 	op._setFetch(fakeFetch({
 		'GET /__operator/ghost-9': () => [404, { error: 'nope' }],
@@ -594,7 +594,7 @@ await t('id local périmé (404) → repli sur la liste', async () => {
 	}));
 	const r = await op.loadOperator();
 	assert.equal(r.needsBootstrap, true);
-	assert.equal(store.getItem('fpvmaps.operatorId'), null);
+	assert.equal(store.getItem('fpvtp.operatorId'), null);
 });
 
 await t('createOperator stocke l’id et met le cache', async () => {
@@ -605,7 +605,7 @@ await t('createOperator stocke l’id et met le cache', async () => {
 	}));
 	const s = await op.createOperator('Vex');
 	assert.equal(s.id, 'vex-2');
-	assert.equal(store.getItem('fpvmaps.operatorId'), 'vex-2');
+	assert.equal(store.getItem('fpvtp.operatorId'), 'vex-2');
 	assert.equal(op.getOperator().id, 'vex-2');
 });
 
@@ -617,7 +617,7 @@ await t('createOperator propage l’erreur 400', async () => {
 
 await t('patch + flush envoie un PATCH coalescé', async () => {
 	const calls = [];
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: [] } }],
 		'PATCH /__operator/neo-1': (opts) => { calls.push(JSON.parse(opts.body)); return [200, { operator: {} }]; },
@@ -646,14 +646,14 @@ Create `sim/src/operator.js` :
 ```js
 // État opérateur, côté client. Aucun DOM.
 //
-// L'identité du client vit dans localStorage (fpvmaps.operatorId) et accompagne
+// L'identité du client vit dans localStorage (fpvtp.operatorId) et accompagne
 // chaque requête : c'est ce qui permet à deux personnes de jouer en même temps
 // sur le même serveur de dev. Le serveur ne décide jamais « qui tu es ».
 // Repli quand la clé manque (navigateur neuf ou vidé) : 1 opérateur sur disque
 // → on l'adopte ; plusieurs → l'appelant montre OPERATOR SELECT.
 
 const OP_BASE = '/__operator';
-const KEY = 'fpvmaps.operatorId';
+const KEY = 'fpvtp.operatorId';
 const DEBOUNCE_MS = 500;
 
 let _fetch = (...a) => globalThis.fetch(...a);
@@ -1313,8 +1313,8 @@ Naviguer sur `http://localhost:5173/`. Vérifier la séquence :
 - [ ] **Step 6: Vérification manuelle — relance & vidage cache**
 
 - Recharger l'onglet → on arrive **directement** sur `OPERATOR // NEO`, pas de bootstrapping.
-- DevTools → Application → Local Storage → supprimer `fpvmaps.operatorId` → recharger → toujours `OPERATOR // NEO` (1 seul opérateur sur disque, adopté).
-- Créer un 2ᵉ opérateur via `[ SWITCH OPERATOR ] → + NEW OPERATOR`, nom `Vex`. Supprimer `fpvmaps.operatorId`, recharger → `OPERATOR SELECT` avec `NEO` et `VEX`.
+- DevTools → Application → Local Storage → supprimer `fpvtp.operatorId` → recharger → toujours `OPERATOR // NEO` (1 seul opérateur sur disque, adopté).
+- Créer un 2ᵉ opérateur via `[ SWITCH OPERATOR ] → + NEW OPERATOR`, nom `Vex`. Supprimer `fpvtp.operatorId`, recharger → `OPERATOR SELECT` avec `NEO` et `VEX`.
 - `?scene=<slug>` (un slug réel de `public/scenes.json`) → vol direct sans Home ni menu ; dans la console `(await import('/src/operator.js')).getOperator()` renvoie un opérateur non nul.
 
 - [ ] **Step 7: `npm run selftest` + les deux selftests opérateur**

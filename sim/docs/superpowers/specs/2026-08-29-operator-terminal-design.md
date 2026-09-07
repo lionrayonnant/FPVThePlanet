@@ -1,6 +1,6 @@
 # PHASE 02 — Operator Terminal / Home — design
 
-Issue : lionrayonnant/FPVMaps#39 · Milestone P0 · label `roadmap-da`
+Issue : lionrayonnant/FPVThePlanet#39 · Milestone P0 · label `roadmap-da`
 
 ## Objectif
 

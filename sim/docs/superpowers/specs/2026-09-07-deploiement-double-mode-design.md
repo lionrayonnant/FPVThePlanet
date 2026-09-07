@@ -1,7 +1,7 @@
 # Déploiement en deux modes : un serveur loué, une installation chez chacun
 
-Issue [#259](https://github.com/lionrayonnant/FPVTP/issues/259) — 2026-09-07.
-Touche aussi [#60](https://github.com/lionrayonnant/FPVTP/issues/60) (PHASE 23,
+Issue [#259](https://github.com/lionrayonnant/FPVThePlanet/issues/259) — 2026-09-07.
+Touche aussi [#60](https://github.com/lionrayonnant/FPVThePlanet/issues/60) (PHASE 23,
 isolation multi-opérateur), qui devient une tranche de ce chantier.
 
 ## Le problème
@@ -375,7 +375,7 @@ appels JSON) et pour Caddy/TLS, largement sous la plus petite offre courante.
 
 Le moins possible, et rien sur les chemins de vol :
 
-- `src/operator.js` : garde la clé (`fpvmaps.operatorKey`), l'envoie en
+- `src/operator.js` : garde la clé (`fpvtp.operatorKey`), l'envoie en
   `Bearer`, expose `hasKey()`. Sur 401/403, efface l'id et la clé et rend
   `{ needsKey: true }`.
 - `src/main.js` `chooseScene()` : la branche `choices` gagne un cas

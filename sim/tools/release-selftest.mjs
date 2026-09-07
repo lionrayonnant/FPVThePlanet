@@ -51,9 +51,9 @@ Le format suit Keep a Changelog.
 
 - première
 
-[Non publié]: https://github.com/lionrayonnant/FPVTP/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/lionrayonnant/FPVTP/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/lionrayonnant/FPVTP/releases/tag/v0.1.0
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/lionrayonnant/FPVThePlanet/releases/tag/v0.1.0
 `;
 
 t('parseVersion ne lit que du X.Y.Z', () => {

@@ -10,11 +10,11 @@ import {
 	throttleFromCalibrated,
 } from './calibration.js';
 
-const STORAGE_KEY = 'fpvmaps.gamepadMap';
+const STORAGE_KEY = 'fpvtp.gamepadMap';
 // Calibrages mesurés, indexés PAR PÉRIPHÉRIQUE (issue #277). STORAGE_KEY, lui,
 // n'a jamais tenu qu'un seul mappage pour tout le monde : brancher une manette
 // après avoir remappé une radio récupérait le mappage de la radio.
-const CAL_STORAGE_KEY = 'fpvmaps.gamepadCal';
+const CAL_STORAGE_KEY = 'fpvtp.gamepadCal';
 // Deadband par défaut, utilisé tant que le périphérique n'a pas été calibré.
 // Un calibrage le remplace par le bruit RÉELLEMENT mesuré au repos.
 const DEADBAND = 0.06;

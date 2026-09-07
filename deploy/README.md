@@ -39,7 +39,10 @@ Le serveur tourne en **mode `shared`**. Deux conséquences à connaître :
   `fpvtp.example.org` et `updates.fpvtp.example.org`.
 - Les ports 80 et 443 ouverts (Caddy en a besoin pour obtenir les
   certificats). Le port 8080 doit rester **fermé** vers l'extérieur.
-- Un jeton GitHub en lecture seule sur le dépôt privé `lionrayonnant/FPVTP`
+- Un jeton GitHub en lecture seule sur `lionrayonnant/FPVThePlanet`, tant que
+  le dépôt est privé. Une fois public, l'API des releases répond sans
+  authentification : le jeton devient inutile, mais `deploy.sh` le réclame
+  encore — poser un jeton vide ne suffira pas, il faudra retirer le contrôle
   (fine-grained token, permission « Contents: Read »).
 
 Outils utilisés par `deploy.sh` : `curl`, `jq`, `tar`, `unzip`, `systemctl`,

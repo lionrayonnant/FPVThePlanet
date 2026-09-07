@@ -1667,7 +1667,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 La migration v2 réécrit les fichiers opérateur, et cette tâche va supprimer des sessions pour de vrai.
 
 ```bash
-cd /home/user/Documents/dev/FPVMaps && cp -r operator-state /tmp/operator-state-backup-$(date +%s) && ls /tmp/ | grep operator-state-backup
+cd ~/dev/FPVThePlanet && cp -r operator-state /tmp/operator-state-backup-$(date +%s) && ls /tmp/ | grep operator-state-backup
 ```
 
 Si le répertoire n'existe pas, le noter et continuer.
@@ -1709,7 +1709,7 @@ Dans `sim/HANDOFF.md`, ajouter une section `**PHASE 17 — Session Log / Target 
 Pour tout ce qui a été découvert et laissé de côté, créer une issue plutôt qu'un TODO dans le code, et l'ajouter au Project 2 :
 
 ```bash
-gh issue create --repo lionrayonnant/FPVTP --title "<titre en français>" --body "<contexte>"
+gh issue create --repo lionrayonnant/FPVThePlanet --title "<titre en français>" --body "<contexte>"
 ```
 
 Candidat déjà connu (à ouvrir si l'étape 3 confirme que c'est gênant) : le stockage des captures en base64 dans le JSON opérateur — D4 traite le symptôme, pas la cause.
@@ -1717,12 +1717,12 @@ Candidat déjà connu (à ouvrir si l'étape 3 confirme que c'est gênant) : le 
 - [ ] **Step 6: Commit, push, PR**
 
 ```bash
-cd /home/user/Documents/dev/FPVMaps && git add sim/HANDOFF.md
+cd ~/dev/FPVThePlanet && git add sim/HANDOFF.md
 git commit -m "PHASE 17 : état vérifié dans le HANDOFF
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 git push -u origin phase-17-session-log
-gh pr create --repo lionrayonnant/FPVTP --base main --title "PHASE 17 — Session Log / Target Log (#54)" --body "$(cat <<'BODY'
+gh pr create --repo lionrayonnant/FPVThePlanet --base main --title "PHASE 17 — Session Log / Target Log (#54)" --body "$(cat <<'BODY'
 Ferme #54.
 
 Journal des sessions filtrable, détail par session (Bible §28), Target Log
@@ -1750,7 +1750,7 @@ BODY
 - [ ] **Step 7: Fermer l'issue et passer la carte en Done**
 
 ```bash
-gh issue close 54 --repo lionrayonnant/FPVTP --comment "Livré par la PR ci-dessus."
+gh issue close 54 --repo lionrayonnant/FPVThePlanet --comment "Livré par la PR ci-dessus."
 gh project item-edit --id PVTI_lAHOBlam-M4Bhk9azg4fZS8 --project-id PVT_kwHOBlam-M4Bhk9a --field-id PVTSSF_lAHOBlam-M4Bhk9azhggMQE --single-select-option-id f65968bc
 ```
 

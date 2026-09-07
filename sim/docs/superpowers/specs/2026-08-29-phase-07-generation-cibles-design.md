@@ -5,7 +5,7 @@ uniquement**. La génération de variation individuelle par cible et le câblage
 modèle de session (PHASE 06, en cours en parallèle) sont explicitement hors
 périmètre — cette spec en pose le socle.
 
-Issue : https://github.com/lionrayonnant/FPVMaps/issues/44
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/44
 
 ## Objectif
 

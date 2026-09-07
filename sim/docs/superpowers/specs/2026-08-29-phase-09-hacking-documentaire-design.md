@@ -1,6 +1,6 @@
 # PHASE 09 — Système de hacking documentaire
 
-État : validé 2026-08-29. Issue : https://github.com/lionrayonnant/FPVTP/issues/46
+État : validé 2026-08-29. Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/46
 
 Périmètre : introduire les **six familles de hacking** comme abstractions de
 gameplay — le `hackType` devient une propriété de la cible, et un écran

@@ -2,7 +2,7 @@
 
 État : validé 2026-08-29.
 
-Issue : https://github.com/lionrayonnant/FPVTP/issues/55
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/55
 Sources : Bible §34 (langage sonore), §35 (signature de boot), §36 (son des
 rituels), §37 (pas de voix) · Roadmap PHASE 18.
 

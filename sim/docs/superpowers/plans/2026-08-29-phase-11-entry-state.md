@@ -1049,4 +1049,4 @@ git commit -m "Câbler l'entry state PHASE 11 sur l'ouverture de session et le r
 ## Post-plan housekeeping
 
 - [ ] Update `sim/HANDOFF.md` with a short PHASE 11 entry (verified: `npm run selftest:operator`, `node tools/selftest.mjs`, `npm run build`, browser run with repeated respawns; not verified: real-flight feel of each category's ranges — first-pass hand-picked numbers, not measured).
-- [ ] `gh issue edit 48 --repo lionrayonnant/FPVTP` — move to whatever the current review step is once this plan is fully executed; comment with the branch name (`phase-11-entry-state`) and the verification list above.
+- [ ] `gh issue edit 48 --repo lionrayonnant/FPVThePlanet` — move to whatever the current review step is once this plan is fully executed; comment with the branch name (`phase-11-entry-state`) and the verification list above.

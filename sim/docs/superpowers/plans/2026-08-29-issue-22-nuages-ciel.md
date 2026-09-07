@@ -1284,7 +1284,7 @@ git push -u origin issue-22-nuages-ciel
 Puis, depuis la racine du dépôt :
 
 ```bash
-gh issue comment 22 --repo lionrayonnant/FPVTP --body "<résumé : ce qui est livré, la décision D0 sur les ombres et pourquoi, la valeur mesurée de DIM_MAX, et l'invariant #9fb8cc reformulé>"
+gh issue comment 22 --repo lionrayonnant/FPVThePlanet --body "<résumé : ce qui est livré, la décision D0 sur les ombres et pourquoi, la valeur mesurée de DIM_MAX, et l'invariant #9fb8cc reformulé>"
 ```
 
 **Ne pas fermer l'issue sans revue.** Le volet « ombres portées » de son titre est livré autrement que ce que le titre annonce (D0), et cette substitution doit être visible et acceptée avant clôture. Passer l'issue en `Done` sur le Project 2 seulement après.

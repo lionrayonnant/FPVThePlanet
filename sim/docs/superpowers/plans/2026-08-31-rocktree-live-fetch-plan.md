@@ -668,8 +668,8 @@ Le Worker + `fetch()` réel ne peuvent pas être vérifiés par un test Node (pa
 Run (depuis `sim/`, dans CE worktree) :
 
 ```bash
-ln -sf /home/user/Documents/dev/FPVMaps/sim/node_modules node_modules
-ln -sf /home/user/Documents/dev/FPVMaps/sim/public/scenes public/scenes
+ln -sf ~/dev/FPVThePlanet/sim/node_modules node_modules
+ln -sf ~/dev/FPVThePlanet/sim/public/scenes public/scenes
 npx vite --port 5175 &
 ```
 

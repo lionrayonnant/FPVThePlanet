@@ -8,7 +8,7 @@
 
 **Tech Stack:** JavaScript ESM, Three.js, Rapier (WASM), Vite. Tests : `node:assert/strict`, sans navigateur.
 
-**Spec:** [`docs/superpowers/specs/2026-08-30-limites-de-zone-design.md`](../specs/2026-08-30-limites-de-zone-design.md) — issue [#139](https://github.com/lionrayonnant/FPVTP/issues/139)
+**Spec:** [`docs/superpowers/specs/2026-08-30-limites-de-zone-design.md`](../specs/2026-08-30-limites-de-zone-design.md) — issue [#139](https://github.com/lionrayonnant/FPVThePlanet/issues/139)
 
 ## Global Constraints
 

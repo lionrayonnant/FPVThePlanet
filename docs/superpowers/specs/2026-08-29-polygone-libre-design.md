@@ -1,6 +1,6 @@
 # Sélection par polygone libre — design
 
-Issue : [#30](https://github.com/lionrayonnant/FPVTP/issues/30) · milestone P3 · rattachée à PHASE 03 — Global Scanner (#40).
+Issue : [#30](https://github.com/lionrayonnant/FPVThePlanet/issues/30) · milestone P3 · rattachée à PHASE 03 — Global Scanner (#40).
 
 ## Le problème
 

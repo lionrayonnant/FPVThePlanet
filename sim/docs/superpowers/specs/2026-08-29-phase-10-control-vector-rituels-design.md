@@ -1,6 +1,6 @@
 # PHASE 10 — Control Vector + rituels
 
-État : validé 2026-08-29. Issue : https://github.com/lionrayonnant/FPVTP/issues/47
+État : validé 2026-08-29. Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/47
 
 Périmètre : remplacer le `[ JACK IN ]` provisoire de PHASE 09 (`src/hack.js`)
 par le vrai rituel décrit Bible §14/18 — le joueur tape son `CONTROL VECTOR`

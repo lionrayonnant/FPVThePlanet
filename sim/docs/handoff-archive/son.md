@@ -55,7 +55,7 @@ Contraintes de mise en œuvre, toutes vérifiées :
   propwash au maximum gaz coupés en descente.
 - `C` coupe le son (gain maître → 0) et le rétablit au retour en FPV.
 - Volume : curseur dans le panneau `Tab`, persisté dans `localStorage`
-  (`fpvmaps.audioVolume`) et bien relu après rechargement. Aucune erreur console.
+  (`fpvtp.audioVolume`) et bien relu après rechargement. Aucune erreur console.
 
 ### Correction de la fatigue auditive (session suivante)
 

@@ -2,7 +2,7 @@
 
 État : validé 2026-08-29.
 
-Issue : https://github.com/lionrayonnant/FPVTP/issues/51
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/51
 Sources : Bible / Roadmap PHASE 14.
 
 ## Objectif

@@ -1,6 +1,6 @@
 // État opérateur, côté client. Aucun DOM.
 //
-// L'identité du client vit dans localStorage (fpvmaps.operatorId) et accompagne
+// L'identité du client vit dans localStorage (fpvtp.operatorId) et accompagne
 // chaque requête : c'est ce qui permet à deux personnes de jouer en même temps
 // sur le même serveur de dev. Le serveur ne décide jamais « qui tu es ».
 // Repli quand la clé manque (navigateur neuf ou vidé) : l'appelant montre
@@ -8,7 +8,7 @@
 // qu'un nouveau client (ex. ami sur un tunnel ngrok partagé) puisse créer le
 // sien plutôt que d'hériter du tien.
 //
-// La CLÉ d'opérateur (fpvmaps.operatorKey, issue #60) est autre chose : un
+// La CLÉ d'opérateur (fpvtp.operatorKey, issue #60) est autre chose : un
 // secret de 128 bits rendu une fois à la création, envoyé en `Authorization:
 // Bearer` sur chaque requête. Un serveur `local` ne la regarde jamais ; un
 // serveur `shared` la réclame. Elle n'a RIEN à voir avec le Control Vector
@@ -17,8 +17,8 @@
 // Sur 401/403 on efface id ET clé et l'appelant montre OPERATOR KEY.
 
 const OP_BASE = '/__operator';
-const KEY = 'fpvmaps.operatorId';
-const OP_KEY = 'fpvmaps.operatorKey';
+const KEY = 'fpvtp.operatorId';
+const OP_KEY = 'fpvtp.operatorKey';
 const DEBOUNCE_MS = 500;
 
 let _fetch = (...a) => globalThis.fetch(...a);

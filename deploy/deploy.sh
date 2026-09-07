@@ -46,7 +46,7 @@
 set -euo pipefail
 
 # --- Réglages (les seules choses à relire si la machine change) -------------
-REPO="lionrayonnant/FPVTP"
+REPO="lionrayonnant/FPVThePlanet"
 ROOT="/opt/fpvtp"
 RELEASES_DIR="${ROOT}/releases"
 CURRENT_LINK="${ROOT}/current"

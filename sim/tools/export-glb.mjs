@@ -84,7 +84,7 @@ function readGeo(file) {
 // ---------------------------------------------------------------- glTF assembly
 
 const gltf = {
-	asset: { version: '2.0', generator: 'FPVMaps export-glb' },
+	asset: { version: '2.0', generator: 'FPVTP export-glb' },
 	scene: 0,
 	scenes: [{ nodes: [0] }],
 	nodes: [{ mesh: 0, name: path.basename(opts.sceneDir) }],

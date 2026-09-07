@@ -1,8 +1,8 @@
 # Fenêtre de streaming rocktree + collision progressive
 
-Issue [#168](https://github.com/lionrayonnant/FPVTP/issues/168) (fermée, tranche
+Issue [#168](https://github.com/lionrayonnant/FPVThePlanet/issues/168) (fermée, tranche
 précédente) — sous-projet suivant, 2026-09-01. Résout aussi
-[#170](https://github.com/lionrayonnant/FPVTP/issues/170) (Worker par nœud trop
+[#170](https://github.com/lionrayonnant/FPVThePlanet/issues/170) (Worker par nœud trop
 coûteux pour du streaming continu).
 
 Deuxième tranche du projet « voler n'importe où sur Terre sans `add-map` ».

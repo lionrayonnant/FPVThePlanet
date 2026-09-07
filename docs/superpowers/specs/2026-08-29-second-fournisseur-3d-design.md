@@ -1,6 +1,6 @@
 # Support d'un second fournisseur de plans 3D — design
 
-Issue : [#18](https://github.com/lionrayonnant/FPVTP/issues/18) · Milestone P3 · 2026-08-29
+Issue : [#18](https://github.com/lionrayonnant/FPVThePlanet/issues/18) · Milestone P3 · 2026-08-29
 
 ## Objectif
 

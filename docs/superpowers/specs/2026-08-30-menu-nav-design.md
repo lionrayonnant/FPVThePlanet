@@ -1,6 +1,6 @@
 # Navigation clavier + manette sur tous les écrans — conception
 
-Issue [#123](https://github.com/lionrayonnant/FPVTP/issues/123). Fait suite à la
+Issue [#123](https://github.com/lionrayonnant/FPVThePlanet/issues/123). Fait suite à la
 PHASE 19 (#56, PR #119).
 
 ## Pourquoi

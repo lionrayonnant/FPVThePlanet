@@ -23,7 +23,7 @@ import {
 	pickTrack, pushRecent, poolForFamily,
 } from '../tools/music-model.mjs';
 
-const RECENT_KEY = 'fpvmaps.musicRecent';
+const RECENT_KEY = 'fpvtp.musicRecent';
 
 // Le drop est un geste, pas une rampe : on le pose avec une transition
 // explicite plutôt qu'avec la constante de lissage du vol.

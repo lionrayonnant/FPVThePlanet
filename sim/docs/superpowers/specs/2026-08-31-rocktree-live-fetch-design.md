@@ -1,6 +1,6 @@
 # Rocktree en direct : fetch + décodage dans le navigateur
 
-Issue [#168](https://github.com/lionrayonnant/FPVTP/issues/168) — 2026-08-31
+Issue [#168](https://github.com/lionrayonnant/FPVThePlanet/issues/168) — 2026-08-31
 
 Première tranche d'un projet plus large (voler n'importe où sur Terre sans
 `add-map`). Ce document ne couvre QUE le fetch et le décodage d'un nœud

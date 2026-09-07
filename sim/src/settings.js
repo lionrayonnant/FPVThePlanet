@@ -4,16 +4,16 @@ import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 
-const VOLUME_KEY = 'fpvmaps.audioVolume';
-const BRIGHTNESS_KEY = 'fpvmaps.audioBrightness';
-const MUSIC_KEY = 'fpvmaps.musicVolume';
-const LENS_KEY = 'fpvmaps.lens';
-const VIGNETTE_KEY = 'fpvmaps.lensVignette';
-const SHUTTER_KEY = 'fpvmaps.lensShutter';
-const LENS_ON_KEY = 'fpvmaps.lensOn';
-const LINK_KEY = 'fpvmaps.link';
-const LINK_MODE_KEY = 'fpvmaps.linkMode';
-const VIEW_RANGE_KEY = 'fpvmaps.viewRange';
+const VOLUME_KEY = 'fpvtp.audioVolume';
+const BRIGHTNESS_KEY = 'fpvtp.audioBrightness';
+const MUSIC_KEY = 'fpvtp.musicVolume';
+const LENS_KEY = 'fpvtp.lens';
+const VIGNETTE_KEY = 'fpvtp.lensVignette';
+const SHUTTER_KEY = 'fpvtp.lensShutter';
+const LENS_ON_KEY = 'fpvtp.lensOn';
+const LINK_KEY = 'fpvtp.link';
+const LINK_MODE_KEY = 'fpvtp.linkMode';
+const VIEW_RANGE_KEY = 'fpvtp.viewRange';
 
 // Audio settings survive reloads. Anything unparseable falls back to the
 // default rather than throwing: a corrupt key must not stop the sim booting.
@@ -203,7 +203,7 @@ export class Settings {
 		armConfirm(el.querySelector('#reset-settings'), () => {
 			try {
 				for (const key of Object.keys(localStorage)) {
-					if (key.startsWith('fpvmaps.')) localStorage.removeItem(key);
+					if (key.startsWith('fpvtp.')) localStorage.removeItem(key);
 				}
 			} catch { }
 			location.reload();

@@ -46,7 +46,7 @@ await t('un opérateur sans clé locale → choices (pas d\'adoption auto)', asy
 	assert.equal(r.needsBootstrap, false);
 	assert.equal(r.operator, null);
 	assert.deepEqual(r.choices, [{ id: 'neo-1', name: 'Neo' }]);
-	assert.equal(store.getItem('fpvmaps.operatorId'), null);
+	assert.equal(store.getItem('fpvtp.operatorId'), null);
 });
 
 await t('plusieurs opérateurs → choices', async () => {
@@ -61,7 +61,7 @@ await t('plusieurs opérateurs → choices', async () => {
 });
 
 await t('id local valide → chargé direct', async () => {
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: ['up', 'up', 'up', 'up'] } }],
 	}));
@@ -71,7 +71,7 @@ await t('id local valide → chargé direct', async () => {
 });
 
 await t('id local périmé (404) → repli sur la liste', async () => {
-	const store = fakeStore({ 'fpvmaps.operatorId': 'ghost-9' });
+	const store = fakeStore({ 'fpvtp.operatorId': 'ghost-9' });
 	op._setStore(store);
 	op._setFetch(fakeFetch({
 		'GET /__operator/ghost-9': () => [404, { error: 'nope' }],
@@ -79,7 +79,7 @@ await t('id local périmé (404) → repli sur la liste', async () => {
 	}));
 	const r = await op.loadOperator();
 	assert.equal(r.needsBootstrap, true);
-	assert.equal(store.getItem('fpvmaps.operatorId'), null);
+	assert.equal(store.getItem('fpvtp.operatorId'), null);
 });
 
 await t('createOperator stocke l’id et met le cache', async () => {
@@ -90,7 +90,7 @@ await t('createOperator stocke l’id et met le cache', async () => {
 	}));
 	const s = await op.createOperator('Vex');
 	assert.equal(s.id, 'vex-2');
-	assert.equal(store.getItem('fpvmaps.operatorId'), 'vex-2');
+	assert.equal(store.getItem('fpvtp.operatorId'), 'vex-2');
 	assert.equal(op.getOperator().id, 'vex-2');
 });
 
@@ -102,7 +102,7 @@ await t('createOperator propage l’erreur 400', async () => {
 
 await t('patch + flush envoie un PATCH coalescé', async () => {
 	const calls = [];
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: [] } }],
 		'PATCH /__operator/neo-1': (opts) => { calls.push(JSON.parse(opts.body)); return [200, { operator: {} }]; },
@@ -119,7 +119,7 @@ await t('patch + flush envoie un PATCH coalescé', async () => {
 await t('flush jette si tout a échoué, puis retente avec succès', async () => {
 	let fail = true;
 	const calls = [];
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', controlVector: [] } }],
 		'PATCH /__operator/neo-1': (opts) => {
@@ -138,7 +138,7 @@ await t('flush jette si tout a échoué, puis retente avec succès', async () =>
 
 await t('keepTerrain : POST direct, pas un patch debounced', async () => {
 	const calls = [];
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo', terrainCache: [] } }],
 		'POST /__operator/neo-1/terrain-cache': (opts) => {
@@ -154,7 +154,7 @@ await t('keepTerrain : POST direct, pas un patch debounced', async () => {
 });
 
 await t('keepTerrain : propage l\'erreur serveur', async () => {
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1' }));
 	op._setFetch(fakeFetch({
 		'GET /__operator/neo-1': () => [200, { operator: { id: 'neo-1', name: 'Neo' } }],
 		'POST /__operator/neo-1/terrain-cache': () => [404, { error: 'aucune carte "tokyo"' }],
@@ -175,7 +175,7 @@ await t('createOperator garde la clé SILENCIEUSEMENT — rien à noter, rien à
 		'POST /__operator': () => [201, { operator: { id: 'vex-2', name: 'Vex' }, key: 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE' }],
 	}));
 	await op.createOperator('Vex');
-	assert.equal(store.getItem('fpvmaps.operatorKey'), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
+	assert.equal(store.getItem('fpvtp.operatorKey'), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
 	assert.equal(op.hasKey(), true);
 	assert.equal(op.getKey(), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE', 'relisible par [ SHOW KEY ], et par lui seul');
 	// Aucune API « à consommer une fois » : l'écran YOUR OPERATOR KEY n'existe pas.
@@ -184,7 +184,7 @@ await t('createOperator garde la clé SILENCIEUSEMENT — rien à noter, rien à
 
 await t('chaque requête porte la clé en Bearer', async () => {
 	const seen = [];
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1', 'fpvmaps.operatorKey': 'AAAA-BBBB' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1', 'fpvtp.operatorKey': 'AAAA-BBBB' }));
 	op._setFetch(async (url, opts = {}) => {
 		seen.push(opts.headers?.authorization ?? null);
 		return { ok: true, status: 200, json: async () => ({ operator: { id: 'neo-1', name: 'Neo' } }) };
@@ -194,18 +194,18 @@ await t('chaque requête porte la clé en Bearer', async () => {
 });
 
 await t('401 sur son opérateur → needsKey, et plus rien en local', async () => {
-	const store = fakeStore({ 'fpvmaps.operatorId': 'neo-1', 'fpvmaps.operatorKey': 'PERIMEE' });
+	const store = fakeStore({ 'fpvtp.operatorId': 'neo-1', 'fpvtp.operatorKey': 'PERIMEE' });
 	op._setStore(store);
 	op._setFetch(fakeFetch({ 'GET /__operator/neo-1': () => [401, { error: 'operator key required' }] }));
 	const r = await op.loadOperator();
 	assert.equal(r.needsKey, true);
 	assert.equal(r.needsBootstrap, false);
-	assert.equal(store.getItem('fpvmaps.operatorId'), null);
-	assert.equal(store.getItem('fpvmaps.operatorKey'), null);
+	assert.equal(store.getItem('fpvtp.operatorId'), null);
+	assert.equal(store.getItem('fpvtp.operatorKey'), null);
 });
 
 await t('403 sur son opérateur → needsKey aussi', async () => {
-	op._setStore(fakeStore({ 'fpvmaps.operatorId': 'neo-1', 'fpvmaps.operatorKey': 'FAUSSE' }));
+	op._setStore(fakeStore({ 'fpvtp.operatorId': 'neo-1', 'fpvtp.operatorKey': 'FAUSSE' }));
 	op._setFetch(fakeFetch({ 'GET /__operator/neo-1': () => [403, { error: 'bad operator key' }] }));
 	assert.equal((await op.loadOperator()).needsKey, true);
 });
@@ -228,16 +228,16 @@ await t('resumeWithKey : la clé désigne l\'opérateur, whoami le rend', async 
 	}));
 	const s = await op.resumeWithKey('BONNE-CLE');
 	assert.equal(s.id, 'neo-1');
-	assert.equal(store.getItem('fpvmaps.operatorId'), 'neo-1');
-	assert.equal(store.getItem('fpvmaps.operatorKey'), 'BONNE-CLE');
+	assert.equal(store.getItem('fpvtp.operatorId'), 'neo-1');
+	assert.equal(store.getItem('fpvtp.operatorKey'), 'BONNE-CLE');
 });
 
 await t('resumeWithKey : une mauvaise clé jette et ne remplace pas l\'ancienne', async () => {
-	const store = fakeStore({ 'fpvmaps.operatorKey': 'ANCIENNE' });
+	const store = fakeStore({ 'fpvtp.operatorKey': 'ANCIENNE' });
 	op._setStore(store);
 	op._setFetch(fakeFetch({ 'GET /__operator/whoami': () => [403, { error: 'bad operator key' }] }));
 	await assert.rejects(() => op.resumeWithKey('N1MPORTEQU01'), /bad operator key/);
-	assert.equal(store.getItem('fpvmaps.operatorKey'), 'ANCIENNE');
+	assert.equal(store.getItem('fpvtp.operatorKey'), 'ANCIENNE');
 });
 
 console.log(`\n${n} tests OK`);

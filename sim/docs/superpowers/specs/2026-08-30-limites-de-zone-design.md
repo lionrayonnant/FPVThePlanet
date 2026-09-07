@@ -1,6 +1,6 @@
 # Limites de zone : geofence, plancher et sol lointain
 
-Issue [#139](https://github.com/lionrayonnant/FPVTP/issues/139) — 2026-08-30
+Issue [#139](https://github.com/lionrayonnant/FPVThePlanet/issues/139) — 2026-08-30
 
 ## Le problème
 

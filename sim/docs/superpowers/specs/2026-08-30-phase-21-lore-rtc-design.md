@@ -1,6 +1,6 @@
 # PHASE 21 — Lore / RTC v0
 
-Issue : [#58](https://github.com/lionrayonnant/FPVTP/issues/58) · label `roadmap-da` · milestone P2
+Issue : [#58](https://github.com/lionrayonnant/FPVThePlanet/issues/58) · label `roadmap-da` · milestone P2
 Branche : `phase-21-lore-rtc`
 Sources : Bible §9 (Logs RTC), §10 (Le Crew), §11 (Language), §12 (Operator) ·
 Roadmap PHASE 21
@@ -367,7 +367,7 @@ navigation du terminal, dans le style des écrans existants.
   événements sont déclarés, le câblage viendra quand on le voudra — une ligne
   chacun, c'est le critère d'acceptation 10.
 - Les accroches lore du dépôt open source (commits, docs, commentaires de
-  code) : c'est la PHASE 22 ([#59](https://github.com/lionrayonnant/FPVTP/issues/59)).
+  code) : c'est la PHASE 22 ([#59](https://github.com/lionrayonnant/FPVThePlanet/issues/59)).
 - Toute forme de génération LLM au runtime, de storytelling procédural, de
   progression narrative ou de personnage autonome. Le lore reste décoratif.
 - Les embeddings pour la déduplication sémantique : les trigrammes suffisent au

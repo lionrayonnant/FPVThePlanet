@@ -1,6 +1,6 @@
 # PHASE 06 — Modèle de session — Design
 
-Issue : https://github.com/lionrayonnant/FPVMaps/issues/43
+Issue : https://github.com/lionrayonnant/FPVThePlanet/issues/43
 Date : 2026-08-29
 Statut : validé en brainstorming, prêt pour le plan d'implémentation.
 

@@ -21,7 +21,7 @@
 
 [Unit]
 Description=FPVTP! — serveur de jeu (mode shared)
-Documentation=https://github.com/lionrayonnant/FPVTP
+Documentation=https://github.com/lionrayonnant/FPVThePlanet
 After=network-online.target
 Wants=network-online.target
 

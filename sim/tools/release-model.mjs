@@ -9,7 +9,7 @@
 // l'écran BUILD NOTES sont du lore diégétique, ils ne suivent pas cette version.
 
 export const UNRELEASED = 'Non publié';
-export const REPO_URL = 'https://github.com/lionrayonnant/FPVTP';
+export const REPO_URL = 'https://github.com/lionrayonnant/FPVThePlanet';
 
 const SECTION = /^## \[([^\]]+)\](?:\s+[-—]\s+(\d{4}-\d{2}-\d{2}))?\s*$/;
 const LINK = /^\[([^\]]+)\]:\s*(\S+)\s*$/;

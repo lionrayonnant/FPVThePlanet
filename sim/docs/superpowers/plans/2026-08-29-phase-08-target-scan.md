@@ -973,7 +973,7 @@ git commit -m "PHASE 08 — vérif bout-en-bout + HANDOFF"
 
 - [ ] **Step 1:** `git push -u origin phase-08-target-scan`
 - [ ] **Step 2:** Ouvrir la PR vers `main` : titre `PHASE 08 — Target scan / choix de cible`, corps = résumé + `Closes #45`, note l'ordre de merge (après `phase-06-impl` et `phase-07-generation-cibles`, tous deux inclus dans cette branche).
-- [ ] **Step 3:** Issue #45 → statut `Done` sur le Project 2 quand la PR est mergée. Vérifier le nom réel du repo/projet (`gh project item-list` n'a pas retourné #45 — repo peut-être renommé `FPVMaps`→`FPVTP`).
+- [ ] **Step 3:** Issue #45 → statut `Done` sur le Project 2 quand la PR est mergée. Vérifier le nom réel du repo/projet (`gh project item-list` n'a pas retourné #45 — le dépôt a peut-être été renommé depuis).
 - [ ] **Step 4:** Si des écarts ont été découverts (aire km² non accessible dans `scanner.acquired()`, forme de `runTerminal`/`screen` différente, etc.) et contournés : créer une issue de suivi plutôt que laisser un TODO.
 
 ---

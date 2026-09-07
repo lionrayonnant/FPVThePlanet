@@ -213,13 +213,13 @@ drone appartient à quelqu'un d'autre et se trouve à Tokyo.
 
 Deux endroits, aucun modèle :
 
-- **localStorage**, clés `fpvmaps.*` : `gamepadMap`, `audioVolume`, `audioBrightness`,
+- **localStorage**, clés `fpvtp.*` : `gamepadMap`, `audioVolume`, `audioBrightness`,
   `lens*`, `link*`, `wind*`, `rain*`, `fog*`. Le bouton « Réinitialiser » balaie
-  tout ce qui commence par `fpvmaps.`.
+  tout ce qui commence par `fpvtp.`.
 - **disque**, `public/scenes/` + `public/scenes.json`, écrits par le pipeline.
 
 La refonte ajoute un troisième : l'**état opérateur côté serveur** (D2). Les clés
-`fpvmaps.*` qui relèvent vraiment du joueur (manette, audio, accessibilité)
+`fpvtp.*` qui relèvent vraiment du joueur (manette, audio, accessibilité)
 migrent dedans ; celles qui relevaient du monde (météo, link) disparaissent.
 
 ---
