@@ -311,10 +311,7 @@ par distraction :
   (`THREE.ColorManagement.enabled = false`, sortie linéaire) : toute conversion
   ajoutée ici ramène le bug n°10 du `HANDOFF`.
 - Les PID sont **mesurés**, pas choisis. `npm run tune`.
-- Ne jamais lire `flyover-reverse-engineering/downloaded_files/`, `cache/` ni
-  `sim/public/scenes/` avec un outil de lecture de fichier.
-- `flyover-reverse-engineering/config.json` contient un vrai jeton Apple et reste
-  gitignoré.
+- Ne jamais lire `sim/public/scenes/` avec un outil de lecture de fichier.
 
 ---
 

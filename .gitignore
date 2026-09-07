@@ -1,7 +1,5 @@
-# sim/.gitignore and flyover-reverse-engineering/.gitignore cover their own
-# build artifacts, downloaded data, and secrets — this only covers what's
-# specific to consolidating the two into one repo.
-flyover-reverse-engineering/.git-upstream-backup/
+# sim/.gitignore covers its own build artifacts and downloaded data — this
+# only covers what's specific to this repo's tooling.
 .claude/
 
 # Espace de travail des plans SDD (ledger, briefs, rapports) : du scratch.

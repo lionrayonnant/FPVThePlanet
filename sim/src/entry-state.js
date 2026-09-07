@@ -143,7 +143,7 @@ function groundAt(physics, manifest, x, z) {
 // dans les cellules qui ont du sol. Le balayage coûte quelques milliers de
 // rayons ; il remplace des milliers de tirages perdus.
 //
-// La taille de cellule suit la tuile Flyover (~25 m au zoom 20) : assez fine
+// La taille de cellule suit une tuile slippy au zoom 20 (~25 m) : assez fine
 // pour épouser un corridor, assez grossière pour que le balayage reste court.
 const OCCUPANCY_CELL_M = 25;
 const OCCUPANCY_MAX_SIDE = 64;

@@ -18,6 +18,17 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Retiré
+
+- Apple Flyover comme fournisseur de photogrammétrie : `tools/lib/providers/
+  flyover.mjs`, le dépôt `flyover-reverse-engineering/` (outil Go, jeton,
+  tuiles brutes), le job CI associé, et l'option `--provider flyover` de
+  `add-map`. `google-earth` — sans clé ni jeton, Node pur — est désormais le
+  seul fournisseur inscrit. Les scènes déjà bakées chez Flyover gardent leur
+  attribution Apple correcte (`src/provider-credit.js`) ; le contrat par
+  fournisseur reste dispatché par `opts.provider` pour un futur second
+  fournisseur.
+
 ### Ajouté
 
 - Une machine qui réagit au manche pendant le calibrage (#281), comme l'onglet

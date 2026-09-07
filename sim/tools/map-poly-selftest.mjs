@@ -1,21 +1,18 @@
 // Selftest de la géométrie de polygone partagée (issue #30). Aucune E/S réseau,
 // aucun DOM. Lancer : node tools/map-poly-selftest.mjs
 //
-// Ces cas sont raisonnés à la main, pas relevés depuis l'implémentation : c'est
-// ce port JS qui sert ensuite de référence à testdata/poly-cases.json, donc il
-// ne peut pas se valider sur sa propre sortie.
+// Ces cas sont raisonnés à la main, pas relevés depuis l'implémentation.
+// Jusqu'au retrait d'Apple Flyover (2026-09-07), ce port JS servait aussi de
+// référence à un fixture partagé avec le parseur Go (pkg/mth) — ce fournisseur
+// et son test de parité ont disparu avec lui ; les cas raisonnés à la main
+// ci-dessous restent, eux, la vérification de tiles.mjs.
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import {
 	polygonBounds, pointInPolygon, segmentsIntersect, tileIntersectsPolygon,
 	polygonGrid, maskKeys, polygonArea, canonicalPoly, polyHash,
 	maskOutline, polygonProbePoint,
 	tileGrid, tileTMSToLatLon, latLonToTileTMS,
 } from './lib/tiles.mjs';
-// tileDirName est spécifique à Flyover (nom de cache compatible avec le
-// Sprintf du Go) : ce n'est plus sur la surface d'add-map-core.mjs depuis le
-// dispatch par fournisseur (Task 7, issue #18). On l'importe directement.
-import { tileDirName } from './lib/providers/flyover.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -194,38 +191,6 @@ t('polygonProbePoint : dans le tracé même quand le centroïde ne l\'est pas', 
 t('polygonProbePoint : déterministe', () => {
 	const TRI = [48.845, 2.295, 48.845, 2.305, 48.855, 2.295];
 	assert.deepEqual(polygonProbePoint(TRI, 20), polygonProbePoint(TRI, 20));
-});
-
-// La fixture est le procès-verbal du port JS validé ci-dessus. La relire ici
-// fait que toute modification de tiles.mjs qui change un résultat casse ce
-// selftest AVANT de casser le Go — et rappelle qu'il faut alors comprendre
-// pourquoi, pas régénérer.
-await at('fixture partagée : tiles.mjs est resté d\'accord avec elle', async () => {
-	const fixture = JSON.parse(
-		fs.readFileSync(new URL('../../flyover-reverse-engineering/testdata/poly-cases.json', import.meta.url), 'utf8'));
-	assert.ok(fixture.length >= 10, 'la fixture a des cas');
-	for (const c of fixture) {
-		const g = polygonGrid(c.ring, c.zoom);
-		assert.equal(g.columns, c.columns, `${c.name} : colonnes`);
-		assert.equal(g.masked, c.masked, `${c.name} : masquées`);
-		assert.deepEqual(maskKeys(g), c.keys, `${c.name} : tuiles retenues`);
-		assert.deepEqual(polygonBounds(c.ring), c.bounds, `${c.name} : emprise`);
-		assert.equal(canonicalPoly(c.ring), c.canonical, `${c.name} : chaîne canonique`);
-		assert.equal(await polyHash(c.ring), c.hash, `${c.name} : hash`);
-		assert.ok(Math.abs(polygonArea(c.ring) - c.areaM2) < 1e-6, `${c.name} : aire`);
-	}
-});
-
-await at('tileDirName : le nom du cache, en phase avec le Sprintf du Go', async () => {
-	const fixture = JSON.parse(
-		fs.readFileSync(new URL('../../flyover-reverse-engineering/testdata/poly-cases.json', import.meta.url), 'utf8'));
-	const c = fixture[0];
-	assert.equal(await tileDirName({ poly: c.ring, zoom: 20, altitude: 20 }), `poly-${c.hash}-20-20`);
-	// Les deux autres formes ne bougent pas.
-	assert.equal(await tileDirName({ lat: 48.8582, lon: 2.2945, zoom: 20, radius: 25, altitude: 20 }),
-		'48.858200-2.294500-20-25-20');
-	assert.equal(await tileDirName({ bbox: { south: 48.845, west: 2.295, north: 48.855, east: 2.305 }, zoom: 20, altitude: 20 }),
-		'bbox-48.845000-2.295000-48.855000-2.305000-20-20');
 });
 
 t('un tracé et son emprise ne partagent pas de cache', () => {

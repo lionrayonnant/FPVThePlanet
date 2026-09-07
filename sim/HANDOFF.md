@@ -738,6 +738,26 @@ Plan d'origine (contexte de la décision d'architecture) :
     de 20 tentatives vieillit mal : à 5 % de remplissage il donnerait 36 % de
     replis. La génération de cibles est peut-être logée à la même enseigne.
 
+- **Apple Flyover retiré des fournisseurs (2026-09-07).** `tools/lib/providers/
+  flyover.mjs` et le dépôt `flyover-reverse-engineering/` (outil Go, jeton,
+  tuiles brutes) sont supprimés ; `google-earth` est désormais le seul
+  fournisseur inscrit (`tools/lib/providers/index.mjs`), toujours son propre
+  défaut. Le contrat par fournisseur (`plan`/`probe`/`fetch`/`tileDirPath`/
+  attribution) et le dispatch par `opts.provider` restent en place, écrits pour
+  un futur second fournisseur. Le décodeur OBJ (`tools/lib/decoders/obj.mjs`,
+  historiquement le seul format que produisait l'exporteur Go) reste lui aussi
+  en place, générique et réutilisable. Une entrée sans `provider` (schéma
+  d'avant le multi-fournisseur, ou d'avant ce retrait) retombe désormais sur le
+  défaut du registre plutôt que sur `'flyover'`, qui n'existe plus
+  (`rawTileDirFor`/`add-map-core.mjs`). L'attribution des scènes déjà bakées
+  chez Flyover (manifest sans `provider`, ou `provider.id === 'flyover'`) est
+  volontairement conservée dans `src/provider-credit.js` (`LEGACY_PROVIDER`) :
+  ce n'est pas un fournisseur actif, c'est la seule façon de garder
+  l'attribution Apple correcte sur des scènes déjà sur disque. Le narratif
+  ci-dessous (Stages 1-3, issue #18) décrit l'introduction du multi-fournisseur
+  et reste tel quel comme histoire de session ; ne pas le lire comme décrivant
+  l'état courant.
+
 - **Second fournisseur 3D — Stages 1, 2 et 3 (issue #18)**. Stages 1-2 sur
   `issue-18-providers` (PR #115, mergée) ; Stage 3 sur `issue-18-google-earth`.
   - Deux seams distincts introduits dans le pipeline de préparation, à ne pas
@@ -1441,7 +1461,8 @@ recherche (commune), deux onglets, corps, pied.
 - **LOCAL** au repos : `[ FLY — <dernière zone> ]`, les 5 derniers terrains,
   `ALL TERRAIN…` (l'écran complet, inchangé), `ARCHIVE`, `[ DRAW BOX ]` /
   `[ DRAW SHAPE ]`. Une zone tracée : AREA (les deux tracés + CLEAR), SOURCE
-  (Google Earth / Apple Flyover), DESIGNATION, `[ ACQUIRE AREA ]` et **une
+  (Google Earth — seul fournisseur inscrit depuis le retrait d'Apple Flyover,
+  2026-09-07), DESIGNATION, `[ ACQUIRE AREA ]` et **une
   ligne** `tuiles · poids · verdict` (`railLine()` dans `scanner-model.mjs`,
   testée). Les blocs AREA ANALYSIS, SIGNAL DENSITY et COVERAGE ont disparu ;
   la densité se calcule toujours en silence (KEEP, TARGET SCAN).
@@ -2644,9 +2665,13 @@ pour tenir une pose stable :
   encore `running`) — le terrain reste sur disque et dans `scenes.json`, mais
   hors de `terrainCache` tant qu'il n'est pas gardé explicitement.
 
-- **Le scanner sur une zone hors couverture Flyover** : le chemin `columns === 0`
+- **Le scanner sur une zone hors couverture déclarée** : le chemin `columns === 0`
   et le grisé des colonnes élaguées (`prunedBands`) sont testés unitairement,
-  jamais vus en vrai — toutes les zones sondées à la main étaient couvertes.
+  jamais vus en vrai — toutes les zones sondées à la main étaient couvertes. Ce
+  chemin visait des régions Flyover déclarées ; `google-earth`, seul fournisseur
+  depuis le retrait d'Apple Flyover (2026-09-07), n'a pas cette notion et ne
+  déclenche jamais `pruned > 0` — le code reste, désormais inerte, pour un futur
+  fournisseur à régions déclarées.
 - **Ressenti de pilotage réel** (l'utilisateur n'a pas encore volé "pour de
   vrai" avec retour subjectif sur l'acro, les rates, l'expo).
 - **Écran de réglages manette** (Tab, remapping avec barres de niveau) —
@@ -2707,9 +2732,10 @@ SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
 
 ### CI — vérifié en local, pas encore sur un runner
 
-- `.github/workflows/ci.yml` : deux jobs, `sim` (`npm run selftest:ci` +
-  `npm run build`) et `flyover-reverse-engineering` (`go vet` / `go build` /
-  `go test`), sur push `main` et sur chaque PR.
+- `.github/workflows/ci.yml` : un job, `sim` (`npm run selftest:ci` +
+  `npm run build`), sur push `main` et sur chaque PR. Portait aussi un job
+  `flyover-reverse-engineering` (`go vet`/`go build`/`go test`) avant le retrait
+  d'Apple Flyover (2026-09-07).
 - `npm run selftest:ci` = `selftest:operator` + `selftest:api` : **1 430
   vérifications en 129 s**, sans scène installée, sans réseau, sans navigateur.
   Mesuré ici, sur ce dépôt, `public/scenes/` vide, après rebasage sur `main` —
@@ -2747,6 +2773,14 @@ Déployer demanderait donc, au choix :
 
 Rien de tout ça n'est fait. Tant que ce n'est pas tranché, la « livraison »
 d'une version est l'archive `dist` attachée à la GitHub Release.
+
+**Tranché le 2026-09-07, pas encore implémenté** : ni l'un ni l'autre tel
+quel, mais un seul serveur Node autonome (`sim/server/`, extrait du plugin
+Vite) en deux hébergements — un VPS en mode `shared` (clé d'opérateur, terrain
+détaché plutôt qu'effacé, file d'acquisition) et une release par plateforme
+avec runtime Node embarqué en mode `local`. Le design complet, les faits
+vérifiés qui le dictent et les cinq tranches sont dans
+`docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`.
 
 ### NON vérifié
 

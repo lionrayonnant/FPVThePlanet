@@ -104,8 +104,8 @@ function clearZone() {
 
 // ------------------------------------------------- le treillis de tuiles
 //
-// L'élément signature. Flyover est servi en tuiles d'environ 25 m de côté : la
-// zone réellement extraite est la zone dessinée arrondie au treillis. Le montrer
+// L'élément signature. Une tuile fait environ 25 m de côté au zoom par défaut :
+// la zone réellement extraite est la zone dessinée arrondie au treillis. Le montrer
 // transforme « 697 colonnes » en quelque chose qu'on voit, et explique d'un coup
 // d'œil pourquoi un rectangle un peu plus grand coûte une rangée de plus.
 
@@ -349,11 +349,12 @@ function goTo(lat, lon, label) {
 
 // -------------------------------------------------------------- fournisseur
 //
-// « Auto » sonde Google Earth d'abord, et ne retombe sur Apple Flyover que si
-// ce premier essai n'est pas 'ok' (l'ordre du design #18 : Google devient le
-// fournisseur par défaut, Flyover est le repli). Le sélecteur manuel court-
-// circuite cette logique et n'interroge que le fournisseur choisi.
-const AUTO_ORDER = ['google-earth', 'flyover'];
+// « Auto » sonde les fournisseurs inscrits dans l'ordre du registre (l'ordre du
+// design #18 : Google Earth par défaut). Apple Flyover, seul repli qu'il y ait
+// jamais eu, a été retiré (2026-09-07) — un seul fournisseur reste, mais la
+// boucle reste écrite pour plusieurs. Le sélecteur manuel court-circuite cette
+// logique et n'interroge que le fournisseur choisi.
+const AUTO_ORDER = ['google-earth'];
 let providersList = []; // [{id, label}], peuplé par /providers au démarrage
 
 function providerLabel(id) {

@@ -1,11 +1,14 @@
 // Résout les lignes de crédit fournisseur d'une scène (issue #18).
 //
-// Google impose d'afficher les copyrights des tuiles rendues ; on applique la
-// même règle à tous les fournisseurs, Flyover compris. Module pur : importé par
-// l'OSD dans le navigateur et par son selftest sous node.
+// Google impose d'afficher les copyrights des tuiles rendues ; on appliquait la
+// même règle à tous les fournisseurs, Flyover compris avant son retrait
+// (2026-09-07). Module pur : importé par l'OSD dans le navigateur et par son
+// selftest sous node.
 
-// Les scènes bakées avant le champ `provider` viennent toutes de Flyover. On ne
-// les re-prépare pas pour si peu : elles héritent de ce défaut à la lecture.
+// Les scènes bakées avant le champ `provider` viennent toutes de Flyover, seul
+// fournisseur à l'époque. Flyover n'est plus un fournisseur actif du jeu, mais
+// on ne re-prépare pas les scènes déjà bakées pour si peu : elles héritent de
+// ce défaut à la lecture, pour garder leur attribution Apple correcte.
 export const LEGACY_PROVIDER = Object.freeze({
 	id: 'flyover',
 	label: 'Apple Flyover',

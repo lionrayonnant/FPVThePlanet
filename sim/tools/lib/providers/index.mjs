@@ -1,13 +1,13 @@
-// Registre des fournisseurs de photogrammétrie. L'ordre de priorité de l'issue
-// #18 est : Google > Flyover > reality meshes ouverts. Les deux premiers sont
-// inscrits ; Google est le défaut (design #18, « devient le fournisseur par
-// défaut une fois le Stage 3 livré »).
-import * as flyover from './flyover.mjs';
+// Registre des fournisseurs de photogrammétrie (issue #18). Apple Flyover a été
+// retiré (2026-09-07) : le jeton et l'outil Go qu'il demandait n'existent plus
+// dans ce dépôt. Google Earth reste inscrit et par défaut ; le contrat par
+// fournisseur (id/label/attribution/tileDirPath/plan/probe/fetch) tient toujours
+// pour un futur fournisseur, mais il n'y en a qu'un aujourd'hui.
 import * as googleEarth from './google-earth.mjs';
 
 export const DEFAULT_PROVIDER_ID = 'google-earth';
 
-export const PROVIDERS = { [flyover.id]: flyover, [googleEarth.id]: googleEarth };
+export const PROVIDERS = { [googleEarth.id]: googleEarth };
 
 export function list() { return Object.values(PROVIDERS); }
 

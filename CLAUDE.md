@@ -4,11 +4,9 @@ Guidance for Claude Code working in this repository.
 
 ## Repo
 
-Two-part project:
-- `sim/`: browser FPV drone simulator (Three.js, Rapier/WASM, Vite). Main development target.
-- `flyover-reverse-engineering/`: Go exporter/reverse-engineering tool for Apple Maps Flyover C3M/C3MM tiles. Actively maintained here.
+`sim/`: browser FPV drone simulator (Three.js, Rapier/WASM, Vite).
 
-`sim/tools/add-map.mjs` wraps the Go exporter + conversion pipeline.
+`sim/tools/add-map.mjs` wraps the terrain acquisition + conversion pipeline.
 
 ## Commands
 
@@ -22,15 +20,7 @@ npm run selftest [sceneDir]
 npm run tune
 npm run tune -- --sweep roll
 node tools/selftest.mjs public/scenes/<slug>
-
-From flyover-reverse-engineering/:
-
-go run cmd/export-obj/main.go <lat> <lon> <zoom> <tryXY> <tryH> [--parallel]
-go run cmd/auth/main.go [url]
-go run cmd/parse-c3m/main.go [file]
-go run cmd/parse-c3mm/main.go [file] [file_number]
-
-Normally use npm run add-map rather than calling the Go exporter directly.
+```
 
 No ESLint/Prettier is configured.
 
@@ -38,8 +28,7 @@ Architecture
 Map pipeline
 
 lat,lon
-→ Go exporter
-→ OBJ/MTL/JPEG
+→ tools/lib/providers/google-earth.mjs (fetch + decode, in Node)
 → sim/tools/prep.mjs
 → sim/public/scenes/<slug>/
 → sim/tools/add-map.mjs
@@ -128,7 +117,7 @@ The `BUILD NOTES` build numbers (`sim/tools/buildnotes-model.mjs`) are diegetic 
 
 CI
 
-`.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~2 min) and `npm run build` for `sim/`, plus `go vet` / `go build` / `go test` for `flyover-reverse-engineering/`. The release workflow runs the same `selftest:ci` before publishing a tag.
+`.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~2 min) and `npm run build` for `sim/`. The release workflow runs the same `selftest:ci` before publishing a tag.
 
 Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/landing-selftest.mjs` is the pattern.
 
@@ -138,16 +127,10 @@ There is no CD yet: a static build cannot boot on its own (see the `Versionnage`
 
 Secrets / large data
 
-flyover-reverse-engineering/config.json contains a real Apple Flyover token and is gitignored. Never remove it from .gitignore or commit it. config.json.example documents its shape.
-
 Never use Read on:
 
-flyover-reverse-engineering/downloaded_files/
-flyover-reverse-engineering/cache/
 sim/public/scenes/
 
-These contain huge generated files. Use ls, du, stat, grep, etc. from the shell.
+This contains huge generated files. Use ls, du, stat, grep, etc. from the shell.
 
-Exporter commands can produce thousands of lines. Redirect output to a file and inspect with tail/grep.
-
-For exploration across many files in pkg/ or src/, prefer an Explore agent.
+For exploration across many files in tools/ or src/, prefer an Explore agent.

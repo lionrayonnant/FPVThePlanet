@@ -230,8 +230,11 @@ export function coverageLine({ plan, probe, provider }) {
 		// le jeu. On reformule à partir des compteurs, qui eux sont des mesures.
 		const detail = {
 			ok: `${num(probe.exported ?? 0)} tiles came back at the centre of the area. ${who} has real photogrammetry here.`,
-			// « C3M » est le format d'Apple : ce statut ne peut venir que de lui.
-			undecodable: `${num(probe.undecodable ?? 0)} tiles came back but the C3M parser cannot decode them. Covered, unusable.`,
+			// Aucun fournisseur inscrit aujourd'hui ne rend ce statut (Apple
+			// Flyover, seul à le faire — son format C3M échouait à décoder
+			// certaines tuiles couvertes — a été retiré le 2026-09-07). Le
+			// protocole probe() le prévoit encore pour un futur fournisseur.
+			undecodable: `${num(probe.undecodable ?? 0)} tiles came back but ${who} could not decode them. Covered, unusable.`,
 			none: `Nothing came back at the centre of the area. ${who} most likely has no photogrammetry here.`,
 		}[probe.status] ?? probe.message;
 		return { status: probe.status, label, detail };
