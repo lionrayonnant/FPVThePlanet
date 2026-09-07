@@ -7,21 +7,36 @@ export class Cancelled extends Error {
 	constructor() { super('annulé'); this.name = 'Cancelled'; }
 }
 
+// Relancer « node » par son nom du PATH n'est pas la même chose que relancer
+// CELUI qui tourne : nvm-windows, un Node système sans full-icu, un PATH
+// bricolé. Et dans l'app Electron il n'y a pas de `node` du tout —
+// process.execPath est le binaire Electron, qu'ELECTRON_RUN_AS_NODE fait
+// démarrer en Node nu.
+export function nodeCommand() {
+	const env = process.versions.electron
+		? { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+		: process.env;
+	return { cmd: process.execPath, env };
+}
+
 // Lance une commande en relayant chaque ligne de stdout ET de stderr à onLog.
 // Le Go exporter écrit toute sa progression sur stderr et réserve stdout au JSON
 // de --plan, alors que prep.mjs écrit sur stdout : il faut les deux.
-export function run(cmd, args, cwd, { onLog, signal }) {
+export function run(cmd, args, cwd, { onLog, signal, env }) {
 	return new Promise((resolve, reject) => {
 		onLog?.({ stream: 'meta', line: `$ ${cmd} ${args.join(' ')}` });
-		const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
 
 		// Une ligne peut arriver en plusieurs chunks : on tamponne jusqu'au \n.
+		// Le \r d'un enfant qui écrirait du CRLF ne doit pas rester collé à la
+		// ligne : les motifs qui la lisent (add-map-core, parsePrepLine) sont
+		// ancrés sur $.
 		const pump = (stream, name) => {
 			let buf = '';
 			stream.setEncoding('utf8');
 			stream.on('data', (d) => {
 				buf += d;
-				const lines = buf.split('\n');
+				const lines = buf.split(/\r?\n/);
 				buf = lines.pop();
 				for (const line of lines) onLog?.({ stream: name, line });
 			});

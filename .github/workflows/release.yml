@@ -60,3 +60,57 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --notes-file "${RUNNER_TEMP}/notes.md" \
             "${RUNNER_TEMP}/fpvtp-sim-${GITHUB_REF_NAME}.zip"
+
+  # L'app installée (issue #259, tranche T2). Chaque plateforme se construit sur
+  # son propre runner : les binaires natifs (sharp/libvips) sont ceux du
+  # système qui les installe, une compilation croisée depuis Linux embarquerait
+  # les .so de Linux dans l'installeur Windows.
+  #
+  # Rien n'est déposé sur un serveur ici : héberger latest.yml et les
+  # installeurs est la tranche T4. Les fichiers de flux sont attachés à la
+  # Release pour que ce serveur n'ait plus qu'à les recopier.
+  electron:
+    name: app installée (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: sim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sim/package-lock.json
+
+      - run: npm ci
+
+      - name: Build du sim
+        run: npm run build
+
+      # `--publish never` : electron-builder écrit bien latest.yml /
+      # latest-linux.yml (la configuration `publish` de electron-builder.yml
+      # suffit à les générer) mais ne tente aucun envoi. La distribution est
+      # celle de la Release, plus tard celle du VPS.
+      - name: electron-builder
+        run: npx electron-builder --publish never
+
+      - name: Attacher les installeurs à la Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.AppImage release/*.exe release/*.blockmap release/latest.yml release/latest-linux.yml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::electron-builder n'a produit aucun installeur"
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          gh release upload "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --clobber "${files[@]}"

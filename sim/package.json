@@ -1,7 +1,11 @@
 {
   "name": "fpvmaps-sim",
+  "productName": "FPVTP",
   "version": "0.0.0",
   "private": true,
+  "description": "FPVThePlanet! — simulateur de drone FPV",
+  "author": "lionrayonnant",
+  "main": "electron/main.js",
   "type": "module",
   "scripts": {
     "add-map": "node tools/add-map.mjs",
@@ -10,6 +14,9 @@
     "remove-map": "node tools/remove-map.mjs",
     "dev": "vite",
     "build": "vite build",
+    "electron": "electron .",
+    "electron:dir": "electron-builder --dir",
+    "electron:build": "electron-builder",
     "sync-scenes": "node tools/sync-scenes.mjs",
     "selftest": "node tools/selftest.mjs",
     "selftest:api": "node tools/server-selftest.mjs && node tools/session-api-selftest.mjs && node tools/vite-adapter-selftest.mjs && node tools/map-poly-selftest.mjs",
@@ -29,11 +36,14 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",
     "@geoman-io/leaflet-geoman-free": "^2.20.0",
+    "electron-updater": "^6.8.9",
     "leaflet": "^1.9.4",
+    "sharp": "^0.33.5",
     "three": "^0.170.0"
   },
   "devDependencies": {
-    "sharp": "^0.33.5",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "vite": "^5.4.0"
   },
   "allowScripts": {

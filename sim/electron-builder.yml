@@ -1,0 +1,90 @@
+# Empaquetage de l'app installée (issue #259, tranche T2).
+#
+# Windows et Linux seulement — macOS est explicitement hors périmètre (décision
+# utilisateur, 2026-09-07). Aucune signature de code : sans certificat, Windows
+# SmartScreen affiche un avertissement au premier lancement, et c'est accepté.
+appId: com.lionrayonnant.fpvtp
+copyright: FPVThePlanet!
+# productName vit dans package.json, pas ici : Electron le lit aussi, et c'est
+# lui qui nomme le répertoire de données (app.getName()). Pas de « ! » dedans —
+# il sert de nom de dossier et de fichier d'installeur ; le titre affiché reste
+# celui de index.html.
+
+directories:
+  output: release
+  buildResources: electron/build
+
+# Sans espace : ces noms de fichiers traversent une URL de téléchargement et une
+# ligne de commande avant d'arriver chez le joueur.
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+# node_modules de production est copié automatiquement par electron-builder ;
+# ces motifs ne décrivent que le reste du dépôt, plus les exclusions.
+files:
+  - electron/**
+  - server/**
+  - tools/**
+  # server/api.mjs → add-map-core → src/geofence.js : le pipeline de carte
+  # partage sa géométrie avec le jeu.
+  - src/**
+  - package.json
+  - dist/**
+  # `npm run build` recopie tout public/ dans dist/, scenes/ compris (issue
+  # #290) : potentiellement plusieurs gigaoctets de terrain. Les scènes vivent
+  # dans le répertoire de données de l'installation, jamais dans l'installeur —
+  # une installation neuve démarre avec un catalogue vide, c'est le contrat de
+  # server/static.mjs.
+  - '!dist/scenes/**'
+  - '!dist/scenes.json'
+  # three, leaflet et geoman ne sont utilisés que par le renderer, où Vite les a
+  # déjà inlinés dans dist/ : les embarquer une seconde fois en source coûte
+  # ~36 Mo pour rien. Rapier et sharp restent, eux : tools/prep.mjs les charge
+  # côté Node.
+  - '!node_modules/three/**'
+  - '!node_modules/leaflet/**'
+  - '!node_modules/@geoman-io/**'
+
+# sharp charge libvips par un binding natif : il ne peut pas être lu depuis
+# l'archive asar.
+asarUnpack:
+  - '**/node_modules/sharp/**'
+  - '**/node_modules/@img/**'
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: electron/build/icon.png
+
+nsis:
+  # Un vrai installeur, pas un exécutable portable : entrée Menu Démarrer,
+  # désinstalleur, choix du répertoire.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FPVThePlanet!
+
+linux:
+  # AppImage seul : le plus proche d'un « télécharge et double-clique ». Pas de
+  # .deb, qui demanderait de maintenir un dépôt APT.
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Game
+  icon: electron/build/icon.png
+  # Sinon l'exécutable hérite du `name` de package.json (fpvmaps-sim).
+  executableName: fpvtp
+
+# TODO (tranche T4) : remplacer par le domaine réel du VPS qui hébergera
+# latest.yml / latest-linux.yml et les installeurs. `.invalid` est réservé par
+# la RFC 2606 et ne résoudra jamais ; electron/main.js reconnaît ce placeholder
+# et saute la vérification de mise à jour au lieu d'échouer en boucle. Le dépôt
+# étant privé, `provider: github` demanderait un jeton à chaque téléchargement —
+# d'où le provider générique. Il redeviendra `github` en une ligne le jour où le
+# dépôt sera public.
+publish:
+  - provider: generic
+    url: https://updates.fpvtp.invalid/
+    channel: latest
