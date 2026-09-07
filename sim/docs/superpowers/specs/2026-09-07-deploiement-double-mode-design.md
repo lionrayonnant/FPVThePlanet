@@ -170,63 +170,72 @@ plateforme, hors du dossier du programme : `~/.local/share/fpvtp` (Linux),
 pas besoin de le calculer à la main. Mettre à jour l'app ne touche à rien de
 ce qui compte : les données vivent ailleurs.
 
-### 2. D2 — deux modes de confiance, `local` et `shared`
+### 2. D2 — deux axes distincts : qui se connecte, et qui a le droit d'acquérir
 
-Le serveur a **un** interrupteur, et il décide de tout ce qui distingue « ma
-machine » de « une machine sur Internet ».
+Deux interrupteurs, pas un. Les confondre serait l'erreur : « `local` vs
+`shared` » décide qui peut se connecter ; un second, orthogonal, décide qui a
+le droit de faire naître une scène sur disque.
 
-**`local`** (défaut ; la release le force, et le serveur refuse `--host`
-autre que `127.0.0.1`/`::1` sans `--mode shared`). Comportement d'aujourd'hui,
-intégral : opérateurs listés, `OPERATOR SELECT`, pas de clé, `ACQUIRE AREA`
-disponible — c'est le seul endroit où une nouvelle scène peut naître. La
-frontière de sécurité est le socket local — la même qu'avec le serveur de dev
-depuis deux mois.
+**`local` vs `shared`** (inchangé) : `local` est le défaut, la release le
+force, le serveur refuse `--host` autre que `127.0.0.1`/`::1` sans
+`--mode shared`. La frontière de sécurité est le socket local — la même
+qu'avec le serveur de dev depuis deux mois. `shared` (le VPS) exige une clé
+d'opérateur (voir plus bas) et n'écoute que derrière Caddy/TLS.
 
-**`shared`** (le VPS). **Révisé le 2026-09-07 (suite conversation) : aucune
-scène ne naît jamais sur le VPS.** Ni acquise par un visiteur (le problème de
-stockage d'origine — « je ne peux pas stocker les cartes de tout le monde »),
-ni détachée, ni garbage-collectée : ces mécanismes, envisagés dans une version
-précédente de cette section, disparaissent avec leur raison d'être. Ce qui
-reste :
+**`ACQUIRE AREA` — un fournisseur de photogrammétrie non documenté, jamais
+distribué. Révisé le 2026-09-07 (suite conversation).** `tools/lib/providers/
+google-earth.mjs` parle à `kh.google.com/rt/earth/`, le protocole interne du
+client web de Google Earth, découvert par capture réseau — sans clé, sans
+compte, sans conditions d'utilisation acceptées d'aucune sorte, parce que ce
+n'est pas un produit que Google propose. Ça change la question : ce n'est
+plus « respecte-t-on une clause de stockage », c'est « ce point d'accès n'a
+aucune autorisation formelle, storage ou pas ». Décision : **l'acquisition de
+terrain (`ACQUIRE AREA`, `LOCAL TERRAIN`, la conversion `prep.mjs`, tout ce
+qui écrit une scène sur disque) reste dans le dépôt — rien n'est perdu — mais
+n'est active dans AUCUNE build distribuée à qui que ce soit d'autre.** Pas de
+second dépôt à maintenir en double : un interrupteur, par défaut fermé.
 
-- **`LOCAL TERRAIN` : un petit catalogue fixe, choisi par l'opérateur du VPS
-  (toi), pas par les visiteurs.** Quelques cartes (cinq-six pour commencer)
-  acquises une fois — depuis une installation `local`, ou directement sur le
-  VPS avec `FPVTP_MODE=local` le temps de la commande — puis servies telles
-  quelles. Aucun code neuf : c'est exactement le chemin `LOCAL TERRAIN` /
-  `TARGET SCAN` / hack / rituel / session / archive d'aujourd'hui, sur des
-  scènes qui existent déjà. Utile en particulier à qui a une connexion trop
-  faible pour LIVE (une scène pré-acquise se charge une fois puis tourne sans
-  dépendre du réseau pendant le vol) — but explicite de cette conversation.
-- **`GLOBAL SCANNER` → LIVE, avec la boucle complète — déjà là.** Tracer une
-  zone n'ouvre plus `ACQUIRE AREA` en `shared` : ça lance un vol **LIVE** sur
-  cette zone, onglet LIVE du scanner, `[ FLY LIVE ]`. Correction du
-  2026-09-07 (relu dans le code après une remarque en conversation, la version
-  précédente de cette section se trompait) : ce chemin porte **déjà** TARGET
-  SCAN → hack → rituel → session → archive depuis l'issue #218 — `fieldLoop()`
-  appelle `runTargetScan()` et `runHack()` avant `bootLive()` exactement comme
-  pour une carte cuite, et `openFlightSession()` ouvre une vraie session
-  (`flyArea` prend un id `live-…`, ce qui bloque REVISIT dessus à bon droit —
-  on ne revisite pas un terrain qu'on n'a pas gardé). Vérifié en navigateur
-  (HANDOFF, « FIELD : onglets LOCAL / LIVE », issue #222). **Aucun
-  développement de jeu à faire** : il ne reste que la bascule serveur
-  (paragraphe suivant), qui est de la pure infrastructure.
-- **Bonus vérifié en relisant le code à cette occasion : LIVE ne coûte quasiment
-  rien au serveur.** `src/rocktree-worker.js` fait son `fetch()` vers
-  `kh.google.com` **directement depuis le navigateur du joueur** — le CORS en
-  est vérifié (`docs/superpowers/specs/2026-08-31-rocktree-live-fetch-design.md`).
-  Le gros du trafic d'un vol LIVE (la géométrie et les textures) ne transite
-  jamais par le VPS ; ce dernier ne voit que les petits appels JSON
-  (`/__map-api/plan`/`/probe`, `/__operator/.../sessions`, météo). Le problème
-  de stockage qui a lancé cette conversation — « je ne peux pas stocker les
-  cartes de tout le monde » — est donc déjà résolu par LIVE tel qu'il existe,
-  sans qu'on ait rien à construire pour ça.
-- **`ACQUIRE AREA` disparaît de l'écran, remplacé par l'incitation.** Le bouton
-  qui écrirait une scène sur le VPS devient `[ GET THE CLIENT — KEEP THIS
-  TERRAIN ]`, pointant vers la page de téléchargement (D4). Le geste que le
-  joueur vient de faire (tracer CETTE zone) reste dans son contexte : c'est le
-  moment précis où « pourquoi installer » a une réponse concrète, pas un
-  bandeau générique ailleurs dans l'interface.
+- **`FPVTP_ACQUIRE=1`** (variable d'environnement, lue par `sim/server/`),
+  seule chose qui active `ACQUIRE AREA` : la route `POST /__map-api/jobs`
+  répond 403 tant qu'elle n'est pas posée, quel que soit le mode `local`/
+  `shared`, et le client masque `[ DRAW BOX ]`/`[ DRAW SHAPE ]`/
+  `ACQUIRE AREA` quand `GET /__map-api/scenes` annonce `{ acquire: false }`.
+  Par défaut : **fermé**. La CI (`ci.yml`) et `electron-builder` ne la posent
+  jamais — la release publique, quelle que soit la plateforme, sort donc
+  toujours avec l'acquisition fermée, sans geste supplémentaire à retenir au
+  moment de publier.
+- **Ta machine, en dev** (`npm run dev`, ou une build Electron personnelle
+  jamais distribuée) : tu poses `FPVTP_ACQUIRE=1` toi-même, tu gardes le
+  chemin complet — acquisition, cartes cuites, vol offline — inchangé.
+- **`shared` (VPS) : `ACQUIRE AREA` toujours fermé, sans exception, même avec
+  le drapeau posé.** Le VPS ne sert jamais que du LIVE (paragraphe suivant),
+  quel que soit `FPVTP_ACQUIRE` — deux gardes indépendantes valent mieux
+  qu'une pour ce qui ne doit *jamais* atterrir sur un serveur qui reçoit des
+  inconnus.
+- **Le catalogue curé de la version précédente de cette section disparaît**
+  avec sa raison d'être : rien de cuit n'est plus jamais servi à un tiers,
+  curé ou non. Un joueur avec une connexion trop faible pour LIVE reste un cas
+  non couvert par ce design — à rouvrir séparément si ça se révèle un vrai
+  frein, pas résolu ici par un raccourci qui recréerait la question légale.
+
+**`GLOBAL SCANNER` → LIVE, avec la boucle complète — déjà là, aucun
+développement de jeu.** Tracer une zone (VPS, ou Electron sans le drapeau)
+lance un vol **LIVE**, onglet LIVE du scanner, `[ FLY LIVE ]`. Ce chemin porte
+**déjà** TARGET SCAN → hack → rituel → session → archive depuis l'issue #218 —
+`fieldLoop()` appelle `runTargetScan()` et `runHack()` avant `bootLive()`
+exactement comme pour une carte cuite, et `openFlightSession()` ouvre une
+vraie session (`flyArea` prend un id `live-…`, ce qui bloque REVISIT dessus à
+bon droit). Vérifié en navigateur (HANDOFF, « FIELD : onglets LOCAL / LIVE »,
+issue #222).
+
+**LIVE ne coûte quasiment rien au serveur, dans les deux cas.**
+`src/rocktree-worker.js` fait son `fetch()` vers `kh.google.com`
+**directement depuis le navigateur du joueur** — le CORS en est vérifié
+(`docs/superpowers/specs/2026-08-31-rocktree-live-fetch-design.md`). Le gros
+du trafic (géométrie, textures) ne transite jamais par le VPS ; ce dernier ne
+voit que les petits appels JSON (`/__map-api/plan`/`/probe`,
+`/__operator/.../sessions`, météo).
+
 - **Clé d'opérateur** (inchangé par rapport à la version précédente) :
   `POST /__operator` génère un secret de 128 bits (`randomBytes(16)`, base32
   sans ambiguïté, groupé par 4 : `K7QP-3MZX-…`), stocké haché (SHA-256),
@@ -238,18 +247,12 @@ reste :
   L'écran `OPERATOR` de l'ARCHIVE la ré-affiche derrière `[ SHOW KEY ]`, comme
   `SHOW VECTOR` pour le vecteur — la Bible §33 tient, la clé reste distincte
   du Control Vector.
-- **`POST /__map-api/jobs` (acquisition) refuse en `shared`.** Puisque
-  `ACQUIRE AREA` n'est plus dans l'écran, la route qui écrirait une scène
-  refuse aussi côté serveur (403) — la protection ne doit pas dépendre de
-  l'UI seule.
-
 **Ce qui reste réellement à faire, alors, tient dans les points ci-dessus** :
-la clé d'opérateur, `ACQUIRE AREA`/`POST jobs` gatés en `shared`, le catalogue
-curé (curation manuelle, aucun code), et le bouton `GET THE CLIENT`. Pas de
-développement de jeu — la seule chose que ce chantier doit encore *vérifier*
-(pas construire) est que la boucle LIVE, déjà correcte en `local`, se comporte
-identiquement sous une session `shared` authentifiée par clé — voir la
-checklist de vérification (§6).
+la clé d'opérateur, le drapeau `FPVTP_ACQUIRE` (fermé par défaut, forcé fermé
+en `shared`). Pas de développement de jeu — la seule chose que ce chantier
+doit encore *vérifier* (pas construire) est que la boucle LIVE, déjà correcte
+en `local`, se comporte identiquement sous une session `shared` authentifiée
+par clé — voir la checklist de vérification (§6).
 
 **Une nuance à garder à l'esprit, pas un blocage.** `?live=lat,lon` (paramètre
 d'URL, raccourci de **dev**) reste volontairement un vol nu — pas de cible, pas
@@ -358,21 +361,15 @@ de jeu. Aucune authentification : ces fichiers sont ceux que n'importe qui
 doit pouvoir télécharger, contrairement à l'API `/__map-api`/`/__operator`.
 
 **Sauvegardes** : `/var/lib/fpvtp/operator-state` est petit (174 Ko par
-opérateur sans les captures, quelques Mo avec) — `tar` quotidien. Les scènes
-du catalogue curé (D2) sont régénérables mais longues à régénérer — `rsync`
-hebdomadaire, ou rien ; leur nombre est fixe et choisi par l'opérateur, donc
-aucune surveillance de croissance n'est nécessaire.
+opérateur sans les captures, quelques Mo avec) — `tar` quotidien suffit.
+Aucune scène n'est jamais écrite sur le VPS (D2) : `public/scenes/` y reste
+vide en permanence, rien d'autre à sauvegarder ni à surveiller côté disque.
 
-**Dimensionnement, à mesurer avant de louer** : une scène du catalogue curé
-= ~450 Mo de disque et ~2,7 s de chargement local ; sur le fil, le premier vol
-d'un visiteur sur une scène tire ces 450 Mo une fois (puis cache navigateur
-`immutable`) — `× 5-6 scènes`, pas au-delà, puisque le catalogue est fixe. Le
-pic mémoire de `prep.mjs` pendant `REBUILD` reste à mesurer (`export-glb`
-demande 8 Go de tas, `prep` probablement moins), mais ne pèse plus sur le
-dimensionnement du VPS en usage courant : `REBUILD` ne tourne qu'aux mains de
-l'opérateur, quand il compose le catalogue — jamais déclenché par un visiteur
-depuis que `ACQUIRE AREA` est fermé en `shared` (D2). Le mesurer avant de
-curer le catalogue reste prudent, pas avant de louer le VPS.
+**Dimensionnement** : sans acquisition ni scène servie, le VPS n'a pas
+d'exigence de stockage particulière au-delà de l'OS et des logs. Le seul
+trafic de jeu significatif est LIVE, et il ne transite pas par le VPS (D2) —
+le dimensionnement se réduit à ce qu'il faut pour l'API elle-même (petits
+appels JSON) et pour Caddy/TLS, largement sous la plus petite offre courante.
 
 ### 5. Ce qui change côté client
 
@@ -385,14 +382,20 @@ Le moins possible, et rien sur les chemins de vol :
   `needsKey` → nouvel écran `OPERATOR KEY` dans `src/terminal.js` (même
   gabarit que `operatorSelect`). Le bootstrap gagne un dernier écran
   `YOUR OPERATOR KEY` quand la réponse de création en porte une.
-- `src/terminal.js` : le bouton `ACQUIRE AREA` du scanner devient
-  `[ GET THE CLIENT — KEEP THIS TERRAIN ]` quand `scenes` annonce
-  `{ mode: 'shared' }` (voir D2) — pas un bandeau générique ailleurs dans
-  l'interface, l'incitation vit au moment précis où elle répond à une envie
-  réelle. Pas un mur : de l'information, pas de la pression (pilier 1 de la
-  Bible, « information, not assistance »). Détail visuel exact à trancher à
-  l'implémentation (T3), pas ici.
-- `?scene=`, `?live=`, `?family=`, le banc : inchangés.
+- `src/terminal.js` : le scanner masque `[ DRAW BOX ]`/`[ DRAW SHAPE ]`/
+  `ACQUIRE AREA` quand `GET /__map-api/scenes` annonce `{ acquire: false }`
+  (voir D2 — c'est le cas de toute build distribuée, `shared` et Electron
+  public confondus). Il ne reste que l'onglet LIVE.
+- **L'incitation à installer le client change de nature** (2026-09-07, suite
+  conversation) : elle ne peut plus dire « garde ce terrain », puisqu'Electron
+  public n'a pas non plus `ACQUIRE AREA`. Le vrai argument, celui qui a motivé
+  cette conversation, reste réel — jouer chez soi retire la charge de ton
+  serveur, et Electron offre une vraie app plutôt qu'un onglet — mais c'est
+  un argument plus faible que « débloquer une fonctionnalité ». Une ligne
+  discrète (Home, pied de page) plutôt qu'un geste contextuel fort ; à ne pas
+  sur-vendre. Détail d'écran à trancher à l'implémentation (T3), pas ici.
+- `?scene=`, `?live=`, `?family=`, le banc : inchangés (`?family=` reste un
+  raccourci de dev, indépendant de `FPVTP_ACQUIRE`).
 
 ### 6. Vérification
 
@@ -432,12 +435,15 @@ aucun selftest ne le remplace :
    manuel.
 3. Sur le VPS : créer un opérateur, noter la clé, ouvrir un navigateur privé,
    entrer la clé, retrouver le même opérateur. Un second opérateur ne voit
-   pas le premier. `LOCAL TERRAIN` ne montre que le catalogue curé, jamais
-   `ACQUIRE AREA` (le bouton dit `GET THE CLIENT`, cliquer dessus ne déclenche
-   aucune requête d'acquisition). Un vol LIVE tracé sur le scanner rend la
-   boucle complète — TARGET SCAN, hack, rituel, session archivée à la fin —
-   depuis le domaine réel ; le CORS de `kh.google.com` n'a été vérifié que
-   depuis `localhost`.
+   pas le premier. Le scanner ne montre jamais `[ DRAW BOX ]`/
+   `[ DRAW SHAPE ]`/`ACQUIRE AREA`, seulement l'onglet LIVE. Un vol LIVE
+   tracé sur le scanner rend la boucle complète — TARGET SCAN, hack, rituel,
+   session archivée à la fin — depuis le domaine réel ; le CORS de
+   `kh.google.com` n'a été vérifié que depuis `localhost`.
+4. Sur l'Electron publié (sans `FPVTP_ACQUIRE`) : même chose qu'au point 3 —
+   `ACQUIRE AREA` absent, LIVE complet. Sur une build de dev avec
+   `FPVTP_ACQUIRE=1` posé : `ACQUIRE AREA` réapparaît, une carte s'acquiert et
+   se garde comme avant cette conversation.
 
 ### 7. Tranches, chacune livrable seule
 
@@ -445,7 +451,7 @@ aucun selftest ne le remplace :
 |---|---|---|
 | T1 | `server/` + `paths.mjs` + adaptateur Vite + `server-selftest` ; `session-api-selftest` sur le serveur autonome | #259 (le build démarre seul) |
 | T2 | `electron/main.js`, `electron-builder` (NSIS + AppImage), `electron-updater`, matrice Windows/Linux en CI et en release | l'app s'installe et se met à jour toute seule |
-| T3 | mode `shared` : clé, écran `OPERATOR KEY`, `ACQUIRE AREA`/`POST jobs` refusés (403) + bouton `GET THE CLIENT`, catalogue curé (aucun code de jeu neuf — LIVE porte déjà la boucle complète depuis #218, il ne reste que la vérifier sous `shared`) | #60 (PHASE 23) |
+| T3 | clé + écran `OPERATOR KEY` ; drapeau `FPVTP_ACQUIRE` (fermé par défaut partout, forcé fermé en `shared`, jamais posé par la CI/`electron-builder`) ; le scanner masque `ACQUIRE AREA` quand il est fermé (aucun code de jeu neuf — LIVE porte déjà la boucle complète depuis #218, il ne reste qu'à la vérifier sous `shared`) | #60 (PHASE 23) |
 | T4 | `deploy/` + distribution Electron (D3) + première livraison manuelle sur le VPS | le serveur existe et sert les installeurs |
 
 T1, T2 et T3 ne changent rien au comportement du jeu — T3 gate une seule
@@ -486,8 +492,10 @@ et c'est voulu.
   télécharge, redémarre dessus) contre un provider générique auto-hébergé —
   jamais fait, à vérifier avant d'annoncer « mise à jour automatique » comme
   acquis.
-- Le pic mémoire de `prep.mjs` (voir §4) — à mesurer avant de composer le
-  catalogue curé.
+- Le pic mémoire de `prep.mjs` pendant `REBUILD` reste inconnu (`export-glb`
+  demande 8 Go de tas, `prep` probablement moins) — sans conséquence pour le
+  VPS depuis que rien n'y acquiert plus rien (D2), mais à mesurer avant de
+  s'y fier pour l'usage personnel avec `FPVTP_ACQUIRE=1`.
 - **LIVE sous une session `shared` authentifiée par clé** : la boucle
   (TARGET SCAN/hack/session/archive) est vérifiée en `local` (#218, #222),
   jamais avec l'en-tête `Authorization: Bearer` d'une session `shared` —
