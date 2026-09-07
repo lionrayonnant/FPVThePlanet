@@ -168,3 +168,5 @@ sim/public/scenes/
 This contains huge generated files. Use ls, du, stat, grep, etc. from the shell.
 
 For exploration across many files in tools/ or src/, prefer an Explore agent.
+
+Everything in the code, docs... must be in english. Do efficient comments.
