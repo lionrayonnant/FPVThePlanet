@@ -2748,6 +2748,14 @@ Déployer demanderait donc, au choix :
 Rien de tout ça n'est fait. Tant que ce n'est pas tranché, la « livraison »
 d'une version est l'archive `dist` attachée à la GitHub Release.
 
+**Tranché le 2026-09-07, pas encore implémenté** : ni l'un ni l'autre tel
+quel, mais un seul serveur Node autonome (`sim/server/`, extrait du plugin
+Vite) en deux hébergements — un VPS en mode `shared` (clé d'opérateur, terrain
+détaché plutôt qu'effacé, file d'acquisition) et une release par plateforme
+avec runtime Node embarqué en mode `local`. Le design complet, les faits
+vérifiés qui le dictent et les cinq tranches sont dans
+`docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`.
+
 ### NON vérifié
 
 - `.github/workflows/ci.yml` n'a **jamais tourné sur un runner** : les commandes
