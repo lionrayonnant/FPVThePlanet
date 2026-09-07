@@ -166,9 +166,9 @@ sessions de l'utilisateur ne sont ni déplacées ni migrées par cette tranche.
 
 Le répertoire de données par défaut de l'installation locale est celui de la
 plateforme, hors du dossier du programme : `~/.local/share/fpvtp` (Linux),
-`~/Library/Application Support/FPVTP` (macOS), `%LOCALAPPDATA%\FPVTP`
-(Windows). Décompresser la version suivante par-dessus l'ancienne ne touche à
-rien de ce qui compte.
+`%LOCALAPPDATA%\FPVTP` (Windows) — Electron expose ça via `app.getPath('userData')`,
+pas besoin de le calculer à la main. Mettre à jour l'app ne touche à rien de
+ce qui compte : les données vivent ailleurs.
 
 ### 2. D2 — deux modes de confiance, `local` et `shared`
 
@@ -230,50 +230,63 @@ est inutilisable jusqu'à ce qu'on lui en donne une :
 l'imprime une fois. C'est ainsi que les 142 sessions de l'utilisateur passent
 sur le VPS : `rsync` du fichier, puis une clé.
 
-### 3. D3 — la release est une archive par plateforme, sans prérequis
+### 3. D3 — la release est une vraie app installée, avec mise à jour automatique
 
-Un joueur ne doit rien installer. Ni Node, ni Go, ni `npm install`.
+**Révisé le 2026-09-07 (suite conversation) : Electron, pas un lanceur nu.**
+L'exigence qui tranche : quelqu'un qui installe le jeu doit le voir comme un
+jeu normal — icône, entrée dans le menu, mise à jour silencieuse — sans savoir
+ce qu'est un terminal. Windows et Linux seulement (macOS explicitement hors
+périmètre, décision utilisateur). Un lanceur qui ouvre le navigateur par
+défaut (version précédente de cette section) ne tient pas cette promesse : pas
+d'icône dédiée, pas de mise à jour automatique, l'utilisateur atterrit dans
+« son » navigateur au milieu de ses onglets.
 
-**Contenu de `fpvtp-vX.Y.Z-<plateforme>.zip`** :
+**Architecture** : Electron EST déjà Node + Chromium dans un seul binaire —
+pas besoin d'embarquer un second runtime Node à côté. Le process principal
+Electron (`electron/main.js`) importe et démarre directement `sim/server/`
+(le même module que T1, mode `local`) dans son propre contexte Node, sur
+`127.0.0.1:0` (port éphémère, pas de collision possible) ; une fois le serveur
+en écoute, une `BrowserWindow` charge cette URL. Le renderer est le `dist/`
+inchangé. Aucun sous-processus : un seul binaire, un seul process Node.
 
-```text
-fpvtp-v0.2.0-linux-x64/
-  FPVTP.sh            (ou FPVTP.cmd / FPVTP.command)
-  node/               runtime Node officiel, ~50 Mo (tarball nodejs.org)
-  app/
-    dist/             npm run build
-    server/
-    tools/            prep.mjs, lib/, decoders, providers, *-model.mjs
-    node_modules/     --omit=dev, installé SUR la plateforme cible
-    package.json
-  README.txt          trois lignes : double-clic, l'URL, où sont les données
-```
+**Outillage** : `electron-builder` — NSIS pour Windows (`.exe` installeur,
+pas juste portable : entrée Menu Démarrer, désinstalleur propre), `AppImage`
+pour Linux (le plus proche d'un « télécharge et double-clique » sans gestion
+de paquets — pas de `.deb` dans un premier temps, ça demanderait de maintenir
+un dépôt APT). `electron-updater` gère la mise à jour : au lancement, l'app
+vérifie un flux `latest.yml`/`latest-linux.yml`, télécharge en tâche de fond,
+propose de redémarrer.
 
-`FPVTP.sh` fait `exec "$DIR/node/bin/node" "$DIR/app/server/index.mjs" --open
-"$@"`. Le `.cmd` Windows et le `.command` macOS font pareil. Pas de Node SEA,
-pas de `pkg`, pas d'Electron : `sharp` est un addon natif et ces outils le
-gèrent mal ; un tarball Node à côté de l'application est la solution la plus
-bête et la plus sûre.
+**`sharp` et l'ABI Electron — à vérifier, pas supposé.** Les versions
+récentes de `sharp` utilisent des bindings N-API (ABI stable), qui *devraient*
+fonctionner tels quels dans le Node embarqué par Electron sans recompilation —
+mais ça n'a jamais été testé sur ce dépôt. Si `electron-builder` échoue à
+charger `sharp` au premier build, `@electron/rebuild` est le repli connu.
+Rapier (WASM pur) n'a aucun souci d'ABI, il tourne identique partout.
 
-**Pourquoi une matrice de plateformes** : `sharp` tire son binaire par
-dépendance optionnelle `@img/sharp-<os>-<cpu>` au moment de `npm ci`. Le
-`node_modules` doit donc être installé sur la plateforme visée (ou avec
-`--os --cpu`, plus fragile). `release.yml` gagne un job matriciel
-`{ubuntu-latest, windows-latest, macos-latest (arm64), macos-13 (x64)}` qui
-fait `npm ci --omit=dev`, télécharge le tarball Node correspondant, assemble
-l'archive et l'attache à la release. Le job existant (selftests + build) reste
-en amont et fournit `dist/` une seule fois.
+**Distribution — le dépôt est privé aujourd'hui, public plus tard.**
+`electron-updater` sait lire un flux GitHub Releases nativement, mais un
+dépôt privé demande un jeton pour tout téléchargement — inutilisable pour un
+joueur non-bidouilleur. Le VPS (D4) sert donc de pont : `electron-builder`
+publie vers un **provider générique** (simple HTTP), le VPS héberge
+`latest.yml`/`latest-linux.yml` + les installeurs, la CI y dépose le build à
+chaque release. Le jour où le dépôt devient public, c'est une ligne de config
+(`provider: generic` → `provider: github`) pour repasser par GitHub Releases
+directement — rien d'autre ne bouge.
 
-**Ordre de grandeur** : `dist/` ≈ 80 Mo (dont 77 Mo de musique), Node ≈ 50 Mo,
-`node_modules` prod (three, rapier, sharp, leaflet, geoman) ≈ 40 Mo. Archive
-≈ 170 Mo, loin de la limite de 2 Go par asset.
+**Signature de code — pas maintenant, décision utilisateur (2026-09-07).**
+Sans certificat, Windows SmartScreen affiche « Windows a protégé votre
+ordinateur » au premier lancement (contournable en deux clics : Informations
+complémentaires → Exécuter quand même). Accepté pour l'instant ; à
+reconsidérer si le frein à l'installation se révèle réel. Un certificat
+(~100-400 $/an) s'ajoute à `electron-builder` sans rien changer d'autre à
+cette spec.
 
-**Mise à jour** : décompresser la nouvelle version, lancer. Les données sont
-ailleurs. Un `BUILD NOTES` qui annoncerait `UPDATE AVAILABLE` en interrogeant
-l'API GitHub Releases est une idée pour plus tard, pas pour ce chantier — le
-dépôt est privé, l'API demande un jeton.
+**Ordre de grandeur** : Electron + Chromium embarqués ≈ 150-200 Mo par
+plateforme, du même ordre que l'estimation précédente (runtime Node +
+`node_modules`) — pas un surcoût réel.
 
-### 4. D4 — le VPS reçoit la même archive, plus trois fichiers
+### 4. D4 — le VPS reçoit la même archive, plus trois fichiers, plus la distribution Electron
 
 `deploy/` à la racine du dépôt :
 
@@ -297,6 +310,13 @@ Le déclenchement est **manuel** au départ (`ssh vps sudo deploy.sh v0.2.0`).
 Une étape `deploy` dans `release.yml`, conditionnée à la présence des secrets
 `DEPLOY_HOST`/`DEPLOY_KEY`, viendra quand la première livraison manuelle aura
 réussi — pas avant : `release.yml` lui-même n'a encore jamais tourné.
+
+**Distribution Electron (D3)** : un répertoire statique de plus servi par
+Caddy, `updates.fpvtp.example.org` (ou un chemin sous le même domaine) —
+`.exe`/`AppImage` + `latest.yml`/`latest-linux.yml`. `deploy.sh` y dépose les
+artefacts du job `electron-builder` de la CI, à côté de la bascule du serveur
+de jeu. Aucune authentification : ces fichiers sont ceux que n'importe qui
+doit pouvoir télécharger, contrairement à l'API `/__map-api`/`/__operator`.
 
 **Sauvegardes** : `/var/lib/fpvtp/operator-state` est petit (174 Ko par
 opérateur sans les captures, quelques Mo avec) — `tar` quotidien. Les scènes
@@ -325,6 +345,18 @@ Le moins possible, et rien sur les chemins de vol :
   `YOUR OPERATOR KEY` quand la réponse de création en porte une.
 - `src/terminal.js` : `REMOVE` devient `DETACH` quand `scenes` annonce
   `{ mode: 'shared' }` ; le rail du scanner affiche la position en file.
+- **Inciter à installer le client, en mode `shared` seulement** (2026-09-07,
+  suite conversation) : le VPS est la vitrine — un nouveau venu y joue au
+  navigateur sans rien installer, c'est le but — mais chaque session `shared`
+  coûte du calcul et de la bande passante côté serveur (acquisition,
+  websockets d'opérateur), alors qu'une installation Electron fait tourner
+  toute la boucle chez le joueur. `GET /__map-api/scenes` porte déjà `{ mode }` ;
+  un bandeau discret dans le terminal (Home, pied de page ou notice type RTC)
+  en mode `shared` uniquement, pointant vers la page de téléchargement du VPS
+  (D4). Jamais en `local` — installer serait déjà fait. Pas un mur ni un
+  compte à rebours : de l'information, pas de la pression (pilier 1 de la
+  Bible, « information, not assistance »). Détail d'écran à trancher au
+  moment de l'implémenter (T3), pas ici.
 - `?scene=`, `?live=`, `?family=`, le banc : inchangés.
 
 ### 6. Vérification
@@ -344,20 +376,25 @@ Le moins possible, et rien sur les chemins de vol :
   `server/index.mjs` : il teste ce qui est livré, et la CI n'a plus à
   démarrer Vite (plus rapide). Un check de fumée garde l'adaptateur Vite
   honnête : `npm run dev` répond sur `/__map-api/scenes`.
-- `ci.yml` gagne une matrice `{ubuntu, windows, macos}` sur `selftest:ci` +
-  `build`. C'est ce qui débusquera les chemins Windows dans `prep.mjs`,
+- `ci.yml` gagne une matrice `{ubuntu, windows}` sur `selftest:ci` + `build`.
+  C'est ce qui débusquera les chemins Windows dans `prep.mjs`,
   `add-map-core.mjs` et `run.mjs` (`spawn` de `node`, séparateurs,
   `toLocaleString`) **avant** qu'un joueur ne les trouve.
 
 **À l'écran, à faire par l'utilisateur** — c'est le critère d'acceptation, et
 aucun selftest ne le remplace :
 
-1. Décompresser l'archive de sa plateforme, double-cliquer, voir le
-   navigateur s'ouvrir, jouer le parcours FIELD complet du HANDOFF (mode
-   select → ACQUIRE AREA sur une petite zone Google → TARGET SCAN → hack →
-   rituel → vol → pose → POST-FLIGHT → KEEP → SESSION LOG). Fermer, relancer,
-   retrouver la session.
-2. Sur le VPS : créer un opérateur, noter la clé, ouvrir un navigateur privé,
+1. Installer via l'installeur `.exe` (Windows) ou l'`AppImage` (Linux), lancer
+   depuis le menu Démarrer / en double-cliquant, voir la fenêtre s'ouvrir
+   directement sur le terminal opérateur (pas de navigateur à part, pas
+   d'écran de terminal visible), jouer le parcours FIELD complet du HANDOFF
+   (mode select → ACQUIRE AREA sur une petite zone Google → TARGET SCAN →
+   hack → rituel → vol → pose → POST-FLIGHT → KEEP → SESSION LOG). Fermer,
+   relancer, retrouver la session.
+2. Publier une version `vX.Y.1` après la `vX.Y.0` installée : l'app détecte,
+   télécharge et propose le redémarrage sans repasser par un téléchargement
+   manuel.
+3. Sur le VPS : créer un opérateur, noter la clé, ouvrir un navigateur privé,
    entrer la clé, retrouver le même opérateur. Un second opérateur ne voit
    pas le premier. Un vol LIVE depuis le domaine réel — le CORS de
    `kh.google.com` n'a été vérifié que depuis `localhost`.
@@ -367,18 +404,24 @@ aucun selftest ne le remplace :
 | # | tranche | ferme |
 |---|---|---|
 | T1 | `server/` + `paths.mjs` + adaptateur Vite + `server-selftest` ; `session-api-selftest` sur le serveur autonome | #259 (le build démarre seul) |
-| T2 | matrice de release, runtime Node embarqué, lanceurs, matrice d'OS en CI | la release est jouable |
-| T3 | mode `shared` : clé, écran `OPERATOR KEY`, `DETACH` + ramasse-miettes, file | #60 (PHASE 23) |
-| T4 | `deploy/` + première livraison manuelle sur le VPS | le serveur existe |
+| T2 | `electron/main.js`, `electron-builder` (NSIS + AppImage), `electron-updater`, matrice Windows/Linux en CI et en release | l'app s'installe et se met à jour toute seule |
+| T3 | mode `shared` : clé, écran `OPERATOR KEY`, `DETACH` + ramasse-miettes, file, bandeau d'incitation à installer le client | #60 (PHASE 23) |
+| T4 | `deploy/` + distribution Electron (D3) + première livraison manuelle sur le VPS | le serveur existe et sert les installeurs |
 
-T1 et T2 ne changent rien au comportement du jeu. T3 est la seule tranche
-qui touche des écrans. T1 → T2 → T4 suffit à un « serveur pour les amis » en
-mode `local` derrière un tunnel, comme aujourd'hui avec ngrok — mais **pas**
-exposé sur Internet : le serveur refuse `--host 0.0.0.0` sans `--mode shared`,
-et c'est voulu.
+T1 et T2 ne changent rien au comportement du jeu (T2 ajoute un point d'entrée
+Electron à côté du navigateur, pas une divergence de code). T3 est la seule
+tranche qui touche des écrans du jeu lui-même. T1 → T2 → T4 suffit à un
+« serveur pour les amis » en mode `local` derrière un tunnel, comme aujourd'hui
+avec ngrok — mais **pas** exposé sur Internet : le serveur refuse
+`--host 0.0.0.0` sans `--mode shared`, et c'est voulu.
 
 ## Ce qui n'est pas dans ce design
 
+- macOS. Décision utilisateur (2026-09-07) : Windows et Linux seulement.
+- La signature de code (Windows). Décision utilisateur (2026-09-07) : acceptée
+  pour l'instant, l'avertissement SmartScreen reste. Un certificat s'ajoute à
+  `electron-builder` sans toucher au reste de cette spec, le jour où le besoin
+  se fait sentir.
 - Un mode statique sans serveur (GitHub Pages, LIVE seul) — troisième
   hébergement possible plus tard, voir D1.
 - Le partage de scènes entre installations (« scene packs » exportables) :
@@ -393,10 +436,15 @@ et c'est voulu.
 
 ## Non vérifié, et ce qu'il faudra regarder en premier
 
-- `sharp` dans un `node_modules` embarqué par plateforme : plausible, jamais
-  fait ici. Premier point à tester de T2, sur les quatre archives.
-- Windows et macOS n'ont **jamais** exécuté ce dépôt. La matrice d'OS en CI
-  est là pour ça ; s'attendre à des correctifs de chemins dans `prep.mjs`.
+- `sharp` sous le Node embarqué par Electron (bindings N-API, censés être
+  ABI-stables) : plausible, jamais testé ici. Premier point de T2 ; repli
+  connu si ça échoue, `@electron/rebuild`.
+- Windows n'a **jamais** exécuté ce dépôt. La matrice Windows/Linux en CI est
+  là pour ça ; s'attendre à des correctifs de chemins dans `prep.mjs`.
+- Le cycle `electron-updater` complet (publier v+1, l'app la détecte, la
+  télécharge, redémarre dessus) contre un provider générique auto-hébergé —
+  jamais fait, à vérifier avant d'annoncer « mise à jour automatique » comme
+  acquis.
 - Le pic mémoire de `prep.mjs` (voir §4) — à mesurer avant de louer.
 - Le CORS de `kh.google.com` depuis un vrai domaine.
 - Le `Range` et le cache `immutable` sur 450 Mo de scène : le comportement du
