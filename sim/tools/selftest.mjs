@@ -2412,14 +2412,18 @@ console.log('\nsoleil — exposition (AGC) et SunField');
 		// n'est plus un pourcentage fixe de `before` (le nerf de l'issue #92 a
 		// relevé le plancher E_MIN, donc le palier n'est plus assez loin de
 		// before/2 pour que ce seuil-là reste un repère fiable).
+		// Revised 2026-09-08 (#11): two-sided bound so the D10 nerf cannot
+		// silently regress in either direction — see tools/sun-agc-selftest.mjs
+		// for the pure version of this same check (no scene needed, runs in CI).
 		const closeTrace = [];
 		for (let t = 0; t < 5; t += 1 / 60) {
 			sun.update(1 / 60, { date: NOON, sunInFrame: 1 });
 			closeTrace.push([t, sun.exposure]);
 		}
 		const closed = sun.exposure;
-		check('le soleil dans le cadre ferme l\'exposition', closed < before * 0.4,
-			`${closed.toFixed(3)} vs ${before.toFixed(3)}`);
+		check('le soleil dans le cadre ferme l\'exposition mais reste jouable',
+			closed < before * 0.75 && closed > before * 0.55,
+			`${closed.toFixed(3)} vs [${(before * 0.55).toFixed(3)}, ${(before * 0.75).toFixed(3)}]`);
 		const closeMid = (before + closed) / 2;
 		const closeTime = (closeTrace.find(([, e]) => e < closeMid) || [])[0] ?? null;
 		check('la fermeture est rapide (moins de 0,5 s pour parcourir la moitié du palier)',

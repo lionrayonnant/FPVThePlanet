@@ -119,7 +119,8 @@ const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than 
 const SUN_DISC = 0.020;    // rayon du disque, en unités de l'espace carré
 const SUN_HALO = 0.32;     // rayon du lobe autour du disque
 const SUN_HALO_GAIN = 0.9; // ce que le halo ajoute au plus fort
-const SUN_VEIL = 0.22;     // remontée des noirs quand le soleil est dans le champ
+// Revised 2026-09-08: playable against the sun — less black-lift (#11).
+const SUN_VEIL = 0.14;     // remontée des noirs quand le soleil est dans le champ
 
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-

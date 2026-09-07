@@ -23,6 +23,11 @@ rapport avec les versions ci-dessous.
 - L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build
   Vite) au lieu de la constante de lore `0.97b` (#9).
 
+### Corrigé
+
+- Face au soleil, l'exposition ferme moins fort : entre 55 et 75 % de son
+  niveau au repos au lieu de tomber à 35 %, l'image reste pilotable (#11).
+
 ## [0.1.0-beta] - 2026-09-07
 
 ### Ajouté
