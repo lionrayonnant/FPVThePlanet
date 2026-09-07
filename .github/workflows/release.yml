@@ -165,7 +165,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.exe release/*.blockmap release/latest.yml release/latest-linux.yml)
+          # `latest.yml` (Windows) et `latest-linux.yml` (Linux) : chaque OS n'en
+          # produit qu'un des deux. Un glob (pas un nom littéral) est nécessaire
+          # pour que nullglob élide celui qui manque au lieu de le passer tel
+          # quel à `gh release upload`, qui échouerait à l'ouvrir.
+          files=(release/*.AppImage release/*.exe release/*.blockmap release/latest*.yml)
           if [ ${#files[@]} -eq 0 ]; then
             echo "::error::electron-builder n'a produit aucun installeur"
             exit 1
