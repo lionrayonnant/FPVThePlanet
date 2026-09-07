@@ -122,13 +122,13 @@ await ta('home : la zone volée est celle qui est sélectionnée', async () => {
 	dom.root.querySelectorAll('.terminal-area').find((r) => r.dataset.slug === 'cnam').click();
 	await new Promise((r) => setTimeout(r, 0));
 	btn('FLY —').click();
-	assert.deepEqual(await p, { slug: 'cnam', resume: undefined });
+	assert.deepEqual(await p, { slug: 'cnam' });
 	assert.equal(dom.root.children.length, 0, 'rien ne reste dans #ui');
 });
 
 await ta('home : [ FLY ] part sur la zone de la dernière session', async () => {
 	reset();
-	const op = operator({ sessions: [{ id: 's1', area: 'cnam', result: 'LANDED', end: '2026-09-04T12:00:00.000Z' }] });
+	const op = operator({ sessions: [{ id: 's1', area: 'cnam', result: 'CRASHED', end: '2026-09-04T12:00:00.000Z' }] });
 	const p = runTerminal(dom.root, { settings: null, api: api(op), back: true });
 	await new Promise((r) => setTimeout(r, 0));
 	// Revenir sur le même territoire est le geste courant (Bible §7) : il ne doit

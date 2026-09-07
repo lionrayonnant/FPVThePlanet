@@ -262,7 +262,7 @@ export function runTargetLog(root, { operator } = {}) {
 	s.box.appendChild(head);
 
 	const credo = document.createElement('pre');
-	credo.textContent = 'A TARGET IS A TRACE. A CRASHED TARGET IS LOST, A LANDED ONE IS DONE.';
+	credo.textContent = 'A CRASHED TARGET IS LOST. THE LOG IS WHAT REMAINS.';
 	s.box.appendChild(credo);
 
 	const table = document.createElement('pre');

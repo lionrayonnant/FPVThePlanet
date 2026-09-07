@@ -376,10 +376,9 @@ test('le rituel duck la musique sans la faire taire', () => {
 });
 
 test('les durées de transition sont ordonnées comme la mise en scène', () => {
-	// Le crash coupe net, la pose relâche, l'entrée en scène est un geste.
+	// Le crash coupe net, l'entrée en scène est un geste.
 	assert.ok(FADE.kill < FADE.drop, 'le crash doit couper plus court que le drop');
 	assert.ok(FADE.drop < FADE.menuToHack);
-	assert.ok(FADE.landed > FADE.drop, 'la pose doit relâcher plus longuement que le drop');
 });
 
 // --- sélection --------------------------------------------------------------

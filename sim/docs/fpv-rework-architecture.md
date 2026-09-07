@@ -82,8 +82,11 @@ TARGET GENERATION       drones éphémères, six familles, hack type    [PHASE 7
       ↓
 SESSION                 cible + météo + télémétrie + verdict         [PHASE 6]
       ↓
-FLIGHT                  entry state → vol → LANDED | CRASHED         [PHASE 11-15]
+FLIGHT                  entry state → vol → CRASHED                  [PHASE 11-15]
 ```
+
+> **Revised 2026-09-08 — landing removed; a flight ends by crash, geofence exit
+> or the pilot cutting the link (hold K).**
 
 La règle qui tient l'ensemble :
 

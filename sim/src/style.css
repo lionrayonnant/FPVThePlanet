@@ -198,7 +198,6 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 /* Vert et rouge parce qu'ils disent le résultat du vol — le seul emploi que la
    Bible §38 autorise pour une couleur fonctionnelle. */
-#fo-status[data-kind="landed"] { color: var(--green); }
 #fo-status[data-kind="lost"] { color: var(--red); }
 #fo-pause small, #fo-status small {
 	display: block;

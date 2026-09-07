@@ -115,13 +115,13 @@ function simulate({ seconds, sticks, at, velocity, mode = 'acro', weather }) {
 	if (at) phys.body.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
 	if (velocity) phys.body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
 	fc.reset();
-	// Même règle de pose que main.js (et que tools/landing-selftest.mjs) : gaz
+	// Même règle de contact au sol que main.js : gaz
 	// coupés au ras du sol → moteurs à zéro et groundHold. Sans elle, le banc
 	// simule un monde que le sim n'a plus : la sphère de 0,15 m descend la pente
 	// du spawn sans jamais s'arrêter (l'amortissement exponentiel divise le
 	// fluage, la gravité le réinjecte), et la vitesse lue à la fin ne mesure que
 	// la pente sous la scène. C'est ce qui faisait sortir race5 à 1,83 m/s.
-	// THR_IDLE est le seuil dérivé de la famille en vol, pas 0,06 en dur.
+	// Le seuil de gaz coupés est dérivé de la famille en vol, pas une constante.
 	const thrIdle = idleThrottle(PROFILE);
 	phys.setGroundHold(false);
 	const p0 = { ...phys.position };

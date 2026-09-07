@@ -87,12 +87,28 @@ try {
 	check('DELETE une session PENDING → 409', pending.status === 409);
 
 	const closed = await call('PATCH', `/__operator/${id}/sessions/${sid1}`, {
-		result: 'LANDED',
+		result: 'CRASHED',
 		telemetry: { durationS: 12, maxSpeedMs: 4, maxRateDps: 90, maxAltitudeM: 3, distanceM: 20 },
 	});
-	check('PATCH clôture : LANDED, réponse élidée', closed.status === 200
-		&& closed.body.session.result === 'LANDED'
+	check('PATCH clôture : CRASHED, réponse élidée', closed.status === 200
+		&& closed.body.session.result === 'CRASHED'
 		&& closed.body.session.photos[0].dataUrl === undefined);
+
+	// Les fichiers écrits avant la disparition de l'atterrissage (D9,
+	// 2026-09-08) portent des sessions LANDED. Aucune migration, aucun bump de
+	// SCHEMA_VERSION : on écrit ce verdict directement sur le disque et l'état
+	// doit continuer à se relire ET à se laisser annoter.
+	const statePath = path.join(DIR, 'operator-state', `${id}.json`);
+	const legacy = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+	legacy.sessions.find((x) => x.id === sid1).result = 'LANDED';
+	fs.writeFileSync(statePath, JSON.stringify(legacy));
+	const legacyRead = await call('GET', `/__operator/${id}`);
+	check('une vieille session LANDED se relit sans migration',
+		legacyRead.status === 200
+		&& legacyRead.body.operator.sessions.some((x) => x.id === sid1 && x.result === 'LANDED'));
+	const legacyNote = await call('PATCH', `/__operator/${id}/sessions/${sid1}/comment`, { comment: 'vieux vol' });
+	check('une vieille session LANDED accepte encore une note',
+		legacyNote.status === 200 && legacyNote.body.session.result === 'LANDED');
 
 	const gone = await call('DELETE', `/__operator/${id}/sessions/${sid1}`);
 	check('DELETE une session close → 200', gone.status === 200 && gone.body.removed === sid1);

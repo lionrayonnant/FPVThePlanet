@@ -9,17 +9,20 @@
 import { formatVisibility, windLabel } from './lib/weather.mjs';
 import { PROFILES } from '../src/drone-profiles.js';
 
-export const SESSION_FILTERS = ['ALL', 'LANDED', 'CRASHED', 'WITH PHOTOS'];
+// `LANDED` est parti avec l'atterrissage (D9, 2026-09-08) : aucun vol ne peut
+// plus produire ce verdict. Les vieilles sessions qui le portent restent
+// listées et affichées sous `ALL`, telles qu'elles ont été écrites.
+export const SESSION_FILTERS = ['ALL', 'CRASHED', 'WITH PHOTOS'];
 
 // L'identifiant de zone d'un vol EN DIRECT (#218). Une zone streamée n'existe
 // pas sur le disque : elle n'a donc pas de slug, et il faut lui en forger un
 // pour que la session ait un nom au journal — `openSession()` refuse une zone
 // qui ne se slugifie pas.
 //
-// Le préfixe `live-` n'est pas décoratif. `terminal.js` conditionne REVISIT et
-// RESUME à `model.areas.some((a) => a.slug === area)` : sans préfixe, un vol en
-// direct au-dessus d'un quartier qui porte le nom d'une zone acquise
-// proposerait de « revisiter » un terrain qui n'est pas celui qu'on a survolé.
+// Le préfixe `live-` n'est pas décoratif. `terminal.js` conditionne REVISIT à
+// `model.areas.some((a) => a.slug === area)` : sans préfixe, un vol en direct
+// au-dessus d'un quartier qui porte le nom d'une zone acquise proposerait de
+// « revisiter » un terrain qui n'est pas celui qu'on a survolé.
 // Le préfixe rend la collision impossible plutôt qu'improbable.
 //
 // Les coordonnées servent de repli quand Nominatim n'a rien rendu : une zone
@@ -77,7 +80,6 @@ export function duration(seconds) {
 export function filterSessions(sessions, filter) {
 	const list = Array.isArray(sessions) ? sessions.slice() : [];
 	switch (filter) {
-		case 'LANDED': return list.filter((s) => s.result === 'LANDED');
 		case 'CRASHED': return list.filter((s) => s.result === 'CRASHED');
 		case 'WITH PHOTOS': return list.filter((s) => (s.photos?.length ?? 0) > 0);
 		// `ALL` — et tout filtre inconnu, plutôt qu'une liste vide inexplicable.

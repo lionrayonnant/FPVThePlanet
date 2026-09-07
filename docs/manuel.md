@@ -509,8 +509,8 @@ npm run selftest:ci   # ~1 430 vérifications, ~2 min — à lancer avant de pou
 `selftest:ci` est la chaîne qui ne demande **ni scène installée, ni réseau, ni
 navigateur** : c'est ce qui la rend jouable sur un runner, où `public/scenes/`
 (gitignoré, ~900 Mo) n'existe pas. Un selftest qui a besoin de données de scène
-se retire en disant `SKIP` au lieu d'échouer — `tools/landing-selftest.mjs` est
-le modèle à suivre.
+se retire en disant `SKIP` au lieu d'échouer — `tools/entry-state-selftest.mjs`
+est le modèle à suivre.
 
 Restent locaux, par nature : `npm run selftest` (rejoue la scène `tour-eiffel`)
 et `npm run selftest:scenes` (compare `scenes.json` aux scènes installées sur

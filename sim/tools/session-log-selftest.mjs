@@ -25,7 +25,7 @@ const mk = (over = {}) => ({
 	id: 'tour-eiffel-a3f2', operatorId: 'neo-0000', area: 'tour-eiffel',
 	seq: 421, targetSeq: 42, target: TARGET, weatherSnapshot: WEATHER,
 	start: '2026-08-28T21:42:10.000Z', end: '2026-08-28T22:00:52.000Z',
-	result: 'LANDED',
+	result: 'CRASHED',
 	flightTelemetry: { durationS: 1122, maxSpeedMs: 19.4, maxRateDps: 640, maxAltitudeM: 87, distanceM: 4210 },
 	randomart: '+--[ART]--+', photos: [], comment: null, resumeCount: 0,
 	...over,
@@ -70,19 +70,20 @@ t('stamp : JJ.MM.AA / HH:MM, tiret sur une date illisible', () => {
 
 // --- filtres ----------------------------------------------------------------
 
-t('SESSION_FILTERS : les quatre filtres de la spec, dans l’ordre', () => {
-	assert.deepEqual(SESSION_FILTERS, ['ALL', 'LANDED', 'CRASHED', 'WITH PHOTOS']);
+t('SESSION_FILTERS : les trois filtres restants, dans l’ordre', () => {
+	// LANDED est parti avec l'atterrissage (D9, 2026-09-08) : un vol se termine
+	// par un crash, une sortie de zone ou une coupure — tous CRASHED.
+	assert.deepEqual(SESSION_FILTERS, ['ALL', 'CRASHED', 'WITH PHOTOS']);
 });
 
 t('filterSessions : chaque filtre ne garde que ce qu’il annonce', () => {
 	const list = [
-		mk({ id: 'a', result: 'LANDED', photos: [{ w: 1, h: 1, ts: 'x' }] }),
+		mk({ id: 'a', result: 'CRASHED', photos: [{ w: 1, h: 1, ts: 'x' }] }),
 		mk({ id: 'b', result: 'CRASHED', photos: [] }),
 		mk({ id: 'c', result: 'PENDING', photos: [] }),
 	];
 	assert.deepEqual(filterSessions(list, 'ALL').map((s) => s.id), ['a', 'b', 'c']);
-	assert.deepEqual(filterSessions(list, 'LANDED').map((s) => s.id), ['a']);
-	assert.deepEqual(filterSessions(list, 'CRASHED').map((s) => s.id), ['b']);
+	assert.deepEqual(filterSessions(list, 'CRASHED').map((s) => s.id), ['a', 'b']);
 	assert.deepEqual(filterSessions(list, 'WITH PHOTOS').map((s) => s.id), ['a']);
 });
 
@@ -90,7 +91,7 @@ t('filterSessions : filtre inconnu ou entrée non-tableau → repli sûr', () =>
 	const list = [mk()];
 	assert.equal(filterSessions(list, 'NOPE').length, 1);
 	assert.deepEqual(filterSessions(null, 'ALL'), []);
-	assert.deepEqual(filterSessions(undefined, 'LANDED'), []);
+	assert.deepEqual(filterSessions(undefined, 'CRASHED'), []);
 });
 
 t('filterSessions : ne mute jamais le tableau reçu', () => {
@@ -107,8 +108,19 @@ t('sessionRow : numéro, zone, cible, verdict, durée', () => {
 	assert.match(row, /SESSION 00421/);
 	assert.match(row, /TOUR EIFFEL/);
 	assert.match(row, /TARGET 042/);
-	assert.match(row, /LANDED/);
+	assert.match(row, /CRASHED/);
 	assert.match(row, /18m 42s/);
+});
+
+// Les fichiers opérateur écrits avant la disparition de l'atterrissage (D9,
+// 2026-09-08) contiennent des sessions LANDED. Aucune migration, aucun bump de
+// SCHEMA_VERSION : elles se relisent et s'affichent telles quelles.
+t('sessionRow : une vieille session LANDED s’affiche encore, telle quelle', () => {
+	const row = sessionRow(mk({ result: 'LANDED' }));
+	assert.match(row, /LANDED/);
+	assert.equal(row.length, sessionRow(mk()).length);
+	assert.deepEqual(filterSessions([mk({ id: 'old', result: 'LANDED' })], 'ALL').map((s) => s.id), ['old']);
+	assert.match(targetRow(targetLogEntries([mk({ result: 'LANDED' })])[0]), /LANDED/);
 });
 
 t('sessionRow : une session sans cible le dit, elle ne ment pas', () => {
@@ -194,7 +206,7 @@ t('targetRow : numéro, famille, signal, zone, date, verdict', () => {
 	assert.match(row, /HEAVY 5"/);
 	assert.match(row, /-71 dBm ANALOG/);
 	assert.match(row, /TOUR EIFFEL/);
-	assert.match(row, /LANDED/);
+	assert.match(row, /CRASHED/);
 });
 
 t('sessionRow : une zone longue est coupée, elle ne pousse pas les colonnes', () => {
@@ -204,7 +216,7 @@ t('sessionRow : une zone longue est coupée, elle ne pousse pas les colonnes', (
 	// avoir exactement la même longueur, quelle que soit la longueur du nom.
 	assert.equal(long.length, court.length);
 	assert.match(long, /CONSERVATOIRE/);
-	assert.match(long, /LANDED/);          // le verdict survit à la coupe
+	assert.match(long, /CRASHED/);         // le verdict survit à la coupe
 	assert.match(long, /…/);               // et la coupe se voit
 });
 
@@ -212,7 +224,7 @@ t('targetRow : une zone longue est coupée, elle ne pousse pas les colonnes', ()
 	const court = targetRow(targetLogEntries([mk()])[0]);
 	const long = targetRow(targetLogEntries([mk({ area: 'conservatoire-national-des-arts-et-metiers' })])[0]);
 	assert.equal(long.length, court.length);
-	assert.match(long, /LANDED/);
+	assert.match(long, /CRASHED/);
 });
 
 t('fit : complète à droite, coupe avec une ellipse, ne rend jamais plus long', () => {
@@ -284,7 +296,7 @@ t('un vol LIVE apparaît au SESSION LOG et au TARGET LOG, et il est compté par 
 t('un vol LIVE n\'est jamais revisitable : sa zone live- ne correspond à aucune zone connue', () => {
 	const liveArea = liveAreaId('Paris', 48.85, 2.35);
 	// C'est exactement le test que fait session-log.js/terminal.js avant
-	// d'afficher REVISIT AREA / RESUME SESSION : `areas.some((a) => a.slug === area)`.
+	// d'afficher REVISIT AREA : `areas.some((a) => a.slug === area)`.
 	const model = terminalModel({ operator: { name: 'neo', sessions: [] }, scenes: [] });
 	assert.ok(!model.areas.some((a) => a.slug === liveArea));
 });

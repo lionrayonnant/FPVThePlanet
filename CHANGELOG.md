@@ -23,6 +23,14 @@ rapport avec les versions ci-dessous.
 - Tests couvrant qu'un vol EN DIRECT remplit bien le Session Log, le Target
   Log et le compteur OPERATOR, et n'est jamais proposé en REVISIT/RESUME (#8).
 
+### Retiré
+
+- L'atterrissage. Un vol se termine par un crash, une sortie de zone ou le
+  pilote qui coupe le lien (K maintenue) : plus de désarmement (touche J, geste
+  manette), plus de verdict `LANDED`, plus d'écran `POST-FLIGHT ANALYSIS` ni de
+  reprise de session. Les vieux journaux qui portent `LANDED` se relisent et
+  s'affichent tels quels (#10).
+
 ### Modifié
 
 - L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build

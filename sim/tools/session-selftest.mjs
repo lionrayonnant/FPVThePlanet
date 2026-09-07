@@ -3,7 +3,7 @@
 // Lancer : node tools/session-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	openSession, resumeSession, closeSession, mergeTelemetry,
+	openSession, closeSession, mergeTelemetry, SESSION_RESULTS,
 	validateSession, reconcileStaleSessions, sanitizeWeatherSnapshot,
 	freshTelemetry, newSessionId, SESSION_ID_RE,
 	sanitizeComment, annotateSession,
@@ -44,7 +44,6 @@ t('openSession : forme PENDING complète, randomart posé, télémétrie à zér
 	assert.equal(s.target, null);
 	assert.deepEqual(s.photos, []);
 	assert.equal(s.comment, null);
-	assert.equal(s.resumeCount, 0);
 	assert.equal(s.end, null);
 	assert.ok(s.start);
 	assert.deepEqual(s.flightTelemetry, freshTelemetry());
@@ -79,10 +78,10 @@ t('closeSession : pose end + result, fusionne la télémétrie', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	s.flightTelemetry = { durationS: 40, distanceM: 100, maxSpeedMs: 12, maxRateDps: 200, maxAltitudeM: 8 };
 	const done = closeSession(s, {
-		result: 'LANDED',
+		result: 'CRASHED',
 		telemetry: { durationS: 10, distanceM: 20, maxSpeedMs: 30, maxRateDps: 100, maxAltitudeM: 40 },
 	});
-	assert.equal(done.result, 'LANDED');
+	assert.equal(done.result, 'CRASHED');
 	assert.ok(done.end);
 	assert.equal(done.flightTelemetry.durationS, 50);
 	assert.equal(done.flightTelemetry.maxSpeedMs, 30);
@@ -90,21 +89,17 @@ t('closeSession : pose end + result, fusionne la télémétrie', () => {
 	assert.throws(() => closeSession(s, { result: 'PENDING' }), /verdict invalide/);
 });
 
-t('resumeSession : LANDED seulement, garde identité, incrémente resumeCount', () => {
-	const s = closeSession(
-		openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
-		{ result: 'LANDED', telemetry: freshTelemetry() },
-	);
-	const again = resumeSession(s);
-	assert.equal(again.result, 'PENDING');
-	assert.equal(again.end, null);
-	assert.equal(again.resumeCount, 1);
-	assert.equal(again.id, s.id);
-	assert.equal(again.start, s.start);
-	assert.equal(again.randomart, s.randomart);
-	assert.throws(() => resumeSession(again), /NOT RESUMABLE/); // again est déjà PENDING
-	const crashed = closeSession(s, { result: 'CRASHED', telemetry: freshTelemetry() });
-	assert.throws(() => resumeSession(crashed), /NOT RESUMABLE/);
+// L'atterrissage a disparu (D9, 2026-09-08) : un vol ne produit plus que
+// CRASHED, et une session close ne se rouvre pas. Les fichiers écrits avant
+// portent LANDED — ils doivent continuer à passer la validation, s'annoter et
+// se relire, sans migration ni bump de SESSION_SCHEMA_VERSION.
+t('SESSION_RESULTS : plus de LANDED produit, mais un LANDED stocké reste valide', () => {
+	assert.deepEqual(SESSION_RESULTS, ['PENDING', 'CRASHED']);
+	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
+	assert.throws(() => closeSession(s, { result: 'LANDED' }), /verdict invalide/);
+	const legacy = { ...s, result: 'LANDED', end: new Date().toISOString() };
+	assert.doesNotThrow(() => validateSession(legacy));
+	assert.equal(annotateSession(legacy, 'vieux vol').result, 'LANDED');
 });
 
 t('validateSession : rejette id, result, weatherSnapshot, télémétrie non valides', () => {
@@ -120,18 +115,18 @@ t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => 
 	const old = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	old.start = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 	const fresh = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
-	const landed = closeSession(
+	const closed = closeSession(
 		openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER }),
-		{ result: 'LANDED', telemetry: freshTelemetry() },
+		{ result: 'CRASHED', telemetry: freshTelemetry() },
 	);
-	const { state, changed } = reconcileStaleSessions({ sessions: [old, fresh, landed] });
+	const { state, changed } = reconcileStaleSessions({ sessions: [old, fresh, closed] });
 	assert.equal(changed, true);
 	assert.equal(state.sessions[0].result, 'CRASHED');
 	assert.ok(state.sessions[0].end);
 	assert.equal(state.sessions[1].result, 'PENDING'); // trop récente
-	assert.equal(state.sessions[2].result, 'LANDED');
+	assert.ok(state.sessions[2].end);
 
-	const stable = reconcileStaleSessions({ sessions: [fresh, landed] });
+	const stable = reconcileStaleSessions({ sessions: [fresh, closed] });
 	assert.equal(stable.changed, false);
 });
 
@@ -144,14 +139,13 @@ const GOOD_TARGET = {
 	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'KNOWN', control: 'UNKNOWN', flightState: 'UNKNOWN' },
 };
 
-t('openSession : porte une cible validée, conservée au resume, null si absente', () => {
+t('openSession : porte une cible validée, gardée à la clôture, null si absente', () => {
 	const s = openSession({ seq: 1, targetSeq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
 	assert.equal(s.target.family, GOOD_TARGET.family);
 	assert.equal(s.target.hackType, HACK_TYPES[0]);
 	assert.equal(validateSession(s), s);
-	const landed = closeSession(s, { result: 'LANDED', telemetry: freshTelemetry() });
-	const resumed = resumeSession(landed);
-	assert.equal(resumed.target.family, GOOD_TARGET.family);
+	const closed = closeSession(s, { result: 'CRASHED', telemetry: freshTelemetry() });
+	assert.equal(closed.target.family, GOOD_TARGET.family);
 
 	const noTarget = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
 	assert.equal(noTarget.target, null);
@@ -224,12 +218,12 @@ t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur
 	assert.throws(() => sanitizeComment(42), /comment invalide/);
 });
 
-t('annotateSession : peut annoter une session déjà LANDED (pas de restriction PENDING)', () => {
+t('annotateSession : peut annoter une session déjà close (pas de restriction PENDING)', () => {
 	const opened = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
-	const closed = closeSession(opened, { result: 'LANDED', telemetry: freshTelemetry() });
-	const noted = annotateSession(closed, 'cible posée sans encombre');
-	assert.equal(noted.comment, 'cible posée sans encombre');
-	assert.equal(noted.result, 'LANDED'); // pas touché
+	const closed = closeSession(opened, { result: 'CRASHED', telemetry: freshTelemetry() });
+	const noted = annotateSession(closed, 'perdue contre une façade');
+	assert.equal(noted.comment, 'perdue contre une façade');
+	assert.equal(noted.result, 'CRASHED'); // pas touché
 	assert.doesNotThrow(() => validateSession(noted));
 });
 
@@ -306,14 +300,6 @@ t('validateSession : targetSeq obligatoire avec une cible, absent sans', () => {
 	assert.throws(() => validateSession({ ...noT, targetSeq: 4 }), /targetSeq/);
 });
 
-t('resumeSession : les deux numeros survivent — c est la meme session', () => {
-	const s = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 9 });
-	const landed = closeSession(s, { result: 'LANDED' });
-	const again = resumeSession(landed);
-	assert.equal(again.seq, 9);
-	assert.equal(again.resumeCount, 1);
-});
-
 t('stripPhotoData : retire dataUrl, garde w/h/ts, ne mute pas l original', () => {
 	const s = addPhoto(
 		openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 }),
@@ -348,7 +334,7 @@ t('deleteSession : retire l entree, ne touche a rien d autre', () => {
 	const b = openSession({ operatorId: 'op', area: 'lviv', weatherSnapshot: null, seq: 2 });
 	const state = {
 		id: 'op', sessionSeq: 2, targetSeq: 0,
-		sessions: [closeSession(a, { result: 'LANDED' }), closeSession(b, { result: 'CRASHED' })],
+		sessions: [closeSession(a, { result: 'CRASHED' }), closeSession(b, { result: 'CRASHED' })],
 	};
 	const out = deleteSession(state, state.sessions[0].id);
 	assert.equal(out.sessions.length, 1);
@@ -466,10 +452,7 @@ function stubOperator(calls) {
 			return json({ operator: { id: 'neo-0000', name: 'neo', createdAt: 'x', sessions: [], terrainCache: [], targetLog: [], settings: {}, controlVector: [], worldState: {} } });
 		}
 		if (method === 'POST' && /\/sessions$/.test(url)) {
-			const s = body.resume
-				? { id: body.resume, result: 'PENDING', resumeCount: 1 }
-				: { id: 'paris-0000', result: 'PENDING', resumeCount: 0 };
-			return json({ session: s });
+			return json({ session: { id: 'paris-0000', result: 'PENDING' } });
 		}
 		if (/\/sessions\/[^/]+\/photos$/.test(url)) {
 			calls._photos = (calls._photos ?? 0) + 1;
@@ -501,14 +484,14 @@ await ta('feed n\'accumule durée/distance que si armed ; open+end = 1 POST + 1 
 	session.feed({ speed: 20, horizontalSpeed: 15, rateDps: 300, altitudeAboveSpawn: 40, dt: 2, armed: true });
 	session.feed({ speed: 12, horizontalSpeed: 10, rateDps: 250, altitudeAboveSpawn: 18, dt: 1, armed: true });
 
-	await session.end('LANDED');
+	await session.end('CRASHED');
 
 	const posts = calls.filter((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
 	const patches = calls.filter((c) => c.method === 'PATCH' && /\/sessions\//.test(c.url));
 	assert.equal(posts.length, 1);
 	assert.equal(patches.length, 1);
 	const tel = patches[0].body.telemetry;
-	assert.equal(patches[0].body.result, 'LANDED');
+	assert.equal(patches[0].body.result, 'CRASHED');
 	assert.equal(tel.durationS, 3);           // 2 + 1, pas le pas désarmé
 	assert.equal(tel.distanceM, 40);          // 15*2 + 10*1
 	assert.equal(tel.maxSpeedMs, 20);
@@ -543,7 +526,7 @@ await ta('couverture : rien n\'est écrit pendant le vol, une seule écriture à
 	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
 		'aucune écriture opérateur pendant le vol');
 
-	await session.end('LANDED');
+	await session.end('CRASHED');
 	await op.flush();
 	const patches = calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
 	assert.equal(patches.length, 1, 'une seule écriture, à la clôture');
@@ -573,7 +556,7 @@ await ta('couverture : désarmé ou gelé, on n\'échantillonne pas ; geo non fi
 		session.feed({ dt: 1 / 60, armed: true, geo: () => ({ lat: NaN, lon: 2 }) });
 	}
 	assert.equal(session.coverage().size, 0, 'une position dégénérée ne marque rien');
-	await session.end('LANDED');
+	await session.end('CRASHED');
 	await op.flush();
 	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
 		'une session qui n\'a rien marqué n\'écrit pas la clé');
@@ -590,7 +573,7 @@ await ta('couverture : la clôture FUSIONNE avec ce que l\'opérateur avait déj
 	for (let i = 0; i < 12; i++) {
 		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });   // 12 frames = 1 échantillon
 	}
-	await session.end('LANDED');
+	await session.end('CRASHED');
 	await op.flush();
 	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
 	const centre = patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731);
@@ -607,7 +590,7 @@ await ta('couverture : une couverture opérateur corrompue n\'empêche pas la cl
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
-	const s = await session.end('LANDED');
+	const s = await session.end('CRASHED');
 	assert.ok(s, 'la session se ferme');
 	await op.flush();
 	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
@@ -615,17 +598,7 @@ await ta('couverture : une couverture opérateur corrompue n\'empêche pas la cl
 	assert.equal(patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731)[2], 1);
 });
 
-await ta('open({ resume }) envoie { resume } et rien d\'autre', async () => {
-	const calls = [];
-	stubOperator(calls);
-	await op.createOperator('neo');
-	session._reset();
-	await session.open({ resume: 'paris-abcd' });
-	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
-	assert.deepEqual(post.body, { resume: 'paris-abcd' });
-});
-
-await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex, pas de resume', async () => {
+await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -636,7 +609,6 @@ await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex, pas 
 	assert.equal(post.body.targetSeed, 's');
 	assert.equal(post.body.targetCount, 4);
 	assert.equal(post.body.targetIndex, 1);
-	assert.ok(!('resume' in post.body));
 });
 
 await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur local', async () => {

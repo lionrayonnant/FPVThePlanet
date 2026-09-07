@@ -411,7 +411,7 @@ try {
 		refusedPhoto.status === 413 && /quota atteint/.test((await refusedPhoto.json()).error ?? ''));
 	const closed = await fetch(`${sbase}/__operator/${fat.operator.id}/sessions/${sid}`, {
 		method: 'PATCH', headers: { ...bearer(fat.key), 'content-type': 'application/json' },
-		body: JSON.stringify({ result: 'LANDED', end: new Date().toISOString() }),
+		body: JSON.stringify({ result: 'CRASHED', end: new Date().toISOString() }),
 	});
 	check('shared : le quota ne bloque JAMAIS le vol — la session se clôt quand même',
 		closed.status === 200);

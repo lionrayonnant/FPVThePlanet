@@ -158,7 +158,7 @@ function buildRates(rand, presetName, amount) {
 }
 
 // seed : le `buildSeed` porté par la cible résolue (tools/target-model.mjs), de
-// sorte que le serveur, le client et un resume produisent le même exemplaire.
+// sorte que le serveur et le client produisent le même exemplaire.
 // La livrée seule, sans le reste du build (issue #284). Même graine, même
 // famille ⇒ même livrée, et le flux est distinct de celui de la physique.
 export function targetLivery({ seed, family } = {}) {

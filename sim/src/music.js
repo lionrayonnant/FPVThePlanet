@@ -182,12 +182,6 @@ export class Music {
 	}
 
 	/** La pose : on relâche. */
-	stop({ fadeMs = FADE.landed } = {}) {
-		if (this.current) this._retire(this.current, fadeMs);
-		this.current = null;
-		this.intensity = 0;
-	}
-
 	/** Le crash : la musique meurt avec le lien. Court, mais pas un clic. */
 	kill() {
 		if (this.current) this._retire(this.current, FADE.kill);

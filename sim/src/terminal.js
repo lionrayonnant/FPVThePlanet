@@ -339,7 +339,7 @@ ${shown}</pre>`;
 
 // ---------- LAST SESSION ----------
 
-// Résout undefined, un slug (REVISIT AREA) ou { slug, resume } (RESUME SESSION).
+// Résout undefined ou un slug (REVISIT AREA).
 function lastSessionScreen(root, model) {
 	const s = screen(root);
 	return new Promise((resolve) => {
@@ -371,12 +371,9 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 			nav?.focusAt(0);
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
-		// terrain persistent, flights ephemeral : seule une session LANDED garde
-		// son drone, donc seule elle se reprend. Un CRASHED est terminal.
-		if (ls.result === 'LANDED' && areaKnown) {
-			s.box.appendChild(button('RESUME SESSION',
-				() => done({ slug: area, resume: ls.id }), 'terminal-cta'));
-		}
+		// terrain persistent, flights ephemeral : un vol perdu ne se reprend pas
+		// (D9, 2026-09-08 : l'atterrissage a disparu, RESUME SESSION avec lui).
+		// Le terrain, lui, reste — on le revisite.
 		if (areaKnown) {
 			s.box.appendChild(button('REVISIT AREA', () => done(area), 'terminal-cta'));
 		}
@@ -493,10 +490,10 @@ function buildNotesScreen(root, operator) {
 //
 // Cet écran ne RÉIMPLÉMENTE rien : il appelle les écrans existants tels quels.
 // Il doit en revanche résoudre VERS LE HAUT, parce que REVISIT (depuis SESSION
-// LOG) et RESUME (depuis LAST SESSION) rendent tous deux un vol : les avaler ici
-// laisserait l'opérateur sur un écran de journal après avoir demandé à voler.
+// LOG) rend un vol : l'avaler ici laisserait l'opérateur sur un écran de
+// journal après avoir demandé à voler.
 //
-// Résout undefined (retour à la Home), un slug, ou { slug, resume }.
+// Résout undefined (retour à la Home) ou un slug.
 function archiveScreen(root, { model, api, scenes, settings }) {
 	const s = screen(root, 'terminal-archive');
 	return new Promise((resolve) => {
@@ -520,9 +517,9 @@ function archiveScreen(root, { model, api, scenes, settings }) {
 		s.box.appendChild(navRow([
 			['LAST SESSION', () => behind(async () => {
 				const r = await lastSessionScreen(root, model);
-				// lastSessionScreen rend un slug, { slug, resume }, ou rien.
+				// lastSessionScreen rend un slug ou rien.
 				return typeof r === 'string' ? r : r ?? undefined;
-			}), 'Review or resume your most recent flight'],
+			}), 'Review your most recent flight'],
 			['SESSION LOG', () => behind(async () => {
 				const { runSessionLog } = await import('./session-log.js');
 				return await runSessionLog(root, { operator: api.getOperator(), scenes });
@@ -623,7 +620,7 @@ export async function operatorKey(root, api = operatorApi) {
 // Monte l'Operator Terminal et résout le slug de la zone à survoler.
 // `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
 // le même panneau que Tab en vol.
-// Résout { slug, resume } pour voler une zone cuite, { live: [lat, lon] } pour
+// Résout { slug } pour voler une zone cuite, { live: [lat, lon] } pour
 // décoller en direct depuis le scanner, ou null pour remonter au choix de mode
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
 export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
@@ -779,7 +776,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				s.el.hidden = true;
 				const r = await archiveScreen(root, { model, api, scenes, settings });
 				if (typeof r === 'string') return fly(r);
-				if (r) return fly(r.slug, r.resume);
+				if (r) return fly(r.slug);
 				s.el.hidden = false;
 				// Une suppression a pu changer les compteurs du pied.
 				renderLeft();
@@ -859,7 +856,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	// appelle map.remove(), sans quoi une Home ouverte trois fois laisse trois
 	// cartes vivantes derrière elle.
 	const quit = (value) => { scanner?.destroy(); scanner = null; nav?.detach(); s.remove(); resolveFly(value); };
-	const fly = (slug, resume) => quit({ slug, resume });
+	const fly = (slug) => quit({ slug });
 	// Vol en direct. La Home ne fait que TRANSMETTRE, sans rien lire ni rien
 	// décider : le scanner joint au point le relevé qu'il vient de faire de la
 	// zone (densité de signal, nom du lieu), et c'est fieldLoop() qui sait ce

@@ -183,7 +183,7 @@ await ta('target log : le titre parle en DISPLAY, la table est de la donnée', a
 	assert.match(table.textContent, /PARISTEST/);
 	assert.doesNotMatch(table.textContent, /TARGET LOG/, 'le titre n\'est pas dans la table');
 	assert.match(dom.root.textContent, /TARGET LOG/, 'mais il est bien à l\'écran');
-	assert.match(dom.root.textContent, /A TARGET IS A TRACE/);
+	assert.match(dom.root.textContent, /THE LOG IS WHAT REMAINS/);
 	// On REFERME (#210) : un écran laissé monté garde son nav, sa scrutation
 	// manette et son écouteur clavier, et Node ne rend jamais la main. Le
 	// `reset()` du test suivant le retire du DOM, ce que menu-nav.js balaie

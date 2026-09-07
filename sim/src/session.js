@@ -39,13 +39,13 @@ function zeroTel() {
 
 export function current() { return live?.session ?? null; }
 
-export async function open({ area, weatherSnapshot, resume, target } = {}) {
+export async function open({ area, weatherSnapshot, target } = {}) {
 	// `target = { seed, count, index }` : la cible choisie au TARGET SCAN. Le
 	// serveur régénère la fiche complète depuis ces trois clés (PHASE 08).
-	const body = resume
-		? { resume }
-		: { area, weatherSnapshot, targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index };
-	const session = await operator.postSession(body);
+	const session = await operator.postSession({
+		area, weatherSnapshot,
+		targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index,
+	});
 	live = { id: session.id, session, tel: zeroTel(), closed: false, cov: new Coverage(), sinceSample: 0 };
 	return session;
 }
@@ -54,7 +54,7 @@ export async function open({ area, weatherSnapshot, resume, target } = {}) {
 export function coverage() { return live?.cov ?? null; }
 
 // Appelé une fois par frame. N'agrège durée et distance que quand le drone est
-// armé — un drone posé et désarmé ne « vole » pas.
+// armé — une épave ne « vole » pas.
 //
 // `geo` (issue #245) : une FONCTION qui rend { lat, lon }, pas la valeur. Elle
 // n'est appelée qu'aux échantillons (5 Hz), pour que la conversion ENU → lat/lon
@@ -102,7 +102,8 @@ export async function capturePhoto({ dataUrl, w, h }) {
 	}
 }
 
-// `LANDED` ou `CRASHED`. Idempotent : le premier verdict gagne.
+// `CRASHED`, le seul verdict qu'un vol produise (D9, 2026-09-08 :
+// l'atterrissage a disparu). Idempotent : le premier verdict gagne.
 export async function end(result) {
 	if (!live || live.closed) return null;
 	live.closed = true;

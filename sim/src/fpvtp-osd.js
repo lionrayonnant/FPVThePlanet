@@ -172,7 +172,7 @@ export class FpvtpOsd {
 			: '';
 	}
 
-	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
+	// Verdict de fin de session (PHASE 06). kind: 'lost' | null.
 	setSessionStatus(text, kind = null) {
 		this._status = text ? { text, kind } : null;
 		this._refreshCentre();

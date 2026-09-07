@@ -248,8 +248,8 @@ const HIGH_Y = b.max[1] + 200;
 const LEVEL = { x: 0, y: 0, z: 0, w: 1 };
 const ZERO = { x: 0, y: 0, z: 0 };
 
-// Place le corps à l'arrêt, à plat. Mêmes appels que
-// tools/landing-selftest.mjs:53-61 — il n'existe pas de `teleport`. Pas de
+// Place le corps à l'arrêt, à plat. Rapier n'a pas de `teleport` : c'est
+// setTranslation/setRotation/setLinvel/setAngvel, dans cet ordre. Pas de
 // paramètre de vitesse : rien ici n'est jamais lancé à une vitesse posée à la
 // main, c'est tout l'objet de l'écart 3.
 function place(z) {

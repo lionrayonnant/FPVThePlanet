@@ -925,6 +925,11 @@ Pas de blague.
 
 ### Landing
 
+> **Révision 2026-09-08 (D9).** Retiré. Il n'y a plus de pose reconnue, plus de
+> désarmement, plus de `SESSION COMPLETE` : un vol se termine par un crash, une
+> sortie de zone ou le pilote qui coupe le lien (K tenue). Ce qui suit reste
+> pour mémoire.
+
 ```text
 LANDING DETECTED
 MOTORS DISARMED
