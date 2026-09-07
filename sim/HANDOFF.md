@@ -2369,11 +2369,11 @@ pour tenir une pose stable :
 3. **Le fondu à la montée en gaz** (continu ou strobe) et la **lisibilité du
    lacet** sur la paire visible : ça demande une capture vidéo, pas des images
    fixes.
-4. **Le portrait.** La lisibilité du fil de fer à 160 px (sans élimination des
-   faces cachées, il y a 628 à 784 segments), la vitesse de rotation (un tour en
-   24 s), et surtout **le ton** : au crash, il doit arriver comme ce qu'il
-   reste, pas comme une récompense. C'est la révision de Bible §24 ; si l'effet
-   est celui d'un trophée, c'est la révision qu'il faut refaire, pas le code.
+4. **Le portrait.** La lisibilité à 160 px a été regardée et retravaillée
+   (issue #283, ci-dessous) ; restent la vitesse de rotation (un tour en 24 s)
+   et surtout **le ton** : au crash, il doit arriver comme ce qu'il reste, pas
+   comme une récompense. C'est la révision de Bible §24 ; si l'effet est celui
+   d'un trophée, c'est la révision qu'il faut refaire, pas le code.
 
 ```text
 1. npm run dev, puis FIELD → une zone → TARGET SCAN → hack → JACK IN
@@ -2402,6 +2402,176 @@ pour tenir une pose stable :
 9. Mode DIGITAL, image perdue : les hélices doivent geler AVEC l'image, et non
    continuer à tourner derrière.
 ```
+
+
+## Le visuel des frames du joueur (issue #283)
+
+Suite de #264/#281 : la recette aux niveaux `onboard` et `portrait`, le
+maillage, le fil de fer et la free cam ont été **rendus et regardés** — pas en
+jeu (aucune scène sur cette machine) mais hors jeu, à géométrie et shader
+identiques.
+
+### Vérifié — rendu hors jeu, regardé
+
+- **Fil de fer**, six familles × {160 px, 200 px, 400 px} × {fiche d'archive,
+  assistant de calibrage, roulis 30°}, SVG produit par `wireOf()` et capturé
+  par Chromium headless. Avant : une tache — les pales en boîtes vrillées
+  (144 arêtes qui ne dessinent rien), les cloches qui doublent les moteurs
+  (288 des 640 segments du freestyle étaient des cylindres de moteur). Après :
+  les pales se lisent comme des pales, les disques et les bras portent le
+  dessin, le détail s'efface. 610 à 756 segments par famille.
+- **Vue embarquée et free cam**, WebGL via SwiftShader (`--use-angle=swiftshader`),
+  `PlayerDrone` monté exactement comme dans `main.js` : les pales tournent
+  avec la phase (`uPhase`, vérifié à ω = 60 rad/s, dt = 20 ms : 1,2 rad), le
+  fondu vers le disque à 1 800 rad/s, le bord du disque doux, le voile plus
+  dense au moyeu. Le reflet et le liseré se voient sur les flancs à un gain
+  d'exposition ×3 — ce que l'AGC de la lentille fait en jeu — pas à gain 1, où
+  la machine reste presque noire sur ciel clair : la couleur du carbone est
+  celle de la palette, ce n'est pas un bug.
+- La **silhouette des ambiants** n'a pas bougé : les six empreintes de
+  `drone-shape-selftest.mjs` passent telles quelles ; la formule du disque sans
+  pales est textuellement celle d'avant (les termes nouveaux sont multipliés
+  par `uBlades`).
+- La **borne DA** tient : `onboard-frame-selftest.mjs` et
+  `onboard-drone-selftest.mjs` inchangés et verts. Le moyeu a d'ailleurs été
+  retiré du niveau `onboard` pour cela — sur le toothpick (objectif à 1,5 mm du
+  plan d'hélice) il montait à 51 % de la hauteur du cadre.
+
+### NON vérifié — en jeu
+
+1. Le rendu POV à travers la passe d'objectif (bruit, AGC, gel DIGITAL) : les
+   captures ci-dessus sont sans lentille.
+2. Le ralenti des pales en mouvement (strobe attendu entre 150 et 377 rad/s,
+   comme sur une vraie caméra) et le rolling shutter du disque en vidéo.
+3. La free cam à 0,8 m avec le vrai champ de 100 à 150° — le chiffre est un
+   calcul, pas une capture.
+4. Le portrait dans les trois écrans réels, avec les nouvelles règles CSS
+   (`.drone-portrait`, `.session-portrait`) : rendu sur faux DOM seulement.
+
+
+## Châssis par build, GoPro, marque du propriétaire — et la vérification en jeu (issue #285)
+
+### Comment la vérification en jeu a été faite (réutilisable)
+
+Il n'y a pas de GPU ni de scène installée sur cette machine ; il y a du réseau
+vers `kh.google.com` par le proxy de la session, que Chromium ne sait pas
+traverser (son CONNECT est réinitialisé). Le montage :
+
+1. `NODE_USE_ENV_PROXY=1 node tools/add-map.mjs "Trocadero test" 48.862 2.288
+   --provider google-earth --radius 12 --slug trocadero-test` — une scène de
+   1,4 MB en une seconde (Node passe par le proxy). L'entrée ajoutée à
+   `public/scenes.json` n'est PAS commitée.
+2. Un relais HTTP local (`fetch` Node vers `kh.google.com`, CORS ouvert) et
+   `VITE_ROCKTREE_BASE=http://127.0.0.1:8124/rt/earth/ npx vite` : le terrain
+   live du jeu passe par lui (`tools/lib/rocktree/url.mjs`).
+3. Chromium headless (`/opt/pw-browsers`, `--use-angle=swiftshader`) piloté
+   par CDP depuis Node 22 (WebSocket natif, sans Playwright) :
+   `Page.navigate`, `Runtime.evaluate` sur `window.__sim`, `Input.dispatchKeyEvent`
+   pour `C`, `Page.captureScreenshot`. 2 à 4 fps ; le jeu tourne.
+4. `?scene=trocadero-test&family=freestyle5&build=g1::0` : le chemin dev avec
+   un exemplaire tiré (`?build=`, ajouté pour ça). `?live=` ne construit pas le
+   drone du joueur (`openFlightSession()` en sort tout de suite) : inutile ici.
+
+### Vu en jeu
+
+- **POV** : les bras dans les coins bas du cadre, les disques d'hélice de la
+  couleur des pales (roses sur `g1::0`) à travers l'objectif, le brouillard et
+  l'AGC. Avant densification du voile, une ombre brune à peine visible.
+- **Lacet** : `physics.propulsion.omega` à `[2637, 2121, 2117, 2637]` sur un
+  lacet à droite — la paire avant se sépare comme le selftest le promet.
+- **Free cam** (`C`) à 0,55 m : la machine occupe ~170 px sur 1 280, les
+  disques translucides prennent la couleur des pales. Le corps reste une
+  silhouette sombre sur ciel clair : c'est l'exposition, pas un bug.
+- **Session terminée** par perte de lien (la scène est minuscule, le drone en
+  sort) : la séquence de fin se joue, `[ENTER] DISCONNECT / [R] REDEPLOY`.
+
+### NON vérifié en jeu
+
+1. **Le portrait au crash** : aucun crash obtenu — à 4 fps le pas de temps est
+   borné, la chute est lente, et la scène de 12 m de rayon est quittée avant
+   l'impact (perte de lien, pas crash). Le SVG lui-même a été rendu dans un
+   vrai Chromium hors jeu et le câblage est couvert par les selftests sur faux
+   DOM.
+2. Le sergé carbone, l'usure, le numéro et l'objectif GoPro à travers
+   l'objectif de vol : la free cam en jeu est trop loin et trop sombre pour
+   les lire ; ils ont été rendus et lus hors jeu (gros plans, gain ×2,5).
+3. Le strobe des pales au ralenti et le rolling shutter en mouvement.
+
+### Ce qui a été ajouté
+
+- `tools/target-frame.mjs` + `target-frame-selftest.mjs` (46) : patrons,
+  fréquences par famille à ±7 %, un bras arrive toujours à son moteur pour
+  les 6 familles × 4 patrons, la silhouette ne lit pas le châssis.
+- GoPro : objectif au `portrait`, boîtier dans la livrée. Propriétaire :
+  numéro (autocollant, classe `STICKER` du shader, police 3×5 lue depuis
+  l'arrière — rendu et lu, deux orientations fausses avant la bonne) et ruban.
+- `target-livery-selftest.mjs` : 43 vérifications.
+
+
+## Cloches dans le champ, hémisphère, fil de fer allégé, banc (issue #286)
+
+- Les **cloches** passent au niveau `onboard` : dans le champ, les coins bas
+  montrent la couleur du build (rendu hors jeu, g1::0 : cloches violettes sous
+  les pales roses). En jeu, à travers l'objectif, elles se devinent — la
+  lentille désature les coins bas.
+- **Hémisphère ciel/sol** dans `DroneMaterial` (`lit = 0,45 + 0,25·(½ + ½·n.y)
+  + 0,45·soleil`). Les ambiants le prennent aussi (même shader, un pixel à
+  cent mètres). En jeu la free cam reste sombre contre un ciel exposé par
+  l'AGC : c'est l'exposition, pas l'éclairage.
+- **`minWeight`** dans `wireSvg()` ; `dronePortrait()` le pose à 0,18 sous
+  200 px. Rendu à 160 px : les disques, les bras et le corps restent, le détail
+  s'en va.
+- **`TARGET LOG`** : la livrée sur la ligne sous `LAST TARGET`.
+- **Banc** : `applyBenchConfig()` reconstruit `playerDrone` avec l'exemplaire
+  qui vole. Non vérifié en jeu (le panneau du banc n'a pas été piloté).
+
+## Une livrée par build (issue #284)
+
+Toutes les machines étaient peintes des quatre mêmes gris de la palette. Chaque
+build porte maintenant une **livrée** (`build.livery`, `tools/target-livery.mjs`)
+et le maillage une **classe de matériau** par sommet (`aMat` : carbone, métal,
+plastique) avec un sergé carbone procédural.
+
+### Vérifié — sans navigateur
+
+- `tools/target-livery-selftest.mjs` (33) : déterminisme, flux de graine à part
+  (`::livery::` — le profil et les rates ne bougent pas), hex et noms valides
+  sur 240 tirages, pondérations par famille tenues à ±8 % sur 400 tirages
+  (race5 vif 0,85, longrange 0,25), 60 freestyle ⇒ ≥ 40 livrées distinctes,
+  `liveryColors(null)` vide (les gris restent), `liveryLabel`.
+- `target-build-selftest.mjs` inchangé et vert : les tirages physiques n'ont
+  pas bougé.
+
+### Vérifié — rendu hors jeu, regardé
+
+Six builds en free cam (WebGL headless, gain ×2,2 pour simuler l'AGC) : les
+livrées se distinguent au premier regard — hélices néon / cloches bleues /
+pack vert, hélices fumées / cloches argent, conduits bleus sur le toothpick.
+Le POV à 1 800 rad/s montre un disque de la couleur des pales.
+
+### Deuxième passe, regardée sur 24 générations
+
+Rendu d'une planche de 24 builds (`g1::0` à `g1::23`, familles en rotation)
+avant / après. Avant : des confettis — hélices roses, TPU rouge, LED bleue sur
+la même machine. Après : `MATCH` dans `target-livery.mjs` assortit TPU, cloche,
+sangle et LED aux hélices pour une part des builds (55 / 35 / 60 / 45 %),
+hélices bicolores (`tip`, 25 % des race5, 5 % des long range), boîtier de
+caméra en TPU, sangle de pack et barre de LED émissive au niveau `portrait`,
+et l'**usure** (`wearOf` dans `target-build.mjs`, lue dans `internalOhm` et
+`bodyDrag`, jamais tirée) : poussière dessous, éraflures, brillant éteint,
+bouts de pales blanchis. `target-livery-selftest.mjs` passe à 38
+vérifications (proportions d'assortiment, bicolores, usure bornée et
+monotone).
+
+### NON vérifié
+
+1. Le sergé carbone à l'écran : porté par le reflet (la base #121110 est trop
+   sombre pour l'albédo), il ne se juge qu'en mouvement et sous le soleil du
+   jeu. Même réserve pour l'usure, qui est du même ordre de finesse.
+2. Les couleurs à travers l'objectif de vol (AGC, bruit, DIGITAL) — jugées
+   hors lentille.
+3. La légende de livrée dans la fiche SESSION LOG, rendue sur faux DOM
+   seulement.
 
 ## Non vérifié / à faire
 

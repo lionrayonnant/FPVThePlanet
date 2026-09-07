@@ -228,6 +228,13 @@ d'uptilt que `targetCamera` peut tirer pour elle.
 - `portrait` — `onboard`, plus ce qui ne se voit que de près et qui distingue
   deux machines : cloches moteur, plaque découpée, stack, fixations d'antenne.
 
+> **Révisé (issue #283).** Les pales sont devenues une primitive `blade` à
+> part entière (planform, vrillage par station, contour unique lu par le
+> maillage et le fil de fer) ; le `portrait` porte moyeux, cage de caméra et
+> fixations d'antenne, son stack est sous la plaque ; la free cam l'utilise.
+> Le moyeu n'est PAS au niveau `onboard` : il crèverait la borne de hauteur
+> sur le toothpick.
+
 `boundingRadius` garde son sens à tous les niveaux.
 
 ### Pas de liste d'arêtes
