@@ -136,6 +136,23 @@ rapport avec les versions ci-dessous.
 - Le dépôt est désormais `lionrayonnant/FPVThePlanet` : toutes les références
   internes, `deploy/deploy.sh` et l'unité systemd comprises, pointent dessus.
 
+### Modifié
+
+- **La release publie ce qu'il faut pour héberger sa propre instance.**
+  L'archive `fpvtp-server-<tag>-linux-x64.tar.gz` emporte désormais `deploy/`
+  (unité systemd, Caddyfile, script de livraison, checklist) et la `LICENSE` —
+  que l'AGPL exige de faire accompagner le programme distribué — en plus du
+  serveur, du jeu construit et d'un runtime Node. Toujours aucun `npm install`
+  à faire sur la machine d'accueil. La licence voyage aussi dans l'application
+  Electron (`extraResources`).
+- Le corps de la GitHub Release liste maintenant les fichiers et dit lequel
+  télécharger selon qu'on veut jouer ou héberger.
+- Le workflow refuse de publier une archive qui ne démarre pas : le runtime
+  embarqué doit résoudre `server/index.mjs` avant que l'archive soit scellée.
+- L'archive `fpvtp-sim-<tag>.zip` (le `dist/` seul) disparaît : elle ne pouvait
+  pas démarrer — c'est précisément ce que #259 reprochait aux « livraisons »
+  d'avant.
+
 ### Corrigé
 
 - Le scanner disait `NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP` alors que

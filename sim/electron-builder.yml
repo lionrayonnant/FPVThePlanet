@@ -50,6 +50,13 @@ asarUnpack:
   - '**/node_modules/sharp/**'
   - '**/node_modules/@img/**'
 
+# La licence voyage avec l'application. L'AGPL demande qu'elle accompagne le
+# programme distribué ; elle vit à la racine du dépôt, un cran au-dessus du
+# contexte de build (sim/), d'où le chemin relatif.
+extraResources:
+  - from: ../LICENSE
+    to: LICENSE
+
 win:
   target:
     - target: nsis

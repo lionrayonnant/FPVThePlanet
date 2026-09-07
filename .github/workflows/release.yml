@@ -48,9 +48,6 @@ jobs:
       - name: Notes de version, reprises du CHANGELOG
         run: node tools/release-notes.mjs "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
 
-      - name: Archive du build
-        run: zip -qr "${RUNNER_TEMP}/fpvtp-sim-${GITHUB_REF_NAME}.zip" dist
-
       # L'archive que deploy/deploy.sh installe sur le VPS. `dist` seul ne
       # démarre pas : server/api.mjs importe tools/lib/*, tools/*.mjs et
       # src/geofence.js. Le serveur n'a en revanche besoin d'AUCUN paquet npm
@@ -61,7 +58,7 @@ jobs:
       # /opt/fpvtp/current/node/bin/node, et une unité ProtectSystem=strict ne
       # doit pas dépendre de la version que la distribution du jour propose. On
       # prend EXACTEMENT celle qui vient de faire passer les selftests.
-      - name: Archive du serveur pour le VPS (deploy/deploy.sh)
+      - name: Archive du serveur, pour héberger une instance
         run: |
           set -euo pipefail
           v="$(node -p 'process.version')"
@@ -69,10 +66,46 @@ jobs:
           mkdir -p "${stage}/app" "${stage}/node"
           cp -r server tools src package.json "${stage}/app/"
           cp -r dist "${stage}/app/"
+          # Tout ce qu'il faut pour installer la chose sans revenir au dépôt :
+          # l'unité systemd, le Caddyfile, deploy.sh et sa checklist humaine.
+          cp -r ../deploy "${stage}/deploy"
+          # L'AGPL demande que la licence accompagne le programme qu'on
+          # distribue. Ce n'est pas décoratif : sans elle l'archive n'est pas
+          # conforme.
+          cp ../LICENSE "${stage}/LICENSE"
           curl -fsSL "https://nodejs.org/dist/${v}/node-${v}-linux-x64.tar.xz" -o "${RUNNER_TEMP}/node.tar.xz"
           tar -xJf "${RUNNER_TEMP}/node.tar.xz" -C "${stage}/node" --strip-components=1
+          # Le runtime embarqué doit démarrer LE serveur, pas seulement
+          # s'annoncer : on lui fait résoudre les chemins avant de sceller
+          # l'archive. Une archive qui ne démarre pas ne doit pas être publiée.
           "${stage}/node/bin/node" --version
-          tar -czf "${RUNNER_TEMP}/fpvtp-server-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C "${stage}" app node
+          "${stage}/node/bin/node" "${stage}/app/server/index.mjs" --help > /dev/null
+          tar -czf "${RUNNER_TEMP}/fpvtp-server-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C "${stage}" app node deploy LICENSE
+
+      # Ce que la Release contient, écrit dans son corps : sans ça personne ne
+      # sait lequel des quatre fichiers télécharger.
+      - name: Ajouter l'inventaire des fichiers aux notes
+        run: |
+          cat >> "${RUNNER_TEMP}/notes.md" <<'NOTES'
+
+          ---
+
+          ## Quel fichier télécharger
+
+          | Fichier | Pour qui |
+          |---|---|
+          | `FPVTP-*-win-x64.exe` | **Jouer sous Windows.** Installeur : entrée Menu Démarrer, désinstalleur, mise à jour automatique. |
+          | `FPVTP-*-linux-x86_64.AppImage` | **Jouer sous Linux.** Rendre exécutable, double-cliquer. |
+          | `fpvtp-server-*-linux-x64.tar.gz` | **Héberger une instance.** Le serveur, le jeu construit, un runtime Node, et `deploy/` (unité systemd, Caddyfile, script de livraison, checklist). Aucun `npm install` à faire. |
+          | `latest.yml` / `latest-linux.yml` | Les flux de mise à jour automatique. Ne pas télécharger à la main. |
+
+          Héberger : décompresser, puis suivre `deploy/README.md`. Le serveur
+          écoute sur `127.0.0.1` et refuse d'aller plus loin sans `--mode shared`,
+          qui réclame alors une clé d'opérateur à chaque requête.
+
+          Le jeu est sous [AGPL-3.0](LICENSE) : si vous en hébergez une version
+          modifiée pour d'autres personnes, vous devez leur en publier les sources.
+          NOTES
 
       - name: Créer la GitHub Release
         env:
@@ -82,7 +115,6 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --title "${GITHUB_REF_NAME}" \
             --notes-file "${RUNNER_TEMP}/notes.md" \
-            "${RUNNER_TEMP}/fpvtp-sim-${GITHUB_REF_NAME}.zip" \
             "${RUNNER_TEMP}/fpvtp-server-${GITHUB_REF_NAME}-linux-x64.tar.gz"
 
   # L'app installée (issue #259, tranche T2). Chaque plateforme se construit sur
