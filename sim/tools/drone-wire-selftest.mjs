@@ -7,8 +7,8 @@
 // PROPRIÉTÉS — combien de segments par primitive, les bornes de la boîte, le
 // déterminisme, l'invariance d'échelle, le fait que la vue tourne — jamais un
 // nombre lu dans drone-shape.js.
-import { wireOf, CIRCLE_STEPS } from '../src/drone-wire.js';
-import { shapeOf } from '../src/drone-shape.js';
+import { wireOf, CIRCLE_STEPS, circleSteps } from '../src/drone-wire.js';
+import { shapeOf, BLADE_STATIONS } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
@@ -73,16 +73,27 @@ check('la vue tourne vraiment',
 
 // ————— Les propriétés de la dérivation d'arêtes —————
 // Le contrat annoncé par le plan et par la spec : une boîte donne 12 arêtes,
-// un cylindre (et un conduit) deux cercles plus ses génératrices, un disque un
-// cercle, un point rien. C'est ce qui remplace la liste d'arêtes qu'on n'écrit
-// pas dans la recette — donc c'est ce qu'il faut tenir.
+// un cylindre (et un conduit) deux cercles plus ses génératrices — un petit
+// cylindre a moitié moins de côtés mais toujours quatre génératrices (#283) —,
+// un disque un cercle, une pale son
+// contour (deux bords par station, plus l'emplanture et le bout), un point
+// rien. C'est ce qui remplace la liste d'arêtes qu'on n'écrit pas dans la
+// recette — donc c'est ce qu'il faut tenir.
 {
-	const perKind = { box: 12, cylinder: 2 * CIRCLE_STEPS + CIRCLE_STEPS / 4, disc: CIRCLE_STEPS, point: 0 };
-	perKind.ring = perKind.cylinder;
+	const perKind = (p, R) => {
+		switch (p.kind) {
+			case 'box': return 12;
+			case 'cylinder': case 'ring': { const n = circleSteps(p.size[0], R); return 2 * n + 4; }
+			case 'disc': return circleSteps(p.size[0], R);
+			case 'blade': return 2 * BLADE_STATIONS + 2;
+			default: return 0;
+		}
+	};
+	check('un petit cercle a moins de côtés qu\'un grand', circleSteps(0.01, 1) < circleSteps(0.5, 1) && circleSteps(0.5, 1) === CIRCLE_STEPS);
 	let ok = true, detail = '';
 	for (const family of FAMILIES) {
 		const shape = portrait(family);
-		const want = shape.parts.reduce((n, p) => n + (perKind[p.kind] ?? 0), 0);
+		const want = shape.parts.reduce((n, p) => n + perKind(p, shape.boundingRadius), 0);
 		const got = wireOf(shape, VIEW).segments.length / 4;
 		if (got !== want) { ok = false; detail += ` ${family}:${got}≠${want}`; }
 	}
