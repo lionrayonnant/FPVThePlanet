@@ -10,3 +10,6 @@ operator-state/
 
 # Cache local pour les opérations de décodage rocktree
 .cache/
+
+# Sorties d'electron-builder (installeurs, app décompressée).
+release/
