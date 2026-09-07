@@ -13,6 +13,7 @@ import { AmbientAudio } from './ambient-audio.js';
 import { azimuthPan } from '../tools/ambient-audio-model.mjs';
 import { targetBuild } from '../tools/target-build.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
+import { liveryColors } from '../tools/target-livery.mjs';
 import { token } from './palette.js';
 import { engineIn, context as audioContext } from './audio-bus.js';
 import { space } from './space.js';
@@ -65,7 +66,9 @@ export class AmbientDrones {
 		for (let k = 0; k < set.length; k++) {
 			const camera = targetCamera({ seed: set[k].buildSeed, family: set[k].family });
 			const shape = shapeOf({ profile: builds[k].profile, build: builds[k], camera });
-			const m = buildDroneMesh(shape, { colors: this._colors });
+			// Sa livrée (issue #284) : à cent mètres c'est sa LED qui change, en
+			// free cam ses hélices.
+			const m = buildDroneMesh(shape, { colors: { ...this._colors, ...liveryColors(builds[k].livery) } });
 			m.group.visible = false;
 			// Strobe par drone : phase et rapport tirés de la graine.
 			const rand = ((s) => { let x = 0; for (const ch of s) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); })(`${set[k].buildSeed}::led`);

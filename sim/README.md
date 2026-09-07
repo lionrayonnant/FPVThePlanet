@@ -326,10 +326,18 @@ Pour sauter le terminal (lien direct, dev rapide) :
 
 ```
 http://localhost:5173/?scene=<slug>
+http://localhost:5173/?scene=<slug>&family=freestyle5            # profil nominal, gris
+http://localhost:5173/?scene=<slug>&family=freestyle5&build=g1::0 # un exemplaire tiré (#285)
 ```
 
 Le `slug` est celui visible dans `public/scenes.json` ou dans le nom du
-dossier `public/scenes/<slug>/`.
+dossier `public/scenes/<slug>/`. `?family=` seul vole le profil NOMINAL de la
+famille (celui du banc et de `tools/tune-pid.mjs`) ; `?build=<graine>` tire
+l'exemplaire — livrée, châssis, portrait — comme le ferait un TARGET SCAN.
+
+Vérification headless derrière un proxy qui refuse le CONNECT de Chromium :
+`VITE_ROCKTREE_BASE=http://127.0.0.1:8124/rt/earth/ npx vite` fait lire le
+terrain Google à un relais local (voir `tools/lib/rocktree/url.mjs`).
 
 ## Le pipeline de dialogue (RTC du crew)
 

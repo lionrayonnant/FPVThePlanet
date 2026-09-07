@@ -108,6 +108,10 @@ export const OPTS = {
 	// TARGET SCAN choice (PHASE 08). One of:
 	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
 	family: params.get('family'),
+	// Dev : avec ?family=, la graine d'un exemplaire (livrée, châssis, portrait
+	// — #285). Sans elle, ?family= reste le profil NOMINAL, gris et sans
+	// portrait, comme au banc.
+	build: params.get('build'),
 	// Dev-only : ?hack=gnss-spoof prévisualise le motif de ce type de hack
 	// avant le vol, sur les chemins qui sautent le TARGET SCAN (?scene=/?family=).
 	hack: params.get('hack'),
@@ -342,6 +346,17 @@ function applyBenchConfig() {
 		flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
 		controller = new FlightController({ profile: PROFILE, rates: build?.rates });
 		console.log(`[bench] cellule → ${PROFILE.family} (${PROFILE.label})`);
+		// Le drone du joueur suit la cellule (#286) : ses hélices, sa livrée et
+		// son châssis sont ceux de l'exemplaire qui vole, pas de l'ancien —
+		// sans ça, les hélices de l'ancienne machine restaient dans le champ
+		// (noté au HANDOFF depuis #264).
+		if (playerDrone && camSpec) {
+			lens.setOnboard(null);
+			playerDrone.dispose();
+			playerDrone = new PlayerDrone({ scene, profile: physics.profile, build, camera: camSpec });
+			playerDrone.setFreeCam(freeCamOn);
+			lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
+		}
 	}
 	// physics.battery est un getter vers propulsion.battery, et setProfile()
 	// reconstruit la Propulsion — donc le pack. Reposer le drapeau ICI, après
@@ -1530,10 +1545,11 @@ function togglePause(force) {
 }
 
 // De combien on recule pour entrer en caméra libre, en mètres. Un drone de 5
-// pouces mesure 0,25 m d'envergure : à 1,5 m et 120° de champ il tient dans le
-// cadre sans être un point, et le plan proche du vol (0,15 m) reste loin
-// derrière lui.
-const FREE_CAM_BACK_M = 1.5;
+// pouces mesure 0,25 m d'envergure : à 0,55 m et 120° de champ il occupe un
+// quart de la largeur — regardable, la livrée se lit —, et le plan proche du
+// vol (0,15 m) reste derrière lui. À 1,5 m il faisait 4,7 % du cadre, mesuré
+// sur capture (HANDOFF #264) ; à 0,8 m encore 7 %, mesuré en jeu (#285).
+const FREE_CAM_BACK_M = 0.55;
 const _freeCamBack = new THREE.Vector3();
 
 // La caméra libre (touche C). La physique se fige (simFrozen), le lien vidéo
@@ -2718,8 +2734,9 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
 			// Pas de buildSeed : l'override dev vole le profil NOMINAL de la famille.
 			// C'est ce qui garde ?family=freestyle5 identique au banc et à la
-			// référence de tools/tune-pid.mjs.
-			return { slug, resume: undefined, target: undefined, family: OPTS.family };
+			// référence de tools/tune-pid.mjs. `?build=<graine>` (#285) tire un
+			// exemplaire — pour vérifier en jeu ce qu'un build a de particulier.
+			return { slug, resume: undefined, target: undefined, family: OPTS.family, buildSeed: OPTS.build || undefined };
 		}
 
 		// Session fraîche → TARGET SCAN, puis AUTOMATED ANALYSIS pendant que la carte

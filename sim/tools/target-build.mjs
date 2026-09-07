@@ -25,6 +25,8 @@
 
 import { PROFILES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { RATE_PRESETS } from '../src/flightController.js';
+import { liveryOf } from './target-livery.mjs';
+import { frameOf } from './target-frame.mjs';
 
 // Bornes du tirage, exportées pour que le selftest les vérifie au lieu de les
 // répéter. Chaque plage est un multiplicateur sur la valeur de la famille.
@@ -157,6 +159,30 @@ function buildRates(rand, presetName, amount) {
 
 // seed : le `buildSeed` porté par la cible résolue (tools/target-model.mjs), de
 // sorte que le serveur, le client et un resume produisent le même exemplaire.
+// La livrée seule, sans le reste du build (issue #284). Même graine, même
+// famille ⇒ même livrée, et le flux est distinct de celui de la physique.
+export function targetLivery({ seed, family } = {}) {
+	if (!seed) throw new Error('seed requis');
+	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
+	return liveryOf(rngFrom(`${seed}::livery::${base.family}`), base.family);
+}
+
+// Le châssis seul (issue #285).
+export function targetFrame({ seed, family } = {}) {
+	if (!seed) throw new Error('seed requis');
+	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
+	return frameOf(rngFrom(`${seed}::frame::${base.family}`), base.family);
+}
+
+// L'usure d'un exemplaire, 0..1, LUE dans son build : l'âge du pack (le
+// tirage le plus ressenti en vol) et la traînée de montage. Les deux plages
+// sont celles de BUILD_BOUNDS ; une famille peu variée est donc peu usée.
+export function wearOf(profile, base) {
+	const ohm = (profile.battery.internalOhm / base.battery.internalOhm - BUILD_BOUNDS.internalOhm[0]) / (BUILD_BOUNDS.internalOhm[1] - BUILD_BOUNDS.internalOhm[0]);
+	const drag = (profile.bodyDrag.x / base.bodyDrag.x - BUILD_BOUNDS.bodyDrag[0]) / (BUILD_BOUNDS.bodyDrag[1] - BUILD_BOUNDS.bodyDrag[0]);
+	return Math.max(0, Math.min(1, 0.6 * ohm + 0.4 * drag));
+}
+
 export function targetBuild({ seed, family } = {}) {
 	if (!seed) throw new Error('seed requis');
 	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
@@ -201,6 +227,15 @@ export function targetBuild({ seed, family } = {}) {
 		variation: amount,
 		profile,
 		rates,
+		// La livrée (issue #284), sur SON flux de graine : l'ajouter n'a déplacé
+		// aucun tirage physique ci-dessus, et le selftest le tient. L'usure, elle,
+		// n'est PAS tirée : elle se lit dans le build — un pack qui a vieilli
+		// (internalOhm) et une machine qui traîne (bodyDrag) — pour que ce qui
+		// se voit soit ce qui se sent.
+		livery: { ...targetLivery({ seed, family: base.family }), wear: wearOf(profile, base) },
+		// Le châssis (issue #285), même règle : son propre flux, la physique ne
+		// le lit pas.
+		frame: targetFrame({ seed, family: base.family }),
 		// Ce qu'on peut en dire une fois en vol, et rien avant (PHASE 08 : la
 		// fiche pré-hack ne connaît ni la masse ni la batterie).
 		spec: {

@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { buildDroneMesh, DroneMaterial, LedMaterial, setSun, setFog, setTime, setResolution, setLedFade, setOmega } from '../src/drone-mesh.js';
-import { shapeOf } from '../src/drone-shape.js';
+import { shapeOf, BLADE_STATIONS } from '../src/drone-shape.js';
 import { targetBuild } from './target-build.mjs';
 import { targetCamera } from './target-camera.mjs';
 
@@ -138,8 +138,11 @@ console.log('drone-mesh');
 	const og = onb.body.geometry;
 	const bladeVerts = Array.from(og.attributes.aSpin.array)
 		.filter((v, i) => v !== 0 && og.attributes.color.array[4 * i + 3] >= 0.99).length;
+	// Une pale est une bande de deux sommets par station (#283), plus une
+	// boîte vrillée.
+	const bladeStripVerts = 2 * (BLADE_STATIONS + 1);
 	check('onboard : les 12 pales, et elles seules, tournent en opaque',
-		bladeVerts === 12 * boxVerts, `${bladeVerts} / ${12 * boxVerts}`);
+		bladeVerts === 12 * bladeStripVerts, `${bladeVerts} / ${12 * bladeStripVerts}`);
 	check('onboard : toute pale connaît son moteur',
 		Array.from(og.attributes.aSpin.array).every((v, i) => v === 0 || og.attributes.aMotor.array[i] >= 0));
 	onb.dispose();
@@ -161,7 +164,10 @@ console.log('drone-mesh');
 	check('ambiant : uBlades à zéro (pas de pales)', sil.material.uniforms.uBlades.value === 0);
 	check('embarqué : uBlades à un (des pales)', onb.material.uniforms.uBlades.value === 1);
 	const frag = sil.material.fragmentShader;
-	check('ambiant : le bruit radial du disque est inchangé', frag.includes('0.7 + 0.3 * sin(ang * 3.0)'));
+	// Les fantômes courbés et le voile radial (#283) sont MULTIPLIÉS par
+	// uBlades : à zéro, l'expression retombe terme à terme sur celle d'avant.
+	check('ambiant : le bruit radial du disque est inchangé', frag.includes('0.7 + 0.3 * sin(ang * 3.0 - vSpin * rad * 2.2 * uBlades)'));
+	check('ambiant : le voile radial ne s\'applique qu\'avec des pales', frag.includes('mix(1.0, (2.0 - 1.1 * rad) * smoothstep(1.0, 0.86, rad), uBlades)'));
 	check('ambiant : le régime s\'AJOUTE aux 12 rad/s d\'origine, il ne les remplace pas',
 		frag.includes('uTime * (12.0 + w * 0.03 * vSpin)'));
 	check('ambiant : le fondu du disque est neutre sans pales', frag.includes('mix(1.0, blur, uBlades)'));
