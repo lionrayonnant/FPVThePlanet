@@ -1,6 +1,7 @@
 // Estimations de coût d'une extraction, à partir des constantes mesurées dans
 // estimates.json. Rien n'est deviné ici : chaque constante vient d'un relevé sur
-// les cartes déjà téléchargées (voir le mode --recalibrate en bas de fichier).
+// des cartes réellement téléchargées — voir le `_comment` de estimates.json pour
+// la date et l'échantillon du relevé.
 //
 // La chaîne d'estimation :
 //   bbox (degrés) -> colonnes de tuiles -> tuiles -> octets et secondes

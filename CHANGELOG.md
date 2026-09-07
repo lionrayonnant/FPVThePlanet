@@ -37,6 +37,8 @@ rapport avec les versions ci-dessous.
   ne bouge pas d'un octet, et `FPV_OPERATOR_DIR` reste honoré.
 - `sim/tools/server-selftest.mjs` (26 vérifications) et
   `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
+- `LICENSE` (GNU AGPL-3.0-only) et un `README.md` à la racine : le dépôt se
+  prépare à devenir public. `sim/README.md` reste le README technique.
 - **Le jeu s'installe comme un jeu** (#291, tranche T2) : un installeur `.exe`
   sous Windows — entrée Menu Démarrer, désinstalleur — et une `AppImage` sous
   Linux. L'app est un seul process Electron qui démarre le serveur du jeu sur
@@ -102,6 +104,13 @@ rapport avec les versions ci-dessous.
   Un `.gitattributes` racine impose `eol=lf` : une soixantaine de selftests
   découpent sur `\n`, et `core.autocrlf` est vrai par défaut sur les runners
   Windows.
+- `sim/public/scenes.json` est committé **vide** : c'est un fichier généré, propre
+  à chaque installation, et il portait trois entrées fantômes qui faisaient
+  échouer `npm run selftest:scenes` et affichaient trois scènes inexistantes sur
+  un clone neuf. `node tools/sync-scenes.mjs --adopt` le reconstruit depuis le
+  disque.
+- `tools/imagery-selftest.mjs` (16 vérifications) est enfin chaîné dans
+  `selftest:operator` : il existait sans jamais tourner.
 - **La release publie de quoi démarrer un serveur** : `release.yml` attache
   désormais un `fpvtp-server-<tag>-linux-x64.tar.gz` (`app/` avec `server/`,
   `tools/`, `src/`, `dist/`, plus le runtime Node de la version qui vient de
@@ -110,6 +119,16 @@ rapport avec les versions ci-dessous.
   démarre sans `node_modules`, mesuré.
 
 ### Retiré
+
+- `sim/qualite-test/` (6,3 Mo) : quatre extraits `.opus` et une page d'écoute
+  A/B, procès-verbal d'un arbitrage sur les réglages de génération musicale
+  (#122) — rien dans le dépôt n'y renvoyait.
+- `sim/tools/area-row-measure.html` : page de mesure jetable d'une décision CSS
+  déjà prise ; la mesure reste consignée dans `src/style.css`.
+- `sim/vite.ngrok.config.js` : il portait en dur le nom d'hôte d'un tunnel
+  personnel, et aucun script ne l'appelait. Exposer le serveur de dev passe
+  désormais par le serveur autonome, qui a ses propres garde-fous.
+
 
 - Apple Flyover comme fournisseur de photogrammétrie : `tools/lib/providers/
   flyover.mjs`, le dépôt `flyover-reverse-engineering/` (outil Go, jeton,

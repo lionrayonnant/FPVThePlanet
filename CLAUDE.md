@@ -86,7 +86,13 @@ Prefer updating these docs rather than duplicating information here.
 
 GitHub workflow
 
-Repo: private lionrayonnant/FPVTP.
+Repo: lionrayonnant/FPVTP, being prepared to go public. Licensed AGPL-3.0-only
+(`LICENSE` at the root, `README.md` is the public front door — `sim/README.md`
+stays the technical one). Two things change the day the switch is flipped:
+`sim/electron-builder.yml` can move from `provider: generic` to
+`provider: github` (the generic HTTP feed only exists because a private repo
+demands a token for every download), and `deploy/deploy.sh` no longer needs the
+read-only token in `/etc/fpvtp/token`.
 
 At the start of substantive work:
 
@@ -125,6 +131,12 @@ Run `npm run selftest:ci` locally before pushing. A selftest that needs scene da
 `npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
 
 There is no CD yet, but a build is no longer dead on its own: `sim/server/` (issue #259, tranche T1) serves `/__operator`, `/__map-api` and the `dist/` files without Vite. `sim/tools/map-api-plugin.mjs` is only the Vite adapter for it; the routes live in `sim/server/api.mjs`, and `sim/tools/lib/paths.mjs` is the single place that resolves the data directory (`FPVTP_DATA_DIR`, defaulting to today's dev paths). What still blocks a real deployment is T2-T4 of `sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md` — read it before touching `sim/server/`.
+
+Licensing
+
+AGPL-3.0-only. New files need no per-file header — the repo has none — but do
+not copy code in from an incompatible licence, and keep third-party licences
+next to what they cover (`sim/public/fonts/OFL-*.txt` is the pattern).
 
 Secrets / large data
 

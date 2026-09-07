@@ -1701,8 +1701,10 @@ console.log('\ntextures');
 			pairs > 200 && meanDiff < 25,
 			`${meanDiff.toFixed(1)} mean |dRGB| over ${pairs} shared vertices`);
 
-		// Flyover pads the unused part of every patch with flat grey 128. Any real
-		// quantity of it on screen means the UVs are landing in that padding.
+		// Legacy check: the OBJ pipeline padded the unused part of every patch with
+		// flat grey 128, so any real quantity of it on screen meant the UVs were
+		// landing in that padding. Only reachable on a scene decoded from OBJ —
+		// the rocktree decoder exposes no textures(), so this whole block SKIPs.
 		let grey = 0, area = 0;
 		for (let t = 0; t < gi; t += 3) {
 			const a = ind[t], b = ind[t + 1], c = ind[t + 2];

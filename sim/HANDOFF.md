@@ -2678,8 +2678,10 @@ pour tenir une pose stable :
   code écrit, jamais testé interactivement par l'utilisateur.
 - Modes `angle` et `altitude` du contrôleur de vol — testés uniquement par
   construction du code, pas en vol piloté.
-- L'état opérateur (`/__operator`) n'existe que sous le serveur de dev ; exposer
-  ce serveur (p. ex. via `vite.ngrok.config.js`) expose aussi l'état opérateur.
+- Exposer le serveur de dev par un tunnel expose aussi l'état opérateur
+  (`/__operator`). Le serveur autonome le dit autrement : en `--mode local` il
+  refuse un `--host` hors de la boucle locale, et `--mode shared` réclame une
+  clé d'opérateur.
 - **Météo : ressenti en vol jamais éprouvé.** La chaîne est vérifiée bout en
   bout, mais personne n'a encore volé un jour de vent fort ou de brouillard réel
   pour dire si les valeurs qu'Open-Meteo renvoie donnent une expérience juste.
@@ -2882,7 +2884,7 @@ Constaté en direct sur l'écran SELECT OPERATION MODE (donc avant `boot()`) :
 
 ## Leviers de secours si besoin
 
-- `npm run prep:light` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,
+- `npm run add-map -- … --cell 128` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,
   résolution 6,3 → 3,2 texels/m) — à garder en réserve pour une machine plus
   faible. `--cell` accepte n'importe quelle valeur : les planches restent
   plafonnées à 4096² et le nombre de planches par chunk s'ajuste tout seul.

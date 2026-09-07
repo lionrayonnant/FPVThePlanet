@@ -590,7 +590,7 @@ button.terminal-area:focus::before { left: 0; }
    le nom rend tout avant que la météo ne rende quoi que ce soit. Un simple
    `1` de chaque côté les ferait rétrécir ensemble, au prorata. `min-width: 0` lève le minimum intrinsèque, sans quoi un mot long
    refuse de se réduire et l'ellipse ne se déclenche jamais.
-   Mesuré au rendu réel (tools/area-row-measure.html, cadre de 720 px) : le nom
+   Mesuré au rendu réel dans un cadre de 720 px : le nom
    de 43 caractères se tronque, la colonne reste à 260 px sur les rangées
    normales, et aucune des quatre rangées témoins ne rogne sa météo ni ne
    déborde du cadre. Avant, un simple `min-width: 260px` gardait la colonne

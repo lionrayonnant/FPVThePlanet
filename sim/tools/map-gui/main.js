@@ -418,9 +418,11 @@ $('check').onclick = async () => {
 			return;
 		}
 
-		// Auto : Google Earth d'abord, repli sur Apple Flyover si pas 'ok' — y
-		// compris si la sonde LÈVE (réseau, 5xx transitoire de kh.google.com,
-		// non-2xx sur /plan ou /probe). Sur un endpoint non documenté c'est la
+		// Auto : on essaie les fournisseurs dans l'ordre, et on passe au suivant
+		// si la sonde n'est pas 'ok' — y compris si elle LÈVE (réseau, 5xx
+		// transitoire de kh.google.com, non-2xx sur /plan ou /probe). Il n'en
+		// reste qu'un depuis le retrait de Flyover, mais la boucle tient telle
+		// quelle pour le suivant. Sur un endpoint non documenté c'est la
 		// panne la plus probable, pas juste un statut 'none' : une exception
 		// attrapée ici vaut donc "pas 'ok'" et fait continuer au fournisseur
 		// suivant, elle ne casse pas la boucle.

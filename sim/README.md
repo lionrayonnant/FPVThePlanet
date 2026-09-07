@@ -649,8 +649,9 @@ attribution. `lib/add-map-core.mjs` ne fait plus qu'orchestrer ; `/plan`,
 fournisseur, `add-map.mjs` et la GUI (`add-map.html`) savent tous deux
 positionner `opts.provider`.
 
-Un seul fournisseur inscrit aujourd'hui — Apple Flyover, le repli d'origine,
-a été retiré le 2026-09-07 (jeton et outil Go supprimés du dépôt) :
+Un seul fournisseur inscrit aujourd'hui, `google-earth` : Apple Flyover, le
+repli d'origine, a été retiré le 2026-09-07 (jeton et outil Go supprimés du
+dépôt) :
 
 | id | label | défaut | clé/jeton | cache brut |
 |---|---|---|---|---|

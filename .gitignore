@@ -21,3 +21,9 @@ operator-state-backup-*/
 
 # HAR captures (>100 Mo, serveur local uniquement)
 docs/*.har
+
+# Les tuiles Apple Flyover téléchargées du temps où ce fournisseur existait
+# (retiré le 2026-09-07, commit b5c8d7a) : des dizaines de gigaoctets, et un
+# config.json qui porte un vrai jeton. Rien ne les lit plus ; le motif est là
+# pour qu'un git add -A ne les ramasse jamais.
+flyover-reverse-engineering/

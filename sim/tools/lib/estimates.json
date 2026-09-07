@@ -3,8 +3,7 @@
 		"Constantes MESURÉES, pas devinées. Elles alimentent les estimations de poids et",
 		"de durée affichées par la GUI d'ajout de cartes (sim/add-map.html).",
 		"",
-		"Recalcul : node tools/lib/estimates.mjs --recalibrate",
-		"(mesure les cartes déjà présentes dans downloaded_files/obj + public/scenes).",
+		"Ces constantes ont été relevées à la main : il n'existe pas de mode de recalcul.",
 		"",
 		"Relevé du 2026-08-27 sur 7 cartes (Paris x5, Reims, Times Square) plus un export",
 		"neuf de contrôle à Montmartre (304 colonnes, 6080 sondes, 497 tuiles, 85 Mo, 7 s)."
