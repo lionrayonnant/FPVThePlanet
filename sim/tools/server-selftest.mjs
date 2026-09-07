@@ -1,4 +1,10 @@
-// Selftest du serveur autonome (issue #259, tranche T1).
+// Selftest du serveur autonome (issue #259, tranches T1 et T3).
+//
+// T3 y ajoute les deux mécanismes de #60, et les garde SÉPARÉS : la clé
+// d'opérateur (qui parle) et FPVTP_ACQUIRE (ce qui a le droit de naître sur
+// disque). Le mode `shared` est exercé sur un SECOND serveur, démarré après la
+// fermeture du premier : api.mjs tient son mode en état de module — un seul
+// serveur par processus, comme pour les chemins.
 //
 // Démarre server/index.mjs sur le port 0, avec un répertoire de données jetable
 // et un `dist` factice : rien de ce qui suit ne touche aux scènes, à l'état
@@ -40,11 +46,16 @@ const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, con
 
 const { startServer, resolveOptions } = await import('../server/index.mjs');
 
-const started = await startServer({ dataDir: DATA, distDir: DIST, port: '0', host: '127.0.0.1' });
-const base = started.url.replace(/\/$/, '');
+// Le drapeau d'acquisition se lit à CHAQUE requête : ces tests le posent et le
+// retirent en cours de route, sans redémarrer quoi que ce soit.
+delete process.env.FPVTP_ACQUIRE;
 
-const get = async (p, init) => {
-	const r = await fetch(base + p, init);
+let started = await startServer({ dataDir: DATA, distDir: DIST, port: '0', host: '127.0.0.1' });
+const base = started.url.replace(/\/$/, '');
+let shared = null;
+
+const at = (b) => async (p, init) => {
+	const r = await fetch(b + p, init);
 	return {
 		status: r.status,
 		type: r.headers.get('content-type') ?? '',
@@ -54,6 +65,9 @@ const get = async (p, init) => {
 		buf: Buffer.from(await r.arrayBuffer()),
 	};
 };
+const get = at(base);
+const bodyOf = (r) => { try { return JSON.parse(r.buf.toString()); } catch { return {}; } };
+const bearer = (k) => ({ authorization: `Bearer ${k}` });
 
 try {
 	// --- le port 0 a bien été résolu ------------------------------------------
@@ -184,8 +198,169 @@ try {
 	});
 	check('une option inconnue sort en erreur au lieu de démarrer',
 		badOption.status === 2 && /option inconnue/.test(badOption.stderr));
-} finally {
+
+	// ================= issue #60 : la clé d'opérateur =========================
+	//
+	// Mécanisme 1 : QUI parle au serveur. En `local`, personne ne le demande.
+
+	check('POST /__operator rend une clé, une seule fois, groupée par 4',
+		typeof createdBody.key === 'string'
+		&& /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{2,4}){5,6}$/.test(createdBody.key));
+
+	const opFile = path.join(DATA, 'operator-state', `${createdBody.operator.id}.json`);
+	const onDisk = fs.readFileSync(opFile, 'utf8');
+	check('la clé n\'est PAS sur disque en clair — seulement son empreinte',
+		!onDisk.includes(createdBody.key)
+		&& !onDisk.includes(createdBody.key.replace(/-/g, ''))
+		&& /"keyHash": "[0-9a-f]{64}"/.test(onDisk));
+
+	const reread = await get(`/__operator/${createdBody.operator.id}`);
+	check('… et elle n\'est jamais relue : ni `key`, ni `keyHash` dans la réponse',
+		reread.status === 200 && bodyOf(reread).key === undefined
+		&& bodyOf(reread).operator.keyHash === undefined
+		&& createdBody.operator.keyHash === undefined);
+
+	const noKeyLocal = await get(`/__operator/${createdBody.operator.id}`, { headers: bearer('N1MP-0RT3-QU01') });
+	check('en `local`, une clé fausse est IGNORÉE : la frontière reste le socket',
+		noKeyLocal.status === 200);
+
+	// Mécanisme 2 : QUI a le droit de faire naître une scène sur disque.
+	// Indépendant du premier — un serveur `local` authentifie personne et
+	// n'acquiert pourtant pas sans le drapeau.
+
+	const postJob = (b, headers = {}) => at(b)('/__map-api/jobs', {
+		method: 'POST',
+		headers: { ...headers, 'content-type': 'application/json' },
+		body: JSON.stringify({}),
+	});
+
+	check('local, drapeau absent : GET /__map-api/scenes annonce acquire:false',
+		bodyOf(await get('/__map-api/scenes')).acquire === false);
+
+	const closedJob = await postJob(base);
+	check('local, drapeau absent : POST /__map-api/jobs refuse (403)',
+		closedJob.status === 403 && /disabled/.test(bodyOf(closedJob).error ?? ''));
+
+	process.env.FPVTP_ACQUIRE = '1';
+	check('local, FPVTP_ACQUIRE=1 : GET /__map-api/scenes annonce acquire:true',
+		bodyOf(await get('/__map-api/scenes')).acquire === true);
+
+	// Contrôle POSITIF : la garde a bien laissé passer, et c'est le corps vide
+	// qui arrête maintenant la requête. Sans lui, un 403 devenu 400 pour une
+	// tout autre raison passerait pour un succès.
+	const openedJob = await postJob(base);
+	check('local, FPVTP_ACQUIRE=1 : la garde s\'ouvre — POST /jobs cale sur le corps, pas sur elle',
+		openedJob.status === 400 && !/disabled/.test(bodyOf(openedJob).error ?? ''));
+
+	check('FPVTP_ACQUIRE=nimportequoi ne vaut pas vrai',
+		(process.env.FPVTP_ACQUIRE = 'oui', bodyOf(await get('/__map-api/scenes')).acquire === false));
+	check('FPVTP_ACQUIRE=true, lui, ouvre',
+		(process.env.FPVTP_ACQUIRE = 'TRUE', bodyOf(await get('/__map-api/scenes')).acquire === true));
+
+	// --- un opérateur d'avant #60 : aucun keyHash, et il doit rester intact ---
+	const LEGACY = 'legacy-0001';
+	fs.writeFileSync(path.join(DATA, 'operator-state', `${LEGACY}.json`), JSON.stringify({
+		schemaVersion: 2, id: LEGACY, name: 'legacy', createdAt: '2026-01-01T00:00:00.000Z',
+		controlVector: [], settings: {}, terrainCache: [], sessions: [],
+		sessionSeq: 0, targetSeq: 0, worldState: {},
+	}, null, '\t'));
+	const legacyLocal = await get(`/__operator/${LEGACY}`);
+	check('migration : un fichier sans clé reste parfaitement utilisable en `local`',
+		legacyLocal.status === 200 && bodyOf(legacyLocal).operator.id === LEGACY);
+
+	// ================= le mode `shared` =======================================
+	//
+	// Un SECOND serveur : api.mjs tient son mode en état de module.
 	await started.close();
+	started = null;
+
+	shared = await startServer({ dataDir: DATA, distDir: DIST, port: '0', host: '127.0.0.1', mode: 'shared' });
+	const sbase = shared.url.replace(/\/$/, '');
+	const sget = at(sbase);
+	const KEY = createdBody.key;
+	const ID = createdBody.operator.id;
+
+	check('shared : GET /__operator rend 404 — pas de liste publique',
+		(await sget('/__operator', { headers: bearer(KEY) })).status === 404);
+
+	check('shared : /__operator/:id sans clé → 401',
+		(await sget(`/__operator/${ID}`)).status === 401);
+	check('shared : /__operator/:id avec une mauvaise clé → 403',
+		(await sget(`/__operator/${ID}`, { headers: bearer('N1MP-0RT3-QU01') })).status === 403);
+	const good = await sget(`/__operator/${ID}`, { headers: bearer(KEY) });
+	check('shared : /__operator/:id avec la bonne clé → 200',
+		good.status === 200 && bodyOf(good).operator.id === ID);
+
+	check('shared : la clé d\'un opérateur n\'ouvre pas celui d\'un autre → 403',
+		(await sget(`/__operator/${LEGACY}`, { headers: bearer(KEY) })).status === 403);
+
+	check('shared : /__map-api/* sans clé → 401',
+		(await sget('/__map-api/scenes')).status === 401);
+	check('shared : /__map-api/* avec une mauvaise clé → 403',
+		(await sget('/__map-api/scenes', { headers: bearer('N1MP-0RT3-QU01') })).status === 403);
+
+	// La clé est tolérante à la frappe : minuscules, espaces, tirets en trop.
+	check('shared : la clé se retape en minuscules et sans tirets',
+		(await sget(`/__operator/${ID}`, { headers: bearer(KEY.replace(/-/g, '').toLowerCase()) })).status === 200);
+
+	// whoami : retrouver son opérateur depuis un autre navigateur, où aucune
+	// liste ne dit qui existe.
+	const who = await sget('/__operator/whoami', { headers: bearer(KEY) });
+	check('shared : GET /__operator/whoami rend l\'opérateur que la clé désigne',
+		who.status === 200 && bodyOf(who).operator.id === ID);
+	check('shared : whoami sur une clé inconnue → 403 (la garde passe avant)',
+		(await sget('/__operator/whoami', { headers: bearer('N1MP-0RT3-QU01') })).status === 403);
+
+	// L'inscription reste ouverte : sans elle, personne ne pourrait jamais
+	// arriver sur le VPS.
+	const newOp = await fetch(sbase + '/__operator', {
+		method: 'POST', headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ name: 'sharedtest' }),
+	});
+	const newBody = await newOp.json();
+	check('shared : POST /__operator reste ouvert sans clé, et rend la clé neuve',
+		newOp.status === 201 && typeof newBody.key === 'string' && newBody.key !== KEY);
+	check('shared : la clé neuve ouvre son opérateur, tout de suite',
+		(await sget(`/__operator/${newBody.operator.id}`, { headers: bearer(newBody.key) })).status === 200);
+
+	// --- l'acquisition, en `shared` : fermée MÊME avec le drapeau posé --------
+	process.env.FPVTP_ACQUIRE = '1';
+	check('shared, FPVTP_ACQUIRE=1 : GET /__map-api/scenes annonce quand même acquire:false',
+		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false);
+	const sharedJob = await postJob(sbase, bearer(KEY));
+	check('shared, FPVTP_ACQUIRE=1, clé valide : POST /__map-api/jobs refuse quand même (403)',
+		sharedJob.status === 403 && /disabled/.test(bodyOf(sharedJob).error ?? ''));
+	delete process.env.FPVTP_ACQUIRE;
+	check('shared, drapeau absent : acquire:false, et POST /jobs 403',
+		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false
+		&& (await postJob(sbase, bearer(KEY))).status === 403);
+
+	// --- migration : la commande `key` ---------------------------------------
+	check('shared : l\'opérateur d\'avant #60 est inutilisable — aucune clé ne mène à lui',
+		(await sget(`/__operator/${LEGACY}`, { headers: bearer(KEY) })).status === 403);
+
+	const issued = spawnSync(process.execPath, ['server/index.mjs', 'key', LEGACY, '--data', DATA], {
+		cwd: SIM_ROOT, encoding: 'utf8', env: { ...process.env },
+	});
+	const legacyKey = issued.stdout.trim();
+	check('node server/index.mjs key <id> : imprime UNE clé sur stdout',
+		issued.status === 0 && /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{2,4}){5,6}$/.test(legacyKey)
+		&& issued.stdout.trim().split('\n').length === 1);
+	check('… hachée sur disque, jamais en clair',
+		!fs.readFileSync(path.join(DATA, 'operator-state', `${LEGACY}.json`), 'utf8').includes(legacyKey));
+	// Le serveur tourne toujours : son index de clés doit voir l'écriture d'un
+	// AUTRE processus, sans redémarrage.
+	check('… et l\'opérateur migré passe aussitôt, sur le serveur déjà démarré',
+		(await sget(`/__operator/${LEGACY}`, { headers: bearer(legacyKey) })).status === 200);
+
+	const unknownKey = spawnSync(process.execPath, ['server/index.mjs', 'key', 'personne-0000', '--data', DATA], {
+		cwd: SIM_ROOT, encoding: 'utf8', env: { ...process.env },
+	});
+	check('key sur un opérateur inconnu : sort en erreur, n\'écrit rien',
+		unknownKey.status === 1 && /aucun opérateur/.test(unknownKey.stderr));
+} finally {
+	await started?.close();
+	await shared?.close();
 	fs.rmSync(DATA, { recursive: true, force: true });
 }
 

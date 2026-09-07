@@ -2,9 +2,13 @@
 //
 //   node server/index.mjs [--data <dir>] [--port 8080] [--host 127.0.0.1]
 //                         [--mode local|shared] [--open] [--dist <dir>]
+//   node server/index.mjs key <operatorId> [--data <dir>]
 //
 // Variables d'environnement équivalentes : FPVTP_DATA_DIR, FPVTP_PORT,
-// FPVTP_HOST, FPVTP_MODE. L'option de ligne de commande gagne.
+// FPVTP_HOST, FPVTP_MODE. L'option de ligne de commande gagne. FPVTP_ACQUIRE
+// (issue #60) n'a pas d'équivalent en ligne de commande à dessein : ce n'est pas
+// un réglage de lancement, c'est un interrupteur d'environnement que la CI et
+// electron-builder ne posent jamais — voir server/auth.mjs.
 //
 // L'API (server/api.mjs) est montée en premier, le serveur de fichiers
 // (server/static.mjs) derrière : ce qui ne commence pas par /__operator ou
@@ -28,7 +32,8 @@ const MODES = new Set(['local', 'shared']);
 const LOOPBACK = new Set(['127.0.0.1', '::1', 'localhost']);
 
 const USAGE = `usage: node server/index.mjs [--data <dir>] [--port <n>] [--host <addr>]
-                            [--mode local|shared] [--dist <dir>] [--open]`;
+                            [--mode local|shared] [--dist <dir>] [--open]
+       node server/index.mjs key <operatorId> [--data <dir>]`;
 
 export function parseArgs(argv) {
 	const out = {};
@@ -71,6 +76,16 @@ export function resolveOptions(cli = {}) {
 		throw new Error(`--host ${opts.host} refusé en mode local : hors de 127.0.0.1/::1, passez --mode shared`);
 	}
 	return opts;
+}
+
+// Résout le répertoire de données comme startServer(), et pour la même raison :
+// tools/lib/paths.mjs lit FPVTP_DATA_DIR à SON import, il faut donc la poser
+// avant. D'où l'import dynamique.
+async function resolvePaths(cli = {}) {
+	const dataDir = cli.dataDir ?? process.env.FPVTP_DATA_DIR ?? null;
+	if (dataDir) process.env.FPVTP_DATA_DIR = path.resolve(dataDir);
+	const { paths } = await import('../tools/lib/paths.mjs');
+	return paths;
 }
 
 export async function startServer(cli = {}) {
@@ -128,9 +143,31 @@ function openBrowser(url) {
 	} catch { /* pas de navigateur : ce n'est pas une raison d'arrêter le serveur */ }
 }
 
-async function main() {
+// `key <operatorId>` : donne une clé neuve à un opérateur existant. Le seul
+// chemin de récupération — une clé perdue ne se relit pas, elle se remplace — et
+// la migration des fichiers d'avant #60, qui n'en ont aucune. Imprimée UNE fois
+// sur stdout : le serveur n'en garde que l'empreinte.
+async function keyCommand(argv) {
+	const id = argv[0];
+	if (!id || id.startsWith('-')) { console.error(`key attend un id d'opérateur\n${USAGE}`); process.exit(2); }
 	let cli;
-	try { cli = parseArgs(process.argv.slice(2)); }
+	try { cli = parseArgs(argv.slice(1)); }
+	catch (e) { console.error(e.message); process.exit(2); }
+	const paths = await resolvePaths(cli);
+	const { issueKey } = await import('./auth.mjs');
+	let key;
+	try { key = issueKey(paths.OPERATOR_DIR, id); }
+	catch (e) { console.error(`fpvtp: ${e.message}`); process.exit(1); }
+	console.log(key);
+	console.error(`fpvtp: nouvelle clé pour « ${id} » — notez-la, elle ne sera plus jamais affichée.`);
+}
+
+async function main() {
+	const argv = process.argv.slice(2);
+	if (argv[0] === 'key') return keyCommand(argv.slice(1));
+
+	let cli;
+	try { cli = parseArgs(argv); }
 	catch (e) { console.error(e.message); process.exit(2); }
 
 	if (cli.help) { console.log(USAGE); return; }
@@ -140,7 +177,9 @@ async function main() {
 	catch (e) { console.error(`fpvtp: ${e.message}`); process.exit(1); }
 
 	const { version } = JSON.parse(fs.readFileSync(path.join(SIM_ROOT, 'package.json'), 'utf8'));
-	console.log(`FPVTP! v${version} — mode ${started.mode} — données ${started.paths.DATA_DIR} — ${started.url}`);
+	const { acquireEnabled } = await import('./auth.mjs');
+	const acquire = acquireEnabled(started.mode) ? 'acquisition ouverte' : 'acquisition fermée';
+	console.log(`FPVTP! v${version} — mode ${started.mode} — ${acquire} — données ${started.paths.DATA_DIR} — ${started.url}`);
 	if (!fs.existsSync(started.distDir)) {
 		console.warn(`fpvtp: ${started.distDir} n'existe pas — lancez « npm run build », ou passez --dist`);
 	}

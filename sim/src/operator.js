@@ -7,9 +7,17 @@
 // toujours OPERATOR SELECT — même avec un seul opérateur sur disque, pour
 // qu'un nouveau client (ex. ami sur un tunnel ngrok partagé) puisse créer le
 // sien plutôt que d'hériter du tien.
+//
+// La CLÉ d'opérateur (fpvmaps.operatorKey, issue #60) est autre chose : un
+// secret de 128 bits rendu une fois à la création, envoyé en `Authorization:
+// Bearer` sur chaque requête. Un serveur `local` ne la regarde jamais ; un
+// serveur `shared` la réclame. Elle n'a RIEN à voir avec le Control Vector
+// (Bible §33) : celui-ci est un rituel de jeu, celle-là un secret technique.
+// Sur 401/403 on efface id ET clé et l'appelant montre OPERATOR KEY.
 
 const OP_BASE = '/__operator';
 const KEY = 'fpvmaps.operatorId';
+const OP_KEY = 'fpvmaps.operatorKey';
 const DEBOUNCE_MS = 500;
 
 let _fetch = (...a) => globalThis.fetch(...a);
@@ -32,10 +40,36 @@ let cache = null;
 const pending = new Map();        // key -> value en attente d'écriture
 let timer = null;
 
+export function getKey() { return _store.getItem(OP_KEY); }
+export function hasKey() { return Boolean(getKey()); }
+export function setKey(key) {
+	const k = String(key ?? '').trim();
+	if (k) _store.setItem(OP_KEY, k); else _store.removeItem(OP_KEY);
+}
+
+// Efface l'identité locale. Ni l'id ni la clé ne survivent à un refus du
+// serveur : garder l'un sans l'autre rejouerait le même 401 à chaque écran.
+export function forgetOperator() {
+	cache = null;
+	_store.removeItem(KEY);
+	_store.removeItem(OP_KEY);
+}
+
+// La clé rendue par POST /__operator, à montrer UNE fois. Consommée par
+// l'appelant (l'écran YOUR OPERATOR KEY) : le serveur ne la redonnera jamais.
+let issued = null;
+export function takeIssuedKey() { const k = issued; issued = null; return k; }
+
+export function authHeaders() {
+	const k = getKey();
+	return k ? { authorization: `Bearer ${k}` } : {};
+}
+
 async function req(method, path, body) {
-	const res = await _fetch(OP_BASE + path, body === undefined ? { method } : {
+	const headers = authHeaders();
+	const res = await _fetch(OP_BASE + path, body === undefined ? { method, headers } : {
 		method,
-		headers: { 'content-type': 'application/json' },
+		headers: { ...headers, 'content-type': 'application/json' },
 		body: JSON.stringify(body),
 	});
 	const payload = await res.json().catch(() => ({}));
@@ -45,26 +79,66 @@ async function req(method, path, body) {
 
 export function getOperator() { return cache; }
 
+// Rend une seule de ces quatre formes : un opérateur chargé, needsBootstrap,
+// une liste de choices, ou needsKey (le serveur `shared` ne nous reconnaît pas —
+// clé absente, fausse, ou opérateur d'avant #60 sans clé).
+const NEEDS_KEY = { operator: null, needsBootstrap: false, choices: null, needsKey: true };
+
+function refused(e) { return e.status === 401 || e.status === 403; }
+
 export async function loadOperator() {
 	const id = _store.getItem(KEY);
 	if (id) {
 		try {
 			cache = (await req('GET', `/${id}`)).operator;
-			return { operator: cache, needsBootstrap: false, choices: null };
+			return { operator: cache, needsBootstrap: false, choices: null, needsKey: false };
 		} catch (e) {
+			if (refused(e)) { forgetOperator(); return NEEDS_KEY; }
 			if (e.status !== 404) throw e;
 			_store.removeItem(KEY);
 		}
 	}
-	const { operators } = await req('GET', '');
-	if (operators.length === 0) return { operator: null, needsBootstrap: true, choices: null };
-	return { operator: null, needsBootstrap: false, choices: operators.map(({ id, name }) => ({ id, name })) };
+	let operators;
+	try { operators = (await req('GET', '')).operators; }
+	catch (e) {
+		// 404 sur la liste : c'est un serveur `shared`, qui n'en publie pas. 401 /
+		// 403 : la clé qu'on porte ne vaut rien. Dans les deux cas, l'écran
+		// OPERATOR KEY — entrer une clé, ou repartir sur un nouvel opérateur.
+		if (refused(e) || e.status === 404) { forgetOperator(); return NEEDS_KEY; }
+		throw e;
+	}
+	if (operators.length === 0) return { operator: null, needsBootstrap: true, choices: null, needsKey: false };
+	return {
+		operator: null, needsBootstrap: false, needsKey: false,
+		choices: operators.map(({ id, name }) => ({ id, name })),
+	};
 }
 
 export async function createOperator(name) {
-	cache = (await req('POST', '', { name })).operator;
+	// La création est la seule route que le mode `shared` laisse ouverte sans
+	// clé : sans elle, personne ne pourrait jamais s'inscrire sur le VPS.
+	const { operator, key } = await req('POST', '', { name });
+	cache = operator;
 	_store.setItem(KEY, cache.id);
+	if (key) { setKey(key); issued = key; }
 	return cache;
+}
+
+// Retrouver son opérateur depuis un autre navigateur : on pose la clé, puis on
+// demande au serveur qui elle désigne. C'est la clé qui identifie — le serveur
+// `shared` ne publie aucune liste où choisir.
+export async function resumeWithKey(key) {
+	const previous = getKey();
+	setKey(key);
+	try {
+		const { operator } = await req('GET', '/whoami');
+		cache = operator;
+		_store.setItem(KEY, cache.id);
+		return cache;
+	} catch (e) {
+		setKey(previous ?? '');
+		throw e;
+	}
 }
 
 export async function selectOperator(id) {
@@ -174,7 +248,46 @@ export async function ensureDevOperator() {
 	return operators.length ? selectOperator(operators[0].id) : createOperator('dev');
 }
 
+// --- la clé sur TOUTES les requêtes de l'API du jeu ---------------------------
+//
+// Un seul point d'attache, et c'est délibéré : `/__map-api` est appelé depuis
+// scanner.js, bootstrap.js, post-flight.js et terminal.js, `/__operator/:id`
+// aussi depuis weather.js. Répéter l'en-tête dans chaque module, c'est
+// s'exposer au premier oubli — qui ne se verrait qu'en `shared`, sur le seul
+// hébergement où il compte. En `local` le serveur ne lit jamais l'en-tête : ce
+// qui suit n'y change rigoureusement rien.
+const API_PREFIXES = [OP_BASE, '/__map-api'];
+
+function isGameApi(url) {
+	const u = String(url ?? '');
+	const p = u.startsWith('/') ? u : (() => { try { return new URL(u, location.href).pathname; } catch { return ''; } })();
+	return API_PREFIXES.some((pre) => p === pre || p.startsWith(pre + '/') || p.startsWith(pre + '?'));
+}
+
+function headerObject(h) {
+	if (!h) return {};
+	// Headers, Map, ou un tableau de paires : tous itérables par forEach.
+	if (typeof h.forEach === 'function') { const o = {}; h.forEach((v, k) => { o[Array.isArray(h) ? v[0] : k] = Array.isArray(h) ? v[1] : v; }); return o; }
+	return { ...h };
+}
+
+export function installAuthFetch(target = globalThis) {
+	const raw = target.fetch?.bind(target);
+	if (!raw) return;
+	target.fetch = (input, init) => {
+		const url = typeof input === 'string' ? input : (input?.url ?? '');
+		const key = getKey();
+		if (!key || !isGameApi(url)) return raw(input, init);
+		const headers = headerObject(init?.headers ?? (typeof input === 'object' ? input?.headers : null));
+		if (!Object.keys(headers).some((k) => k.toLowerCase() === 'authorization')) {
+			headers.authorization = `Bearer ${key}`;
+		}
+		return raw(input, { ...init, headers });
+	};
+}
+
 if (typeof window !== 'undefined') {
+	installAuthFetch();
 	window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
 	window.addEventListener('beforeunload', () => { flush(); });
 }

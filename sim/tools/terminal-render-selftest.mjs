@@ -23,22 +23,25 @@ const SCENES = [
 		bbox: { south: 48.8641, west: 2.3521, north: 48.8694, east: 2.3602 } },
 ];
 let scenesReply = SCENES;
+// Le droit d'acquérir, tel que le serveur l'annonce (#60). Fermé par défaut :
+// c'est l'état de toute build distribuée.
+let acquireReply = false;
 globalThis.fetch = async (url) => {
 	if (String(url).includes('/__map-api/scenes')) {
 		if (scenesReply === null) return { ok: false, status: 500, json: async () => ({}) };
-		return { ok: true, status: 200, json: async () => ({ scenes: scenesReply }) };
+		return { ok: true, status: 200, json: async () => ({ scenes: scenesReply, acquire: acquireReply }) };
 	}
 	// worldWeather : pas de bulletin, la ligne météo reste vide. C'est déjà le
 	// comportement hors ligne, et l'écran doit tenir sans.
 	return { ok: false, status: 503, json: async () => ({}) };
 };
 
-const { runTerminal } = await import('../src/terminal.js');
+const { runTerminal, operatorKey, operatorKeyIssued } = await import('../src/terminal.js');
 
 let n = 0;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 
-const reset = () => { dom.root.replaceChildren(); dom.setActive(null); scenesReply = SCENES; };
+const reset = () => { dom.root.replaceChildren(); dom.setActive(null); scenesReply = SCENES; acquireReply = false; };
 // Le libellé exact d'abord (« MODE », « ARCHIVE »), puis le CTA entre crochets,
 // et seulement ensuite un préfixe (« FLY — »). Un simple `includes` prenait la
 // ligne d'une zone pour le pied de page : la météo hors ligne est seedée par
@@ -223,6 +226,82 @@ await ta('home : la carte SURVIT au re-rendu de la colonne gauche', async () => 
 	assert.equal(dom.root.querySelector('.terminal-map'), carte, 'le MÊME nœud de carte');
 	assert.equal(dom.root.querySelector('.terminal-right'), droite, 'la MÊME colonne');
 	await close(p);
+});
+
+// --- issue #60 : ce que le droit d'acquérir change à l'écran ----------------
+
+await ta('home : sans droit d\'acquérir, une ligne au pied — pas un bandeau', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const hints = dom.root.querySelectorAll('.terminal-foot-hint');
+	assert.equal(hints.length, 1, 'une seule ligne');
+	assert.match(hints[0].textContent, /DESKTOP CLIENT/);
+	// Information, pas assistance : ni bouton, ni compte à rebours, ni promesse
+	// de débloquer quoi que ce soit.
+	assert.equal(hints[0].querySelectorAll('button').length, 0);
+	assert.doesNotMatch(hints[0].textContent, /UNLOCK|FREE|NOW|UPGRADE/i);
+	await close(p);
+});
+
+await ta('home : avec le droit d\'acquérir, pas de ligne du tout', async () => {
+	reset();
+	acquireReply = true;
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	assert.equal(dom.root.querySelectorAll('.terminal-foot-hint').length, 0);
+	await close(p);
+});
+
+// --- OPERATOR KEY -----------------------------------------------------------
+
+const keyApi = (over = {}) => ({
+	resumeWithKey: async () => { throw new Error('bad operator key'); }, ...over,
+});
+
+await ta('operator key : un champ et deux issues — aucune liste à choisir', async () => {
+	reset();
+	const p = operatorKey(dom.root, keyApi());
+	assert.ok(dom.root.querySelector('input'), 'le champ de la clé');
+	assert.ok(btn('RESUME'), '[ RESUME ]');
+	assert.ok(btn('NEW OPERATOR'), '[ NEW OPERATOR ]');
+	assert.match(text(), /THIS SERVER DOES NOT KNOW YOU/);
+	btn('NEW OPERATOR').click();
+	assert.deepEqual(await p, { create: true });
+});
+
+await ta('operator key : une clé valide rend l\'opérateur', async () => {
+	reset();
+	const seen = [];
+	const p = operatorKey(dom.root, keyApi({
+		resumeWithKey: async (k) => { seen.push(k); return { id: 'neo-1', name: 'Neo' }; },
+	}));
+	dom.root.querySelector('input').value = 'K7QP-3MZX';
+	btn('RESUME').click();
+	const r = await p;
+	assert.deepEqual(seen, ['K7QP-3MZX']);
+	assert.equal(r.operator.id, 'neo-1');
+});
+
+await ta('operator key : une clé refusée laisse l\'écran ouvert et le dit', async () => {
+	reset();
+	const p = operatorKey(dom.root, keyApi());
+	dom.root.querySelector('input').value = 'FAUSSE';
+	btn('RESUME').click();
+	await new Promise((r) => setTimeout(r, 0));
+	assert.match(text(), /UNKNOWN KEY/);
+	assert.ok(dom.root.querySelector('input'), 'l\'écran est toujours là');
+	btn('NEW OPERATOR').click();
+	await p;
+});
+
+await ta('your operator key : la clé en clair, et la consigne de la noter', async () => {
+	reset();
+	const p = operatorKeyIssued(dom.root, 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
+	assert.match(text(), /K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE/);
+	assert.match(text(), /WILL NOT BE SHOWN AGAIN/);
+	btn('CONTINUE').click();
+	await p;
 });
 
 console.log(`\n${n} tests terminal-render OK`);

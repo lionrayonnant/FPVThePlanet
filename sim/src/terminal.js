@@ -61,11 +61,20 @@ function navRow(entries) {
 	return row;
 }
 
+// Le droit d'acquérir, tel que le serveur le rend (issue #60) : le drapeau
+// FPVTP_ACQUIRE posé ET le mode `local`. Retenu à part plutôt que rendu par
+// fetchScenes(), dont trois écrans attendent un tableau de zones et rien
+// d'autre. Fermé tant qu'un serveur n'a pas dit le contraire : une build
+// distribuée n'acquiert pas, et c'est le cas par défaut.
+let acquireAllowed = false;
+export function canAcquire() { return acquireAllowed; }
+
 export async function fetchScenes() {
 	try {
 		const r = await fetch('/__map-api/scenes');
 		if (!r.ok) return null;
-		const { scenes } = await r.json();
+		const { scenes, acquire } = await r.json();
+		acquireAllowed = acquire === true;
 		return Array.isArray(scenes) ? scenes : null;
 	} catch {
 		return null;
@@ -380,6 +389,7 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 async function operatorScreen(root, api) {
 	const s = screen(root);
 	let resolveScreen;
+	let keyShown = false;
 	let nav = null;
 	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
 	const render = () => {
@@ -398,6 +408,18 @@ async function operatorScreen(root, api) {
 			`TARGETS      ${targetLogEntries(op.sessions).length}`,
 		].join('\n');
 		s.box.appendChild(pre);
+		// La CLÉ d'opérateur (#60). Même geste que SHOW VECTOR — masquée, révélée
+		// à la demande — et surtout PAS le même objet : le Control Vector est un
+		// rituel de jeu (Bible §33), la clé est le secret technique qui dit au
+		// serveur `shared` qui parle. Deux écrans, deux mécanismes, jamais mêlés.
+		// Elle vient du navigateur : le serveur ne sait plus la relire en clair.
+		if (api.hasKey?.()) {
+			const keyPre = document.createElement('pre');
+			keyPre.className = 'terminal-sub';
+			keyPre.textContent = `OPERATOR KEY  ${keyShown ? api.getKey() : '••••-••••-••••-••••'}`;
+			s.box.appendChild(keyPre);
+			if (!keyShown) s.box.appendChild(button('SHOW KEY', () => { keyShown = true; render(); }, 'terminal-cta'));
+		}
 		const portrait = document.createElement('div');
 		portrait.className = 'op-portrait';
 		portrait.hidden = true;
@@ -529,6 +551,68 @@ export async function operatorSelect(root, choices) {
 		s.box.appendChild(button('+ NEW OPERATOR', () => done({ create: true }), 'terminal-cta'));
 		// Pas de `back` : il faut choisir un opérateur — il n'y a pas d'ailleurs.
 		const nav = menuNav(s.el, {});
+	});
+}
+
+// ---------- OPERATOR KEY (issue #60) ----------
+
+// Ce que voit un opérateur qu'un serveur `shared` ne reconnaît pas : clé
+// absente, fausse, ou fichier d'avant #60 qui n'en a pas encore. Même gabarit
+// que OPERATOR SELECT ci-dessus — c'est le même moment du jeu, avec une liste
+// en moins : sur un serveur partagé il n'y a personne à choisir, seulement une
+// clé à présenter.
+//
+// Résout { operator } quand la clé retrouve son opérateur, { create: true }
+// pour repartir sur un bootstrap.
+export async function operatorKey(root, api = operatorApi) {
+	const s = screen(root);
+	const title = document.createElement('pre');
+	title.textContent = 'OPERATOR KEY\n\nTHIS SERVER DOES NOT KNOW YOU.\nENTER YOUR KEY, OR REGISTER AS A NEW OPERATOR.';
+	s.box.appendChild(title);
+
+	const input = document.createElement('input');
+	input.type = 'text';
+	input.autocomplete = 'off';
+	input.spellcheck = false;
+	input.placeholder = 'K7QP-3MZX-…';
+	s.box.appendChild(input);
+
+	const err = document.createElement('div');
+	err.className = 'bootstrap-err';
+	s.box.appendChild(err);
+
+	return new Promise((resolve) => {
+		let nav = null;
+		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
+		const submit = async () => {
+			err.textContent = '';
+			if (!input.value.trim()) { err.textContent = 'KEY REQUIRED'; return; }
+			try { done({ operator: await api.resumeWithKey(input.value) }); }
+			catch { err.textContent = 'UNKNOWN KEY'; }
+		};
+		input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+		s.box.appendChild(button('RESUME', submit, 'terminal-cta'));
+		s.box.appendChild(button('NEW OPERATOR', () => done({ create: true }), 'terminal-cta'));
+		// Pas de `back` : comme OPERATOR SELECT, il n'y a pas d'ailleurs.
+		// focusFirst: false — le champ garde le curseur, menu-nav ignore la saisie.
+		nav = menuNav(s.el, { focusFirst: false });
+		input.focus();
+	});
+}
+
+// La clé, montrée UNE fois, juste après la création. Le serveur n'en garde que
+// l'empreinte : cet écran est le seul endroit du jeu où elle existe en clair
+// avant d'aller dans le localStorage du navigateur.
+export function operatorKeyIssued(root, key) {
+	const s = screen(root);
+	const pre = document.createElement('pre');
+	pre.textContent = `YOUR OPERATOR KEY\n\n${key}\n\nWRITE IT DOWN. IT WILL NOT BE SHOWN AGAIN.\nIT IS THE ONLY WAY BACK TO THIS OPERATOR FROM ANOTHER BROWSER.`;
+	s.box.appendChild(pre);
+	return new Promise((resolve) => {
+		let nav = null;
+		const close = () => { nav?.detach(); s.remove(); resolve(); };
+		s.box.appendChild(button('CONTINUE', close, 'terminal-cta'));
+		nav = menuNav(s.el, { back: close });
 	});
 }
 
@@ -699,7 +783,11 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			// repos le rail est caché, donc les deux tracés avec lui. Un clic
 			// arme l'outil et met l'écran au travail — la source, le nom et
 			// l'acquisition arrivent alors avec le rail.
-			if (scanner) {
+			// … et seulement là où une scène a le droit de naître sur disque (#60).
+			// Sans ce droit il ne reste que l'onglet LIVE, qui porte déjà la boucle
+			// complète depuis #218. La garde qui compte est sur POST /__map-api/jobs :
+			// ici on ne fait que ne pas proposer ce que le serveur refusera.
+			if (scanner && acquireAllowed) {
 				const draw = (shape) => () => { drawing = true; renderLeft(); scanner.startDraw(shape); };
 				const row = document.createElement('div');
 				row.className = 'terminal-acts';
@@ -722,6 +810,17 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		foot.textContent = model.footer;
 		left.appendChild(foot);
 		countUp(foot);
+
+		// Une ligne, au pied, et rien de plus (#60). L'argument n'est PAS de
+		// débloquer une fonctionnalité — la build de bureau n'acquiert pas non
+		// plus — c'est de jouer chez soi plutôt que dans un onglet. Information,
+		// pas assistance (Bible, pilier 1) : ni bandeau, ni compte à rebours.
+		if (!acquireAllowed) {
+			const hint = document.createElement('pre');
+			hint.className = 'terminal-foot terminal-foot-hint';
+			hint.textContent = 'DESKTOP CLIENT AVAILABLE — THE SAME GAME, ON YOUR OWN MACHINE';
+			left.appendChild(hint);
+		}
 		// « Une seule touche pour voler » (issue #123) : le curseur se pose sur
 		// [ FLY ], pas sur la recherche ni sur un onglet, qui le précèdent
 		// désormais dans la colonne (#222).

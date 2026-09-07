@@ -12,7 +12,7 @@ import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, runTerminal } from './terminal.js';
+import { operatorSelect, operatorKey, operatorKeyIssued, runTerminal } from './terminal.js';
 import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
@@ -2541,12 +2541,25 @@ async function chooseScene() {
 		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
-	const { needsBootstrap, choices } = await operator.loadOperator();
-	if (needsBootstrap) {
+	// Le bootstrap, plus l'écran qui montre la clé quand la création en a rendu
+	// une (issue #60). Elle n'est affichée qu'ici : le serveur ne la relit jamais.
+	const register = async () => {
 		await bootstrap(ui);
+		const key = operator.takeIssuedKey();
+		if (key) await operatorKeyIssued(ui, key);
+	};
+
+	const { needsBootstrap, choices, needsKey } = await operator.loadOperator();
+	if (needsKey) {
+		// Un serveur `shared` qui ne nous reconnaît pas : pas de liste où se
+		// choisir, une clé à présenter ou un nouvel opérateur à créer.
+		const r = await operatorKey(ui);
+		if (r?.create) await register();
+	} else if (needsBootstrap) {
+		await register();
 	} else if (choices) {
 		const pick = await operatorSelect(ui, choices);
-		if (pick.create) await bootstrap(ui);
+		if (pick.create) await register();
 		else await operator.selectOperator(pick.id);
 	}
 
