@@ -9,9 +9,7 @@ import { PORTRAIT_LINE } from './flight-end.js';
 // Le portrait de la machine perdue (#264). Du SVG en ligne : la couche locale
 // est du DOM, elle n'ouvre pas de contexte de rendu.
 import { dronePortrait } from './drone-portrait.js';
-
-// Constante de lore, pas une version de paquet.
-export const FPVTP_VERSION = '0.97b';
+import { versionLine } from './version.js';
 
 // D'où le vent pousse, dans le repère du drone : l'index 0 est droit devant.
 const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
@@ -42,7 +40,7 @@ export class FpvtpOsd {
 		root.insertAdjacentHTML('beforeend', `
 			<div id="fpvtp-osd" hidden>
 				<div class="corner tl">
-					<div id="fo-ident">FPVTP! // ${FPVTP_VERSION}</div>
+					<div id="fo-ident">${versionLine()}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
 				</div>

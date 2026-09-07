@@ -18,6 +18,11 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Modifié
+
+- L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build
+  Vite) au lieu de la constante de lore `0.97b` (#9).
+
 ## [0.1.0-beta] - 2026-09-07
 
 ### Ajouté

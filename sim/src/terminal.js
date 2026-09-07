@@ -11,6 +11,7 @@ import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { watchReveal, countUp } from './motion.js';
+import { versionLine } from './version.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -691,7 +692,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		left.replaceChildren();
 
 		const head = document.createElement('pre');
-		head.textContent = `FPVTP! // 0.97b\nOPERATOR // ${model.operatorName}`;
+		head.textContent = `${versionLine()}\nOPERATOR // ${model.operatorName}`;
 		left.appendChild(head);
 
 		// La recherche est commune aux deux onglets : elle ne fait que déplacer

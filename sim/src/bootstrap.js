@@ -6,6 +6,7 @@ import { readGamepadDir } from './gamepad-dir.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
 import { watchReveal } from './motion.js';
+import { versionLine } from './version.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -158,7 +159,7 @@ async function hardwareScreen(root) {
 	const s = screen(root);
 	const rows = await probeHardware();
 	const notes = crewNotes(rows);
-	const lines = ['FPVTP! // 0.97b', '', 'OPERATOR BOOTSTRAPPING', ''];
+	const lines = [versionLine(), '', 'OPERATOR BOOTSTRAPPING', ''];
 	rows.forEach((r, i) => {
 		lines.push(dotted(r.label, r.value));
 		if (i === 5 && notes[0]) lines.push(notes[0], notes[1] ?? '');
