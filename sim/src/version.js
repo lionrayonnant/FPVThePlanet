@@ -1,6 +1,6 @@
 // The real package version, injected at build time by vite.config.js from
 // package.json (see CHANGELOG.md and tools/release.mjs) — replaces the
-// '0.97b' lore constant that used to sit on screen (#9).
+// lore string that used to sit on screen (#9).
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 
 // Pure formatting, so it can be unit-tested without Vite's define: a numeric
