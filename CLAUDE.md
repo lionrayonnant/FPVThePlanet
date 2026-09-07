@@ -15,6 +15,7 @@ From `sim/`:
 npm install
 npm run dev
 npm run build
+node server/index.mjs --data <dir> --dist dist   # le jeu sans Vite (#259)
 npm run add-map -- "Name" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256]
 npm run selftest [sceneDir]
 npm run tune
@@ -123,7 +124,7 @@ Run `npm run selftest:ci` locally before pushing. A selftest that needs scene da
 
 `npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
 
-There is no CD yet: a static build cannot boot on its own (see the `Versionnage` section of `sim/HANDOFF.md`).
+There is no CD yet, but a build is no longer dead on its own: `sim/server/` (issue #259, tranche T1) serves `/__operator`, `/__map-api` and the `dist/` files without Vite. `sim/tools/map-api-plugin.mjs` is only the Vite adapter for it; the routes live in `sim/server/api.mjs`, and `sim/tools/lib/paths.mjs` is the single place that resolves the data directory (`FPVTP_DATA_DIR`, defaulting to today's dev paths). What still blocks a real deployment is T2-T4 of `sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md` — read it before touching `sim/server/`.
 
 Secrets / large data
 

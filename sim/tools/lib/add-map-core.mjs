@@ -8,16 +8,16 @@
 // les logs et annuler en cours de route — d'où onLog/signal plutôt que
 // stdio: 'inherit'.
 
-import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { run, Cancelled } from './run.mjs';
 import * as providers from './providers/index.mjs';
 import { Geofence, HOLD_STOP_GUARANTEE_M } from '../../src/geofence.js';
+import { paths, SIM_ROOT } from './paths.mjs';
 
-export const SIM_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
-export const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-export const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
+export { SIM_ROOT };
+export const SCENES_DIR = paths.SCENES_DIR;
+export const SCENES_JSON = paths.SCENES_JSON;
 
 export { Cancelled };
 

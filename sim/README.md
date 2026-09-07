@@ -23,6 +23,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 - Musique — le pipeline de génération · boucles · normalisation · write-once
 - Supprimer une carte — quand une zone ne renvoie rien
 - Le terminal opérateur
+- Faire tourner le jeu sans Vite — le serveur autonome
 - Le pipeline de dialogue (RTC du crew) — `dialogue:gen` · `dialogue:inspect` ·
   `dialogue:check` · les deux dos · la politique de relecture
 - Cartes disponibles
@@ -330,6 +331,61 @@ http://localhost:5173/?scene=<slug>
 
 Le `slug` est celui visible dans `public/scenes.json` ou dans le nom du
 dossier `public/scenes/<slug>/`.
+
+## Faire tourner le jeu sans Vite — le serveur autonome
+
+`npm run dev` reste la façon de développer. Mais un `npm run build` seul ne
+démarrait pas : `/__operator` et `/__map-api` n'existaient qu'en plugin Vite, et
+le terminal mourait au boot sur la première requête (issue #259). `sim/server/`
+est ce même serveur, sans Vite :
+
+```bash
+npm run build
+node server/index.mjs --data ~/.local/share/fpvtp --dist dist --open
+```
+
+| option | défaut | env |
+|---|---|---|
+| `--data <dir>` | les chemins du dépôt (`public/scenes`, `operator-state/`, `.cache/`) | `FPVTP_DATA_DIR` |
+| `--port <n>` | `8080` (`0` = un port libre) | `FPVTP_PORT` |
+| `--host <addr>` | `127.0.0.1` | `FPVTP_HOST` |
+| `--mode local\|shared` | `local` | `FPVTP_MODE` |
+| `--dist <dir>` | `sim/dist` | — |
+| `--open` | non | — |
+
+L'option de ligne de commande gagne sur la variable d'environnement.
+
+Le répertoire de données regroupe tout ce qui appartient à l'installation et
+non au programme — c'est ce qui permettra à une mise à jour de ne rien écraser :
+
+```text
+<data>/
+  scenes/<slug>/        les terrains acquis
+  scenes.json           le catalogue, propre à cette installation
+  operator-state/       les opérateurs et leurs sessions
+  cache/google-earth/   les nœuds rocktree déjà téléchargés
+```
+
+`tools/lib/paths.mjs` est le seul endroit qui résout ces chemins, et **sans
+`FPVTP_DATA_DIR` il rend exactement ceux d'aujourd'hui** : `npm run dev` ne
+change pas de comportement. La variable est lue à l'import du module, donc elle
+doit être posée avant tout — c'est ce que fait `server/index.mjs`.
+
+Deux choses à savoir :
+
+- **En `local`, le serveur refuse un `--host` hors de `127.0.0.1`/`::1`.** La
+  frontière de sécurité est le socket local, la même qu'avec le serveur de dev.
+  `--mode shared` lève le garde-fou, mais l'authentification qui va avec (clé
+  d'opérateur) n'existe pas encore : voir la tranche T3 du design
+  (`docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`).
+- **Aucun repli SPA.** Un fichier absent rend un vrai 404 JSON, jamais
+  `index.html` : le chargeur (`src/loader.js`) distingue une scène présente
+  d'une scène absente par le type de contenu, et un hébergeur qui rabat tout sur
+  la page lui ment (issue #275).
+
+`tools/map-api-plugin.mjs` n'est plus qu'un adaptateur : il monte le même
+`createApi()` sur les middlewares de Vite. `tools/vite-adapter-selftest.mjs`
+vérifie qu'il ne dérive pas du serveur.
 
 ## Le pipeline de dialogue (RTC du crew)
 

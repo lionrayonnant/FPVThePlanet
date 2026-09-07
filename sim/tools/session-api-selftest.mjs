@@ -1,33 +1,32 @@
-// Selftest des routes de session (PHASE 17) contre un VRAI serveur de dev.
+// Selftest des routes de session (PHASE 17) contre un VRAI serveur.
 //
-// Contrairement aux autres selftests, celui-ci démarre Vite : il est lent et
-// n'est donc PAS chaîné dans `npm run selftest:operator`. Lancer :
-//   npm run selftest:api
+// Depuis l'extraction du serveur autonome (issue #259), c'est server/index.mjs
+// qui est démarré ici, pas Vite : ce selftest teste ce qui est livré. Un check
+// de fumée séparé (tools/vite-adapter-selftest.mjs) garde l'adaptateur Vite
+// honnête.
 //
-// L'état opérateur est redirigé vers un répertoire temporaire via
-// FPV_OPERATOR_DIR — lu par map-api-plugin.mjs à son chargement, d'où le
-// process.env AVANT l'import de vite. Le fichier opérateur réel de
-// l'utilisateur n'est ni lu ni écrit.
+// Tout l'état va dans un répertoire de données jetable — d'où le process.env
+// AVANT le premier import qui remonterait à tools/lib/paths.mjs, qui lit la
+// variable à son chargement. L'état opérateur réel de l'utilisateur n'est ni lu
+// ni écrit.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fpvtp-api-'));
-process.env.FPV_OPERATOR_DIR = DIR;
+process.env.FPVTP_DATA_DIR = DIR;
+delete process.env.FPV_OPERATOR_DIR;
 
-const { createServer } = await import('vite');
+const { startServer } = await import('../server/index.mjs');
 
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, console.log(`  FAIL  ${n}`)); };
 
-// `strictPort: false` + port 0 : on prend n'importe quel port libre, pour ne pas
-// entrer en collision avec un `npm run dev` déjà ouvert. On lit l'URL que Vite
-// a RÉSOLUE plutôt que de la reconstruire : `httpServer.address()` rend le port
-// mais pas l'hôte, et Vite écoute sur `localhost` — qui vaut `::1` ici, pas
-// `127.0.0.1`.
-const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: 'error' });
-await server.listen();
-const base = server.resolvedUrls.local[0].replace(/\/$/, '');
+// Port 0 : n'importe quel port libre, pour ne pas entrer en collision avec un
+// `npm run dev` déjà ouvert. On lit l'URL que le serveur a RÉSOLUE plutôt que de
+// la reconstruire.
+const started = await startServer({ dataDir: DIR, distDir: path.join(DIR, 'dist'), port: '0' });
+const base = started.url.replace(/\/$/, '');
 
 const call = async (method, p, body) => {
 	const r = await fetch(base + p, body === undefined ? { method } : {
@@ -137,7 +136,7 @@ try {
 	check('PATCH clé inconnue → 400', rejected.status === 400
 		&& /clé non modifiable/.test(rejected.body.error ?? ''));
 } finally {
-	await server.close();
+	await started.close();
 	fs.rmSync(DIR, { recursive: true, force: true });
 }
 

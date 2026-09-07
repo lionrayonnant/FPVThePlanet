@@ -18,6 +18,34 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- `sim/server/` — le jeu démarre sans Vite (#259, tranche T1 du design de
+  déploiement). `node server/index.mjs [--data <dir>] [--port 8080]
+  [--host 127.0.0.1] [--mode local|shared] [--dist <dir>] [--open]`, avec les
+  variables d'environnement `FPVTP_DATA_DIR`/`FPVTP_PORT`/`FPVTP_HOST`/
+  `FPVTP_MODE`. `api.mjs` porte `/__operator` et `/__map-api` — les deux tables
+  de routes déplacées telles quelles, aucun chemin, aucune méthode, aucun code
+  de statut ni aucune forme de réponse ne changent ; `static.mjs` sert le
+  `dist/` de Vite, avec `Range` (reprendre le téléchargement d'un chunk de
+  scène), ETag faible, `Cache-Control: immutable` sur `/scenes/<slug>/*`, et
+  **aucun repli SPA** : un fichier absent rend un 404 JSON, jamais `index.html`
+  (le pendant serveur de #275). Aucune dépendance npm : du `node:http` nu.
+- `sim/tools/lib/paths.mjs` — un seul module résout le répertoire de données
+  (`scenes/`, `scenes.json`, `operator-state/`, `cache/google-earth/`). Sans
+  `FPVTP_DATA_DIR`, il rend exactement les chemins d'aujourd'hui : `npm run dev`
+  ne bouge pas d'un octet, et `FPV_OPERATOR_DIR` reste honoré.
+- `sim/tools/server-selftest.mjs` (26 vérifications) et
+  `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
+
+### Modifié
+
+- `sim/tools/map-api-plugin.mjs` n'est plus qu'un adaptateur Vite de vingt
+  lignes : il monte `createApi()` sur les middlewares du serveur de dev, avec
+  son logger. Toute la logique a migré dans `sim/server/api.mjs`.
+- `sim/tools/session-api-selftest.mjs` teste désormais le serveur autonome
+  plutôt que Vite — il teste ce qui est livré, et il passe de 208 ms à 85 ms.
+
 ### Retiré
 
 - Apple Flyover comme fournisseur de photogrammétrie : `tools/lib/providers/

@@ -21,11 +21,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { paths } from './lib/paths.mjs';
 
-const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
+const { SCENES_DIR, SCENES_JSON } = paths;
 
 const adopt = process.argv.includes('--adopt');
 

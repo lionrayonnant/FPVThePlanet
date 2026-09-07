@@ -2774,13 +2774,34 @@ Déployer demanderait donc, au choix :
 Rien de tout ça n'est fait. Tant que ce n'est pas tranché, la « livraison »
 d'une version est l'archive `dist` attachée à la GitHub Release.
 
-**Tranché le 2026-09-07, pas encore implémenté** : ni l'un ni l'autre tel
-quel, mais un seul serveur Node autonome (`sim/server/`, extrait du plugin
-Vite) en deux hébergements — un VPS en mode `shared` (clé d'opérateur, terrain
-détaché plutôt qu'effacé, file d'acquisition) et une release par plateforme
-avec runtime Node embarqué en mode `local`. Le design complet, les faits
-vérifiés qui le dictent et les cinq tranches sont dans
+**Tranché le 2026-09-07** : ni l'un ni l'autre tel quel, mais un seul serveur
+Node autonome (`sim/server/`, extrait du plugin Vite) en deux hébergements —
+un VPS en mode `shared` (clé d'opérateur) et une app Electron installée en mode
+`local`. Le design complet, les faits vérifiés qui le dictent et les quatre
+tranches sont dans
 `docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`.
+
+**T1 livrée le 2026-09-07.** `sim/server/` existe : `api.mjs` (les deux tables
+de routes, déplacées sans changer un chemin ni un code de statut), `static.mjs`
+(fichiers, `Range`, ETag faible, **pas de repli SPA**), `index.mjs` (la CLI et
+`startServer()`, que le process principal d'Electron démarrera en T2),
+`auth.mjs` (vide, T3). `tools/lib/paths.mjs` résout le répertoire de données ;
+`tools/map-api-plugin.mjs` n'est plus qu'un adaptateur Vite de vingt lignes.
+
+**Vérifié** : `node server/index.mjs --data <tmp> --dist dist` sert le jeu sans
+Vite — intro, `OPERATOR SELECT`, `SELECT OPERATION MODE`, dans Chromium, avec
+un opérateur créé par `POST /__operator` sur ce même serveur (2026-09-07).
+`tools/server-selftest.mjs` (26 vérifications) est chaîné dans `selftest:ci` ;
+`tools/session-api-selftest.mjs` tourne désormais contre le serveur autonome
+(208 ms → 85 ms), et `tools/vite-adapter-selftest.mjs` garde l'adaptateur Vite
+honnête.
+
+**Pas encore vérifié** : `Range` et le cache `immutable` sur une VRAIE scène de
+450 Mo (le selftest travaille sur 4 Ko) ; le serveur sous Windows ; un vol
+complet servi par le serveur autonome. Et il reste T2 (Electron), T3 (clé
+d'opérateur, `FPVTP_ACQUIRE`) et T4 (VPS) avant qu'une release soit jouable
+telle quelle — `npm run build` copie encore `public/scenes/` dans `dist/`
+(#290).
 
 ### NON vérifié
 
