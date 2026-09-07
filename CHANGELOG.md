@@ -18,6 +18,11 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Tests couvrant qu'un vol EN DIRECT remplit bien le Session Log, le Target
+  Log et le compteur OPERATOR, et n'est jamais proposé en REVISIT/RESUME (#8).
+
 ### Modifié
 
 - L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build

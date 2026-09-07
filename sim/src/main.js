@@ -3017,6 +3017,7 @@ async function openFlightSession() {
 	// La reconnaissance emprunte désormais le chemin du BANC : tout tourne, sauf
 	// session.open(). C'est le chemin éprouvé, on ne s'en fabrique pas un
 	// deuxième.
+	// Dev-only ?live= shortcut. A LIVE flight chosen from the terminal opens a session below (#218).
 	if (OPTS.live) return;
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit

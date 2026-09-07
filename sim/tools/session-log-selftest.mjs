@@ -5,6 +5,7 @@ import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
 	targetLogEntries, targetRow, areaLabel, stamp, duration, pad, fit, liveAreaId,
 } from './session-log-model.mjs';
+import { terminalModel } from './terminal-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -240,6 +241,52 @@ t('liveAreaId : sans nom, les coordonnées — deux vols au même endroit se rej
 
 t('liveAreaId : le libellé du journal reste lisible', () => {
 	assert.equal(areaLabel(liveAreaId('Odeon', 48.85, 2.34)), 'LIVE ODEON');
+});
+
+// --- LIVE flights fill the archives (D7, #8) --------------------------------
+// A LIVE flight has no scene on disk: its area is a `live-` id (liveAreaId),
+// never a slug from scenes.json. It must still land in every archive a
+// terrain-backed flight lands in, exactly the same way.
+
+t('un vol LIVE apparaît au SESSION LOG et au TARGET LOG, et il est compté par le modèle OPERATOR', () => {
+	const liveArea = liveAreaId('Paris', 48.85, 2.35);
+	const live = mk({
+		id: 'live-0001', area: liveArea, result: 'CRASHED', targetSeq: 99,
+		target: { family: 'racer3', classHint: null, hackType: null, signal: { rssiDbm: -80, mode: 'DIGITAL' }, scannedAt: null, intel: {} },
+	});
+	const sessions = [mk(), live];
+
+	// SESSION LOG : la ligne existe et porte le bon libellé de zone.
+	assert.deepEqual(filterSessions(sessions, 'ALL').map((s) => s.id), ['tour-eiffel-a3f2', 'live-0001']);
+	const row = sessionRow(live);
+	assert.match(row, /LIVE PARIS/);
+	assert.match(row, /CRASHED/);
+
+	// TARGET LOG : dérivé des sessions (spec D1), donc la cible du vol LIVE y
+	// est aussi, avec le même libellé de zone.
+	const entries = targetLogEntries(sessions);
+	const liveEntry = entries.find((e) => e.sessionId === 'live-0001');
+	assert.ok(liveEntry, 'le vol LIVE doit apparaître au Target Log');
+	assert.equal(liveEntry.area, liveArea);
+	assert.match(targetRow(liveEntry), /LIVE PARIS/);
+
+	// La ligne archivée ne porte aucune décision d'action : REVISIT et RESUME
+	// sont un gate du rendu (`areas.some(...)`, terminal.js/session-log.js),
+	// jamais une donnée de l'archive elle-même.
+	assert.ok(!('revisit' in liveEntry) && !('resume' in liveEntry));
+
+	// OPERATOR : compté comme n'importe quelle autre session — aucune zone
+	// connue (`scenes: []`) ne change `sessions.length`.
+	const model = terminalModel({ operator: { name: 'neo', sessions }, scenes: [] });
+	assert.match(model.footer, /2 SESSIONS/);
+});
+
+t('un vol LIVE n\'est jamais revisitable : sa zone live- ne correspond à aucune zone connue', () => {
+	const liveArea = liveAreaId('Paris', 48.85, 2.35);
+	// C'est exactement le test que fait session-log.js/terminal.js avant
+	// d'afficher REVISIT AREA / RESUME SESSION : `areas.some((a) => a.slug === area)`.
+	const model = terminalModel({ operator: { name: 'neo', sessions: [] }, scenes: [] });
+	assert.ok(!model.areas.some((a) => a.slug === liveArea));
 });
 
 console.log(`\n${n} ok`);
