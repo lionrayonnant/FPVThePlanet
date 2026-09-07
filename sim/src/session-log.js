@@ -285,7 +285,9 @@ export function runTargetLog(root, { operator } = {}) {
 	const last = entries[0];
 	const lastSession = last
 		&& (operator?.sessions ?? []).find((x) => x?.id === last.sessionId);
-	const portrait = portraitOf(lastSession?.target, { caption: `LAST TARGET // ${last?.label ?? ''}`.trim() });
+	// Et sa livrée (#286), sur la ligne d'en dessous — comme la fiche.
+	const lastLivery = lastSession?.target?.buildSeed ? liveryLabel(targetLivery({ seed: lastSession.target.buildSeed, family: lastSession.target.family })) : '';
+	const portrait = portraitOf(lastSession?.target, { caption: [`LAST TARGET // ${last?.label ?? ''}`.trim(), lastLivery].filter(Boolean).join('\n') });
 	if (portrait) s.box.appendChild(portrait.el);
 
 	return new Promise((resolve) => {

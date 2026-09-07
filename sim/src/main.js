@@ -346,6 +346,17 @@ function applyBenchConfig() {
 		flightEnd.landing.THR_IDLE = idleThrottle(physics.profile);
 		controller = new FlightController({ profile: PROFILE, rates: build?.rates });
 		console.log(`[bench] cellule → ${PROFILE.family} (${PROFILE.label})`);
+		// Le drone du joueur suit la cellule (#286) : ses hélices, sa livrée et
+		// son châssis sont ceux de l'exemplaire qui vole, pas de l'ancien —
+		// sans ça, les hélices de l'ancienne machine restaient dans le champ
+		// (noté au HANDOFF depuis #264).
+		if (playerDrone && camSpec) {
+			lens.setOnboard(null);
+			playerDrone.dispose();
+			playerDrone = new PlayerDrone({ scene, profile: physics.profile, build, camera: camSpec });
+			playerDrone.setFreeCam(freeCamOn);
+			lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
+		}
 	}
 	// physics.battery est un getter vers propulsion.battery, et setProfile()
 	// reconstruit la Propulsion — donc le pack. Reposer le drapeau ICI, après

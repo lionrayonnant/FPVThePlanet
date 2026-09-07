@@ -29,7 +29,9 @@ export function dronePortrait({ family, buildSeed, size = 160 } = {}) {
 		detail: 'portrait',
 	});
 
-	const view = wireSvg({ shape, size, label: `${family} ${buildSeed}` });
+	// Sous 200 px, le détail (moyeux, fixations, rubans, boîtier) n'est pas
+	// tracé (#286) : rendu à 160 px et regardé, il faisait une tache.
+	const view = wireSvg({ shape, size, label: `${family} ${buildSeed}`, minWeight: size < 200 ? 0.18 : 0 });
 	const draw = (yawDeg) => view.draw({ yawDeg, pitchDeg: PITCH_DEG });
 
 	draw(START_DEG);

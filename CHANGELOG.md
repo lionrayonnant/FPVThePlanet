@@ -31,6 +31,24 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Dans le champ, les cloches moteur (#286) : la pièce de livrée la plus
+  proche de l'objectif n'était qu'au portrait. Elle est au niveau `onboard`
+  — elle vit sous le plan d'hélice, la borne de hauteur ne la voit pas.
+- Éclairage hémisphérique ciel/sol sur la machine : les dessus prennent le
+  ciel, les dessous le sol. En free cam elle n'est plus une silhouette contre
+  le ciel quel que soit le soleil.
+- Le fil de fer ne trace plus le détail sous 200 px (`minWeight`) : moyeux,
+  fixations, rubans et boîtier disparaissent au lieu de s'atténuer — à
+  160 px ils faisaient une tache.
+- Le `TARGET LOG` légende le portrait de la dernière cible de sa livrée, sur
+  la ligne sous `LAST TARGET`.
+
+### Corrigé
+
+- Le banc changeait de cellule sans reconstruire le drone du joueur (#286,
+  noté au HANDOFF depuis #264) : les hélices de l'ancienne machine restaient
+  dans le champ. Il est reconstruit avec l'exemplaire qui vole.
+
 - Le châssis varie par build (#285, `tools/target-frame.mjs`, `build.frame`,
   flux de graine à part) : patron `x`, `h`, `deadcat` ou `unibody` pondéré par
   famille, largeur des bras, hauteur de la cage — aux niveaux `onboard` et

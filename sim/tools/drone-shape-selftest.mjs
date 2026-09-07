@@ -165,7 +165,7 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 	check('onboard : quatre bras, chacun arrivant à son moteur',
 		onboard.parts.filter((p) => p.role === 'arm').length === 4);
 	check('onboard retire la carrosserie',
-		onboard.parts.every((p) => ROTOR.has(p.role) || ['arm', 'blade', 'tape'].includes(p.role)));
+		onboard.parts.every((p) => ROTOR.has(p.role) || ['arm', 'blade', 'tape', 'bell'].includes(p.role)));
 	check('portrait ajoute à la silhouette, ne retire rien (la plaque et les bras suivent le châssis)',
 		silhouette.parts.filter((p) => !['plate', 'arm'].includes(p.role)).every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
 	check('portrait ajoute, ne retire rien',
@@ -197,7 +197,7 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 // GoPro et les antennes, qui vivent derrière lui. Le `portrait`, lui, montre la
 // machine entière : c'est une fiche, pas une vue subjective.
 {
-	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade', 'tape']);
+	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade', 'tape', 'bell']);
 	for (const family of FAMILIES) {
 		const embarque = new Set(make(family, `shape::${family}`, 'onboard').parts.map((p) => p.role));
 		check(`${family}: la vue embarquée ne porte que les rotors`,

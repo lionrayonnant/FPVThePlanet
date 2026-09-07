@@ -2507,6 +2507,24 @@ traverser (son CONNECT est réinitialisé). Le montage :
   l'arrière — rendu et lu, deux orientations fausses avant la bonne) et ruban.
 - `target-livery-selftest.mjs` : 43 vérifications.
 
+
+## Cloches dans le champ, hémisphère, fil de fer allégé, banc (issue #286)
+
+- Les **cloches** passent au niveau `onboard` : dans le champ, les coins bas
+  montrent la couleur du build (rendu hors jeu, g1::0 : cloches violettes sous
+  les pales roses). En jeu, à travers l'objectif, elles se devinent — la
+  lentille désature les coins bas.
+- **Hémisphère ciel/sol** dans `DroneMaterial` (`lit = 0,45 + 0,25·(½ + ½·n.y)
+  + 0,45·soleil`). Les ambiants le prennent aussi (même shader, un pixel à
+  cent mètres). En jeu la free cam reste sombre contre un ciel exposé par
+  l'AGC : c'est l'exposition, pas l'éclairage.
+- **`minWeight`** dans `wireSvg()` ; `dronePortrait()` le pose à 0,18 sous
+  200 px. Rendu à 160 px : les disques, les bras et le corps restent, le détail
+  s'en va.
+- **`TARGET LOG`** : la livrée sur la ligne sous `LAST TARGET`.
+- **Banc** : `applyBenchConfig()` reconstruit `playerDrone` avec l'exemplaire
+  qui vole. Non vérifié en jeu (le panneau du banc n'a pas été piloté).
+
 ## Une livrée par build (issue #284)
 
 Toutes les machines étaient peintes des quatre mêmes gris de la palette. Chaque

@@ -21,7 +21,10 @@ const NS = 'http://www.w3.org/2000/svg';
 // (issue #283, rendu à 160 px et regardé : à 0.006 tout était sous le pixel
 // et l'antialiasing faisait de la machine une tache uniforme). Un écran où
 // l'on suit un manche en direct prend plus épais (issue #281).
-export function wireSvg({ shape, size = 160, className = 'drone-portrait', label = '', strokeWidth = 0.010 } = {}) {
+// `minWeight` (#286) : en dessous de ce poids de primitive, le trait n'est pas
+// tracé du tout. À 160 px, atténuer ne suffit pas — un moyeu de deux pixels
+// reste une tache ; le retirer laisse lire les disques, les bras et le corps.
+export function wireSvg({ shape, size = 160, className = 'drone-portrait', label = '', strokeWidth = 0.010, minWeight = 0 } = {}) {
 	const el = document.createElementNS(NS, 'svg');
 	el.setAttribute('viewBox', '-1.1 -1.1 2.2 2.2');
 	el.setAttribute('width', String(size));
@@ -77,7 +80,7 @@ export function wireSvg({ shape, size = 160, className = 'drone-portrait', label
 				// Et la hiérarchie du dessin technique : les grandes lignes en
 				// fort, le détail en fin (le poids vient de wireOf).
 				const d = w.depth[i], g = w.weight[i];
-				l.setAttribute('opacity', ((1 - 0.72 * d) * (0.7 + 0.3 * g)).toFixed(3));
+				l.setAttribute('opacity', g < minWeight ? '0' : ((1 - 0.72 * d) * (0.7 + 0.3 * g)).toFixed(3));
 				l.setAttribute('stroke-width', (strokeWidth * (1 - 0.45 * d) * (0.5 + 0.5 * g)).toFixed(5));
 			}
 			for (let i = n; i < lines.length; i++) lines[i].setAttribute('opacity', '0');

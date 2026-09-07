@@ -5,7 +5,7 @@
 // build sait varier (masse, cellules) ; la caméra vient de targetCamera().
 //
 // Rôles : plate arm motor prop duct camera battery gopro antenna led,
-// plus blade et tape (dès `onboard`), bell, hub, stack, cage, mount, strap,
+// plus blade, bell et tape (dès `onboard`), hub, stack, cage, mount, strap,
 // ledbar, rail, goprolens et sticker (`portrait` seulement).
 //
 // Le CHÂSSIS varie par build (issue #285, `build.frame`) aux niveaux `onboard`
@@ -183,15 +183,23 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 		}
 	}
 
+	// La cloche : la partie tournante du moteur, un peu plus large que son
+	// pied, et dont le dessus PORTE l'hélice — son sommet est le plan
+	// d'hélice. Avant #283 elle traversait le disque et dépassait au-dessus,
+	// ce qu'aucun moteur ne fait. Dès `onboard` (#286) : c'est la pièce de
+	// livrée la plus proche de l'objectif, et elle vit SOUS le plan d'hélice —
+	// la borne de hauteur ne la voit pas, contrairement au moyeu.
+	if (onboard) {
+		for (let k = 0; k < motors.length; k++) {
+			const m = motors[k];
+			parts.push(cyl('bell', [m.x, propPlaneY - 0.004, m.z], 0.205 * propRadius, 0.008, { motor: k }));
+		}
+	}
+
 	// Ce qui ne se voit que de près, et qui distingue deux machines.
 	if (portrait) {
 		for (let k = 0; k < motors.length; k++) {
 			const m = motors[k];
-			// La cloche : la partie tournante du moteur, un peu plus large que
-			// son pied, et dont le dessus PORTE l'hélice — son sommet est le
-			// plan d'hélice. Avant #283 elle traversait le disque et dépassait
-			// au-dessus, ce qu'aucun moteur ne fait.
-			parts.push(cyl('bell', [m.x, propPlaneY - 0.004, m.z], 0.205 * propRadius, 0.008, { motor: k }));
 			// Le moyeu : l'écrou et le pied de pale, posés sur le disque. C'est
 			// lui qui ferme le centre de l'hélice, que les pales laissent vide.
 			// `portrait` seulement : dans le champ, il monterait au-dessus de

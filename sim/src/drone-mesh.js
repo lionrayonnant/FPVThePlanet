@@ -283,7 +283,10 @@ export function DroneMaterial() {
 				vec3 n = normalize(vNormalW);
 				if (!gl_FrontFacing) n = -n;
 				vec3 v = normalize(cameraPosition - vPosW);
-				float lit = 0.55 + 0.45 * max(0.0, dot(n, uSunDir));
+				// Hémisphère ciel/sol (#286) : les dessus prennent le ciel, les
+				// dessous le sol. Sans lui la machine est une silhouette contre
+				// le ciel en free cam (vu en jeu), quel que soit le soleil.
+				float lit = 0.45 + 0.25 * (0.5 + 0.5 * n.y) + 0.45 * max(0.0, dot(n, uSunDir));
 				// La matière (issue #284). Carbone : un sergé procédural en
 				// espace corps — deux familles de rayures à 45°, alternées, sur
 				// les deux axes orthogonaux à la normale de la pièce (les flancs
