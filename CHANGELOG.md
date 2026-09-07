@@ -129,8 +129,20 @@ rapport avec les versions ci-dessous.
   des réglages neufs — calibrage manette, volumes, réglages d'objectif. Son
   opérateur, lui, n'est pas perdu : il vit côté serveur, et `OPERATOR SELECT`
   le repropose.
+- Le README de la racine est réécrit autour de ce qu'un nouveau venu vit
+  vraiment : une capture d'écran, ce qu'on peut faire **tout de suite** sur un
+  clone neuf (voler en LIVE, puisqu'il n'y a aucun terrain sur disque), les
+  contrôles, et les trois façons de faire tourner le jeu.
 - Le dépôt est désormais `lionrayonnant/FPVThePlanet` : toutes les références
   internes, `deploy/deploy.sh` et l'unité systemd comprises, pointent dessus.
+
+### Corrigé
+
+- Le scanner disait `NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP` alors que
+  `[ DRAW BOX ]` et `[ DRAW SHAPE ]` sont masqués quand l'acquisition est
+  fermée (#60) : il demandait l'impossible à quiconque venait d'installer le
+  jeu. Il indique désormais l'onglet LIVE, qui est réellement la façon de
+  décoller dans ce cas.
 
 ### Retiré
 

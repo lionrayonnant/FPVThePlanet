@@ -752,7 +752,12 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			} else {
 				const none = document.createElement('pre');
 				none.className = 'terminal-sub';
-				none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
+				// Sans le droit d'acquérir, [ DRAW BOX ] n'est pas à l'écran : envoyer
+				// le joueur le chercher serait lui demander l'impossible. LIVE est
+				// alors la seule façon de décoller, et elle suffit.
+				none.textContent = acquireAllowed
+					? 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP'
+					: 'NO LOCAL TERRAIN — SWITCH TO LIVE TO FLY';
 				left.appendChild(none);
 			}
 
