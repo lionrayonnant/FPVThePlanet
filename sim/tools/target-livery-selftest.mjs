@@ -17,7 +17,10 @@ console.log('target-livery');
 	const a = targetBuild({ seed: 'liv::1', family: 'race5' });
 	const b = targetBuild({ seed: 'liv::1', family: 'race5' });
 	check('même graine → même livrée', JSON.stringify(a.livery) === JSON.stringify(b.livery));
-	check('targetLivery seul = celle du build', JSON.stringify(targetLivery({ seed: 'liv::1', family: 'race5' })) === JSON.stringify(a.livery));
+	// Le build ajoute `wear` par-dessus : tout le reste est la livrée seule.
+	const { wear, ...sansUsure } = a.livery;
+	check('targetLivery seul = celle du build (moins l\'usure)', JSON.stringify(targetLivery({ seed: 'liv::1', family: 'race5' })) === JSON.stringify(sansUsure));
+	check('l\'usure du build est dans [0, 1]', wear >= 0 && wear <= 1, `${wear}`);
 	check('une autre famille, une autre livrée', JSON.stringify(targetBuild({ seed: 'liv::1', family: 'heavy5' }).livery) !== JSON.stringify(a.livery));
 	let threw = false;
 	try { targetLivery({ family: 'race5' }); } catch { threw = true; }
@@ -73,11 +76,45 @@ for (const family of FAMILIES) {
 	check('60 freestyle → au moins 40 livrées distinctes', seen.size >= 40, `${seen.size}`);
 }
 
+// Les schémas assortis (#284, deuxième passe) : sur les builds aux hélices
+// vives dont la table TPU connaît la couleur, une part nette a le TPU de la
+// même couleur — et pas toutes, les machines dépareillées existent.
+{
+	let eligible = 0, matched = 0, tips = 0, n = 600;
+	for (let i = 0; i < n; i++) {
+		const l = targetLivery({ seed: `match::${i}`, family: 'race5' });
+		if (l.tip) tips++;
+		if (PROPS.findIndex(([nm]) => nm === l.prop.name) >= 3 && TPU.some(([nm]) => nm === l.prop.name)) {
+			eligible++;
+			if (l.tpu.name === l.prop.name) matched++;
+		}
+	}
+	const ratio = matched / eligible;
+	check('TPU assorti aux hélices : entre 45 et 75 % des éligibles', ratio > 0.45 && ratio < 0.75, `${(100 * ratio).toFixed(0)} % de ${eligible}`);
+	check('hélices bicolores : proche de la pondération race5', Math.abs(tips / n - LOUD.race5.tip) < 0.07, `${(tips / n).toFixed(2)} pour ${LOUD.race5.tip}`);
+	check('longrange : bicolores rares', (() => { let t = 0; for (let i = 0; i < 300; i++) if (targetLivery({ seed: `lr::${i}`, family: 'longrange' }).tip) t++; return t / 300 < 0.12; })());
+}
+
+// L'usure se LIT dans le build : un pack plus vieux ⇒ plus usé, jamais tiré.
+{
+	const { wearOf, BUILD_BOUNDS } = await import('./target-build.mjs');
+	const { PROFILES } = await import('../src/drone-profiles.js');
+	const base = PROFILES.freestyle5;
+	const mk = (ohmK, dragK) => ({ battery: { internalOhm: base.battery.internalOhm * ohmK }, bodyDrag: { x: base.bodyDrag.x * dragK } });
+	check('usure : pack neuf et montage propre ⇒ 0', wearOf(mk(BUILD_BOUNDS.internalOhm[0], BUILD_BOUNDS.bodyDrag[0]), base) === 0);
+	check('usure : pack mort et machine qui traîne ⇒ 1', Math.abs(wearOf(mk(BUILD_BOUNDS.internalOhm[1], BUILD_BOUNDS.bodyDrag[1]), base) - 1) < 1e-9);
+	check('usure : monotone avec l\'âge du pack', wearOf(mk(1.3, 1), base) < wearOf(mk(1.5, 1), base));
+	check('usure : bornée', wearOf(mk(5, 5), base) === 1 && wearOf(mk(0.5, 0.5), base) === 0);
+	let spread = new Set();
+	for (let i = 0; i < 50; i++) spread.add(targetBuild({ seed: `wear::${i}`, family: 'freestyle5' }).livery.wear.toFixed(1));
+	check('50 builds : l\'usure varie', spread.size >= 4, `${[...spread].sort().join(' ')}`);
+}
+
 // Ce que le maillage consomme.
 {
 	const l = targetLivery({ seed: 'liv::mesh', family: 'race5' });
 	const c = liveryColors(l);
-	check('liveryColors : prop bell tpu battery led weave', ['prop', 'bell', 'tpu', 'battery', 'led'].every((k) => isHex(c[k])) && c.weave > 0);
+	check('liveryColors : prop bell tpu battery strap led weave wear', ['prop', 'bell', 'tpu', 'battery', 'strap', 'led'].every((k) => isHex(c[k])) && c.weave > 0 && c.wear >= 0 && (c.tip === null || isHex(c.tip)));
 	check('liveryColors(null) : objet vide (les gris restent)', Object.keys(liveryColors(null)).length === 0 && Object.keys(liveryColors(undefined)).length === 0);
 	check('liveryLabel : PROPS … · BELLS … · TPU …', /^PROPS .+ · BELLS .+ · TPU .+$/.test(liveryLabel(l)) && liveryLabel(l) === liveryLabel(l).toUpperCase());
 	check('liveryLabel(null) : vide', liveryLabel(null) === '');
@@ -93,8 +130,12 @@ for (const [name, table] of Object.entries({ PROPS, BELLS, TPU, PACKS, LEDS })) 
 	// discrète de chaque table. rand → 0 : toujours vif, la première vive.
 	const dull = liveryOf(() => 0.999999, 'race5');
 	check('rand → 1 : les entrées discrètes', dull.prop.name === 'white' && dull.bell.name === 'silver' && dull.tpu.name === 'black' && dull.pack.name === 'black', JSON.stringify(dull));
+	// rand → 0 : tout est vif ET assorti — TPU, sangle et LED reprennent les
+	// hélices ; la cloche n'a pas de vert dans sa table, elle prend la
+	// première vive ; le bout de pale prend la première vive autre que le corps.
 	const loud = liveryOf(() => 0, 'race5');
-	check('rand → 0 : les premières entrées vives', loud.prop.name === 'neon green' && loud.bell.name === 'red' && loud.tpu.name === 'orange' && loud.pack.name === 'blue', JSON.stringify(loud));
+	check('rand → 0 : vif et assorti', loud.prop.name === 'neon green' && loud.tpu.name === 'neon green' && loud.strap.name === 'neon green'
+		&& loud.led.name === 'green' && loud.bell.name === 'red' && loud.pack.name === 'blue' && loud.tip?.name === 'orange', JSON.stringify(loud));
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

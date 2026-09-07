@@ -166,6 +166,15 @@ export function targetLivery({ seed, family } = {}) {
 	return liveryOf(rngFrom(`${seed}::livery::${base.family}`), base.family);
 }
 
+// L'usure d'un exemplaire, 0..1, LUE dans son build : l'âge du pack (le
+// tirage le plus ressenti en vol) et la traînée de montage. Les deux plages
+// sont celles de BUILD_BOUNDS ; une famille peu variée est donc peu usée.
+export function wearOf(profile, base) {
+	const ohm = (profile.battery.internalOhm / base.battery.internalOhm - BUILD_BOUNDS.internalOhm[0]) / (BUILD_BOUNDS.internalOhm[1] - BUILD_BOUNDS.internalOhm[0]);
+	const drag = (profile.bodyDrag.x / base.bodyDrag.x - BUILD_BOUNDS.bodyDrag[0]) / (BUILD_BOUNDS.bodyDrag[1] - BUILD_BOUNDS.bodyDrag[0]);
+	return Math.max(0, Math.min(1, 0.6 * ohm + 0.4 * drag));
+}
+
 export function targetBuild({ seed, family } = {}) {
 	if (!seed) throw new Error('seed requis');
 	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
@@ -211,8 +220,11 @@ export function targetBuild({ seed, family } = {}) {
 		profile,
 		rates,
 		// La livrée (issue #284), sur SON flux de graine : l'ajouter n'a déplacé
-		// aucun tirage physique ci-dessus, et le selftest le tient.
-		livery: targetLivery({ seed, family: base.family }),
+		// aucun tirage physique ci-dessus, et le selftest le tient. L'usure, elle,
+		// n'est PAS tirée : elle se lit dans le build — un pack qui a vieilli
+		// (internalOhm) et une machine qui traîne (bodyDrag) — pour que ce qui
+		// se voit soit ce qui se sent.
+		livery: { ...targetLivery({ seed, family: base.family }), wear: wearOf(profile, base) },
 		// Ce qu'on peut en dire une fois en vol, et rien avant (PHASE 08 : la
 		// fiche pré-hack ne connaît ni la masse ni la batterie).
 		spec: {

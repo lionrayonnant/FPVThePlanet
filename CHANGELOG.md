@@ -47,6 +47,17 @@ rapport avec les versions ci-dessous.
 - La fiche SESSION LOG légende le portrait de la livrée (`PROPS NEON GREEN ·
   BELLS GOLD · TPU ORANGE`) : le portrait reste monochrome — c'est le
   terminal —, mais la fiche dit de quelles couleurs était la machine.
+- Deuxième passe sur la livrée, regardée sur 24 générations (#284) : les
+  machines n'étaient plus des confettis mais pas encore des builds. Une part
+  des livrées est désormais **assortie** — TPU, cloche, sangle et LED
+  reprennent la teinte des hélices quand la table d'en face la connaît —, le
+  boîtier de caméra est en TPU, le pack a sa sangle, la plaque sa barre de LED
+  (émissive, de la couleur de la LED), et un quart des race5 vole en hélices
+  **bicolores** (bout d'une autre couleur, sur les pales comme sur le disque en
+  régime). Et l'**usure** : lue dans le build — âge du pack, traînée de
+  montage — et jamais tirée, elle met de la poussière sous la machine, des
+  éraflures, éteint le brillant et blanchit les bouts de pales. Ce qui se voit
+  est ce qui se sent.
 
 - Les frames du joueur, regardables (#283). Rendus à 160, 200 et 400 px et
   regardés, les portraits fil de fer de #264 étaient une tache : des pales en

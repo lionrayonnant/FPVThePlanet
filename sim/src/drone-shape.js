@@ -5,8 +5,8 @@
 // build sait varier (masse, cellules) ; la caméra vient de targetCamera().
 //
 // Rôles : plate arm motor prop duct camera battery gopro antenna led,
-// plus blade (dès `onboard`), bell, hub, stack, cage et mount (`portrait`
-// seulement).
+// plus blade (dès `onboard`), bell, hub, stack, cage, mount, strap et ledbar
+// (`portrait` seulement).
 //
 // Trois niveaux de détail (issue #264) : `silhouette` (le défaut, ce que
 // voient les ambiants — inchangé), `onboard` (les hélices sont à 8 cm de
@@ -195,6 +195,9 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// Batterie sur le dessus : 20 mm par cellule.
 	const cells = build.spec.cells;
 	if (!lensView) parts.push(box('battery', [0, 0.008 + 0.0125, 0], [0.035, 0.025, 0.020 * cells]));
+	// Sa sangle, qui fait le tour du pack (#284, `portrait`) : une bande à
+	// peine plus large que lui, au milieu de sa longueur.
+	if (portrait) parts.push(box('strap', [0, 0.008 + 0.0125, 0], [0.037, 0.027, 0.020]));
 
 	// GoPro : toujours sur le cinewhoop ; sur un freestyle/heavy lourd.
 	// heavyBuild compare la masse de l'exemplaire à la masse NOMINALE de la
@@ -218,6 +221,9 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 
 	// LED à l'arrière.
 	if (!lensView) parts.push({ kind: 'point', role: 'led', at: [0, 0.004, 0.55 * armZ], size: [0.004] });
+	// La barre de LED sur le bord arrière de la plaque (#284, `portrait`) :
+	// de près, le point qui strobe ne suffit pas, on voit le bandeau.
+	if (portrait) parts.push(box('ledbar', [0, 0, 0.55 * armZ + 0.002], [0.024, 0.005, 0.004]));
 
 	const boundingRadius = Math.hypot(armX, armZ) + (DUCTED.has(family) ? 1.12 : 1) * propRadius + 0.02;
 	return { family, parts, boundingRadius };

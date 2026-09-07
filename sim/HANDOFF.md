@@ -2473,11 +2473,25 @@ livrées se distinguent au premier regard — hélices néon / cloches bleues /
 pack vert, hélices fumées / cloches argent, conduits bleus sur le toothpick.
 Le POV à 1 800 rad/s montre un disque de la couleur des pales.
 
+### Deuxième passe, regardée sur 24 générations
+
+Rendu d'une planche de 24 builds (`g1::0` à `g1::23`, familles en rotation)
+avant / après. Avant : des confettis — hélices roses, TPU rouge, LED bleue sur
+la même machine. Après : `MATCH` dans `target-livery.mjs` assortit TPU, cloche,
+sangle et LED aux hélices pour une part des builds (55 / 35 / 60 / 45 %),
+hélices bicolores (`tip`, 25 % des race5, 5 % des long range), boîtier de
+caméra en TPU, sangle de pack et barre de LED émissive au niveau `portrait`,
+et l'**usure** (`wearOf` dans `target-build.mjs`, lue dans `internalOhm` et
+`bodyDrag`, jamais tirée) : poussière dessous, éraflures, brillant éteint,
+bouts de pales blanchis. `target-livery-selftest.mjs` passe à 38
+vérifications (proportions d'assortiment, bicolores, usure bornée et
+monotone).
+
 ### NON vérifié
 
 1. Le sergé carbone à l'écran : porté par le reflet (la base #121110 est trop
    sombre pour l'albédo), il ne se juge qu'en mouvement et sous le soleil du
-   jeu.
+   jeu. Même réserve pour l'usure, qui est du même ordre de finesse.
 2. Les couleurs à travers l'objectif de vol (AGC, bruit, DIGITAL) — jugées
    hors lentille.
 3. La légende de livrée dans la fiche SESSION LOG, rendue sur faux DOM

@@ -98,24 +98,36 @@ function bladeGeometry(part) {
 // remplace en régime, et il ne doit pas changer de teinte en montant en
 // puissance. Un rôle inconnu est du carbone : la recette peut grandir sans
 // qu'une pièce nouvelle sorte en rose.
-export const CARBON = 0, METAL = 1, PLASTIC = 2;
+export const CARBON = 0, METAL = 1, PLASTIC = 2, EMISSIVE = 3;
 const MATERIAL_OF = {
 	plate: ['frame', CARBON], arm: ['frame', CARBON], cage: ['frame', CARBON], stack: ['frame', CARBON],
 	motor: ['metal', METAL], bell: ['bell', METAL], hub: ['bell', METAL],
 	prop: ['prop', PLASTIC], blade: ['prop', PLASTIC],
-	duct: ['tpu', PLASTIC], mount: ['tpu', PLASTIC], antenna: ['tpu', PLASTIC],
-	battery: ['battery', PLASTIC],
-	camera: ['metal', PLASTIC], gopro: ['metal', PLASTIC],
+	// Le boîtier de caméra est en TPU sur presque tous les montages : c'est
+	// la pièce colorée la plus visible de face.
+	duct: ['tpu', PLASTIC], mount: ['tpu', PLASTIC], antenna: ['tpu', PLASTIC], camera: ['tpu', PLASTIC],
+	battery: ['battery', PLASTIC], strap: ['strap', PLASTIC],
+	gopro: ['metal', PLASTIC],
+	ledbar: ['led', EMISSIVE],
 };
 // La livrée peut être partielle (les gris d'avant #284) : chaque rôle de
 // couleur retombe sur le gris qui le rendait avant.
-const FALLBACK = { bell: 'metal', tpu: 'frame', battery: 'frame' };
+const FALLBACK = { bell: 'metal', tpu: 'frame', battery: 'frame', strap: 'frame' };
+const TIP_FROM = 0.78;
 function dressed(geo, part, colors, alpha = 1) {
 	const [key, mat] = MATERIAL_OF[part.role] ?? ['frame', CARBON];
 	const hex = colors[key] ?? colors[FALLBACK[key]] ?? colors.frame;
 	const n = geo.attributes.position.count;
 	geo.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mat), 1));
-	return tagged(colored(geo, hex, alpha), part);
+	tagged(colored(geo, hex, alpha), part);
+	// Hélices bicolores (#284) : le bout de pale, au-delà de 78 % du rayon,
+	// prend la seconde couleur. uv.y est la station le long de la pale.
+	if (part.kind === 'blade' && colors.tip) {
+		const c = new THREE.Color(colors.tip);
+		const col = geo.attributes.color.array, uv = geo.attributes.uv.array;
+		for (let i = 0; i < n; i++) if (uv[2 * i + 1] >= TIP_FROM) { col[4 * i] = c.r; col[4 * i + 1] = c.g; col[4 * i + 2] = c.b; }
+	}
+	return geo;
 }
 
 function partGeometry(part, colors, fine) {
@@ -171,6 +183,13 @@ export function DroneMaterial() {
 			uBlades: { value: 0 },
 			// Le pas du tissage carbone, en mètres (issue #284).
 			uWeave: { value: 0.002 },
+			// L'usure du build, 0..1 (#284) : poussière dessous, éraflures,
+			// brillant qui s'en va, bouts de pales blanchis.
+			uWear: { value: 0 },
+			// La seconde couleur des hélices bicolores, et si elle existe : le
+			// disque en régime porte la même couronne que les pales.
+			uTip: { value: new THREE.Color(0xffffff) },
+			uTipOn: { value: 0 },
 		},
 		vertexShader: /* glsl */`
 			uniform float uPhase[4];
@@ -229,6 +248,9 @@ export function DroneMaterial() {
 			uniform float uOmega[4];
 			uniform float uBlades;
 			uniform float uWeave;
+			uniform float uWear;
+			uniform vec3 uTip;
+			uniform float uTipOn;
 			in vec4 vColor;
 			in float vMotor;
 			in float vSpin;
@@ -275,6 +297,20 @@ export function DroneMaterial() {
 				} else if (vMat < 1.5) {
 					specExp = 28.0; specK = 0.55;
 				}
+				// L'usure (#284). De la poussière sur ce qui regarde le sol, des
+				// éraflures claires semées au hasard en espace corps, un
+				// brillant qui s'éteint, et les bouts de pales qui blanchissent
+				// — ce qu'une machine qui a volé raconte avant même de décoller.
+				if (uWear > 0.0) {
+					float under = 0.5 - 0.5 * vNormalB.y;
+					albedo = mix(albedo, vec3(0.36, 0.33, 0.29), 0.45 * uWear * under);
+					float h = fract(sin(dot(floor(vPosB * 700.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+					// Rares et fines : à 22 % de cellules la machine était de la
+					// neige d'écran, regardé sur 24 builds.
+					albedo += 0.10 * step(1.0 - 0.07 * uWear, h);
+					specK *= 1.0 - 0.5 * uWear;
+					if (vMat > 1.5 && vSpin != 0.0) albedo = mix(albedo, vec3(0.86, 0.84, 0.80), 0.5 * uWear * smoothstep(0.86, 1.0, vUv.y));
+				}
 				// Le reflet (issue #283) : du carbone et de l'aluminium à un
 				// mètre, ou à huit centimètres, ne sont pas mats — sans ce
 				// brillant la machine est une silhouette noire. Blinn-Phong
@@ -285,6 +321,9 @@ export function DroneMaterial() {
 				float rim = pow(1.0 - max(0.0, dot(n, v)), 3.0) * 0.12;
 				float night = 1.0 - 0.75 * uNight;
 				vec3 c = (albedo * lit + vec3(spec + rim)) * uAmbient * night;
+				// Émissif (la barre de LED) : sa propre lumière, ni soleil ni
+				// nuit — le brouillard, lui, s'applique comme à tout le reste.
+				if (vMat > 2.5) c = albedo * 1.4;
 				float a = vColor.a;
 				// Le régime du moteur de ce sommet, zéro pour tout ce qui
 				// n'appartient à aucun (aMotor = -1 : plaque, batterie, caméra,
@@ -320,6 +359,9 @@ export function DroneMaterial() {
 					// Le voile s'éteint en douceur au bout des pales : le bord
 					// d'un flou d'hélice n'est pas une arête.
 					float veil = mix(1.0, (1.55 - 0.85 * rad) * smoothstep(1.0, 0.86, rad), uBlades);
+					// La couronne des hélices bicolores, sur le disque comme sur
+					// les pales (même seuil de rayon).
+					c = mix(c, uTip * (0.55 + 0.45 * max(0.0, dot(n, uSunDir))) * uAmbient * night, uTipOn * uBlades * smoothstep(0.74, 0.80, rad));
 					// Sans pales, le disque EST l'hélice : plein, comme avant.
 					// Avec pales, il n'est que leur enveloppe : invisible à
 					// l'arrêt, plein en régime.
@@ -462,6 +504,8 @@ export function buildDroneMesh(shape, { colors }) {
 	// la présence de pales qui décide de la façon dont le disque se rend.
 	material.uniforms.uBlades.value = shape.parts.some((p) => p.role === 'blade') ? 1 : 0;
 	if (colors.weave) material.uniforms.uWeave.value = colors.weave;
+	if (colors.wear) material.uniforms.uWear.value = colors.wear;
+	if (colors.tip) { material.uniforms.uTip.value.set(colors.tip); material.uniforms.uTipOn.value = 1; }
 	const body = new THREE.Mesh(geometry, material);
 	body.frustumCulled = true;
 
