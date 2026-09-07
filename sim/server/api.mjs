@@ -37,7 +37,7 @@ import { resolveWeather } from '../tools/weather-source.mjs';
 import { generateTargetScan, resolveTarget } from '../tools/target-model.mjs';
 import {
 	generateKey, hashKey, checkKey, acquireEnabled, invalidateKeyIndex, publicOperator,
-	operatorIdForKey, bearerOf,
+	operatorIdForKey, bearerOf, checkSignup, checkOperatorQuota,
 } from './auth.mjs';
 
 const BASE = '/__map-api';
@@ -132,6 +132,10 @@ const opRoutes = [
 	}],
 
 	['POST', /^\/$/, async (req, res) => {
+		// L'inscription est en libre service (c'est le cas nominal sur le VPS) :
+		// elle a donc un plafond par adresse, et lui seul. Rien en `local`.
+		const flood = checkSignup({ mode: MODE, req });
+		if (flood) return json(res, flood.status, { error: flood.error });
 		const b = await readBody(req);
 		let name;
 		try { name = validateName(b.name); }
@@ -154,11 +158,11 @@ const opRoutes = [
 	// les deux motifs se recouvrent, et c'est la première trouvée qui répond.
 	['GET', /^\/whoami$/, async (req, res) => {
 		const id = operatorIdForKey(P.OPERATOR_DIR, bearerOf(req));
-		if (!id) return json(res, 404, { error: 'no operator for this key' });
+		if (!id) return json(res, 404, { error: 'aucun opérateur pour cette clé' });
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
-		if (!state) return json(res, 404, { error: 'no operator for this key' });
+		if (!state) return json(res, 404, { error: 'aucun opérateur pour cette clé' });
 		const rec = reconcileStaleSessions(state);
 		if (rec.changed) _writeOperator(rec.state);
 		json(res, 200, { operator: publicOperator(stripOperatorPhotoData(rec.state)) });
@@ -358,6 +362,12 @@ const opRoutes = [
 	// de stockage binaire séparé. Plafond de body relevé rien que pour cette
 	// route : une capture dépasse largement le mégaoctet des autres requêtes.
 	['POST', /^\/([^/]+)\/sessions\/([^/]+)\/photos$/, async (req, res, [id, sid]) => {
+		// La SEULE écriture dont la taille dépende du client (base64 dans le JSON
+		// de session). PHOTO_BODY_MAX borne une requête, ce plafond-ci borne le
+		// cumul — sans quoi N inconnus remplissent le disque du VPS. Le vol, lui,
+		// n'est jamais bloqué : ouvrir et clore une session passe toujours.
+		const full = checkOperatorQuota({ mode: MODE, dir: P.OPERATOR_DIR, id });
+		if (full) return json(res, full.status, { error: full.error });
 		const b = await readBody(req, PHOTO_BODY_MAX);
 		let state;
 		try { state = _readOperator(id); }
@@ -695,7 +705,7 @@ const routes = [
 		// porte la garde. Rien à voir avec la clé d'opérateur : celle-ci dit qui
 		// parle, celle-là ce qui a le droit d'exister ici (D2).
 		if (!acquireEnabled(MODE)) {
-			return json(res, 403, { error: 'terrain acquisition is disabled on this server' });
+			return json(res, 403, { error: 'acquisition de terrain désactivée sur ce serveur' });
 		}
 		if (current) return json(res, 409, { error: 'une extraction est déjà en cours', jobId: current.id });
 		const b = await readBody(req);
@@ -774,7 +784,7 @@ export function createApi({ paths = defaultPaths, mode = 'local', logger = conso
 			// rien. Pas de liste publique : sur un serveur qui reçoit des inconnus,
 			// énumérer les opérateurs est déjà une fuite.
 			if (MODE === 'shared' && p === '/' && req.method === 'GET') {
-				return json(res, 404, { error: 'no operator directory on this server' });
+				return json(res, 404, { error: 'pas d\'annuaire d\'opérateurs sur ce serveur' });
 			}
 			if (!(p === '/' && req.method === 'POST')) {
 				// /whoami ne nomme pas un opérateur, il en CHERCHE un : la clé seule

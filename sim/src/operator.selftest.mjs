@@ -168,7 +168,7 @@ await t('keepTerrain : propage l\'erreur serveur', async () => {
 // Un mécanisme technique, distinct du Control Vector (Bible §33) : il dit au
 // serveur `shared` qui parle, rien de plus.
 
-await t('createOperator garde la clé rendue, et ne la rend qu\'une fois', async () => {
+await t('createOperator garde la clé SILENCIEUSEMENT — rien à noter, rien à cliquer', async () => {
 	const store = fakeStore();
 	op._setStore(store);
 	op._setFetch(fakeFetch({
@@ -177,8 +177,9 @@ await t('createOperator garde la clé rendue, et ne la rend qu\'une fois', async
 	await op.createOperator('Vex');
 	assert.equal(store.getItem('fpvmaps.operatorKey'), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
 	assert.equal(op.hasKey(), true);
-	assert.equal(op.takeIssuedKey(), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
-	assert.equal(op.takeIssuedKey(), null, 'consommée : l\'écran ne la remontre pas');
+	assert.equal(op.getKey(), 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE', 'relisible par [ SHOW KEY ], et par lui seul');
+	// Aucune API « à consommer une fois » : l'écran YOUR OPERATOR KEY n'existe pas.
+	assert.equal(op.takeIssuedKey, undefined);
 });
 
 await t('chaque requête porte la clé en Bearer', async () => {

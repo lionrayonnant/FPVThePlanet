@@ -239,7 +239,7 @@ try {
 
 	const closedJob = await postJob(base);
 	check('local, drapeau absent : POST /__map-api/jobs refuse (403)',
-		closedJob.status === 403 && /disabled/.test(bodyOf(closedJob).error ?? ''));
+		closedJob.status === 403 && /désactivée/.test(bodyOf(closedJob).error ?? ''));
 
 	process.env.FPVTP_ACQUIRE = '1';
 	check('local, FPVTP_ACQUIRE=1 : GET /__map-api/scenes annonce acquire:true',
@@ -250,12 +250,34 @@ try {
 	// tout autre raison passerait pour un succès.
 	const openedJob = await postJob(base);
 	check('local, FPVTP_ACQUIRE=1 : la garde s\'ouvre — POST /jobs cale sur le corps, pas sur elle',
-		openedJob.status === 400 && !/disabled/.test(bodyOf(openedJob).error ?? ''));
+		openedJob.status === 400 && !/désactivée/.test(bodyOf(openedJob).error ?? ''));
 
 	check('FPVTP_ACQUIRE=nimportequoi ne vaut pas vrai',
 		(process.env.FPVTP_ACQUIRE = 'oui', bodyOf(await get('/__map-api/scenes')).acquire === false));
 	check('FPVTP_ACQUIRE=true, lui, ouvre',
 		(process.env.FPVTP_ACQUIRE = 'TRUE', bodyOf(await get('/__map-api/scenes')).acquire === true));
+
+	// --- inscription en libre service : les deux plafonds ---------------------
+	//
+	// En `local`, ni l'un ni l'autre ne s'applique — c'est le point.
+	const signup = (b, name, headers = {}) => fetch(b + '/__operator', {
+		method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
+		body: JSON.stringify({ name }),
+	});
+
+	const { SIGNUP_MAX, OPERATOR_BYTES_MAX, clientIp } = await import('../server/auth.mjs');
+
+	// Derrière Caddy, `remoteAddress` vaut toujours la boucle locale : seul
+	// x-forwarded-for identifie le demandeur. En `local` il serait falsifiable
+	// par le client, et on ne le lit PAS.
+	const proxied = { headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '127.0.0.1' } };
+	check('x-forwarded-for n\'est lu qu\'en `shared`',
+		clientIp(proxied, 'shared') === '203.0.113.7' && clientIp(proxied, 'local') === '127.0.0.1');
+
+	let localCodes = [];
+	for (let i = 0; i < SIGNUP_MAX + 2; i++) localCodes.push((await signup(base, `flood${i}`)).status);
+	check(`local : ${SIGNUP_MAX + 2} inscriptions d'affilée passent toutes — aucun plafond`,
+		localCodes.every((c) => c === 201));
 
 	// --- un opérateur d'avant #60 : aucun keyHash, et il doit rester intact ---
 	const LEGACY = 'legacy-0001';
@@ -329,11 +351,70 @@ try {
 		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false);
 	const sharedJob = await postJob(sbase, bearer(KEY));
 	check('shared, FPVTP_ACQUIRE=1, clé valide : POST /__map-api/jobs refuse quand même (403)',
-		sharedJob.status === 403 && /disabled/.test(bodyOf(sharedJob).error ?? ''));
+		sharedJob.status === 403 && /désactivée/.test(bodyOf(sharedJob).error ?? ''));
 	delete process.env.FPVTP_ACQUIRE;
 	check('shared, drapeau absent : acquire:false, et POST /jobs 403',
 		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false
 		&& (await postJob(sbase, bearer(KEY))).status === 403);
+
+	// --- le plafond d'inscriptions, en `shared` ------------------------------
+	//
+	// Chaque adresse a son propre compteur : deux x-forwarded-for différents ne
+	// se gênent pas, et la 6e depuis la MÊME adresse est refusée.
+	const IP_A = '203.0.113.7';
+	const codes = [];
+	for (let i = 0; i < SIGNUP_MAX + 1; i++) {
+		codes.push((await signup(sbase, `flood${i}`, { 'x-forwarded-for': IP_A })).status);
+	}
+	check(`shared : les ${SIGNUP_MAX} premières inscriptions d'une adresse passent`,
+		codes.slice(0, SIGNUP_MAX).every((c) => c === 201));
+	const over = await signup(sbase, 'detrop', { 'x-forwarded-for': IP_A });
+	const overBody = await over.json();
+	check('shared : la suivante rend 429, avec un message lisible en français',
+		over.status === 429 && /trop d'inscriptions/.test(overBody.error ?? '')
+		&& /min/.test(overBody.error ?? ''));
+	check('shared : une AUTRE adresse a son propre compteur',
+		(await signup(sbase, 'ailleurs', { 'x-forwarded-for': '203.0.113.99' })).status === 201);
+	// Le proxy pose plusieurs sauts : c'est le PREMIER qui est le client.
+	check('shared : x-forwarded-for à plusieurs sauts — c\'est le premier qui compte',
+		(await signup(sbase, 'saut', { 'x-forwarded-for': `${IP_A}, 10.0.0.1` })).status === 429);
+
+	// --- le quota d'octets par opérateur -------------------------------------
+	//
+	// Le VOL n'est jamais bloqué : seule la capture l'est, parce que c'est la
+	// seule écriture dont la taille dépende du client.
+	const fat = JSON.parse(await (await signup(sbase, 'gras', { 'x-forwarded-for': '203.0.113.50' })).text());
+	const fatFile = path.join(DATA, 'operator-state', `${fat.operator.id}.json`);
+	const opened = await fetch(`${sbase}/__operator/${fat.operator.id}/sessions`, {
+		method: 'POST', headers: { ...bearer(fat.key), 'content-type': 'application/json' },
+		body: JSON.stringify({ area: SLUG }),
+	});
+	const sid = (await opened.json()).session?.id;
+	check('shared : ouvrir une session passe, quota ou pas', opened.status === 201 && Boolean(sid));
+
+	const photo = (k, i) => fetch(`${sbase}/__operator/${fat.operator.id}/sessions/${sid}/photos`, {
+		method: 'POST', headers: { ...bearer(k), 'content-type': 'application/json' },
+		body: JSON.stringify({ dataUrl: `data:image/jpeg;base64,${'A'.repeat(2048 + i)}`, w: 320, h: 180 }),
+	});
+	check('shared : sous le plafond, une capture passe', (await photo(fat.key, 0)).status === 201);
+
+	// On gonfle le fichier au-delà du plafond sans passer par mille requêtes :
+	// c'est la TAILLE SUR DISQUE que la garde regarde.
+	const bloated = JSON.parse(fs.readFileSync(fatFile, 'utf8'));
+	bloated.settings = { padding: 'x'.repeat(OPERATOR_BYTES_MAX) };
+	fs.writeFileSync(fatFile, JSON.stringify(bloated, null, '\t'));
+	check(`le fichier dépasse bien ${Math.round(OPERATOR_BYTES_MAX / 1e6)} Mo`,
+		fs.statSync(fatFile).size > OPERATOR_BYTES_MAX);
+
+	const refusedPhoto = await photo(fat.key, 1);
+	check('shared : au-delà du plafond, la capture est refusée (413) et le dit',
+		refusedPhoto.status === 413 && /quota atteint/.test((await refusedPhoto.json()).error ?? ''));
+	const closed = await fetch(`${sbase}/__operator/${fat.operator.id}/sessions/${sid}`, {
+		method: 'PATCH', headers: { ...bearer(fat.key), 'content-type': 'application/json' },
+		body: JSON.stringify({ result: 'LANDED', end: new Date().toISOString() }),
+	});
+	check('shared : le quota ne bloque JAMAIS le vol — la session se clôt quand même',
+		closed.status === 200);
 
 	// --- migration : la commande `key` ---------------------------------------
 	check('shared : l\'opérateur d\'avant #60 est inutilisable — aucune clé ne mène à lui',

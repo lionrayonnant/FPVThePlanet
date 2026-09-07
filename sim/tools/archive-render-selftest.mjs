@@ -124,6 +124,9 @@ await ta('operator : avec une clé, elle est masquée jusqu\'à SHOW KEY', async
 	btn('SHOW KEY').click();
 	await tick();
 	assert.match(topBox().textContent, /K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE/);
+	// La SEULE chose que le jeu dise jamais de la clé : l'inscription, elle, ne
+	// fait rien noter à personne (amendement du 2026-09-07).
+	assert.match(topBox().textContent, /THIS PROFILE LIVES IN THIS BROWSER/);
 	// La clé n'a rien à voir avec le Control Vector : cet écran ne parle pas de
 	// vecteur, et l'écran du vecteur ne parlera jamais de clé.
 	assert.doesNotMatch(topBox().textContent, /CONTROL VECTOR/);

@@ -13,6 +13,7 @@
 // Bearer` sur chaque requête. Un serveur `local` ne la regarde jamais ; un
 // serveur `shared` la réclame. Elle n'a RIEN à voir avec le Control Vector
 // (Bible §33) : celui-ci est un rituel de jeu, celle-là un secret technique.
+// Elle n'est JAMAIS montrée à l'inscription — le navigateur la garde, point.
 // Sur 401/403 on efface id ET clé et l'appelant montre OPERATOR KEY.
 
 const OP_BASE = '/__operator';
@@ -54,11 +55,6 @@ export function forgetOperator() {
 	_store.removeItem(KEY);
 	_store.removeItem(OP_KEY);
 }
-
-// La clé rendue par POST /__operator, à montrer UNE fois. Consommée par
-// l'appelant (l'écran YOUR OPERATOR KEY) : le serveur ne la redonnera jamais.
-let issued = null;
-export function takeIssuedKey() { const k = issued; issued = null; return k; }
 
 export function authHeaders() {
 	const k = getKey();
@@ -120,7 +116,10 @@ export async function createOperator(name) {
 	const { operator, key } = await req('POST', '', { name });
 	cache = operator;
 	_store.setItem(KEY, cache.id);
-	if (key) { setKey(key); issued = key; }
+	// SILENCIEUSEMENT. On ne fait pas noter un secret de 128 bits à quelqu'un qui
+	// vient voler : le navigateur la garde, et [ SHOW KEY ] (ARCHIVE) la rend le
+	// jour où l'on veut emporter son profil ailleurs.
+	if (key) setKey(key);
 	return cache;
 }
 

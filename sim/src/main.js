@@ -12,7 +12,7 @@ import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, operatorKey, operatorKeyIssued, runTerminal } from './terminal.js';
+import { operatorSelect, operatorKey, runTerminal } from './terminal.js';
 import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
@@ -2541,13 +2541,10 @@ async function chooseScene() {
 		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
-	// Le bootstrap, plus l'écran qui montre la clé quand la création en a rendu
-	// une (issue #60). Elle n'est affichée qu'ici : le serveur ne la relit jamais.
-	const register = async () => {
-		await bootstrap(ui);
-		const key = operator.takeIssuedKey();
-		if (key) await operatorKeyIssued(ui, key);
-	};
+	// Le bootstrap, inchangé (issue #60) : la clé rendue par la création part dans
+	// localStorage sans un écran de plus. ARCHIVE > OPERATOR > [ SHOW KEY ] est le
+	// chemin, délibéré, du jour où l'on veut emporter son profil ailleurs.
+	const register = () => bootstrap(ui);
 
 	const { needsBootstrap, choices, needsKey } = await operator.loadOperator();
 	if (needsKey) {

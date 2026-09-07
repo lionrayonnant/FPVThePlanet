@@ -36,7 +36,7 @@ globalThis.fetch = async (url) => {
 	return { ok: false, status: 503, json: async () => ({}) };
 };
 
-const { runTerminal, operatorKey, operatorKeyIssued } = await import('../src/terminal.js');
+const { runTerminal, operatorKey } = await import('../src/terminal.js');
 
 let n = 0;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
@@ -259,13 +259,17 @@ const keyApi = (over = {}) => ({
 	resumeWithKey: async () => { throw new Error('bad operator key'); }, ...over,
 });
 
-await ta('operator key : un champ et deux issues — aucune liste à choisir', async () => {
+await ta('operator key : NEW OPERATOR d\'abord, la clé en secours — et rien à choisir', async () => {
 	reset();
 	const p = operatorKey(dom.root, keyApi());
-	assert.ok(dom.root.querySelector('input'), 'le champ de la clé');
-	assert.ok(btn('RESUME'), '[ RESUME ]');
-	assert.ok(btn('NEW OPERATOR'), '[ NEW OPERATOR ]');
-	assert.match(text(), /THIS SERVER DOES NOT KNOW YOU/);
+	const buttons = dom.root.querySelectorAll('button');
+	// L'ORDRE est le message : le cas nominal sur un serveur partagé, c'est
+	// quelqu'un qui arrive et repart avec un profil.
+	assert.equal(buttons[0].textContent, '[ NEW OPERATOR ]', 'le premier bouton de l\'écran');
+	assert.ok(dom.root.querySelector('input'), 'le champ de la clé, plus bas');
+	// RESUME n'est pas un CTA : entrer une clé est une porte de secours.
+	assert.equal(btn('RESUME').className, 'terminal-link');
+	assert.match(text(), /THIS SERVER DOES NOT KNOW THIS BROWSER/);
 	btn('NEW OPERATOR').click();
 	assert.deepEqual(await p, { create: true });
 });
@@ -292,15 +296,6 @@ await ta('operator key : une clé refusée laisse l\'écran ouvert et le dit', a
 	assert.match(text(), /UNKNOWN KEY/);
 	assert.ok(dom.root.querySelector('input'), 'l\'écran est toujours là');
 	btn('NEW OPERATOR').click();
-	await p;
-});
-
-await ta('your operator key : la clé en clair, et la consigne de la noter', async () => {
-	reset();
-	const p = operatorKeyIssued(dom.root, 'K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE');
-	assert.match(text(), /K7QP-3MZX-AAAA-BBBB-CCCC-DDDD-EE/);
-	assert.match(text(), /WILL NOT BE SHOWN AGAIN/);
-	btn('CONTINUE').click();
 	await p;
 });
 

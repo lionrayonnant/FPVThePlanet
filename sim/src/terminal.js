@@ -419,6 +419,12 @@ async function operatorScreen(root, api) {
 			keyPre.textContent = `OPERATOR KEY  ${keyShown ? api.getKey() : '••••-••••-••••-••••'}`;
 			s.box.appendChild(keyPre);
 			if (!keyShown) s.box.appendChild(button('SHOW KEY', () => { keyShown = true; render(); }, 'terminal-cta'));
+			// La seule chose qui soit jamais dite de la clé, et elle est dite ICI :
+			// l'inscription, elle, ne fait rien noter à personne.
+			const where = document.createElement('pre');
+			where.className = 'terminal-foot';
+			where.textContent = 'THIS PROFILE LIVES IN THIS BROWSER. THE KEY CARRIES IT ELSEWHERE.';
+			s.box.appendChild(where);
 		}
 		const portrait = document.createElement('div');
 		portrait.className = 'op-portrait';
@@ -559,31 +565,43 @@ export async function operatorSelect(root, choices) {
 // Ce que voit un opérateur qu'un serveur `shared` ne reconnaît pas : clé
 // absente, fausse, ou fichier d'avant #60 qui n'en a pas encore. Même gabarit
 // que OPERATOR SELECT ci-dessus — c'est le même moment du jeu, avec une liste
-// en moins : sur un serveur partagé il n'y a personne à choisir, seulement une
-// clé à présenter.
+// en moins : sur un serveur partagé il n'y a personne à choisir.
 //
-// Résout { operator } quand la clé retrouve son opérateur, { create: true }
-// pour repartir sur un bootstrap.
+// [ NEW OPERATOR ] est le chemin NORMAL, et il est premier : le cas nominal sur
+// un serveur partagé, c'est quelqu'un qui arrive et repart avec un profil. La
+// saisie de clé est une porte de secours — on n'y va que si l'on a déjà un
+// profil ailleurs — donc plus bas et sans CTA.
+//
+// Résout { create: true } pour un bootstrap, { operator } quand une clé
+// retrouve son opérateur.
 export async function operatorKey(root, api = operatorApi) {
 	const s = screen(root);
 	const title = document.createElement('pre');
-	title.textContent = 'OPERATOR KEY\n\nTHIS SERVER DOES NOT KNOW YOU.\nENTER YOUR KEY, OR REGISTER AS A NEW OPERATOR.';
+	title.textContent = 'OPERATOR\n\nTHIS SERVER DOES NOT KNOW THIS BROWSER.';
 	s.box.appendChild(title);
-
-	const input = document.createElement('input');
-	input.type = 'text';
-	input.autocomplete = 'off';
-	input.spellcheck = false;
-	input.placeholder = 'K7QP-3MZX-…';
-	s.box.appendChild(input);
-
-	const err = document.createElement('div');
-	err.className = 'bootstrap-err';
-	s.box.appendChild(err);
 
 	return new Promise((resolve) => {
 		let nav = null;
 		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
+
+		s.box.appendChild(button('NEW OPERATOR', () => done({ create: true }), 'terminal-cta'));
+
+		const sub = document.createElement('pre');
+		sub.className = 'terminal-sub';
+		sub.textContent = 'ALREADY REGISTERED ELSEWHERE? ENTER YOUR OPERATOR KEY.';
+		s.box.appendChild(sub);
+
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.autocomplete = 'off';
+		input.spellcheck = false;
+		input.placeholder = 'K7QP-3MZX-…';
+		s.box.appendChild(input);
+
+		const err = document.createElement('div');
+		err.className = 'bootstrap-err';
+		s.box.appendChild(err);
+
 		const submit = async () => {
 			err.textContent = '';
 			if (!input.value.trim()) { err.textContent = 'KEY REQUIRED'; return; }
@@ -591,28 +609,11 @@ export async function operatorKey(root, api = operatorApi) {
 			catch { err.textContent = 'UNKNOWN KEY'; }
 		};
 		input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-		s.box.appendChild(button('RESUME', submit, 'terminal-cta'));
-		s.box.appendChild(button('NEW OPERATOR', () => done({ create: true }), 'terminal-cta'));
-		// Pas de `back` : comme OPERATOR SELECT, il n'y a pas d'ailleurs.
-		// focusFirst: false — le champ garde le curseur, menu-nav ignore la saisie.
-		nav = menuNav(s.el, { focusFirst: false });
-		input.focus();
-	});
-}
-
-// La clé, montrée UNE fois, juste après la création. Le serveur n'en garde que
-// l'empreinte : cet écran est le seul endroit du jeu où elle existe en clair
-// avant d'aller dans le localStorage du navigateur.
-export function operatorKeyIssued(root, key) {
-	const s = screen(root);
-	const pre = document.createElement('pre');
-	pre.textContent = `YOUR OPERATOR KEY\n\n${key}\n\nWRITE IT DOWN. IT WILL NOT BE SHOWN AGAIN.\nIT IS THE ONLY WAY BACK TO THIS OPERATOR FROM ANOTHER BROWSER.`;
-	s.box.appendChild(pre);
-	return new Promise((resolve) => {
-		let nav = null;
-		const close = () => { nav?.detach(); s.remove(); resolve(); };
-		s.box.appendChild(button('CONTINUE', close, 'terminal-cta'));
-		nav = menuNav(s.el, { back: close });
+		s.box.appendChild(button('RESUME', submit, 'terminal-link'));
+		// Pas de `back` : comme OPERATOR SELECT, il n'y a pas d'ailleurs. Le
+		// curseur se pose sur [ NEW OPERATOR ], pas dans le champ : c'est ce que
+		// fait la personne qui arrive.
+		nav = menuNav(s.el, {});
 	});
 }
 

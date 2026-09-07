@@ -127,9 +127,9 @@ export function operatorIdForKey(dir, key) {
 export function checkKey({ mode, dir, req, id = null }) {
 	if (mode !== 'shared') return null;
 	const key = bearerOf(req);
-	if (!key) return { status: 401, error: 'operator key required' };
+	if (!key) return { status: 401, error: 'clé d\'opérateur requise' };
 	const owner = operatorIdForKey(dir, key);
-	if (!owner || (id && owner !== id)) return { status: 403, error: 'bad operator key' };
+	if (!owner || (id && owner !== id)) return { status: 403, error: 'clé d\'opérateur invalide' };
 	return null;
 }
 
@@ -149,6 +149,86 @@ const TRUTHY = new Set(['1', 'true']);
 export function acquireEnabled(mode) {
 	if (mode === 'shared') return false;
 	return TRUTHY.has(String(process.env.FPVTP_ACQUIRE ?? '').trim().toLowerCase());
+}
+
+// --- l'inscription en libre service, et ses deux plafonds -------------------
+//
+// Sur le VPS, le cas nominal est un inconnu qui arrive sur le domaine et repart
+// avec un profil, sans que le propriétaire du serveur ne fasse rien. C'est
+// voulu — et c'est ce qui rend ces deux plafonds nécessaires. Les deux ne
+// s'appliquent QU'EN `shared` : en `local` il n'y a qu'une personne, derrière un
+// socket local, et rien ne change.
+
+// L'adresse du demandeur. En `shared` le serveur est derrière Caddy et n'écoute
+// que sur 127.0.0.1 : `remoteAddress` y vaut toujours la boucle locale, et
+// `x-forwarded-for` est la seule source utilisable — posé par un proxy de
+// confiance. En `local` cet en-tête serait falsifiable par le client : on ne le
+// lit pas du tout.
+export function clientIp(req, mode) {
+	if (mode === 'shared') {
+		const xff = String(req?.headers?.['x-forwarded-for'] ?? '').split(',')[0].trim();
+		if (xff) return xff;
+	}
+	return req?.socket?.remoteAddress ?? 'inconnu';
+}
+
+// Cinq inscriptions par heure et par adresse. Une vraie personne s'inscrit une
+// fois ; cinq laisse la place à un NAT partagé, à une famille et à un bootstrap
+// repris après une erreur de nom, tout en ramenant une inondation scriptée à
+// quelque chose que le plafond d'octets par opérateur (plus bas) borne à son
+// tour. En mémoire, sans dépendance ni état sur disque : le serveur est
+// mono-processus — `jobs`/`current` dans api.mjs font déjà cette hypothèse — et
+// un redémarrage qui remet le compteur à zéro n'est pas un trou, juste un
+// redémarrage.
+export const SIGNUP_MAX = 5;
+export const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
+
+const signups = new Map();
+
+export function _resetSignups() { signups.clear(); }
+
+export function checkSignup({ mode, req, now = Date.now() }) {
+	if (mode !== 'shared') return null;
+	const ip = clientIp(req, mode);
+	const seen = (signups.get(ip) ?? []).filter((t) => now - t < SIGNUP_WINDOW_MS);
+	if (seen.length >= SIGNUP_MAX) {
+		signups.set(ip, seen);
+		const minutes = Math.max(1, Math.ceil((SIGNUP_WINDOW_MS - (now - seen[0])) / 60000));
+		return { status: 429, error: `trop d'inscriptions depuis cette adresse — réessayez dans ${minutes} min` };
+	}
+	seen.push(now);
+	signups.set(ip, seen);
+	// Les adresses qui n'ont plus rien dans la fenêtre ne restent pas en mémoire.
+	if (signups.size > 10000) {
+		for (const [k, v] of signups) if (!v.some((t) => now - t < SIGNUP_WINDOW_MS)) signups.delete(k);
+	}
+	return null;
+}
+
+// Le plafond d'octets par opérateur, MESURÉ sur les fichiers réels de
+// l'utilisateur le 2026-09-07 :
+//
+//   303 sessions, 14 captures → 7 638 405 o, dont 6 897 334 o de captures
+//    15 sessions,  0 capture  →    43 651 o
+//
+// Soit ~2,4 Ko par session et ~493 Ko par capture : c'est la capture qui pèse,
+// tout le reste est du bruit. 16 Mo laisse un facteur 2 au-dessus du plus gros
+// profil réel (7,6 Mo) — de l'ordre de 30 captures de plus, ou des milliers de
+// sessions sans capture — et borne ce qu'un inconnu peut écrire sur le disque du
+// VPS. Le VOL n'est jamais bloqué par ce plafond : seul l'ajout de captures
+// l'est, parce que c'est la seule écriture dont la taille dépende du client.
+export const OPERATOR_BYTES_MAX = 16 * 1024 * 1024;
+
+// Rend `null` si l'opérateur a encore de la place, sinon { status, error }.
+export function checkOperatorQuota({ mode, dir, id }) {
+	if (mode !== 'shared') return null;
+	let size = 0;
+	try { size = fs.statSync(path.join(dir, `${id}.json`)).size; } catch { return null; }
+	if (size < OPERATOR_BYTES_MAX) return null;
+	return {
+		status: 413,
+		error: `quota atteint pour cet opérateur (${Math.round(size / 1e6)} Mo) — supprimez des sessions pour libérer de la place`,
+	};
 }
 
 // --- la commande `key` ------------------------------------------------------
