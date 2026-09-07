@@ -1,28 +1,27 @@
 // One-command pipeline for adding a new flyable map: downloads the tile from
-// the chosen provider (Google Earth by default, or Apple Flyover — Go
-// exporter), converts it (prep.mjs), and registers it in public/scenes.json
-// so it shows up in the in-app menu.
+// the chosen provider (Google Earth by default — the only one registered
+// since Apple Flyover was retired 2026-09-07), converts it (prep.mjs), and
+// registers it in public/scenes.json so it shows up in the in-app menu.
 //
 //   node tools/add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25]
 //                           [--altitude 20] [--cell 256] [--quality 85]
 //                           [--slug custom-slug] [--force]
-//                           [--provider google-earth|flyover]
+//                           [--provider google-earth]
 //                           [--bbox <south>,<west>,<north>,<east>]
 //                           [--poly "<lat>,<lon> <lat>,<lon> ..."]
 //
-// radius (tryXY) and altitude (tryH) are the export-obj scan parameters — see
-// ../flyover-reverse-engineering/README.md. Bigger radius = more area, at
-// the cost of a longer download. 25 covers roughly the area used for the
-// Tour Eiffel POC; widen it for elongated sites.
+// radius and altitude are the tile scan parameters: bigger radius = more
+// area, at the cost of a longer download. 25 covers roughly the area used
+// for the Tour Eiffel POC; widen it for elongated sites.
 //
 // --bbox extracts an explicit lat/lon rectangle instead of the radius square,
 // which is what the GUI (npm run dev, /add-map.html) uses. lat/lon are still
-// required — they select the Flyover region — so pass the box centre.
+// required — pass the box centre.
 //
 // --poly extracts a free polygon instead of a rectangle: only the tiles its
 // outline touches are scanned. A tile is kept as soon as the outline touches
 // it, so the extracted area is always a superset of the shape. lat/lon are
-// still required (they select the Flyover region); pass a point inside the shape.
+// still required; pass a point inside the shape.
 //
 // All the work lives in lib/add-map-core.mjs; this file is only the CLI.
 
@@ -47,7 +46,7 @@ function parseArgs(argv) {
 		else positional.push(a);
 	}
 	if (positional.length !== 3) {
-		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--provider google-earth|flyover] [--bbox s,w,n,e] [--poly "lat,lon lat,lon ..."]');
+		console.error('usage: add-map.mjs "<name>" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20] [--cell 256] [--quality 85] [--slug id] [--force] [--provider google-earth] [--bbox s,w,n,e] [--poly "lat,lon lat,lon ..."]');
 		process.exit(1);
 	}
 	if (opts.provider) {

@@ -1,9 +1,9 @@
 # FPVThePlanet! — simulateur de drone basé sur des données photogramétriques
 
-Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques 3D. Deux
-fournisseurs : **Google Earth** (protocole `rocktree`, par défaut, sans clé)
-et **Apple Flyover** (repli). Plusieurs cartes peuvent être téléchargées et se
-choisissent au lancement depuis le terminal opérateur (`LOCAL TERRAIN`).
+Vol FPV dans le navigateur, au-dessus de tuiles photogrammétriques 3D, servies
+par **Google Earth** (protocole `rocktree`, sans clé ni jeton). Plusieurs
+cartes peuvent être téléchargées et se choisissent au lancement depuis le
+terminal opérateur (`LOCAL TERRAIN`).
 
 ```bash
 npm install
@@ -21,7 +21,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
   en ligne de commande · prérequis · options · dimensionner `--radius` ·
   retoucher une carte
 - Musique — le pipeline de génération · boucles · normalisation · write-once
-- Supprimer une carte — quand une zone ne renvoie rien · textures HEIC
+- Supprimer une carte — quand une zone ne renvoie rien
 - Le terminal opérateur
 - Le pipeline de dialogue (RTC du crew) — `dialogue:gen` · `dialogue:inspect` ·
   `dialogue:check` · les deux dos · la politique de relecture
@@ -49,9 +49,9 @@ périphérique.
 
 ## Ajouter une carte
 
-Une carte = une zone téléchargée (Google Earth par défaut, Apple Flyover en
-repli — voir [Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)) puis
-convertie pour le moteur.
+Une carte = une zone téléchargée (Google Earth — voir
+[Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)) puis convertie pour
+le moteur.
 
 ### Depuis le jeu — `GLOBAL SCANNER` (voie principale)
 
@@ -64,9 +64,9 @@ Le scanner est le point d'entrée mondial du jeu (PHASE 03) : on cherche un lieu
 — `DRAW BOX` pour un rectangle, `DRAW SHAPE` pour un tracé libre — et
 `AREA ANALYSIS` affiche avant de lancer la grille de tuiles, le
 nombre de requêtes, la surface, le poids estimé et la durée. `PROBE AREA`
-interroge la région Flyover puis télécharge un échantillon au centre — c'est la
-seule preuve fiable qu'il y a de la photogrammétrie ici. `ACQUIRE AREA` lance le
-vrai pipeline avec les logs en direct, et propose `[ FLY ]` à la fin.
+télécharge un échantillon réel au centre de la zone — c'est la seule preuve
+fiable qu'il y a de la photogrammétrie ici. `ACQUIRE AREA` lance le vrai
+pipeline avec les logs en direct, et propose `[ FLY ]` à la fin.
 
 Le fond est monochrome par défaut (`MONO`, OpenStreetMap inversé et désaturé) ;
 `SAT` et `TERRAIN` sont là quand reconnaître un bâtiment ou un relief aide à
@@ -95,14 +95,10 @@ en pointillé. Contrairement au treillis, il est dessiné à toute échelle.
 (« 8,069 / 15,812 ») : sur un tracé, le produit `cols × rows` serait l'emprise et
 laisserait croire à deux fois plus de téléchargement qu'il n'y en a.
 
-Le prédicat « cette tuile touche-t-elle le tracé ? » existe en deux exemplaires —
-`pkg/mth/poly.go` pour l'extraction, `tools/lib/tiles.mjs` pour l'affichage. Ils
-nomment tous deux le dossier de cache, donc une divergence coûterait un
-re-téléchargement silencieux de plusieurs gigaoctets :
-`flyover-reverse-engineering/testdata/poly-cases.json` est lu des deux côtés
-(`go test ./pkg/mth/` et `node tools/map-poly-selftest.mjs`) pour qu'elle se voie
-au test. La fixture se régénère avec `node tools/gen-poly-fixture.mjs` — mais
-jamais pour faire taire un test rouge : si les deux ports divergent, l'un a un bug.
+Le prédicat « cette tuile touche-t-elle le tracé ? » vit dans
+`tools/lib/tiles.mjs`, partagé par le scanner (navigateur) et l'API de dev
+(Node) : `node tools/map-poly-selftest.mjs` le vérifie sur des cas raisonnés à
+la main.
 
 ### L'ancienne GUI d'extraction
 
@@ -110,20 +106,20 @@ jamais pour faire taire un test rouge : si les deux ports divergent, l'un a un b
 hors du jeu. Le scanner l'a absorbée ; elle disparaîtra avec la mise en scène de
 l'acquisition (PHASE 5).
 
-Le sélecteur **FOURNISSEUR** y propose `Auto` (Google Earth, puis repli Apple
-Flyover si Google ne couvre pas la zone — y compris quand la sonde Google
-lève une exception), `Apple Flyover` ou `Google Earth` explicitement.
+Le sélecteur **FOURNISSEUR** y propose `Auto` (seul `Google Earth` est inscrit
+depuis le retrait d'Apple Flyover, 2026-09-07) ou `Google Earth` explicitement.
 
 Deux choses valent d'être comprises :
 
-- **La zone est quantifiée.** Flyover est servi en tuiles d'environ 25 m de côté au
-  zoom 20 ; la zone réellement extraite est celle dessinée arrondie au treillis. La
+- **La zone est quantifiée.** Une tuile fait environ 25 m de côté au zoom 20 ;
+  la zone réellement extraite est celle dessinée arrondie au treillis. La
   carte affiche ce treillis, et le tracé dessiné reste en pointillé à côté. Sur un
   polygone, l'emprise cède la place à l'escalier des tuiles retenues.
-  Ce treillis n'est pas un décor : il vient de `tileGrid()` (`tools/lib/tiles.mjs`),
-  portage du calcul de colonnes du Go — c'est exactement la grille que l'exporteur
-  balaiera. Après `PROBE AREA`, la part de la zone que la région Flyover déclare ne
-  pas couvrir est grisée, par intersection avec l'emprise rendue par `--plan`.
+  Ce treillis n'est pas un décor : il vient de `tileGrid()` (`tools/lib/tiles.mjs`)
+  — c'est exactement la grille que l'acquisition balaiera. Le grisage d'une
+  région hors couverture déclarée (`plan.pruned`) reste dans le code pour un
+  futur fournisseur à régions déclarées ; `google-earth` ne le déclenche jamais
+  (sa traversée `rocktree` n'a pas cette notion).
 - **Les estimations sont des fourchettes, pas des chiffres.** À nombre de colonnes
   égal, un lotissement et un quartier de tours rendent du simple au quadruple de
   données. Les constantes viennent de mesures sur les cartes existantes
@@ -151,10 +147,9 @@ npm run add-map -- "Sacré-Cœur" 48.8867 2.3431
 
 Ça enchaîne, dans l'ordre :
 
-1. **Téléchargement** — lance le programme Go du dépôt
-   `../flyover-reverse-engineering` (`cmd/export-obj`), qui scanne une grille de
-   tuiles Flyover autour de `lat,lon` et écrit un `.obj` + JPEGs dans
-   `flyover-reverse-engineering/downloaded_files/obj/<lat>-<lon>-<zoom>-<radius>-<altitude>/`.
+1. **Téléchargement** — le fournisseur (`google-earth` par défaut) traverse
+   l'octree `rocktree` autour de `lat,lon` et écrit ses nœuds dans
+   `sim/.cache/google-earth/<lat>-<lon>-<zoom>-<radius>-<altitude>/`.
 2. **Post-traitement** — `tools/prep.mjs` convertit ce `.obj` (ECEF, un JPEG par
    matériau) en binaires prêts pour le moteur (ENU en mètres, textures
    regroupées en planches) dans `public/scenes/<slug>/`. Voir
@@ -241,11 +236,10 @@ Le `slug` est celui dans `public/scenes.json` (ex. `sacre-coeur`). Ça retire
 l'entrée de `scenes.json` (donc la carte disparaît du menu au prochain
 `npm run dev`/rechargement) et supprime `public/scenes/<slug>/`.
 
-La tuile brute téléchargée sous
-`flyover-reverse-engineering/downloaded_files/obj/` n'est **pas** supprimée
-par défaut — c'est la partie lente à retélécharger, donc `add-map` peut la
-réutiliser telle quelle si la carte est rajoutée plus tard. Ajouter `--raw`
-pour la supprimer aussi :
+La tuile brute téléchargée sous `sim/.cache/google-earth/` n'est **pas**
+supprimée par défaut — c'est la partie lente à retélécharger, donc `add-map`
+peut la réutiliser telle quelle si la carte est rajoutée plus tard. Ajouter
+`--raw` pour la supprimer aussi :
 
 ```bash
 npm run remove-map -- <slug> --raw
@@ -253,66 +247,20 @@ npm run remove-map -- <slug> --raw
 
 ### Quand une zone ne renvoie rien
 
-Apple Flyover ne propose de la photogrammétrie 3D que sur une liste de villes.
-Ailleurs, l'API répond quand même — une « région » existe presque partout — mais
-le scan ne trouve aucune tuile et affiche `0 exported` ; `add-map` s'arrête
-alors avec un message explicite plutôt que d'écrire une carte vide.
+Google Earth ne propose de la photogrammétrie 3D partout, mais pas à toutes
+les résolutions : au niveau de zoom demandé, la traversée `rocktree` peut ne
+trouver aucun nœud utilisable. `add-map` s'arrête alors avec un message
+explicite (« Google Earth ne couvre pas cet endroit à ce niveau ; essaie un
+zoom plus bas ») plutôt que d'écrire une carte vide.
 
-Attention au faux négatif : `0 exported` a longtemps *aussi* été ce que
-produisait une ville parfaitement couverte dont les tuiles n'étaient pas
-décodables (voir « Textures HEIC » ci-dessous). Une tuile reçue mais non
-décodée est désormais signalée explicitement en fin de scan — si ce message
-n'apparaît pas, l'absence de couverture est réelle.
-
-Pour tester rapidement si un endroit est couvert, sans lancer un
-téléchargement complet :
-
-```bash
-cd ../flyover-reverse-engineering
-go run cmd/export-obj/main.go <lat> <lon> 20 1 20 --parallel
-```
-
-Un lieu couvert renvoie des lignes `Exporting ...` dès ce rayon de 1.
-
-### Textures HEIC : un décodeur système est requis
-
-Les régions capturées récemment (les triggers `Reg_z9_*` auto-générés, par
-opposition aux villes historiques nommées comme `'paris'`) servent leurs
-textures en **HEIC** — du HEVC dans un conteneur HEIF — au lieu de JPEG. Le
-format du reste de la tuile est identique ; seul l'octet de format du matériau
-change (0 → 13).
-
-Rien en aval ne sait lire du HEVC : le `sharp` embarqué dans `prep.mjs` a un
-libheif compilé en AV1 uniquement, et Go n'a pas de décodeur utilisable. Le
-programme Go transcode donc en JPEG au moment de l'export, ce qui garde le
-contrat sur disque inchangé (OBJ + MTL + JPEG). Il lui faut pour ça **un** de
-ces binaires dans le `PATH`, le premier trouvé gagne :
-
-| Binaire | Paquet |
-| --- | --- |
-| `heif-convert` | `libheif` |
-| `magick` | `imagemagick` |
-| `ffmpeg` | `ffmpeg` |
-
-Sans aucun des trois, l'export s'arrête avec un message le disant. Les villes
-historiques (Paris, etc.) restent en JPEG et n'ont besoin de rien.
-
-Chaque étape s'affiche en direct dans le terminal (le téléchargement peut
-prendre plusieurs minutes selon la taille de la zone).
+`PROBE AREA` dans le scanner (voir plus haut) télécharge un petit échantillon
+réel au centre de la zone avant de lancer l'acquisition complète — c'est la
+façon de tester rapidement si un endroit est couvert.
 
 ### Prérequis
 
-**`--provider google-earth` (défaut) : aucun.** Le protocole `rocktree` de
-`kh.google.com` ne demande ni clé ni jeton — vérifié live sur plusieurs
-endpoints.
-
-**`--provider flyover`** :
-- **Go** installé (`go run` est utilisé directement, pas de build séparé).
-- `flyover-reverse-engineering/config.json` renseigné (voir le
-  [README de ce dépôt](../flyover-reverse-engineering/README.md#setup) —
-  `resourceManifestURL` et `tokenP1`, à extraire une fois depuis une install
-  macOS de Plans). Sans ça le téléchargement échoue immédiatement avec
-  `please set values in config.json`.
+**Aucun.** Le protocole `rocktree` de `kh.google.com` ne demande ni clé ni
+jeton — vérifié live sur plusieurs endpoints.
 
 ### Options
 
@@ -320,21 +268,21 @@ endpoints.
 npm run add-map -- "Nom" <lat> <lon> [--zoom 20] [--radius 25] [--altitude 20]
                                       [--cell 256] [--quality 85]
                                       [--slug identifiant] [--force]
-                                      [--provider google-earth|flyover]
+                                      [--provider google-earth]
                                       [--bbox s,w,n,e]
                                       [--poly "lat,lon lat,lon ..."]
 ```
 
 | Option | Défaut | Effet |
 |---|---|---|
-| `--provider` | `google-earth` | Fournisseur des octets (voir [Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)). `flyover` bascule sur Apple Flyover. Pas de mode Auto en CLI (GUI seulement) : un id invalide échoue tout de suite. |
-| `--zoom` | 20 | Niveau de zoom (~13-20). Sur `flyover`, 20 = résolution maximale ; sur `google-earth`, converti en niveau d'octree (`niveau = zoom + 1`, cap 22 — voir plus bas). |
-| `--radius` | 25 | Rayon du scan en tuiles autour du centre (`tryXY`). Voir plus bas pour dimensionner. |
-| `--altitude` | 20 | Nombre d'index d'altitude essayés par tuile (`tryH`). 20 convient dans la quasi-totalité des cas. |
+| `--provider` | `google-earth` | Fournisseur des octets (voir [Fournisseurs et décodeurs](#fournisseurs-et-décodeurs)) — un seul inscrit aujourd'hui, mais un id invalide échoue tout de suite plutôt que de deviner. |
+| `--zoom` | 20 | Niveau de zoom (~13-20), converti en niveau d'octree (`niveau = zoom + 1`, cap 22 — voir plus bas). |
+| `--radius` | 25 | Rayon du scan en tuiles autour du centre. Voir plus bas pour dimensionner. |
+| `--altitude` | 20 | Sans effet avec `google-earth` (hérité d'un fournisseur retiré) ; accepté pour compatibilité avec les scènes déjà enregistrées. |
 | `--cell` | 256 | Taille en pixels de chaque cellule de texture. Coûte cher : chaque doublement **quadruple** la VRAM. `128` = qualité réduite mais VRAM divisée par 4 (utile sur machine modeste). |
 | `--quality` | 85 | Qualité JPEG des planches de texture générées. |
 | `--slug` | dérivé du nom | Identifiant de dossier (`public/scenes/<slug>/`). Auto-généré depuis le nom (accents et espaces retirés) si omis. |
-| `--bbox` | — | Extrait un rectangle lat/lon explicite au lieu du carré centré. `--radius` est alors ignoré ; `lat`/`lon` servent toujours à choisir la région Flyover. |
+| `--bbox` | — | Extrait un rectangle lat/lon explicite au lieu du carré centré. `--radius` est alors ignoré. |
 | `--poly` | — | Extrait un polygone libre : seules les tuiles que le tracé touche sont balayées. Au moins 3 sommets, l'anneau se referme tout seul, les paires se séparent par un espace ou une virgule. Exclusif avec `--bbox`. |
 | `--force` | off | Retélécharge même si la tuile existe déjà en local. Sans cette option, un second `add-map` sur les mêmes coordonnées/zoom/radius/altitude saute le téléchargement et ne fait que reconvertir. |
 
@@ -360,7 +308,7 @@ Si la tuile brute est déjà là et que seul `--cell`/`--quality` doit changer
 `prep.mjs` directement sur le dossier existant :
 
 ```bash
-node tools/prep.mjs ../flyover-reverse-engineering/downloaded_files/obj/<dossier-tuile> \
+node tools/prep.mjs .cache/google-earth/<dossier-tuile> \
   --out public/scenes/<slug> --cell 128
 ```
 
@@ -489,7 +437,6 @@ CHANGELOG — rubriques `Ajouté`, `Modifié`, `Corrigé`, `Retiré`, `Dépréci
 request, en deux jobs :
 
 - **sim** — `npm run selftest:ci` puis `npm run build`.
-- **flyover-reverse-engineering** — `go vet`, `go build`, `go test`.
 
 ```bash
 npm run selftest:ci   # ~1 430 vérifications, ~2 min — à lancer avant de pousser
@@ -568,7 +515,7 @@ src/scanner.js          GLOBAL SCANNER : Leaflet + Geoman, recherche, zone, sond
 src/weather.js          la météo du monde côté client : lit le snapshot, écrit vent/pluie/brouillard
 tools/terminal-model.mjs logique pure du terminal (formatBytes, footer) — testée par selftest:operator
 tools/scanner-model.mjs logique pure du scanner (analyse de zone, densité de signal, couverture)
-tools/lib/tiles.mjs     géométrie des tuiles Flyover, partagée navigateur/Node (portage du Go)
+tools/lib/tiles.mjs     géométrie de tuiles slippy, partagée navigateur/Node
 tools/lib/weather.mjs   modèle météo pur (zones, jours, régimes, garde-fous) — navigateur ET Node
 tools/weather-source.mjs acquisition Open-Meteo + cache par zone/jour dans le world state (serveur)
 ```
@@ -646,12 +593,12 @@ attribution. `lib/add-map-core.mjs` ne fait plus qu'orchestrer ; `/plan`,
 fournisseur, `add-map.mjs` et la GUI (`add-map.html`) savent tous deux
 positionner `opts.provider`.
 
-Deux fournisseurs inscrits :
+Un seul fournisseur inscrit aujourd'hui — Apple Flyover, le repli d'origine,
+a été retiré le 2026-09-07 (jeton et outil Go supprimés du dépôt) :
 
 | id | label | défaut | clé/jeton | cache brut |
 |---|---|---|---|---|
 | `google-earth` | Google Earth | **oui** (`DEFAULT_PROVIDER_ID`) | aucun | `sim/.cache/google-earth/<zone>/` |
-| `flyover` | Apple Flyover | non (repli) | `config.json` (voir Prérequis) | `flyover-reverse-engineering/downloaded_files/obj/` |
 
 `google-earth` parle le protocole interne **rocktree** de `kh.google.com` —
 celui que Google Earth web lui-même utilise, pas la Photorealistic 3D Tiles
@@ -664,9 +611,10 @@ partir de la documentation de protocole d'`earth-reverse-engineering`
 (« Amendement 2026-08-31 ») et l'entrée HANDOFF « Second fournisseur 3D ».
 
 `--provider` (voir [Ajouter une carte](#ajouter-une-carte)) choisit
-explicitement en CLI ; le sélecteur **FOURNISSEUR** de la GUI ajoute un mode
-`Auto` qui sonde Google Earth puis retombe sur Apple Flyover (y compris si la
-sonde Google lève une exception plutôt que de répondre négativement).
+explicitement en CLI. Le contrat par fournisseur (`plan`/`probe`/`fetch`/
+`tileDirPath`/attribution, `tools/lib/providers/index.mjs`) reste dispatché par
+`opts.provider` pour un futur fournisseur, même si `google-earth` est seul
+inscrit aujourd'hui.
 
 **`tools/lib/decoders/`** — comment les lire. Chaque décodeur expose `sniff`
 (sais-tu lire ce dossier ?) et `decode` (rends matériaux, positions ECEF, UV et
@@ -721,9 +669,10 @@ ailleurs sur le globe.
 - **UV en V retourné dans `prep.mjs`** — l'OBJ place l'origine UV en bas à
   gauche, `DataArrayTexture` impose `flipY = false` et met donc la ligne 0 des
   données en haut. Sans la conversion, une bonne partie de la surface visible
-  échantillonne le remplissage gris que Flyover laisse hors de la zone utile de
-  chaque imagette. Le selftest verrouille les deux symptômes (motifs retournés
-  et plaques grises).
+  échantillonne le remplissage gris hors de la zone utile de chaque imagette
+  (constaté à l'origine sur les tuiles Apple Flyover, retiré depuis, mais le
+  décodeur OBJ garde la correction pour tout fournisseur qui en servirait). Le
+  selftest verrouille les deux symptômes (motifs retournés et plaques grises).
 - **`camera.near = 0.15`** — la photogrammétrie empile des surfaces quasi
   coplanaires. À `near = 0.05` le depth buffer quantifie à ~40 cm à l'autre bout
   de la tuile et la ville part en éclats de z-fighting. 0,15 corrige ça et vaut

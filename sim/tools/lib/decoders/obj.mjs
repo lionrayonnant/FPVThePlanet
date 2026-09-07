@@ -1,7 +1,10 @@
-// Décodeur OBJ/MTL — le format que produit le Go exporter d'Apple Flyover.
-// Extrait de prep.mjs sans modification de logique (issue #18) : tout ce qui
-// suit le decode (rebase ENU, chunks, texture arrays, collision) reste dans
-// prep.mjs et ne connaît pas le format d'entrée.
+// Décodeur OBJ/MTL. Extrait de prep.mjs sans modification de logique (issue
+// #18) : tout ce qui suit le decode (rebase ENU, chunks, texture arrays,
+// collision) reste dans prep.mjs et ne connaît pas le format d'entrée.
+//
+// Historiquement le format produit par l'exporteur Go d'Apple Flyover (retiré
+// 2026-09-07) ; conservé ici comme décodeur générique, réutilisable par un
+// futur fournisseur qui servirait de l'OBJ/MTL.
 import fs from 'node:fs';
 import path from 'node:path';
 import { Growable } from '../growable.mjs';

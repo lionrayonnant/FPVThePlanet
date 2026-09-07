@@ -1,9 +1,8 @@
 # Intégration continue.
 #
-# Deux jobs, un par moitié du dépôt. Rien ici ne dépend de `sim/public/scenes/`
-# (gitignoré, ~900 Mo) ni du réseau : `npm run selftest:ci` tourne en ~2 min et
-# les tests qui ont besoin d'une scène installée se retirent d'eux-mêmes en
-# disant SKIP.
+# Rien ici ne dépend de `sim/public/scenes/` (gitignoré, ~900 Mo) ni du réseau :
+# `npm run selftest:ci` tourne en ~2 min et les tests qui ont besoin d'une scène
+# installée se retirent d'eux-mêmes en disant SKIP.
 #
 # C'est la même commande que .github/workflows/release.yml lance avant de
 # publier un tag : ce qui sort en version a passé exactement ces vérifications.
@@ -43,23 +42,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-  exporter:
-    name: flyover-reverse-engineering — vet, build, test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flyover-reverse-engineering
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: flyover-reverse-engineering/go.mod
-          cache-dependency-path: flyover-reverse-engineering/go.sum
-
-      # config.json (le token Flyover) est gitignoré et n'est lu qu'à
-      # l'exécution : compiler et tester s'en passent.
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test ./...

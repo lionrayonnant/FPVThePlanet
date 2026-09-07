@@ -1,8 +1,7 @@
 // Le pipeline d'ajout de carte, appelable depuis du code : récupération de la
 // tuile via le fournisseur choisi (tools/lib/providers/, délégué — voir
-// providers.get() plus bas ; Google Earth et Apple Flyover sont inscrits, cf.
-// providers/index.mjs), conversion (prep.mjs), enregistrement dans
-// public/scenes.json.
+// providers.get() plus bas ; Google Earth est inscrit, cf. providers/index.mjs),
+// conversion (prep.mjs), enregistrement dans public/scenes.json.
 //
 // tools/add-map.mjs en est le wrapper CLI ; l'API dev de la GUI
 // (tools/map-api-plugin.mjs) appelle addMap() directement pour pouvoir streamer
@@ -22,13 +21,9 @@ export const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
 
 export { Cancelled };
 
-// Surface dispatchée par fournisseur (Task 7, issue #18) : le shim câblé
-// Flyover est mort, chaque fonction lit opts.provider (ou providerId pour
-// tileIsUsable, qui ne reçoit qu'un dossier). FLYOVER_ROOT et tileDirName
-// disparaissent de cette surface — les deux sont spécifiques à Flyover (nom de
-// cache Go-compatible), et chaque fournisseur garde son propre tileDirName en
-// interne à tileDirPath. Les importeurs qui en avaient besoin lisent
-// désormais lib/providers/flyover.mjs directement.
+// Surface dispatchée par fournisseur (Task 7, issue #18) : chaque fonction lit
+// opts.provider (ou providerId pour tileIsUsable, qui ne reçoit qu'un dossier),
+// et chaque fournisseur garde son propre tileDirName en interne à tileDirPath.
 export const providerOf = (id) => providers.get(id ?? providers.DEFAULT_PROVIDER_ID);
 export const tileDirPath = (o) => providerOf(o.provider).tileDirPath(o);
 export const tileIsUsable = (d, providerId) => providerOf(providerId).tileIsUsable(d);
@@ -42,9 +37,10 @@ export const listProviders = () => providers.list().map((p) => ({ id: p.id, labe
 
 // Répertoire des octets BRUTS d'une entrée de scenes.json, chez SON fournisseur.
 // C'est la seule voie autorisée pour retrouver un cache à supprimer : le
-// fournisseur vient de l'entrée elle-même, et les entrées historiques —
-// d'avant le multi-fournisseur — retombent sur 'flyover'. Jamais un chemin
-// Flyover pour des octets Google, ni l'inverse (issue #154).
+// fournisseur vient de l'entrée elle-même, et les entrées historiques — d'avant
+// le multi-fournisseur, ou d'avant le retrait d'Apple Flyover (2026-09-07) —
+// retombent sur le défaut du registre plutôt que sur un fournisseur qui n'existe
+// plus (issue #154).
 //
 // La forme de la zone est reprise telle quelle quand l'entrée porte un `poly`
 // ou une `bbox` ; sinon on reconstruit « centre + rayon » avec les mêmes
@@ -63,7 +59,7 @@ export const rawTileDirFor = async (entry) => tileDirPath({
 			radius: entry.radius ?? 25,
 			altitude: entry.altitude ?? 20,
 		}),
-	provider: entry.provider ?? 'flyover',
+	provider: entry.provider ?? providers.DEFAULT_PROVIDER_ID,
 });
 
 // Les ligatures et les lettres barrées ne se décomposent pas en NFD : sans cette

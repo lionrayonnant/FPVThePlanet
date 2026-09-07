@@ -28,14 +28,16 @@ Relu dans le code le 2026-09-07 ; ce sont ces faits qui dictent la forme.
   middleware `(req, res, next)` sur `server.middlewares` ; les tables `opRoutes`
   et `routes` sont du `node:http` nu. Le seul usage de Vite dans le fichier est
   `server.config.logger`. L'extraction est un déplacement, pas une réécriture.
-- **Le fournisseur par défaut n'a besoin de rien.** `google-earth` est
-  `DEFAULT_PROVIDER_ID` (`tools/lib/providers/index.mjs`) : du `fetch()` nu vers
-  `kh.google.com`, décodage en Node (`tools/lib/decoders/rocktree.mjs`), aucun
-  jeton, aucun Go, aucun HEIC. Le pipeline complet
-  (télécharger → décoder → `prep.mjs` → `scenes.json`) est **du Node pur** plus
-  deux modules natifs : `sharp` (planches de texture) et Rapier WASM (point de
-  spawn). Flyover, lui, demande Go + le jeton Apple de `config.json` : il reste
-  optionnel.
+- **Le seul fournisseur inscrit n'a besoin de rien.** Apple Flyover (jeton,
+  outil Go) a été retiré du dépôt le 2026-09-07 ; `google-earth` est le seul
+  fournisseur restant, et son propre défaut (`DEFAULT_PROVIDER_ID`,
+  `tools/lib/providers/index.mjs`) : du `fetch()` nu vers `kh.google.com`,
+  décodage en Node (`tools/lib/decoders/rocktree.mjs`), aucun jeton, aucun Go,
+  aucun HEIC. Le pipeline complet (télécharger → décoder → `prep.mjs` →
+  `scenes.json`) est **du Node pur** plus deux modules natifs : `sharp`
+  (planches de texture) et Rapier WASM (point de spawn). Ce constat, déjà vrai
+  au moment d'écrire cette spec, est ce qui rend D1 possible sans qu'un second
+  fournisseur (Go, jeton) complique la release.
 - **Le client ne connaît que deux préfixes d'API** (`/__operator`,
   `/__map-api`) et des fichiers statiques : `/scenes.json`, `/scenes/<slug>/*`,
   `/dialogue/*`, `/music/*`, `/music.json`. Nominatim est appelé depuis le
@@ -154,8 +156,6 @@ et l'API le lisent au lieu de leurs constantes :
   scenes.json           ← SCENES_JSON
   operator-state/       ← OPERATOR_DIR
   cache/google-earth/   ← cache des nœuds rocktree
-  cache/flyover/        ← tuiles brutes Flyover (ex downloaded_files/)
-  flyover.json          ← jeton Apple, facultatif (ex config.json)
 ```
 
 **Sous `npm run dev`, rien ne bouge** : sans `FPVTP_DATA_DIR`, `paths.mjs` rend
@@ -218,11 +218,9 @@ clé :
    gagne `{ queued: n }` et le rail du scanner affiche `QUEUED · 2 AHEAD`.
    `DELETE /jobs/:id` n'est permis qu'à l'auteur.
 
-Ce qui ne change pas en `shared`, assumé et documenté : le jeton Flyover du
-propriétaire, s'il est configuré, sert à tous les opérateurs du serveur (le
-fournisseur n'apparaît dans `GET /providers` que si `flyover.json` existe) ;
-Nominatim est appelé par chaque navigateur avec sa propre IP ; Open-Meteo est
-déjà mis en cache par zone et par jour côté serveur. Les plafonds existants
+Ce qui ne change pas en `shared`, assumé et documenté : Nominatim est appelé
+par chaque navigateur avec sa propre IP ; Open-Meteo est déjà mis en cache par
+zone et par jour côté serveur. Les plafonds existants
 (`readBody` 1 Mo, `PHOTO_BODY_MAX` 8 Mo, `requireBox`/`requirePoly`,
 `intIn` sur zoom/altitude/cell) restent.
 
@@ -269,13 +267,6 @@ en amont et fournit `dist/` une seule fois.
 **Ordre de grandeur** : `dist/` ≈ 80 Mo (dont 77 Mo de musique), Node ≈ 50 Mo,
 `node_modules` prod (three, rapier, sharp, leaflet, geoman) ≈ 40 Mo. Archive
 ≈ 170 Mo, loin de la limite de 2 Go par asset.
-
-**Flyover dans la release** : optionnel, tranche 5. Le Go n'utilise pas cgo
-(vérifié : aucun `import "C"`), donc `GOOS=… GOARCH=… go build
-./cmd/export-obj` cross-compile depuis un seul runner. `flyover.mjs` préfère
-un binaire `FPVTP_EXPORT_OBJ` s'il existe, sinon `go run` comme aujourd'hui.
-Le jeton reste **fourni par la personne** dans `<data>/flyover.json` : il n'est
-jamais dans une archive, pour la même raison qu'il n'est jamais dans git.
 
 **Mise à jour** : décompresser la nouvelle version, lancer. Les données sont
 ailleurs. Un `BUILD NOTES` qui annoncerait `UPDATE AVAILABLE` en interrogeant
@@ -379,7 +370,6 @@ aucun selftest ne le remplace :
 | T2 | matrice de release, runtime Node embarqué, lanceurs, matrice d'OS en CI | la release est jouable |
 | T3 | mode `shared` : clé, écran `OPERATOR KEY`, `DETACH` + ramasse-miettes, file | #60 (PHASE 23) |
 | T4 | `deploy/` + première livraison manuelle sur le VPS | le serveur existe |
-| T5 | (facultatif) binaire `export-obj` cross-compilé, `flyover.json` dans `<data>` | Flyover hors dev |
 
 T1 et T2 ne changent rien au comportement du jeu. T3 est la seule tranche
 qui touche des écrans. T1 → T2 → T4 suffit à un « serveur pour les amis » en

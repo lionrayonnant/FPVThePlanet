@@ -1,11 +1,14 @@
-// Géométrie des tuiles Flyover. Pure : aucun accès disque, aucune dépendance —
-// c'est ce qui permet au GLOBAL SCANNER (navigateur) et à l'API de dev (Node)
-// de partager exactement la même grille, plutôt que d'en avoir chacun une.
+// Géométrie de tuiles slippy (Web Mercator, zoom entier). Pure : aucun accès
+// disque, aucune dépendance — c'est ce qui permet au GLOBAL SCANNER (navigateur)
+// et à l'API de dev (Node) de partager exactement la même grille, plutôt que
+// d'en avoir chacun une.
 //
-// Tout ici est un portage littéral du Go (pkg/mth) : les colonnes annoncées à
-// l'écran sont celles que `export-obj` balaiera réellement.
+// Écrit à l'origine comme portage littéral du Go d'Apple Flyover (pkg/mth,
+// retiré 2026-09-07) : la formule WGS84 ci-dessous n'a rien de spécifique à un
+// fournisseur, elle reste utilisée par tous les calculs de zone (scanner, API,
+// providers/google-earth.mjs).
 
-// Rayon terrestre WGS84 par latitude — même formule que pkg/mth.EarthRadiusByLatitude.
+// Rayon terrestre WGS84 par latitude.
 export function earthRadiusByLatitude(latDeg) {
 	const r1 = 6378137.0, r2 = 6356752.314245179;
 	const lat = (latDeg / 180) * Math.PI;

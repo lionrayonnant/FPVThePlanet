@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { rawTileDirFor, providerOf } from './lib/add-map-core.mjs';
+import * as providers from './lib/providers/index.mjs';
 
 const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
@@ -55,7 +56,7 @@ async function main() {
 	}
 
 	if (raw) {
-		const providerId = entry.provider ?? 'flyover';
+		const providerId = entry.provider ?? providers.DEFAULT_PROVIDER_ID;
 		let label = providerId;
 		try { label = providerOf(providerId).label; }
 		catch { /* fournisseur inconnu : on le nomme quand même dans le message */ }

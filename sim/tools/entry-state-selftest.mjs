@@ -74,9 +74,9 @@ check('a corridor occupies a fraction of its cells', corridor.cells.length < cor
 	`${corridor.cells.length}/${corridor.cols * corridor.rows}`);
 check('a corridor still occupies something', corridor.cells.length > 0);
 
-// Cells are ~25 m, the width of a Flyover tile at zoom 20 — fine enough to
+// Cells are ~25 m, the width of a slippy tile at zoom 20 — fine enough to
 // follow a corridor, coarse enough that the sweep stays a few thousand rays.
-check('cell size is about a Flyover tile', corridor.cellSize > 15 && corridor.cellSize <= 30,
+check('cell size is about a slippy tile', corridor.cellSize > 15 && corridor.cellSize <= 30,
 	`${corridor.cellSize.toFixed(1)} m`);
 
 // The sweep is the expensive part, so it must happen once per physics world.
