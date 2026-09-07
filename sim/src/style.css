@@ -863,6 +863,18 @@ button.terminal-row:focus::before { left: 0; }
 }
 #cal-drone .cal-drone { display: block; }
 
+/* Les portraits d'archive (issues #264, #283) : au crash dans la séquence de
+   fin, dans la fiche de SESSION LOG, en tête du TARGET LOG. Centrés, en encre
+   vive — même raison que #cal-drone : le fil de fer s'atténue déjà de lui-même
+   avec la profondeur et le poids du trait, un gris de commentaire n'en
+   laisserait rien. La légende éventuelle (LAST TARGET // …) reste en gris. */
+.drone-portrait { display: block; margin: 0 auto; color: var(--warm-white); }
+.session-portrait {
+	display: flex; flex-direction: column; align-items: center;
+	gap: var(--space-1); margin: var(--space-2) 0;
+}
+.session-portrait pre { margin: 0; color: var(--light-grey); }
+
 /* Bouton ARMÉ : deuxième pression = confirmation (issue #213). Le libellé dit
    déjà « — CONFIRM » ; la couleur d'alarme le rend visible sans le lire, et
    c'est la même que celle de tout ce qui refuse ou détruit ailleurs. */

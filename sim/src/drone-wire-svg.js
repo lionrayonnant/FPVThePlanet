@@ -13,12 +13,15 @@ import { wireOf } from './drone-wire.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 
-// `strokeWidth` est en unités du viewBox, qui va de -1.1 à 1.1 : à 0.006 et
-// 160 px le trait fait 0.44 px, donc moins d'un pixel — l'antialiasing le
-// délave en gris. C'est le rendu voulu pour une fiche d'archive, qui doit
-// s'effacer ; un écran où l'on suit un manche en direct a besoin d'un trait
-// qui tient le pixel (issue #281, rendu dans le panneau et regardé).
-export function wireSvg({ shape, size = 160, className = 'drone-portrait', label = '', strokeWidth = 0.006 } = {}) {
+// `strokeWidth` est en unités du viewBox, qui va de -1.1 à 1.1, et c'est
+// l'épaisseur du trait le plus PROCHE et le plus LOURD : la profondeur et le
+// poids de la primitive l'amincissent ensuite jusqu'à un quart. À 0.010 et
+// 160 px, ce trait-là fait 0.73 px : il tient le pixel, et le détail lointain
+// se délave en gris — c'est la hiérarchie voulue pour une fiche d'archive
+// (issue #283, rendu à 160 px et regardé : à 0.006 tout était sous le pixel
+// et l'antialiasing faisait de la machine une tache uniforme). Un écran où
+// l'on suit un manche en direct prend plus épais (issue #281).
+export function wireSvg({ shape, size = 160, className = 'drone-portrait', label = '', strokeWidth = 0.010 } = {}) {
 	const el = document.createElementNS(NS, 'svg');
 	el.setAttribute('viewBox', '-1.1 -1.1 2.2 2.2');
 	el.setAttribute('width', String(size));
@@ -33,6 +36,9 @@ export function wireSvg({ shape, size = 160, className = 'drone-portrait', label
 	el.appendChild(g);
 
 	const lines = [];
+	// L'ordre de tracé, réutilisé d'une frame à l'autre : SVG peint dans
+	// l'ordre du DOM, et on veut le lointain DESSOUS le proche.
+	let order = new Uint32Array(0);
 	return {
 		el,
 		// `view` part tel quel dans wireOf : orbite de caméra (yawDeg, pitchDeg)
@@ -51,17 +57,28 @@ export function wireSvg({ shape, size = 160, className = 'drone-portrait', label
 				g.appendChild(l);
 				lines.push(l);
 			}
-			for (let i = 0; i < n; i++) {
-				const l = lines[i];
+			// Le lointain d'abord (issue #283) : sans ce tri, une arête du fond
+			// pouvait passer par-dessus une arête du devant, et la profondeur
+			// que l'opacité raconte était contredite par le tracé.
+			if (order.length !== n) order = Uint32Array.from({ length: n }, (_, i) => i);
+			order.sort((i, j) => w.depth[j] - w.depth[i]);
+			for (let k = 0; k < n; k++) {
+				const i = order[k];
+				const l = lines[k];
 				l.setAttribute('x1', w.segments[4 * i].toFixed(4));
 				// Sans cette inversion, la machine est sur le dos.
 				l.setAttribute('y1', (-w.segments[4 * i + 1]).toFixed(4));
 				l.setAttribute('x2', w.segments[4 * i + 2].toFixed(4));
 				l.setAttribute('y2', (-w.segments[4 * i + 3]).toFixed(4));
 				// Pas d'élimination des faces cachées : les arêtes lointaines
-				// s'ATTÉNUENT. Une machine qu'on voit à travers se lit mieux
-				// qu'une silhouette pleine.
-				l.setAttribute('opacity', (1 - 0.65 * w.depth[i]).toFixed(3));
+				// s'ATTÉNUENT — en opacité ET en épaisseur, deux indices de
+				// profondeur qui vont dans le même sens. Une machine qu'on voit
+				// à travers se lit mieux qu'une silhouette pleine.
+				// Et la hiérarchie du dessin technique : les grandes lignes en
+				// fort, le détail en fin (le poids vient de wireOf).
+				const d = w.depth[i], g = w.weight[i];
+				l.setAttribute('opacity', ((1 - 0.72 * d) * (0.7 + 0.3 * g)).toFixed(3));
+				l.setAttribute('stroke-width', (strokeWidth * (1 - 0.45 * d) * (0.5 + 0.5 * g)).toFixed(5));
 			}
 			for (let i = n; i < lines.length; i++) lines[i].setAttribute('opacity', '0');
 		},

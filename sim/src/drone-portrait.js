@@ -16,7 +16,7 @@ import { targetBuild } from '../tools/target-build.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
 
 const PERIOD_S = 24;      // un tour complet, lent : c'est une fiche, pas une démo
-const PITCH_DEG = 22;     // vu d'un peu au-dessus, comme une fiche d'atelier
+const PITCH_DEG = 28;     // vu d'un peu au-dessus, comme une fiche d'atelier — assez pour que les disques s'ouvrent (#283)
 const START_DEG = 30;     // trois quarts d'entrée : ni de face, ni de profil
 
 export function dronePortrait({ family, buildSeed, size = 160 } = {}) {

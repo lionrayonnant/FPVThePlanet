@@ -1530,10 +1530,11 @@ function togglePause(force) {
 }
 
 // De combien on recule pour entrer en caméra libre, en mètres. Un drone de 5
-// pouces mesure 0,25 m d'envergure : à 1,5 m et 120° de champ il tient dans le
-// cadre sans être un point, et le plan proche du vol (0,15 m) reste loin
-// derrière lui.
-const FREE_CAM_BACK_M = 1.5;
+// pouces mesure 0,25 m d'envergure : à 0,8 m et 120° de champ il occupe un
+// sixième de la largeur — regardable —, et le plan proche du vol (0,15 m)
+// reste loin derrière lui. À 1,5 m il faisait 4,7 % du cadre, mesuré sur
+// capture (HANDOFF #264) : un point noir, pas une machine (issue #283).
+const FREE_CAM_BACK_M = 0.8;
 const _freeCamBack = new THREE.Vector3();
 
 // La caméra libre (touche C). La physique se fige (simFrozen), le lien vidéo

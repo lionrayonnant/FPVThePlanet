@@ -9,22 +9,34 @@
 //
 // Pourquoi pas de liste d'arêtes dans la recette : les arêtes se DÉRIVENT des
 // primitives que src/drone-mesh.js assemble déjà — une boîte donne douze
-// arêtes, un cylindre deux cercles et des génératrices, un disque un cercle.
-// Les écrire dans drone-shape.js serait une seconde description de la même
-// géométrie, à tenir synchronisée pour rien.
+// arêtes, un cylindre deux cercles et des génératrices, un disque un cercle,
+// une pale le contour de son planform (bladeOutline(), le MÊME que celui dont
+// le maillage tend ses triangles). Les écrire dans drone-shape.js serait une
+// seconde description de la même géométrie, à tenir synchronisée pour rien.
 //
 // Pas d'élimination des faces cachées : les arêtes lointaines s'ATTÉNUENT.
 // Une machine qu'on voit à travers se lit mieux qu'une silhouette pleine, et
 // c'est le vocabulaire des `vector animations` de PHASE 20.
 
+import { bladeOutline } from './drone-shape.js';
+
 // Nombre de côtés d'un cercle. Exporté pour que le selftest exprime le contrat
 // « une primitive rend exactement ses arêtes » sans le recopier.
 export const CIRCLE_STEPS = 16;
 
+// Un petit cercle a moins de côtés (issue #283). Un moyeu de 6 mm de rayon fait
+// deux pixels dans un portrait de 160 px : seize côtés et quatre génératrices
+// y font une tache de trente-six traits là où huit suffisent. Le seuil est
+// relatif au rayon englobant, pas en pixels — le module ne connaît pas l'écran.
+// Les disques d'hélice et les conduits sont grands et gardent leurs seize côtés.
+export function circleSteps(r, boundingRadius) {
+	return r >= 0.25 * (boundingRadius || 1) ? CIRCLE_STEPS : CIRCLE_STEPS / 2;
+}
+
 const clamp = (v) => (v < -1 ? -1 : v > 1 ? 1 : v);
 
 // Les arêtes d'une primitive, en coordonnées locales de la pièce.
-function edgesOf(part) {
+function edgesOf(part, boundingRadius) {
 	const out = [];
 	const push = (a, b) => out.push([a, b]);
 	switch (part.kind) {
@@ -45,11 +57,21 @@ function edgesOf(part) {
 			// avec la même CylinderGeometry, donc size = [rayon, hauteur] pour
 			// les deux. Le fil de fer n'a pas à savoir lequel a un fond.
 			const r = part.size[0], h = (part.size[1] ?? 0) / 2;
-			for (let i = 0; i < CIRCLE_STEPS; i++) {
-				const a = (2 * Math.PI * i) / CIRCLE_STEPS, b = (2 * Math.PI * (i + 1)) / CIRCLE_STEPS;
+			const n = circleSteps(r, boundingRadius);
+			for (let i = 0; i < n; i++) {
+				const a = (2 * Math.PI * i) / n, b = (2 * Math.PI * (i + 1)) / n;
 				for (const y of [-h, h]) push([r * Math.cos(a), y, r * Math.sin(a)], [r * Math.cos(b), y, r * Math.sin(b)]);
-				if (i % 4 === 0) push([r * Math.cos(a), -h, r * Math.sin(a)], [r * Math.cos(a), h, r * Math.sin(a)]);
+				if (i % (n / 4) === 0) push([r * Math.cos(a), -h, r * Math.sin(a)], [r * Math.cos(a), h, r * Math.sin(a)]);
 			}
+			break;
+		}
+		case 'blade': {
+			// Le contour du planform : bord d'attaque, bord de fuite, et les
+			// deux cordes qui les ferment. Le vrillage est dans les stations.
+			const { le, te } = bladeOutline(part);
+			for (let i = 0; i + 1 < le.length; i++) { push(le[i], le[i + 1]); push(te[i], te[i + 1]); }
+			push(le[0], te[0]);
+			push(le[le.length - 1], te[te.length - 1]);
 			break;
 		}
 		case 'disc': {
@@ -103,16 +125,34 @@ function attituded(roll, pitch, yaw) {
 	};
 }
 
+// Le POIDS d'une primitive dans le dessin (issue #283) : son étendue rapportée
+// au rayon englobant. Un dessin technique hiérarchise ses traits — les grandes
+// lignes (disques, bras, plaque) en fort, le détail (moyeux, fixations, brins)
+// en fin. Sans cette hiérarchie, à 160 px, quatre moyeux de deux pixels pèsent
+// autant que les quatre disques et la machine est une tache.
+function extentOf(part) {
+	switch (part.kind) {
+		case 'box': return Math.max(...part.size);
+		case 'cylinder': case 'ring': return Math.max(2 * part.size[0], part.size[1] ?? 0);
+		case 'disc': return 2 * part.size[0];
+		case 'blade': return part.size[0];
+		default: return 0;
+	}
+}
+const weightOf = (part, boundingRadius) => Math.min(1, extentOf(part) / (0.6 * (boundingRadius || 1)));
+
 export function wireOf(shape, { yawDeg = 30, pitchDeg = 20, roll = 0, pitch = 0, yaw = 0 } = {}) {
-	if (!shape?.parts?.length) return { segments: new Float32Array(0), depth: new Float32Array(0) };
+	if (!shape?.parts?.length) return { segments: new Float32Array(0), depth: new Float32Array(0), weight: new Float32Array(0) };
 
 	const cy = Math.cos(yawDeg * Math.PI / 180), sy = Math.sin(yawDeg * Math.PI / 180);
 	const cp = Math.cos(pitchDeg * Math.PI / 180), sp = Math.sin(pitchDeg * Math.PI / 180);
 	const att = attituded(roll, pitch, yaw);
 
-	const xs = [], ys = [], ds = [];
+	const xs = [], ys = [], ds = [], ws = [];
 	for (const part of shape.parts) {
-		for (const [a, b] of edgesOf(part)) {
+		const wgt = weightOf(part, shape.boundingRadius);
+		for (const [a, b] of edgesOf(part, shape.boundingRadius)) {
+			ws.push(wgt);
 			for (const p of [a, b]) {
 				const placed = place(p, part);
 				const [wx, wy, wz] = att ? att(placed[0], placed[1], placed[2]) : placed;
@@ -135,6 +175,7 @@ export function wireOf(shape, { yawDeg = 30, pitchDeg = 20, roll = 0, pitch = 0,
 	const n = xs.length / 2;
 	const segments = new Float32Array(4 * n);
 	const depth = new Float32Array(n);
+	const weight = Float32Array.from(ws);
 	let dMin = Infinity, dMax = -Infinity;
 	for (const d of ds) { if (d < dMin) dMin = d; if (d > dMax) dMax = d; }
 	const span = dMax - dMin || 1;
@@ -145,5 +186,5 @@ export function wireOf(shape, { yawDeg = 30, pitchDeg = 20, roll = 0, pitch = 0,
 		segments[4 * i + 3] = clamp(ys[2 * i + 1] / r);
 		depth[i] = ((ds[2 * i] + ds[2 * i + 1]) / 2 - dMin) / span;
 	}
-	return { segments, depth };
+	return { segments, depth, weight };
 }

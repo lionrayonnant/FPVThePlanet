@@ -2369,11 +2369,11 @@ pour tenir une pose stable :
 3. **Le fondu à la montée en gaz** (continu ou strobe) et la **lisibilité du
    lacet** sur la paire visible : ça demande une capture vidéo, pas des images
    fixes.
-4. **Le portrait.** La lisibilité du fil de fer à 160 px (sans élimination des
-   faces cachées, il y a 628 à 784 segments), la vitesse de rotation (un tour en
-   24 s), et surtout **le ton** : au crash, il doit arriver comme ce qu'il
-   reste, pas comme une récompense. C'est la révision de Bible §24 ; si l'effet
-   est celui d'un trophée, c'est la révision qu'il faut refaire, pas le code.
+4. **Le portrait.** La lisibilité à 160 px a été regardée et retravaillée
+   (issue #283, ci-dessous) ; restent la vitesse de rotation (un tour en 24 s)
+   et surtout **le ton** : au crash, il doit arriver comme ce qu'il reste, pas
+   comme une récompense. C'est la révision de Bible §24 ; si l'effet est celui
+   d'un trophée, c'est la révision qu'il faut refaire, pas le code.
 
 ```text
 1. npm run dev, puis FIELD → une zone → TARGET SCAN → hack → JACK IN
@@ -2402,6 +2402,51 @@ pour tenir une pose stable :
 9. Mode DIGITAL, image perdue : les hélices doivent geler AVEC l'image, et non
    continuer à tourner derrière.
 ```
+
+
+## Le visuel des frames du joueur (issue #283)
+
+Suite de #264/#281 : la recette aux niveaux `onboard` et `portrait`, le
+maillage, le fil de fer et la free cam ont été **rendus et regardés** — pas en
+jeu (aucune scène sur cette machine) mais hors jeu, à géométrie et shader
+identiques.
+
+### Vérifié — rendu hors jeu, regardé
+
+- **Fil de fer**, six familles × {160 px, 200 px, 400 px} × {fiche d'archive,
+  assistant de calibrage, roulis 30°}, SVG produit par `wireOf()` et capturé
+  par Chromium headless. Avant : une tache — les pales en boîtes vrillées
+  (144 arêtes qui ne dessinent rien), les cloches qui doublent les moteurs
+  (288 des 640 segments du freestyle étaient des cylindres de moteur). Après :
+  les pales se lisent comme des pales, les disques et les bras portent le
+  dessin, le détail s'efface. 610 à 756 segments par famille.
+- **Vue embarquée et free cam**, WebGL via SwiftShader (`--use-angle=swiftshader`),
+  `PlayerDrone` monté exactement comme dans `main.js` : les pales tournent
+  avec la phase (`uPhase`, vérifié à ω = 60 rad/s, dt = 20 ms : 1,2 rad), le
+  fondu vers le disque à 1 800 rad/s, le bord du disque doux, le voile plus
+  dense au moyeu. Le reflet et le liseré se voient sur les flancs à un gain
+  d'exposition ×3 — ce que l'AGC de la lentille fait en jeu — pas à gain 1, où
+  la machine reste presque noire sur ciel clair : la couleur du carbone est
+  celle de la palette, ce n'est pas un bug.
+- La **silhouette des ambiants** n'a pas bougé : les six empreintes de
+  `drone-shape-selftest.mjs` passent telles quelles ; la formule du disque sans
+  pales est textuellement celle d'avant (les termes nouveaux sont multipliés
+  par `uBlades`).
+- La **borne DA** tient : `onboard-frame-selftest.mjs` et
+  `onboard-drone-selftest.mjs` inchangés et verts. Le moyeu a d'ailleurs été
+  retiré du niveau `onboard` pour cela — sur le toothpick (objectif à 1,5 mm du
+  plan d'hélice) il montait à 51 % de la hauteur du cadre.
+
+### NON vérifié — en jeu
+
+1. Le rendu POV à travers la passe d'objectif (bruit, AGC, gel DIGITAL) : les
+   captures ci-dessus sont sans lentille.
+2. Le ralenti des pales en mouvement (strobe attendu entre 150 et 377 rad/s,
+   comme sur une vraie caméra) et le rolling shutter du disque en vidéo.
+3. La free cam à 0,8 m avec le vrai champ de 100 à 150° — le chiffre est un
+   calcul, pas une capture.
+4. Le portrait dans les trois écrans réels, avec les nouvelles règles CSS
+   (`.drone-portrait`, `.session-portrait`) : rendu sur faux DOM seulement.
 
 ## Non vérifié / à faire
 

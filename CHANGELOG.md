@@ -31,6 +31,39 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Les frames du joueur, regardables (#283). Rendus à 160, 200 et 400 px et
+  regardés, les portraits fil de fer de #264 étaient une tache : des pales en
+  parallélépipèdes vrillés dont les douze arêtes se croisaient au moyeu, des
+  cloches moteur qui doublaient les cylindres et traversaient le plan
+  d'hélice, un stack enfermé dans la batterie. La pale est désormais une
+  primitive à part entière — un planform effilé, bout arrondi, léger sabre,
+  pas qui décroît de l'emplanture au bout — décrit UNE fois (`bladeOutline()`)
+  et lu par le maillage Three comme par le fil de fer. Le niveau `portrait`
+  gagne des moyeux, une cage de caméra sur les châssis freestyle et les
+  fixations d'antenne que la spec promettait ; ses cloches portent l'hélice au
+  lieu de la traverser.
+- En vol, dans le champ : les pales TOURNENT au ralenti — chaque moteur
+  accumule sa phase avec le pas de temps, et le vertex shader fait tourner ses
+  pales autour de son axe, dans son sens — avant de s'effacer dans le disque.
+  Le disque lui-même est ce qu'une caméra voit d'une hélice en régime : les
+  fantômes des pales courbés par le rolling shutter, un voile plus dense au
+  moyeu qu'au bout, un bord qui s'éteint en douceur, vingt-quatre côtés au
+  lieu de douze.
+- Un reflet sur la machine : Blinn-Phong large (une machine faite de boîtes
+  n'accroche pas un reflet serré) et un liseré de contre-jour. Sans eux, à un
+  mètre comme à huit centimètres, le carbone était une silhouette noire.
+- Le fil de fer hiérarchise ses traits comme un dessin technique : tracé du
+  lointain au proche, opacité ET épaisseur qui suivent la profondeur, et un
+  poids par primitive — disques, bras et plaque en fort, moyeux et brins en
+  fin. Un petit cylindre a moitié moins de côtés. Le trait de la fiche
+  d'archive tient enfin le pixel (0,010 au lieu de 0,006), et la fiche se
+  regarde d'un peu plus haut (28° au lieu de 22°) pour que les disques
+  s'ouvrent.
+- La free cam montre la machine du joueur au niveau `portrait` — pales à
+  l'arrêt, cloches, moyeux — et recule de 0,8 m au lieu de 1,5 : à 1,5 m elle
+  faisait 4,7 % du cadre.
+- `.drone-portrait` et `.session-portrait` ont enfin leurs règles CSS.
+
 - Une machine qui réagit au manche pendant le calibrage (#281), comme l'onglet
   Receiver de Betaflight : le pilote poussait un manche et ne voyait qu'une
   barre, rien ne disait ce que ce manche allait FAIRE au drone. C'est le fil de

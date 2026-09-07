@@ -10,6 +10,7 @@
 // drone du joueur (hélices dans le champ, épave) demain.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { bladeOutline } from './drone-shape.js';
 
 const PROP_ALPHA = 0.35;
 
@@ -46,15 +47,65 @@ function tagged(geo, part) {
 	const spin = new Float32Array(n).fill(part.spin ?? 0);
 	geo.setAttribute('aMotor', new THREE.BufferAttribute(motor, 1));
 	geo.setAttribute('aSpin', new THREE.BufferAttribute(spin, 1));
+	// Le pivot d'une pale (issue #283) : l'axe de son moteur, dans le repère
+	// du corps, et w = 1 pour dire « je tourne ». Le vertex shader fait
+	// tourner la pale autour de lui de la phase accumulée du moteur — c'est ce
+	// qui fait qu'au ralenti on VOIT les pales tourner, avant qu'elles ne
+	// s'effacent dans le disque. Tout le reste a w = 0 et ne bouge pas.
+	const pivot = new Float32Array(4 * n);
+	if (part.kind === 'blade') {
+		for (let i = 0; i < n; i++) { pivot[4 * i] = part.at[0]; pivot[4 * i + 1] = part.at[1]; pivot[4 * i + 2] = part.at[2]; pivot[4 * i + 3] = 1; }
+	}
+	geo.setAttribute('aPivot', new THREE.BufferAttribute(pivot, 4));
 	return geo;
 }
 
-function partGeometry(part, colors) {
+// Une pale (issue #283) : une bande de triangles tendue entre le bord
+// d'attaque et le bord de fuite de bladeOutline(), station par station. Le
+// vrillage est dans les stations, donc la surface est gauche — c'est ce qu'une
+// pale est, et c'est ce qui accroche la lumière différemment à l'emplanture et
+// au bout. Indexée, comme les primitives Three : mergeGeometries et
+// tools/lens-coverage.mjs lisent l'index.
+function bladeGeometry(part) {
+	const { le, te } = bladeOutline(part);
+	const n = le.length;
+	const pos = new Float32Array(6 * n);
+	const uv = new Float32Array(4 * n);
+	for (let i = 0; i < n; i++) {
+		pos.set(le[i], 6 * i);
+		pos.set(te[i], 6 * i + 3);
+		const t = i / (n - 1);
+		uv[4 * i] = 0; uv[4 * i + 1] = t;
+		uv[4 * i + 2] = 1; uv[4 * i + 3] = t;
+	}
+	const idx = [];
+	for (let i = 0; i < n - 1; i++) {
+		const a = 2 * i, b = 2 * i + 1, c = 2 * i + 2, d = 2 * i + 3;
+		idx.push(a, b, c, b, d, c);
+	}
+	const g = new THREE.BufferGeometry();
+	g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+	g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+	g.setIndex(idx);
+	g.computeVertexNormals();
+	return g;
+}
+
+// Ce qui est en carbone (ou en TPU noir) contre ce qui est en métal. Les pales
+// ont la couleur de l'HÉLICE : c'est le même objet que le disque qui les
+// remplace en régime, et il ne doit pas changer de teinte en montant en
+// puissance.
+const FRAME_ROLES = new Set(['plate', 'arm', 'battery', 'stack', 'cage', 'mount']);
+
+function partGeometry(part, colors, fine) {
 	switch (part.kind) {
 		case 'box': {
 			const g = new THREE.BoxGeometry(part.size[0], part.size[1], part.size[2]);
-			const hex = part.role === 'plate' || part.role === 'arm' || part.role === 'battery' ? colors.frame : colors.metal;
+			const hex = FRAME_ROLES.has(part.role) ? colors.frame : colors.metal;
 			return tagged(colored(place(g, part), hex, 1), part);
+		}
+		case 'blade': {
+			return tagged(colored(place(bladeGeometry(part), part), colors.prop, 1), part);
 		}
 		case 'cylinder': {
 			const g = new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 8);
@@ -65,7 +116,10 @@ function partGeometry(part, colors) {
 			return tagged(colored(place(g, part), colors.frame, 1), part);
 		}
 		case 'disc': {
-			const g = new THREE.CircleGeometry(part.size[0], 12);
+			// Douze côtés pour un disque vu à cent mètres ; vingt-quatre quand
+			// il est à huit centimètres de l'objectif (#283) — à douze, le
+			// bord du flou d'hélice est un polygone.
+			const g = new THREE.CircleGeometry(part.size[0], fine ? 24 : 12);
 			g.rotateX(-Math.PI / 2);
 			return tagged(colored(place(g, part), colors.prop, PROP_ALPHA), part);
 		}
@@ -91,6 +145,10 @@ export function DroneMaterial() {
 			// hélices du champ : les avant sont sur des diagonales opposées, donc
 			// un lacet en accélère une et ralentit l'autre.
 			uOmega: { value: new Float32Array([0, 0, 0, 0]) },
+			// La phase de chaque moteur, en radians, accumulée par setOmega()
+			// avec le pas de temps : c'est l'angle dont les pales ont tourné.
+			// Une phase n'est pas ω·t — le régime change à chaque frame.
+			uPhase: { value: new Float32Array([0, 0, 0, 0]) },
 			// 1 quand ce maillage a de vraies pales (niveau `onboard` ou
 			// `portrait`), 0 sinon. Un maillage SANS pales — la silhouette des
 			// ambiants — n'a que le disque pour dire l'hélice : il garde donc le
@@ -100,22 +158,39 @@ export function DroneMaterial() {
 			uBlades: { value: 0 },
 		},
 		vertexShader: /* glsl */`
+			uniform float uPhase[4];
 			in vec4 color;
 			in float aMotor;
 			in float aSpin;
+			in vec4 aPivot;
 			out float vMotor;
 			out float vSpin;
 			out vec4 vColor;
 			out vec3 vNormalW;
+			out vec3 vPosW;
 			out float vDepth;
 			out vec2 vUv;
 			void main() {
 				vColor = color;
 				vMotor = aMotor;
 				vSpin = aSpin;
-				vNormalW = normalize(mat3(modelMatrix) * normal);
 				vUv = uv;
-				vec4 mv = modelViewMatrix * vec4(position, 1.0);
+				vec3 p = position;
+				vec3 nrm = normal;
+				// Une pale tourne autour de l'axe de son moteur (+Y du corps),
+				// de la phase de ce moteur, dans son sens. Positif = sens
+				// direct vu de dessus, comme motorsOf() dans quad.js.
+				if (aPivot.w > 0.5) {
+					float ph = uPhase[int(aMotor)] * aSpin;
+					float c = cos(ph), s = sin(ph);
+					vec3 d = p - aPivot.xyz;
+					p = aPivot.xyz + vec3(d.x * c + d.z * s, d.y, -d.x * s + d.z * c);
+					nrm = vec3(nrm.x * c + nrm.z * s, nrm.y, -nrm.x * s + nrm.z * c);
+				}
+				vNormalW = normalize(mat3(modelMatrix) * nrm);
+				vec4 world = modelMatrix * vec4(p, 1.0);
+				vPosW = world.xyz;
+				vec4 mv = viewMatrix * world;
 				vDepth = -mv.z;
 				gl_Position = projectionMatrix * mv;
 			}
@@ -133,6 +208,7 @@ export function DroneMaterial() {
 			in float vMotor;
 			in float vSpin;
 			in vec3 vNormalW;
+			in vec3 vPosW;
 			in float vDepth;
 			in vec2 vUv;
 			out vec4 outColor;
@@ -144,8 +220,24 @@ export function DroneMaterial() {
 				// qui la normalise pour toute la scène. uAmbient reçoit le MÊME
 				// facteur d'obscurcissement que les tuiles (cloud.dim, cf. setDim
 				// dans main.js) ; la nuit assombrit ensuite, comme elles.
-				float lit = 0.55 + 0.45 * max(0.0, dot(normalize(vNormalW), uSunDir));
-				vec3 c = vColor.rgb * lit * uAmbient * (1.0 - 0.75 * uNight);
+				//
+				// Double face : une pale vue de dessous a sa normale à l'envers.
+				// On la retourne, sinon son éclairage est celui de l'autre face.
+				vec3 n = normalize(vNormalW);
+				if (!gl_FrontFacing) n = -n;
+				vec3 v = normalize(cameraPosition - vPosW);
+				float lit = 0.55 + 0.45 * max(0.0, dot(n, uSunDir));
+				// Le reflet (issue #283) : du carbone et de l'aluminium à un
+				// mètre, ou à huit centimètres, ne sont pas mats — sans ce
+				// brillant la machine est une silhouette noire. Blinn-Phong
+				// LARGE (exposant 6 : la machine est faite de boîtes à six
+				// normales, un reflet serré n'en accroche aucune), plus un
+				// liseré de contre-jour qui détache les arêtes du fond. Les deux suivent uAmbient et la nuit comme le reste ;
+				// à cent mètres (les ambiants) ils tiennent dans un pixel.
+				float spec = pow(max(0.0, dot(n, normalize(uSunDir + v))), 6.0) * 0.30;
+				float rim = pow(1.0 - max(0.0, dot(n, v)), 3.0) * 0.12;
+				float night = 1.0 - 0.75 * uNight;
+				vec3 c = (vColor.rgb * lit + vec3(spec + rim)) * uAmbient * night;
 				float a = vColor.a;
 				// Le régime du moteur de ce sommet, zéro pour tout ce qui
 				// n'appartient à aucun (aMotor = -1 : plaque, batterie, caméra,
@@ -168,11 +260,23 @@ export function DroneMaterial() {
 					// s'y AJOUTE, signé du sens, il ne la remplace pas : à uOmega
 					// nul (les ambiants) le terme s'annule et l'image est celle
 					// d'avant #264, au sommet près.
+					float rad = length(vUv - 0.5) * 2.0;
 					float ang = atan(vUv.y - 0.5, vUv.x - 0.5) + uTime * (12.0 + w * 0.03 * vSpin);
+					// Avec pales (issue #283), le disque est ce qu'une caméra
+					// voit d'une hélice en régime : les fantômes des pales,
+					// COURBÉS par le rolling shutter (la phase tourne avec le
+					// rayon, dans le sens de rotation), sur un voile dont la
+					// densité décroît du moyeu au bout — la corde balayée par
+					// tour est constante, le périmètre grandit. Sans pales (les
+					// ambiants, à 100 m) le disque reste le motif d'avant.
+					float ghost = 0.7 + 0.3 * sin(ang * 3.0 - vSpin * rad * 2.2 * uBlades);
+					// Le voile s'éteint en douceur au bout des pales : le bord
+					// d'un flou d'hélice n'est pas une arête.
+					float veil = mix(1.0, (1.55 - 0.85 * rad) * smoothstep(1.0, 0.86, rad), uBlades);
 					// Sans pales, le disque EST l'hélice : plein, comme avant.
 					// Avec pales, il n'est que leur enveloppe : invisible à
 					// l'arrêt, plein en régime.
-					a *= (0.7 + 0.3 * sin(ang * 3.0)) * mix(1.0, blur, uBlades);
+					a *= ghost * veil * mix(1.0, blur, uBlades);
 				} else if (vMotor >= 0.0 && vSpin != 0.0) {
 					// Une pale : pleine à l'arrêt, effacée quand le disque prend
 					// le relais. Les deux ne sont jamais visibles ensemble.
@@ -268,9 +372,18 @@ export function setTime(mat, t) { mat.uniforms.uTime.value = t; }
 // Le régime des quatre moteurs, rad/s, ordre Betaflight. Appelée UNE fois par
 // frame sur le chemin de vol : elle écrit dans le tableau déjà alloué de
 // l'uniforme, elle n'en crée pas.
-export function setOmega(mat, omega) {
+// `dt` fait avancer la phase des pales (issue #283) ; sans lui (les selftests,
+// un appel hors du pas de temps) le régime est posé et les pales ne bougent
+// pas. La phase est repliée sur un tour : un float qui grandit pendant tout
+// un vol finirait par perdre la précision d'un angle.
+const TWO_PI = 2 * Math.PI;
+export function setOmega(mat, omega, dt = 0) {
 	const u = mat.uniforms.uOmega.value;
 	u[0] = omega[0]; u[1] = omega[1]; u[2] = omega[2]; u[3] = omega[3];
+	if (dt > 0) {
+		const ph = mat.uniforms.uPhase.value;
+		for (let k = 0; k < 4; k++) ph[k] = (ph[k] + omega[k] * dt) % TWO_PI;
+	}
 }
 // Fondu de distance de la LED : pleine à `near`, éteinte à `far`.
 export function setLedFade(mat, near, far) {
@@ -280,11 +393,14 @@ export function setLedFade(mat, near, far) {
 export function setResolution(mat, w, h) { mat.uniforms.uResolution.value.set(w, h); }
 
 export function buildDroneMesh(shape, { colors }) {
+	// Un maillage AVEC pales est vu de près : ses disques sont plus finement
+	// découpés. La silhouette des ambiants garde ses douze côtés.
+	const fine = shape.parts.some((p) => p.role === 'blade');
 	const geos = [];
 	let ledAt = [0, 0, 0];
 	for (const part of shape.parts) {
 		if (part.role === 'led') { ledAt = part.at; continue; }
-		const g = partGeometry(part, colors);
+		const g = partGeometry(part, colors, fine);
 		if (g) geos.push(g);
 	}
 	const geometry = mergeGeometries(geos, false);

@@ -36,9 +36,11 @@ export class PlayerDrone {
 		this._lastRes = { w: -1, h: -1 };
 
 		const recipe = { profile, build: buildFor(profile, build), camera };
-		// L'exemplaire MONDE : la recette telle qu'elle est aujourd'hui
-		// (`silhouette` par défaut), posée à la transformation physique.
-		this.world = buildDroneMesh(shapeOf(recipe), { colors: this._colors });
+		// L'exemplaire MONDE, posée à la transformation physique. Au niveau
+		// `portrait` (issue #283) : la free cam est à un mètre et demi, pas à
+		// cent — on y voit les pales à l'arrêt, les cloches et les moyeux. La
+		// silhouette reste aux ambiants, qui sont les seuls à la mériter de loin.
+		this.world = buildDroneMesh(shapeOf({ ...recipe, detail: 'portrait' }), { colors: this._colors });
 		this.world.group.visible = false;
 		scene.add(this.world.group);
 
@@ -111,8 +113,8 @@ export class PlayerDrone {
 		// fait tourner les hélices, et le lacet se lit dans les deux hélices du
 		// champ parce que les avant sont sur des diagonales opposées.
 		if (omega) {
-			setOmega(this.onboard.material, omega);
-			setOmega(this.world.material, omega);
+			setOmega(this.onboard.material, omega, dt);
+			setOmega(this.world.material, omega, dt);
 		}
 		setTime(this.onboard.material, this._time);
 
