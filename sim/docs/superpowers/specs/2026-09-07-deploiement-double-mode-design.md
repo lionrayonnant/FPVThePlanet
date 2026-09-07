@@ -198,12 +198,29 @@ reste :
   scènes qui existent déjà. Utile en particulier à qui a une connexion trop
   faible pour LIVE (une scène pré-acquise se charge une fois puis tourne sans
   dépendre du réseau pendant le vol) — but explicite de cette conversation.
-- **`GLOBAL SCANNER` → LIVE, avec la boucle complète.** Tracer une zone
-  n'ouvre plus `ACQUIRE AREA` en `shared` : ça lance un vol **LIVE** sur cette
-  zone — mais un LIVE qui passe désormais par TARGET SCAN → hack → rituel →
-  session → archive, pas le vol de reconnaissance nu d'aujourd'hui. **C'est le
-  développement réel de cette tranche** (détail au point suivant), pas une
-  bascule de configuration.
+- **`GLOBAL SCANNER` → LIVE, avec la boucle complète — déjà là.** Tracer une
+  zone n'ouvre plus `ACQUIRE AREA` en `shared` : ça lance un vol **LIVE** sur
+  cette zone, onglet LIVE du scanner, `[ FLY LIVE ]`. Correction du
+  2026-09-07 (relu dans le code après une remarque en conversation, la version
+  précédente de cette section se trompait) : ce chemin porte **déjà** TARGET
+  SCAN → hack → rituel → session → archive depuis l'issue #218 — `fieldLoop()`
+  appelle `runTargetScan()` et `runHack()` avant `bootLive()` exactement comme
+  pour une carte cuite, et `openFlightSession()` ouvre une vraie session
+  (`flyArea` prend un id `live-…`, ce qui bloque REVISIT dessus à bon droit —
+  on ne revisite pas un terrain qu'on n'a pas gardé). Vérifié en navigateur
+  (HANDOFF, « FIELD : onglets LOCAL / LIVE », issue #222). **Aucun
+  développement de jeu à faire** : il ne reste que la bascule serveur
+  (paragraphe suivant), qui est de la pure infrastructure.
+- **Bonus vérifié en relisant le code à cette occasion : LIVE ne coûte quasiment
+  rien au serveur.** `src/rocktree-worker.js` fait son `fetch()` vers
+  `kh.google.com` **directement depuis le navigateur du joueur** — le CORS en
+  est vérifié (`docs/superpowers/specs/2026-08-31-rocktree-live-fetch-design.md`).
+  Le gros du trafic d'un vol LIVE (la géométrie et les textures) ne transite
+  jamais par le VPS ; ce dernier ne voit que les petits appels JSON
+  (`/__map-api/plan`/`/probe`, `/__operator/.../sessions`, météo). Le problème
+  de stockage qui a lancé cette conversation — « je ne peux pas stocker les
+  cartes de tout le monde » — est donc déjà résolu par LIVE tel qu'il existe,
+  sans qu'on ait rien à construire pour ça.
 - **`ACQUIRE AREA` disparaît de l'écran, remplacé par l'incitation.** Le bouton
   qui écrirait une scène sur le VPS devient `[ GET THE CLIENT — KEEP THIS
   TERRAIN ]`, pointant vers la page de téléchargement (D4). Le geste que le
@@ -226,17 +243,20 @@ reste :
   refuse aussi côté serveur (403) — la protection ne doit pas dépendre de
   l'UI seule.
 
-**Le développement réel : brancher cible/session sur une zone LIVE.**
-Aujourd'hui `bootLive()` sort **exprès** de `openFlightSession()` (commentaire
-en toutes lettres dans `main.js`) — LIVE ne génère ni cible, ni session, ni
-ligne d'archive, par construction. Donner à LIVE la boucle complète demande
-que `tools/target-model.mjs`/`tools/session-model.mjs` acceptent une zone
-`{lat, lon}` comme clé d'un vol au même titre qu'un slug de scène — pas de
-`manifest.json`, pas de `terrainCache`, mais un `resolveTarget()` et un
-`openSession()` qui tiennent quand même. Portée précise (schéma, validation,
-ce qui change dans `main.js`/`session.js`) à trancher dans une spec dédiée
-avant d'implémenter — c'est un morceau de jeu, pas de l'infrastructure, et il
-mérite son propre cycle brainstorm → spec → plan comme les autres PHASE.
+**Ce qui reste réellement à faire, alors, tient dans les points ci-dessus** :
+la clé d'opérateur, `ACQUIRE AREA`/`POST jobs` gatés en `shared`, le catalogue
+curé (curation manuelle, aucun code), et le bouton `GET THE CLIENT`. Pas de
+développement de jeu — la seule chose que ce chantier doit encore *vérifier*
+(pas construire) est que la boucle LIVE, déjà correcte en `local`, se comporte
+identiquement sous une session `shared` authentifiée par clé — voir la
+checklist de vérification (§6).
+
+**Une nuance à garder à l'esprit, pas un blocage.** `?live=lat,lon` (paramètre
+d'URL, raccourci de **dev**) reste volontairement un vol nu — pas de cible, pas
+de session, `openFlightSession()` s'arrête sur `if (OPTS.live) return;`. C'est
+un chemin différent de celui du scanner (`MODE.live`/`flyChoice.live`, qui
+lui ouvre bien une session) : à ne pas confondre en lisant le code, l'erreur
+qui a produit la version précédente de cette section.
 
 Ce qui ne change pas en `shared`, assumé et documenté : Nominatim est appelé
 par chaque navigateur avec sa propre IP ; Open-Meteo est déjà mis en cache par
@@ -425,19 +445,14 @@ aucun selftest ne le remplace :
 |---|---|---|
 | T1 | `server/` + `paths.mjs` + adaptateur Vite + `server-selftest` ; `session-api-selftest` sur le serveur autonome | #259 (le build démarre seul) |
 | T2 | `electron/main.js`, `electron-builder` (NSIS + AppImage), `electron-updater`, matrice Windows/Linux en CI et en release | l'app s'installe et se met à jour toute seule |
-| T3a | mode `shared` — infra : clé, écran `OPERATOR KEY`, `ACQUIRE AREA` refusé (403) + bouton `GET THE CLIENT`, catalogue curé (aucun code neuf, juste des scènes pré-acquises par l'opérateur) | #60 (PHASE 23), la moitié infra |
-| T3b | LIVE porte la boucle complète (TARGET SCAN/hack/rituel/session/archive sur une zone `{lat, lon}`) — **jeu, pas infra**, sa propre spec avant d'implémenter | #60, la moitié qui rend le VPS attractif |
+| T3 | mode `shared` : clé, écran `OPERATOR KEY`, `ACQUIRE AREA`/`POST jobs` refusés (403) + bouton `GET THE CLIENT`, catalogue curé (aucun code de jeu neuf — LIVE porte déjà la boucle complète depuis #218, il ne reste que la vérifier sous `shared`) | #60 (PHASE 23) |
 | T4 | `deploy/` + distribution Electron (D3) + première livraison manuelle sur le VPS | le serveur existe et sert les installeurs |
 
-T1 et T2 ne changent rien au comportement du jeu (T2 ajoute un point d'entrée
-Electron à côté du navigateur, pas une divergence de code). T3a est de
-l'infrastructure pure (aucun écran de jeu ne change de comportement, sinon le
-libellé d'un bouton) et peut se livrer seule : le VPS sert alors son
-catalogue curé avec la boucle d'aujourd'hui, LIVE restant le vol nu en
-attendant T3b. T3b est la seule tranche qui touche vraiment le jeu, et la
-seule qui mérite un cycle brainstorm → spec → plan séparé avant d'être
-planifiée sérieusement. T1 → T2 → T4 suffit à un « serveur pour les amis » en
-mode `local` derrière un tunnel, comme aujourd'hui avec ngrok — mais **pas**
+T1, T2 et T3 ne changent rien au comportement du jeu — T3 gate une seule
+fonctionnalité (`ACQUIRE AREA`) et ajoute un bouton, LIVE fonctionnant déjà
+tel quel. Aucune tranche de ce chantier ne touche à la logique du jeu
+lui-même. T1 → T2 → T4 suffit à un « serveur pour les amis » en mode `local`
+derrière un tunnel, comme aujourd'hui avec ngrok — mais **pas**
 exposé sur Internet : le serveur refuse `--host 0.0.0.0` sans `--mode shared`,
 et c'est voulu.
 
@@ -473,11 +488,10 @@ et c'est voulu.
   acquis.
 - Le pic mémoire de `prep.mjs` (voir §4) — à mesurer avant de composer le
   catalogue curé.
-- **T3b (LIVE + boucle complète) n'a pas de spec.** D2 en donne l'intention et
-  le point d'accroche technique (`bootLive()` sort exprès de
-  `openFlightSession()`), pas une conception — targeting/entry state/
-  randomart/photos tiennent-ils sans `manifest.json` ni `terrainCache` ? À
-  répondre dans son propre cycle avant de planifier le travail, pas ici.
+- **LIVE sous une session `shared` authentifiée par clé** : la boucle
+  (TARGET SCAN/hack/session/archive) est vérifiée en `local` (#218, #222),
+  jamais avec l'en-tête `Authorization: Bearer` d'une session `shared` —
+  premier point à rejouer une fois T3 posée.
 - Le CORS de `kh.google.com` depuis un vrai domaine.
 - Le `Range` et le cache `immutable` sur 450 Mo de scène : le comportement du
   cache navigateur au-delà de son quota n'a pas été regardé.
