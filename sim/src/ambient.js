@@ -143,12 +143,15 @@ export function routineFor({ family, twr, rand }) {
 	// Jitter du micro : les fréquences nominales (Hz) sont arrondies au nombre
 	// entier d'harmoniques le plus proche sur la période de la routine, sinon
 	// curveLocal(0) ≠ curveLocal(period) (le jitter ne boucle pas avec le reste).
-	// amp à 0,15 (et non 0,3) : à 0,3, la dérivée du jitter (jusqu'à 2,1 Hz)
-	// dépasse à elle seule 12 % de la vitesse nominale d'un micro lent —
-	// le budget de rayon (±0,9 m annoncé au test) reste très large à 0,15.
+	// amp à 0,3, la valeur de spec (#262) : dérivée au pas de simulation
+	// (1/60 s), la dérivée du jitter (jusqu'à 2,1 Hz) dominerait la vitesse
+	// dérivée — c'est pour ça qu'il était resté à 0,15. derive() lisse
+	// maintenant sa fenêtre de dérivation pour toute routine jittée
+	// (VEL_SMOOTH_H) : la position, elle, reste exacte, seule vel/acc voit le
+	// jitter atténué.
 	const jitter = spec.jitter
 		? [0.7, 1.3, 2.1].map((hz) => ({
-			amp: 0.15,
+			amp: 0.3,
 			nx: Math.max(1, Math.round(hz * period)),
 			nz: Math.max(1, Math.round(hz * period * 0.7)),
 			phase: rand() * Math.PI * 2,
@@ -295,15 +298,27 @@ export function curveAt(r, anchor, heights, t, out) {
 
 const _pm = { x: 0, y: 0, z: 0 }, _pp = { x: 0, y: 0, z: 0 };
 
-// Position, vitesse et accélération par différences centrées de pas h.
+// #262 : fenêtre de dérivation élargie pour vel/acc d'une routine jittée
+// (jamais pour pos, qui reste échantillonnée exactement à `t`). Une
+// différence centrée au pas de simulation (1/60 s) suit la dérivée du
+// jitter (jusqu'à 2,1 Hz) presque sans l'atténuer : sin(wh)/h ≈ w. À
+// VEL_SMOOTH_H, sin(wh)/(wh) ≈ 0,5 pour l'harmonique la plus haute — la même
+// atténuation qui compense exactement le doublement de l'amplitude de 0,15 à
+// 0,3 (spec). Les routines sans jitter (période bien plus lente que le
+// jitter) ne voient quasi aucune différence à cette fenêtre.
+const VEL_SMOOTH_H = 0.15;
+
+// Position, vitesse et accélération par différences centrées de pas h (vel/acc
+// élargissent ce pas à VEL_SMOOTH_H sur une routine jittée — voir ci-dessus).
 export function derive(r, anchor, heights, t, h, pos, vel, acc) {
 	curveAt(r, anchor, heights, t, pos);
-	curveAt(r, anchor, heights, t - h, _pm);
-	curveAt(r, anchor, heights, t + h, _pp);
-	vel.x = (_pp.x - _pm.x) / (2 * h); vel.y = (_pp.y - _pm.y) / (2 * h); vel.z = (_pp.z - _pm.z) / (2 * h);
-	acc.x = (_pp.x - 2 * pos.x + _pm.x) / (h * h);
-	acc.y = (_pp.y - 2 * pos.y + _pm.y) / (h * h);
-	acc.z = (_pp.z - 2 * pos.z + _pm.z) / (h * h);
+	const hv = r.jitter.length > 0 ? Math.max(h, VEL_SMOOTH_H) : h;
+	curveAt(r, anchor, heights, t - hv, _pm);
+	curveAt(r, anchor, heights, t + hv, _pp);
+	vel.x = (_pp.x - _pm.x) / (2 * hv); vel.y = (_pp.y - _pm.y) / (2 * hv); vel.z = (_pp.z - _pm.z) / (2 * hv);
+	acc.x = (_pp.x - 2 * pos.x + _pm.x) / (hv * hv);
+	acc.y = (_pp.y - 2 * pos.y + _pm.y) / (hv * hv);
+	acc.z = (_pp.z - 2 * pos.z + _pm.z) / (hv * hv);
 }
 
 export const ATTITUDE_TAU = 0.08;
