@@ -166,19 +166,27 @@ chown -R fpvtp:fpvtp /var/lib/fpvtp/operator-state
 ```
 
 En mode `shared`, un opérateur sans clé est inutilisable tant qu'on ne lui en
-a pas généré une. La commande qui le fait
-(`node server/index.mjs key <operatorId>`) est prévue par le design mais
-**n'existe pas encore** dans `sim/server/index.mjs` : elle arrive avec la
-tranche T3. D'ici là, cette étape 8 n'est pas praticable.
+a pas généré une — c'est le cas de tous les fichiers d'avant la tranche T3.
+Depuis le répertoire du programme :
+
+```sh
+sudo -u fpvtp /opt/fpvtp/current/node/bin/node \
+  /opt/fpvtp/current/app/server/index.mjs key <operatorId>
+```
+
+La clé s'affiche **une seule fois** : transmettez-la à la personne concernée,
+elle la saisira sur l'écran `OPERATOR KEY`. Relancer la commande en délivre
+une neuve et invalide la précédente. C'est aussi la seule voie de
+récupération quand quelqu'un perd la sienne : il n'y a ni mot de passe, ni
+adresse e-mail, ni réinitialisation en libre service.
 
 ---
 
-## Le runtime Node — prérequis non satisfait aujourd'hui, à lire
+## Le runtime Node, et la forme de l'archive
 
-`fpvtp.service` lance `/opt/fpvtp/current/node/bin/node`, c'est-à-dire un
-runtime Node **embarqué dans l'archive de release**, et
-`/opt/fpvtp/current/app` comme répertoire de travail. Autrement dit, l'asset
-`linux-x64` attendu par `deploy.sh` doit avoir cette forme :
+`fpvtp.service` lance `/opt/fpvtp/current/node/bin/node` avec
+`/opt/fpvtp/current/app` comme répertoire de travail. L'asset `linux-x64`
+attendu par `deploy.sh` a donc cette forme :
 
 ```
 <archive>/
@@ -186,28 +194,33 @@ runtime Node **embarqué dans l'archive de release**, et
   node/bin/node
 ```
 
-**Ce n'est pas ce que la CI produit au 2026-09-07.**
-`.github/workflows/release.yml` publie un seul asset,
-`fpvtp-sim-<tag>.zip`, qui ne contient que `dist/` — ni `server/`, ni
-`tools/`, ni `src/`, ni runtime Node (vérifié en lisant le workflow : l'étape
-« Archive du build » est un `zip -qr … dist`). Rien de ce répertoire ne peut
-donc encore aboutir à un service qui démarre.
+**C'est ce que `.github/workflows/release.yml` produit** depuis l'intégration
+des tranches T2-T4 : l'étape « Archive du serveur pour le VPS » copie
+`server/ tools/ src/ dist/ package.json` dans `app/`, télécharge le tarball
+officiel de la version de Node qui vient de faire passer les selftests, et
+publie le tout sous le nom `fpvtp-server-<tag>-linux-x64.tar.gz`. L'ancien
+`fpvtp-sim-<tag>.zip` (le `dist/` seul) reste attaché à la Release, mais ce
+n'est pas lui que `deploy.sh` installe.
 
-`deploy.sh` ne masque pas ce trou : il vérifie la présence de
-`app/server/index.mjs` et de `node/bin/node` **avant** de basculer quoi que ce
-soit, et s'arrête avec un message qui renvoie ici.
+**Aucun `npm install` sur le VPS, et c'est voulu** : le serveur n'a besoin
+d'aucune dépendance npm pour démarrer — mesuré le 2026-09-07 sur une archive
+construite exactement comme celle de la CI, **sans `node_modules`** :
 
-Ce qui manque, du côté de la release (hors périmètre de ce répertoire) :
+```
+FPVTP! v0.0.0 — mode shared — acquisition fermée — données … — http://127.0.0.1:8299/
+GET /                       → 200 text/html
+GET /__map-api/scenes       → 401   (clé d'opérateur requise, mode shared)
+GET /__operator             → 404   (pas d'annuaire public en shared)
+POST /__map-api/jobs        → 401
+```
 
-1. produire un asset `linux-x64` contenant l'arborescence ci-dessus ;
-2. y joindre un runtime Node. Le serveur du jeu n'a besoin d'**aucune
-   dépendance npm** pour démarrer — mesuré le 2026-09-07 : `node
-   server/index.mjs` démarre et répond sur `/__map-api/scenes` dans une copie
-   de travail **sans `node_modules`** — donc « embarquer Node » veut
-   simplement dire déposer les binaires officiels
-   (`node-vXX.Y.Z-linux-x64.tar.xz`) à côté du programme, sans installer de
-   paquets. Les modules natifs (`sharp`) ne sont utilisés que par
-   l'acquisition de terrain, qui est fermée sur le VPS.
+L'archive ne contient donc PAS `node_modules`. Les modules natifs (`sharp`,
+Rapier) ne servent qu'à l'acquisition de terrain, fermée sur le VPS.
+
+Note sur le contrôle de santé : le `401` ci-dessus est la réponse NORMALE de
+`/__map-api/scenes` en mode `shared` une fois la clé d'opérateur en place.
+`deploy.sh` accepte 200, 401 et 403 — ce qu'il vérifie, c'est que Node répond,
+pas qu'il ouvre la porte.
 
 Variante possible si l'on préfère : installer Node sur la machine (`apt` ou
 NodeSource) et changer l'`ExecStart` en `/usr/bin/node`. Ce répertoire suit
@@ -268,7 +281,14 @@ de `fpvtp.service` (`systemd-analyze verify`), et le fait que
 et `FPVTP_PORT` (serveur démarré en mode `shared` avec ces variables, réponse
 `200 {"scenes":[]}` sur `/__map-api/scenes`).
 
+A été mesuré ensuite, à l'intégration des trois tranches : une archive
+construite exactement comme celle de la CI (`app/` + `node/`, **sans
+`node_modules`**) démarre en mode `shared` et sert le jeu — voir la section
+« Le runtime Node » plus haut pour les codes de réponse relevés.
+
 N'ont **pas** été vérifiés, et le seront à la première livraison réelle : le
 `Caddyfile` (Caddy n'était pas installé, `caddy validate` n'a pas pu être
 joué), le durcissement systemd sous charge réelle, le téléchargement d'un
-asset de release privée, et l'ensemble du chemin de bout en bout.
+asset de release privée, `electron-updater` contre le bloc `updates.`, et
+l'ensemble du chemin de bout en bout. `release.yml` lui-même n'a jamais
+tourné sur un runner.
