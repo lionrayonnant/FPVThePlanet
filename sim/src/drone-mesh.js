@@ -91,37 +91,50 @@ function bladeGeometry(part) {
 	return g;
 }
 
-// Ce qui est en carbone (ou en TPU noir) contre ce qui est en métal. Les pales
+// De quoi chaque rôle est fait (issue #284) : sa COULEUR dans la livrée, et sa
+// CLASSE de matériau pour le shader — 0 carbone (tissage, reflet large),
+// 1 métal (reflet serré), 2 plastique (hélices, TPU, film du pack). Les pales
 // ont la couleur de l'HÉLICE : c'est le même objet que le disque qui les
 // remplace en régime, et il ne doit pas changer de teinte en montant en
-// puissance.
-const FRAME_ROLES = new Set(['plate', 'arm', 'battery', 'stack', 'cage', 'mount']);
+// puissance. Un rôle inconnu est du carbone : la recette peut grandir sans
+// qu'une pièce nouvelle sorte en rose.
+export const CARBON = 0, METAL = 1, PLASTIC = 2;
+const MATERIAL_OF = {
+	plate: ['frame', CARBON], arm: ['frame', CARBON], cage: ['frame', CARBON], stack: ['frame', CARBON],
+	motor: ['metal', METAL], bell: ['bell', METAL], hub: ['bell', METAL],
+	prop: ['prop', PLASTIC], blade: ['prop', PLASTIC],
+	duct: ['tpu', PLASTIC], mount: ['tpu', PLASTIC], antenna: ['tpu', PLASTIC],
+	battery: ['battery', PLASTIC],
+	camera: ['metal', PLASTIC], gopro: ['metal', PLASTIC],
+};
+// La livrée peut être partielle (les gris d'avant #284) : chaque rôle de
+// couleur retombe sur le gris qui le rendait avant.
+const FALLBACK = { bell: 'metal', tpu: 'frame', battery: 'frame' };
+function dressed(geo, part, colors, alpha = 1) {
+	const [key, mat] = MATERIAL_OF[part.role] ?? ['frame', CARBON];
+	const hex = colors[key] ?? colors[FALLBACK[key]] ?? colors.frame;
+	const n = geo.attributes.position.count;
+	geo.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mat), 1));
+	return tagged(colored(geo, hex, alpha), part);
+}
 
 function partGeometry(part, colors, fine) {
 	switch (part.kind) {
-		case 'box': {
-			const g = new THREE.BoxGeometry(part.size[0], part.size[1], part.size[2]);
-			const hex = FRAME_ROLES.has(part.role) ? colors.frame : colors.metal;
-			return tagged(colored(place(g, part), hex, 1), part);
-		}
-		case 'blade': {
-			return tagged(colored(place(bladeGeometry(part), part), colors.prop, 1), part);
-		}
-		case 'cylinder': {
-			const g = new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 8);
-			return tagged(colored(place(g, part), colors.metal, 1), part);
-		}
-		case 'ring': {
-			const g = new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 12, 1, true);
-			return tagged(colored(place(g, part), colors.frame, 1), part);
-		}
+		case 'box':
+			return dressed(place(new THREE.BoxGeometry(part.size[0], part.size[1], part.size[2]), part), part, colors);
+		case 'blade':
+			return dressed(place(bladeGeometry(part), part), part, colors);
+		case 'cylinder':
+			return dressed(place(new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 8), part), part, colors);
+		case 'ring':
+			return dressed(place(new THREE.CylinderGeometry(part.size[0], part.size[0], part.size[1], 12, 1, true), part), part, colors);
 		case 'disc': {
 			// Douze côtés pour un disque vu à cent mètres ; vingt-quatre quand
 			// il est à huit centimètres de l'objectif (#283) — à douze, le
 			// bord du flou d'hélice est un polygone.
 			const g = new THREE.CircleGeometry(part.size[0], fine ? 24 : 12);
 			g.rotateX(-Math.PI / 2);
-			return tagged(colored(place(g, part), colors.prop, PROP_ALPHA), part);
+			return dressed(place(g, part), part, colors, PROP_ALPHA);
 		}
 		default: return null;   // 'point' (LED) : maillage séparé
 	}
@@ -156,6 +169,8 @@ export function DroneMaterial() {
 			// jamais de régime. Un maillage AVEC pales fait l'inverse : le disque
 			// n'apparaît qu'avec le régime, quand les pales s'effacent.
 			uBlades: { value: 0 },
+			// Le pas du tissage carbone, en mètres (issue #284).
+			uWeave: { value: 0.002 },
 		},
 		vertexShader: /* glsl */`
 			uniform float uPhase[4];
@@ -163,17 +178,22 @@ export function DroneMaterial() {
 			in float aMotor;
 			in float aSpin;
 			in vec4 aPivot;
+			in float aMat;
 			out float vMotor;
 			out float vSpin;
+			out float vMat;
 			out vec4 vColor;
 			out vec3 vNormalW;
+			out vec3 vNormalB;
 			out vec3 vPosW;
+			out vec3 vPosB;
 			out float vDepth;
 			out vec2 vUv;
 			void main() {
 				vColor = color;
 				vMotor = aMotor;
 				vSpin = aSpin;
+				vMat = aMat;
 				vUv = uv;
 				vec3 p = position;
 				vec3 nrm = normal;
@@ -188,6 +208,10 @@ export function DroneMaterial() {
 					nrm = vec3(nrm.x * c + nrm.z * s, nrm.y, -nrm.x * s + nrm.z * c);
 				}
 				vNormalW = normalize(mat3(modelMatrix) * nrm);
+				// En espace CORPS, pour le tissage : il est cousu sur la pièce,
+				// il ne glisse pas quand la machine bouge.
+				vPosB = p;
+				vNormalB = nrm;
 				vec4 world = modelMatrix * vec4(p, 1.0);
 				vPosW = world.xyz;
 				vec4 mv = viewMatrix * world;
@@ -204,11 +228,15 @@ export function DroneMaterial() {
 			uniform float uTime;
 			uniform float uOmega[4];
 			uniform float uBlades;
+			uniform float uWeave;
 			in vec4 vColor;
 			in float vMotor;
 			in float vSpin;
+			in float vMat;
 			in vec3 vNormalW;
+			in vec3 vNormalB;
 			in vec3 vPosW;
+			in vec3 vPosB;
 			in float vDepth;
 			in vec2 vUv;
 			out vec4 outColor;
@@ -227,17 +255,36 @@ export function DroneMaterial() {
 				if (!gl_FrontFacing) n = -n;
 				vec3 v = normalize(cameraPosition - vPosW);
 				float lit = 0.55 + 0.45 * max(0.0, dot(n, uSunDir));
+				// La matière (issue #284). Carbone : un sergé procédural en
+				// espace corps — deux familles de rayures à 45°, alternées, sur
+				// les deux axes orthogonaux à la normale de la pièce (les flancs
+				// d'un bras comme sa face). Le carbone est presque noir :
+				// l'albédo seul ne montre rien, c'est le REFLET qui porte le
+				// sergé — une mèche brille, la suivante mate —, comme sur une
+				// vraie plaque au soleil. Métal : reflet serré. Plastique
+				// (hélices, TPU, pack) : reflet moyen.
+				vec3 albedo = vColor.rgb;
+				float specExp = 12.0, specK = 0.30;
+				if (vMat < 0.5) {
+					vec3 an = abs(vNormalB);
+					vec2 q = an.y >= an.x && an.y >= an.z ? vPosB.xz : (an.x >= an.z ? vPosB.yz : vPosB.xy);
+					q /= uWeave;
+					float weave = abs(step(0.5, fract(q.x + q.y)) - step(0.5, fract(q.x - q.y)));
+					albedo *= mix(0.78, 1.25, weave);
+					specExp = 6.0; specK = 0.10 + 0.34 * weave;
+				} else if (vMat < 1.5) {
+					specExp = 28.0; specK = 0.55;
+				}
 				// Le reflet (issue #283) : du carbone et de l'aluminium à un
 				// mètre, ou à huit centimètres, ne sont pas mats — sans ce
 				// brillant la machine est une silhouette noire. Blinn-Phong
-				// LARGE (exposant 6 : la machine est faite de boîtes à six
+				// large sur le carbone (la machine est faite de boîtes à six
 				// normales, un reflet serré n'en accroche aucune), plus un
-				// liseré de contre-jour qui détache les arêtes du fond. Les deux suivent uAmbient et la nuit comme le reste ;
-				// à cent mètres (les ambiants) ils tiennent dans un pixel.
-				float spec = pow(max(0.0, dot(n, normalize(uSunDir + v))), 6.0) * 0.30;
+				// liseré de contre-jour qui détache les arêtes du fond.
+				float spec = pow(max(0.0, dot(n, normalize(uSunDir + v))), specExp) * specK;
 				float rim = pow(1.0 - max(0.0, dot(n, v)), 3.0) * 0.12;
 				float night = 1.0 - 0.75 * uNight;
-				vec3 c = (vColor.rgb * lit + vec3(spec + rim)) * uAmbient * night;
+				vec3 c = (albedo * lit + vec3(spec + rim)) * uAmbient * night;
 				float a = vColor.a;
 				// Le régime du moteur de ce sommet, zéro pour tout ce qui
 				// n'appartient à aucun (aMotor = -1 : plaque, batterie, caméra,
@@ -392,6 +439,9 @@ export function setLedFade(mat, near, far) {
 }
 export function setResolution(mat, w, h) { mat.uniforms.uResolution.value.set(w, h); }
 
+// `colors` : les gris de base { frame, metal, prop, led } plus, si la livrée
+// est connue (issue #284, tools/target-livery.mjs), { bell, tpu, battery,
+// led, weave } — chaque clé absente retombe sur le gris qui la rendait avant.
 export function buildDroneMesh(shape, { colors }) {
 	// Un maillage AVEC pales est vu de près : ses disques sont plus finement
 	// découpés. La silhouette des ambiants garde ses douze côtés.
@@ -411,6 +461,7 @@ export function buildDroneMesh(shape, { colors }) {
 	// Le niveau de détail se lit dans la recette, pas dans un argument : c'est
 	// la présence de pales qui décide de la façon dont le disque se rend.
 	material.uniforms.uBlades.value = shape.parts.some((p) => p.role === 'blade') ? 1 : 0;
+	if (colors.weave) material.uniforms.uWeave.value = colors.weave;
 	const body = new THREE.Mesh(geometry, material);
 	body.frustumCulled = true;
 

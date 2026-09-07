@@ -25,6 +25,7 @@
 
 import { PROFILES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { RATE_PRESETS } from '../src/flightController.js';
+import { liveryOf } from './target-livery.mjs';
 
 // Bornes du tirage, exportées pour que le selftest les vérifie au lieu de les
 // répéter. Chaque plage est un multiplicateur sur la valeur de la famille.
@@ -157,6 +158,14 @@ function buildRates(rand, presetName, amount) {
 
 // seed : le `buildSeed` porté par la cible résolue (tools/target-model.mjs), de
 // sorte que le serveur, le client et un resume produisent le même exemplaire.
+// La livrée seule, sans le reste du build (issue #284). Même graine, même
+// famille ⇒ même livrée, et le flux est distinct de celui de la physique.
+export function targetLivery({ seed, family } = {}) {
+	if (!seed) throw new Error('seed requis');
+	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
+	return liveryOf(rngFrom(`${seed}::livery::${base.family}`), base.family);
+}
+
 export function targetBuild({ seed, family } = {}) {
 	if (!seed) throw new Error('seed requis');
 	const base = PROFILES[family] ?? PROFILES[DEFAULT_FAMILY];
@@ -201,6 +210,9 @@ export function targetBuild({ seed, family } = {}) {
 		variation: amount,
 		profile,
 		rates,
+		// La livrée (issue #284), sur SON flux de graine : l'ajouter n'a déplacé
+		// aucun tirage physique ci-dessus, et le selftest le tient.
+		livery: targetLivery({ seed, family: base.family }),
 		// Ce qu'on peut en dire une fois en vol, et rien avant (PHASE 08 : la
 		// fiche pré-hack ne connaît ni la masse ni la batterie).
 		spec: {

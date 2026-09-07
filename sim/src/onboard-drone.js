@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { shapeOf, eyeOf } from './drone-shape.js';
 import { buildDroneMesh, setSun, setFog, setTime, setOmega, setResolution } from './drone-mesh.js';
 import { token } from './palette.js';
+import { liveryColors } from '../tools/target-livery.mjs';
 
 const hex = (name) => new THREE.Color(token(name)).getHex();
 
@@ -22,9 +23,12 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 export class PlayerDrone {
 	constructor({ scene, profile, build, camera }) {
 		this.scene = scene;
+		// Les gris de base, puis la livrée de l'exemplaire par-dessus (issue
+		// #284) — un vol sans build tiré garde les gris.
 		this._colors = {
 			frame: hex('--dark-grey'), metal: hex('--grey'),
 			prop: hex('--light-grey'), led: hex('--warm-white'),
+			...liveryColors(build?.livery),
 		};
 		// Pré-alloués : update() n'alloue rien.
 		this._p = new THREE.Vector3();

@@ -2448,6 +2448,41 @@ identiques.
 4. Le portrait dans les trois écrans réels, avec les nouvelles règles CSS
    (`.drone-portrait`, `.session-portrait`) : rendu sur faux DOM seulement.
 
+
+## Une livrée par build (issue #284)
+
+Toutes les machines étaient peintes des quatre mêmes gris de la palette. Chaque
+build porte maintenant une **livrée** (`build.livery`, `tools/target-livery.mjs`)
+et le maillage une **classe de matériau** par sommet (`aMat` : carbone, métal,
+plastique) avec un sergé carbone procédural.
+
+### Vérifié — sans navigateur
+
+- `tools/target-livery-selftest.mjs` (33) : déterminisme, flux de graine à part
+  (`::livery::` — le profil et les rates ne bougent pas), hex et noms valides
+  sur 240 tirages, pondérations par famille tenues à ±8 % sur 400 tirages
+  (race5 vif 0,85, longrange 0,25), 60 freestyle ⇒ ≥ 40 livrées distinctes,
+  `liveryColors(null)` vide (les gris restent), `liveryLabel`.
+- `target-build-selftest.mjs` inchangé et vert : les tirages physiques n'ont
+  pas bougé.
+
+### Vérifié — rendu hors jeu, regardé
+
+Six builds en free cam (WebGL headless, gain ×2,2 pour simuler l'AGC) : les
+livrées se distinguent au premier regard — hélices néon / cloches bleues /
+pack vert, hélices fumées / cloches argent, conduits bleus sur le toothpick.
+Le POV à 1 800 rad/s montre un disque de la couleur des pales.
+
+### NON vérifié
+
+1. Le sergé carbone à l'écran : porté par le reflet (la base #121110 est trop
+   sombre pour l'albédo), il ne se juge qu'en mouvement et sous le soleil du
+   jeu.
+2. Les couleurs à travers l'objectif de vol (AGC, bruit, DIGITAL) — jugées
+   hors lentille.
+3. La légende de livrée dans la fiche SESSION LOG, rendue sur faux DOM
+   seulement.
+
 ## Non vérifié / à faire
 
 - **Audio spatial — acoustique du lieu** (issue #122, branche `music-prompts-v2`).

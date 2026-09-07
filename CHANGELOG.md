@@ -31,6 +31,23 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Une livrée par build (#284) : chaque exemplaire a désormais SES couleurs —
+  hélices, cloches moteur, TPU (fixations, conduits, brins), pack, LED — et le
+  pas de son tissage carbone, tirés de la graine sur un flux à part
+  (`seed::livery`), donc sans déplacer un seul tirage physique. Pondérées par
+  famille : un race5 a des hélices néon huit fois sur dix, un long range des
+  hélices fumées trois fois sur quatre. `tools/target-livery.mjs` est pur,
+  couvert par `tools/target-livery-selftest.mjs`. Les ambiants héritent : à
+  cent mètres c'est leur LED qui change, en free cam leurs hélices. Le disque
+  en régime prend la couleur des pales.
+- Une matière par pièce : le maillage porte une classe par sommet — carbone
+  (sergé procédural en espace corps, cousu sur la pièce, qui module l'albédo
+  et surtout le reflet : une mèche brille, la suivante mate), métal (reflet
+  serré), plastique (hélices, TPU, pack).
+- La fiche SESSION LOG légende le portrait de la livrée (`PROPS NEON GREEN ·
+  BELLS GOLD · TPU ORANGE`) : le portrait reste monochrome — c'est le
+  terminal —, mais la fiche dit de quelles couleurs était la machine.
+
 - Les frames du joueur, regardables (#283). Rendus à 160, 200 et 400 px et
   regardés, les portraits fil de fer de #264 étaient une tache : des pales en
   parallélépipèdes vrillés dont les douze arêtes se croisaient au moyeu, des

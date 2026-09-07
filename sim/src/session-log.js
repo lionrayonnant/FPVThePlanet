@@ -11,6 +11,8 @@ import * as operatorApi from './operator.js';
 // Le portrait est du SVG en ligne (issue #264) : il n'ouvre aucun contexte
 // WebGL, et cet écran reste le client pur qu'annonce l'en-tête.
 import { dronePortrait } from './drone-portrait.js';
+import { targetLivery } from '../tools/target-build.mjs';
+import { liveryLabel } from '../tools/target-livery.mjs';
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
 	targetLogEntries, targetRow,
@@ -210,7 +212,10 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 		s.box.innerHTML = `<pre>${sessionDetail(session)}</pre>`;
 		// La machine avant ses images : la fiche parle de ce qui a volé, les
 		// captures de ce qu'elle a vu.
-		portrait = portraitOf(session.target);
+		// Sa livrée en légende (issue #284) : le portrait est monochrome — c'est
+		// le terminal — mais la fiche peut DIRE de quelles couleurs était la
+		// machine. Déduite de la graine, comme le portrait : aucune migration.
+		portrait = portraitOf(session.target, { caption: session.target?.buildSeed ? liveryLabel(targetLivery({ seed: session.target.buildSeed, family: session.target.family })) : null });
 		if (portrait) s.box.appendChild(portrait.el);
 		if (session.photos?.length) s.box.appendChild(gallery(session.photos));
 
