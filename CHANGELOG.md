@@ -91,6 +91,22 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- Le jitter du micro était réglé à 0,15 m au lieu des 0,3 m de la spec (#262) :
+  dérivée au pas de simulation (1/60 s), la vitesse d'un jitter à 0,3 m
+  d'amplitude (jusqu'à 2,1 Hz) explosait — la dérivée haute fréquence n'est
+  presque pas atténuée à ce pas. `derive()` élargit maintenant sa fenêtre de
+  dérivation à 0,15 s pour vel/acc d'une routine jittée (jamais pour la
+  position, qui reste exacte) : l'atténuation qui en résulte à 2,1 Hz
+  compense exactement le doublement de l'amplitude. Les autres routines
+  (bien plus lentes que le jitter) n'y voient aucune différence mesurable.
+- `operator.flush()` au unload n'avait aucune garantie (#247) : le PATCH qui
+  écrit `settings`, `dialogueMemory` ou `coverage` est débouncé à 500 ms, et le
+  rechargement de fin de vol (`location.href = location.pathname`) partait sans
+  l'attendre. Ça marchait par coïncidence — le debounce tient dans la marge de
+  1,4 à 4,6 s de la séquence de fin de vol — mais un serveur plus lent (tunnel,
+  ami distant) pouvait perdre la dernière valeur en silence. `finishSession()`
+  attend maintenant la résolution de `operator.flush()` avant de recharger ; un
+  échec réseau est journalisé mais ne bloque plus la sortie.
 - Le calibrage ne voyait pas un gaz rangé en gâchette (#279) : Firefox applique
   le `mapping: "standard"` à une Radiomaster Pocket et range son manche des gaz
   dans l'emplacement de la gâchette L2 — le gaz sort sur `buttons[6].value`,

@@ -1371,6 +1371,11 @@ async function finishSession({ redeploy = false } = {}) {
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
+	// #247 : le debounce de operator.patch() (settings, dialogueMemory, coverage)
+	// n'a aucune garantie face à ce rechargement — seul un flush() résolu avant
+	// de partir en a une. Un échec réseau ne doit pas bloquer la sortie pour
+	// autant : on part quand même, comme le ferait beforeunload.
+	try { await operator.flush(); } catch (e) { console.warn('[operator] flush de fin de vol échoué', e); }
 	location.href = location.pathname;
 }
 
