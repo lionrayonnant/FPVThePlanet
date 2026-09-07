@@ -9,6 +9,11 @@ import {
 	normalizeChannel,
 	throttleFromCalibrated,
 } from './calibration.js';
+import {
+	KEY_MAP_STORAGE,
+	loadKeyMap,
+	actionForKey,
+} from './key-map.js';
 
 const STORAGE_KEY = 'fpvtp.gamepadMap';
 // Calibrages mesurés, indexés PAR PÉRIPHÉRIQUE (issue #277). STORAGE_KEY, lui,
@@ -18,6 +23,9 @@ const CAL_STORAGE_KEY = 'fpvtp.gamepadCal';
 // Deadband par défaut, utilisé tant que le périphérique n'a pas été calibré.
 // Un calibrage le remplace par le bruit RÉELLEMENT mesuré au repos.
 const DEADBAND = 0.06;
+// Fixed navigation keys, never in the key map (D13): they are forwarded to
+// main.js under their own names.
+const PASSTHROUGH_KEYS = ['tab', 'escape', 'enter'];
 const GAMEPAD_MOVE_THRESHOLD = 0.15;
 
 // -----------------------------------------------------------------------------
@@ -320,6 +328,10 @@ export class Input {
 		this.keys = new Set();
 		this.kbThrottle = 0;
 
+		// Remappable bindings (D13). The map is the ONLY place a key name
+		// appears from here on: nothing below compares a literal.
+		this.keyMap = loadStoredKeyMap();
+
 		// Mouse
 		this.mouse = {
 			x: 0,
@@ -346,24 +358,15 @@ export class Input {
 
 			this.keys.add(k);
 
-			if (
-				[
-					'm',
-					'p',
-					'c',
-					'f',
-					'tab',
-					'escape',
-					'enter',
-					' ',
-					// PHASE 26 : `r` remet la machine en état, `b` ouvre le
-					// panneau du banc. Transmises inconditionnellement — c'est
-					// main.js qui décide qu'elles n'existent qu'au banc, ce
-					// module ne connaît aucun mode de jeu.
-					'r',
-					'b',
-				].includes(k)
-			) {
+			// Bound keys are dispatched as ACTION IDS ('pause', 'photo',
+			// 'benchPanel'...). Bench actions go out unconditionally — main.js
+			// decides they only exist at the bench, this module knows no game
+			// mode.
+			const action = actionForKey(this.keyMap, k);
+			if (action) {
+				this.onAction(action, e);
+			} else if (PASSTHROUGH_KEYS.includes(k)) {
+				// Navigation, fixed and out of the map: forwarded raw.
 				this.onAction(k, e);
 			}
 
@@ -781,16 +784,14 @@ export class Input {
 	// ---------------------------------------------------------------------------
 
 	readKeyboard(dt) {
-		const has = (...keys) =>
-			keys.some((x) =>
-				this.keys.has(x)
-			);
+		const has = (action) =>
+			this.isHeld(action);
 
 		// Throttle
-		if (has('w', 'z')) {
+		if (has('throttleUp')) {
 			this.kbThrottle +=
 				dt * 1.2;
-		} else if (has('s')) {
+		} else if (has('throttleDown')) {
 			this.kbThrottle -=
 				dt * 1.2;
 		}
@@ -809,29 +810,29 @@ export class Input {
 		let yaw = 0;
 
 		// Yaw
-		if (has('a', 'q')) {
+		if (has('yawLeft')) {
 			yaw -= 1;
 		}
 
-		if (has('d')) {
+		if (has('yawRight')) {
 			yaw += 1;
 		}
 
 		// Roll
-		if (has('arrowleft')) {
+		if (has('rollLeft')) {
 			roll -= 1;
 		}
 
-		if (has('arrowright')) {
+		if (has('rollRight')) {
 			roll += 1;
 		}
 
 		// Pitch — même convention que la manette : « en avant » fait piquer.
-		if (has('arrowup')) {
+		if (has('pitchDown')) {
 			pitch -= 1;
 		}
 
-		if (has('arrowdown')) {
+		if (has('pitchUp')) {
 			pitch += 1;
 		}
 
@@ -862,6 +863,28 @@ export class Input {
 	}
 
 	// ---------------------------------------------------------------------------
+	// KEY MAP
+	// ---------------------------------------------------------------------------
+
+	// Settings hands over a whole map; it goes through loadKeyMap so a
+	// half-built one can never leave an action unbound.
+	setKeyMap(map) {
+		this.keyMap = loadKeyMap(map);
+		return this.keyMap;
+	}
+
+	getKeyMap() {
+		return this.keyMap;
+	}
+
+	// Is any key bound to this action currently down?
+	isHeld(actionId) {
+		const keys = this.keyMap[actionId];
+		if (!keys) return false;
+		return keys.some((k) => this.keys.has(k));
+	}
+
+	// ---------------------------------------------------------------------------
 	// RESET
 	// ---------------------------------------------------------------------------
 
@@ -875,6 +898,16 @@ export class Input {
 // -----------------------------------------------------------------------------
 // LOAD SAVED MAP
 // -----------------------------------------------------------------------------
+
+// Bindings saved by the KEYBOARD tab. Same defensive rule as the calibration
+// store: an unreadable key falls back to the defaults instead of breaking boot.
+function loadStoredKeyMap() {
+	try {
+		return loadKeyMap(localStorage.getItem(KEY_MAP_STORAGE));
+	} catch {
+		return loadKeyMap(null);
+	}
+}
 
 // Les calibrages mesurés, tous périphériques confondus. Illisible -> {} : une
 // clé corrompue ne doit pas empêcher le sim de booter.

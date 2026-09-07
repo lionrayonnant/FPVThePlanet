@@ -1303,32 +1303,34 @@ function nextPaint() {
 	return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 }
 
-input.onAction = (key, event) => {
+// `action` is an ACTION ID from src/key-map.js (D13), not a key: the bindings
+// live in the map, and Escape / Enter / Tab arrive raw because they stay fixed.
+input.onAction = (action, event) => {
 	// Pas de respawn : on ne fait pas réapparaître un drone qu'on a perdu.
 	// terrain persistent, flights ephemeral.
 	//
 	// Sauf au banc, où il n'y a rien à faire réapparaître : la machine est
 	// locale, la remettre en état n'est pas un rembobinage. La touche n'existe
 	// QUE là — FIELD ne gagne rien, pas même une touche inerte à découvrir.
-	if (MODE.bench && key === 'r') { respawn(); return; }
-	if (MODE.bench && key === 'b') { event.preventDefault(); toggleBenchPanel(); return; }
-	if (key === ' ') { event.preventDefault(); togglePause(); }
-	else if (key === 'p') controller?.cyclePreset();
-	else if (key === 'm') controller?.cycleMode();
-	else if (key === 'c') toggleFreeCam();
-	else if (key === 'f') pendingCapture = true;
-	else if (key === 'tab') { event.preventDefault(); settings.toggleSettings(); }
-	else if (key === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
+	if (MODE.bench && action === 'respawn') { respawn(); return; }
+	if (MODE.bench && action === 'benchPanel') { event.preventDefault(); toggleBenchPanel(); return; }
+	if (action === 'pause') { event.preventDefault(); togglePause(); }
+	else if (action === 'cyclePreset') controller?.cyclePreset();
+	else if (action === 'cycleMode') controller?.cycleMode();
+	else if (action === 'view') toggleFreeCam();
+	else if (action === 'photo') pendingCapture = true;
+	else if (action === 'tab') { event.preventDefault(); settings.toggleSettings(); }
+	else if (action === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
 	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place. Entrée
 	// est un doublon d'Échap plutôt que le seul chemin : en plein écran
 	// navigateur, Échap est confisquée pour quitter le plein écran et ne
 	// délivre jamais de keydown à la page (comportement du navigateur, pas un
 	// bug — voir le clic ci-dessous pour la même raison).
-	else if ((key === 'escape' || key === 'enter') && flightEnd.out.exitArmed) finishSession();
+	else if ((action === 'escape' || action === 'enter') && flightEnd.out.exitArmed) finishSession();
 	// #253 : REDEPLOY, clavier seulement (comme les touches banc ci-dessus) —
 	// la manette garde son geste « n'importe quel bouton déconnecte » plus bas.
 	// FIELD only : au banc 'r' respawn déjà (garde tout en haut de ce handler).
-	else if (key === 'r' && flightEnd.out.exitArmed && !exiting) finishSession({ redeploy: true });
+	else if (action === 'respawn' && flightEnd.out.exitArmed && !exiting) finishSession({ redeploy: true });
 };
 
 // #253 : clé sessionStorage portant la zone à rejouer d'un REDEPLOY à travers
@@ -1881,7 +1883,7 @@ function frame() {
 		// Lue en direct plutôt que par onAction : un maintien n'est pas un
 		// appui, et input.js ne connaît aucun mode de jeu (il n'a donc pas à
 		// savoir que cette touche existe ici et pas au banc).
-		cutHeld: !MODE.bench && input.keys.has('k'),
+		cutHeld: !MODE.bench && input.isHeld('cutLink'),
 	});
 	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
 	// crashedThisFrame (bonus, revue finale) : un choc encaissé après la fin de

@@ -22,6 +22,10 @@ rapport avec les versions ci-dessous.
 
 - Tests couvrant qu'un vol EN DIRECT remplit bien le Session Log, le Target
   Log et le compteur OPERATOR, et n'est jamais proposé en REVISIT/RESUME (#8).
+- Les commandes clavier passent par une table remappable (`src/key-map.js`) :
+  une action porte un nom (`throttleUp`, `pause`, `cutLink`…), ses touches se
+  changent, et les valeurs par défaut couvrent QWERTY et AZERTY (W/Z, A/Q).
+  Réglages rangés dans `fpvtp.keyMap` ; Tab, Échap et Entrée restent fixes.
 
 ### Retiré
 
