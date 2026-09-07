@@ -80,6 +80,14 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- `operator.flush()` au unload n'avait aucune garantie (#247) : le PATCH qui
+  écrit `settings`, `dialogueMemory` ou `coverage` est débouncé à 500 ms, et le
+  rechargement de fin de vol (`location.href = location.pathname`) partait sans
+  l'attendre. Ça marchait par coïncidence — le debounce tient dans la marge de
+  1,4 à 4,6 s de la séquence de fin de vol — mais un serveur plus lent (tunnel,
+  ami distant) pouvait perdre la dernière valeur en silence. `finishSession()`
+  attend maintenant la résolution de `operator.flush()` avant de recharger ; un
+  échec réseau est journalisé mais ne bloque plus la sortie.
 - Le calibrage ne voyait pas un gaz rangé en gâchette (#279) : Firefox applique
   le `mapping: "standard"` à une Radiomaster Pocket et range son manche des gaz
   dans l'emplacement de la gâchette L2 — le gaz sort sur `buttons[6].value`,
