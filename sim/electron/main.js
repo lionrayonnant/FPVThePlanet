@@ -104,8 +104,9 @@ function createWindow(url) {
 	// bundle, d'un worker ou du contexte WebGL reste dans une console que
 	// personne n'ouvre. Tout remonte donc sur la sortie du process principal.
 	const wc = win.webContents;
-	wc.on('console-message', (_e, level, message, line, source) => {
-		if (level >= 2) log(`renderer: ${message} (${source}:${line})`);
+	// Electron >= 36 passes a single event object; `level` is a string.
+	wc.on('console-message', (e) => {
+		if (e.level === 'warning' || e.level === 'error') log(`renderer: ${e.message} (${e.sourceId}:${e.lineNumber})`);
 	});
 	wc.on('did-fail-load', (_e, code, desc, url) => log(`chargement échoué ${code} ${desc} — ${url}`));
 	wc.on('render-process-gone', (_e, details) => log(`renderer perdu : ${details.reason}`));

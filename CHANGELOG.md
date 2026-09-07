@@ -87,6 +87,16 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- Dépendances remontées (PR #5, groupe `npm_and_yarn`) : sharp 0.33 → 0.35,
+  Vite 5 → 6, electron-builder 25 → 26, et Electron 33 → 44 — pas 39 comme
+  proposé initialement : 39 est hors de la fenêtre de support d'Electron (les
+  trois derniers majeurs) et laissait ouverte l'alerte de traversée de chemin
+  d'`extract-zip`. `npm audit` ne rapporte plus rien. Aucune des ruptures d'API
+  de sharp 0.35 (`failOnError`, `paletteBitDepth`, `jp2k`) n'était utilisée.
+- `sim/electron/main.js` suit la nouvelle signature du relais
+  `console-message` : Electron ≥ 36 passe un seul objet d'événement et un
+  `level` textuel, pas quatre arguments avec un niveau numérique. L'ancienne
+  forme ne journalisait plus rien.
 - `sim/tools/map-api-plugin.mjs` n'est plus qu'un adaptateur Vite de vingt
   lignes : il monte `createApi()` sur les middlewares du serveur de dev, avec
   son logger. Toute la logique a migré dans `sim/server/api.mjs`.
