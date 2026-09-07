@@ -1,0 +1,131 @@
+# Bug report form. Fields mirror the three ways the game runs (dev server,
+# standalone server, installed app) because almost every report needs that
+# distinction to be reproducible.
+name: Bug report
+description: Something behaves differently from what it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this. One bug per issue, please.
+
+        Not a bug? Flight feel, tuning and design discussions belong in
+        [Discussions](https://github.com/lionrayonnant/FPVThePlanet/discussions).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happens
+      description: One or two sentences. What you saw, and what you expected instead.
+      placeholder: |
+        The drone falls through the terrain after a hard landing on a roof.
+        Expected: it bounces or rests on the surface.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Numbered, starting from a fresh page load or a fresh launch. Include the
+        scene slug or the LIVE pin coordinates — a bug that only shows on one
+        piece of terrain is a different bug.
+      placeholder: |
+        1. `npm run dev`, open http://localhost:5173
+        2. LIVE tab, pin at 48.8584, 2.2945, [ FLY LIVE ]
+        3. Climb to ~40 m, cut throttle, land hard on the flat roof to the east
+        4. The drone sinks through the roof
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how
+    attributes:
+      label: How are you running it
+      options:
+        - npm run dev (Vite dev server)
+        - npm run build + node server/index.mjs (standalone server)
+        - Installed app (.exe / .AppImage)
+        - A hosted instance someone else runs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: terrain
+    attributes:
+      label: Which terrain
+      description: >
+        LIVE streams tiles into the browser and writes nothing to disk. An
+        installed scene was acquired beforehand with `npm run add-map`.
+      options:
+        - LIVE (pin on the map)
+        - An installed scene (public/scenes/<slug>)
+        - Not terrain-related / does not matter
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >
+        The `vX.Y.Z` of the release you installed, or the commit SHA
+        (`git rev-parse --short HEAD`) if you run from source. The standalone
+        server prints it on its first line at startup. Not the `BUILD NOTES`
+        number — that one is in-game lore.
+      placeholder: "v0.1.0, or 1cd04e0"
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS, browser and GPU
+      description: >
+        The GPU matters for anything about rendering, stutter or memory. In
+        Chrome, `chrome://gpu` names the driver.
+      placeholder: "Windows 11, Chrome 141, RTX 4070 / Arch Linux, Chromium 141, AMD RX 9060 XT (Mesa 25.1)"
+    validations:
+      required: true
+
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      description: >
+        Only for input, mapping or flight-feel bugs. Name the device as the
+        settings screen (`Tab`) shows it, and say whether the mapping is the
+        automatic one or one you calibrated yourself.
+      placeholder: "EdgeTX / RadioMaster TX16S, auto-detected Mode 2 — or: keyboard"
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: >
+        Browser devtools console (F12) for anything in flight or in the
+        operator terminal; the server or app terminal for startup, map or
+        session failures. Paste the errors, not a screenshot of them.
+      render: text
+
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Selftest output
+      description: >
+        Optional, and only if the bug touches physics, geodesy, the map
+        pipeline or the operator state. Run `npm run selftest:ci` from `sim/`
+        and paste the failing lines. A test that already reproduces the bug is
+        the single most useful thing you can attach.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        Screenshots, a video, how often it happens, whether it ever worked.
+        Please strip anything personal — an operator key is a credential, never
+        paste one.

@@ -1,0 +1,72 @@
+# Feature request form. The first field is deliberately about the problem, not
+# the solution: this project already has a settled art direction and a phased
+# roadmap, and a described problem can be answered by something already planned.
+name: Feature request
+description: Something the game should do and does not
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: the experience this game is aiming at is already
+        written down, and so is the order it gets built in. Skimming them
+        saves you from describing something that is planned, or that was
+        deliberately ruled out.
+
+        - `sim/docs/` — the art direction and the implementation roadmap
+        - [`CHANGELOG.md`](../blob/main/CHANGELOG.md) — what already shipped
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you were trying to do, and what got in the way. Write this part
+        without a solution in it — the underlying problem is what gets
+        discussed, and it often has a better answer than the one we arrive
+        with.
+      placeholder: |
+        After a crash I want to restart from where the drone went down, but
+        respawn puts me back at the take-off point, so a two-minute climb has
+        to be flown again every time.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: How you picture it working. Rough is fine.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the game
+      options:
+        - Flight model and controller
+        - Terrain, map pipeline, LIVE flight
+        - Operator terminal, sessions, archive
+        - Rendering, HUD, art direction
+        - Sound and music
+        - Input, controllers, calibration
+        - Server, install, deployment
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Existing settings, a workaround, the way another simulator handles it.
+        Saying what is already almost enough is the fastest way to scope this
+        down to something small.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Sketches, references, a video of the behaviour you mean.
