@@ -8,16 +8,16 @@
 // les logs et annuler en cours de route — d'où onLog/signal plutôt que
 // stdio: 'inherit'.
 
-import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
-import { run, Cancelled } from './run.mjs';
+import { run, nodeCommand, Cancelled } from './run.mjs';
 import * as providers from './providers/index.mjs';
 import { Geofence, HOLD_STOP_GUARANTEE_M } from '../../src/geofence.js';
+import { paths, SIM_ROOT } from './paths.mjs';
 
-export const SIM_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
-export const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-export const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
+export { SIM_ROOT };
+export const SCENES_DIR = paths.SCENES_DIR;
+export const SCENES_JSON = paths.SCENES_JSON;
 
 export { Cancelled };
 
@@ -97,10 +97,11 @@ export function writeScenes(scenes) {
 // silence, cf. la mise en garde symétrique dans decoders/index.mjs. Le
 // PHASE 05 tire les barres FETCH/DECODE/REBUILD de ces motifs ; add-map.mjs
 // (CLI) ignore ces événements et continue d'imprimer les lignes brutes.
-// prep.mjs groupe ses gros nombres avec toLocaleString() sans locale explicite :
-// le séparateur suit donc l'ICU du runtime qui l'exécute (virgule, espace,
-// espace fine insécable U+202F...), pas forcément celui de la machine de dev.
-// `N` capture n'importe lequel de ces styles ; int() ne garde que les chiffres.
+// prep.mjs groupe ses gros nombres en 'en-US' — locale figée exprès : sans
+// elle, le séparateur suivait l'ICU du runtime (virgule, espace, espace fine
+// insécable U+202F, point en de-DE...) et un runner non anglophone cassait ce
+// tuyau en silence. `N` reste tolérant aux formes déjà vues dans les logs ;
+// int() ne garde que les chiffres.
 const N = String.raw`[\d\s,]+`;
 const RE_MATERIALS = new RegExp(`^(\\d+) materials, (\\d+) without a texture$`);
 const RE_CHUNKS_PLANNED = new RegExp(`^-> (\\d+) chunks? of up to \\d+ layers$`);
@@ -175,8 +176,10 @@ export async function addMap(opts, { onLog, signal } = {}) {
 		'--fetched-at', fetchedAt,
 	];
 	for (const line of attribution) prepArgs.push('--attribution', line);
-	await run('node', prepArgs, SIM_ROOT, {
+	const node = nodeCommand();
+	await run(node.cmd, prepArgs, SIM_ROOT, {
 		signal,
+		env: node.env,
 		onLog: (ev) => {
 			onLog?.(ev);
 			if (ev.stream !== 'stdout') return;

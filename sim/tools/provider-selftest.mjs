@@ -42,7 +42,9 @@ t('contrat : chaque fournisseur expose la surface attendue', () => {
 await at('dispatch : opts.provider choisit le fournisseur', async () => {
 	const opts = { lat: 48.86, lon: 2.35, zoom: 20, radius: 25, altitude: 20 };
 	const p = await tileDirPath({ ...opts, provider: 'google-earth' });
-	assert.match(p, /\.cache\/google-earth/);
+	// Chemin natif : sous Windows le séparateur est un antislash. Même forme que
+	// tools/remove-map-selftest.mjs.
+	assert.match(p, /\.cache[/\\]google-earth/);
 	await assert.rejects(planScan({ ...opts, provider: 'inconnu' }), /fournisseur inconnu/);
 });
 

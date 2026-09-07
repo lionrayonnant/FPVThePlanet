@@ -171,7 +171,7 @@ if (decoder.id !== 'obj') {
 		if (dx * dx + dy * dy + dz * dz > OUTLIER_RADIUS_M * OUTLIER_RADIUS_M) { far[i] = 1; farCount++; }
 	}
 	if (farCount) {
-		console.log(`${stamp()} dropping ${farCount.toLocaleString()} / ${vertCount.toLocaleString()} vertices beyond ${(OUTLIER_RADIUS_M / 1000).toFixed(0)} km of the tile median — rocktree ancestor fill-in debris`);
+		console.log(`${stamp()} dropping ${farCount.toLocaleString('en-US')} / ${vertCount.toLocaleString('en-US')} vertices beyond ${(OUTLIER_RADIUS_M / 1000).toFixed(0)} km of the tile median — rocktree ancestor fill-in debris`);
 	}
 }
 
@@ -292,13 +292,13 @@ for (let c = 0; c < chunkCount; c++) {
 		bbox: { min: bmin, max: bmax },
 	});
 	const size = (bmax.map((v, i) => v - bmin[i])).map(v => v.toFixed(0)).join(' x ');
-	console.log(`${stamp()} chunk ${c}: ${vCount.toLocaleString()} verts, ${(iCount / 3).toLocaleString()} tris, bbox ${size} m, ${(total / 1e6).toFixed(1)} MB`);
+	console.log(`${stamp()} chunk ${c}: ${vCount.toLocaleString('en-US')} verts, ${(iCount / 3).toLocaleString('en-US')} tris, bbox ${size} m, ${(total / 1e6).toFixed(1)} MB`);
 
 	// Hand the buffers back to the GC before the next chunk.
 	for (let m = layerBase; m < layerEnd; m++) triByMat[m] = null;
 }
 
-console.log(`${stamp()} ${totalOutVerts.toLocaleString()} output vertices (+${((totalOutVerts / vertCount - 1) * 100).toFixed(1)}% from seam splits)`);
+console.log(`${stamp()} ${totalOutVerts.toLocaleString('en-US')} output vertices (+${((totalOutVerts / vertCount - 1) * 100).toFixed(1)}% from seam splits)`);
 
 fs.writeFileSync(path.join(opts.outDir, '_geometry.json'), JSON.stringify({ chunks, origin, bbox: { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] } }));
 console.log(`${stamp()} geometry done`);
@@ -394,7 +394,7 @@ for (const chunk of chunks) {
 	fs.writeSync(fdOut, Buffer.from(colPos.buffer, 0, vOff * 12));
 	fs.writeSync(fdOut, Buffer.from(colIdx.buffer, 0, iOff * 4));
 	fs.closeSync(fdOut);
-	console.log(`${stamp()}   collision.bin: ${vOff.toLocaleString()} verts, ${(iOff / 3).toLocaleString()} tris, ${((16 + vOff * 12 + iOff * 4) / 1e6).toFixed(1)} MB`);
+	console.log(`${stamp()}   collision.bin: ${vOff.toLocaleString('en-US')} verts, ${(iOff / 3).toLocaleString('en-US')} tris, ${((16 + vOff * 12 + iOff * 4) / 1e6).toFixed(1)} MB`);
 }
 
 // ---- Rapier trimesh timing + spawn point -------------------------------

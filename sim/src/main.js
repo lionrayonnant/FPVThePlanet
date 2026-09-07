@@ -12,7 +12,7 @@ import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, runTerminal } from './terminal.js';
+import { operatorSelect, operatorKey, runTerminal } from './terminal.js';
 import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
@@ -2562,12 +2562,22 @@ async function chooseScene() {
 		return { slug: OPTS.scene, resume: OPTS.resume || undefined, target: undefined, family: OPTS.family || undefined };
 	}
 
-	const { needsBootstrap, choices } = await operator.loadOperator();
-	if (needsBootstrap) {
-		await bootstrap(ui);
+	// Le bootstrap, inchangé (issue #60) : la clé rendue par la création part dans
+	// localStorage sans un écran de plus. ARCHIVE > OPERATOR > [ SHOW KEY ] est le
+	// chemin, délibéré, du jour où l'on veut emporter son profil ailleurs.
+	const register = () => bootstrap(ui);
+
+	const { needsBootstrap, choices, needsKey } = await operator.loadOperator();
+	if (needsKey) {
+		// Un serveur `shared` qui ne nous reconnaît pas : pas de liste où se
+		// choisir, une clé à présenter ou un nouvel opérateur à créer.
+		const r = await operatorKey(ui);
+		if (r?.create) await register();
+	} else if (needsBootstrap) {
+		await register();
 	} else if (choices) {
 		const pick = await operatorSelect(ui, choices);
-		if (pick.create) await bootstrap(ui);
+		if (pick.create) await register();
 		else await operator.selectOperator(pick.id);
 	}
 

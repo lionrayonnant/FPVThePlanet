@@ -11,15 +11,13 @@
 // cherché. La GUI (DELETE ?raw=1) passait déjà par cette voie ; le CLI la
 // partage désormais au lieu d'en avoir une seconde.
 
-import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import { paths } from './lib/paths.mjs';
 import { rawTileDirFor, providerOf } from './lib/add-map-core.mjs';
 import * as providers from './lib/providers/index.mjs';
 
-const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
+const { SCENES_DIR, SCENES_JSON } = paths;
 
 function parseArgs(argv) {
 	const positional = [];

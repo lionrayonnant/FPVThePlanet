@@ -1,0 +1,5 @@
+# Windows a core.autocrlf=true par défaut sur les runners GitHub : sans ça, une
+# soixantaine de selftests qui découpent sur "\n" verraient un \r traîner en fin de
+# ligne, et la matrice Windows de ci.yml échouerait pour une raison qui n'a rien à
+# voir avec le code.
+* text=auto eol=lf

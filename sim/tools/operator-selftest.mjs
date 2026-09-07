@@ -84,8 +84,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const tmp = mkdtempSync(join(tmpdir(), 'op-store-'));
-process.env.FPV_OPERATOR_DIR = tmp;                       // lu par map-api-plugin
-const store = await import('./map-api-plugin.mjs');
+process.env.FPV_OPERATOR_DIR = tmp;                       // lu par tools/lib/paths.mjs
+const store = await import('../server/api.mjs');
 
 t('write + read round-trip', () => {
 	const s = freshState({ id: 'neo-aaaa', name: 'Neo' });

@@ -10,10 +10,10 @@
 // Worker navigateur, qui n'a pas l'API Buffer
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseNode, parseCopyrights } from '../rocktree/proto.mjs';
 import { polyHash } from '../tiles.mjs';
 import { PREFIX, nodeUrl } from '../rocktree/url.mjs';
+import { paths } from '../paths.mjs';
 import {
 	_net, zoneOf, getPlanetoid, dropFillinAncestors, expandBulk,
 	traverse, zoomToLevel,
@@ -23,12 +23,8 @@ import {
 // rocktree-selftest.mjs l'exerce en unité pure via `ge.expandBulk(...)`.
 export { _net, zoneOf, getPlanetoid, dropFillinAncestors, expandBulk, traverse, zoomToLevel };
 
-// tools/lib/providers/ est trois niveaux sous sim/ (tools -> lib -> providers) :
-// il faut donc QUATRE dirname() pour remonter à sim/ depuis le chemin complet du
-// fichier (un pour retirer le nom de fichier, trois pour remonter les dossiers).
-const SIM_ROOT = path.dirname(path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url)))));
-let CACHE_ROOT = path.join(SIM_ROOT, '.cache/google-earth');
-export function _cacheRootForTests(dir) { CACHE_ROOT = dir ?? path.join(SIM_ROOT, '.cache/google-earth'); }
+let CACHE_ROOT = paths.GOOGLE_CACHE_DIR;
+export function _cacheRootForTests(dir) { CACHE_ROOT = dir ?? paths.GOOGLE_CACHE_DIR; }
 
 export const id = 'google-earth';
 export const label = 'Google Earth';

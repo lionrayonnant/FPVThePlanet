@@ -18,6 +18,97 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- `sim/server/` — le jeu démarre sans Vite (#259, tranche T1 du design de
+  déploiement). `node server/index.mjs [--data <dir>] [--port 8080]
+  [--host 127.0.0.1] [--mode local|shared] [--dist <dir>] [--open]`, avec les
+  variables d'environnement `FPVTP_DATA_DIR`/`FPVTP_PORT`/`FPVTP_HOST`/
+  `FPVTP_MODE`. `api.mjs` porte `/__operator` et `/__map-api` — les deux tables
+  de routes déplacées telles quelles, aucun chemin, aucune méthode, aucun code
+  de statut ni aucune forme de réponse ne changent ; `static.mjs` sert le
+  `dist/` de Vite, avec `Range` (reprendre le téléchargement d'un chunk de
+  scène), ETag faible, `Cache-Control: immutable` sur `/scenes/<slug>/*`, et
+  **aucun repli SPA** : un fichier absent rend un 404 JSON, jamais `index.html`
+  (le pendant serveur de #275). Aucune dépendance npm : du `node:http` nu.
+- `sim/tools/lib/paths.mjs` — un seul module résout le répertoire de données
+  (`scenes/`, `scenes.json`, `operator-state/`, `cache/google-earth/`). Sans
+  `FPVTP_DATA_DIR`, il rend exactement les chemins d'aujourd'hui : `npm run dev`
+  ne bouge pas d'un octet, et `FPV_OPERATOR_DIR` reste honoré.
+- `sim/tools/server-selftest.mjs` (26 vérifications) et
+  `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
+- **Le jeu s'installe comme un jeu** (#291, tranche T2) : un installeur `.exe`
+  sous Windows — entrée Menu Démarrer, désinstalleur — et une `AppImage` sous
+  Linux. L'app est un seul process Electron qui démarre le serveur du jeu sur
+  la boucle locale, sur un port éphémère, et ouvre une fenêtre dessus : ni
+  terminal, ni navigateur à part. Les données (scènes, sessions, état
+  opérateur) vivent hors du dossier du programme — `app.getPath('userData')`,
+  forcé sur `%LOCALAPPDATA%` plutôt que le `%APPDATA%` itinérant par défaut —
+  donc une mise à jour n'écrase rien. `electron-updater` est câblé sur un flux
+  HTTP générique (le dépôt est privé : GitHub Releases demanderait un jeton à
+  chaque téléchargement) dont l'adresse reste un point d'ancrage explicite tant
+  que le serveur n'existe pas. Pas de macOS, pas de signature de code :
+  décisions actées.
+- **Une clé d'opérateur pour les serveurs partagés** (#60, tranche T3). Créer
+  un opérateur produit un secret de 128 bits — base32 sans caractères ambigus,
+  groupé par 4 — stocké haché en SHA-256 et rendu une seule fois. Un serveur en
+  `--mode shared` le réclame en `Authorization: Bearer` sur `/__operator/:id/*`
+  et `/__map-api/*` (401 sans, 403 avec une mauvaise) et ne publie plus
+  d'annuaire (404 sur la liste). L'inscription reste **en libre service** —
+  c'est le cas nominal sur un serveur partagé — mais plafonnée par adresse, et
+  les captures d'un opérateur ont un plafond cumulé. `GET /__operator/whoami`
+  retrouve un profil par sa clé depuis un autre navigateur, et
+  `node server/index.mjs key <id>` en délivre une neuve : c'est la migration
+  des fichiers existants et la seule voie de récupération. **Un serveur `local`
+  ne lit jamais l'en-tête** : sa frontière reste le socket, `npm run dev` ne
+  change pas.
+- **Côté joueur, la clé se tait** : le navigateur la garde, l'inscription ne
+  fait rien noter à personne, et `[ SHOW KEY ]` dans ARCHIVE > OPERATOR la rend
+  le jour où l'on veut emporter son profil ailleurs — sur le modèle de
+  `[ SHOW VECTOR ]`, sans jamais se confondre avec le Control Vector. Un
+  serveur qui ne reconnaît pas le navigateur ouvre un écran où
+  `[ NEW OPERATOR ]` est l'action principale et la saisie d'une clé la porte de
+  secours.
+- **`deploy/`** (#292, tranche T4) : l'unité systemd du serveur en mode partagé
+  (écoute sur la boucle locale seulement, données hors du dossier du programme,
+  acquisition délibérément fermée, `ProtectSystem=strict`), la configuration
+  Caddy de ses deux entrées publiques — le jeu derrière TLS, et un sous-domaine
+  statique et sans authentification qui distribue les installeurs et leurs
+  fichiers de mise à jour — un script de livraison qui télécharge une release
+  privée, bascule un lien symbolique, redémarre et vérifie que le service
+  répond avant de rendre la main, en laissant la version précédente intacte
+  pour un retour arrière en deux commandes, et la checklist qu'un humain suit
+  une fois pour préparer une machine neuve. Rien n'est déployé : la première
+  livraison reste manuelle.
+
+### Modifié
+
+- `sim/tools/map-api-plugin.mjs` n'est plus qu'un adaptateur Vite de vingt
+  lignes : il monte `createApi()` sur les middlewares du serveur de dev, avec
+  son logger. Toute la logique a migré dans `sim/server/api.mjs`.
+- `sim/tools/session-api-selftest.mjs` teste désormais le serveur autonome
+  plutôt que Vite — il teste ce qui est livré, et il passe de 208 ms à 85 ms.
+- **L'acquisition de terrain est fermée par défaut** (#60) : elle n'est active
+  que si `FPVTP_ACQUIRE` vaut `1` ou `true`, et **jamais** en `--mode shared`,
+  quoi qu'il arrive — deux gardes indépendantes. Fermée, elle retire
+  `[ DRAW BOX ]` et `[ DRAW SHAPE ]` de l'écran et laisse l'onglet LIVE, qui
+  porte déjà la boucle complète ; une ligne au pied signale alors le client de
+  bureau, sans rien promettre de plus que jouer chez soi. **Conséquence pour le
+  développement : `npm run dev` veut désormais `FPVTP_ACQUIRE=1` dans
+  l'environnement pour retrouver `ACQUIRE AREA`.**
+- **La CI vérifie le dépôt sous Windows autant que sous Linux** (#291) : la
+  matrice `{ubuntu, windows}` de `ci.yml` a déjà fait tomber une comparaison de
+  chemin (`provider-selftest.mjs`) et deux dépendances à la locale du système.
+  Un `.gitattributes` racine impose `eol=lf` : une soixantaine de selftests
+  découpent sur `\n`, et `core.autocrlf` est vrai par défaut sur les runners
+  Windows.
+- **La release publie de quoi démarrer un serveur** : `release.yml` attache
+  désormais un `fpvtp-server-<tag>-linux-x64.tar.gz` (`app/` avec `server/`,
+  `tools/`, `src/`, `dist/`, plus le runtime Node de la version qui vient de
+  passer les selftests) à côté de l'archive `dist` seule. C'est ce que
+  `deploy/deploy.sh` installe. Aucun `npm install` sur le VPS : le serveur
+  démarre sans `node_modules`, mesuré.
+
 ### Retiré
 
 - Apple Flyover comme fournisseur de photogrammétrie : `tools/lib/providers/

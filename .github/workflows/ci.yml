@@ -21,8 +21,15 @@ concurrency:
 
 jobs:
   sim:
-    name: sim — selftests et build
-    runs-on: ubuntu-latest
+    # Windows n'a jamais exécuté ce dépôt avant la tranche T2 du déploiement
+    # (issue #259) : la matrice est là pour débusquer les chemins, les
+    # séparateurs et les locales avant qu'un joueur ne les trouve.
+    name: sim — selftests et build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         working-directory: sim
