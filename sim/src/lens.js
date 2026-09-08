@@ -1088,7 +1088,7 @@ export class FpvLens {
 	}
 
 	// Branche la scène embarquée (#264). `null` la débranche — c'est ce qui
-	// cache les hélices du joueur en free cam. La passe naît à la première
+	// cache les hélices du joueur en vue CHASE. La passe naît à la première
 	// scène non nulle : un vol qui n'en monte pas n'en paie rien.
 	setOnboard(scene, camera) {
 		this.onboardScene = scene ?? null;
@@ -1166,7 +1166,7 @@ export class FpvLens {
 		if (this._osd && !frozen) this._osd.commit();
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
-		// so it still works in free camera, where the physics step is skipped. A
+		// so it still works while the sim is frozen, where the physics step is skipped. A
 		// held frame has nothing moving in it, so it gets no smear — but the pose
 		// is still recorded, or the frame after a long freeze would smear across
 		// the whole gap.

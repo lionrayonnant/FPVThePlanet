@@ -179,6 +179,28 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-ident { color: var(--ink); }
 #fo-rates, #fo-input, #fo-fps { font-size: 12px; color: var(--dim); }
 #fo-env { font-size: 12px; color: var(--ink); }
+/* La bascule de vue (D11). Le seul élément cliquable de l'OSD : la couche est
+   en pointer-events: none, il les reprend pour lui seul. Un bouton, mais qui
+   se lit comme les lignes autour de lui — c'est de l'information de vol, pas
+   un contrôle d'interface. */
+#fo-view {
+	display: block;
+	margin-left: auto;
+	pointer-events: auto;
+	appearance: none;
+	background: none;
+	border: 0;
+	padding: 0;
+	font: inherit;
+	font-size: 12px;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	color: var(--dim);
+	text-shadow: inherit;
+	cursor: pointer;
+}
+#fo-view:hover, #fo-view:focus-visible { color: var(--ink); }
+#fo-view[hidden] { display: none; }
 /* Les trois occupent la même place et un seul est visible à la fois
    (fpvtp-osd.js : verdict > crash > pause). Le fond n'est pas décoratif :
    sans lui le texte se pose sur n'importe quelle image, et un ciel blanc

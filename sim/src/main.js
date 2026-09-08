@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
+import { chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
@@ -349,8 +349,8 @@ function applyBenchConfig() {
 			lens.setOnboard(null);
 			playerDrone.dispose();
 			playerDrone = new PlayerDrone({ scene, profile: physics.profile, build, camera: camSpec });
-			playerDrone.setFreeCam(freeCamOn);
-			lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
+			playerDrone.setChase(viewMode === 'chase');
+			lens.setOnboard(viewMode === 'chase' ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
 		}
 	}
 	// physics.battery est un getter vers propulsion.battery, et setProfile()
@@ -420,8 +420,16 @@ let flightBuild = null;
 // portrait fil de fer (#264) ne se déduit que de `family` + `buildSeed` : c'est
 // aussi ce qui fait qu'une session déjà journalisée sait afficher sa machine.
 let flightBuildSeed = null;
-let freeCam = null;
-let freeCamOn = false;
+// D11 — 'fpv' (the video feed) or 'chase' (a third-person camera that follows
+// the machine while the simulation keeps running). Per-flight state: every
+// flight starts in FPV.
+let viewMode = 'fpv';
+// The smoothed chase position, kept between frames. Null means "snap on the
+// next frame" — entering the view must not fly in from wherever the camera was.
+let chasePos = null;
+// Last usable heading. A drone pointing straight up or down has no horizontal
+// nose direction; rather than snapping the camera to north, we hold the last one.
+let chaseYaw = 0;
 let paused = false;
 // Horodatage du début RÉEL de vol (sticks actifs), posé à chaque endroit qui
 // remet lastTime à zéro pour cette raison. Sert à ignorer Espace pendant les
@@ -468,7 +476,7 @@ let lensLinkMode = LINK_OFF;
 // Le sol sous le drone, un seul raycast Rapier par frame — physics.groundBelow
 // est un test plein maillage, pas quelque chose à refaire deux fois pour la
 // même position. Recalculé uniquement quand la physique avance ; le gel (pause,
-// caméra libre, réglages) laisse le drone immobile, donc la dernière valeur
+// réglages, intro) laisse le drone immobile, donc la dernière valeur
 // reste correcte tant que rien n'a bougé.
 let groundY = null;
 // La zone survolée (= slug de scène) et l'altitude du spawn, pour la session.
@@ -936,12 +944,6 @@ async function finishBoot(preloading) {
 	lens.render(camera, 1 / 60);
 
 	stage('done');
-	freeCam = new OrbitControls(camera, renderer.domElement);
-	freeCam.enabled = false;
-	freeCam.target.set(0, 0, 0);
-	// On ne rentre pas DANS la machine : le plan proche du vol vaut 0,15 m et le
-	// drone lui-même fait autant de rayon (issue #264).
-	freeCam.minDistance = 0.4;
 
 	// La météo du monde, pas un réglage (PHASE 04). Le world state de l'opérateur
 	// a déjà décidé du temps qu'il fait sur cette zone aujourd'hui ; on ne fait
@@ -1317,7 +1319,7 @@ input.onAction = (action, event) => {
 	if (action === 'pause') { event.preventDefault(); togglePause(); }
 	else if (action === 'cyclePreset') controller?.cyclePreset();
 	else if (action === 'cycleMode') controller?.cycleMode();
-	else if (action === 'view') toggleFreeCam();
+	else if (action === 'view') setView(viewMode === 'fpv' ? 'chase' : 'fpv');
 	else if (action === 'photo') pendingCapture = true;
 	else if (action === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (action === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
@@ -1384,7 +1386,7 @@ renderer.domElement.addEventListener('click', () => {
 	// reconfisquerait Échap au navigateur (voir la sortie du pointer lock à la
 	// fermeture de session), et il n'y a plus rien à piloter.
 	const flying = flightEnd.phase === FLYING;
-	if (flying && !freeCamOn && !settings.settingsOpen) renderer.domElement.requestPointerLock();
+	if (flying && !settings.settingsOpen) renderer.domElement.requestPointerLock();
 });
 
 // PHASE 16 : lit le canvas du composer tel qu'il vient d'être peint —
@@ -1469,6 +1471,9 @@ function respawn() {
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
+	// Une nouvelle vie repart derrière les lunettes (D11) : la vue est un état
+	// DU vol, pas de la session.
+	setView('fpv');
 	// Le ciel se retire aussi : les ambiants d'avant le respawn étaient nés
 	// autour d'un point de vol qui n'existe plus (issue #250).
 	ambient?.reset();
@@ -1485,47 +1490,66 @@ function togglePause(force) {
 	fpvtpOsd.setPaused(paused);
 }
 
-// De combien on recule pour entrer en caméra libre, en mètres. Un drone de 5
-// pouces mesure 0,25 m d'envergure : à 0,55 m et 120° de champ il occupe un
-// quart de la largeur — regardable, la livrée se lit —, et le plan proche du
-// vol (0,15 m) reste derrière lui. À 1,5 m il faisait 4,7 % du cadre, mesuré
-// sur capture (HANDOFF #264) ; à 0,8 m encore 7 %, mesuré en jeu (#285).
-const FREE_CAM_BACK_M = 0.55;
-const _freeCamBack = new THREE.Vector3();
-
-// La caméra libre (touche C). La physique se fige (simFrozen), le lien vidéo
-// est court-circuité (lens.render plus bas), et OrbitControls prend la souris —
-// donc on rend le pointeur, sans quoi il resterait verrouillé sur le canvas et
-// l'orbite ne recevrait aucun mouvement.
-function toggleFreeCam(force) {
-	// `freeCam` naît dans finishBoot() : le chemin ?live= n'en monte pas, la
-	// touche y est donc inerte plutôt que fatale.
-	if (!freeCam || !physics) return;
-	freeCamOn = force ?? !freeCamOn;
-	freeCam.enabled = freeCamOn;
-	if (freeCamOn) {
-		document.exitPointerLock?.();
-		// L'orbite se pose SUR le drone, et la caméra recule le long de son
-		// propre axe de vue : entrer à distance nulle laisserait OrbitControls
-		// tourner autour du point où il est déjà, c'est-à-dire ne rien montrer.
-		const p = physics.position;
-		freeCam.target.set(p.x, p.y, p.z);
-		_freeCamBack.set(0, 0, 1).applyQuaternion(camera.quaternion).multiplyScalar(FREE_CAM_BACK_M);
-		camera.position.set(p.x + _freeCamBack.x, p.y + _freeCamBack.y, p.z + _freeCamBack.z);
-	}
-	// Le drone du joueur suit la bascule (issue #264) : en free cam on voit la
-	// machine entière, en vue pilote on ne voit que ses hélices — la seconde
-	// passe de lens.js, débranchée dès qu'on quitte les lunettes.
-	playerDrone?.setFreeCam(freeCamOn);
-	lens.setOnboard(freeCamOn ? null : playerDrone?.onboardScene, playerDrone?.onboardCamera);
-	// Revenir au manche ne doit pas rejouer d'un coup l'écart d'horloge accumulé
-	// pendant l'orbite — même précaution que togglePause() juste au-dessus.
-	if (!freeCamOn) { accumulator = 0; lastTime = performance.now(); }
+// D11 — the view toggle. The chase camera is the FLIGHT camera, re-placed:
+// nothing is built here, so it works on every boot path (LOCAL, LIVE, BENCH)
+// and the simulation keeps running behind it. That is the whole point of
+// replacing the old OrbitControls free cam, which froze the world to look at it.
+function setView(mode) {
+	viewMode = mode === 'chase' ? 'chase' : 'fpv';
+	// Snap on the next frame rather than sweeping in from the FPV position,
+	// which sits inside the machine.
+	chasePos = null;
+	// Full machine in chase, props-in-frame onboard pass in FPV. The second
+	// lens.js pass is unplugged as soon as we are no longer behind the goggles.
+	playerDrone?.setChase(viewMode === 'chase');
+	lens.setOnboard(viewMode === 'chase' ? null : playerDrone?.onboardScene, playerDrone?.onboardCamera);
+	// Le même geste à la souris qu'à la touche.
+	fpvtpOsd.setView(viewMode, () => setView(viewMode === 'fpv' ? 'chase' : 'fpv'));
+	// Placed at once rather than on the next physics frame: the toggle must
+	// answer even while the sim is frozen (pause, settings), where the frame
+	// loop skips the camera block entirely.
+	placeCamera(0);
 }
 
-// Physics does not advance when the free camera is on, the sim is paused, or the
-// settings panel is up — so the motor speeds freeze and a held drone note would
-// be worse than silence.
+const _fwd = new THREE.Vector3();
+const _camQ = new THREE.Quaternion();
+const _tilt = new THREE.Quaternion();
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+
+// Where the flight camera stands this frame. FPV rides the body; CHASE stands
+// behind the heading and looks back at the machine — the wreck that is still
+// rolling included.
+function placeCamera(dt) {
+	if (!physics) return;
+	const p = physics.position;
+	const r = physics.rotation;
+	_camQ.set(r.x, r.y, r.z, r.w);
+	if (viewMode === 'chase') {
+		const desired = chaseTarget(p, droneYaw(_camQ));
+		chasePos = chasePos ? chaseStep(chasePos, desired, dt) : desired;
+		camera.position.set(chasePos.x, chasePos.y, chasePos.z);
+		camera.lookAt(p.x, p.y, p.z);
+	} else {
+		camera.position.set(p.x, p.y, p.z);
+		// Camera uptilt, applied in the drone's own frame.
+		_tilt.setFromAxisAngle(X_AXIS, cameraTilt * Math.PI / 180);
+		camera.quaternion.copy(_camQ).multiply(_tilt);
+	}
+}
+
+// Heading of the nose about +Y, from the body quaternion. The flight camera
+// looks down the body's -Z, so that axis is the nose.
+function droneYaw(q) {
+	_fwd.set(0, 0, -1).applyQuaternion(q);
+	// Nose straight up or down: no horizontal component to read. Hold the last
+	// heading instead of whipping the camera to an arbitrary one.
+	if (Math.hypot(_fwd.x, _fwd.z) > 1e-4) chaseYaw = Math.atan2(_fwd.x, -_fwd.z);
+	return chaseYaw;
+}
+
+// Physics does not advance when the sim is paused or the settings panel is up —
+// so the motor speeds freeze and a held drone note would be worse than silence.
+// CHASE view is not in that list: the simulation keeps running behind it (D11).
 // Heading of the nose about +Y, for the HUD's relative wind arrow. Only the yaw
 // matters here: the arrow answers "which side is it pushing me from", and that
 // question does not change when the quad is banked.
@@ -1576,10 +1600,9 @@ function droneGeo(p) {
 	return latLonOf(p);
 }
 
-function simFrozen() { return freeCamOn || paused || introFrozen || settings.settingsOpen || benchPanelOpen; }
+// The view mode is NOT in here: chase view keeps the simulation running (D11).
+function simFrozen() { return paused || introFrozen || settings.settingsOpen || benchPanelOpen; }
 
-const _q = new THREE.Quaternion();
-const _tilt = new THREE.Quaternion();
 // The fog uniforms live on every chunk material, so they are written only when
 // they have actually moved rather than five times a frame for no change. Both
 // halves are watched: the fog can thicken without the sky changing colour once
@@ -1786,18 +1809,7 @@ function frame() {
 		// s'entendrait.
 		space.update(physics.probe);
 
-		const p = physics.position;
-		const r = physics.rotation;
-		camera.position.set(p.x, p.y, p.z);
-		_q.set(r.x, r.y, r.z, r.w);
-		// Camera uptilt, applied in the drone's own frame.
-		_tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraTilt * Math.PI / 180);
-		camera.quaternion.copy(_q).multiply(_tilt);
-	} else if (freeCamOn) {
-		// La cible suit le drone : l'épave qui roule encore, ou le quad figé,
-		// restent au centre de l'orbite (issue #264).
-		freeCam.target.set(physics.position.x, physics.position.y, physics.position.z);
-		freeCam.update();
+		placeCamera(dt);
 	}
 
 	// Le drone du joueur (issue #264). APRÈS la caméra, comme les ambiants, et
@@ -2186,17 +2198,16 @@ if (!frozen) {
 		? { distance: 0, blocked: false, span: 0, dt }
 		: { distance: linkState.distance, blocked: shadow.blocked, span: shadow.span, dt });
 
-	// Free camera is not looking down the drone's video feed, so it gets a clean
-	// picture — same reasoning as muting the motors there. The model keeps
-	// running, so coming back does not start from a stale RSSI.
+	// A chase view is not the video feed, so it gets a clean picture — the link
+	// model keeps running, so coming back does not start from a stale RSSI.
 	const linkOut = flightEnd.out.linkDead ? DEAD_LINK : link.out;
-	lens.render(camera, dt, freeCamOn ? null : linkOut);
+	lens.render(camera, dt, viewMode === 'chase' ? null : linkOut);
 
 	// Disponible seulement quand ce que montre le canvas est vraiment le flux
-	// de la cible : armé, en vol, pas en caméra libre, pas pendant l'agonie du
+	// de la cible : armé, en vol, pas en vue CHASE, pas pendant l'agonie du
 	// lien. Consommé tout de suite après le rendu — c'est ce buffer précis, pas
 	// celui d'une frame suivante, qui devient la photo.
-	const photoReady = controller.armed && !frozen && !freeCamOn && !flightEnd.out.linkDead;
+	const photoReady = controller.armed && !frozen && viewMode === 'fpv' && !flightEnd.out.linkDead;
 	if (pendingCapture) {
 		pendingCapture = false;
 		if (photoReady) capturePhoto();
@@ -2279,7 +2290,7 @@ if (!frozen) {
 	});
 
 	fpvtpOsd.update({
-		mode: freeCamOn ? 'FREE CAM' : controller.mode,
+		mode: controller.mode,
 		rates: RATE_PRESETS[controller.preset].label,
 		usingGamepad: input.usingGamepad,
 		windMs: Math.hypot(physics.wind.out.x, physics.wind.out.z),
@@ -2933,7 +2944,8 @@ async function openFlightSession() {
 	// session.open(). C'est le chemin éprouvé, on ne s'en fabrique pas un
 	// deuxième.
 	// Dev-only ?live= shortcut. A LIVE flight chosen from the terminal opens a session below (#218).
-	if (OPTS.live) return;
+	// Every flight starts in FPV (D11), this path included.
+	if (OPTS.live) { setView('fpv'); return; }
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
@@ -3044,7 +3056,6 @@ async function openFlightSession() {
 		build: flightBuild,
 		camera: camSpec,
 	});
-	playerDrone.setFreeCam(freeCamOn);
 	// La station suit le même exemplaire (#264) : c'est de là que la fin de vol
 	// tire son portrait. Le serveur fait foi quand il a répondu — c'est lui qui
 	// a tiré la cible ; sinon la graine du client, qui est la même. Sans
@@ -3055,8 +3066,9 @@ async function openFlightSession() {
 		buildSeed: tgt?.buildSeed ?? flightBuildSeed,
 	});
 	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
-	// near = 5 mm. Débranchée en free cam — c'est la même règle d'exclusivité.
-	lens.setOnboard(freeCamOn ? null : playerDrone.onboardScene, playerDrone.onboardCamera);
+	// near = 5 mm. Débranchée en vue CHASE — la même règle d'exclusivité.
+	// Chaque vol commence en FPV (D11) : setView() rebranche les deux passes.
+	setView('fpv');
 
 	droneOsd?.dispose();
 	// La panne NO_OSD (voir drone-osd-model.mjs) renvoie null : certaines

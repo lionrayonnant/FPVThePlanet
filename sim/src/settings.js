@@ -144,7 +144,7 @@ export class Settings {
 				<div id="keymap" class="spec">
 					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
 					<b>K</b> (hold) cut link, field · <b>M</b> mode (acro/angle/altitude) · <b>P</b> rates (cinéma/freestyle/race/long range/micro)<br>
-					<b>C</b> free camera · <b>F</b> capture · <b>Space</b> pause · <b>Tab</b> settings · <b>R</b> respawn, bench
+					<b>V</b> view (fpv/chase) · <b>F</b> capture · <b>Space</b> pause · <b>Tab</b> settings · <b>R</b> respawn, bench
 				</div>
 				<h2>Sound</h2>
 				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>

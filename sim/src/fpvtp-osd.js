@@ -48,6 +48,7 @@ export class FpvtpOsd {
 					<div id="fo-mode">ACRO</div>
 					<div id="fo-rates">—</div>
 					<div id="fo-input">KEYBOARD</div>
+					<button type="button" id="fo-view">[V] FPV</button>
 					<div id="fo-fps">—</div>
 				</div>
 				<div class="corner bl">
@@ -71,6 +72,7 @@ export class FpvtpOsd {
 			mode: q('#fo-mode'),
 			rates: q('#fo-rates'),
 			input: q('#fo-input'),
+			view: q('#fo-view'),
 			fps: q('#fo-fps'),
 			env: q('#fo-env'),
 			photo: q('#fo-photo'),
@@ -102,6 +104,30 @@ export class FpvtpOsd {
 		// se termine bien n'en construit jamais.
 		this._target = null;
 		this._portrait = null;
+		// D11 : la vue courante, et le seul élément cliquable de la couche —
+		// l'OSD est en pointer-events: none, celui-ci les reprend.
+		this._view = 'fpv';
+		this._viewToggle = null;
+		this._endUp = false;
+		this.el.view.addEventListener('click', () => this._viewToggle?.());
+		this._paintView();
+	}
+
+	// La bascule FPV / CHASE (D11). Le libellé nomme la touche : sans ça la
+	// vue existe et personne ne la trouve — même règle que [HOLD K] plus bas.
+	// `onToggle` est réenregistré à chaque appel : main.js en est la source.
+	setView(mode, onToggle) {
+		this._view = mode === 'chase' ? 'chase' : 'fpv';
+		if (onToggle !== undefined) this._viewToggle = onToggle;
+		this._paintView();
+	}
+
+	_paintView() {
+		const text = this._view === 'chase' ? '[V] CHASE' : '[V] FPV';
+		if (this.el.view.textContent !== text) this.el.view.textContent = text;
+		// Le vol est fini : il n'y a plus de vue à choisir, et l'écran de fin
+		// tient l'écran seul.
+		this.el.view.hidden = this._endUp;
 	}
 
 	// L'exemplaire que la station suit (#264) : `family` et `buildSeed`, les
@@ -141,7 +167,7 @@ export class FpvtpOsd {
 
 	// Disponibilité de la capture (PHASE 16) : vrai seulement quand ce qu'on
 	// verrait à l'écran est vraiment le flux de la cible (en vol, armé, pas en
-	// caméra libre, pas pendant l'agonie du lien).
+	// vue CHASE, pas pendant l'agonie du lien).
 	setPhotoReady(ready) { this._photoReady = !!ready; this._renderPhoto(); }
 
 	// `count` est celui que le serveur a renvoyé — il fait autorité, pas un
@@ -227,6 +253,10 @@ export class FpvtpOsd {
 	// cette mise en scène, elle ne traverse pas la liaison.
 	setFlightEnd({ lines, blackout }) {
 		const e = this.el.flightEnd;
+		if (this._endUp !== (lines.length > 0 || blackout > 0)) {
+			this._endUp = lines.length > 0 || blackout > 0;
+			this._paintView();
+		}
 		if (!lines.length && blackout <= 0) {
 			if (!e.hidden) {
 				e.hidden = true; e.textContent = ''; this._endLines = '';

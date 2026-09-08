@@ -37,6 +37,12 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- La caméra libre (`C`, une orbite qui gelait le monde) devient une bascule de
+  vue `V` : FPV / CHASE. La vue CHASE est la caméra de vol reposée 1,6 m
+  derrière le nez et 0,6 m au-dessus, la simulation continue de tourner
+  derrière elle, et elle marche sur tous les chemins (LOCAL, LIVE, BANC). Un
+  bouton `[V] FPV` / `[V] CHASE` en haut à droite de l'OSD fait le même geste
+  à la souris. Chaque vol commence en FPV (#12).
 - L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build
   Vite) au lieu de la constante de lore `0.97b` (#9).
 

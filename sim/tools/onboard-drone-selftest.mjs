@@ -31,16 +31,16 @@ console.log('onboard-drone');
 	// Au repos, on est en vue pilote : l'embarqué est monté, le monde est
 	// caché. « Jamais les deux » est la vraie règle — pas « jamais aucun ».
 	check('au repos : l\'embarqu\u00e9 seul', d.onboardVisible && !d.worldVisible);
-	d.setFreeCam(true);
-	check('free cam : l\'exemplaire monde est visible', d.worldVisible);
-	check('free cam : l\'embarqué est caché', !d.onboardVisible);
-	d.setFreeCam(false);
+	d.setChase(true);
+	check('chase : l\'exemplaire monde est visible', d.worldVisible);
+	check('chase : l\'embarqué est caché', !d.onboardVisible);
+	d.setChase(false);
 	check('retour en vue pilote : le monde se cache', !d.worldVisible);
 	d.dispose();
 }
 {
 	const d = make();
-	d.setFreeCam(true);
+	d.setChase(true);
 	d.update({
 		dt: 1 / 60,
 		position: { x: 12, y: 34, z: -56 },
@@ -105,9 +105,9 @@ console.log('onboard-drone');
 	check('le régime arrive dans le maillage embarqué', u[1] === 222 && u[3] === 444);
 
 	// Exclusivité.
-	d.setFreeCam(true);
-	check('free cam : l\'embarqué se cache', !d.onboardVisible && d.worldVisible);
-	d.setFreeCam(false);
+	d.setChase(true);
+	check('chase : l\'embarqué se cache', !d.onboardVisible && d.worldVisible);
+	d.setChase(false);
 	check('vue pilote : l\'embarqué revient', d.onboardVisible && !d.worldVisible);
 	check('jamais les deux à la fois', !(d.onboardVisible && d.worldVisible));
 	d.dispose();
