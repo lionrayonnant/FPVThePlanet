@@ -18,6 +18,8 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+## [0.3.0] - 2026-09-08
+
 ### Ajouté
 
 - Le menu a quatre voies au lieu de deux : `FIELD`, `BENCH`, `ARCHIVE`,
@@ -549,5 +551,6 @@ rapport avec les versions ci-dessous.
   selftest borne famille par famille — ce qui est garanti pour les six, c'est
   que la moitié haute du cadre reste libre.
 
-[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0-beta...HEAD
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0-beta...v0.3.0
 [0.1.0-beta]: https://github.com/lionrayonnant/FPVThePlanet/releases/tag/v0.1.0-beta

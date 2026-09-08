@@ -1,7 +1,7 @@
 {
   "name": "fpvtp-sim",
   "productName": "FPVTP",
-  "version": "0.1.0-beta",
+  "version": "0.3.0",
   "private": true,
   "description": "FPVThePlanet! — simulateur de drone FPV",
   "author": "lionrayonnant",
