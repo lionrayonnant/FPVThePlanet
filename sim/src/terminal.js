@@ -7,7 +7,10 @@ import { captureControlVector, bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
 import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
-import { targetLogEntries, areaLabel } from '../tools/session-log-model.mjs';
+import { targetLogEntries, areaLabel, targetRow, duration, fit } from '../tools/session-log-model.mjs';
+import { dataModel, stickSeries, profileSeries } from '../tools/data-model.mjs';
+import { fetchTrackIndex, fetchTrack } from './track-index.js';
+import { bars, histogram, scatter, steps } from './graph.js';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { watchReveal, countUp } from './motion.js';
@@ -526,33 +529,38 @@ function buildNotesScreen(root, operator) {
 	});
 }
 
-// ---------- ARCHIVE ----------
+// ---------- DATA ----------
 
-// Tout ce qui est FROID. La Home ne garde que ce qui sert à décoller ; ce qui se
-// consulte — les journaux, le vecteur, l'opérateur, les notes — descend d'un
-// cran. La Bible §30 le disait déjà : « La Home est calme. Elle ne doit pas
-// devenir un dashboard. »
+// Everything COLD, and no longer a shelf of logs (issue #26). ARCHIVE listed
+// what had been stored; DATA is one scrolling page where the operator reads
+// their own flying back — nine sections, graphs first, raw records last.
 //
-// Cet écran ne RÉIMPLÉMENTE rien : il appelle les écrans existants tels quels.
-// It does have to resolve UPWARDS, though, because REVISIT (from SESSION LOG)
-// yields a flight: swallowing it here would leave the operator on a log screen
-// after asking to fly.
+// The screen COMPUTES NOTHING. Every series comes from tools/data-model.mjs and
+// every mark is put down by src/graph.js; what lives here is the page — which
+// section, in what order, and the one readout line under each.
+//
+// No score, no level, no badge, no comparison with anybody (spec, Non-goals).
+// Nothing here is won: it is what happened, drawn.
 //
 // Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
 // FIELD) or null.
 //
-// Reached from the root (D3): ARCHIVE sits at the same level as FIELD and
-// BENCH, and is no longer a link buried in a FIELD tab, where it disappeared
-// the moment you looked at the map.
-export function archiveScreen(root, { api = operatorApi, scenes = null } = {}) {
-	const model = terminalModel({ operator: api.getOperator(), scenes });
-	const s = screen(root, 'terminal-archive');
+// `openMap` is the single call site of the ENRICHED map (#25): the scanner does
+// not carry that toggle yet, so the caller passes nothing today and GEOGRAPHY
+// renders no link. Wiring it later is one argument at one call site.
+export function dataScreen(root, { api = operatorApi, scenes = null, openMap = null } = {}) {
+	const operator = api.getOperator();
+	const model = terminalModel({ operator, scenes });
+	const s = screen(root, 'terminal-data');
 	return new Promise((resolve) => {
 		let nav = null;
+		let alive = true;
 		// A bare slug (lastSessionScreen) and a { slug } (SESSION LOG) say the
 		// same thing: one shape goes back up, the one the root loop knows how to
 		// fly.
 		const done = (value) => {
+			alive = false;
+			window.removeEventListener('resize', onResize);
 			nav?.detach();
 			s.remove();
 			resolve(value == null ? null : (typeof value === 'string' ? { slug: value } : value));
@@ -568,36 +576,279 @@ export function archiveScreen(root, { api = operatorApi, scenes = null } = {}) {
 			nav?.focusAt(0);
 		};
 
-		const title = document.createElement('pre');
-		title.textContent = 'ARCHIVE';
-		s.box.appendChild(title);
+		// --- state ---------------------------------------------------------
+		// `tracks` is the index (#24), empty until it answers — and empty for
+		// ever on a build that does not serve it. `track` is the ONE decoded
+		// track of the flight being profiled: STICKS and PROFILE need samples,
+		// and no other section does.
+		const sessions = operator?.sessions ?? [];
+		let tracks = [];
+		let data = dataModel({ sessions, tracks });
+		let selectedId = data.selectedId;
+		let track = null;
+		let openFamily = null;
 
-		s.box.appendChild(navRow([
-			['LAST SESSION', () => behind(async () => {
+		// --- page ----------------------------------------------------------
+		const page = document.createElement('div');
+		page.className = 'data-page';
+		// Drawing is deferred: a canvas measures 0 until it has been laid out,
+		// and the same closures are what a resize replays.
+		let draws = [];
+		const paint = () => { for (const d of draws) d(); };
+		const onResize = () => { if (alive) paint(); };
+
+		const pre = (text, cls = '') => {
+			const el = document.createElement('pre');
+			if (cls) el.className = cls;
+			el.textContent = text;
+			return el;
+		};
+
+		// A section is a title, one readout line, then whatever it draws. The
+		// title is the machine speaking (DISPLAY); the readout is data.
+		const section = (name, readout) => {
+			const box = document.createElement('div');
+			box.className = 'data-section';
+			box.appendChild(pre(name));
+			if (readout) box.appendChild(pre(readout, 'terminal-foot'));
+			page.appendChild(box);
+			return box;
+		};
+
+		// A canvas, and the closure that fills it. `draw` is called once the page
+		// is up and again on every resize.
+		const graph = (box, height, draw) => {
+			const c = document.createElement('canvas');
+			c.className = 'data-graph';
+			box.appendChild(c);
+			draws.push(() => draw(c));
+			return c;
+		};
+
+		// The sections that need a trace say so in the same words everywhere.
+		const noTrack = (box, why = 'NO TRACK') => box.appendChild(pre(why, 'terminal-foot'));
+
+		const link = (row, label, fn, title = '') => {
+			if (row.children.length) row.appendChild(document.createTextNode(' · '));
+			row.appendChild(button(label, fn, 'terminal-link', title));
+		};
+		const linkRow = () => {
+			const row = document.createElement('div');
+			row.className = 'terminal-nav';
+			return row;
+		};
+
+		// --- the nine sections ----------------------------------------------
+
+		const render = () => {
+			page.replaceChildren();
+			draws = [];
+
+			// 1. RHYTHM — the only graph about real time, and the one that makes
+			// coming back visible.
+			const weeks = data.rhythm.bars.filter((b) => b.value > 0).length;
+			const rhythm = section('RHYTHM',
+				`SESSIONS PER WEEK · LAST ${data.rhythm.weeks} · ${data.rhythm.total} FLOWN · ${weeks} WEEKS WITH A FLIGHT`);
+			graph(rhythm, 96, (c) => bars(c, { items: data.rhythm.bars, height: 96, format: (v) => String(Math.round(v)) }));
+
+			// 2. LIFE — how long each one lasted, in the order they happened.
+			const life = section('LIFE',
+				data.life.bars.length
+					? `DURATION PER SESSION · LONGEST ${duration(data.life.maxS)} · MEAN ${duration(data.life.meanS)}`
+					: 'NO SESSION YET');
+			graph(life, 96, (c) => bars(c, {
+				items: data.life.bars.map((b) => ({ ...b, selected: b.id === selectedId })),
+				height: 96,
+				format: (v) => `${Math.round(v / 60)}m`,
+				everyLabel: Math.max(1, Math.ceil(data.life.bars.length / 8)),
+			}));
+
+			// 3. SPEED × ALTITUDE — the shape of a flying style: low and fast, or
+			// high and slow. One mark per flight, from the maxima it recorded.
+			const sa = section('SPEED × ALTITUDE',
+				data.speedAlt.points.length
+					? `PEAK OF EACH FLIGHT · ${data.speedAlt.points.length} FLIGHTS · UP TO ${round1(data.speedAlt.maxX)} m/s AND ${Math.round(data.speedAlt.maxY)} m`
+					: 'NO FLIGHT WITH A SHAPE YET');
+			graph(sa, 150, (c) => scatter(c, {
+				points: data.speedAlt.points.map((p) => ({ ...p, selected: p.id === selectedId })),
+				height: 150, maxX: data.speedAlt.maxX, maxY: data.speedAlt.maxY,
+				xLabel: 'SPEED m/s', yLabel: 'ALT m',
+			}));
+
+			// 4. HOW THEY DIED — the state at the moment the link died. Needs the
+			// `end` event, so flights without a track are counted, not drawn.
+			const deaths = section('HOW THEY DIED',
+				data.loss.points.length
+					? `SPEED AND ALTITUDE AT LINK LOSS · ${data.loss.points.length} RECORDED`
+					+ (data.loss.missing ? ` · ${data.loss.missing} WITHOUT A TRACK` : '')
+					: '');
+			if (data.loss.points.length) {
+				graph(deaths, 150, (c) => scatter(c, {
+					points: data.loss.points.map((p) => ({ ...p, selected: p.id === selectedId })),
+					height: 150, maxX: data.loss.maxX, maxY: data.loss.maxY,
+					xLabel: 'SPEED m/s', yLabel: 'ALT m',
+				}));
+			} else noTrack(deaths);
+
+			// 5. STICKS — throttle and rotation rate. They live in the samples, so
+			// this is the SELECTED flight, the same one PROFILE draws.
+			const sticks = stickSeries(track);
+			const st = section('STICKS', sticks
+				? `${selectedLabel()} · ${sticks.samples} SAMPLES`
+				: '');
+			if (sticks) {
+				st.appendChild(pre('THROTTLE', 'terminal-foot'));
+				graph(st, 84, (c) => histogram(c, { bins: sticks.throttle.bins, height: 84, format: (v) => `${Math.round(v * 100)}%` }));
+				st.appendChild(pre('ROTATION RATE', 'terminal-foot'));
+				graph(st, 84, (c) => histogram(c, { bins: sticks.rate.bins, height: 84, format: (v) => `${Math.round(v)}°/s` }));
+			} else noTrack(st);
+
+			// 6. FAMILIES — a bar per target family, mean survival on it. This is
+			// where the TARGET LOG went (D2): a family opens on the targets met.
+			const fam = section('FAMILIES', data.families.total
+				? `MEAN SURVIVAL PER TARGET FAMILY · ${data.families.total} TARGETS MET`
+				: 'NO TARGET MET YET');
+			if (data.families.total) {
+				graph(fam, 110, (c) => bars(c, {
+					items: data.families.families.map((f) => ({ label: f.label, value: f.meanS, selected: f.family === openFamily })),
+					height: 110, format: (v) => `${Math.round(v / 60)}m`,
+				}));
+				const row = linkRow();
+				for (const f of data.families.families) {
+					link(row, `${f.label} ${f.count}`, () => {
+						openFamily = openFamily === f.family ? null : f.family;
+						render();
+					}, 'Show the targets met in this family');
+				}
+				fam.appendChild(row);
+				const open = data.families.families.find((f) => f.family === openFamily);
+				if (open) {
+					fam.appendChild(pre(open.entries.map((e) => `  ${targetRow(e)}`).join('\n'), 'terminal-log'));
+				}
+			}
+
+			// 7. GEOGRAPHY — where the operator has been. Countries only when a
+			// session carries one; nothing invents a flag out of a slug.
+			const geo = section('GEOGRAPHY',
+				`${data.geography.areaCount} AREAS · ${formatDistance(data.geography.distanceM)} FLOWN`);
+			const areaLines = data.geography.areas.slice(0, 12)
+				.map((a) => `  ${fit(a.label, 30)} ${String(a.count).padStart(4)}`);
+			geo.appendChild(pre(areaLines.length ? areaLines.join('\n') : '  NOWHERE YET', 'terminal-log'));
+			geo.appendChild(pre(`COUNTRIES  ${data.geography.countries.length
+				? data.geography.countries.map((c) => `${c.code} ${c.count}`).join(' · ')
+				: '—'}`, 'terminal-foot'));
+			// The way back to the one map with the traces drawn on it (#25). The
+			// ENRICHED toggle does not exist yet: until the caller passes
+			// `openMap`, this link is simply not there. THIS is the call site.
+			if (openMap) {
+				const row = linkRow();
+				link(row, 'OPEN MAP — ENRICHED', () => behind(async () => openMap({ enriched: true })),
+					'Reopen the global scanner with your own traces drawn on it');
+				geo.appendChild(row);
+			}
+
+			// 8. PROFILE — altitude against time for one flight, photos marked.
+			// Opens on the last flight that HAS a track, not simply the last one.
+			const profile = profileSeries(track);
+			const prof = section('PROFILE', data.hasTracks
+				? `${selectedLabel()} · ALTITUDE OVER TIME`
+				: '');
+			if (data.flights.length > 1) {
+				const row = linkRow();
+				link(row, 'PREVIOUS FLIGHT', () => step(-1), 'Profile the flight before this one');
+				link(row, 'NEXT FLIGHT', () => step(1), 'Profile the flight after this one');
+				prof.appendChild(row);
+			}
+			if (profile) {
+				graph(prof, 160, (c) => steps(c, {
+					points: profile.points.map((p) => ({ x: p.t, y: p.alt })),
+					marks: profile.photos.map((p) => ({ x: p.t, y: p.alt })),
+					height: 160, maxY: profile.maxAltM,
+					formatX: (v) => `${Math.round(v)}s`, formatY: (v) => `${Math.round(v)}m`,
+					xLabel: 'TIME',
+				}));
+				prof.appendChild(pre(`PEAK ${Math.round(profile.maxAltM)} m · ${duration(profile.durationS)}`
+					+ ` · ${profile.photos.length} CAPTURES MARKED`, 'terminal-foot'));
+			} else noTrack(prof, data.hasTracks ? 'LOADING…' : 'NO TRACK');
+
+			// 9. RECORDS — the raw log at the bottom, unchanged, and everything
+			// that is read rather than drawn.
+			const rec = section('RECORDS', 'the log, the vector, the operator, the notes');
+			const row = linkRow();
+			link(row, 'SESSION LOG', () => behind(async () => {
+				const { runSessionLog } = await import('./session-log.js');
+				return await runSessionLog(root, { operator: api.getOperator(), scenes });
+			}), 'Browse every past flight session');
+			link(row, 'LAST SESSION', () => behind(async () => {
 				const r = await lastSessionScreen(root, model);
 				// lastSessionScreen yields a slug, or nothing.
 				return typeof r === 'string' ? r : r ?? undefined;
-			}), 'Review your most recent flight'],
-			['SESSION LOG', () => behind(async () => {
-				const { runSessionLog } = await import('./session-log.js');
-				return await runSessionLog(root, { operator: api.getOperator(), scenes });
-			}), 'Browse every past flight session'],
-			['TARGET LOG', () => behind(async () => {
-				const { runTargetLog } = await import('./session-log.js');
-				await runTargetLog(root, { operator: api.getOperator() });
-			}), 'Browse targets captured across all sessions'],
-		]));
+			}), 'Review your most recent flight');
+			link(row, 'CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api)), 'View or redefine your assigned control vector');
+			link(row, 'OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats');
+			link(row, 'BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version');
+			rec.appendChild(row);
 
-		s.box.appendChild(navRow([
-			['CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api)), 'View or redefine your assigned control vector'],
-			['OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats'],
-			['BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version'],
-		]));
+			paint();
+			// A canvas measures nothing until the page has been laid out: the
+			// second pass is what gives the graphs their real width.
+			if (typeof requestAnimationFrame === 'function') {
+				requestAnimationFrame(() => { if (alive) paint(); });
+			}
+		};
+
+		const selectedLabel = () =>
+			data.flights.find((f) => f.id === selectedId)?.label ?? 'NO FLIGHT';
+
+		// Walks the flights that have a track, in the order they were flown.
+		const step = (dir) => {
+			const i = data.flights.findIndex((f) => f.id === selectedId);
+			const next = data.flights[Math.min(data.flights.length - 1, Math.max(0, i + dir))];
+			if (!next || next.id === selectedId) return;
+			selectedId = next.id;
+			track = null;
+			render();
+			loadTrack();
+		};
+
+		const loadTrack = async () => {
+			if (!selectedId) return;
+			const wanted = selectedId;
+			const t = await fetchTrack(operator?.id, wanted);
+			if (!alive || wanted !== selectedId) return;
+			track = t;
+			render();
+		};
+
+		const title = document.createElement('pre');
+		title.textContent = 'DATA';
+		s.box.appendChild(title);
+		s.box.appendChild(pre(`${data.sessionCount} SESSIONS ON RECORD`, 'terminal-foot'));
+		s.box.appendChild(page);
+		render();
 
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
 		s.box.appendChild(ESC_ROOT());
 		nav = menuNav(s.el, { back: () => done() });
+		window.addEventListener('resize', onResize);
+
+		// The index, then the one track the profile needs. Both are allowed to
+		// fail: the page is already readable without them.
+		(async () => {
+			tracks = await fetchTrackIndex(operator?.id);
+			if (!alive) return;
+			data = dataModel({ sessions, tracks });
+			if (!selectedId) selectedId = data.selectedId;
+			render();
+			await loadTrack();
+		})();
 	});
+}
+
+const round1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+
+function formatDistance(m) {
+	return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
 // ---------- OPERATOR SELECT (repris de l'ancienne home.js) ----------

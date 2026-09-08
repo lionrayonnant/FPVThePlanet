@@ -134,7 +134,7 @@ t('a nameless pad still reads as a gamepad', () => {
 t('THE TERMINAL names the four modes and the two global keys', () => {
 	const screen = briefingScreens({ input: { kind: 'keyboard' }, keyRows })[1];
 	const labels = screen.rows.map((r) => r[0]);
-	assert.deepEqual(labels.slice(0, 4), ['FIELD', 'BENCH', 'ARCHIVE', 'SETTINGS']);
+	assert.deepEqual(labels.slice(0, 4), ['FIELD', 'BENCH', 'DATA', 'SETTINGS']);
 	assert.equal(screen.rows.find((r) => r[0] === 'ESC')[1], 'BACK, EVERYWHERE');
 	assert.equal(screen.rows.find((r) => r[0] === 'TAB')[1], 'SETTINGS, IN FLIGHT');
 	assert.match(screen.rows.find((r) => r[0] === 'BENCH')[1], /NOTHING IS LOGGED/);

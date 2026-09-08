@@ -37,10 +37,15 @@ import { simParamsOf } from './lib/weather.mjs';
 
 export const BENCH_VERSION = 1;
 
-// The four ways in. FIELD is the Bible's loop, BENCH is the sandbox, ARCHIVE is
+// The four ways in. FIELD is the Bible's loop, BENCH is the sandbox, DATA is
 // everything that is cold, SETTINGS is everything that is set once. The order is
 // the message: fly first, read second, tune last (D3, D6).
-export const MODES = ['field', 'bench', 'archive', 'settings'];
+//
+// `archive` was renamed `data` (issue #26): the tab stopped being a shelf of
+// logs and became a page that reads the operator's own flying back. A stored
+// `fpvtp.mode` may still hold the old word — `loadLastMode()` in src/bench.js
+// maps it here rather than dropping the cursor back on FIELD.
+export const MODES = ['field', 'bench', 'data', 'settings'];
 
 // Copie de l'écran de choix. En anglais (D5), et vérifiée par le selftest :
 // c'est la première chose que voit un opérateur après son nom, et elle doit
@@ -56,10 +61,11 @@ export const MODE_SELECT = {
 		lines: ['your airframe · your conditions', 'nothing to lose'],
 	},
 	// Two flat inventories rather than a promise: these two ways lead to what
-	// they contain, and nothing there is lost or won.
-	archive: {
-		label: 'ARCHIVE',
-		lines: ['session log · target log', 'operator · build notes'],
+	// they contain, and nothing there is lost or won. DATA says WHAT it holds,
+	// not what it will do for you: no score, no progress, no promise (#26).
+	data: {
+		label: 'DATA',
+		lines: ['flight records · telemetry', 'where you have been'],
 	},
 	settings: {
 		label: 'SETTINGS',

@@ -812,6 +812,28 @@ button.terminal-row:focus::before { left: 0; }
 }
 .terminal-area button { margin: 0; }
 
+/* ---------- DATA (issue #26) ---------- */
+/* One scrolling page of graphs, and it is NOT a dashboard (Bible §44): no card,
+   no panel, no giant number, no rounded corner, no fill behind a section. What
+   separates two sections is space and a hairline, exactly like the rest of the
+   house. The ink of every graph is put down by src/graph.js, which reads the
+   same tokens this file does. */
+.data-page {
+	display: flex; flex-direction: column; gap: var(--space-5);
+	max-height: 62vh; overflow-y: auto;
+	padding-right: var(--space-2);
+}
+/* A section is a title, its readout, then what it draws. The rule above it is
+   the separator — one pixel, and none on the first. */
+.data-section { display: flex; flex-direction: column; gap: var(--space-1); }
+.data-section + .data-section {
+	border-top: var(--rule-w) solid var(--rule);
+	padding-top: var(--space-4);
+}
+/* The canvas takes the column and nothing else: its height is set in script,
+   because that is where the graph decides how much room its axes need. */
+canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
+
 /* ---------- global scanner (PHASE 03) ---------- */
 /* Même grammaire que le terminal : monospace, traits d'un pixel, angles droits,
    aucun aplat de couleur. La carte est le seul élément « photographique » de
