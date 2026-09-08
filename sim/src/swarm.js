@@ -171,17 +171,24 @@ export const RAY_BUDGET = 6;
 // a second while it flew 5 m.
 const REAR_PERIOD_S = 3 / 60;
 
-// A margin may only GROW while the ray that cleared it is fresh. Without this
-// the margin is a clock and the ray is a sampler, and on a long frame the two
-// come apart: at dt = 250 ms a unit grew its offsets a full second's worth
-// between two casts and put 0.72 m of itself inside a building.
+// A margin is only worth what the ray behind it is worth, and a ray goes stale
+// two ways: in TIME, and in GROUND COVERED. The clock alone is not enough —
+// the budget is six rays per FRAME, so on a 250 ms frame a unit is asked about
+// its surroundings once every 22 m of city instead of once every 1.5 m, and a
+// 4 m hairpin happens entirely between two questions. Past either bound the
+// margin stops growing and starts falling, exactly as if the ray had come back
+// blocked: unasked is not the same as cleared.
 const MARGIN_FRESH_S = 0.1;
+const MARGIN_FRESH_M = 6;
 
 // A blocked unit loses its offsets in 0.3 s and folds back onto the pure wake
 // — exactly where the player flew. They grow back in 1.5 s once the ray is
 // green again.
 export const MARGIN_FALL_S = 0.3;
 export const MARGIN_RISE_S = 1.5;
+// How fast the offset ENVELOPE closes, in metres per second. As fast as the
+// airframe flies and no faster: the fold is a flight, never a snap.
+const MAX_RADIUS_FALL = SWARM_UNIT.vMax;
 
 // Short-range separation so units do not stack: 1.5 m, and at N <= 12 that is
 // at most 66 pairs.
@@ -329,9 +336,13 @@ export class SwarmModel {
 		// Track frame at each unit's anchor: t̂, n̂, b̂, then the track speed.
 		this._frame = new Float64Array(12 * n);
 		this._slot = new Float64Array(3 * n); // the ideal position, for debug and rays
+		this._sAnchor = new Float64Array(3 * n);   // the wake point the doctrine asks for, THIS frame
+		this._sFrame = new Float64Array(12 * n);   // and the track frame there
 		this._readIdx = new Int32Array(n);
 		this._due = new Float64Array(n);      // clock at which a rear unit is testable again
 		this._green = new Float64Array(n);    // clock until which a green ray still counts
+		this._greenAt = new Float64Array(3 * n);   // where the unit's anchor was when it was cleared
+		this._lastCast = new Float64Array(n); // clock of this unit's last ray, for the lookahead
 		this._sep = new Float64Array(3 * n);  // separation acceleration, world
 
 		// Per-frame scratch, allocated once.
@@ -373,7 +384,11 @@ export class SwarmModel {
 		this._readIdx.fill(0);
 		this._due.fill(0);
 		this._green.fill(0);
+		this._greenAt.fill(0);
+		this._lastCast.fill(0);
 		this._frame.fill(0);
+		this._sFrame.fill(0);
+		this._sAnchor.fill(0);
 		this._o.fill(0);
 		this._ov.fill(0);
 		this._ot.fill(0);
@@ -542,14 +557,19 @@ export class SwarmModel {
 		const wx = wind ? wind.x : 0, wy = wind ? wind.y : 0, wz = wind ? wind.z : 0;
 
 		// 1. What the doctrine asks for this frame (on last frame's margins),
-		//    then the rays that judge it, then the margins that answer. A
-		//    margin a ray earns lands on the NEXT frame's slot — one frame, and
-		//    no way around it.
+		//    then the rays — which describe the units where they are RIGHT NOW,
+		//    since nothing has moved yet — then the margins that answer. The
+		//    margin a ray earns lands on this frame's flying, so the loop is
+		//    ask, decide, move, and there is no frame of parallax in it.
 		for (let k = 0; k < n; k++) this._slotOf(k, time, dt);
 		this._castRays(terrain);
 		for (let k = 0; k < n; k++) {
-			if (this.blocked[k]) this.margin[k] = clamp01(this.margin[k] - dt / MARGIN_FALL_S);
-			else if (this._clock <= this._green[k]) this.margin[k] = clamp01(this.margin[k] + dt / MARGIN_RISE_S);
+			const o = 3 * k;
+			const moved = Math.hypot(this._anchor[o] - this._greenAt[o], this._anchor[o + 1] - this._greenAt[o + 1], this._anchor[o + 2] - this._greenAt[o + 2]);
+			const fresh = !this.blocked[k] && this._clock <= this._green[k] && moved <= MARGIN_FRESH_M;
+			this.margin[k] = clamp01(fresh
+				? this.margin[k] + dt / MARGIN_RISE_S
+				: this.margin[k] - dt / MARGIN_FALL_S);
 		}
 
 		// 2. Separation, short range, at most 66 pairs at N = 12. Scaled by the
@@ -590,19 +610,34 @@ export class SwarmModel {
 		const lagEff = lag < 0 ? lag * m + (1 - m) * this.fileLag[k] : lag;
 		this._sStar[k] = time - lagEff;
 		const w = this._read(this._sStar[k]);
-		this._frameOf(w, this._f, 0);
-		const oN = this.lat[k] * m, oB = this.vert[k] * m;
+		const sf = 12 * k;
+		this._frameOf(w, this._sFrame, sf);
+		this._sAnchor[o] = w.x; this._sAnchor[o + 1] = w.y; this._sAnchor[o + 2] = w.z;
+		// A blocked unit is not asked to hold a smaller offset on the doctrine's
+		// side — it is asked for NO offset. Through a hairpin the two are not
+		// the same thing: the track frame turns over, so the doctrine's side
+		// swaps, and a unit obediently swinging across the street to the new
+		// side goes through the wall on the way.
+		const oN = this.blocked[k] ? 0 : this.lat[k] * m, oB = this.blocked[k] ? 0 : this.vert[k] * m;
 		this._ot[o] = 0; this._ot[o + 1] = oN; this._ot[o + 2] = oB;
-		this._slot[o] = w.x + this._f[3] * oN + this._f[6] * oB;
-		this._slot[o + 1] = w.y + this._f[4] * oN + this._f[7] * oB;
-		this._slot[o + 2] = w.z + this._f[5] * oN + this._f[8] * oB;
+		this._slot[o] = w.x + this._sFrame[sf + 3] * oN + this._sFrame[sf + 6] * oB;
+		this._slot[o + 1] = w.y + this._sFrame[sf + 4] * oN + this._sFrame[sf + 7] * oB;
+		this._slot[o + 2] = w.z + this._sFrame[sf + 5] * oN + this._sFrame[sf + 8] * oB;
 		// The radius the margin buys, rate-limited so the fold is a flight and
 		// not a teleport. It bounds the OFFSET — the unit's distance from its
 		// own wake point — never its position in the world.
 		const want = Math.hypot(oN, oB);
 		const step = SPEED_MAX * dt;
-		const r = this._maxR[k];
-		this._maxR[k] = want > r ? Math.min(want, r + step) : Math.max(want, r - step);
+		// Blocked: the envelope closes on the offset the unit actually HAS, so
+		// that the 0.3 s the spec gives the fold is what the fold takes —
+		// rather than the doctrine's own tau, which is up to 0.8 s and left a
+		// unit 0.45 m inside a wall on the way round a hairpin.
+		let r = this._maxR[k];
+		if (this.blocked[k]) {
+			const have = Math.hypot(this._o[o], this._o[o + 1], this._o[o + 2]);
+			if (have < r) r = have;
+		}
+		this._maxR[k] = want > r ? Math.min(want, r + step) : Math.max(want, r - dt * MAX_RADIUS_FALL);
 	}
 
 	// One unit, one frame. Reads the wake at its own head `s`, holds its offset
@@ -675,9 +710,14 @@ export class SwarmModel {
 		}
 		// The tail: a unit outrun for longer than the ring is long has nothing
 		// left to read. It follows the oldest entry there is — exactly, so it
-		// stays on the wake — and that entry slides forward at the NODE's speed,
-		// which is the one case where a unit covers more ground in a frame than
-		// its own airframe would. Being on the wake matters more than the bound.
+		// stays on the wake — and that entry jumps forward by a whole SAMPLE
+		// when a write retires one. That is the one case where a unit covers
+		// more ground in a frame than its own airframe would, and the bound is
+		// the node's speed times the LARGEST GAP the ring holds over the frame
+		// length: at a steady 60 fps that gap is the 20 ms write period, but a
+		// 250 ms hitch leaves a 267 ms gap in the ring, and a unit at the tail
+		// then covers 5.9 m in the next 16 ms frame. Being on the wake matters
+		// more than the bound — but the bound is that, not WAKE_DT_S.
 		const floor = this._oldestT();
 		let pinned = false;
 		if (this._count > 0 && sNew < floor) { sNew = floor; pinned = true; }
@@ -796,16 +836,16 @@ export class SwarmModel {
 	// the track lookahead.
 	_cast(terrain, k) {
 		const o = 3 * k, f = 12 * k;
-		// A scout's anchor is EXTRAPOLATED — it is not on the wake, so it is
-		// not a legal place to start a ray from. Start from the newest real
-		// sample instead, so the segment crosses the extrapolation on its way
-		// out and the ray answers about it. (Starting at the anchor let a scout
-		// sit 4.5 m inside the outside wall of a hairpin, ray green: the ray
-		// began inside the building and only asked what was beyond it.)
-		let ax = this._anchor[o], ay = this._anchor[o + 1], az = this._anchor[o + 2];
-		if (this._count > 0 && this._s[k] > this._wt[this._head]) {
-			ax = this._wx[this._head]; ay = this._wy[this._head]; az = this._wz[this._head];
-		}
+		// The segment runs from WHERE THE UNIT IS to where the doctrine wants it
+		// to be, extended past that (see OVERREACH_M / LOOKAHEAD_S). Starting
+		// it at the unit's own position is what makes "the unit is inside what
+		// was asked about" true rather than nearly true: the earlier version
+		// started at the anchor and reached to whichever of the held and the
+		// wanted offset was bigger, which loses the unit whenever the two have
+		// opposite signs — i.e. every time the track frame turns over in a
+		// hairpin, which is exactly when it matters (measured 4.7% of casts,
+		// the unit up to 7.2 m from the segment asked about).
+		const ax = this.pos[o], ay = this.pos[o + 1], az = this.pos[o + 2];
 		const eT = Math.abs(this._o[o]) > Math.abs(this._ot[o]) ? this._o[o] : this._ot[o];
 		let eN = Math.abs(this._o[o + 1]) > Math.abs(this._ot[o + 1]) ? this._o[o + 1] : this._ot[o + 1];
 		const eB = Math.abs(this._o[o + 2]) > Math.abs(this._ot[o + 2]) ? this._o[o + 2] : this._ot[o + 2];
@@ -814,18 +854,43 @@ export class SwarmModel {
 		// the offset is folded flat.
 		const side = eN !== 0 ? Math.sign(eN) : (this.lat[k] >= 0 ? 1 : -1);
 		eN += side * OVERREACH_M;
-		const fwd = eT + LOOKAHEAD_S * this._frame[f + 9] * this.margin[k];
-		const r = terrain.obstructionBetween(
-			ax, ay, az,
-			this._anchor[o] + this._frame[f] * fwd + this._frame[f + 3] * eN + this._frame[f + 6] * eB,
-			this._anchor[o + 1] + this._frame[f + 1] * fwd + this._frame[f + 4] * eN + this._frame[f + 7] * eB,
-			this._anchor[o + 2] + this._frame[f + 2] * fwd + this._frame[f + 5] * eN + this._frame[f + 8] * eB,
-		);
+		// The lookahead has to cover the ground this unit will cross before it is
+		// asked again — which is the time since it was LAST asked, and that is
+		// a frame at 60 fps and a second at 4. Reading it off the turnstile
+		// rather than assuming a frame rate is what makes a 250 ms frame behave
+		// like a slow flight instead of like a blind one.
+		const since = Math.min(1, this._clock - this._lastCast[k]);
+		this._lastCast[k] = this._clock;
+		// Two candidate ends, and the ray takes the FARTHER of them: one measured
+		// off the unit's own anchor and frame — the wake point it is actually
+		// hanging from — and one off the slot's, where the doctrine is pulling
+		// it. Neither alone is enough. Only the slot's, and a unit 45 m adrift
+		// hears about the wall beside where it wishes it were instead of the
+		// one beside it. Only its own, and a scout on a 250 ms frame is never
+		// asked about the extrapolation it is being carried into. The farther
+		// end is the conservative one: a longer segment can only find more
+		// material, never less.
+		const fwdA = eT + (LOOKAHEAD_S + since) * this._frame[f + 9] * this.margin[k];
+		const ex = this._anchor[o] + this._frame[f] * fwdA + this._frame[f + 3] * eN + this._frame[f + 6] * eB;
+		const ey = this._anchor[o + 1] + this._frame[f + 1] * fwdA + this._frame[f + 4] * eN + this._frame[f + 7] * eB;
+		const ez = this._anchor[o + 2] + this._frame[f + 2] * fwdA + this._frame[f + 5] * eN + this._frame[f + 8] * eB;
+		const fwdB = eT + (LOOKAHEAD_S + since) * this._sFrame[f + 9] * this.margin[k];
+		const sx = this._sAnchor[o] + this._sFrame[f] * fwdB + this._sFrame[f + 3] * eN + this._sFrame[f + 6] * eB;
+		const sy = this._sAnchor[o + 1] + this._sFrame[f + 1] * fwdB + this._sFrame[f + 4] * eN + this._sFrame[f + 7] * eB;
+		const sz = this._sAnchor[o + 2] + this._sFrame[f + 2] * fwdB + this._sFrame[f + 5] * eN + this._sFrame[f + 8] * eB;
+		const dA = (ex - ax) ** 2 + (ey - ay) ** 2 + (ez - az) ** 2;
+		const dB = (sx - ax) ** 2 + (sy - ay) ** 2 + (sz - az) ** 2;
+		const r = dA >= dB
+			? terrain.obstructionBetween(ax, ay, az, ex, ey, ez)
+			: terrain.obstructionBetween(ax, ay, az, sx, sy, sz);
 		this.raysCast++; this.raysLastFrame++;
 		// geometrySafe()'s rule: blocked AND thicker than 2 m. A roof edge
 		// clipped tangentially is not a wall.
 		this.blocked[k] = (r && r.blocked && r.span > BLOCK_SPAN_M) ? 1 : 0;
-		if (!this.blocked[k]) this._green[k] = this._clock + MARGIN_FRESH_S;
+		if (!this.blocked[k]) {
+			this._green[k] = this._clock + MARGIN_FRESH_S;
+			this._greenAt[o] = this._anchor[o]; this._greenAt[o + 1] = this._anchor[o + 1]; this._greenAt[o + 2] = this._anchor[o + 2];
+		}
 	}
 
 	// ---------------------------------------------------------- the fence
