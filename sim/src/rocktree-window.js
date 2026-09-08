@@ -71,6 +71,15 @@ export const RETRY_MAX_ATTEMPTS = 3;
 // selftests, qui les lisaient ici.
 export { boxIntersectsDisc };
 
+// Deux listes d'octants exclus décrivent-elles le même maillage ? traverse()
+// et assembleLod() les rendent triées, mais un nœud sans exclude du tout
+// (traversée injectée par un test, nœud sans box) doit valoir la liste vide.
+function sameExclude(a = [], b = []) {
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
+	return a.every((d, i) => d === b[i]);
+}
+
 function p95(samples) {
 	if (samples.length === 0) return null;
 	const sorted = [...samples].sort((a, b) => a - b);
@@ -206,9 +215,22 @@ export class RocktreeWindow {
 		const local = ecefToLocalEnu(centerEcef, this._originEcef, this._originBasis);
 		this.windowCenterLocal = { x: local.x, z: local.z };
 
-		for (const path of this._nodes.keys()) {
-			if (desired.has(path)) continue;
+		// Libère ce qui n'est plus voulu — ET ce dont la GÉOMÉTRIE a changé.
+		// Depuis le LOD par anneaux (#22), `exclude` dépend de la position de
+		// la fenêtre : un nœud grossier n'exclut un octant que tant qu'un nœud
+		// plus fin le redessine. En volant, ce nœud fin sort du premier anneau
+		// et est libéré ; le grossier, lui, reste désiré. Sans cette
+		// comparaison il gardait le mesh construit avec l'ancien exclude —
+		// l'octant n'était plus dessiné par personne (trou béant à mi-distance)
+		// ou l'était deux fois (z-fight). Mesuré sur les vraies données à
+		// Paris : 70 nœuds sur 870 dérivent à chaque recentrage de 50 m, et
+		// l'erreur s'accumule tant que le nœud reste dans la fenêtre. Le
+		// refetch ne coûte pas de réseau (Cache API du pool, #21), seulement un
+		// re-build — le prix du bon maillage.
+		for (const path of [...this._nodes.keys()]) {
 			const entry = this._nodes.get(path);
+			const want = desired.get(path);
+			if (want && sameExclude(entry.exclude, want.exclude)) continue;
 			if (entry.status === 'pending') entry.controller.abort();
 			else this._onNodeReleased(path);
 			this._nodes.delete(path);
@@ -228,7 +250,9 @@ export class RocktreeWindow {
 		for (const meta of missing) {
 			const path = meta.path;
 			const controller = new AbortController();
-			const entry = { status: 'pending', controller };
+			// `exclude` est retenu avec l'entrée : c'est lui que le prochain
+			// recalcul compare (voir la boucle de libération plus haut).
+			const entry = { status: 'pending', controller, exclude: meta.exclude };
 			this._nodes.set(path, entry);
 			this._runFetch(path, meta, entry, performance.now(), 0);
 		}

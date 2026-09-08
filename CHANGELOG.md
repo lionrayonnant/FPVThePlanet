@@ -18,6 +18,21 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Corrigé
+
+- Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de
+  vol (régression du LOD par anneaux, #22). Depuis ce LOD, l'`exclude` d'un
+  nœud — les octants qu'un nœud plus fin redessine à sa place — dépend de la
+  position de la fenêtre, mais `RocktreeWindow.update()` traitait un nœud déjà
+  chargé comme définitif tant que son chemin restait désiré : il gardait le
+  maillage construit avec l'ancien `exclude`. Le nœud fin sortait du premier
+  anneau et était libéré, l'octant restait exclu chez le grossier, et plus rien
+  ne le dessinait. Mesuré à Paris, rayon 600 m : 70 nœuds périmés dès le
+  premier recentrage de 50 m, 171 sur 706 (500 octants troués, 108 dessinés en
+  double) après 300 m de vol. Un nœud dont l'`exclude` change est désormais
+  libéré et reconstruit ; le refetch ne touche pas le réseau (Cache API du
+  pool, #21).
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

@@ -318,4 +318,28 @@ await t('la fenêtre est un disque : un nœud dans le coin du carré de travers�
 	assert.equal(boxIntersectsDisc(edge, ORIGIN, r), true, 'une box à cheval sur le bord recoupe le disque');
 });
 
+await t('un nœud toujours désiré mais dont l\'exclude a changé est reconstruit, pas laissé tel quel (#22)', async () => {
+	// Depuis le LOD par anneaux, `exclude` dépend de la POSITION de la fenêtre :
+	// un nœud grossier n'exclut un octant que tant qu'un nœud plus fin le
+	// redessine. En volant, ce nœud fin sort du premier anneau et est libéré —
+	// si le grossier, lui, reste en place avec son ancien exclude, l'octant
+	// n'est plus dessiné par personne (trou) ; dans l'autre sens, il est
+	// dessiné deux fois (z-fight). Mesuré sur les vraies données à Paris :
+	// 70 nœuds sur 870 dérivent à chaque recentrage de 50 m.
+	let exclude = [];
+	const traverse = async () => ({ nodes: [{ ...NODE_A, exclude: [...exclude] }], radius: RADIUS });
+	const fetched = [], released = [];
+	const fetchNode = async (n) => { fetched.push({ path: n.path, exclude: n.exclude }); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p) => released.push(p), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(fetched.map((f) => f.exclude), [[]]);
+	exclude = [3];
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	assert.deepEqual(released, ['3060'], 'l\'ancien mesh doit être libéré avant d\'être reconstruit');
+	assert.deepEqual(fetched.map((f) => f.exclude), [[], [3]], `refetché avec le nouvel exclude : ${JSON.stringify(fetched)}`);
+	// Et sans changement d'exclude, rien ne bouge : pas de churn gratuit.
+	await win.update({ lat: ORIGIN.lat + 2000 / 111320, lon: ORIGIN.lon });
+	assert.equal(fetched.length, 2, 'un exclude inchangé ne provoque aucun refetch');
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
