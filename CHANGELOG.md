@@ -33,6 +33,19 @@ rapport avec les versions ci-dessous.
   simplement pas d'essaim). Un cluster laissé de côté vole comme UNE unité
   ambiante. Chemin de dev : `?swarm=<n>` sur `?scene=` et `?live=`.
 
+- Essaim de drones (issue #29), tranche « apparition à l'écran » : le cluster
+  hacké vole enfin. `src/drone-shape.js` gagne deux recettes — l'unité de
+  reconnaissance 3" (carènes, caméra nue, pack 3S, antenne unique, LED forte à
+  l'arrière) et le nœud 6" que le joueur pilote (dôme de liaison, deux
+  antennes, pack 6S) — et `src/swarm-drones.js` porte l'instance : une seule
+  géométrie fusionnée et un seul matériau de corps pour toutes les unités,
+  24 draw calls à douze. L'essaim se pose au début du vol, se remet sur le
+  joueur au respawn et sur `__sim.teleport`, se tait au banc, et n'a aucun
+  effet sur le jeu. `__sim.debug().swarm` rend `{size, doctrine, raysCast,
+  blockedUnits, lagRange, drawCalls}`. `?swarm=<n>` donne maintenant vraiment
+  `n` unités (et refuse `0`), et `?family=swarmNode` ouvre un chemin de dev
+  vers le nœud sans le faire entrer dans le tirage ordinaire.
+
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
   pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
   vitesse, gaz, taux de rotation), le point de départ, les captures

@@ -7,7 +7,7 @@
 // six champs de chaque voix sont pré-alloués au constructeur.
 import * as THREE from 'three';
 import { AmbientModel, ambientSet, R_SPAWN, IN_VIEW_MIN_M } from './ambient.js';
-import { shapeOf } from './drone-shape.js';
+import { shapeOf, RECIPE_PROFILES } from './drone-shape.js';
 import { buildDroneMesh, setSun, setFog, setTime, setResolution, setLedFade } from './drone-mesh.js';
 import { AmbientAudio } from './ambient-audio.js';
 import { azimuthPan } from '../tools/ambient-audio-model.mjs';
@@ -62,12 +62,17 @@ export class AmbientDrones {
 		if (!scan) return;
 		const set = ambientSet(scan);
 		// `buildFamily` and not `family`: a swarm unit (issue #29) flies its own
-		// routine but borrows an existing airframe until its recipe exists.
+		// routine but borrows an existing airframe's build — it has no PROFILES
+		// entry of its own. Its SHAPE is its own; see `shapeFamily` below.
 		const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.buildFamily ?? d.family }));
 		this.model = new AmbientModel({ set, builds, bounds: this.bounds, seed: scan.seed });
 		for (let k = 0; k < set.length; k++) {
 			const camera = targetCamera({ seed: set[k].buildSeed, family: set[k].buildFamily ?? set[k].family });
-			const shape = shapeOf({ profile: builds[k].profile, build: builds[k], camera });
+			// La recette : celle de l'exemplaire, sauf pour une machine qui n'a
+			// pas d'exemplaire — l'unité d'essaim laissée au ciel (issue #29)
+			// vole un airframe emprunté mais elle a sa PROPRE silhouette.
+			const shapeProfile = RECIPE_PROFILES[set[k].shapeFamily] ?? builds[k].profile;
+			const shape = shapeOf({ profile: shapeProfile, build: builds[k], camera });
 			// Sa livrée (issue #284) : à cent mètres c'est sa LED qui change, en
 			// free cam ses hélices.
 			const m = buildDroneMesh(shape, { colors: { ...this._colors, ...liveryColors(builds[k].livery) } });

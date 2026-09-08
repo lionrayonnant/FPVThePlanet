@@ -1,5 +1,5 @@
 // node tools/drone-shape-selftest.mjs — la recette PURE du quad (issue #250).
-import { shapeOf } from '../src/drone-shape.js';
+import { shapeOf, RECIPE_PROFILES, eyeOf } from '../src/drone-shape.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { motorsOf } from '../src/quad.js';
 import { createHash } from 'node:crypto';
@@ -209,6 +209,73 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 			portrait.has('camera') && portrait.has('battery') && portrait.has('plate') && portrait.has('led'),
 			[...portrait].join(' '));
 	}
+}
+
+// --------------------------------------------------------- l'essaim (#29)
+//
+// Deux machines de plus, et une seule d'entre elles est une famille : le nœud
+// vit dans PROFILES (on le pilote), l'unité n'existe que comme recette (on ne
+// la pilote jamais, donc elle n'a ni PID ni tune). Le selftest les traite
+// exactement pareil, parce que shapeOf() les traite exactement pareil : il
+// prend un PROFIL, pas un nom de famille.
+console.log('\ndrone-shape : essaim (#29)');
+{
+	const node = make('swarmNode', 'shape::swarmNode');
+	const unitProfile = RECIPE_PROFILES.swarmUnit;
+	const unit = shapeOf({ profile: unitProfile, build: {}, camera: targetCamera({ seed: 'shape::swarmUnit', family: 'swarmUnit' }) });
+
+	for (const [name, s, profile] of [['swarmNode', node, PROFILES.swarmNode], ['swarmUnit', unit, unitProfile]]) {
+		check(`${name}: 4 bras, 4 moteurs, 4 disques`,
+			roles(s, 'arm').length === 4 && roles(s, 'motor').length === 4 && roles(s, 'prop').length === 4);
+		check(`${name}: une plaque, une caméra, une batterie, une LED`,
+			roles(s, 'plate').length === 1 && roles(s, 'camera').length === 1 && roles(s, 'battery').length === 1 && roles(s, 'led').length === 1);
+		check(`${name}: disque = propRadius`, Math.abs(roles(s, 'prop')[0].size[0] - profile.propRadius) < 1e-9);
+		check(`${name}: trois pales`, roles(s, 'prop').every((p) => p.blades === 3));
+		check(`${name}: moteurs à (±armX, ±armZ)`,
+			roles(s, 'motor').every((m) => Math.abs(Math.abs(m.at[0]) - profile.armX) < 1e-9 && Math.abs(Math.abs(m.at[2]) - profile.armZ) < 1e-9));
+		// Géométrie FINIE : pas un NaN, pas un Infinity, pas une taille nulle.
+		// Une recette qui lirait un champ absent du profil sortirait d'ici.
+		check(`${name}: toutes les dimensions finies et positives`,
+			s.parts.every((p) => p.at.every(Number.isFinite) && p.size.every((v) => Number.isFinite(v) && v > 0))
+			&& Number.isFinite(s.boundingRadius) && s.boundingRadius > 0);
+		check(`${name}: toutes les pièces sous le rayon englobant`,
+			s.parts.every((p) => Math.hypot(...p.at) <= s.boundingRadius + 1e-9));
+		check(`${name}: caméra à l'avant, LED à l'arrière`,
+			roles(s, 'camera')[0].at[2] < 0 && roles(s, 'led')[0].at[2] > 0);
+		check(`${name}: l'oeil est au bord avant de la plaque`,
+			Math.abs(eyeOf(profile)[2] + 0.55 * profile.armZ) < 1e-9, `${eyeOf(profile)[2]}`);
+	}
+
+	check('swarmUnit : carènes, comme le cinewhoop', roles(unit, 'duct').length === 4);
+	check('swarmUnit : anneau r = 1,12·propRadius',
+		Math.abs(roles(unit, 'duct')[0].size[0] - 1.12 * unitProfile.propRadius) < 1e-9);
+	check('swarmUnit : une seule antenne', roles(unit, 'antenna').length === 1);
+	check('swarmUnit : batterie 3S = 60 mm', Math.abs(roles(unit, 'battery')[0].size[2] - 0.060) < 1e-9);
+	check('swarmUnit : pas de GoPro, pas de dôme',
+		roles(unit, 'gopro').length === 0 && roles(unit, 'dome').length === 0);
+	check('swarmUnit : LED plus forte que celle d\'un ambiant ordinaire',
+		roles(unit, 'led')[0].size[0] > roles(make('freestyle5'), 'led')[0].size[0]);
+
+	check('swarmNode : un dôme sur le dessus', roles(node, 'dome').length === 3
+		&& roles(node, 'dome').every((d) => d.at[1] > roles(node, 'battery')[0].at[1]));
+	check('swarmNode : le dôme se rétrécit en montant',
+		roles(node, 'dome').every((d, i, a) => i === 0 || d.size[0] < a[i - 1].size[0]));
+	check('swarmNode : deux antennes', roles(node, 'antenna').length === 2);
+	check('swarmNode : pas de carène, pas de GoPro',
+		roles(node, 'duct').length === 0 && roles(node, 'gopro').length === 0);
+	check('swarmNode : batterie 6S = 120 mm', Math.abs(roles(node, 'battery')[0].size[2] - 0.12) < 1e-9);
+
+	// Le compte de triangles, dans l'ORDRE annoncé par la spec (~300 pour
+	// l'unité). On compte ce que src/drone-mesh.js monterait, sans monter quoi
+	// que ce soit : la primitive et ses segments suffisent. Un disque à 12
+	// côtés, un cylindre à 8, un anneau ouvert à 12.
+	const tris = (s) => s.parts.reduce((n, p) => n + ({
+		box: 12, cylinder: 8 * 2 + 2 * 8, ring: 12 * 2, disc: 12, point: 0,
+	}[p.kind] ?? 0), 0);
+	const tUnit = tris(unit), tNode = tris(node);
+	check('swarmUnit : ~300 triangles (< 500)', tUnit > 150 && tUnit < 500, `${tUnit}`);
+	check('swarmNode : le dôme et la seconde antenne coûtent, sans exploser',
+		tNode > tUnit - 200 && tNode < 500, `${tNode}`);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

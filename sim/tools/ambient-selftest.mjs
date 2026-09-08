@@ -49,8 +49,12 @@ console.log('\nambient: le cluster laissé de côté (issue #29)');
 	const set = ambientSet(scan);
 	const left = set.find((d) => d.i === 0);
 	check('le cluster non pris devient un swarmUnit', left?.family === SWARM_UNIT_FAMILY, left?.family);
-	check('il emprunte un airframe existant tant que sa recette n\'existe pas',
+	check('il emprunte un airframe existant pour son BUILD (pas de PROFILES)',
 		left?.buildFamily === SWARM_UNIT_BUILD_FAMILY, left?.buildFamily);
+	// Sa silhouette, elle, est la sienne depuis que la recette existe
+	// (src/drone-shape.js, RECIPE_PROFILES) : c'est le seul endroit où
+	// l'airframe du build et celui du maillage divergent.
+	check('mais il porte SA silhouette', left?.shapeFamily === SWARM_UNIT_FAMILY, left?.shapeFamily);
 	check('cet airframe se construit vraiment',
 		!!targetBuild({ seed: left.buildSeed, family: left.buildFamily }).profile);
 	check('les autres ambiants gardent leur famille',

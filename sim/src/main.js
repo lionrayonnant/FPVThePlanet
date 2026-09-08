@@ -38,7 +38,7 @@ import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
-import { generateTargetScan, swarmChanceFor, SWARM_SIZE_MIN, SWARM_SIZE_MAX } from '../tools/target-model.mjs';
+import { generateTargetScan, swarmChanceFor, SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
@@ -60,6 +60,7 @@ import { RocktreeWindow } from './rocktree-window.js';
 import { warmUp as warmUpTraverseWorker } from './rocktree-traverse-client.js';
 import { warmUp as warmUpNodePool } from './rocktree-worker-pool.js';
 import { AmbientDrones } from './ambient-drones.js';
+import { SwarmDrones } from './swarm-drones.js';
 import { PlayerDrone } from './onboard-drone.js';
 
 import { APP_VERSION } from './version.js';
@@ -136,8 +137,12 @@ export const OPTS = {
 	// a swarm the game itself could not.
 	swarm: params.has('swarm') ? Number(params.get('swarm')) : null,
 };
-if (OPTS.swarm !== null && !Number.isInteger(OPTS.swarm)) {
-	throw new Error(`?swarm= expects an integer — got "${params.get('swarm')}"`);
+// `>= 1` and not just "an integer": `?swarm=` with an empty or non-numeric
+// value gives Number('') === 0, which used to sail through and be clamped up
+// to a swarm of six. A flag that produces something you did not ask for is
+// worse than a flag that refuses.
+if (OPTS.swarm !== null && (!Number.isInteger(OPTS.swarm) || OPTS.swarm < 1)) {
+	throw new Error(`?swarm= expects an integer >= 1 — got "${params.get('swarm')}"`);
 }
 // The swarm a dev scan carries, or null. Same shape as the one resolveTarget()
 // persists, so whatever reads it does not care where the scan came from.
@@ -151,8 +156,13 @@ const devSwarm = OPTS.swarm === null ? null : {
 if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
 	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
 }
-if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
-	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
+// The DEV list is FAMILIES plus the swarm node (issue #29). The node stays out
+// of FAMILIES and TARGET_FAMILIES — its rarity in a real game is the whole
+// point — but without this there is no way at all to fly it, not even to look
+// at it. `?family=swarmNode&scene=<slug>&swarm=12` is the full dev path.
+const DEV_FAMILIES = [...FAMILIES, SWARM_FAMILY];
+if (OPTS.family && !DEV_FAMILIES.includes(OPTS.family)) {
+	throw new Error(`famille inconnue: "${OPTS.family}" — ${DEV_FAMILIES.join(' ')}`);
 }
 // Résolu tardivement (PHASE 08) : la famille sort du TARGET SCAN, dans le gate
 // de chooseScene(), avant boot(). L'override dev ?family= le pré-remplit ici.
@@ -452,6 +462,18 @@ let distantGround = null;
 // carte n'est pas chargée. `liveBounds` est la bulle du DIRECT : muté à
 // chaque frame, jamais remplacé — le modèle en garde la référence.
 let ambient = null;
+// L'essaim (issue #29) : null au banc et hors cluster. Comme les ambiants, il
+// n'a aucun effet sur le jeu — pas de corps Rapier, pas de collision, pas de
+// cible, pas d'usure.
+let swarm = null;
+// La clôture que l'essaim lit, MUTÉE à chaque frame et jamais remplacée : le
+// modèle ne la retient pas. `bbox` en scène pré-cuite, `center`/`radius` en
+// direct (le cercle de confiance de la fenêtre rocktree).
+const swarmFence = { bbox: null, center: null, radius: 0 };
+// L'horloge que le sillage horodate : des secondes monotones, gelées avec la
+// physique. Pas performance.now() — une pause y creuserait un trou de dix
+// secondes dans la piste, et le slot d'une unité se lit à un instant passé.
+let swarmClock = 0;
 const liveBounds = { center: null, trusted: 0 };
 // La résolution en pixels device, pour le billboard de LED des ambiants
 // (même piège que uResolution dans lens.js). Mise à jour dans resize().
@@ -695,6 +717,8 @@ function exposeDebugGlobal() {
 		session: () => session.current(),
 		// Les drones ambiants (issue #250), ou null (banc, avant la carte).
 		ambient: () => ambient,
+		// L'essaim (issue #29), ou null (banc, hors cluster, avant la carte).
+		swarm: () => swarm,
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -706,6 +730,10 @@ function exposeDebugGlobal() {
 			linkForced = false;
 			// Un saut arbitraire laisserait les ambiants derrière, hors bulle.
 			ambient?.reset();
+			// L'essaim suit le SILLAGE : un saut le rendrait droit à travers
+			// tout ce qui sépare les deux points. Le sillage se vide, les unités
+			// se reposent sur le joueur.
+			swarm?.reset(physics.position);
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -857,6 +885,8 @@ function exposeDebugGlobal() {
 				// Le ciel habité (issue #250) : undefined au banc, où il n'y a
 				// pas d'ambiants du tout.
 				ambient: ambient?.debug(),
+				// L'essaim (issue #29) : undefined au banc et hors cluster.
+				swarm: swarm?.model ? swarm.debug() : undefined,
 			};
 		},
 	};
@@ -943,6 +973,10 @@ async function finishBoot(preloading) {
 			scene,
 			bounds: { bbox: manifest.bbox, corridor: fence.effectiveCorridor },
 		});
+		// L'essaim (issue #29), même garde : il n'a d'unités que si la cible en
+		// porte un, ce que setSwarm() décide plus bas.
+		swarm = new SwarmDrones({ scene });
+		swarmFence.bbox = manifest.bbox;
 	}
 
 	// L'entrée. En FIELD c'est le tirage pondéré de la Bible §20 — tu hérites
@@ -1207,6 +1241,10 @@ async function bootLive([lat, lon]) {
 		// ?live= est un raccourci de DEV : openFlightSession() en sort tout de
 		// suite, donc personne d'autre ne poserait de scan sur ce chemin.
 		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0, ...(devSwarm ? { swarmAt: 0, swarmChance: 1, swarm: devSwarm } : {}) });
+		swarm = new SwarmDrones({ scene });
+		// ?live= sort d'openFlightSession() avant la pose de l'essaim : c'est
+		// ici, et seul ?swarm= peut en poser un sur ce chemin.
+		if (OPTS.live && devSwarm) { swarm.setSwarm(devSwarm); swarm.reset(physics.position); }
 	}
 	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
 	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
@@ -1561,6 +1599,9 @@ function respawn() {
 	// Le ciel se retire aussi : les ambiants d'avant le respawn étaient nés
 	// autour d'un point de vol qui n'existe plus (issue #250).
 	ambient?.reset();
+	// Et l'essaim se repose sur le joueur : son sillage vient d'être invalidé
+	// par le même saut (issue #29).
+	swarm?.reset(physics.position);
 }
 
 function togglePause(force) {
@@ -1964,6 +2005,26 @@ function frame() {
 			// `cloud.dim`, pas `sun.ambient` : les ambiants s'assombrissent
 			// comme les tuiles (setDim plus bas). L'exposition absolue est le
 			// métier de l'AGC de la lentille, pas celui d'un matériau.
+			dim: cloud.dim,
+			resolution: ambientRes,
+		});
+	}
+
+	// L'essaim (issue #29). Après le bloc caméra comme les ambiants, et avant
+	// lens.render : sa sortie traverse la lentille comme tout le reste. Il ne
+	// touche à RIEN — pas de corps Rapier, pas de collision, pas de cible, pas
+	// d'usure ; gelé, dt = 0 et le modèle ne fait pas un pas.
+	if (swarm?.model) {
+		if (liveWindow) {
+			swarmFence.center = liveWindow.windowCenterLocal;
+			swarmFence.radius = liveWindow.nearestTrustedRadius();
+		}
+		if (!frozen) swarmClock += dt;
+		swarm.update({
+			dt: frozen ? 0 : dt,
+			player: physics.position, time: swarmClock,
+			terrain: physics, wind: physics.wind.out, fence: swarmFence,
+			fogColor: scene.background, fogDensity: lastFogDensity, sun,
 			dim: cloud.dim,
 			resolution: ambientRes,
 		});
@@ -3234,6 +3295,12 @@ async function openFlightSession() {
 			: null),
 	);
 
+	// L'essaim (issue #29) : celui que la cible résolue porte, ou celui que
+	// `?swarm=` a posé sur un chemin de dev. Rien du tout sinon — un cluster
+	// tombe une session sur dix.
+	swarm?.setSwarm(tgt?.swarm ?? devSwarm ?? null);
+	swarm?.reset(physics.position);
+
 	applyTargetCamera(targetCamera({ seed, family }));
 
 	// Le drone du joueur (issue #264) — ICI et pas dans boot() : la recette lit
@@ -3296,6 +3363,7 @@ window.addEventListener('beforeunload', () => {
 	// un démontage : les ambiants n'y ont rien à faire. Le seul démontage de
 	// page est ici (issue #250).
 	ambient?.dispose();
+	swarm?.dispose();
 	lens.setOnboard(null);
 	playerDrone?.dispose();
 	playerDrone = null;

@@ -24,9 +24,11 @@ export const MAX_DRONES = 4;
 // has no entry in PROFILES and no PID. As an ambient it needs a routine, which
 // ROUTINES carries below.
 export const SWARM_UNIT_FAMILY = 'swarmUnit';
-// Its airframe recipe lands in a later tranche. Until then the ambient falls
-// back on the closest EXISTING airframe — a 3" micro — for its build, its mesh
-// and its camera, instead of crashing on a family PROFILES does not know.
+// Its RECIPE now exists (src/drone-shape.js, RECIPE_PROFILES), so the lone
+// ambient looks like a swarm unit — see `shapeFamily` below. Its BUILD still
+// borrows the closest existing airframe, a 3" micro: swarmUnit is deliberately
+// absent from PROFILES (no PID, no tune, never flown), and targetBuild() needs
+// a real family to draw an instance's mass, drag and rates from.
 export const SWARM_UNIT_BUILD_FAMILY = 'toothpick';
 // v²/r ≤ TURN_MARGIN · a_max : un quad ne vire pas en butée de poussée.
 export const TURN_MARGIN = 0.6;
@@ -54,9 +56,12 @@ export function ambientSet(scan) {
 		const swarm = !!c._swarm;
 		out.push({
 			i, id: c.id, family: swarm ? SWARM_UNIT_FAMILY : c._family,
-			// The airframe the mesh and the build come from. Same as the routine
-			// family for everything else; see SWARM_UNIT_BUILD_FAMILY.
+			// The airframe the BUILD comes from. Same as the routine family for
+			// everything else; see SWARM_UNIT_BUILD_FAMILY.
 			buildFamily: swarm ? SWARM_UNIT_BUILD_FAMILY : c._family,
+			// The airframe the MESH comes from — its own, now that the recipe
+			// exists. This is the only place the two differ.
+			shapeFamily: swarm ? SWARM_UNIT_FAMILY : c._family,
 			buildSeed: `${scan.seed}::${i}`,
 			rssiDbm: c.rssiDbm, mode: c._videoHint,
 		});
