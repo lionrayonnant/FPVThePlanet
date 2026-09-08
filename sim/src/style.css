@@ -257,6 +257,27 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #fo-cut-bar[hidden] { display: none; }
 
+/* D16 — les trois lignes du premier vol. Même face et même place que #fo-cut,
+   un cran plus bas : les deux ne se disputent jamais l'écran (la ligne du
+   premier vol s'éteint dès que le lien meurt, et #fo-cut n'apparaît qu'au
+   maintien). De l'information, pas une assistance : elle part et ne revient
+   plus. */
+#fo-hint {
+	position: absolute;
+	left: 50%;
+	top: 68%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: 12px;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+}
+
 /* Fin de vol (PHASE 14) : pas un écran de mort, un lien qui s'éteint. */
 #flight-end {
 	position: absolute; inset: 0;

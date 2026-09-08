@@ -62,6 +62,7 @@ export class FpvtpOsd {
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
 				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
+				<div id="fo-hint" hidden></div>
 				<div id="flight-end" hidden></div>
 			</div>`);
 
@@ -81,6 +82,7 @@ export class FpvtpOsd {
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
 			cut: q('#fo-cut'),
+			hint: q('#fo-hint'),
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
@@ -100,6 +102,9 @@ export class FpvtpOsd {
 		this._flashUntil = 0;
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
+		// D16 : la ligne du premier vol, même règle — elle est décidée ailleurs
+		// (tools/briefing-model.mjs), elle n'est que peinte ici.
+		this._hintText = '';
 		// #264 : l'exemplaire en vol, et son dessin une fois le lien perdu. Le
 		// dessin n'est fabriqué qu'au moment où la ligne apparaît — un vol qui
 		// se termine bien n'en construit jamais.
@@ -259,6 +264,21 @@ export class FpvtpOsd {
 		// déjà quelque chose.
 		this.el.cutBar.hidden = !cutting;
 		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
+	}
+
+	// La ligne du premier vol (D16). Comme #fo-cut : ce qu'elle dit est décidé
+	// ailleurs — main.js appelle flightHint() à chaque frame — et cette couche
+	// ne fait que le peindre. `null` l'éteint. Le DOM n'est touché que quand le
+	// texte change : ceci est appelé 60 fois par seconde.
+	//
+	// Trois lignes, une fois dans la vie d'un opérateur : ce n'est pas une aide
+	// permanente, c'est un briefing qui finit.
+	setHint(text) {
+		const next = text || '';
+		if (next === this._hintText) return;
+		this._hintText = next;
+		this.el.hint.textContent = next;
+		this.el.hint.hidden = !next;
 	}
 
 	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre

@@ -863,6 +863,11 @@ GO
 
 Pas de tutoriel.
 
+> **Révisé 2026-09-08 (D16) — un briefing existe.** Il vit avant le premier vol
+> et dans `SETTINGS`, jamais à l'entrée en vol. « Pas de 3-2-1-GO, le joueur
+> reprend immédiatement les sticks » reste vrai : rien de ce qui suit n'attend
+> un geste du joueur.
+
 Le joueur reprend immédiatement les sticks.
 
 ### Variation

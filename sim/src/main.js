@@ -18,6 +18,9 @@ import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
+import { runBriefing } from './briefing.js';
+import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint } from '../tools/briefing-model.mjs';
+import { keyMapRows } from './key-map.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -166,6 +169,43 @@ let camSpec = null;
 // changements, et pour que applyTargetCamera() recompose la nuit en cours.
 let lastNightGain = 0;
 const settings = new Settings(document.getElementById('ui'), input);
+// The briefing (D16). What it shows is read LIVE from the input stack, so a
+// key rebound a minute ago is the key it names. The slot is filled here, right
+// after the panel is built: renderSystem() draws [ REPLAY BRIEFING ] on tab
+// entry, and the panel can be opened long before any flight.
+function briefingArgs() {
+	// The OSD's TR corner reads `usingGamepad`, which only turns true once a
+	// stick has actually MOVED. The briefing runs before any flight, so it asks
+	// the weaker question: is a pad plugged in at all. A pad that is there and
+	// silent is still the device this player is about to fly with.
+	const pad = input.getGamepad?.() ?? null;
+	return {
+		input: { kind: input.usingGamepad || pad ? 'gamepad' : 'keyboard', name: pad?.id ?? '' },
+		keyRows: keyMapRows(input.getKeyMap()),
+		// Opens the panel on the named tab and resolves when it closes: the
+		// briefing screen waits underneath rather than being torn down.
+		openSettings: async (tab) => { settings.open(tab); await settings.closed(); },
+	};
+}
+// `force` is the replay: it ignores the seen flag, which is the whole point of
+// a button that says REPLAY.
+async function playBriefing({ force = false } = {}) {
+	if (!force && !shouldBrief(localStorage)) return;
+	await runBriefing(document.getElementById('ui'), briefingArgs());
+	// Marked whether it was read or skipped: a briefing you refused is a
+	// briefing you were offered.
+	markBriefed(localStorage);
+}
+settings.onReplayBriefing = async () => {
+	// The panel closes first: the briefing is a full screen, not a layer over
+	// the settings it just came out of.
+	settings.toggleSettings(false);
+	await playBriefing({ force: true });
+};
+// The three in-flight hints of D16 exist for ONE flight, and never at the
+// bench. Armed at the start of each flight, spent when that flight ends.
+let hintFlight = false;
+let hintAirborneAt = null;
 // Une touche de menu pressée s'inverse un instant (issue #224).
 installClickFlash();
 // Construit dans le gate de chooseScene(), une fois PROFILE résolu (PHASE 08).
@@ -1637,6 +1677,15 @@ const _sunColor = new THREE.Color();
 // What the last link measurement cost and what it found, for __sim.debug().
 const linkState = { distance: 0, blocked: false, span: 0, rayMs: 0 };
 
+// The first flight is over the moment its session closes — whatever closed it.
+// Written once: a second call is a no-op, and a bench flight never gets here.
+function endOfFirstFlight() {
+	if (!hintFlight) return;
+	hintFlight = false;
+	fpvtpOsd.setHint(null);
+	markFirstFlight(localStorage);
+}
+
 function frame() {
 	const now = performance.now();
 	const dt = Math.min((now - lastTime) / 1000, 0.25);
@@ -1737,6 +1786,7 @@ function frame() {
 					// terrain, lui, reste. terrain persistent, flights ephemeral.
 					fpvtpOsd.setSessionStatus('TARGET LOST<small>SESSION TERMINATED</small>', 'lost');
 					session.end('CRASHED').then((s) => s && console.log('[session] CRASHED', s));
+					endOfFirstFlight();
 				}
 			}
 			if (impact > peakImpact) peakImpact = impact;
@@ -1927,6 +1977,7 @@ function frame() {
 		// vol passe désormais par là (D9, 2026-09-08).
 		space.silence();
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
+		endOfFirstFlight();
 		// Le vol est fini : on rend la souris. Ce n'est pas du confort, c'est ce
 		// qui rend [ENTER] DISCONNECT possible — en pointer lock (a fortiori en
 		// plein écran), le navigateur confisque Échap pour déverrouiller le
@@ -2306,6 +2357,21 @@ if (!frozen) {
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setCut(flightEnd.out);
+	// D16 : the first flight, and only it, gets three lines. Take-off is a
+	// metre and a half above the spawn — enough that a bounce on the ground is
+	// not one.
+	if (hintFlight) {
+		const tFlight = (Date.now() - sessionStartedAt) / 1000;
+		if (hintAirborneAt === null && p.y - spawnY > 1.5) hintAirborneAt = tFlight;
+		fpvtpOsd.setHint(flightHint({
+			tFlight,
+			armed: controller.armed,
+			airborneOnce: hintAirborneAt !== null,
+			tSinceTakeoff: hintAirborneAt === null ? 0 : tFlight - hintAirborneAt,
+			bench: MODE.bench,
+			firstFlight: true,
+		}));
+	}
 	fpvtpOsd.setPhotoReady(photoReady);
 	settings.updateAxisBars();
 
@@ -2512,7 +2578,10 @@ async function chooseScene() {
 	// Le bootstrap, inchangé (issue #60) : la clé rendue par la création part dans
 	// localStorage sans un écran de plus. ARCHIVE > OPERATOR > [ SHOW KEY ] est le
 	// chemin, délibéré, du jour où l'on veut emporter son profil ailleurs.
-	const register = () => bootstrap(ui);
+	// The briefing runs INSIDE the bootstrap, right after the control vector is
+	// registered — the only moment where a player has just been made and has
+	// not yet chosen anything.
+	const register = () => bootstrap(ui, undefined, { briefing: () => playBriefing() });
 
 	const { needsBootstrap, choices, needsKey } = await operator.loadOperator();
 	if (needsKey) {
@@ -2994,6 +3063,11 @@ async function openFlightSession() {
 	spawnX = physics.spawn.x;
 	spawnZ = physics.spawn.z;
 	sessionStartedAt = Date.now();
+	// D16 : briefed, never flown, not the bench — the only flight that gets the
+	// three hints.
+	hintFlight = !MODE.bench && firstFlightPending(localStorage);
+	hintAirborneAt = null;
+	fpvtpOsd.setHint(null);
 	// Résolue dans le try, lue après : une ouverture de session ratée ne doit
 	// pas laisser le vol sans caméra ni sans OSD.
 	let tgt = null;

@@ -340,6 +340,25 @@ Vérification headless derrière un proxy qui refuse le CONNECT de Chromium :
 `VITE_ROCKTREE_BASE=http://127.0.0.1:8124/rt/earth/ npx vite` fait lire le
 terrain Google à un relais local (voir `tools/lib/rocktree/url.mjs`).
 
+### Le briefing
+
+Un opérateur qui vient d'être créé passe par un briefing de quatre écrans
+(`INPUT`, `THE TERMINAL`, `A SESSION`, `BRIEFING COMPLETE`), juste après
+l'enregistrement du CONTROL VECTOR. Il énonce ce qu'une chose est et ce qu'une
+touche fait — jamais quoi faire — et Échap le saute d'un coup. L'écran `INPUT`
+lit le mappage EN DIRECT (`src/key-map.js`) et offre `[ CALIBRATE ]` ou
+`[ MAP KEYS ]`, qui ouvrent l'onglet correspondant de `SETTINGS` et reviennent.
+
+Il se rejoue par `SETTINGS` › `SYSTEM` › `[ REPLAY BRIEFING ]`.
+
+Deux clés `localStorage` le pilotent : `fpvtp.briefingSeen` (posée dès que le
+briefing a été montré, lu ou sauté) et `fpvtp.firstFlightDone` (posée à la fin
+du premier vol hors banc). Entre les deux, le premier vol affiche trois lignes
+brèves — `THROTTLE UP`, `[TAB] SETTINGS`, `[HOLD K] CUT LINK` —, décidées par
+`tools/briefing-model.mjs` et peintes par l'OSD. `[ RESET SETTINGS ]` efface
+les clés `fpvtp.*` : le briefing rejoue, ce qui est bien ce qu'une remise à
+zéro veut dire.
+
 ## Faire tourner le jeu sans Vite — le serveur autonome
 
 `npm run dev` reste la façon de développer. Mais un `npm run build` seul ne

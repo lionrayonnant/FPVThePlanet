@@ -59,6 +59,12 @@ La météo peut être mauvaise. Un Tinywhoop peut être une très mauvaise idée
 
 Le joueur décide.
 
+> **Révisé 2026-09-08 (D16) — un briefing existe.** Il vit avant le premier vol
+> et dans `SETTINGS`, jamais à l'entrée en vol. Il ne dit toujours pas quoi
+> faire : il énonce ce qu'une chose est et ce qu'une touche fait, une fois,
+> puis il s'efface. Le pilier tient — c'est de l'information, pas de
+> l'assistance.
+
 ### 2. Terrain persistent, flights ephemeral
 
 Le terrain capturé peut être conservé.
@@ -1319,6 +1325,18 @@ OPERATOR
 CONTROL VECTOR
 ACCOUNT
 ```
+
+**Construit (2026-09-08, D14/D16).** Le panneau a quatre onglets, et rien de
+plus :
+
+```text
+CONTROLLER   manette, axes, calibrage
+KEYBOARD     le mappage clavier, remappable
+AUDIO        volume, musique, luminosité
+SYSTEM       vue, lien, [ REPLAY BRIEFING ], [ RESET SETTINGS ], build
+```
+
+Aucun curseur de monde n'y est revenu.
 
 ---
 

@@ -20,6 +20,15 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Un briefing de quatre écrans (`INPUT`, `THE TERMINAL`, `A SESSION`,
+  `BRIEFING COMPLETE`) accueille un opérateur qui vient d'être créé, juste
+  après le CONTROL VECTOR. Il énonce, il n'ordonne pas ; Échap le saute ;
+  `[ CALIBRATE ]` et `[ MAP KEYS ]` ouvrent le bon onglet de `SETTINGS` et
+  reviennent, et l'écran `INPUT` lit le mappage en direct. Il se rejoue par
+  `SETTINGS` › `SYSTEM` › `[ REPLAY BRIEFING ]`. Le premier vol hors banc
+  affiche trois lignes brèves — `THROTTLE UP`, `[TAB] SETTINGS`,
+  `[HOLD K] CUT LINK` — puis plus jamais (#16).
+
 - Le panneau `SETTINGS` (Tab) passe à la direction artistique du terminal :
   en-tête `FPVTP! // SETTINGS`, quatre onglets `CONTROLLER · KEYBOARD · AUDIO
   · SYSTEM`, un corps à la fois, et l'onglet ouvert est retenu pour la session.
