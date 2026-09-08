@@ -227,11 +227,23 @@ export class RocktreeWindow {
 		// l'erreur s'accumule tant que le nœud reste dans la fenêtre. Le
 		// refetch ne coûte pas de réseau (Cache API du pool, #21), seulement un
 		// re-build — le prix du bon maillage.
+		// Les nœuds dont on garde le mesh à l'écran en attendant le remplaçant :
+		// si le refetch échoue, il faudra bien finir par le retirer (sinon plus
+		// aucune entrée ne le libérera jamais).
+		const replacing = new Set();
 		for (const path of [...this._nodes.keys()]) {
 			const entry = this._nodes.get(path);
 			const want = desired.get(path);
 			if (want && sameExclude(entry.exclude, want.exclude)) continue;
 			if (entry.status === 'pending') entry.controller.abort();
+			// Un nœud TOUJOURS désiré dont seul le maillage change n'est pas
+			// retiré de la scène tout de suite : `replaced` dit à l'appelant
+			// que le remplaçant arrive et qu'il échangera lui-même. Sinon
+			// l'ancien part immédiatement (les libérations passent avant les
+			// builds) et le sol manque le temps du refetch — mesuré en jeu :
+			// 8,17 % du sol absent 583 ms après un recentrage, refermé avant
+			// 1,2 s. C'est l'« anneau qui recharge » vu en volant.
+			else if (want) { this._onNodeReleased(path, { replaced: true }); replacing.add(path); }
 			else this._onNodeReleased(path);
 			this._nodes.delete(path);
 		}
@@ -252,10 +264,19 @@ export class RocktreeWindow {
 			const controller = new AbortController();
 			// `exclude` est retenu avec l'entrée : c'est lui que le prochain
 			// recalcul compare (voir la boucle de libération plus haut).
-			const entry = { status: 'pending', controller, exclude: meta.exclude };
+			const entry = { status: 'pending', controller, exclude: meta.exclude, replacing: replacing.has(path) };
 			this._nodes.set(path, entry);
 			this._runFetch(path, meta, entry, performance.now(), 0);
 		}
+	}
+
+	// Abandon d'un fetch : l'entrée disparaît. Si elle remplaçait un mesh
+	// laissé à l'écran (voir `replaced` dans update()), c'est le dernier
+	// moment pour le retirer — sinon plus aucune entrée ne le connaît et il
+	// reste là, périmé, jusqu'à la fin de la session.
+	_giveUp(path, entry) {
+		this._nodes.delete(path);
+		if (entry.replacing) this._onNodeReleased(path);
 	}
 
 	// Une tentative de fetch pour `path`, avec retry en cas d'échec transitoire
@@ -288,7 +309,7 @@ export class RocktreeWindow {
 			if (err?.name === 'AbortError') return;
 			//   - 404/410 : nœud réellement absent, résultat NORMAL de ce
 			//     protocole (pas une panne). Jamais de retry.
-			if (err?.status === 404 || err?.status === 410) { this._nodes.delete(path); return; }
+			if (err?.status === 404 || err?.status === 410) { this._giveUp(path, entry); return; }
 			//   - tout le reste (coupure réseau, 5xx, status null) : échec
 			//     transitoire, on retente sur place plutôt que d'attendre le
 			//     prochain recalcul de fenêtre.
@@ -297,7 +318,7 @@ export class RocktreeWindow {
 				// reste désiré (il n'a jamais été retiré de `desired`) donc le
 				// prochain recalcul de fenêtre le retentera tant qu'il l'est
 				// toujours — la boucle de secours d'origine, conservée.
-				this._nodes.delete(path);
+				this._giveUp(path, entry);
 				return;
 			}
 			await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * RETRY_BACKOFF_FACTOR ** attempt));

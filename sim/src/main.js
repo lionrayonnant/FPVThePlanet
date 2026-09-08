@@ -276,6 +276,32 @@ const NODE_WORK_BUDGET_MS = 3;
 const DEEP_QUEUE_JOBS = 50;
 const DEEP_QUEUE_BUDGET_MS = 8;
 
+// Retire de la scène et de Rapier tout ce qu'un nœud avait posé, et rend sa
+// mémoire. Appelée par la file de libérations ET par l'échange d'un nœud
+// reconstruit (#31) — le même travail dans les deux cas.
+function disposeLiveNode(path) {
+	for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
+		scene.remove(mesh);
+		mesh.geometry.dispose();
+		// material.dispose() ne libère pas la texture (#191) : elle pèse
+		// ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU — sans
+		// ces deux lignes ça fuit à chaque nœud sorti de la fenêtre, donc
+		// avec la distance parcourue et non la taille du monde. Le seul cas
+		// sans texture est le matériau gris plat (pas de bitmap/uvs, voir
+		// buildNodeMesh) : rien à fermer alors. .uniforms.uMap, pas .map :
+		// createRocktreeMaterial() (#202) est un ShaderMaterial, qui n'a pas
+		// le raccourci .map des matériaux standard de Three.
+		const liveMap = mesh.material.uniforms?.uMap?.value;
+		if (liveMap) {
+			liveMap.dispose();
+			liveMap.image.close();
+		}
+		mesh.material.dispose();
+		physics.removeNodeCollider(colliderPath);
+	}
+	liveMeshes.delete(path);
+}
+
 // Draine les files sous budget. Les libérations d'abord : elles rendent de la
 // mémoire et leur retard laisserait des meshes fantômes hors fenêtre.
 function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOBS ? DEEP_QUEUE_BUDGET_MS : NODE_WORK_BUDGET_MS)) {
@@ -283,27 +309,7 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 	const start = performance.now();
 	while (performance.now() - start < budgetMs) {
 		if (pendingNodeReleases.length > 0) {
-			const path = pendingNodeReleases.shift();
-			for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
-				scene.remove(mesh);
-				mesh.geometry.dispose();
-				// material.dispose() ne libère pas la texture (#191) : elle pèse
-				// ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU — sans
-				// ces deux lignes ça fuit à chaque nœud sorti de la fenêtre, donc
-				// avec la distance parcourue et non la taille du monde. Le seul cas
-				// sans texture est le matériau gris plat (pas de bitmap/uvs, voir
-				// buildNodeMesh) : rien à fermer alors. .uniforms.uMap, pas .map :
-				// createRocktreeMaterial() (#202) est un ShaderMaterial, qui n'a pas
-				// le raccourci .map des matériaux standard de Three.
-				const liveMap = mesh.material.uniforms?.uMap?.value;
-				if (liveMap) {
-					liveMap.dispose();
-					liveMap.image.close();
-				}
-				mesh.material.dispose();
-				physics.removeNodeCollider(colliderPath);
-			}
-			liveMeshes.delete(path);
+			disposeLiveNode(pendingNodeReleases.shift());
 			continue;
 		}
 		const next = pendingNodeBuilds.entries().next();
@@ -311,6 +317,14 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 		const [path, job] = next.value;
 		pendingNodeBuilds.delete(path);
 		const built = buildNodeMesh(path, job.meshes);
+		// ÉCHANGE, pas remplacement différé (#31) : un nœud dont seul le
+		// maillage change (l'`exclude` du LOD par anneaux dépend de la
+		// position de la fenêtre) reste à l'écran jusqu'ici — la fenêtre l'a
+		// signalé `replaced` au lieu de le libérer. L'ancien ne part qu'une
+		// fois le nouveau construit, dans la MÊME frame : sans ça, les
+		// libérations passant avant les builds, un anneau de sol disparaissait
+		// ~1 s à chaque recentrage (mesuré : 8,17 % du sol absent à 583 ms).
+		if (liveMeshes.has(path)) disposeLiveNode(path);
 		const entries = [];
 		liveMeshes.set(path, entries);
 		for (const { mesh, colliderPath, vertices, indices } of built) {
@@ -1142,13 +1156,20 @@ async function bootLive([lat, lon]) {
 			// frames, le churn perçu commence dès l'arrivée du réseau.
 			fenceDome?.markChurn();
 		},
-		onNodeReleased: (path) => {
-			// Un nœud libéré encore en file de build n'a jamais existé côté
-			// scène/Rapier : le retirer de la file suffit — l'empiler en
-			// libération créerait un dispose sans rien à disposer, et l'oubli
-			// inverse (build après libération) créerait mesh + collider
-			// orphelins, que plus rien ne libérerait jamais.
-			if (pendingNodeBuilds.delete(path)) return;
+		onNodeReleased: (path, opts) => {
+			// `replaced` (#31) : le nœud reste désiré, seul son maillage change
+			// et son remplaçant est déjà en route. On ne retire RIEN — c'est le
+			// build qui échangera, dans une seule frame. Sinon le sol manque
+			// tout le temps du refetch (les libérations passent avant les
+			// builds), et c'est l'anneau qui « recharge » vu en volant.
+			if (opts?.replaced) return;
+			// Sans ce drapeau, la libération est franche. Un build encore en
+			// file est jeté — mais PAS au prix d'oublier ce qui est déjà en
+			// scène : depuis l'échange ci-dessus, un chemin peut être à la fois
+			// construit et en attente d'un remplaçant, et ne retirer que
+			// l'entrée de file laisserait mesh + collider orphelins.
+			const queued = pendingNodeBuilds.delete(path);
+			if (queued && !liveMeshes.has(path)) return;
 			pendingNodeReleases.push(path);
 			fenceDome?.markChurn();
 		},

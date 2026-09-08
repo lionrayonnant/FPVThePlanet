@@ -33,6 +33,17 @@ rapport avec les versions ci-dessous.
   libéré et reconstruit ; le refetch ne touche pas le réseau (Cache API du
   pool, #21).
 
+- L'« anneau qui recharge » en volant : le nœud reconstruit ci-dessus est
+  désormais ÉCHANGÉ, pas libéré puis rebâti. Les libérations passant avant les
+  builds, l'ancien maillage partait aussitôt et le sol manquait tout le temps
+  du refetch — un anneau de terrain disparaissait à chaque recentrage, le
+  temps d'une seconde. La fenêtre marque la libération `replaced` et garde le
+  mesh à l'écran ; `processLiveNodeWork()` retire l'ancien dans la frame même
+  où il pose le nouveau. Mesuré en jeu, saut de 80 m : pic de sol absent
+  8,17 % → 1,99 % à 550 ms, et ce qui reste est du sol RÉELLEMENT neuf (la
+  couronne entrante), pas un trou. Si le refetch échoue pour de bon, l'ancien
+  mesh est retiré à ce moment-là plutôt que laissé orphelin.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

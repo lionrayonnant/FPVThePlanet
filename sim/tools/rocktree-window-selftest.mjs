@@ -330,12 +330,16 @@ await t('un nœud toujours désiré mais dont l\'exclude a changé est reconstru
 	const traverse = async () => ({ nodes: [{ ...NODE_A, exclude: [...exclude] }], radius: RADIUS });
 	const fetched = [], released = [];
 	const fetchNode = async (n) => { fetched.push({ path: n.path, exclude: n.exclude }); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
-	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p) => released.push(p), _traverse: traverse, _fetchNode: fetchNode });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p, opts) => released.push([p, !!opts?.replaced]), _traverse: traverse, _fetchNode: fetchNode });
 	await win.update(ORIGIN);
 	assert.deepEqual(fetched.map((f) => f.exclude), [[]]);
 	exclude = [3];
 	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
-	assert.deepEqual(released, ['3060'], 'l\'ancien mesh doit être libéré avant d\'être reconstruit');
+	// Pas de libération SÈCHE : le mesh en place reste à l'écran jusqu'à ce que
+	// son remplaçant soit construit (sinon un anneau de sol disparaît ~1 s à
+	// chaque recentrage — mesuré en jeu : 8,17 % du sol absent à 583 ms).
+	// L'appelant reçoit le drapeau et sait que le build échangera.
+	assert.deepEqual(released, [['3060', true]], 'libération marquée « remplacement », pas une libération sèche');
 	assert.deepEqual(fetched.map((f) => f.exclude), [[], [3]], `refetché avec le nouvel exclude : ${JSON.stringify(fetched)}`);
 	// Et sans changement d'exclude, rien ne bouge : pas de churn gratuit.
 	await win.update({ lat: ORIGIN.lat + 2000 / 111320, lon: ORIGIN.lon });

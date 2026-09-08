@@ -3266,11 +3266,29 @@ sur les mêmes positions rend les mêmes comptes à ±2 nœuds. Le réseau non p
 n'est pas en cause : 1003 NodeData tirés à concurrence 24 vers kh.google.com,
 0 échec.
 
+### Le churn, vu puis supprimé
+
+Le clignotement anticipé ci-dessus existait bel et bien — vu en vol par
+l'auteur (« une sorte d'anneau qui recharge la zone »), puis mesuré en
+sondant toutes les 200 ms après un saut de 80 m : **8,17 % du sol absent à
+583 ms**, refermé avant 1,2 s. Les libérations passent avant les builds
+(`processLiveNodeWork()`), donc l'ancien maillage partait à la frame suivante
+et le nouveau arrivait ~1 s plus tard.
+
+Remède posé : l'échange. `RocktreeWindow` marque la libération
+`{ replaced: true }` quand le nœud reste désiré, `main.js` ne retire alors
+rien, et `disposeLiveNode()` — extrait de la file de libérations, partagé par
+les deux chemins — est appelé dans la frame même où le remplaçant est
+construit. Pas de collider dupliqué : le retrait précède l'ajout d'une ligne.
+Le même saut de 80 m mesure **1,99 %**, et ce résidu est du sol neuf (couronne
+entrante), pas un trou. Si le refetch échoue définitivement, `_giveUp()`
+libère l'ancien plutôt que de le laisser orphelin.
+
 ### Non vérifié
 
-- Le churn que ça ajoute (~70 nœuds libérés/reconstruits par recentrage, sous
-  le budget par frame de `processLiveNodeWork()`) n'a pas été mesuré à l'image
-  — le probe par raycast ne voit pas un scintillement transitoire. Si un
-  clignotement se voit au recentrage, le remède est de construire le nouveau
-  maillage AVANT de libérer l'ancien, au prix d'un collider dupliqué le temps
-  de l'échange.
+- Le pic résiduel n'a pas été décomposé nœud par nœud entre « couronne
+  entrante » (irréductible sans précharger au-delà du rayon) et un éventuel
+  reste de remplacements. La mesure par saut de 60 m dans une boucle est
+  bruitée : le drone chute et dérive entre deux sondes, et un saut plus court
+  que `REFRESH_THRESHOLD_M` ne déclenche aucun recentrage. Seul l'A/B sur un
+  même saut de 80 m est propre.
