@@ -57,6 +57,8 @@ import { DistantGround } from './ground.js';
 import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
+import { warmUp as warmUpTraverseWorker } from './rocktree-traverse-client.js';
+import { warmUp as warmUpNodePool } from './rocktree-worker-pool.js';
 import { AmbientDrones } from './ambient-drones.js';
 import { PlayerDrone } from './onboard-drone.js';
 
@@ -1101,12 +1103,64 @@ const ROCKTREE_LEVEL = 21;
 // collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
 // spawn — pas de recentrage en vol (hors périmètre, voir la spec).
 async function bootLive([lat, lon]) {
-	// Le chemin scène le fait dans preloadScene() (avant tout usage de
-	// Rapier/Physics) — bootLive() ne passe jamais par preloadScene(), donc
+	// Trois latences indépendantes, RECOUVERTES plutôt qu'additionnées (lionrayonnant/FPVTP#295) :
+	// l'init de Rapier (chunk WASM à charger et compiler), la première
+	// traversée rocktree (6 frontières de bulks séquentielles sur le réseau)
+	// et la création des Workers (pool de fetch + traversée : un chargement de
+	// module chacun, qui n'était payé qu'au premier fetchNode(), donc APRÈS la
+	// traversée). Avant, bootLive() attendait Rapier avant de lancer quoi que
+	// ce soit sur le réseau.
+	//
+	// Le chemin scène fait initPhysics() dans preloadScene() (avant tout usage
+	// de Rapier/Physics) — bootLive() ne passe jamais par preloadScene(), donc
 	// jamais par cet appel sans le reproduire ici. Sans lui, `new
 	// Physics(...)` plante immédiatement (module WASM Rapier non initialisé),
 	// avant même la première requête réseau vers kh.google.com (#174).
-	await initPhysics();
+	const physicsReady = initPhysics();
+	warmUpTraverseWorker();
+	warmUpNodePool();
+
+	const rocktreeWindow = new RocktreeWindow({
+		level: ROCKTREE_LEVEL,
+		origin: { lat, lon },
+		// La distance d'affichage vient du curseur Settings (#182), dès le boot
+		// — démarrer au repli puis élargir une frame plus tard fetcherait le
+		// boot en deux vagues.
+		floorRadiusM: loadViewRange(),
+		// Les callbacks n'exécutent RIEN (#184) : ils empilent, et le travail
+		// réel (build + cuisson Rapier + upload texture + dispose) est étalé
+		// par processLiveNodeWork() sous un budget par frame. Mesuré avant :
+		// chaque nœud ne coûte que ~1,4 ms, mais le pool en livre des dizaines
+		// dans la même frame — gels de 70 à 330 ms à chaque vague, GPU oisif.
+		// Ni l'un ni l'autre ne touche `physics` : ils peuvent donc courir
+		// pendant que Rapier s'initialise encore (lionrayonnant/FPVTP#295).
+		onNodeReady: (path, matrix, meshes, sphereRadius) => {
+			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
+			// Signal "la fenêtre bouge" pour le dôme numérique (#198) — au
+			// moment où le nœud est REÇU, pas où processLiveNodeWork() le
+			// construit sous budget : ce dernier peut traîner plusieurs
+			// frames, le churn perçu commence dès l'arrivée du réseau.
+			fenceDome?.markChurn();
+		},
+		onNodeReleased: (path) => {
+			// Un nœud libéré encore en file de build n'a jamais existé côté
+			// scène/Rapier : le retirer de la file suffit — l'empiler en
+			// libération créerait un dispose sans rien à disposer, et l'oubli
+			// inverse (build après libération) créerait mesh + collider
+			// orphelins, que plus rien ne libérerait jamais.
+			if (pendingNodeBuilds.delete(path)) return;
+			pendingNodeReleases.push(path);
+			fenceDome?.markChurn();
+		},
+	});
+	// Amorce la fenêtre autour du spawn avant la première frame : sans ce
+	// premier appel, le drone tombe dans le vide jusqu'au premier update()
+	// de la boucle de rendu. Lancée ICI, avant d'attendre Rapier, pour que le
+	// réseau travaille pendant la compilation du WASM ; attendue plus bas,
+	// juste avant la boucle qui guette le sol.
+	const firstWave = rocktreeWindow.update({ lat, lon });
+
+	await physicsReady;
 	const emptyCollision = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
 	// Position PROVISOIRE : aucun relief n'est chargé au moment de la
 	// construction de Physics. Le vrai point de spawn est calé sur le sol réel
@@ -1127,37 +1181,6 @@ async function bootLive([lat, lon]) {
 	// retard, pas par un défaut du maillage de collision.
 	physics.reset();
 
-	const rocktreeWindow = new RocktreeWindow({
-		level: ROCKTREE_LEVEL,
-		origin: { lat, lon },
-		// La distance d'affichage vient du curseur Settings (#182), dès le boot
-		// — démarrer au repli puis élargir une frame plus tard fetcherait le
-		// boot en deux vagues.
-		floorRadiusM: loadViewRange(),
-		// Les callbacks n'exécutent RIEN (#184) : ils empilent, et le travail
-		// réel (build + cuisson Rapier + upload texture + dispose) est étalé
-		// par processLiveNodeWork() sous un budget par frame. Mesuré avant :
-		// chaque nœud ne coûte que ~1,4 ms, mais le pool en livre des dizaines
-		// dans la même frame — gels de 70 à 330 ms à chaque vague, GPU oisif.
-		onNodeReady: (path, matrix, meshes, sphereRadius) => {
-			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
-			// Signal "la fenêtre bouge" pour le dôme numérique (#198) — au
-			// moment où le nœud est REÇU, pas où processLiveNodeWork() le
-			// construit sous budget : ce dernier peut traîner plusieurs
-			// frames, le churn perçu commence dès l'arrivée du réseau.
-			fenceDome?.markChurn();
-		},
-		onNodeReleased: (path) => {
-			// Un nœud libéré encore en file de build n'a jamais existé côté
-			// scène/Rapier : le retirer de la file suffit — l'empiler en
-			// libération créerait un dispose sans rien à disposer, et l'oubli
-			// inverse (build après libération) créerait mesh + collider
-			// orphelins, que plus rien ne libérerait jamais.
-			if (pendingNodeBuilds.delete(path)) return;
-			pendingNodeReleases.push(path);
-			fenceDome?.markChurn();
-		},
-	});
 	liveWindow = rocktreeWindow;
 	fenceDome = new FenceDome(scene);
 	if (!MODE.bench) {
@@ -1189,10 +1212,9 @@ async function bootLive([lat, lon]) {
 	// prochain update() de frame() charge la couronne manquante (ou libère
 	// l'excédent) sans redémarrage.
 	settings.setViewRange(loadViewRange(), (m) => rocktreeWindow.setFloorRadiusM(m));
-	// Amorce la fenêtre autour du spawn avant la première frame : sans ce
-	// premier appel, le drone tombe dans le vide jusqu'au premier update()
-	// de la boucle de rendu.
-	await rocktreeWindow.update({ lat, lon });
+	// La première traversée, lancée tout en haut (lionrayonnant/FPVTP#295) : d'ici, Rapier est
+	// prêt et les premiers nœuds sont peut-être déjà en file de build.
+	await firstWave;
 
 	// Attend le SOL RÉEL avant de lâcher le drone (#182). L'origine ENU est à
 	// l'altitude 0 de l'ellipsoïde et le spawn à +80 m — or le terrain, lui,
@@ -2619,6 +2641,13 @@ async function chooseScene() {
 		if (pick.create) await register();
 		else await operator.selectOperator(pick.id);
 	}
+
+	// Rapier (chunk WASM séparé depuis lionrayonnant/FPVTP#295, voir physics.js) se charge et se
+	// compile PENDANT que le joueur lit le terminal : au premier FLY il est
+	// déjà là. Sans attente ni conséquence en cas d'échec ici — preloadScene()
+	// et bootLive() refont l'appel (même promesse mémorisée) et, eux, en
+	// rendent compte.
+	initPhysics().catch(() => {});
 
 	// Pas de démarrage de musique ici : c'est startup(), dans le geste du PRESS
 	// ANY KEY, qui s'en charge. Un appel de plus ici tournerait au chargement,

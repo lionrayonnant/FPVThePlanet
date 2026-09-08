@@ -3101,6 +3101,113 @@ Constaté en direct sur l'écran SELECT OPERATION MODE (donc avant `boot()`) :
 - Les butées des trois axes centrés sont mesurées **d'un seul côté** et
   supposées symétriques. Une radio franchement asymétrique n'est pas couverte.
 
+## Performance du chargement LIVE et du build (issue lionrayonnant/FPVTP#295)
+
+### Vérifié — sans navigateur, réseau réel
+
+Point de départ, mesuré depuis cette session contre `kh.google.com` (joignable) :
+le service répond `cache-control: no-cache, must-revalidate`, donc le cache
+HTTP du navigateur ne garde ni bulks ni nœuds — **chaque recalcul de fenêtre
+(tous les 50 m de vol) refaisait la marche entière depuis la racine** ; à
+Paris, 300 m au niveau 21 : 1494 nœuds, 344 bulks, 345 requêtes. Et
+`zoneOf()` retient un carré là où la fenêtre est un disque partout ailleurs
+(confiance, fondu de bord, dôme) : 235 de ces 1494 nœuds (15,7 %) étaient
+entièrement hors du disque, fetchés, décodés, cuits en Rapier et rendus dans
+le brouillard de bord.
+
+- **`traverse()` pipelinée** (`tools/lib/rocktree/traverse.mjs`) : file sous
+  plafond de concurrence (`BULK_CONCURRENCY = 16`) au lieu de générations
+  synchrones découpées en lots séquentiels de 8. Même ensemble de nœuds,
+  epochs et flags — vérifié sur les fixtures contre l'oracle d'énumération
+  (selftest existant) ET contre le service réel (dump des 437 et 1494 chemins
+  avant/après, identiques). Un test de plus force un ordre d'arrivée aléatoire
+  et un plafond de 3 en vol.
+- **Cache de bulks + planetoid** (`createTraverseCache()`), persistant dans
+  `src/rocktree-traverse-worker.js` pour toute la session de vol. Clé
+  `chemin@epoch`, 404 mémorisés, éviction par ancienneté (2000 entrées),
+  planetoid gardé 10 min ; un échec réseau n'y entre jamais.
+- **Disque, pas carré** : `RocktreeWindow.update()` ne désire que les nœuds
+  dont la box recoupe le disque de `loadRadiusM` (`boxIntersectsDisc`).
+- **`bootLive()` recouvre ses latences** : la première traversée part AVANT
+  `await initPhysics()`, et les Workers (pool de fetch + traversée) sont
+  créés d'emblée (`warmUp()`), plus au premier `fetchNode()`.
+- **Rapier par `import()`** (`src/physics.js`) : chunk séparé de 2 Mo, chargé
+  au premier `initPhysics()` et préchauffé depuis le terminal
+  (`chooseScene()`). Tout usage de `RAPIER` passait déjà par `initPhysics()`.
+
+Mesuré, service réel, avec 60 ms de latence artificielle par requête pour
+émuler une connexion domestique (le lien de cette machine est trop rapide
+pour être représentatif ; sans ajout : 1243 → 567 ms) :
+
+| | avant | après |
+|---|---|---|
+| traversée de boot, 300 m niveau 21 | 4269 ms | 2011 ms |
+| recalcul après 50 m de vol | 3521 ms, 306 bulks | 80 ms, 9 bulks (297 en cache) |
+| recalcul après 100 m | — | 151 ms, 21 bulks |
+| nœuds fetchés/construits/rendus par vague | 1494 | ~1259 (−15,7 %) |
+
+Build : un chunk de 2,94 Mo (1,03 Mo gzip) → `index` 417 Ko + `three` 466 Ko
++ `rapier` 2,06 Mo (différé) ; `tools/precompress.mjs` produit `.br`/`.gz`
+(4,8 Mo → 1,0 Mo brotli) que `server/static.mjs` sert (11 vérifications de
+plus dans `server-selftest.mjs`, 78 au total). `npm run selftest:ci` et
+`npm run build` au vert.
+
+### Deuxième passe (issue lionrayonnant/FPVTP#296) : LOD par anneaux et cache disque — vérifié sans navigateur
+
+- **Niveau de détail par anneaux** (`tools/lib/rocktree/lod.mjs`,
+  `LOD_RINGS`) : niveau plein (21) jusqu'à 150 m, 20 jusqu'à 300 m, 19
+  au-delà — CHOISI sur l'argument du pixel (à 150 m en FOV FPV 1080p, un
+  pixel couvre ~0,2 m au sol, le niveau 21 y est sous-pixel). Une traversée
+  par anneau, en séquence du plus fin au plus grossier (les suivantes ne
+  touchent que le cache de bulks : 0 requête réseau, ~30 ms), puis
+  `assembleLod()` : un nœud plus grossier exclut les octants qu'un nœud plus
+  fin dessine (le mécanisme `exclude` de `build-node.mjs`), dans les deux
+  sens (un fill-in peu profond côté fin, raffiné côté grossier, exclut ses
+  descendants). `tools/rocktree-lod-selftest.mjs` (6 tests) vérifie sur un
+  octree synthétique complet que **chaque point du disque est couvert
+  exactement une fois** — centres de toutes les cellules du niveau 21 plus
+  des couronnes serrées à 149/150/151 et 299/300/301 m — y compris avec un
+  trou et un fill-in à cheval sur la couture. Le drone reste toujours dans
+  l'anneau plein : la fenêtre se recentre tous les 50 m.
+- **Cache disque** (`src/rocktree-cache.js`, Cache API `caches`) dans les
+  deux Workers : NodeData et BulkMetadata persistés entre sessions, clé =
+  URL (epoch incluse), jamais PlanetoidMetadata, réponses non-ok jamais
+  stockées, éviction par nombre d'entrées (5000, comptées toutes les 250
+  écritures), dégradation en fetch nu sans Cache API (contexte non sécurisé)
+  ou si `open()`/`put()` échouent. `tools/rocktree-cache-selftest.mjs`
+  (6 tests) avec des doublures de `caches`/`fetch`.
+
+Mesuré contre le service réel (Paris, `?live=48.8578,2.2950`) :
+
+| rayon | niveau 21 seul (après lionrayonnant/FPVTP#295) | LOD | dont |
+|---|---|---|---|
+| 300 m | 1259 nœuds | 740 | 505 @21, 235 @20 |
+| 600 m | 4176 nœuds | 1003 | 505 @21, 235 @20, 263 @19 |
+
+Soit −41 % à 300 m et −76 % à 600 m de nœuds à fetcher, décoder, cuire en
+Rapier et dessiner (un draw call chacun, ~624 Kio décodés chacun). Le curseur
+« View range » à 600 m, qui pesait ~2,5 Go décodés, devient tenable.
+
+### NON vérifié — rien n'a été VU en vol
+
+Aucun navigateur dans cette session. À juger à l'écran sur `?live=48.8578,2.2950` :
+**la couture entre anneaux** (à 150 m et 300 m du centre de la fenêtre : la
+texture y passe d'un coup à 2× plus grossière, la géométrie aussi — si ça se
+voit, écarter les rayons de `LOD_RINGS` ou n'en garder que deux), et
+**le cache disque** (DevTools → Application → Cache Storage →
+`fpvtp-rocktree-v1` doit se remplir ; un REDEPLOY au même endroit doit
+booter avec zéro requête `NodeData`/`BulkMetadata` dans l'onglet réseau).
+Puis, comme pour lionrayonnant/FPVTP#295 :
+que le boot reste stable (le sol attendu, la vague complète), que le drone
+ne rencontre aucun bord de terrain visible à l'intérieur du disque (le fondu
+de bord commence à `loadRadiusM − 50 m`, le culling à `loadRadiusM` — il ne
+devrait donc rien changer à l'image), et que les recalculs en vol soient
+maintenant imperceptibles (le worker de traversée annonce `cachedBulks`
+dans sa réponse, lisible dans un `console.log` temporaire si besoin). Le
+préchauffage de Rapier depuis le terminal n'a pas été observé non plus :
+vérifier dans l'onglet réseau que `rapier.es-*.js` se charge pendant le
+terminal et pas au FLY.
+
 ## Leviers de secours si besoin
 
 - `npm run add-map -- … --cell 128` : cellules 128px au lieu de 256 (VRAM 1,65 Go → 413 Mo,

@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -36,6 +37,22 @@ fs.mkdirSync(DIST, { recursive: true });
 fs.writeFileSync(path.join(DIST, 'index.html'), '<!doctype html><title>FPVTP</title>');
 fs.mkdirSync(path.join(DIST, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(DIST, 'assets', 'index-abcd1234.js'), 'export const x = 1;\n');
+// Un asset assez gros pour être précompressé (lionrayonnant/FPVTP#295), passé par le VRAI outil ;
+// et un asset dont le .br est plus VIEUX que la source (build partiel).
+const BIG = Buffer.from(Array.from({ length: 200 }, (_, i) => `export const v${i} = ${'x'.repeat(40)};\n`).join(''));
+fs.writeFileSync(path.join(DIST, 'assets', 'big-abcd1234.js'), BIG);
+const { precompress } = await import('./precompress.mjs');
+const compressed = precompress(DIST);
+const BIG_BR = fs.readFileSync(path.join(DIST, 'assets', 'big-abcd1234.js.br'));
+const BIG_GZ = fs.readFileSync(path.join(DIST, 'assets', 'big-abcd1234.js.gz'));
+// Posé APRÈS precompress (qui l'aurait régénéré) : le .br date d'une minute,
+// la source est neuve — c'est le serveur qui doit l'écarter, pas l'outil.
+const STALE_SRC = 'export const fresh = true;\n' + '// '.padEnd(2000, '=') + '\n';
+const stalePath = path.join(DIST, 'assets', 'stale-abcd1234.js');
+fs.writeFileSync(stalePath + '.br', zlib.brotliCompressSync(Buffer.from('export const OLD = true;\n')));
+const old = new Date(Date.now() - 60_000);
+fs.utimesSync(stalePath + '.br', old, old);
+fs.writeFileSync(stalePath, STALE_SRC);
 const sceneDir = path.join(DATA, 'scenes', SLUG);
 fs.mkdirSync(sceneDir, { recursive: true });
 fs.writeFileSync(path.join(sceneDir, 'manifest.json'), JSON.stringify({ chunks: [] }));
@@ -62,6 +79,9 @@ const at = (b) => async (p, init) => {
 		cache: r.headers.get('cache-control') ?? '',
 		range: r.headers.get('content-range') ?? '',
 		etag: r.headers.get('etag') ?? '',
+		encoding: r.headers.get('content-encoding') ?? '',
+		vary: r.headers.get('vary') ?? '',
+		length: r.headers.get('content-length') ?? '',
 		buf: Buffer.from(await r.arrayBuffer()),
 	};
 };
@@ -73,6 +93,13 @@ try {
 	// --- le port 0 a bien été résolu ------------------------------------------
 	check('port 0 : le serveur choisit un port libre',
 		Number.isInteger(started.port) && started.port > 0);
+
+	// --- precompress (lionrayonnant/FPVTP#295) : ce qu'il produit, et ce qu'il laisse tranquille --
+	check('precompress : big.js (> 1 Kio) compressé en .br et .gz, les petits fichiers laissés tels quels',
+		compressed.files === 1
+		&& BIG_BR.length < BIG.length && BIG_GZ.length < BIG.length
+		&& !fs.existsSync(path.join(DIST, 'assets', 'index-abcd1234.js.br'))
+		&& !fs.existsSync(path.join(DIST, 'index.html.br')));
 
 	// --- les chemins suivent le répertoire de données -------------------------
 	check('les chemins suivent --data',
@@ -147,6 +174,47 @@ try {
 	const revalidated = await get(`/scenes/${SLUG}/chunk-0.bin`, { headers: { 'if-none-match': chunk.etag } });
 	check('ETag faible : un second appel rend 304',
 		chunk.etag.startsWith('W/"') && revalidated.status === 304 && revalidated.buf.length === 0);
+
+	// --- précompression (lionrayonnant/FPVTP#295) -------------------------------------------------
+	// tools/precompress.mjs a posé un .br et un .gz à côté de big.js (voir le
+	// dist factice plus haut). fetch() de Node décode lui-même le corps : on
+	// juge donc sur les en-têtes ET sur le corps décodé, qui doit être le clair.
+	const plain = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'identity' } });
+	check('sans Accept-Encoding compressible : le clair, avec Vary',
+		plain.status === 200 && plain.encoding === '' && plain.vary === 'accept-encoding'
+		&& plain.buf.equals(BIG) && plain.length === String(BIG.length));
+
+	const brotli = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'gzip, deflate, br' } });
+	check('Accept-Encoding: br : le .br précalculé, content-encoding, taille du .br',
+		brotli.status === 200 && brotli.encoding === 'br' && brotli.vary === 'accept-encoding'
+		&& brotli.length === String(BIG_BR.length) && brotli.buf.equals(BIG)
+		&& brotli.cache === 'public, max-age=31536000, immutable');
+
+	const gzipped = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'gzip' } });
+	check('Accept-Encoding: gzip seul : le .gz',
+		gzipped.status === 200 && gzipped.encoding === 'gzip' && gzipped.length === String(BIG_GZ.length) && gzipped.buf.equals(BIG));
+
+	const zeroQ = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'br;q=0, gzip;q=0' } });
+	check('q=0 refuse un encodage : le clair', zeroQ.status === 200 && zeroQ.encoding === '' && zeroQ.buf.equals(BIG));
+
+	check('une ETag par représentation : clair et brotli ne partagent pas la même',
+		plain.etag && brotli.etag && plain.etag !== brotli.etag && brotli.etag.endsWith('-br"'));
+	const brotli304 = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'br', 'if-none-match': brotli.etag } });
+	const cross = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'br', 'if-none-match': plain.etag } });
+	check('If-None-Match : 304 sur l\'ETag de SA représentation, 200 sur celle de l\'autre',
+		brotli304.status === 304 && cross.status === 200 && cross.encoding === 'br');
+
+	const ranged = await get('/assets/big-abcd1234.js', { headers: { 'accept-encoding': 'br', range: 'bytes=0-9' } });
+	check('un Range n\'est jamais servi compressé',
+		ranged.status === 206 && ranged.encoding === '' && ranged.buf.equals(BIG.subarray(0, 10)));
+
+	const stale = await get('/assets/stale-abcd1234.js', { headers: { 'accept-encoding': 'br' } });
+	check('un .br plus vieux que sa source est ignoré (build partiel) : le clair',
+		stale.status === 200 && stale.encoding === '' && stale.buf.toString() === STALE_SRC);
+
+	const binary = await get(`/scenes/${SLUG}/chunk-0.bin`, { headers: { 'accept-encoding': 'br, gzip' } });
+	check('un type non compressible n\'a ni content-encoding ni Vary',
+		binary.status === 200 && binary.encoding === '' && binary.vary === '');
 
 	// --- l'API répond, et n'est jamais mise en cache --------------------------
 	const apiScenes = await get('/__map-api/scenes');

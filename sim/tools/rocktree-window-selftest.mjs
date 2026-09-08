@@ -4,8 +4,9 @@
 // { nodes, radius } — même forme que le vrai traverse() de traverse.mjs
 // (radius vient de PlanetoidMetadata) — PAS un tableau nu.
 import assert from 'node:assert/strict';
-import { RocktreeWindow, REFRESH_THRESHOLD_M, TRUST_MARGIN_M, FALLBACK_RADIUS_M, RETRY_MAX_ATTEMPTS, RETRY_DELAY_MS } from '../src/rocktree-window.js';
+import { RocktreeWindow, REFRESH_THRESHOLD_M, TRUST_MARGIN_M, FALLBACK_RADIUS_M, RETRY_MAX_ATTEMPTS, RETRY_DELAY_MS, boxIntersectsDisc } from '../src/rocktree-window.js';
 import { WORST_MEASURED_SPEED_MS } from '../src/geofence.js';
+import { ringsFor } from './lib/rocktree/lod.mjs';
 
 let n = 0;
 const t = async (name, fn) => { await Promise.resolve(fn()); n++; console.log(`  ok  ${name}`); };
@@ -133,19 +134,23 @@ await t('setFloorRadiusM() change le rayon rendu et force le recalcul au prochai
 	const { fetchNode, fetched } = fakeDeps({ traverseNodes: [NODE_A] });
 	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
 	await win.update(ORIGIN);
-	assert.equal(zones.length, 1);
+	// Une traversée par anneau de LOD (lionrayonnant/FPVTP#296) : la dernière de chaque update()
+	// est celle de l'anneau extérieur, au rayon de chargement.
+	const ringsBefore = ringsFor(FALLBACK_RADIUS_M, 21).length;
+	assert.equal(zones.length, ringsBefore);
 	assert.equal(win.nearestTrustedRadius(), FALLBACK_RADIUS_M - TRUST_MARGIN_M);
 	win.setFloorRadiusM(500);
 	assert.equal(win.nearestTrustedRadius(), 500 - TRUST_MARGIN_M);
 	// Même position : sans l'invalidation, cet update() serait un no-op et la
 	// couronne 200→500 m ne serait jamais chargée.
 	await win.update(ORIGIN);
-	assert.equal(zones.length, 2, 'update() après setFloorRadiusM() n\'a pas re-traversé');
-	// La zone (bbox degrés, zoneOf) doit s'être élargie dans le rapport des
-	// rayons : 500/200 = 2,5.
+	const ringsAfter = ringsFor(500, 21).length;
+	assert.equal(zones.length, ringsBefore + ringsAfter, 'update() après setFloorRadiusM() n\'a pas re-traversé');
+	// La zone extérieure (bbox degrés, zoneOf) doit s'être élargie dans le
+	// rapport des rayons : 500/200 = 2,5.
 	const height = (z) => z.north - z.south;
-	assert.ok(Math.abs(height(zones[1]) / height(zones[0]) - 500 / FALLBACK_RADIUS_M) < 1e-9,
-		`zone pas élargie : ${height(zones[0])} → ${height(zones[1])}`);
+	assert.ok(Math.abs(height(zones.at(-1)) / height(zones[ringsBefore - 1]) - 500 / FALLBACK_RADIUS_M) < 1e-9,
+		`zone pas élargie : ${height(zones[ringsBefore - 1])} → ${height(zones.at(-1))}`);
 	// Et le nœud déjà chargé n'a pas été re-fetché.
 	assert.equal(fetched.length, 1, `re-fetch inutile : ${fetched}`);
 });
@@ -171,7 +176,9 @@ await t('update() fetche les nœuds par distance croissante au drone (#184)', as
 	const traverse = async () => ({ nodes: [far, mid, near], radius: RADIUS });
 	const fetched = [];
 	const fetchNode = async (nd) => { fetched.push(nd.path); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
-	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	// `far` est à ~1,8 km : un rayon de chargement assez grand pour que les
+	// trois soient dans le disque (lionrayonnant/FPVTP#295) — ce test ne juge que l'ORDRE.
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, floorRadiusM: 3000, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
 	await win.update(ORIGIN);
 	assert.deepEqual(fetched, ['near', 'mid', 'far']);
 });
@@ -284,6 +291,31 @@ await t('un retry en attente est abandonné si le nœud n\'est plus désiré ent
 		`NODE_A retenté après avoir quitté la fenêtre : ${JSON.stringify(fetchedPaths)}`);
 	assert.deepEqual(released, [], 'NODE_A était encore pending — abort silencieux attendu, pas onNodeReleased');
 	assert.equal(win.pendingCount(), 0, 'plus aucun fetch en vol une fois NODE_B résolu');
+});
+
+await t('la fenêtre est un disque : un nœud dans le coin du carré de traversée n\'est pas fetché (lionrayonnant/FPVTP#295)', async () => {
+	// Sans latence mesurée, le rayon de chargement est FALLBACK_RADIUS_M. Deux
+	// nœuds à boxes minuscules : l'un dans le coin du carré (distance r·√2·0,9
+	// ≈ 1,27 r, hors du disque), l'autre sur l'axe à 0,9 r (dedans). Et un
+	// troisième dont la box est GRANDE et englobe l'origine : recoupe le
+	// disque même si son centre est loin.
+	const r = FALLBACK_RADIUS_M;
+	const dLat = (m) => m / 111320;
+	const dLon = (m) => m / (111320 * Math.cos(ORIGIN.lat * Math.PI / 180));
+	const tiny = (lat, lon) => ({ s: lat - dLat(1), n: lat + dLat(1), w: lon - dLon(1), e: lon + dLon(1) });
+	const corner = { ...NODE_A, path: '30600', box: tiny(ORIGIN.lat + dLat(0.9 * r), ORIGIN.lon + dLon(0.9 * r)) };
+	const onAxis = { ...NODE_A, path: '30601', box: tiny(ORIGIN.lat + dLat(0.9 * r), ORIGIN.lon) };
+	const big = { ...NODE_A, path: '30602', box: { s: ORIGIN.lat - dLat(3 * r), n: ORIGIN.lat + dLat(3 * r), w: ORIGIN.lon + dLon(0.5 * r), e: ORIGIN.lon + dLon(5 * r) } };
+	const noBox = { ...NODE_A, path: '30603' };
+	const { traverse, fetchNode, fetched } = fakeDeps({ traverseNodes: [corner, onAxis, big, noBox] });
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(fetched.sort(), ['30601', '30602', '30603'].sort(),
+		`fetchés : ${JSON.stringify(fetched)} — le coin doit être écarté, l'axe, la grande box et le nœud sans box gardés`);
+	assert.ok(boxIntersectsDisc(corner.box, ORIGIN, r) === false && boxIntersectsDisc(onAxis.box, ORIGIN, r) === true);
+	// Un nœud dont la box touche juste le bord du disque est gardé (≤, pas <).
+	const edge = tiny(ORIGIN.lat + dLat(r + 0.5), ORIGIN.lon);
+	assert.equal(boxIntersectsDisc(edge, ORIGIN, r), true, 'une box à cheval sur le bord recoupe le disque');
 });
 
 console.log(`rocktree-window-selftest : ${n} tests ok`);
