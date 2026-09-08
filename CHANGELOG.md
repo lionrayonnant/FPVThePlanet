@@ -26,6 +26,10 @@ rapport avec les versions ci-dessous.
   une action porte un nom (`throttleUp`, `pause`, `cutLink`…), ses touches se
   changent, et les valeurs par défaut couvrent QWERTY et AZERTY (W/Z, A/Q).
   Réglages rangés dans `fpvtp.keyMap` ; Tab, Échap et Entrée restent fixes.
+- L'écran de fin de vol montre la machine perdue en 3D, celle qui volait —
+  livrée, numéro et châssis compris — et on peut la tourner à la souris. Elle
+  tourne seule d'un tour toutes les 24 s. Sans contexte WebGL, le portrait fil
+  de fer d'avant prend le relais ; l'archive, elle, garde le SVG (#13).
 
 ### Retiré
 
@@ -47,6 +51,11 @@ rapport avec les versions ci-dessous.
   Vite) au lieu de la constante de lore `0.97b` (#9).
 
 ### Corrigé
+
+- Le portrait de la machine manquait sur deux fins de vol sur trois — sortie de
+  zone et lien coupé — et sur tout vol NOMINAL (`?family=`, `?scene=`, `?live=`,
+  NOMINAL au banc), faute d'exemplaire tiré. Chaque fin porte désormais son
+  portrait, et une famille sans tirage en a un déduit de son nom (#13).
 
 - Face au soleil, l'exposition ferme moins fort : entre 55 et 75 % de son
   niveau au repos au lieu de tomber à 35 %, l'image reste pilotable (#11).

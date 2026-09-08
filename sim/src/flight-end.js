@@ -64,6 +64,11 @@ export const FENCE_TIMELINE = {
 		[1.2, ''],
 		[1.2, 'SIGNAL LOST'],
 		[2.0, 'SESSION TERMINATED'],
+		// D12 : le portrait, à la même place que sur la table du crash — 0,4 s
+		// après le constat, avant que la sortie s'arme. Une machine perdue hors
+		// couverture est perdue autant qu'une machine encastrée : il n'y avait
+		// aucune raison de ne la montrer qu'après un impact.
+		[2.4, PORTRAIT_LINE],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],
@@ -90,6 +95,10 @@ export const CUT_TIMELINE = {
 		[1.2, ''],
 		[1.2, 'TARGET LOST'],
 		[2.0, 'SESSION TERMINATED'],
+		// D12 : le portrait, comme sur les deux autres tables. C'est l'opérateur
+		// qui a prononcé la fin, la machine est perdue pareil — et c'est la
+		// seule fin qu'on choisit, donc la seule où l'on prend le temps.
+		[2.4, PORTRAIT_LINE],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],

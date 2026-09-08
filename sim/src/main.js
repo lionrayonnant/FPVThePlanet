@@ -6,7 +6,7 @@ import { crashThreshold, idleThrottle } from './quad.js';
 import { chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
-import { PROFILES, FAMILIES } from './drone-profiles.js';
+import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
@@ -2493,6 +2493,10 @@ async function chooseScene() {
 	const ui = document.getElementById('ui');
 
 	if (OPTS.live) {
+		// D12 : ce chemin ne tire pas d'exemplaire, et il sort AVANT la branche
+		// de startup() qui pose la graine. Sans elle, la fin d'un vol ?live=
+		// n'avait pas de machine à montrer.
+		flightBuildSeed = nominalBuildSeed(PROFILE?.family);
 		await bootLive(OPTS.live);
 		return null;   // pas de slug : le reste du pipeline scène ne doit pas s'exécuter
 	}
@@ -2776,7 +2780,10 @@ async function benchLoop(ui) {
 	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
 	PROFILE = build ? build.profile : PROFILES[family];
 	flightBuild = build;
-	flightBuildSeed = build ? config.airframe.seed : null;
+	// D12 : NOMINAL n'a pas d'exemplaire tiré, mais il a une machine — la
+	// graine nominale de sa famille lui en donne le portrait sans toucher au
+	// profil volé, qui reste la référence de tools/tune-pid.mjs.
+	flightBuildSeed = build ? config.airframe.seed : nominalBuildSeed(PROFILE.family);
 	benchRates = build?.rates ?? null;
 	if (build) logBuild(build);
 	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (nominal)`);
@@ -2889,7 +2896,10 @@ startup()
 		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
 		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
 		flightBuild = build;
-		flightBuildSeed = build ? buildSeed : null;
+		// D12 : même règle qu'au banc. `?family=` sans `?build=`, `?scene=` sans
+		// TARGET SCAN et le terrain caché du banc volent un profil nominal —
+		// ils gardent désormais un portrait.
+		flightBuildSeed = build ? buildSeed : nominalBuildSeed(PROFILE?.family);
 		controller = new FlightController(
 			PROFILE ? { profile: PROFILE, rates: build?.rates } : undefined,
 		);
@@ -3058,12 +3068,15 @@ async function openFlightSession() {
 	});
 	// La station suit le même exemplaire (#264) : c'est de là que la fin de vol
 	// tire son portrait. Le serveur fait foi quand il a répondu — c'est lui qui
-	// a tiré la cible ; sinon la graine du client, qui est la même. Sans
-	// exemplaire (profil nominal, chemins dev) la ligne du portrait reste un
-	// blanc, jamais son jeton.
+	// a tiré la cible ; sinon la graine du client, qui est la même.
+	//
+	// D12 : il y a TOUJOURS les deux. La famille se lit sur la physique, qui ne
+	// vole jamais sans profil, et un vol nominal porte la graine nominale de sa
+	// famille — l'écran de fin ne perd plus la machine faute de tirage.
+	const shownFamily = tgt?.family ?? physics.profile.family;
 	fpvtpOsd.setTarget({
-		family: tgt?.family ?? (flightBuildSeed ? PROFILE?.family : null),
-		buildSeed: tgt?.buildSeed ?? flightBuildSeed,
+		family: shownFamily,
+		buildSeed: tgt?.buildSeed ?? flightBuildSeed ?? nominalBuildSeed(shownFamily),
 	});
 	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
 	// near = 5 mm. Débranchée en vue CHASE — la même règle d'exclusivité.

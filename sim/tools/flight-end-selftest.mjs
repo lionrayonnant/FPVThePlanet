@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {
 	FlightEnd, TIMELINE, FENCE_TIMELINE, CUT_TIMELINE,
-	CUT, FLYING, CRASHING, TERMINATED,
+	CUT, FLYING, CRASHING, TERMINATED, PORTRAIT_LINE,
 } from '../src/flight-end.js';
 // Namespace import: the removal of landing (D9, 2026-09-08) is asserted on the
 // module's surface itself, and a named import of a gone export would not even
@@ -87,6 +87,21 @@ t('le portrait arrive après SESSION TERMINATED et avant la sortie', () => {
 	assert.ok(at('[PORTRAIT]') > at('SESSION TERMINATED'), 'le portrait précède la fin');
 	assert.ok(at('[PORTRAIT]') <= TIMELINE.exitAt, 'le portrait arrive après la sortie');
 	assert.equal(TIMELINE.exitAt, 4.6, 'la sortie a bougé : la timeline n\'est plus celle de la spec');
+});
+
+t('chaque table de fin porte exactement un portrait', () => {
+	// D12 : le portrait n'était sur la table du crash. Une sortie de zone ou un
+	// lien coupé perdaient la machine sans jamais la montrer.
+	for (const [name, table] of [['TIMELINE', TIMELINE], ['FENCE_TIMELINE', FENCE_TIMELINE], ['CUT_TIMELINE', CUT_TIMELINE]]) {
+		const found = table.lines.filter(([, s]) => s === PORTRAIT_LINE);
+		assert.equal(found.length, 1, `${name} porte ${found.length} portraits`);
+		// Même place que sur la table du crash : 0,4 s après le constat, et
+		// avant que la sortie s'arme. Le noir est monté, le texte est écrit, la
+		// machine apparaît dessus.
+		const terminated = table.lines.find(([, s]) => s === 'SESSION TERMINATED')[0];
+		assert.equal(found[0][0], terminated + 0.4, `${name} : le portrait n'est pas 0,4 s après SESSION TERMINATED`);
+		assert.ok(found[0][0] < table.exitAt, `${name} : le portrait arrive après la sortie`);
+	}
 });
 
 t('la sortie ne s\'arme qu\'à la fin de la séquence', () => {

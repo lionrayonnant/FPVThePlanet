@@ -269,6 +269,13 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #flight-end div:empty { height: .6em; }
 
+/* D12 — la machine en 3D sur l'écran de fin (src/drone-viewer.js). C'est le
+   seul élément de la couche qu'on attrape : #flight-end est en
+   pointer-events: none, celui-ci les reprend pour qu'on puisse la tourner. */
+.drone-viewer { pointer-events: auto; cursor: grab; touch-action: none; }
+.drone-viewer:active { cursor: grabbing; }
+.drone-viewer canvas { display: block; }
+
 /* ---------- settings ---------- */
 
 #settings {

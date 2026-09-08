@@ -71,6 +71,10 @@ class FakeElement {
 		return n._isRoot === true;
 	}
 
+	// La racine de l'arbre, comme dans un vrai DOM. OrbitControls s'en sert
+	// pour poser ses écouteurs de pointeur au-dessus du canvas.
+	getRootNode() { let n = this; while (n.parent) n = n.parent; return n; }
+
 	contains(el) {
 		for (let n = el; n; n = n.parent) if (n === this) return true;
 		return false;
@@ -315,7 +319,7 @@ export function installFakeDom({ raf = false } = {}) {
 	const saved = {};
 	const g = globalThis;
 	for (const k of ['document', 'window', 'localStorage', 'navigator',
-		'requestAnimationFrame', 'cancelAnimationFrame']) {
+		'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame']) {
 		saved[k] = Object.getOwnPropertyDescriptor(g, k);
 	}
 	Object.defineProperty(g, 'document', { value: fake.document, configurable: true, writable: true });
@@ -323,6 +327,13 @@ export function installFakeDom({ raf = false } = {}) {
 	Object.defineProperty(g, 'localStorage', { value: fake.localStorage, configurable: true, writable: true });
 	// menu-nav.js interroge la manette à chaque tick ; aucune ici.
 	Object.defineProperty(g, 'navigator', { value: { getGamepads: () => [] }, configurable: true, writable: true });
+	// src/palette.js reads the CSS custom properties off the document. There is
+	// no stylesheet here, so every token resolves to '' and palette.js falls
+	// back to its own table — which is the point: a colour asserted in a test
+	// must come from the code, not from a sheet the test did not load.
+	Object.defineProperty(g, 'getComputedStyle', {
+		value: () => ({ getPropertyValue: () => '' }), configurable: true, writable: true,
+	});
 	if (raf) {
 		Object.defineProperty(g, 'requestAnimationFrame', { value: (fn) => fake.requestAnimationFrame(fn), configurable: true, writable: true });
 		Object.defineProperty(g, 'cancelAnimationFrame', { value: (id) => fake.cancelAnimationFrame(id), configurable: true, writable: true });

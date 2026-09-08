@@ -9,6 +9,7 @@ import { PORTRAIT_LINE } from './flight-end.js';
 // Le portrait de la machine perdue (#264). Du SVG en ligne : la couche locale
 // est du DOM, elle n'ouvre pas de contexte de rendu.
 import { dronePortrait } from './drone-portrait.js';
+import { droneViewer } from './drone-viewer.js';
 import { versionLine } from './version.js';
 
 // D'où le vent pousse, dans le repère du drone : l'index 0 est droit devant.
@@ -144,8 +145,15 @@ export class FpvtpOsd {
 	// Le nœud du portrait, fabriqué une seule fois : la séquence de fin
 	// reconstruit ses lignes à chaque ligne qui apparaît, et un portrait
 	// reconstruit à chaque fois repartirait de son premier angle.
+	//
+	// D12 : d'abord la VRAIE machine, en 3D et qu'on peut tourner — on est dans
+	// le sim, le maillage et ses shaders sont déjà chargés. Le fil de fer SVG
+	// reste le repli, pour un contexte WebGL qui manque ou qui a été perdu ; il
+	// reste aussi ce que l'archive affiche, elle qui n'a pas Three.
 	_portraitNode() {
-		if (!this._portrait && this._target) this._portrait = dronePortrait(this._target);
+		if (!this._portrait && this._target) {
+			this._portrait = droneViewer(this._target) ?? dronePortrait(this._target);
+		}
 		return this._portrait?.el ?? null;
 	}
 
