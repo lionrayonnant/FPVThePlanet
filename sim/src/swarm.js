@@ -480,7 +480,7 @@ export class SwarmModel {
 		}
 
 		// 3. Fly them.
-		const w = 1 / this.tau;
+		const om = 1 / this.tau;
 		for (let k = 0; k < n; k++) {
 			const o = 3 * k;
 			// Per-unit gust: the same wind, not at the same instant.
@@ -494,9 +494,9 @@ export class SwarmModel {
 			// Critically damped spring onto the slot, with the slot's own
 			// velocity as the feed-forward: without it the swarm trails
 			// permanently instead of only when it cannot keep up.
-			let ax = w * w * (this._slot[o] - this.pos[o]) + 2 * w * (this._slotVel[o] - this.vel[o]) + this._sep[o] - dg.x * s * rx / m;
-			let ay = w * w * (this._slot[o + 1] - this.pos[o + 1]) + 2 * w * (this._slotVel[o + 1] - this.vel[o + 1]) + this._sep[o + 1] - dg.y * s * ry / m;
-			let az = w * w * (this._slot[o + 2] - this.pos[o + 2]) + 2 * w * (this._slotVel[o + 2] - this.vel[o + 2]) + this._sep[o + 2] - dg.z * s * rz / m;
+			let ax = om * om * (this._slot[o] - this.pos[o]) + 2 * om * (this._slotVel[o] - this.vel[o]) + this._sep[o] - dg.x * s * rx / m;
+			let ay = om * om * (this._slot[o + 1] - this.pos[o + 1]) + 2 * om * (this._slotVel[o + 1] - this.vel[o + 1]) + this._sep[o + 1] - dg.y * s * ry / m;
+			let az = om * om * (this._slot[o + 2] - this.pos[o + 2]) + 2 * om * (this._slotVel[o + 2] - this.vel[o + 2]) + this._sep[o + 2] - dg.z * s * rz / m;
 			const an = Math.hypot(ax, ay, az);
 			if (an > ACCEL_MAX) { const f = ACCEL_MAX / an; ax *= f; ay *= f; az *= f; }
 			this.acc[o] = ax; this.acc[o + 1] = ay; this.acc[o + 2] = az;
@@ -509,7 +509,7 @@ export class SwarmModel {
 			// point on the wake, which is inside the fence): doing it in this
 			// order, neither undoes the other.
 			this._fenceClamp(o, fence);
-			this._tube(k, dt);
+			this._tube(k);
 			this._attitude(k, dt);
 		}
 	}
@@ -568,13 +568,17 @@ export class SwarmModel {
 
 	// ------------------------------------------------------- the ray budget
 	//
-	// One obstruction test per unit and per turn, from where the unit IS to
-	// where its slot is — the only segment that is not the wake. A unit ahead
-	// is tested every turn (its slot is extrapolated, i.e. unvalidated), a unit
-	// behind one turn in three. Never more than RAY_BUDGET casts, whatever the
-	// size and whatever the doctrine.
+	// One obstruction test per unit and per turn, over the only stretch that is
+	// not the wake: the offset (see _cast() for where exactly the segment
+	// starts and ends). A unit ahead is tested every turn — its slot is
+	// extrapolated, so nothing has ever validated it — a unit behind one turn
+	// in three. Never more than RAY_BUDGET casts, whatever the size and
+	// whatever the doctrine.
 	_castRays(terrain) {
 		this.raysLastFrame = 0;
+		// No ray provider (a boot frame, a scene still loading): nobody is
+		// cleared, so every unit stays folded onto the pure wake. Degrading
+		// towards single file is the whole point of the fallback.
 		if (!terrain || !terrain.obstructionBetween) return;
 		const n = this.size;
 		this._turn++;
@@ -680,7 +684,7 @@ export class SwarmModel {
 	// window around the unit's own read index: a unit that has fallen behind
 	// is behind ON the wake, so the net pulls it sideways onto the track, it
 	// never drags it forwards past where it has got to.
-	_tube(k, dt) {
+	_tube(k) {
 		const n = this._count;
 		if (n < 1) return;
 		const o = 3 * k;
@@ -727,7 +731,9 @@ export class SwarmModel {
 	_attitude(k, dt) {
 		const o = 3 * k, q = 4 * k;
 		let yawX = this.vel[o], yawZ = this.vel[o + 2];
-		if (Math.hypot(yawX, yawZ) < 1e-6) { yawX = this._w.tx; yawZ = this._w.tz; }
+		// Standing still: face the way the track was going at this unit's own
+		// anchor, not wherever the last unit read.
+		if (Math.hypot(yawX, yawZ) < 1e-6) { yawX = this._frame[4 * k]; yawZ = this._frame[4 * k + 2]; }
 		if (Math.hypot(yawX, yawZ) < 1e-6) { yawX = 0; yawZ = -1; }
 		this._att.ax = this.acc[o]; this._att.ay = this.acc[o + 1]; this._att.az = this.acc[o + 2];
 		this._att.vx = this.vel[o]; this._att.vy = this.vel[o + 1]; this._att.vz = this.vel[o + 2];
