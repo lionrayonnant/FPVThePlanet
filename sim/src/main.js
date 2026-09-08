@@ -2010,9 +2010,13 @@ function frame() {
 			swarmFence.radius = liveWindow.nearestTrustedRadius();
 		}
 		if (!frozen) swarmClock += dt;
+		// Gelé, dt = 0 et les voix se taisent — mais update() tourne quand
+		// même, sans quoi setMuted() ne viserait plus aucun AudioParam.
+		swarm.setMuted(frozen);
 		swarm.update({
 			dt: frozen ? 0 : dt,
-			player: physics.position, time: swarmClock,
+			player: physics.position, playerVel: physics.velocity, camera,
+			time: swarmClock,
 			terrain: physics, wind: physics.wind.out, fence: swarmFence,
 			fogColor: scene.background, fogDensity: lastFogDensity, sun,
 			dim: cloud.dim,
@@ -2073,6 +2077,9 @@ function frame() {
 		space.silence();
 		// Le ciel se tait avec elle : plus de récepteur, plus de voix (#250).
 		ambient?.silence();
+		// L'essaim aussi (#29) : il continue de voler, mais plus personne ne
+		// l'écoute.
+		swarm?.silence();
 		controller.disarm();
 		// Si le joueur avait coupé la modélisation du lien, il ne verrait
 		// aucune dégradation. La mort de l'image ne se négocie pas.

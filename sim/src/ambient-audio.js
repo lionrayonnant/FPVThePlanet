@@ -23,6 +23,7 @@
 // premier son d'interface, l'acoustique du lieu se bâtit au décollage.
 // update(voices, now, spaceInput) le rattrape — voir _connectSpace().
 import { voiceParams, VOICE } from '../tools/ambient-audio-model.mjs';
+import { othersBus } from './audio-others.js';
 import { AUDIO } from './audio.js';
 
 const N_VOICES = 4;
@@ -85,7 +86,12 @@ export class AmbientAudio {
 			const pan = ctx.createStereoPanner();
 			osc.connect(gain);
 			this._noise.connect(band).connect(bandGain).connect(gain);
-			gain.connect(low).connect(pan).connect(this._dest);
+			// Le bus `others` (issue #29) et non `destination` directement :
+			// le budget est PARTAGÉ avec l'essaim, pas additionné — voir
+			// src/audio-others.js. C'est la seule ligne que l'essaim change
+			// ici, et elle coûte ~3 dB aux ambiants, qui n'ont plus le
+			// plafond pour eux seuls.
+			gain.connect(low).connect(pan).connect(othersBus(ctx, this._dest).ambient);
 			osc.start();
 			this.nodesCreated += 6;
 			this._voices.push({ osc, band, bandGain, gain, low, pan, detuneCents: detunes[i] });

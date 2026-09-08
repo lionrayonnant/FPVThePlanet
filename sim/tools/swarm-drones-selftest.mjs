@@ -31,10 +31,16 @@ function makeScene() {
 
 // Le joueur avance vers le nord (−Z) : le sillage a besoin d'une piste, sinon
 // toutes les unités restent empilées sur le point de départ.
+// La caméra et la vitesse du joueur sont l'AUDITEUR : sans elles _voice() ne
+// fait rien. On les donne toujours, pour que le contrôle d'allocation couvre
+// aussi le chemin de la voix (le contexte audio, lui, n'existe pas en Node —
+// SwarmAudio.update() rend la main tout de suite).
 function stepper(s, opts = {}) {
 	const player = { x: 0, y: 40, z: 0 };
+	const playerVel = { x: 0, y: 0, z: -12 };
+	const camera = new THREE.PerspectiveCamera(90, 16 / 9, 0.15, 3000);
 	const arg = {
-		dt: 0, player, time: 0, terrain, wind, fence,
+		dt: 0, player, playerVel, camera, time: 0, terrain, wind, fence,
 		fogColor: opts.fogColor ?? 0x8899aa, fogDensity: opts.fogDensity ?? 0.003,
 		sun, dim: 0.82, resolution: opts.resolution ?? { w: 1920, h: 1080 },
 	};

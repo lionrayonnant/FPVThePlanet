@@ -47,6 +47,22 @@ rapport avec les versions ci-dessous.
   silence —, et `?family=swarmNode` ouvre un chemin de dev
   vers le nœud sans le faire entrer dans le tirage ordinaire.
 
+- Essaim de drones (issue #29), tranche « le son » : l'essaim s'entend.
+  `src/swarm-audio.js` ne synthétise pas douze drones — douze sinus quasi
+  identiques se verrouillent en phase et donnent le son de test de synthé que
+  le projet s'interdit — mais un **chœur** : trois voix proches, réassignées en
+  continu aux trois unités les plus proches (gain, coupure, Doppler écrit à la
+  main, détune et lent wander), plus une nappe pour tout le reste, bruit
+  passe-bande étroit et trois sinus désaccordés autour de la fréquence de pale
+  moyenne. 24 nœuds, le même ordre que les ambiants ; rien au-dessus de
+  1,6 kHz, donc rien dans les 2–4 kHz où se fabrique la fatigue auditive.
+  Surtout, le budget devient **partagé et non additionné** : un bus `others`
+  (`src/audio-others.js`) reçoit ambiants et essaim et borne leur somme à
+  −12 dB sous l'`idleLevel` du joueur, quelle que soit la taille de l'essaim —
+  au prix d'environ 3 dB sur les ambiants, qui n'ont plus le plafond pour eux
+  seuls. Silence au gel de la physique et à la mort de la liaison, envoi vers
+  l'acoustique du lieu comme les ambiants.
+
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
   pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
   vitesse, gaz, taux de rotation), le point de départ, les captures

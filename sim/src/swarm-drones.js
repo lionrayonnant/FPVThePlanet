@@ -16,11 +16,16 @@
 // update() allocates NOTHING: the Three objects and the model's arguments are
 // all pre-allocated in the constructor.
 import * as THREE from 'three';
-import { SwarmModel } from './swarm.js';
+import { SwarmModel, SWARM_UNIT } from './swarm.js';
 import { shapeOf, RECIPE_PROFILES } from './drone-shape.js';
 import { buildDroneMesh, LedMaterial, setSun, setFog, setTime, setResolution } from './drone-mesh.js';
 import { targetCamera } from '../tools/target-camera.mjs';
 import { token } from './palette.js';
+import { SwarmAudio } from './swarm-audio.js';
+import { SWARM_AUDIO, rankNearest } from '../tools/swarm-audio-model.mjs';
+import { azimuthPan } from '../tools/ambient-audio-model.mjs';
+import { engineIn, context as audioContext } from './audio-bus.js';
+import { space } from './space.js';
 
 const hex = (name) => new THREE.Color(token(name)).getHex();
 
@@ -51,13 +56,36 @@ export class SwarmDrones {
 		this._q = new THREE.Quaternion();
 		this._p = new THREE.Vector3();
 		this._s = new THREE.Vector3(1, 1, 1);
+		// The voice (src/swarm-audio.js). Neither engineIn() nor space.input
+		// exists at boot — ensureContext() waits for a user gesture and the
+		// room acoustics are built at take-off — so both are resolved in
+		// update(), on the first frame where the context exists.
+		this.audio = new SwarmAudio();
+		// Everything the voice needs, pre-allocated: update() allocates
+		// NOTHING, and the allocation check in the selftest is what says so.
+		this._state = {
+			count: 0, nearCount: 0, dMean: 0, accelMean: 0, bedPan: 0,
+			profile: SWARM_UNIT,
+			near: Array.from({ length: SWARM_AUDIO.nearVoices }, () => ({ d: 0, behind: 0, pan: 0, vRadial: 0, accelMag: 0 })),
+		};
+		this._rank = new Int32Array(SWARM_AUDIO.nearVoices);
+		// Per-unit scratch, sized by setSwarm().
+		this._dist = null; this._pan = null; this._behind = null; this._vr = null; this._accel = null;
+		this._camF = new THREE.Vector3();
+		this._camR = new THREE.Vector3();
+		this._camPan = { fx: 0, fz: -1, rx: 1, rz: 0 };
+		this._ap = { pan: 0, behind: 0 };
+		// The link is dead: the voices stay silent until the next
+		// setSwarm()/reset(). silence() ramps ONCE while update() revises the
+		// gains every frame, so it needs a latch — same trap as AmbientDrones.
+		this._silenced = false;
 		this._lastFog = { color: -1, density: -1 };
 		this._lastRes = { w: -1, h: -1 };
 		this._time = 0;
 		this._colors = { frame: hex('--dark-grey'), metal: hex('--grey'), prop: hex('--light-grey'), led: hex('--warm-white') };
 		// What __sim.debug().swarm renders. Written in place, never realloc'd —
 		// same contract as SwarmModel.debug().
-		this._dbg = { size: 0, doctrine: null, raysCast: 0, blockedUnits: 0, lagRange: [0, 0], drawCalls: 0 };
+		this._dbg = { size: 0, doctrine: null, raysCast: 0, blockedUnits: 0, lagRange: [0, 0], drawCalls: 0, audioNodes: 0 };
 	}
 
 	// The swarm descriptor the session persists — { size, doctrineSeed } — or
@@ -113,6 +141,12 @@ export class SwarmDrones {
 			this.scene.add(group);
 			this._meshes.push({ group, ledMaterial });
 		}
+		this._dist = new Float64Array(n);
+		this._pan = new Float64Array(n);
+		this._behind = new Float64Array(n);
+		this._vr = new Float64Array(n);
+		this._accel = new Float64Array(n);
+		this._silenced = false;
 	}
 
 	_clear() {
@@ -122,6 +156,10 @@ export class SwarmDrones {
 			if (m.ledMaterial !== this._base?.ledMaterial) m.ledMaterial.dispose();
 		}
 		this._meshes.length = 0;
+		this._state.count = 0; this._state.nearCount = 0;
+		this.audio.update(this._state);
+		this._dist = this._pan = this._behind = this._vr = this._accel = null;
+		this._silenced = false;
 		// Geometry (shared) + body material + the LED plane, in one call.
 		this._base?.dispose();
 		this._base = null;
@@ -134,16 +172,30 @@ export class SwarmDrones {
 
 	// The player jumped or died: the wake is void and the units come back onto
 	// him. `player` is Rapier's {x,y,z}, or null before there is one.
-	reset(player) { this.model?.reset(player ?? null); }
+	reset(player) { this.model?.reset(player ?? null); this._silenced = false; }
 
-	// Once per frame, dt = 0 when frozen. `player` : Rapier {x,y,z} ; `time` :
+	// Frozen physics: the units do not move, so a held note would be worse
+	// than nothing (son.md:41-42).
+	setMuted(b) { this.audio.setMuted(b); }
+	// Latches the silence: see `_silenced` in the constructor.
+	silence() { this._silenced = true; this.audio.silence(); }
+
+	// Once per frame, dt = 0 when frozen. `player` : Rapier {x,y,z} ;
+	// `playerVel`/`camera` : the LISTENER (Rapier {x,y,z} and the posed Three
+	// camera), both optional — without them there is no voice ; `time` :
 	// the physics clock in seconds ; `terrain` : physics (obstructionBetween) ;
 	// `wind` : physics.wind.out ; `fence` : the pre-baked bbox or the live
 	// trusted circle, MUTATED by the caller, never held by the model ; `sun` :
 	// SunField|null ; `dim` : the same tile dimming the ambients get.
-	update({ dt, player, time, terrain, wind, fence, fogColor, fogDensity, sun, dim, resolution }) {
+	update({ dt, player, playerVel, camera, time, terrain, wind, fence, fogColor, fogDensity, sun, dim, resolution }) {
 		const m = this.model;
 		if (!m) return;
+		// The audio graph, as soon as the context exists (user gesture): two
+		// null tests a frame, no allocation. Same idiom as AmbientDrones.
+		if (!this.audio.running) {
+			const ctx = audioContext();
+			if (ctx) this.audio.start(ctx, engineIn(), space.input);
+		}
 		m.update(player, time, dt, terrain, wind, fence);
 		this._time += dt;
 
@@ -171,6 +223,75 @@ export class SwarmDrones {
 			mesh.group.matrixWorldNeedsUpdate = true;
 			mesh.group.visible = true;
 		}
+		this._voice(player, playerVel, camera);
+	}
+
+	// The swarm's voice, once per frame. `camera`/`playerVel` are optional:
+	// without them there is no listener, so there is no voice — the Node
+	// selftests drive update() without either.
+	//
+	// THE THREE NEAR VOICES ARE RANKS, NOT UNITS. Voice i sings the i-th
+	// NEAREST unit, and the rank is recomputed every frame. Two units that
+	// swap rank are at the same distance at the crossing, so the sorted
+	// sequence — and every gain derived from it — stays continuous while the
+	// identity behind it jumps. Binding a voice to a unit and re-picking would
+	// step the gain by the whole difference between the two.
+	_voice(player, playerVel, camera) {
+		const m = this.model, st = this._state;
+		const n = m.size;
+		if (!camera || !playerVel || !player || this._silenced) {
+			st.count = 0; st.nearCount = 0;
+			this.audio.update(st, undefined, space.input);
+			return;
+		}
+		// The pan is relative to the MACHINE, deliberately: the player hears
+		// through his camera, which rolls and pitches with the quad. Both
+		// horizontal bases are renormalised — azimuthPan reads a cosine.
+		this._camF.set(0, 0, -1).applyQuaternion(camera.quaternion);
+		this._camR.set(1, 0, 0).applyQuaternion(camera.quaternion);
+		const fn = Math.sqrt(this._camF.x * this._camF.x + this._camF.z * this._camF.z) || 1;
+		const rn = Math.sqrt(this._camR.x * this._camR.x + this._camR.z * this._camR.z) || 1;
+		this._camPan.fx = this._camF.x / fn; this._camPan.fz = this._camF.z / fn;
+		this._camPan.rx = this._camR.x / rn; this._camPan.rz = this._camR.z / rn;
+
+		for (let k = 0; k < n; k++) {
+			const rx = m.pos[3 * k] - player.x, ry = m.pos[3 * k + 1] - player.y, rz = m.pos[3 * k + 2] - player.z;
+			const d = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1e-6;
+			const vx = m.vel[3 * k] - playerVel.x, vy = m.vel[3 * k + 1] - playerVel.y, vz = m.vel[3 * k + 2] - playerVel.z;
+			const ap = azimuthPan(rx, rz, this._camPan, this._ap);
+			this._dist[k] = d;
+			this._pan[k] = ap.pan;
+			this._behind[k] = ap.behind;
+			this._vr[k] = (vx * rx + vy * ry + vz * rz) / d;
+			const ax = m.acc[3 * k], ay = m.acc[3 * k + 1], az = m.acc[3 * k + 2];
+			this._accel[k] = Math.sqrt(ax * ax + ay * ay + az * az);
+		}
+
+		rankNearest(n, this._dist, this._rank);
+		st.count = n;
+		st.nearCount = Math.min(SWARM_AUDIO.nearVoices, n);
+		for (let i = 0; i < st.nearCount; i++) {
+			const u = this._rank[i], v = st.near[i];
+			v.d = this._dist[u]; v.behind = this._behind[u]; v.pan = this._pan[u];
+			v.vRadial = this._vr[u]; v.accelMag = this._accel[u];
+		}
+		// The bed stands for everything the three voices do NOT sing; with
+		// three units or fewer it stands for all of them, and its own gain law
+		// then returns zero anyway.
+		let sumD = 0, sumA = 0, sumPan = 0, bedN = 0;
+		for (let k = 0; k < n; k++) {
+			let voiced = false;
+			for (let i = 0; i < st.nearCount; i++) if (this._rank[i] === k) { voiced = true; break; }
+			if (voiced) continue;
+			sumD += this._dist[k]; sumA += this._accel[k]; sumPan += this._pan[k]; bedN++;
+		}
+		if (bedN === 0) { for (let k = 0; k < n; k++) { sumD += this._dist[k]; sumA += this._accel[k]; sumPan += this._pan[k]; } bedN = n || 1; }
+		st.dMean = sumD / bedN;
+		st.accelMean = sumA / bedN;
+		st.bedPan = sumPan / bedN;
+		// space.input is re-read every frame (a property read, no allocation):
+		// the context can be born BEFORE the room acoustics.
+		this.audio.update(st, undefined, space.input);
 	}
 
 	debug() {
@@ -179,6 +300,7 @@ export class SwarmDrones {
 		if (!m) {
 			d.size = 0; d.doctrine = null; d.raysCast = 0; d.blockedUnits = 0;
 			d.lagRange[0] = 0; d.lagRange[1] = 0; d.drawCalls = 0;
+			d.audioNodes = this.audio.nodesCreated;
 			return d;
 		}
 		const md = m.debug();
@@ -190,8 +312,11 @@ export class SwarmDrones {
 		// One body + one LED per unit, both untouched by frustum culling on the
 		// LED. This is the number instancing would take down to 2.
 		d.drawCalls = 2 * this._meshes.length;
+		// Constant after start(): the browser check is that this number never
+		// moves again once the swarm is flying.
+		d.audioNodes = this.audio.nodesCreated;
 		return d;
 	}
 
-	dispose() { this._clear(); }
+	dispose() { this._clear(); this.audio.dispose(); }
 }
