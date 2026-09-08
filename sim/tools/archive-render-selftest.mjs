@@ -24,7 +24,8 @@ globalThis.fetch = async (url) => {
 	return { ok: false, status: 503, json: async () => ({}) };
 };
 
-const { runTerminal } = await import('../src/terminal.js');
+const { archiveScreen } = await import('../src/terminal.js');
+const { selectOperationMode } = await import('../src/bench.js');
 const { runTargetLog } = await import('../src/session-log.js');
 
 let n = 0;
@@ -53,37 +54,56 @@ const api = (op) => ({
 	hasKey: () => Boolean(storedKey), getKey: () => storedKey,
 });
 
-// Ouvre la Home, entre dans ARCHIVE, clique une entrée. Rend une promesse de
-// vol qu'on ne dénoue jamais : on ne veut que l'arbre.
-// Ouvre la Home, entre dans ARCHIVE, clique une entrée. Rend la promesse de la
-// Home : il FAUT la dénouer en fin de test — un écran laissé ouvert garde ses
-// abonnements, et le selftest passerait sans jamais rendre la main.
+// Ouvre la racine, prend la voie ARCHIVE, puis monte l'écran comme le fait la
+// boucle de main.js — ARCHIVE est au même niveau que FIELD et BENCH (D3), elle
+// ne se traverse plus depuis un onglet de FIELD.
+//
+// Rend la promesse d'ARCHIVE : il FAUT la dénouer en fin de test — un écran
+// laissé ouvert garde ses abonnements, et le selftest passerait sans jamais
+// rendre la main.
 const openArchive = async (op, entry) => {
 	reset();
-	const home = runTerminal(dom.root, { settings: null, api: api(op), back: true });
-	await tick();
+	const mode = selectOperationMode(dom.root, { last: 'archive' });
 	btn('ARCHIVE').click();
+	assert.equal(await mode, 'archive', 'la racine mène bien à ARCHIVE');
+	// Enveloppée : `await` sur une async qui RENDRAIT cette promesse la
+	// déballerait, et attendrait un écran qui ne se referme jamais.
+	const home = archiveScreen(dom.root, { api: api(op), scenes: [] });
 	await tick();
 	btn(entry).click();
 	await tick();
-	// Enveloppée : `await` sur une async qui RENDRAIT la promesse de la Home la
-	// déballerait, et attendrait une Home qui ne se referme jamais — interblocage
-	// silencieux, le test ne s'affiche même pas.
 	return { home };
 };
 
-// Remonte de DEPTH écrans, puis referme la Home par MODE, qui ne vole rien.
-// Profondeur fixe et non « jusqu'à voir MODE » : la Home reste MONTÉE derrière
-// ARCHIVE (seulement `hidden`), donc son bouton MODE est trouvable depuis
-// n'importe quel sous-écran et une boucle de ce genre ne remonterait jamais.
+// Remonte de DEPTH écrans par Échap. Le dernier referme ARCHIVE lui-même : il
+// n'y a plus de bouton MODE à cliquer (D4), Échap est la remontée partout.
 // Fermer compte : menu-nav.js tient un setInterval de scrutation manette que
 // seul detach() arrête — un écran laissé ouvert garde le processus en vie.
 const DEPTH_SOUS_ECRAN = 2;   // l'écran lui-même, puis ARCHIVE
 const closeAll = async (home, depth = DEPTH_SOUS_ECRAN) => {
 	for (let i = 0; i < depth; i++) { dom.key('Escape'); await tick(); await tick(); }
-	btn('MODE').click();
 	await home;
 };
+
+// --- la rangée d'ARCHIVE ----------------------------------------------------
+
+await ta('archive : les journaux et l\'opérateur, et plus rien à régler', async () => {
+	reset();
+	const p = archiveScreen(dom.root, { api: api(operator()), scenes: [] });
+	await tick();
+	for (const entry of ['LAST SESSION', 'SESSION LOG', 'TARGET LOG',
+		'CONTROL VECTOR', 'OPERATOR', 'BUILD NOTES']) {
+		assert.ok(btn(entry), `« ${entry} » est dans ARCHIVE`);
+	}
+	// D6 : SETTINGS est monté à la racine ; le répéter ici ferait deux portes
+	// pour un seul panneau.
+	assert.equal(dom.root.querySelectorAll('button').find((b) => b.textContent === 'SETTINGS'), undefined);
+	// D15 : Échap est nommé, et il dit où il mène.
+	const keys = dom.root.querySelector('.terminal-keys');
+	assert.ok(keys, 'la ligne des touches');
+	assert.equal(keys.textContent, '[ESC] OPERATION MODE');
+	await closeAll(p, 1);
+});
 
 // --- OPERATOR ---------------------------------------------------------------
 

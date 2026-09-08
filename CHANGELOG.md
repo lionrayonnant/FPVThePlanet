@@ -33,6 +33,12 @@ rapport avec les versions ci-dessous.
 
 ### Retiré
 
+- Le lien `MODE` du pied de FIELD (Échap faisait déjà exactement la même chose),
+  les liens `SETTINGS` du pied de FIELD, de la rangée ARCHIVE et du pied du
+  banc, l'entrée `ARCHIVE` de la rangée LOCAL, la ligne `DESKTOP CLIENT
+  AVAILABLE` et la mention `STREAMED NOW · NOTHING KEPT · NEEDS THE LINK` de
+  l'onglet LIVE, qui était fausse : un vol en direct est archivé comme les
+  autres (#6, #7).
 - L'atterrissage. Un vol se termine par un crash, une sortie de zone ou le
   pilote qui coupe le lien (K maintenue) : plus de désarmement (touche J, geste
   manette), plus de verdict `LANDED`, plus d'écran `POST-FLIGHT ANALYSIS` ni de
@@ -41,6 +47,19 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- Le menu a quatre voies au lieu de deux : `FIELD`, `BENCH`, `ARCHIVE`,
+  `SETTINGS`, à la racine et dans cet ordre. ARCHIVE n'est plus un lien enterré
+  dans un onglet de FIELD, SETTINGS n'est plus répété à trois endroits, et
+  `fpvtp.mode` retient les quatre (#6, #7).
+- FIELD ouvre sur l'onglet `LIVE`, désormais placé avant `LOCAL` : c'est la voie
+  qui marche sans rien avoir téléchargé. Sur un serveur qui n'acquiert pas,
+  l'onglet LOCAL est éteint et dit en trois lignes pourquoi, au lieu de laisser
+  une liste vide (#6).
+- La tête de FIELD ne salue plus l'opérateur (la racine le fait, une fois) et
+  son pied ne compte plus rien : il dit `LOCAL INSTALLATION · BUILD n` ou
+  `SHARED SERVER · BUILD n`. Les compteurs vivent dans ARCHIVE › OPERATOR (#6).
+- Échap est écrit sur les écrans qui l'écoutent : `[ESC] OPERATION MODE` sous
+  FIELD, BENCH et ARCHIVE, `[ESC] BACK` sur les écrans en dessous (#7).
 - La caméra libre (`C`, une orbite qui gelait le monde) devient une bascule de
   vue `V` : FPV / CHASE. La vue CHASE est la caméra de vol reposée 1,6 m
   derrière le nez et 0,6 m au-dessus, la simulation continue de tourner

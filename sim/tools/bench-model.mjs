@@ -37,8 +37,10 @@ import { simParamsOf } from './lib/weather.mjs';
 
 export const BENCH_VERSION = 1;
 
-// Les deux modes du jeu. FIELD est la boucle de la Bible ; BENCH est le banc.
-export const MODES = ['field', 'bench'];
+// The four ways in. FIELD is the Bible's loop, BENCH is the sandbox, ARCHIVE is
+// everything that is cold, SETTINGS is everything that is set once. The order is
+// the message: fly first, read second, tune last (D3, D6).
+export const MODES = ['field', 'bench', 'archive', 'settings'];
 
 // Copie de l'écran de choix. En anglais (D5), et vérifiée par le selftest :
 // c'est la première chose que voit un opérateur après son nom, et elle doit
@@ -52,6 +54,16 @@ export const MODE_SELECT = {
 	bench: {
 		label: 'BENCH',
 		lines: ['your airframe · your conditions', 'nothing to lose'],
+	},
+	// Two flat inventories rather than a promise: these two ways lead to what
+	// they contain, and nothing there is lost or won.
+	archive: {
+		label: 'ARCHIVE',
+		lines: ['session log · target log', 'operator · build notes'],
+	},
+	settings: {
+		label: 'SETTINGS',
+		lines: ['controller · keyboard', 'audio · system'],
 	},
 };
 
@@ -265,7 +277,9 @@ export function benchBlockers(config, { scenes = [] } = {}) {
 	const c = normalizeBenchConfig(config);
 	const out = [];
 	if (c.terrain.kind === 'cached') {
-		if (!c.terrain.slug) out.push('NO LOCAL TERRAIN — ACQUIRE ONE IN FIELD, OR SWITCH TO LIVE');
+		// LIVE first (D2): it is the one way out that asks nothing of anybody —
+		// a shared server never lets a scene land on disk.
+		if (!c.terrain.slug) out.push('NO LOCAL TERRAIN — SWITCH TO LIVE, OR ACQUIRE ONE IN FIELD');
 		else if (scenes.length && !scenes.some((s) => s.slug === c.terrain.slug)) {
 			out.push(`TERRAIN ${c.terrain.slug.toUpperCase()} IS NO LONGER ON DISK`);
 		}

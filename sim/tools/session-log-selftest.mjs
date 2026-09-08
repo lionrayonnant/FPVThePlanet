@@ -287,10 +287,13 @@ t('un vol LIVE apparaît au SESSION LOG et au TARGET LOG, et il est compté par 
 	// jamais une donnée de l'archive elle-même.
 	assert.ok(!('revisit' in liveEntry) && !('resume' in liveEntry));
 
-	// OPERATOR : compté comme n'importe quelle autre session — aucune zone
-	// connue (`scenes: []`) ne change `sessions.length`.
+	// OPERATOR : compté comme n'importe quelle autre session. C'est le compteur
+	// de l'écran ARCHIVE › OPERATOR (terminal.js), le seul endroit où les
+	// compteurs vivent depuis D1 — le pied de FIELD ne compte plus rien.
 	const model = terminalModel({ operator: { name: 'neo', sessions }, scenes: [] });
-	assert.match(model.footer, /2 SESSIONS/);
+	assert.equal(sessions.length, 2, 'le vol LIVE compte comme une session');
+	assert.equal(targetLogEntries(sessions).length, 2, 'et sa cible compte comme une cible');
+	assert.equal(model.operatorName, 'NEO');
 });
 
 t('un vol LIVE n\'est jamais revisitable : sa zone live- ne correspond à aucune zone connue', () => {

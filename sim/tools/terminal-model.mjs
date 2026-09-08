@@ -1,7 +1,6 @@
 // Logique pure de l'Operator Terminal (PHASE 02). Aucune E/S, aucun DOM :
 // importable par le terminal côté navigateur et par le selftest.
 
-import { targetLogEntries } from './session-log-model.mjs';
 import { countersOf, currentBuild } from './buildnotes-model.mjs';
 
 // Taille lisible d'un répertoire de scène. Décimal (1 Go = 1e9) pour rester
@@ -15,31 +14,28 @@ export function formatBytes(n) {
 }
 
 // `scenes` : tableau de { slug, name, bytes } quand le cache terrain est
-// connu ; `null` quand /__map-api/scenes est injoignable (le footer affiche
-// alors « ? LOCAL AREAS » et la liste montre un état d'erreur).
-export function terminalModel({ operator, scenes }) {
+// connu ; `null` quand /__map-api/scenes est injoignable (la liste montre alors
+// un état d'erreur).
+// `acquire` : le droit d'acquérir tel que le serveur le rend (#60). C'est la
+// seule chose que le pied a désormais à dire — où le jeu tourne (D1).
+export function terminalModel({ operator, scenes, acquire = true }) {
 	const name = String(operator?.name ?? '').toUpperCase() || 'UNKNOWN';
 	const sessions = Array.isArray(operator?.sessions) ? operator.sessions : [];
-	// Le Target Log est dérivé des sessions (PHASE 17, spec D1) : il n'y a plus
-	// de clé `targetLog` sur l'opérateur.
-	const targets = targetLogEntries(operator?.sessions);
 	const known = Array.isArray(scenes);
 
 	const areas = known
 		? scenes.map((s) => ({ slug: s.slug, name: s.name, size: formatBytes(s.bytes) }))
 		: [];
 
-	const areaCount = known ? String(areas.length) : '?';
 	// Numéro de build affiché au pied (PHASE 21, BUILD NOTES) : dérivé des
-	// mêmes compteurs opérateur que le reste du footer, jamais d'un état séparé.
+	// compteurs opérateur, jamais d'un état séparé.
 	const build = currentBuild(countersOf(operator));
+	// D1 : deux mots, et rien d'autre. Le nom de l'opérateur et ses compteurs
+	// sont rendus par ARCHIVE › OPERATOR, qui est leur place — les répéter sous
+	// chaque écran faisait de FIELD un tableau de bord (Bible §30).
 	const footer = [
-		'LOCAL INSTALLATION',
-		`OPERATOR ${name}`,
+		acquire ? 'LOCAL INSTALLATION' : 'SHARED SERVER',
 		`BUILD ${build}`,
-		`${areaCount} LOCAL AREAS`,
-		`${sessions.length} SESSIONS`,
-		`${targets.length} TARGETS LOGGED`,
 	].join(' · ');
 
 	return {

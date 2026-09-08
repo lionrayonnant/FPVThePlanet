@@ -301,8 +301,17 @@ export class Settings {
 			// Panneau fermé : la boucle de la machine s'arrête avec lui, comme
 			// celle de l'assistant.
 			this.unmountCalDrone();
+			// Un appelant qui ATTEND la fermeture (la racine, D6) reprend la main
+			// ici. Vidé avant l'appel : le panneau ne promet qu'une fermeture.
+			const closed = this._onClosed;
+			this._onClosed = null;
+			closed?.();
 		}
 	}
+
+	// Resolves the next time the panel closes. The root menu opens SETTINGS and
+	// waits on this before drawing SELECT OPERATION MODE again.
+	closed() { return new Promise((r) => { this._onClosed = r; }); }
 
 	get settingsOpen() { return !this.el.settings.hidden; }
 

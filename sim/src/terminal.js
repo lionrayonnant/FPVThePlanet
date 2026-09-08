@@ -20,9 +20,11 @@ const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 // liste — c'est justement ce qu'on est en train de sortir de la Home.
 const COMPACT_AREAS = 5;
 
-// L'onglet de FIELD où l'on était, pour la session : LOCAL (voler ou acquérir
-// une zone cuite) ou LIVE (décoller en direct depuis une épingle) (#222).
-let lastTab = 'local';
+// L'onglet de FIELD où l'on était, pour la session : LIVE (décoller en direct
+// depuis une épingle) ou LOCAL (voler ou acquérir une zone cuite) (#222).
+// LIVE à l'entrée (D2) : c'est la voie qui marche sur toute build, y compris
+// celle d'un opérateur qui n'a encore rien acquis.
+let lastTab = 'live';
 
 export function screen(root, cls = '') {
 	const el = document.createElement('div');
@@ -62,6 +64,24 @@ function navRow(entries) {
 	return row;
 }
 
+// The keys a screen answers to, written where the screen is (D15). Escape has
+// always worked everywhere and was named nowhere — a key nobody can see is a key
+// nobody presses. `pairs` is [[key, what it does], …], rendered `[ESC] BACK`.
+//
+// It is information, not assistance (Bible, pilier 1): one dim line, no arrow,
+// no prompt, and never a button — pressing it is the point.
+export function keyHints(pairs) {
+	const row = document.createElement('pre');
+	row.className = 'terminal-keys';
+	row.textContent = pairs.map(([key, what]) => `[${key}] ${what}`).join(' · ');
+	return row;
+}
+
+// The line every sub-screen carries: Escape goes back one screen.
+const ESC_BACK = () => keyHints([['ESC', 'BACK']]);
+// And the line the three screens directly under the root carry.
+const ESC_ROOT = () => keyHints([['ESC', 'OPERATION MODE']]);
+
 // Le droit d'acquérir, tel que le serveur le rend (issue #60) : le drapeau
 // FPVTP_ACQUIRE posé ET le mode `local`. Retenu à part plutôt que rendu par
 // fetchScenes(), dont trois écrans attendent un tableau de zones et rien
@@ -92,6 +112,7 @@ async function forecastScreen(root, scene) {
 	const back = new Promise((resolve) => {
 		const close = () => { nav.detach(); s.remove(); resolve(); };
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		s.box.appendChild(ESC_BACK());
 		const nav = menuNav(s.el, { back: close });
 	});
 	const snapshot = await worldWeather({ lat: scene.lat, lon: scene.lon });
@@ -202,6 +223,7 @@ function localTerrain(root, scenes) {
 				s.box.innerHTML = `<pre>LOCAL TERRAIN\n\n${scenes === null
 					? 'TERRAIN CACHE UNREACHABLE' : 'NO LOCAL TERRAIN — ACQUIRE ONE'}</pre>`;
 				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+				s.box.appendChild(ESC_BACK());
 				nav = menuNav(s.el, { back: () => done() });
 				return;
 			}
@@ -240,6 +262,7 @@ function localTerrain(root, scenes) {
 				empty.textContent = 'NO MATCH';
 				s.box.appendChild(empty);
 				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+				s.box.appendChild(ESC_BACK());
 				nav = menuNav(s.el, { back: () => done(), focusFirst: false });
 				if (focusSortIdx >= 0) refocusSort(); else refocusSearch();
 				return;
@@ -286,6 +309,7 @@ function localTerrain(root, scenes) {
 			});
 			s.box.appendChild(list);
 			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+			s.box.appendChild(ESC_BACK());
 			nav = menuNav(s.el, { back: () => done(), focusFirst: false });
 			if (focusSortIdx >= 0) refocusSort();
 			else if (focusSearch) refocusSearch();
@@ -329,6 +353,7 @@ ${shown}</pre>`;
 			render();
 		}, 'terminal-cta'));
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		s.box.appendChild(ESC_BACK());
 		nav?.focusAt(0);
 	};
 	let resolveScreen;
@@ -349,6 +374,7 @@ function lastSessionScreen(root, model) {
 		if (!ls) {
 			s.box.innerHTML = '<pre>LAST SESSION — NONE YET</pre>';
 			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+			s.box.appendChild(ESC_BACK());
 			nav = menuNav(s.el, { back: () => done() });
 			return;
 		}
@@ -378,6 +404,7 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 			s.box.appendChild(button('REVISIT AREA', () => done(area), 'terminal-cta'));
 		}
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+		s.box.appendChild(ESC_BACK());
 		nav = menuNav(s.el, { back: () => done() });
 	});
 }
@@ -429,6 +456,7 @@ async function operatorScreen(root, api) {
 		portrait.hidden = true;
 		s.box.appendChild(portrait);
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		s.box.appendChild(ESC_BACK());
 		nav?.focusAt(0);
 	};
 	render();
@@ -477,6 +505,7 @@ function buildNotesScreen(root, operator) {
 		let nav = null;
 		const close = () => { nav?.detach(); s.remove(); resolve(); };
 		s.box.appendChild(button('BACK', close, 'terminal-cta'));
+		s.box.appendChild(ESC_BACK());
 		nav = menuNav(s.el, { back: close });
 	});
 }
@@ -493,12 +522,25 @@ function buildNotesScreen(root, operator) {
 // LOG) rend un vol : l'avaler ici laisserait l'opérateur sur un écran de
 // journal après avoir demandé à voler.
 //
-// Résout undefined (retour à la Home) ou un slug.
-function archiveScreen(root, { model, api, scenes, settings }) {
+// Résout { slug } (un REVISIT, que la boucle racine fait voler comme un choix
+// fait dans FIELD) ou null.
+//
+// Atteint depuis la racine (D3) : ARCHIVE est au même niveau que FIELD et
+// BENCH, et n'est plus un lien enterré dans un onglet de FIELD, qui la faisait
+// disparaître dès qu'on regardait la carte.
+export function archiveScreen(root, { api = operatorApi, scenes = null } = {}) {
+	const model = terminalModel({ operator: api.getOperator(), scenes });
 	const s = screen(root, 'terminal-archive');
 	return new Promise((resolve) => {
 		let nav = null;
-		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
+		// Un slug nu (lastSessionScreen) et un { slug } (SESSION LOG) disent la
+		// même chose : on remonte une seule forme, celle que la boucle racine
+		// sait faire voler.
+		const done = (value) => {
+			nav?.detach();
+			s.remove();
+			resolve(value == null ? null : (typeof value === 'string' ? { slug: value } : value));
+		};
 
 		// Un écran plein cadre en masque un autre : on cache celui-ci pendant, et
 		// on le rend au retour. Même geste que la Home avec le scanner.
@@ -534,10 +576,10 @@ function archiveScreen(root, { model, api, scenes, settings }) {
 			['CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api)), 'View or redefine your assigned control vector'],
 			['OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats'],
 			['BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version'],
-			['SETTINGS', () => settings?.toggleSettings(true), 'Controller mapping, controls, sound'],
 		]));
 
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
+		s.box.appendChild(ESC_ROOT());
 		nav = menuNav(s.el, { back: () => done() });
 	});
 }
@@ -618,12 +660,10 @@ export async function operatorKey(root, api = operatorApi) {
 // ---------- terminal ----------
 
 // Monte l'Operator Terminal et résout le slug de la zone à survoler.
-// `settings` : instance de Settings (src/settings.js) — l'entrée SETTINGS ouvre
-// le même panneau que Tab en vol.
 // Résout { slug } pour voler une zone cuite, { live: [lat, lon] } pour
 // décoller en direct depuis le scanner, ou null pour remonter au choix de mode
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
-export async function runTerminal(root, { settings, api = operatorApi, back = false } = {}) {
+export async function runTerminal(root, { api = operatorApi, back = false } = {}) {
 	let scenes = await fetchScenes();
 	// `terminal-field` en plus de `terminal-home` : le banc monte ses deux écrans
 	// avec `terminal-home` aussi (bench.js:72 et :196) pour en partager la
@@ -673,7 +713,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 	s.box.append(left, right);
 
 	const renderLeft = () => {
-		const model = terminalModel({ operator: api.getOperator(), scenes });
+		const model = terminalModel({ operator: api.getOperator(), scenes, acquire: acquireAllowed });
 		const areas = Array.isArray(scenes) ? scenes : [];
 
 		// Voler est ce qu'on fait à chaque session : l'action la plus fréquente a
@@ -688,8 +728,10 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 
 		left.replaceChildren();
 
+		// D1 : la version, et rien d'autre. L'opérateur est salué à la racine —
+		// une fois, à l'endroit où le jeu demande qui tu es.
 		const head = document.createElement('pre');
-		head.textContent = `${versionLine()}\nOPERATOR // ${model.operatorName}`;
+		head.textContent = versionLine();
 		left.appendChild(head);
 
 		// La recherche est commune aux deux onglets : elle ne fait que déplacer
@@ -704,12 +746,33 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 		const tabs = document.createElement('div');
 		tabs.className = 'terminal-tabs';
 		const tabTitles = { local: 'Fly a downloaded area', live: 'Take off live from a map pin' };
-		for (const [id, label] of [['local', 'LOCAL'], ['live', 'LIVE']]) {
+		// LIVE d'abord (D2) : c'est la voie qui marche partout, sur toute build,
+		// sans rien télécharger. LOCAL est la voie de celui qui a déjà acquis.
+		for (const [id, label] of [['live', 'LIVE'], ['local', 'LOCAL']]) {
 			const b = button(label, () => setTab(id), 'terminal-tab', tabTitles[id]);
 			b.dataset.on = String(tab === id);
+			// Éteint mais sélectionnable : l'état se lit AVANT le clic, et les
+			// zones pré-installées par un hébergeur restent atteignables.
+			if (id === 'local' && !acquireAllowed) b.dataset.off = 'true';
 			tabs.appendChild(b);
 		}
 		left.appendChild(tabs);
+
+		// L'onglet LOCAL d'un serveur partagé s'ouvre en le DISANT (D2). Trois
+		// lignes en tête du corps, avant toute liste : elles absorbent l'ancienne
+		// ligne « SWITCH TO LIVE TO FLY » et l'ancien pied « DESKTOP CLIENT
+		// AVAILABLE », qui disaient la même chose deux fois, ailleurs, et jamais
+		// à l'endroit où l'opérateur se demandait pourquoi la liste est vide.
+		if (tab === 'local' && !acquireAllowed) {
+			const notice = document.createElement('pre');
+			notice.className = 'terminal-notice';
+			notice.textContent = [
+				'LOCAL TERRAIN IS NOT AVAILABLE ON THIS SERVER.',
+				'THIS SERVER FLIES LIVE ONLY — SWITCH TO THE LIVE TAB.',
+				'TO ACQUIRE AND KEEP TERRAIN, INSTALL THE DESKTOP CLIENT.',
+			].join('\n');
+			left.appendChild(notice);
+		}
 
 		if (tab === 'live') {
 			left.appendChild(liveRail);
@@ -748,21 +811,21 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				}
 				left.appendChild(list);
 			} else {
-				const none = document.createElement('pre');
-				none.className = 'terminal-sub';
-				// Sans le droit d'acquérir, [ DRAW BOX ] n'est pas à l'écran : envoyer
-				// le joueur le chercher serait lui demander l'impossible. LIVE est
-				// alors la seule façon de décoller, et elle suffit.
-				none.textContent = acquireAllowed
-					? 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP'
-					: 'NO LOCAL TERRAIN — SWITCH TO LIVE TO FLY';
-				left.appendChild(none);
+				// Sans le droit d'acquérir, l'avis en tête d'onglet a déjà tout dit
+				// et [ DRAW BOX ] n'est pas à l'écran : le répéter ici ferait deux
+				// fois la même phrase dans la même colonne.
+				if (acquireAllowed) {
+					const none = document.createElement('pre');
+					none.className = 'terminal-sub';
+					none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
+					left.appendChild(none);
+				}
 			}
 
 			// ALL TERRAIN… n'apparaît que s'il y a réellement de quoi chercher,
-			// trier ou supprimer — c'est l'écran complet, inchangé.
-			const tail = [];
-			if (areas.length) tail.push(['ALL TERRAIN…', async () => {
+			// trier ou supprimer — c'est l'écran complet, inchangé. Il est seul
+			// sur sa rangée depuis que ARCHIVE est monté à la racine (D3).
+			if (areas.length) left.appendChild(navRow([['ALL TERRAIN…', async () => {
 				s.el.hidden = true;
 				const slug = await localTerrain(root, scenes);
 				if (slug) return fly(slug);
@@ -771,17 +834,7 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 				scanner?.refreshCoverage();
 				s.el.hidden = false;
 				renderLeft();
-			}, 'Search, sort or remove every local area']);
-			tail.push(['ARCHIVE', async () => {
-				s.el.hidden = true;
-				const r = await archiveScreen(root, { model, api, scenes, settings });
-				if (typeof r === 'string') return fly(r);
-				if (r) return fly(r.slug);
-				s.el.hidden = false;
-				// Une suppression a pu changer les compteurs du pied.
-				renderLeft();
-			}, 'Session history, control vector, operator, build notes']);
-			left.appendChild(navRow(tail));
+			}, 'Search, sort or remove every local area']]));
 
 			// Tracer n'est pas voler, mais il faut bien pouvoir commencer : au
 			// repos le rail est caché, donc les deux tracés avec lui. Un clic
@@ -803,28 +856,20 @@ export async function runTerminal(root, { settings, api = operatorApi, back = fa
 			}
 		}
 
-		// --- le pied : ce qui n'est ni un lieu ni une action de vol
-		left.appendChild(navRow([
-			...(back ? [['MODE', () => leave()]] : []),
-			['SETTINGS', () => settings?.toggleSettings(true)],
-		]));
-
+		// --- le pied : où le jeu tourne, et rien de plus
+		//
+		// Plus de rangée de liens (D4, D6) : MODE ne faisait que ce qu'Échap fait
+		// déjà, et SETTINGS est monté à la racine. Un menu qui répète ses sorties
+		// à chaque étage n'a pas d'étages.
 		const foot = document.createElement('pre');
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
 		left.appendChild(foot);
 		countUp(foot);
 
-		// Une ligne, au pied, et rien de plus (#60). L'argument n'est PAS de
-		// débloquer une fonctionnalité — la build de bureau n'acquiert pas non
-		// plus — c'est de jouer chez soi plutôt que dans un onglet. Information,
-		// pas assistance (Bible, pilier 1) : ni bandeau, ni compte à rebours.
-		if (!acquireAllowed) {
-			const hint = document.createElement('pre');
-			hint.className = 'terminal-foot terminal-foot-hint';
-			hint.textContent = 'DESKTOP CLIENT AVAILABLE — THE SAME GAME, ON YOUR OWN MACHINE';
-			left.appendChild(hint);
-		}
+		// D15 : Échap remonte, et il le dit. Pas quand FIELD est la racine
+		// (?scene=), où il n'y a rien au-dessus.
+		if (back) left.appendChild(ESC_ROOT());
 		// « Une seule touche pour voler » (issue #123) : le curseur se pose sur
 		// [ FLY ], pas sur la recherche ni sur un onglet, qui le précèdent
 		// désormais dans la colonne (#222).

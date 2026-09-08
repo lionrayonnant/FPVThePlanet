@@ -237,7 +237,10 @@ t('benchRows : terrain caché et vol libre s\'affichent différemment', () => {
 
 t('benchBlockers : le banc ne refuse que le terrain absent', () => {
 	assert.deepEqual(benchBlockers({ terrain: { kind: 'cached', slug: 'paristest' } }, { scenes: [{ slug: 'paristest' }] }), []);
-	assert.match(benchBlockers({ terrain: { kind: 'cached', slug: null } })[0], /NO LOCAL TERRAIN/);
+	// D2 : LIVE d'abord — c'est la seule sortie qui ne demande rien à personne.
+	assert.equal(
+		benchBlockers({ terrain: { kind: 'cached', slug: null } })[0],
+		'NO LOCAL TERRAIN — SWITCH TO LIVE, OR ACQUIRE ONE IN FIELD');
 	assert.match(
 		benchBlockers({ terrain: { kind: 'cached', slug: 'disparue' } }, { scenes: [{ slug: 'paristest' }] })[0],
 		/NO LONGER ON DISK/);
@@ -299,10 +302,16 @@ t('sérialisation : rien de ce qui est stocké ne dit qu\'un vol a eu lieu', () 
 // ---------------------------------------------------------------------------
 // La copie
 
-t('MODE_SELECT : deux voies, nommées, en anglais', () => {
-	assert.deepEqual(MODES, ['field', 'bench']);
+// D3/D6 : ARCHIVE et SETTINGS montent à la racine, sous FIELD et BENCH. L'ordre
+// est le message — on vole d'abord, on consulte ensuite, on règle en dernier.
+t('MODE_SELECT : quatre voies, nommées, en anglais', () => {
+	assert.deepEqual(MODES, ['field', 'bench', 'archive', 'settings']);
 	assert.equal(MODE_SELECT.field.label, 'FIELD');
 	assert.equal(MODE_SELECT.bench.label, 'BENCH');
+	assert.equal(MODE_SELECT.archive.label, 'ARCHIVE');
+	assert.equal(MODE_SELECT.settings.label, 'SETTINGS');
+	// Deux lignes sous chaque voie : ce qu'elle contient, en deux temps.
+	for (const m of MODES) assert.equal(MODE_SELECT[m].lines.length, 2, `${m} a deux lignes`);
 	for (const m of MODES) {
 		assert.ok(MODE_SELECT[m].lines.length >= 1);
 		for (const l of MODE_SELECT[m].lines) {

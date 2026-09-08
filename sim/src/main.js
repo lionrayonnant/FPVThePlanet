@@ -12,7 +12,7 @@ import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, operatorKey, runTerminal } from './terminal.js';
+import { operatorSelect, operatorKey, runTerminal, archiveScreen, fetchScenes } from './terminal.js';
 import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
@@ -371,7 +371,6 @@ async function toggleBenchPanel() {
 	document.exitPointerLock?.();
 	try {
 		MODE.config = await runBench(document.getElementById('ui'), {
-			settings,
 			live: true,
 			onChange: (c) => { MODE.config = c; applyBenchConfig(); },
 		}) ?? MODE.config;
@@ -2567,9 +2566,37 @@ async function chooseScene() {
 			last: loadLastMode(),
 			operatorName: operator.getOperator()?.name ?? null,
 		});
+
+		// SETTINGS n'est pas une voie : c'est un panneau, le même que Tab en vol.
+		// Il se pose par-dessus la racine et la rend telle quelle en se fermant.
+		if (mode === 'settings') {
+			settings.toggleSettings(true);
+			await settings.closed();
+			continue;
+		}
+
+		// ARCHIVE résout VERS LE HAUT : un REVISIT est un vol, et il entre dans
+		// la boucle FIELD exactement comme un choix fait sur l'écran de FIELD.
+		// Échap au TARGET SCAN retombe donc sur FIELD, pas sur les journaux —
+		// c'est la même zone, et c'est là qu'on la rejoue.
+		if (mode === 'archive') {
+			const pick = await archiveLoop(ui);
+			if (!pick) continue;
+			const choice = await fieldLoop(ui, { quickRestart: pick });
+			if (choice) return choice;
+			continue;
+		}
+
 		const choice = mode === 'bench' ? await benchLoop(ui) : await fieldLoop(ui);
 		if (choice) return choice;
 	}
+}
+
+// ARCHIVE depuis la racine (D3). Rend { slug } quand l'opérateur a demandé à
+// revoler une zone, null quand il remonte.
+async function archiveLoop(ui) {
+	const scenes = await fetchScenes();
+	return archiveScreen(ui, { api: operator, scenes });
 }
 
 // La boucle FIELD : le jeu de la Bible, inchangé. Extraite telle quelle de
@@ -2586,7 +2613,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		// UNE fois plutôt que de rouvrir le terminal. Consommé immédiatement :
 		// un Échap au TARGET SCAN qui suit doit retomber sur le terminal normal,
 		// pas rejouer la même zone en boucle.
-		const flyChoice = quickRestart ?? await runTerminal(ui, { settings, back: true });
+		const flyChoice = quickRestart ?? await runTerminal(ui, { back: true });
 		quickRestart = null;
 		// Échap sur la Home : on remonte au choix de mode. La Home n'est plus la
 		// racine depuis PHASE 26, et il faut pouvoir repartir au banc sans

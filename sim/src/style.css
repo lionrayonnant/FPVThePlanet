@@ -448,6 +448,22 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-variant-numeric: tabular-nums;
 	margin-top: var(--space-1); white-space: nowrap;
 }
+/* Les touches que l'écran écoute (D15). Même niveau DATA que le pied, un ton
+   plus bas : c'est une note de bas de page, pas une consigne. */
+.bootstrap-box pre.terminal-keys {
+	color: var(--dim);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	margin-top: var(--space-2); white-space: normal;
+}
+/* L'avis d'un onglet indisponible (D2) : trois lignes, en tête du corps. La
+   même face que les <pre> voisins — la machine parle, elle n'alerte pas. */
+.bootstrap-box pre.terminal-notice {
+	color: var(--light-grey);
+	margin: var(--space-2) 0 0;
+	white-space: pre-wrap;
+}
+
 /* Dans la colonne gauche, `nowrap` faisait couper le pied en plein mot. Il se
    replie — c'est une ligne d'état, pas une table : rien n'y est aligné sur une
    colonne, donc le repli ne lui coûte rien. */
@@ -521,6 +537,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .bootstrap button.terminal-tab[data-on="true"] { background: var(--warm-white); color: var(--black); }
 .bootstrap button.terminal-tab:hover { background: none; color: var(--ink); }
 .bootstrap button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
+/* Un onglet éteint (D2) : LOCAL sur un serveur qui n'acquiert pas. Il reste
+   cliquable — des zones pré-installées peuvent s'y trouver — mais il se lit
+   comme un état, pas comme une porte fermée. */
+.bootstrap button.terminal-tab[data-off="true"] { color: var(--dim); }
+.bootstrap button.terminal-tab[data-off="true"][data-on="true"] { color: var(--black); }
 .terminal-right { position: relative; min-width: 0; }
 .terminal-map { position: absolute; inset: 0; }
 /* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la

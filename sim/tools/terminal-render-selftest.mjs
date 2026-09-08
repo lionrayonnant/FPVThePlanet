@@ -54,6 +54,12 @@ const btn = (label) => {
 		?? all.find((b) => b.textContent.startsWith(label) || b.textContent.startsWith(`[ ${label}`));
 };
 const text = () => dom.root.textContent;
+// L'onglet ouvert à l'entrée est LIVE (D2) : les tests qui parlent du cache
+// terrain passent d'abord sur LOCAL, comme un opérateur qui a déjà acquis.
+const openLocal = async () => {
+	dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL').click();
+	await new Promise((r) => setTimeout(r, 0));
+};
 
 // Un opérateur minimal : terminalModel() n'a besoin que de ça.
 const operator = (over = {}) => ({
@@ -61,30 +67,105 @@ const operator = (over = {}) => ({
 });
 const api = (op) => ({ getOperator: () => op, patch: () => {}, flush: async () => {} });
 
-// La Home résout une forme de vol ; on la ferme par MODE pour ne rien voler.
-const close = async (p) => { btn('MODE').click(); return p; };
+// FIELD résout une forme de vol ; on la ferme par Échap pour ne rien voler.
+// Il n'y a plus de bouton MODE (D4) : Échap EST la remontée, et D15 la nomme.
+const close = async (p) => { dom.key('Escape'); return p; };
+
+// --- D2 : LIVE d'abord ------------------------------------------------------
+//
+// CE TEST DOIT RESTER LE PREMIER : `lastTab` est une mémoire de chargement de
+// page, partagée par tout ce fichier. C'est ici, et seulement ici, qu'on peut
+// observer l'onglet ouvert à la PREMIÈRE entrée dans FIELD.
+await ta('home : LIVE est le premier onglet, et l\'onglet ouvert', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const tabs = dom.root.querySelectorAll('.terminal-tab');
+	assert.deepEqual(tabs.map((b) => b.textContent), ['LIVE', 'LOCAL'], 'LIVE en tête');
+	assert.equal(tabs[0].dataset.on, 'true', 'et ouvert à l\'entrée');
+	await close(p);
+});
 
 await ta('home : la carte, puis la seule chose qui décolle', async () => {
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));   // fetchScenes()
+	await openLocal();
 	assert.ok(dom.root.querySelector('.terminal-map'), 'le cadre de la carte');
 	assert.ok(btn('FLY — PARISTEST'), 'le CTA de vol, étiqueté par la zone');
 	await close(p);
 });
 
-await ta('home : le froid est derrière ARCHIVE, pas sur la Home', async () => {
+await ta('home : FIELD ne fait plus que voler', async () => {
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
-	assert.ok(btn('ARCHIVE'), 'l\'entrée ARCHIVE');
-	// C'est tout l'objet du lot : la Home ne doit plus être un tableau de bord
-	// (Bible §30). Ces cinq entrées existent toujours — un cran plus bas.
-	for (const gone of ['SESSION LOG', 'TARGET LOG', 'OPERATOR', 'BUILD NOTES', 'CONTROL VECTOR']) {
-		assert.equal(btn(gone), undefined, `« ${gone} » n'est plus sur la Home`);
+	// D3/D4/D6 : ARCHIVE et SETTINGS sont montés à la racine, MODE a disparu.
+	// FIELD ne garde que ce qui fait décoller (Bible §30).
+	for (const gone of ['SESSION LOG', 'TARGET LOG', 'OPERATOR', 'BUILD NOTES',
+		'CONTROL VECTOR', 'ARCHIVE', 'SETTINGS', 'MODE']) {
+		assert.equal(btn(gone), undefined, `« ${gone} » n'est plus sur FIELD`);
 	}
-	// MODE et SETTINGS restent : ils ne sont ni un lieu ni un journal.
-	assert.ok(btn('SETTINGS'), 'SETTINGS reste au pied');
+	await close(p);
+});
+
+await ta('home : la tête ne salue plus, et le pied ne compte plus', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	// D1 : l'opérateur est salué à la racine, une fois. FIELD est un poste de
+	// travail, pas un tableau de bord.
+	assert.doesNotMatch(text(), /OPERATOR/, 'ni dans la tête, ni au pied');
+	for (const gone of ['LOCAL AREAS', 'TARGETS LOGGED', 'SESSIONS']) {
+		assert.ok(!text().includes(gone), `« ${gone} » a quitté le pied`);
+	}
+	await close(p);
+});
+
+await ta('home : sans droit d\'acquérir, LOCAL le DIT au lieu d\'être vide', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const local = dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL');
+	// Éteint mais sélectionnable : l'état se lit AVANT le clic, et les zones
+	// pré-installées par l'hébergeur restent atteignables.
+	assert.equal(local.dataset.off, 'true', 'l\'onglet est éteint');
+	local.click();
+	await new Promise((r) => setTimeout(r, 0));
+	const notice = dom.root.querySelector('.terminal-notice');
+	assert.ok(notice, 'un bloc d\'avis en tête du corps LOCAL');
+	assert.match(notice.textContent, /NOT AVAILABLE ON THIS SERVER/);
+	assert.match(notice.textContent, /SWITCH TO THE LIVE TAB/);
+	assert.match(notice.textContent, /INSTALL THE DESKTOP CLIENT/);
+	// Absorbés par l'avis : ils ne doivent plus traîner ailleurs à l'écran.
+	assert.ok(!text().includes('DESKTOP CLIENT AVAILABLE'));
+	assert.ok(!text().includes('SWITCH TO LIVE TO FLY'));
+	assert.equal(dom.root.querySelectorAll('.terminal-foot-hint').length, 0);
+	await close(p);
+});
+
+await ta('home : avec le droit d\'acquérir, LOCAL n\'a rien à annoncer', async () => {
+	reset();
+	acquireReply = true;
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL').click();
+	await new Promise((r) => setTimeout(r, 0));
+	const local = dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL');
+	assert.equal(local.dataset.off, undefined, 'l\'onglet est allumé');
+	assert.equal(dom.root.querySelector('.terminal-notice'), null);
+	await close(p);
+});
+
+// --- D15 : Échap est nommé --------------------------------------------------
+
+await ta('home : Échap est écrit, et il dit où il mène', async () => {
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const keys = dom.root.querySelector('.terminal-keys');
+	assert.ok(keys, 'la ligne des touches');
+	assert.equal(keys.textContent, '[ESC] OPERATION MODE');
 	await close(p);
 });
 
@@ -92,6 +173,7 @@ await ta('home : le curseur se pose sur FLY, pas sur une zone', async () => {
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	// « Une seule touche pour voler » (issue #123). La carte n'est pas focusable,
 	// donc rien ne doit s'intercaler entre l'ouverture et le décollage.
 	assert.ok(dom.active?.textContent.includes('FLY —'), `curseur sur FLY, pas « ${dom.active?.textContent} »`);
@@ -104,6 +186,7 @@ await ta('home : choisir une zone recadre et réétiquette, mais ne vole pas', a
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	p.then(() => { resolved = true; });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	assert.ok(btn('FLY — PARISTEST'), 'au départ, la première zone');
 
 	dom.root.querySelectorAll('.terminal-area').find((r) => r.dataset.slug === 'cnam').click();
@@ -119,6 +202,7 @@ await ta('home : la zone volée est celle qui est sélectionnée', async () => {
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	dom.root.querySelectorAll('.terminal-area').find((r) => r.dataset.slug === 'cnam').click();
 	await new Promise((r) => setTimeout(r, 0));
 	btn('FLY —').click();
@@ -131,6 +215,7 @@ await ta('home : [ FLY ] part sur la zone de la dernière session', async () => 
 	const op = operator({ sessions: [{ id: 's1', area: 'cnam', result: 'CRASHED', end: '2026-09-04T12:00:00.000Z' }] });
 	const p = runTerminal(dom.root, { settings: null, api: api(op), back: true });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	// Revenir sur le même territoire est le geste courant (Bible §7) : il ne doit
 	// pas coûter une sélection de plus.
 	assert.ok(btn('FLY — CONSERVATOIRE'), 'la zone de la dernière session');
@@ -143,7 +228,7 @@ await ta('home : le pied est exactement celui du modèle', async () => {
 	const p = runTerminal(dom.root, { settings: null, api: api(op), back: true });
 	await new Promise((r) => setTimeout(r, 0));
 	const { terminalModel } = await import('./terminal-model.mjs');
-	const expected = terminalModel({ operator: op, scenes: SCENES }).footer;
+	const expected = terminalModel({ operator: op, scenes: SCENES, acquire: false }).footer;
 	const foot = dom.root.querySelector('.terminal-foot');
 	// Les compteurs du pied sont le sceau de non-régression de BENCH et du vol
 	// live : ils doivent rester mot pour mot ceux du modèle.
@@ -158,11 +243,14 @@ await ta('home : sans terrain, la carte reste l\'entrée', async () => {
 	// écran vide à côté d'une carte.
 	reset();
 	scenesReply = [];
+	acquireReply = true;
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL').click();
 	await new Promise((r) => setTimeout(r, 0));
 	assert.equal(btn('FLY —'), undefined, 'rien à voler');
 	assert.ok(dom.root.querySelector('.terminal-map'), "la carte est là, c'est par elle qu'on part");
-	assert.ok(text().includes('NO LOCAL TERRAIN'), 'et la colonne gauche le dit');
+	assert.ok(text().includes('NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP'), 'et la colonne gauche le dit');
 	assert.equal(btn('ALL TERRAIN…'), undefined, 'pas de ALL TERRAIN… sur une liste vide');
 	await close(p);
 });
@@ -177,13 +265,15 @@ await ta('home : cache injoignable — la Home monte quand même', async () => {
 	await close(p);
 });
 
-await ta('home : MODE n\'apparaît que si l\'on peut remonter', async () => {
+await ta('home : sans remontée possible, aucune touche n\'est annoncée', async () => {
 	reset();
-	// ?scene= saute le choix de mode : la Home y est encore la racine, et une
-	// entrée MODE y mènerait à un écran dont on ne peut pas redescendre.
+	// ?scene= saute le choix de mode : FIELD y est encore la racine, et
+	// annoncer « [ESC] OPERATION MODE » y promettrait un écran qui n'existe pas.
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: false });
 	await new Promise((r) => setTimeout(r, 0));
-	assert.equal(btn('MODE'), undefined, 'pas de MODE sans back');
+	await openLocal();
+	assert.equal(dom.root.querySelector('.terminal-keys'), null, 'pas de ligne de touches sans back');
+	assert.equal(btn('MODE'), undefined, 'et toujours pas de MODE');
 	btn('FLY —').click();
 	await p;
 });
@@ -207,6 +297,7 @@ await ta('home : [ GLOBAL SCANNER ] a disparu — il n\'y a plus d\'ailleurs où
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	assert.equal(btn('GLOBAL SCANNER'), undefined);
 	assert.ok(btn('FLY —'), 'FLY reste la seule chose qui décolle');
 	await close(p);
@@ -219,37 +310,13 @@ await ta('home : la carte SURVIT au re-rendu de la colonne gauche', async () => 
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
+	await openLocal();
 	const carte = dom.root.querySelector('.terminal-map');
 	const droite = dom.root.querySelector('.terminal-right');
 	dom.root.querySelectorAll('.terminal-area').at(1).click();
 	await new Promise((r) => setTimeout(r, 0));
 	assert.equal(dom.root.querySelector('.terminal-map'), carte, 'le MÊME nœud de carte');
 	assert.equal(dom.root.querySelector('.terminal-right'), droite, 'la MÊME colonne');
-	await close(p);
-});
-
-// --- issue #60 : ce que le droit d'acquérir change à l'écran ----------------
-
-await ta('home : sans droit d\'acquérir, une ligne au pied — pas un bandeau', async () => {
-	reset();
-	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
-	await new Promise((r) => setTimeout(r, 0));
-	const hints = dom.root.querySelectorAll('.terminal-foot-hint');
-	assert.equal(hints.length, 1, 'une seule ligne');
-	assert.match(hints[0].textContent, /DESKTOP CLIENT/);
-	// Information, pas assistance : ni bouton, ni compte à rebours, ni promesse
-	// de débloquer quoi que ce soit.
-	assert.equal(hints[0].querySelectorAll('button').length, 0);
-	assert.doesNotMatch(hints[0].textContent, /UNLOCK|FREE|NOW|UPGRADE/i);
-	await close(p);
-});
-
-await ta('home : avec le droit d\'acquérir, pas de ligne du tout', async () => {
-	reset();
-	acquireReply = true;
-	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
-	await new Promise((r) => setTimeout(r, 0));
-	assert.equal(dom.root.querySelectorAll('.terminal-foot-hint').length, 0);
 	await close(p);
 });
 
