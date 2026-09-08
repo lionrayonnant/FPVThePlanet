@@ -3225,3 +3225,25 @@ terminal et pas au FLY.
   Depuis PHASE 04 ce sont les **seuls** moyens de changer le temps qu'il fait :
   les curseurs ont disparu, le monde décide.
 
+
+## Trous du terrain LIVE — exclude périmé (issue #31, régression de #22)
+
+### Vérifié — sans navigateur, sur les vraies données kh.google.com
+
+Le LOD par anneaux (#22) fait dépendre l'`exclude` d'un nœud de la POSITION de
+la fenêtre. `RocktreeWindow.update()` ne re-fetchait qu'un chemin absent : un
+nœud déjà chargé gardait le maillage de son ancien `exclude`. Mesuré à Paris,
+rayon 600 m, pas de 50 m : 70 nœuds périmés au premier recentrage, 171 sur 706
+après 300 m de vol (500 octants troués, 108 dessinés en double). Un nœud dont
+l'`exclude` change est désormais libéré puis reconstruit ;
+`tools/rocktree-window-selftest.mjs` le verrouille.
+
+### Non vérifié
+
+- Rien n'a été VU en vol : le correctif est prouvé sur les chiffres de
+  couverture, pas à l'écran.
+- Le churn que ça ajoute (~70 nœuds libérés/reconstruits par recentrage, sous
+  le budget par frame de `processLiveNodeWork()`) n'a pas été mesuré à l'image.
+  Si un scintillement se voit au recentrage, c'est là qu'il faut regarder :
+  construire le nouveau maillage AVANT de libérer l'ancien serait le remède,
+  au prix d'un collider dupliqué le temps de l'échange.
