@@ -3,6 +3,9 @@ import { beginCalibration, feedSample, calibrationResult, calProgress, calSummar
 import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
+import { KEY_ACTIONS, KEY_MAP_STORAGE, keyMapRows, rebind, loadKeyMap } from './key-map.js';
+import { keyHints } from './terminal.js';
+import { versionLine } from './version.js';
 
 const VOLUME_KEY = 'fpvtp.audioVolume';
 const BRIGHTNESS_KEY = 'fpvtp.audioBrightness';
@@ -92,99 +95,147 @@ export function loadLink() {
 	return { mode, severity: loadPercent(LINK_KEY, 1) };
 }
 
-// The Tab panel: input detection/binding, controls reminder, audio. It owns
-// #settings and nothing else — l'OSD de vol s'est scindé en deux couches
-// (drone-osd.js et fpvtp-osd.js), le terminal opérateur est dans terminal.js.
+// ---------------------------------------------------------------------------
+// THE PANEL (D14)
+//
+// Four tabs, one body at a time, in the terminal's own clothes: a DISPLAY
+// header, the tab strip the Home already uses, and a key-hint row instead of a
+// Close button. Same #settings element and same toggleSettings()/closed()
+// contract as before — only the inside changed.
+//
+// The tree is built with createElement rather than innerHTML, for the same
+// reason terminal.js is: an innerHTML panel cannot be mounted on the fake DOM
+// of tools/lib/fake-dom.mjs, and this screen is now worth testing.
+// ---------------------------------------------------------------------------
+
+const TABS = [
+	['controller', 'CONTROLLER'],
+	['keyboard', 'KEYBOARD'],
+	['audio', 'AUDIO'],
+	['system', 'SYSTEM'],
+];
+
+// The open tab, for the page load only (same rule as terminal.js's lastTab):
+// reopening the panel comes back where it was left, a reload starts at
+// CONTROLLER. Not stored — a remembered tab is not a setting.
+let activeTab = TABS[0][0];
+
+// How long a row keeps saying what a rebind did to its neighbour.
+const SWAP_NOTICE_MS = 2000;
+
+// Ce que la ligne dit pendant qu'elle attend une touche.
+const CAPTURE_PROMPT = 'PRESS A KEY — ESC CANCELS';
+
+// Minimal element builder. `id` is written to BOTH the property and the
+// attribute: the property is what the code reads, the attribute is what
+// querySelector('[id="…"]') matches on a DOM that does not reflect.
+function h(tag, props = {}, children = []) {
+	const el = document.createElement(tag);
+	for (const [k, v] of Object.entries(props)) {
+		if (v === undefined) continue;
+		if (k === 'class') el.className = v;
+		else if (k === 'text') el.textContent = v;
+		else if (k === 'data') Object.assign(el.dataset, v);
+		else if (k === 'id') { el.id = v; el.setAttribute('id', v); }
+		else el[k] = v;
+	}
+	for (const c of children) el.appendChild(c);
+	return el;
+}
+
+// A button in the terminal's voice: the label between brackets, like every CTA
+// the operator screens draw.
+function panelButton(label, onClick, props = {}) {
+	return h('button', { type: 'button', text: `[ ${label} ]`, onclick: onClick, ...props });
+}
+
+// The Tab panel: input detection/binding, keyboard mapping, audio, system.
+// It owns #settings and nothing else — l'OSD de vol s'est scindé en deux
+// couches (drone-osd.js et fpvtp-osd.js), le terminal opérateur est dans
+// terminal.js.
 // Issue #120 : caméra, objectif et lien vidéo n'étaient pas des réglages
 // destinés au joueur — ils restent pilotés par leurs valeurs stockées
 // (loadLens/loadLink, cf. main.js) mais ont quitté ce panneau.
 export class Settings {
 	constructor(root, input) {
 		this.input = input;
-		const el = document.createElement('div');
-		el.id = 'settings';
-		el.hidden = true;
-		el.innerHTML = `
-			<div class="panel">
-				<h2>Controller</h2>
-				<p id="pad-name">no controller detected</p>
-				<!-- Ce que le NAVIGATEUR voit, et le choix quand il en voit
-				     plusieurs (issue #162). Sans cette liste, une radio mal
-				     classée — ou simplement absente de l'énumération — laissait
-				     le pilote sans aucun recours : il ne pouvait ni constater ce
-				     qui était détecté, ni désigner le bon périphérique. -->
-				<div id="pad-list" class="spec"></div>
-				<!-- Calibrage mesuré (issue #277). Le bouton est toujours là ;
-				     la note à côté ne parle que d'un périphérique JAMAIS
-				     calibré — proposer, pas imposer. -->
-				<div id="cal-row">
-					<button id="calibrate" type="button">Calibrate</button>
-					<span id="cal-note" class="spec"></span>
-				</div>
-				<div id="cal-screen" hidden>
-					<p id="cal-step" class="spec"></p>
-					<p id="cal-prompt"></p>
-					<p id="cal-hint" class="spec"></p>
-					<p id="cal-message" class="spec"></p>
-					<div class="axisbar"><i id="cal-bar"></i></div>
-				</div>
-				<!-- La machine qui réagit au manche (#281). Hors de #cal-screen
-				     à dessein : une fois la mesure finie elle reste, et suit les
-				     quatre manches calibrés — le banc d'essai vient gratuitement.
-				     C'est aussi pourquoi CANCEL est descendu sous elle : sinon
-				     la machine apparaît SOUS un bouton d'abandon, alors qu'elle
-				     illustre la consigne écrite au-dessus. -->
-				<div id="cal-drone" hidden></div>
-				<div id="cal-cancel-row" hidden>
-					<button id="cal-cancel" type="button">Cancel</button>
-				</div>
-				<div id="cal-summary" class="spec" hidden></div>
-				<table id="pad-map"></table>
-				<h2>Controls</h2>
-				<div id="keymap" class="spec">
-					<b>W/S</b> throttle · <b>A/D</b> yaw · <b>arrows</b>/mouse roll-pitch<br>
-					<b>K</b> (hold) cut link, field · <b>M</b> mode (acro/angle/altitude) · <b>P</b> rates (cinéma/freestyle/race/long range/micro)<br>
-					<b>V</b> view (fpv/chase) · <b>F</b> capture · <b>Space</b> pause · <b>Tab</b> settings · <b>R</b> respawn, bench
-				</div>
-				<h2>Sound</h2>
-				<label>Volume <input id="vol" type="range" min="0" max="100" step="1"> <span id="vol-val"></span> %</label>
-				<label>Tone <input id="tone" type="range" min="0" max="100" step="1"> <span id="tone-val"></span></label>
-				<label>Music <input id="music" type="range" min="0" max="100" step="1"> <span id="music-val"></span> %</label>
-				<div id="viewrange-row" hidden>
-					<h2>View</h2>
-					<label>Range <input id="viewrange" type="range" min="${VIEW_RANGE_MIN_M}" max="${VIEW_RANGE_MAX_M}" step="50"> <span id="viewrange-val"></span> m</label>
-				</div>
-				<button id="reset-settings">Reset settings</button>
-				<button id="close-settings">Close (Tab)</button>
-			</div>`;
+		// Filled by main.js when a briefing exists (D16). While it is null the
+		// SYSTEM tab draws no REPLAY BRIEFING button: nothing to replay.
+		this.onReplayBriefing = null;
+		// The action being rebound, or null. Module-level state would be wrong
+		// here — two panels never coexist, but the listener is per panel.
+		this._capture = null;
+		this._captureKey = null;
+		this._swapNotice = null;
+		this._swapTimer = 0;
+
+		const el = h('div', { id: 'settings', hidden: true });
+		const panel = h('div', { class: 'panel' });
+		el.appendChild(panel);
+
+		// Le niveau DISPLAY, une seule fois : le panneau se nomme, puis se tait.
+		panel.appendChild(h('pre', { class: 'panel-title t-display', text: 'FPVTP! // SETTINGS' }));
+
+		const strip = h('div', { class: 'terminal-tabs' });
+		this._tabButtons = TABS.map(([id, label]) => {
+			const b = h('button', {
+				type: 'button', class: 'terminal-tab', text: label,
+				onclick: () => this.selectTab(id),
+			});
+			b.dataset.tab = id;
+			strip.appendChild(b);
+			return b;
+		});
+		panel.appendChild(strip);
+
+		this._sections = {};
+		for (const [id] of TABS) {
+			const section = h('section', { class: 'panel-body', hidden: true });
+			section.dataset.tab = id;
+			this._sections[id] = section;
+			panel.appendChild(section);
+		}
+
+		this.buildController(this._sections.controller);
+		this.buildKeyboard(this._sections.keyboard);
+		this.buildAudio(this._sections.audio);
+		this.buildSystem(this._sections.system);
+
+		// D15 : la touche est écrite, pas dessinée en bouton. Les deux ferment,
+		// et c'est main.js qui les entend — le panneau ne fait que le dire.
+		panel.appendChild(keyHints([['ESC', 'CLOSE'], ['TAB', 'CLOSE']]));
+
 		root.appendChild(el);
 
 		this.el = {
 			settings: el,
-			vol: el.querySelector('#vol'),
-			volVal: el.querySelector('#vol-val'),
-			tone: el.querySelector('#tone'),
-			toneVal: el.querySelector('#tone-val'),
-			music: el.querySelector('#music'),
-			musicVal: el.querySelector('#music-val'),
-			viewRangeRow: el.querySelector('#viewrange-row'),
-			viewRange: el.querySelector('#viewrange'),
-			viewRangeVal: el.querySelector('#viewrange-val'),
-			padName: el.querySelector('#pad-name'),
-			padList: el.querySelector('#pad-list'),
-			padMap: el.querySelector('#pad-map'),
-			calRow: el.querySelector('#cal-row'),
-			calButton: el.querySelector('#calibrate'),
-			calNote: el.querySelector('#cal-note'),
-			calScreen: el.querySelector('#cal-screen'),
-			calStep: el.querySelector('#cal-step'),
-			calPrompt: el.querySelector('#cal-prompt'),
-			calHint: el.querySelector('#cal-hint'),
-			calMessage: el.querySelector('#cal-message'),
-			calBar: el.querySelector('#cal-bar'),
-			calDrone: el.querySelector('#cal-drone'),
-			calCancelRow: el.querySelector('#cal-cancel-row'),
-			calSummary: el.querySelector('#cal-summary'),
+			panel,
+			vol: el.querySelector('[id="vol"]'),
+			volVal: el.querySelector('[id="vol-val"]'),
+			tone: el.querySelector('[id="tone"]'),
+			toneVal: el.querySelector('[id="tone-val"]'),
+			music: el.querySelector('[id="music"]'),
+			musicVal: el.querySelector('[id="music-val"]'),
+			viewRangeRow: el.querySelector('[id="viewrange-row"]'),
+			viewRange: el.querySelector('[id="viewrange"]'),
+			viewRangeVal: el.querySelector('[id="viewrange-val"]'),
+			padName: el.querySelector('[id="pad-name"]'),
+			padList: el.querySelector('[id="pad-list"]'),
+			padMap: el.querySelector('[id="pad-map"]'),
+			calRow: el.querySelector('[id="cal-row"]'),
+			calButton: el.querySelector('[id="calibrate"]'),
+			calNote: el.querySelector('[id="cal-note"]'),
+			calScreen: el.querySelector('[id="cal-screen"]'),
+			calStep: el.querySelector('[id="cal-step"]'),
+			calPrompt: el.querySelector('[id="cal-prompt"]'),
+			calHint: el.querySelector('[id="cal-hint"]'),
+			calMessage: el.querySelector('[id="cal-message"]'),
+			calBar: el.querySelector('[id="cal-bar"]'),
+			calDrone: el.querySelector('[id="cal-drone"]'),
+			calCancelRow: el.querySelector('[id="cal-cancel-row"]'),
+			calSummary: el.querySelector('[id="cal-summary"]'),
+			keyRows: el.querySelector('[id="key-rows"]'),
+			replayRow: el.querySelector('[id="replay-row"]'),
 		};
 		// État de l'assistant de calibrage, ou null. C'est la seule chose qui
 		// distingue le panneau ouvert du panneau en train de mesurer.
@@ -193,27 +244,257 @@ export class Settings {
 		this._calLast = 0;
 		this._calRaf = null;
 		this.el.calButton.onclick = () => this.startCalibration();
-		el.querySelector('#cal-cancel').onclick = () => this.cancelCalibration();
+		el.querySelector('[id="cal-cancel"]').onclick = () => this.cancelCalibration();
 		// Posé à vrai par main.js quand un vol démarre : le panneau ouvert en vol
 		// n'écoute pas la manette (les sticks pilotent le drone — issue #123).
 		this.flightActive = false;
-		el.querySelector('#close-settings').onclick = () => this.toggleSettings(false);
-		// Pas de confirm() de navigateur (§44, issue #213) : le bouton se
-		// réétiquette et la DEUXIÈME pression est la confirmation.
-		armConfirm(el.querySelector('#reset-settings'), () => {
-			try {
-				for (const key of Object.keys(localStorage)) {
-					if (key.startsWith('fpvtp.')) localStorage.removeItem(key);
-				}
-			} catch { }
-			location.reload();
-		});
 		this._axisRows = [];
+		this.selectTab(activeTab);
 		// Populate every control from storage now, with inert callbacks, so the
 		// panel reads correctly when opened from the terminal before boot(). boot()
 		// calls the same setters again with live callbacks — every setter re-reads
 		// and re-emits, so the second pass is idempotent.
 		this.hydrate();
+	}
+
+	// ---------------------------------------------------------------------------
+	// THE FOUR BODIES
+	// ---------------------------------------------------------------------------
+
+	// CONTROLLER — the device list, the calibration wizard and the channel map,
+	// moved here whole. Every id is the one startCalibration/renderCalibration
+	// already write to: this tab changed address, not behaviour.
+	buildController(box) {
+		box.appendChild(h('p', { id: 'pad-name', text: 'no controller detected' }));
+		// Ce que le NAVIGATEUR voit, et le choix quand il en voit plusieurs
+		// (issue #162). Sans cette liste, une radio mal classée — ou simplement
+		// absente de l'énumération — laissait le pilote sans aucun recours.
+		box.appendChild(h('div', { id: 'pad-list', class: 'spec' }));
+		// Calibrage mesuré (issue #277). Le bouton est toujours là ; la note à
+		// côté ne parle que d'un périphérique JAMAIS calibré.
+		box.appendChild(h('div', { id: 'cal-row' }, [
+			h('button', { id: 'calibrate', type: 'button', text: 'Calibrate' }),
+			h('span', { id: 'cal-note', class: 'spec' }),
+		]));
+		box.appendChild(h('div', { id: 'cal-screen', hidden: true }, [
+			h('p', { id: 'cal-step', class: 'spec' }),
+			h('p', { id: 'cal-prompt' }),
+			h('p', { id: 'cal-hint', class: 'spec' }),
+			h('p', { id: 'cal-message', class: 'spec' }),
+			h('div', { class: 'axisbar' }, [h('i', { id: 'cal-bar' })]),
+		]));
+		// La machine qui réagit au manche (#281). Hors de #cal-screen à dessein :
+		// une fois la mesure finie elle reste, et suit les quatre manches
+		// calibrés — le banc d'essai vient gratuitement. C'est aussi pourquoi
+		// CANCEL est descendu sous elle.
+		box.appendChild(h('div', { id: 'cal-drone', hidden: true }));
+		box.appendChild(h('div', { id: 'cal-cancel-row', hidden: true }, [
+			h('button', { id: 'cal-cancel', type: 'button', text: 'Cancel' }),
+		]));
+		box.appendChild(h('div', { id: 'cal-summary', class: 'spec', hidden: true }));
+		box.appendChild(h('table', { id: 'pad-map' }));
+	}
+
+	// KEYBOARD — one row per action (D13). The rows are rebuilt from the map
+	// rather than patched: the map is the truth, the tab is a view of it.
+	buildKeyboard(box) {
+		box.appendChild(h('div', { id: 'key-rows', class: 'key-rows' }));
+		box.appendChild(panelButton('RESET KEYS', () => this.resetKeys()));
+	}
+
+	buildAudio(box) {
+		box.appendChild(h('label', {}, [
+			h('span', { class: 't-ui', text: 'Volume' }),
+			h('input', { id: 'vol', type: 'range', min: '0', max: '100', step: '1' }),
+			h('span', { id: 'vol-val', class: 't-data' }),
+			h('span', { class: 't-data', text: '%' }),
+		]));
+		box.appendChild(h('label', {}, [
+			h('span', { class: 't-ui', text: 'Tone' }),
+			h('input', { id: 'tone', type: 'range', min: '0', max: '100', step: '1' }),
+			h('span', { id: 'tone-val', class: 't-data' }),
+		]));
+		box.appendChild(h('label', {}, [
+			h('span', { class: 't-ui', text: 'Music' }),
+			h('input', { id: 'music', type: 'range', min: '0', max: '100', step: '1' }),
+			h('span', { id: 'music-val', class: 't-data' }),
+			h('span', { class: 't-data', text: '%' }),
+		]));
+	}
+
+	// SYSTEM — what belongs to the installation rather than to the pilot: the
+	// live view range, the briefing, the reset, and which build this is.
+	buildSystem(box) {
+		box.appendChild(h('div', { id: 'viewrange-row', hidden: true }, [
+			h('label', {}, [
+				h('span', { class: 't-ui', text: 'View range' }),
+				h('input', {
+					id: 'viewrange', type: 'range',
+					min: String(VIEW_RANGE_MIN_M), max: String(VIEW_RANGE_MAX_M), step: '50',
+				}),
+				h('span', { id: 'viewrange-val', class: 't-data' }),
+				h('span', { class: 't-data', text: 'm' }),
+			]),
+		]));
+		box.appendChild(h('div', { id: 'replay-row' }));
+		// Pas de confirm() de navigateur (§44, issue #213) : le bouton se
+		// réétiquette et la DEUXIÈME pression est la confirmation.
+		const reset = panelButton('RESET SETTINGS', null);
+		box.appendChild(reset);
+		armConfirm(reset, () => {
+			try {
+				for (const key of Object.keys(localStorage)) {
+					if (key.startsWith('fpvtp.')) localStorage.removeItem(key);
+				}
+			} catch { }
+			// Guarded: this module is now mounted on a fake DOM by
+			// tools/settings-render-selftest.mjs, where there is no location.
+			if (typeof location !== 'undefined') location.reload();
+		});
+		box.appendChild(h('pre', { class: 'panel-version t-data', text: versionLine() }));
+	}
+
+	// ---------------------------------------------------------------------------
+	// TABS
+	// ---------------------------------------------------------------------------
+
+	selectTab(id) {
+		const tab = TABS.some(([t]) => t === id) ? id : TABS[0][0];
+		if (tab !== 'keyboard') this.endCapture();
+		activeTab = tab;
+		for (const b of this._tabButtons) {
+			if (b.dataset.tab === tab) b.dataset.on = 'true'; else delete b.dataset.on;
+		}
+		for (const [key, section] of Object.entries(this._sections)) section.hidden = key !== tab;
+		if (tab === 'keyboard') this.renderKeyboard();
+		if (tab === 'system') this.renderSystem();
+	}
+
+	// Open the panel straight onto a tab. The terminal uses it to land on
+	// KEYBOARD or CONTROLLER from a briefing that just named them.
+	open(tab) {
+		this.toggleSettings(true);
+		if (tab) this.selectTab(tab);
+	}
+
+	// ---------------------------------------------------------------------------
+	// KEYBOARD TAB (D13)
+	// ---------------------------------------------------------------------------
+
+	renderKeyboard() {
+		const box = this.el.keyRows;
+		box.replaceChildren();
+		this._keyRows = new Map();
+		for (const row of keyMapRows(this.input.getKeyMap())) {
+			const line = h('div', { class: 'key-row' });
+			line.dataset.action = row.id;
+			line.appendChild(h('span', { class: 'key-name t-ui', text: row.label }));
+			line.appendChild(h('span', { class: 'key-keys t-data', text: row.keys.join(' · ') || '—' }));
+			// Une seule ligne parle à la fois : la capture en cours, sinon
+			// l'échange qui vient d'avoir lieu, sinon rien.
+			const note = h('span', {
+				class: 'key-note t-data',
+				text: this._capture === row.id ? CAPTURE_PROMPT
+					: this._swapNotice?.id === row.id ? `SWAPPED WITH ${this._swapNotice.label}`
+						: '',
+			});
+			line.appendChild(note);
+			const rebindBtn = panelButton('REBIND', () => this.startCapture(row.id), { class: 'key-rebind' });
+			line.appendChild(rebindBtn);
+			box.appendChild(line);
+			this._keyRows.set(row.id, { line, note, rebind: rebindBtn });
+		}
+	}
+
+	// Une ligne parle SANS que la liste soit reconstruite. Ce n'est pas une
+	// optimisation : reconstruire retirerait du document le bouton qui vient
+	// d'être cliqué, le focus retomberait sur le corps de page, et l'écouteur
+	// de capture — posé sur le panneau — ne verrait jamais la touche suivante.
+	setRowNote(actionId, text) {
+		const row = this._keyRows?.get(actionId);
+		if (row) row.note.textContent = text;
+	}
+
+	// La prochaine touche appartient au panneau. L'écouteur est posé en phase
+	// de CAPTURE sur le panneau : il passe donc avant input.js (window, phase
+	// de bulle), et stopPropagation() garantit que la touche capturée ne pilote
+	// rien et ne ferme rien.
+	startCapture(actionId) {
+		if (this._swapNotice) { this.setRowNote(this._swapNotice.id, ''); this._swapNotice = null; }
+		this._capture = actionId;
+		if (!this._captureKey) {
+			this._captureKey = (ev) => this.onCaptureKey(ev);
+			this.el.settings.addEventListener('keydown', this._captureKey, true);
+		}
+		this.setRowNote(actionId, CAPTURE_PROMPT);
+		// L'écouteur est sur le PANNEAU : la touche ne lui parvient que si le
+		// focus est dedans. Un clic sur un bouton ne le donne pas partout
+		// (Safari ne focalise pas les boutons cliqués) — on le pose donc.
+		this._keyRows?.get(actionId)?.rebind.focus?.();
+	}
+
+	endCapture() {
+		if (this._captureKey) {
+			this.el.settings.removeEventListener('keydown', this._captureKey, true);
+			this._captureKey = null;
+		}
+		this._capture = null;
+	}
+
+	onCaptureKey(ev) {
+		if (!this._capture) return;
+		ev.stopPropagation?.();
+		ev.preventDefault?.();
+		const actionId = this._capture;
+		this.endCapture();
+		// Échap abandonne, Tab aussi : ce sont les deux touches qui ferment le
+		// panneau, elles ne peuvent pas devenir des commandes de vol (D13).
+		const key = String(ev.key ?? '');
+		if (key === 'Escape' || key === 'Tab') { this.setRowNote(actionId, ''); return; }
+
+		const { map, swappedWith } = rebind(this.input.getKeyMap(), actionId, key);
+		this.input.setKeyMap(map);
+		try { localStorage.setItem(KEY_MAP_STORAGE, JSON.stringify(map)); } catch { }
+		if (swappedWith) {
+			const label = KEY_ACTIONS.find((a) => a.id === swappedWith)?.label ?? swappedWith;
+			this._swapNotice = { id: actionId, label };
+			if (this._swapTimer) clearTimeout(this._swapTimer);
+			this._swapTimer = setTimeout(() => {
+				this._swapTimer = 0;
+				this._swapNotice = null;
+				this.setRowNote(actionId, '');
+			}, SWAP_NOTICE_MS);
+			// Node keeps the process alive for a pending timer; a selftest must
+			// not wait two seconds to exit. No-op in a browser.
+			this._swapTimer?.unref?.();
+		}
+		this.renderKeyboard();
+		// Le focus revient sur le bouton qu'on vient d'actionner : la navigation
+		// aux flèches (menu-nav) reprend là où elle était.
+		this._keyRows.get(actionId)?.rebind.focus?.();
+	}
+
+	resetKeys() {
+		this.endCapture();
+		this._swapNotice = null;
+		const map = this.input.setKeyMap(loadKeyMap(null));
+		try { localStorage.setItem(KEY_MAP_STORAGE, JSON.stringify(map)); } catch { }
+		this.renderKeyboard();
+	}
+
+	// ---------------------------------------------------------------------------
+	// SYSTEM TAB
+	// ---------------------------------------------------------------------------
+
+	// The briefing button exists only when there is a briefing to replay, which
+	// is why this is redrawn on every visit rather than once at construction:
+	// main.js fills the slot long after the panel is built.
+	renderSystem() {
+		const row = this.el?.replayRow ?? this._sections.system.querySelector('[id="replay-row"]');
+		row.replaceChildren();
+		if (this.onReplayBriefing) {
+			row.appendChild(panelButton('REPLAY BRIEFING', () => this.onReplayBriefing?.()));
+		}
 	}
 
 	hydrate() {
@@ -285,7 +566,11 @@ export class Settings {
 		// traité DEUX fois (main.js et le `back` de menu-nav), et une garde qui
 		// annulait au premier passage laissait le second fermer quand même.
 		if (!show && this._cal) this.cancelCalibration();
+		// Une capture de touche ne survit pas non plus au panneau fermé : son
+		// écouteur partirait avec, et la touche suivante serait avalée.
+		if (!show) this.endCapture();
 		if (show) {
+			this.selectTab(activeTab);
 			this.buildAxisRows();
 			// Navigation clavier + manette (issue #123) : ↑/↓ circule entre les
 			// lignes, ←/→ règle le contrôle focalisé (menu-nav.js sait lesquels
@@ -537,22 +822,23 @@ export class Settings {
 		const pad = this.input.getGamepad();
 		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'no controller detected';
 		this.renderCalibration(pad);
-		if (!pad) { this.el.padMap.innerHTML = ''; this._axisRows = []; return; }
+		if (!pad) { this.el.padMap.replaceChildren(); this._axisRows = []; return; }
 
-		this.el.padMap.innerHTML = '';
+		this.el.padMap.replaceChildren();
 		this._axisRows = CHANNELS.map((ch) => {
-			const tr = document.createElement('tr');
 			// Les boutons sont proposés comme les axes : un remap manuel doit
 			// pouvoir désigner la gâchette où le navigateur a rangé le gaz.
-			const opts = padSignals(pad)
-				.map((_, i) => `<option value="${i}">${signalLabel(i, pad.axes.length)}</option>`)
-				.join('');
-			tr.innerHTML = `<td>${ch}</td>
-				<td><select>${opts}</select></td>
-				<td><label><input type="checkbox"> inv</label></td>
-				<td><div class="axisbar"><i></i></div></td>`;
-			const sel = tr.querySelector('select');
-			const inv = tr.querySelector('input');
+			const sel = h('select');
+			padSignals(pad).forEach((_, i) => {
+				sel.appendChild(h('option', { value: String(i), text: signalLabel(i, pad.axes.length) }));
+			});
+			const inv = h('input', { type: 'checkbox' });
+			const tr = h('tr', {}, [
+				h('td', { text: ch }),
+				h('td', {}, [sel]),
+				h('td', {}, [h('label', {}, [inv, h('span', { text: ' inv' })])]),
+				h('td', {}, [h('div', { class: 'axisbar' }, [h('i')])]),
+			]);
 			sel.value = String(this.input.map[ch].axis);
 			inv.checked = this.input.map[ch].invert;
 			const save = () => this.input.setMapping(ch, Number(sel.value), inv.checked);

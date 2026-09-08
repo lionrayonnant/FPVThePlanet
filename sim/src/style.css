@@ -294,17 +294,62 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	max-height: 92vh;
 	overflow-y: auto;
 	padding: var(--space-5) 30px;
-	background: var(--grey);
+	/* D14 : le panneau prend le sol du terminal. Le même noir que la Home et
+	   que la perte de signal — Settings n'est plus une boîte de dialogue posée
+	   sur le jeu, c'est un écran de la machine. Le filet le décolle du voile. */
+	background: var(--black);
 	border: var(--rule-w) solid var(--rule);
+	display: flex; flex-direction: column; gap: var(--space-3);
 }
-/* Titre de section : le niveau UI, en retrait — il nomme, il n'annonce pas. */
-.panel h2 {
-	font-family: var(--font-ui); font-weight: 500;
-	font-size: 12px; letter-spacing: var(--track-ui); text-transform: uppercase;
-	color: var(--light-grey);
-	margin: 1.6em 0 .8em;
+/* Le panneau se nomme, une fois, au niveau DISPLAY — comme tout écran du
+   terminal (Bible §11). */
+.panel .panel-title {
+	margin: 0;
+	font-size: var(--fs-display-s);
+	color: var(--ink);
 }
-.panel h2:first-child { margin-top: 0; }
+/* La bande d'onglets est celle de la Home (.terminal-tabs) ; seuls les boutons
+   ont besoin d'être redits, `.panel button` les encadrerait sinon. */
+#settings .terminal-tabs { margin: 0; }
+#settings button.terminal-tab {
+	margin: 0; width: auto;
+	background: none; border: 0; padding: 2px var(--space-2);
+	color: var(--light-grey); font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); text-transform: uppercase; cursor: pointer;
+}
+#settings button.terminal-tab:hover { background: none; color: var(--ink); }
+#settings button.terminal-tab[data-on="true"],
+#settings button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
+.panel-body { display: block; }
+.panel-body[hidden] { display: none; }
+/* La ligne des touches, comme sous tout écran du terminal (D15). */
+#settings pre.terminal-keys {
+	margin: var(--space-2) 0 0;
+	color: var(--dim);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	white-space: normal;
+}
+/* La build, en fin de SYSTEM : de la donnée, pas une annonce. */
+.panel .panel-version { margin: var(--space-4) 0 0; color: var(--faint); }
+
+/* L'onglet KEYBOARD (D13). Une ligne par action : ce qu'elle fait, la touche
+   qui l'atteint, ce que la ligne a à dire, et le bouton qui la change. Les
+   colonnes sont fixes pour que les touches s'alignent en colonne — c'est ce
+   qui rend la table lisible d'un coup d'œil plutôt que ligne à ligne. */
+.key-rows { display: flex; flex-direction: column; gap: 2px; }
+.key-row {
+	display: grid; grid-template-columns: 1fr 6em auto min-content;
+	align-items: center; gap: var(--space-2);
+}
+.key-row .key-name { color: var(--light-grey); }
+.key-row .key-keys { color: var(--ink); }
+/* PRESS A KEY / SWAPPED WITH … : la ligne parle, elle n'alerte pas. */
+.key-row .key-note { color: var(--dim); white-space: nowrap; }
+.panel .key-row button.key-rebind {
+	margin: 0; width: auto; padding: 2px var(--space-2);
+	font-size: var(--fs-micro); white-space: nowrap;
+}
 #pad-name { margin: 0 0 1em; font-size: 12px; color: var(--dim); word-break: break-all; }
 #pad-map { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 #pad-map td { padding: var(--space-1) 6px var(--space-1) 0; }

@@ -20,6 +20,14 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Le panneau `SETTINGS` (Tab) passe à la direction artistique du terminal :
+  en-tête `FPVTP! // SETTINGS`, quatre onglets `CONTROLLER · KEYBOARD · AUDIO
+  · SYSTEM`, un corps à la fois, et l'onglet ouvert est retenu pour la session.
+  `KEYBOARD` liste chaque action avec ses touches et un `[ REBIND ]` : la
+  touche suivante est prise, Échap annule, une touche déjà prise déclenche un
+  échange annoncé sur la ligne, `[ RESET KEYS ]` remet les valeurs d'usine.
+  `SYSTEM` porte la portée d'affichage (mode `?live=`), `[ RESET SETTINGS ]`
+  et le numéro de version (#15).
 - Tests couvrant qu'un vol EN DIRECT remplit bien le Session Log, le Target
   Log et le compteur OPERATOR, et n'est jamais proposé en REVISIT/RESUME (#8).
 - Les commandes clavier passent par une table remappable (`src/key-map.js`) :
@@ -30,6 +38,13 @@ rapport avec les versions ci-dessous.
   livrée, numéro et châssis compris — et on peut la tourner à la souris. Elle
   tourne seule d'un tour toutes les 24 s. Sans contexte WebGL, le portrait fil
   de fer d'avant prend le relais ; l'archive, elle, garde le SVG (#13).
+
+### Modifié
+
+- Le panneau `SETTINGS` prend le noir du terminal, ses filets et ses trois
+  niveaux typographiques, et remplace son bouton `Close (Tab)` par la ligne de
+  touches `[ESC] CLOSE · [TAB] CLOSE`. Le rappel clavier figé qui vivait sous
+  `Controls` a disparu : l'onglet `KEYBOARD` le remplace, et il dit la vérité.
 
 ### Retiré
 
