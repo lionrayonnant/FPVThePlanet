@@ -179,10 +179,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-ident { color: var(--ink); }
 #fo-rates, #fo-input, #fo-fps { font-size: 12px; color: var(--dim); }
 #fo-env { font-size: 12px; color: var(--ink); }
-/* La bascule de vue (D11). Le seul élément cliquable de l'OSD : la couche est
-   en pointer-events: none, il les reprend pour lui seul. Un bouton, mais qui
-   se lit comme les lignes autour de lui — c'est de l'information de vol, pas
-   un contrôle d'interface. */
+/* The view toggle (D11). The only clickable element of the OSD: the layer is
+   pointer-events: none and this one takes them back for itself. A button, but
+   one that reads like the lines around it — this is flight information, not an
+   interface control. */
 #fo-view {
 	display: block;
 	margin-left: auto;
@@ -257,11 +257,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #fo-cut-bar[hidden] { display: none; }
 
-/* D16 — les trois lignes du premier vol. Même face et même place que #fo-cut,
-   un cran plus bas : les deux ne se disputent jamais l'écran (la ligne du
-   premier vol s'éteint dès que le lien meurt, et #fo-cut n'apparaît qu'au
-   maintien). De l'information, pas une assistance : elle part et ne revient
-   plus. */
+/* D16 — the three first-flight lines. Same face and same place as #fo-cut,
+   one notch lower: the two never fight over the screen (the first-flight line
+   goes out the moment the link dies, and #fo-cut only appears on the hold).
+   Information, not assistance: it leaves and does not come back. */
 #fo-hint {
 	position: absolute;
 	left: 50%;
@@ -290,9 +289,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #flight-end div:empty { height: .6em; }
 
-/* D12 — la machine en 3D sur l'écran de fin (src/drone-viewer.js). C'est le
-   seul élément de la couche qu'on attrape : #flight-end est en
-   pointer-events: none, celui-ci les reprend pour qu'on puisse la tourner. */
+/* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
+   element of the layer you can grab: #flight-end is pointer-events: none, and
+   this one takes them back so the machine can be turned. */
 .drone-viewer { pointer-events: auto; cursor: grab; touch-action: none; }
 .drone-viewer:active { cursor: grabbing; }
 .drone-viewer canvas { display: block; }
@@ -309,29 +308,36 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 .panel {
 	pointer-events: auto;
-	width: min(460px, 90vw);
+	/* V2: 600 px, because the four-word tab strip (CONTROLLER · KEYBOARD ·
+	   AUDIO · SYSTEM) overflowed 460 px — SYSTEM clipped to "S" and a
+	   horizontal scrollbar. `overflow-x: hidden` is the safety net: nothing
+	   here is meant to be read by scrolling sideways. */
+	width: min(600px, 92vw);
+	overflow-x: hidden;
 	/* Le panneau défile quand il dépasse (issue #123) : à 785 px de contenu sur
 	   un portable 1366×768 il était rogné en haut et en bas, sans recours. */
 	max-height: 92vh;
 	overflow-y: auto;
 	padding: var(--space-5) 30px;
-	/* D14 : le panneau prend le sol du terminal. Le même noir que la Home et
-	   que la perte de signal — Settings n'est plus une boîte de dialogue posée
-	   sur le jeu, c'est un écran de la machine. Le filet le décolle du voile. */
+	/* D14: the panel takes the terminal's ground. The same black as the Home
+	   and as signal loss — Settings is no longer a dialog box laid over the
+	   game, it is a screen of the machine. The rule lifts it off the scrim. */
 	background: var(--black);
 	border: var(--rule-w) solid var(--rule);
 	display: flex; flex-direction: column; gap: var(--space-3);
 }
-/* Le panneau se nomme, une fois, au niveau DISPLAY — comme tout écran du
-   terminal (Bible §11). */
+/* The panel names itself, once, at the DISPLAY level — like every terminal
+   screen (Bible §11). */
 .panel .panel-title {
 	margin: 0;
 	font-size: var(--fs-display-s);
 	color: var(--ink);
 }
-/* La bande d'onglets est celle de la Home (.terminal-tabs) ; seuls les boutons
-   ont besoin d'être redits, `.panel button` les encadrerait sinon. */
-#settings .terminal-tabs { margin: 0; }
+/* The tab strip is the Home's (.terminal-tabs); only the buttons need saying
+   again, otherwise `.panel button` would box them. */
+/* The strip wraps rather than overflowing: at 460 px wide (a narrow laptop at
+   92vw) the four tabs sit on two rows. */
+#settings .terminal-tabs { margin: 0; flex-wrap: wrap; gap: var(--space-2); }
 #settings button.terminal-tab {
 	margin: 0; width: auto;
 	background: none; border: 0; padding: 2px var(--space-2);
@@ -343,7 +349,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #settings button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
 .panel-body { display: block; }
 .panel-body[hidden] { display: none; }
-/* La ligne des touches, comme sous tout écran du terminal (D15). */
+/* The key-hint row, as under every terminal screen (D15). */
 #settings pre.terminal-keys {
 	margin: var(--space-2) 0 0;
 	color: var(--dim);
@@ -351,13 +357,13 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	letter-spacing: var(--track-data);
 	white-space: normal;
 }
-/* La build, en fin de SYSTEM : de la donnée, pas une annonce. */
+/* The build, at the foot of SYSTEM: data, not an announcement. */
 .panel .panel-version { margin: var(--space-4) 0 0; color: var(--faint); }
 
-/* L'onglet KEYBOARD (D13). Une ligne par action : ce qu'elle fait, la touche
-   qui l'atteint, ce que la ligne a à dire, et le bouton qui la change. Les
-   colonnes sont fixes pour que les touches s'alignent en colonne — c'est ce
-   qui rend la table lisible d'un coup d'œil plutôt que ligne à ligne. */
+/* The KEYBOARD tab (D13). One row per action: what it does, the key that
+   reaches it, whatever the row has to say, and the button that changes it. The
+   columns are fixed so the keys line up in a column — that is what makes the
+   table readable at a glance rather than row by row. */
 .key-rows { display: flex; flex-direction: column; gap: 2px; }
 .key-row {
 	display: grid; grid-template-columns: 1fr 6em auto min-content;
@@ -365,7 +371,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 .key-row .key-name { color: var(--light-grey); }
 .key-row .key-keys { color: var(--ink); }
-/* PRESS A KEY / SWAPPED WITH … : la ligne parle, elle n'alerte pas. */
+/* PRESS A KEY / SWAPPED WITH …: the row speaks, it does not alert. */
 .key-row .key-note { color: var(--dim); white-space: nowrap; }
 .panel .key-row button.key-rebind {
 	margin: 0; width: auto; padding: 2px var(--space-2);
@@ -514,16 +520,17 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-variant-numeric: tabular-nums;
 	margin-top: var(--space-1); white-space: nowrap;
 }
-/* Les touches que l'écran écoute (D15). Même niveau DATA que le pied, un ton
-   plus bas : c'est une note de bas de page, pas une consigne. */
+/* The keys the screen listens for (D15). Same DATA level as the footer, one
+   tone lower: this is a footnote, not an instruction. */
 .bootstrap-box pre.terminal-keys {
 	color: var(--dim);
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 	margin-top: var(--space-2); white-space: normal;
 }
-/* L'avis d'un onglet indisponible (D2) : trois lignes, en tête du corps. La
-   même face que les <pre> voisins — la machine parle, elle n'alerte pas. */
+/* The notice of an unavailable tab (D2): three lines, at the head of the body.
+   The same face as the <pre> blocks around it — the machine speaks, it does not
+   alert. */
 .bootstrap-box pre.terminal-notice {
 	color: var(--light-grey);
 	margin: var(--space-2) 0 0;
@@ -603,11 +610,16 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .bootstrap button.terminal-tab[data-on="true"] { background: var(--warm-white); color: var(--black); }
 .bootstrap button.terminal-tab:hover { background: none; color: var(--ink); }
 .bootstrap button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
-/* Un onglet éteint (D2) : LOCAL sur un serveur qui n'acquiert pas. Il reste
-   cliquable — des zones pré-installées peuvent s'y trouver — mais il se lit
-   comme un état, pas comme une porte fermée. */
+/* A dimmed tab (D2): LOCAL on a shared server. It stays clickable — a host may
+   have pre-installed areas there — but it reads as a state, not as a closed
+   door. */
 .bootstrap button.terminal-tab[data-off="true"] { color: var(--dim); }
 .bootstrap button.terminal-tab[data-off="true"][data-on="true"] { color: var(--black); }
+/* V3: the briefing sits ABOVE the terminal screen. On the REPLAY path the root
+   menu is re-mounted behind it the moment the panel closes, and at equal
+   z-index (11) the later screen wins — the briefing text was in the DOM and
+   invisible. Settings stays at 20, above both. */
+.bootstrap.briefing { z-index: 12; }
 .terminal-right { position: relative; min-width: 0; }
 .terminal-map { position: absolute; inset: 0; }
 /* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la

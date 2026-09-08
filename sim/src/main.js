@@ -3,7 +3,7 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setF
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
-import { chaseTarget, chaseStep } from './chase-camera.js';
+import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
@@ -62,8 +62,8 @@ import { PlayerDrone } from './onboard-drone.js';
 
 import { APP_VERSION } from './version.js';
 
-// Exposée sur window et écrite une fois dans la console : un rapport de bug
-// dit alors sur quelle version il porte, au lieu de laisser deviner un SHA.
+// Exposed on window and written once to the console: a bug report then says
+// which version it is about, instead of leaving a SHA to be guessed.
 window.FPVTP_VERSION = APP_VERSION;
 console.info(`FPVThePlanet! ${APP_VERSION}`);
 
@@ -185,6 +185,9 @@ function briefingArgs() {
 		// Opens the panel on the named tab and resolves when it closes: the
 		// briefing screen waits underneath rather than being torn down.
 		openSettings: async (tab) => { settings.open(tab); await settings.closed(); },
+		// Both Escape listeners sit on `window`: while the panel is up, the
+		// Escape that closes it must not also skip the briefing behind it.
+		isSettingsOpen: () => settings.settingsOpen,
 	};
 }
 // `force` is the replay: it ignores the seen flag, which is the whole point of
@@ -451,9 +454,9 @@ let playerDrone = null;
 // Le champ de la caméra de vol, tel que la vue embarquée le recopie. Alloué une
 // fois : le chemin de vol n'alloue rien par frame.
 const playerCam = { fov: 120, aspect: 1 };
-// L'exemplaire tiré pour CE vol, hissé des endroits qui le résolvent
-// (terrain, direct, banc, override). PROFILE en porte déjà le profil ;
-// la recette veut le build lui-même. Null quand on vole un profil nominal.
+// The build drawn for THIS flight, hoisted out of the places that resolve it
+// (terrain, live, bench, override). PROFILE already carries its profile; the
+// recipe wants the build itself. Null when a nominal profile is flown.
 let flightBuild = null;
 // Et sa GRAINE, la même que le serveur reconstruit dans resolveTarget(). Le
 // portrait fil de fer (#264) ne se déduit que de `family` + `buildSeed` : c'est
@@ -512,13 +515,12 @@ let linkForced = false;
 // séquence de crash puisse forcer une dégradation même s'il a coupé le modèle.
 let lensLinkMode = LINK_OFF;
 
-// Le sol sous le drone, un seul raycast Rapier par frame — physics.groundBelow
-// est un test plein maillage, pas quelque chose à refaire deux fois pour la
-// même position. Recalculé uniquement quand la physique avance ; le gel (pause,
-// réglages, intro) laisse le drone immobile, donc la dernière valeur
-// reste correcte tant que rien n'a bougé.
+// The ground under the drone, one Rapier raycast per frame — physics.groundBelow
+// is a full-mesh test, not something to redo twice for the same position.
+// Recomputed only when physics advances; the freeze (pause, settings, intro)
+// leaves the drone still, so the last value stays correct until something moves.
 let groundY = null;
-// La zone survolée (= slug de scène) et l'altitude du spawn, pour la session.
+// The area being flown (= scene slug) and the spawn altitude, for the session.
 let flyArea = null;
 let flyTarget = null;
 // La zone du vol en cours, sous la forme attendue par fieldLoop() (#253) : posée
@@ -563,7 +565,10 @@ function applyTargetCamera(spec) {
 	camSpec = spec;
 	cameraFov = spec.fovDeg;
 	cameraTilt = spec.uptiltDeg;
-	camera.fov = spec.fovDeg;
+	// The chase cap of V6 survives a camera swap: chase is an outside camera,
+	// and it does not inherit the target's wide field just because the target
+	// changed.
+	camera.fov = viewMode === 'chase' ? Math.min(spec.fovDeg, CHASE.fovDeg) : spec.fovDeg;
 	camera.aspect = spec.aspect;
 	camera.updateProjectionMatrix();
 	lens.setCamera({ aspect: spec.aspect, resScale: spec.resScale });
@@ -1390,16 +1395,20 @@ function consumeQuickRestart() {
 	}
 }
 
-// Rendre la main au terminal. Il n'y a plus de grand écran de fin (D9,
-// 2026-09-08 : l'atterrissage a disparu, donc le POST-FLIGHT ANALYSIS avec lui)
-// — un vol se termine par un crash, une sortie de zone ou une coupure, et
-// aucun de ces trois n'a jamais eu droit à un écran de bilan (Bible §24).
-// #253 : { redeploy: true } laisse la zone du vol dans sessionStorage pour que
-// chooseScene(), après le rechargement, retombe directement dans le TARGET SCAN
-// de cette zone.
+// Hand the terminal back. There is no big end screen any more (D9,
+// 2026-09-08: landing is gone, and POST-FLIGHT ANALYSIS with it) — a flight
+// ends in a crash, a coverage exit or a cut link, and none of those three ever
+// had a debrief screen (Bible §24).
+// #253: { redeploy: true } leaves the flight's zone in sessionStorage so that
+// chooseScene(), after the reload, drops straight back into that zone's
+// TARGET SCAN.
 async function finishSession({ redeploy = false } = {}) {
 	if (exiting) return;
 	exiting = true;
+	// The flight is over: the flag that says "the sticks fly the machine" must
+	// stop saying it. The reload clears it anyway, but Settings reads it in the
+	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
+	settings.flightActive = false;
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
@@ -1510,8 +1519,8 @@ function respawn() {
 	controller.setMode(controller.mode);   // also clears the PID integrators
 	input.resetKeyboardThrottle();
 	crashed = false;
-	// Une nouvelle vie repart derrière les lunettes (D11) : la vue est un état
-	// DU vol, pas de la session.
+	// A new life starts back behind the goggles (D11): the view is a state OF
+	// the flight, not of the session.
 	setView('fpv');
 	// Le ciel se retire aussi : les ambiants d'avant le respawn étaient nés
 	// autour d'un point de vol qui n'existe plus (issue #250).
@@ -1542,7 +1551,22 @@ function setView(mode) {
 	// lens.js pass is unplugged as soon as we are no longer behind the goggles.
 	playerDrone?.setChase(viewMode === 'chase');
 	lens.setOnboard(viewMode === 'chase' ? null : playerDrone?.onboardScene, playerDrone?.onboardCamera);
-	// Le même geste à la souris qu'à la touche.
+	// V6 — the TARGET's own OSD is what its goggles show, so it belongs to the
+	// video feed and to nothing else. Composited in chase it labelled an
+	// outside camera with the machine's own voltage and battery bar. Same
+	// exclusivity as the onboard pass, and the FPV wiring is one line below.
+	lens.setOsd(viewMode === 'chase' ? null : droneOsd);
+	// V6 — and neither does chase wear the target's wide lens. At the 120° the
+	// flight camera carries, a 5-inch machine a metre away is a mark on the
+	// sky. A cap, not a value: a narrower target keeps its own field, and the
+	// flight FOV comes straight back with the goggles.
+	const fov = viewMode === 'chase' ? Math.min(cameraFov, CHASE.fovDeg) : cameraFov;
+	if (camera.fov !== fov) {
+		camera.fov = fov;
+		camera.updateProjectionMatrix();
+		rainfall?.setSize(innerHeight * renderer.getPixelRatio(), fov);
+	}
+	// The same gesture with the mouse as with the key.
 	fpvtpOsd.setView(viewMode, () => setView(viewMode === 'fpv' ? 'chase' : 'fpv'));
 	// Placed at once rather than on the next physics frame: the toggle must
 	// answer even while the sim is frozen (pause, settings), where the frame
@@ -1706,10 +1730,10 @@ function frame() {
 		// freine pas). Le vent, lui, continue de le pousser. Quand le pilote a
 		// coupé les gaz et que le drone est au ras du sol, on coupe les moteurs
 		// et physics.setGroundHold fige le reste : plus de vent, plus de dérive.
-		// Le seuil de « gaz coupés » est celui de la famille en vol, pas une
-		// constante : voir idleThrottle() dans quad.js. Ce bloc survit à la
-		// disparition de l'atterrissage (D9, 2026-09-08) — c'est la sensation
-		// physique de reposer au sol (#69), pas une fin de vol.
+		// The "throttle cut" threshold is the flown family's, not a constant:
+		// see idleThrottle() in quad.js. This block survives the removal of
+		// landing (D9, 2026-09-08) — it is the physical feel of resting on the
+		// ground (#69), not an end of flight.
 		const pp = physics.position;
 		const gb = physics.groundBelow(pp.x, pp.y, pp.z);
 		const touchdown = controller.armed && sticks.throttle < idleThrottle(physics.profile)
@@ -1912,12 +1936,11 @@ function frame() {
 	// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt, quand
 	// la session se ferme. main.js ne fait que l'alimenter et obéir.
 	//
-	// Appelé HORS du bloc gelé (revue finale, correction 1) : `closes` est un
-	// événement que seul le prochain update() vidange, et si la sim se fige
-	// (C ou Espace) juste après, aucune frame non gelée ne tourne plus pour le
-	// lire. dt=0 fige la timeline (la décision « la séquence de fin se fige
-	// avec la sim » reste vraie), mais `closes` est vidangé quoi qu'il arrive,
-	// dès la prochaine frame.
+	// Called OUTSIDE the frozen block (final review, fix 1): `closes` is an
+	// event only the next update() drains, and if the sim freezes (C or Space)
+	// right after, no unfrozen frame runs to read it. dt = 0 freezes the
+	// timeline (the decision "the end sequence freezes with the sim" still
+	// holds), but `closes` is drained whatever happens, on the next frame.
 	const fv = physics.velocity, fw = physics.angularVelocity;
 	flightEnd.update({
 		dt: frozen ? 0 : dt,
@@ -1947,8 +1970,8 @@ function frame() {
 		cutHeld: !MODE.bench && input.isHeld('cutLink'),
 	});
 	// Gardé sur ce que la machine a réellement accepté (linkDead), pas sur
-	// crashedThisFrame (bonus, revue finale) : un choc encaissé après la fin de
-	// vol ne doit pas rejouer la mort de l'image par-dessus l'écran de fin.
+	// crashedThisFrame (final review, bonus): an impact taken after the end of
+	// the flight must not replay the death of the picture over the end screen.
 	if (flightEnd.out.linkDead) {
 		// Le drone est détruit : les moteurs se taisent, donc le son aussi —
 		// audio.js suit le régime moteur, il n'y a rien à couper à la main.
@@ -1973,8 +1996,8 @@ function frame() {
 	}
 	const closes = flightEnd.out.closes;
 	if (closes) {
-		// La musique a déjà été coupée net plus haut (linkDead) : toute fin de
-		// vol passe désormais par là (D9, 2026-09-08).
+		// The music was already cut dead above (linkDead): every end of flight
+		// goes through there now (D9, 2026-09-08).
 		space.silence();
 		session.end(closes).then((s) => s && console.log(`[session] ${closes}`, s));
 		endOfFirstFlight();
@@ -2253,10 +2276,10 @@ if (!frozen) {
 	const linkOut = flightEnd.out.linkDead ? DEAD_LINK : link.out;
 	lens.render(camera, dt, viewMode === 'chase' ? null : linkOut);
 
-	// Disponible seulement quand ce que montre le canvas est vraiment le flux
-	// de la cible : armé, en vol, pas en vue CHASE, pas pendant l'agonie du
-	// lien. Consommé tout de suite après le rendu — c'est ce buffer précis, pas
-	// celui d'une frame suivante, qui devient la photo.
+	// Available only when what the canvas shows really is the target's feed:
+	// armed, airborne, not in CHASE view, not during the link's death throes.
+	// Consumed right after the render — it is that exact buffer, not a later
+	// frame's, that becomes the photograph.
 	const photoReady = controller.armed && !frozen && viewMode === 'fpv' && !flightEnd.out.linkDead;
 	if (pendingCapture) {
 		pendingCapture = false;
@@ -2357,19 +2380,19 @@ if (!frozen) {
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	fpvtpOsd.setCut(flightEnd.out);
-	// D16 : the first flight, and only it, gets three lines. Take-off is a
+	// D16: the first flight, and only it, gets three lines. Take-off is a
 	// metre and a half above the spawn — enough that a bounce on the ground is
 	// not one.
 	if (hintFlight) {
 		const tFlight = (Date.now() - sessionStartedAt) / 1000;
 		if (hintAirborneAt === null && p.y - spawnY > 1.5) hintAirborneAt = tFlight;
 		fpvtpOsd.setHint(flightHint({
-			tFlight,
 			armed: controller.armed,
 			airborneOnce: hintAirborneAt !== null,
 			tSinceTakeoff: hintAirborneAt === null ? 0 : tFlight - hintAirborneAt,
 			bench: MODE.bench,
 			firstFlight: true,
+			keyRows: keyMapRows(input.getKeyMap()),
 		}));
 	}
 	fpvtpOsd.setPhotoReady(photoReady);
@@ -2558,9 +2581,9 @@ async function chooseScene() {
 	const ui = document.getElementById('ui');
 
 	if (OPTS.live) {
-		// D12 : ce chemin ne tire pas d'exemplaire, et il sort AVANT la branche
-		// de startup() qui pose la graine. Sans elle, la fin d'un vol ?live=
-		// n'avait pas de machine à montrer.
+		// D12: this path draws no build, and it returns BEFORE the branch of
+		// startup() that sets the seed. Without it, the end of a ?live= flight
+		// had no machine to show.
 		flightBuildSeed = nominalBuildSeed(PROFILE?.family);
 		await bootLive(OPTS.live);
 		return null;   // pas de slug : le reste du pipeline scène ne doit pas s'exécuter
@@ -2636,21 +2659,22 @@ async function chooseScene() {
 			operatorName: operator.getOperator()?.name ?? null,
 		});
 
-		// SETTINGS n'est pas une voie : c'est un panneau, le même que Tab en vol.
-		// selectOperationMode() a déjà démonté la racine en résolvant — le
-		// panneau s'ouvre donc seul, et la boucle en redessine une neuve à la
-		// fermeture. C'est ce qu'on veut ici : la racine relit `fpvtp.mode` et
-		// le nom de l'opérateur, que le panneau vient peut-être de changer.
+		// SETTINGS is not a path: it is a panel, the same one Tab opens in
+		// flight. selectOperationMode() has already torn the root down by
+		// resolving — the panel therefore opens alone, and the loop draws a
+		// fresh root on close. That is what we want here: the root re-reads
+		// `fpvtp.mode` and the operator name, which the panel may just have
+		// changed.
 		if (mode === 'settings') {
 			settings.toggleSettings(true);
 			await settings.closed();
 			continue;
 		}
 
-		// ARCHIVE résout VERS LE HAUT : un REVISIT est un vol, et il entre dans
-		// la boucle FIELD exactement comme un choix fait sur l'écran de FIELD.
-		// Échap au TARGET SCAN retombe donc sur FIELD, pas sur les journaux —
-		// c'est la même zone, et c'est là qu'on la rejoue.
+		// ARCHIVE resolves UPWARDS: a REVISIT is a flight, and it enters the
+		// FIELD loop exactly like a choice made on the FIELD screen. Escape at
+		// the TARGET SCAN therefore falls back to FIELD, not to the logs — it
+		// is the same area, and that is where it is flown again.
 		if (mode === 'archive') {
 			const pick = await archiveLoop(ui);
 			if (!pick) continue;
@@ -2664,8 +2688,8 @@ async function chooseScene() {
 	}
 }
 
-// ARCHIVE depuis la racine (D3). Rend { slug } quand l'opérateur a demandé à
-// revoler une zone, null quand il remonte.
+// ARCHIVE from the root (D3). Yields { slug } when the operator asked to fly
+// an area again, null when they go back up.
 async function archiveLoop(ui) {
 	const scenes = await fetchScenes();
 	return archiveScreen(ui, { api: operator, scenes });
@@ -2864,11 +2888,11 @@ async function benchLoop(ui) {
 	MODE.config = config;
 	const family = config.airframe.family;
 
-	// Terrain caché : on rend EXACTEMENT la forme que rend déjà
-	// l'override ?family=, et la chaîne de startup() construit PROFILE et le
-	// contrôleur comme d'habitude. Rien n'est dupliqué ici — un exemplaire
-	// (buildSeed) passe par targetBuild() comme une vraie cible, NOMINAL vole
-	// le profil de référence, celui du banc tune-pid.
+	// Hidden terrain: we yield EXACTLY the shape the ?family= override already
+	// yields, and the startup() chain builds PROFILE and the controller as
+	// usual. Nothing is duplicated here — a build (buildSeed) goes through
+	// targetBuild() like a real target, NOMINAL flies the reference profile,
+	// the one of the tune-pid bench.
 	if (config.terrain.kind === 'cached') {
 		return { slug: config.terrain.slug, target: undefined, family, buildSeed: config.airframe.seed ?? undefined };
 	}
@@ -2879,9 +2903,9 @@ async function benchLoop(ui) {
 	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
 	PROFILE = build ? build.profile : PROFILES[family];
 	flightBuild = build;
-	// D12 : NOMINAL n'a pas d'exemplaire tiré, mais il a une machine — la
-	// graine nominale de sa famille lui en donne le portrait sans toucher au
-	// profil volé, qui reste la référence de tools/tune-pid.mjs.
+	// D12: NOMINAL has no drawn build, but it does have a machine — its
+	// family's nominal seed gives it a portrait without touching the flown
+	// profile, which stays the reference of tools/tune-pid.mjs.
 	flightBuildSeed = build ? config.airframe.seed : nominalBuildSeed(PROFILE.family);
 	benchRates = build?.rates ?? null;
 	if (build) logBuild(build);
@@ -2989,15 +3013,15 @@ startup()
 		const { slug, target, family, buildSeed } = choice;
 		flyArea = slug;
 		flyTarget = target || null;
-		// Garde l'override ?family= si le scan n'a pas donné de famille. Avec un
-		// buildSeed on joue l'exemplaire ; sans (override dev), c'est le profil
-		// nominal de la famille.
+		// Keeps the ?family= override when the scan gave no family. With a
+		// buildSeed we fly the build; without one (dev override) it is the
+		// family's nominal profile.
 		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
 		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
 		flightBuild = build;
-		// D12 : même règle qu'au banc. `?family=` sans `?build=`, `?scene=` sans
-		// TARGET SCAN et le terrain caché du banc volent un profil nominal —
-		// ils gardent désormais un portrait.
+		// D12: same rule as at the bench. `?family=` without `?build=`,
+		// `?scene=` without a TARGET SCAN and the bench's hidden terrain all
+		// fly a nominal profile — they now keep a portrait all the same.
 		flightBuildSeed = build ? buildSeed : nominalBuildSeed(PROFILE?.family);
 		controller = new FlightController(
 			PROFILE ? { profile: PROFILE, rates: build?.rates } : undefined,
@@ -3093,7 +3117,7 @@ async function openFlightSession() {
 				weatherSnapshot: session.snapshotWeather(weather),
 				target: flyTarget || undefined,
 			});
-			// La cible résolue arme le lien vidéo avec le RSSI du signal adverse.
+			// The resolved target arms the video link with the opposing signal's RSSI.
 			tgt = session.current()?.target;
 			if (tgt?.family && PROFILE && tgt.family !== PROFILE.family) {
 				console.warn(`[target] famille serveur ${tgt.family} ≠ profil client ${PROFILE.family} — skew de version ?`);
@@ -3149,9 +3173,9 @@ async function openFlightSession() {
 	const family = tgt?.family ?? PROFILE.family;
 	const mode = tgt?.signal?.mode === 'DIGITAL' ? 'DIGITAL' : 'ANALOG';
 
-	// Les ambiants (issue #250) : le scan du client (session fraîche), ou celui
-	// que la session persistée a gardé (schéma v2), ou un scan de dev en
-	// ?scene=, ou rien.
+	// The ambients (issue #250): the client's scan (a fresh session), or the one
+	// the persisted session kept (schema v2), or a dev scan under ?scene=, or
+	// nothing.
 	ambient?.setScan(
 		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench ? { seed: `dev::${flyArea}`, count: 4, index: 0 } : null),
 	);
@@ -3170,25 +3194,27 @@ async function openFlightSession() {
 		build: flightBuild,
 		camera: camSpec,
 	});
-	// La station suit le même exemplaire (#264) : c'est de là que la fin de vol
-	// tire son portrait. Le serveur fait foi quand il a répondu — c'est lui qui
-	// a tiré la cible ; sinon la graine du client, qui est la même.
+	// The station follows the same build (#264): that is where the end of the
+	// flight draws its portrait from. The server is authoritative when it has
+	// answered — it is the one that drew the target; otherwise the client seed,
+	// which is the same.
 	//
-	// D12 : il y a TOUJOURS les deux. La famille se lit sur la physique, qui ne
-	// vole jamais sans profil, et un vol nominal porte la graine nominale de sa
-	// famille — l'écran de fin ne perd plus la machine faute de tirage.
+	// D12: there are ALWAYS both. The family is read off the physics, which
+	// never flies without a profile, and a nominal flight carries its family's
+	// nominal seed — the end screen no longer loses the machine for want of a
+	// draw.
 	const shownFamily = tgt?.family ?? physics.profile.family;
 	fpvtpOsd.setTarget({
 		family: shownFamily,
 		buildSeed: tgt?.buildSeed ?? flightBuildSeed ?? nominalBuildSeed(shownFamily),
-		// La MÊME graine que la caméra de la cible juste au-dessus et que
-		// PlayerDrone : la machine de l'écran de fin porte le boîtier qui a
-		// volé, pas un second tirage.
+		// The SAME seed as the target camera just above and as PlayerDrone: the
+		// machine on the end screen wears the pod that flew, not a second
+		// draw.
 		cameraSeed: seed,
 	});
-	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
-	// near = 5 mm. Débranchée en vue CHASE — la même règle d'exclusivité.
-	// Chaque vol commence en FPV (D11) : setView() rebranche les deux passes.
+	// The props in frame: the composer's second pass, its camera at near = 5 mm.
+	// Unplugged in CHASE view — the same rule of exclusivity. Every flight
+	// starts in FPV (D11): setView() plugs both passes back in.
 	setView('fpv');
 
 	droneOsd?.dispose();

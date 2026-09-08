@@ -31,7 +31,8 @@ rapport avec les versions ci-dessous.
   reviennent, et l'écran `INPUT` lit le mappage en direct. Il se rejoue par
   `SETTINGS` › `SYSTEM` › `[ REPLAY BRIEFING ]`. Le premier vol hors banc
   affiche trois lignes brèves — `THROTTLE UP`, `[TAB] SETTINGS`,
-  `[HOLD K] CUT LINK` — puis plus jamais (#16).
+  `[HOLD K] CUT LINK`, cette dernière nommant la touche réellement liée et
+  comptée depuis le décollage — puis plus jamais (#16).
 - Le panneau `SETTINGS` (Tab) passe à la direction artistique du terminal :
   en-tête `FPVTP! // SETTINGS`, quatre onglets `CONTROLLER · KEYBOARD · AUDIO
   · SYSTEM`, un corps à la fois, et l'onglet ouvert est retenu pour la session.
@@ -45,9 +46,11 @@ rapport avec les versions ci-dessous.
   changent, et les valeurs par défaut couvrent QWERTY et AZERTY (W/Z, A/Q).
   Réglages rangés dans `fpvtp.keyMap` ; Tab, Échap et Entrée restent fixes.
 - La caméra libre (`C`, une orbite qui gelait le monde) devient une bascule de
-  vue `V` : FPV / CHASE. La vue CHASE est la caméra de vol reposée 1,6 m
-  derrière le nez et 0,6 m au-dessus, la simulation continue de tourner
-  derrière elle, et elle marche sur tous les chemins (LOCAL, LIVE, BANC). Un
+  vue `V` : FPV / CHASE. La vue CHASE est la caméra de vol reposée 1,1 m
+  derrière le nez et 0,45 m au-dessus, champ plafonné à 75° et OSD de la cible
+  débranché (c'est une caméra extérieure, pas le flux vidéo), la simulation
+  continue de tourner derrière elle, et elle marche sur tous les chemins
+  (LOCAL, LIVE, BANC). Un
   bouton `[V] FPV` / `[V] CHASE` en haut à droite de l'OSD fait le même geste
   à la souris. Chaque vol commence en FPV (#12).
 - L'écran de fin de vol montre la machine perdue en 3D, celle qui volait —
@@ -77,6 +80,13 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- Une installation locale ne se présente plus comme un serveur partagé. Le pied
+  de FIELD et l'avis de l'onglet `LOCAL` se lisaient sur le droit d'acquérir,
+  fermé par défaut sur toute build distribuée : le client de bureau affichait
+  donc « SHARED SERVER » et se conseillait à lui-même d'installer le client de
+  bureau. `GET /__map-api/scenes` rend désormais le `mode` du serveur
+  (`local` | `shared`), et c'est lui qui décide de ces deux formulations ;
+  `DRAW BOX` / `DRAW SHAPE` continuent de se lire sur le droit d'acquérir.
 - Le portrait de la machine manquait sur deux fins de vol sur trois — sortie de
   zone et lien coupé — et sur tout vol NOMINAL (`?family=`, `?scene=`, `?live=`,
   NOMINAL au banc), faute d'exemplaire tiré. Chaque fin porte désormais son

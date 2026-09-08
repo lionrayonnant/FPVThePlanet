@@ -197,6 +197,17 @@ t('la première ligne de la clôture nomme la cause', () => {
 	assert.equal(FENCE_TIMELINE.lines[0][1], 'OUT OF COVERAGE');
 });
 
+t('D15: every end screen names ESCAPE, never ENTER', () => {
+	// V4: Escape is what goes back everywhere else in the game. Enter still
+	// works — browser fullscreen confiscates Escape — but it is not the line.
+	for (const tl of [TIMELINE, FENCE_TIMELINE, CUT_TIMELINE]) {
+		const lines = tl.lines.map(([, text]) => text);
+		assert.ok(lines.includes('[ESC] DISCONNECT'), 'the disconnect line names ESC');
+		assert.ok(lines.includes('[R] REDEPLOY'), 'and REDEPLOY sits next to it');
+		assert.ok(!lines.some((l) => l.includes('[ENTER]')), 'no line names ENTER');
+	}
+});
+
 t('un crash pendant une sortie de zone ne rejoue pas la séquence', () => {
 	const fe = new FlightEnd();
 	fe.update(frame({ outOfZone: true }));

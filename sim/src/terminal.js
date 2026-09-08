@@ -20,10 +20,10 @@ const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 // liste — c'est justement ce qu'on est en train de sortir de la Home.
 const COMPACT_AREAS = 5;
 
-// L'onglet de FIELD où l'on était, pour la session : LIVE (décoller en direct
-// depuis une épingle) ou LOCAL (voler ou acquérir une zone cuite) (#222).
-// LIVE à l'entrée (D2) : c'est la voie qui marche sur toute build, y compris
-// celle d'un opérateur qui n'a encore rien acquis.
+// The FIELD tab we were on, for the session: LIVE (take off straight from a
+// map pin) or LOCAL (fly or acquire a baked area) (#222). LIVE on entry (D2):
+// it is the path that works on every build, including that of an operator who
+// has not acquired anything yet.
 let lastTab = 'live';
 
 export function screen(root, cls = '') {
@@ -96,12 +96,22 @@ const ESC_ROOT = () => keyHints([['ESC', 'OPERATION MODE']]);
 let acquireAllowed = false;
 export function canAcquire() { return acquireAllowed; }
 
+// Where the game RUNS, which is a different question from what it is allowed to
+// download (V1). Every distributed build ships with acquisition closed, so a
+// footer and a LOCAL-tab notice keyed on `acquire` told the desktop client it
+// was a SHARED SERVER and that terrain "is not available on this server".
+// Optimistic default: an unreachable server is not a reason to call a local
+// install someone else's.
+let sharedServer = false;
+export function isSharedServer() { return sharedServer; }
+
 export async function fetchScenes() {
 	try {
 		const r = await fetch('/__map-api/scenes');
 		if (!r.ok) return null;
-		const { scenes, acquire } = await r.json();
+		const { scenes, acquire, mode } = await r.json();
 		acquireAllowed = acquire === true;
+		sharedServer = mode === 'shared';
 		return Array.isArray(scenes) ? scenes : null;
 	} catch {
 		return null;
@@ -365,15 +375,16 @@ ${shown}</pre>`;
 
 // ---------- LAST SESSION ----------
 
-// Résout undefined ou un slug (REVISIT AREA).
+// Resolves undefined, or a slug (REVISIT AREA).
 function lastSessionScreen(root, model) {
 	const s = screen(root);
 	return new Promise((resolve) => {
 		let nav = null;
 		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
-		// createElement plutôt qu'innerHTML, comme le reste de la maison : c'est
-		// ce qui rend l'écran montable sur le faux DOM, donc testable — et le
-		// REVISIT qui part d'ici est le contrat que la boucle racine consomme.
+		// createElement rather than innerHTML, like the rest of the house: that
+		// is what makes the screen mountable on the fake DOM, and therefore
+		// testable — and the REVISIT that leaves here is the contract the root
+		// loop consumes.
 		const pre = (text) => {
 			const el = document.createElement('pre');
 			el.textContent = text;
@@ -405,9 +416,9 @@ RESULT   ${ls.result ?? 'UNKNOWN'}`));
 			nav?.focusAt(0);
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);
-		// terrain persistent, flights ephemeral : un vol perdu ne se reprend pas
-		// (D9, 2026-09-08 : l'atterrissage a disparu, RESUME SESSION avec lui).
-		// Le terrain, lui, reste — on le revisite.
+		// Terrain persistent, flights ephemeral: a lost flight is not resumed
+		// (D9, 2026-09-08: landing is gone, and RESUME SESSION with it). The
+		// terrain stays — that is what a revisit is.
 		if (areaKnown) {
 			s.box.appendChild(button('REVISIT AREA', () => done(area), 'terminal-cta'));
 		}
@@ -523,24 +534,24 @@ function buildNotesScreen(root, operator) {
 // devenir un dashboard. »
 //
 // Cet écran ne RÉIMPLÉMENTE rien : il appelle les écrans existants tels quels.
-// Il doit en revanche résoudre VERS LE HAUT, parce que REVISIT (depuis SESSION
-// LOG) rend un vol : l'avaler ici laisserait l'opérateur sur un écran de
-// journal après avoir demandé à voler.
+// It does have to resolve UPWARDS, though, because REVISIT (from SESSION LOG)
+// yields a flight: swallowing it here would leave the operator on a log screen
+// after asking to fly.
 //
-// Résout { slug } (un REVISIT, que la boucle racine fait voler comme un choix
-// fait dans FIELD) ou null.
+// Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
+// FIELD) or null.
 //
-// Atteint depuis la racine (D3) : ARCHIVE est au même niveau que FIELD et
-// BENCH, et n'est plus un lien enterré dans un onglet de FIELD, qui la faisait
-// disparaître dès qu'on regardait la carte.
+// Reached from the root (D3): ARCHIVE sits at the same level as FIELD and
+// BENCH, and is no longer a link buried in a FIELD tab, where it disappeared
+// the moment you looked at the map.
 export function archiveScreen(root, { api = operatorApi, scenes = null } = {}) {
 	const model = terminalModel({ operator: api.getOperator(), scenes });
 	const s = screen(root, 'terminal-archive');
 	return new Promise((resolve) => {
 		let nav = null;
-		// Un slug nu (lastSessionScreen) et un { slug } (SESSION LOG) disent la
-		// même chose : on remonte une seule forme, celle que la boucle racine
-		// sait faire voler.
+		// A bare slug (lastSessionScreen) and a { slug } (SESSION LOG) say the
+		// same thing: one shape goes back up, the one the root loop knows how to
+		// fly.
 		const done = (value) => {
 			nav?.detach();
 			s.remove();
@@ -564,7 +575,7 @@ export function archiveScreen(root, { api = operatorApi, scenes = null } = {}) {
 		s.box.appendChild(navRow([
 			['LAST SESSION', () => behind(async () => {
 				const r = await lastSessionScreen(root, model);
-				// lastSessionScreen rend un slug ou rien.
+				// lastSessionScreen yields a slug, or nothing.
 				return typeof r === 'string' ? r : r ?? undefined;
 			}), 'Review your most recent flight'],
 			['SESSION LOG', () => behind(async () => {
@@ -664,8 +675,8 @@ export async function operatorKey(root, api = operatorApi) {
 
 // ---------- terminal ----------
 
-// Monte l'Operator Terminal et résout le slug de la zone à survoler.
-// Résout { slug } pour voler une zone cuite, { live: [lat, lon] } pour
+// Mounts the Operator Terminal and resolves the area to fly over.
+// Resolves { slug } to fly a baked area, { live: [lat, lon] } to
 // décoller en direct depuis le scanner, ou null pour remonter au choix de mode
 // quand `back` est vrai (PHASE 26 : la Home n'est plus la racine du jeu).
 export async function runTerminal(root, { api = operatorApi, back = false } = {}) {
@@ -718,7 +729,7 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 	s.box.append(left, right);
 
 	const renderLeft = () => {
-		const model = terminalModel({ operator: api.getOperator(), scenes, acquire: acquireAllowed });
+		const model = terminalModel({ operator: api.getOperator(), scenes, shared: sharedServer });
 		const areas = Array.isArray(scenes) ? scenes : [];
 
 		// Voler est ce qu'on fait à chaque session : l'action la plus fréquente a
@@ -733,8 +744,8 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 
 		left.replaceChildren();
 
-		// D1 : la version, et rien d'autre. L'opérateur est salué à la racine —
-		// une fois, à l'endroit où le jeu demande qui tu es.
+		// D1: the version, and nothing else. The operator is greeted at the
+		// root — once, where the game asks who you are.
 		const head = document.createElement('pre');
 		head.textContent = versionLine();
 		left.appendChild(head);
@@ -751,24 +762,28 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		const tabs = document.createElement('div');
 		tabs.className = 'terminal-tabs';
 		const tabTitles = { local: 'Fly a downloaded area', live: 'Take off live from a map pin' };
-		// LIVE d'abord (D2) : c'est la voie qui marche partout, sur toute build,
-		// sans rien télécharger. LOCAL est la voie de celui qui a déjà acquis.
+		// LIVE first (D2): it is the path that works everywhere, on every build,
+		// with nothing to download. LOCAL is the path of whoever has acquired.
 		for (const [id, label] of [['live', 'LIVE'], ['local', 'LOCAL']]) {
 			const b = button(label, () => setTab(id), 'terminal-tab', tabTitles[id]);
 			b.dataset.on = String(tab === id);
-			// Éteint mais sélectionnable : l'état se lit AVANT le clic, et les
-			// zones pré-installées par un hébergeur restent atteignables.
-			if (id === 'local' && !acquireAllowed) b.dataset.off = 'true';
+			// Dimmed but still selectable: the state is read BEFORE the click,
+			// and areas a host pre-installed stay reachable.
+			// Dimmed on a SHARED server only: a local install with acquisition
+			// closed still flies whatever terrain is on its disk.
+			if (id === 'local' && sharedServer) b.dataset.off = 'true';
 			tabs.appendChild(b);
 		}
 		left.appendChild(tabs);
 
-		// L'onglet LOCAL d'un serveur partagé s'ouvre en le DISANT (D2). Trois
-		// lignes en tête du corps, avant toute liste : elles absorbent l'ancienne
-		// ligne « SWITCH TO LIVE TO FLY » et l'ancien pied « DESKTOP CLIENT
-		// AVAILABLE », qui disaient la même chose deux fois, ailleurs, et jamais
-		// à l'endroit où l'opérateur se demandait pourquoi la liste est vide.
-		if (tab === 'local' && !acquireAllowed) {
+		// The LOCAL tab of a shared server opens by SAYING so (D2). Three lines
+		// at the head of the body, before any list: they absorb the old "SWITCH
+		// TO LIVE TO FLY" line and the old "DESKTOP CLIENT AVAILABLE" footer,
+		// which said the same thing twice, elsewhere, and never where the
+		// operator was wondering why the list is empty.
+		// V1: keyed on the SERVER MODE, not on the acquisition right. Telling the
+		// desktop client to "install the desktop client" is the bug this fixes.
+		if (tab === 'local' && sharedServer) {
 			const notice = document.createElement('pre');
 			notice.className = 'terminal-notice';
 			notice.textContent = [
@@ -816,20 +831,26 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 				}
 				left.appendChild(list);
 			} else {
-				// Sans le droit d'acquérir, l'avis en tête d'onglet a déjà tout dit
-				// et [ DRAW BOX ] n'est pas à l'écran : le répéter ici ferait deux
-				// fois la même phrase dans la même colonne.
+				// Three cases, three sentences (V1). Acquisition open: the map is
+				// where a new area comes from. Shared server: the notice at the
+				// head of the tab has already said everything, and repeating it
+				// here would say the same phrase twice in one column. Local
+				// install with acquisition closed: neither of those — the disk is
+				// simply empty, and the LIVE tab is the way to fly today.
+				const none = document.createElement('pre');
+				none.className = 'terminal-sub';
 				if (acquireAllowed) {
-					const none = document.createElement('pre');
-					none.className = 'terminal-sub';
 					none.textContent = 'NO LOCAL TERRAIN — DRAW AN AREA ON THE MAP';
+					left.appendChild(none);
+				} else if (!sharedServer) {
+					none.textContent = 'NO LOCAL TERRAIN — SWITCH TO LIVE TO FLY';
 					left.appendChild(none);
 				}
 			}
 
-			// ALL TERRAIN… n'apparaît que s'il y a réellement de quoi chercher,
-			// trier ou supprimer — c'est l'écran complet, inchangé. Il est seul
-			// sur sa rangée depuis que ARCHIVE est monté à la racine (D3).
+			// ALL TERRAIN… only appears when there is really something to
+			// search, sort or remove — it is the full screen, unchanged. It has
+			// been alone on its row since ARCHIVE moved to the root (D3).
 			if (areas.length) left.appendChild(navRow([['ALL TERRAIN…', async () => {
 				s.el.hidden = true;
 				const slug = await localTerrain(root, scenes);
@@ -861,19 +882,19 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 			}
 		}
 
-		// --- le pied : où le jeu tourne, et rien de plus
+		// --- the footer: where the game runs, and nothing more
 		//
-		// Plus de rangée de liens (D4, D6) : MODE ne faisait que ce qu'Échap fait
-		// déjà, et SETTINGS est monté à la racine. Un menu qui répète ses sorties
-		// à chaque étage n'a pas d'étages.
+		// No row of links any more (D4, D6): MODE only did what Escape already
+		// does, and SETTINGS moved to the root. A menu that repeats its exits on
+		// every floor has no floors.
 		const foot = document.createElement('pre');
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
 		left.appendChild(foot);
 		countUp(foot);
 
-		// D15 : Échap remonte, et il le dit. Pas quand FIELD est la racine
-		// (?scene=), où il n'y a rien au-dessus.
+		// D15: Escape goes back up, and it says so. Not when FIELD is the root
+		// (?scene=), where there is nothing above it.
 		if (back) left.appendChild(ESC_ROOT());
 		// « Une seule touche pour voler » (issue #123) : le curseur se pose sur
 		// [ FLY ], pas sur la recherche ni sur un onglet, qui le précèdent

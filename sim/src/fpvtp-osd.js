@@ -102,16 +102,16 @@ export class FpvtpOsd {
 		this._flashUntil = 0;
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
-		// D16 : la ligne du premier vol, même règle — elle est décidée ailleurs
-		// (tools/briefing-model.mjs), elle n'est que peinte ici.
+		// D16: the first-flight line, same rule — what it says is decided
+		// elsewhere (tools/briefing-model.mjs); this layer only paints it.
 		this._hintText = '';
 		// #264 : l'exemplaire en vol, et son dessin une fois le lien perdu. Le
 		// dessin n'est fabriqué qu'au moment où la ligne apparaît — un vol qui
 		// se termine bien n'en construit jamais.
 		this._target = null;
 		this._portrait = null;
-		// D11 : la vue courante, et le seul élément cliquable de la couche —
-		// l'OSD est en pointer-events: none, celui-ci les reprend.
+		// D11: the current view, and the only clickable element of the layer —
+		// the OSD is pointer-events: none, this one takes them back.
 		this._view = 'fpv';
 		this._viewToggle = null;
 		this._endUp = false;
@@ -119,9 +119,9 @@ export class FpvtpOsd {
 		this._paintView();
 	}
 
-	// La bascule FPV / CHASE (D11). Le libellé nomme la touche : sans ça la
-	// vue existe et personne ne la trouve — même règle que [HOLD K] plus bas.
-	// `onToggle` est réenregistré à chaque appel : main.js en est la source.
+	// The FPV / CHASE toggle (D11). The label names the key: without it the
+	// view exists and nobody finds it — the same rule as [HOLD K] below.
+	// `onToggle` is re-registered on every call: main.js is its source.
 	setView(mode, onToggle) {
 		this._view = mode === 'chase' ? 'chase' : 'fpv';
 		if (onToggle !== undefined) this._viewToggle = onToggle;
@@ -131,8 +131,8 @@ export class FpvtpOsd {
 	_paintView() {
 		const text = this._view === 'chase' ? '[V] CHASE' : '[V] FPV';
 		if (this.el.view.textContent !== text) this.el.view.textContent = text;
-		// Le vol est fini : il n'y a plus de vue à choisir, et l'écran de fin
-		// tient l'écran seul.
+		// The flight is over: there is no view left to choose, and the end
+		// screen holds the screen on its own.
 		this.el.view.hidden = this._endUp;
 	}
 
@@ -140,10 +140,10 @@ export class FpvtpOsd {
 	// deux champs dont le portrait se déduit. Sans eux — chemins dev, override
 	// NOMINAL — la ligne du portrait reste un blanc, jamais son jeton.
 	//
-	// `cameraSeed` (D12) est la graine de SESSION, celle dont main.js tire la
-	// caméra de la cible et donc le boîtier que porte la machine en vol. Le
-	// portrait fil de fer l'ignore ; la vue 3D, qui montre le vrai maillage,
-	// mettrait sans elle un autre boîtier que celui qui a volé.
+	// `cameraSeed` (D12) is the SESSION seed, the one main.js draws the
+	// target's camera from — and therefore the pod the machine wears in
+	// flight. The wireframe portrait ignores it; the 3D view, which shows the
+	// real mesh, would otherwise fit a different pod than the one that flew.
 	setTarget(target) {
 		const family = target?.family ?? null;
 		const buildSeed = target?.buildSeed ?? null;
@@ -158,10 +158,10 @@ export class FpvtpOsd {
 	// reconstruit ses lignes à chaque ligne qui apparaît, et un portrait
 	// reconstruit à chaque fois repartirait de son premier angle.
 	//
-	// D12 : d'abord la VRAIE machine, en 3D et qu'on peut tourner — on est dans
-	// le sim, le maillage et ses shaders sont déjà chargés. Le fil de fer SVG
-	// reste le repli, pour un contexte WebGL qui manque ou qui a été perdu ; il
-	// reste aussi ce que l'archive affiche, elle qui n'a pas Three.
+	// D12: the REAL machine first, in 3D and turnable — we are inside the sim,
+	// the mesh and its shaders are already loaded. The SVG wireframe stays the
+	// fallback, for a WebGL context that is missing or has been lost; it also
+	// stays what the archive shows, which does not have Three.
 	_portraitNode() {
 		if (!this._portrait && this._target) {
 			this._portrait = droneViewer(this._target) ?? dronePortrait(this._target);
@@ -266,13 +266,13 @@ export class FpvtpOsd {
 		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
 	}
 
-	// La ligne du premier vol (D16). Comme #fo-cut : ce qu'elle dit est décidé
-	// ailleurs — main.js appelle flightHint() à chaque frame — et cette couche
-	// ne fait que le peindre. `null` l'éteint. Le DOM n'est touché que quand le
-	// texte change : ceci est appelé 60 fois par seconde.
+	// The first-flight line (D16). Like #fo-cut: what it says is decided
+	// elsewhere — main.js calls flightHint() every frame — and this layer only
+	// paints it. `null` turns it off. The DOM is touched only when the text
+	// changes: this is called sixty times a second.
 	//
-	// Trois lignes, une fois dans la vie d'un opérateur : ce n'est pas une aide
-	// permanente, c'est un briefing qui finit.
+	// Three lines, once in an operator's life: this is not permanent help, it
+	// is a briefing that ends.
 	setHint(text) {
 		const next = text || '';
 		if (next === this._hintText) return;

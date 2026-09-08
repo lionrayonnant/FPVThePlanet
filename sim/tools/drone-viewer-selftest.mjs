@@ -106,6 +106,49 @@ t('a target mounts a canvas of the asked size', () => {
 	v.stop();
 });
 
+t('with no viewport it falls back to VIEWER.size, with one it scales', () => {
+	// V5: a fixed 220 px square left the machine ~120 px tall on a 2560-wide
+	// display. The size comes from the SHORT side of the viewport, clamped so a
+	// phone keeps a usable square and a 4K screen does not get a poster.
+	const big = fakeRenderer();
+	globalThis.innerWidth = 2560; globalThis.innerHeight = 1265;
+	droneViewer({ family: 'freestyle5', buildSeed: 'seed::2', createRenderer: () => big }).stop();
+	assert.deepEqual(big.size, [405, 405]);
+
+	const small = fakeRenderer();
+	globalThis.innerWidth = 600; globalThis.innerHeight = 480;
+	droneViewer({ family: 'freestyle5', buildSeed: 'seed::2', createRenderer: () => small }).stop();
+	assert.deepEqual(small.size, [VIEWER.size, VIEWER.size], 'clamped to the floor');
+
+	const huge = fakeRenderer();
+	globalThis.innerWidth = 3840; globalThis.innerHeight = 2160;
+	droneViewer({ family: 'freestyle5', buildSeed: 'seed::2', createRenderer: () => huge }).stop();
+	assert.deepEqual(huge.size, [420, 420], 'clamped to the ceiling');
+
+	delete globalThis.innerWidth; delete globalThis.innerHeight;
+	// An explicit size still wins: that is what the tests above rely on.
+	const asked = fakeRenderer();
+	droneViewer({ family: 'freestyle5', buildSeed: 'seed::2', size: 300, createRenderer: () => asked }).stop();
+	assert.deepEqual(asked.size, [300, 300]);
+});
+
+t('the bounding sphere fills the framed share of the canvas height', () => {
+	// The distance is derived from the mesh's own bounding sphere, so every
+	// family lands the same way in the frame rather than by eye.
+	const r = fakeRenderer();
+	const v = droneViewer({ family: 'longrange', buildSeed: nominalBuildSeed('longrange'), createRenderer: () => r });
+	const cam = r.camera;
+	// The camera looks at the sphere centre; the distance to it is what frames.
+	const d = Math.hypot(cam.position.x, cam.position.y - 0.022, cam.position.z);
+	const halfFrame = d * Math.tan((cam.fov / 2) * (Math.PI / 180));
+	// longrange, straight off drone-mesh's own computeBoundingSphere().
+	const radius = 0.237;
+	// radius / halfFrame is the same ratio as diameter / canvas height.
+	const fill = radius / halfFrame;
+	assert.ok(Math.abs(fill - 0.7) < 0.02, `the sphere fills ${fill.toFixed(2)} of the canvas height`);
+	v.stop();
+});
+
 t('it renders on the animation loop, and stop() ends it', () => {
 	const r = fakeRenderer();
 	const v = droneViewer({ family: 'race5', buildSeed: 'seed::1', createRenderer: () => r });

@@ -335,6 +335,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     même si la sim se fige (pause, réglages, caméra libre) entre le geste du
     joueur et sa sortie. `dt=0` fige la timeline et le compteur de pose sans
     perdre l'événement.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - Trois voies de fermeture : crash (`crashed` déjà décidé par
     `CRASH_IMPULSE`/`CRASH_IMPULSE_FLAT` de `main.js`, réutilisés tels quels),
     pose tenue (`_advanceLanding`, hystérésis sur hauteur/vitesse/vitesse
@@ -368,6 +369,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     `lens.render()` dans `main.js`, gardé sur `flightEnd.out.linkDead` (pas
     `crashedThisFrame`) pour qu'un choc encaissé après un `LANDED` ne rejoue pas
     la mort d'image par-dessus l'écran `END SESSION`.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - **Vérifié en headless** :
     - `tools/flight-end-selftest.mjs` : 20 tests, sans DOM/Rapier — impact →
       crash, timing des lignes de crash et de pose (chacune avec ses lignes
@@ -643,6 +645,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     0,093 ms/frame comme pire cas — l'ordre de grandeur (quelques % du
     budget) est stable, la valeur exacte varie avec la charge machine au
     moment du bench.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - `npm run selftest` (158/158) et `npm run selftest:operator` (chaîne
     complète, `landing-selftest.mjs` inclus une fois le lien symbolique
     `public/scenes` en place) : verts de bout en bout, PHASE 20 en queue de
@@ -1051,6 +1054,7 @@ Plan d'origine (contexte de la décision d'architecture) :
   - Confirmations ajoutées à la capture du vecteur : Entrée et bouton A
     confirment quand le vecteur est complet, B efface (mêmes conditions que le
     bouton `CONFIRM VECTOR`).
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - **Vérifié headless** : `tools/menu-nav-selftest.mjs` (10 tests, logique
     pure : index circulaire, pas de slider borné, classement saisie de texte),
     chaîné dans `selftest:operator` ; toute la chaîne `selftest:operator`

@@ -40,7 +40,7 @@ const settle = async (turns = 80) => {
 
 const keyRows = keyMapRows(DEFAULT_KEY_MAP);
 
-function mount({ kind = 'keyboard', name = '', interval = 0 } = {}) {
+function mount({ kind = 'keyboard', name = '', interval = 0, settingsOpen = false } = {}) {
 	dom.root.replaceChildren();
 	const root = document.createElement('div');
 	root.id = 'ui';
@@ -51,6 +51,7 @@ function mount({ kind = 'keyboard', name = '', interval = 0 } = {}) {
 		input: { kind, name },
 		keyRows,
 		openSettings: async (tab) => { opened.push(tab); },
+		isSettingsOpen: () => settingsOpen,
 		interval,
 	}).then(() => { done = true; });
 	return {
@@ -160,6 +161,28 @@ await ta('Escape DURING the reveal leaves no screen and no live nav', async () =
 	assert.equal(m.screens().length, 0, 'nothing was mounted after the skip');
 	assert.equal(m.root.querySelectorAll('button').length, 0, 'no button was built');
 	assert.equal(liveTimers(), before, 'no nav left polling');
+});
+
+await ta('Escape belongs to the panel while it is open, not to the briefing', async () => {
+	// F1: both listeners are on `window`, and menu-nav only preventDefaults —
+	// so without the guard one Escape closes the panel the briefing opened AND
+	// skips the briefing underneath it.
+	const m = mount({ settingsOpen: true });
+	await settle();
+	assert.equal(m.screens().length, 1);
+	dom.key('Escape');
+	await settle(10);
+	assert.equal(m.isDone(), false, 'the briefing survives the panel closing');
+	assert.equal(m.screens().length, 1, 'its screen is still mounted');
+	// Cleanup: the panel is closed now, so Escape is the briefing's again.
+	m.btn('CONTINUE').click();
+	await settle();
+	m.btn('CONTINUE').click();
+	await settle();
+	m.btn('CONTINUE').click();
+	await settle();
+	m.btn('CONTINUE').click();
+	await m.promise;
 });
 
 await ta('a run with no openSettings still walks through', async () => {

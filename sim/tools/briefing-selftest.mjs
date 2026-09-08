@@ -173,45 +173,48 @@ t('briefingScreens survives being called with nothing', () => {
 const hint = (o) => flightHint({ firstFlight: true, bench: false, armed: true, ...o });
 
 t('THROTTLE UP until the first take-off', () => {
-	assert.equal(hint({ tFlight: 0, airborneOnce: false }), 'THROTTLE UP');
-	assert.equal(hint({ tFlight: 12, airborneOnce: false }), 'THROTTLE UP');
+	assert.equal(hint({ airborneOnce: false }), 'THROTTLE UP');
+	assert.equal(hint({ airborneOnce: false, tSinceTakeoff: 0 }), 'THROTTLE UP');
 });
 
 t('[TAB] SETTINGS for six seconds after take-off, then nothing', () => {
-	assert.equal(hint({ tFlight: 4, airborneOnce: true, tSinceTakeoff: 0 }), '[TAB] SETTINGS');
-	assert.equal(hint({ tFlight: 9, airborneOnce: true, tSinceTakeoff: 5.9 }), '[TAB] SETTINGS');
-	assert.equal(hint({ tFlight: 10, airborneOnce: true, tSinceTakeoff: 6.1 }), null);
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 0 }), '[TAB] SETTINGS');
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 5.9 }), '[TAB] SETTINGS');
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 6.1 }), null);
 });
 
-t('[HOLD K] CUT LINK from thirty seconds of flight', () => {
-	assert.equal(hint({ tFlight: 29, airborneOnce: true, tSinceTakeoff: 25 }), null);
-	assert.equal(hint({ tFlight: 30.5, airborneOnce: true, tSinceTakeoff: 26 }), '[HOLD K] CUT LINK');
-	assert.equal(hint({ tFlight: 35.9, airborneOnce: true, tSinceTakeoff: 31 }), '[HOLD K] CUT LINK');
+t('[HOLD K] CUT LINK thirty seconds after TAKE-OFF, not after the session opened', () => {
+	// V7: keyed on the session clock, a pilot who lingers in the terminal and
+	// takes off at 40 s never saw this line at all.
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 29 }), null);
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 30.5 }), '[HOLD K] CUT LINK');
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 35.9 }), '[HOLD K] CUT LINK');
 	// Transient: it says its piece and goes.
-	assert.equal(hint({ tFlight: 36.1, airborneOnce: true, tSinceTakeoff: 32 }), null);
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 36.1 }), null);
 });
 
-t('the later line wins when the two windows overlap', () => {
-	// Take-off at 28 s: [TAB] SETTINGS is still inside its six seconds when
-	// [HOLD K] CUT LINK falls due. The one that has never been said wins.
-	assert.equal(hint({ tFlight: 30.5, airborneOnce: true, tSinceTakeoff: 2.5 }), '[HOLD K] CUT LINK');
-	assert.equal(hint({ tFlight: 29.5, airborneOnce: true, tSinceTakeoff: 1.5 }), '[TAB] SETTINGS');
-	assert.equal(hint({ tFlight: 36.5, airborneOnce: true, tSinceTakeoff: 8.5 }), null);
+t('the cut-link hint names the live key, not a hard-coded K', () => {
+	// F4: the same keyOf() the session screen uses — a rebound cut key is the
+	// key the line prints.
+	const rows = [{ id: 'cutLink', label: 'Cut link', keys: ['J'] }];
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 31, keyRows: rows }), '[HOLD J] CUT LINK');
+	// TAB is not remappable and stays written as it is.
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 1, keyRows: rows }), '[TAB] SETTINGS');
 });
 
 t('never at the bench, never after the first flight', () => {
-	assert.equal(flightHint({ tFlight: 0, airborneOnce: false, bench: true, firstFlight: true }), null);
-	assert.equal(flightHint({ tFlight: 0, airborneOnce: false, bench: false, firstFlight: false }), null);
+	assert.equal(flightHint({ airborneOnce: false, bench: true, firstFlight: true }), null);
+	assert.equal(flightHint({ airborneOnce: false, bench: false, firstFlight: false }), null);
 	assert.equal(flightHint({}), null);
 });
 
 t('a disarmed drone is not told to open Settings', () => {
 	// Link lost, controller disarmed: the hints stop rather than talk over the
 	// end of the flight.
-	assert.equal(hint({ tFlight: 31, airborneOnce: true, tSinceTakeoff: 28, armed: false }), null);
-	assert.equal(hint({ tFlight: 2, airborneOnce: true, tSinceTakeoff: 1, armed: false }), null);
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 31, armed: false }), null);
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 1, armed: false }), null);
 	// Before arming, THROTTLE UP is exactly the thing to say.
-	assert.equal(hint({ tFlight: 1, airborneOnce: false, armed: false }), 'THROTTLE UP');
+	assert.equal(hint({ airborneOnce: false, armed: false }), 'THROTTLE UP');
 });
 
 console.log(`\n${n} checks passed`);

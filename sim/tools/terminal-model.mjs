@@ -16,9 +16,11 @@ export function formatBytes(n) {
 // `scenes` : tableau de { slug, name, bytes } quand le cache terrain est
 // connu ; `null` quand /__map-api/scenes est injoignable (la liste montre alors
 // un état d'erreur).
-// `acquire` : le droit d'acquérir tel que le serveur le rend (#60). C'est la
-// seule chose que le pied a désormais à dire — où le jeu tourne (D1).
-export function terminalModel({ operator, scenes, acquire = true }) {
+// `shared` : whether the server runs in `shared` mode (V1). The footer says
+// WHERE the game runs, which is the server's mode — not whether acquisition is
+// open. Every distributed desktop build ships with acquisition closed, and a
+// footer keyed on it called the desktop client a SHARED SERVER (D1).
+export function terminalModel({ operator, scenes, shared = false }) {
 	const name = String(operator?.name ?? '').toUpperCase() || 'UNKNOWN';
 	const sessions = Array.isArray(operator?.sessions) ? operator.sessions : [];
 	const known = Array.isArray(scenes);
@@ -34,7 +36,7 @@ export function terminalModel({ operator, scenes, acquire = true }) {
 	// sont rendus par ARCHIVE › OPERATOR, qui est leur place — les répéter sous
 	// chaque écran faisait de FIELD un tableau de bord (Bible §30).
 	const footer = [
-		acquire ? 'LOCAL INSTALLATION' : 'SHARED SERVER',
+		shared ? 'SHARED SERVER' : 'LOCAL INSTALLATION',
 		`BUILD ${build}`,
 	].join(' · ');
 

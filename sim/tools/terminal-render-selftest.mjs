@@ -26,10 +26,14 @@ let scenesReply = SCENES;
 // Le droit d'acquérir, tel que le serveur l'annonce (#60). Fermé par défaut :
 // c'est l'état de toute build distribuée.
 let acquireReply = false;
+// Le MODE du serveur (V1) : 'local' | 'shared'. C'est lui, et non le droit
+// d'acquérir, qui décide du pied et de l'avis de l'onglet LOCAL — une build
+// distribuée a l'acquisition fermée et reste une installation locale.
+let modeReply = 'local';
 globalThis.fetch = async (url) => {
 	if (String(url).includes('/__map-api/scenes')) {
 		if (scenesReply === null) return { ok: false, status: 500, json: async () => ({}) };
-		return { ok: true, status: 200, json: async () => ({ scenes: scenesReply, acquire: acquireReply }) };
+		return { ok: true, status: 200, json: async () => ({ scenes: scenesReply, acquire: acquireReply, mode: modeReply }) };
 	}
 	// worldWeather : pas de bulletin, la ligne météo reste vide. C'est déjà le
 	// comportement hors ligne, et l'écran doit tenir sans.
@@ -41,7 +45,7 @@ const { runTerminal, operatorKey } = await import('../src/terminal.js');
 let n = 0;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 
-const reset = () => { dom.root.replaceChildren(); dom.setActive(null); scenesReply = SCENES; acquireReply = false; };
+const reset = () => { dom.root.replaceChildren(); dom.setActive(null); scenesReply = SCENES; acquireReply = false; modeReply = 'local'; };
 // Le libellé exact d'abord (« MODE », « ARCHIVE »), puis le CTA entre crochets,
 // et seulement ensuite un préfixe (« FLY — »). Un simple `includes` prenait la
 // ligne d'une zone pour le pied de page : la météo hors ligne est seedée par
@@ -122,8 +126,9 @@ await ta('home : la tête ne salue plus, et le pied ne compte plus', async () =>
 	await close(p);
 });
 
-await ta('home : sans droit d\'acquérir, LOCAL le DIT au lieu d\'être vide', async () => {
+await ta('home : sur un serveur PARTAGÉ, LOCAL le DIT au lieu d\'être vide', async () => {
 	reset();
+	modeReply = 'shared';
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
 	const local = dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL');
@@ -144,7 +149,7 @@ await ta('home : sans droit d\'acquérir, LOCAL le DIT au lieu d\'être vide', a
 	await close(p);
 });
 
-await ta('home : avec le droit d\'acquérir, LOCAL n\'a rien à annoncer', async () => {
+await ta('home : sur une installation locale, LOCAL n\'a rien à annoncer', async () => {
 	reset();
 	acquireReply = true;
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
@@ -154,6 +159,25 @@ await ta('home : avec le droit d\'acquérir, LOCAL n\'a rien à annoncer', async
 	const local = dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL');
 	assert.equal(local.dataset.off, undefined, 'l\'onglet est allumé');
 	assert.equal(dom.root.querySelector('.terminal-notice'), null);
+	await close(p);
+});
+
+await ta('home : installation locale sans acquisition — ni avis, ni onglet éteint', async () => {
+	// V1 : le défaut de toute build distribuée. Elle n'acquiert pas, mais elle
+	// n'est pas « ce serveur » : le client de bureau ne s'annonce pas à
+	// lui-même qu'il faut installer le client de bureau.
+	reset();
+	scenesReply = [];
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const local = dom.root.querySelectorAll('.terminal-tab').find((b) => b.textContent === 'LOCAL');
+	assert.equal(local.dataset.off, undefined, 'l\'onglet reste allumé');
+	local.click();
+	await new Promise((r) => setTimeout(r, 0));
+	assert.equal(dom.root.querySelector('.terminal-notice'), null, 'aucun avis de serveur partagé');
+	assert.ok(!text().includes('INSTALL THE DESKTOP CLIENT'));
+	assert.ok(text().includes('NO LOCAL TERRAIN — SWITCH TO LIVE TO FLY'), 'juste le disque vide');
+	assert.ok(dom.root.querySelector('.terminal-foot').textContent.startsWith('LOCAL INSTALLATION'));
 	await close(p);
 });
 
@@ -228,7 +252,7 @@ await ta('home : le pied est exactement celui du modèle', async () => {
 	const p = runTerminal(dom.root, { settings: null, api: api(op), back: true });
 	await new Promise((r) => setTimeout(r, 0));
 	const { terminalModel } = await import('./terminal-model.mjs');
-	const expected = terminalModel({ operator: op, scenes: SCENES, acquire: false }).footer;
+	const expected = terminalModel({ operator: op, scenes: SCENES, shared: false }).footer;
 	const foot = dom.root.querySelector('.terminal-foot');
 	// Les compteurs du pied sont le sceau de non-régression de BENCH et du vol
 	// live : ils doivent rester mot pour mot ceux du modèle.

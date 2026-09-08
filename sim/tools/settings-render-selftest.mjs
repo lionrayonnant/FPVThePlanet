@@ -297,6 +297,19 @@ t('REPLAY BRIEFING appears only once the slot is filled', () => {
 	assert.equal(played, 1);
 });
 
+t('REPLAY BRIEFING is not offered in flight', () => {
+	// F2: TAB opens the panel over a running flight, and the briefing mounts
+	// full terminal screens — replaying it there is a way out of the session.
+	const p = mount();
+	p.settings.onReplayBriefing = () => { };
+	p.settings.flightActive = true;
+	p.settings.open('system');
+	assert.equal(p.btn('REPLAY BRIEFING'), undefined, 'no way into the briefing mid-flight');
+	p.settings.flightActive = false;
+	p.settings.open('system');
+	assert.ok(p.btn('REPLAY BRIEFING'), 'and it comes back on the ground');
+});
+
 // --- the key hints ----------------------------------------------------------
 
 t('the panel names its keys instead of carrying a Close button', () => {

@@ -144,8 +144,8 @@ function h(tag, props = {}, children = []) {
 }
 
 // The Tab panel: input detection/binding, keyboard mapping, audio, system.
-// It owns #settings and nothing else — l'OSD de vol s'est scindé en deux
-// couches (drone-osd.js et fpvtp-osd.js), le terminal opérateur est dans
+// It owns #settings and nothing else — the flight OSD has split into two
+// layers (drone-osd.js and fpvtp-osd.js), and the operator terminal lives in
 // terminal.js.
 // Issue #120 : caméra, objectif et lien vidéo n'étaient pas des réglages
 // destinés au joueur — ils restent pilotés par leurs valeurs stockées
@@ -167,7 +167,7 @@ export class Settings {
 		const panel = h('div', { class: 'panel' });
 		el.appendChild(panel);
 
-		// Le niveau DISPLAY, une seule fois : le panneau se nomme, puis se tait.
+		// The DISPLAY level, once: the panel names itself, then keeps quiet.
 		panel.appendChild(h('pre', { class: 'panel-title t-display', text: 'FPVTP! // SETTINGS' }));
 
 		const strip = h('div', { class: 'terminal-tabs' });
@@ -195,8 +195,8 @@ export class Settings {
 		this.buildAudio(this._sections.audio);
 		this.buildSystem(this._sections.system);
 
-		// D15 : la touche est écrite, pas dessinée en bouton. Les deux ferment,
-		// et c'est main.js qui les entend — le panneau ne fait que le dire.
+		// D15: the key is written, not drawn as a button. Both close, and it is
+		// main.js that hears them — the panel only says so.
 		panel.appendChild(keyHints([['ESC', 'CLOSE'], ['TAB', 'CLOSE']]));
 
 		root.appendChild(el);
@@ -260,12 +260,12 @@ export class Settings {
 	// already write to: this tab changed address, not behaviour.
 	buildController(box) {
 		box.appendChild(h('p', { id: 'pad-name', text: 'no controller detected' }));
-		// Ce que le NAVIGATEUR voit, et le choix quand il en voit plusieurs
-		// (issue #162). Sans cette liste, une radio mal classée — ou simplement
-		// absente de l'énumération — laissait le pilote sans aucun recours.
+		// What the BROWSER sees, and the choice when it sees several (issue
+		// #162). Without this list a misclassified radio — or one simply absent
+		// from the enumeration — left the pilot with no recourse at all.
 		box.appendChild(h('div', { id: 'pad-list', class: 'spec' }));
-		// Calibrage mesuré (issue #277). Le bouton est toujours là ; la note à
-		// côté ne parle que d'un périphérique JAMAIS calibré.
+		// Measured calibration (issue #277). The button is always there; the
+		// note beside it only ever speaks of a device that was NEVER calibrated.
 		box.appendChild(h('div', { id: 'cal-row' }, [
 			h('button', { id: 'calibrate', type: 'button', text: 'Calibrate' }),
 			h('span', { id: 'cal-note', class: 'spec' }),
@@ -277,10 +277,10 @@ export class Settings {
 			h('p', { id: 'cal-message', class: 'spec' }),
 			h('div', { class: 'axisbar' }, [h('i', { id: 'cal-bar' })]),
 		]));
-		// La machine qui réagit au manche (#281). Hors de #cal-screen à dessein :
-		// une fois la mesure finie elle reste, et suit les quatre manches
-		// calibrés — le banc d'essai vient gratuitement. C'est aussi pourquoi
-		// CANCEL est descendu sous elle.
+		// The machine that answers the sticks (#281). Outside #cal-screen on
+		// purpose: it stays once the measurement is over and follows the four
+		// calibrated sticks — the test bench comes for free. That is also why
+		// CANCEL moved below it.
 		box.appendChild(h('div', { id: 'cal-drone', hidden: true }));
 		box.appendChild(h('div', { id: 'cal-cancel-row', hidden: true }, [
 			h('button', { id: 'cal-cancel', type: 'button', text: 'Cancel' }),
@@ -516,10 +516,14 @@ export class Settings {
 	// The briefing button exists only when there is a briefing to replay, which
 	// is why this is redrawn on every visit rather than once at construction:
 	// main.js fills the slot long after the panel is built.
+	//
+	// It is also hidden in flight: the panel is reachable with TAB while flying,
+	// and the briefing mounts full terminal screens — over a running session,
+	// that is a way out of the flight, not a setting.
 	renderSystem() {
 		const row = this.el?.replayRow ?? this._sections.system.querySelector('[id="replay-row"]');
 		row.replaceChildren();
-		if (this.onReplayBriefing) {
+		if (this.onReplayBriefing && !this.flightActive) {
 			row.appendChild(button('REPLAY BRIEFING', () => this.onReplayBriefing?.(), 'terminal-cta'));
 		}
 	}
@@ -613,8 +617,8 @@ export class Settings {
 			// Panneau fermé : la boucle de la machine s'arrête avec lui, comme
 			// celle de l'assistant.
 			this.unmountCalDrone();
-			// Un appelant qui ATTEND la fermeture (la racine, D6) reprend la main
-			// ici. Vidé avant l'appel : le panneau ne promet qu'une fermeture.
+			// A caller that WAITS on the close (the root menu, D6) gets the hand
+			// back here. Cleared before the call: the panel promises one close.
 			const closed = this._onClosed;
 			this._onClosed = null;
 			closed?.();

@@ -70,15 +70,20 @@ t('terminalModel : cache terrain injoignable', () => {
 	assert.equal(m.footer, `LOCAL INSTALLATION · BUILD ${NOTES[0].build}`);
 });
 
-// D1/D2 : le pied dit d'abord OÙ le jeu tourne. Un serveur partagé n'acquiert
-// pas de terrain, et c'est la seule chose que le pied a désormais à dire.
+// D1/D2 : le pied dit d'abord OÙ le jeu tourne — le MODE du serveur, pas le
+// droit d'acquérir (V1). Toute build distribuée a l'acquisition fermée et reste
+// une installation locale.
 t('terminalModel : le pied nomme l\'installation', () => {
-	const m = terminalModel({ operator: { name: 'Neo' }, scenes: [], acquire: false });
+	const m = terminalModel({ operator: { name: 'Neo' }, scenes: [], shared: true });
 	assert.equal(m.footer, `SHARED SERVER · BUILD ${NOTES[0].build}`);
 	// Aucun compteur, aucun nom : ils sont dans ARCHIVE.
 	for (const gone of ['OPERATOR', 'LOCAL AREAS', 'SESSIONS', 'TARGETS LOGGED']) {
 		assert.doesNotMatch(m.footer, new RegExp(gone));
 	}
+	// V1: acquisition closed on a LOCAL server is the default of every
+	// distributed build — it is still a local installation.
+	const local = terminalModel({ operator: { name: 'Neo' }, scenes: [], shared: false });
+	assert.equal(local.footer, `LOCAL INSTALLATION · BUILD ${NOTES[0].build}`);
 });
 
 t('terminalModel : opérateur sans nom', () => {

@@ -6,13 +6,23 @@
 // camera looks down the body's -Z, so yaw 0 means "nose to the north".
 
 export const CHASE = {
-	// A 5-inch quad is 0.25 m across. At 1.6 m it reads as a machine in a
-	// place — chassis, livery and props legible — instead of the close-up the
-	// old free cam gave, and the flight near plane (0.15 m) stays well behind
-	// it. The 0.6 m rise puts the horizon under the drone rather than through
-	// it, which is what makes the ground read while flying low.
-	back: 1.6,
-	up: 0.6,
+	// A 5-inch quad is 0.25 m across. At 1.6 m, through the 120-degree lens the
+	// flight camera wears, it read as a mark on the sky rather than a machine
+	// (V6) — hence both numbers below and fovDeg.
+	//
+	// 1.1 m keeps chassis, livery and props legible while leaving the flight
+	// near plane (0.15 m) well behind the camera. The 0.45 m rise puts the
+	// horizon under the drone rather than through it, which is what makes the
+	// ground read while flying low.
+	back: 1.1,
+	up: 0.45,
+	// Chase is NOT the video feed: it is an outside camera, so it has no reason
+	// to wear the target's wide FPV optics. At 120 degrees a 0.25 m machine at
+	// 1.1 m covers 6% of the frame; at 75 it covers 15%, which is the
+	// difference between a mark and a machine. The flight FOV is restored on
+	// the way back to FPV, and this is only ever a CAP — a target with a
+	// narrower lens keeps its own.
+	fovDeg: 75,
 	// Time constant of the follow. Short enough that a fast yaw does not leave
 	// the camera trailing, long enough that propwash jitter is not amplified.
 	tau: 0.12,

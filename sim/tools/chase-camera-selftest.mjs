@@ -14,9 +14,13 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 // --- constants --------------------------------------------------------------
 
 t('CHASE carries the D11 numbers', () => {
-	assert.equal(CHASE.back, 1.6);
-	assert.equal(CHASE.up, 0.6);
+	assert.equal(CHASE.back, 1.1);
+	assert.equal(CHASE.up, 0.45);
 	assert.equal(CHASE.tau, 0.12);
+	// V6: chase is an outside camera, not the video feed — the target's wide
+	// FPV optics turned the machine into a mark on the sky.
+	assert.equal(CHASE.fovDeg, 75);
+	assert.ok(CHASE.fovDeg <= 90);
 });
 
 // --- chaseTarget ------------------------------------------------------------

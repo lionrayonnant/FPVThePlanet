@@ -70,8 +70,11 @@ async function showScreen(root, spec, { openSettings, interval, onMounted }) {
 
 // `input` is { kind: 'gamepad' | 'keyboard', name }, `keyRows` the live
 // keyMapRows() of input.js, `openSettings(tab)` opens the panel and resolves
-// when it closes. `interval` is only for the selftest, which has no patience.
-export async function runBriefing(root, { input = null, keyRows = [], openSettings = null, interval } = {}) {
+// when it closes. `isSettingsOpen()` tells whether that panel is on screen: both
+// listeners sit on `window`, so without it a single Escape closes the panel AND
+// skips the briefing that opened it. `interval` is only for the selftest, which
+// has no patience.
+export async function runBriefing(root, { input = null, keyRows = [], openSettings = null, isSettingsOpen = () => false, interval } = {}) {
 	const screens = briefingScreens({ input, keyRows });
 	let mounted = null;
 	const unmount = () => {
@@ -88,10 +91,17 @@ export async function runBriefing(root, { input = null, keyRows = [], openSettin
 	let skip = null;
 	const onKey = (e) => {
 		if (e.key !== 'Escape') return;
+		// The panel the briefing opened owns this Escape: it closes, we stay.
+		if (isSettingsOpen()) return;
 		e.preventDefault?.();
 		skip?.();
 	};
-	window.addEventListener('keydown', onKey);
+	// CAPTURE phase, deliberately. input.js registers its own window keydown at
+	// module load — long before this one — and main.js closes the Settings panel
+	// from it. On the bubble phase the panel would therefore already be closed by
+	// the time isSettingsOpen() is asked, and the same Escape would skip the
+	// briefing underneath. Capture runs before every bubble listener on window.
+	window.addEventListener('keydown', onKey, true);
 
 	try {
 		for (const spec of screens) {
@@ -104,7 +114,7 @@ export async function runBriefing(root, { input = null, keyRows = [], openSettin
 		}
 	} finally {
 		skip = null;
-		window.removeEventListener('keydown', onKey);
+		window.removeEventListener('keydown', onKey, true);
 		unmount();
 	}
 }

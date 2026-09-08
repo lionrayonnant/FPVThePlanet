@@ -157,23 +157,26 @@ export const CUT_HINT_AT_S = 30;
 // like #fo-cut, so it must be cheap and it must be stable: the same inputs
 // always give the same line.
 //
-// `tFlight` is the session clock in seconds, `tSinceTakeoff` the time since the
-// drone first left the ground. Bench flights are not a first flight, and a
+// `tSinceTakeoff` is the time since the drone first left the ground — BOTH
+// windows hang on it (V7): keyed on the session clock, a pilot who took off at
+// 40 s never saw the cut-link line at all. `keyRows` is the live key map, so
+// the line names the key this operator actually holds; TAB is not remappable
+// and stays written as it is. Bench flights are not a first flight, and a
 // disarmed machine is not told anything — a link that just died is not the
 // moment for advice.
 export function flightHint({
-	tFlight = 0, armed = false, airborneOnce = false, tSinceTakeoff = 0,
-	bench = false, firstFlight = false,
+	armed = false, airborneOnce = false, tSinceTakeoff = 0,
+	bench = false, firstFlight = false, keyRows = [],
 } = {}) {
 	if (bench || !firstFlight) return null;
 	// Before the first take-off the only thing worth saying is where the
 	// altitude comes from.
 	if (!airborneOnce) return 'THROTTLE UP';
 	if (!armed) return null;
-	// The later line wins where the two windows overlap — a take-off at 28 s
-	// puts them on top of each other, and the one that has never been said is
-	// the one worth saying.
-	if (tFlight >= CUT_HINT_AT_S && tFlight < CUT_HINT_AT_S + HINT_HOLD_S) return '[HOLD K] CUT LINK';
+	// The later line wins where the two windows overlap.
+	if (tSinceTakeoff >= CUT_HINT_AT_S && tSinceTakeoff < CUT_HINT_AT_S + HINT_HOLD_S) {
+		return `[HOLD ${up(keyOf(keyRows, 'cutLink', 'K'))}] CUT LINK`;
+	}
 	if (tSinceTakeoff <= HINT_HOLD_S) return '[TAB] SETTINGS';
 	return null;
 }

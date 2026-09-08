@@ -30,11 +30,26 @@ const DEG = Math.PI / 180;
 const SUN = new THREE.Vector3(0.35, 0.85, 0.4).normalize();
 
 // The mount, from the mesh's own bounding sphere: every family fits the frame
-// the same way, and a bigger airframe does not overflow it.
+// the same way, and a bigger airframe does not overflow it. FILL is the share
+// of the canvas HEIGHT that sphere takes; the distance follows from it and the
+// vertical FOV, so the framing is one readable number rather than a margin
+// factor nobody can picture (V5).
 const FOV_DEG = 32;
-const MARGIN = 1.18;
+const FILL = 0.7;
 
-export function droneViewer({ family, buildSeed, cameraSeed, size = VIEWER.size, createRenderer } = {}) {
+// The viewer used to be a fixed 220 px square, which on a 2560-wide display
+// left the machine about 120 px tall — a thumbnail at the one moment the game
+// asks you to look at it (V5). Derived from the SHORT side of the viewport, so
+// it grows with the screen and never eats a small one. VIEWER.size stays the
+// answer where there is no viewport at all (the selftests).
+const viewportSize = () => {
+	const w = globalThis.innerWidth;
+	const h = globalThis.innerHeight;
+	if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return VIEWER.size;
+	return Math.max(220, Math.min(420, Math.round(Math.min(w, h) * 0.32)));
+};
+
+export function droneViewer({ family, buildSeed, cameraSeed, size = viewportSize(), createRenderer } = {}) {
 	if (!family || !buildSeed) return null;
 
 	// The context first: everything below it is expensive, and a machine
@@ -82,8 +97,11 @@ export function droneViewer({ family, buildSeed, cameraSeed, size = VIEWER.size,
 	setSun(mesh.material, SUN, 1, 0);
 	setLedFade(mesh.ledMaterial, 0.1, 100);
 
-	const radius = mesh.body.geometry.boundingSphere?.radius || 0.2;
-	const distance = (radius * MARGIN) / Math.sin((FOV_DEG / 2) * DEG);
+	const sphere = mesh.body.geometry.boundingSphere;
+	const radius = sphere?.radius || 0.2;
+	// Half the frame is `distance * tan(fov/2)` tall, and we want the sphere's
+	// radius to be FILL of it.
+	const distance = radius / (FILL * Math.tan((FOV_DEG / 2) * DEG));
 	const camera = new THREE.PerspectiveCamera(FOV_DEG, 1, distance / 100, distance * 10);
 
 	const el = document.createElement('div');
@@ -117,14 +135,16 @@ export function droneViewer({ family, buildSeed, cameraSeed, size = VIEWER.size,
 	controls.enableDamping = false;
 	controls.autoRotate = true;
 	controls.autoRotateSpeed = 60 / VIEWER.turnS;
-	controls.target.set(0, 0, 0);
+	// The bounding sphere's centre, not the origin: the airframe sits slightly
+	// above its own root, and orbiting the root left it riding low in the frame.
+	controls.target.set(0, sphere?.center?.y ?? 0, 0);
 
 	// The entry angle, straight off the shared model: the same three-quarter
 	// view the archive portrait opens on.
 	const start = viewerOrbit({ tMs: 0 });
 	const polar = (90 - start.polarDeg) * DEG;
 	const azimuth = start.azimuthDeg * DEG;
-	camera.position.setFromSphericalCoords(distance, polar, azimuth);
+	camera.position.setFromSphericalCoords(distance, polar, azimuth).add(controls.target);
 	controls.update();
 
 	let raf = 0;

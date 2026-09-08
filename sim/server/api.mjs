@@ -625,8 +625,11 @@ const routes = [
 	// `acquire` (issue #60) : l'état RÉEL du droit d'acquérir — le drapeau posé ET
 	// le mode local. Le client s'en sert pour masquer DRAW BOX / DRAW SHAPE /
 	// ACQUIRE AREA ; c'est de l'affichage, la garde est sur POST /jobs.
+	// `mode` (V1) : where the game runs, 'local' or 'shared'. A distributed
+	// desktop build has acquisition CLOSED and is still a local installation,
+	// so the footer and the LOCAL-tab notice key on this, not on `acquire`.
 	['GET', /^\/scenes$/, async (req, res) => json(res, 200, {
-		scenes: sceneList(), acquire: acquireEnabled(MODE),
+		scenes: sceneList(), acquire: acquireEnabled(MODE), mode: MODE,
 	})],
 
 	// Liste des fournisseurs inscrits + le défaut du registre (Task 7, issue

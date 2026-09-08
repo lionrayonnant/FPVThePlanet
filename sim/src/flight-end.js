@@ -28,7 +28,11 @@ export const TIMELINE = {
 	// finale, correction 6) : une ligne vide qui apparaît seule, une frame
 	// avant son texte, romprait l'écart visuel qu'elle est censée créer. La
 	// spec écrit ces blocs avec un blanc après LINK LOST et un autre avant
-	// [ENTER] DISCONNECT — c'est ce que hud.js#flight-end div:empty rend.
+	// [ESC] DISCONNECT — c'est ce que hud.js#flight-end div:empty rend.
+	//
+	// D15: the line names ESCAPE, the key that goes back everywhere else in the
+	// game. Enter keeps working silently — in browser fullscreen Escape is
+	// confiscated to leave fullscreen, so a second way out has to exist.
 	lines: [
 		[1.6, 'LINK LOST'],
 		[2.8, ''],
@@ -41,7 +45,7 @@ export const TIMELINE = {
 		// reste pur, il ne connaît que des lignes.
 		[4.0, PORTRAIT_LINE],
 		[4.6, ''],
-		[4.6, '[ENTER] DISCONNECT'],
+		[4.6, '[ESC] DISCONNECT'],
 		// #253 : REDEPLOY partage l'horodatage de DISCONNECT — les deux gestes
 		// de sortie s'arment ensemble, jamais l'un avant l'autre.
 		[4.6, '[R] REDEPLOY'],
@@ -70,7 +74,7 @@ export const FENCE_TIMELINE = {
 		// aucune raison de ne la montrer qu'après un impact.
 		[2.4, PORTRAIT_LINE],
 		[3.0, ''],
-		[3.0, '[ENTER] DISCONNECT'],
+		[3.0, '[ESC] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],
 	],
 	exitAt: 3.0,
@@ -100,7 +104,7 @@ export const CUT_TIMELINE = {
 		// seule fin qu'on choisit, donc la seule où l'on prend le temps.
 		[2.4, PORTRAIT_LINE],
 		[3.0, ''],
-		[3.0, '[ENTER] DISCONNECT'],
+		[3.0, '[ESC] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],
 	],
 	exitAt: 3.0,
