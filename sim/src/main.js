@@ -1103,7 +1103,7 @@ const ROCKTREE_LEVEL = 21;
 // collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
 // spawn — pas de recentrage en vol (hors périmètre, voir la spec).
 async function bootLive([lat, lon]) {
-	// Trois latences indépendantes, RECOUVERTES plutôt qu'additionnées (lionrayonnant/FPVTP#295) :
+	// Trois latences indépendantes, RECOUVERTES plutôt qu'additionnées (#21) :
 	// l'init de Rapier (chunk WASM à charger et compiler), la première
 	// traversée rocktree (6 frontières de bulks séquentielles sur le réseau)
 	// et la création des Workers (pool de fetch + traversée : un chargement de
@@ -1133,7 +1133,7 @@ async function bootLive([lat, lon]) {
 		// chaque nœud ne coûte que ~1,4 ms, mais le pool en livre des dizaines
 		// dans la même frame — gels de 70 à 330 ms à chaque vague, GPU oisif.
 		// Ni l'un ni l'autre ne touche `physics` : ils peuvent donc courir
-		// pendant que Rapier s'initialise encore (lionrayonnant/FPVTP#295).
+		// pendant que Rapier s'initialise encore (#21).
 		onNodeReady: (path, matrix, meshes, sphereRadius) => {
 			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
 			// Signal "la fenêtre bouge" pour le dôme numérique (#198) — au
@@ -1212,7 +1212,7 @@ async function bootLive([lat, lon]) {
 	// prochain update() de frame() charge la couronne manquante (ou libère
 	// l'excédent) sans redémarrage.
 	settings.setViewRange(loadViewRange(), (m) => rocktreeWindow.setFloorRadiusM(m));
-	// La première traversée, lancée tout en haut (lionrayonnant/FPVTP#295) : d'ici, Rapier est
+	// La première traversée, lancée tout en haut (#21) : d'ici, Rapier est
 	// prêt et les premiers nœuds sont peut-être déjà en file de build.
 	await firstWave;
 
@@ -2642,7 +2642,7 @@ async function chooseScene() {
 		else await operator.selectOperator(pick.id);
 	}
 
-	// Rapier (chunk WASM séparé depuis lionrayonnant/FPVTP#295, voir physics.js) se charge et se
+	// Rapier (chunk WASM séparé depuis #21, voir physics.js) se charge et se
 	// compile PENDANT que le joueur lit le terminal : au premier FLY il est
 	// déjà là. Sans attente ni conséquence en cas d'échec ici — preloadScene()
 	// et bootLive() refont l'appel (même promesse mémorisée) et, eux, en

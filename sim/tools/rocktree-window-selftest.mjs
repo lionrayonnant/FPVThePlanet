@@ -134,7 +134,7 @@ await t('setFloorRadiusM() change le rayon rendu et force le recalcul au prochai
 	const { fetchNode, fetched } = fakeDeps({ traverseNodes: [NODE_A] });
 	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
 	await win.update(ORIGIN);
-	// Une traversée par anneau de LOD (lionrayonnant/FPVTP#296) : la dernière de chaque update()
+	// Une traversée par anneau de LOD (#22) : la dernière de chaque update()
 	// est celle de l'anneau extérieur, au rayon de chargement.
 	const ringsBefore = ringsFor(FALLBACK_RADIUS_M, 21).length;
 	assert.equal(zones.length, ringsBefore);
@@ -177,7 +177,7 @@ await t('update() fetche les nœuds par distance croissante au drone (#184)', as
 	const fetched = [];
 	const fetchNode = async (nd) => { fetched.push(nd.path); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
 	// `far` est à ~1,8 km : un rayon de chargement assez grand pour que les
-	// trois soient dans le disque (lionrayonnant/FPVTP#295) — ce test ne juge que l'ORDRE.
+	// trois soient dans le disque (#21) — ce test ne juge que l'ORDRE.
 	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, floorRadiusM: 3000, onNodeReady: () => {}, onNodeReleased: () => {}, _traverse: traverse, _fetchNode: fetchNode });
 	await win.update(ORIGIN);
 	assert.deepEqual(fetched, ['near', 'mid', 'far']);
@@ -293,7 +293,7 @@ await t('un retry en attente est abandonné si le nœud n\'est plus désiré ent
 	assert.equal(win.pendingCount(), 0, 'plus aucun fetch en vol une fois NODE_B résolu');
 });
 
-await t('la fenêtre est un disque : un nœud dans le coin du carré de traversée n\'est pas fetché (lionrayonnant/FPVTP#295)', async () => {
+await t('la fenêtre est un disque : un nœud dans le coin du carré de traversée n\'est pas fetché (#21)', async () => {
 	// Sans latence mesurée, le rayon de chargement est FALLBACK_RADIUS_M. Deux
 	// nœuds à boxes minuscules : l'un dans le coin du carré (distance r·√2·0,9
 	// ≈ 1,27 r, hors du disque), l'autre sur l'axe à 0,9 r (dedans). Et un

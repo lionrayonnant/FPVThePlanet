@@ -1,4 +1,4 @@
-// Niveau de détail par anneaux pour la fenêtre de streaming (lionrayonnant/FPVTP#296).
+// Niveau de détail par anneaux pour la fenêtre de streaming (#22).
 //
 // La fenêtre chargeait TOUT au même niveau d'octree (21, ~0,1 m/texel)
 // jusqu'à 600 m : 1494 nœuds à 300 m, ~6000 à 600 m, chacun ~624 Kio décodés
@@ -42,7 +42,7 @@ export function metersBetween(a, b) {
 }
 
 // La box lat/lon d'un nœud recoupe-t-elle le DISQUE de `radiusM` mètres
-// autour de `center` ? (lionrayonnant/FPVTP#295) Point de la box le plus proche du centre
+// autour de `center` ? (#21) Point de la box le plus proche du centre
 // (clamp), puis distance plate : la même approximation locale que
 // metersBetween(). Une box à cheval sur le bord recoupe (≤, pas <).
 export function boxIntersectsDisc(box, center, radiusM) {

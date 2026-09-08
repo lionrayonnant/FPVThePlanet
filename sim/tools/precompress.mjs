@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Précompression du build (lionrayonnant/FPVTP#295) : à côté de chaque fichier compressible de
+// Précompression du build (#21) : à côté de chaque fichier compressible de
 // `dist/`, un `.br` (brotli, qualité maximale) et un `.gz` (gzip 9) que
 // server/static.mjs sert avec `content-encoding` quand le navigateur l'accepte.
 //

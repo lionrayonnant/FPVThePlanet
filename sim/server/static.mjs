@@ -34,7 +34,7 @@ const TYPES = {
 };
 
 // Types servis compressés quand un `.br`/`.gz` précalculé existe à côté du
-// fichier (tools/precompress.mjs, lancé par `npm run build`, lionrayonnant/FPVTP#295). Rien n'est
+// fichier (tools/precompress.mjs, lancé par `npm run build`, #21). Rien n'est
 // compressé à la volée : ce serveur tourne aussi dans le process principal
 // d'Electron, sans dépendance, et 2,9 Mo de JavaScript compressés par requête
 // y coûteraient du CPU pour un résultat identique à chaque fois. Les types

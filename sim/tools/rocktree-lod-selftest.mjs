@@ -1,4 +1,4 @@
-// Selftest du niveau de détail par anneaux (lionrayonnant/FPVTP#296), sans réseau : un octree
+// Selftest du niveau de détail par anneaux (#22), sans réseau : un octree
 // synthétique COMPLET (toutes les colonnes existent, digits horizontaux
 // seulement) rend ce qu'une traversée rendrait à chaque niveau ; assembleLod()
 // doit couvrir chaque point du disque EXACTEMENT une fois — ni trou à une

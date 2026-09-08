@@ -15,7 +15,7 @@ export default {
 	define: { __APP_VERSION__: JSON.stringify(version) },
 	build: {
 		target: 'es2022',
-		// Découpage des vendeurs (lionrayonnant/FPVTP#295). Avant : un seul chunk de 2,9 Mo
+		// Découpage des vendeurs (#21). Avant : un seul chunk de 2,9 Mo
 		// (1 Mo gzip) que la moindre retouche du jeu invalidait en entier. Trois
 		// et Rapier ne changent qu'à une montée de version de dépendance : dans
 		// leur propre chunk, ils restent en cache navigateur (`immutable`,

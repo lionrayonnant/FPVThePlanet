@@ -11,7 +11,7 @@
 // n'en passe pas à _traverse (voir rocktree-window.js), et un AbortSignal ne
 // traverse de toute façon jamais postMessage().
 //
-// Le cache de bulks (lionrayonnant/FPVTP#295) vit ICI, dans le worker, pour toute la session de
+// Le cache de bulks (#21) vit ICI, dans le worker, pour toute la session de
 // vol : kh.google.com interdit au cache HTTP de garder ses réponses, et sans
 // lui chaque recalcul de fenêtre (tous les 50 m) refaisait la marche entière
 // depuis la racine — 344 requêtes pour 300 m — pour n'apprendre qu'une
@@ -21,7 +21,7 @@ import { createCachedFetch } from './rocktree-cache.js';
 
 const cache = createTraverseCache();
 
-// Et sur disque, entre sessions, pour les bulks seulement (lionrayonnant/FPVTP#296) : un second
+// Et sur disque, entre sessions, pour les bulks seulement (#22) : un second
 // vol au même endroit, ou un REDEPLOY, traverse sans réseau. PlanetoidMetadata
 // reste un fetch nu — c'est lui qui dit l'epoch courante.
 const { cachedFetch } = createCachedFetch();

@@ -1,4 +1,4 @@
-// Cache disque des réponses rocktree, entre sessions (lionrayonnant/FPVTP#296). kh.google.com
+// Cache disque des réponses rocktree, entre sessions (#22). kh.google.com
 // répond `cache-control: no-cache, must-revalidate` : le cache HTTP du
 // navigateur ne garde rien, et REDEPLOY (#253, rechargement de page) comme
 // un second vol au même endroit refetchaient tout — bulks et nœuds. La Cache

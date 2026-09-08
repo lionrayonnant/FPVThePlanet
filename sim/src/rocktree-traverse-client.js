@@ -30,7 +30,7 @@ function ensureWorker() {
 	return worker;
 }
 
-// Préchauffage (lionrayonnant/FPVTP#295) : bootLive() l'appelle avant même d'attendre l'init de
+// Préchauffage (#21) : bootLive() l'appelle avant même d'attendre l'init de
 // Rapier, pour que le chargement du module du worker (un fetch + une
 // compilation en prod) se recouvre avec le reste du boot au lieu de s'ajouter
 // devant la première traversée. Idempotent.

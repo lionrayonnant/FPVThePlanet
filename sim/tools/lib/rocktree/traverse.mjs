@@ -71,7 +71,7 @@ export function zoomToLevel(zoom) {
 // lancer des dizaines de Go de NodeData en silence.
 const MAX_NODES = 50_000;
 
-// Bulks EN VOL en même temps (lionrayonnant/FPVTP#295). La marche est pipelinée : un bulk reçu
+// Bulks EN VOL en même temps (#21). La marche est pipelinée : un bulk reçu
 // pousse ses enfants dans la file sans attendre que le reste de sa génération
 // ait répondu, et la file est vidée dès qu'une place se libère. L'ancienne
 // marche (générations synchrones, lots séquentiels de 8) coûtait ~45
@@ -82,7 +82,7 @@ const MAX_NODES = 50_000;
 // bake Node (undici, HTTP/1.1 : une connexion par requête en vol).
 export const BULK_CONCURRENCY = 16;
 
-// Cache de traversée réutilisable D'UN APPEL À L'AUTRE (lionrayonnant/FPVTP#295). kh.google.com
+// Cache de traversée réutilisable D'UN APPEL À L'AUTRE (#21). kh.google.com
 // répond `cache-control: no-cache, must-revalidate` (mesuré) : le cache HTTP
 // du navigateur ne garde donc ni bulks ni nœuds, et chaque recalcul de la
 // fenêtre de streaming (tous les REFRESH_THRESHOLD_M = 50 m de vol) refaisait
@@ -235,7 +235,7 @@ export function expandBulk(bulk, bulkPath, bulkBox, zone, level) {
 // pas le nombre de cellules cibles fois 2^(niveau-2).
 //
 // `cache` (createTraverseCache) : optionnel, partagé entre appels — c'est ce
-// que le worker de traversée du jeu lui passe (lionrayonnant/FPVTP#295). `cachedBulks` dans le
+// que le worker de traversée du jeu lui passe (#21). `cachedBulks` dans le
 // résultat compte ce que la marche n'a PAS eu à redemander au réseau.
 export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES, reportMs = 1500, concurrency = BULK_CONCURRENCY, cache = null } = {}) {
 	let planetoid = null;

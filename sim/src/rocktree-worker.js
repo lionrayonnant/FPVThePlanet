@@ -20,7 +20,7 @@ import { parseNode } from '../tools/lib/rocktree/proto.mjs';
 import { buildNodeGeometries } from '../tools/lib/rocktree/build-node.mjs';
 import { createCachedFetch } from './rocktree-cache.js';
 
-// Cache disque des NodeData (lionrayonnant/FPVTP#296) : partagé entre les Workers du pool (même
+// Cache disque des NodeData (#22) : partagé entre les Workers du pool (même
 // origine), persistant entre sessions — REDEPLOY et un second vol au même
 // endroit n'attendent plus le réseau. Sans Cache API (contexte non sécurisé),
 // fetch nu.

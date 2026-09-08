@@ -3101,7 +3101,7 @@ Constaté en direct sur l'écran SELECT OPERATION MODE (donc avant `boot()`) :
 - Les butées des trois axes centrés sont mesurées **d'un seul côté** et
   supposées symétriques. Une radio franchement asymétrique n'est pas couverte.
 
-## Performance du chargement LIVE et du build (issue lionrayonnant/FPVTP#295)
+## Performance du chargement LIVE et du build (issue #21)
 
 ### Vérifié — sans navigateur, réseau réel
 
@@ -3152,7 +3152,7 @@ Build : un chunk de 2,94 Mo (1,03 Mo gzip) → `index` 417 Ko + `three` 466 Ko
 plus dans `server-selftest.mjs`, 78 au total). `npm run selftest:ci` et
 `npm run build` au vert.
 
-### Deuxième passe (issue lionrayonnant/FPVTP#296) : LOD par anneaux et cache disque — vérifié sans navigateur
+### Deuxième passe (issue #22) : LOD par anneaux et cache disque — vérifié sans navigateur
 
 - **Niveau de détail par anneaux** (`tools/lib/rocktree/lod.mjs`,
   `LOD_RINGS`) : niveau plein (21) jusqu'à 150 m, 20 jusqu'à 300 m, 19
@@ -3179,7 +3179,7 @@ plus dans `server-selftest.mjs`, 78 au total). `npm run selftest:ci` et
 
 Mesuré contre le service réel (Paris, `?live=48.8578,2.2950`) :
 
-| rayon | niveau 21 seul (après lionrayonnant/FPVTP#295) | LOD | dont |
+| rayon | niveau 21 seul (après #21) | LOD | dont |
 |---|---|---|---|
 | 300 m | 1259 nœuds | 740 | 505 @21, 235 @20 |
 | 600 m | 4176 nœuds | 1003 | 505 @21, 235 @20, 263 @19 |
@@ -3197,7 +3197,7 @@ voit, écarter les rayons de `LOD_RINGS` ou n'en garder que deux), et
 **le cache disque** (DevTools → Application → Cache Storage →
 `fpvtp-rocktree-v1` doit se remplir ; un REDEPLOY au même endroit doit
 booter avec zéro requête `NodeData`/`BulkMetadata` dans l'onglet réseau).
-Puis, comme pour lionrayonnant/FPVTP#295 :
+Puis, comme pour #21 :
 que le boot reste stable (le sol attendu, la vague complète), que le drone
 ne rencontre aucun bord de terrain visible à l'intérieur du disque (le fondu
 de bord commence à `loadRadiusM − 50 m`, le culling à `loadRadiusM` — il ne

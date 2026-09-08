@@ -1,4 +1,4 @@
-// Selftest du cache disque rocktree (lionrayonnant/FPVTP#296), en Node, avec des doublures de
+// Selftest du cache disque rocktree (#22), en Node, avec des doublures de
 // `caches` et `fetch` : la Cache API n'existe pas ici, et c'est justement le
 // premier cas à couvrir (dégradation en fetch nu, sans erreur).
 import assert from 'node:assert/strict';

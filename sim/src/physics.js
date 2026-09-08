@@ -19,7 +19,7 @@ export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 export const MAX_THRUST = 4 * QUAD.maxThrustPerMotor;
 export const DRONE = QUAD;      // old name, still used by tools/
 
-// Rapier arrive par import() dynamique, pas par import statique (lionrayonnant/FPVTP#295) : le
+// Rapier arrive par import() dynamique, pas par import statique (#21) : le
 // paquet `-compat` embarque son WASM en base64, soit ~2 Mo des 2,9 Mo du
 // bundle principal. En statique, le menu, le terminal et le scanner
 // attendaient son téléchargement et sa compilation avant d'exister. Chargé

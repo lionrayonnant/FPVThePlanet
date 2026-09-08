@@ -974,7 +974,7 @@ await t('google-earth.mjs : plus aucune référence à Buffer dans le source (po
 		'google-earth.mjs appelle encore l\'API Buffer — src/rocktree-worker.js ne peut pas l\'importer tel quel');
 });
 
-await t('traversée pipelinée : même ensemble quel que soit l\'ordre d\'arrivée des bulks, sous plafond de concurrence (lionrayonnant/FPVTP#295)', async () => {
+await t('traversée pipelinée : même ensemble quel que soit l\'ordre d\'arrivée des bulks, sous plafond de concurrence (#21)', async () => {
 	// Le réseau mock répond dans un ordre ALÉATOIRE et mesure le nombre de
 	// requêtes simultanées : la file doit rester sous `concurrency`, et
 	// l'ensemble retenu doit être exactement celui de la marche séquentielle
@@ -998,7 +998,7 @@ await t('traversée pipelinée : même ensemble quel que soit l\'ordre d\'arriv�
 	assert.ok(peak >= 2, `${peak} bulk en vol au plus : la marche n'est pas pipelinée`);
 });
 
-await t('cache de traversée : un second appel sur la même zone ne touche plus le réseau, une zone voisine ne demande que la couronne nouvelle (lionrayonnant/FPVTP#295)', async () => {
+await t('cache de traversée : un second appel sur la même zone ne touche plus le réseau, une zone voisine ne demande que la couronne nouvelle (#21)', async () => {
 	const deepest = FIX.nodes.reduce((a, b) => (a.path.length >= b.path.length ? a : b));
 	const kml = doubles(readFields(read(deepest.file)).find((f) => f.num === 5).value);
 	const pad = 0.002;

@@ -37,7 +37,7 @@ fs.mkdirSync(DIST, { recursive: true });
 fs.writeFileSync(path.join(DIST, 'index.html'), '<!doctype html><title>FPVTP</title>');
 fs.mkdirSync(path.join(DIST, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(DIST, 'assets', 'index-abcd1234.js'), 'export const x = 1;\n');
-// Un asset assez gros pour être précompressé (lionrayonnant/FPVTP#295), passé par le VRAI outil ;
+// Un asset assez gros pour être précompressé (#21), passé par le VRAI outil ;
 // et un asset dont le .br est plus VIEUX que la source (build partiel).
 const BIG = Buffer.from(Array.from({ length: 200 }, (_, i) => `export const v${i} = ${'x'.repeat(40)};\n`).join(''));
 fs.writeFileSync(path.join(DIST, 'assets', 'big-abcd1234.js'), BIG);
@@ -94,7 +94,7 @@ try {
 	check('port 0 : le serveur choisit un port libre',
 		Number.isInteger(started.port) && started.port > 0);
 
-	// --- precompress (lionrayonnant/FPVTP#295) : ce qu'il produit, et ce qu'il laisse tranquille --
+	// --- precompress (#21) : ce qu'il produit, et ce qu'il laisse tranquille --
 	check('precompress : big.js (> 1 Kio) compressé en .br et .gz, les petits fichiers laissés tels quels',
 		compressed.files === 1
 		&& BIG_BR.length < BIG.length && BIG_GZ.length < BIG.length
@@ -175,7 +175,7 @@ try {
 	check('ETag faible : un second appel rend 304',
 		chunk.etag.startsWith('W/"') && revalidated.status === 304 && revalidated.buf.length === 0);
 
-	// --- précompression (lionrayonnant/FPVTP#295) -------------------------------------------------
+	// --- précompression (#21) -------------------------------------------------
 	// tools/precompress.mjs a posé un .br et un .gz à côté de big.js (voir le
 	// dist factice plus haut). fetch() de Node décode lui-même le corps : on
 	// juge donc sur les en-têtes ET sur le corps décodé, qui doit être le clair.

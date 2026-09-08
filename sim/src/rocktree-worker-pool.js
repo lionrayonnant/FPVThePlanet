@@ -165,7 +165,7 @@ function pool() {
 
 export function fetchNode(req, opts) { return pool().fetchNode(req, opts); }
 export function poolStats() { return pool().stats(); }
-// Préchauffage (lionrayonnant/FPVTP#295) : les Workers du pool n'étaient créés qu'au premier
+// Préchauffage (#21) : les Workers du pool n'étaient créés qu'au premier
 // fetchNode(), donc APRÈS la traversée du boot — leur chargement de module
 // s'ajoutait alors devant la première tuile. bootLive() les crée dès le
 // début, pendant que la traversée et l'init de Rapier tournent.
