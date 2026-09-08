@@ -2568,7 +2568,10 @@ async function chooseScene() {
 		});
 
 		// SETTINGS n'est pas une voie : c'est un panneau, le même que Tab en vol.
-		// Il se pose par-dessus la racine et la rend telle quelle en se fermant.
+		// selectOperationMode() a déjà démonté la racine en résolvant — le
+		// panneau s'ouvre donc seul, et la boucle en redessine une neuve à la
+		// fermeture. C'est ce qu'on veut ici : la racine relit `fpvtp.mode` et
+		// le nom de l'opérateur, que le panneau vient peut-être de changer.
 		if (mode === 'settings') {
 			settings.toggleSettings(true);
 			await settings.closed();
@@ -2785,7 +2788,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 // surprendre au bout.
 async function benchLoop(ui) {
 	const scenes = await loadSceneList().catch(() => []);
-	const config = await runBench(ui, { scenes, settings });
+	const config = await runBench(ui, { scenes });
 	if (!config) return null;
 
 	MODE.bench = true;

@@ -77,9 +77,15 @@ export function keyHints(pairs) {
 	return row;
 }
 
-// The line every sub-screen carries: Escape goes back one screen.
-const ESC_BACK = () => keyHints([['ESC', 'BACK']]);
-// And the line the three screens directly under the root carry.
+// [ BACK ] and the key that does the same thing, together. Every sub-screen
+// repeats this pair, so it is written once — a screen that grows a BACK button
+// without its key hint is the drift this helper prevents.
+export function backRow(box, onBack) {
+	box.appendChild(button('BACK', onBack, 'terminal-cta'));
+	box.appendChild(keyHints([['ESC', 'BACK']]));
+}
+
+// The line the three screens directly under the root carry.
 const ESC_ROOT = () => keyHints([['ESC', 'OPERATION MODE']]);
 
 // Le droit d'acquérir, tel que le serveur le rend (issue #60) : le drapeau
@@ -111,8 +117,7 @@ async function forecastScreen(root, scene) {
 	s.box.innerHTML = `<pre>FORECAST // ${scene.name.toUpperCase()}\n\nQUERYING WORLD STATE…</pre>`;
 	const back = new Promise((resolve) => {
 		const close = () => { nav.detach(); s.remove(); resolve(); };
-		s.box.appendChild(button('BACK', close, 'terminal-cta'));
-		s.box.appendChild(ESC_BACK());
+		backRow(s.box, close);
 		const nav = menuNav(s.el, { back: close });
 	});
 	const snapshot = await worldWeather({ lat: scene.lat, lon: scene.lon });
@@ -222,8 +227,7 @@ function localTerrain(root, scenes) {
 				// Pas de renvoi vers une page d'acquisition : le scanner EST l'entrée.
 				s.box.innerHTML = `<pre>LOCAL TERRAIN\n\n${scenes === null
 					? 'TERRAIN CACHE UNREACHABLE' : 'NO LOCAL TERRAIN — ACQUIRE ONE'}</pre>`;
-				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-				s.box.appendChild(ESC_BACK());
+				backRow(s.box, () => done());
 				nav = menuNav(s.el, { back: () => done() });
 				return;
 			}
@@ -261,8 +265,7 @@ function localTerrain(root, scenes) {
 				const empty = document.createElement('pre');
 				empty.textContent = 'NO MATCH';
 				s.box.appendChild(empty);
-				s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-				s.box.appendChild(ESC_BACK());
+				backRow(s.box, () => done());
 				nav = menuNav(s.el, { back: () => done(), focusFirst: false });
 				if (focusSortIdx >= 0) refocusSort(); else refocusSearch();
 				return;
@@ -308,8 +311,7 @@ function localTerrain(root, scenes) {
 				list.appendChild(item);
 			});
 			s.box.appendChild(list);
-			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-			s.box.appendChild(ESC_BACK());
+			backRow(s.box, () => done());
 			nav = menuNav(s.el, { back: () => done(), focusFirst: false });
 			if (focusSortIdx >= 0) refocusSort();
 			else if (focusSearch) refocusSearch();
@@ -352,8 +354,7 @@ ${shown}</pre>`;
 			s.el.hidden = false;
 			render();
 		}, 'terminal-cta'));
-		s.box.appendChild(button('BACK', close, 'terminal-cta'));
-		s.box.appendChild(ESC_BACK());
+		backRow(s.box, close);
 		nav?.focusAt(0);
 	};
 	let resolveScreen;
@@ -370,21 +371,28 @@ function lastSessionScreen(root, model) {
 	return new Promise((resolve) => {
 		let nav = null;
 		const done = (value) => { nav?.detach(); s.remove(); resolve(value); };
+		// createElement plutôt qu'innerHTML, comme le reste de la maison : c'est
+		// ce qui rend l'écran montable sur le faux DOM, donc testable — et le
+		// REVISIT qui part d'ici est le contrat que la boucle racine consomme.
+		const pre = (text) => {
+			const el = document.createElement('pre');
+			el.textContent = text;
+			return el;
+		};
 		const ls = model.lastSession;
 		if (!ls) {
-			s.box.innerHTML = '<pre>LAST SESSION — NONE YET</pre>';
-			s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-			s.box.appendChild(ESC_BACK());
+			s.box.appendChild(pre('LAST SESSION — NONE YET'));
+			backRow(s.box, () => done());
 			nav = menuNav(s.el, { back: () => done() });
 			return;
 		}
 		const area = ls.area ?? ls.slug ?? null;
 		const when = ls.end ?? ls.endedAt ?? ls.start ?? ls.startedAt ?? ls.at ?? '';
-		s.box.innerHTML = `<pre>LAST SESSION
+		s.box.appendChild(pre(`LAST SESSION
 
 AREA     ${area ? areaLabel(area) : 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
-RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
+RESULT   ${ls.result ?? 'UNKNOWN'}`));
 		s.box.appendChild(button('VIEW SESSION', async () => {
 			s.el.style.display = 'none';
 			const { runSessionDetail } = await import('./session-log.js');
@@ -403,8 +411,7 @@ RESULT   ${ls.result ?? 'UNKNOWN'}</pre>`;
 		if (areaKnown) {
 			s.box.appendChild(button('REVISIT AREA', () => done(area), 'terminal-cta'));
 		}
-		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
-		s.box.appendChild(ESC_BACK());
+		backRow(s.box, () => done());
 		nav = menuNav(s.el, { back: () => done() });
 	});
 }
@@ -455,8 +462,7 @@ async function operatorScreen(root, api) {
 		portrait.className = 'op-portrait';
 		portrait.hidden = true;
 		s.box.appendChild(portrait);
-		s.box.appendChild(button('BACK', close, 'terminal-cta'));
-		s.box.appendChild(ESC_BACK());
+		backRow(s.box, close);
 		nav?.focusAt(0);
 	};
 	render();
@@ -504,8 +510,7 @@ function buildNotesScreen(root, operator) {
 		// BACK était hors de vue — l'écran se refermait sur l'opérateur.
 		let nav = null;
 		const close = () => { nav?.detach(); s.remove(); resolve(); };
-		s.box.appendChild(button('BACK', close, 'terminal-cta'));
-		s.box.appendChild(ESC_BACK());
+		backRow(s.box, close);
 		nav = menuNav(s.el, { back: close });
 	});
 }

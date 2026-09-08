@@ -26,7 +26,7 @@ globalThis.fetch = async (url) => {
 
 const { archiveScreen } = await import('../src/terminal.js');
 const { selectOperationMode } = await import('../src/bench.js');
-const { runTargetLog } = await import('../src/session-log.js');
+const { runTargetLog, runSessionLog } = await import('../src/session-log.js');
 
 let n = 0;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
@@ -103,6 +103,39 @@ await ta('archive : les journaux et l\'opérateur, et plus rien à régler', asy
 	assert.ok(keys, 'la ligne des touches');
 	assert.equal(keys.textContent, '[ESC] OPERATION MODE');
 	await closeAll(p, 1);
+});
+
+// --- ce qu'ARCHIVE remonte --------------------------------------------------
+//
+// C'est le contrat que main.js:archiveLoop() consomme (D3) : ARCHIVE résout
+// VERS LE HAUT, en la forme que la boucle FIELD sait faire voler. Sans ce test,
+// un REVISIT pouvait remonter un slug nu et la boucle décollait sur `undefined`.
+
+// La zone doit être encore sur disque pour que REVISIT soit proposé : c'est le
+// gate `model.areas.some(...)` de lastSessionScreen.
+const INSTALLED = [{ slug: 'paristest', name: 'paristest', bytes: 109e6 }];
+
+await ta('archive : un REVISIT remonte { slug }, la forme que la boucle FIELD vole', async () => {
+	reset();
+	const p = archiveScreen(dom.root, { api: api(operator()), scenes: INSTALLED });
+	await tick();
+	btn('LAST SESSION').click();
+	await tick();
+	btn('REVISIT AREA').click();
+	// Un slug nu remonterait ici sans le normaliseur de done() : c'est ce que
+	// rend lastSessionScreen, et ce n'est pas ce que la boucle attend.
+	assert.deepEqual(await p, { slug: 'paristest' });
+	assert.equal(dom.root.children.length, 0, 'et rien ne reste dans #ui');
+});
+
+await ta('archive : Échap remonte null, pas undefined', async () => {
+	reset();
+	const p = archiveScreen(dom.root, { api: api(operator()), scenes: INSTALLED });
+	await tick();
+	// `if (!pick) continue;` dans main.js : null et undefined y passeraient tous
+	// les deux, mais la fonction promet une forme — elle la tient.
+	dom.key('Escape');
+	assert.equal(await p, null);
 });
 
 // --- OPERATOR ---------------------------------------------------------------
@@ -199,6 +232,9 @@ await ta('target log : le titre parle en DISPLAY, la table est de la donnée', a
 	await tick();
 	const table = dom.root.querySelector('.terminal-log');
 	assert.ok(table, 'la table porte sa propre classe');
+	// D15 : Échap est nommé sur les journaux aussi — ils ont un `back` depuis
+	// toujours, et personne ne le savait.
+	assert.equal(dom.root.querySelector('.terminal-keys').textContent, '[ESC] BACK');
 	assert.match(table.textContent, /TARGET 001/);
 	assert.match(table.textContent, /PARISTEST/);
 	assert.doesNotMatch(table.textContent, /TARGET LOG/, 'le titre n\'est pas dans la table');
@@ -244,6 +280,18 @@ await ta('target log : la dernière cible se dessine, et une entrée sans graine
 	assert.ok(svg, 'la dernière cible se dessine');
 	assert.ok(svg.querySelectorAll('line').length > 60, 'trop peu de traits');
 	assert.match(dom.root.textContent, /LAST TARGET/, 'et le dessin dit de quelle cible il parle');
+	btn('BACK').click();
+	await p;
+});
+
+// --- SESSION LOG ------------------------------------------------------------
+
+await ta('session log : Échap est nommé, comme sur tout écran qui l\'écoute', async () => {
+	reset();
+	const p = runSessionLog(dom.root, { operator: operator(), scenes: [] });
+	await tick();
+	assert.match(dom.root.textContent, /SESSION LOG/);
+	assert.equal(dom.root.querySelector('.terminal-keys').textContent, '[ESC] BACK');
 	btn('BACK').click();
 	await p;
 });
