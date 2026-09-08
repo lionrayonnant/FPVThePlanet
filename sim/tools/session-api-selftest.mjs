@@ -18,6 +18,7 @@ process.env.FPVTP_DATA_DIR = DIR;
 delete process.env.FPV_OPERATOR_DIR;
 
 const { startServer } = await import('../server/index.mjs');
+const { encodeTrack, TRACK_KEEP } = await import('./track-model.mjs');
 
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, console.log(`  FAIL  ${n}`)); };
@@ -151,6 +152,112 @@ try {
 	const rejected = await call('PATCH', `/__operator/${id}`, { key: 'notAKey', value: 1 });
 	check('PATCH clé inconnue → 400', rejected.status === 400
 		&& /clé non modifiable/.test(rejected.body.error ?? ''));
+
+	// `coverage` reste une clé opérateur ; la PISTE, elle, n'en est PAS une
+	// (issue #24) : elle a son fichier et sa route, et OP_WRITABLE_KEYS ne doit
+	// jamais gagner d'entrée pour elle.
+	const asKey = await call('PATCH', `/__operator/${id}`, { key: 'track', value: {} });
+	check('PATCH track → 400 : la piste n\'est pas une clé opérateur', asKey.status === 400);
+
+	// --- pistes de vol (issue #24) -------------------------------------------
+	const s4 = await call('POST', `/__operator/${id}/sessions`, { area: 'paris', weatherSnapshot: null });
+	const sid4 = s4.body.session.id;
+
+	const noneYet = await call('GET', `/__operator/${id}/sessions/${sid4}/track`);
+	check('GET track avant écriture → 404', noneYet.status === 404);
+
+	const samples = Array.from({ length: 600 }, (_, i) => ({
+		t: i * 0.2,
+		lat: 48.8584 + Math.sin(i / 31) * 0.002,
+		lon: 2.2945 + Math.cos(i / 37) * 0.003,
+		alt: 20 + 10 * Math.sin(i / 19),
+		spd: 12 + 5 * Math.cos(i / 13),
+		thr: 0.6, rate: 90,
+	}));
+	const track = encodeTrack(samples, {
+		start: { lat: 48.8584, lon: 2.2945 },
+		end: { lat: 48.8600, lon: 2.2970, alt: 11.5, spd: 28.4, result: 'CRASHED' },
+		photos: [{ i: 0, lat: 48.859, lon: 2.295, heading: 271 }],
+	});
+
+	const put = await call('PUT', `/__operator/${id}/sessions/${sid4}/track`, track);
+	check('PUT track → 200, la piste est acceptée telle quelle',
+		put.status === 200 && put.body.n === 600 && put.body.truncated === false);
+
+	const again2 = await call('PUT', `/__operator/${id}/sessions/${sid4}/track`, track);
+	check('PUT track est idempotent : un second envoi remplace', again2.status === 200);
+
+	const trackFile = path.join(DIR, 'operator-state', 'tracks', id, `${sid4}.json`);
+	check('la piste est un FICHIER à côté de l\'opérateur (D5), pas une clé dedans',
+		fs.existsSync(trackFile)
+		&& !JSON.stringify(JSON.parse(fs.readFileSync(path.join(DIR, 'operator-state', `${id}.json`), 'utf8')))
+			.includes('"track"'));
+
+	const got = await call('GET', `/__operator/${id}/sessions/${sid4}/track`);
+	check('GET track : décodée, en unités réelles, événements compris',
+		got.status === 200
+		&& got.body.track.samples.length === 600
+		&& Math.abs(got.body.track.samples[0].lat - samples[0].lat) < 1e-5
+		&& got.body.track.end.result === 'CRASHED'
+		&& got.body.track.photos[0].i === 0);
+
+	const orphan = await call('PUT', `/__operator/${id}/sessions/paris-dead/track`, track);
+	check('PUT track pour une session inexistante → 404', orphan.status === 404);
+
+	const junk = await call('PUT', `/__operator/${id}/sessions/${sid4}/track`, { v: 1, n: 'x' });
+	check('PUT track malformée → 400', junk.status === 400);
+
+	const traversal = await call('PUT', `/__operator/${id}/sessions/..%2F..%2Fevil/track`, track);
+	check('PUT track : un id de session hors regex ne touche pas le disque',
+		traversal.status === 400 || traversal.status === 404);
+
+	const index = await call('GET', `/__operator/${id}/tracks`);
+	const entry = index.body.tracks?.[0];
+	check('GET /tracks : polyligne décimée, jamais les tableaux bruts',
+		index.status === 200 && index.body.tracks.length === 1
+		&& entry.sessionId === sid4
+		&& entry.line.length > 2 && entry.line.length <= 100
+		&& entry.start && entry.end.result === 'CRASHED' && entry.photos.length === 1
+		&& entry.samples === undefined && entry.lat === undefined);
+
+	const inBox = await call('GET', `/__operator/${id}/tracks?bbox=48.8,2.2,48.9,2.4`);
+	const outBox = await call('GET', `/__operator/${id}/tracks?bbox=-10,-10,-9,-9`);
+	const badBox = await call('GET', `/__operator/${id}/tracks?bbox=nope`);
+	check('GET /tracks?bbox= : filtre, et refuse une bbox illisible',
+		inBox.body.tracks.length === 1 && outBox.body.tracks.length === 0 && badBox.status === 400);
+
+	const withFlag = await call('GET', `/__operator/${id}`);
+	const flagged = withFlag.body.operator.sessions.find((x) => x.id === sid4);
+	const unflagged = withFlag.body.operator.sessions.find((x) => x.id !== sid4);
+	check('hasTrack est dérivé sur la liste des sessions',
+		flagged.hasTrack === true && unflagged.hasTrack === false);
+	check('hasTrack n\'est PAS stocké sur disque',
+		!JSON.parse(fs.readFileSync(path.join(DIR, 'operator-state', `${id}.json`), 'utf8'))
+			.sessions.some((x) => 'hasTrack' in x));
+
+	// La rétention (D3) : au-delà de TRACK_KEEP fichiers, les plus vieux partent.
+	const dir = path.dirname(trackFile);
+	const tiny = JSON.stringify(encodeTrack([]));
+	for (let i = 0; i < TRACK_KEEP + 10; i++) {
+		const f = path.join(dir, `old-${String(i).padStart(4, '0')}-aaaa.json`);
+		fs.writeFileSync(f, tiny);
+		// mtimes distincts et croissants : la piste réelle doit rester la plus
+		// récente, donc les fausses sont datées dans le passé.
+		const t = Date.now() / 1000 - (TRACK_KEEP + 20 - i) * 60;
+		fs.utimesSync(f, t, t);
+	}
+	await call('PUT', `/__operator/${id}/sessions/${sid4}/track`, track);
+	const left = fs.readdirSync(dir);
+	check('pruneTracks après écriture : au plus 200 pistes, la nouvelle survit',
+		left.length === TRACK_KEEP && left.includes(`${sid4}.json`));
+
+	// Supprimer la session emporte sa piste : pas d'orphelin sur le quota.
+	await call('PATCH', `/__operator/${id}/sessions/${sid4}`, {
+		result: 'CRASHED',
+		telemetry: { durationS: 120, maxSpeedMs: 28, maxRateDps: 300, maxAltitudeM: 40, distanceM: 900 },
+	});
+	await call('DELETE', `/__operator/${id}/sessions/${sid4}`);
+	check('DELETE session : la piste part avec elle', !fs.existsSync(trackFile));
 } finally {
 	await started.close();
 	fs.rmSync(DIR, { recursive: true, force: true });

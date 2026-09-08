@@ -14,6 +14,7 @@ import {
 import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
 import { TARGET_FAMILIES, HACK_TYPES, generateTargetScan, resolveTarget } from './target-model.mjs';
+import { decodeTrack, MAX_SAMPLES } from './track-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -442,7 +443,9 @@ t('randomart : déterministe, dimensions et cadre corrects', () => {
 // ---------------------------------------------------------------------------
 // src/session.js — agrégateur client, fetch stubbé
 
-function stubOperator(calls) {
+// `trackFails` : la piste (issue #24) est la seule écriture dont l'échec doit
+// être avalé — les tests s'en servent pour vérifier que la session survit.
+function stubOperator(calls, { trackFails = false } = {}) {
 	op._setStore({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 	op._setFetch(async (url, init = {}) => {
 		const method = init.method ?? 'GET';
@@ -453,6 +456,11 @@ function stubOperator(calls) {
 		}
 		if (method === 'POST' && /\/sessions$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: 'PENDING' } });
+		}
+		// La piste (issue #24) : un PUT dédié, jamais une clé opérateur.
+		if (/\/sessions\/[^/]+\/track$/.test(url)) {
+			if (trackFails) return { ok: false, status: 500, json: async () => ({ error: 'disque plein' }) };
+			return json({ sessionId: 'paris-0000', n: body.n, truncated: body.truncated });
 		}
 		if (/\/sessions\/[^/]+\/photos$/.test(url)) {
 			calls._photos = (calls._photos ?? 0) + 1;
@@ -642,3 +650,140 @@ await ta('capturePhoto : sans session ouverte, ne fait rien et rend 0', async ()
 });
 
 console.log(`\n${n} tests session OK`);
+
+// ---------------------------------------------------------------------------
+// La piste de vol (issue #24) : accumulée à 5 Hz avec la couverture, écrite
+// UNE fois, après le PATCH de la session.
+
+const trackPuts = (calls) => calls.filter((c) => c.method === 'PUT' && /\/track$/.test(c.url));
+
+await ta('piste : rien pendant le vol, un seul PUT à la clôture, APRÈS le PATCH', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+
+	// Deux secondes armées à 60 Hz : 10 échantillons attendus, comme la couverture.
+	for (let i = 0; i < 120; i++) {
+		session.feed({
+			speed: 14, horizontalSpeed: 13, rateDps: 210, altitudeAboveSpawn: 32,
+			dt: 1 / 60, armed: true, geo: () => EIFFEL, throttle: 0.62, headingDeg: 271,
+		});
+	}
+	assert.equal(session.track().samples.length, 10);
+	assert.equal(trackPuts(calls).length, 0, 'aucune écriture de piste pendant le vol');
+
+	await session.end('CRASHED');
+	const puts = trackPuts(calls);
+	assert.equal(puts.length, 1, 'une seule écriture');
+	// L'ordre compte : la piste a besoin d'une session existante côté serveur.
+	const patchAt = calls.findIndex((c) => c.method === 'PATCH' && /\/sessions\//.test(c.url));
+	assert.ok(patchAt >= 0 && calls.indexOf(puts[0]) > patchAt, 'la piste part après le PATCH');
+
+	const back = decodeTrack(puts[0].body);
+	assert.equal(back.samples.length, 10);
+	assert.ok(Math.abs(back.samples[0].lat - EIFFEL.lat) < 1e-5);
+	assert.ok(Math.abs(back.samples[0].thr - 0.62) < 0.005, 'le throttle est enregistré');
+	assert.ok(Math.abs(back.samples[0].rate - 210) < 0.5);
+	assert.ok(Math.abs(back.samples[0].alt - 32) < 0.05);
+	assert.ok(Math.abs(back.samples[9].t - 2) < 0.05, 'le temps court sur la frontière 5 Hz');
+	assert.ok(Math.abs(back.start.lat - EIFFEL.lat) < 1e-5, 'le point de JACK IN');
+	assert.equal(back.end.result, 'CRASHED');
+	assert.ok(Math.abs(back.end.spd - 14) < 0.05, 'l\'état au moment où la liaison meurt');
+	assert.equal(back.truncated, false);
+});
+
+await ta('piste : désarmé ou gelé on n\'échantillonne pas ; sans échantillon, pas de PUT', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 120; i++) {
+		session.feed({ dt: 1 / 60, armed: false, geo: () => EIFFEL, throttle: 1 });
+		session.feed({ dt: 0, armed: true, geo: () => EIFFEL, throttle: 1 });
+	}
+	assert.equal(session.track().samples.length, 0);
+	await session.end('CRASHED');
+	assert.equal(trackPuts(calls).length, 0, 'un vol qui n\'a rien enregistré n\'écrit pas de fichier');
+});
+
+await ta('piste : les captures sont géolocalisées à la prise, indexées sur photos[]', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	// Une capture AVANT le premier échantillon : elle existe, mais sans position.
+	await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,AA==', w: 4, h: 3 });
+	for (let i = 0; i < 12; i++) {
+		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL, throttle: 0.5, headingDeg: 91.4 });
+	}
+	await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,AA==', w: 4, h: 3 });
+	assert.equal(session.photoCount(), 2);
+	await session.end('CRASHED');
+
+	const back = decodeTrack(trackPuts(calls)[0].body);
+	assert.equal(back.photos.length, 1, 'seule la capture prise après un échantillon a une position');
+	assert.equal(back.photos[0].i, 1, 'l\'index pointe dans photos[]');
+	assert.ok(Math.abs(back.photos[0].lat - EIFFEL.lat) < 1e-5);
+	assert.equal(back.photos[0].heading, 91);
+});
+
+await ta('piste : un échec d\'écriture est avalé, la session reste close', async () => {
+	const calls = [];
+	stubOperator(calls, { trackFails: true });
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
+	const s = await session.end('CRASHED');
+	assert.ok(s, 'perdre la piste ne coûte pas la session');
+	assert.equal(s.result, 'CRASHED');
+	assert.equal(trackPuts(calls).length, 1, 'tentée une fois, pas rejouée');
+});
+
+await ta('piste : la balise de secours reste sans piste (D4)', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
+	const beacons = [];
+	// `navigator` n'est qu'un getter sous Node : on le redéfinit, et on le remet.
+	const hadNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+	Object.defineProperty(globalThis, 'navigator', {
+		configurable: true,
+		value: { sendBeacon: (url, blob) => { beacons.push({ url, blob }); return true; } },
+	});
+	const hadBlob = globalThis.Blob;
+	globalThis.Blob = class { constructor(parts) { this.parts = parts; } };
+	try {
+		session.beacon('CRASHED');
+		assert.equal(beacons.length, 1);
+		assert.ok(!/track/.test(beacons[0].url));
+		assert.ok(!/"lat"/.test(beacons[0].blob.parts[0]), 'la balise ne porte que les agrégats');
+		assert.equal(trackPuts(calls).length, 0);
+	} finally {
+		if (hadNav) Object.defineProperty(globalThis, 'navigator', hadNav);
+		else delete globalThis.navigator;
+		globalThis.Blob = hadBlob;
+	}
+});
+
+await ta('piste : le plafond MAX_SAMPLES borne la mémoire de l\'onglet et se déclare', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
+	// Un pas de 0,2 s par appel : un échantillon par appel, sans tourner 60 Hz.
+	for (let i = 0; i < MAX_SAMPLES + 20; i++) {
+		session.feed({ dt: 0.2, armed: true, geo: () => EIFFEL, throttle: 0.5 });
+	}
+	assert.equal(session.track().samples.length, MAX_SAMPLES);
+	await session.end('CRASHED');
+	assert.equal(trackPuts(calls)[0].body.truncated, true);
+});

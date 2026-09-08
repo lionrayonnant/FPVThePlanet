@@ -2326,6 +2326,10 @@ if (!frozen) {
 			altitudeAboveSpawn: p.y - spawnY,
 			dt: frozen ? 0 : dt,
 			armed: controller.armed,
+			// La piste (issue #24) : les deux seules valeurs que la télémétrie
+			// agrégée n'utilisait pas, déjà calculées ici pour l'OSD et le son.
+			throttle: sticks.throttle,
+			headingDeg: yawOf(physics.rotation) * 180 / Math.PI,
 			// La couverture (issue #245) : une fonction, appelée par session.js
 			// seulement quand un échantillon est dû — rien entre deux.
 			geo: () => droneGeo(p),

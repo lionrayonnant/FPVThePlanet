@@ -18,6 +18,17 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
+  pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
+  vitesse, gaz, taux de rotation), le point de départ, les captures
+  géolocalisées et l'état au moment où la liaison meurt. Écrite en une fois à la
+  clôture, dans `operator-state/tracks/<opérateur>/<session>.json`, 200 pistes
+  retenues par opérateur. Nouvelles routes `PUT`/`GET
+  /__operator/:id/sessions/:sid/track` et `GET /__operator/:id/tracks?bbox=`
+  (index décimé pour la carte) ; les sessions rendues portent `hasTrack`.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

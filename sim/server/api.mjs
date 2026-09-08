@@ -26,8 +26,11 @@ import {
 import {
 	openSession, closeSession, validateSession,
 	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession, addPhoto,
-	stripPhotoData, stripOperatorPhotoData, deleteSession,
+	stripPhotoData, stripOperatorPhotoData, deleteSession, SESSION_ID_RE,
 } from '../tools/session-model.mjs';
+import {
+	validateTrack, decodeTrack, pruneTracks, trackIndexEntry, trackBounds,
+} from '../tools/track-model.mjs';
 import { targetLogEntries } from '../tools/session-log-model.mjs';
 import {
 	estimateCost, tileGrid, boxDimensions, tileSizeMeters,
@@ -89,6 +92,63 @@ function _listOperators() {
 		})
 		.filter(Boolean)
 		.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+
+// --- flight tracks (issue #24) ---------------------------------------------
+//
+// D5: a track is a FILE beside the operator file, never a key inside it. The
+// operator JSON is read and rewritten on every session event; folding 3 MB of
+// track data into it would make every one of those writes quadratic.
+//
+//   <OPERATOR_DIR>/tracks/<operatorId>/<sessionId>.json
+//
+// Both id and session id are checked against their regexes before they touch a
+// path: they come from the URL, and nothing else stands between them and the
+// filesystem.
+function tracksDirFor(id) {
+	if (!ID_RE.test(id)) throw new Error('id invalide');
+	return path.join(P.OPERATOR_DIR, 'tracks', id);
+}
+
+function trackFileFor(id, sid) {
+	if (!SESSION_ID_RE.test(sid)) throw new Error('id de session invalide');
+	return path.join(tracksDirFor(id), `${sid}.json`);
+}
+
+// The session ids that have a track on disk. Cheap enough to call on every
+// operator read: a readdir over at most TRACK_KEEP entries.
+function trackIdsFor(id) {
+	let names;
+	try { names = fs.readdirSync(tracksDirFor(id)); } catch { return new Set(); }
+	return new Set(names.filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)));
+}
+
+// The derived `hasTrack` the UI needs to say NO TRACK on an old flight without
+// a second request. Derived on the way OUT only — it is never stored.
+function markTracks(state) {
+	if (!state || typeof state !== 'object') return state;
+	const ids = trackIdsFor(state.id);
+	return { ...state, sessions: (state.sessions ?? []).map((s) => ({ ...s, hasTrack: ids.has(s.id) })) };
+}
+
+function readTrackFile(file) {
+	return validateTrack(JSON.parse(fs.readFileSync(file, 'utf8')));
+}
+
+// Retention (D3): the newest TRACK_KEEP tracks stay, the rest are removed. The
+// sessions and their aggregates are untouched — only per-flight detail is lost.
+function pruneTracksOnDisk(id) {
+	const dir = tracksDirFor(id);
+	let names;
+	try { names = fs.readdirSync(dir); } catch { return; }
+	const list = names.filter((f) => f.endsWith('.json')).map((f) => {
+		let ts = 0;
+		try { ts = fs.statSync(path.join(dir, f)).mtimeMs; } catch { /* raced */ }
+		return { id: f, ts };
+	});
+	for (const e of pruneTracks(list).dropped) {
+		try { fs.rmSync(path.join(dir, e.id)); } catch { /* raced */ }
+	}
 }
 
 function operatorSummary(s) {
@@ -165,7 +225,7 @@ const opRoutes = [
 		if (!state) return json(res, 404, { error: 'aucun opérateur pour cette clé' });
 		const rec = reconcileStaleSessions(state);
 		if (rec.changed) _writeOperator(rec.state);
-		json(res, 200, { operator: publicOperator(stripOperatorPhotoData(rec.state)) });
+		json(res, 200, { operator: publicOperator(markTracks(stripOperatorPhotoData(rec.state))) });
 	}],
 
 	['GET', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -183,7 +243,10 @@ const opRoutes = [
 		// recharge l'opérateur à chaque retour au menu, et une trentaine de
 		// sessions photographiées pèseraient des dizaines de mégaoctets à chaque
 		// fois. VIEW SESSION va les chercher une par une sur la route dédiée.
-		json(res, 200, { operator: publicOperator(stripOperatorPhotoData(rec.state)) });
+		//
+		// `hasTrack` (issue #24) is derived here, from the tracks directory: the
+		// UI can say NO TRACK on an old flight without a second request.
+		json(res, 200, { operator: publicOperator(markTracks(stripOperatorPhotoData(rec.state))) });
 	}],
 
 	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
@@ -382,6 +445,55 @@ const opRoutes = [
 		json(res, 201, { session: stripPhotoData(session) });
 	}],
 
+	// La piste de vol (issue #24). Écrite UNE fois, à la clôture (D4), après le
+	// PATCH de la session : une piste sans session n'a pas de sens, et perdre la
+	// piste ne doit jamais coûter la session. Idempotent — un second PUT
+	// remplace, ce qui rend un renvoi après timeout inoffensif.
+	//
+	// Plafond de body relevé comme la route des captures : 18 000 échantillons
+	// tiennent dans quelques centaines de kilo-octets, mais pas dans le
+	// mégaoctet des requêtes ordinaires.
+	['PUT', /^\/([^/]+)\/sessions\/([^/]+)\/track$/, async (req, res, [id, sid]) => {
+		// Comme les captures : la taille de cette écriture dépend du client, donc
+		// elle passe par le quota. Le vol lui-même n'est jamais bloqué.
+		const full = checkOperatorQuota({ mode: MODE, dir: P.OPERATOR_DIR, id });
+		if (full) return json(res, full.status, { error: full.error });
+		const b = await readBody(req, PHOTO_BODY_MAX);
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
+		if (!state.sessions.some((s) => s.id === sid)) {
+			return json(res, 404, { error: `aucune session "${sid}"` });
+		}
+
+		let file, track;
+		try {
+			file = trackFileFor(id, sid);
+			track = validateTrack(b);
+		} catch (e) { return json(res, 400, { error: e.message }); }
+
+		fs.mkdirSync(path.dirname(file), { recursive: true });
+		const tmp = `${file}.${process.pid}.tmp`;
+		fs.writeFileSync(tmp, JSON.stringify(track));
+		fs.renameSync(tmp, file);
+		pruneTracksOnDisk(id);
+		json(res, 200, { sessionId: sid, n: track.n, truncated: track.truncated });
+	}],
+
+	// Une piste, décodée : échantillons en unités réelles, plus les trois
+	// événements ponctuels. C'est la seule route qui rende les tableaux complets.
+	['GET', /^\/([^/]+)\/sessions\/([^/]+)\/track$/, async (req, res, [id, sid]) => {
+		let file;
+		try { file = trackFileFor(id, sid); }
+		catch (e) { return json(res, 400, { error: e.message }); }
+		if (!fs.existsSync(file)) return json(res, 404, { error: `aucune piste pour "${sid}"` });
+		let track;
+		try { track = decodeTrack(readTrackFile(file)); }
+		catch (e) { return json(res, 500, { error: `piste illisible : ${e.message}` }); }
+		json(res, 200, { sessionId: sid, track });
+	}],
+
 	// La session COMPLÈTE, captures comprises (PHASE 17, spec D4). Toutes les
 	// autres réponses élident les `dataUrl` ; seul l'écran VIEW SESSION paie le
 	// poids des images, une fois, à son ouverture.
@@ -392,7 +504,54 @@ const opRoutes = [
 		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
 		const session = state.sessions.find((s) => s.id === sid);
 		if (!session) return json(res, 404, { error: `aucune session "${sid}"` });
-		json(res, 200, { session });
+		json(res, 200, { session: { ...session, hasTrack: trackIdsFor(id).has(sid) } });
+	}],
+
+	// L'index que la carte enrichie consomme (issue #24) : pour chaque piste
+	// retenue, une polyligne décimée (~100 points), le départ, la fin et les
+	// photos géolocalisées. JAMAIS les tableaux d'échantillons — 200 pistes
+	// complètes feraient 3 Mo pour dessiner des traits d'un pixel.
+	//
+	// `?bbox=south,west,north,east` filtre : la vue monde n'a pas à tout
+	// embarquer. Une piste est gardée si sa bbox recoupe celle demandée.
+	['GET', /^\/([^/]+)\/tracks$/, async (req, res, [id], url) => {
+		let dir;
+		try { dir = tracksDirFor(id); }
+		catch (e) { return json(res, 400, { error: e.message }); }
+
+		let box = null;
+		const raw = url.searchParams.get('bbox');
+		if (raw) {
+			const n = raw.split(',').map(Number);
+			if (n.length !== 4 || !n.every(Number.isFinite)) {
+				return json(res, 400, { error: 'bbox : attendu south,west,north,east' });
+			}
+			box = {
+				minLat: Math.min(n[0], n[2]), minLon: Math.min(n[1], n[3]),
+				maxLat: Math.max(n[0], n[2]), maxLon: Math.max(n[1], n[3]),
+			};
+		}
+
+		let names;
+		try { names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); }
+		catch { names = []; }
+
+		const tracks = [];
+		for (const f of names) {
+			const sid = f.slice(0, -5);
+			let entry;
+			// Un fichier corrompu ne fait pas tomber l'index : on saute la piste
+			// et la carte dessine le reste.
+			try { entry = trackIndexEntry(readTrackFile(path.join(dir, f)), { sessionId: sid }); }
+			catch { continue; }
+			if (box) {
+				const b = trackBounds(entry);
+				if (!b || b.maxLat < box.minLat || b.minLat > box.maxLat
+					|| b.maxLon < box.minLon || b.minLon > box.maxLon) continue;
+			}
+			tracks.push(entry);
+		}
+		json(res, 200, { tracks });
 	}],
 
 	// DELETE SESSION (PHASE 17, spec D3). Suppression franche : l'entrée et ses
@@ -407,6 +566,9 @@ const opRoutes = [
 		try { next = deleteSession(state, sid); }
 		catch (e) { return json(res, e.status ?? 400, { error: e.message }); }
 		_writeOperator(next);
+		// La piste part avec la session (issue #24) : elle n'a plus rien à
+		// désigner, et un orphelin continuerait de peser sur le quota.
+		try { fs.rmSync(trackFileFor(id, sid)); } catch { /* pas de piste, ou déjà partie */ }
 		json(res, 200, { removed: sid });
 	}],
 ];

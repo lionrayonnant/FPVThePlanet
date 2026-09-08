@@ -219,11 +219,27 @@ export function checkSignup({ mode, req, now = Date.now() }) {
 // l'est, parce que c'est la seule écriture dont la taille dépende du client.
 export const OPERATOR_BYTES_MAX = 16 * 1024 * 1024;
 
+// Flight tracks (issue #24, D5) live BESIDE the operator file, in
+// <dir>/tracks/<id>/, so that growing them does not make every operator write
+// quadratic. They still count against the same ceiling: 200 tracks × ~15 kB is
+// ~3 MB a client can write, and a quota that ignored them would be a lie.
+function tracksBytes(dir, id) {
+	let total = 0;
+	const d = path.join(dir, 'tracks', id);
+	let names;
+	try { names = fs.readdirSync(d); } catch { return 0; }
+	for (const f of names) {
+		try { total += fs.statSync(path.join(d, f)).size; } catch { /* raced a prune */ }
+	}
+	return total;
+}
+
 // Rend `null` si l'opérateur a encore de la place, sinon { status, error }.
 export function checkOperatorQuota({ mode, dir, id }) {
 	if (mode !== 'shared') return null;
 	let size = 0;
 	try { size = fs.statSync(path.join(dir, `${id}.json`)).size; } catch { return null; }
+	size += tracksBytes(dir, id);
 	if (size < OPERATOR_BYTES_MAX) return null;
 	return {
 		status: 413,

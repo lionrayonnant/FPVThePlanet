@@ -213,6 +213,22 @@ export async function postPhoto(sid, body) {
 	return (await req('POST', `/${cache.id}/sessions/${sid}/photos`, body)).session;
 }
 
+// La piste de vol (issue #24). Une seule écriture, à la clôture, APRÈS le PATCH
+// de la session : elle a sa propre route parce qu'elle a son propre fichier
+// (D5), et OP_WRITABLE_KEYS ne la connaît pas.
+export async function putTrack(sid, stored) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	return req('PUT', `/${cache.id}/sessions/${sid}/track`, stored);
+}
+
+// L'index des pistes pour la carte enrichie : polylignes décimées, départs,
+// fins et photos géolocalisées, jamais les échantillons bruts.
+export async function listTracks(bbox = null) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	const q = bbox ? `?bbox=${[bbox.south, bbox.west, bbox.north, bbox.east].join(',')}` : '';
+	return (await req('GET', `/${cache.id}/tracks${q}`)).tracks;
+}
+
 export function operatorBase() { return OP_BASE; }
 
 export async function flush() {

@@ -8,6 +8,7 @@
 //   terrain persistent, flights ephemeral
 import * as operator from './operator.js';
 import { Coverage } from './coverage.js';
+import { encodeTrack, MAX_SAMPLES } from '../tools/track-model.mjs';
 
 // La couverture (issue #245) s'échantillonne à 5 Hz, pas à la frame : à
 // 42,72 m/s — la pire vitesse mesurée du dépôt — deux échantillons sont à
@@ -15,7 +16,22 @@ import { Coverage } from './coverage.js';
 // rien à faire entre deux échantillons.
 export const SAMPLE_S = 0.2;
 
-let live = null; // { id, session, tel, closed, cov, sinceSample }
+let live = null; // { id, session, tel, closed, cov, sinceSample, track }
+
+// The in-memory flight track (issue #24). Held exactly like `cov`: accumulated
+// on the same 5 Hz boundary, written ONCE at close (D4). A dead tab loses the
+// track and keeps the session — a 15 kB beacon is not worth risking the close.
+function freshTrack() {
+	return {
+		samples: [],   // { t, lat, lon, alt, spd, thr, rate }, real units
+		t: 0,          // seconds armed since the first sample
+		start: null,   // { lat, lon } — the JACK IN point
+		photos: [],    // { i, lat, lon, heading }, i indexes session.photos[]
+		last: null,    // the most recent sample state, source of the `end` event
+		heading: 0,    // the most recent heading, in degrees — geotags a capture
+		overflow: false, // true once the MAX_SAMPLES cap has been hit
+	};
+}
 
 // Forme minimale de l'instantané météo, sans dépendre du modèle serveur (qui
 // tire node:crypto). Le serveur re-filtre de toute façon.
@@ -46,12 +62,18 @@ export async function open({ area, weatherSnapshot, target } = {}) {
 		area, weatherSnapshot,
 		targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index,
 	});
-	live = { id: session.id, session, tel: zeroTel(), closed: false, cov: new Coverage(), sinceSample: 0 };
+	live = {
+		id: session.id, session, tel: zeroTel(), closed: false,
+		cov: new Coverage(), sinceSample: 0, track: freshTrack(),
+	};
 	return session;
 }
 
 // La couverture de la session en cours (issue #245), pour les bancs et le debug.
 export function coverage() { return live?.cov ?? null; }
+
+// La piste de la session en cours (issue #24), pour les selftests et le debug.
+export function track() { return live?.track ?? null; }
 
 // Appelé une fois par frame. N'agrège durée et distance que quand le drone est
 // armé — une épave ne « vole » pas.
@@ -61,7 +83,14 @@ export function coverage() { return live?.cov ?? null; }
 // ne coûte rien entre deux. Un résultat non fini est ignoré : une position
 // dégénérée (drone passé sous le terrain pendant une chute, #182) ne doit pas
 // marquer une cellule au large de l'Afrique.
-export function feed({ speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAboveSpawn = 0, dt = 0, armed = false, geo = null } = {}) {
+//
+// `throttle` et `headingDeg` (issue #24) ne servent QU'à la piste : la
+// télémétrie agrégée les ignore. Ils arrivent du même site d'appel que le
+// reste, où ils sont déjà calculés.
+export function feed({
+	speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAboveSpawn = 0,
+	dt = 0, armed = false, geo = null, throttle = 0, headingDeg = 0,
+} = {}) {
 	if (!live || live.closed) return;
 	const t = live.tel;
 	// Rien ne compte quand le drone est désarmé : ni la durée, ni la distance,
@@ -77,7 +106,25 @@ export function feed({ speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAbov
 		if (geo && live.sinceSample >= SAMPLE_S - 1e-9) {
 			live.sinceSample = 0;
 			const g = geo();
-			if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon)) live.cov.mark(g.lat, g.lon);
+			if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon)) {
+				live.cov.mark(g.lat, g.lon);
+				// La piste (issue #24) rides on the SAME boundary and the same
+				// position: one array push per sample, no second timer, no second
+				// ENU → lat/lon conversion.
+				const tr = live.track;
+				tr.t += SAMPLE_S;
+				const s = {
+					t: tr.t, lat: g.lat, lon: g.lon,
+					alt: altitudeAboveSpawn, spd: speed, thr: throttle, rate: rateDps,
+				};
+				// Le plafond est tenu ICI aussi : encodeTrack() tronque de toute
+				// façon, mais la mémoire d'un onglet ne doit pas croître sans fin
+				// sur un vol d'une heure et demie.
+				if (tr.samples.length < MAX_SAMPLES) tr.samples.push(s); else tr.overflow = true;
+				tr.last = s;
+				tr.heading = headingDeg;
+				if (!tr.start) tr.start = { lat: g.lat, lon: g.lon };
+			}
 		}
 	}
 	if (speed > t.maxSpeedMs) t.maxSpeedMs = speed;
@@ -95,11 +142,28 @@ export async function capturePhoto({ dataUrl, w, h }) {
 	if (!live || live.closed) return 0;
 	try {
 		live.session = await operator.postPhoto(live.id, { dataUrl, w, h });
+		markPhoto();
 		return photoCount();
 	} catch (e) {
 		console.warn('[session] capture échouée', e);
 		return photoCount();
 	}
+}
+
+// Geotags the capture the server just accepted (issue #24): where the drone was
+// and where it looked, indexed into the session's photos[]. The position lives
+// on the TRACK, not on the photo — sanitizePhoto is untouched, so dropping a
+// track (D3) never invalidates a photo, it only forgets where it was taken.
+//
+// Before the first 5 Hz sample there is no position to record; the photo still
+// exists, it simply never reaches the map.
+function markPhoto() {
+	const tr = live.track;
+	if (!tr.last) return;
+	tr.photos.push({
+		i: photoCount() - 1,
+		lat: tr.last.lat, lon: tr.last.lon, heading: tr.heading,
+	});
 }
 
 // `CRASHED`, le seul verdict qu'un vol produise (D9, 2026-09-08 :
@@ -124,10 +188,32 @@ export async function end(result) {
 	try {
 		const session = await operator.patchSession(id, { result, telemetry: round(tel) });
 		live.session = session;
+		// La piste part APRÈS le PATCH et seulement s'il a réussi (issue #24) :
+		// elle a besoin d'une session existante côté serveur, et son échec à elle
+		// est avalé. Perdre la piste ne doit jamais coûter la session.
+		await flushTrack(id, result);
 		return session;
 	} catch (e) {
 		console.warn('[session] clôture échouée, réconciliation au prochain terminal', e);
 		return null;
+	}
+}
+
+// Encode la piste accumulée et l'écrit d'un seul PUT (D4). Une session qui n'a
+// pas d'échantillon n'écrit rien : pas de fichier vide pour un vol qui n'a
+// jamais quitté le sol.
+async function flushTrack(id, result) {
+	const tr = live.track;
+	if (tr.samples.length === 0) return;
+	try {
+		const end = tr.last
+			? { lat: tr.last.lat, lon: tr.last.lon, alt: tr.last.alt, spd: tr.last.spd, result }
+			: null;
+		const stored = encodeTrack(tr.samples, { start: tr.start, end, photos: tr.photos },
+			{ truncated: tr.overflow });
+		await operator.putTrack(id, stored);
+	} catch (e) {
+		console.warn('[session] piste non écrite (la session, elle, est close)', e);
 	}
 }
 
@@ -159,6 +245,10 @@ export function beacon(result = 'CRASHED') {
 	// sendBeacon ne fait que des POST, et la couverture voyage par un PATCH de
 	// clé opérateur : la trace de CETTE session est perdue si l'onglet meurt.
 	// Assumé (spec #245) — la fiche de session, elle, part bien.
+	//
+	// Idem pour la piste (issue #24, D4) : la balise reste agrégats seulement.
+	// Quinze kilo-octets de plus ne valent pas le risque de perdre la clôture
+	// entière, qui est la seule chose que sendBeacon ait vraiment à sauver.
 	try {
 		const op = operator.getOperator();
 		if (!op || !navigator.sendBeacon) return;
