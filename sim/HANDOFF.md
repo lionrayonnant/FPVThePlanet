@@ -1204,6 +1204,51 @@ Plan d'origine (contexte de la décision d'architecture) :
   complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
   (plus jamais −500), monde stable.
 
+## Polish pré-release (issues #6 à #16, branche pre-release-polish)
+
+État au 2026-09-08. Spec :
+`docs/superpowers/specs/2026-09-08-pre-release-polish-design.md`, plan :
+`docs/superpowers/plans/2026-09-08-pre-release-polish.md`.
+
+### Vérifié (headless)
+
+- Huit selftests neufs chaînés dans `selftest:operator` :
+  `version-selftest`, `sun-agc-selftest`, `key-map-selftest`,
+  `chase-camera-selftest`, `drone-viewer-selftest`, `settings-render-selftest`,
+  `briefing-selftest`, `briefing-render-selftest`. `selftest:ci` (donc
+  `selftest:operator` + `selftest:api`) et `npm run build` passent.
+- `landing-selftest` et `post-flight-selftest` retirés (l'atterrissage et
+  l'écran `POST-FLIGHT ANALYSIS` n'existent plus).
+- Les vols EN DIRECT sont bien archivés (Session Log, Target Log, compteur
+  OPERATOR) et jamais proposés en REVISIT/RESUME : `session-log-selftest`.
+
+### Non vérifié (a besoin d'un navigateur / d'une scène) — en cours au moment d'écrire
+
+La passe visuelle est faite par un autre agent en parallèle. Reste à confirmer :
+
+- Le menu racine à quatre entrées (`FIELD`, `BENCH`, `ARCHIVE`, `SETTINGS`).
+- FIELD onglets LIVE-first et l'avis LOCAL sur un serveur partagé qui n'acquiert
+  pas.
+- Les lignes d'indice `[ESC]` sur les écrans qui les portent.
+- Le drone 3D sur les trois écrans de fin (crash, sortie de zone, lien coupé),
+  y compris le glissement à la souris avec l'amortissement à zéro.
+- Le cadrage de la vue CHASE (1,6 m en arrière, 0,6 m au-dessus).
+- Les onglets de SETTINGS et le rebind KEYBOARD.
+- Les écrans du briefing et les trois indices du premier vol.
+- L'exposition face au soleil.
+- `tools/selftest.mjs` §soleil : pas testé ici, aucune scène installée sur
+  cette machine.
+
+### Décisions à relire par l'auteur
+
+- L'atterrissage est retiré entièrement (le maintien au sol au repos reste).
+- `C` (free cam) est remplacé par `V` FPV/CHASE.
+- Le briefing existe (Bible §2 / Roadmap PHASE 13 révisée, notes datées).
+- `rebind()` n'échange deux touches que si l'action perdante resterait sinon
+  sans touche.
+- Le nudge manette au stick sur le viewer 3D de fin de vol est reporté.
+- La route API `/comment` n'a plus d'écrivain (#17).
+
 ## PHASE 26 — BENCH (issue #194)
 
 Le jeu a deux voies : `SELECT OPERATION MODE` est la nouvelle racine, FIELD est
