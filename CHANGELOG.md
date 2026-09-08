@@ -20,6 +20,19 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Essaim de drones (issue #29), tranche « apparition » : un TARGET SCAN peut
+  désormais tirer un *cluster* — un nœud de commandement et ses 6 à 12 unités —
+  avec 10 % de chance, et de façon certaine au 3e scan si les deux premiers
+  n'ont rien donné. Le cluster est toujours le signal le plus fort ; sa fiche
+  pré-hack dit `EST. MESH — MULTIPLE EMITTERS`, `(STRONGEST OF GROUP)` et
+  `COUNT UNKNOWN`, sans jamais révéler la machine ni la taille. Le tirage vit
+  sur un flux aléatoire séparé : à `swarmChance = 0` les candidats sont
+  identiques à ceux d'avant, graine par graine. La session persiste
+  `target.swarm` et `target.scan.swarmAt/swarmChance`
+  (`SESSION_SCHEMA_VERSION` passe à 3, sans migration : une session v2 n'a
+  simplement pas d'essaim). Un cluster laissé de côté vole comme UNE unité
+  ambiante. Chemin de dev : `?swarm=<n>` sur `?scene=` et `?live=`.
+
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
   pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
   vitesse, gaz, taux de rotation), le point de départ, les captures

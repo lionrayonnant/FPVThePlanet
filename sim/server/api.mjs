@@ -356,7 +356,17 @@ const opRoutes = [
 		try {
 			let target = null;
 			if (b.targetSeed) {
-				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount });
+				// `swarmChance` (issue #29) comes from the client, which computed it
+				// from the operator state it already holds (the early guarantee).
+				// The server needs it to regenerate the SAME scan: seed, count and
+				// chance fully determine the draw, so `swarmAt` never travels.
+				// Absent means 0, not the default chance: a client that says nothing
+				// showed no cluster, and the server must not invent one.
+				const swarmChance = b.swarmChance ?? 0;
+				if (!Number.isFinite(swarmChance) || swarmChance < 0 || swarmChance > 1) {
+					return json(res, 400, { error: `swarmChance outside [0,1]: ${b.swarmChance}` });
+				}
+				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance });
 				if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
 					return json(res, 400, { error: `targetIndex hors borne : ${b.targetIndex}` });
 				}

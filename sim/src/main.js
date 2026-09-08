@@ -38,7 +38,7 @@ import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
-import { generateTargetScan } from '../tools/target-model.mjs';
+import { generateTargetScan, swarmChanceFor, SWARM_SIZE_MIN, SWARM_SIZE_MAX } from '../tools/target-model.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
@@ -130,6 +130,20 @@ export const OPTS = {
 	// scène pré-cuite (#168). Pas de météo/geofence/écran de crédit — voir le
 	// plan d'implémentation pour ce qui est volontairement hors périmètre.
 	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
+	// Dev-only: ?swarm=8 forces a cluster of 8 on ?scene= and ?live=, the two
+	// paths that skip the TARGET SCAN and synthesise their own scan (#29).
+	// Clamped to the size a real draw can produce, so the dev path never shows
+	// a swarm the game itself could not.
+	swarm: params.has('swarm') ? Number(params.get('swarm')) : null,
+};
+if (OPTS.swarm !== null && !Number.isInteger(OPTS.swarm)) {
+	throw new Error(`?swarm= expects an integer — got "${params.get('swarm')}"`);
+}
+// The swarm a dev scan carries, or null. Same shape as the one resolveTarget()
+// persists, so whatever reads it does not care where the scan came from.
+const devSwarm = OPTS.swarm === null ? null : {
+	size: Math.min(SWARM_SIZE_MAX, Math.max(SWARM_SIZE_MIN, OPTS.swarm)),
+	doctrineSeed: `dev::swarm::${OPTS.swarm}`,
 };
 // `?live=foo` donnait [NaN] : origine ENU NaN, spawn NaN, requêtes rocktree sur
 // une tuile inexistante — un monde silencieusement invalide où le drone dérive
@@ -1192,7 +1206,7 @@ async function bootLive([lat, lon]) {
 		});
 		// ?live= est un raccourci de DEV : openFlightSession() en sort tout de
 		// suite, donc personne d'autre ne poserait de scan sur ce chemin.
-		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0 });
+		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0, ...(devSwarm ? { swarmAt: 0, swarmChance: 1, swarm: devSwarm } : {}) });
 	}
 	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
 	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
@@ -2774,9 +2788,13 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 			const seed = Math.random().toString(16).slice(2, 12);
 			const count = signalCountFrom(flyChoice.density);
-			const scan = generateTargetScan({ seed, count });
+			// The early guarantee (issue #29), read off the operator state the
+			// client already holds. It goes to the server with the hack request,
+			// because only that makes the server's regeneration identical.
+			const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
+			const scan = generateTargetScan({ seed, count, swarmChance });
 			const scanWeather = await worldWeather({ lat, lon });
-			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather });
+			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance });
 
 			// Échap au TARGET SCAN : retour au choix de zone. Rien n'a encore été
 			// monté — contrairement au chemin cuit, bootLive() n'est appelé
@@ -2846,13 +2864,14 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 		const seed = Math.random().toString(16).slice(2, 12);
 		const count = signalCountFor(slug);
-		const scan = generateTargetScan({ seed, count });
+		const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
+		const scan = generateTargetScan({ seed, count, swarmChance });
 		// La météo du monde pour cette zone, résolue avant le scan pour rendre les
 		// conditions saillantes au choix de cible (issue #76). worldWeather est caché
 		// par zone : boot() réutilise ce résultat sans nouvel aller-retour.
 		const sc = (await loadSceneList()).find((s) => s.slug === slug);
 		const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
-		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index } | { cancelled }
+		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance }); // { seed, count, index, swarmChance, swarmAt } | { cancelled }
 
 		// Échap au TARGET SCAN : retour au choix de zone, sans rien casser. Le
 		// préchargement lancé plus haut CONTINUE en tâche de fond : il ne touche
@@ -3210,7 +3229,9 @@ async function openFlightSession() {
 	// the persisted session kept (schema v2), or a dev scan under ?scene=, or
 	// nothing.
 	ambient?.setScan(
-		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench ? { seed: `dev::${flyArea}`, count: 4, index: 0 } : null),
+		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench
+			? { seed: `dev::${flyArea}`, count: 4, index: 0, ...(devSwarm ? { swarmAt: 0, swarmChance: 1, swarm: devSwarm } : {}) }
+			: null),
 	);
 
 	applyTargetCamera(targetCamera({ seed, family }));

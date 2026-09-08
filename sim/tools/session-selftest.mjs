@@ -13,7 +13,10 @@ import {
 } from './session-model.mjs';
 import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
 import { randomart, RANDOMART_DIMS } from './randomart.mjs';
-import { TARGET_FAMILIES, HACK_TYPES, generateTargetScan, resolveTarget } from './target-model.mjs';
+import {
+	TARGET_FAMILIES, HACK_TYPES, generateTargetScan, resolveTarget,
+	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
+} from './target-model.mjs';
 import { decodeTrack, MAX_SAMPLES } from './track-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
@@ -186,9 +189,9 @@ t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent tolé
 });
 
 t('sanitizeTarget : garde scan {seed,count,index} et rejette une forme fausse', () => {
-	const scan = generateTargetScan({ seed: 'keep-me', count: 3 });
+	const scan = generateTargetScan({ seed: 'keep-me', count: 3, swarmChance: 0 });
 	const kept = sanitizeTarget(resolveTarget(scan, 1));
-	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1 });
+	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1, swarmAt: null, swarmChance: 0 });
 	// Session v1 : pas de scan → null, pas d'erreur.
 	const v1 = { ...resolveTarget(scan, 1) };
 	delete v1.scan;
@@ -206,8 +209,86 @@ t('sanitizeTarget : garde scan {seed,count,index} et rejette une forme fausse', 
 	}
 });
 
-t('schéma de session : version 2', () => {
-	assert.equal(SESSION_SCHEMA_VERSION, 2);
+t('schéma de session : version 3', () => {
+	assert.equal(SESSION_SCHEMA_VERSION, 3);
+});
+
+// --- l'essaim (issue #29)
+
+t('sanitizeTarget : garde swarm et scan.swarmAt/swarmChance en v3', () => {
+	const scan = generateTargetScan({ seed: 'swarm-keep', count: 4, swarmChance: 1 });
+	const kept = sanitizeTarget(resolveTarget(scan, 0));
+	assert.equal(kept.family, SWARM_FAMILY, 'swarmNode est autorisée hors TARGET_FAMILIES');
+	assert.equal(kept.swarm.size, scan.candidates[0]._swarm.size);
+	assert.equal(kept.swarm.doctrineSeed, scan.candidates[0]._swarm.doctrineSeed);
+	assert.deepEqual(kept.scan, { seed: 'swarm-keep', count: 4, index: 0, swarmAt: 0, swarmChance: 1 });
+	// Et le scan se rejoue à l'identique depuis ce qui a été gardé.
+	const replay = generateTargetScan({
+		seed: kept.scan.seed, count: kept.scan.count,
+		swarmChance: kept.scan.swarmChance, swarmAt: kept.scan.swarmAt,
+	});
+	assert.deepEqual(replay.candidates, scan.candidates);
+	// Aller-retour : ce que sanitizeTarget rend se relit sans perte.
+	assert.deepEqual(sanitizeTarget(kept), kept);
+});
+
+t('sanitizeTarget : swarmNode reste hors du tirage ordinaire', () => {
+	assert.equal(TARGET_FAMILIES.includes(SWARM_FAMILY), false);
+});
+
+t('sanitizeTarget : formes fausses de swarm et des clés v3', () => {
+	const scan = generateTargetScan({ seed: 'swarm-bad', count: 4, swarmChance: 1 });
+	const good = resolveTarget(scan, 0);
+	for (const bad of [
+		{ size: SWARM_SIZE_MIN - 1, doctrineSeed: 'd' },
+		{ size: SWARM_SIZE_MAX + 1, doctrineSeed: 'd' },
+		{ size: 7.5, doctrineSeed: 'd' },
+		{ size: '8', doctrineSeed: 'd' },
+		{ size: 8, doctrineSeed: '' },
+		{ size: 8 },
+	]) {
+		assert.throws(() => sanitizeTarget({ ...good, swarm: bad }), /target\.swarm/);
+	}
+	for (const bad of [4, -1, 1.5, '0']) {
+		assert.throws(() => sanitizeTarget({ ...good, scan: { ...good.scan, swarmAt: bad } }),
+			/target\.scan\.swarmAt/);
+	}
+	for (const bad of [-0.1, 1.1, 'x']) {
+		assert.throws(() => sanitizeTarget({ ...good, scan: { ...good.scan, swarmChance: bad } }),
+			/target\.scan\.swarmChance/);
+	}
+});
+
+t('une session v2 reprise n\'a pas d\'essaim et se relit sans erreur', () => {
+	// Ce qu'un fichier écrit avant l'essaim contient : ni `swarm`, ni les deux
+	// clés du scan. Pas de migration — comme une session v1 sans ambiants.
+	const scan = generateTargetScan({ seed: 'v2-target', count: 3, swarmChance: 0 });
+	const v2 = resolveTarget(scan, 1);
+	delete v2.swarm;
+	delete v2.scan.swarmAt;
+	delete v2.scan.swarmChance;
+	const kept = sanitizeTarget(v2);
+	assert.equal(kept.swarm, null);
+	assert.equal(kept.scan.swarmAt, null);
+	assert.equal(kept.scan.swarmChance, 0, 'un scan v2 se rejoue sans essaim');
+	const s = validateSession(openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: v2, seq: 1, targetSeq: 1,
+	}));
+	assert.equal(s.target.swarm, null);
+});
+
+t('validateSession : rejette un essaim malformé sur une session par ailleurs valide', () => {
+	const scan = generateTargetScan({ seed: 'v3-validate', count: 4, swarmChance: 1 });
+	const s = openSession({
+		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
+		target: resolveTarget(scan, 0), seq: 1, targetSeq: 1,
+	});
+	assert.equal(validateSession(s).target.swarm.size >= SWARM_SIZE_MIN, true);
+	assert.throws(() => validateSession({ ...s, target: { ...s.target, swarm: { size: 99, doctrineSeed: 'd' } } }),
+		/target\.swarm\.size/);
+	assert.throws(() => validateSession({ ...s, target: { ...s.target, family: 'nope' } }),
+		/famille de cible inconnue/);
 });
 
 t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur', () => {
@@ -617,6 +698,19 @@ await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex', asy
 	assert.equal(post.body.targetSeed, 's');
 	assert.equal(post.body.targetCount, 4);
 	assert.equal(post.body.targetIndex, 1);
+	// #29 : la chance d'essaim voyage avec la cible — seul le client peut la
+	// calculer, et sans elle le serveur ne régénère pas le même scan.
+	assert.equal(post.body.swarmChance, undefined, 'absente quand l\'appelant n\'en donne pas');
+});
+
+await ta('open({ target: { swarmChance } }) transmet swarmChance au serveur', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 0, swarmChance: 1 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.swarmChance, 1);
 });
 
 await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur local', async () => {

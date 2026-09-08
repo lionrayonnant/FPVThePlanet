@@ -58,9 +58,13 @@ export function current() { return live?.session ?? null; }
 export async function open({ area, weatherSnapshot, target } = {}) {
 	// `target = { seed, count, index }` : la cible choisie au TARGET SCAN. Le
 	// serveur régénère la fiche complète depuis ces trois clés (PHASE 08).
+	// `swarmChance` (issue #29) travels with them because the server cannot
+	// recompute it: it depends on the early guarantee, which the client
+	// evaluates on the operator state it already holds.
 	const session = await operator.postSession({
 		area, weatherSnapshot,
 		targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index,
+		swarmChance: target?.swarmChance,
 	});
 	live = {
 		id: session.id, session, tel: zeroTel(), closed: false,

@@ -61,10 +61,12 @@ export class AmbientDrones {
 		this._clear();
 		if (!scan) return;
 		const set = ambientSet(scan);
-		const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.family }));
+		// `buildFamily` and not `family`: a swarm unit (issue #29) flies its own
+		// routine but borrows an existing airframe until its recipe exists.
+		const builds = set.map((d) => targetBuild({ seed: d.buildSeed, family: d.buildFamily ?? d.family }));
 		this.model = new AmbientModel({ set, builds, bounds: this.bounds, seed: scan.seed });
 		for (let k = 0; k < set.length; k++) {
-			const camera = targetCamera({ seed: set[k].buildSeed, family: set[k].family });
+			const camera = targetCamera({ seed: set[k].buildSeed, family: set[k].buildFamily ?? set[k].family });
 			const shape = shapeOf({ profile: builds[k].profile, build: builds[k], camera });
 			// Sa livrée (issue #284) : à cent mètres c'est sa LED qui change, en
 			// free cam ses hélices.

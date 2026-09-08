@@ -20,6 +20,14 @@ import {
 export { G, TILT_MAX_DEG, ATTITUDE_TAU, rngFrom, attitudeFrom, clampTilt, tiltOf, lateralAccelMax };
 
 export const MAX_DRONES = 4;
+// The swarm unit (issue #29): a 3" recon quad, never flown by the player, so it
+// has no entry in PROFILES and no PID. As an ambient it needs a routine, which
+// ROUTINES carries below.
+export const SWARM_UNIT_FAMILY = 'swarmUnit';
+// Its airframe recipe lands in a later tranche. Until then the ambient falls
+// back on the closest EXISTING airframe — a 3" micro — for its build, its mesh
+// and its camera, instead of crashing on a family PROFILES does not know.
+export const SWARM_UNIT_BUILD_FAMILY = 'toothpick';
 // v²/r ≤ TURN_MARGIN · a_max : un quad ne vire pas en butée de poussée.
 export const TURN_MARGIN = 0.6;
 
@@ -28,13 +36,27 @@ const lerp = (rand, [a, b]) => a + rand() * (b - a);
 // Les candidats non pris, avec la graine d'exemplaire que resolveTarget()
 // leur aurait donnée. Pur et déterministe : le même scan rend le même ciel.
 export function ambientSet(scan) {
-	const { candidates } = generateTargetScan({ seed: scan.seed, count: scan.count });
+	// The swarm keys travel with the scan (issue #29) so the regeneration is
+	// exact. Absent, they mean no cluster — a v2 session or a dev scan predates
+	// swarms, and a redraw on today's default chance would invent one.
+	const { candidates } = generateTargetScan({
+		seed: scan.seed, count: scan.count,
+		swarmChance: scan.swarmChance ?? 0,
+		swarmAt: scan.swarmAt ?? null,
+	});
 	const out = [];
 	for (let i = 0; i < candidates.length; i++) {
 		if (i === scan.index) continue;
 		const c = candidates[i];
+		// A cluster the player did NOT take flies as a SINGLE swarmUnit on an
+		// ordinary routine, not as a flock of twelve in the distance — that would
+		// be a second system. You see the machine you let go, alone.
+		const swarm = !!c._swarm;
 		out.push({
-			i, id: c.id, family: c._family,
+			i, id: c.id, family: swarm ? SWARM_UNIT_FAMILY : c._family,
+			// The airframe the mesh and the build come from. Same as the routine
+			// family for everything else; see SWARM_UNIT_BUILD_FAMILY.
+			buildFamily: swarm ? SWARM_UNIT_BUILD_FAMILY : c._family,
 			buildSeed: `${scan.seed}::${i}`,
 			rssiDbm: c.rssiDbm, mode: c._videoHint,
 		});
@@ -53,6 +75,9 @@ export const ROUTINES = {
 	cinewhoop: { kind: 'orbit', agl: [15, 30], speed: [3, 6], radius: [10, 25], faceAnchor: true },
 	longrange: { kind: 'cruise', agl: [60, 120], speed: [18, 26], radius: [120, 120], leg: 400 },
 	toothpick: { kind: 'orbit', agl: [1, 5], speed: [2, 5], radius: [4, 8], jitter: true },
+	// The unit of a cluster nobody took (issue #29). Fast low orbit: a recon
+	// machine holding a pattern, not a drone-show quad drifting.
+	swarmUnit: { kind: 'orbit', agl: [5, 25], speed: [12, 20], radius: [15, 25] },
 };
 
 export function routineFor({ family, twr, rand }) {
