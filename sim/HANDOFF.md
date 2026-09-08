@@ -3238,12 +3238,39 @@ après 300 m de vol (500 octants troués, 108 dessinés en double). Un nœud don
 l'`exclude` change est désormais libéré puis reconstruit ;
 `tools/rocktree-window-selftest.mjs` le verrouille.
 
+### Vérifié — en jeu, Chromium piloté en CDP
+
+A/B sur la MÊME instance (`?live=48.8578,2.2950`), même vol simulé par
+`__sim.teleport()` en 6 sauts de 60 m, `desired == built` à chaque étape (le
+pipeline de build n'est jamais en cause). Le trou est mesuré par raycast
+vertical sur une grille de 8 m dans le disque chargé moins 50 m de marge —
+la bounding box d'un nœud ne suffit pas, elle reste pleine quand `exclude`
+retire ses triangles.
+
+| vol | sans le correctif | avec |
+|---|---|---|
+| 0 m | 0 % | 0 % |
+| 60 m | 8,98 % | 0 % |
+| 120 m | 12,57 % | 0 % |
+| 180 m | 12,17 % | 0 % |
+| 240 m | 11,36 % | 0 % |
+| 300 m | 10,41 % | 0 % |
+| 360 m | 8,52 % | 0 % |
+
+Jusqu'à un huitième du sol manquant sous le drone, et zéro après correctif.
+
+Écarté au passage, chiffres à l'appui : la baisse du nombre de nœuds en
+volant (740 → 430 sur ce trajet) n'est PAS une perte — c'est la densité de
+l'octree qui change, `tools/lib/rocktree/traverse.mjs` rejoué à froid en Node
+sur les mêmes positions rend les mêmes comptes à ±2 nœuds. Le réseau non plus
+n'est pas en cause : 1003 NodeData tirés à concurrence 24 vers kh.google.com,
+0 échec.
+
 ### Non vérifié
 
-- Rien n'a été VU en vol : le correctif est prouvé sur les chiffres de
-  couverture, pas à l'écran.
 - Le churn que ça ajoute (~70 nœuds libérés/reconstruits par recentrage, sous
-  le budget par frame de `processLiveNodeWork()`) n'a pas été mesuré à l'image.
-  Si un scintillement se voit au recentrage, c'est là qu'il faut regarder :
-  construire le nouveau maillage AVANT de libérer l'ancien serait le remède,
-  au prix d'un collider dupliqué le temps de l'échange.
+  le budget par frame de `processLiveNodeWork()`) n'a pas été mesuré à l'image
+  — le probe par raycast ne voit pas un scintillement transitoire. Si un
+  clignotement se voit au recentrage, le remède est de construire le nouveau
+  maillage AVANT de libérer l'ancien, au prix d'un collider dupliqué le temps
+  de l'échange.
