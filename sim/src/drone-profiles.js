@@ -268,6 +268,58 @@ export const PROFILES = {
 			torquePerMix: { roll: 0.099, pitch: 0.099, yaw: 0.036 },
 		},
 	},
+
+	// -------------------------------------------------------------------------
+	// The 7th family, deliberately NOT in FAMILIES (src/drone-profiles.js) nor
+	// in TARGET_FAMILIES/FAMILY_CLASS (tools/target-model.mjs): the command
+	// node of a hacked cluster, never an ordinary scan candidate, never an
+	// ambient (issue #29 spec, section "swarmNode"). It is reached only by
+	// generateTargetScan's swarm hack forcing a candidate's family.
+	//
+	// A command 6": link dome on top, two antennas, bare camera, no GoPro. Sits
+	// between heavy5 and longrange — a 6" frame (armX/armZ, propRadius) but
+	// heavier than either at the mast (mesh radio gear, 6S 2200 mAh), so it
+	// carries its momentum like longrange without longrange's reach. inertia,
+	// tauSpinUp/Down and torqueRatio are heavy5 scaled to this mass/arm/prop,
+	// linearly interpolated toward longrange where the prop is genuinely
+	// bigger; inflowGain/buffetGain/lateralGain and battery internalOhm/
+	// maxCurrent are the same heavy5<->longrange interpolation, unmeasured.
+	// bodyDrag gets a small bump over that interpolation for the dome and
+	// antennas. All of it is a starting point to confirm at the bench, per the
+	// spec — `pid` alone is the exception: it is the real measured tune from
+	// `node tools/tune-pid.mjs --write swarmNode`, not a guess.
+	swarmNode: {
+		family: 'swarmNode',
+		label: 'SWARM NODE',
+		rates: 'cinematic',
+		mass: 0.95,
+		radius: 0.15,
+		armX: 0.090,
+		armZ: 0.090,
+		inertia: { x: 0.0071, y: 0.0127, z: 0.0067 },
+		propRadius: 0.0762,
+		propInertia: 6.9e-6,
+		bladeCount: 3,
+		maxThrustPerMotor: 10.5,   // TWR ~= 4.5 at this mass
+		maxOmega: 2720,
+		rpmCurve: 0.65,
+		tauSpinUp: 0.028,
+		tauSpinDown: 0.058,
+		torqueRatio: 0.020,
+		inflowGain: 0.996376,
+		buffetGain: 0.996376,
+		lateralGain: 0.978452,
+		bodyDrag: { x: 0.012, y: 0.038, z: 0.012 },
+		battery: { cells: 6, capacityMah: 2200, internalOhm: 0.0105, maxCurrent: 95 },
+		// Measured by `node tools/tune-pid.mjs --write swarmNode` off this
+		// family's own inertia and motor lag. See CLAUDE.md — never hand-edited.
+		pid: {
+			roll:  { p: 0.062, d: 1.90e-3 },
+			pitch: { p: 0.062, d: 1.90e-3 },
+			yaw:   { p: 0.34, d: 0 },
+			torquePerMix: { roll: 3.407, pitch: 3.407, yaw: 0.757 },
+		},
+	},
 };
 
 // Ordered so tools iterate the reference build first.

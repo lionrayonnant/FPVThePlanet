@@ -50,6 +50,10 @@ export const CAMERA_FAMILIES = {
 	race5:      { fovDeg: [110, 140], uptiltDeg: [25, 45], aspects: ['4:3', '4:3', '16:9'],   resScale: [0.50, 0.75], quality: [0.30, 0.60] },
 	// Une bouse, et c'est le sujet.
 	toothpick:  { fovDeg: [110, 160], uptiltDeg: [10, 40], aspects: ['4:3'],                  resScale: [0.30, 0.50], quality: [0.00, 0.30] },
+	// An observation machine, not a flying one: moderate uptilt (it looks
+	// ahead, not down at the ground like a race), a sane field of view, decent
+	// mesh-radio gear — never the best on the shelf, never junk either.
+	swarmNode:  { fovDeg: [ 95, 115], uptiltDeg: [10, 20],  aspects: ['16:9'],                 resScale: [0.75, 1.00], quality: [0.55, 0.85] },
 };
 
 const FALLBACK_FAMILY = 'freestyle5';
