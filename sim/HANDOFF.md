@@ -3292,3 +3292,48 @@ libère l'ancien plutôt que de le laisser orphelin.
   bruitée : le drone chute et dérive entre deux sondes, et un saut plus court
   que `REFRESH_THRESHOLD_M` ne déclenche aucun recentrage. Seul l'A/B sur un
   même saut de 80 m est propre.
+
+## Portée de vue et trous résiduels (issue #32)
+
+### Vérifié — en jeu, Chromium piloté en CDP, vol continu à 35 m/s
+
+Le trou qui restait après #31 n'en était pas un : c'était le BORD du disque
+chargé, à 300 m. Les anneaux de LOD s'arrêtaient à `levelDrop: 2`, donc la
+portée coûtait au carré au-delà. Table prolongée (un niveau de moins par
+doublement, jusqu'à 2 km), défaut 300 → 600 m, plafond du curseur 600 → 2000 m.
+
+| portée | nœuds | textures | fps | boot |
+|---|---|---|---|---|
+| 300 m | 740 | 892 | 64 | 3,5 s |
+| 600 m (nouveau défaut) | 1003 | 1200 | 62 | 3,5 s |
+| 2000 m (plafond) | 1370 | 1635 | 56 | 4,0 s |
+
+Trous mesurés au raycast pendant un vol continu à 35 m/s (128 km/h), cache
+API vidé, sur ~1 km :
+
+| réglage | moyenne | pic | fetchs en attente (max) | fps min |
+|---|---|---|---|---|
+| 300 m, 3 workers | 0 % en régime, 4-8 % au boot | 8,3 % | — | 64 |
+| 2000 m, 3 workers | 0,86 % | 2,76 % | 219 | 47 |
+| 2000 m, 6 workers | **0,44 %** | 2,43 % | **0** | 50 |
+| 600 m, 6 workers (défaut) | **0,54 %** | 2,62 % | **0** | 52 |
+
+Le résidu est la couronne entrante, au BORD du disque — à 540 m ou 1,9 km du
+drone, pas sous lui. `desired == built` partout ailleurs.
+
+Ce qui a été essayé et ANNULÉ faute de gain : monter les budgets de drain
+(3→5 ms, 8→16 ms, seuil 50→20). Les pics coïncidaient avec la file de FETCHS,
+pas celle des builds ; le budget n'était pas le goulot, le décodage l'était —
+d'où le pool à 6 workers.
+
+### Non vérifié
+
+- Rien de tout ça n'a été piloté à la main : le vol est simulé par
+  `__sim.teleport()` en pas de 3,5 m toutes les 100 ms. Un artefact qui
+  n'apparaîtrait qu'avec une trajectoire réelle (virages, montées, arrêts)
+  échappe encore à la mesure.
+- Les chiffres viennent d'une seule machine et d'un seul lieu (Paris, dense).
+  Une machine plus faible ou une zone plus étalée déplaceraient les seuils —
+  le plafond de 2 km n'a pas été éprouvé ailleurs.
+- La VRAM n'est pas mesurée directement : `textures × 0,58 Mo` est une
+  estimation reprise de #191 (~948 Mo à 2 km), pas une lecture GPU.

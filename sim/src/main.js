@@ -32,7 +32,7 @@ import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { FenceDome, fogDensityFor as liveFogDensityFor, CYAN as FENCE_CYAN } from './fence-dome.js';
 import { GeofenceWall } from './geofence-dome.js';
-import { createRocktreeMaterial, createLiveEdgeUniforms } from './RocktreeMaterial.js';
+import { edgeFadeForRadius, createRocktreeMaterial, createLiveEdgeUniforms } from './RocktreeMaterial.js';
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
@@ -2267,7 +2267,10 @@ if (!frozen) {
 		if (liveWindow?.windowCenterLocal) {
 			const { x, z } = liveWindow.windowCenterLocal;
 			liveEdgeUniforms.uWindowCenter.value.set(x, z);
-			liveEdgeUniforms.uLoadRadiusM.value = liveWindow.loadRadiusM();
+			const liveRadius = liveWindow.loadRadiusM();
+			liveEdgeUniforms.uLoadRadiusM.value = liveRadius;
+			// La frange suit le rayon (#32) : fixe, elle disparaissait à 2 km.
+			liveEdgeUniforms.uEdgeFadeM.value = edgeFadeForRadius(liveRadius);
 		}
 		liveEdgeUniforms.uFogDensity.value = scene.fog.density;
 	}

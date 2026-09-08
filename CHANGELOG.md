@@ -18,6 +18,33 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Modifié
+
+- La portée de vue passe de 300 m à **600 m par défaut**, et le curseur VIEW
+  RANGE monte jusqu'à **2 km** au lieu de 600 m (issue #32). Ce qui le
+  permet : la table `LOD_RINGS` s'arrêtait à `levelDrop: 2`, donc tout au-delà
+  de 300 m était chargé au niveau 19 et la portée coûtait au carré. Elle
+  descend maintenant d'un niveau par doublement de distance jusqu'à 2 km —
+  1200 m coûtent 1270 nœuds au lieu de 1806, et 2000 m en coûtent 1370, soit
+  +37 % par rapport aux 600 m d'avant pour 3,3× la distance. Mesuré à Paris :
+  300 m → 740 nœuds, 892 textures, 64 fps ; 600 m → 1003 nœuds, 1200 textures,
+  62 fps ; 2000 m → 1370 nœuds, 1635 textures, 56 fps. La couverture reste
+  exacte à chaque portée (`tools/rocktree-lod-selftest.mjs` la verrouille
+  désormais jusqu'à 2 km : 26 521 nœuds au niveau plein → 732 avec le LOD,
+  chaque point du disque couvert exactement une fois).
+
+- Le fondu de bord du terrain live suit désormais le rayon (un sixième,
+  plafonné à 250 m) au lieu des 50 m fixes : sur un disque de 2 km, 50 m de
+  frange ne se voyaient plus et le bord redevenait la coupure nette que ce
+  fondu existe pour effacer. À 300 m il retrouve exactement sa valeur d'avant.
+
+- Le pool de workers de nœuds passe de 3 à 6. Avec les anneaux prolongés, le
+  goulot n'est ni le réseau ni le budget de build mais le décodage
+  (580 Kio d'ImageBitmap par nœud). Mesuré en vol continu à 35 m/s, portée
+  2 km : à 3 workers la file de fetchs montait à 219 nœuds en attente et le
+  sol manquait 0,86 % du temps ; à 6, elle ne s'accumule plus (0) et le manque
+  tombe à 0,44 %, pour 50 fps au lieu de 51.
+
 ### Corrigé
 
 - Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de
