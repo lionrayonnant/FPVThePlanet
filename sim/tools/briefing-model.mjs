@@ -20,7 +20,8 @@ export const FIRST_FLIGHT_KEY = 'fpvtp.firstFlightDone';
 // player who is briefed twice loses nothing but the second time. When in
 // doubt, say nothing — that is the house tone.
 export function shouldBrief(store) {
-	try { return store?.getItem(BRIEFING_SEEN_KEY) !== '1' && !!store; }
+	if (!store) return false;
+	try { return store.getItem(BRIEFING_SEEN_KEY) !== '1'; }
 	catch { return false; }
 }
 
@@ -169,7 +170,10 @@ export function flightHint({
 	// altitude comes from.
 	if (!airborneOnce) return 'THROTTLE UP';
 	if (!armed) return null;
-	if (tSinceTakeoff <= HINT_HOLD_S) return '[TAB] SETTINGS';
+	// The later line wins where the two windows overlap — a take-off at 28 s
+	// puts them on top of each other, and the one that has never been said is
+	// the one worth saying.
 	if (tFlight >= CUT_HINT_AT_S && tFlight < CUT_HINT_AT_S + HINT_HOLD_S) return '[HOLD K] CUT LINK';
+	if (tSinceTakeoff <= HINT_HOLD_S) return '[TAB] SETTINGS';
 	return null;
 }

@@ -9,6 +9,21 @@ import { installFakeDom } from './lib/fake-dom.mjs';
 
 const dom = installFakeDom({ raf: true });
 
+// Live interval count. menu-nav.js polls the gamepad every 80 ms and clears it
+// on detach(); a nav attached to a screen that was already removed can never be
+// reaped, so a leak shows up here as a timer nobody ever clears. Wrapped on the
+// globals rather than on the fake DOM: this is Node's timer, not the browser's.
+const realSetInterval = globalThis.setInterval;
+const realClearInterval = globalThis.clearInterval;
+const timers = new Set();
+globalThis.setInterval = (fn, ms) => {
+	const id = realSetInterval(fn, ms);
+	timers.add(id);
+	return id;
+};
+globalThis.clearInterval = (id) => { timers.delete(id); realClearInterval(id); };
+const liveTimers = () => timers.size;
+
 const { runBriefing } = await import('../src/briefing.js');
 const { DEFAULT_KEY_MAP, keyMapRows } = await import('../src/key-map.js');
 
@@ -25,7 +40,7 @@ const settle = async (turns = 80) => {
 
 const keyRows = keyMapRows(DEFAULT_KEY_MAP);
 
-function mount({ kind = 'keyboard', name = '' } = {}) {
+function mount({ kind = 'keyboard', name = '', interval = 0 } = {}) {
 	dom.root.replaceChildren();
 	const root = document.createElement('div');
 	root.id = 'ui';
@@ -36,7 +51,7 @@ function mount({ kind = 'keyboard', name = '' } = {}) {
 		input: { kind, name },
 		keyRows,
 		openSettings: async (tab) => { opened.push(tab); },
-		interval: 0,
+		interval,
 	}).then(() => { done = true; });
 	return {
 		root, opened, promise,
@@ -120,8 +135,31 @@ await ta('Escape skips the whole briefing, from any screen', async () => {
 	await m.promise;
 	assert.equal(m.screens().length, 0);
 	assert.equal(m.isDone(), true);
-	// The listener is gone with the screen: a later Escape hits nothing.
+	// The listener is gone with the screen: a later Escape brings nothing back
+	// and mounts nothing new.
 	dom.key('Escape');
+	await settle(10);
+	assert.equal(m.screens().length, 0);
+});
+
+await ta('Escape DURING the reveal leaves no screen and no live nav', async () => {
+	// The race the fix is about: the skip resolves while revealLines() is still
+	// printing. Whatever finishes second must not build buttons, and must not
+	// attach a nav — a window listener and an 80 ms poll — to a container that
+	// has already been removed, which nothing can ever reap.
+	const before = liveTimers();
+	const m = mount({ interval: 6 });
+	await new Promise((r) => setTimeout(r, 1));
+	assert.equal(m.screens().length, 1, 'still printing');
+	dom.key('Escape');
+	await m.promise;
+	assert.equal(m.screens().length, 0);
+	assert.equal(m.isDone(), true);
+	// Let the abandoned reveal run to its end: it must build nothing.
+	await settle();
+	assert.equal(m.screens().length, 0, 'nothing was mounted after the skip');
+	assert.equal(m.root.querySelectorAll('button').length, 0, 'no button was built');
+	assert.equal(liveTimers(), before, 'no nav left polling');
 });
 
 await ta('a run with no openSettings still walks through', async () => {
@@ -138,5 +176,14 @@ await ta('a run with no openSettings still walks through', async () => {
 	assert.equal(root.querySelectorAll('.briefing').length, 0);
 });
 
+// Every walked-through run detaches its nav; anything left here would keep Node
+// alive on its own, so the count is asserted rather than merely cleaned up.
+await ta('no briefing run left a timer behind', async () => {
+	await settle();
+	assert.equal(liveTimers(), 0);
+});
+
 console.log(`\n${n} checks passed`);
+globalThis.setInterval = realSetInterval;
+globalThis.clearInterval = realClearInterval;
 dom.restore();

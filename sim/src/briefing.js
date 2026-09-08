@@ -11,7 +11,7 @@
 // mounts it, in the same face as the bootstrap (revealLines + dotted rows).
 import { screen, button, keyHints } from './terminal.js';
 import { revealLines, dotted } from './bootstrap.js';
-import { menuNav } from './menu-nav.js';
+import { menuNav, blockNav } from './menu-nav.js';
 import { briefingScreens } from '../tools/briefing-model.mjs';
 
 // Which Settings tab each action opens, and what the button says. The briefing
@@ -31,10 +31,23 @@ function rowWidth(rows) {
 // unmounts it, so an [ ESC ] arriving mid-reveal can tear it down from outside.
 async function showScreen(root, spec, { openSettings, interval, onMounted }) {
 	const s = screen(root, 'briefing');
+	// A blocker from the FIRST frame, not from the end of the reveal. Two things
+	// hang on it: the screen underneath — on the replay path the root menu is
+	// re-mounted behind us the moment the panel closes — must not answer the
+	// arrows while this prints, and an Escape that lands mid-reveal must have
+	// something to release rather than a nav that does not exist yet.
+	s.blocker = blockNav(s.el);
+	s.dead = false;
 	onMounted(s);
 	const width = rowWidth(spec.rows);
 	const lines = [spec.title, '', ...spec.rows.map(([label, value]) => dotted(label, value, width))];
 	await revealLines(s.box, lines, interval === undefined ? {} : { interval });
+	// Escape won the race while the screen was printing: it is already gone.
+	// Building its buttons now would attach a nav — a window listener and an
+	// 80 ms poll — to a detached container, which nothing can ever reap.
+	if (s.dead) return 'skip';
+	s.blocker();
+	s.blocker = null;
 	return new Promise((resolve) => {
 		for (const id of spec.actions) {
 			if (id === 'continue') continue;
@@ -63,6 +76,10 @@ export async function runBriefing(root, { input = null, keyRows = [], openSettin
 	let mounted = null;
 	const unmount = () => {
 		if (!mounted) return;
+		// Read by showScreen() when its reveal returns: whichever of the two
+		// finishes second must find the screen already marked dead.
+		mounted.dead = true;
+		mounted.blocker?.();
 		mounted.nav?.detach();
 		mounted.remove();
 		mounted = null;

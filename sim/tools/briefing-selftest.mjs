@@ -191,6 +191,14 @@ t('[HOLD K] CUT LINK from thirty seconds of flight', () => {
 	assert.equal(hint({ tFlight: 36.1, airborneOnce: true, tSinceTakeoff: 32 }), null);
 });
 
+t('the later line wins when the two windows overlap', () => {
+	// Take-off at 28 s: [TAB] SETTINGS is still inside its six seconds when
+	// [HOLD K] CUT LINK falls due. The one that has never been said wins.
+	assert.equal(hint({ tFlight: 30.5, airborneOnce: true, tSinceTakeoff: 2.5 }), '[HOLD K] CUT LINK');
+	assert.equal(hint({ tFlight: 29.5, airborneOnce: true, tSinceTakeoff: 1.5 }), '[TAB] SETTINGS');
+	assert.equal(hint({ tFlight: 36.5, airborneOnce: true, tSinceTakeoff: 8.5 }), null);
+});
+
 t('never at the bench, never after the first flight', () => {
 	assert.equal(flightHint({ tFlight: 0, airborneOnce: false, bench: true, firstFlight: true }), null);
 	assert.equal(flightHint({ tFlight: 0, airborneOnce: false, bench: false, firstFlight: false }), null);
