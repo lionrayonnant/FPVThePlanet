@@ -43,7 +43,8 @@ rapport avec les versions ci-dessous.
   joueur au respawn et sur `__sim.teleport`, se tait au banc, et n'a aucun
   effet sur le jeu. `__sim.debug().swarm` rend `{size, doctrine, raysCast,
   blockedUnits, lagRange, drawCalls}`. `?swarm=<n>` donne maintenant vraiment
-  `n` unités (et refuse `0`), et `?family=swarmNode` ouvre un chemin de dev
+  `n` unités — et refuse tout ce qui sort de 6..12 au lieu de le rabattre en
+  silence —, et `?family=swarmNode` ouvre un chemin de dev
   vers le nœud sans le faire entrer dans le tirage ordinaire.
 
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,

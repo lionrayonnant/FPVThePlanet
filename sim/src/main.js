@@ -38,7 +38,8 @@ import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
-import { generateTargetScan, swarmChanceFor, SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX } from '../tools/target-model.mjs';
+import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
+import { parseSwarmFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
@@ -133,34 +134,23 @@ export const OPTS = {
 	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
 	// Dev-only: ?swarm=8 forces a cluster of 8 on ?scene= and ?live=, the two
 	// paths that skip the TARGET SCAN and synthesise their own scan (#29).
-	// Clamped to the size a real draw can produce, so the dev path never shows
-	// a swarm the game itself could not.
-	swarm: params.has('swarm') ? Number(params.get('swarm')) : null,
+	// The RULE (an integer in 6..12, refused otherwise) lives in
+	// tools/dev-flags.mjs, where a selftest can reach it.
+	swarm: params.get('swarm'),
 };
-// `>= 1` and not just "an integer": `?swarm=` with an empty or non-numeric
-// value gives Number('') === 0, which used to sail through and be clamped up
-// to a swarm of six. A flag that produces something you did not ask for is
-// worse than a flag that refuses.
-if (OPTS.swarm !== null && (!Number.isInteger(OPTS.swarm) || OPTS.swarm < 1)) {
-	throw new Error(`?swarm= expects an integer >= 1 — got "${params.get('swarm')}"`);
-}
-// The swarm a dev scan carries, or null. Same shape as the one resolveTarget()
-// persists, so whatever reads it does not care where the scan came from.
-const devSwarm = OPTS.swarm === null ? null : {
-	size: Math.min(SWARM_SIZE_MAX, Math.max(SWARM_SIZE_MIN, OPTS.swarm)),
-	doctrineSeed: `dev::swarm::${OPTS.swarm}`,
-};
+// The swarm a dev scan carries, or null. Throws on anything the game itself
+// could not draw — see tools/dev-flags.mjs for why it refuses instead of
+// clamping.
+const devSwarm = parseSwarmFlag(OPTS.swarm);
 // `?live=foo` donnait [NaN] : origine ENU NaN, spawn NaN, requêtes rocktree sur
 // une tuile inexistante — un monde silencieusement invalide où le drone dérive
 // dans le vide sans le moindre message. Planter ici, tôt et lisiblement.
 if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
 	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
 }
-// The DEV list is FAMILIES plus the swarm node (issue #29). The node stays out
-// of FAMILIES and TARGET_FAMILIES — its rarity in a real game is the whole
-// point — but without this there is no way at all to fly it, not even to look
-// at it. `?family=swarmNode&scene=<slug>&swarm=12` is the full dev path.
-const DEV_FAMILIES = [...FAMILIES, SWARM_FAMILY];
+// `?family=swarmNode&scene=<slug>&swarm=12` is the full dev path to the node;
+// see tools/dev-flags.mjs for why the list is built there and not here.
+const DEV_FAMILIES = devFamilies(FAMILIES);
 if (OPTS.family && !DEV_FAMILIES.includes(OPTS.family)) {
 	throw new Error(`famille inconnue: "${OPTS.family}" — ${DEV_FAMILIES.join(' ')}`);
 }
@@ -3297,7 +3287,11 @@ async function openFlightSession() {
 
 	// L'essaim (issue #29) : celui que la cible résolue porte, ou celui que
 	// `?swarm=` a posé sur un chemin de dev. Rien du tout sinon — un cluster
-	// tombe une session sur dix.
+	// tombe une session sur dix. La cible passe AVANT le drapeau : une session
+	// serveur qui tire un cluster écrase `?swarm=n`, exactement comme
+	// `ambient.setScan()` juste au-dessus préfère le scan de la session au scan
+	// de dev. Le drapeau est un raccourci pour les chemins qui n'ont pas de
+	// session, pas un override de ce que le serveur a résolu.
 	swarm?.setSwarm(tgt?.swarm ?? devSwarm ?? null);
 	swarm?.reset(physics.position);
 

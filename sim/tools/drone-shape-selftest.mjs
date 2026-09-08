@@ -273,9 +273,13 @@ console.log('\ndrone-shape : essaim (#29)');
 		box: 12, cylinder: 8 * 2 + 2 * 8, ring: 12 * 2, disc: 12, point: 0,
 	}[p.kind] ?? 0), 0);
 	const tUnit = tris(unit), tNode = tris(node);
+	const RING = 12 * 2, CYL = 8 * 2 + 2 * 8;
 	check('swarmUnit : ~300 triangles (< 500)', tUnit > 150 && tUnit < 500, `${tUnit}`);
-	check('swarmNode : le dôme et la seconde antenne coûtent, sans exploser',
-		tNode > tUnit - 200 && tNode < 500, `${tNode}`);
+	// Le nœud est l'unité MOINS ses quatre carènes, PLUS les trois étages du
+	// dôme et une seconde antenne. À l'unité près : si une pièce apparaît ou
+	// disparaît d'un côté sans l'autre, cette égalité tombe.
+	check('swarmNode : exactement unité − 4 carènes + 3 étages de dôme + 1 antenne',
+		tNode === tUnit - 4 * RING + 3 * CYL + CYL, `${tNode} vs ${tUnit - 4 * RING + 4 * CYL}`);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

@@ -76,6 +76,13 @@ export class SwarmDrones {
 		const shape = shapeOf({
 			profile: RECIPE_PROFILES.swarmUnit,
 			build: {},
+			// `swarmUnit` n'est pas dans CAMERA_FAMILIES : targetCamera() retombe
+			// donc sur la table du freestyle5, et l'uptilt tiré ne sert qu'à
+			// incliner la boîte de caméra de la recette. Contrairement à
+			// eyeOf(), qui recalcule l'avancée de l'objectif parce qu'elle
+			// décide de ce que la vue embarquée montre, cet angle-là n'a aucune
+			// conséquence mesurable : personne ne regarde jamais par l'oeil
+			// d'une unité d'essaim.
 			camera: targetCamera({ seed: unitSeed, family: RECIPE_PROFILES.swarmUnit.family }),
 		});
 		const base = buildDroneMesh(shape, { colors: this._colors });
