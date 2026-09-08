@@ -130,8 +130,16 @@ export class SwarmAudio {
 	// The send into the room acoustics (#122), branched ONCE, as soon as the
 	// node exists — it can appear after start(), exactly like the ambients'.
 	// Taken AFTER the bus trim and at the same gain as the dry path: the swarm
-	// resonates in the courtyard it flies through, and its reverb return is
-	// inside the shared ceiling instead of beside it.
+	// resonates in the courtyard it flies through, at the level the shared
+	// ceiling allows it.
+	//
+	// The RETURN, though, is outside that ceiling: src/space.js sends its wet
+	// straight into the engine's `air` node (space.js:180), beside this bus
+	// rather than through it — so the reverb adds on top of the cap (up to
+	// ~+18 % at wet = 0.62). True of the ambients too, and worse there: their
+	// send is pre-trim, so it is unchanged since #250 while their dry path
+	// lost 3 dB. Routing space's return through `others` would be a second
+	// edit to validated sound code, which this tranche may not make.
 	_connectSpace(node) {
 		if (this._spaceConnected || !node || !this._busIn) return;
 		this._busIn.connect(node);

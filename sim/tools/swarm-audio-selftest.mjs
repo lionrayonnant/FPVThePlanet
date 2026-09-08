@@ -75,12 +75,26 @@ test('la nappe sature : au-delà de nMax, plus rien ne monte', () => {
 	assert.equal(bedGain(12, VOICE.dMax), 0);
 });
 
-test('les ambiants ne peuvent pas dépasser leur part à eux seuls', () => {
-	const sum = 4 * gainFor(VOICE.d0) * TRIM.ambient;
-	assert.ok(Math.abs(sum - OTHERS.ambientShare * OTHERS_CAP) < 1e-12);
+test('la borne ambiante est une CONVENTION, et on dit laquelle', () => {
+	// À d0 elle est exacte — mais c'est la DÉFINITION de TRIM.ambient, donc
+	// cette égalité ne prouve rien d'autre que l'absence de faute de frappe.
+	assert.ok(Math.abs(4 * gainFor(VOICE.d0) * TRIM.ambient - OTHERS.ambientShare * OTHERS_CAP) < 1e-12);
+	// Ce qui est vrai et qu'il FAUT dire : en dessous de d0 la loi des
+	// ambiants continue de monter, donc la borne n'est pas un supremum.
+	// Quatre voix collées à l'auditeur sortiraient au double de leur part —
+	// 2,5 × avec leur bruit (NOISE_LEVEL = 0,25 dans src/ambient-audio.js).
+	// L'hypothèse qui la fait tenir est une distance de naissance ≥ d0 :
+	// R_SPAWN part de 120 m, et rien dans le code ne le VÉRIFIE (le chemin
+	// petite scène de src/ambient.js:359 a rMin = 0). Hypothèse héritée de
+	// #250, écrite dans src/audio-others.js, non corrigée ici — clamper
+	// gainFor() serait une seconde modification de code son validé.
+	const atZero = 4 * gainFor(0) * TRIM.ambient;
+	const share = OTHERS.ambientShare * OTHERS_CAP;
+	assert.ok(atZero > share, 'la borne ambiante est devenue un supremum : le commentaire d\'audio-others.js est à corriger');
+	assert.ok(Math.abs(atZero / share - 2) < 0.05, `${(atZero / share).toFixed(2)} × la part, et non 2`);
 	// Le prix payé, dit une fois : les ambiants perdent ~3 dB.
 	const drop = 20 * Math.log10(TRIM.ambient);
-	assert.ok(drop < 0 && drop > -4, `${drop.toFixed(2)} dB`);
+	assert.ok(drop < -2.5 && drop > -3.5, `${drop.toFixed(2)} dB`);
 });
 
 // ------------------------------------------------------------ 2–4 kHz : rien
@@ -354,6 +368,48 @@ test('space : l\'envoi part APRÈS le trim, et se branche même s\'il arrive tar
 	for (let i = 1; i < 50; i++) a.update(state(0, [], 0), i / 60, spaceIn);
 	assert.equal(bus.swarm.targets.filter((t) => t === spaceIn).length, 1, 'branché plusieurs fois');
 	assert.equal(ctx.created, nodes, 'un nœud a été créé pendant update()');
+});
+
+test('graphe : les gains ÉCRITS sont ceux du modèle, pas seulement non nuls', () => {
+	// Sans ces trois lignes, un gain de compensation ×2 glissé dans
+	// swarm-audio.js laisserait les autres tests verts et le plafond faux :
+	// ils ne regardent que « > 0 » et « === 0 ».
+	_resetOthers();
+	const ctx = fakeContext();
+	const dest = ctx.createGain();
+	const a = new SwarmAudio({ destination: dest });
+	a.start(ctx);
+	const st = state(9, [7, 13, 26], 41);
+	a.update(st, 1);
+	assert.equal(a._out.gain.value, 1, 'la sortie n\'est pas à l\'unité : le plafond a bougé');
+	for (let i = 0; i < SWARM_AUDIO.nearVoices; i++) {
+		assert.ok(Math.abs(a._near[i].gain.gain.value - nearGain(st.near[i].d)) < 1e-12,
+			`voix ${i} : ${a._near[i].gain.gain.value} contre ${nearGain(st.near[i].d)}`);
+	}
+	assert.ok(Math.abs(a._bed.gain.gain.value - bedGain(st.count, st.dMean)) < 1e-12,
+		`nappe : ${a._bed.gain.gain.value} contre ${bedGain(st.count, st.dMean)}`);
+	// Et le dernier maillon entre le plafond calculé et le plafond entendu.
+	assert.ok(Math.abs(othersBus(ctx, dest).swarm.gain.value - TRIM.swarm) < 1e-12);
+	assert.ok(Math.abs(othersBus(ctx, dest).ambient.gain.value - TRIM.ambient) < 1e-12);
+	assert.equal(othersBus(ctx, dest).out.gain.value, 1);
+});
+
+test('bus : le PREMIER appelant fige la destination, et `dest` le dit', () => {
+	// Le piège du singleton de module, verrouillé ici pour qu'il ne devienne
+	// pas une surprise : une seconde destination est jetée en silence. Sans
+	// effet aujourd'hui — les deux sources passent engineIn() — mais c'est
+	// écrit dans src/audio-others.js et `dest` permet de le constater.
+	_resetOthers();
+	const ctx = fakeContext();
+	const dest = ctx.createGain();
+	const other = ctx.createGain();
+	assert.equal(othersBus(ctx, dest).dest, dest);
+	assert.equal(othersBus(ctx, other).dest, dest, 'la seconde destination a été prise');
+	assert.equal(othersBus(ctx, other).out.targets.length, 1, 'la sortie a été rebranchée');
+	// Un autre contexte, un autre bus : le cache est bien porté par le ctx.
+	const ctx2 = fakeContext();
+	const dest2 = ctx2.createGain();
+	assert.equal(othersBus(ctx2, dest2).dest, dest2);
 });
 
 console.log(`swarm-audio: ${passed} tests OK`);

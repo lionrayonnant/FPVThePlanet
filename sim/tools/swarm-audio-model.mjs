@@ -38,9 +38,11 @@ export const OTHERS = {
 
 export const OTHERS_CAP = OTHERS.idleLevel * Math.pow(10, OTHERS.headroomDb / 20);
 
-// The ambients' own worst case, as #250 defined it: four voices at d0. Their
-// law keeps rising below d0, but d0 is the distance the bound was written
-// against (tools/ambient-audio-selftest.mjs, "quatre voix à 8 m").
+// The ambients' own worst case, as #250 defined it: four voices at d0. This is
+// a CONVENTION, not a supremum — gainFor() keeps rising below d0 and a voice
+// also carries its noise band, so four voices at zero distance would be 2.5x
+// this. What makes it hold is that an ambient is born at 120 m or more; see
+// src/audio-others.js for the full statement and its one exception.
 export const AMBIENT_VOICES = 4;
 export const AMBIENT_WORST = AMBIENT_VOICES * gainFor(VOICE.d0);
 
@@ -95,11 +97,14 @@ export const BED_WANDER_HZ = [0.047, 0.071, 0.097];
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 // The near voices' gain: g0/(1 + d/d0), faded out at dMax like the ambients.
+// `d` is clamped at 0 the way bedGain() clamps dMean: a negative distance is
+// unreachable today (it comes out of a square root), but a law whose maximum
+// depends on the caller not making a mistake is not a bound.
 export function nearGain(d) {
 	const S = SWARM_AUDIO;
 	if (d >= S.dMax) return 0;
 	const fade = clamp01((S.dMax - d) / S.fadeM);
-	return S.g0 / (1 + d / S.d0) * fade;
+	return S.g0 / (1 + Math.max(0, d) / S.d0) * fade;
 }
 
 // The bed's gain: how many units are NOT voiced, and how far they are on
