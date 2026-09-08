@@ -208,6 +208,23 @@ const MARGIN_RISE_PER_RAY = 0.09;
 // green again.
 export const MARGIN_FALL_S = 0.3;
 export const MARGIN_RISE_S = 1.5;
+
+// Fold and regrow alone make a bang-bang loop, and in a street barely wider
+// than the doctrine's own lateral ambition that loop OSCILLATES: a unit folds
+// on a red ray, redeploys on the next green one at up to 6 m/s sideways, and
+// is back in the wall before the next verdict lands. Measured in a 12 m street
+// with a 2.5 m hairpin, 60 fps, no hitch at all: 1.30 m inside a building,
+// swinging from one side of the street to the other twice a second.
+//
+// So the margin also carries a CEILING, moved the way a congestion window is:
+// a red ray drops it below what the unit was holding, and it only comes back
+// additively. A unit that has just been told "wall" does not go back out as
+// far as it was; a unit that is never blocked never sees the ceiling at all,
+// so nothing is paid in open sky (measured: mean margin unchanged at every
+// cadence, and the offset actually held in the city goes UP, 2.35 -> 2.58 m,
+// because the swarm stops spending its time crossing the street).
+const CEIL_BACKOFF = 0.25;
+const CEIL_RECOVER_PER_S = 0.2;
 // How fast the offset ENVELOPE closes, in metres per second. As fast as the
 // airframe flies and no faster: the fold is a flight, never a snap.
 const MAX_RADIUS_FALL = SWARM_UNIT.vMax;
@@ -366,7 +383,7 @@ export class SwarmModel {
 		this._greenAt = new Float64Array(3 * n);   // where the unit's anchor was when it was cleared
 		this._lastCast = new Float64Array(n); // clock of this unit's last ray, for the lookahead
 		this._riseLeft = new Float64Array(n); // how much margin this unit's last green ray still buys
-		this._parity = new Uint8Array(n);     // which of the two ray ends this unit asks about next
+		this._ceil = new Float64Array(n);     // AIMD ceiling on the margin, see CEIL_BACKOFF
 		this._wasBlocked = new Uint8Array(n); // the previous verdict, OR'd into this one
 		this._sep = new Float64Array(3 * n);  // separation acceleration, world
 
@@ -412,7 +429,7 @@ export class SwarmModel {
 		this._greenAt.fill(0);
 		this._lastCast.fill(0);
 		this._riseLeft.fill(0);
-		this._parity.fill(0);
+		this._ceil.fill(1);
 		this._wasBlocked.fill(1);
 		this._frame.fill(0);
 		this._sFrame.fill(0);
@@ -597,10 +614,13 @@ export class SwarmModel {
 			const o = 3 * k;
 			const moved = Math.hypot(this._anchor[o] - this._greenAt[o], this._anchor[o + 1] - this._greenAt[o + 1], this._anchor[o + 2] - this._greenAt[o + 2]);
 			const fresh = !this.blocked[k] && this._clock <= this._green[k] && moved <= MARGIN_FRESH_M;
+			// The ceiling recovers on the clock, not per ray: it is the memory of
+			// having been blocked here, and that memory should fade with time.
+			this._ceil[k] = Math.min(1, this._ceil[k] + dt * CEIL_RECOVER_PER_S);
 			if (!fresh) { this.margin[k] = clamp01(this.margin[k] - dt / MARGIN_FALL_S); continue; }
 			const step = Math.min(dt / MARGIN_RISE_S, this._riseLeft[k]);
 			this._riseLeft[k] -= step;
-			this.margin[k] = clamp01(this.margin[k] + step);
+			this.margin[k] = Math.min(this._ceil[k], clamp01(this.margin[k] + step));
 		}
 
 		// 2. Separation, short range, at most 66 pairs at N = 12. Scaled by the
@@ -861,21 +881,23 @@ export class SwarmModel {
 		}
 	}
 
-	// The segment: from the anchor, out past whichever of "the offset it has"
-	// and "the offset it wants" is bigger on each axis — so the unit's own
-	// position is always inside what was asked about — plus the overreach and
-	// the track lookahead.
+	// The segment: from the unit's own WAKE POINT, out past whichever of "the
+	// offset it has" and "the offset it wants" is bigger on each axis, plus the
+	// overreach and the track lookahead.
+	//
+	// What this does NOT give is "the unit is inside what was asked about".
+	// That was true of the version that started the segment at the unit's own
+	// position, and it was traded away deliberately (see below): measured over
+	// 404 000 instrumented casts at 60 fps (24 cluster seeds, two speeds, the
+	// corner and the hairpin), the unit sits a mean 1.8 m from the segment,
+	// 62 % of casts beyond 1 m, 24 % beyond 3 m, worst 7.6 m — and the numbers
+	// at 20 fps are the same to a tenth (60 %, 24 %, 7.9 m). What covers the
+	// unit is not containment but the LATERAL REACH ON THE SIDE THE UNIT IS ON: the segment
+	// leaves the wake towards the unit, past the larger of the two offsets,
+	// plus OVERREACH_M. It is a probe of the corridor the unit lives in, not a
+	// line through the unit.
 	_cast(terrain, k) {
 		const o = 3 * k, f = 12 * k;
-		// The segment runs from WHERE THE UNIT IS to where the doctrine wants it
-		// to be, extended past that (see OVERREACH_M / LOOKAHEAD_S). Starting
-		// it at the unit's own position is what makes "the unit is inside what
-		// was asked about" true rather than nearly true: the earlier version
-		// started at the anchor and reached to whichever of the held and the
-		// wanted offset was bigger, which loses the unit whenever the two have
-		// opposite signs — i.e. every time the track frame turns over in a
-		// hairpin, which is exactly when it matters (measured 4.7% of casts,
-		// the unit up to 7.2 m from the segment asked about).
 		// The origin is the unit's own WAKE POINT, not its position: a segment
 		// that starts inside a wall leaves it again within a metre and the
 		// `span > 2 m` rule calls that clear (measured: a unit sitting 0.74 m
@@ -893,8 +915,12 @@ export class SwarmModel {
 		// whichever of the held and the wanted offset is bigger, plus the
 		// overreach. Taking the bigger of the two with its own sign lost the
 		// unit whenever the two disagreed — i.e. every time the track frame
-		// turns over in a hairpin, which is exactly when it matters. This way
-		// the segment passes through the unit and out beyond it.
+		// turns over in a hairpin, which is exactly when it matters. This is what
+		// pays for the origin being back on the wake — not containment (the
+		// unit can be metres off this segment, see the note above the method)
+		// but a probe that leaves the wake towards the unit and reaches past
+		// it, so a wall between the two, or just beyond, comes back as
+		// material.
 		const held = this._o[o + 1], want = this._ot[o + 1];
 		const side = held !== 0 ? Math.sign(held) : (want !== 0 ? Math.sign(want) : (this.lat[k] >= 0 ? 1 : -1));
 		const eN = side * (Math.max(Math.abs(held), Math.abs(want)) + OVERREACH_M);
@@ -932,6 +958,9 @@ export class SwarmModel {
 		// geometrySafe()'s rule: blocked AND thicker than 2 m. A roof edge
 		// clipped tangentially is not a wall.
 		const hit = (r && r.blocked && r.span > BLOCK_SPAN_M) ? 1 : 0;
+		// Multiplicative-ish decrease: below what the unit is holding right now,
+		// not below what it was allowed in principle.
+		if (hit) this._ceil[k] = Math.max(0, Math.min(this._ceil[k], this.margin[k]) - CEIL_BACKOFF);
 		this.blocked[k] = (hit || this._wasBlocked[k]) ? 1 : 0;
 		this._wasBlocked[k] = hit;
 		if (!this.blocked[k]) {

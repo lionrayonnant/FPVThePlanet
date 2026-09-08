@@ -34,23 +34,50 @@ const NO_WIND = { x: 0, y: 0, z: 0 };
 // A block grid on a 60 m pitch with 15 m streets, buildings 40 m tall. The
 // player flies down the middle of a street, so a doctrine with a 10 m lateral
 // offset is asking to be put through a wall on every frame.
-const PITCH = 60, HALF_STREET = 7.5, HEIGHT = 40;
-const BOXES = [];
-for (let a = -5; a <= 5; a++) {
-	for (let b = -5; b <= 5; b++) {
-		BOXES.push({
-			min: [PITCH * a + HALF_STREET, 0, PITCH * b + HALF_STREET],
-			max: [PITCH * (a + 1) - HALF_STREET, HEIGHT, PITCH * (b + 1) - HALF_STREET],
-		});
+// Built by a factory, because the street WIDTH is a sampling axis of its own:
+// three rounds of this file varied seeds, speeds and cadences and left the
+// geometry at one value, and a 12 m street is where the doctrines' own +-10 m
+// ambition stops fitting (see the geometry sweep further down).
+const HEIGHT = 40;
+function makeCity(pitch, halfStreet) {
+	const boxes = [];
+	for (let a = -5; a <= 5; a++) {
+		for (let b = -5; b <= 5; b++) {
+			boxes.push({
+				min: [pitch * a + halfStreet, 0, pitch * b + halfStreet],
+				max: [pitch * (a + 1) - halfStreet, HEIGHT, pitch * (b + 1) - halfStreet],
+			});
+		}
 	}
+	const hit = { blocked: false, span: 0 };
+	return {
+		boxes, pitch, halfStreet,
+		inside(x, y, z) {
+			for (const b of boxes) {
+				if (x > b.min[0] && x < b.max[0] && y > b.min[1] && y < b.max[1] && z > b.min[2] && z < b.max[2]) return b;
+			}
+			return null;
+		},
+		terrain: {
+			groundBelow: () => 0,
+			obstructionBetween(x1, y1, z1, x2, y2, z2) {
+				rayCalls++;
+				const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+				const len = Math.hypot(dx, dy, dz);
+				let span = 0;
+				for (const b of boxes) {
+					const h = slab(x1, y1, z1, dx, dy, dz, b);
+					if (h) span += (h[1] - h[0]) * len;
+				}
+				hit.blocked = span > 0; hit.span = span;
+				return hit;
+			},
+		},
+	};
 }
-
-function insideCity(x, y, z) {
-	for (const b of BOXES) {
-		if (x > b.min[0] && x < b.max[0] && y > b.min[1] && y < b.max[1] && z > b.min[2] && z < b.max[2]) return b;
-	}
-	return null;
-}
+const CITY = makeCity(60, 7.5);
+const BOXES = CITY.boxes;
+const insideCity = (x, y, z) => CITY.inside(x, y, z);
 const depthIn = (x, z, b) => Math.min(x - b.min[0], b.max[0] - x, z - b.min[2], b.max[2] - z);
 
 // Segment against one box, slab method. Returns the [t0, t1] overlap or null.
@@ -74,23 +101,8 @@ function slab(x1, y1, z1, dx, dy, dz, b) {
 // The ray stub, shaped exactly like Physics.obstructionBetween(): {blocked,
 // span}, span in metres of material along the segment. Reuses one object so
 // the model is exercised against an allocation-free provider too.
-const HIT = { blocked: false, span: 0 };
 let rayCalls = 0;
-const cityTerrain = {
-	groundBelow: () => 0,
-	obstructionBetween(x1, y1, z1, x2, y2, z2) {
-		rayCalls++;
-		const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
-		const len = Math.hypot(dx, dy, dz);
-		let span = 0;
-		for (const b of BOXES) {
-			const h = slab(x1, y1, z1, dx, dy, dz, b);
-			if (h) span += (h[1] - h[0]) * len;
-		}
-		HIT.blocked = span > 0; HIT.span = span;
-		return HIT;
-	},
-};
+const cityTerrain = CITY.terrain;
 // The pessimal provider: everything is a wall, always. This is the case the
 // design has to survive on the wake alone.
 const BLOCKED = { blocked: true, span: 1e3 };
@@ -133,35 +145,57 @@ const TRACKS = {
 		return p;
 	},
 	// A hairpin at a crossing: in, 180°, back out. The corner-cutting case.
-	hairpin(t, p, v) {
-		p.y = 10;
-		// 3 m radius, so the exit leg is at x = 6 and the whole figure stays
-		// inside the 15 m street. (A 6 m radius put the PLAYER through a wall,
-		// and the swarm dutifully followed him there — the test was wrong, the
-		// model was right, and it took reading the snapshot to tell.)
-		const leg = 120 / v, turn = Math.PI * 3 / v;
-		if (t < leg) { p.x = 0; p.z = 120 - v * t; return p; }
-		if (t < leg + turn) {
-			const a = (t - leg) / turn * Math.PI;
-			p.x = 3 - 3 * Math.cos(a); p.z = -3 * Math.sin(a);
-			return p;
-		}
-		p.x = 6; p.z = -v * (t - leg - turn);
-		return p;
-	},
+	// 3 m radius by default, so the exit leg is at x = 6 and the whole figure
+	// stays inside the 15 m street. (A 6 m radius put the PLAYER through a
+	// wall, and the swarm dutifully followed him there — the test was wrong,
+	// the model was right, and it took reading the snapshot to tell. Which is
+	// why hairpinOf() below is only ever used through fitsCity().)
+	hairpin(t, p, v) { return hairpinOf(3)(t, p, v); },
 	// Straight and fast, for the decoupling regimes.
 	straight(t, p, v) { p.x = 0; p.y = 10; p.z = 200 - v * t; return p; },
 	hover(t, p) { p.x = 0; p.y = 10; p.z = 0; return p; },
 };
+
+// The same figure at any radius, for the geometry sweep.
+function hairpinOf(radius) {
+	return (t, p, v) => {
+		p.y = 10;
+		const leg = 120 / v, turn = Math.PI * radius / v;
+		if (t < leg) { p.x = 0; p.z = 120 - v * t; return p; }
+		if (t < leg + turn) {
+			const a = (t - leg) / turn * Math.PI;
+			p.x = radius - radius * Math.cos(a); p.z = -radius * Math.sin(a);
+			return p;
+		}
+		p.x = 2 * radius; p.z = -v * (t - leg - turn);
+		return p;
+	};
+}
+
+// Does the PLAYER's own figure fit down this city's streets, with a metre to
+// spare? A track that flies the node through a wall measures nothing about the
+// swarm — it was already the bug in one earlier version of the hairpin — so
+// every geometry pair is filtered through this before it is flown.
+function fitsCity(city, track, v, seconds = 14) {
+	const p = { x: 0, y: 10, z: 0 };
+	for (let t = 0; t <= seconds; t += 0.02) {
+		track(t, p, v);
+		if (city.inside(p.x, p.y, p.z)) return false;
+		if (city.inside(p.x + 1, p.y, p.z) || city.inside(p.x - 1, p.y, p.z)) return false;
+		if (city.inside(p.x, p.y, p.z + 1) || city.inside(p.x, p.y, p.z - 1)) return false;
+	}
+	return true;
+}
 
 // The harness. Returns everything the assertions need, measured over the whole
 // flight: deepest penetration, worst effective speed, worst distance off the
 // wake beyond what the margin bought, worst margin, ray peak.
 const _p = { x: 0, y: 10, z: 200 };
 const _prev = new Float64Array(3 * 12);
-function fly({ seed, size = 12, seconds = 15, dt = 1 / 60, speed = 15, terrain = cityTerrain,
+function fly({ seed, size = 12, seconds = 15, dt = 1 / 60, speed = 15, terrain = null, city = CITY,
 	wind = NO_WIND, fence = null, track = TRACKS.corner, resetAt = null, shrink = null, watchWake = false,
 	hitch = null, watchGap = false }) {
+	terrain = terrain || city.terrain;
 	const swarm = new SwarmModel({ size, doctrineSeed: seed, seed: 'build' });
 	track(0, _p, speed);
 	swarm.reset(_p);
@@ -194,7 +228,7 @@ function fly({ seed, size = 12, seconds = 15, dt = 1 / 60, speed = 15, terrain =
 		if (swarm.raysLastFrame > out.maxRays) out.maxRays = swarm.raysLastFrame;
 		for (let k = 0; k < swarm.size; k++) {
 			const o = 3 * k;
-			const b = insideCity(swarm.pos[o], swarm.pos[o + 1], swarm.pos[o + 2]);
+			const b = city.inside(swarm.pos[o], swarm.pos[o + 1], swarm.pos[o + 2]);
 			if (b) {
 				const d = depthIn(swarm.pos[o], swarm.pos[o + 2], b);
 				if (d > out.depth) { out.depth = d; out.unit = k; }
@@ -425,13 +459,24 @@ console.log('\nswarm: no unit is ever inside a building');
 		// The case the matrix did not cross and that broke: a 250 ms frame IS
 		// the clamp the render loop produces, and a hairpin is where 250 ms of
 		// blind flight costs the most. 4.18 m in, before this row existed.
-		// A 3 m hairpin is already 4x more lateral acceleration than the node's
-		// own TWR allows at 22 m/s, and 14x at 34 — so 34 m/s is dropped from
-		// these rows rather than pretended: it is not a track the thing being
-		// followed can fly. The ceilings below come from LONG_FRAME_CEILING_M,
-		// which is a sweep and not a reading (see the check after the matrix).
+		// The ceilings below come from LONG_FRAME_CEILING_M, which is a sweep
+		// and not a reading (see the check after the matrix).
+		//
+		// The fast rows were once dropped from this block on the argument that
+		// a 3 m hairpin at 34 m/s asks for 385 m/s2 of lateral acceleration,
+		// "fourteen times what the node's TWR allows". That argument was
+		// arithmetic with two different denominators (385/27 against 161/43),
+		// and applied honestly it condemned the rows that were KEPT as well —
+		// 15 m/s is 2.8x the same bound and 22 m/s is 6.0x. There is no
+		// plausibility criterion here, so none is stated: the rows are back at
+		// zero tolerance because they measure 0.00 m, which is the only reason
+		// a row belongs in a matrix.
 		{ label: 'hairpin at 15, dt 250 ms', speed: 15, dt: 0.25, track: TRACKS.hairpin, tol: LONG_FRAME_CEILING_M },
 		{ label: 'hairpin at 22, dt 250 ms', speed: 22, dt: 0.25, track: TRACKS.hairpin, tol: LONG_FRAME_CEILING_M },
+		{ label: 'hairpin at 34, dt 250 ms', speed: 34, dt: 0.25, track: TRACKS.hairpin },
+		{ label: 'hairpin at 45, dt 250 ms', speed: 45, dt: 0.25, track: TRACKS.hairpin },
+		{ label: 'hairpin at 34', speed: 34, dt: 1 / 60, track: TRACKS.hairpin },
+		{ label: 'hairpin at 45', speed: 45, dt: 1 / 60, track: TRACKS.hairpin },
 		// And the shape a real stall has: a hitch inside a steady frame rate,
 		// which a uniformly slow flight does not reproduce.
 		{ label: 'a 250 ms hitch every 37 frames', speed: 22, hitch: { base: 1 / 60, dt: 0.25, every: 37 } },
@@ -495,6 +540,56 @@ console.log('\nswarm: ...over a sweep of cluster seeds, not one per doctrine');
 	check(`so does the hitched hairpin`, long2 <= LONG_FRAME_CEILING_M, `${long2.toFixed(2)} m`);
 }
 
+console.log('\nswarm: ...and over the geometry, and over the swarm size');
+{
+	// The fourth and fifth sampling axes. Three rounds of fixes each found the
+	// hole the round before had left on ONE new axis — a cluster seed, a speed,
+	// a cadence — while the CITY stayed 15 m wide and the swarm stayed twelve
+	// strong. Both of those turned out to matter, and neither was sampled:
+	//
+	//  - street width, because the doctrines ask for +-10 m of lateral offset
+	//    whatever the street is. In a 12 m street the fold/redeploy loop
+	//    oscillates against the walls, and it put a unit 1.30 m inside a
+	//    building at 60 fps with no hitch at all (fixed by the margin ceiling,
+	//    CEIL_BACKOFF in swarm.js);
+	//  - swarm size, because the ray budget is per FRAME: a swarm of six gets
+	//    a ray per rear unit per frame, a swarm of twelve one in four. Size
+	//    twelve is therefore the SAFEST size, and the only one that was tested.
+	//
+	// What is asserted is not a tuned number but the mechanism's own bound: the
+	// model decides once per frame and flies at up to SPEED_MAX between two
+	// decisions, so a unit cannot be deeper into a building than one frame of
+	// flight. That degrades honestly with the frame rate — 0.40 m at 60 fps,
+	// 1.6 m at 15 fps, 6 m on the 250 ms frame the render loop clamps to — and
+	// it says out loud that the long-frame regime is bounded by the clamp and
+	// not by the swarm.
+	const stepCeiling = (dt) => SPEED_MAX * dt;
+	const GEOMETRIES = [[60, 7.5, 3], [60, 7.5, 2.5], [60, 6, 2.5], [60, 6, 2], [60, 5, 2], [60, 5, 1.5]];
+	const SEEDS6 = SEED_SWEEP.filter((_, i) => i % 4 === 0);
+	let skipped = 0;
+	for (const dt of [1 / 60, 1 / 15, 0.25]) {
+		let worst = 0, at = '', flights = 0, ceiling = stepCeiling(dt);
+		for (const [pitch, half, radius] of GEOMETRIES) {
+			const city = makeCity(pitch, half);
+			const track = hairpinOf(radius);
+			if (!fitsCity(city, track, 15)) { skipped++; continue; }
+			for (const size of [6, 9, 12]) {
+				for (const speed of [12, 15, 22]) {
+					for (const seed of SEEDS6) {
+						const out = fly({ seed, size, seconds: 12, speed, dt, city, track });
+						flights++;
+						if (out.depth > worst) { worst = out.depth; at = `${half * 2} m street, ${radius} m hairpin, n=${size}, ${speed} m/s, ${seed}`; }
+					}
+				}
+			}
+		}
+		check(`${(1 / dt).toFixed(0)} fps: never deeper in than one frame of flight (${ceiling.toFixed(2)} m)`,
+			worst <= ceiling, worst <= ceiling ? `worst ${worst.toFixed(2)} m over ${flights} flights` : `${worst.toFixed(2)} m in — ${at}`);
+	}
+	check('the geometries that put the PLAYER through a wall are skipped, not flown',
+		skipped === 0, `${skipped} of ${GEOMETRIES.length} rejected by fitsCity()`);
+}
+
 console.log('\nswarm: it stays deployed when the frame rate does not');
 {
 	// The failure this whole tranche exists to avoid is "they fly in single
@@ -510,7 +605,14 @@ console.log('\nswarm: it stays deployed when the frame rate does not');
 		}
 		open /= n; town /= n; spread /= n;
 		check(`${fps} fps: deployed in clear sky`, open >= 0.9, `mean margin ${open.toFixed(2)}`);
-		check(`${fps} fps: still spread out in the city`, town >= 0.6 && spread >= 1.5,
+		// The 1.5 m floor is CALIBRATED ON THIS CITY, whose streets are 15 m
+		// wide. It is not a property of the model: in 12 m streets the same
+		// swarm holds 0.87 m and that is the right answer, not a regression.
+		// What the floor guards is a silent drift of the safety constants
+		// towards single file at a fixed geometry; the number itself waits on
+		// the real-scene block of the spec.
+		check(`${fps} fps: still spread out in the city (floor calibrated on 15 m streets)`,
+			town >= 0.6 && spread >= 1.5,
 			`mean margin ${town.toFixed(2)}, mean offset held ${spread.toFixed(2)} m`);
 	}
 }
