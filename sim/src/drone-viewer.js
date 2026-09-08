@@ -34,7 +34,7 @@ const SUN = new THREE.Vector3(0.35, 0.85, 0.4).normalize();
 const FOV_DEG = 32;
 const MARGIN = 1.18;
 
-export function droneViewer({ family, buildSeed, size = VIEWER.size, createRenderer } = {}) {
+export function droneViewer({ family, buildSeed, cameraSeed, size = VIEWER.size, createRenderer } = {}) {
 	if (!family || !buildSeed) return null;
 
 	// The context first: everything below it is expensive, and a machine
@@ -51,7 +51,12 @@ export function droneViewer({ family, buildSeed, size = VIEWER.size, createRende
 	const build = targetBuild({ seed: buildSeed, family });
 	const shape = shapeOf({
 		profile: build.profile, build,
-		camera: targetCamera({ seed: buildSeed, family }),
+		// The camera pod is drawn from the SESSION seed, not the build seed:
+		// that is what applyTargetCamera() and PlayerDrone fly with (main.js),
+		// and the uptilt is visible on the mesh. Seeding it off the build seed
+		// would put a DIFFERENT pod on the end screen than the one that flew.
+		// No session (dev paths): the build seed is the fallback.
+		camera: targetCamera({ seed: cameraSeed ?? buildSeed, family }),
 		// The same level the CHASE view uses (#283): blades, bells and hubs.
 		// This is the closest anyone ever gets to the machine.
 		detail: 'portrait',
@@ -75,8 +80,6 @@ export function droneViewer({ family, buildSeed, size = VIEWER.size, createRende
 	scene.add(ambient, key);
 	// Only the body material carries a sun; LedMaterial is emissive.
 	setSun(mesh.material, SUN, 1, 0);
-	// The LED is a screen-space sprite: without a resolution it divides by zero.
-	setResolution(mesh.ledMaterial, size, size);
 	setLedFade(mesh.ledMaterial, 0.1, 100);
 
 	const radius = mesh.body.geometry.boundingSphere?.radius || 0.2;
@@ -89,6 +92,11 @@ export function droneViewer({ family, buildSeed, size = VIEWER.size, createRende
 	el.style.height = `${size}px`;
 	renderer.setPixelRatio?.(Math.min(globalThis.devicePixelRatio ?? 1, 2));
 	renderer.setSize(size, size, false);
+	// The LED is a screen-space sprite: without a resolution it divides by
+	// zero, and the resolution it wants is DRAWING-BUFFER pixels — on a 2x
+	// display that is twice the CSS size.
+	const bufferPx = size * (renderer.getPixelRatio?.() ?? 1);
+	setResolution(mesh.ledMaterial, bufferPx, bufferPx);
 	renderer.setClearAlpha?.(0);
 	renderer.domElement.style.width = `${size}px`;
 	renderer.domElement.style.height = `${size}px`;
@@ -101,8 +109,12 @@ export function droneViewer({ family, buildSeed, size = VIEWER.size, createRende
 	const controls = new OrbitControls(camera, renderer.domElement);
 	controls.enableZoom = false;
 	controls.enablePan = false;
-	controls.enableDamping = true;
-	controls.dampingFactor = 0.08;
+	// Damping OFF, deliberately. It applies its factor once per update() call
+	// rather than per second, so with it on the turn is frame-rate dependent
+	// again — 24 s at 60 Hz, less at 120 — and VIEWER.turnS stops being the
+	// pace. The auto-rotation is smooth on its own; what damping would buy is
+	// inertia after a drag, and that is not worth the pace.
+	controls.enableDamping = false;
 	controls.autoRotate = true;
 	controls.autoRotateSpeed = 60 / VIEWER.turnS;
 	controls.target.set(0, 0, 0);
@@ -117,16 +129,25 @@ export function droneViewer({ family, buildSeed, size = VIEWER.size, createRende
 
 	let raf = 0;
 	let stopped = false;
-	let t0 = 0;
+	// null, not 0: a first frame legitimately timestamped 0 must still be the
+	// origin of the clock rather than be mistaken for "not started yet".
+	let t0 = null;
+	let last = null;
 	const frame = (ms) => {
 		if (stopped) return;
 		raf = requestAnimationFrame(frame);
-		if (!t0) t0 = ms;
+		if (t0 === null) t0 = ms;
+		// The REAL delta, in seconds. OrbitControls' autoRotate steps a fixed
+		// angle per frame when it is not given one, so without this the turn
+		// would last turnS seconds at 60 Hz and half that at 120 Hz — and
+		// VIEWER.turnS would not be the pace, only the pace on one machine.
+		const dt = last === null ? 0 : Math.max(0, (ms - last) / 1000);
+		last = ms;
 		// The props stay still: the machine is dead. Only uTime moves, for the
 		// material's own shimmer.
 		setTime(mesh.material, (ms - t0) / 1000);
 		setTime(mesh.ledMaterial, (ms - t0) / 1000);
-		controls.update();
+		controls.update(dt);
 		renderer.render(scene, camera);
 	};
 	renderer.render(scene, camera);

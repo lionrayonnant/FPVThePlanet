@@ -3077,6 +3077,10 @@ async function openFlightSession() {
 	fpvtpOsd.setTarget({
 		family: shownFamily,
 		buildSeed: tgt?.buildSeed ?? flightBuildSeed ?? nominalBuildSeed(shownFamily),
+		// La MÊME graine que la caméra de la cible juste au-dessus et que
+		// PlayerDrone : la machine de l'écran de fin porte le boîtier qui a
+		// volé, pas un second tirage.
+		cameraSeed: seed,
 	});
 	// Les hélices dans le champ : la seconde passe du composer, sa caméra à
 	// near = 5 mm. Débranchée en vue CHASE — la même règle d'exclusivité.

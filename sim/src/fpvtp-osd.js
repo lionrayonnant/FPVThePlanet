@@ -134,12 +134,19 @@ export class FpvtpOsd {
 	// L'exemplaire que la station suit (#264) : `family` et `buildSeed`, les
 	// deux champs dont le portrait se déduit. Sans eux — chemins dev, override
 	// NOMINAL — la ligne du portrait reste un blanc, jamais son jeton.
+	//
+	// `cameraSeed` (D12) est la graine de SESSION, celle dont main.js tire la
+	// caméra de la cible et donc le boîtier que porte la machine en vol. Le
+	// portrait fil de fer l'ignore ; la vue 3D, qui montre le vrai maillage,
+	// mettrait sans elle un autre boîtier que celui qui a volé.
 	setTarget(target) {
 		const family = target?.family ?? null;
 		const buildSeed = target?.buildSeed ?? null;
-		if (this._target?.family === family && this._target?.buildSeed === buildSeed) return;
+		const cameraSeed = target?.cameraSeed ?? null;
+		if (this._target?.family === family && this._target?.buildSeed === buildSeed
+			&& this._target?.cameraSeed === cameraSeed) return;
 		this._dropPortrait();
-		this._target = (family && buildSeed) ? { family, buildSeed } : null;
+		this._target = (family && buildSeed) ? { family, buildSeed, cameraSeed } : null;
 	}
 
 	// Le nœud du portrait, fabriqué une seule fois : la séquence de fin
