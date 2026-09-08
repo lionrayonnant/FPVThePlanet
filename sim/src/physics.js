@@ -1,4 +1,3 @@
-import RAPIER from '@dimforge/rapier3d-compat';
 import { QUAD, GRAVITY, Propulsion, HOVER_THRUST, hoverThrust } from './quad.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { hoverThrottle } from './flightController.js';
@@ -20,8 +19,26 @@ export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 export const MAX_THRUST = 4 * QUAD.maxThrustPerMotor;
 export const DRONE = QUAD;      // old name, still used by tools/
 
-export async function initPhysics() {
-	await RAPIER.init();
+// Rapier arrive par import() dynamique, pas par import statique (#21) : le
+// paquet `-compat` embarque son WASM en base64, soit ~2 Mo des 2,9 Mo du
+// bundle principal. En statique, le menu, le terminal et le scanner
+// attendaient son téléchargement et sa compilation avant d'exister. Chargé
+// ici, Vite en fait un chunk séparé, demandé au premier initPhysics() — et
+// recouvert avec la traversée rocktree en direct (bootLive), avec les tuiles
+// d'une scène cuite (preloadScene), ou préchauffé depuis le menu.
+//
+// TOUT usage de RAPIER passe par initPhysics() d'abord : c'était déjà le
+// contrat (RAPIER.init() est requis avant le moindre World), il est juste
+// devenu structurel. La promesse est mémorisée : appels concurrents ou
+// répétés ne chargent qu'une fois.
+let RAPIER = null;
+let rapierReady = null;
+export function initPhysics() {
+	return (rapierReady ??= import('@dimforge/rapier3d-compat').then(async (mod) => {
+		const R = mod.default ?? mod;
+		await R.init();
+		RAPIER = R;
+	}));
 }
 
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };

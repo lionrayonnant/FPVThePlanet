@@ -4,6 +4,7 @@
 // onNodeReleased(). Même frontière que fetchNode() dans la tranche
 // précédente : testable seule, remplaçable seule.
 import { zoneOf } from '../tools/lib/rocktree/traverse.mjs';
+import { ringsFor, assembleLod, metersBetween, boxIntersectsDisc } from '../tools/lib/rocktree/lod.mjs';
 // La traversée par défaut tourne dans un Worker (#187) : le parse des bulks
 // produisait ~10 longtasks de 59-72 ms par recalcul sur le fil principal.
 // Les tests injectent toujours leur _traverse — l'import du client est sans
@@ -65,13 +66,10 @@ export const RETRY_BACKOFF_FACTOR = 2;
 // pas supprimée par ce ticket.
 export const RETRY_MAX_ATTEMPTS = 3;
 
-const M_PER_DEG_LAT = 111320;
-
-function metersBetween(a, b) {
-	const dLat = (a.lat - b.lat) * M_PER_DEG_LAT;
-	const dLon = (a.lon - b.lon) * M_PER_DEG_LAT * Math.cos((a.lat / 180) * Math.PI);
-	return Math.hypot(dLat, dLon);
-}
+// metersBetween/boxIntersectsDisc vivent dans lod.mjs (#22) : l'assemblage
+// des anneaux en a besoin sans dépendre de ce module. Ré-exportés pour les
+// selftests, qui les lisaient ici.
+export { boxIntersectsDisc };
 
 function p95(samples) {
 	if (samples.length === 0) return null;
@@ -129,7 +127,8 @@ export class RocktreeWindow {
 		const latencySeconds = p95(this._latencies);
 		if (latencySeconds == null) return this._floorRadiusM;   // aucune mesure encore
 		// Plancher : la formule latence×vitesse garantit la COLLISION, mais ce
-		// rayon est aussi toute la portée VISUELLE du jalon (pas de LOD). Mesuré
+		// rayon est aussi toute la portée VISUELLE de la fenêtre (le LOD par
+		// anneaux, #22, ne change que le niveau, pas la portée). Mesuré
 		// en vol (#180) : à faible latence elle tombait à 60-150 m — la fenêtre
 		// passait de 1032 meshes au boot à ~340 au premier recalcul, l'horizon
 		// reculait en volant. Le plancher rend la portée du boot permanente ; sa
@@ -180,10 +179,25 @@ export class RocktreeWindow {
 		this._lastPos = dronePos;
 
 		const loadRadiusM = this._loadRadiusM();
-		const zone = zoneOf({ lat: dronePos.lat, lon: dronePos.lon, radius: loadRadiusM });
-		const { nodes, radius: sphereRadius } = await this._traverse(zone, this._level, {});
-		this._sphereRadius = sphereRadius;
-		const desired = new Map(nodes.map((n) => [n.path, n]));
+		// Un niveau par anneau (#22, lod.mjs) : le niveau plein près du drone,
+		// un de moins puis deux au loin. Une traversée par anneau, EN SÉQUENCE
+		// et du plus fin au plus grossier : la première fetche tous les bulks,
+		// les suivantes (zones et profondeurs incluses dans la sienne) ne
+		// touchent plus que le cache du worker de traversée (#21) — en
+		// parallèle, elles auraient demandé les mêmes bulks en même temps.
+		const rings = ringsFor(loadRadiusM, this._level);
+		const perRing = [];
+		for (const ring of rings) {
+			const zone = zoneOf({ lat: dronePos.lat, lon: dronePos.lon, radius: ring.radiusM });
+			const { nodes, radius: sphereRadius } = await this._traverse(zone, ring.level, {});
+			this._sphereRadius = sphereRadius;
+			perRing.push({ radiusM: ring.radiusM, level: ring.level, nodes });
+		}
+		// Disque, pas carré (#21) et anneaux emboîtés sans recouvrement
+		// (#22) : voir assembleLod(). Un nœud sans box (ne devrait pas arriver
+		// depuis traverse()) est gardé plutôt que perdu en silence — même
+		// politique que le tri par distance plus bas.
+		const desired = new Map(assembleLod(perRing, dronePos).map((n) => [n.path, n]));
 
 		// Centre de la fenêtre en mètres locaux ENU (repère de physics.position,
 		// origine fixée au spawn) : c'est ce que la Tâche 10 lit pour le rappel

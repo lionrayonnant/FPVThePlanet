@@ -54,6 +54,17 @@ qu'on ne lui passe pas `--mode shared` — auquel cas il réclame une clé
 d'opérateur à chaque requête. `deploy/` contient de quoi le mettre derrière
 Caddy sur une machine louée.
 
+`npm run build` enchaîne `vite build` et `node sim/tools/precompress.mjs` : un
+`.br` et un `.gz` à côté de chaque fichier texte du build, que le serveur
+autonome sert avec `Content-Encoding` (jamais sur un `Range`, une ETag par
+représentation). Rapier et `three` ont leur propre chunk, en cache d'une
+version à l'autre ; le menu n'attend plus le WASM de Rapier. En vol LIVE, la
+fenêtre de streaming charge par anneaux de niveau de détail
+(`sim/tools/lib/rocktree/lod.mjs`), garde ses bulks dans le worker de
+traversée et persiste bulks et nœuds sur disque (Cache API,
+`sim/src/rocktree-cache.js`, vidable depuis DevTools → Application → Cache
+Storage → `fpvtp-rocktree-v1`).
+
 ## D'où vient le terrain
 
 Les tuiles viennent de Google Earth, par son protocole interne `rocktree`

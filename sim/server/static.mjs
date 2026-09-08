@@ -33,6 +33,16 @@ const TYPES = {
 	'.txt': 'text/plain; charset=utf-8',
 };
 
+// Types servis compressés quand un `.br`/`.gz` précalculé existe à côté du
+// fichier (tools/precompress.mjs, lancé par `npm run build`, #21). Rien n'est
+// compressé à la volée : ce serveur tourne aussi dans le process principal
+// d'Electron, sans dépendance, et 2,9 Mo de JavaScript compressés par requête
+// y coûteraient du CPU pour un résultat identique à chaque fois. Les types
+// absents d'ici (chunks .bin, JPEG, Opus) sont déjà compressés par nature.
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.svg', '.txt', '.wasm']);
+// Ordre de préférence quand le navigateur accepte les deux.
+const ENCODINGS = [['br', '.br'], ['gzip', '.gz']];
+
 // Une scène ne change jamais sous son slug (REMOVE puis réacquisition rend le
 // même slug, mais alors tout le contenu est réécrit).
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -91,9 +101,42 @@ function parseRange(header, size) {
 	return { start, end };
 }
 
+// La variante précompressée à servir pour `file`, ou null : encodage accepté
+// par le client (Accept-Encoding, jeton nu ou avec q non nul), type
+// compressible, fichier `.br`/`.gz` présent ET pas plus vieux que sa source —
+// un build partiel qui aurait laissé un vieux `.br` à côté d'un asset neuf
+// servirait sinon du code d'une autre version sous un nom immutable.
+function precompressedVariant(req, file, st) {
+	const ext = path.extname(file).toLowerCase();
+	if (!COMPRESSIBLE.has(ext)) return null;
+	const accepted = new Set();
+	for (const part of String(req.headers['accept-encoding'] ?? '').split(',')) {
+		const [token, ...params] = part.trim().split(';').map((s) => s.trim());
+		if (!token) continue;
+		const q = params.find((p) => p.startsWith('q='));
+		if (q && Number(q.slice(2)) === 0) continue;
+		accepted.add(token.toLowerCase());
+	}
+	for (const [encoding, suffix] of ENCODINGS) {
+		if (!accepted.has(encoding)) continue;
+		let cst;
+		try { cst = fs.statSync(file + suffix); } catch { continue; }
+		if (!cst.isFile() || cst.mtimeMs < st.mtimeMs) continue;
+		return { encoding, file: file + suffix, st: cst };
+	}
+	return null;
+}
+
 function sendFile(req, res, file, st, cacheControl) {
-	const etag = etagOf(st);
 	const type = TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
+	// Jamais de compression sur une plage : les offsets d'un Range portent sur
+	// la représentation servie, et le seul usage d'un Range ici (reprendre un
+	// chunk de scène) ne concerne aucun type compressible de toute façon.
+	const variant = req.headers.range ? null : precompressedVariant(req, file, st);
+	// Une ETag par représentation (RFC 9110 §8.8.3) : la même valeur pour le
+	// clair et le brotli ferait renvoyer un 304 à un client dont le cache tient
+	// l'autre encodage.
+	const etag = variant ? etagOf(st).replace(/"$/, `-${variant.encoding}"`) : etagOf(st);
 	const head = {
 		'content-type': type,
 		'cache-control': cacheControl,
@@ -101,10 +144,21 @@ function sendFile(req, res, file, st, cacheControl) {
 		'accept-ranges': 'bytes',
 		'last-modified': new Date(st.mtimeMs).toUTCString(),
 	};
+	// `Vary` dès que la réponse PEUT dépendre d'Accept-Encoding, compressée ou
+	// non : un cache intermédiaire qui aurait vu la version claire ne doit pas
+	// la servir à un client qui accepte brotli, ni l'inverse.
+	if (COMPRESSIBLE.has(path.extname(file).toLowerCase())) head.vary = 'accept-encoding';
+	if (variant) head['content-encoding'] = variant.encoding;
 
 	if (req.headers['if-none-match'] === etag) {
-		res.writeHead(304, { etag, 'cache-control': cacheControl });
+		res.writeHead(304, { etag, 'cache-control': cacheControl, ...(head.vary ? { vary: head.vary } : {}) });
 		return res.end();
+	}
+
+	if (variant) {
+		res.writeHead(200, { ...head, 'content-length': variant.st.size });
+		if (req.method === 'HEAD') return res.end();
+		return fs.createReadStream(variant.file).pipe(res);
 	}
 
 	const range = req.headers.range ? parseRange(req.headers.range, st.size) : null;

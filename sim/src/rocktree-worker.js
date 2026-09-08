@@ -18,6 +18,13 @@
 import { nodeUrl } from '../tools/lib/rocktree/url.mjs';
 import { parseNode } from '../tools/lib/rocktree/proto.mjs';
 import { buildNodeGeometries } from '../tools/lib/rocktree/build-node.mjs';
+import { createCachedFetch } from './rocktree-cache.js';
+
+// Cache disque des NodeData (#22) : partagé entre les Workers du pool (même
+// origine), persistant entre sessions — REDEPLOY et un second vol au même
+// endroit n'attendent plus le réseau. Sans Cache API (contexte non sécurisé),
+// fetch nu.
+const { cachedFetch } = createCachedFetch();
 
 // Persistant (#170) : ce worker traite UN message, répond, et REVIENT
 // écouter — contrairement à un usage un-coup comme celui que loadChunks()
@@ -37,7 +44,7 @@ self.onmessage = async (e) => {
 	const { id, path, epoch, imageryEpoch, flags, sphereRadius, originEcef, originBasis, exclude } = e.data;
 	try {
 		const url = nodeUrl({ path, epoch, imageryEpoch, flags });
-		const res = await fetch(url);
+		const res = await cachedFetch(url);
 		if (!res.ok) { const err = new Error(`${res.status} ${url}`); err.status = res.status; throw err; }
 		const buf = new Uint8Array(await res.arrayBuffer());
 		const node = parseNode(buf);

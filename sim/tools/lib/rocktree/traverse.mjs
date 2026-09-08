@@ -71,12 +71,36 @@ export function zoomToLevel(zoom) {
 // lancer des dizaines de Go de NodeData en silence.
 const MAX_NODES = 50_000;
 
-// Bulks demandés en parallèle. Une génération de la marche descendante tient
-// dans quelques dizaines de requêtes : les paralléliser par petits lots change
-// une traversée d'une minute en une de quelques secondes, sans ouvrir des
-// centaines de connexions d'un coup. Même esprit que le BATCH de
-// downloadNodes() dans google-earth.mjs.
-const BULK_BATCH = 8;
+// Bulks EN VOL en même temps (#21). La marche est pipelinée : un bulk reçu
+// pousse ses enfants dans la file sans attendre que le reste de sa génération
+// ait répondu, et la file est vidée dès qu'une place se libère. L'ancienne
+// marche (générations synchrones, lots séquentiels de 8) coûtait ~45
+// allers-retours réseau strictement séquentiels pour 300 m au niveau 21
+// (344 bulks) ; ici la profondeur seule reste séquentielle (6 frontières de
+// bulks pour le niveau 21). 16 : ce qu'un HTTP/2 multiplexe sans peine vers
+// kh.google.com, sans ouvrir des centaines de connexions d'un coup depuis un
+// bake Node (undici, HTTP/1.1 : une connexion par requête en vol).
+export const BULK_CONCURRENCY = 16;
+
+// Cache de traversée réutilisable D'UN APPEL À L'AUTRE (#21). kh.google.com
+// répond `cache-control: no-cache, must-revalidate` (mesuré) : le cache HTTP
+// du navigateur ne garde donc ni bulks ni nœuds, et chaque recalcul de la
+// fenêtre de streaming (tous les REFRESH_THRESHOLD_M = 50 m de vol) refaisait
+// TOUTE la marche depuis la racine — 344 requêtes pour 300 m, pour ne
+// découvrir qu'une couronne de quelques dizaines de bulks nouveaux.
+//
+// Un bulk est immuable pour un (chemin, epoch) donné : la clé porte les deux.
+// Un 404 (branche absente de la capture) est mémorisé aussi — il ne devient
+// pas moins absent 50 m plus loin. Éviction par ancienneté d'accès (Map en
+// ordre d'insertion, ré-insérée à chaque hit) : `maxBulks` borne la mémoire
+// d'un long vol, pas la correction.
+//
+// Le planetoid (epoch racine + rayon de la sphère) est gardé `planetoidTtlMs`
+// (10 min) : assez pour qu'une session de vol ne le redemande pas à chaque
+// recalcul, assez court pour suivre une nouvelle epoch racine sans redémarrer.
+export function createTraverseCache({ maxBulks = 2000, planetoidTtlMs = 10 * 60_000 } = {}) {
+	return { bulks: new Map(), maxBulks, planetoid: null, planetoidAt: 0, planetoidTtlMs };
+}
 
 // poly -> bbox du ring ; bbox -> bbox tel quel ; sinon carré de `radius`
 // mètres autour de (lat, lon) — converti en degrés via cos(lat), comme
@@ -209,29 +233,54 @@ export function expandBulk(bulk, bulkPath, bulkBox, zone, level) {
 // BULK_BATCH) ; expandBulk() ci-dessus décide seul ce qui est retenu et où
 // descendre. Le coût suit le nombre de nœuds réellement présents dans la zone,
 // pas le nombre de cellules cibles fois 2^(niveau-2).
-export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES, reportMs = 1500 } = {}) {
-	const { rootEpoch, radius } = await getPlanetoid({ signal });
-	const bulkCache = new Map();
+//
+// `cache` (createTraverseCache) : optionnel, partagé entre appels — c'est ce
+// que le worker de traversée du jeu lui passe (#21). `cachedBulks` dans le
+// résultat compte ce que la marche n'a PAS eu à redemander au réseau.
+export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODES, reportMs = 1500, concurrency = BULK_CONCURRENCY, cache = null } = {}) {
+	let planetoid = null;
+	if (cache?.planetoid && Date.now() - cache.planetoidAt < cache.planetoidTtlMs) planetoid = cache.planetoid;
+	if (!planetoid) {
+		planetoid = await getPlanetoid({ signal });
+		if (cache) { cache.planetoid = planetoid; cache.planetoidAt = Date.now(); }
+	}
+	const { rootEpoch, radius } = planetoid;
 	let visitedBulks = 0;
+	let cachedBulks = 0;
 
-	// On mémorise la PROMESSE, pas le résultat : les lots parallèles ci-dessous
-	// peuvent demander deux fois le même bulk avant que le premier n'ait
-	// répondu, et une Map de résultats les laisserait tous deux passer au
-	// réseau.
+	// Un seul fetch par bulk dans CET appel : la file ci-dessous n'émet jamais
+	// deux fois le même chemin (chaque bulk enfant n'a qu'un parent), mais la
+	// promesse mémorisée le garantit quoi qu'il arrive. Le cache partagé, lui,
+	// ne reçoit que des RÉSULTATS (bulk parsé ou null pour un 404) : une
+	// promesse rejetée (coupure réseau) n'y entre jamais, le prochain appel
+	// retente.
+	const inFlight = new Map();
 	function getBulk(bulkPath, epoch) {
-		if (bulkCache.has(bulkPath)) return bulkCache.get(bulkPath);
+		const key = `${bulkPath}@${epoch}`;
+		if (cache?.bulks.has(key)) {
+			const hit = cache.bulks.get(key);
+			cache.bulks.delete(key);
+			cache.bulks.set(key, hit);   // rafraîchi : le plus ancien reste en tête
+			cachedBulks++;
+			return Promise.resolve(hit);
+		}
+		if (inFlight.has(key)) return inFlight.get(key);
 		const p = fetchBulk(bulkPath, epoch, { signal }).then((bulk) => {
 			if (bulk) visitedBulks++;
+			if (cache) {
+				cache.bulks.set(key, bulk);
+				while (cache.bulks.size > cache.maxBulks) cache.bulks.delete(cache.bulks.keys().next().value);
+			}
 			return bulk;
 		});
-		bulkCache.set(bulkPath, p);
+		inFlight.set(key, p);
 		return p;
 	}
 
 	const nodesOut = new Map();
 	// Le bulk racine n'a pas de boîte parente : ses deux premiers digits
 	// adressent une racine, et descendBox() le sait à la longueur du chemin.
-	let frontier = [{ bulkPath: '', box: null, epoch: rootEpoch }];
+	const queue = [{ bulkPath: '', box: null, epoch: rootEpoch }];
 
 	// La traversée précède tout téléchargement : le compteur de tuiles de
 	// l'écran d'acquisition reste donc à 0 pendant toute sa durée. Sur une
@@ -250,42 +299,66 @@ export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODE
 		onLog({ stream: 'meta', line: `repérage : ${nodesOut.size.toLocaleString('fr-FR')} octant(s), ${visitedBulks.toLocaleString('fr-FR')} bulk(s) lu(s)…` });
 	};
 
-	while (frontier.length > 0) {
-		const next = [];
-		for (let i = 0; i < frontier.length; i += BULK_BATCH) {
-			const slice = frontier.slice(i, i + BULK_BATCH);
-			const bulks = await Promise.all(slice.map((f) => getBulk(f.bulkPath, f.epoch)));
-			for (let k = 0; k < slice.length; k++) {
-				const bulk = bulks[k];
-				// Bulk absent (404/410) : cette branche de l'octree n'est pas
-				// dans la capture, ce n'est pas une erreur.
-				if (!bulk) continue;
-				const { retained, children } = expandBulk(bulk, slice[k].bulkPath, slice[k].box, zone, level);
-				for (const { path: p, meta, box } of retained) {
-					if (nodesOut.has(p)) continue;
-					nodesOut.set(p, {
-						path: p,
-						epoch: meta.epoch ?? bulk.epoch,
-						imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? bulk.defaultImageryEpoch) : null,
-						flags: meta.flags,
-						box,
-					});
-				}
-				next.push(...children);
-			}
-			report();
-			// Plafond vérifié PENDANT la marche, pas après : le but est de
-			// s'arrêter avant d'avoir dépensé le réseau, pas de constater les
-			// dégâts. Voir MAX_NODES plus haut pour l'ordre de grandeur.
-			if (nodesOut.size > maxNodes) {
-				throw new Error(
-					`zone trop grande pour ce zoom : plus de ${maxNodes.toLocaleString('fr-FR')} octants au niveau ${level}.\n` +
-					'  Réduis le zoom ou la zone (rayon/bbox/polygone) avant de relancer.'
-				);
-			}
+	// Ce qu'un bulk reçu apporte : ses nœuds retenus, et ses bulks enfants
+	// poussés dans la file. L'ensemble retenu ne dépend pas de l'ordre
+	// d'arrivée : chaque nœud n'est déclaré que par le bulk qui le contient,
+	// et expandBulk() est pure — c'est ce que le selftest d'équivalence contre
+	// l'ancienne énumération verrouille.
+	function absorb(bulk, bulkPath, box) {
+		// Bulk absent (404/410) : cette branche de l'octree n'est pas dans la
+		// capture, ce n'est pas une erreur.
+		if (!bulk) return;
+		const { retained, children } = expandBulk(bulk, bulkPath, box, zone, level);
+		for (const { path: p, meta, box: nodeBox } of retained) {
+			if (nodesOut.has(p)) continue;
+			nodesOut.set(p, {
+				path: p,
+				epoch: meta.epoch ?? bulk.epoch,
+				imageryEpoch: (meta.flags & 16) ? (meta.imageryEpoch ?? bulk.defaultImageryEpoch) : null,
+				flags: meta.flags,
+				box: nodeBox,
+			});
 		}
-		frontier = next;
+		queue.push(...children);
+		report();
+		// Plafond vérifié PENDANT la marche, pas après : le but est de
+		// s'arrêter avant d'avoir dépensé le réseau, pas de constater les
+		// dégâts. Voir MAX_NODES plus haut pour l'ordre de grandeur.
+		if (nodesOut.size > maxNodes) {
+			throw new Error(
+				`zone trop grande pour ce zoom : plus de ${maxNodes.toLocaleString('fr-FR')} octants au niveau ${level}.\n` +
+				'  Réduis le zoom ou la zone (rayon/bbox/polygone) avant de relancer.'
+			);
+		}
 	}
+
+	// La file, vidée vers les places libres à chaque arrivée : au plus
+	// `concurrency` bulks en vol, et une réponse relance aussitôt la suivante.
+	// Un échec (réseau, plafond) arrête tout : les réponses encore en vol sont
+	// ignorées, pas absorbées — `failed` verrouille l'état de sortie.
+	await new Promise((resolve, reject) => {
+		let active = 0;
+		let failed = false;
+		const pump = () => {
+			if (failed) return;
+			while (active < concurrency && queue.length > 0) {
+				const { bulkPath, box, epoch } = queue.shift();
+				active++;
+				getBulk(bulkPath, epoch).then((bulk) => {
+					if (failed) return;
+					active--;
+					absorb(bulk, bulkPath, box);
+					if (active === 0 && queue.length === 0) resolve();
+					else pump();
+				}).catch((err) => {
+					if (failed) return;
+					failed = true;
+					reject(err);
+				});
+			}
+		};
+		pump();
+	});
 
 	// fill-in ancestors : voir le commentaire sur dropFillinAncestors() plus haut.
 	const droppedAncestors = dropFillinAncestors(nodesOut);
@@ -305,5 +378,5 @@ export async function traverse(zone, level, { signal, onLog, maxNodes = MAX_NODE
 	});
 
 	onLog?.({ stream: 'meta', line: `traversée : ${nodes.length} nœud(s) (+${droppedAncestors} ancêtre(s) fill-in écarté(s)), ${visitedBulks} bulk(s) visité(s).` });
-	return { nodes, visitedBulks, rootEpoch, radius };
+	return { nodes, visitedBulks, cachedBulks, rootEpoch, radius };
 }

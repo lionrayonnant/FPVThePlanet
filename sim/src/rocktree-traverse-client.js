@@ -19,7 +19,7 @@ function ensureWorker() {
 		if (!p) return;
 		pending.delete(msg.id);
 		if (!msg.ok) { p.reject(new Error(msg.error)); return; }
-		p.resolve({ nodes: msg.nodes, radius: msg.radius });
+		p.resolve({ nodes: msg.nodes, radius: msg.radius, visitedBulks: msg.visitedBulks, cachedBulks: msg.cachedBulks });
 	};
 	worker.onerror = (e) => {
 		for (const [id, p] of pending) {
@@ -29,6 +29,12 @@ function ensureWorker() {
 	};
 	return worker;
 }
+
+// Préchauffage (#21) : bootLive() l'appelle avant même d'attendre l'init de
+// Rapier, pour que le chargement du module du worker (un fetch + une
+// compilation en prod) se recouvre avec le reste du boot au lieu de s'ajouter
+// devant la première traversée. Idempotent.
+export function warmUp() { ensureWorker(); }
 
 // opts (signal/onLog/maxNodes) volontairement ignorées : la fenêtre appelle
 // _traverse(zone, level, {}) sans rien — les transmettre exigerait de faire

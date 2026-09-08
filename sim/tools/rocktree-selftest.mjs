@@ -14,6 +14,7 @@ import { PREFIX, nodeUrl } from './lib/rocktree/url.mjs';
 import * as rocktree from './lib/decoders/rocktree.mjs';
 import { pick } from './lib/decoders/index.mjs';
 import * as ge from './lib/providers/google-earth.mjs';
+import { createTraverseCache } from './lib/rocktree/traverse.mjs';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'testdata/rocktree');
 const FIX = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
@@ -971,6 +972,79 @@ await t('google-earth.mjs : plus aucune référence à Buffer dans le source (po
 	// (Buffer.from, Buffer.alloc, ...) qui casserait un Worker navigateur.
 	assert.doesNotMatch(src, /Buffer\./,
 		'google-earth.mjs appelle encore l\'API Buffer — src/rocktree-worker.js ne peut pas l\'importer tel quel');
+});
+
+await t('traversée pipelinée : même ensemble quel que soit l\'ordre d\'arrivée des bulks, sous plafond de concurrence (#21)', async () => {
+	// Le réseau mock répond dans un ordre ALÉATOIRE et mesure le nombre de
+	// requêtes simultanées : la file doit rester sous `concurrency`, et
+	// l'ensemble retenu doit être exactement celui de la marche séquentielle
+	// (l'oracle d'énumération, déjà verrouillé plus haut).
+	const deepest = FIX.nodes.reduce((a, b) => (a.path.length >= b.path.length ? a : b));
+	const kml = doubles(readFields(read(deepest.file)).find((f) => f.num === 5).value);
+	const pad = 0.002;
+	const zone = { west: kml[0] - pad, south: kml[1] - pad, east: kml[3] + pad, north: kml[4] + pad };
+	const fixtureHttp = fixtureNet();
+	let inFlight = 0, peak = 0;
+	const shuffledNet = async (url) => {
+		inFlight++; peak = Math.max(peak, inFlight);
+		await new Promise((r) => setTimeout(r, Math.random() * 8));
+		inFlight--;
+		return fixtureHttp(url);
+	};
+	const expected = traverseByEnumerationReference(fixtureBulks(), zone, 20);
+	const { nodes } = await withNet(shuffledNet, () => ge.traverse(zone, 20, { concurrency: 3 }));
+	assert.deepEqual(nodes.map((x) => x.path).sort(), [...expected.keys()].sort(), 'ensembles différents');
+	assert.ok(peak <= 3, `${peak} bulks en vol en même temps, plafond 3`);
+	assert.ok(peak >= 2, `${peak} bulk en vol au plus : la marche n'est pas pipelinée`);
+});
+
+await t('cache de traversée : un second appel sur la même zone ne touche plus le réseau, une zone voisine ne demande que la couronne nouvelle (#21)', async () => {
+	const deepest = FIX.nodes.reduce((a, b) => (a.path.length >= b.path.length ? a : b));
+	const kml = doubles(readFields(read(deepest.file)).find((f) => f.num === 5).value);
+	const pad = 0.002;
+	const zone = { west: kml[0] - pad, south: kml[1] - pad, east: kml[3] + pad, north: kml[4] + pad };
+	const fixtureHttp = fixtureNet();
+	let calls = 0;
+	const countingNet = (url) => { calls++; return fixtureHttp(url); };
+	const cache = createTraverseCache();
+
+	const first = await withNet(countingNet, () => ge.traverse(zone, 20, { cache }));
+	const coldCalls = calls;
+	assert.ok(coldCalls > 1, 'à froid, la marche doit passer par le réseau');
+	assert.equal(first.cachedBulks, 0, 'à froid, rien ne vient du cache');
+
+	calls = 0;
+	const second = await withNet(countingNet, () => ge.traverse(zone, 20, { cache }));
+	assert.equal(calls, 0, `${calls} requête(s) à chaud : le cache ne sert pas`);
+	assert.deepEqual(second.nodes.map((x) => x.path).sort(), first.nodes.map((x) => x.path).sort(),
+		'le résultat à chaud diffère du résultat à froid');
+	assert.equal(second.radius, first.radius, 'le rayon de la sphère vient du planetoid en cache');
+	// Les 404 (branches absentes de la capture) sont mémorisés aussi : ils
+	// coûtaient une requête à chaque recalcul pour la même réponse.
+	assert.ok(second.cachedBulks >= first.visitedBulks, `${second.cachedBulks} hits pour ${first.visitedBulks} bulks visités`);
+
+	// Zone décalée d'un demi-pas : les bulks profonds partagés restent servis
+	// par le cache, seuls ceux de la couronne nouvelle passent au réseau.
+	calls = 0;
+	const shifted = { ...zone, west: zone.west + pad, east: zone.east + pad };
+	const third = await withNet(countingNet, () => ge.traverse(shifted, 20, { cache }));
+	assert.ok(calls < coldCalls, `${calls} requêtes pour la zone voisine, autant qu'à froid (${coldCalls})`);
+	assert.ok(third.cachedBulks > 0, 'la zone voisine ne réutilise rien du cache');
+
+	// Un échec réseau n'entre pas dans le cache : le prochain appel retente.
+	const failing = async (url) => { if (/BulkMetadata/.test(url)) throw new Error('coupure'); return fixtureHttp(url); };
+	const fresh = createTraverseCache();
+	await assert.rejects(() => withNet(failing, () => ge.traverse(zone, 20, { cache: fresh })), /coupure/);
+	assert.equal(fresh.bulks.size, 0, 'un bulk en échec a été mémorisé');
+	calls = 0;
+	await withNet(countingNet, () => ge.traverse(zone, 20, { cache: fresh }));
+	assert.equal(calls, coldCalls - 1, 'après l\'échec, la marche doit repasser par le réseau (le planetoid seul est en cache)');
+
+	// Le plafond d'entrées évince les plus anciens sans jamais casser un résultat.
+	const tiny = createTraverseCache({ maxBulks: 2 });
+	const capped = await withNet(fixtureHttp, () => ge.traverse(zone, 20, { cache: tiny }));
+	assert.ok(tiny.bulks.size <= 2, `${tiny.bulks.size} entrées pour un plafond de 2`);
+	assert.deepEqual(capped.nodes.map((x) => x.path).sort(), first.nodes.map((x) => x.path).sort());
 });
 
 console.log(`rocktree-selftest : ${n} tests ok`);

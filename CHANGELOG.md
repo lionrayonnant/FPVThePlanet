@@ -78,6 +78,39 @@ rapport avec les versions ci-dessous.
 - L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build
   Vite) au lieu de la constante de lore `0.97b` (#9).
 
+- **Le chargement des cartes LIVE ne refait plus la marche rocktree à chaque
+  recalcul** (#21). `kh.google.com` interdit au cache HTTP de garder ses
+  réponses : tous les 50 m de vol, la fenêtre de streaming redemandait les
+  344 bulks d'une fenêtre de 300 m depuis la racine. La traversée est
+  désormais pipelinée (16 bulks en vol, plus de lots séquentiels de 8) et
+  garde ses bulks dans le worker pour toute la session ; la fenêtre ne
+  désire que les nœuds dont la boîte recoupe le disque de chargement (15,7 %
+  de nœuds en moins, tous dans le brouillard de bord) ; `bootLive()` lance
+  la première traversée avant d'attendre Rapier et crée ses workers
+  d'emblée. Mesuré, service réel, 60 ms de latence émulée par requête :
+  traversée de boot 4,3 s → 2,0 s, recalcul en vol 3,5 s → 80 ms.
+- **Build de production découpé et précompressé** (#21). Rapier (2 Mo de
+  WASM en base64) est chargé par `import()` dans `src/physics.js` — chunk
+  séparé, préchauffé pendant le terminal, le menu ne l'attend plus ; `three`
+  a son propre chunk, en cache d'une version à l'autre. `npm run build`
+  enchaîne `tools/precompress.mjs` (`.br`/`.gz` à côté des fichiers texte,
+  4,8 Mo → 1,0 Mo) et `server/static.mjs` les sert avec `Content-Encoding`,
+  `Vary`, une ETag par représentation, jamais sur un `Range`, jamais si la
+  variante est plus vieille que sa source. Onze vérifications de plus dans
+  `server-selftest.mjs`.
+- **Niveau de détail par anneaux en LIVE** (#22) : niveau 21 jusqu'à 150 m
+  du drone, 20 jusqu'à 300 m, 19 au-delà (`tools/lib/rocktree/lod.mjs`). Une
+  traversée par anneau (les suivantes servies par le cache de bulks), puis un
+  assemblage qui fait exclure aux nœuds grossiers les octants qu'un nœud plus
+  fin dessine — chaque point du disque couvert exactement une fois, vérifié
+  sur un octree synthétique jusqu'aux coutures. Mesuré, service réel : 1259 →
+  740 nœuds à 300 m, 4176 → 1003 à 600 m.
+- **Cache disque des réponses rocktree** (#22, `src/rocktree-cache.js`,
+  Cache API) : NodeData et BulkMetadata persistent entre sessions dans les
+  Workers — REDEPLOY et un second vol au même endroit ne repassent plus par
+  le réseau. Jamais PlanetoidMetadata (l'epoch), jamais une réponse non-ok,
+  5000 entrées au plus, fetch nu sans Cache API.
+
 ### Corrigé
 
 - Une installation locale ne se présente plus comme un serveur partagé. Le pied
