@@ -4,7 +4,7 @@ import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
 import { KEY_ACTIONS, KEY_MAP_STORAGE, keyMapRows, rebind, loadKeyMap } from './key-map.js';
-import { keyHints } from './terminal.js';
+import { button, keyHints } from './terminal.js';
 import { versionLine } from './version.js';
 
 const VOLUME_KEY = 'fpvtp.audioVolume';
@@ -123,7 +123,7 @@ let activeTab = TABS[0][0];
 // How long a row keeps saying what a rebind did to its neighbour.
 const SWAP_NOTICE_MS = 2000;
 
-// Ce que la ligne dit pendant qu'elle attend une touche.
+// What a row says while it waits for a key.
 const CAPTURE_PROMPT = 'PRESS A KEY — ESC CANCELS';
 
 // Minimal element builder. `id` is written to BOTH the property and the
@@ -141,12 +141,6 @@ function h(tag, props = {}, children = []) {
 	}
 	for (const c of children) el.appendChild(c);
 	return el;
-}
-
-// A button in the terminal's voice: the label between brackets, like every CTA
-// the operator screens draw.
-function panelButton(label, onClick, props = {}) {
-	return h('button', { type: 'button', text: `[ ${label} ]`, onclick: onClick, ...props });
 }
 
 // The Tab panel: input detection/binding, keyboard mapping, audio, system.
@@ -299,7 +293,7 @@ export class Settings {
 	// rather than patched: the map is the truth, the tab is a view of it.
 	buildKeyboard(box) {
 		box.appendChild(h('div', { id: 'key-rows', class: 'key-rows' }));
-		box.appendChild(panelButton('RESET KEYS', () => this.resetKeys()));
+		box.appendChild(button('RESET KEYS', () => this.resetKeys(), 'terminal-cta'));
 	}
 
 	buildAudio(box) {
@@ -339,7 +333,7 @@ export class Settings {
 		box.appendChild(h('div', { id: 'replay-row' }));
 		// Pas de confirm() de navigateur (§44, issue #213) : le bouton se
 		// réétiquette et la DEUXIÈME pression est la confirmation.
-		const reset = panelButton('RESET SETTINGS', null);
+		const reset = button('RESET SETTINGS', null, 'terminal-cta');
 		box.appendChild(reset);
 		armConfirm(reset, () => {
 			try {
@@ -390,8 +384,8 @@ export class Settings {
 			line.dataset.action = row.id;
 			line.appendChild(h('span', { class: 'key-name t-ui', text: row.label }));
 			line.appendChild(h('span', { class: 'key-keys t-data', text: row.keys.join(' · ') || '—' }));
-			// Une seule ligne parle à la fois : la capture en cours, sinon
-			// l'échange qui vient d'avoir lieu, sinon rien.
+			// One row speaks at a time: the capture in progress, else the swap
+			// that just happened, else nothing.
 			const note = h('span', {
 				class: 'key-note t-data',
 				text: this._capture === row.id ? CAPTURE_PROMPT
@@ -399,38 +393,54 @@ export class Settings {
 						: '',
 			});
 			line.appendChild(note);
-			const rebindBtn = panelButton('REBIND', () => this.startCapture(row.id), { class: 'key-rebind' });
+			const rebindBtn = button('REBIND', () => this.startCapture(row.id), 'terminal-cta key-rebind');
 			line.appendChild(rebindBtn);
 			box.appendChild(line);
 			this._keyRows.set(row.id, { line, note, rebind: rebindBtn });
 		}
 	}
 
-	// Une ligne parle SANS que la liste soit reconstruite. Ce n'est pas une
-	// optimisation : reconstruire retirerait du document le bouton qui vient
-	// d'être cliqué, le focus retomberait sur le corps de page, et l'écouteur
-	// de capture — posé sur le panneau — ne verrait jamais la touche suivante.
+	// A row speaks WITHOUT the list being rebuilt. Not an optimisation: a
+	// rebuild would take the just-clicked button out of the document, focus
+	// would fall back to the page body, and the capture listener — which sits
+	// on the panel — would never see the next key.
 	setRowNote(actionId, text) {
 		const row = this._keyRows?.get(actionId);
 		if (row) row.note.textContent = text;
 	}
 
-	// La prochaine touche appartient au panneau. L'écouteur est posé en phase
-	// de CAPTURE sur le panneau : il passe donc avant input.js (window, phase
-	// de bulle), et stopPropagation() garantit que la touche capturée ne pilote
-	// rien et ne ferme rien.
+	// The next key belongs to the panel. The listener sits on the panel in the
+	// CAPTURE phase, so it runs before input.js (window, bubble phase), and
+	// stopPropagation() guarantees the captured key flies nothing and closes
+	// nothing.
 	startCapture(actionId) {
-		if (this._swapNotice) { this.setRowNote(this._swapNotice.id, ''); this._swapNotice = null; }
+		if (this._swapNotice) { this.setRowNote(this._swapNotice.id, ''); this.clearSwapNotice(); }
+		// Arming a second row disarms the first: two rows both asking for a key
+		// would be a lie, since only one of them can get it.
+		if (this._capture && this._capture !== actionId) this.setRowNote(this._capture, '');
 		this._capture = actionId;
 		if (!this._captureKey) {
 			this._captureKey = (ev) => this.onCaptureKey(ev);
 			this.el.settings.addEventListener('keydown', this._captureKey, true);
+			// Clicking anywhere else gives up: an armed row left behind would go
+			// on swallowing keystrokes from a panel that looks idle.
+			this._capturePointer = (ev) => this.onCapturePointer(ev);
+			this.el.settings.addEventListener('pointerdown', this._capturePointer, true);
 		}
 		this.setRowNote(actionId, CAPTURE_PROMPT);
-		// L'écouteur est sur le PANNEAU : la touche ne lui parvient que si le
-		// focus est dedans. Un clic sur un bouton ne le donne pas partout
-		// (Safari ne focalise pas les boutons cliqués) — on le pose donc.
+		// The listener is on the PANEL: the key only reaches it while focus is
+		// inside. A click does not grant that everywhere (Safari does not focus
+		// clicked buttons), so it is set explicitly.
 		this._keyRows?.get(actionId)?.rebind.focus?.();
+	}
+
+	// Drops the swap notice AND its timer. Left alone, the timer would fire on
+	// a closed panel — or on a list rebuilt by RESET KEYS — and blank a row it
+	// no longer owns.
+	clearSwapNotice() {
+		if (this._swapTimer) clearTimeout(this._swapTimer);
+		this._swapTimer = 0;
+		this._swapNotice = null;
 	}
 
 	endCapture() {
@@ -438,7 +448,24 @@ export class Settings {
 			this.el.settings.removeEventListener('keydown', this._captureKey, true);
 			this._captureKey = null;
 		}
+		if (this._capturePointer) {
+			this.el.settings.removeEventListener('pointerdown', this._capturePointer, true);
+			this._capturePointer = null;
+		}
 		this._capture = null;
+	}
+
+	// A pointer landing outside the armed row cancels. The row's own REBIND is
+	// exempt: its click handler re-arms the same row, and cancelling first
+	// would make the second press look inert.
+	onCapturePointer(ev) {
+		if (!this._capture) return;
+		const row = this._keyRows?.get(this._capture)?.line;
+		const target = ev.target;
+		if (row && target && (row === target || row.contains?.(target))) return;
+		const actionId = this._capture;
+		this.endCapture();
+		this.setRowNote(actionId, '');
 	}
 
 	onCaptureKey(ev) {
@@ -447,8 +474,8 @@ export class Settings {
 		ev.preventDefault?.();
 		const actionId = this._capture;
 		this.endCapture();
-		// Échap abandonne, Tab aussi : ce sont les deux touches qui ferment le
-		// panneau, elles ne peuvent pas devenir des commandes de vol (D13).
+		// Escape cancels, and so does Tab: those two close the panel, so they
+		// can never become flight keys (D13).
 		const key = String(ev.key ?? '');
 		if (key === 'Escape' || key === 'Tab') { this.setRowNote(actionId, ''); return; }
 
@@ -469,14 +496,14 @@ export class Settings {
 			this._swapTimer?.unref?.();
 		}
 		this.renderKeyboard();
-		// Le focus revient sur le bouton qu'on vient d'actionner : la navigation
-		// aux flèches (menu-nav) reprend là où elle était.
+		// Focus returns to the button just used, so arrow navigation (menu-nav)
+		// carries on where it was.
 		this._keyRows.get(actionId)?.rebind.focus?.();
 	}
 
 	resetKeys() {
 		this.endCapture();
-		this._swapNotice = null;
+		this.clearSwapNotice();
 		const map = this.input.setKeyMap(loadKeyMap(null));
 		try { localStorage.setItem(KEY_MAP_STORAGE, JSON.stringify(map)); } catch { }
 		this.renderKeyboard();
@@ -493,7 +520,7 @@ export class Settings {
 		const row = this.el?.replayRow ?? this._sections.system.querySelector('[id="replay-row"]');
 		row.replaceChildren();
 		if (this.onReplayBriefing) {
-			row.appendChild(panelButton('REPLAY BRIEFING', () => this.onReplayBriefing?.()));
+			row.appendChild(button('REPLAY BRIEFING', () => this.onReplayBriefing?.(), 'terminal-cta'));
 		}
 	}
 
@@ -566,9 +593,9 @@ export class Settings {
 		// traité DEUX fois (main.js et le `back` de menu-nav), et une garde qui
 		// annulait au premier passage laissait le second fermer quand même.
 		if (!show && this._cal) this.cancelCalibration();
-		// Une capture de touche ne survit pas non plus au panneau fermé : son
-		// écouteur partirait avec, et la touche suivante serait avalée.
-		if (!show) this.endCapture();
+		// A key capture does not survive a closed panel either: its listener
+		// would linger, and the next keystroke would be swallowed.
+		if (!show) { this.endCapture(); this.clearSwapNotice(); }
 		if (show) {
 			this.selectTab(activeTab);
 			this.buildAxisRows();

@@ -61,6 +61,7 @@ function mount() {
 			|| b.textContent === `[ ${label} ]`),
 		// A key press as the panel sees it while capturing: the listener sits on
 		// the panel, in the capture phase.
+		down: (target) => el.dispatchEvent({ type: 'pointerdown', target }),
 		key: (k) => {
 			const ev = {
 				type: 'keydown', key: k,
@@ -162,6 +163,39 @@ t('a conflicting key swaps the two actions and the row says so', () => {
 	assert.ok(map.throttleDown.length > 0, 'and is never left unbound');
 	const after = p.rows().find((r) => r.dataset.action === 'yawLeft');
 	assert.ok(after.textContent.includes('SWAPPED WITH THROTTLE DOWN'), after.textContent);
+	p.settings.open('controller');
+});
+
+t('arming a second row disarms the first — one prompt on screen, one binding', () => {
+	const p = mount();
+	p.settings.open('keyboard');
+	const rebindOf = (id) => p.rows().find((r) => r.dataset.action === id)
+		.querySelectorAll('button').find((b) => b.textContent.includes('REBIND'));
+	rebindOf('cutLink').click();
+	rebindOf('respawn').click();
+	const note = (id) => p.rows().find((r) => r.dataset.action === id).textContent;
+	assert.ok(!note('cutLink').includes('PRESS A KEY'), 'the first row gave up its prompt');
+	assert.ok(note('respawn').includes('PRESS A KEY'), 'the second row asks');
+
+	p.key('x');
+	assert.deepEqual(p.input.getKeyMap().respawn, ['x'], 'the armed row gets the key');
+	assert.deepEqual(p.input.getKeyMap().cutLink, DEFAULT_KEY_MAP.cutLink, 'the disarmed one is untouched');
+	p.settings.open('controller');
+});
+
+t('a pointer down outside the armed row ends the capture', () => {
+	const p = mount();
+	p.settings.open('keyboard');
+	const row = p.rows().find((r) => r.dataset.action === 'photo');
+	row.querySelectorAll('button').find((b) => b.textContent.includes('REBIND')).click();
+	// On the row itself, nothing happens: its own REBIND re-arms it.
+	p.down(row.querySelectorAll('button')[0]);
+	assert.ok(row.textContent.includes('PRESS A KEY'), 'the armed row survives its own row');
+
+	p.down(p.tabs()[0]);
+	assert.ok(!p.rows().find((r) => r.dataset.action === 'photo').textContent.includes('PRESS A KEY'));
+	p.key('x');
+	assert.deepEqual(p.input.getKeyMap().photo, DEFAULT_KEY_MAP.photo, 'no trap left swallowing keys');
 	p.settings.open('controller');
 });
 
