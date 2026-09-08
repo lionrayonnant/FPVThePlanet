@@ -45,6 +45,19 @@ rapport avec les versions ci-dessous.
   sol manquait 0,86 % du temps ; à 6, elle ne s'accumule plus (0) et le manque
   tombe à 0,44 %, pour 50 fps au lieu de 51.
 
+- Un nœud que le LOD remplace par un AUTRE NIVEAU (le même sol qui passe du
+  niveau 21 au 20 en s'éloignant) n'est plus retiré de la scène avant que son
+  remplaçant n'y soit posé. C'est le gros du churn : à 600 m de portée, un
+  recentrage change le niveau de ~124 nœuds contre ~16 qui quittent vraiment
+  le disque. La fenêtre marque la libération `covered` et `main.js` la diffère
+  jusqu'à ce que sa file de builds soit vide — c'est là, et pas dans la
+  fenêtre, que la décision doit se prendre : la fenêtre ne connaît que ses
+  fetchs, et libérer au retour du réseau (premier essai) creusait un trou PLUS
+  grand qu'avant. Effet mesuré, honnêtement : le pic de sol absent passe de
+  6,03/6,13 % à 5,67/5,67 % sur deux paires de passes, la moyenne reste dans
+  le bruit (1,21/1,67 % contre 1,48/0,99 %). Le mécanisme supprime une classe
+  de trous par construction ; son gain chiffré est faible.
+
 ### Corrigé
 
 - Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de

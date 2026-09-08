@@ -262,6 +262,15 @@ let liveEdgeUniforms = null;    // uniformes partagés du fondu de bord du terra
 // frame, et l'exécuter à l'arrivée gelait le rendu 70-330 ms par vague.
 const pendingNodeBuilds = new Map();    // path -> { matrix, meshes, sphereRadius }
 const pendingNodeReleases = [];         // paths dont mesh+collider sont à retirer
+// Paths qu'un AUTRE NIVEAU remplace (#32) : leur mesh reste à l'écran jusqu'à
+// ce que la file de builds soit vide, donc jusqu'à ce que le sol qu'ils
+// couvraient soit réellement redessiné. Le LOD par anneaux en produit ~124 par
+// recentrage à 600 m de portée (mesuré à Paris) — bien plus que les ~16 qui
+// quittent vraiment le disque. C'est ici, et pas dans la fenêtre, que la
+// décision se prend : la fenêtre ne connaît que ses fetchs, elle ignore cette
+// file-ci, et libérer au retour du réseau creusait un trou PLUS grand qu'avant
+// (3,11 % de sol absent en moyenne contre 0,54 %).
+const coveredReleases = [];
 // ~3 ms : ce qui tient dans une frame de 60 fps déjà occupée par la physique
 // et le rendu sans la faire déborder de 16,7 ms. Une vague de 800 nœuds
 // (~1,1 s de travail) s'étale ainsi sur ~5 s au lieu de geler l'image —
@@ -313,7 +322,13 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 			continue;
 		}
 		const next = pendingNodeBuilds.entries().next();
-		if (next.done) break;
+		if (next.done) {
+			// Plus rien à construire : la vague est posée, le sol que les nœuds
+			// d'un autre niveau couvraient est redessiné. Ils peuvent partir —
+			// à la prochaine tour de boucle, sous le même budget.
+			if (coveredReleases.length > 0) { pendingNodeReleases.push(...coveredReleases); coveredReleases.length = 0; continue; }
+			break;
+		}
 		const [path, job] = next.value;
 		pendingNodeBuilds.delete(path);
 		const built = buildNodeMesh(path, job.meshes);
@@ -1163,6 +1178,8 @@ async function bootLive([lat, lon]) {
 			// tout le temps du refetch (les libérations passent avant les
 			// builds), et c'est l'anneau qui « recharge » vu en volant.
 			if (opts?.replaced) return;
+			// Remplacé par un autre niveau : on diffère, voir coveredReleases.
+			if (opts?.covered && liveMeshes.has(path)) { coveredReleases.push(path); fenceDome?.markChurn(); return; }
 			// Sans ce drapeau, la libération est franche. Un build encore en
 			// file est jeté — mais PAS au prix d'oublier ce qui est déjà en
 			// scène : depuis l'échange ci-dessus, un chemin peut être à la fois

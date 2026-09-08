@@ -227,6 +227,22 @@ export class RocktreeWindow {
 		// l'erreur s'accumule tant que le nœud reste dans la fenêtre. Le
 		// refetch ne coûte pas de réseau (Cache API du pool, #21), seulement un
 		// re-build — le prix du bon maillage.
+		// Tous les préfixes des chemins désirés : de quoi reconnaître, pour un
+		// nœud qui s'en va, s'il est REMPLACÉ par un autre niveau (un ancêtre
+		// ou un descendant couvre le même sol) plutôt que vraiment quitté.
+		// Le LOD par anneaux en produit ~124 par recentrage à 600 m de portée,
+		// mesuré à Paris — bien plus que les ~16 qui sortent réellement du
+		// disque. Les libérer aussitôt rouvre le trou que l'échange de #31
+		// avait fermé : là, le remplaçant n'a PAS le même chemin (21 -> 20,
+		// c'est le parent), donc l'échange par chemin ne s'applique pas.
+		const desiredPrefixes = new Set();
+		for (const p of desired.keys()) for (let len = 1; len <= p.length; len++) desiredPrefixes.add(p.slice(0, len));
+		const coveredByOtherLevel = (path) => {
+			if (desiredPrefixes.has(path)) return true;               // un désiré descend sous lui
+			for (let len = 1; len < path.length; len++) if (desired.has(path.slice(0, len))) return true;   // un ancêtre désiré le couvre
+			return false;
+		};
+
 		// Les nœuds dont on garde le mesh à l'écran en attendant le remplaçant :
 		// si le refetch échoue, il faudra bien finir par le retirer (sinon plus
 		// aucune entrée ne le libérera jamais).
@@ -235,6 +251,22 @@ export class RocktreeWindow {
 			const entry = this._nodes.get(path);
 			const want = desired.get(path);
 			if (want && sameExclude(entry.exclude, want.exclude)) continue;
+			// Remplacé par un autre niveau : on le laisse à l'écran, l'appelant
+			// le retirera quand la vague sera CONSTRUITE. Deux niveaux du même
+			// sol dessinés ensemble une seconde, c'est un scintillement ; un
+			// trou, c'est le ciel à travers le sol. On préfère le scintillement.
+			if (!want && entry.status === 'ready' && coveredByOtherLevel(path)) {
+				// `covered` : l'appelant garde le mesh à l'écran jusqu'à ce que la
+				// VAGUE SOIT CONSTRUITE, pas seulement reçue du réseau. Cette
+				// nuance est tout : la fenêtre ne connaît que ses fetchs, elle
+				// ignore la file de builds étalée sous budget par frame — libérer
+				// au retour du réseau creusait un trou PLUS grand qu'avant
+				// (mesuré : 3,11 % de moyenne contre 0,54 %). C'est donc à
+				// l'appelant de choisir le moment.
+				this._nodes.delete(path);
+				this._onNodeReleased(path, { covered: true });
+				continue;
+			}
 			if (entry.status === 'pending') entry.controller.abort();
 			// Un nœud TOUJOURS désiré dont seul le maillage change n'est pas
 			// retiré de la scène tout de suite : `replaced` dit à l'appelant

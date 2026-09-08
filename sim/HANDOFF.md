@@ -3337,3 +3337,66 @@ d'où le pool à 6 workers.
   le plafond de 2 km n'a pas été éprouvé ailleurs.
 - La VRAM n'est pas mesurée directement : `textures × 0,58 Mo` est une
   estimation reprise de #191 (~948 Mo à 2 km), pas une lecture GPU.
+
+## D'où vient le rechargement permanent en vol (issue #32)
+
+### Vérifié — décomposé nœud par nœud, Node et en jeu
+
+« Ça recharge en permanence quand le drone bouge » : mesuré, à chaque
+recentrage de 50 m sur une fenêtre de ~980 nœuds (Paris, portée 600 m) —
+
+| cause | nœuds/recentrage |
+|---|---|
+| sortent vraiment du disque | 12-22 |
+| entrent vraiment (terrain neuf) | 12-17 |
+| **changent d'anneau LOD (même sol, autre niveau)** | **108-204** |
+
+Et par régime, en comptant les demandes faites aux workers :
+
+| situation | demandés | déjà traités |
+|---|---|---|
+| drone immobile, 8 s | 0 | 0 |
+| ligne droite 600 m, zone neuve | 1817 | 180 (10 %) |
+| aller-retour 120 m, zone connue | 2852 | 1513 (53 %) |
+
+Donc : à l'arrêt rien ne charge ; en ligne droite 90 % est du terrain neuf ;
+le gâchis est le va-et-vient, et le churn d'anneau.
+
+### Ce qui a été essayé et REJETÉ, mesuré
+
+- **Ancrer les frontières d'anneaux sur une grille** (100/200/300 m) pour
+  qu'elles cessent de balayer le sol : churn 124 → 148 → 171 par recentrage.
+  Pire, parce que l'ancre saute alors d'un coup et déplace toute la frontière.
+- **Élargir les anneaux** (400/800/1600) : churn 198, et 2639 nœuds au lieu de
+  1003. Une frontière plus lointaine est plus longue, donc balaie plus.
+- **Supprimer le LOD** (tout au niveau 21 sur 600 m) : le churn d'anneau tombe
+  à 1, mais 260 nœuds sortent/entrent par recentrage au lieu de 16, pour 4176
+  nœuds en mémoire au lieu de 1003. Travail total par recentrage : 261 contre
+  140. Deux fois pire, quatre fois plus lourd.
+- **Monter les budgets de drain** : voir plus haut, aucun effet, annulé.
+
+Conclusion : la table d'anneaux actuelle est le bon compromis. Le churn est le
+prix du LOD, pas un défaut à corriger.
+
+### Ce qui a été gardé
+
+Ne plus retirer un nœud remplacé par un autre niveau avant que son remplaçant
+soit CONSTRUIT (drapeau `covered`, différé dans `main.js` jusqu'à ce que
+`pendingNodeBuilds` soit vide). Premier essai côté fenêtre, sur
+`pendingCount()` : creusait un trou plus grand (3,11 % de moyenne contre
+0,54 %), parce que la fenêtre ne connaît que ses fetchs et ignore la file de
+builds étalée sous budget.
+
+### Non vérifié / à savoir
+
+- Le gain chiffré du drapeau `covered` est FAIBLE et partiellement dans le
+  bruit : sur deux paires de passes appariées (même trajet, 20 échantillons),
+  pic 6,03/6,13 % sans contre 5,67/5,67 % avec ; moyennes 1,21/1,67 % contre
+  1,48/0,99 %. Le pic baisse de façon reproductible, la moyenne non. Le
+  mécanisme est gardé parce qu'il supprime une classe de trous par
+  construction, pas sur la foi d'un gain démontré.
+- Le va-et-vient (53 % de nœuds redemandés) n'est PAS traité. Le remède serait
+  un cache LRU de nœuds construits (~624 Kio par nœud gardé) ; il n'a pas été
+  chiffré ni implémenté.
+- Rien n'a été piloté à la main : tous les vols sont simulés par
+  `__sim.teleport()`.

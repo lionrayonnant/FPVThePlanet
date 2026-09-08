@@ -346,4 +346,38 @@ await t('un nœud toujours désiré mais dont l\'exclude a changé est reconstru
 	assert.equal(fetched.length, 2, 'un exclude inchangé ne provoque aucun refetch');
 });
 
+await t('un nœud remplacé par un autre NIVEAU n\'est libéré qu\'une fois le remplaçant prêt (#32)', async () => {
+	// Le LOD par anneaux fait changer de niveau ~124 nœuds par recentrage
+	// (mesuré à Paris, portée 600 m) : le même sol passe du niveau 21 au 20,
+	// donc d'un chemin à son PARENT. Libérer l'ancien tout de suite rouvre le
+	// trou que l'échange de #31 avait fermé — sauf que là, le remplaçant n'a
+	// pas le même chemin, donc l'échange par path ne s'applique pas.
+	const PARENT = { path: '3060', epoch: 1014, imageryEpoch: null, flags: 0 };
+	const ENFANT = { path: '30601', epoch: 1014, imageryEpoch: null, flags: 0 };
+	let nodes = [ENFANT];
+	const traverse = async () => ({ nodes, radius: RADIUS });
+	let resolveFetch;
+	const fetchNode = async (n) => {
+		if (n.path === '3060') await new Promise((r) => { resolveFetch = r; });
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const released = [], ready = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: (p) => ready.push(p), onNodeReleased: (p, opts) => released.push([p, opts?.covered ? 'covered' : 'sec']), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(ready, ['30601']);
+	// Le drone s'éloigne : le même sol passe au niveau du dessus.
+	nodes = [PARENT];
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	// La libération est MARQUÉE, pas sèche : c'est l'appelant (main.js) qui
+	// garde le mesh jusqu'à ce que sa file de builds soit vide — la fenêtre,
+	// elle, ne connaît que ses fetchs.
+	assert.deepEqual(released, [['30601', 'covered']], 'libération marquée « remplacé par un autre niveau »');
+	resolveFetch();
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(ready, ['30601', '3060'], 'le parent est arrivé');
+	// Et le nœud n'est plus compté comme chargé : s'il redevenait désiré, il
+	// serait refetché normalement.
+	assert.equal(win.pendingCount(), 0);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
