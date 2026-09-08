@@ -250,7 +250,7 @@ export async function ensureDevOperator() {
 // --- la clé sur TOUTES les requêtes de l'API du jeu ---------------------------
 //
 // Un seul point d'attache, et c'est délibéré : `/__map-api` est appelé depuis
-// scanner.js, bootstrap.js, post-flight.js et terminal.js, `/__operator/:id`
+// scanner.js, bootstrap.js, session-log.js et terminal.js, `/__operator/:id`
 // aussi depuis weather.js. Répéter l'en-tête dans chaque module, c'est
 // s'exposer au premier oubli — qui ne se verrait qu'en `shared`, sur le seul
 // hébergement où il compte. En `local` le serveur ne lit jamais l'en-tête : ce

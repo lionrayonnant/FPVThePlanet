@@ -277,3 +277,24 @@ export const FAMILIES = [
 
 export const DEFAULT_FAMILY = 'freestyle5';
 export const DEFAULT_PROFILE = PROFILES[DEFAULT_FAMILY];
+
+// The seed a NOMINAL build wears, so every flight has a portrait (D12).
+//
+// A flight that draws no target — the `?family=` dev override, NOMINAL at the
+// bench, `?scene=` without a scan — has no buildSeed, and the end screen used
+// to lose its machine with it. This gives it one, derived from the family name
+// alone: deterministic (the same family always looks the same), distinct per
+// family, and never used by the physics — `flightBuild` stays null, so the
+// profile flown is still the reference tune. It only feeds the picture.
+//
+// FNV-1a 32 bits, the same hash tools/target-build.mjs seeds its RNG with.
+export function nominalBuildSeed(family) {
+	let h = 0x811c9dc5;
+	const s = String(family ?? DEFAULT_FAMILY);
+	for (let i = 0; i < s.length; i++) {
+		h ^= s.charCodeAt(i);
+		h = Math.imul(h, 0x01000193);
+	}
+	// `|| 1`: a seed of 0 is falsy, and every consumer guards on truthiness.
+	return (h >>> 0) || 1;
+}

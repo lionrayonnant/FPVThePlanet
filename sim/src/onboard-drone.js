@@ -1,6 +1,6 @@
 // Le drone du joueur (issue #264) — deux exemplaires du MÊME build, et la
 // règle qui les sépare : en vue pilote on voit ses hélices (l'exemplaire
-// embarqué) ; en free cam on voit la machine entière (l'exemplaire monde).
+// embarqué) ; en vue CHASE on voit la machine entière (l'exemplaire monde).
 // Jamais les deux, jamais aucun pendant un vol.
 //
 // Ce module ne sait rien du contrôleur ni de Rapier : il reçoit une pose et
@@ -41,7 +41,7 @@ export class PlayerDrone {
 
 		const recipe = { profile, build: buildFor(profile, build), camera };
 		// L'exemplaire MONDE, posée à la transformation physique. Au niveau
-		// `portrait` (issue #283) : la free cam est à un mètre et demi, pas à
+		// `portrait` (issue #283) : la vue CHASE est à 1,6 m, pas à
 		// cent — on y voit les pales à l'arrêt, les cloches et les moyeux. La
 		// silhouette reste aux ambiants, qui sont les seuls à la mériter de loin.
 		this.world = buildDroneMesh(shapeOf({ ...recipe, detail: 'portrait' }), { colors: this._colors });
@@ -88,14 +88,16 @@ export class PlayerDrone {
 		// soleil dans le repère embarqué à chaque frame.
 		this._tilt = new THREE.Quaternion().setFromAxisAngle(X_AXIS, up);
 
-		this._freeCam = false;
+		this._chase = false;
 		this._time = 0;
 	}
 
-	setFreeCam(on) {
-		this._freeCam = !!on;
-		this.world.group.visible = this._freeCam;
-		if (this.onboard) this.onboard.group.visible = !this._freeCam;
+	// CHASE view (D11) shows the whole machine and drops the onboard pass;
+	// FPV is the opposite. The two are exclusive: they are the same drone.
+	setChase(on) {
+		this._chase = !!on;
+		this.world.group.visible = this._chase;
+		if (this.onboard) this.onboard.group.visible = !this._chase;
 	}
 
 	get worldVisible() { return !!this.world?.group.visible; }

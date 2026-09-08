@@ -9,9 +9,8 @@ import { PORTRAIT_LINE } from './flight-end.js';
 // Le portrait de la machine perdue (#264). Du SVG en ligne : la couche locale
 // est du DOM, elle n'ouvre pas de contexte de rendu.
 import { dronePortrait } from './drone-portrait.js';
-
-// Constante de lore, pas une version de paquet.
-export const FPVTP_VERSION = '0.97b';
+import { droneViewer } from './drone-viewer.js';
+import { versionLine } from './version.js';
 
 // D'où le vent pousse, dans le repère du drone : l'index 0 est droit devant.
 const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
@@ -42,7 +41,7 @@ export class FpvtpOsd {
 		root.insertAdjacentHTML('beforeend', `
 			<div id="fpvtp-osd" hidden>
 				<div class="corner tl">
-					<div id="fo-ident">FPVTP! // ${FPVTP_VERSION}</div>
+					<div id="fo-ident">${versionLine()}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
 				</div>
@@ -50,6 +49,7 @@ export class FpvtpOsd {
 					<div id="fo-mode">ACRO</div>
 					<div id="fo-rates">—</div>
 					<div id="fo-input">KEYBOARD</div>
+					<button type="button" id="fo-view">[V] FPV</button>
 					<div id="fo-fps">—</div>
 				</div>
 				<div class="corner bl">
@@ -62,6 +62,7 @@ export class FpvtpOsd {
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
 				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
+				<div id="fo-hint" hidden></div>
 				<div id="flight-end" hidden></div>
 			</div>`);
 
@@ -73,6 +74,7 @@ export class FpvtpOsd {
 			mode: q('#fo-mode'),
 			rates: q('#fo-rates'),
 			input: q('#fo-input'),
+			view: q('#fo-view'),
 			fps: q('#fo-fps'),
 			env: q('#fo-env'),
 			photo: q('#fo-photo'),
@@ -80,6 +82,7 @@ export class FpvtpOsd {
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
 			cut: q('#fo-cut'),
+			hint: q('#fo-hint'),
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
@@ -99,29 +102,70 @@ export class FpvtpOsd {
 		this._flashUntil = 0;
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
+		// D16: the first-flight line, same rule — what it says is decided
+		// elsewhere (tools/briefing-model.mjs); this layer only paints it.
+		this._hintText = '';
 		// #264 : l'exemplaire en vol, et son dessin une fois le lien perdu. Le
 		// dessin n'est fabriqué qu'au moment où la ligne apparaît — un vol qui
 		// se termine bien n'en construit jamais.
 		this._target = null;
 		this._portrait = null;
+		// D11: the current view, and the only clickable element of the layer —
+		// the OSD is pointer-events: none, this one takes them back.
+		this._view = 'fpv';
+		this._viewToggle = null;
+		this._endUp = false;
+		this.el.view.addEventListener('click', () => this._viewToggle?.());
+		this._paintView();
+	}
+
+	// The FPV / CHASE toggle (D11). The label names the key: without it the
+	// view exists and nobody finds it — the same rule as [HOLD K] below.
+	// `onToggle` is re-registered on every call: main.js is its source.
+	setView(mode, onToggle) {
+		this._view = mode === 'chase' ? 'chase' : 'fpv';
+		if (onToggle !== undefined) this._viewToggle = onToggle;
+		this._paintView();
+	}
+
+	_paintView() {
+		const text = this._view === 'chase' ? '[V] CHASE' : '[V] FPV';
+		if (this.el.view.textContent !== text) this.el.view.textContent = text;
+		// The flight is over: there is no view left to choose, and the end
+		// screen holds the screen on its own.
+		this.el.view.hidden = this._endUp;
 	}
 
 	// L'exemplaire que la station suit (#264) : `family` et `buildSeed`, les
 	// deux champs dont le portrait se déduit. Sans eux — chemins dev, override
 	// NOMINAL — la ligne du portrait reste un blanc, jamais son jeton.
+	//
+	// `cameraSeed` (D12) is the SESSION seed, the one main.js draws the
+	// target's camera from — and therefore the pod the machine wears in
+	// flight. The wireframe portrait ignores it; the 3D view, which shows the
+	// real mesh, would otherwise fit a different pod than the one that flew.
 	setTarget(target) {
 		const family = target?.family ?? null;
 		const buildSeed = target?.buildSeed ?? null;
-		if (this._target?.family === family && this._target?.buildSeed === buildSeed) return;
+		const cameraSeed = target?.cameraSeed ?? null;
+		if (this._target?.family === family && this._target?.buildSeed === buildSeed
+			&& this._target?.cameraSeed === cameraSeed) return;
 		this._dropPortrait();
-		this._target = (family && buildSeed) ? { family, buildSeed } : null;
+		this._target = (family && buildSeed) ? { family, buildSeed, cameraSeed } : null;
 	}
 
 	// Le nœud du portrait, fabriqué une seule fois : la séquence de fin
 	// reconstruit ses lignes à chaque ligne qui apparaît, et un portrait
 	// reconstruit à chaque fois repartirait de son premier angle.
+	//
+	// D12: the REAL machine first, in 3D and turnable — we are inside the sim,
+	// the mesh and its shaders are already loaded. The SVG wireframe stays the
+	// fallback, for a WebGL context that is missing or has been lost; it also
+	// stays what the archive shows, which does not have Three.
 	_portraitNode() {
-		if (!this._portrait && this._target) this._portrait = dronePortrait(this._target);
+		if (!this._portrait && this._target) {
+			this._portrait = droneViewer(this._target) ?? dronePortrait(this._target);
+		}
 		return this._portrait?.el ?? null;
 	}
 
@@ -143,7 +187,7 @@ export class FpvtpOsd {
 
 	// Disponibilité de la capture (PHASE 16) : vrai seulement quand ce qu'on
 	// verrait à l'écran est vraiment le flux de la cible (en vol, armé, pas en
-	// caméra libre, pas pendant l'agonie du lien).
+	// vue CHASE, pas pendant l'agonie du lien).
 	setPhotoReady(ready) { this._photoReady = !!ready; this._renderPhoto(); }
 
 	// `count` est celui que le serveur a renvoyé — il fait autorité, pas un
@@ -174,7 +218,7 @@ export class FpvtpOsd {
 			: '';
 	}
 
-	// Verdict de fin de session (PHASE 06). kind: 'landed' | 'lost' | null.
+	// Verdict de fin de session (PHASE 06). kind: 'lost' | null.
 	setSessionStatus(text, kind = null) {
 		this._status = text ? { text, kind } : null;
 		this._refreshCentre();
@@ -222,6 +266,21 @@ export class FpvtpOsd {
 		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
 	}
 
+	// The first-flight line (D16). Like #fo-cut: what it says is decided
+	// elsewhere — main.js calls flightHint() every frame — and this layer only
+	// paints it. `null` turns it off. The DOM is touched only when the text
+	// changes: this is called sixty times a second.
+	//
+	// Three lines, once in an operator's life: this is not permanent help, it
+	// is a briefing that ends.
+	setHint(text) {
+		const next = text || '';
+		if (next === this._hintText) return;
+		this._hintText = next;
+		this.el.hint.textContent = next;
+		this.el.hint.hidden = !next;
+	}
+
 	// L'écran de fin de vol (PHASE 14). Il n'annonce pas une défaite : il montre
 	// un lien qui s'éteint. `blackout` est l'opacité du noir qui recouvre la
 	// dernière image, `lines` ce qui s'écrit dessus, une ligne à la fois.
@@ -229,6 +288,10 @@ export class FpvtpOsd {
 	// cette mise en scène, elle ne traverse pas la liaison.
 	setFlightEnd({ lines, blackout }) {
 		const e = this.el.flightEnd;
+		if (this._endUp !== (lines.length > 0 || blackout > 0)) {
+			this._endUp = lines.length > 0 || blackout > 0;
+			this._paintView();
+		}
 		if (!lines.length && blackout <= 0) {
 			if (!e.hidden) {
 				e.hidden = true; e.textContent = ''; this._endLines = '';

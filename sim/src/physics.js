@@ -422,7 +422,8 @@ export class Physics {
 			// caoutchouc sur pierre ou béton (0,5-0,8 en pratique), soit une
 			// tenue jusqu'à 31° — cohérent avec la limite déjà mesurée du
 			// modèle sphère (au-delà de ~33° la sphère glisse et quitte la
-			// pente, voir tools/landing-selftest.mjs).
+			// pente, mesuré au banc de pose retiré avec l'atterrissage — D9,
+			// 2026-09-08).
 			const dv = MU_GROUND * GRAVITY * dt;
 			const sp = Math.hypot(lv.x, lv.z);
 			// `sp <= dv` : la friction avait de quoi tout arrêter dans ce pas.

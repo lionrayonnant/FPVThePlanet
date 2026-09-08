@@ -335,6 +335,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     même si la sim se fige (pause, réglages, caméra libre) entre le geste du
     joueur et sa sortie. `dt=0` fige la timeline et le compteur de pose sans
     perdre l'événement.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - Trois voies de fermeture : crash (`crashed` déjà décidé par
     `CRASH_IMPULSE`/`CRASH_IMPULSE_FLAT` de `main.js`, réutilisés tels quels),
     pose tenue (`_advanceLanding`, hystérésis sur hauteur/vitesse/vitesse
@@ -368,6 +369,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     `lens.render()` dans `main.js`, gardé sur `flightEnd.out.linkDead` (pas
     `crashedThisFrame`) pour qu'un choc encaissé après un `LANDED` ne rejoue pas
     la mort d'image par-dessus l'écran `END SESSION`.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - **Vérifié en headless** :
     - `tools/flight-end-selftest.mjs` : 20 tests, sans DOM/Rapier — impact →
       crash, timing des lignes de crash et de pose (chacune avec ses lignes
@@ -643,6 +645,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     0,093 ms/frame comme pire cas — l'ordre de grandeur (quelques % du
     budget) est stable, la valeur exacte varie avec la charge machine au
     moment du bench.
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - `npm run selftest` (158/158) et `npm run selftest:operator` (chaîne
     complète, `landing-selftest.mjs` inclus une fois le lien symbolique
     `public/scenes` en place) : verts de bout en bout, PHASE 20 en queue de
@@ -1051,6 +1054,7 @@ Plan d'origine (contexte de la décision d'architecture) :
   - Confirmations ajoutées à la capture du vecteur : Entrée et bouton A
     confirment quand le vecteur est complet, B efface (mêmes conditions que le
     bouton `CONFIRM VECTOR`).
+  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - **Vérifié headless** : `tools/menu-nav-selftest.mjs` (10 tests, logique
     pure : index circulaire, pas de slider borné, classement saisie de texte),
     chaîné dans `selftest:operator` ; toute la chaîne `selftest:operator`
@@ -1203,6 +1207,51 @@ Plan d'origine (contexte de la décision d'architecture) :
   vallée a toujours du sol dessous, un trou non). Mesuré : Paris chaud boot
   complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
   (plus jamais −500), monde stable.
+
+## Polish pré-release (issues #6 à #16, branche pre-release-polish)
+
+État au 2026-09-08. Spec :
+`docs/superpowers/specs/2026-09-08-pre-release-polish-design.md`, plan :
+`docs/superpowers/plans/2026-09-08-pre-release-polish.md`.
+
+### Vérifié (headless)
+
+- Huit selftests neufs chaînés dans `selftest:operator` :
+  `version-selftest`, `sun-agc-selftest`, `key-map-selftest`,
+  `chase-camera-selftest`, `drone-viewer-selftest`, `settings-render-selftest`,
+  `briefing-selftest`, `briefing-render-selftest`. `selftest:ci` (donc
+  `selftest:operator` + `selftest:api`) et `npm run build` passent.
+- `landing-selftest` et `post-flight-selftest` retirés (l'atterrissage et
+  l'écran `POST-FLIGHT ANALYSIS` n'existent plus).
+- Les vols EN DIRECT sont bien archivés (Session Log, Target Log, compteur
+  OPERATOR) et jamais proposés en REVISIT/RESUME : `session-log-selftest`.
+
+### Non vérifié (a besoin d'un navigateur / d'une scène) — en cours au moment d'écrire
+
+La passe visuelle est faite par un autre agent en parallèle. Reste à confirmer :
+
+- Le menu racine à quatre entrées (`FIELD`, `BENCH`, `ARCHIVE`, `SETTINGS`).
+- FIELD onglets LIVE-first et l'avis LOCAL sur un serveur partagé qui n'acquiert
+  pas.
+- Les lignes d'indice `[ESC]` sur les écrans qui les portent.
+- Le drone 3D sur les trois écrans de fin (crash, sortie de zone, lien coupé),
+  y compris le glissement à la souris avec l'amortissement à zéro.
+- Le cadrage de la vue CHASE (1,6 m en arrière, 0,6 m au-dessus).
+- Les onglets de SETTINGS et le rebind KEYBOARD.
+- Les écrans du briefing et les trois indices du premier vol.
+- L'exposition face au soleil.
+- `tools/selftest.mjs` §soleil : pas testé ici, aucune scène installée sur
+  cette machine.
+
+### Décisions à relire par l'auteur
+
+- L'atterrissage est retiré entièrement (le maintien au sol au repos reste).
+- `C` (free cam) est remplacé par `V` FPV/CHASE.
+- Le briefing existe (Bible §2 / Roadmap PHASE 13 révisée, notes datées).
+- `rebind()` n'échange deux touches que si l'action perdante resterait sinon
+  sans touche.
+- Le nudge manette au stick sur le viewer 3D de fin de vol est reporté.
+- La route API `/comment` n'a plus d'écrivain (#17).
 
 ## PHASE 26 — BENCH (issue #194)
 

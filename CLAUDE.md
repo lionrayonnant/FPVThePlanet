@@ -133,7 +133,7 @@ CI
 
 `.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~2 min) and `npm run build` for `sim/`. The release workflow runs the same `selftest:ci` before publishing a tag.
 
-Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/landing-selftest.mjs` is the pattern.
+Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/entry-state-selftest.mjs` is the pattern.
 
 `npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
 

@@ -119,7 +119,8 @@ const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than 
 const SUN_DISC = 0.020;    // rayon du disque, en unités de l'espace carré
 const SUN_HALO = 0.32;     // rayon du lobe autour du disque
 const SUN_HALO_GAIN = 0.9; // ce que le halo ajoute au plus fort
-const SUN_VEIL = 0.22;     // remontée des noirs quand le soleil est dans le champ
+// Revised 2026-09-08: playable against the sun — less black-lift (#11).
+const SUN_VEIL = 0.14;     // remontée des noirs quand le soleil est dans le champ
 
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
@@ -1087,7 +1088,7 @@ export class FpvLens {
 	}
 
 	// Branche la scène embarquée (#264). `null` la débranche — c'est ce qui
-	// cache les hélices du joueur en free cam. La passe naît à la première
+	// cache les hélices du joueur en vue CHASE. La passe naît à la première
 	// scène non nulle : un vol qui n'en monte pas n'en paie rien.
 	setOnboard(scene, camera) {
 		this.onboardScene = scene ?? null;
@@ -1165,7 +1166,7 @@ export class FpvLens {
 		if (this._osd && !frozen) this._osd.commit();
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
-		// so it still works in free camera, where the physics step is skipped. A
+		// so it still works while the sim is frozen, where the physics step is skipped. A
 		// held frame has nothing moving in it, so it gets no smear — but the pose
 		// is still recorded, or the frame after a long freeze would smear across
 		// the whole gap.

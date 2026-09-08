@@ -6,6 +6,7 @@ import { readGamepadDir } from './gamepad-dir.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
 import { watchReveal } from './motion.js';
+import { versionLine } from './version.js';
 
 const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
@@ -132,7 +133,9 @@ function screen(root) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function revealLines(box, lines, { interval = 40 } = {}) {
+// Exported for src/briefing.js (D16) : le briefing s'imprime comme le
+// bootstrap parce que c'est la même machine qui parle, pas une aide en ligne.
+export async function revealLines(box, lines, { interval = 40 } = {}) {
 	const pre = document.createElement('pre');
 	box.appendChild(pre);
 	let skipped = false;
@@ -148,7 +151,7 @@ async function revealLines(box, lines, { interval = 40 } = {}) {
 	return pre;
 }
 
-function dotted(label, value, width = 20) {
+export function dotted(label, value, width = 20) {
 	return `${label} ${'.'.repeat(Math.max(3, width - label.length))} ${value}`;
 }
 
@@ -158,7 +161,7 @@ async function hardwareScreen(root) {
 	const s = screen(root);
 	const rows = await probeHardware();
 	const notes = crewNotes(rows);
-	const lines = ['FPVTP! // 0.97b', '', 'OPERATOR BOOTSTRAPPING', ''];
+	const lines = [versionLine(), '', 'OPERATOR BOOTSTRAPPING', ''];
 	rows.forEach((r, i) => {
 		lines.push(dotted(r.label, r.value));
 		if (i === 5 && notes[0]) lines.push(notes[0], notes[1] ?? '');
@@ -326,13 +329,20 @@ YOU WILL NEED IT.</pre>`;
 
 // ---------- séquence complète ----------
 
-export async function bootstrap(root, api = operatorApi) {
+// `briefing` (D16) : ce que main.js fait juste après l'enregistrement. Injecté
+// plutôt qu'importé — le bootstrap n'a besoin ni de la manette, ni du panneau
+// de réglages, ni du localStorage que le briefing marque, et n'a donc pas à
+// dépendre du module qui les connaît.
+export async function bootstrap(root, api = operatorApi, { briefing = null } = {}) {
 	await hardwareScreen(root);
 	await nameScreen(root, api);
 	const vec = await captureControlVector(root, 6);
 	api.patch('controlVector', vec);
 	await flushOrRetry(root, api);
 	await registeredScreen(root, vec);
+	// L'opérateur existe : c'est le seul moment où le briefing a un sens. Une
+	// erreur ici ne doit pas empêcher d'entrer dans le jeu.
+	if (briefing) { try { await briefing(); } catch (e) { console.warn('[briefing]', e); } }
 	return api.getOperator();
 }
 

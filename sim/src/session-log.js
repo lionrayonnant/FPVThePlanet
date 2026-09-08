@@ -5,7 +5,7 @@
 // terminal.js importe ce module À LA DEMANDE (`await import`), comme il le fait
 // déjà pour le scanner : un import statique fermerait un cycle, puisque ce
 // fichier importe screen/button de terminal.js.
-import { screen, button, fetchScenes } from './terminal.js';
+import { screen, button, backRow, fetchScenes } from './terminal.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import * as operatorApi from './operator.js';
 // Le portrait est du SVG en ligne (issue #264) : il n'ouvre aucun contexte
@@ -90,7 +90,12 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 		// d'où l'on vient en refermant une fiche, la première sinon.
 		const draw = (focusIdx = 0) => {
 			const list = rows();
-			s.box.innerHTML = '<pre>SESSION LOG</pre>';
+			// createElement plutôt qu'innerHTML, comme le reste de la maison :
+			// c'est ce qui rend l'écran montable sur le faux DOM.
+			s.box.replaceChildren();
+			const title = document.createElement('pre');
+			title.textContent = 'SESSION LOG';
+			s.box.appendChild(title);
 
 			const wrap = document.createElement('div');
 			wrap.className = 'terminal-list';
@@ -116,7 +121,7 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 			});
 			s.box.appendChild(filters);
 
-			s.box.appendChild(button('BACK', () => finish(undefined), 'terminal-cta'));
+			backRow(s.box, () => finish(undefined));
 
 			const rowEls = wrap.querySelectorAll('.terminal-row');
 			(rowEls[Math.min(focusIdx, rowEls.length - 1)] ?? s.box.querySelector('button'))?.focus();
@@ -182,7 +187,7 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 		s.box.querySelector('pre').textContent = `SESSION\n\nLOG UNREADABLE — ${error.message}`;
 		return new Promise((resolve) => {
 			const close = () => { nav.detach(); s.remove(); resolve(undefined); };
-			s.box.appendChild(button('BACK', close, 'terminal-cta'));
+			backRow(s.box, close);
 			const nav = menuNav(s.el, { back: close });
 		});
 	}
@@ -237,7 +242,7 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 			}
 			finish({ deleted: session.id });
 		}, 'terminal-cta'));
-		s.box.appendChild(button('BACK', () => finish(undefined), 'terminal-cta'));
+		backRow(s.box, () => finish(undefined));
 
 		nav = menuNav(s.el, { back: () => finish(undefined) });
 	});
@@ -262,7 +267,7 @@ export function runTargetLog(root, { operator } = {}) {
 	s.box.appendChild(head);
 
 	const credo = document.createElement('pre');
-	credo.textContent = 'A TARGET IS A TRACE. A CRASHED TARGET IS LOST, A LANDED ONE IS DONE.';
+	credo.textContent = 'A CRASHED TARGET IS LOST. THE LOG IS WHAT REMAINS.';
 	s.box.appendChild(credo);
 
 	const table = document.createElement('pre');
@@ -301,7 +306,7 @@ export function runTargetLog(root, { operator } = {}) {
 			s.remove();
 			resolve(undefined);
 		};
-		s.box.appendChild(button('BACK', finish, 'terminal-cta'));
+		backRow(s.box, finish);
 		nav = menuNav(s.el, { back: finish });
 	});
 }

@@ -434,7 +434,9 @@ export function sunDisc(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 // sa luminance nominale — trop sombre pour rester jouable, retour terrain
 // après l'issue #23 (nerf : issue #92). Remonté pour que la fermeture reste
 // sensible mais ne noie plus l'image.
-export const E_MIN = 0.35;
+// Revised 2026-09-08: playable against the sun — the picture never drops
+// under 60 % of nominal (#11).
+export const E_MIN = 0.60;
 export const E_MAX = 4.0;
 export const E_MAX_NIGHT = 11.0;
 // Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Grand : un
@@ -442,7 +444,9 @@ export const E_MAX_NIGHT = 11.0;
 // mesure. Réduit avec E_MIN ci-dessus : `inFrame` grandit linéairement dès
 // que le soleil touche le bord du FOV, donc un poids fort fermait le
 // diaphragme bien avant que le disque soit vraiment au centre du cadre.
-const SUN_METER_WEIGHT = 3.0;
+// Revised 2026-09-08: playable against the sun — the disc now has to fill
+// twice as much of the frame to close the iris as far (#11).
+const SUN_METER_WEIGHT = 1.5;
 // Les caméras ferment vite et rouvrent lentement. Cette asymétrie EST la
 // mécanique que l'issue #23 met en avant ; symétrique, l'effet ne se remarque
 // même pas.

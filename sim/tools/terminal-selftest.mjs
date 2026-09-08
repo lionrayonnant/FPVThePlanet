@@ -29,7 +29,9 @@ t('terminalModel : opérateur neuf, cache vide', () => {
 	assert.equal(m.areasKnown, true);
 	assert.equal(m.lastSession, null);
 	assert.equal(m.build, NOTES[0].build);
-	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR NEO · BUILD ${NOTES[0].build} · 0 LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED`);
+	// D1 : le pied ne compte plus rien. L'opérateur et ses compteurs vivent dans
+	// ARCHIVE › OPERATOR, qui est leur place.
+	assert.equal(m.footer, `LOCAL INSTALLATION · BUILD ${NOTES[0].build}`);
 });
 
 t('terminalModel : compteurs et dernière session', () => {
@@ -52,7 +54,7 @@ t('terminalModel : compteurs et dernière session', () => {
 	];
 	const m = terminalModel({ operator, scenes });
 	assert.equal(m.build, NOTES[4].build);
-	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR VEX · BUILD ${NOTES[4].build} · 2 LOCAL AREAS · 3 SESSIONS · 2 TARGETS LOGGED`);
+	assert.equal(m.footer, `LOCAL INSTALLATION · BUILD ${NOTES[4].build}`);
 	assert.deepEqual(m.areas, [
 		{ slug: 'tour-eiffel', name: 'Tour Eiffel', size: '812 MB' },
 		{ slug: 'sacre-coeur', name: 'Sacré-Cœur', size: '—' },
@@ -65,7 +67,23 @@ t('terminalModel : cache terrain injoignable', () => {
 	assert.equal(m.areasKnown, false);
 	assert.deepEqual(m.areas, []);
 	assert.equal(m.build, NOTES[0].build);
-	assert.equal(m.footer, `LOCAL INSTALLATION · OPERATOR NEO · BUILD ${NOTES[0].build} · ? LOCAL AREAS · 0 SESSIONS · 0 TARGETS LOGGED`);
+	assert.equal(m.footer, `LOCAL INSTALLATION · BUILD ${NOTES[0].build}`);
+});
+
+// D1/D2 : le pied dit d'abord OÙ le jeu tourne — le MODE du serveur, pas le
+// droit d'acquérir (V1). Toute build distribuée a l'acquisition fermée et reste
+// une installation locale.
+t('terminalModel : le pied nomme l\'installation', () => {
+	const m = terminalModel({ operator: { name: 'Neo' }, scenes: [], shared: true });
+	assert.equal(m.footer, `SHARED SERVER · BUILD ${NOTES[0].build}`);
+	// Aucun compteur, aucun nom : ils sont dans ARCHIVE.
+	for (const gone of ['OPERATOR', 'LOCAL AREAS', 'SESSIONS', 'TARGETS LOGGED']) {
+		assert.doesNotMatch(m.footer, new RegExp(gone));
+	}
+	// V1: acquisition closed on a LOCAL server is the default of every
+	// distributed build — it is still a local installation.
+	const local = terminalModel({ operator: { name: 'Neo' }, scenes: [], shared: false });
+	assert.equal(local.footer, `LOCAL INSTALLATION · BUILD ${NOTES[0].build}`);
 });
 
 t('terminalModel : opérateur sans nom', () => {

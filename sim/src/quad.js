@@ -32,8 +32,7 @@ export const HOVER_THRUST = hoverThrust(QUAD);
 // exact que le pilote tient encore. On résout cmd pour poussée = poids / 2 :
 //   cmd = ((mass * g) / (8 * maxThrustPerMotor)) ^ (1 / (2 * rpmCurve))
 // (le 8 plutôt que le 4 de hoverThrust vient de ce facteur 1/2 sur le poids
-// visé). Valeurs obtenues par famille (tools/landing-selftest.mjs les
-// revérifie) : freestyle5 0,143 · race5 0,106 · cinewhoop 0,250 ·
+// visé). Valeurs obtenues par famille : freestyle5 0,143 · race5 0,106 · cinewhoop 0,250 ·
 // longrange 0,185 · heavy5 0,169 · toothpick 0,231 — toutes franchement sous
 // le manche de stationnaire (hoverStick, tools/selftest.mjs) de la même
 // famille.

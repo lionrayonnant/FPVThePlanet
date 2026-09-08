@@ -46,18 +46,33 @@ const lineOf = (key) => { let e = rowOf(key); while (e && !e.classList.contains(
 // ---------------------------------------------------------------------------
 // SELECT OPERATION MODE
 
-await ta('mode select : les deux voies, avec ce que chacune coûte', async () => {
+await ta('mode select : les quatre voies, avec ce que chacune coûte', async () => {
 	reset();
 	const p = selectOperationMode(dom.root, { last: 'field' });
 	const text = dom.root.textContent;
 	assert.ok(text.includes(MODE_SELECT.title), 'le titre');
-	assert.ok(btn('FIELD'), 'la voie FIELD');
-	assert.ok(btn('BENCH'), 'la voie BENCH');
-	for (const m of ['field', 'bench']) {
+	// D3/D6 : l'ORDRE est le message — voler, puis le banc, puis ce qui est
+	// froid, puis les réglages. ARCHIVE et SETTINGS ne sont plus des liens
+	// enterrés dans un onglet de FIELD.
+	const ctas = dom.root.querySelectorAll('.bench-mode').map((w) => w.querySelector('button').textContent);
+	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ ARCHIVE ]', '[ SETTINGS ]']);
+	for (const m of ['field', 'bench', 'archive', 'settings']) {
 		for (const l of MODE_SELECT[m].lines) assert.ok(text.includes(l), `« ${l} » est affichée`);
 	}
 	btn('FIELD').click();
 	assert.equal(await p, 'field');
+});
+
+await ta('mode select : ARCHIVE et SETTINGS se rendent comme les deux autres', async () => {
+	reset();
+	let p = selectOperationMode(dom.root, { last: 'field' });
+	btn('ARCHIVE').click();
+	assert.equal(await p, 'archive');
+
+	reset();
+	p = selectOperationMode(dom.root, { last: 'field' });
+	btn('SETTINGS').click();
+	assert.equal(await p, 'settings');
 });
 
 await ta('mode select : le curseur se pose sur le dernier mode utilisé', async () => {
@@ -73,6 +88,15 @@ await ta('mode select : le curseur se pose sur le dernier mode utilisé', async 
 	assert.ok(dom.active?.textContent.includes('BENCH'), `curseur sur BENCH, pas « ${dom.active?.textContent} »`);
 	btn('BENCH').click();
 	assert.equal(await p, 'bench');
+
+	// `fpvtp.mode` retient les QUATRE voies (D3) : revenir consulter ses
+	// journaux ne doit pas coûter plus cher que revenir voler.
+	reset();
+	p = selectOperationMode(dom.root, { last: 'archive' });
+	assert.ok(dom.active?.textContent.includes('ARCHIVE'), `curseur sur ARCHIVE, pas « ${dom.active?.textContent} »`);
+	btn('ARCHIVE').click();
+	await p;
+	assert.equal(loadLastMode(), 'archive', 'et la voie retenue est bien ARCHIVE');
 });
 
 await ta('mode select : le choix est retenu pour le lancement suivant', async () => {

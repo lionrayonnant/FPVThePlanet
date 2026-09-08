@@ -10,6 +10,7 @@ import { installFakeDom } from './lib/fake-dom.mjs';
 // défaut.
 const dom = installFakeDom({ raf: true });
 const { dronePortrait } = await import('../src/drone-portrait.js');
+const { FAMILIES, nominalBuildSeed } = await import('../src/drone-profiles.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -70,6 +71,18 @@ t('sans stop(), il tourne : le dessin change d\'une frame à l\'autre', () => {
 	dom.tick(1000);     // une seconde plus tard : 15° d'orbite à PERIOD_S = 24 s
 	assert.notEqual(x1(), before, 'le portrait ne tourne pas');
 	p.stop();
+});
+
+t('chaque famille a un portrait avec sa graine NOMINALE', () => {
+	// D12 : un vol nominal (override ?family=, NOMINAL au banc, ?scene= sans
+	// cible) n'avait pas de graine, donc pas de portrait. nominalBuildSeed()
+	// lui en donne une — les six familles doivent se dessiner avec.
+	for (const family of FAMILIES) {
+		const p = dronePortrait({ family, buildSeed: nominalBuildSeed(family) });
+		assert.ok(p, `${family} n'a pas de portrait`);
+		assert.ok(p.el.querySelectorAll('line').length > 60, `${family} : trop peu de traits`);
+		p.stop();
+	}
 });
 
 t('deux familles ne donnent pas le même dessin', () => {

@@ -18,6 +18,96 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Le menu a quatre voies au lieu de deux : `FIELD`, `BENCH`, `ARCHIVE`,
+  `SETTINGS`, à la racine et dans cet ordre. ARCHIVE n'est plus un lien enterré
+  dans un onglet de FIELD, SETTINGS n'est plus répété à trois endroits, et
+  `fpvtp.mode` retient les quatre (#6, #7).
+- Un briefing de quatre écrans (`INPUT`, `THE TERMINAL`, `A SESSION`,
+  `BRIEFING COMPLETE`) accueille un opérateur qui vient d'être créé, juste
+  après le CONTROL VECTOR. Il énonce, il n'ordonne pas ; Échap le saute ;
+  `[ CALIBRATE ]` et `[ MAP KEYS ]` ouvrent le bon onglet de `SETTINGS` et
+  reviennent, et l'écran `INPUT` lit le mappage en direct. Il se rejoue par
+  `SETTINGS` › `SYSTEM` › `[ REPLAY BRIEFING ]`. Le premier vol hors banc
+  affiche trois lignes brèves — `THROTTLE UP`, `[TAB] SETTINGS`,
+  `[HOLD K] CUT LINK`, cette dernière nommant la touche réellement liée et
+  comptée depuis le décollage — puis plus jamais (#16).
+- Le panneau `SETTINGS` (Tab) passe à la direction artistique du terminal :
+  en-tête `FPVTP! // SETTINGS`, quatre onglets `CONTROLLER · KEYBOARD · AUDIO
+  · SYSTEM`, un corps à la fois, et l'onglet ouvert est retenu pour la session.
+  `KEYBOARD` liste chaque action avec ses touches et un `[ REBIND ]` : la
+  touche suivante est prise, Échap annule, une touche déjà prise déclenche un
+  échange annoncé sur la ligne, `[ RESET KEYS ]` remet les valeurs d'usine.
+  `SYSTEM` porte la portée d'affichage (mode `?live=`), `[ RESET SETTINGS ]`
+  et le numéro de version (#15).
+- Les commandes clavier passent par une table remappable (`src/key-map.js`) :
+  une action porte un nom (`throttleUp`, `pause`, `cutLink`…), ses touches se
+  changent, et les valeurs par défaut couvrent QWERTY et AZERTY (W/Z, A/Q).
+  Réglages rangés dans `fpvtp.keyMap` ; Tab, Échap et Entrée restent fixes.
+- La caméra libre (`C`, une orbite qui gelait le monde) devient une bascule de
+  vue `V` : FPV / CHASE. La vue CHASE est la caméra de vol reposée 1,1 m
+  derrière le nez et 0,45 m au-dessus, champ plafonné à 75° et OSD de la cible
+  débranché (c'est une caméra extérieure, pas le flux vidéo), la simulation
+  continue de tourner derrière elle, et elle marche sur tous les chemins
+  (LOCAL, LIVE, BANC). Un
+  bouton `[V] FPV` / `[V] CHASE` en haut à droite de l'OSD fait le même geste
+  à la souris. Chaque vol commence en FPV (#12).
+- L'écran de fin de vol montre la machine perdue en 3D, celle qui volait —
+  livrée, numéro et châssis compris — et on peut la tourner à la souris. Elle
+  tourne seule d'un tour toutes les 24 s. Sans contexte WebGL, le portrait fil
+  de fer d'avant prend le relais ; l'archive, elle, garde le SVG (#13).
+- Tests couvrant qu'un vol EN DIRECT remplit bien le Session Log, le Target
+  Log et le compteur OPERATOR, et n'est jamais proposé en REVISIT/RESUME (#8).
+
+### Modifié
+
+- FIELD ouvre sur l'onglet `LIVE`, désormais placé avant `LOCAL` : c'est la voie
+  qui marche sans rien avoir téléchargé. Sur un serveur qui n'acquiert pas,
+  l'onglet LOCAL est éteint et dit en trois lignes pourquoi, au lieu de laisser
+  une liste vide (#6).
+- La tête de FIELD ne salue plus l'opérateur (la racine le fait, une fois) et
+  son pied ne compte plus rien : il dit `LOCAL INSTALLATION · BUILD n` ou
+  `SHARED SERVER · BUILD n`. Les compteurs vivent dans ARCHIVE › OPERATOR (#6).
+- Échap est écrit sur les écrans qui l'écoutent : `[ESC] OPERATION MODE` sous
+  FIELD, BENCH et ARCHIVE, `[ESC] BACK` sur les écrans en dessous (#7).
+- Le panneau `SETTINGS` prend le noir du terminal, ses filets et ses trois
+  niveaux typographiques, et remplace son bouton `Close (Tab)` par la ligne de
+  touches `[ESC] CLOSE · [TAB] CLOSE`. Le rappel clavier figé qui vivait sous
+  `Controls` a disparu : l'onglet `KEYBOARD` le remplace, et il dit la vérité.
+- L'écran affiche la vraie version du paquet (`v0.0.0`, ou `dev` hors build
+  Vite) au lieu de la constante de lore `0.97b` (#9).
+
+### Corrigé
+
+- Une installation locale ne se présente plus comme un serveur partagé. Le pied
+  de FIELD et l'avis de l'onglet `LOCAL` se lisaient sur le droit d'acquérir,
+  fermé par défaut sur toute build distribuée : le client de bureau affichait
+  donc « SHARED SERVER » et se conseillait à lui-même d'installer le client de
+  bureau. `GET /__map-api/scenes` rend désormais le `mode` du serveur
+  (`local` | `shared`), et c'est lui qui décide de ces deux formulations ;
+  `DRAW BOX` / `DRAW SHAPE` continuent de se lire sur le droit d'acquérir.
+- Le portrait de la machine manquait sur deux fins de vol sur trois — sortie de
+  zone et lien coupé — et sur tout vol NOMINAL (`?family=`, `?scene=`, `?live=`,
+  NOMINAL au banc), faute d'exemplaire tiré. Chaque fin porte désormais son
+  portrait, et une famille sans tirage en a un déduit de son nom (#13).
+- Face au soleil, l'exposition ferme moins fort : entre 55 et 75 % de son
+  niveau au repos au lieu de tomber à 35 %, l'image reste pilotable (#11).
+
+### Retiré
+
+- Le lien `MODE` du pied de FIELD (Échap faisait déjà exactement la même chose),
+  les liens `SETTINGS` du pied de FIELD, de la rangée ARCHIVE et du pied du
+  banc, l'entrée `ARCHIVE` de la rangée LOCAL, la ligne `DESKTOP CLIENT
+  AVAILABLE` et la mention `STREAMED NOW · NOTHING KEPT · NEEDS THE LINK` de
+  l'onglet LIVE, qui était fausse : un vol en direct est archivé comme les
+  autres (#6, #7).
+- L'atterrissage. Un vol se termine par un crash, une sortie de zone ou le
+  pilote qui coupe le lien (K maintenue) : plus de désarmement (touche J, geste
+  manette), plus de verdict `LANDED`, plus d'écran `POST-FLIGHT ANALYSIS` ni de
+  reprise de session. Les vieux journaux qui portent `LANDED` se relisent et
+  s'affichent tels quels (#10).
+
 ## [0.1.0-beta] - 2026-09-07
 
 ### Ajouté

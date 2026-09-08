@@ -24,7 +24,7 @@ import {
 	freshState, migrate,
 } from '../tools/operator-store.mjs';
 import {
-	openSession, resumeSession, closeSession, validateSession,
+	openSession, closeSession, validateSession,
 	reconcileStaleSessions, sanitizeWeatherSnapshot, annotateSession, addPhoto,
 	stripPhotoData, stripOperatorPhotoData, deleteSession,
 } from '../tools/session-model.mjs';
@@ -278,9 +278,10 @@ const opRoutes = [
 		json(res, 200, { operator: publicOperator(state) });
 	}],
 
-	// Ouvre une session (squelette PENDING sur disque) ou ré-ouvre une session
-	// LANDED. Deux écritures réseau par vol : ce POST à l'ouverture, un PATCH à
-	// la clôture. Rien pendant le vol.
+	// Ouvre une session : un squelette PENDING sur disque. Deux écritures réseau
+	// par vol, ce POST à l'ouverture et un PATCH à la clôture. Rien pendant le
+	// vol. Une session close ne se rouvre pas (D9, 2026-09-08 : l'atterrissage
+	// a disparu, et avec lui la reprise).
 	['POST', /^\/([^/]+)\/sessions$/, async (req, res, [id]) => {
 		const b = await readBody(req);
 		let state;
@@ -290,53 +291,45 @@ const opRoutes = [
 
 		let session;
 		try {
-			if (b.resume) {
-				const i = state.sessions.findIndex((s) => s.id === b.resume);
-				if (i < 0) return json(res, 404, { error: `aucune session "${b.resume}"` });
-				session = validateSession(resumeSession(state.sessions[i]));
-				state.sessions[i] = session;
-			} else {
-				let target = null;
-				if (b.targetSeed) {
-					const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount });
-					if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
-						return json(res, 400, { error: `targetIndex hors borne : ${b.targetIndex}` });
-					}
-					target = resolveTarget(scan, b.targetIndex);
-				} else {
-					console.warn('[session] ouverture sans TARGET SCAN — aucune cible (chemin dev)');
+			let target = null;
+			if (b.targetSeed) {
+				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount });
+				if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
+					return json(res, 400, { error: `targetIndex hors borne : ${b.targetIndex}` });
 				}
-				session = validateSession(openSession({
-					operatorId: state.id,
-					area: b.area,
-					weatherSnapshot: sanitizeWeatherSnapshot(b.weatherSnapshot ?? null),
-					target,
-					// Numéros d'affichage (PHASE 17). Le serveur seul les attribue :
-					// lui seul connaît le compteur. On n'incrémente qu'APRÈS la
-					// validation, pour qu'une session refusée ne consomme rien.
-					seq: (state.sessionSeq ?? 0) + 1,
-					targetSeq: target ? (state.targetSeq ?? 0) + 1 : undefined,
-				}));
-				state.sessions.push(session);
-				state.sessionSeq = session.seq;
-				if (session.targetSeq) state.targetSeq = session.targetSeq;
+				target = resolveTarget(scan, b.targetIndex);
+			} else {
+				console.warn('[session] ouverture sans TARGET SCAN — aucune cible (chemin dev)');
 			}
+			session = validateSession(openSession({
+				operatorId: state.id,
+				area: b.area,
+				weatherSnapshot: sanitizeWeatherSnapshot(b.weatherSnapshot ?? null),
+				target,
+				// Numéros d'affichage (PHASE 17). Le serveur seul les attribue :
+				// lui seul connaît le compteur. On n'incrémente qu'APRÈS la
+				// validation, pour qu'une session refusée ne consomme rien.
+				seq: (state.sessionSeq ?? 0) + 1,
+				targetSeq: target ? (state.targetSeq ?? 0) + 1 : undefined,
+			}));
+			state.sessions.push(session);
+			state.sessionSeq = session.seq;
+			if (session.targetSeq) state.targetSeq = session.targetSeq;
 		} catch (e) { return json(res, 400, { error: e.message }); }
 
 		_writeOperator(state);
 		json(res, 201, { session: stripPhotoData(session) });
 	}],
 
-	// Clôture : pose end, result et la télémétrie agrégée. La reprise passe
-	// obligatoirement par le POST .../sessions ci-dessus, jamais par ici.
-	// POST est accepté en plus de PATCH pour navigator.sendBeacon (qui ne sait
-	// faire que POST) au moment où l'onglet se ferme.
+	// Clôture : pose end, result et la télémétrie agrégée. POST est accepté en
+	// plus de PATCH pour navigator.sendBeacon (qui ne sait faire que POST) au
+	// moment où l'onglet se ferme.
 	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
 	['POST', /^\/([^/]+)\/sessions\/([^/]+)$/, closeSessionRoute],
 
 	// OPERATOR NOTE (PHASE 15) : texte libre, attaché à une session qu'elle soit
-	// encore PENDING ou déjà LANDED/CRASHED — contrairement à la clôture
-	// ci-dessus, une note n'est pas un verdict, elle peut s'ajouter après coup.
+	// encore PENDING ou déjà close — contrairement à la clôture ci-dessus, une
+	// note n'est pas un verdict, elle peut s'ajouter après coup.
 	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)\/comment$/, async (req, res, [id, sid]) => {
 		const b = await readBody(req);
 		let state;
@@ -632,8 +625,11 @@ const routes = [
 	// `acquire` (issue #60) : l'état RÉEL du droit d'acquérir — le drapeau posé ET
 	// le mode local. Le client s'en sert pour masquer DRAW BOX / DRAW SHAPE /
 	// ACQUIRE AREA ; c'est de l'affichage, la garde est sur POST /jobs.
+	// `mode` (V1) : where the game runs, 'local' or 'shared'. A distributed
+	// desktop build has acquisition CLOSED and is still a local installation,
+	// so the footer and the LOCAL-tab notice key on this, not on `acquire`.
 	['GET', /^\/scenes$/, async (req, res) => json(res, 200, {
-		scenes: sceneList(), acquire: acquireEnabled(MODE),
+		scenes: sceneList(), acquire: acquireEnabled(MODE), mode: MODE,
 	})],
 
 	// Liste des fournisseurs inscrits + le défaut du registre (Task 7, issue

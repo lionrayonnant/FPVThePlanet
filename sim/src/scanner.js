@@ -111,7 +111,6 @@ const LIVE_PANEL = `
 <section class="sc-block sc-verbs">
 	<div class="sc-verb">
 		<button type="button" class="sc-cta sc-fly-live" disabled>[ FLY LIVE ]</button>
-		<pre class="sc-hint">STREAMED NOW · NOTHING KEPT · NEEDS THE LINK</pre>
 	</div>
 </section>`;
 

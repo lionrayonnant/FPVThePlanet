@@ -7,7 +7,7 @@
 // bundlée par Vite. La grammaire ↑/↓ + Entrée vit dans menu-nav.js (issue
 // #123) : chaque signal est un vrai bouton, le curseur est le focus natif —
 // cliquable, tabulable, et pilotable à la manette.
-import { screen, button } from './terminal.js';
+import { screen, button, keyHints } from './terminal.js';
 import { menuNav } from './menu-nav.js';
 import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
 import { conditionsBlock, conditionsLine } from './weather.js';
@@ -41,6 +41,10 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 			wrap.appendChild(button(row, () => sheet(i), 'terminal-row'));
 		});
 		s.box.appendChild(wrap);
+		// D15 : Échap ressort, et il le dit. La liste n'a pas de bouton BACK —
+		// choisir un signal est le seul geste qu'elle propose — donc la touche
+		// est la SEULE sortie visible de l'écran.
+		s.box.appendChild(keyHints([['ESC', 'BACK']]));
 
 		// Échap / bouton B ressort vers le choix de zone. L'écran ne sait pas ce
 		// que ça coûte — à cet instant main.js a déjà lancé le préchargement de
@@ -107,6 +111,7 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 			};
 			s2.box.appendChild(button('CONFIRM', confirm, 'terminal-cta'));
 			s2.box.appendChild(button('BACK', back, 'terminal-cta'));
+			s2.box.appendChild(keyHints([['ESC', 'BACK']]));
 			// Le curseur se pose sur CONFIRM : « ↑/↓ + Entrée … Deux frappes, pas
 			// plus » (spec D5) reste vrai, au clavier comme à la manette.
 			const sheetNav = menuNav(s2.el, { back });

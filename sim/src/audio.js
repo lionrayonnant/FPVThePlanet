@@ -363,8 +363,8 @@ export class EngineAudio {
 		setBusVolume(this.volume);
 	}
 
-	// Ramped rather than suspended: free camera is toggled often enough that a
-	// hard cut would click every time.
+	// Ramped rather than suspended: the sim freezes often enough (pause, settings)
+	// that a hard cut would click every time.
 	setMuted(muted) {
 		this.muted = muted;
 		this._applyMaster();

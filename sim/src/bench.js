@@ -9,13 +9,13 @@
 // Texte d'interface en anglais (D5). Rien ici ne connaît Three, Rapier ni la
 // session : l'écran résout une valeur, main.js en fait un vol.
 
-import { screen, button } from './terminal.js';
+import { screen, button, keyHints } from './terminal.js';
 import { menuNav } from './menu-nav.js';
 import { mount, appendRtc } from './dialogue.js';
 import { sessionContext } from './dialogue-context.js';
 import { PROFILES, FAMILIES } from './drone-profiles.js';
 import {
-	MODE_SELECT, BENCH_CREED, BENCH_SEAL, LIMITS,
+	MODE_SELECT, MODES, BENCH_CREED, BENCH_SEAL, LIMITS,
 	ENTRY_MODES, LINK_MODES, BATTERY_MODES, HUD_MODES,
 	BENCH_STORAGE_KEY, BENCH_DEFAULTS,
 	normalizeBenchConfig, benchRows, benchBlockers, formatClock,
@@ -56,8 +56,11 @@ export function saveBenchConfig(config) {
 	return config;
 }
 
+// The last way in, remembered across launches. All four count (D3): coming back
+// to read a log should cost no more than coming back to fly.
 export function loadLastMode() {
-	return store().getItem(MODE_KEY) === 'bench' ? 'bench' : 'field';
+	const m = store().getItem(MODE_KEY);
+	return MODES.includes(m) ? m : 'field';
 }
 
 function saveLastMode(mode) {
@@ -126,7 +129,7 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 			resolve(mode);
 		};
 
-		for (const mode of ['field', 'bench']) {
+		for (const mode of MODES) {
 			const m = MODE_SELECT[mode];
 			const wrap = document.createElement('div');
 			wrap.className = 'bench-mode';
@@ -142,7 +145,7 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 		nav = menuNav(s.el, { focusFirst: false });
 		// Le curseur sur le dernier mode utilisé : revenir jouer en FIELD ne
 		// doit coûter qu'une touche, et revenir au banc non plus.
-		nav.focusAt(last === 'bench' ? 1 : 0);
+		nav.focusAt(Math.max(0, MODES.indexOf(last)));
 	});
 }
 
@@ -216,7 +219,7 @@ const rollSeed = () => Math.random().toString(16).slice(2, 8);
 // chaque changement part tout de suite dans onChange() au lieu d'attendre le
 // décollage. C'est le même écran et le même modèle à dessein : un réglage doit
 // se comporter pareil avant et pendant, sinon le banc ment sur ce qu'il règle.
-export function runBench(root, { scenes = [], settings = null, live = false, onChange = null } = {}) {
+export function runBench(root, { scenes = [], live = false, onChange = null } = {}) {
 	let config = loadBenchConfig();
 
 	// Un terrain par défaut : la dernière zone connue, sinon la première. Si le
@@ -389,13 +392,16 @@ export function runBench(root, { scenes = [], settings = null, live = false, onC
 				render();
 			};
 			foot.appendChild(button('RESET BENCH', reset));
-			foot.appendChild(document.createTextNode(' · '));
-			foot.appendChild(button('SETTINGS', () => settings?.toggleSettings(true)));
+			// Plus de SETTINGS ici (D6) : le panneau a une seule porte dans les
+			// menus, à la racine, plus Tab en vol.
 			if (!live) {
 				foot.appendChild(document.createTextNode(' · '));
 				foot.appendChild(button('BACK', () => leave(null)));
 			}
 			s.box.appendChild(foot);
+			// D15 : Échap remonte au choix de voie, et il le dit. En vol le banc
+			// n'a pas de retour — le panneau est un réglage, pas un écran.
+			if (!live) s.box.appendChild(keyHints([['ESC', 'OPERATION MODE']]));
 
 			// Repose le curseur là où il était, sinon sur SPIN UP — c'est ce
 			// qu'on vient chercher quand on rouvre le banc sans rien changer.

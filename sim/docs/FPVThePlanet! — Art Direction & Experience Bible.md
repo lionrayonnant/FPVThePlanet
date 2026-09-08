@@ -59,6 +59,12 @@ La météo peut être mauvaise. Un Tinywhoop peut être une très mauvaise idée
 
 Le joueur décide.
 
+> **Révisé 2026-09-08 (D16) — un briefing existe.** Il vit avant le premier vol
+> et dans `SETTINGS`, jamais à l'entrée en vol. Il ne dit toujours pas quoi
+> faire : il énonce ce qu'une chose est et ce qu'une touche fait, une fois,
+> puis il s'efface. Le pilier tient — c'est de l'information, pas de
+> l'assistance.
+
 ### 2. Terrain persistent, flights ephemeral
 
 Le terrain capturé peut être conservé.
@@ -1038,6 +1044,12 @@ Pas de grand écran de mort.
 > LANDED, la musique reste coupée net au choc (§34, #122), et la timeline garde
 > ses temps — le portrait s'insère à 4,0 s, la sortie reste à 4,6 s. Il ne
 > déplace rien.
+>
+> **Révision 2026-09-08 (D9).** L'atterrissage est retiré : il n'y a plus de
+> session LANDED, donc plus de `POST-FLIGHT ANALYSIS` du tout. Un vol se
+> termine par un crash, une sortie de zone ou le pilote qui coupe le lien
+> (K tenue). Le reste du paragraphe tient : le portrait, la musique coupée net,
+> la timeline.
 
 Le sentiment recherché :
 
@@ -1050,6 +1062,12 @@ Le drone, lui, est perdu.
 ---
 
 # 25. Fin propre d'une session
+
+> **Révision 2026-09-08 (D9).** Cette section ne décrit plus le jeu :
+> l'atterrissage est retiré. Il n'y a plus de désarmement, plus de verdict
+> `LANDED`, plus d'écran de fin propre. Un vol se termine par un crash, une
+> sortie de zone ou le pilote qui coupe le lien (K tenue) — trois façons de
+> perdre la machine, jamais de la ramener. Ce qui suit reste pour mémoire.
 
 Si le joueur pose le drone et désarme :
 
@@ -1307,6 +1325,18 @@ OPERATOR
 CONTROL VECTOR
 ACCOUNT
 ```
+
+**Construit (2026-09-08, D14/D16).** Le panneau a quatre onglets, et rien de
+plus :
+
+```text
+CONTROLLER   manette, axes, calibrage
+KEYBOARD     le mappage clavier, remappable
+AUDIO        volume, musique, luminosité
+SYSTEM       vue, lien, [ REPLAY BRIEFING ], [ RESET SETTINGS ], build
+```
+
+Aucun curseur de monde n'y est revenu.
 
 ---
 
@@ -1765,7 +1795,8 @@ Le joueur reprend immédiatement les sticks.
 - terrain local persistant ;
 - drones non persistants ;
 - crash = perte du drone ;
-- atterrissage = fin propre ;
+- atterrissage = fin propre ; *(retiré le 2026-09-08, D9 : un vol se termine
+  par un crash, une sortie de zone ou un lien coupé)*
 - Control Vector ;
 - Randomart ;
 - double HUD ;

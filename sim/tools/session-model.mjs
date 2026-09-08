@@ -6,15 +6,23 @@
 //
 //   terrain persistent, flights ephemeral
 //
-// `PENDING` → `LANDED` (pose + désarmement, drone conservé, session ré-ouvrable)
-//           → `CRASHED` (impact, drone détruit, session terminée)
+// `PENDING` → `CRASHED` (impact, sortie de zone ou lien coupé : drone détruit,
+//                        session terminée)
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
 import { randomart } from './randomart.mjs';
 import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
 
 export const SESSION_SCHEMA_VERSION = 2;
-export const SESSION_RESULTS = ['PENDING', 'LANDED', 'CRASHED'];
+// Les verdicts qu'un vol peut PRODUIRE. `LANDED` en est parti avec
+// l'atterrissage (D9, 2026-09-08) : un vol ne se termine plus que par un crash,
+// une sortie de zone ou une coupure du lien, et les trois sont `CRASHED`.
+export const SESSION_RESULTS = ['PENDING', 'CRASHED'];
+// Les verdicts qu'un fichier opérateur peut CONTENIR. Les états écrits avant la
+// disparition de l'atterrissage portent `LANDED` : ils doivent continuer à se
+// relire, s'afficher et se laisser annoter. Pas de migration, pas de bump de
+// SESSION_SCHEMA_VERSION — un verdict passé reste vrai.
+const STORED_RESULTS = [...SESSION_RESULTS, 'LANDED'];
 export const SESSION_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{4}$/;
 
 // Une session qui traîne en `PENDING` plus longtemps que ça au moment d'un
@@ -62,7 +70,7 @@ export function sanitizeWeatherSnapshot(raw) {
 }
 
 // Le scan d'origine (issue #250). `null` pour une session v1, qui n'en a
-// jamais eu : au resume elle rejoue sa cible mais pas ses ambiants.
+// jamais eu : elle garde sa cible mais pas ses ambiants.
 function sanitizeScan(raw) {
 	if (raw == null) return null;
 	if (typeof raw !== 'object') throw new Error('target.scan invalide');
@@ -130,7 +138,7 @@ export function openSession({ operatorId, area, weatherSnapshot, target, seq, ta
 		operatorId,
 		area: areaSlug,
 		// Numéro d'affichage (PHASE 17). Attribué par le serveur, qui seul connaît
-		// le compteur de l'opérateur ; figé pour toujours, y compris au `resume`.
+		// le compteur de l'opérateur ; figé pour toujours.
 		seq,
 		target: resolved,
 		weatherSnapshot: sanitizeWeatherSnapshot(weatherSnapshot),
@@ -141,26 +149,12 @@ export function openSession({ operatorId, area, weatherSnapshot, target, seq, ta
 		randomart: randomart(id, { tag: id.slice(-4) }),
 		photos: [],
 		comment: null,
-		resumeCount: 0,
 	};
 	// Sans cible, la clé n'est posée que si l'appelant a dit quelque chose : une
 	// session ouverte sans TARGET SCAN n'a pas de `targetSeq` du tout, et un
 	// `null` explicite reste un `null` (ce que `validateSession` accepte).
 	if (resolved || targetSeq !== undefined) session.targetSeq = targetSeq;
 	return session;
-}
-
-// Ré-ouvre une session `LANDED` : on garde tout ce qui fait son identité
-// (id, start, randomart, télémétrie déjà accumulée) et on repart en vol.
-export function resumeSession(existing) {
-	if (!existing || typeof existing !== 'object') throw new Error('session illisible');
-	if (existing.result !== 'LANDED') throw new Error('SESSION NOT RESUMABLE');
-	return {
-		...existing,
-		result: 'PENDING',
-		end: null,
-		resumeCount: (existing.resumeCount ?? 0) + 1,
-	};
 }
 
 // Fusionne deux jeux d'agrégats : `max` sur les pics, `+` sur les cumuls.
@@ -178,7 +172,7 @@ export function mergeTelemetry(a = ZERO_TELEMETRY, b = ZERO_TELEMETRY) {
 
 export function closeSession(session, { result, telemetry } = {}) {
 	if (!session || typeof session !== 'object') throw new Error('session illisible');
-	if (result !== 'LANDED' && result !== 'CRASHED') throw new Error('verdict invalide');
+	if (result !== 'CRASHED') throw new Error('verdict invalide');
 	return {
 		...session,
 		end: new Date().toISOString(),
@@ -256,7 +250,7 @@ export function deleteSession(state, sid) {
 export function validateSession(s) {
 	if (!s || typeof s !== 'object') throw new Error('session illisible');
 	if (!SESSION_ID_RE.test(String(s.id ?? ''))) throw new Error('id de session invalide');
-	if (!SESSION_RESULTS.includes(s.result)) throw new Error(`result inconnu : ${s.result}`);
+	if (!STORED_RESULTS.includes(s.result)) throw new Error(`result inconnu : ${s.result}`);
 	if (!s.operatorId) throw new Error('operatorId requis');
 	if (!slugify(s.area)) throw new Error('area invalide');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throw si malformé

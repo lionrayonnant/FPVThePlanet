@@ -179,6 +179,28 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-ident { color: var(--ink); }
 #fo-rates, #fo-input, #fo-fps { font-size: 12px; color: var(--dim); }
 #fo-env { font-size: 12px; color: var(--ink); }
+/* The view toggle (D11). The only clickable element of the OSD: the layer is
+   pointer-events: none and this one takes them back for itself. A button, but
+   one that reads like the lines around it — this is flight information, not an
+   interface control. */
+#fo-view {
+	display: block;
+	margin-left: auto;
+	pointer-events: auto;
+	appearance: none;
+	background: none;
+	border: 0;
+	padding: 0;
+	font: inherit;
+	font-size: 12px;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	color: var(--dim);
+	text-shadow: inherit;
+	cursor: pointer;
+}
+#fo-view:hover, #fo-view:focus-visible { color: var(--ink); }
+#fo-view[hidden] { display: none; }
 /* Les trois occupent la même place et un seul est visible à la fois
    (fpvtp-osd.js : verdict > crash > pause). Le fond n'est pas décoratif :
    sans lui le texte se pose sur n'importe quelle image, et un ciel blanc
@@ -198,7 +220,6 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 /* Vert et rouge parce qu'ils disent le résultat du vol — le seul emploi que la
    Bible §38 autorise pour une couleur fonctionnelle. */
-#fo-status[data-kind="landed"] { color: var(--green); }
 #fo-status[data-kind="lost"] { color: var(--red); }
 #fo-pause small, #fo-status small {
 	display: block;
@@ -236,6 +257,26 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #fo-cut-bar[hidden] { display: none; }
 
+/* D16 — the three first-flight lines. Same face and same place as #fo-cut,
+   one notch lower: the two never fight over the screen (the first-flight line
+   goes out the moment the link dies, and #fo-cut only appears on the hold).
+   Information, not assistance: it leaves and does not come back. */
+#fo-hint {
+	position: absolute;
+	left: 50%;
+	top: 68%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: 12px;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+}
+
 /* Fin de vol (PHASE 14) : pas un écran de mort, un lien qui s'éteint. */
 #flight-end {
 	position: absolute; inset: 0;
@@ -247,6 +288,13 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	pointer-events: none;
 }
 #flight-end div:empty { height: .6em; }
+
+/* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
+   element of the layer you can grab: #flight-end is pointer-events: none, and
+   this one takes them back so the machine can be turned. */
+.drone-viewer { pointer-events: auto; cursor: grab; touch-action: none; }
+.drone-viewer:active { cursor: grabbing; }
+.drone-viewer canvas { display: block; }
 
 /* ---------- settings ---------- */
 
@@ -260,23 +308,75 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 .panel {
 	pointer-events: auto;
-	width: min(460px, 90vw);
+	/* V2: 600 px, because the four-word tab strip (CONTROLLER · KEYBOARD ·
+	   AUDIO · SYSTEM) overflowed 460 px — SYSTEM clipped to "S" and a
+	   horizontal scrollbar. `overflow-x: hidden` is the safety net: nothing
+	   here is meant to be read by scrolling sideways. */
+	width: min(600px, 92vw);
+	overflow-x: hidden;
 	/* Le panneau défile quand il dépasse (issue #123) : à 785 px de contenu sur
 	   un portable 1366×768 il était rogné en haut et en bas, sans recours. */
 	max-height: 92vh;
 	overflow-y: auto;
 	padding: var(--space-5) 30px;
-	background: var(--grey);
+	/* D14: the panel takes the terminal's ground. The same black as the Home
+	   and as signal loss — Settings is no longer a dialog box laid over the
+	   game, it is a screen of the machine. The rule lifts it off the scrim. */
+	background: var(--black);
 	border: var(--rule-w) solid var(--rule);
+	display: flex; flex-direction: column; gap: var(--space-3);
 }
-/* Titre de section : le niveau UI, en retrait — il nomme, il n'annonce pas. */
-.panel h2 {
-	font-family: var(--font-ui); font-weight: 500;
-	font-size: 12px; letter-spacing: var(--track-ui); text-transform: uppercase;
-	color: var(--light-grey);
-	margin: 1.6em 0 .8em;
+/* The panel names itself, once, at the DISPLAY level — like every terminal
+   screen (Bible §11). */
+.panel .panel-title {
+	margin: 0;
+	font-size: var(--fs-display-s);
+	color: var(--ink);
 }
-.panel h2:first-child { margin-top: 0; }
+/* The tab strip is the Home's (.terminal-tabs); only the buttons need saying
+   again, otherwise `.panel button` would box them. */
+/* The strip wraps rather than overflowing: at 460 px wide (a narrow laptop at
+   92vw) the four tabs sit on two rows. */
+#settings .terminal-tabs { margin: 0; flex-wrap: wrap; gap: var(--space-2); }
+#settings button.terminal-tab {
+	margin: 0; width: auto;
+	background: none; border: 0; padding: 2px var(--space-2);
+	color: var(--light-grey); font-family: var(--font-ui); font-weight: 500;
+	font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); text-transform: uppercase; cursor: pointer;
+}
+#settings button.terminal-tab:hover { background: none; color: var(--ink); }
+#settings button.terminal-tab[data-on="true"],
+#settings button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
+.panel-body { display: block; }
+.panel-body[hidden] { display: none; }
+/* The key-hint row, as under every terminal screen (D15). */
+#settings pre.terminal-keys {
+	margin: var(--space-2) 0 0;
+	color: var(--dim);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	white-space: normal;
+}
+/* The build, at the foot of SYSTEM: data, not an announcement. */
+.panel .panel-version { margin: var(--space-4) 0 0; color: var(--faint); }
+
+/* The KEYBOARD tab (D13). One row per action: what it does, the key that
+   reaches it, whatever the row has to say, and the button that changes it. The
+   columns are fixed so the keys line up in a column — that is what makes the
+   table readable at a glance rather than row by row. */
+.key-rows { display: flex; flex-direction: column; gap: 2px; }
+.key-row {
+	display: grid; grid-template-columns: 1fr 6em auto min-content;
+	align-items: center; gap: var(--space-2);
+}
+.key-row .key-name { color: var(--light-grey); }
+.key-row .key-keys { color: var(--ink); }
+/* PRESS A KEY / SWAPPED WITH …: the row speaks, it does not alert. */
+.key-row .key-note { color: var(--dim); white-space: nowrap; }
+.panel .key-row button.key-rebind {
+	margin: 0; width: auto; padding: 2px var(--space-2);
+	font-size: var(--fs-micro); white-space: nowrap;
+}
 #pad-name { margin: 0 0 1em; font-size: 12px; color: var(--dim); word-break: break-all; }
 #pad-map { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 #pad-map td { padding: var(--space-1) 6px var(--space-1) 0; }
@@ -420,6 +520,23 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-variant-numeric: tabular-nums;
 	margin-top: var(--space-1); white-space: nowrap;
 }
+/* The keys the screen listens for (D15). Same DATA level as the footer, one
+   tone lower: this is a footnote, not an instruction. */
+.bootstrap-box pre.terminal-keys {
+	color: var(--dim);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	margin-top: var(--space-2); white-space: normal;
+}
+/* The notice of an unavailable tab (D2): three lines, at the head of the body.
+   The same face as the <pre> blocks around it — the machine speaks, it does not
+   alert. */
+.bootstrap-box pre.terminal-notice {
+	color: var(--light-grey);
+	margin: var(--space-2) 0 0;
+	white-space: pre-wrap;
+}
+
 /* Dans la colonne gauche, `nowrap` faisait couper le pied en plein mot. Il se
    replie — c'est une ligne d'état, pas une table : rien n'y est aligné sur une
    colonne, donc le repli ne lui coûte rien. */
@@ -493,6 +610,16 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .bootstrap button.terminal-tab[data-on="true"] { background: var(--warm-white); color: var(--black); }
 .bootstrap button.terminal-tab:hover { background: none; color: var(--ink); }
 .bootstrap button.terminal-tab[data-on="true"]:hover { background: var(--warm-white); color: var(--black); }
+/* A dimmed tab (D2): LOCAL on a shared server. It stays clickable — a host may
+   have pre-installed areas there — but it reads as a state, not as a closed
+   door. */
+.bootstrap button.terminal-tab[data-off="true"] { color: var(--dim); }
+.bootstrap button.terminal-tab[data-off="true"][data-on="true"] { color: var(--black); }
+/* V3: the briefing sits ABOVE the terminal screen. On the REPLAY path the root
+   menu is re-mounted behind it the moment the panel closes, and at equal
+   z-index (11) the later screen wins — the briefing text was in the DOM and
+   invisible. Settings stays at 20, above both. */
+.bootstrap.briefing { z-index: 12; }
 .terminal-right { position: relative; min-width: 0; }
 .terminal-map { position: absolute; inset: 0; }
 /* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la

@@ -76,7 +76,6 @@ export const PHASE_INTENSITY = {
 export const FADE = {
 	menuToHack: 1500,  // le morceau de menu s'efface pendant que celui du drone entre
 	drop: 400,         // la décharge : court, mais pas un clic
-	landed: 2000,      // la pose : on relâche
 	kill: 30,          // le crash : coupe nette, juste assez longue pour ne pas claquer
 };
 

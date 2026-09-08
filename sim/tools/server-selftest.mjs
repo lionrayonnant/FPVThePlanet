@@ -236,6 +236,11 @@ try {
 
 	check('local, drapeau absent : GET /__map-api/scenes annonce acquire:false',
 		bodyOf(await get('/__map-api/scenes')).acquire === false);
+	// V1 : le MODE voyage avec la liste. C'est lui qui décide du pied du
+	// terminal et de l'avis de l'onglet LOCAL — l'acquisition fermée d'une
+	// build distribuée n'en fait pas un serveur partagé.
+	check('… et annonce mode:"local" avec',
+		bodyOf(await get('/__map-api/scenes')).mode === 'local');
 
 	const closedJob = await postJob(base);
 	check('local, drapeau absent : POST /__map-api/jobs refuse (403)',
@@ -353,6 +358,8 @@ try {
 	check('shared, FPVTP_ACQUIRE=1, clé valide : POST /__map-api/jobs refuse quand même (403)',
 		sharedJob.status === 403 && /désactivée/.test(bodyOf(sharedJob).error ?? ''));
 	delete process.env.FPVTP_ACQUIRE;
+	check('shared : GET /__map-api/scenes annonce mode:"shared"',
+		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).mode === 'shared');
 	check('shared, drapeau absent : acquire:false, et POST /jobs 403',
 		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false
 		&& (await postJob(sbase, bearer(KEY))).status === 403);
@@ -411,7 +418,7 @@ try {
 		refusedPhoto.status === 413 && /quota atteint/.test((await refusedPhoto.json()).error ?? ''));
 	const closed = await fetch(`${sbase}/__operator/${fat.operator.id}/sessions/${sid}`, {
 		method: 'PATCH', headers: { ...bearer(fat.key), 'content-type': 'application/json' },
-		body: JSON.stringify({ result: 'LANDED', end: new Date().toISOString() }),
+		body: JSON.stringify({ result: 'CRASHED', end: new Date().toISOString() }),
 	});
 	check('shared : le quota ne bloque JAMAIS le vol — la session se clôt quand même',
 		closed.status === 200);
