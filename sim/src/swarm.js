@@ -220,9 +220,28 @@ export const MARGIN_RISE_S = 1.5;
 // a red ray drops it below what the unit was holding, and it only comes back
 // additively. A unit that has just been told "wall" does not go back out as
 // far as it was; a unit that is never blocked never sees the ceiling at all,
-// so nothing is paid in open sky (measured: mean margin unchanged at every
-// cadence, and the offset actually held in the city goes UP, 2.35 -> 2.58 m,
-// because the swarm stops spending its time crossing the street).
+// so nothing is paid in open sky.
+//
+// It is NOT free everywhere, and the price is here rather than in a report:
+//
+//  - in open sky and in 15 m streets the mean margin is unchanged at every
+//    cadence, and the offset actually held in the city goes UP (2.35 -> 2.58 m
+//    at 60 fps) because the swarm stops spending its time crossing the street;
+//  - but where the wake itself weaves — a slalom down a narrow street, every
+//    unit blocked several times a second — the mean margin drops hard:
+//    0.47 -> 0.29 in a 15 m street, 0.42 -> 0.26 in a 10 m one. The offset
+//    HELD still goes up in those same runs (0.44 -> 0.52 m, 0.69 -> 0.90 m):
+//    the swarm is more deployed with less margin, which is the oscillation
+//    being gone, but the margin number itself is worse and would be read as a
+//    regression by anyone who looked only at that;
+//  - CEIL_RECOVER_PER_S is what a unit pays after the fact: coming out of a
+//    city crossing into open sky, the swarm takes 3.48 s to get back to 90 %
+//    of its nominal spread instead of 2.98 s. Raising it gives the time back
+//    and gives the oscillation back with it;
+//  - and at intermediate cadences the ceiling costs a little depth rather than
+//    saving it: over 24 seeds x 6 geometries x 3 sizes, the worst penetration
+//    at 20 fps goes 0.88 -> 1.08 m (at 15 fps it is 1.42 -> 1.43 m, i.e.
+//    nothing). What it buys is 60 fps, where it is 1.30 -> 0.00 m.
 const CEIL_BACKOFF = 0.25;
 const CEIL_RECOVER_PER_S = 0.2;
 // How fast the offset ENVELOPE closes, in metres per second. As fast as the
