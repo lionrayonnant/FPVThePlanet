@@ -44,6 +44,18 @@ rapport avec les versions ci-dessous.
   couronne entrante), pas un trou. Si le refetch échoue pour de bon, l'ancien
   mesh est retiré à ce moment-là plutôt que laissé orphelin.
 
+- La PAUSE gelait le chargement du terrain. `processLiveNodeWork()` et le
+  recalcul de fenêtre vivaient sous le `if (!frozen)` de la boucle de frame :
+  mettre en pause arrêtait net la file de builds, et le monde restait à moitié
+  construit tant qu'on ne reprenait pas — mesuré, saut dans une zone vierge :
+  478 builds bloqués en file et 79 % du sol absent pendant TOUTE la pause,
+  tout revenu 1,2 s après la reprise. Or c'est précisément en pause qu'on
+  regarde le paysage, et qu'on le photographie : les artefacts qu'on croyait
+  voir sur les captures étaient un chargement suspendu. Le streaming n'est pas
+  de la simulation ; il tourne désormais aussi en pause, panneau de réglages
+  ouvert et intro figée. Le filet anti-trou (#189) reste gelé, lui : il
+  déclenche un respawn.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

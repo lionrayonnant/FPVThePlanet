@@ -1763,6 +1763,44 @@ function frame() {
 	const frozen = simFrozen();
 	audio.setMuted(frozen);
 
+	// Le STREAMING n'est pas de la simulation : il continue en pause, panneau
+	// de réglages ouvert ou intro figée (#31). Sous le `if (!frozen)` ci-dessus,
+	// une pause gelait `processLiveNodeWork()` : la file de builds restait
+	// pleine et le monde restait à moitié construit tant qu'on ne reprenait
+	// pas. Mesuré : 478 builds en file bloqués, 79 % du sol absent pendant
+	// TOUTE la pause, tout revenu 1,2 s après la reprise. Or c'est justement
+	// en pause qu'on regarde le paysage — et qu'on le photographie. Rien
+	// là-dedans ne fait avancer le monde : le drain pose des meshes et des
+	// colliders sur un monde qui ne step pas, et le recalcul de fenêtre part de
+	// la position du drone, immobile en pause (update() sort aussitôt sous
+	// REFRESH_THRESHOLD_M). Le filet anti-trou (#189), lui, reste gelé : il
+	// fait un respawn, ce qu'une pause ne doit jamais déclencher.
+	if (liveWindow) {
+		// Étale le travail des nœuds reçus/libérés sous budget (#184).
+		processLiveNodeWork();
+		// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
+		// tâche de fond, la frame courante vole avec ce qui est déjà là.
+		// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
+		// de la conversion que build-node.mjs fait dans l'autre sens.
+		const dronePos = physics.position;
+		const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
+		const droneGeo = ecefToGeodetic(...droneEcef);
+		// Garde (#182) : une position dégénérée (drone passé sous le terrain
+		// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
+		// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
+		// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
+		// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
+		// dernière position saine que la vider.
+		if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+			// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+			// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+			// lève devient une unhandled promise rejection silencieuse.
+			// Observabilité seulement : pas de retry ici (ticket de suivi).
+			liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+				.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
+		}
+	}
+
 	let crashedThisFrame = false;
 	let peakImpact = 0;
 	if (!frozen) {
@@ -1862,13 +1900,13 @@ function frame() {
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
 
-		// Travail de streaming UNE fois par FRAME, hors de la boucle
-		// d'accumulation (#187) : logé dans la boucle, il tournait une fois par
-		// STEP physique — en rattrapage (12-15 steps/frame après une frame
-		// longue), 12-15 budgets de drain de 3 ms s'empilaient dans la même
-		// frame (40-80 ms mesurés), ce qui entretenait la spirale que le budget
-		// devait justement empêcher. La poussée de clôture, elle, reste par
-		// step : elle dépend de la position, qui change à chaque step.
+		// UNE fois par FRAME, hors de la boucle d'accumulation (#187) : logé
+		// dans la boucle, ce bloc tournait une fois par STEP physique — en
+		// rattrapage (12-15 steps/frame après une frame longue) il s'exécutait
+		// 12-15 fois dans la même frame. La poussée de clôture, elle, reste par
+		// step : elle dépend de la position, qui change à chaque step. Le drain
+		// et le recalcul de fenêtre, eux, ont quitté ce garde (#31) : voir le
+		// bloc `if (liveWindow)` plus haut, hors de `!frozen`.
 		if (liveWindow && !frozen) {
 			// Filet anti-trou (#189) : le terrain Google Earth a de VRAIS trous —
 			// les nœuds absents (404, résultat normal du protocole) ne produisent
@@ -1886,29 +1924,6 @@ function frame() {
 					physics.reset();
 					flightEnd.reset();
 				}
-			}
-			// Étale le travail des nœuds reçus/libérés sous budget (#184).
-			processLiveNodeWork();
-			// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
-			// tâche de fond, la frame courante vole avec ce qui est déjà là.
-			// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
-			// de la conversion que build-node.mjs fait dans l'autre sens.
-			const dronePos = physics.position;
-			const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
-			const droneGeo = ecefToGeodetic(...droneEcef);
-			// Garde (#182) : une position dégénérée (drone passé sous le terrain
-			// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
-			// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
-			// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
-			// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
-			// dernière position saine que la vider.
-			if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
-				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
-				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
-				// lève devient une unhandled promise rejection silencieuse.
-				// Observabilité seulement : pas de retry ici (ticket de suivi).
-				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
-					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
 			}
 		}
 
