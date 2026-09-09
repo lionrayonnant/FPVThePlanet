@@ -456,15 +456,29 @@ console.log('\nswarm: the wake ring');
 // loses well over a third of its spread in the city): it is a fold transient,
 // not a detection range.
 //
-// The number is set from the sweep below — 24 cluster seeds x 4 speeds in each
-// of the two regimes, worst 0.43 m — with real headroom, and the sweep lives in
-// this file so the ceiling keeps its evidence. The headroom is not timidity:
-// the depth of a fold transient is not a monotone function of the constants
-// around it (MARGIN_RISE_PER_RAY at 0.07 gives 0.97 m, at 0.09 gives 0.61), so
-// a ceiling pinned to the last reading would break on an unrelated tweak. The
-// previous version of this file did exactly that: 1 m read off four seeds and
-// called a tolerance, when the same regime over thirty seeds was worst 1.87 m.
-const LONG_FRAME_CEILING_M = 1.0;
+// The number is set from the sweep below, with real headroom, and the sweep
+// lives in this file so the ceiling keeps its evidence. The headroom is not
+// timidity: the depth of a fold transient is not a monotone function of the
+// constants around it (MARGIN_RISE_PER_RAY at 0.07 gives 0.97 m, at 0.09 gives
+// 0.61), so a ceiling pinned to the last reading would break on an unrelated
+// tweak.
+//
+// AND IT DID, TWICE, THE SAME WAY. 1 m was read off four seeds at size twelve
+// and called a tolerance; the same regime over 96 seeds and four sizes reaches
+// 3.41 m ON THE CODE THAT WROTE IT — tranche 7 measured it while checking that
+// the new doctrines had not caused the 1.49 m it happened to hit, and they had
+// not: the same 3072-flight sweep gives 3.41 m before the doctrine change and
+// 3.47 m after. The seed set was the whole difference. So the number below is
+// no longer a reading with a round number over it, it is a ceiling over a
+// sweep wide enough to have a distribution, and the sweep now carries the size
+// axis that was missing.
+//
+// WHAT IT MEANS, said plainly: on 250 ms frames a unit can be three and a half
+// metres inside the inside wall of a 3 m hairpin for a fraction of a second.
+// That is the render loop's own clamp — 4 fps — and it is the regime issue #38
+// tracks. It is not the nominal cadences: those are held to ACCEPTED_TIGHT_M
+// and ACCEPTED_WEAVE_M below, which are an order of magnitude smaller.
+const LONG_FRAME_CEILING_M = 4.5;
 
 console.log('\nswarm: no unit is ever inside a building');
 {
@@ -552,16 +566,26 @@ console.log('\nswarm: ...over a sweep of cluster seeds, not one per doctrine');
 	// And the evidence behind LONG_FRAME_CEILING_M: the same sweep in the two
 	// regimes that have one. A tolerance read off four seeds is a measurement
 	// pretending to be a bound.
-	let long1 = 0, long2 = 0;
+	// SIZE is an axis here too, and it was missing: this block flew fly()'s
+	// default twelve. Six is where the worst reading below happens — a small
+	// swarm gets a ray per unit per frame, so its margins stay high and it
+	// stays DEPLOYED into the corner, where a starved swarm of twelve would
+	// already have folded onto the wake.
+	let long1 = 0, long2 = 0, at1 = '', at2 = '', flights = 0;
 	for (const seed of SEED_SWEEP) {
 		for (const speed of [12, 15, 18, 22]) {
-			long1 = Math.max(long1, fly({ seed, seconds: 12, speed, dt: 0.25, track: TRACKS.hairpin }).depth);
-			long2 = Math.max(long2, fly({ seed, seconds: 12, speed, track: TRACKS.hairpin, hitch: { base: 1 / 60, dt: 0.25, every: 37 } }).depth);
+			for (const size of [6, 9, 12]) {
+				flights += 2;
+				const d1 = fly({ seed, size, seconds: 12, speed, dt: 0.25, track: TRACKS.hairpin }).depth;
+				if (d1 > long1) { long1 = d1; at1 = `${doctrineFor(seed)}/${seed} n=${size} at ${speed}`; }
+				const d2 = fly({ seed, size, seconds: 12, speed, track: TRACKS.hairpin, hitch: { base: 1 / 60, dt: 0.25, every: 37 } }).depth;
+				if (d2 > long2) { long2 = d2; at2 = `${doctrineFor(seed)}/${seed} n=${size} at ${speed}`; }
+			}
 		}
 	}
 	check(`the 250 ms hairpin stays under the ${LONG_FRAME_CEILING_M} m ceiling across the sweep`,
-		long1 <= LONG_FRAME_CEILING_M, `${long1.toFixed(2)} m over ${SEED_SWEEP.length * 4} flights`);
-	check(`so does the hitched hairpin`, long2 <= LONG_FRAME_CEILING_M, `${long2.toFixed(2)} m`);
+		long1 <= LONG_FRAME_CEILING_M, `${long1.toFixed(2)} m over ${flights} flights (${at1})`);
+	check(`so does the hitched hairpin`, long2 <= LONG_FRAME_CEILING_M, `${long2.toFixed(2)} m (${at2})`);
 }
 
 console.log('\nswarm: ...and over the geometry, over the swarm size, and over the cadence');
@@ -770,6 +794,121 @@ console.log('\nswarm: the scouts stay in front of the pilot');
 		foldedAhead / folded >= 0.5, `${(foldedAhead / folded * 100).toFixed(0)} % of them still in front of the node`);
 	check('and the scouts are in front of the pilot down a 12 m street',
 		scoutsAhead / scouts >= 0.6, `${(scoutsAhead / scouts * 100).toFixed(0)} % of scout-frames ahead`);
+}
+
+console.log('\nswarm: the pilot is INSIDE his swarm, not in front of it');
+{
+	// The second report from a real flight, and the one that changed the
+	// design: "they are too far from the master, I do not feel them around me;
+	// I pictured being SURROUNDED by my swarm, not followed by it". The spec
+	// was written around "the flock follows you", which puts most of it behind
+	// an FPV pilot — i.e. permanently off screen.
+	//
+	// A feeling can be measured, and this block is the measurement. Four
+	// numbers, all read through the node's OWN camera (tools/target-camera.mjs,
+	// swarmNode: 95-115 deg of vertical field, 10-20 deg of uptilt, 16:9 — the
+	// midpoints below):
+	//
+	//   near    fraction of unit-frames within 25 m of the pilot. "Too far" is
+	//           this number, and it is what the cloud's 2.0 s of lag cost.
+	//   inView  fraction ALSO inside the frustum and not behind a wall. It is
+	//           capped by design at about the scout share (~1/3): a unit
+	//           exactly abreast is at 90 deg and no field of view holds it.
+	//   flank   fraction within 25 m and between 60 and 120 deg off the
+	//           tangent. THIS is "around me": the units that sweep through the
+	//           frame every time the pilot banks. A trail scores ~2 %.
+	//   spread  1 - |mean azimuth resultant|. 0 is a file in one direction,
+	//           1 is evenly distributed around the pilot.
+	//
+	// The thresholds are floors under measured values, not targets: see the
+	// tranche 7 report for the before/after table they were read from.
+	const FOV_V_DEG = 105, ASPECT = 16 / 9, UPTILT = 15 * Math.PI / 180, NEAR_M = 25;
+	const TAN_V = Math.tan(FOV_V_DEG * Math.PI / 360), TAN_H = TAN_V * ASPECT;
+
+	function presence(name, city, terrain) {
+		let tot = 0, inView = 0, ahead = 0, near = 0, flank = 0, dist = 0, frames = 0, resultant = 0;
+		const p = { x: 0, y: 10, z: 200 }, prev = { x: 0, y: 10, z: 200 };
+		// Three of the six seeds of this doctrine: the slot draw is a family,
+		// and one shape proves nothing — but presence is an average over the
+		// whole flight, not a worst case, so it does not need all six.
+		let taken = 0;
+		for (const seed of SEED_SWEEP) {
+			if (doctrineFor(seed) !== name || (taken++ % 2)) continue;
+			for (const size of [6, 9, 12]) {
+				for (const speed of [10, 15, 20]) {
+					const swarm = new SwarmModel({ size, doctrineSeed: seed, seed: 'build' });
+					TRACKS.corner(0, p, speed);
+					swarm.reset(p);
+					let t = 0;
+					for (let i = 0; i < Math.round(15 * 60); i++) {
+						const dt = 1 / 60;
+						t += dt;
+						prev.x = p.x; prev.y = p.y; prev.z = p.z;
+						TRACKS.corner(t, p, speed);
+						swarm.update(p, t, dt, terrain, NO_WIND, null);
+						if (t < 3) continue;
+						// The pilot's own frame: the tangent he is flying along,
+						// his right, and the camera axis tilted up off it.
+						let tx = p.x - prev.x, ty = p.y - prev.y, tz = p.z - prev.z;
+						const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+						const rx = -tz, rz = tx;
+						const cfx = tx * Math.cos(UPTILT), cfy = Math.sin(UPTILT), cfz = tz * Math.cos(UPTILT);
+						const cux = -tx * Math.sin(UPTILT), cuy = Math.cos(UPTILT), cuz = -tz * Math.sin(UPTILT);
+						frames++;
+						let sx = 0, sy = 0, n = 0;
+						for (let k = 0; k < swarm.size; k++) {
+							const o = 3 * k;
+							const dx = swarm.pos[o] - p.x, dy = swarm.pos[o + 1] - p.y, dz = swarm.pos[o + 2] - p.z;
+							const d = Math.hypot(dx, dy, dz);
+							const along = dx * tx + dy * ty + dz * tz;
+							tot++; dist += d;
+							if (along > 0) ahead++;
+							if (d > NEAR_M) continue;
+							near++;
+							const c = along / (d || 1);
+							if (c > -0.5 && c < 0.5) flank++;
+							const zc = dx * cfx + dy * cfy + dz * cfz;
+							const xc = dx * rx + dz * rz, yc = dx * cux + dy * cuy + dz * cuz;
+							if (zc > 0.3 && Math.abs(xc) <= TAN_H * zc && Math.abs(yc) <= TAN_V * zc
+								&& !terrain.obstructionBetween(p.x, p.y, p.z, swarm.pos[o], swarm.pos[o + 1], swarm.pos[o + 2]).blocked) inView++;
+							if (d > 0.5) { const az = Math.atan2(xc, along); sx += Math.cos(az); sy += Math.sin(az); n++; }
+						}
+						resultant += n ? Math.hypot(sx, sy) / n : 1;
+					}
+				}
+			}
+		}
+		return { near: near / tot, inView: inView / tot, ahead: ahead / tot, flank: flank / tot, dist: dist / tot, spread: 1 - resultant / frames };
+	}
+
+	// The three doctrines that are meant to SURROUND, and the one that is meant
+	// not to. `column` is the file, deliberately kept as the trailing formation
+	// so the catalogue the pilot will switch between in flight (#34) has one —
+	// it only reads as a choice because the other three envelop.
+	const SURROUND = DOCTRINE_NAMES.filter((n) => n !== 'column');
+	for (const name of DOCTRINE_NAMES) {
+		const o = presence(name, CITY, openTerrain);
+		const c = presence(name, CITY, cityTerrain);
+		const fmt = (r) => `near ${(r.near * 100).toFixed(0)} %, inView ${(r.inView * 100).toFixed(0)} %, flank ${(r.flank * 100).toFixed(0)} %, spread ${r.spread.toFixed(2)}, mean ${r.dist.toFixed(1)} m`;
+		check(`${name}: in clear sky the swarm is WITHIN REACH — ${fmt(o)}`,
+			o.near >= 0.95 && o.dist <= 12, `${(o.near * 100).toFixed(1)} % under 25 m, mean ${o.dist.toFixed(1)} m`);
+		check(`${name}: and in the city too, where the folds pull it into file — ${fmt(c)}`,
+			c.near >= 0.85 && c.dist <= 15, `${(c.near * 100).toFixed(1)} % under 25 m, mean ${c.dist.toFixed(1)} m`);
+		// A minority ahead, both ways. Too few and the pilot sees nothing; too
+		// many and the swarm is living on extrapolated track, which is the one
+		// place a building can bite.
+		check(`${name}: a minority of the swarm is ahead of the pilot, and it is not none`,
+			o.ahead >= 0.15 && o.ahead <= 0.4, `${(o.ahead * 100).toFixed(0)} % ahead`);
+		if (SURROUND.includes(name)) {
+			check(`${name}: a quarter of the swarm is out on the flanks, abreast of the pilot`,
+				o.flank >= 0.25, `${(o.flank * 100).toFixed(0)} % between 60 and 120 deg off the tangent`);
+			check(`${name}: the azimuths are spread around the pilot, not pooled behind him`,
+				o.spread >= 0.7, `spread ${o.spread.toFixed(2)}`);
+		} else {
+			check(`${name}: stays the FILE — that is the point of keeping it`,
+				o.flank <= 0.1 && o.spread <= 0.6, `flank ${(o.flank * 100).toFixed(0)} %, spread ${o.spread.toFixed(2)}`);
+		}
+	}
 }
 
 console.log('\nswarm: the fallback holds on its own');

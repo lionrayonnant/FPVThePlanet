@@ -133,6 +133,10 @@ const TRACK_BACKSTEPS = 25;
 // the ray turnstile.
 export const AHEAD_MAX_S = 0.4;
 export const AHEAD_LATERAL_MAX_M = 4;
+// Same bound for the vertical half of a scout's offset, and for the same
+// reason: the forward probe follows the track's own tangent with no offset at
+// all, so everything a scout holds sideways OR upwards of it is unasked-for.
+export const AHEAD_VERTICAL_MAX_M = 3;
 
 // The rule of geometrySafe() (src/entry-state.js): blocked AND thicker than
 // 2 m. That is what tells a clipped roof edge from a wall in the way.
@@ -331,13 +335,43 @@ const FENCE_KEEP_M = 2;
 
 // ------------------------------------------------------------- the doctrines
 //
+// SURROUND, DO NOT TRAIL. The first real flight said it plainly: "the drones
+// are too far from the master, I do not feel them around me". The doctrines
+// used to spend their budget on LENGTH — up to 2.0 s of lag, which is 40 m of
+// empty track behind the pilot at 20 m/s — and an FPV pilot looks FORWARD, so
+// most of his swarm was never on screen at all.
+//
+// The fix is not to send more units ahead. Ahead means EXTRAPOLATING the track
+// past the last validated sample, and the 0.4 s / 4 m forward window is the
+// source of every penetration five rounds of fixes have just bounded. The
+// lever is free instead: `lag` NEAR ZERO with generous lateral and vertical
+// offsets. A unit at lag ~0.2 s reads the wake where the pilot was a moment
+// ago — level with him, 9 m out to the side or 5 m above, inside the 105 deg
+// field of the node's camera the moment he banks. No extrapolation, no extra
+// ray: the lateral offset is exactly what the turnstile already validates.
+//
+// So `lagMax` collapses (2.0 -> 0.5 for the cloud), `vertical` grows, and the
+// offsets are drawn AWAY from zero rather than uniformly across the envelope:
+// a unit at 10 % of the envelope is a unit stacked on the node, and it costs a
+// slot without buying any presence.
+//
+// The four doctrines stay DISTINCT and each is meant to be recognisable — they
+// become the formation catalogue the pilot switches between in flight (#34).
+// `column` is deliberately the one that still trails: it is the "file" mode,
+// and it only reads as a choice because the other three surround.
+//
+//   column  a thin file in your tracks, two scouts, strung out over a second
+//   wedge   a V whose vertex is the pilot: arms sweep out and back
+//   cloud   a ball around the node: the widest vertical, the loosest tau
+//   screen  a flat wide line abreast: the widest lateral, almost no depth
+//
 // `scouts` overrides the "about a third of them ahead" rule: a column has two
 // scouts and a tail, not four abreast.
 export const DOCTRINES = {
-	column: { lagMin: -0.2, lagMax: 1.2, lateral: 2, vertical: 1, tau: 0.25, scouts: 2 },
-	wedge: { lagMin: -0.4, lagMax: 0.5, lateral: 6, vertical: 2, tau: 0.35 },
-	cloud: { lagMin: -0.4, lagMax: 2.0, lateral: 10, vertical: 4, tau: 0.80 },
-	screen: { lagMin: -0.4, lagMax: 0.2, lateral: 10, vertical: 2, tau: 0.50 },
+	column: { lagMin: -0.25, lagMax: 1.1, lateral: 2.5, vertical: 1.5, tau: 0.25, scouts: 2 },
+	wedge: { lagMin: -0.4, lagMax: 0.45, lateral: 9, vertical: 3, tau: 0.35 },
+	cloud: { lagMin: -0.4, lagMax: 0.5, lateral: 9, vertical: 6, tau: 0.80 },
+	screen: { lagMin: -0.4, lagMax: 0.18, lateral: 12, vertical: 1.5, tau: 0.50 },
 };
 export const DOCTRINE_NAMES = Object.keys(DOCTRINES);
 
@@ -380,13 +414,36 @@ export function buildSlots(name, size, seed, lag, lat, vert) {
 		}
 		const side = (k % 2 === 0) ? 1 : -1;
 		let width = d.lateral;
-		if (name === 'wedge') width = d.lateral * Math.min(1, 0.25 + 0.75 * Math.abs(s));
+		// The floor matters as much as the ceiling: a unit drawn at 10 % of the
+		// envelope sits on the node's own line and is neither seen nor felt.
+		// Every doctrine but the column keeps its units out on the flanks.
+		if (name === 'wedge') width = d.lateral * Math.min(1, 0.35 + 0.65 * Math.abs(s));
 		else if (name === 'column') width = d.lateral * (0.2 + 0.5 * rand());
-		else width = d.lateral * (0.35 + 0.65 * rand());
+		else width = d.lateral * (0.55 + 0.45 * rand());
 		if (ahead) width = Math.min(width, AHEAD_LATERAL_MAX_M);
+		// Vertical alternates on its OWN parity, two units at a time, so that
+		// "up" and "left" do not end up meaning the same thing: with a single
+		// k % 2 side every left unit was also the high one and the swarm was a
+		// tilted plane rather than a volume. Same reasoning as the width for
+		// the magnitude — one above and one below is most of the sensation of
+		// being inside something.
+		//
+		// It is NOT symmetric, and the camera is why: the node's lens is
+		// uptilted 10-20 deg, so a unit above the pilot is in frame while its
+		// mirror image below is under the bottom edge. Measured on the cloud,
+		// which has the tallest envelope: a symmetric +-7 m draw put 7 % of the
+		// swarm in frame at 10 m/s against 18 % before this tranche — the low
+		// units were spending the envelope and buying nothing. Down gets half
+		// the reach, which is also half the reach towards the ground.
+		const vSide = (k % 4 < 2) ? 1 : -1;
+		let up = d.vertical * (vSide > 0 ? 0.45 + 0.55 * rand() : 0.30 + 0.35 * rand());
+		// A scout's vertical is capped like its lateral: it is the one offset
+		// held over EXTRAPOLATED track, and 7 m of it points the unit at a roof
+		// the forward probe never asked about.
+		if (ahead) up = Math.min(up, AHEAD_VERTICAL_MAX_M);
 		lag[k] = l;
 		lat[k] = side * width;
-		vert[k] = (rand() * 2 - 1) * d.vertical;
+		vert[k] = vSide * up;
 	}
 }
 

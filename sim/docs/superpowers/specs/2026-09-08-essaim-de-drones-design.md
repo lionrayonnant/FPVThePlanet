@@ -276,14 +276,33 @@ code existant côté modèle.
 ### Les doctrines
 
 Tirées sur `doctrineSeed`. Environ **un tiers des unités devant** dans toutes
-les doctrines sauf `column`.
+les doctrines sauf `column` — une **minorité**, et c'est délibéré : « devant »
+veut dire extrapoler la piste, et c'est le seul endroit où le bâti peut mordre.
+Le reste n'est pas derrière pour autant. Après le premier vol réel (« ils sont
+trop loin du master, je ne les sens pas autour de moi »), les doctrines
+dépensent leur budget en **largeur et en hauteur** plutôt qu'en longueur : le
+`lag` est proche de zéro, donc les unités lisent le sillage là où le joueur
+vient de passer — à sa hauteur, sur ses flancs, au-dessus et en dessous de lui.
+Le vertical n'est pas symétrique : la caméra du nœud est cabrée de 10 à 20°,
+donc une unité au-dessus est dans le champ quand son image en dessous n'y est
+pas — le bas a la moitié de la portée.
 
-| doctrine | plage de lag | latéral | `tau` | ce qu'on voit |
-|---|---|---|---|---|
-| `column` | −0,2 à 1,2 s | ±2 m | 0,25 s | ils enfilent tes portes, deux éclaireurs devant |
-| `wedge` | −0,4 à 0,5 s | ±6 m | 0,35 s | V ouvert dont tu es le sommet arrière |
-| `cloud` | −0,4 à 2,0 s | ±10 m | 0,80 s | nuée molle, tu es dedans |
-| `screen` | −0,4 à 0,2 s | ±10 m | 0,50 s | ils volent devant en écran |
+Les quatre doctrines restent **distinctes et assumées** : elles deviennent le
+catalogue de formations commutables en vol (#34). `column` est celle qui traîne
+encore, exprès — c'est le « mode traînée », et il ne se lit comme un choix que
+parce que les trois autres enveloppent.
+
+| doctrine | plage de lag | latéral | vertical | `tau` | ce qu'on voit |
+|---|---|---|---|---|---|
+| `column` | −0,25 à 1,1 s | ±2,5 m | ±1,5 m | 0,25 s | la file : ils enfilent tes portes, deux éclaireurs devant |
+| `wedge` | −0,4 à 0,45 s | ±9 m | ±3 m | 0,35 s | le V dont tu es le sommet : les bras s'ouvrent sur tes flancs |
+| `cloud` | −0,4 à 0,5 s | ±9 m | ±6 m | 0,80 s | la bulle : la plus haute, la plus molle, tu es dedans |
+| `screen` | −0,4 à 0,18 s | ±12 m | ±1,5 m | 0,50 s | l'écran : une ligne large et plate, de front avec toi |
+
+La mesure de cette sensation vit dans `tools/swarm-selftest.mjs` (bloc « the
+pilot is INSIDE his swarm »), lue à travers la caméra du nœud : fraction des
+unités à moins de 25 m, fraction dans le champ, fraction **de flanc** (60 à
+120° de la tangente) et dispersion des azimuts.
 
 ### Le budget de rayons
 
