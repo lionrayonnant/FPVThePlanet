@@ -504,17 +504,3 @@ export const RITUAL_PRIMITIVES = {
 	waveformSpike, vectorSweep, memoryScroll, chromaSplit,
 	colorFlash, textWarp, bannerBurst,
 };
-
-// 2-4 primitives pondérées par famille : mêmes 11 fonctions pour toutes, seul
-// le sous-ensemble + l'ordre changent (grammaire, pas des dizaines de
-// séquences écrites à la main). Une famille absente retomberait sur un
-// générique — en pratique HACK_TYPES (6) couvre toutes les entrées, testé
-// par ritual-selftest.mjs.
-export const FAMILY_PRIMITIVES = {
-	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift', 'colorFlash'],
-	'LINK HIJACK': ['pulseRing', 'waveformSpike', 'colorFlash'],
-	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit', 'textWarp'],
-	'GNSS SPOOF': ['vectorSweep', 'chromaSplit', 'bannerBurst'],
-	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing', 'bannerBurst'],
-	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst', 'textWarp'],
-};
