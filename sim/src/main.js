@@ -20,7 +20,8 @@ import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { runBriefing } from './briefing.js';
 import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint } from '../tools/briefing-model.mjs';
-import { keyMapRows } from './key-map.js';
+import { keyMapRows, actionForKey } from './key-map.js';
+import { FlightExit } from './flight-exit.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -547,10 +548,16 @@ const PAUSE_GUARD_MS = 5000;
 let introFrozen = false;
 let crashed = false;
 
-// Garde le [ENTER] DISCONNECT (PHASE 15) idempotent : exitArmed reste vrai une
-// fois posé, une touche maintenue ou un second événement ne doit pas ouvrir
-// deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
-let exiting = false;
+// Keeps [ENTER] DISCONNECT idempotent (PHASE 15): exitArmed stays true once
+// set, so a held key or a second event must not fire two reloads.
+// #20: the latch and the two acts of leaving live in src/flight-exit.js, which
+// is pure and tested. Both are bounded there — a flush that never answers gives
+// up, and a navigation that does not take the page away hands the gesture back
+// instead of leaving the end screen inert forever.
+const flightExit = new FlightExit({
+	flush: () => operator.flush(),
+	navigate: () => { location.href = location.pathname; },
+});
 
 // État « bouton manette tenu » pour la sortie de fin de vol (issue #123).
 // Vrai par défaut : seul un front montant APRÈS l'armement de la sortie
@@ -741,6 +748,39 @@ function exposeDebugGlobal() {
 		ambient: () => ambient,
 		// L'essaim (issue #29), ou null (banc, hors cluster, avant la carte).
 		swarm: () => swarm,
+		// Why an end-of-flight exit does not exit (#20). Everything [ESC] /
+		// [ENTER], the click and the pad button depend on, in one console call
+		// with the end screen up. Each field is a guard that can, on its own,
+		// make the gesture inert.
+		endState() {
+			const map = input.getKeyMap();
+			const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+			return {
+				phase: flightEnd.phase,
+				exitArmed: flightEnd.out.exitArmed,
+				// True = an exit is already under way and every later gesture is
+				// being folded into it. 'stalled' means it gave up and handed the
+				// gesture back (#20).
+				exiting: flightExit.busy,
+				exitStage: flightExit.stage,
+				operatorPending: operator.pendingCount(),
+				settingsOpen: settings.settingsOpen,
+				paused,
+				frozen: simFrozen(),
+				// Non-null = the key went off to fly an action and never reaches the
+				// exit (input.js only passes it raw when NOTHING binds it).
+				escapeBoundTo: actionForKey(map, 'escape'),
+				enterBoundTo: actionForKey(map, 'enter'),
+				tabBoundTo: actionForKey(map, 'tab'),
+				keyMap: map,
+				// A button held since the flight blocks the pad's rising edge.
+				padHeld: exitPadHeld,
+				padDown: !!pad?.buttons.some((b) => b.pressed),
+				padButtonsDown: pad ? pad.buttons.map((b, i) => (b.pressed ? i : -1)).filter((i) => i >= 0) : null,
+				activeElement: document.activeElement?.tagName ?? null,
+				pointerLock: !!document.pointerLockElement,
+			};
+		},
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -1484,7 +1524,7 @@ input.onAction = (action, event) => {
 	// #253 : REDEPLOY, clavier seulement (comme les touches banc ci-dessus) —
 	// la manette garde son geste « n'importe quel bouton déconnecte » plus bas.
 	// FIELD only : au banc 'r' respawn déjà (garde tout en haut de ce handler).
-	else if (action === 'respawn' && flightEnd.out.exitArmed && !exiting) finishSession({ redeploy: true });
+	else if (action === 'respawn' && flightEnd.out.exitArmed && !flightExit.busy) finishSession({ redeploy: true });
 };
 
 // #253 : clé sessionStorage portant la zone à rejouer d'un REDEPLOY à travers
@@ -1510,9 +1550,13 @@ function consumeQuickRestart() {
 // #253: { redeploy: true } leaves the flight's zone in sessionStorage so that
 // chooseScene(), after the reload, drops straight back into that zone's
 // TARGET SCAN.
-async function finishSession({ redeploy = false } = {}) {
-	if (exiting) return;
-	exiting = true;
+// #247: the debounce in operator.patch() (settings, dialogueMemory, coverage)
+// has no guarantee against the reload — only a flush resolved before leaving
+// has one. That flush is best-effort, and flight-exit.js is what makes
+// "best-effort" true of a server that never answers, not only of one that
+// refuses.
+function finishSession({ redeploy = false } = {}) {
+	if (flightExit.busy) return;
 	// The flight is over: the flag that says "the sticks fly the machine" must
 	// stop saying it. The reload clears it anyway, but Settings reads it in the
 	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
@@ -1520,12 +1564,7 @@ async function finishSession({ redeploy = false } = {}) {
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
-	// #247 : le debounce de operator.patch() (settings, dialogueMemory, coverage)
-	// n'a aucune garantie face à ce rechargement — seul un flush() résolu avant
-	// de partir en a une. Un échec réseau ne doit pas bloquer la sortie pour
-	// autant : on part quand même, comme le ferait beforeunload.
-	try { await operator.flush(); } catch (e) { console.warn('[operator] flush de fin de vol échoué', e); }
-	location.href = location.pathname;
+	flightExit.run();
 }
 
 renderer.domElement.addEventListener('click', () => {
@@ -1537,7 +1576,7 @@ renderer.domElement.addEventListener('click', () => {
 	// le plein écran lui-même — voir le commentaire d'exitPointerLock plus
 	// bas). Un joueur qui vient de crasher plein écran a donc toujours un
 	// moyen de sortir.
-	if (flightEnd.out.exitArmed && !exiting) { finishSession(); return; }
+	if (flightEnd.out.exitArmed && !flightExit.busy) { finishSession(); return; }
 	// Une fois le vol fini, on ne reprend plus le curseur : le reverrouiller
 	// reconfisquerait Échap au navigateur (voir la sortie du pointer lock à la
 	// fermeture de session), et il n'y a plus rien à piloter.
@@ -2566,7 +2605,7 @@ if (!frozen) {
 	// vol est fini — n'importe quel bouton de manette NOUVELLEMENT pressé
 	// déconnecte, sans poser la radio. Front montant seulement : un inter tenu
 	// depuis le vol ou le geste de désarmement ne compte pas.
-	if (flightEnd.out.exitArmed && !exiting) {
+	if (flightEnd.out.exitArmed && !flightExit.busy) {
 		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
 		const down = !!pad?.buttons.some((b) => b.pressed);
 		if (down && !exitPadHeld) finishSession();

@@ -185,35 +185,18 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
-- Le gaz clavier montait pendant que la simulation était **gelée** (#33). Il
-  est un intégrateur — comme un vrai manche, il reste où on le laisse, et
-  l'OSD l'affiche en pourcentage —, mais `input.update()` était appelé AVANT le
-  test de gel, et le gel inclut le panneau de réglages ouvert. Taper « z » sur
-  la page de remappage des touches armait donc le gaz à fond, et le drone
-  partait à la verticale à la fermeture du panneau : vu de l'extérieur, « la
-  touche reste enfoncée ». Le gel suspend désormais l'**intégration** sans
-  suspendre la **lecture** — les touches continuent d'être suivies, sans quoi
-  une touche relâchée panneau ouvert resterait enfoncée au dégel. Rien ne
-  change en vol, et `tools/input-selftest.mjs` monte pour la première fois la
-  classe `Input` sur le faux DOM pour le verrouiller.
-- Le panneau de réglages ne disait pas qu'il défilait (#33). Il défile depuis
-  #123, mais sa barre était un pouce de 8 px sans piste : sur l'onglet
-  `KEYBOARD`, les seize lignes de touches poussent `RESET KEYS` sous la ligne
-  de flottaison, et à 125-150 % de mise à l'échelle — le réglage d'usine d'un
-  portable Windows — le bouton est simplement absent pour qui ne devine pas
-  qu'il faut défiler. La barre du panneau se voit maintenant, piste comprise,
-  et deux ombres de défilement en CSS pur marquent la matière hors cadre. Elles
-  s'effacent d'elles-mêmes en haut et en bas : un dégradé fixe mentirait à
-  l'arrivée.
-- L'écran restait **vide** entre le choix du signal et l'écran de hack (#33).
-  `main.js` attendait le téléchargement ET le décodage d'une piste de musique
-  entière avant de monter le hack — le TARGET SCAN déjà démonté, le HUD de
-  chargement caché : le joueur appuyait sur Entrée et il ne se passait rien. La
-  musique se charge désormais DERRIÈRE l'écran de hack, comme `bootLive()`
-  recouvre ses trois latences au lieu de les additionner. Le hack dure
-  plusieurs secondes au minimum ; la musique entre dedans, ce qui est de toute
-  façon sa place — elle est le premier indice sensoriel de la machine, pas un
-  préalable à l'écran.
+- L'écran de fin de vol pouvait devenir une impasse : ni Échap, ni Entrée, ni
+  le clic, ni la manette n'en sortaient (issue #20). La sortie était en fait
+  DÉJÀ partie — le geste manette « n'importe quel bouton déconnecte » (#123)
+  la déclenchait dès l'armement — et elle ne revenait jamais : `finishSession()`
+  posait son verrou d'idempotence AVANT les deux actes qui peuvent ne pas
+  aboutir, un `flush()` réseau et la navigation. Le `catch` du flush ne voit
+  qu'un rejet, jamais une promesse qui ne s'installe pas, et rien ne relevait
+  le verrou : tout geste ultérieur ressortait en silence. Le verrou et ces deux
+  actes vivent désormais dans `src/flight-exit.js`, pur et couvert par
+  `tools/flight-exit-selftest.mjs` : le flush a un plafond (1,5 s), et une
+  navigation qui n'a pas emporté la page rend le geste au joueur au bout de
+  3 s plutôt que de condamner l'écran.
 
 - Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de
   vol (régression du LOD par anneaux, #22). Depuis ce LOD, l'`exclude` d'un
