@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	SCHEMA_VERSION, slugify, newId, validateName,
-	validateControlVector, freshState, migrate,
+	freshState, migrate,
 } from './operator-store.mjs';
 
 let n = 0;
@@ -29,23 +29,12 @@ t('validateName', () => {
 	assert.throws(() => validateName('***'), /NAME UNUSABLE/);
 });
 
-t('validateControlVector', () => {
-	assert.deepEqual(
-		validateControlVector(['up', 'right', 'down', 'left', 'up', 'left']),
-		['up', 'right', 'down', 'left', 'up', 'left'],
-	);
-	assert.throws(() => validateControlVector(['up', 'up', 'up']), /invalide/);       // trop court
-	assert.throws(() => validateControlVector(new Array(9).fill('up')), /invalide/);  // trop long
-	assert.throws(() => validateControlVector(['up', 'north', 'up', 'up']), /invalide/);
-	assert.throws(() => validateControlVector('uuuu'), /invalide/);
-});
-
 t('freshState est complet', () => {
 	const s = freshState({ id: 'neo-1a2b', name: 'Neo' });
 	assert.equal(s.schemaVersion, SCHEMA_VERSION);
 	assert.equal(s.id, 'neo-1a2b');
 	assert.equal(s.name, 'Neo');
-	assert.deepEqual(s.controlVector, []);
+	assert.equal('controlVector' in s, false);
 	assert.deepEqual(s.settings, {});
 	assert.deepEqual(s.terrainCache, []);
 	assert.deepEqual(s.sessions, []);
@@ -59,7 +48,9 @@ t('freshState est complet', () => {
 t('migrate comble les clés manquantes', () => {
 	const m = migrate({ id: 'x-1', name: 'X', controlVector: ['up', 'up', 'up', 'up'] });
 	assert.equal(m.schemaVersion, SCHEMA_VERSION);
-	assert.deepEqual(m.controlVector, ['up', 'up', 'up', 'up']);
+	// v2 → v3 : la clé morte part avec la migration (#33). Sans le `delete` de
+	// migrate(), le spread `...state` la réinjecterait dans tout état déjà écrit.
+	assert.equal('controlVector' in m, false);
 	assert.deepEqual(m.sessions, []);
 	assert.deepEqual(m.worldState, {});
 });

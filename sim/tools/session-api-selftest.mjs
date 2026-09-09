@@ -43,8 +43,8 @@ const PHOTO = { dataUrl: 'data:image/jpeg;base64,/9j/AAA=', w: 480, h: 360 };
 try {
 	// --- un opérateur, deux sessions -----------------------------------------
 	const created = await call('POST', '/__operator', { name: 'apitest' });
-	check('POST /__operator crée un opérateur v2', created.status === 201
-		&& created.body.operator.schemaVersion === 2
+	check('POST /__operator crée un opérateur v3', created.status === 201
+		&& created.body.operator.schemaVersion === 3
 		&& created.body.operator.sessionSeq === 0
 		&& !('targetLog' in created.body.operator));
 	const id = created.body.operator.id;
