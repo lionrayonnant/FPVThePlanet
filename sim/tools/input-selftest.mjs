@@ -1,9 +1,15 @@
-// Selftest de la logique pure de src/input.js. Aucune E/S, aucun DOM : la
-// classe Input a besoin de `window`, seuls les helpers exportés sont couverts
-// (détection de manette, profil par défaut, conversion de l'axe de gaz).
+// Selftest de la logique pure de src/input.js. Presque aucune E/S : les helpers
+// exportés (détection de manette, profil par défaut, conversion de l'axe de
+// gaz) se testent nus. La classe Input, elle, a besoin de `window` — le faux
+// DOM le fournit, et c'est le SEUL endroit où elle est montée (issue #33 : le
+// gaz clavier est un intégrateur, et son intégration a un état à vérifier).
 // Lancer : node tools/input-selftest.mjs
 import assert from 'node:assert/strict';
-import {
+import { installFakeDom } from './lib/fake-dom.mjs';
+
+const dom = installFakeDom();
+
+const {
 	padKind,
 	defaultMapForKind,
 	throttleModeForKind,
@@ -16,8 +22,9 @@ import {
 	calStoreSet,
 	sticksFromCalibration,
 	remapChannel,
-} from '../src/input.js';
-import { padSignals } from '../src/calibration.js';
+	Input,
+} = await import('../src/input.js');
+const { padSignals } = await import('../src/calibration.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -354,6 +361,95 @@ t('#279 : une Pocket dont le gaz est sur la gâchette vole correctement', () => 
 	const droite = sticksFromCalibration(padSignals(pocket(1, 0, 0, 0)), cal);
 	assert.ok(droite.roll > 0.97, `roulis à droite = ${droite.roll}`);
 	assert.equal(droite.throttle, 0, 'bouger un manche ne met pas de gaz');
+});
+
+
+// --- gaz clavier : un intégrateur, et ce qui a le droit de l'intégrer (#33) --
+//
+// Le gaz clavier n'est PAS un bouton : comme un vrai manche, il reste où on le
+// laisse. C'est voulu, et l'OSD l'affiche en %. Ce qui ne l'était pas, c'est
+// qu'il monte pendant que la simulation est gelée — taper « z » sur la page de
+// remappage armait le gaz à fond, et le drone partait à la verticale à la
+// fermeture du panneau.
+
+const freshInput = () => {
+	const input = new Input();
+	input.keys.clear();
+	input.kbThrottle = 0;
+	return input;
+};
+
+// Une seconde d'appui, en pas de 100 ms : la boucle de frame, en plus lent.
+const holdFor = (input, key, seconds, opts) => {
+	input.keys.add(key);
+	for (let i = 0; i < seconds * 10; i++) input.update(0.1, opts);
+	input.keys.delete(key);
+};
+
+t('#33 : « z » maintenu monte le gaz — c\'est un manche, pas un bouton', () => {
+	const input = freshInput();
+	holdFor(input, 'z', 0.5);
+	assert.ok(input.kbThrottle > 0.5, `gaz ${input.kbThrottle} après 0,5 s`);
+});
+
+t('#33 : relâcher « z » LAISSE le gaz où il est — un manche ne retombe pas', () => {
+	const input = freshInput();
+	holdFor(input, 'z', 0.5);
+	const held = input.kbThrottle;
+	for (let i = 0; i < 20; i++) input.update(0.1);   // plus aucune touche
+	assert.equal(input.kbThrottle, held, 'le gaz a bougé sans entrée');
+});
+
+t('#33 : « s » redescend le gaz', () => {
+	const input = freshInput();
+	holdFor(input, 'z', 1);
+	assert.ok(input.kbThrottle > 0.9);
+	holdFor(input, 's', 1);
+	assert.ok(input.kbThrottle < 0.1, `gaz ${input.kbThrottle} après une seconde de descente`);
+});
+
+t('#33 : simulation gelée, « z » n\'intègre RIEN', () => {
+	// Le cœur du bug : panneau de réglages ouvert, la boucle de frame tourne
+	// toujours et appelait update() sans dire que plus rien ne pilotait.
+	const input = freshInput();
+	holdFor(input, 'z', 2, { frozen: true });
+	assert.equal(input.kbThrottle, 0, `gaz ${input.kbThrottle} armé pendant le gel`);
+});
+
+t('#33 : le gel n\'ABÎME pas le gaz déjà mis', () => {
+	// Geler ne remet pas à zéro : mettre en pause en plein vol ne doit pas
+	// couper les gaz au dégel.
+	const input = freshInput();
+	holdFor(input, 'z', 0.5);
+	const before = input.kbThrottle;
+	for (let i = 0; i < 20; i++) input.update(0.1, { frozen: true });
+	assert.equal(input.kbThrottle, before);
+});
+
+t('#33 : au dégel, « z » intègre de nouveau', () => {
+	// La garde ne doit pas coincer l'entrée dans l'état gelé.
+	const input = freshInput();
+	holdFor(input, 'z', 1, { frozen: true });
+	assert.equal(input.kbThrottle, 0);
+	holdFor(input, 'z', 0.5);
+	assert.ok(input.kbThrottle > 0.5, `gaz ${input.kbThrottle} après le dégel`);
+});
+
+t('#33 : sans option, update() intègre — le défaut reste le vol', () => {
+	const input = freshInput();
+	holdFor(input, 'z', 0.5, undefined);
+	assert.ok(input.kbThrottle > 0.5);
+});
+
+t('#33 : une touche relâchée pendant le gel est bien relâchée au dégel', () => {
+	// Le gel suspend l'INTÉGRATION, pas le suivi du clavier : sinon une touche
+	// lâchée panneau ouvert resterait enfoncée à la fermeture.
+	const input = freshInput();
+	input.keys.add('z');
+	for (let i = 0; i < 5; i++) input.update(0.1, { frozen: true });
+	input.keys.delete('z');
+	for (let i = 0; i < 5; i++) input.update(0.1);
+	assert.equal(input.kbThrottle, 0, 'le gaz est monté sans touche tenue');
 });
 
 console.log(`input-selftest: ${n} tests ok`);

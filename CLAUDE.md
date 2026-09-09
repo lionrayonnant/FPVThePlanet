@@ -117,6 +117,13 @@ abandoned → close + comment + abandoned label
 
 Create a new issue for follow-up work discovered during a session rather than leaving TODOs in code.
 
+Work in a fresh worktree, one per piece of work. Never work directly in the
+main checkout: create the worktree at the START of the task, from an up-to-date
+`main`, and let it carry that task's branch alone. A second task means a second
+worktree, never a reused one — a worktree that already has a branch's history in
+it is how unrelated changes end up in the same PR. Remove it once the work is
+merged.
+
 Commit and push at good checkpoints. Normal commits/pushes need no confirmation. Do not force-push/rewrite history or bypass branch protection.
 
 Versioning
@@ -133,7 +140,15 @@ CI
 
 `.github/workflows/ci.yml` runs on push to `main` and on every PR: `npm run selftest:ci` (the chain that needs no installed scene, no network, no browser — ~2 min) and `npm run build` for `sim/`. The release workflow runs the same `selftest:ci` before publishing a tag.
 
-Run `npm run selftest:ci` locally before pushing. A selftest that needs scene data must SKIP loudly when it is missing rather than fail — `tools/entry-state-selftest.mjs` is the pattern.
+Run `npm run selftest:ci` ONCE, at the very END of the work, right before
+pushing — not after each step, not between two edits of the same change. The
+chain takes minutes and re-running it mid-task buys nothing: what a step needs
+is its OWN selftest (`node tools/<module>-selftest.mjs`), which costs seconds.
+The full chain is the final gate, and the same rule binds subagents: a subagent
+runs only the selftests of the module it touched, and the parent runs the chain
+once when everything has landed. A selftest that needs scene data must SKIP
+loudly when it is missing rather than fail — `tools/entry-state-selftest.mjs` is
+the pattern.
 
 `npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
 
