@@ -2634,12 +2634,23 @@ cinématiques. L'évitement du bâti est gratuit — les unités volent dans le 
 du joueur, libre par construction — et le pire cas dégradé est la file indienne
 dans ses traces, jamais la traversée de mur.
 
+La vitesse des unités est réglée sur le nœud (issue #46) : `SWARM_UNIT.vMax` vaut
+40 m/s contre les **33,4 m/s mesurés** du `swarmNode` (`NODE_TOP_SPEED_MS`), et
+γ — le limiteur de pas — est **cherché par dichotomie** au lieu d'être divisé
+par deux. Sans ces deux-là, l'essaim décrochait **définitivement** dès que le
+joueur poussait les gaz.
+
 ### Vérifié
 
 - `npm run selftest:ci` vert, essaim compris. `tools/swarm-selftest.mjs` balaie
   **cinq axes** : graine, vitesse, cadence (60/30/12/4 fps), géométrie (rues et
   épingles) et **taille d'essaim** (6..12). Chacun de ces axes a, en son temps,
   révélé une pénétration que le précédent ne voyait pas — ne pas en retirer un.
+- L'essaim **suit le nœud à son plafond mesuré** : plein manche de 20 à 33,4 m/s
+  l'étire de 3,9 à 13,9 m hors de ses slots, et il revient à 2,93 m **pendant que
+  le nœud reste à fond**. Sur le code d'avant #46 ce même nombre vaut 263 m et ne
+  se stabilise pas. Le décrochage est de nouveau un transitoire, pas une porte à
+  sens unique.
 - La propriété centrale tient **rayons tous bloqués** : les unités se replient sur
   le sillage pur, c'est-à-dire exactement là où le joueur est passé.
 - Le budget de **6 rayons/frame** est tenu pour toute taille et toute doctrine,
@@ -2664,11 +2675,19 @@ dans ses traces, jamais la traversée de mur.
 
 ### Pénétrations acceptées pour la v1 — ce sont des décisions
 
-~3 m dans le régime écrêté (frames de 250 ms) pour toute taille ≠ 12. À cadence
-nominale, le harnais élargi de la tranche « entourer » mesure 0,68 m à 60 fps et
-0,70 m à 30 fps sur un slalom serré, contre `ACCEPTED_WEAVE_M = 1,5` — le
-rapprochement de l'essaim a divisé cette pénétration par trois, et la constante
-laisse désormais deux fois la marge du pire mesuré.
+Dans le régime écrêté (frames de 250 ms), `LONG_FRAME_CEILING_M` vaut **6 m** :
+un airframe plus rapide creuse mécaniquement les transitoires de repli, et le
+tirage large (48 graines, tailles 6..12, six vitesses, 4 032 vols) est passé de
+3,44 m à 4,12 m en montant `vMax` de 24 à 40. Contre l'ancien plafond de 4,5 m
+il ne restait que 9 % de marge — la dernière mesure avec un chiffre rond posé
+dessus, exactement le mode d'échec que ce module a déjà connu deux fois.
+
+À cadence nominale, `ACCEPTED_TIGHT_M` et `ACCEPTED_WEAVE_M` restent à **1,5 m**,
+remesurés sur l'airframe à 40 m/s : 0,85 m (épingle, 60 fps), 1,23 m (épingle,
+30 fps), 0,47 m et 0,84 m (slalom). Ils lisent **moins** qu'avant, pas plus.
+`ACCEPTED_TIGHT_M` est la ligne que `OFFSET_SLEW_MS` rend vraie : sans ce
+plafond plat sur la vitesse de l'offset, le même balayage lit 1,54 m à 60 fps et
+1,80 m à 30 fps.
 
 Les constantes qui les portent vivent dans `tools/swarm-selftest.mjs` : **leur
 rôle n'est pas d'être petites, il est d'être vraies**. Une constante ajustée à 1 cm de sa mesure échoue au premier changement

@@ -15,7 +15,8 @@
 
 import {
 	SwarmModel, DOCTRINES, DOCTRINE_NAMES, doctrineFor, scoutsFor, buildSlots,
-	SWARM_UNIT, ACCEL_MAX, SPEED_MAX, WAKE_SAMPLES, WAKE_DT_S, RAY_BUDGET,
+	SWARM_UNIT, ACCEL_MAX, SPEED_MAX, NODE_TOP_SPEED_MS, OFFSET_SLEW_MS,
+	WAKE_SAMPLES, WAKE_DT_S, RAY_BUDGET,
 	AHEAD_MAX_S, AHEAD_LATERAL_MAX_M, AHEAD_VERTICAL_MAX_M, MARGIN_FALL_S, MARGIN_RISE_S,
 	MIN_SIZE, MAX_SIZE,
 } from '../src/swarm.js';
@@ -473,12 +474,23 @@ console.log('\nswarm: the wake ring');
 // sweep wide enough to have a distribution, and the sweep now carries the size
 // axis that was missing.
 //
-// WHAT IT MEANS, said plainly: on 250 ms frames a unit can be three and a half
-// metres inside the inside wall of a 3 m hairpin for a fraction of a second.
-// That is the render loop's own clamp — 4 fps — and it is the regime issue #38
-// tracks. It is not the nominal cadences: those are held to ACCEPTED_TIGHT_M
-// and ACCEPTED_WEAVE_M below, which are an order of magnitude smaller.
-const LONG_FRAME_CEILING_M = 4.5;
+// AND IT MOVED AGAIN IN TRANCHE 8, for the reason the issue predicted: the
+// offsets retract at the airframe's own top speed, so raising vMax from 24 to
+// 40 m/s (issue #46) mechanically deepens a FOLD TRANSIENT. Same figure, a
+// draw wide enough to have a distribution (48 cluster seeds, sizes 6..12,
+// 12/15/18/22/26/30 m/s, 4 032 flights): 3.44 m on the 24 m/s airframe,
+// 4.12 m on the 40 m/s one, and the hitched variant 1.78 -> 2.30 m. Against a
+// 4.5 m ceiling that leaves 9 % of headroom — which is not a ceiling, it is
+// the last reading with a round number over it, and this file has already
+// broken that way twice. So it goes to 6 m, a third over the widest reading,
+// the same margin 4.5 m had over 3.41 m when it was set.
+//
+// WHAT IT MEANS, said plainly: on 250 ms frames a unit can be four metres
+// inside the inside wall of a 3 m hairpin for a fraction of a second. That is
+// the render loop's own clamp — 4 fps — and it is the regime issue #38 tracks.
+// It is not the nominal cadences: those are held to ACCEPTED_TIGHT_M and
+// ACCEPTED_WEAVE_M below, which are an order of magnitude smaller.
+const LONG_FRAME_CEILING_M = 6;
 
 console.log('\nswarm: no unit is ever inside a building');
 {
@@ -658,6 +670,33 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	// with a 2 m hairpin, both on a `screen` — the seed set was the entire
 	// difference, and the six fixed seeds this block used to fly simply never
 	// drew that shape. 1.5 m is the reading with a third of headroom.
+	//
+	// RE-MEASURED IN TRANCHE 8, because raising vMax from 24 to 40 m/s (issue
+	// #46) mechanically widens what a unit can cover in a frame, and a figure
+	// calibrated on a slower airframe is not evidence about a faster one. Same
+	// axes, the wide draw described below: 24 seeds, sizes 6..12, 12/15/22 m/s,
+	// all six hairpins, 3 024 flights per cadence. It reads 0.85 m at 60 fps
+	// (n=12, 15 m/s, 10 m street, 2 m hairpin) and 1.23 m at 30 fps (n=10,
+	// 22 m/s, 12 m street, 2.5 m hairpin) — under where it was, not over, so
+	// 1.5 m stands and is not being stretched to fit.
+	//
+	// AND THIS IS THE FIGURE OFFSET_SLEW_MS MAKES TRUE. A hairpin is where the
+	// track frame turns over, so the doctrine's side swaps and a unit's offset
+	// target crosses the street; with the offset spending only the airframe's
+	// leftover budget and no flat ceiling on top of it, the same sweep reads
+	// 1.54 m at 60 fps and 1.80 m at 30 fps — over the accepted figure at both
+	// cadences, on a swarm whose airframe merely got faster. That is what a
+	// FORMATION rate is for and why it is not SWARM_UNIT.vMax:
+	//
+	//                     with OFFSET_SLEW_MS     budget alone
+	//     60 fps hairpin        0.85 m               1.54 m
+	//     30 fps hairpin        1.23 m               1.80 m
+	//     60 fps slalom         0.47 m               0.77 m
+	//     30 fps slalom         0.84 m               0.83 m
+	//
+	// The slalom barely moves, which is the point: the slew ceiling is about
+	// CROSSING geometry the rays have not re-authorised, and a weave never
+	// asks the offset to cross.
 	const ACCEPTED_TIGHT_M = 1.5;
 	// slalom: the wake itself crosses the street under the swarm — the regime
 	// where a unit holding a lateral offset is carried through a wall by the
@@ -678,10 +717,8 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	// way: a fourth street width (9 m, half = 4.5, the bottom of the range a
 	// v1 city actually cuts) joins SLALOMS below, and at the two cadences the
 	// render loop is not clamping — the only ones this figure is checked
-	// against — this kind flies WEAVE_SEEDS (24 seeds, six per doctrine, see
-	// below) instead of the eight-seed rotation the hairpin still uses (the
-	// hairpin is not the figure that was reported tight, so it is not the one
-	// paying for a bigger draw).
+	// against — this kind flies WIDE_SEEDS (24 seeds, six per doctrine, see
+	// below) instead of the eight-seed rotation.
 	//
 	// That widened draw — 4 widths x 2 periods x 7 sizes x 3 speeds x 24
 	// seeds, 4032 flights per cadence — does NOT reproduce 1.49 m: it reads
@@ -698,6 +735,11 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	// exercised as widely as the axes below allow, actually measures — and it
 	// leaves 1.5 m exactly where it was: twice the measured worst, not one
 	// centimetre over it.
+	//
+	// Re-measured in tranche 8 with the rest, on the 40 m/s airframe: 0.47 m
+	// at 60 fps (n=6, 15 m/s, 10 m street, period 30) and 0.84 m at 30 fps
+	// (n=8, 12 m/s, 15 m street, period 30). Still under half the accepted
+	// figure, so it stands.
 	const ACCEPTED_WEAVE_M = 1.5;
 	const HAIRPINS = [[60, 7.5, 3], [60, 7.5, 2.5], [60, 6, 2.5], [60, 6, 2], [60, 5, 2], [60, 5, 1.5]];
 	// A slalom's shape is its AMPLITUDE and its PERIOD; the street width sets
@@ -739,13 +781,14 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 			if (doctrineFor(`c-${i}`) === name) { SEED_POOL.push(`c-${i}`); found++; }
 		}
 	}
-	// Half the pool, six seeds per doctrine, kept aside for the slalom's own
-	// nominal-cadence draw (see the comment above ACCEPTED_WEAVE_M): three
-	// times the eight-seed rotation without paying for the full 48, which
-	// made this file's runtime balloon for no further change in the reading.
-	const WEAVE_SEEDS = [];
+	// Half the pool, six seeds per doctrine: the draw both figures fly at the
+	// two nominal cadences, where their accepted penetrations are checked.
+	// Three times the eight-seed rotation without paying for the full 48,
+	// which made this file's runtime balloon for no further change in the
+	// reading.
+	const WIDE_SEEDS = [];
 	for (let d = 0; d < DOCTRINE_NAMES.length; d++) {
-		for (let j = 0; j < 6; j++) WEAVE_SEEDS.push(SEED_POOL[d * POOL_PER_DOCTRINE + j]);
+		for (let j = 0; j < 6; j++) WIDE_SEEDS.push(SEED_POOL[d * POOL_PER_DOCTRINE + j]);
 	}
 	let cell = 0;
 	const nextSeeds = () => {
@@ -764,14 +807,22 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 		for (const [kind, accepted, cases] of [['hairpin', ACCEPTED_TIGHT_M, HAIRPINS], ['slalom', ACCEPTED_WEAVE_M, SLALOMS]]) {
 			let worst = 0, at = '', flights = 0, ratio = 0, ratioAt = '';
 			const rotated = nextSeeds();
-			// The slalom is the figure a review reported measuring tight (see
-			// the comment above ACCEPTED_WEAVE_M), so at the two cadences the
-			// render loop is not clamping — the ones ACCEPTED_WEAVE_M is
-			// actually checked against, below — it flies WEAVE_SEEDS (24, six
-			// per doctrine) instead of the eight-seed rotation. The hairpin
-			// keeps the rotation everywhere, and the slalom keeps it too at
-			// 12 and 4 fps: neither is the case the wider draw was for.
-			const seeds = (kind === 'slalom' && dt <= NOMINAL_DT) ? WEAVE_SEEDS : rotated;
+			// At the two cadences the render loop is not clamping — the only
+			// ones the accepted figures are checked against, below — BOTH
+			// figures fly the wide draw (24 seeds, six per doctrine) rather
+			// than the eight-seed rotation. The slalom took it first, because
+			// a review had reported it tight; the hairpin joined it in tranche
+			// 8, because the property OFFSET_SLEW_MS holds is a HAIRPIN
+			// property and the eight-seed rotation cannot see it: the same
+			// sweep reads 0.85 m with the flat slew ceiling and 1.54 m without
+			// it, and the seed that reads 1.54 (c-39, a `wedge`) is not among
+			// the eight this cell rotates to. An assertion a defect can walk
+			// past is not an assertion — and the widened draw earns its keep
+			// twice over, since it also reads 1.51 m on the revision that
+			// halved γ instead of searching it.
+			// At 12 and 4 fps both keep the rotation: neither figure is
+			// checked against an accepted number there.
+			const seeds = dt <= NOMINAL_DT ? WIDE_SEEDS : rotated;
 			for (const [pitch, half, shape] of cases) {
 				const city = makeCity(pitch, half);
 				const track = kind === 'hairpin' ? hairpinOf(shape) : slalomOf(half - 2, shape);
@@ -1217,26 +1268,120 @@ console.log('\nswarm: physical bounds');
 		Math.abs(SWARM_UNIT.bodyDrag.x - 0.0018 * (0.027 / 0.038) ** 2) < 1e-12);
 }
 
-console.log('\nswarm: it falls behind at full stick and catches back up');
+console.log('\nswarm: it follows the node, falls behind at full stick, and catches back up');
 {
-	const swarm = new SwarmModel({ size: 8, doctrineSeed: 'c-1', seed: 'b' });
-	const p = { x: 0, y: 30, z: 0 };
-	swarm.reset(p);
-	const dt = 1 / 60;
-	let t = 0, lag = 0;
-	for (let i = 0; i < Math.round(6 / dt); i++) { t += dt; p.z -= 34 * dt; swarm.update(p, t, dt, openTerrain, NO_WIND, null); }
-	for (let k = 0; k < swarm.size; k++) {
-		const o = 3 * k;
-		lag = Math.max(lag, Math.hypot(swarm.pos[o] - swarm._slot[o], swarm.pos[o + 1] - swarm._slot[o + 1], swarm.pos[o + 2] - swarm._slot[o + 2]));
+	// THE DEFECT THIS BLOCK EXISTS FOR, reported from a real flight: "the
+	// swarm's drones are far too slow compared to the master" (issue #46).
+	//
+	// It was one number. SPEED_MAX is SWARM_UNIT.vMax, and SPEED_MAX caps the
+	// rate at which a unit's reading head walks the wake — `_fly` takes
+	// `cap = SPEED_MAX / speed`, `speed` being the node's own speed where the
+	// head is reading. A unit whose top speed is under the node's therefore
+	// reads the wake more slowly than the node writes it, for as long as the
+	// node keeps flying: the swarm does not fall behind and catch up, it falls
+	// behind and stays there. vMax was 24 against a node measured at 33.4.
+	//
+	// So the assertion is not "it stalls" and it is not "it recovers when the
+	// node stops" — the old version of this block checked exactly those two,
+	// on a node held at 34 m/s, and it PASSED on the broken code because
+	// falling behind for ever satisfies the first and stopping the node
+	// satisfies the second. What tells the two apart is CATCHING UP WHILE THE
+	// NODE IS STILL AT FULL SPEED, and that is what is measured below.
+	check(`SPEED_MAX is the airframe's own top speed and nothing else (${SPEED_MAX} m/s)`,
+		SPEED_MAX === SWARM_UNIT.vMax, `${SPEED_MAX} against vMax ${SWARM_UNIT.vMax}`);
+	// 15 % is not a decoration either: below NODE_TOP_SPEED_MS the stall is
+	// permanent, and at NODE_TOP_SPEED_MS exactly the unit has nothing left to
+	// close the gap with. The margin IS the catching up.
+	check(`a unit can outfly the machine it follows (${SWARM_UNIT.vMax} m/s against the node's measured ${NODE_TOP_SPEED_MS})`,
+		SPEED_MAX >= NODE_TOP_SPEED_MS * 1.15,
+		`${(SPEED_MAX / NODE_TOP_SPEED_MS * 100 - 100).toFixed(0)} % of margin over the node`);
+
+	// Straight and level in clear sky — no geometry, no rays, nothing to fold
+	// the swarm: settled at `cruise`, then full stick to the node's measured
+	// ceiling and held there, then the node stops dead.
+	function punch(seed, size, cruise, dt) {
+		const swarm = new SwarmModel({ size, doctrineSeed: seed, seed: 'build' });
+		const p = { x: 0, y: 60, z: 0 };
+		swarm.reset(p);
+		let t = 0;
+		const offSlot = () => {
+			let m = 0;
+			for (let k = 0; k < swarm.size; k++) {
+				const o = 3 * k;
+				m = Math.max(m, Math.hypot(swarm.pos[o] - swarm._slot[o], swarm.pos[o + 1] - swarm._slot[o + 1], swarm.pos[o + 2] - swarm._slot[o + 2]));
+			}
+			return m;
+		};
+		const run = (seconds, v) => { for (let i = 0; i < Math.round(seconds / dt); i++) { t += dt; p.z -= v * dt; swarm.update(p, t, dt, openTerrain, NO_WIND, null); } };
+		run(6, cruise);
+		let peak = 0;
+		for (let i = 0; i < Math.round(12 / dt); i++) {
+			t += dt; p.z -= NODE_TOP_SPEED_MS * dt;
+			swarm.update(p, t, dt, openTerrain, NO_WIND, null);
+			const d = offSlot();
+			if (d > peak) peak = d;
+		}
+		const held = offSlot();
+		run(10, 0);
+		return { peak, held, stopped: offSlot() };
 	}
-	check('the swarm loses its slots when the node outruns it', lag > 5, `${lag.toFixed(1)} m behind`);
-	for (let i = 0; i < Math.round(10 / dt); i++) { t += dt; swarm.update(p, t, dt, openTerrain, NO_WIND, null); }
-	let after = 0;
-	for (let k = 0; k < swarm.size; k++) {
-		const o = 3 * k;
-		after = Math.max(after, Math.hypot(swarm.pos[o] - swarm._slot[o], swarm.pos[o + 1] - swarm._slot[o + 1], swarm.pos[o + 2] - swarm._slot[o + 2]));
+
+	// What "caught up" means here. Straight and level, a unit sits a little off
+	// its slot for ever — the reading head is a critically damped spring whose
+	// target moves, so it trails by a fixed fraction of a frame, and that
+	// steady-state error grows with speed: 0.70 m at 20 m/s, 1.94 m at 33.4.
+	// The ceiling is over that, not over zero.
+	//
+	// Still off slot after twelve seconds at the node's ceiling, over the draw
+	// this block flies (72 flights a row) and over three revisions of the
+	// model:
+	//
+	//                              from 20 m/s      from a standstill
+	//     vMax 24 (before #46)       263.51 m            253.35 m
+	//     vMax 40, γ halved           17.58 m             32.16 m
+	//     vMax 40, γ searched          2.93 m              2.43 m
+	//
+	// The first row is the defect: the number does not settle, it grows for as
+	// long as the node flies, and the flight is simply not long enough to show
+	// how far it goes. The second is why raising vMax was not enough on its own
+	// — see the γ search in swarm.js. Five metres is a ceiling with two thirds
+	// of headroom over the third row and a factor of six under the second,
+	// which is what a bound that has to survive the next seed draw looks like.
+	//
+	// A wider draw (24 seeds, every size from MIN_SIZE to MAX_SIZE, 60 fps)
+	// reads 2.93 m and 2.99 m on the third row, so the eight-fold cheaper draw
+	// below is not flattering it.
+	const FOLLOWING_M = 5;
+	const DRAW = [];
+	for (const name of DOCTRINE_NAMES) {
+		let found = 0;
+		for (let i = 0; i < 4000 && found < 3; i++) if (doctrineFor(`c-${i}`) === name) { DRAW.push(`c-${i}`); found++; }
 	}
-	check('and they catch back up once it slows', after < 1, `${after.toFixed(2)} m off slot`);
+	for (const [label, cruise] of [['from a 20 m/s cruise', 20], ['from a standstill', 0]]) {
+		let peakMin = Infinity, peakMax = 0, held = 0, stopped = 0, at = '', flights = 0;
+		for (const seed of DRAW) {
+			for (const size of [6, 9, 12]) {
+				for (const dt of [1 / 60, 1 / 30]) {
+					const r = punch(seed, size, cruise, dt);
+					flights++;
+					if (r.peak < peakMin) peakMin = r.peak;
+					if (r.peak > peakMax) peakMax = r.peak;
+					if (r.held > held) { held = r.held; at = `${doctrineFor(seed)}/${seed} n=${size} at ${(1 / dt).toFixed(0)} fps`; }
+					if (r.stopped > stopped) stopped = r.stopped;
+				}
+			}
+		}
+		// The first line is there so the second one cannot pass by never
+		// meeting the situation it is about: full stick has to COST something,
+		// or "the swarm keeps up" is a statement about a swarm that was never
+		// asked to catch up.
+		check(`${label}: full stick does pull the swarm off its slots`,
+			peakMin >= 2.5, `${peakMin.toFixed(2)} to ${peakMax.toFixed(2)} m off slot over ${flights} flights`);
+		check(`${label}: and it closes the gap WHILE the node stays at ${NODE_TOP_SPEED_MS} m/s`,
+			held <= FOLLOWING_M, `${held.toFixed(2)} m off slot after 12 s at full speed (${at})`);
+		check(`${label}: and it is back on its slots once the node stops`,
+			stopped < 1, `${stopped.toFixed(2)} m off slot`);
+	}
 }
 
 // ------------------------------------------------------------ allocation
