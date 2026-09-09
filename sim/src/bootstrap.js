@@ -2,13 +2,11 @@
 // Écrans plein cadre montés en APPEND dans #ui — jamais innerHTML, le HUD a
 // déjà rempli ce conteneur. Tout le texte visible est en anglais (D5).
 import * as operatorApi from './operator.js';
-import { readGamepadDir } from './gamepad-dir.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
 import { watchReveal } from './motion.js';
 import { versionLine } from './version.js';
 
-const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
 // ---------- inventaire honnête (arch doc §4) ----------
 
@@ -217,116 +215,6 @@ async function nameScreen(root, api) {
 	});
 }
 
-// ---------- écrans 3+4 : CONTROL VECTOR ----------
-
-export async function captureControlVector(root, initialLength = 6) {
-	const s = screen(root);
-	// Ici les flèches sont la donnée saisie, pas de la navigation : cet écran
-	// ne s'abonne pas à menu-nav et rend inertes les navs restés montés
-	// dessous (issue #123 — un écran s'abonne explicitement).
-	const unblock = blockNav(s.el);
-	let length = initialLength;
-	let vec = [];
-	let resolveVec;
-
-	const render = () => {
-		s.box.innerHTML = `
-			<pre>DEFINE CONTROL VECTOR
-
-4-8 INPUTS
-DEFAULT LENGTH: 6
-
-THIS VECTOR WILL BE REQUIRED
-FOR FUTURE TARGET ACQUISITIONS.
-WRITE IT DOWN.</pre>
-			<div class="bootstrap-row">LENGTH:
-				<button type="button" data-d="-1">[ - ]</button> ${length}
-				<button type="button" data-d="1">[ + ]</button></div>
-			<pre class="bootstrap-vec">${
-				vec.map((d) => ARROW[d]).concat(Array(length - vec.length).fill('_')).join(' ')
-			}</pre>`;
-		s.box.querySelectorAll('[data-d]').forEach((b) => {
-			b.onclick = () => {
-				length = Math.min(8, Math.max(4, length + Number(b.dataset.d)));
-				vec = [];
-				render();
-			};
-		});
-		s.box.appendChild(button('DELETE', () => { vec = vec.slice(0, -1); render(); }));
-		const confirm = button('CONFIRM VECTOR', () => finish());
-		confirm.disabled = vec.length !== length;
-		s.box.appendChild(confirm);
-	};
-
-	const add = (dir) => {
-		if (vec.length >= length) return;
-		vec.push(dir);
-		render();
-	};
-
-	const onKey = (e) => {
-		const map = { ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left' };
-		if (map[e.key]) { e.preventDefault(); add(map[e.key]); }
-		if (e.key === 'Backspace') { e.preventDefault(); vec = vec.slice(0, -1); render(); }
-		// Entrée = CONFIRM VECTOR, aux mêmes conditions que le bouton (issue
-		// #123 : tout doit être faisable au clavier seul).
-		if (e.key === 'Enter' && vec.length === length) { e.preventDefault(); finish(); }
-	};
-	window.addEventListener('keydown', onKey);
-
-	// A confirme (vecteur complet seulement), B efface — mêmes boutons que dans
-	// menu-nav.js. Front montant, et « tenu » au départ : le geste qui a ouvert
-	// cet écran ne doit pas confirmer ou effacer à travers lui.
-	let padPrev = null;
-	const padHeld = { 0: true, 1: true };
-	const padPoll = setInterval(() => {
-		const d = readGamepadDir(padPrev);
-		if (d !== '__hold') {
-			if (d) { padPrev = d; add(d); } else { padPrev = null; }
-		}
-		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
-		for (const b of [0, 1]) {
-			const down = !!pad?.buttons[b]?.pressed;
-			if (down && !padHeld[b]) {
-				if (b === 0 && vec.length === length) finish();
-				if (b === 1) { vec = vec.slice(0, -1); render(); }
-			}
-			padHeld[b] = down;
-		}
-	}, 80);
-
-	// finish() : déclaration hoistée dans le scope de la fonction pour rester
-	// visible depuis render() (referme sur resolveVec, câblé par l'exécuteur).
-	function finish() {
-		window.removeEventListener('keydown', onKey);
-		clearInterval(padPoll);
-		unblock();
-		s.remove();
-		resolveVec(vec.slice());
-	}
-
-	render();
-
-	return new Promise((resolve) => {
-		resolveVec = resolve;
-	});
-}
-
-async function registeredScreen(root, vec) {
-	const s = screen(root);
-	s.box.innerHTML = `<pre>CONTROL VECTOR REGISTERED
-
-${vec.map((d) => ARROW[d]).join(' ')}
-
-KEEP THIS VECTOR.
-YOU WILL NEED IT.</pre>`;
-	return new Promise((resolve) => {
-		const close = () => { nav.detach(); s.remove(); resolve(); };
-		s.box.appendChild(button('CONTINUE', close));
-		const nav = menuNav(s.el, {});
-	});
-}
-
 // ---------- séquence complète ----------
 
 // `briefing` (D16) : ce que main.js fait juste après l'enregistrement. Injecté
@@ -336,10 +224,11 @@ YOU WILL NEED IT.</pre>`;
 export async function bootstrap(root, api = operatorApi, { briefing = null } = {}) {
 	await hardwareScreen(root);
 	await nameScreen(root, api);
-	const vec = await captureControlVector(root, 6);
-	api.patch('controlVector', vec);
+	// Le CONTROL VECTOR se définissait ici, sur deux écrans de plus (#33). Il
+	// demandait au joueur de mémoriser une suite de flèches hors du jeu et le
+	// punissait d'un blocage total, à chaque acquisition, s'il l'oubliait. Le
+	// bootstrap passe donc de quatre écrans à deux avant le briefing.
 	await flushOrRetry(root, api);
-	await registeredScreen(root, vec);
 	// L'opérateur existe : c'est le seul moment où le briefing a un sens. Une
 	// erreur ici ne doit pas empêcher d'entrer dans le jeu.
 	if (briefing) { try { await briefing(); } catch (e) { console.warn('[briefing]', e); } }
@@ -347,7 +236,9 @@ export async function bootstrap(root, api = operatorApi, { briefing = null } = {
 }
 
 // flush() jette si rien n'a pu être écrit : on montre l'erreur sur l'écran
-// courant avec un bouton RETRY plutôt que d'annoncer « REGISTERED » à tort.
+// courant avec un bouton RETRY plutôt que d'entrer dans le jeu sur un profil
+// que le serveur n'a pas. Depuis #33 c'est le NOM qu'il protège, seul reste
+// du bootstrap à devoir survivre au rechargement.
 async function flushOrRetry(root, api) {
 	while (true) {
 		try { await api.flush(); return; }
@@ -356,7 +247,7 @@ async function flushOrRetry(root, api) {
 			const s = screen(root);
 			const ok = await new Promise((resolve) => {
 				const retry = () => { nav.detach(); s.remove(); resolve(true); };
-				s.box.innerHTML = '<pre>VECTOR NOT SAVED — RETRY</pre>';
+				s.box.innerHTML = '<pre>PROFILE NOT SAVED — RETRY</pre>';
 				s.box.appendChild(button('RETRY', retry));
 				const nav = menuNav(s.el, {});
 			});

@@ -3,7 +3,7 @@
 // Écrans plein cadre montés en APPEND dans #ui — jamais innerHTML, le HUD y est
 // déjà. Tout le texte d'interface est en anglais (D5).
 import * as operatorApi from './operator.js';
-import { captureControlVector, bootstrap } from './bootstrap.js';
+import { bootstrap } from './bootstrap.js';
 import { menuNav } from './menu-nav.js';
 import { terminalModel, formatBytes } from '../tools/terminal-model.mjs';
 import { countersOf, unlockedNotes, currentBuild } from '../tools/buildnotes-model.mjs';
@@ -16,7 +16,6 @@ import { previewBounds } from '../tools/map-preview-model.mjs';
 import { watchReveal, countUp } from './motion.js';
 import { versionLine } from './version.js';
 
-const ARROW = { up: '↑', right: '→', down: '↓', left: '←' };
 
 // Combien de zones la Home montre sous la carte avant de renvoyer sur MORE….
 // Assez pour reconnaître son cache d'un coup d'œil, pas assez pour redevenir la
@@ -336,44 +335,6 @@ function localTerrain(root, scenes) {
 
 		render();
 	});
-}
-
-// ---------- CONTROL VECTOR ----------
-
-async function controlVectorScreen(root, api) {
-	const s = screen(root);
-	let revealed = false;
-	let nav = null;
-	const close = () => { nav?.detach(); s.remove(); resolveScreen(); };
-	const render = () => {
-		const op = api.getOperator();
-		const set = op.controlVector?.length > 0;
-		const shown = set
-			? (revealed ? op.controlVector.map((d) => ARROW[d]).join(' ') : '•'.repeat(op.controlVector.length))
-			: '(not set)';
-		s.box.innerHTML = `<pre>CONTROL VECTOR
-
-${shown}</pre>`;
-		if (set && !revealed) s.box.appendChild(button('SHOW VECTOR', () => { revealed = true; render(); }, 'terminal-cta'));
-		s.box.appendChild(button('REDEFINE', async () => {
-			// Masqué pendant la capture : les flèches y sont la donnée saisie, cet
-			// écran ne doit ni naviguer ni recevoir un clic manette pendant qu'elle
-			// est ouverte (issue #123 — un écran s'abonne explicitement).
-			s.el.hidden = true;
-			const v = await captureControlVector(root, op.controlVector?.length || 6);
-			api.patch('controlVector', v);
-			try { await api.flush(); } catch { /* réessai automatique côté operator.js */ }
-			revealed = true;
-			s.el.hidden = false;
-			render();
-		}, 'terminal-cta'));
-		backRow(s.box, close);
-		nav?.focusAt(0);
-	};
-	let resolveScreen;
-	render();
-	nav = menuNav(s.el, { back: close });
-	return new Promise((resolve) => { resolveScreen = resolve; });
 }
 
 // ---------- LAST SESSION ----------
@@ -784,7 +745,6 @@ export function dataScreen(root, { api = operatorApi, scenes = null, openMap = n
 				// lastSessionScreen yields a slug, or nothing.
 				return typeof r === 'string' ? r : r ?? undefined;
 			}), 'Review your most recent flight');
-			link(row, 'CONTROL VECTOR', () => behind(() => controlVectorScreen(root, api)), 'View or redefine your assigned control vector');
 			link(row, 'OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats');
 			link(row, 'BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version');
 			rec.appendChild(row);

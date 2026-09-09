@@ -107,7 +107,7 @@ await ta('home : FIELD ne fait plus que voler', async () => {
 	// D3/D4/D6 : ARCHIVE et SETTINGS sont montés à la racine, MODE a disparu.
 	// FIELD ne garde que ce qui fait décoller (Bible §30).
 	for (const gone of ['SESSION LOG', 'TARGET LOG', 'OPERATOR', 'BUILD NOTES',
-		'CONTROL VECTOR', 'ARCHIVE', 'SETTINGS', 'MODE']) {
+		'ARCHIVE', 'SETTINGS', 'MODE']) {
 		assert.equal(btn(gone), undefined, `« ${gone} » n'est plus sur FIELD`);
 	}
 	await close(p);
