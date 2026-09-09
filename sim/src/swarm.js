@@ -196,6 +196,16 @@ const LOOKAHEAD_S = 0.8;
 // scout would have been 8 at size 12 and would not have fitted; one shared ray
 // makes the peak 4 scouts + 2 in the pass-2 turnstile = 6, exactly as before.
 //
+// THAT COLLINEARITY IS INSTANTANEOUS, and the paragraph above reads like a
+// standing guarantee, which it is not. It holds for the frame the probe is
+// cast on. Between two casts the ring head advances and the tangent turns, so
+// the line the scouts are actually being carried along drifts off the line
+// that was cleared — measured up to 14.7 m PERPENDICULAR to it at 12 fps. The
+// probe is a periodic sample of a moving line, exactly like the lateral probe,
+// and it is bounded the same way: by the freshness rules, not by geometry.
+// Scouts are not covered by the wake's own by-construction guarantee at all
+// (issue #37).
+//
 // Two: the ray is not taken off the top. It queues in the pass-2 turnstile on
 // the rear period, competing on overdue-ness like a rear unit, so it is one
 // candidate among nine at size 12 rather than a standing tax. Spending it
@@ -223,21 +233,48 @@ export const RAY_BUDGET = 6;
 // frames, a 250 ms frame would leave a rear unit unasked for three quarters of
 // a second while it flew 5 m.
 const REAR_PERIOD_S = 3 / 60;
-// How far the track's tangent may turn away from the one the forward probe
-// was cast on before that probe is due again whatever the clock says: 0.1 rad,
-// ~6 degrees.
-const FWD_TURN_COS = Math.cos(0.1);
+// There WAS a fourth staleness rule here, and it is gone: a verdict about a
+// DIRECTION should go stale in ANGLE, so a tangent that had turned more than
+// 0.1 rad away from the one the forward probe was cast on made the probe due
+// at once. The reasoning is sound and the rule is inert. Re-measured over
+// 3 240 hairpin flights built to be the regime where it must bite — 5
+// geometries down to a 1.5 m hairpin in a 10 m street, 22/34/45 m/s, 60, 120
+// AND 240 fps (the cadences where the rear period is many frames long and the
+// rule has room to advance anything), sizes 6/9/12, 24 cluster seeds — the
+// worst penetration is 0.000 m with the rule and 0.000 m without, and the
+// share of scout-frames in front of the node moves by 0.2 points. What it
+// does change is the bill: 6 to 9 % more forward probes, taken out of the
+// rear units' share of a six-ray budget. A rule that cannot be told from its
+// own absence except by what it spends is not a safety rule.
+//
 // How much track the forward probe reaches PAST the deepest scout, in seconds.
-// It is small on purpose — a tenth of the lateral probe's LOOKAHEAD_S — and
-// the number is a measured trade, not a guess. Swept against a 3 m hairpin at
-// 34 and 45 m/s (the worst the model is asked to survive) and a 4 m slalom
-// down a 12 m street: 0 s leaves a scout 0.027 m inside the hairpin's outer
-// wall; 0.03 s upwards closes it. Above that, every extra tenth costs scouts
-// in the slalom — 73 % of scout-frames in front at 0.1 s, 55 % at 0.2 s, 34 %
-// at 0.4 s, 11 % at 0.8 s, which is worse than the bug this probe fixes. So:
-// the smallest reach that closes the hairpin, with a 3x margin over the point
-// where it first closes.
-const FWD_LOOKAHEAD_S = 0.1;
+// It is small on purpose — the lateral probe's LOOKAHEAD_S is 0.8 s — and the
+// number is a measured trade both ways.
+//
+// The BENEFIT it was introduced for does not reproduce. It was 0.027 m of a
+// scout inside a hairpin's outer wall at 0 s; re-swept over 5 geometries, 8
+// seeds per doctrine, sizes 6/8/10/12, 22/34/45 m/s, 60 and 120 fps, the worst
+// penetration is 0.000 m at EVERY value including 0 — and 0.027 m was under
+// the 0.15 m collision radius of a drone anyway.
+//
+// The COST is large and reproduces in every regime. Share of scout-frames in
+// front of the pilot, 8 seeds per doctrine, four street slaloms, at 0 / 0.03 /
+// 0.05 / 0.1 / 0.2 s:
+//
+//   15 m street, period 40, 15 m/s    75  72  66  51  30 %
+//   10 m street, period 30, 15 m/s    74  69  64  57  42 %
+//   12 m street, period 40, 14 m/s    86  77  79  79  65 %
+//   12 m street, period 30, 17.7 m/s  11  10  10   5   1 %
+//
+// That is the whole point of the probe — keeping scouts AHEAD, which is what
+// the pilot reported missing — being spent to buy nothing measurable.
+//
+// So 0.03 s rather than the 0.1 it replaces. Zero reads best on every line
+// above, and the honest reason not to take it is that "no benefit" is a
+// statement about the regimes swept, not a proof: 0.03 s keeps the probe
+// reaching PAST the deepest scout, which is what it is for, for 3 to 9 points
+// against the 24 to 30 that 0.1 costs.
+const FWD_LOOKAHEAD_S = 0.03;
 
 // A margin is only worth what the ray behind it is worth, and a ray goes stale
 // two ways: in TIME, and in GROUND COVERED. The clock alone is not enough —
@@ -537,7 +574,6 @@ export class SwarmModel {
 		this._fwdLastCast = 0;
 		this._fwdDue = 0;
 		this._fwdGreenAt = new Float64Array(3);
-		this._fwdTan = new Float64Array(3);   // the tangent the probe was cast on
 		// How deep, in seconds of track, the deepest scout asks to be carried.
 		// Fixed by the slots, so the probe's reach is known without a scan.
 		let deepest = 0;
@@ -598,7 +634,6 @@ export class SwarmModel {
 		this._fwdLastCast = 0;
 		this._fwdDue = 0;
 		this._fwdGreenAt.fill(0);
-		this._fwdTan.fill(0);
 		this._frame.fill(0);
 		this._sFrame.fill(0);
 		this._sAnchor.fill(0);
@@ -1073,24 +1108,11 @@ export class SwarmModel {
 		// sits at 4 % of blocked casts like a rear unit's, not at 1.3 % like a
 		// scout's — and a segment with no lateral reach is nowhere near 4 %.
 
-		// When the forward probe is due, computed once for the frame. A verdict
-		// about a DIRECTION also goes stale in ANGLE, the way a verdict about a
-		// place goes stale in time and in ground covered: the probe cleared a
-		// straight line along the tangent it was cast on, and once the track
-		// has turned away from that tangent, the line the scouts are carried
-		// along is no longer the line that was cleared. Through a 3 m hairpin
-		// at 45 m/s the tangent swings tens of degrees between two rear-period
-		// casts, and a scout ended up 0.03 m inside the outer wall. So a turn
-		// of more than FWD_TURN_COS makes the probe due at once — which costs a
-		// rear ray in a hairpin and nothing at all in the straight flight that
-		// is most of a flight.
+		// When the forward probe is due, computed once for the frame. It queues
+		// on the rear period like a rear unit; there is no angle rule on top of
+		// that any more (see REAR_PERIOD_S for what was measured).
 		let fwdDue = -1;
-		if (this._aheadS > 0 && this._count > 0) {
-			fwdDue = this._clock - this._fwdDue;
-			const w = this._read(this._wt[this._head]);
-			const dot = w.tx * this._fwdTan[0] + w.ty * this._fwdTan[1] + w.tz * this._fwdTan[2];
-			if (dot < FWD_TURN_COS) fwdDue = this._clock - this._fwdLastCast;
-		}
+		if (this._aheadS > 0 && this._count > 0) fwdDue = this._clock - this._fwdDue;
 		while (budget > 0) {
 			let best = -1, over = -1;
 			if (fwdDue >= 0) { over = fwdDue; best = -2; }
@@ -1120,7 +1142,6 @@ export class SwarmModel {
 		const w = this._read(this._wt[h]);
 		const since = Math.min(1, this._clock - this._fwdLastCast);
 		this._fwdLastCast = this._clock;
-		this._fwdTan[0] = w.tx; this._fwdTan[1] = w.ty; this._fwdTan[2] = w.tz;
 		// Exactly as deep as the deepest scout is being carried, plus the
 		// ground the track covers before the next verdict, plus the floor that
 		// keeps the segment real at forward margin 0. There is no LOOKAHEAD_S

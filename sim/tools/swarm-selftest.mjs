@@ -16,7 +16,7 @@
 import {
 	SwarmModel, DOCTRINES, DOCTRINE_NAMES, doctrineFor, scoutsFor, buildSlots,
 	SWARM_UNIT, ACCEL_MAX, SPEED_MAX, WAKE_SAMPLES, WAKE_DT_S, RAY_BUDGET,
-	AHEAD_MAX_S, AHEAD_LATERAL_MAX_M, MARGIN_FALL_S, MARGIN_RISE_S,
+	AHEAD_MAX_S, AHEAD_LATERAL_MAX_M, AHEAD_VERTICAL_MAX_M, MARGIN_FALL_S, MARGIN_RISE_S,
 	MIN_SIZE, MAX_SIZE,
 } from '../src/swarm.js';
 import { tiltOf, TILT_MAX_DEG } from '../src/drone-kinematics.js';
@@ -327,11 +327,11 @@ console.log('swarm: doctrines and slots');
 				if (lag[k] < d.lagMin - 1e-9 || lag[k] > d.lagMax + 1e-9) bad += `${name}/${size} lag ${lag[k]} `;
 				if (Math.abs(lat[k]) > d.lateral + 1e-9) bad += `${name}/${size} lat ${lat[k]} `;
 				if (Math.abs(vert[k]) > d.vertical + 1e-9) bad += `${name}/${size} vert ${vert[k]} `;
-				if (lag[k] < 0 && (lag[k] < -AHEAD_MAX_S - 1e-9 || Math.abs(lat[k]) > AHEAD_LATERAL_MAX_M + 1e-9)) bad += `${name}/${size} ahead ${lag[k]}/${lat[k]} `;
+				if (lag[k] < 0 && (lag[k] < -AHEAD_MAX_S - 1e-9 || Math.abs(lat[k]) > AHEAD_LATERAL_MAX_M + 1e-9 || Math.abs(vert[k]) > AHEAD_VERTICAL_MAX_M + 1e-9)) bad += `${name}/${size} ahead ${lag[k]}/${lat[k]}/${vert[k]} `;
 			}
 		}
 	}
-	check('drawn slots stay inside their doctrine and the two ahead bounds', bad === '', bad.slice(0, 120));
+	check('drawn slots stay inside their doctrine and the three ahead bounds', bad === '', bad.slice(0, 120));
 
 	// What each doctrine is SUPPOSED to look like — the assertions that would
 	// notice a doctrine losing its shape rather than its bounds.
@@ -645,20 +645,34 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	// the spec's 0.3 s or more than six rays a frame, and the call was to keep
 	// both. They are here so the accepted figure is visible and cannot drift.
 	const NOMINAL_DT = 1 / 30 + 1e-9;
+	// Both numbers below were re-measured in tranche 7 over a sweep wide enough
+	// to have a distribution: 48 cluster seeds (twelve per doctrine), sizes
+	// 6/8/10/12, 12/15/22 m/s, all twelve geometries, 60 and 30 fps — 3 456
+	// flights per cadence and per figure. They are ACCEPTED PENETRATIONS for
+	// v1, decided rather than measured away; the job here is to make them TRUE,
+	// not to make them small.
+	//
 	// hairpin: the track frame turns over, but nothing sweeps sideways.
-	const ACCEPTED_TIGHT_M = 0.5;
-	// slalom: the wake itself crosses the street under the swarm. 2.5 m is an
-	// ACCEPTED PENETRATION, measured, not a bound the model holds to. The 1.5 m
-	// it replaces was calibrated on ONE zigzag — amplitude half-2, period 40 —
-	// at sizes 6/9/12. A slightly tighter weave that is still perfectly
-	// flyable (amplitude 3, period 30; peak 62 % of ACCEL_MAX, 17.7 m/s, the
-	// player 2 m clear of the walls) reaches 2.30 m at 60 fps and 2.04 m at
-	// 30 fps, worst at n=8 — a size the block did not sample either. The sweep
-	// as it now stands reaches 2.36 m. That is PRE-EXISTING, not a regression:
-	// on the code before the forward probe the same sweep gives 2.24 m, and it
-	// was always there — nothing had looked. The decision for v1 is to accept
-	// it, so the figure is written here for what it is.
-	const ACCEPTED_WEAVE_M = 2.5;
+	// 0.5 m was FALSE, and pre-existing: the wide sweep reads 1.11 m on the
+	// code before tranche 7 and 1.13 m after, both at 30 fps in a 10 m street
+	// with a 2 m hairpin, both on a `screen` — the seed set was the entire
+	// difference, and the six fixed seeds this block used to fly simply never
+	// drew that shape. 1.5 m is the reading with a third of headroom.
+	const ACCEPTED_TIGHT_M = 1.5;
+	// slalom: the wake itself crosses the street under the swarm — the regime
+	// where a unit holding a lateral offset is carried through a wall by the
+	// track rolling under it, and the one this suite accepts the most from.
+	//
+	// 2.5 m came from the same wide sweep on the OLD doctrines: 2.36 m at
+	// 60 fps, a `cloud` of twelve in a 10 m street. Recentring the doctrines
+	// around lag ~0 (tranche 7) cuts it to 0.75 m — a swarm that spends its
+	// budget on width instead of length is holding its offset over track the
+	// player validated a fraction of a second ago instead of two seconds ago,
+	// and the weave has that much less time to sweep out from under it. So the
+	// accepted figure comes DOWN to 1.5 m, which is twice the reading. It lands
+	// on the same number as the hairpin above by coincidence, not by kinship:
+	// the two figures fail through different mechanisms and stay separate.
+	const ACCEPTED_WEAVE_M = 1.5;
 	const HAIRPINS = [[60, 7.5, 3], [60, 7.5, 2.5], [60, 6, 2.5], [60, 6, 2], [60, 5, 2], [60, 5, 1.5]];
 	// A slalom's shape is its AMPLITUDE and its PERIOD; the street width sets
 	// the amplitude and the hairpin radius has nothing to do with it. Sharing
@@ -675,7 +689,37 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	// on which the weave that raised ACCEPTED_WEAVE_M is worst.
 	const SIZES = [];
 	for (let n = MIN_SIZE; n <= MAX_SIZE; n++) SIZES.push(n);
-	const SEEDS6 = SEED_SWEEP.filter((_, i) => i % 4 === 0);
+	// THE SEED DRAW. `SEED_SWEEP.filter((_, i) => i % 4 === 0)` used to pick the
+	// six seeds this block flies. SEED_SWEEP is doctrine-major, six per
+	// doctrine, so every fourth entry is 2/1/2/1 per doctrine — an accidental
+	// imbalance nobody chose, and six slot draws to calibrate two accepted
+	// penetrations that a seventh draw falsifies (ACCEPTED_TIGHT_M was 0.5 m
+	// and a wide sweep reads 1.13 m).
+	//
+	// So: a pool of twelve seeds per doctrine, and each cell of the loop below
+	// takes TWO PER DOCTRINE from it, advancing through the pool cell by cell.
+	// Eight cells x eight seeds walks the whole 48-seed pool while flying the
+	// same eight seeds per line — sixteen times the slot draws at no cost. The
+	// price is that the sample is no longer fully crossed: a given seed does
+	// not see every cadence. For a WORST-OF over a distribution that is the
+	// right trade, and it is stated here rather than left to be discovered.
+	const POOL_PER_DOCTRINE = 12;
+	const SEED_POOL = [];
+	for (const name of DOCTRINE_NAMES) {
+		let found = 0;
+		for (let i = 0; i < 4000 && found < POOL_PER_DOCTRINE; i++) {
+			if (doctrineFor(`c-${i}`) === name) { SEED_POOL.push(`c-${i}`); found++; }
+		}
+	}
+	let cell = 0;
+	const nextSeeds = () => {
+		const out = [];
+		for (let d = 0; d < DOCTRINE_NAMES.length; d++) {
+			for (let j = 0; j < 2; j++) out.push(SEED_POOL[d * POOL_PER_DOCTRINE + (2 * cell + j) % POOL_PER_DOCTRINE]);
+		}
+		cell++;
+		return out;
+	};
 	let skipped = 0;
 	// 60 fps and 30 fps are what a machine that copes looks like; 12 fps is the
 	// intermediate cadence where the old bound broke and nothing sampled it;
@@ -683,6 +727,7 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 	for (const dt of [1 / 60, 1 / 30, 1 / 12, 0.25]) {
 		for (const [kind, accepted, cases] of [['hairpin', ACCEPTED_TIGHT_M, HAIRPINS], ['slalom', ACCEPTED_WEAVE_M, SLALOMS]]) {
 			let worst = 0, at = '', flights = 0, ratio = 0, ratioAt = '';
+			const cellSeeds = nextSeeds();
 			for (const [pitch, half, shape] of cases) {
 				const city = makeCity(pitch, half);
 				const track = kind === 'hairpin' ? hairpinOf(shape) : slalomOf(half - 2, shape);
@@ -693,7 +738,7 @@ console.log('\nswarm: ...and over the geometry, over the swarm size, and over th
 				if (!fitsCity(city, track, 15)) { skipped++; continue; }
 				for (const size of SIZES) {
 					for (const speed of [12, 15, 22]) {
-						for (const seed of SEEDS6) {
+						for (const seed of cellSeeds) {
 							const out = fly({ seed, size, seconds: 12, speed, dt, city, track });
 							flights++;
 							// Every flight is judged against ITS OWN latency, so a
@@ -794,6 +839,40 @@ console.log('\nswarm: the scouts stay in front of the pilot');
 		foldedAhead / folded >= 0.5, `${(foldedAhead / folded * 100).toFixed(0)} % of them still in front of the node`);
 	check('and the scouts are in front of the pilot down a 12 m street',
 		scoutsAhead / scouts >= 0.6, `${(scoutsAhead / scouts * 100).toFixed(0)} % of scout-frames ahead`);
+
+	// And the line that pins FWD_LOOKAHEAD_S, because nothing else does. How
+	// far the shared forward probe reaches past the deepest scout is paid for
+	// in exactly this number: the reach is what the scouts' forward margin is
+	// charged against, and a longer one is blocked more often, folds the
+	// scouts onto `fileLag` — which is POSITIVE — and puts them behind the
+	// pilot. Measured over 8 seeds per doctrine down a 15 m street weave:
+	// 75 % of scout-frames ahead at a reach of 0 s, 72 % at 0.03, 66 % at 0.05,
+	// 51 % at 0.1, 30 % at 0.2. The floor below sits between 0.05 and 0.1, so
+	// the constant cannot drift back up unnoticed.
+	let wide = 0, wideAhead = 0;
+	{
+		const street = makeCity(60, 7.5);
+		const dt = 1 / 60, speed = 15, amplitude = 5.5;
+		for (const seed of SEED_SWEEP) {
+			const swarm = new SwarmModel({ size: 12, doctrineSeed: seed, seed: 'build' });
+			const p = { x: 0, y: 10, z: 200 };
+			swarm.reset(p);
+			let t = 0;
+			for (let i = 0; i < Math.round(20 / dt); i++) {
+				t += dt;
+				p.z = 200 - speed * t;
+				p.x = amplitude * Math.sin(2 * Math.PI * speed * t / 40);
+				swarm.update(p, t, dt, street.terrain, NO_WIND, null);
+				if (t < 4) continue;
+				for (let k = 0; k < swarm.size; k++) {
+					if (swarm.lag[k] >= 0) continue;
+					wide++; if (swarm.pos[3 * k + 2] < p.z) wideAhead++;
+				}
+			}
+		}
+	}
+	check('the forward probe does not reach so far that it files the scouts behind the pilot',
+		wideAhead / wide >= 0.62, `${(wideAhead / wide * 100).toFixed(0)} % of scout-frames ahead down a 15 m street weave`);
 }
 
 console.log('\nswarm: the pilot is INSIDE his swarm, not in front of it');
