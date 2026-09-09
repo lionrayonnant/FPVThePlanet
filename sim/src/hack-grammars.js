@@ -11,7 +11,7 @@
 //
 // Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number, dur?: number }).
 // Même toolkit ASCII, pas de `lock` — la couleur (cyan/magenta/violet/bleu
-// électrique, Bible §19) est appliquée par le conteneur (src/ritual.js), pas
+// électrique, Bible §19) est appliquée par le conteneur (src/intro.js), pas
 // par la primitive : le rendu reste du texte brut, une seule teinte à la fois.
 // `dur` (PHASE 20) est optionnel, défaut 4 — voir le contrat étendu plus bas.
 
@@ -22,7 +22,7 @@ const frame = (rows) => rows.map((r) => r.padEnd(W).slice(0, W)).join('\n');
 
 // Petit hash déterministe chaîne -> graine cosmétique [0,1) (varie le bruit
 // d'un vol à l'autre, ne révèle jamais la famille au joueur). Partagé par
-// hack.js (motif d'analyse) et ritual.js (primitives de culmination, PHASE 10).
+// hack.js (motif d'analyse) et intro.js (primitives de culmination, PHASE 10).
 export function cosmeticSeed(str) {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < String(str).length; i++) {
@@ -301,17 +301,16 @@ export const GRAMMARS = {
 
 // ============================================================================
 // Primitives de culmination du rituel (PHASE 10, Bible §18-19 ; PHASE 20,
-// Bible §40). 11 blocs composables, communs aux 6 familles ; seul le
-// sous-ensemble pondéré par famille (FAMILY_PRIMITIVES) et le nombre de
-// battements (variante V1-V4, tools/ritual-model.mjs) changent — pas 24+
-// animations écrites à la main.
+// Bible §40), rejouées par le cracktro de lancement (src/intro.js) : les 11
+// en boucle, dans l'ordre, à cadence fixe (BEAT_MS dans src/intro.js) — pas
+// 24+ animations écrites à la main.
 //
 // Contrat étendu (PHASE 20) : draw(el, { t: number, seed: number, dur?: number = 4 }).
 // `dur` est la fenêtre visible d'un battement en secondes (aujourd'hui
-// toujours 1 s, `variant.ms / variant.beats` dans src/ritual.js), pas la
-// durée totale de la culmination — seules les primitives dont le cycle
-// interne dépasserait cette fenêtre en tiennent compte (pulseRing,
-// vectorSweep) ; les autres l'ignorent sans casser.
+// toujours 0,5 s, BEAT_MS dans src/intro.js), pas la durée totale de la
+// culmination — seules les primitives dont le cycle interne dépasserait
+// cette fenêtre en tiennent compte (pulseRing, vectorSweep) ; les autres
+// l'ignorent sans casser.
 
 // Vocabulaire d'ambiance déjà en liste blanche (hack-model.mjs) : réutilisé
 // tel quel, aucun nouveau mot de "procédure" n'est introduit ici.
@@ -503,18 +502,4 @@ export const RITUAL_PRIMITIVES = {
 	scanBurst, glitchShift, pulseRing, gridSwarm,
 	waveformSpike, vectorSweep, memoryScroll, chromaSplit,
 	colorFlash, textWarp, bannerBurst,
-};
-
-// 2-4 primitives pondérées par famille : mêmes 11 fonctions pour toutes, seul
-// le sous-ensemble + l'ordre changent (grammaire, pas des dizaines de
-// séquences écrites à la main). Une famille absente retomberait sur un
-// générique — en pratique HACK_TYPES (6) couvre toutes les entrées, testé
-// par ritual-selftest.mjs.
-export const FAMILY_PRIMITIVES = {
-	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift', 'colorFlash'],
-	'LINK HIJACK': ['pulseRing', 'waveformSpike', 'colorFlash'],
-	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit', 'textWarp'],
-	'GNSS SPOOF': ['vectorSweep', 'chromaSplit', 'bannerBurst'],
-	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing', 'bannerBurst'],
-	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst', 'textWarp'],
 };

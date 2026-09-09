@@ -433,10 +433,11 @@ t('deleteSession : 404 sur inconnue, 409 sur une session encore PENDING', () => 
 	assert.throws(() => deleteSession(state, p.id), (e) => e.status === 409);
 });
 
-// --- migration v1 -> v2 -----------------------------------------------------
+// --- migration v1 -> v2 -> v3 -----------------------------------------------
 
-t('SCHEMA_VERSION vaut 2', () => {
-	assert.equal(SCHEMA_VERSION, 2);
+t('SCHEMA_VERSION vaut 3', () => {
+	// v3 : le CONTROL VECTOR est retiré du jeu et sa clé part à la migration (#33).
+	assert.equal(SCHEMA_VERSION, 3);
 });
 
 t('freshState : deux compteurs a zero, plus de cle targetLog', () => {
@@ -446,12 +447,12 @@ t('freshState : deux compteurs a zero, plus de cle targetLog', () => {
 	assert.equal('targetLog' in s, false);
 });
 
-t('migrate v1 -> v2 : backfill des numeros dans l ordre, targetLog retire', () => {
+t('migrate v1 -> v3 : backfill des numeros dans l ordre, targetLog retire', () => {
 	const scan = generateTargetScan({ seed: 'mig-seed', count: 3 });
 	const withTarget = resolveTarget(scan, 0);
 	const v1 = {
 		schemaVersion: 1, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
-		controlVector: [], settings: {}, terrainCache: [], worldState: {},
+		settings: {}, terrainCache: [], worldState: {},
 		targetLog: [],
 		sessions: [
 			{ id: 'a-0001', area: 'a', result: 'LANDED', target: null },
@@ -460,7 +461,7 @@ t('migrate v1 -> v2 : backfill des numeros dans l ordre, targetLog retire', () =
 		],
 	};
 	const m = migrate(v1);
-	assert.equal(m.schemaVersion, 2);
+	assert.equal(m.schemaVersion, 3);
 	assert.equal('targetLog' in m, false);
 	assert.deepEqual(m.sessions.map((s) => s.seq), [1, 2, 3]);
 	// Seules les sessions avec cible consomment un numero de cible.
@@ -475,7 +476,7 @@ t('migrate : idempotent — repasser un etat v2 ne renumerote rien', () => {
 	const scan = generateTargetScan({ seed: 'mig-seed-2', count: 3 });
 	const v1 = {
 		schemaVersion: 1, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
-		controlVector: [], settings: {}, terrainCache: [], worldState: {}, targetLog: [],
+		settings: {}, terrainCache: [], worldState: {}, targetLog: [],
 		sessions: [
 			{ id: 'a-0001', area: 'a', result: 'LANDED', target: resolveTarget(scan, 0) },
 			{ id: 'b-0002', area: 'b', result: 'LANDED', target: null },
@@ -494,7 +495,7 @@ t('migrate : un trou de numerotation survit a la relecture', () => {
 	// restants ne bougent pas, et les compteurs ne reculent pas.
 	const v2 = {
 		schemaVersion: 2, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
-		controlVector: [], settings: {}, terrainCache: [], worldState: {},
+		settings: {}, terrainCache: [], worldState: {},
 		sessionSeq: 3, targetSeq: 0,
 		sessions: [
 			{ id: 'a-0001', area: 'a', result: 'LANDED', target: null, seq: 1 },
@@ -533,7 +534,7 @@ function stubOperator(calls, { trackFails = false } = {}) {
 		const body = init.body ? JSON.parse(init.body) : undefined;
 		calls.push({ method, url, body });
 		if (method === 'POST' && /\/__operator$/.test(url)) {
-			return json({ operator: { id: 'neo-0000', name: 'neo', createdAt: 'x', sessions: [], terrainCache: [], targetLog: [], settings: {}, controlVector: [], worldState: {} } });
+			return json({ operator: { id: 'neo-0000', name: 'neo', createdAt: 'x', sessions: [], terrainCache: [], targetLog: [], settings: {}, worldState: {} } });
 		}
 		if (method === 'POST' && /\/sessions$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: 'PENDING' } });

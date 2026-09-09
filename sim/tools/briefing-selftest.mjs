@@ -143,7 +143,7 @@ t('THE TERMINAL names the four modes and the two global keys', () => {
 t('A SESSION spells the loop, with the keys read from the live map', () => {
 	const screen = briefingScreens({ input: { kind: 'keyboard' }, keyRows })[2];
 	const labels = screen.rows.map((r) => r[0]);
-	assert.deepEqual(labels.slice(0, 3), ['TARGET SCAN', 'CONTROL VECTOR', 'FLIGHT']);
+	assert.deepEqual(labels.slice(0, 2), ['TARGET SCAN', 'FLIGHT']);
 	assert.equal(screen.rows.find((r) => r[0] === 'HOLD K')[1], 'CUT THE LINK');
 	assert.equal(screen.rows.find((r) => r[0] === 'V')[1], 'FPV / CHASE VIEW');
 	assert.equal(screen.rows.find((r) => r[0] === 'SPACE')[1], 'PAUSE');

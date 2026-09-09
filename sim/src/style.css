@@ -1294,94 +1294,13 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	color: var(--warm-white);
 }
 
-/* ---------- Rituel CONTROL VECTOR (PHASE 10) ----------
-   Cyan/magenta/violet/bleu électrique : réservées à ce seul moment
-   (Bible §19 « une à quatre secondes de folie, puis retour au calme »).
-   Nulle part ailleurs dans le jeu — pas de glow permanent (DA §46).
-   Plein viewport, casse le cadre terminal derrière lui : un vrai événement,
-   pas un écran de plus dans la même boîte (retour utilisateur PR #80). */
-.ritual {
-	position: fixed; inset: 0;
-	z-index: 12; /* au-dessus de .bootstrap/.hack (11) */
-	display: flex; flex-direction: column; align-items: center; justify-content: center;
-	background: var(--black);
-	overflow: hidden;
-	text-align: center;
-}
-.ritual-prompt {
-	position: relative; z-index: 2;
-	font-family: var(--font-display);
-	font-size: clamp(33px, 7vw, 110px);
-	letter-spacing: var(--track-display);
-	text-transform: uppercase;
-	min-height: 1.4em;
-}
-/* Pendant la culmination, la saisie se retire en haut, petite : le motif prend
-   toute la place. */
-.ritual-prompt-done {
-	position: absolute; top: 6vh; left: 50%; transform: translateX(-50%);
-	font-size: clamp(22px, 2.4vw, 33px);
-	color: var(--dim);
-	min-height: 0;
-}
-.ritual-acquired {
-	font-family: var(--font-display);
-	letter-spacing: var(--track-display);
-	text-transform: uppercase;
-	font-size: clamp(33px, 6.5vw, 88px);
-}
-/* Grille de 44×12 caractères mise à l'échelle du viewport plutôt que du texte
-   environnant : à cette taille le motif déborde volontairement des bords —
-   c'est ce qui doit se sentir comme une explosion qui traverse l'écran. */
-.ritual-burst {
-	position: absolute; inset: 0; z-index: 1;
-	display: flex; align-items: center; justify-content: center;
-	font-family: var(--font-ascii);
-	line-height: 1.02;
-	white-space: pre;
-	font-size: clamp(22px, 4.2vw, 77px);
-}
-.ritual-burst--cyan { color: var(--cyan); }
-.ritual-burst--magenta { color: var(--magenta); }
-.ritual-burst--violet { color: var(--violet); }
-.ritual-burst--blue { color: var(--electric); }
-
-/* Halo qui respire pendant la culmination : atmosphère, pas de l'information. */
-.ritual-live::after {
-	content: '';
-	position: absolute; inset: -20%;
-	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .1), transparent 60%); /* palette-ok: halo de lumière du rituel, pas une teinte d'interface */
-	animation: ritual-pulse .9s ease-in-out infinite;
-	pointer-events: none;
-}
-@keyframes ritual-pulse {
-	0%, 100% { opacity: .35; transform: scale(1); }
-	50% { opacity: .85; transform: scale(1.08); }
-}
-
-/* Un coup par battement : le rituel doit frapper l'écran, pas juste changer
-   de motif dessus. */
-@keyframes ritual-boom {
-	0% { transform: scale(1.09); filter: brightness(1.9) saturate(1.5); }
-	100% { transform: scale(1); filter: brightness(1) saturate(1); }
-}
-.ritual-boom { animation: ritual-boom .16s ease-out; }
-
-@keyframes ritual-shake {
-	0%, 100% { transform: translateX(0); }
-	20% { transform: translateX(-6px); }
-	40% { transform: translateX(5px); }
-	60% { transform: translateX(-3px); }
-	80% { transform: translateX(2px); }
-}
-.ritual-shake { animation: ritual-shake .22s ease; }
-
 /* ---------- Intro demoscene au lancement (issue #106) ----------
    PRESS ANY KEY est calme, même grammaire que .bootstrap : pas de couleur,
    juste un clignotement discret pour lire comme une invite plutôt qu'un texte
-   figé. Le cracktro qui suit est, avec le rituel, le seul autre endroit du jeu
-   où la palette cyan/magenta/violet/bleu électrique apparaît (Bible §19) —
-   réservée aux moments spectaculaires, jamais en continu (DA §46). z-index
+   figé. Le cracktro qui suit est, depuis le retrait du rituel (#33), le SEUL
+   endroit du jeu où la palette cyan/magenta/violet/bleu électrique apparaît
+   (Bible §19) — réservée aux moments spectaculaires, jamais en continu
+   (DA §46). z-index
    au-dessus de tout : c'est le tout premier écran du jeu. */
 .intro {
 	position: fixed; inset: 0;
@@ -1446,7 +1365,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 }
 
 /* Grille ASCII des primitives de rituel (hack-grammars.js), réemployées telles
-   quelles pour le plasma/raster de la phase plasma — même idiome que .ritual-burst. */
+   quelles pour le plasma/raster de la phase plasma — même idiome que les burst du rituel, retiré depuis (#33). */
 .intro-burst {
 	position: absolute; inset: 0; z-index: 1;
 	display: flex; align-items: center; justify-content: center;

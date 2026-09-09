@@ -38,7 +38,7 @@ donne la ligne de chaque phase ; lire ensuite la plage voulue plutôt que tout l
 - PHASE 7 — Target generation
 - PHASE 8 — Target scan / choix de cible
 - PHASE 9 — Documentary hacking system
-- PHASE 10 — Control Vector + QTE
+- PHASE 10 — Retrait du Control Vector
 - PHASE 11 — Entry State
 - PHASE 12 — Double HUD
 - PHASE 13 — First-second flight experience
@@ -145,13 +145,15 @@ Créer le modèle :
 ```text
 Operator
 ├── name
-├── controlVector
 ├── settings
 ├── terrainCache
 ├── sessions
 ├── targetLog
 └── worldState
 ```
+
+*(`controlVector` a existé dans ce modèle ; PHASE 10 le retire du schéma
+opérateur, qui passe en v3.)*
 
 ### Premier lancement
 
@@ -169,19 +171,11 @@ Certaines informations doivent rester `UNKNOWN`.
 
 Créer le `OPERATOR NAME`.
 
-### Control Vector
+### Control Vector *(retiré, voir PHASE 10)*
 
-Créer :
-
-- configuration initiale ;
-- 4–8 inputs ;
-- défaut 6 ;
-- mémorisation ;
-- affichage depuis Home ;
-- modification ;
-- récupération facile.
-
-Le Vector ne doit jamais servir d'authentification.
+Cette section décrivait la construction d'un Control Vector — une suite de
+4 à 8 flèches que le joueur mémorisait au premier lancement. PHASE 10 documente
+son retrait complet (issue #33) : le bootstrap n'a plus que deux écrans.
 
 ### Livrable
 
@@ -190,7 +184,6 @@ Premier lancement complet :
 ```text
 hardware discovery
 → operator name
-→ control vector
 → initialization complete
 → operator home
 ```
@@ -213,7 +206,6 @@ Contenu :
 
 ```text
 OPERATOR
-CONTROL VECTOR
 LAST SESSION
 LOCAL TERRAIN
 GLOBAL SCANNER
@@ -660,70 +652,72 @@ AUTOMATED ANALYSIS
  ↓
 MANUAL OVERRIDE
  ↓
-CONTROL VECTOR
- ↓
-RITUAL
- ↓
 JACK IN
 ```
 
+*(mis à jour, PHASE 10 : `CONTROL VECTOR` et `RITUAL` retirés du pipeline,
+issue #33 — `MANUAL OVERRIDE` mène directement à `JACK IN`.)*
+
 ---
 
-# PHASE 10 — Control Vector + QTE
+# PHASE 10 — Retrait du Control Vector (2026-09-09, issue #33)
 
-### Objectif
+### Cette phase construisait, elle retire
 
-Le Vector devient la signature personnelle de l'opérateur.
+PHASE 10 devait faire du Control Vector — une suite de 4 à 8 flèches que le
+joueur mémorisait au premier lancement, et retapait à chaque acquisition — « la
+signature personnelle de l'opérateur ». Elle décrivait ensuite un rituel de 1 à
+4 secondes par type de hack, six types × quatre variantes, 24 séquences à
+produire à terme.
 
-Le système automatique arrive à :
+Le rapport qui a ouvert #33 a changé le sens de cette phase : « la page de hack
+peut se figer et rendre confus l'utilisateur ». La lecture du code montrait
+pire — `runRitual` n'écoutait que les quatre flèches, ne posait aucun Échap,
+et sa promesse n'avait pas de `reject` : un joueur qui avait oublié son vecteur
+restait bloqué jusqu'au rechargement de la page, avec `fieldLoop` — et donc
+toute la boucle de jeu — suspendu derrière lui. Le geste ne demandait par
+ailleurs aucune compétence de pilotage.
+
+### Objectif (révisé)
+
+Retirer le Control Vector entièrement, du bootstrap au terminal, et fermer le
+trou de sortie qu'il laissait derrière lui.
+
+Le système automatique arrive toujours à :
 
 ```text
 CONTROL CHANNEL READY
 MANUAL OVERRIDE REQUIRED
 ```
 
-Le joueur entre son Vector.
+mais le joueur n'a plus rien à retaper : un seul bouton, `[ JACK IN ]`, avec
+`[ESC] ABORT` monté dès l'affichage de l'écran de hack — utilisable pendant
+tout le chargement, ce qui répare au passage l'absence de sortie relevée dans
+le même diagnostic. Abandonner résout `{ aborted: true }` et recharge la page
+d'acquisition, exactement comme l'annulation d'un TARGET SCAN.
 
-### Variantes
-
-Le Vector reste fixe.
-
-Le rituel varie.
-
-```text
-V1 ≈ 1 sec
-V2 ≈ 2 sec
-V3 ≈ 3 sec
-V4 ≈ 4 sec
-```
-
-Chaque type de hack possède ses quatre variantes.
-
-Cela crée :
+### Ce qui disparaît
 
 ```text
-6 hack types
-×
-4 rituals
-=
-24 ritual variants
+src/ritual.js
+tools/ritual-model.mjs
 ```
 
-à produire à terme.
+`tools/ritual-selftest.mjs` et `tools/ritual-bench.mjs` sont renommés
+`intro-primitives-selftest.mjs` et `intro-primitives-bench.mjs` : ils
+continuent de porter le contrat des onze primitives que `src/intro.js`
+exécute à chaque lancement, hors de tout rituel.
 
-### Priorité
+Le schéma opérateur passe en v3 (`migrate()` supprime la clé
+`controlVector`) ; `RITUAL` sort du vocabulaire sonore (`UI_EVENTS` : sept
+entrées, `UI_FAMILY` : `SYSTEM`/`LINK`) ; le bloc CSS `.ritual*` disparaît.
 
-Commencer avec :
+### Ce qui ne bouge pas
 
-```text
-1 hack type
-×
-4 rituals
-```
-
-puis généraliser la grammaire.
-
-Ne pas produire 24 séquences indépendantes à la main.
+Les grammaires visuelles par famille de hack (PHASE 9) restent : c'est
+`AUTOMATED ANALYSIS` qui identifie la cible à l'écran, pas le geste retiré ici.
+Les quatre couleurs demo scene (cyan/magenta/violet/bleu électrique) restent
+dans le jeu, mais n'ont plus qu'un porteur : l'intro (Bible §19).
 
 ---
 
@@ -844,7 +838,7 @@ Cela fait partie de l'esthétique.
 
 Rendre l'entrée dans le drone physiquement immédiate.
 
-Après le rituel :
+Après `[ JACK IN ]` *(PHASE 10 : plus de rituel entre le hack et le vol)* :
 
 ```text
 CONTROL ACQUIRED
@@ -1115,13 +1109,12 @@ tututuuut tuuuuu-tuu
 
 uniquement comme signature de boot / démarrage.
 
-### Rituals
+### Rituals *(retiré, PHASE 10 — issue #33)*
 
-IDM / demo scene.
-
-Chaque hack a sa signature sonore.
-
-V1–V4 changent durée et construction.
+Cette sous-section décrivait une signature sonore IDM / demo scene par hack,
+avec des variantes V1–V4. Le rituel qui la portait est retiré ; le hack n'a
+plus de vocabulaire sonore propre (`SYSTEM`/`LINK` seulement, Bible §34), et
+l'esthétique IDM / demo scene ne joue plus qu'à l'intro (PHASE 20).
 
 ---
 
@@ -1218,7 +1211,10 @@ color flashes
 text deformation
 ```
 
-Les rituels sont composés à partir de ces primitives.
+Ces primitives composaient les rituels d'acquisition ; depuis leur retrait
+(PHASE 10), `src/intro.js` reste leur seul consommateur, à chaque lancement du
+jeu (`tools/intro-primitives-selftest.mjs`, renommé du `ritual-selftest.mjs`
+d'origine).
 
 ---
 
@@ -1301,7 +1297,6 @@ Chaque opérateur doit avoir :
 
 ```text
 own identity
-own vector
 own terrain cache
 own sessions
 own photos
@@ -1349,7 +1344,7 @@ Vérifier notamment :
 - Randomart ;
 - shaders ;
 - double HUD ;
-- rituels ;
+- primitives d'intro (budget 2 ms/frame, `tools/intro-primitives-selftest.mjs`) ;
 - temps de démarrage ;
 - nettoyage mémoire.
 
@@ -1381,7 +1376,6 @@ Tester le parcours :
 FIRST LAUNCH
 → BOOTSTRAP
 → OPERATOR
-→ VECTOR
 → GLOBAL SCANNER
 → SEARCH
 → DRAW AREA
@@ -1392,8 +1386,6 @@ FIRST LAUNCH
 → TARGET SCAN
 → TARGET SELECTION
 → HACK
-→ VECTOR
-→ RITUAL
 → JACK IN
 → FLIGHT
 → LAND
@@ -1492,7 +1484,6 @@ Persistent terrain
 Session model
 Target generation
 Target selection
-Control Vector
 Entry state
 Flight
 Crash/Landing
@@ -1513,8 +1504,7 @@ Target Log
 ## P2 — identité forte
 
 ```text
-Ritual system
-Demo scene
+Intro demoscene
 Audio
 ASCII
 Pixel art
@@ -1528,7 +1518,6 @@ Crew lore
 BENCH (PHASE 26)
 additional drones
 additional hacks
-additional ritual variants
 map layers
 Operator Randomart
 avatar

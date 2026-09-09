@@ -1,32 +1,31 @@
-// AUTOMATED ANALYSIS (PHASE 09, Bible §16–18) + rituel CONTROL VECTOR
-// (PHASE 10, Bible §18). S'intercale entre le TARGET SCAN (PHASE 08) et le
-// vol. La carte se charge en tâche de fond pendant que le joueur regarde la
-// phase automatique : au bout du rituel le contrôle est immédiat.
+// AUTOMATED ANALYSIS (PHASE 09, Bible §16-18). Sits between TARGET SCAN
+// (PHASE 08) and flight. The map streams in the background while the player
+// watches the automatic phase: a single deliberate gesture, [ JACK IN ],
+// hands control over as soon as it is offered.
 //
-// Déroulé : un log qui se remplit étape par étape (chaque étape = un label, des
-// points qui se remplissent pendant son dwell, puis un verdict qui claque), un
-// motif visuel propre à la famille de hack, un état d'attente tant que le
-// chargement n'est pas fini, puis la culmination du motif + MANUAL OVERRIDE
-// REQUIRED + le rituel réel (ritual.js : saisie du CONTROL VECTOR de
-// l'opérateur, tolérante, puis 1-4 s de folie demo scene, puis CONTROL
-// ACQUIRED). `arm()` n'est déclenché qu'une fois la séquence jouée ET le
-// chargement terminé.
+// Flow: a log that fills in step by step (each step: a label, dots that fill
+// during its dwell, then a verdict that lands), a visual pattern specific to
+// the hack family, a hold state while loading isn't done yet, then the
+// pattern's culmination + MANUAL OVERRIDE REQUIRED + [ JACK IN ]. `arm()`
+// only fires once the scripted sequence has played AND loading has finished
+// — but the screen can be left at ANY point before that too (issue #33): see
+// `abort()` below. The CONTROL VECTOR ritual (PHASE 10, formerly ritual.js)
+// used to stand where `arm()` now hands off directly; the ritual has since
+// been removed (#33).
 //
-// Écran client pur : look terminal (screen de terminal.js), AUCUNE
-// dépendance Three/Rapier/physics. Jamais importé par le moteur.
+// Pure client screen: terminal look (screen from terminal.js), NO Three/
+// Rapier/physics dependency. Never imported by the engine.
 //
-// Règle de sécurité (spec PHASE 09) : les labels/verdicts sont du vocabulaire
-// d'ambiance (liste blanche dans hack-model.mjs), les motifs sont des animations
-// décoratives. Aucune trame, aucun outil, aucune séquence exploitable.
-import { screen } from './terminal.js';
+// Safety rule (PHASE 09 spec): labels/verdicts are mood vocabulary (an
+// allow-list in hack-model.mjs), the patterns are decorative animations. No
+// real map data, tool, or exploitable sequence.
+import { screen, button, keyHints } from './terminal.js';
+import { menuNav } from './menu-nav.js';
 import {
 	HACK_TYPES, HACK_OVERRIDE, hackSequence,
 	HACK_STEP_GAP_MS, HACK_HOLD_MS, HACK_LOCK_MS,
 } from '../tools/hack-model.mjs';
 import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
-import { runRitual } from './ritual.js';
-import { ritualVector } from '../tools/ritual-model.mjs';
-import { getOperator } from './operator.js';
 import { notify } from './dialogue.js';
 import { scanContext } from './dialogue-context.js';
 
@@ -36,9 +35,9 @@ const DOT_MAX = 15;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const padLabel = (s) => s.padEnd(18);
 
-// `ready` : promesse du chargement de fond (main.js). Résolue -> on peut armer
-// le rituel dès la fin de la séquence. Rejetée -> on démonte et on propage
-// (échec de boot). Absente -> séquence scriptée seule (chemins ?scene=/?family=).
+// `ready`: promise for the background load (main.js). Resolves -> arm() can
+// fire once the sequence is done. Rejects -> tear down and propagate (boot
+// failure). Absent -> scripted sequence alone (the ?scene=/?family= paths).
 export function runHack(root, { hackType, family, ready, candidate = null } = {}) {
 	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
 	const draw = GRAMMARS[type] || drawNeutral;
@@ -50,25 +49,36 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 	// était, le seul moment où l'analyse rend la main à l'opérateur passait dans
 	// la même graisse que les lignes de progression au-dessus (HANDOFF PHASE 09).
 	// Elle a maintenant son propre élément, au niveau DISPLAY.
-	s.box.innerHTML = `<pre class="hack-head">HACK // ${type}</pre>
-<pre class="hack-log"></pre>
-<pre class="hack-handover" hidden>${HACK_OVERRIDE}</pre>
-<pre class="hack-grammar" aria-hidden="true"></pre>`;
-	const logEl = s.box.querySelector('.hack-log');
-	const handoverEl = s.box.querySelector('.hack-handover');
-	const gramEl = s.box.querySelector('.hack-grammar');
+	//
+	// createElement plutôt qu'innerHTML, comme screen() lui-même et
+	// target-scan.js (issue #33) : rigoureusement le même arbre, mais montable
+	// sur le faux DOM de tools/lib/fake-dom.mjs, qui refuse un innerHTML non vide.
+	const headEl = document.createElement('pre');
+	headEl.className = 'hack-head';
+	headEl.textContent = `HACK // ${type}`;
+	const logEl = document.createElement('pre');
+	logEl.className = 'hack-log';
+	const handoverEl = document.createElement('pre');
+	handoverEl.className = 'hack-handover';
+	handoverEl.hidden = true;
+	handoverEl.textContent = HACK_OVERRIDE;
+	const gramEl = document.createElement('pre');
+	gramEl.className = 'hack-grammar';
+	gramEl.setAttribute('aria-hidden', 'true');
+	s.box.append(headEl, logEl, handoverEl, gramEl);
 
-	// RTC : de la couleur pendant la séquence automatique seulement. D9 est
-	// non négociable — le crew se tait avant l'armement du CONTROL VECTOR, et
-	// stopHack() coupe net avant arm() plus bas. MANUAL_OVERRIDE et JACK_IN ne
-	// sont volontairement jamais montés ici : ce sont les instants du rituel.
-	// Depuis #243 : un toast en surimpression, pas un bloc qui pousse la colonne.
-	// Le hack est une attente qu'on REGARDE (la grille tourne) — un log qui
-	// grandit sous elle déplaçait ce qu'on regardait.
-	// candidate : le même exemplaire que main.js a tiré du scan (facultatif —
-	// les chemins de preview ?scene=/?family= n'en ont pas). Le fournir ouvre
-	// {signal} et {video_type} en plus de {hack_type} pour TARGET_ANALYSIS/HACK ;
-	// candidate: null reste le comportement par défaut (issue #58 finding 2).
+	// RTC: crew chatter during the automatic sequence only. D9 is
+	// non-negotiable — the crew is silent from the handover on, and
+	// stopHack() cuts it before arm() runs below. MANUAL_OVERRIDE and
+	// [ JACK IN ] are deliberately never voiced here: they are arm()'s
+	// moment, not the log's.
+	// Since #243: an overlay toast, not a block that pushes the column. The
+	// hack is a wait you WATCH (the grid spins) — a log growing underneath it
+	// moved what you were looking at.
+	// candidate: the same instance main.js drew from the scan (optional — the
+	// ?scene=/?family= preview paths have none). Providing it opens {signal}
+	// and {video_type} in addition to {hack_type} for TARGET_ANALYSIS/HACK;
+	// candidate: null keeps today's default (issue #58 finding 2).
 	const stopHack = notify({
 		event: 'TARGET_ANALYSIS',
 		context: () => scanContext({ candidate, hackType, family }),
@@ -79,6 +89,7 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		let raf = 0;
 		let done = false;
 		let armed = false;
+		let nav = null;
 		const timers = new Set();
 		const t0 = performance.now();
 		const nowMs = () => performance.now() - t0;
@@ -148,28 +159,38 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			after(HACK_LOCK_MS, arm);
 		};
 
-		// PHASE 10 : le rituel réel remplace le [ JACK IN ] provisoire de PHASE 09.
-		// `armed` ne protège plus qu'un double-déclenchement de `arm()` lui-même —
-		// runRitual gère sa propre saisie (clavier + manette) et sa propre
-		// culmination, `hack.js` ne fait qu'attendre sa résolution puis finir.
-		// Monté sur `root`, pas `s.box` : le rituel casse le cadre terminal
-		// étroit de l'AUTOMATED ANALYSIS pour prendre tout le viewport (Bible
-		// §18-19, retour utilisateur PR #80 — doit se sentir comme un vrai
-		// événement, pas un écran de plus dans la même boîte).
+		// Abandoning is not a failure: the player simply does not want this
+		// target. main.js already knows this shape from the TARGET SCAN, whose
+		// Escape returns { cancelled: true } and loops back to the zone.
+		const abort = () => {
+			if (done) return;
+			teardown();
+			resolve({ aborted: true });
+		};
+
+		// D15, and this is the exit issue #33 found missing: mounted at SCREEN
+		// MOUNT, not at arm(). 'hold' — the wait for the terrain to load — is
+		// exactly the phase the bug lived in: a player stuck behind a screen
+		// with no way out and no armed [ JACK IN ] yet either. What stood here
+		// before was the CONTROL VECTOR ritual: it listened to the four arrow
+		// keys and NOTHING else, held a promise with no reject, and blocked
+		// every nav still mounted beneath it — and since fieldLoop awaits
+		// runHack(), the whole game loop was stuck with the player.
+		s.box.appendChild(keyHints([['ESC', 'ABORT']]));
+		nav = menuNav(s.el, { back: abort });
+
+		// The hack ends on a single deliberate gesture. `[ JACK IN ]` is not
+		// new: it is what stood here before PHASE 10, and the crew already has
+		// lines for MANUAL_OVERRIDE and JACK_IN waiting for a call site
+		// (src/dialogue-fallback.js).
 		const arm = () => {
 			if (armed || done) return;
 			armed = true;
 			phase = 'armed';
 			paint();
-			// D9 : le crew parle avant l'armement, jamais pendant — la culmination
-			// du rituel est une seule chose à la fois. On coupe net ici, avant que
-			// runRitual() ne prenne l'écran.
+			// D9: the crew speaks before the handover, never during it.
 			stopHack();
-			const vector = ritualVector(getOperator()?.controlVector);
-			runRitual(root, { hackType: type, vector, seed }).then(finish, (err) => {
-				teardown();
-				reject(err instanceof Error ? err : new Error(String(err)));
-			});
+			s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
 		};
 
 		// --- boucle d'animation unique --------------------------------------
@@ -190,6 +211,13 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			// (ready rejetée pendant 'hold') — sans ça le minuteur RTC survivrait à
 			// s.remove() sur un nœud détaché.
 			stopHack();
+			nav?.detach();
+			nav = null;
+			// Test-only hook (tools/hack-render-selftest.mjs): without this, the
+			// closure — screen, timers, resolve — is retained for the page's
+			// whole life, one runHack() call overwriting the last (memory-release-
+			// selftest.mjs would have caught this eventually, on a real leak).
+			delete globalThis.__hackTestArm;
 			s.remove();
 		};
 
@@ -198,6 +226,11 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			teardown();
 			resolve();
 		};
+
+		// Test-only hook (tools/hack-render-selftest.mjs): the screen walks its
+		// phases on timers, and a render test has no business waiting seconds
+		// for them. Nothing in the game reads this.
+		globalThis.__hackTestArm = () => { timers.forEach(clearTimeout); timers.clear(); arm(); };
 
 		raf = requestAnimationFrame(loop);
 		runStep();

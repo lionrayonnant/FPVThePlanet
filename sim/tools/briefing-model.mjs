@@ -111,7 +111,6 @@ function sessionScreen(keyRows) {
 		title: 'A SESSION',
 		rows: [
 			['TARGET SCAN', 'THE AREA, THEN THE MACHINE'],
-			['CONTROL VECTOR', 'THE ARROWS YOU REGISTERED'],
 			['FLIGHT', 'THE LINK LASTS WHAT IT LASTS'],
 			[`HOLD ${cut}`, 'CUT THE LINK'],
 			[view, 'FPV / CHASE VIEW'],

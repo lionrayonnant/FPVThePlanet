@@ -6,8 +6,7 @@ import {
 	UI_EVENTS, UI_FAMILY, BOOT_SIGNATURE,
 	LINK_LOST_AT, LINK_BACK_AT, LINK_MIN_GAP_S,
 	newLinkState, linkEvent,
-	VOICES, PERCUSSIVE, RITUAL_SCORES, scoreFor,
-	RITUAL_TENSION, ritualTensionParams,
+	VOICES, PERCUSSIVE,
 	INTRO_SCORE, INTRO_SCORE_MS,
 } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
@@ -18,21 +17,21 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 // --- vocabulaire clos ------------------------------------------------------
 
-t('UI_EVENTS : exactement les huit événements de la spec', () => {
+t('UI_EVENTS : exactement les sept événements de la spec', () => {
+	// RITUAL est sorti du vocabulaire avec le rituel lui-même (#33).
 	assert.deepEqual(UI_EVENTS, [
 		'BOOT', 'TERRAIN_READY', 'TARGET_FOUND', 'ERROR',
-		'LINK_LOST', 'LINK_RESTORED', 'RITUAL', 'INTRO',
+		'LINK_LOST', 'LINK_RESTORED', 'INTRO',
 	]);
 });
 
-t('UI_FAMILY : chaque événement a une famille, et seulement les trois de §34', () => {
+t('UI_FAMILY : chaque événement a une famille, et seulement les deux de §34', () => {
 	assert.deepEqual(Object.keys(UI_FAMILY).sort(), [...UI_EVENTS].sort());
 	for (const e of UI_EVENTS) {
-		assert.ok(['SYSTEM', 'LINK', 'RITUAL'].includes(UI_FAMILY[e]), e);
+		assert.ok(['SYSTEM', 'LINK'].includes(UI_FAMILY[e]), e);
 	}
 	assert.equal(UI_FAMILY.LINK_LOST, 'LINK');
 	assert.equal(UI_FAMILY.LINK_RESTORED, 'LINK');
-	assert.equal(UI_FAMILY.RITUAL, 'RITUAL');
 });
 
 // --- signature de boot -----------------------------------------------------
@@ -149,183 +148,12 @@ t('linkEvent : ne garde aucun état de module — deux runs identiques', () => {
 	assert.deepEqual(run(trace), run(trace));
 });
 
-// --- partitions de rituel ---------------------------------------------------
+// --- vocabulaire des voix ---------------------------------------------------
 
-const VARIANT_MS = [1000, 2000, 3000, 4000]; // V1..V4, cf. tools/ritual-model.mjs
 
 t('VOICES : blast (le souffle de l\'explosion) fait partie du vocabulaire', () => {
 	assert.ok(VOICES.includes('blast'), 'blast manquant');
 	assert.ok(!PERCUSSIVE.includes('blast'), 'blast doit s\'étirer avec la variante, pas rester fixe');
-});
-
-t('RITUAL_SCORES : une partition par famille de HACK_TYPES, et rien d\'autre', () => {
-	assert.deepEqual(Object.keys(RITUAL_SCORES).sort(), [...HACK_TYPES].sort());
-});
-
-t('RITUAL_SCORES : chaque événement nomme une voix connue', () => {
-	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
-		for (const ev of score) {
-			assert.ok(VOICES.includes(ev.voice), `${family} : voix inconnue ${ev.voice}`);
-		}
-	}
-});
-
-t('RITUAL_SCORES : temps normalisé croissant, dans [0,1]', () => {
-	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
-		for (let i = 0; i < score.length; i++) {
-			assert.ok(score[i].at >= 0 && score[i].at <= 1, `${family} : at hors [0,1]`);
-			if (i) assert.ok(score[i].at >= score[i - 1].at, `${family} : at non croissant`);
-		}
-	}
-});
-
-t('RITUAL_SCORES : les six sont réellement distinctes', () => {
-	// La décision « six identités écrites à la main » est vérifiée, pas
-	// seulement déclarée : deux familles ne peuvent pas rendre la même suite
-	// de voix.
-	const shapes = Object.entries(RITUAL_SCORES)
-		.map(([f, s]) => [f, s.map((e) => e.voice).join('>')]);
-	for (let i = 0; i < shapes.length; i++) {
-		for (let j = i + 1; j < shapes.length; j++) {
-			assert.notEqual(shapes[i][1], shapes[j][1], `${shapes[i][0]} == ${shapes[j][0]}`);
-		}
-	}
-});
-
-t('RITUAL_SCORES : montée, détonation en couches, puis des shrapnels dispersés (§36)', () => {
-	for (const [family, score] of Object.entries(RITUAL_SCORES)) {
-		const voices = score.map((e) => e.voice);
-		assert.ok(voices.includes('sweep'), `${family} : pas de montée`);
-		assert.ok(voices.includes('impact'), `${family} : pas d'impact`);
-		assert.ok(voices.includes('blast'), `${family} : pas de souffle`);
-		const impactIdx = voices.lastIndexOf('impact');
-		const blastIdx = voices.lastIndexOf('blast');
-		const lastSweepIdx = voices.lastIndexOf('sweep');
-		assert.ok(lastSweepIdx < impactIdx, `${family} : la montée doit précéder l'impact`);
-		assert.ok(lastSweepIdx < blastIdx, `${family} : la montée doit précéder le souffle`);
-		// Tout ce qui suit la détonation (impact + blast, simultanés ou non) est
-		// un éclat panoramisé : c'est la partie « ça part dans tous les sens ».
-		const after = score.slice(Math.max(impactIdx, blastIdx) + 1);
-		assert.ok(after.length >= 2, `${family} : pas assez de shrapnels après la détonation`);
-		for (const ev of after) {
-			assert.ok(['click', 'glitch'].includes(ev.voice), `${family} : shrapnel inattendu ${ev.voice}`);
-			assert.equal(typeof ev.pan, 'number', `${family} : shrapnel sans pan`);
-		}
-		const pans = after.map((e) => e.pan);
-		assert.ok(pans.some((p) => p < 0) && pans.some((p) => p > 0),
-			`${family} : les shrapnels ne couvrent pas tout le champ stéréo`);
-	}
-});
-
-t('scoreFor : rend une partition non vide pour les 6 familles × les 4 variantes', () => {
-	for (const family of HACK_TYPES) {
-		for (const ms of VARIANT_MS) {
-			assert.ok(scoreFor(family, ms).length > 0, `${family} / ${ms}ms`);
-		}
-	}
-});
-
-t('scoreFor : rien ne dépasse la durée de la variante', () => {
-	for (const family of HACK_TYPES) {
-		for (const ms of VARIANT_MS) {
-			for (const ev of scoreFor(family, ms)) {
-				assert.ok(ev.atMs >= 0 && ev.atMs <= ms, `${family}/${ms} : atMs=${ev.atMs}`);
-			}
-		}
-	}
-});
-
-t('scoreFor : l\'impact est ancré près de la fin, les shrapnels ferment la partition', () => {
-	for (const family of HACK_TYPES) {
-		for (const ms of VARIANT_MS) {
-			const score = scoreFor(family, ms);
-			const impactEvents = score.filter((e) => e.voice === 'impact');
-			assert.ok(impactEvents.length > 0, `${family}/${ms} : pas d'impact`);
-			const impactAt = impactEvents[impactEvents.length - 1].atMs;
-			// Dans les 15 derniers pourcents : la détonation tombe avec la fin de
-			// la variante, elle ne flotte pas au milieu.
-			assert.ok(impactAt >= ms * 0.85, `${family}/${ms} : impact à ${impactAt}`);
-			const last = score[score.length - 1];
-			assert.ok(last.atMs >= ms * 0.90, `${family}/${ms} : la partition ne finit pas près de la fin`);
-			assert.ok(['click', 'glitch'].includes(last.voice),
-				`${family}/${ms} : ne finit pas par un shrapnel (${last.voice})`);
-		}
-	}
-});
-
-t('scoreFor : transporte le pan des shrapnels', () => {
-	for (const family of HACK_TYPES) {
-		const raw = RITUAL_SCORES[family];
-		assert.ok(raw.some((e) => typeof e.pan === 'number'), `${family} : aucun événement panoramisé`);
-		const rendered = scoreFor(family, 2000);
-		for (let i = 0; i < raw.length; i++) {
-			if (typeof raw[i].pan === 'number') {
-				assert.equal(rendered[i].pan, raw[i].pan, `${family}[${i}] : pan non transporté`);
-			} else {
-				assert.equal(rendered[i].pan, undefined, `${family}[${i}] : pan fantôme`);
-			}
-		}
-	}
-});
-
-t('scoreFor : la variante change la durée, pas la construction', () => {
-	for (const family of HACK_TYPES) {
-		const shapes = VARIANT_MS.map((ms) => scoreFor(family, ms).map((e) => e.voice).join('>'));
-		assert.equal(new Set(shapes).size, 1, `${family} : la suite de voix change avec la variante`);
-	}
-	// Mais l'étalement, lui, change bien.
-	const spans = VARIANT_MS.map((ms) => {
-		const s = scoreFor('LINK HIJACK', ms);
-		return s[s.length - 1].atMs;
-	});
-	for (let i = 1; i < spans.length; i++) assert.ok(spans[i] > spans[i - 1]);
-});
-
-t('scoreFor : les voix percussives gardent leur durée propre, les tenues s\'étirent', () => {
-	const short = scoreFor('FIRMWARE OVERRIDE', 1000);
-	const long = scoreFor('FIRMWARE OVERRIDE', 4000);
-	for (let i = 0; i < short.length; i++) {
-		if (PERCUSSIVE.includes(short[i].voice)) {
-			assert.equal(short[i].durS, long[i].durS, 'un glitch dure autant à V1 qu\'à V4');
-		} else {
-			assert.ok(long[i].durS > short[i].durS, `${short[i].voice} devrait s'étirer`);
-		}
-	}
-});
-
-t('scoreFor : famille inconnue → partition vide plutôt qu\'un plantage', () => {
-	assert.deepEqual(scoreFor('PAS UNE FAMILLE', 2000), []);
-});
-
-// --- tension du rituel -------------------------------------------------------
-
-t('ritualTensionParams : mapping monotone croissant en k', () => {
-	const ks = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
-	let prev = ritualTensionParams(0);
-	for (const k of ks.slice(1)) {
-		const cur = ritualTensionParams(k);
-		assert.ok(cur.freq >= prev.freq, `freq non monotone à k=${k}`);
-		assert.ok(cur.rate >= prev.rate, `rate non monotone à k=${k}`);
-		assert.ok(cur.gain >= prev.gain, `gain non monotone à k=${k}`);
-		prev = cur;
-	}
-	assert.equal(ritualTensionParams(0).gain, 0, 'k=0 doit être silencieux');
-	assert.equal(ritualTensionParams(1).freq, RITUAL_TENSION.fMax);
-	assert.equal(ritualTensionParams(1).rate, RITUAL_TENSION.rateMax);
-	assert.equal(ritualTensionParams(1).gain, RITUAL_TENSION.gain);
-});
-
-t('ritualTensionParams : k hors [0,1] est clampé', () => {
-	assert.deepEqual(ritualTensionParams(-1), ritualTensionParams(0));
-	assert.deepEqual(ritualTensionParams(2), ritualTensionParams(1));
-});
-
-t('RITUAL_TENSION : la chute est plus lente que la montée (retombée audible, pas un mute sec)', () => {
-	assert.ok(RITUAL_TENSION.fallTau > RITUAL_TENSION.tau);
-	// 3τ est le temps usuel pour qu'une exponentielle se juge « arrivée » :
-	// on veut une retombée dans les 150-300 ms demandés, pas un mute en un tick.
-	const fallMs = RITUAL_TENSION.fallTau * 3 * 1000;
-	assert.ok(fallMs >= 150 && fallMs <= 300, `retombée hors fenêtre : ${fallMs} ms`);
 });
 
 // --- partition de l'intro ----------------------------------------------------

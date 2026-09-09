@@ -20,7 +20,7 @@ import {
 } from '../tools/lib/add-map-core.mjs';
 import * as providers from '../tools/lib/providers/index.mjs';
 import {
-	newId, validateName, validateControlVector,
+	newId, validateName,
 	freshState, migrate,
 } from '../tools/operator-store.mjs';
 import {
@@ -176,7 +176,7 @@ function operatorSummary(s) {
 // bornée côté client : MAX_CELLS = 8000 et W_MAX = 8 dans src/coverage.js, et
 // fromStored() y rend une couverture vierge pour tout ce qui n'est pas la
 // forme attendue. Un opérateur sans cette clé se relit comme une carte vierge.
-const OP_WRITABLE_KEYS = new Set(['controlVector', 'settings', 'dialogueMemory', 'coverage']);
+const OP_WRITABLE_KEYS = new Set(['settings', 'dialogueMemory', 'coverage']);
 
 // Traduit une erreur de lecture d'opérateur en code HTTP : id malformé → 400,
 // fichier d'un schéma trop récent → 409, tout le reste (JSON corrompu, E/S) → 500.
@@ -260,12 +260,11 @@ const opRoutes = [
 			return json(res, opReadErrorStatus(e), { error: e.message });
 		}
 		if (!state) return json(res, 404, { error: `aucun opérateur "${id}"` });
-		let value = b.value;
-		if (b.key === 'controlVector') {
-			try { value = validateControlVector(value); }
-			catch (e) { return json(res, 400, { error: e.message }); }
-		}
-		state[b.key] = value;
+		// `controlVector` sortait d'ici avec sa validation (#33). Les deux sont
+		// tombés ENSEMBLE : garder la validation sans la clé écrivable aurait
+		// rendu une 400 opaque à un vieux client qui patche encore le vecteur,
+		// alors que la liste blanche le refuse déjà avec un message clair.
+		state[b.key] = b.value;
 		_writeOperator(state);
 		json(res, 200, { operator: publicOperator(state) });
 	}],

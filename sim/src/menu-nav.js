@@ -6,11 +6,11 @@
 // histoire, et le marqueur ▌ (peint par style.css sur :focus) ne peut jamais
 // diverger de l'élément réellement actif. Ce module ne touche à aucun style.
 //
-// Un écran s'abonne EXPLICITEMENT via menuNav(). Trois contextes ne
+// Un écran s'abonne EXPLICITEMENT via menuNav(). Deux contextes ne
 // s'abonnent jamais, parce que les flèches y veulent dire autre chose :
-// le CONTROL VECTOR (bootstrap.js) et le rituel (ritual.js), où la direction
-// est la donnée saisie — ils posent un blockNav() pour rendre inertes les
-// écrans restés montés dessous — et le vol (input.js), où c'est une commande.
+// certains écrans de bootstrap.js, où la direction est la donnée saisie —
+// ils posent un blockNav() pour rendre inertes les écrans restés montés
+// dessous — et le vol (input.js), où c'est une commande.
 // Les événements dont la cible est un champ de saisie texte sont ignorés
 // (sauf Échap) : la recherche du scanner reste éditable.
 import { readGamepadDir } from './gamepad-dir.js';
@@ -114,7 +114,7 @@ const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowR
 // les mêmes que partout ailleurs sur la Standard Gamepad.
 const PAD_CONFIRM = 0;
 const PAD_BACK = 1;
-const PAD_POLL_MS = 80; // même cadence que bootstrap.js / ritual.js
+const PAD_POLL_MS = 80; // même cadence que bootstrap.js
 
 // `container` : l'élément racine de l'écran (généralement s.el). Options :
 // - back    : Échap / Retour arrière / bouton B — remonter d'un écran.
