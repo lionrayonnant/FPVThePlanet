@@ -18,19 +18,31 @@
 // Sans dépendance à Three ni au réseau : portable Node (selftest) et Worker.
 
 // CHOISI, pas mesuré à l'écran — l'argument est celui du pixel ci-dessus :
-// niveau plein (le `level` de la fenêtre, 21) jusqu'à 150 m, un niveau de
-// moins jusqu'à 300 m, deux au-delà. Le drone reste toujours dans le premier
-// anneau : la fenêtre se recentre tous les REFRESH_THRESHOLD_M (50 m), donc
-// la collision qu'il touche est toujours au niveau plein. À revoir en vol
-// si la couture entre anneaux se voit (texture 2× plus grossière d'un coup).
+// niveau plein (le `level` de la fenêtre, 21) jusqu'à 150 m, puis un niveau
+// de moins par doublement de distance. Le drone reste toujours dans le
+// premier anneau : la fenêtre se recentre tous les REFRESH_THRESHOLD_M
+// (50 m), donc la collision qu'il touche est toujours au niveau plein.
+//
+// Les anneaux vont jusqu'à 2 km (#32) : le mur de l'ancienne table s'arrêtait
+// à `levelDrop: 2`, donc TOUT au-delà de 300 m était chargé au niveau 19, et
+// la portée coûtait cher au carré. Un niveau de moins divise par ~4 le nombre
+// de nœuds d'une même surface : prolonger la table rend la distance presque
+// gratuite. Mesuré à Paris, niveau plein 21 — 600 m : 1003 nœuds ; 1200 m :
+// 1806 avec l'ancienne table, 1270 avec celle-ci ; 2000 m : 1370. La portée
+// triple pour +37 % de nœuds.
+//
+// L'argument du pixel tient à chaque anneau : à 2 km un pixel couvre ~2 m au
+// sol en FOV FPV, le niveau 17 (1,6 m/texel) reste au-dessus du sous-pixel.
 export const LOD_RINGS = [
 	{ radiusM: 150, levelDrop: 0 },
 	{ radiusM: 300, levelDrop: 1 },
-	{ radiusM: Infinity, levelDrop: 2 },
+	{ radiusM: 600, levelDrop: 2 },
+	{ radiusM: 1200, levelDrop: 3 },
+	{ radiusM: Infinity, levelDrop: 4 },
 ];
 
 // Le plancher du niveau : traverse() borne à [2, 22], et sous 14 un nœud
-// couvre des kilomètres — hors sujet pour une fenêtre de 600 m au plus.
+// couvre des kilomètres — hors sujet pour une fenêtre de 2 km au plus.
 const MIN_LEVEL = 14;
 
 const M_PER_DEG_LAT = 111320;

@@ -3241,3 +3241,178 @@ terminal et pas au FLY.
   Depuis PHASE 04 ce sont les **seuls** moyens de changer le temps qu'il fait :
   les curseurs ont disparu, le monde décide.
 
+
+## Trous du terrain LIVE — exclude périmé (issue #31, régression de #22)
+
+### Vérifié — sans navigateur, sur les vraies données kh.google.com
+
+Le LOD par anneaux (#22) fait dépendre l'`exclude` d'un nœud de la POSITION de
+la fenêtre. `RocktreeWindow.update()` ne re-fetchait qu'un chemin absent : un
+nœud déjà chargé gardait le maillage de son ancien `exclude`. Mesuré à Paris,
+rayon 600 m, pas de 50 m : 70 nœuds périmés au premier recentrage, 171 sur 706
+après 300 m de vol (500 octants troués, 108 dessinés en double). Un nœud dont
+l'`exclude` change est désormais libéré puis reconstruit ;
+`tools/rocktree-window-selftest.mjs` le verrouille.
+
+### Vérifié — en jeu, Chromium piloté en CDP
+
+A/B sur la MÊME instance (`?live=48.8578,2.2950`), même vol simulé par
+`__sim.teleport()` en 6 sauts de 60 m, `desired == built` à chaque étape (le
+pipeline de build n'est jamais en cause). Le trou est mesuré par raycast
+vertical sur une grille de 8 m dans le disque chargé moins 50 m de marge —
+la bounding box d'un nœud ne suffit pas, elle reste pleine quand `exclude`
+retire ses triangles.
+
+| vol | sans le correctif | avec |
+|---|---|---|
+| 0 m | 0 % | 0 % |
+| 60 m | 8,98 % | 0 % |
+| 120 m | 12,57 % | 0 % |
+| 180 m | 12,17 % | 0 % |
+| 240 m | 11,36 % | 0 % |
+| 300 m | 10,41 % | 0 % |
+| 360 m | 8,52 % | 0 % |
+
+Jusqu'à un huitième du sol manquant sous le drone, et zéro après correctif.
+
+Écarté au passage, chiffres à l'appui : la baisse du nombre de nœuds en
+volant (740 → 430 sur ce trajet) n'est PAS une perte — c'est la densité de
+l'octree qui change, `tools/lib/rocktree/traverse.mjs` rejoué à froid en Node
+sur les mêmes positions rend les mêmes comptes à ±2 nœuds. Le réseau non plus
+n'est pas en cause : 1003 NodeData tirés à concurrence 24 vers kh.google.com,
+0 échec.
+
+### Le churn, vu puis supprimé
+
+Le clignotement anticipé ci-dessus existait bel et bien — vu en vol par
+l'auteur (« une sorte d'anneau qui recharge la zone »), puis mesuré en
+sondant toutes les 200 ms après un saut de 80 m : **8,17 % du sol absent à
+583 ms**, refermé avant 1,2 s. Les libérations passent avant les builds
+(`processLiveNodeWork()`), donc l'ancien maillage partait à la frame suivante
+et le nouveau arrivait ~1 s plus tard.
+
+Remède posé : l'échange. `RocktreeWindow` marque la libération
+`{ replaced: true }` quand le nœud reste désiré, `main.js` ne retire alors
+rien, et `disposeLiveNode()` — extrait de la file de libérations, partagé par
+les deux chemins — est appelé dans la frame même où le remplaçant est
+construit. Pas de collider dupliqué : le retrait précède l'ajout d'une ligne.
+Le même saut de 80 m mesure **1,99 %**, et ce résidu est du sol neuf (couronne
+entrante), pas un trou. Si le refetch échoue définitivement, `_giveUp()`
+libère l'ancien plutôt que de le laisser orphelin.
+
+### Non vérifié
+
+- Le pic résiduel n'a pas été décomposé nœud par nœud entre « couronne
+  entrante » (irréductible sans précharger au-delà du rayon) et un éventuel
+  reste de remplacements. La mesure par saut de 60 m dans une boucle est
+  bruitée : le drone chute et dérive entre deux sondes, et un saut plus court
+  que `REFRESH_THRESHOLD_M` ne déclenche aucun recentrage. Seul l'A/B sur un
+  même saut de 80 m est propre.
+
+## Portée de vue et trous résiduels (issue #32)
+
+### Vérifié — en jeu, Chromium piloté en CDP, vol continu à 35 m/s
+
+Le trou qui restait après #31 n'en était pas un : c'était le BORD du disque
+chargé, à 300 m. Les anneaux de LOD s'arrêtaient à `levelDrop: 2`, donc la
+portée coûtait au carré au-delà. Table prolongée (un niveau de moins par
+doublement, jusqu'à 2 km), défaut 300 → 600 m, plafond du curseur 600 → 2000 m.
+
+| portée | nœuds | textures | fps | boot |
+|---|---|---|---|---|
+| 300 m | 740 | 892 | 64 | 3,5 s |
+| 600 m (nouveau défaut) | 1003 | 1200 | 62 | 3,5 s |
+| 2000 m (plafond) | 1370 | 1635 | 56 | 4,0 s |
+
+Trous mesurés au raycast pendant un vol continu à 35 m/s (128 km/h), cache
+API vidé, sur ~1 km :
+
+| réglage | moyenne | pic | fetchs en attente (max) | fps min |
+|---|---|---|---|---|
+| 300 m, 3 workers | 0 % en régime, 4-8 % au boot | 8,3 % | — | 64 |
+| 2000 m, 3 workers | 0,86 % | 2,76 % | 219 | 47 |
+| 2000 m, 6 workers | **0,44 %** | 2,43 % | **0** | 50 |
+| 600 m, 6 workers (défaut) | **0,54 %** | 2,62 % | **0** | 52 |
+
+Le résidu est la couronne entrante, au BORD du disque — à 540 m ou 1,9 km du
+drone, pas sous lui. `desired == built` partout ailleurs.
+
+Ce qui a été essayé et ANNULÉ faute de gain : monter les budgets de drain
+(3→5 ms, 8→16 ms, seuil 50→20). Les pics coïncidaient avec la file de FETCHS,
+pas celle des builds ; le budget n'était pas le goulot, le décodage l'était —
+d'où le pool à 6 workers.
+
+### Non vérifié
+
+- Rien de tout ça n'a été piloté à la main : le vol est simulé par
+  `__sim.teleport()` en pas de 3,5 m toutes les 100 ms. Un artefact qui
+  n'apparaîtrait qu'avec une trajectoire réelle (virages, montées, arrêts)
+  échappe encore à la mesure.
+- Les chiffres viennent d'une seule machine et d'un seul lieu (Paris, dense).
+  Une machine plus faible ou une zone plus étalée déplaceraient les seuils —
+  le plafond de 2 km n'a pas été éprouvé ailleurs.
+- La VRAM n'est pas mesurée directement : `textures × 0,58 Mo` est une
+  estimation reprise de #191 (~948 Mo à 2 km), pas une lecture GPU.
+
+## D'où vient le rechargement permanent en vol (issue #32)
+
+### Vérifié — décomposé nœud par nœud, Node et en jeu
+
+« Ça recharge en permanence quand le drone bouge » : mesuré, à chaque
+recentrage de 50 m sur une fenêtre de ~980 nœuds (Paris, portée 600 m) —
+
+| cause | nœuds/recentrage |
+|---|---|
+| sortent vraiment du disque | 12-22 |
+| entrent vraiment (terrain neuf) | 12-17 |
+| **changent d'anneau LOD (même sol, autre niveau)** | **108-204** |
+
+Et par régime, en comptant les demandes faites aux workers :
+
+| situation | demandés | déjà traités |
+|---|---|---|
+| drone immobile, 8 s | 0 | 0 |
+| ligne droite 600 m, zone neuve | 1817 | 180 (10 %) |
+| aller-retour 120 m, zone connue | 2852 | 1513 (53 %) |
+
+Donc : à l'arrêt rien ne charge ; en ligne droite 90 % est du terrain neuf ;
+le gâchis est le va-et-vient, et le churn d'anneau.
+
+### Ce qui a été essayé et REJETÉ, mesuré
+
+- **Ancrer les frontières d'anneaux sur une grille** (100/200/300 m) pour
+  qu'elles cessent de balayer le sol : churn 124 → 148 → 171 par recentrage.
+  Pire, parce que l'ancre saute alors d'un coup et déplace toute la frontière.
+- **Élargir les anneaux** (400/800/1600) : churn 198, et 2639 nœuds au lieu de
+  1003. Une frontière plus lointaine est plus longue, donc balaie plus.
+- **Supprimer le LOD** (tout au niveau 21 sur 600 m) : le churn d'anneau tombe
+  à 1, mais 260 nœuds sortent/entrent par recentrage au lieu de 16, pour 4176
+  nœuds en mémoire au lieu de 1003. Travail total par recentrage : 261 contre
+  140. Deux fois pire, quatre fois plus lourd.
+- **Monter les budgets de drain** : voir plus haut, aucun effet, annulé.
+
+Conclusion : la table d'anneaux actuelle est le bon compromis. Le churn est le
+prix du LOD, pas un défaut à corriger.
+
+### Ce qui a été gardé
+
+Ne plus retirer un nœud remplacé par un autre niveau avant que son remplaçant
+soit CONSTRUIT (drapeau `covered`, différé dans `main.js` jusqu'à ce que
+`pendingNodeBuilds` soit vide). Premier essai côté fenêtre, sur
+`pendingCount()` : creusait un trou plus grand (3,11 % de moyenne contre
+0,54 %), parce que la fenêtre ne connaît que ses fetchs et ignore la file de
+builds étalée sous budget.
+
+### Non vérifié / à savoir
+
+- Le gain chiffré du drapeau `covered` est FAIBLE et partiellement dans le
+  bruit : sur deux paires de passes appariées (même trajet, 20 échantillons),
+  pic 6,03/6,13 % sans contre 5,67/5,67 % avec ; moyennes 1,21/1,67 % contre
+  1,48/0,99 %. Le pic baisse de façon reproductible, la moyenne non. Le
+  mécanisme est gardé parce qu'il supprime une classe de trous par
+  construction, pas sur la foi d'un gain démontré.
+- Le va-et-vient (53 % de nœuds redemandés) n'est PAS traité. Le remède serait
+  un cache LRU de nœuds construits (~624 Kio par nœud gardé) ; il n'a pas été
+  chiffré ni implémenté.
+- Rien n'a été piloté à la main : tous les vols sont simulés par
+  `__sim.teleport()`.

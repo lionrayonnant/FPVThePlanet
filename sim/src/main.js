@@ -32,7 +32,7 @@ import { CloudField } from './cloud.js';
 import { SkyDome, CLEAR_HORIZON as SKY } from './sky.js';
 import { FenceDome, fogDensityFor as liveFogDensityFor, CYAN as FENCE_CYAN } from './fence-dome.js';
 import { GeofenceWall } from './geofence-dome.js';
-import { createRocktreeMaterial, createLiveEdgeUniforms } from './RocktreeMaterial.js';
+import { edgeFadeForRadius, createRocktreeMaterial, createLiveEdgeUniforms } from './RocktreeMaterial.js';
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
@@ -262,6 +262,15 @@ let liveEdgeUniforms = null;    // uniformes partagés du fondu de bord du terra
 // frame, et l'exécuter à l'arrivée gelait le rendu 70-330 ms par vague.
 const pendingNodeBuilds = new Map();    // path -> { matrix, meshes, sphereRadius }
 const pendingNodeReleases = [];         // paths dont mesh+collider sont à retirer
+// Paths qu'un AUTRE NIVEAU remplace (#32) : leur mesh reste à l'écran jusqu'à
+// ce que la file de builds soit vide, donc jusqu'à ce que le sol qu'ils
+// couvraient soit réellement redessiné. Le LOD par anneaux en produit ~124 par
+// recentrage à 600 m de portée (mesuré à Paris) — bien plus que les ~16 qui
+// quittent vraiment le disque. C'est ici, et pas dans la fenêtre, que la
+// décision se prend : la fenêtre ne connaît que ses fetchs, elle ignore cette
+// file-ci, et libérer au retour du réseau creusait un trou PLUS grand qu'avant
+// (3,11 % de sol absent en moyenne contre 0,54 %).
+const coveredReleases = [];
 // ~3 ms : ce qui tient dans une frame de 60 fps déjà occupée par la physique
 // et le rendu sans la faire déborder de 16,7 ms. Une vague de 800 nœuds
 // (~1,1 s de travail) s'étale ainsi sur ~5 s au lieu de geler l'image —
@@ -276,6 +285,32 @@ const NODE_WORK_BUDGET_MS = 3;
 const DEEP_QUEUE_JOBS = 50;
 const DEEP_QUEUE_BUDGET_MS = 8;
 
+// Retire de la scène et de Rapier tout ce qu'un nœud avait posé, et rend sa
+// mémoire. Appelée par la file de libérations ET par l'échange d'un nœud
+// reconstruit (#31) — le même travail dans les deux cas.
+function disposeLiveNode(path) {
+	for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
+		scene.remove(mesh);
+		mesh.geometry.dispose();
+		// material.dispose() ne libère pas la texture (#191) : elle pèse
+		// ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU — sans
+		// ces deux lignes ça fuit à chaque nœud sorti de la fenêtre, donc
+		// avec la distance parcourue et non la taille du monde. Le seul cas
+		// sans texture est le matériau gris plat (pas de bitmap/uvs, voir
+		// buildNodeMesh) : rien à fermer alors. .uniforms.uMap, pas .map :
+		// createRocktreeMaterial() (#202) est un ShaderMaterial, qui n'a pas
+		// le raccourci .map des matériaux standard de Three.
+		const liveMap = mesh.material.uniforms?.uMap?.value;
+		if (liveMap) {
+			liveMap.dispose();
+			liveMap.image.close();
+		}
+		mesh.material.dispose();
+		physics.removeNodeCollider(colliderPath);
+	}
+	liveMeshes.delete(path);
+}
+
 // Draine les files sous budget. Les libérations d'abord : elles rendent de la
 // mémoire et leur retard laisserait des meshes fantômes hors fenêtre.
 function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOBS ? DEEP_QUEUE_BUDGET_MS : NODE_WORK_BUDGET_MS)) {
@@ -283,34 +318,28 @@ function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOB
 	const start = performance.now();
 	while (performance.now() - start < budgetMs) {
 		if (pendingNodeReleases.length > 0) {
-			const path = pendingNodeReleases.shift();
-			for (const { colliderPath, mesh } of liveMeshes.get(path) ?? []) {
-				scene.remove(mesh);
-				mesh.geometry.dispose();
-				// material.dispose() ne libère pas la texture (#191) : elle pèse
-				// ~580 Kio décodée (ImageBitmap) côté CPU, plus l'upload GPU — sans
-				// ces deux lignes ça fuit à chaque nœud sorti de la fenêtre, donc
-				// avec la distance parcourue et non la taille du monde. Le seul cas
-				// sans texture est le matériau gris plat (pas de bitmap/uvs, voir
-				// buildNodeMesh) : rien à fermer alors. .uniforms.uMap, pas .map :
-				// createRocktreeMaterial() (#202) est un ShaderMaterial, qui n'a pas
-				// le raccourci .map des matériaux standard de Three.
-				const liveMap = mesh.material.uniforms?.uMap?.value;
-				if (liveMap) {
-					liveMap.dispose();
-					liveMap.image.close();
-				}
-				mesh.material.dispose();
-				physics.removeNodeCollider(colliderPath);
-			}
-			liveMeshes.delete(path);
+			disposeLiveNode(pendingNodeReleases.shift());
 			continue;
 		}
 		const next = pendingNodeBuilds.entries().next();
-		if (next.done) break;
+		if (next.done) {
+			// Plus rien à construire : la vague est posée, le sol que les nœuds
+			// d'un autre niveau couvraient est redessiné. Ils peuvent partir —
+			// à la prochaine tour de boucle, sous le même budget.
+			if (coveredReleases.length > 0) { pendingNodeReleases.push(...coveredReleases); coveredReleases.length = 0; continue; }
+			break;
+		}
 		const [path, job] = next.value;
 		pendingNodeBuilds.delete(path);
 		const built = buildNodeMesh(path, job.meshes);
+		// ÉCHANGE, pas remplacement différé (#31) : un nœud dont seul le
+		// maillage change (l'`exclude` du LOD par anneaux dépend de la
+		// position de la fenêtre) reste à l'écran jusqu'ici — la fenêtre l'a
+		// signalé `replaced` au lieu de le libérer. L'ancien ne part qu'une
+		// fois le nouveau construit, dans la MÊME frame : sans ça, les
+		// libérations passant avant les builds, un anneau de sol disparaissait
+		// ~1 s à chaque recentrage (mesuré : 8,17 % du sol absent à 583 ms).
+		if (liveMeshes.has(path)) disposeLiveNode(path);
 		const entries = [];
 		liveMeshes.set(path, entries);
 		for (const { mesh, colliderPath, vertices, indices } of built) {
@@ -1142,13 +1171,22 @@ async function bootLive([lat, lon]) {
 			// frames, le churn perçu commence dès l'arrivée du réseau.
 			fenceDome?.markChurn();
 		},
-		onNodeReleased: (path) => {
-			// Un nœud libéré encore en file de build n'a jamais existé côté
-			// scène/Rapier : le retirer de la file suffit — l'empiler en
-			// libération créerait un dispose sans rien à disposer, et l'oubli
-			// inverse (build après libération) créerait mesh + collider
-			// orphelins, que plus rien ne libérerait jamais.
-			if (pendingNodeBuilds.delete(path)) return;
+		onNodeReleased: (path, opts) => {
+			// `replaced` (#31) : le nœud reste désiré, seul son maillage change
+			// et son remplaçant est déjà en route. On ne retire RIEN — c'est le
+			// build qui échangera, dans une seule frame. Sinon le sol manque
+			// tout le temps du refetch (les libérations passent avant les
+			// builds), et c'est l'anneau qui « recharge » vu en volant.
+			if (opts?.replaced) return;
+			// Remplacé par un autre niveau : on diffère, voir coveredReleases.
+			if (opts?.covered && liveMeshes.has(path)) { coveredReleases.push(path); fenceDome?.markChurn(); return; }
+			// Sans ce drapeau, la libération est franche. Un build encore en
+			// file est jeté — mais PAS au prix d'oublier ce qui est déjà en
+			// scène : depuis l'échange ci-dessus, un chemin peut être à la fois
+			// construit et en attente d'un remplaçant, et ne retirer que
+			// l'entrée de file laisserait mesh + collider orphelins.
+			const queued = pendingNodeBuilds.delete(path);
+			if (queued && !liveMeshes.has(path)) return;
 			pendingNodeReleases.push(path);
 			fenceDome?.markChurn();
 		},
@@ -1742,6 +1780,44 @@ function frame() {
 	const frozen = simFrozen();
 	audio.setMuted(frozen);
 
+	// Le STREAMING n'est pas de la simulation : il continue en pause, panneau
+	// de réglages ouvert ou intro figée (#31). Sous le `if (!frozen)` ci-dessus,
+	// une pause gelait `processLiveNodeWork()` : la file de builds restait
+	// pleine et le monde restait à moitié construit tant qu'on ne reprenait
+	// pas. Mesuré : 478 builds en file bloqués, 79 % du sol absent pendant
+	// TOUTE la pause, tout revenu 1,2 s après la reprise. Or c'est justement
+	// en pause qu'on regarde le paysage — et qu'on le photographie. Rien
+	// là-dedans ne fait avancer le monde : le drain pose des meshes et des
+	// colliders sur un monde qui ne step pas, et le recalcul de fenêtre part de
+	// la position du drone, immobile en pause (update() sort aussitôt sous
+	// REFRESH_THRESHOLD_M). Le filet anti-trou (#189), lui, reste gelé : il
+	// fait un respawn, ce qu'une pause ne doit jamais déclencher.
+	if (liveWindow) {
+		// Étale le travail des nœuds reçus/libérés sous budget (#184).
+		processLiveNodeWork();
+		// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
+		// tâche de fond, la frame courante vole avec ce qui est déjà là.
+		// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
+		// de la conversion que build-node.mjs fait dans l'autre sens.
+		const dronePos = physics.position;
+		const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
+		const droneGeo = ecefToGeodetic(...droneEcef);
+		// Garde (#182) : une position dégénérée (drone passé sous le terrain
+		// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
+		// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
+		// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
+		// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
+		// dernière position saine que la vider.
+		if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+			// Rien n'attend cette promesse (c'est le but : la frame ne bloque
+			// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
+			// lève devient une unhandled promise rejection silencieuse.
+			// Observabilité seulement : pas de retry ici (ticket de suivi).
+			liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+				.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
+		}
+	}
+
 	let crashedThisFrame = false;
 	let peakImpact = 0;
 	if (!frozen) {
@@ -1841,13 +1917,13 @@ function frame() {
 		}
 		if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
 
-		// Travail de streaming UNE fois par FRAME, hors de la boucle
-		// d'accumulation (#187) : logé dans la boucle, il tournait une fois par
-		// STEP physique — en rattrapage (12-15 steps/frame après une frame
-		// longue), 12-15 budgets de drain de 3 ms s'empilaient dans la même
-		// frame (40-80 ms mesurés), ce qui entretenait la spirale que le budget
-		// devait justement empêcher. La poussée de clôture, elle, reste par
-		// step : elle dépend de la position, qui change à chaque step.
+		// UNE fois par FRAME, hors de la boucle d'accumulation (#187) : logé
+		// dans la boucle, ce bloc tournait une fois par STEP physique — en
+		// rattrapage (12-15 steps/frame après une frame longue) il s'exécutait
+		// 12-15 fois dans la même frame. La poussée de clôture, elle, reste par
+		// step : elle dépend de la position, qui change à chaque step. Le drain
+		// et le recalcul de fenêtre, eux, ont quitté ce garde (#31) : voir le
+		// bloc `if (liveWindow)` plus haut, hors de `!frozen`.
 		if (liveWindow && !frozen) {
 			// Filet anti-trou (#189) : le terrain Google Earth a de VRAIS trous —
 			// les nœuds absents (404, résultat normal du protocole) ne produisent
@@ -1865,29 +1941,6 @@ function frame() {
 					physics.reset();
 					flightEnd.reset();
 				}
-			}
-			// Étale le travail des nœuds reçus/libérés sous budget (#184).
-			processLiveNodeWork();
-			// Ne bloque jamais la frame de rendu : la fenêtre se recalcule en
-			// tâche de fond, la frame courante vole avec ce qui est déjà là.
-			// physics.position (mètres ENU locaux) -> lat/lon : inverse exact
-			// de la conversion que build-node.mjs fait dans l'autre sens.
-			const dronePos = physics.position;
-			const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
-			const droneGeo = ecefToGeodetic(...droneEcef);
-			// Garde (#182) : une position dégénérée (drone passé sous le terrain
-			// pendant une chute, mesuré à y=−2465 m à Versailles) fait rendre
-			// NaN à ecefToGeodetic — et update({lat:NaN}) avorte alors TOUTE la
-			// fenêtre en silence (zone NaN → 0 nœud désiré → tout libéré), un
-			// gel permanent du streaming. Mieux vaut geler la FENÊTRE sur sa
-			// dernière position saine que la vider.
-			if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
-				// Rien n'attend cette promesse (c'est le but : la frame ne bloque
-				// pas dessus) — sans .catch(), un échec réseau ou un traverse qui
-				// lève devient une unhandled promise rejection silencieuse.
-				// Observabilité seulement : pas de retry ici (ticket de suivi).
-				liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
-					.catch((err) => console.warn('[rocktree] fenêtre de streaming : échec du recalcul', err));
 			}
 		}
 
@@ -2231,7 +2284,10 @@ if (!frozen) {
 		if (liveWindow?.windowCenterLocal) {
 			const { x, z } = liveWindow.windowCenterLocal;
 			liveEdgeUniforms.uWindowCenter.value.set(x, z);
-			liveEdgeUniforms.uLoadRadiusM.value = liveWindow.loadRadiusM();
+			const liveRadius = liveWindow.loadRadiusM();
+			liveEdgeUniforms.uLoadRadiusM.value = liveRadius;
+			// La frange suit le rayon (#32) : fixe, elle disparaissait à 2 km.
+			liveEdgeUniforms.uEdgeFadeM.value = edgeFadeForRadius(liveRadius);
 		}
 		liveEdgeUniforms.uFogDensity.value = scene.fog.density;
 	}

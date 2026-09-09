@@ -18,6 +18,17 @@ import * as THREE from 'three';
 // max() avec le brouillard de profondeur existant.
 export const EDGE_FADE_M = 50;
 
+// Mais la frange doit SUIVRE le rayon (#32) : depuis que le curseur monte à
+// 2 km, 50 m de fondu sur un disque de 2 000 font 2,5 % du rayon — invisible,
+// et le bord redevient la coupure nette que ce fondu existe pour effacer. Un
+// sixième du rayon garde la même proportion à l'œil qu'à 300 m (où il vaut
+// 50 m, la valeur d'origine, retrouvée exactement) ; le plafond évite qu'une
+// portée extrême ne teinte la moitié du monde.
+export const EDGE_FADE_MAX_M = 250;
+export function edgeFadeForRadius(loadRadiusM) {
+	return Math.min(EDGE_FADE_MAX_M, Math.max(EDGE_FADE_M, loadRadiusM / 6));
+}
+
 // Pure, testable sans THREE/WebGL (comme opacityFor()/fogDensityFor() de
 // fence-dome.js, wallOpacity() de geofence-dome.js) — DOIT rester en phase
 // avec la formule GLSL de createRocktreeMaterial() ci-dessous : même
