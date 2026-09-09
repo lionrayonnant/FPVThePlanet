@@ -344,7 +344,9 @@ terrain Google à un relais local (voir `tools/lib/rocktree/url.mjs`).
 
 Un opérateur qui vient d'être créé passe par un briefing de quatre écrans
 (`INPUT`, `THE TERMINAL`, `A SESSION`, `BRIEFING COMPLETE`), juste après
-l'enregistrement du CONTROL VECTOR. Il énonce ce qu'une chose est et ce qu'une
+l'enregistrement de l'opérateur (bootstrap : hardware, `OPERATOR NAME`, puis le
+briefing — deux écrans avant lui depuis le retrait du CONTROL VECTOR, issue
+#33). Il énonce ce qu'une chose est et ce qu'une
 touche fait — jamais quoi faire — et Échap le saute d'un coup. L'écran `INPUT`
 lit le mappage EN DIRECT (`src/key-map.js`) et offre `[ CALIBRATE ]` ou
 `[ MAP KEYS ]`, qui ouvrent l'onglet correspondant de `SETTINGS` et reviennent.
@@ -593,7 +595,7 @@ src/fog.js              modèle de visibilité : densité, respiration, voile, c
 src/lens.js             passe plein écran : optique FPV (barillet, vignettage, flou, voile)
 src/hud.js              OSD de vol + écran de chargement
 src/settings.js         panneau de réglages (Tab) : manette, caméra, objectif, lien, son
-src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, FORECAST, CONTROL VECTOR, souches
+src/terminal.js         Operator Terminal (Home) : LOCAL TERRAIN, FORECAST, souches
 src/scanner.js          GLOBAL SCANNER : Leaflet + Geoman, recherche, zone, sonde, acquisition
 src/weather.js          la météo du monde côté client : lit le snapshot, écrit vent/pluie/brouillard
 tools/terminal-model.mjs logique pure du terminal (formatBytes, footer) — testée par selftest:operator
@@ -837,11 +839,18 @@ interaction purement abstraite (`HACK_TYPES`) :
 
 `sanitizeTarget` (`tools/session-model.mjs`) valide et persiste `hackType` sur la
 cible. Juste après le TARGET SCAN, `src/hack.js` joue l'écran **AUTOMATED
-ANALYSIS** : un log automatique fixe de quatre lignes (Bible §18) et un motif
-ASCII animé propre à la famille de hack (`src/hack-grammars.js`, purement
-décoratif). L'écran se fige sur `MANUAL OVERRIDE REQUIRED` + un bouton
-`[ JACK IN ]` **provisoire** — le rituel réel (`CONTROL VECTOR` + QTE) est
-PHASE 10.
+ANALYSIS** : un log automatique fixe de quatre lignes et un motif ASCII animé
+propre à la famille de hack (`src/hack-grammars.js`, purement décoratif).
+L'écran s'arrête sur `MANUAL OVERRIDE REQUIRED` et un bouton `[ JACK IN ]`,
+avec `[ESC] ABORT` monté dès l'affichage de l'écran — utilisable pendant tout
+le chargement en arrière-plan, pas seulement une fois l'écran armé.
+Activer `[ JACK IN ]` termine l'acquisition ; abandonner (Échap ou
+`[ESC] ABORT`) résout `runHack()` en `{ aborted: true }` plutôt que de
+rejeter, et recharge la page de zone comme le ferait l'annulation d'un TARGET
+SCAN. Il n'y a plus de vecteur à retenir ni à retaper entre les deux : le
+CONTROL VECTOR, qui occupait cet écran jusqu'à l'issue #33, a été retiré
+entièrement (voir la note de révision de la Bible §15 et le bloc PHASE 10 de
+la roadmap).
 
 Hook de dev : `?hack=<type>` (ex. `?hack=gnss-spoof`) prévisualise un motif sur
 les chemins qui court-circuitent le TARGET SCAN (`?scene=`, `?family=`).

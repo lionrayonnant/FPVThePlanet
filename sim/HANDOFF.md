@@ -198,42 +198,9 @@ Plan d'origine (contexte de la décision d'architecture) :
     lâche que les autres (cosmétique) ; l'écran de hack n'est **pas rejoué au
     `resume`** (le `hackType` est relu du disque pour le futur TARGET LOG,
     PHASE 17, mais pas remis en scène).
-  - Le rituel réel (`CONTROL VECTOR` + QTE) est PHASE 10.
-- **PHASE 10 — Control Vector + rituels (issue #47)**, branche
-  `phase-10-control-vector`.
-  - Remplace le `[ JACK IN ]` placeholder de PHASE 09 : `src/hack.js` `arm()`
-    appelle désormais `runRitual()` (`src/ritual.js`) avec le
-    `operator.controlVector` courant (`ritualVector()`,
-    `tools/ritual-model.mjs` — retombe sur un vecteur de secours fixe pour les
-    chemins dev sans opérateur, sans jamais toucher l'opérateur réel).
-  - Saisie clavier (flèches) + manette (`src/gamepad-dir.js`, extrait de
-    `bootstrap.js` — même fonction, plus dupliquée). Un mauvais input à
-    n'importe quel index vide le tampon et repart de zéro (`ritual-shake`,
-    aucune pénalité, conforme au critère d'acceptation).
-  - Culmination : `pickVariant(seed)` tire `V1..V4` (1-4 s, `tools/ritual-model.mjs`,
-    même seed que le motif d'analyse → rejeu stable via `?hack=`). 8 primitives
-    ASCII composables dans `src/hack-grammars.js` (`RITUAL_PRIMITIVES`),
-    2-3 pondérées par famille (`FAMILY_PRIMITIVES`) — pas 24 séquences écrites
-    à la main. Couleurs réservées cyan/magenta/violet/bleu électrique
-    (`.ritual-burst--*`, `src/style.css`), nulle part ailleurs dans le jeu.
-  - `CONTROL ACQUIRED` (400 ms fixe) puis résolution — `main.js` inchangé,
-    `runHack()` résolu = vol immédiat, déjà le cas depuis PHASE 09.
-  - **Vérifié** : `tools/ritual-selftest.mjs` (10 tests), `tools/hack-selftest.mjs`,
-    `npm run selftest`, `session-selftest.mjs`, `operator-selftest.mjs` — tous
-    verts. Vérif navigateur via MCP chrome-devtools sur les **six familles**
-    (`?hack=<type>&scene=`) : saisie clavier correcte → culmination →
-    `CONTROL ACQUIRED` → vol (HUD actif, sticks en main, aucun écran
-    intermédiaire), aucune erreur console ; un mauvais input vide bien le
-    tampon sans pénalité (vérifié sur `FIRMWARE OVERRIDE`).
-  - **Non vérifié** : manette réelle (logique partagée avec `bootstrap.js`,
-    déjà vérifiée en conditions réelles pour la définition du vecteur, mais pas
-    rejouée ici) ; ressenti subjectif du rythme des variantes (V1 vs V4) sur un
-    vrai écran ; un vrai `operator.controlVector` non vide (la vérif navigateur
-    a couru sur le vecteur de secours, faute d'opérateur bootstrappé sur
-    `?scene=` seul — le code passe par le même `ritualVector()`/`checkInput()`
-    testés en pur par le selftest, mais pas vu bout en bout avec un opérateur
-    réel).
-  - Identité sonore des rituels (Bible §36) : hors périmètre, follow-up.
+  - PHASE 10 construisait puis a retiré un rituel manuel ici (`CONTROL
+    VECTOR` + QTE) — voir la note sous PHASE 20 pour le retrait (issue #33).
+    Ce que PHASE 09 pose reste l'état réel : `[ JACK IN ]` seul.
 - **PHASE 15 — Session Complete (issue #52)**, branche `phase-15-post-flight`.
   - `tools/post-flight-model.mjs` (`analyzeFlight()`) : logique pure de
     déduction, dont l'entrée est le `flightTelemetry` OBSERVÉ pendant la
@@ -468,8 +435,8 @@ Plan d'origine (contexte de la décision d'architecture) :
     grâce ; si le vrai jeu démarre au throttle 0 (position par défaut du
     stick dans `input.js`), un joueur qui ne touche pas les gaz immédiatement
     peut chuter en CHALLENGING/HOLY_SHIT (basse altitude) avant la fin de la
-    seconde — tension déjà documentée dans la spec, à traiter par PHASE 10
-    (rituel JACK IN) ou `input.js`, pas par ce module. Le contrôle de sécurité
+    seconde — tension déjà documentée dans la spec, à traiter par `[ JACK IN ]`
+    (PHASE 10) ou `input.js`, pas par ce module. Le contrôle de sécurité
     géométrique ne regarde pas la viabilité du lien vidéo au point d'entrée
     (l'émetteur reste fixe à `physics.spawn`) — un spawn éloigné avec un
     bâtiment sur la ligne de vue peut ouvrir une session sur un lien dégradé.
@@ -635,81 +602,32 @@ Plan d'origine (contexte de la décision d'architecture) :
     ont été reproduits par script CDP — orientation de la caméra forcée via
     Rapier — plutôt qu'au stick, faute d'accès manette dans cet
     environnement).
-- **PHASE 20 — langage ASCII / pixel art / demo scene du rituel (issue #57),
-  vérifié headless + navigateur** :
+- **PHASE 20 — langage ASCII / pixel art / primitives demo scene (issue #57)** :
   - `src/ascii.js` : `asciiTag` (3 usages info `[+]`/`[!]`/`[*]` de la Bible
     §40), `asciiChain`, `bigText`/`BIG_FONT` (police banner 5 lignes × 3
     colonnes, A-Z + espace/!/-). `tools/ascii-selftest.mjs` : 7/7 OK.
   - `src/pixel-icons.js` : 9 icônes 12×12 (`ICON_NAMES`, Bible §41), rendu
     `iconSVG` en rects `crispEdges` (aucun emoji), `faviconDataURI` — le
-    favicon de `index.html` est désormais ce drone pixel art, plus l'ancien
-    emoji hélicoptère. `tools/pixel-icons-selftest.mjs` : 5/5 OK.
-  - `src/hack-grammars.js` / `src/ritual.js` : 3 primitives ajoutées
-    (`colorFlash`, `textWarp`, `bannerBurst`) aux 8 existantes → **11
-    primitives** `RITUAL_PRIMITIVES`, toutes sous contrat `{ t, seed, dur }`
-    (`dur` = fenêtre visible d'un battement, pas la durée V1-V4 de la
-    culmination entière ; absent, `dur` retombe sur l'ancien comportement,
-    compat PHASE 10).
-    `FAMILY_PRIMITIVES` couvre les 6 `HACK_TYPES`, chacune avec les nouvelles
-    primitives composées quelque part dans sa liste. `tools/ritual-selftest.mjs` :
-    14/14 OK, dont le garde-fou d'acceptation #57 (`RITUAL_PRIMITIVES` /
-    `FAMILY_PRIMITIVES` ne sont importés que par `ritual.js` et
-    `hack-grammars.js` — aucune fuite hors de l'événement de rituel).
-  - **Coût mesuré** (`tools/ritual-bench.mjs`, budget 2 ms/frame, 480 frames/
-    primitive) — pire cas rejoué dans ce même run : `glitchShift` à
-    **0,168 ms/frame** (8,4 % du budget) ; toutes les autres primitives sous
-    0,12 ms/frame. Un précédent passage (task 4) avait mesuré `scanBurst` à
-    0,093 ms/frame comme pire cas — l'ordre de grandeur (quelques % du
-    budget) est stable, la valeur exacte varie avec la charge machine au
-    moment du bench.
-  - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
-  - `npm run selftest` (158/158) et `npm run selftest:operator` (chaîne
-    complète, `landing-selftest.mjs` inclus une fois le lien symbolique
-    `public/scenes` en place) : verts de bout en bout, PHASE 20 en queue de
-    chaîne.
-  - **Vérifié navigateur** (MCP indisponible — profil Chromium déjà
-    verrouillé par une autre session ; piloté à la place via CDP brut sur un
-    Chromium headless dédié, `--remote-debugging-port=9223`) :
-    - Favicon d'onglet : le drone pixel art (`data:image/svg+xml`, rects
-      `crispEdges`), plus d'emoji — vérifié sur l'écran d'accueil et pendant
-      un rituel.
-    - Rituel déroulé jusqu'à la culmination via `?scene=<slug>&hack=<type>`
-      (raccourci dev, `src/main.js`/`normalizeHackType`) + vecteur de secours
-      `FALLBACK_VECTOR` (`↑ → ↓ ← ↑ ←`) : `colorFlash` observé (fond plein qui
-      strobe, ex. violet/magenta), `textWarp` observé (lignes de vocabulaire
-      d'ambiance déformées en sinusoïde, ex. `OVERRIDE`/`TRACE`/`BYPASS`
-      défilant), `bannerBurst` observé (texte en gros caractères ASCII, ex.
-      motif `GNSS`) — les trois nouvelles primitives, chacune capturée en
-      screenshot pendant sa fenêtre de burst. Les 8 primitives PHASE 10
-      (`scanBurst`, `gridSwarm`, `pulseRing`, `vectorSweep`, etc.) revues au
-      passage sur d'autres familles/variantes.
-    - Point de méthode utile pour rejouer ceci : la variante (V1-V4, 1-4 s)
-      et l'ordre des primitives sont déterministes par `seed =
-      cosmeticSeed(family || hackType)` (`src/hack-grammars.js` /
-      `tools/ritual-model.mjs`) — passer `&family=<nom>` en plus de `&hack=`
-      change la variante sans changer le hack affiché, utile pour forcer un
-      V3/V4 et voir une primitive qui n'apparaît qu'au 3e/4e battement.
-      Le rituel interactif (`.ritual-prompt`) ne se monte qu'après la
-      séquence scriptée d'AUTOMATED ANALYSIS (`tools/hack-model.mjs` :
-      `HACK_LEAD` + 2 battements famille + `HACK_TAIL` + pauses + `HACK_HOLD_MS`
-      + `HACK_LOCK_MS`, ~5,6 s nominal, plus sous charge) — envoyer les
-      touches avant que `.ritual-prompt` affiche des `_` ne fait rien
-      (rituel pas encore monté, événement clavier perdu).
-    - Hors rituel (écran d'accueil `[ GLOBAL SCANNER ]`, vol avec `?scene=`
-      seul, sans `hack=`) : aucune couleur ni flash demo scene — HUD en
-      monochrome clair standard, seul artefact visible étant le liseré RGB du
-      lens/link existant (préexistant, sans rapport avec le rituel).
-  - **Non vérifié** : l'adoption des tags `[+]`/`[!]`/`[*]` et des icônes
-    pixel art sur les écrans existants (menu, terminal, scanner…) — c'est
-    la PHASE 19 (issue #56), le langage existe mais sa généralisation est
-    hors périmètre de la PHASE 20. La saisie manette du rituel (`gamepad-dir.js`)
-    n'a pas été rejouée en navigateur (pas d'accès manette dans cet
-    environnement, comme pour PHASE 08/13). Seules 4 des 6 `HACK_TYPES` ont
-    été rejouées individuellement en navigateur via `?hack=<type>`
-    (`COMMAND INJECTION`, `LINK HIJACK`, `TELEMETRY SPOOF`, `GNSS SPOOF`) ;
-    `NETWORK TAKEOVER` et `FIRMWARE OVERRIDE` n'ont pas été rejouées
-    elles-mêmes, seules leurs primitives ont été observées en passant par
-    d'autres familles.
+    favicon de `index.html` est ce drone pixel art. `tools/pixel-icons-selftest.mjs` :
+    5/5 OK.
+  - **Révisé (2026-09-09, issue #33) — les primitives ne servent plus qu'à
+    l'intro.** PHASE 20 avait construit 11 primitives ASCII composables
+    (`RITUAL_PRIMITIVES` dans `src/hack-grammars.js`) pour la culmination du
+    rituel d'acquisition, consommées par `src/ritual.js` (retiré) et
+    partagées avec `src/intro.js` depuis l'issue #124. Le rituel étant retiré,
+    `intro.js` en est désormais le **seul** consommateur, à chaque lancement
+    du jeu — pas seulement à l'acquisition d'une cible.
+    `tools/ritual-selftest.mjs` et `tools/ritual-bench.mjs` sont renommés
+    `intro-primitives-selftest.mjs` / `intro-primitives-bench.mjs` : même
+    contrat `{ t, seed, dur }`, même budget 2 ms/frame ; le garde-fou
+    d'acceptation #57 devient `EVENT_MODULES = new Set(['hack-grammars.js',
+    'intro.js'])` (`ritual.js` disparu de la liste blanche avec lui).
+    `RITUAL_PRIMITIVES` garde son nom — l'intro les nomme déjà ainsi
+    (`style.css`) et renommer aurait élargi le diff sans le justifier.
+  - Le détail historique de la vérification par famille de hack (six
+    familles, culmination visuelle, vecteur de secours) décrivait un écran
+    qui n'existe plus ; voir la note de révision de la Bible §15 et le bloc
+    PHASE 10 de la roadmap pour ce qui l'a remplacé (`[ JACK IN ]`).
 
 - **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
   SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
@@ -1037,14 +955,17 @@ Plan d'origine (contexte de la décision d'architecture) :
     le marqueur `▌` (U+258C, natif Departure Mono) est peint par `style.css`
     sur `:focus`, l'anneau bleu système est retiré partout (`:focus { outline:
     none }` + remplacements). Pile de navs : le plus haut visible a la main ;
-    `blockNav()` rend tout inerte sous un écran non-abonné. Trois contextes ne
-    s'abonnent jamais : capture du CONTROL VECTOR et rituel (flèches = donnée,
-    tous deux posent un `blockNav`), vol (`input.js`). Les champs de saisie
+    `blockNav()` rend tout inerte sous un écran non-abonné. Deux contextes ne
+    s'abonnent jamais : vol (`input.js`) et *(retiré, issue #33)* la capture
+    du CONTROL VECTOR et le rituel, qui posaient tous deux un `blockNav` sans
+    jamais l'ouvrir sur Échap — c'est ce trou d'entrée qui a motivé leur
+    retrait. Les champs de saisie
     texte gardent leurs touches (Échap excepté) — la recherche du scanner
     reste éditable. Manette : mêmes directions (`readGamepadDir`), A active le
     focalisé, B remonte, front montant avec état initial « tenu ».
   - Abonnés : tous les écrans terminal (Home, LAST SESSION, LOCAL TERRAIN,
-    FORECAST, CONTROL VECTOR, OPERATOR, OPERATOR SELECT, stub), session
+    FORECAST, OPERATOR, OPERATOR SELECT, stub — CONTROL VECTOR retiré, issue
+    #33), session
     log/détail/target log, target scan (liste + fiche), scanner (panneau seul,
     pas les contrôles Leaflet), settings, bootstrap (hardware/name/registered/
     retry), post-flight (note + terrain). Intro : n'importe quel bouton manette
@@ -1068,9 +989,9 @@ Plan d'origine (contexte de la décision d'architecture) :
     `[ FLY — <zone> ]` (zone de la dernière session encore sur disque, sinon
     première zone locale), curseur posé dessus au repos ; sans terrain, le
     scanner reste l'entrée (issue #123, point 5).
-  - Confirmations ajoutées à la capture du vecteur : Entrée et bouton A
-    confirment quand le vecteur est complet, B efface (mêmes conditions que le
-    bouton `CONFIRM VECTOR`).
+  - *(retiré, issue #33)* Confirmations ajoutées à la capture du vecteur :
+    Entrée et bouton A confirmaient quand le vecteur était complet, B
+    effaçait — tout l'écran `CONTROL VECTOR` a disparu avec le vecteur.
   - _Révisé 2026-09-08 — l'atterrissage a été retiré (#10) ; ce bloc est historique._
   - **Vérifié headless** : `tools/menu-nav-selftest.mjs` (10 tests, logique
     pure : index circulaire, pas de slider borné, classement saisie de texte),
@@ -1080,8 +1001,9 @@ Plan d'origine (contexte de la décision d'architecture) :
     vert ; `palette-selftest` vert (aucun littéral de couleur ajouté).
   - **Vérifié navigateur** (Chromium headless + Playwright, serveur de dev,
     1366×768) : parcours intro → bootstrap complet → Home **au clavier seul**
-    (gate, CONTINUE focalisé + Entrée, nom tapé + Entrée, vecteur aux flèches
-    + Entrée, REGISTERED + Entrée) ; sur la Home le focus au repos est
+    (gate, CONTINUE focalisé + Entrée, nom tapé + Entrée — *(historique, écran
+    disparu, issue #33)* vecteur aux flèches + Entrée, REGISTERED + Entrée) ;
+    sur la Home le focus au repos est
     `[ FLY — TOUR EIFFEL ]`, `outline: none`, marqueur `▌` peint en `::before`,
     filet 1px sous les liens ; ↓ déplace le focus ; SETTINGS atteint et ouvert
     au clavier, panneau `overflow-y: auto` avec `scrollHeight 784 > clientHeight
@@ -1325,7 +1247,8 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
 ### Le parcours à jouer pour clore la phase
 
 1. **FIELD non régressé** : mode select → FIELD → Home → FLY → TARGET SCAN →
-   hack → rituel → vol → pose → POST-FLIGHT → note → KEEP TERRAIN → Home. La
+   hack → `[ JACK IN ]` *(rituel retiré, issue #33)* → vol → pose →
+   POST-FLIGHT → note → KEEP TERRAIN → Home. La
    session doit apparaître au SESSION LOG et les compteurs du pied de page avoir
    bougé. Puis un crash : LINK LOST → TARGET LOST → sortie, **et pas de respawn**.
 2. **BENCH** : mode select → BENCH → régler → SPIN UP → vol → choc → **respawn
@@ -1576,8 +1499,10 @@ vivant » (Bible §45, quiet by default) — aucun cyan/magenta, glitch ni scanl
   curseur ▌ qui cligne (1.1 s), encre des boutons en transition 90 ms,
   `prefers-reduced-motion` coupe tout (les helpers sautent à l'état final).
 - Fond : `body`, `#loading`, `.bootstrap` et le noir de perte de signal
-  (`fpvtp-osd.js`) sur `--black`, le noir du rituel — un seul noir continu du
-  crash au rapport puis à la Home. Panneaux (Settings, carte, champs) inchangés.
+  (`fpvtp-osd.js`) sur `--black`, y compris l'écran de hack *(le rituel qui
+  s'y montait a depuis été retiré, issue #33 ; le fond reste le même noir)* —
+  un seul noir continu du crash au rapport puis à la Home. Panneaux (Settings,
+  carte, champs) inchangés.
 - Le point « extinction de 90 ms avant suppression d'un écran » du design est
   porté par le lead de l'écran suivant : un fondu de sortie serait invisible
   sous un écran opaque et contredirait la coupure sèche vers le vol (Bible §14).
@@ -1657,26 +1582,26 @@ commandés, c'est-à-dire un tune trop nerveux pour cette masse, pas une
 divergence. C'est bien un re-mesurage de tune qu'il lui faut, ce que #71 disait
 déjà.
 
-## Les primitives demo scene sont partagées rituel + intro (issue #124)
+## Les primitives demo scene ne servent plus qu'à l'intro (issues #124, #33)
 
-Règle amendée, et c'est la règle qui bouge — pas le test. L'acceptation de la
-PHASE 20 (#57) disait que les primitives demo scene appartiennent au **rituel**
-et n'en sortent pas ; `tools/ritual-selftest.mjs` le vérifiait en refusant toute
+Historique de la règle, dans l'ordre : PHASE 20 (#57) disait que les
+primitives demo scene appartiennent au **rituel** d'acquisition et n'en
+sortent pas ; `tools/ritual-selftest.mjs` le vérifiait en refusant toute
 référence à `RITUAL_PRIMITIVES` / `FAMILY_PRIMITIVES` hors `ritual.js` et
 `hack-grammars.js`. La PR #118 a fait piocher `src/intro.js` dedans pour son
-cracktro, et le selftest est passé au rouge sur `main`.
+cracktro ; l'arbitrage (#124) a été d'élargir la liste blanche — le cracktro
+de lancement est un événement au sens de la Bible §19 au même titre que le
+rituel, donc le même vocabulaire. `EVENT_MODULES` a tenu `ritual.js`,
+`hack-grammars.js`, `intro.js`.
 
-Arbitrage retenu : la réutilisation est **voulue**. Le cracktro de lancement est
-un événement au sens de la Bible §19, pas un écran quotidien — la même famille
-que le rituel, donc le même vocabulaire. La règle se lit désormais « aucune
-primitive demo scene hors ÉVÉNEMENT », et `EVENT_MODULES` en tient la liste
-close : `ritual.js`, `hack-grammars.js`, `intro.js`.
+Le retrait du CONTROL VECTOR (issue #33) a retiré `ritual.js` de l'équation :
+`src/intro.js` est désormais le **seul** consommateur, à chaque lancement du
+jeu. Le selftest est renommé `tools/intro-primitives-selftest.mjs` et
+`EVENT_MODULES` devient `new Set(['hack-grammars.js', 'intro.js'])`.
 
-Ce qui n'a pas changé : tout autre module de `src/` qui référencerait ces
-primitives fait toujours échouer le selftest. Élargir cette liste est une
-décision, pas un ajustement — un écran quotidien qui se met à piocher dans le
-vocabulaire des événements les banalise, et c'est précisément ce que #57
-protégeait.
+Ce qui n'a pas changé : tout module de `src/` autre que ceux de la liste qui
+référencerait ces primitives fait toujours échouer le selftest. Élargir cette
+liste reste une décision, pas un ajustement.
 
 ## Clôture de zone — geofence (issues #139, #141, #142, #143, #146, #149, #151)
 
@@ -1967,9 +1892,9 @@ Magenta au cœur, cyan sur le halo, transparent au bord (tokens `--magenta` /
 `--cyan`, passés par scanner.js ; `blobStops()` dans map-coverage.js, pur et
 vérifié en Node). L'alpha planifié sert aussi de curseur : passage isolé
 surtout cyan, zone survolée souvent magenta au centre ; les recouvrements
-s'additionnent en 'lighter' vers un violet clair. La Bible réserve ces
-couleurs au rituel — choix assumé par l'auteur, validé à l'œil sur la carte
-FIELD le 2026-09-06.
+s'additionnent en 'lighter' vers un violet clair. La Bible §19 réserve ces
+couleurs à l'intro (au rituel d'acquisition avant son retrait, issue #33) —
+choix assumé par l'auteur, validé à l'œil sur la carte FIELD le 2026-09-06.
 
 ### Vérifié — sans navigateur
 
@@ -2084,6 +2009,10 @@ le défaut était dans les VALEURS, pas dans le modèle.
 - `DUCK.ritual` : 0,25 → 0,55 (-5,2 dB au lieu de -12 pendant le rituel).
 - Net au moment le plus sourd (pendant le rituel) : environ +10 dB, soit
   perceptiblement le double de volume.
+- *(2026-09-09, issue #33)* Le rituel qui appelait `music.duck()` est retiré ;
+  `DUCK.ritual` reste dans `tools/music-model.mjs` (nettoyage laissé à un
+  suivi ultérieur) mais son seul appelant a disparu — le hack ne baisse plus
+  la musique, et `music.drop()` au drop reste correct.
 - `tools/music-selftest.mjs` : borne de coupure du HACK relevée de 900 Hz à
   1200 Hz en conséquence (le reste du fichier, dont le plancher de vol
   FLOOR, est inchangé). 65 tests verts.
@@ -2881,9 +2810,10 @@ Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
     jugement de ton qu'aucun selftest ne mesure, exactement comme l'écoute
     pour PHASE 18 et pour l'audio de l'intro (voir plus bas). **Ce n'est pas
     vérifié, seulement écrit avec soin.** De même, le silence pendant le
-    burst du rituel (D9 : `buildContext()` n'est jamais appelé pendant
-    l'armement du CONTROL VECTOR) a été relu dans le code mais pas observé en
-    vol — la lecture de code n'est pas une observation.
+    handover (D9 : `buildContext()` n'est jamais appelé pendant l'armement de
+    `[ JACK IN ]` — anciennement l'armement du CONTROL VECTOR, retiré depuis,
+    issue #33) a été relu dans le code mais pas observé en vol — la lecture de
+    code n'est pas une observation.
   - Dette connue, volontairement non traitée ici : `sim/public/dialogue/*.json`
     est indenté à deux espaces alors que le reste du dépôt utilise des
     tabulations — le fichier appartient à une génération de corpus en cours au
@@ -2899,14 +2829,17 @@ Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
     lien ne produit ni doublon, ni rebond sur un plateau tenu à la frontière,
     ni annonce de retour sans perte préalable. Les six partitions de rituel
     sont réellement distinctes et leur impact final tombe dans les 10 derniers
-    pourcents de la variante, à V1 comme à V4.
+    pourcents de la variante, à V1 comme à V4. *(Le rituel — et `RITUAL`
+    lui-même — a depuis été retiré du vocabulaire sonore, issue #33 ; ces
+    partitions n'existent plus.)*
   - **Vérifié dans le navigateur** (Chromium via CDP, `?scene=tour-eiffel`) :
     l'`AudioContext` passe bien à `running` au premier geste ; le graphe monte
     21 nœuds au boot, ce qui est exactement 5 notes de signature + `TERRAIN
     READY` + les 3 nœuds permanents de la porteuse ; **zéro nœud créé sur
-    ~150 frames de vol**, donc la porteuse ne fuit pas ; les six rituels et
-    les sept événements jouent sans exception ; aucune erreur console ni rejet
-    non géré après une session complète, crash compris.
+    ~150 frames de vol**, donc la porteuse ne fuit pas ; les six rituels *(alors
+    existants — retirés depuis, issue #33)* et les sept événements jouent sans
+    exception ; aucune erreur console ni rejet non géré après une session
+    complète, crash compris.
   - **Non vérifié — et c'est le cœur du critère d'acceptation** : *rien de
     tout cela n'a été écouté.* Le timbre de la signature de boot, la
     reconnaissabilité des six familles à l'oreille, et surtout l'équilibre du
@@ -2929,16 +2862,19 @@ Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
     chiptune qui **se résout sur la signature de boot existante**, donc `BOOT`
     reste joué une seule fois par chargement. Skippable à tout instant.
     `?scene=` bypasse tout et garde `armBoot()` inchangé.
-  - Rituels : un riser monte pendant la saisie du vecteur
-    (`uiAudio.ritualTension(k)`, branche permanente à la manière de la
-    porteuse) et retombe sur une erreur ; la complétion déclenche une
-    détonation en couches (sub + nouvelle voix `blast`) suivie d'éclats
-    répartis dans le champ stéréo (champ `pan` → `StereoPannerNode`). La
-    première moitié de chaque partition de famille est intacte : l'identité
-    §36 tient, seule la queue devient explosive.
+  - *(retiré, issue #33)* Rituels : un riser montait pendant la saisie du
+    vecteur (`uiAudio.ritualTension(k)`, branche permanente à la manière de la
+    porteuse) et retombait sur une erreur ; la complétion déclenchait une
+    détonation en couches (sub + voix `blast`) suivie d'éclats répartis dans
+    le champ stéréo (`pan` → `StereoPannerNode`). Tout ce paragraphe décrit un
+    système supprimé avec le CONTROL VECTOR : `RITUAL` est sorti du
+    vocabulaire sonore (`UI_EVENTS` : sept entrées, `SYSTEM`/`LINK`), et
+    `playRitual`, `_ensureTension`, `ritualTension`, `killRitualTension` sont
+    partis avec lui.
   - **Vérifié en Node** : `npm run selftest:operator` vert, 417 lignes `ok`
     (dont `intro-selftest.mjs` neuf, et le balayage du vocabulaire désormais
-    clos à **huit** entrées avec `INTRO`).
+    clos à **huit** entrées avec `INTRO` — redescendu à sept depuis, `RITUAL`
+    retiré).
   - **Vérifié dans le navigateur** (Chromium headless via CDP, port dev
     dédié) : gate → intro → démontage complet → Home ; skip immédiat même en
     martelant la touche (double `BOOT` impossible, garde aux deux niveaux) ;
@@ -2949,10 +2885,13 @@ Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
   - **Non vérifié — et c'est le critère d'acceptation** : *rien n'a été
     écouté.* La montée de tension, la violence de l'explosion, le placement
     stéréo des éclats et le niveau de l'intro (`LEVEL.intro = 0.28`, posé par
-    analogie et non mesuré) restent à juger à l'oreille, comme pour PHASE 18.
-  - Polissages différés en issue de suivi : `_introMaster` jamais déconnecté,
-    skip pendant la résolution qui rejoue la signature depuis la première
-    note, `killRitualTension()` qui coupe sec sur un rituel abandonné.
+    analogie et non mesuré) restent à juger à l'oreille, comme pour PHASE 18 —
+    le paragraphe rituel ci-dessus est désormais sans objet.
+  - Polissages différés en issue de suivi, dont un devenu sans objet :
+    `_introMaster` jamais déconnecté (toujours vrai) ; skip pendant la
+    résolution qui rejoue la signature depuis la première note (toujours
+    vrai) ; `killRitualTension()` qui coupait sec sur un rituel abandonné
+    (sans objet, la fonction a été retirée avec le rituel).
 
 - **PHASE 14** : le crash, la pose et le rasant ont été vérifiés en vol piloté
   (tour-eiffel) — voir le détail dans le bloc PHASE 14 ci-dessus. Restent non

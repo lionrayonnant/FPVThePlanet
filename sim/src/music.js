@@ -159,8 +159,8 @@ export class Music {
 
 	/** Le drop : on pose l'intensité pleine d'un geste, pas d'une dérive. */
 	drop() {
-		// Le rituel vient de se terminer ; c'est ici, et pas dans ritual.js, que
-		// la musique reprend sa place — le drop EST la fin du duck.
+		// Le hack vient de se terminer ; c'est ici, dans main.js, que la
+		// musique reprend sa place — le drop EST la fin du duck.
 		this.unduck(FADE.drop);
 		this.setIntensity(PHASE_INTENSITY.DROP, { tau: FADE.drop / 3000 });
 	}

@@ -103,7 +103,7 @@ await ta('data : les neuf sections, dans l\'ordre, et RECORDS au bout', async ()
 	const titles = page.querySelectorAll('.data-section').map((b) => b.children[0].textContent);
 	assert.deepEqual(titles, SECTIONS);
 	// RECORDS garde le journal brut et tout ce qui se lit plutôt que se dessine.
-	for (const entry of ['SESSION LOG', 'LAST SESSION', 'CONTROL VECTOR', 'OPERATOR', 'BUILD NOTES']) {
+	for (const entry of ['SESSION LOG', 'LAST SESSION', 'OPERATOR', 'BUILD NOTES']) {
 		assert.ok(btn(entry), `« ${entry} » est dans RECORDS`);
 	}
 	// D2 : le TARGET LOG a été absorbé par FAMILIES — il n'a plus d'entrée.
@@ -236,8 +236,9 @@ await ta('operator : avec une clé, elle est masquée jusqu\'à SHOW KEY', async
 	// La SEULE chose que le jeu dise jamais de la clé : l'inscription, elle, ne
 	// fait rien noter à personne (amendement du 2026-09-07).
 	assert.match(topBox().textContent, /THIS PROFILE LIVES IN THIS BROWSER/);
-	// La clé n'a rien à voir avec le Control Vector : cet écran ne parle pas de
-	// vecteur, et l'écran du vecteur ne parlera jamais de clé.
+	// La clé n'a rien à voir avec le Control Vector, retiré du jeu (#33). On
+	// garde l'assertion : elle verrouille que cet écran parle de la CLÉ et de
+	// rien d'autre, et le mot ne doit pas revenir par une régression de copie.
 	assert.doesNotMatch(topBox().textContent, /CONTROL VECTOR/);
 	storedKey = null;
 	await closeAll(home);

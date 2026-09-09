@@ -2,7 +2,7 @@
 // aussi bien par le plugin de dev que par le selftest.
 import { randomBytes } from 'node:crypto';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export function slugify(s) {
 	return String(s ?? '')
@@ -25,22 +25,12 @@ export function validateName(raw) {
 	return name;
 }
 
-const DIRS = new Set(['up', 'right', 'down', 'left']);
-
-export function validateControlVector(v) {
-	if (!Array.isArray(v) || v.length < 4 || v.length > 8 || !v.every((d) => DIRS.has(d))) {
-		throw new Error('control vector invalide');
-	}
-	return v.slice();
-}
-
 export function freshState({ id, name }) {
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		id,
 		name,
 		createdAt: new Date().toISOString(),
-		controlVector: [],
 		settings: {},
 		terrainCache: [],
 		sessions: [],
@@ -91,6 +81,10 @@ export function migrate(state) {
 	// est désormais dérivé des sessions (spec D1). On retire la clé morte plutôt
 	// que de la traîner.
 	delete merged.targetLog;
+	// v2 → v3 : le CONTROL VECTOR a été retiré du jeu (#33). Même geste que
+	// ci-dessus — on retire la clé morte plutôt que de la traîner, sans quoi le
+	// spread `...state` la réinjecterait dans tout état déjà écrit sur disque.
+	delete merged.controlVector;
 	const filled = backfillSeq(merged.sessions);
 	merged.sessions = filled.sessions;
 	merged.sessionSeq = Math.max(filled.sessionSeq, merged.sessionSeq ?? 0);

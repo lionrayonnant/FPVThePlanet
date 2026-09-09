@@ -270,6 +270,40 @@ rapport avec les versions ci-dessous.
   **qu'un seul rayon pour tout l'essaim**, leurs segments étant colinéaires. La
   proportion d'unités effectivement devant le pilote passe de 2 % à 75 %.
 
+### Retiré
+
+- Le CONTROL VECTOR (issue #33) : une suite de 4 à 8 flèches que le joueur
+  définissait au premier lancement et devait retaper de mémoire à **chaque**
+  acquisition de cible pour terminer le hack. Le rapport qui a ouvert #33
+  disait « la page de hack peut se figer et rendre confus l'utilisateur » ; la
+  lecture du code donnait pire — l'écran n'écoutait que les quatre flèches, ne
+  posait aucun Échap, et sa promesse n'avait pas de `reject` : un joueur qui
+  avait oublié son vecteur restait bloqué **jusqu'au rechargement de la
+  page**, avec toute la boucle de jeu (`fieldLoop`) suspendue derrière lui. Le
+  geste ne demandait par ailleurs aucune compétence de pilotage — mémoriser un
+  secret hors du jeu, payé à chaque cible.
+
+  Remplacé par un bouton unique, `[ JACK IN ]` : ce n'est pas une invention,
+  c'est l'état qui précédait le rituel, devenu définitif. `[ESC] ABORT` est
+  monté dès l'affichage de l'écran de hack, utilisable pendant tout le
+  chargement — abandonner résout `runHack()` en `{ aborted: true }` et
+  recharge la page de zone, exactement comme l'annulation d'un TARGET SCAN.
+
+  `src/ritual.js` et `tools/ritual-model.mjs` sont supprimés ;
+  `tools/ritual-selftest.mjs` et `tools/ritual-bench.mjs` sont renommés
+  `intro-primitives-selftest.mjs` et `intro-primitives-bench.mjs` — ils
+  continuent de couvrir les onze primitives ASCII que `src/intro.js` exécute
+  à chaque lancement du jeu, indépendamment du rituel disparu. `RITUAL` sort
+  du vocabulaire sonore (`UI_EVENTS` : sept entrées, `SYSTEM`/`LINK`
+  seulement) et le bloc CSS `.ritual*` disparaît ; les quatre couleurs de demo
+  scene (cyan/magenta/violet/bleu électrique) n'ont plus qu'un porteur, la
+  cracktro de lancement.
+
+  Le schéma opérateur passe en **v3** : `migrate()` supprime la clé
+  `controlVector` de tout état déjà écrit — la laisser dans `freshState()`
+  seul l'aurait laissée survivre inerte. Côté serveur, `controlVector` sort de
+  `OP_WRITABLE_KEYS` et `validateControlVector` disparaît avec son import.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

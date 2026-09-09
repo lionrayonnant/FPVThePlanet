@@ -356,7 +356,7 @@ try {
 	const LEGACY = 'legacy-0001';
 	fs.writeFileSync(path.join(DATA, 'operator-state', `${LEGACY}.json`), JSON.stringify({
 		schemaVersion: 2, id: LEGACY, name: 'legacy', createdAt: '2026-01-01T00:00:00.000Z',
-		controlVector: [], settings: {}, terrainCache: [], sessions: [],
+		settings: {}, terrainCache: [], sessions: [],
 		sessionSeq: 0, targetSeq: 0, worldState: {},
 	}, null, '\t'));
 	const legacyLocal = await get(`/__operator/${LEGACY}`);

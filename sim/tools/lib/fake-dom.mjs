@@ -16,6 +16,11 @@ class FakeClassList {
 	contains(c) { return this._set.has(c); }
 	add(...cs) { const s = this._set; cs.forEach((c) => s.add(c)); this.el.className = [...s].join(' '); }
 	remove(...cs) { const s = this._set; cs.forEach((c) => s.delete(c)); this.el.className = [...s].join(' '); }
+	toggle(c, force) {
+		const on = force === undefined ? !this.contains(c) : !!force;
+		this[on ? 'add' : 'remove'](c);
+		return on;
+	}
 }
 
 let ACTIVE = null;

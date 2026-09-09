@@ -13,13 +13,13 @@ le numéro de ligne de chaque titre, puis lire la plage voulue.
 1. Vision · 2. Piliers de l'expérience · 3. La boucle fondamentale ·
 4. Global Scanner · 5. Informations météo · 6. Activité drone · 7. Terrain local ·
 8. Acquire Area · 9. Logs RTC · 10. Le Crew · 11. Language · 12. Operator ·
-13. Premier lancement — Bootstrapping · 14. Control Vector · 15. Acquisition d'une cible ·
-16. Hacking · 17. Types de hacks · 18. Rituels d'acquisition · 19. Demo Scene · 20. Entry State ·
+13. Premier lancement — Bootstrapping · 15. Acquisition d'une cible ·
+16. Hacking · 17. Types de hacks · 19. Demo Scene · 20. Entry State ·
 21. Profils de drones · 22. Ce qui est connu du drone · 23. Double HUD ·
 24. Perte du signal et crash · 25. Fin propre d'une session · 26. Randomart · 27. Photos ·
 28. Session Log · 29. Terrain et mémoire · 30. Home — Operator Terminal · 31. Settings ·
 32. Avatar opérateur — futur · 33. Comptes / local-first · 34. Son ·
-35. Signature sonore du boot · 36. Son des rituels · 37. Voix ·
+35. Signature sonore du boot · 37. Voix ·
 38. Direction visuelle · 39. Typographie · 40. ASCII · 41. Pixel art · 42. CRT et image ·
 43. Le double système de rendu · 44. Principes anti-dérive · 45. La règle maîtresse ·
 46. État actuel / priorités · 47. La phrase qui résume FPVThePlanet! ·
@@ -594,54 +594,6 @@ Des commentaires internes peuvent apparaître :
 
 ---
 
-# 14. CONTROL VECTOR
-
-Le joueur crée sa propre signature lors du premier piratage / initialisation.
-
-4 à 8 inputs.
-
-6 par défaut.
-
-```text
-DEFINE CONTROL VECTOR
-
-4–8 INPUTS
-DEFAULT LENGTH: 6
-
-THIS VECTOR WILL BE REQUIRED
-FOR FUTURE TARGET ACQUISITIONS.
-
-WRITE IT DOWN.
-
-_ _ _ _ _ _
-
-[ CONFIRM VECTOR ]
-```
-
-Puis :
-
-```text
-CONTROL VECTOR REGISTERED
-
-↑ → ↓ ← ↑ ←
-
-KEEP THIS VECTOR.
-YOU WILL NEED IT.
-```
-
-Le Vector :
-
-- appartient à l'opérateur ;
-- reste identique d'une zone à l'autre ;
-- n'est jamais un mot de passe ;
-- n'est jamais nécessaire pour ouvrir le jeu ;
-- peut être rappelé depuis la Home ;
-- peut être modifié dans `OPERATOR`.
-
-Le jeu doit toujours permettre sa récupération.
-
----
-
 # 15. Acquisition d'une cible
 
 Une fois le terrain acquis :
@@ -674,6 +626,21 @@ une seule frappe.
 > et le mode vidéo non mesuré reste `UNKNOWN` nu. Un cluster (issue #29) garde
 > ses trois mentions — `(STRONGEST OF GROUP)`, `MESH — MULTIPLE EMITTERS`,
 > `COUNT UNKNOWN` — et ne révèle toujours ni la machine ni la taille du groupe.
+
+> **Révision (2026-09-09, issue #33) — le hack se termine par `[ JACK IN ]`, pas
+> par un secret à retaper.** L'acquisition se clôturait sur un CONTROL VECTOR :
+> une suite de 4 à 8 flèches que le joueur définissait une fois et devait
+> retaper de mémoire à **chaque** cible. Le rapport qui a ouvert #33 disait
+> « la page de hack peut se figer et rendre confus l'utilisateur » ; la lecture
+> du code donnait pire — l'écran n'écoutait que les flèches, ne posait aucun
+> Échap, et un joueur qui avait oublié son vecteur restait bloqué jusqu'au
+> rechargement de la page, avec toute la boucle de jeu suspendue derrière lui.
+> Le geste ne demandait par ailleurs aucune compétence de pilotage : mémoriser
+> un secret hors du jeu, pour un coût payé à chaque acquisition. Le CONTROL
+> VECTOR est retiré entièrement. L'acquisition se termine désormais sur un
+> bouton unique, `[ JACK IN ]`, avec `[ESC] ABORT` monté dès l'affichage de
+> l'écran de hack — utilisable pendant tout le chargement, ce qui répare aussi
+> l'absence de sortie relevée dans le même diagnostic.
 
 Avant le hack, FPVTP! n'affiche que ce qu'il sait réellement. Trois niveaux
 d'information :
@@ -715,7 +682,7 @@ Les noms et principes sont crédibles ; leur traduction en interaction est une a
 
 # 17. Types de hacks
 
-Chaque famille possède **4 variantes de rituel**.
+Chaque famille possède sa propre grammaire visuelle.
 
 | Hack                | Grammaire visuelle              |
 | ------------------- | ------------------------------- |
@@ -732,53 +699,13 @@ Il ne détermine **pas** la difficulté du vol.
 
 ---
 
-# 18. Rituels d'acquisition
-
-Chaque type de hack possède quatre variantes :
-
-```text
-V1 ≈ 1 sec
-V2 ≈ 2 sec
-V3 ≈ 3 sec
-V4 ≈ 4 sec
-```
-
-Le jeu choisit aléatoirement la variante.
-
-Le joueur intervient manuellement avec son `CONTROL VECTOR`.
-
-Le Vector reste toujours le même.
-
-Ce qui change est la mise en scène.
-
-```text
-AUTOMATED BYPASS ........ OK
-CONTROL CHANNEL ......... READY
-
-MANUAL OVERRIDE REQUIRED
-
-↑ → ↓ ← ↑ ←
-```
-
-Le joueur entre son vecteur.
-
-Puis :
-
-**1 à 4 secondes de folie demo scene.**
-
-Ensuite :
-
-```text
-CONTROL ACQUIRED
-```
-
-et coupure immédiate vers le flux.
-
----
-
 # 19. Demo Scene
 
-La demo scene est **événementielle**.
+*(révisée le 2026-09-09, issue #33 — voir la note de révision en §15 : la demo
+scene ne décore plus l'acquisition, elle vit entièrement dans l'intro.)*
+
+La demo scene est **événementielle** : elle se joue une fois par lancement, à
+l'écran `PRESS ANY KEY` (`src/intro.js`), et nulle part ailleurs.
 
 Pas de cyan/magenta en permanence.
 
@@ -786,26 +713,18 @@ Pas de glitch permanent.
 
 Pas de HUD psychédélique.
 
-Les couleurs exceptionnelles :
-
-- cyan ;
-- magenta ;
-- violet ;
-- bleu électrique.
-
-sont réservées aux :
-
-- `JACK IN` ;
-- hacks ;
-- événements décisifs ;
-- reconnexions exceptionnelles ;
-- éventuellement autres événements futurs.
+Les couleurs exceptionnelles — cyan, magenta, violet, bleu électrique — n'ont
+plus qu'un seul porteur : l'intro. Elles ne reviennent ni au hack, ni à
+l'acquisition d'une cible, ni à aucun autre écran : `[ JACK IN ]` est un bouton
+de terminal ordinaire, pas un événement demo scene.
 
 La règle :
 
-> **Une à quatre secondes de folie, puis retour au calme.**
+> **Une intro, une fois, quelques secondes de folie, puis le calme pour tout
+> le reste de la session.**
 
-Ces événements doivent provoquer une **montée d'adrénaline avant le pilotage**.
+Cet événement doit provoquer une **montée d'adrénaline avant d'entrer dans le
+jeu** — pas avant chaque pilotage.
 
 ---
 
@@ -1121,8 +1040,6 @@ Le Randomart n'est pas seulement décoratif :
 
 > **c'est l'empreinte visuelle de l'expérience.**
 
-Le `CONTROL VECTOR` est la signature du joueur.
-
 Le `RANDOMART` est la signature de la session / cible.
 
 ---
@@ -1265,11 +1182,6 @@ PARIS / EIFFEL      290 MB
 
 [ OPEN ]
 
-CONTROL VECTOR
-↑ → ↓ ← ↑ ←
-
-[ SHOW VECTOR ]
-
                     [ GLOBAL SCANNER ]
 
 SESSION LOG
@@ -1315,7 +1227,6 @@ Et éventuellement :
 
 ```text
 OPERATOR
-CONTROL VECTOR
 ACCOUNT
 ```
 
@@ -1343,7 +1254,6 @@ Le système d'identité doit d'abord fonctionner avec :
 
 ```text
 OPERATOR NAME
-CONTROL VECTOR
 SESSION HISTORY
 LOCAL TERRAIN
 ```
@@ -1367,7 +1277,6 @@ Mais chaque opérateur possède son propre état :
 
 ```text
 identity
-control vector
 terrain cache
 sessions
 photos
@@ -1381,10 +1290,6 @@ Le serveur partagé n'est donc qu'une commodité temporaire.
 La cible finale reste :
 
 > **chaque personne possède sa propre installation FPVTP! sur son ordinateur.**
-
-Le Control Vector n'est jamais le mécanisme de connexion au compte.
-
-Il est uniquement le rituel de prise de contrôle.
 
 ---
 
@@ -1412,8 +1317,9 @@ electronica, IDM, techno, trance. Pas de modern EDM, pas de musique de film.
 | (menus) | ambiance froide et complotiste |
 
 L'arc : la musique s'installe **sourdement** au lancement du HACK — filtrée,
-lointaine, la musique de la pièce d'à côté. Elle se retire pendant le rituel,
-qui garde sa culmination. Elle **explose au drop** sur le drone. Puis elle vit
+lointaine, la musique de la pièce d'à côté. Elle se retire pendant l'analyse
+automatique, qui garde sa culmination jusqu'à `[ JACK IN ]`. Elle **explose au
+drop** sur le drone. Puis elle vit
 avec le vol : son intensité suit ce que le pilote subit, pas seulement ce qu'il
 fait. Au crash elle meurt à l'instant du choc, avec l'image. À la pose, elle
 relâche.
@@ -1462,9 +1368,9 @@ Familles :
 
 → carrier, perte, reconnexion.
 
-`RITUAL`
-
-→ hack.
+Le hack lui-même est silencieux : ni son propre vocabulaire, ni musique
+pendant l'analyse (la musique s'y installe sourdement, ci-dessus, mais ne
+« sonne » pas). Le vocabulaire d'interface reste clos à ces deux familles.
 
 Le système ne doit pas biper à chaque clic.
 
@@ -1491,40 +1397,6 @@ Mais :
 - le crash n'en reprend pas le motif ;
 - la perte de liaison reste réaliste ;
 - la reconnexion possède son propre son de reconnexion.
-
----
-
-# 36. Son des rituels
-
-Les rituels utilisent une esthétique **demo scene / IDM expérimentale**.
-
-Pas de chanson traditionnelle.
-
-Plutôt :
-
-- clicks ;
-- pulses ;
-- basses synthétiques ;
-- séquences irrégulières ;
-- glitch ;
-- modulation ;
-- montée ;
-- impact final.
-
-Le type de hack possède son identité sonore.
-
-La durée reste :
-
-```text
-V1 ≈ 1 sec
-V2 ≈ 2 sec
-V3 ≈ 3 sec
-V4 ≈ 4 sec
-```
-
-Puis :
-
-**silence → moteur → vol.**
 
 ---
 
@@ -1790,14 +1662,17 @@ Le joueur reprend immédiatement les sticks.
 - crash = perte du drone ;
 - atterrissage = fin propre ; *(retiré le 2026-09-08, D9 : un vol se termine
   par un crash, une sortie de zone ou un lien coupé)*
-- Control Vector ;
+- Control Vector ; *(retiré le 2026-09-09, issue #33 : mémoriser un secret
+  hors du jeu et le retaper à chaque acquisition, sans reject ni Échap — voir
+  la note de révision en §15. Remplacé par un bouton unique, `[ JACK IN ]`)*
 - Randomart ;
 - double HUD ;
 - sessions ;
 - photos ;
 - commentaires ;
 - son sans musique pendant le vol ;
-- IDM / demo scene pour les rituels ;
+- IDM / demo scene pour l'intro *(recentré le 2026-09-09, issue #33 : la demo
+  scene ne décorait plus que l'acquisition/rituel, retirée avec lui — voir §19)*;
 - crew décoratif.
 - BENCH — le banc, seconde voie du jeu (§48).
 
@@ -1810,7 +1685,6 @@ Le joueur reprend immédiatement les sticks.
 - six archétypes ;
 - génération cohérente des builds ;
 - quatre familles / six familles de hacks documentaires ;
-- 4 variantes de rituels par hack ;
 - génération des entry states ;
 - double OSD ;
 - génération des Randomarts ;

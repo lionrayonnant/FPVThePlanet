@@ -22,7 +22,7 @@ const ACTIONS = {
 };
 
 // The widest label of a screen decides its dot column: a screen whose rows all
-// fit stays tight, and a screen with CONTROL VECTOR in it does not fold.
+// fit stays tight, and the widest session screen still does not fold.
 function rowWidth(rows) {
 	return Math.min(24, Math.max(12, ...rows.map(([label]) => label.length + 1)));
 }

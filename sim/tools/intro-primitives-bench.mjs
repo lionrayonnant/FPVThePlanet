@@ -3,7 +3,7 @@
 // du texte dans un <pre> — le coût est CPU pur (génération de chaîne), mesuré
 // ici sur un faux élément. Budget : 2 ms/frame par primitive (à 60 fps la
 // frame entière dispose de 16 ms, le rendu 3D est coupé pendant le rituel).
-// Lancer : node tools/ritual-bench.mjs — exit 1 si budget dépassé.
+// Lancer : node tools/intro-primitives-bench.mjs — exit 1 si budget dépassé.
 import { RITUAL_PRIMITIVES } from '../src/hack-grammars.js';
 
 const FRAMES = 480; // 2 passes de V4 à 60 fps

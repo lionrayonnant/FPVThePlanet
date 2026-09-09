@@ -72,7 +72,9 @@ donc un banc à 12 m/s et un monde à 12 m/s se pilotent identiquement.
 ```text
 CURRENT SYSTEM          ce qui existe et vole aujourd'hui
       ↓
-NEW OPERATOR LAYER      identité, control vector, réglages           [PHASE 1-2]
+NEW OPERATOR LAYER      identité, réglages                           [PHASE 1-2]
+                        (le control vector qu'y ajoutait PHASE 1 a
+                        été retiré en PHASE 10, issue #33)
       ↓
 WORLD STATE             météo 7 jours par zone, densité de signal    [PHASE 3-4]
       ↓
@@ -152,7 +154,7 @@ input.js → flightController.js → quad.js → physics.js/Rapier
 
 | Fichier | Rôle | Verdict |
 |---|---|---|
-| `src/input.js` | sticks normalisés, mapping manette auto (EdgeTX / Xbox) + override utilisateur en localStorage | **conservé** ; la saisie du Control Vector s'y greffe |
+| `src/input.js` | sticks normalisés, mapping manette auto (EdgeTX / Xbox) + override utilisateur en localStorage | **conservé** ; la saisie du Control Vector (PHASE 10) s'y était greffée, puis retirée avec lui (issue #33) |
 | `src/flightController.js` | contrôleur de forme Betaflight, `RATE_PRESETS` cinematic/freestyle/race, `update() -> {motors[4]}` | **conservé**, gains re-mesurés par famille (D4) |
 | `src/quad.js` | modèle physique 5" freestyle : moteurs, hélices, inflow, drag, batterie | **paramétré** — `QUAD` devient un profil (PHASE 7) |
 | `src/physics.js` | Rapier, trimesh pleine résolution, CCD, `groundBelow()`, `obstructionBetween()` | **conservé** ; l'entry state réutilise ses raycasts |
@@ -282,8 +284,9 @@ Résumé exécutif pour qui reprend le chantier :
 `TileMaterial.js`, `physics.js`, `flightController.js`, `audio.js`, `wind.js`,
 `rain.js`, `rainfall.js`, `fog.js`, `link.js`, le cœur de `lens.js`.
 
-**Adapté** — `quad.js` (profil paramétrable), `input.js` (Control Vector),
-`map-api-plugin.mjs` (routes opérateur), `map-gui/` (devient le Global Scanner),
+**Adapté** — `quad.js` (profil paramétrable), `input.js` (Control Vector,
+retiré depuis, issue #33), `map-api-plugin.mjs` (routes opérateur), `map-gui/`
+(devient le Global Scanner),
 `main.js` (la boucle de boot passe derrière la sélection de cible).
 
 **Remplacé** — `hud.js` : éclaté en Operator Terminal, écrans de session, OSD
@@ -293,8 +296,9 @@ drone et OSD FPVTP!.
 le respawn en vol.
 
 **Nouveau** — couche opérateur, world state, cache terrain par opérateur, modèle
-de session, génération de cibles, types de hack, rituels, entry state, Randomart,
-photos, journaux, RTC.
+de session, génération de cibles, types de hack, entry state, Randomart,
+photos, journaux, RTC. *(Le rituel manuel d'acquisition — CONTROL VECTOR + QTE
+— a fait partie de cette liste, puis a été retiré entièrement, issue #33.)*
 
 ---
 
