@@ -1,3 +1,5 @@
+<img src="sim/public/brand/fpvtp-icon.svg" width="72" alt="">
+
 # FPVThePlanet!
 
 **Voler en FPV au-dessus de vraies villes, dans le navigateur.** Le décor n'est

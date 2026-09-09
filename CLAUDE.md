@@ -76,6 +76,7 @@ Documentation
 Sources of truth:
 
 docs/manuel.md: commands, maps, prep pipeline.
+docs/marque.md: the mark — geometry, lockups, clear space, what is forbidden. The files live in sim/public/brand/; copy from there rather than re-exporting.
 sim/HANDOFF.md: current verified/unverified state only. Detailed per-subsystem session narratives are split into sim/docs/handoff-archive/*.md — read one only when touching that subsystem.
 sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md: the art direction and the target experience. Validated; do not re-litigate it, implement it.
 sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
