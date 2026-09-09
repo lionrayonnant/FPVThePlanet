@@ -52,22 +52,22 @@ await ta('mode select : les quatre voies, avec ce que chacune coûte', async () 
 	const text = dom.root.textContent;
 	assert.ok(text.includes(MODE_SELECT.title), 'le titre');
 	// D3/D6 : l'ORDRE est le message — voler, puis le banc, puis ce qui est
-	// froid, puis les réglages. ARCHIVE et SETTINGS ne sont plus des liens
+	// froid, puis les réglages. DATA et SETTINGS ne sont plus des liens
 	// enterrés dans un onglet de FIELD.
 	const ctas = dom.root.querySelectorAll('.bench-mode').map((w) => w.querySelector('button').textContent);
-	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ ARCHIVE ]', '[ SETTINGS ]']);
-	for (const m of ['field', 'bench', 'archive', 'settings']) {
+	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ DATA ]', '[ SETTINGS ]']);
+	for (const m of ['field', 'bench', 'data', 'settings']) {
 		for (const l of MODE_SELECT[m].lines) assert.ok(text.includes(l), `« ${l} » est affichée`);
 	}
 	btn('FIELD').click();
 	assert.equal(await p, 'field');
 });
 
-await ta('mode select : ARCHIVE et SETTINGS se rendent comme les deux autres', async () => {
+await ta('mode select : DATA et SETTINGS se rendent comme les deux autres', async () => {
 	reset();
 	let p = selectOperationMode(dom.root, { last: 'field' });
-	btn('ARCHIVE').click();
-	assert.equal(await p, 'archive');
+	btn('DATA').click();
+	assert.equal(await p, 'data');
 
 	reset();
 	p = selectOperationMode(dom.root, { last: 'field' });
@@ -92,11 +92,22 @@ await ta('mode select : le curseur se pose sur le dernier mode utilisé', async 
 	// `fpvtp.mode` retient les QUATRE voies (D3) : revenir consulter ses
 	// journaux ne doit pas coûter plus cher que revenir voler.
 	reset();
-	p = selectOperationMode(dom.root, { last: 'archive' });
-	assert.ok(dom.active?.textContent.includes('ARCHIVE'), `curseur sur ARCHIVE, pas « ${dom.active?.textContent} »`);
-	btn('ARCHIVE').click();
+	p = selectOperationMode(dom.root, { last: 'data' });
+	assert.ok(dom.active?.textContent.includes('DATA'), `curseur sur DATA, pas « ${dom.active?.textContent} »`);
+	btn('DATA').click();
 	await p;
-	assert.equal(loadLastMode(), 'archive', 'et la voie retenue est bien ARCHIVE');
+	assert.equal(loadLastMode(), 'data', 'et la voie retenue est bien DATA');
+});
+
+// Issue #26 : ARCHIVE est devenu DATA. Un opérateur qui avait quitté le jeu sur
+// ARCHIVE retrouve son curseur sur DATA — c'est le même onglet sous son vrai
+// nom, pas une voie disparue qui renverrait sur FIELD.
+t('mode select : un `fpvtp.mode` resté sur ARCHIVE retombe sur DATA', () => {
+	reset();
+	dom.storage.set('fpvtp.mode', 'archive');
+	assert.equal(loadLastMode(), 'data');
+	dom.storage.set('fpvtp.mode', 'n\'importe quoi');
+	assert.equal(loadLastMode(), 'field', 'et une valeur inconnue retombe toujours sur FIELD');
 });
 
 await ta('mode select : le choix est retenu pour le lancement suivant', async () => {

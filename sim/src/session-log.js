@@ -1,4 +1,4 @@
-// SESSION LOG / TARGET LOG (PHASE 17, Bible §28 et §30). Écrans client purs :
+// SESSION LOG (PHASE 17, Bible §28 et §30). Écrans client purs :
 // `screen`/`button` de terminal.js, aucune dépendance Three/Rapier. Tout le
 // formatage vit dans tools/session-log-model.mjs — ici, rien que du DOM.
 //
@@ -13,9 +13,12 @@ import * as operatorApi from './operator.js';
 import { dronePortrait } from './drone-portrait.js';
 import { targetLivery } from '../tools/target-build.mjs';
 import { liveryLabel } from '../tools/target-livery.mjs';
+// The TARGET LOG screen left with issue #26: the FAMILIES section of DATA is
+// where the targets met are read now, grouped by the family they belong to.
+// `targetLogEntries()` stays in the model — it feeds that graph and the Home
+// counters.
 import {
 	SESSION_FILTERS, filterSessions, sessionRow, sessionDetail,
-	targetLogEntries, targetRow,
 } from '../tools/session-log-model.mjs';
 
 // Vignettes des captures. `dataUrl` n'existe que sur la réponse de la route
@@ -245,68 +248,5 @@ export async function runSessionDetail(root, sessionId, { scenes = null } = {}) 
 		backRow(s.box, () => finish(undefined));
 
 		nav = menuNav(s.el, { back: () => finish(undefined) });
-	});
-}
-
-// TARGET LOG (Bible §28, spec D5). Historique en LECTURE SEULE.
-//
-// Cet écran ne reçoit AUCUNE fonction de navigation vers le vol et n'en
-// construit aucune : « aucune interaction du Target Log ne remet un drone en
-// vol » (issue #54) est donc vrai par construction, pas par discipline. Ne pas
-// y ajouter de bouton qui résout un slug.
-export function runTargetLog(root, { operator } = {}) {
-	const entries = targetLogEntries(operator?.sessions);
-	const s = screen(root);
-	// createElement plutôt qu'innerHTML : le titre et le credo restent la machine
-	// qui parle (niveau DISPLAY), la table descend au niveau DATA — 97 colonnes
-	// à 22px ne tiennent dans aucune boîte raisonnable et repliaient chaque
-	// entrée sur trois lignes. Même arbitrage que `pre.terminal-foot`. Effet de
-	// bord voulu : l'écran devient montable sur le faux DOM, donc testable.
-	const head = document.createElement('pre');
-	head.textContent = 'TARGET LOG';
-	s.box.appendChild(head);
-
-	const credo = document.createElement('pre');
-	credo.textContent = 'A CRASHED TARGET IS LOST. THE LOG IS WHAT REMAINS.';
-	s.box.appendChild(credo);
-
-	const table = document.createElement('pre');
-	table.className = 'terminal-log';
-	table.textContent = entries.length
-		? entries.map((e) => `  ${targetRow(e)}`).join('\n')
-		: '  NO TARGETS LOGGED';
-	s.box.appendChild(table);
-
-	// Le portrait de la DERNIÈRE cible portée au journal. Le plan disait
-	// « l'entrée sous le curseur » : il n'y en a pas ici, et il ne peut pas y en
-	// avoir — le Target Log est en lecture seule et n'a qu'un bouton, BACK
-	// (#54), ce qui est vérifié par tools/archive-render-selftest.mjs. Rendre
-	// chaque ligne focalisable ferait de cet écran une liste d'actions, ce
-	// qu'il refuse d'être. La plus récente est donc celle qu'on montre : c'est
-	// aussi celle que l'opérateur vient de perdre.
-	//
-	// La graine de l'exemplaire ne remonte pas par targetLogEntries (le modèle
-	// reste ce qu'il est : du texte) : on la relit sur la session d'origine.
-	const last = entries[0];
-	const lastSession = last
-		&& (operator?.sessions ?? []).find((x) => x?.id === last.sessionId);
-	// Et sa livrée (#286), sur la ligne d'en dessous — comme la fiche.
-	const lastLivery = lastSession?.target?.buildSeed ? liveryLabel(targetLivery({ seed: lastSession.target.buildSeed, family: lastSession.target.family })) : '';
-	const portrait = portraitOf(lastSession?.target, { caption: [`LAST TARGET // ${last?.label ?? ''}`.trim(), lastLivery].filter(Boolean).join('\n') });
-	if (portrait) s.box.appendChild(portrait.el);
-
-	return new Promise((resolve) => {
-		let done = false;
-		let nav = null;
-		const finish = () => {
-			if (done) return;
-			done = true;
-			portrait?.stop();
-			nav?.detach();
-			s.remove();
-			resolve(undefined);
-		};
-		backRow(s.box, finish);
-		nav = menuNav(s.el, { back: finish });
 	});
 }
