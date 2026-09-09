@@ -20,7 +20,7 @@ import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { runBriefing } from './briefing.js';
 import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint } from '../tools/briefing-model.mjs';
-import { keyMapRows } from './key-map.js';
+import { keyMapRows, actionForKey } from './key-map.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
 import { FpvLens, LINK_OFF, LINK_ANALOG, LINK_DIGITAL } from './lens.js';
 import { VideoLink } from './link.js';
@@ -741,6 +741,36 @@ function exposeDebugGlobal() {
 		ambient: () => ambient,
 		// L'essaim (issue #29), ou null (banc, hors cluster, avant la carte).
 		swarm: () => swarm,
+		// Pourquoi une sortie de fin de vol ne sort pas (#20). Tout ce dont
+		// dépendent [ESC]/[ENTER], le clic et le bouton de manette, en un seul
+		// appel : `__sim.endState()` dans la console, écran de fin affiché.
+		// Chaque champ est une garde qui peut, seule, rendre le geste inerte.
+		endState() {
+			const map = input.getKeyMap();
+			const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+			return {
+				phase: flightEnd.phase,
+				exitArmed: flightEnd.out.exitArmed,
+				// Vrai = finishSession() est DÉJÀ partie et n'a pas navigué : tout
+				// geste ultérieur sort en silence sur sa garde d'idempotence.
+				exiting,
+				settingsOpen: settings.settingsOpen,
+				paused,
+				frozen: simFrozen(),
+				// Non nul = la touche est partie voler une action et n'arrive jamais
+				// à la sortie (input.js ne la passe en brut que si RIEN ne la lie).
+				escapeBoundTo: actionForKey(map, 'escape'),
+				enterBoundTo: actionForKey(map, 'enter'),
+				tabBoundTo: actionForKey(map, 'tab'),
+				keyMap: map,
+				// Un bouton tenu depuis le vol bloque le front montant de la manette.
+				padHeld: exitPadHeld,
+				padDown: !!pad?.buttons.some((b) => b.pressed),
+				padButtonsDown: pad ? pad.buttons.map((b, i) => (b.pressed ? i : -1)).filter((i) => i >= 0) : null,
+				activeElement: document.activeElement?.tagName ?? null,
+				pointerLock: !!document.pointerLockElement,
+			};
+		},
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
