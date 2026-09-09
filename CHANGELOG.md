@@ -63,6 +63,32 @@ rapport avec les versions ci-dessous.
   seuls. Silence au gel de la physique et à la mort de la liaison, envoi vers
   l'acoustique du lieu comme les ambiants.
 
+- Essaim de drones (issue #29), tranche « le modèle de vol » : `src/swarm.js`
+  fait voler la nuée sans jamais la faire traverser un mur, et **sans lancer un
+  rayon pour ça**. Le principe : là où le joueur est passé est libre par
+  construction, donc les unités volent dans son sillage — un anneau de 512
+  positions écrit toutes les 20 ms — et le pire comportement possible est « ils
+  volent en file indienne dans tes traces ». Chaque unité tient un slot
+  `(retard, latéral, vertical)` lu sur la piste et rejoint par un ressort qui
+  vit sur l'abscisse curviligne du sillage, ce qui rend le découplage
+  impossible : à marge nulle, l'unité est exactement sur la polyligne. Un
+  tourniquet de 6 rayons par frame valide les décalages latéraux, seul endroit
+  où le bâti peut mordre, et la marge s'achète **par rayon vert** et non par
+  seconde — sans quoi l'essaim se repliait en file en plein ciel sous 25 images
+  par seconde. Bornes physiques réelles : plein manche, l'essaim décroche puis
+  rattrape.
+
+- Essaim de drones (issue #29), tranche « l'essaim entoure le joueur » : les
+  doctrines étalaient jusqu'à 2 s de retard, soit 40 m de traînée à 20 m/s —
+  invisible en FPV, où l'on regarde devant. Elles étalent désormais en largeur
+  et en hauteur ce qu'elles étalaient en longueur, sans élargir d'un pouce la
+  fenêtre avant, qui extrapole du terrain non validé. Les quatre restent
+  distinctes, parce qu'elles sont le catalogue de formations à venir (#34) :
+  `column` garde sa traînée, `screen` vole en écran devant. Nouveau chemin de
+  dev `?swarm=<n>:<doctrine>` — sans lui, le tirage sur la plage 6..12 ne
+  produit jamais `wedge` ni `screen` et trois formations sur quatre restent
+  invisibles.
+
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
   pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
   vitesse, gaz, taux de rotation), le point de départ, les captures
@@ -71,6 +97,19 @@ rapport avec les versions ci-dessous.
   retenues par opérateur. Nouvelles routes `PUT`/`GET
   /__operator/:id/sessions/:sid/track` et `GET /__operator/:id/tracks?bbox=`
   (index décimé pour la carte) ; les sessions rendues portent `hasTrack`.
+
+### Corrigé
+
+- Essaim de drones (issue #29) : **on ne voyait aucun drone devant soi.** Deux
+  correctifs justes pris séparément se combinaient en porte à sens unique — le
+  plafond de marge se paie par rayon mais se reconstitue par seconde, or les
+  éclaireurs sont les seules unités testées à chaque frame, donc affamées dès
+  1,3 % de rayons bloqués ; puis, à marge nulle, le repli en file les rangeait
+  *derrière* le joueur. Ils ont maintenant leur propre sonde avant, tirée le
+  long de la tangente pure du sillage — le volume où le joueur est sur le point
+  de voler, donc l'extrapolation la plus sûre de la scène — et elle ne coûte
+  **qu'un seul rayon pour tout l'essaim**, leurs segments étant colinéaires. La
+  proportion d'unités effectivement devant le pilote passe de 2 % à 75 %.
 
 ## [0.3.0] - 2026-09-08
 

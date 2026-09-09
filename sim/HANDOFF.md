@@ -16,6 +16,7 @@ touche au sous-système concerné.
 | [rendu-fpv.md](docs/handoff-archive/rendu-fpv.md) | `lens.js` (optique), lien vidéo RSSI par raycast |
 | [meteo.md](docs/handoff-archive/meteo.md) | vent, pluie, gouttes sur la lentille, brouillard |
 | [bugs.md](docs/handoff-archive/bugs.md) | les 10 bugs du POC et la méthode qui les a trouvés |
+| [essaim.md](docs/handoff-archive/essaim.md) | l'essaim de drones (#29) : le sillage, le budget de rayons, les éclaireurs, les cinq axes d'échantillonnage |
 
 ## Statut : ça vole
 
@@ -2621,6 +2622,57 @@ monotone).
    hors lentille.
 3. La légende de livrée dans la fiche SESSION LOG, rendue sur faux DOM
    seulement.
+
+## Essaim de drones (issue #29)
+
+Récit complet, décisions et pièges : [handoff-archive/essaim.md](docs/handoff-archive/essaim.md).
+Le lire avant de toucher `src/swarm.js`.
+
+Le TARGET SCAN tire un *cluster* dans 10 % des cas (certain au 3e scan) : le hack
+donne le nœud de commandement `swarmNode`, pilotable, et 6 à 12 unités
+cinématiques. L'évitement du bâti est gratuit — les unités volent dans le sillage
+du joueur, libre par construction — et le pire cas dégradé est la file indienne
+dans ses traces, jamais la traversée de mur.
+
+### Vérifié
+
+- `npm run selftest:ci` vert, essaim compris. `tools/swarm-selftest.mjs` balaie
+  **cinq axes** : graine, vitesse, cadence (60/30/12/4 fps), géométrie (rues et
+  épingles) et **taille d'essaim** (6..12). Chacun de ces axes a, en son temps,
+  révélé une pénétration que le précédent ne voyait pas — ne pas en retirer un.
+- La propriété centrale tient **rayons tous bloqués** : les unités se replient sur
+  le sillage pur, c'est-à-dire exactement là où le joueur est passé.
+- Le budget de **6 rayons/frame** est tenu pour toute taille et toute doctrine,
+  vérifié indépendamment sur ~19 000 vols.
+- Zéro allocation par frame, identité des tableaux préservée.
+- **Au navigateur** (Chromium headless CDP, `?live=` sur Paris, vol réel) : le jeu
+  tourne sans exception, l'essaim existe, les quatre doctrines sont accessibles et
+  distinctes, `drawCalls` = 2 par unité, 24 nœuds audio. Les drones sont
+  **visibles à l'écran** — avant le réglage « entouré », ils ne l'étaient pas.
+
+### Non vérifié
+
+- **Personne n'a piloté** avec, sauf un vol du propriétaire du dépôt qui a produit
+  les deux retours à l'origine des tranches 7 et 8. Le pilote synthétique du banc
+  monte, dérive et finit dans le décor : il prouve que rien ne casse, pas que
+  c'est beau.
+- **Le son n'a jamais été entendu.** Les niveaux relatifs sont choisis, non
+  mesurés, comme le reste du son du projet.
+- Est-ce que 44 % d'unités « de flanc » se ressentent comme « entouré » : c'est un
+  pari, pas une mesure.
+- Un vol de cluster est **sans musique** (issue #36, décision de DA en attente).
+
+### Pénétrations acceptées pour la v1 — ce sont des décisions
+
+~3 m dans le régime écrêté (frames de 250 ms) pour toute taille ≠ 12, et ~2,3 m à
+cadence nominale sur un slalom serré. Les constantes qui les portent vivent dans
+`tools/swarm-selftest.mjs` : **leur rôle n'est pas d'être petites, il est d'être
+vraies**. Une constante ajustée à 1 cm de sa mesure échoue au premier changement
+de graine — c'est arrivé deux fois.
+
+Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
+#36 (musique), #37 (éclaireurs), #38 (cadences dégradées et budget de rayons),
+#39 (plafond du bus audio), #40 (convergence `wedge`/`cloud`).
 
 ## Non vérifié / à faire
 
