@@ -1826,9 +1826,13 @@ function frame() {
 	const dt = Math.min((now - lastTime) / 1000, 0.25);
 	lastTime = now;
 
-	const sticks = window.__simInput ?? input.update(dt);
-
+	// `frozen` d'ABORD : il conditionne la lecture des entrées (issue #33). Le
+	// gaz clavier est un intégrateur, et l'intégrer pendant que la simulation
+	// est gelée arme le drone à l'insu du joueur — taper dans le panneau de
+	// remappage suffisait à mettre le gaz à fond.
 	const frozen = simFrozen();
+
+	const sticks = window.__simInput ?? input.update(dt, { frozen });
 	audio.setMuted(frozen);
 
 	// Le STREAMING n'est pas de la simulation : il continue en pause, panneau
@@ -2947,9 +2951,19 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			console.log(`[field] vol en direct → ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
 			const booting = bootLive(flyChoice.live);
 
-			await music.loadManifest();
-			await music.prepare(music.trackForFamily(cand._family, buildSeed));
-			music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
+			// La musique se charge DERRIÈRE l'écran de hack (issue #33), pas
+			// devant. L'attendre laissait l'écran VIDE — le TARGET SCAN démonté,
+			// le hack pas encore monté, le HUD de chargement caché — le temps de
+			// télécharger et de décoder une piste entière : le joueur appuyait
+			// sur Entrée et il ne se passait rien. Même principe que bootLive(),
+			// qui recouvre ses trois latences au lieu de les additionner. Le
+			// hack dure plusieurs secondes au minimum : la musique entre dedans,
+			// ce qui est de toute façon sa place — elle est le premier indice
+			// sensoriel de la machine, pas un préalable à l'écran.
+			music.loadManifest()
+				.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
+				.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
+				.catch((err) => console.warn('[music] piste du hack indisponible', err));
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
 			await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
@@ -3031,9 +3045,19 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		// L'écran ne nomme toujours pas la famille : la musique est le premier
 		// indice sensoriel, pas une révélation. « You don't read the drone. You
 		// feel it. »
-		await music.loadManifest();
-		await music.prepare(music.trackForFamily(cand._family, buildSeed));
-		music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
+		// La musique se charge DERRIÈRE l'écran de hack (issue #33), pas
+		// devant. L'attendre laissait l'écran VIDE — le TARGET SCAN démonté,
+		// le hack pas encore monté, le HUD de chargement caché — le temps de
+		// télécharger et de décoder une piste entière : le joueur appuyait
+		// sur Entrée et il ne se passait rien. Même principe que bootLive(),
+		// qui recouvre ses trois latences au lieu de les additionner. Le
+		// hack dure plusieurs secondes au minimum : la musique entre dedans,
+		// ce qui est de toute façon sa place — elle est le premier indice
+		// sensoriel de la machine, pas un préalable à l'écran.
+		music.loadManifest()
+			.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
+			.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
+			.catch((err) => console.warn('[music] piste du hack indisponible', err));
 		await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
 		// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 		// pendant le hack comme un unique pas de physique géant.
