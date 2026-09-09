@@ -20,6 +20,15 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Bannières de marque (`docs/brand/`) : quatre images composées — marque, nom et
+  accroche sur le fond `--black`. Celle de 1280 × 320 ouvre désormais le
+  `README.md`, à la place de l'icône seule de 72 px : elle porte déjà la marque
+  ET le nom. Les trois autres (social preview du dépôt, bandeau large, carré)
+  attendent un téléversement manuel là où elles vont. Elles ne partent pas dans
+  le bundle : rien ne les sert au navigateur, elles vivent hors de
+  `sim/public/`. Manifeste C2PA retiré sans réencoder, comme le reste de la
+  marque. `docs/marque.md` dit où va chacune.
+
 - La marque entre au dépôt (#58). `sim/public/brand/` porte les trois SVG —
   `fpvtp-mark.svg` en `currentColor`, `fpvtp-icon.svg` sur son fond `--black`,
   `fpvtp-mark-extrude.svg` pour l'extrusion — et `png/` sept tailles de 16 à

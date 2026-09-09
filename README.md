@@ -1,4 +1,4 @@
-<img src="sim/public/brand/fpvtp-icon.svg" width="72" alt="">
+<img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
 # FPVThePlanet!
 

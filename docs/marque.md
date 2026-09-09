@@ -46,10 +46,29 @@ là où la grille du SVG (pas de 15,2 sur 100 unités) donnerait de l'antialiasi
 C'est pour ça qu'ils existent plutôt que de laisser le navigateur rééchantillonner
 `fpvtp-icon.svg`. Recopier depuis ici, ne pas ré-exporter.
 
+### Bannières
+
+`docs/brand/` porte les images composées — la marque, le nom et une accroche sur
+le fond `--black`. Elles ne sont pas embarquées dans le jeu : rien ne les sert au
+navigateur, elles vivent hors de `sim/public/` exprès.
+
+| fichier | dimensions | destination |
+|---|---|---|
+| `fpvtp-readme-1280x320.png` | 1280 × 320 | en-tête de `README.md`, la seule employée dans le dépôt |
+| `fpvtp-github-social-1280x640.png` | 1280 × 640 | *social preview* du dépôt — GitHub → Settings → Social preview, téléversement à la main |
+| `fpvtp-wide-1500x500.png` | 1500 × 500 | bandeau de profil d'un réseau social |
+| `fpvtp-square-1080.png` | 1080 × 1080 | avatar, vignette carrée |
+
+Les accroches (`POINT AT A CITY, FLY IT`) sont composées dans l'image : rien ne
+les relit, les changer demande un ré-export. Comme le reste de la marque, les
+fichiers sont arrivés avec un manifeste C2PA — chunks `caBX` et `deBG`, 5,8 Ko
+par image — retiré sans réencoder, même règle que ci-dessous.
+
 ### Où la marque est employée
 
 | chemin | source |
 |---|---|
+| en-tête de `README.md` | `docs/brand/fpvtp-readme-1280x320.png` — la bannière porte déjà la marque ET le nom, elle a remplacé l'icône seule qui était là |
 | favicon de `sim/index.html` (16, 32, 48) | référence directement `sim/public/brand/png/` |
 | `sim/electron/build/icon.png` | copie de `png/fpvtp-icon-1024.png` — electron-builder l'empaquette dans l'installeur NSIS et l'AppImage |
 
