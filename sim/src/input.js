@@ -683,7 +683,19 @@ export class Input {
 	// UPDATE
 	// ---------------------------------------------------------------------------
 
-	update(dt) {
+	// `frozen` (issue #33) : la simulation est gelée (pause, panneau de réglages,
+	// intro, banc) mais la boucle de frame continue d'appeler update(). Sans ce
+	// drapeau, le gaz clavier — un INTÉGRATEUR, comme un vrai manche : il reste
+	// où on le laisse — monte pendant qu'on tape dans le panneau. Taper « z »
+	// sur la page de remappage armait le gaz à fond, et le drone partait à la
+	// verticale à la fermeture du panneau. Le geste ne pilote pas : il ne doit
+	// donc rien intégrer.
+	//
+	// Seule l'INTÉGRATION est suspendue, pas la lecture : les manches de la
+	// manette restent lus (ils sont absolus, les recopier est sans effet de
+	// bord) et `this.keys` continue de suivre l'état réel du clavier, sans quoi
+	// une touche relâchée pendant le gel resterait enfoncée au dégel.
+	update(dt, { frozen = false } = {}) {
 		const pad =
 			this.getGamepad();
 
@@ -694,7 +706,7 @@ export class Input {
 			this.usingGamepad = true;
 		} else {
 			this.usingGamepad = false;
-			this.readKeyboard(dt);
+			this.readKeyboard(frozen ? 0 : dt);
 		}
 
 		return this.sticks;

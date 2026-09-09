@@ -322,10 +322,45 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	/* D14: the panel takes the terminal's ground. The same black as the Home
 	   and as signal loss — Settings is no longer a dialog box laid over the
 	   game, it is a screen of the machine. The rule lifts it off the scrim. */
-	background: var(--black);
+	background-color: var(--black);
+	/* Ombres de défilement (issue #33). Le panneau défile depuis #123, mais
+	   RIEN ne le disait : sur l'onglet KEYBOARD ses seize lignes poussent
+	   `RESET KEYS` sous la ligne de flottaison, et à 125-150 % de mise à
+	   l'échelle — le réglage d'usine d'un portable Windows — le bouton est
+	   simplement absent pour qui ne devine pas qu'il faut défiler.
+	   La technique est en CSS pur : deux couches en `local` défilent AVEC le
+	   contenu et masquent l'ombre quand on touche le bord, deux couches en
+	   `scroll` restent collées au cadre. Aucune ombre en haut quand on est en
+	   haut, aucune en bas quand on est en bas — un dégradé fixe, lui,
+	   mentirait à l'arrivée. Sur ce fond noir l'ombre est CLAIRE : la même
+	   encre que les filets, qui s'éteint. */
+	background-image:
+		linear-gradient(var(--black) 40%, transparent),
+		linear-gradient(transparent, var(--black) 60%),
+		linear-gradient(var(--rule-strong), transparent),
+		linear-gradient(transparent, var(--rule-strong));
+	background-position: 0 0, 0 100%, 0 0, 0 100%;
+	background-repeat: no-repeat;
+	background-size: 100% 34px, 100% 34px, 100% 10px, 100% 10px;
+	background-attachment: local, local, scroll, scroll;
 	border: var(--rule-w) solid var(--rule);
 	display: flex; flex-direction: column; gap: var(--space-3);
 }
+/* La barre du panneau, elle, se voit (issue #33). La règle globale plus bas
+   pose un pouce sans piste sur huit pixels : discret partout ailleurs, mais
+   ici c'est le seul indice qu'il reste de la matière sous le cadre, et il
+   passait inaperçu. Piste dessinée, pouce à l'encre pleine des filets. */
+.panel { scrollbar-color: var(--rule-strong) var(--rule); }
+@supports selector(::-webkit-scrollbar) {
+	/* Même bascule que la règle globale plus bas : rendue à `auto` pour que
+	   Chrome cesse de préférer la propriété standard aux pseudo-éléments. */
+	.panel { scrollbar-color: auto; }
+	.panel::-webkit-scrollbar { width: 10px; }
+	.panel::-webkit-scrollbar-track { background: var(--rule); }
+	.panel::-webkit-scrollbar-thumb { background: var(--rule-strong); }
+	.panel::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+}
+
 /* The panel names itself, once, at the DISPLAY level — like every terminal
    screen (Bible §11). */
 .panel .panel-title {
