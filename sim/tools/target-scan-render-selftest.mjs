@@ -97,6 +97,32 @@ await t('CONFIRM rend le signal choisi et démonte tout', async () => {
 	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'plus rien à l\'écran');
 });
 
+await t('la fiche d\'un cluster affiche MESH, GROUP et COUNT — et rien de plus', async () => {
+	// Issue #29 : la fiche doit être RÉELLEMENT visible, pas seulement présente
+	// dans l'objet que rend describeTarget(). swarmChance 1 : le cluster est le
+	// plus fort signal, donc le premier bouton de la liste.
+	reset();
+	const p = runTargetScan(dom.root, { seed: 'render::swarm', count: 4, swarmChance: 1 });
+	await tick();
+	rows()[0].click();
+	await tick();
+	const text = dom.root.textContent;
+	assert.match(text, /DEVICE\s+PARTIAL\s+\(EST\. MESH — MULTIPLE EMITTERS\)/);
+	assert.match(text, /SIGNAL\s+-\d+ dBm \(STRONGEST OF GROUP\)/);
+	assert.match(text, /COUNT\s+UNKNOWN/);
+	assert.ok(!text.includes('swarmNode'), 'la fiche ne nomme jamais la famille');
+	dom.key('Escape');
+	await tick();
+	// Une cible ordinaire n'a pas de ligne COUNT : il n'y a pas de groupe.
+	rows()[1].click();
+	await tick();
+	assert.ok(!dom.root.textContent.includes('COUNT'), 'pas de COUNT sur une cible ordinaire');
+	dom.key('Escape');
+	await tick();
+	dom.key('Escape');
+	await p;
+});
+
 await t('Échap sur la liste annule sans choisir', async () => {
 	const p = open();
 	await tick();

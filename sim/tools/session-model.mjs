@@ -11,9 +11,15 @@
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
 import { randomart } from './randomart.mjs';
-import { TARGET_FAMILIES, HACK_TYPES } from './target-model.mjs';
+import {
+	TARGET_FAMILIES, HACK_TYPES,
+	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
+} from './target-model.mjs';
 
-export const SESSION_SCHEMA_VERSION = 2;
+// v3 (issue #29) adds target.swarm and target.scan.swarmAt/swarmChance. No
+// migration: a v2 session simply has no swarm, honestly, the way a v1 session
+// has no ambients.
+export const SESSION_SCHEMA_VERSION = 3;
 // Les verdicts qu'un vol peut PRODUIRE. `LANDED` en est parti avec
 // l'atterrissage (D9, 2026-09-08) : un vol ne se termine plus que par un crash,
 // une sortie de zone ou une coupure du lien, et les trois sont `CRASHED`.
@@ -77,15 +83,42 @@ function sanitizeScan(raw) {
 	if (typeof raw.seed !== 'string' || raw.seed.length === 0) throw new Error('target.scan.seed invalide');
 	if (!Number.isInteger(raw.count) || raw.count < 2 || raw.count > 5) throw new Error('target.scan.count invalide');
 	if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index >= raw.count) throw new Error('target.scan.index invalide');
-	return { seed: raw.seed, count: raw.count, index: raw.index };
+	// v3 (issue #29). Absent on a v2 scan, which predates swarms: it replays as
+	// `null` chance 0, i.e. swarmless, which is exactly what it was.
+	const at = raw.swarmAt ?? null;
+	if (at !== null && (!Number.isInteger(at) || at < 0 || at >= raw.count)) {
+		throw new Error('target.scan.swarmAt invalide');
+	}
+	const chance = raw.swarmChance ?? 0;
+	if (!Number.isFinite(chance) || chance < 0 || chance > 1) throw new Error('target.scan.swarmChance invalide');
+	return { seed: raw.seed, count: raw.count, index: raw.index, swarmAt: at, swarmChance: chance };
 }
+
+// The mesh the node commands (issue #29). `null` on any ordinary target.
+function sanitizeSwarm(raw) {
+	if (raw == null) return null;
+	if (typeof raw !== 'object') throw new Error('target.swarm invalide');
+	if (!Number.isInteger(raw.size) || raw.size < SWARM_SIZE_MIN || raw.size > SWARM_SIZE_MAX) {
+		throw new Error('target.swarm.size invalide');
+	}
+	if (typeof raw.doctrineSeed !== 'string' || raw.doctrineSeed.length === 0) {
+		throw new Error('target.swarm.doctrineSeed invalide');
+	}
+	return { size: raw.size, doctrineSeed: raw.doctrineSeed };
+}
+
+// The families an operator file may CONTAIN. `swarmNode` is not in
+// TARGET_FAMILIES and must not enter it — an ordinary scan could then draw it
+// and the rarity would be gone (issue #29) — but a session that took a cluster
+// carries it legitimately, so it is allowed here, explicitly.
+const STORED_FAMILIES = [...TARGET_FAMILIES, SWARM_FAMILY];
 
 // Ne garde que la forme connue du descripteur de cible (PHASE 08). `null` est
 // licite : une session peut s'ouvrir sans cible (chemin dev ?scene=).
 export function sanitizeTarget(raw) {
 	if (raw == null) return null;
 	if (typeof raw !== 'object') throw new Error('target invalide');
-	if (!TARGET_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${raw.family}`);
+	if (!STORED_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${raw.family}`);
 	if (raw.hackType != null && !HACK_TYPES.includes(raw.hackType)) {
 		throw new Error(`hackType de cible inconnu : ${raw.hackType}`);
 	}
@@ -101,6 +134,7 @@ export function sanitizeTarget(raw) {
 		signal: { rssiDbm: sig.rssiDbm, mode: sig.mode },
 		scannedAt: raw.scannedAt ?? null,
 		scan: sanitizeScan(raw.scan),
+		swarm: sanitizeSwarm(raw.swarm),
 		intel: { ...raw.intel },
 	};
 }
@@ -254,6 +288,8 @@ export function validateSession(s) {
 	if (!s.operatorId) throw new Error('operatorId requis');
 	if (!slugify(s.area)) throw new Error('area invalide');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throw si malformé
+	// sanitizeTarget holds ALL of the target's shape validation, the v3 swarm
+	// included: validating it a second time here would mean two rules to keep.
 	if (s.target != null) sanitizeTarget(s.target); // throw si malformé
 	// Numéros d'affichage (PHASE 17). Contrôlés APRÈS la forme de la cible : une
 	// cible malformée est une erreur plus fondamentale que sa numérotation, et

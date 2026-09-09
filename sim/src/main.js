@@ -38,7 +38,8 @@ import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
-import { generateTargetScan } from '../tools/target-model.mjs';
+import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
+import { parseSwarmFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
@@ -60,6 +61,8 @@ import { RocktreeWindow } from './rocktree-window.js';
 import { warmUp as warmUpTraverseWorker } from './rocktree-traverse-client.js';
 import { warmUp as warmUpNodePool } from './rocktree-worker-pool.js';
 import { AmbientDrones } from './ambient-drones.js';
+import { SwarmDrones } from './swarm-drones.js';
+import { setSwarmPresent } from './audio-others.js';
 import { PlayerDrone } from './onboard-drone.js';
 
 import { APP_VERSION } from './version.js';
@@ -130,15 +133,29 @@ export const OPTS = {
 	// scène pré-cuite (#168). Pas de météo/geofence/écran de crédit — voir le
 	// plan d'implémentation pour ce qui est volontairement hors périmètre.
 	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
+	// Dev-only: ?swarm=8 forces a cluster of 8 on ?scene= and ?live=, the two
+	// paths that skip the TARGET SCAN and synthesise their own scan (#29).
+	// ?swarm=8:wedge also pins the doctrine (column/wedge/cloud/screen) instead
+	// of leaving it to the size-derived draw. The RULE (an integer in 6..12,
+	// an optional known doctrine name, refused otherwise) lives in
+	// tools/dev-flags.mjs, where a selftest can reach it.
+	swarm: params.get('swarm'),
 };
+// The swarm a dev scan carries, or null. Throws on anything the game itself
+// could not draw — see tools/dev-flags.mjs for why it refuses instead of
+// clamping.
+const devSwarm = parseSwarmFlag(OPTS.swarm);
 // `?live=foo` donnait [NaN] : origine ENU NaN, spawn NaN, requêtes rocktree sur
 // une tuile inexistante — un monde silencieusement invalide où le drone dérive
 // dans le vide sans le moindre message. Planter ici, tôt et lisiblement.
 if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
 	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
 }
-if (OPTS.family && !FAMILIES.includes(OPTS.family)) {
-	throw new Error(`famille inconnue: "${OPTS.family}" — ${FAMILIES.join(' ')}`);
+// `?family=swarmNode&scene=<slug>&swarm=12` is the full dev path to the node;
+// see tools/dev-flags.mjs for why the list is built there and not here.
+const DEV_FAMILIES = devFamilies(FAMILIES);
+if (OPTS.family && !DEV_FAMILIES.includes(OPTS.family)) {
+	throw new Error(`famille inconnue: "${OPTS.family}" — ${DEV_FAMILIES.join(' ')}`);
 }
 // Résolu tardivement (PHASE 08) : la famille sort du TARGET SCAN, dans le gate
 // de chooseScene(), avant boot(). L'override dev ?family= le pré-remplit ici.
@@ -467,6 +484,18 @@ let distantGround = null;
 // carte n'est pas chargée. `liveBounds` est la bulle du DIRECT : muté à
 // chaque frame, jamais remplacé — le modèle en garde la référence.
 let ambient = null;
+// L'essaim (issue #29) : null au banc et hors cluster. Comme les ambiants, il
+// n'a aucun effet sur le jeu — pas de corps Rapier, pas de collision, pas de
+// cible, pas d'usure.
+let swarm = null;
+// La clôture que l'essaim lit, MUTÉE à chaque frame et jamais remplacée : le
+// modèle ne la retient pas. `bbox` en scène pré-cuite, `center`/`radius` en
+// direct (le cercle de confiance de la fenêtre rocktree).
+const swarmFence = { bbox: null, center: null, radius: 0 };
+// L'horloge que le sillage horodate : des secondes monotones, gelées avec la
+// physique. Pas performance.now() — une pause y creuserait un trou de dix
+// secondes dans la piste, et le slot d'une unité se lit à un instant passé.
+let swarmClock = 0;
 const liveBounds = { center: null, trusted: 0 };
 // La résolution en pixels device, pour le billboard de LED des ambiants
 // (même piège que uResolution dans lens.js). Mise à jour dans resize().
@@ -710,6 +739,8 @@ function exposeDebugGlobal() {
 		session: () => session.current(),
 		// Les drones ambiants (issue #250), ou null (banc, avant la carte).
 		ambient: () => ambient,
+		// L'essaim (issue #29), ou null (banc, hors cluster, avant la carte).
+		swarm: () => swarm,
 		teleport(x, y, z) {
 			physics.body.setTranslation({ x, y, z }, true);
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -721,6 +752,10 @@ function exposeDebugGlobal() {
 			linkForced = false;
 			// Un saut arbitraire laisserait les ambiants derrière, hors bulle.
 			ambient?.reset();
+			// L'essaim suit le SILLAGE : un saut le rendrait droit à travers
+			// tout ce qui sépare les deux points. Le sillage se vide, les unités
+			// se reposent sur le joueur.
+			swarm?.reset(physics.position);
 		},
 		// Points the camera at a target from the drone's current position.
 		lookAt(x, y, z) {
@@ -872,6 +907,8 @@ function exposeDebugGlobal() {
 				// Le ciel habité (issue #250) : undefined au banc, où il n'y a
 				// pas d'ambiants du tout.
 				ambient: ambient?.debug(),
+				// L'essaim (issue #29) : undefined au banc et hors cluster.
+				swarm: swarm?.model ? swarm.debug() : undefined,
 			};
 		},
 	};
@@ -958,6 +995,10 @@ async function finishBoot(preloading) {
 			scene,
 			bounds: { bbox: manifest.bbox, corridor: fence.effectiveCorridor },
 		});
+		// L'essaim (issue #29), même garde : il n'a d'unités que si la cible en
+		// porte un, ce que setSwarm() décide plus bas.
+		swarm = new SwarmDrones({ scene });
+		swarmFence.bbox = manifest.bbox;
 	}
 
 	// L'entrée. En FIELD c'est le tirage pondéré de la Bible §20 — tu hérites
@@ -1230,7 +1271,14 @@ async function bootLive([lat, lon]) {
 		});
 		// ?live= est un raccourci de DEV : openFlightSession() en sort tout de
 		// suite, donc personne d'autre ne poserait de scan sur ce chemin.
-		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0 });
+		if (OPTS.live) ambient.setScan({ seed: `dev::${OPTS.live}`, count: 4, index: 0, ...(devSwarm ? { swarmAt: 0, swarmChance: 1, swarm: devSwarm } : {}) });
+		swarm = new SwarmDrones({ scene });
+		// ?live= sort d'openFlightSession() avant la pose de l'essaim : c'est
+		// ici, et seul ?swarm= peut en poser un sur ce chemin.
+		// `?live=` sort d'openFlightSession() avant l'écriture du bus : c'est
+		// donc ici aussi que se pose la présence de l'essaim pour ce chemin.
+		if (OPTS.live) setSwarmPresent(!!devSwarm);
+		if (OPTS.live && devSwarm) { swarm.setSwarm(devSwarm); swarm.reset(physics.position); }
 	}
 	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
 	// vérification en vol) : le terrain live n'a aucun autre brouillard (la
@@ -1585,6 +1633,9 @@ function respawn() {
 	// Le ciel se retire aussi : les ambiants d'avant le respawn étaient nés
 	// autour d'un point de vol qui n'existe plus (issue #250).
 	ambient?.reset();
+	// Et l'essaim se repose sur le joueur : son sillage vient d'être invalidé
+	// par le même saut (issue #29).
+	swarm?.reset(physics.position);
 }
 
 function togglePause(force) {
@@ -2008,6 +2059,30 @@ function frame() {
 		});
 	}
 
+	// L'essaim (issue #29). Après le bloc caméra comme les ambiants, et avant
+	// lens.render : sa sortie traverse la lentille comme tout le reste. Il ne
+	// touche à RIEN — pas de corps Rapier, pas de collision, pas de cible, pas
+	// d'usure ; gelé, dt = 0 et le modèle ne fait pas un pas.
+	if (swarm?.model) {
+		if (liveWindow) {
+			swarmFence.center = liveWindow.windowCenterLocal;
+			swarmFence.radius = liveWindow.nearestTrustedRadius();
+		}
+		if (!frozen) swarmClock += dt;
+		// Gelé, dt = 0 et les voix se taisent — mais update() tourne quand
+		// même, sans quoi setMuted() ne viserait plus aucun AudioParam.
+		swarm.setMuted(frozen);
+		swarm.update({
+			dt: frozen ? 0 : dt,
+			player: physics.position, playerVel: physics.velocity, camera,
+			time: swarmClock,
+			terrain: physics, wind: physics.wind.out, fence: swarmFence,
+			fogColor: scene.background, fogDensity: lastFogDensity, sun,
+			dim: cloud.dim,
+			resolution: ambientRes,
+		});
+	}
+
 	// La fin de vol décide seule : ce qui s'affiche, quand l'image meurt, quand
 	// la session se ferme. main.js ne fait que l'alimenter et obéir.
 	//
@@ -2061,6 +2136,9 @@ function frame() {
 		space.silence();
 		// Le ciel se tait avec elle : plus de récepteur, plus de voix (#250).
 		ambient?.silence();
+		// L'essaim aussi (#29) : il continue de voler, mais plus personne ne
+		// l'écoute.
+		swarm?.silence();
 		controller.disarm();
 		// Si le joueur avait coupé la modélisation du lien, il ne verrait
 		// aucune dégradation. La mort de l'image ne se négocie pas.
@@ -2382,6 +2460,10 @@ if (!frozen) {
 			altitudeAboveSpawn: p.y - spawnY,
 			dt: frozen ? 0 : dt,
 			armed: controller.armed,
+			// La piste (issue #24) : les deux seules valeurs que la télémétrie
+			// agrégée n'utilisait pas, déjà calculées ici pour l'OSD et le son.
+			throttle: sticks.throttle,
+			headingDeg: yawOf(physics.rotation) * 180 / Math.PI,
 			// La couverture (issue #245) : une fonction, appelée par session.js
 			// seulement quand un échantillon est dû — rien entre deux.
 			geo: () => droneGeo(p),
@@ -2826,9 +2908,13 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 			const seed = Math.random().toString(16).slice(2, 12);
 			const count = signalCountFrom(flyChoice.density);
-			const scan = generateTargetScan({ seed, count });
+			// The early guarantee (issue #29), read off the operator state the
+			// client already holds. It goes to the server with the hack request,
+			// because only that makes the server's regeneration identical.
+			const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
+			const scan = generateTargetScan({ seed, count, swarmChance });
 			const scanWeather = await worldWeather({ lat, lon });
-			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather });
+			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance });
 
 			// Échap au TARGET SCAN : retour au choix de zone. Rien n'a encore été
 			// monté — contrairement au chemin cuit, bootLive() n'est appelé
@@ -2898,13 +2984,14 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 		const seed = Math.random().toString(16).slice(2, 12);
 		const count = signalCountFor(slug);
-		const scan = generateTargetScan({ seed, count });
+		const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
+		const scan = generateTargetScan({ seed, count, swarmChance });
 		// La météo du monde pour cette zone, résolue avant le scan pour rendre les
 		// conditions saillantes au choix de cible (issue #76). worldWeather est caché
 		// par zone : boot() réutilise ce résultat sans nouvel aller-retour.
 		const sc = (await loadSceneList()).find((s) => s.slug === slug);
 		const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
-		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather }); // { seed, count, index } | { cancelled }
+		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance }); // { seed, count, index, swarmChance, swarmAt } | { cancelled }
 
 		// Échap au TARGET SCAN : retour au choix de zone, sans rien casser. Le
 		// préchargement lancé plus haut CONTINUE en tâche de fond : il ne touche
@@ -3262,8 +3349,27 @@ async function openFlightSession() {
 	// the persisted session kept (schema v2), or a dev scan under ?scene=, or
 	// nothing.
 	ambient?.setScan(
-		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench ? { seed: `dev::${flyArea}`, count: 4, index: 0 } : null),
+		flyTarget ?? tgt?.scan ?? (OPTS.scene && !MODE.bench
+			? { seed: `dev::${flyArea}`, count: 4, index: 0, ...(devSwarm ? { swarmAt: 0, swarmChance: 1, swarm: devSwarm } : {}) }
+			: null),
 	);
+
+	// L'essaim (issue #29) : celui que la cible résolue porte, ou celui que
+	// `?swarm=` a posé sur un chemin de dev. Rien du tout sinon — un cluster
+	// tombe une session sur dix. La cible passe AVANT le drapeau : une session
+	// serveur qui tire un cluster écrase `?swarm=n`, exactement comme
+	// `ambient.setScan()` juste au-dessus préfère le scan de la session au scan
+	// de dev. Le drapeau est un raccourci pour les chemins qui n'ont pas de
+	// session, pas un override de ce que le serveur a résolu.
+	const flightSwarm = tgt?.swarm ?? devSwarm ?? null;
+	// Le bus `others` (src/audio-others.js) : UNE écriture par vol, ici, parce
+	// que c'est ici qu'on sait. Sans essaim, les ambiants récupèrent le plafond
+	// entier — leur niveau de #250 — au lieu de provisionner dans neuf vols sur
+	// dix une part que personne ne prendra. Avec essaim, la part partagée, qui
+	// est ce qui rend le plafond structurel.
+	setSwarmPresent(!!(swarm && flightSwarm));
+	swarm?.setSwarm(flightSwarm);
+	swarm?.reset(physics.position);
 
 	applyTargetCamera(targetCamera({ seed, family }));
 
@@ -3327,6 +3433,7 @@ window.addEventListener('beforeunload', () => {
 	// un démontage : les ambiants n'y ont rien à faire. Le seul démontage de
 	// page est ici (issue #250).
 	ambient?.dispose();
+	swarm?.dispose();
 	lens.setOnboard(null);
 	playerDrone?.dispose();
 	playerDrone = null;
