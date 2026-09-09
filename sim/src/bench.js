@@ -58,9 +58,14 @@ export function saveBenchConfig(config) {
 
 // The last way in, remembered across launches. All four count (D3): coming back
 // to read a log should cost no more than coming back to fly.
+// Modes that were renamed keep their cursor: an operator who left on ARCHIVE
+// comes back on DATA, which is the same tab under its real name (issue #26).
+const RENAMED_MODES = new Map([['archive', 'data']]);
+
 export function loadLastMode() {
 	const m = store().getItem(MODE_KEY);
-	return MODES.includes(m) ? m : 'field';
+	const renamed = RENAMED_MODES.get(m) ?? m;
+	return MODES.includes(renamed) ? renamed : 'field';
 }
 
 function saveLastMode(mode) {

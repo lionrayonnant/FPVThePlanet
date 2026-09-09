@@ -98,6 +98,27 @@ rapport avec les versions ci-dessous.
   /__operator/:id/sessions/:sid/track` et `GET /__operator/:id/tracks?bbox=`
   (index décimé pour la carte) ; les sessions rendues portent `hasTrack`.
 
+- `ARCHIVE` devient `DATA` : une page qui défile, neuf sections de graphes mono
+  — `RHYTHM`, `LIFE`, `SPEED × ALTITUDE`, `HOW THEY DIED`, `STICKS`,
+  `FAMILIES`, `GEOGRAPHY`, `PROFILE`, `RECORDS` — où l'opérateur lit sa propre
+  façon de voler. Aucun score, aucun niveau, aucune comparaison : ce qui s'est
+  passé, dessiné. Les sections qui ont besoin d'une piste de vol affichent
+  `NO TRACK` tant qu'il n'y en a pas ; les autres se lisent depuis les agrégats
+  de session, qui ne sont jamais jetés (#26).
+- `src/graph.js`, un petit kit de dessin canvas mono (barres, nuage, escalier,
+  histogramme) dans la typographie du terminal : une encre, et le magenta
+  seulement sur l'élément sélectionné (#26).
+- `tools/data-model.mjs` et son selftest : toutes les séries des neuf sections
+  sont calculées là, l'écran n'en calcule aucune (#26).
+
+### Modifié
+
+- Le `TARGET LOG` disparaît en tant qu'écran : ses entrées se lisent dans la
+  section `FAMILIES` de `DATA`, groupées par famille de cible et rangées sous la
+  survie moyenne qu'elles ont laissée (#26).
+- `fpvtp.mode` resté sur `archive` retombe sur `data` : un opérateur retrouve
+  son curseur là où il l'avait laissé (#26).
+
 ### Corrigé
 
 - Essaim de drones (issue #29) : **on ne voyait aucun drone devant soi.** Deux
