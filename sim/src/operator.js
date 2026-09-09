@@ -231,6 +231,11 @@ export async function listTracks(bbox = null) {
 
 export function operatorBase() { return OP_BASE; }
 
+// Combien d'écritures attendent encore leur PATCH. Diagnostic seulement
+// (`__sim.endState()`, #20) : une sortie de vol qui pend dans flush() ne dit
+// pas d'elle-même si elle avait quelque chose à envoyer.
+export function pendingCount() { return pending.size; }
+
 export async function flush() {
 	if (timer) { clearTimeout(timer); timer = null; }
 	if (!cache || pending.size === 0) return;

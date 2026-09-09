@@ -551,6 +551,10 @@ let crashed = false;
 // fois posé, une touche maintenue ou un second événement ne doit pas ouvrir
 // deux fois le POST-FLIGHT ANALYSIS ni déclencher deux reloads.
 let exiting = false;
+// Jusqu'où finishSession() est allée (#20). Diagnostic seulement, lu par
+// __sim.endState() : le verrou `exiting` dit qu'une sortie est partie, pas
+// sur quelle ligne elle s'est arrêtée.
+let exitStage = null;
 
 // État « bouton manette tenu » pour la sortie de fin de vol (issue #123).
 // Vrai par défaut : seul un front montant APRÈS l'armement de la sortie
@@ -754,6 +758,10 @@ function exposeDebugGlobal() {
 				// Vrai = finishSession() est DÉJÀ partie et n'a pas navigué : tout
 				// geste ultérieur sort en silence sur sa garde d'idempotence.
 				exiting,
+				// Où elle s'est arrêtée : 'flush' = le PATCH ne revient jamais,
+				// 'navigating' = location.href n'a pas navigué.
+				exitStage,
+				operatorPending: operator.pendingCount(),
 				settingsOpen: settings.settingsOpen,
 				paused,
 				frozen: simFrozen(),
@@ -1543,6 +1551,7 @@ function consumeQuickRestart() {
 async function finishSession({ redeploy = false } = {}) {
 	if (exiting) return;
 	exiting = true;
+	exitStage = 'started';
 	// The flight is over: the flag that says "the sticks fly the machine" must
 	// stop saying it. The reload clears it anyway, but Settings reads it in the
 	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
@@ -1554,7 +1563,9 @@ async function finishSession({ redeploy = false } = {}) {
 	// n'a aucune garantie face à ce rechargement — seul un flush() résolu avant
 	// de partir en a une. Un échec réseau ne doit pas bloquer la sortie pour
 	// autant : on part quand même, comme le ferait beforeunload.
+	exitStage = 'flush';
 	try { await operator.flush(); } catch (e) { console.warn('[operator] flush de fin de vol échoué', e); }
+	exitStage = 'navigating';
 	location.href = location.pathname;
 }
 
