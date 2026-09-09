@@ -2953,13 +2953,18 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
 			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
-			// Abandon au hack : même traitement que l'Échap du TARGET SCAN. Le
-			// préchargement lancé plus haut continue en tâche de fond — il ne monte
-			// rien dans la scène Three et a capturé sa propre base d'URL.
+			// Abandon au hack : contrairement à l'Échap du TARGET SCAN juste
+			// au-dessus, `booting` a déjà monté le terrain vivant dans la scène
+			// (bootLive() est placé volontairement AVANT le choix de cible, alors
+			// que preloadScene() se contente de télécharger) — on ne peut plus
+			// revenir en arrière dans ce même chargement. Même traitement que
+			// REDEPLOY quand runHack() sort mal (voir plus haut, "Un échec ...
+			// recharge la page") : introFrozen/MODE.live/flyArea/flyTarget/PROFILE
+			// sont déjà posés et rien ne les nettoie ici, donc on repart propre
+			// plutôt que de rejouer la même zone sur un préchargement mémoïsé.
 			if (hack?.aborted) {
-				MODE.live = false;
-				introFrozen = false;
-				continue;
+				location.href = location.pathname;
+				return new Promise(() => {}); // la navigation est en cours ; ne rien rendre entre-temps
 			}
 			introFrozen = false;
 			accumulator = 0;
@@ -3043,12 +3048,19 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		await music.prepare(music.trackForFamily(cand._family, buildSeed));
 		music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
 		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
-		// Abandon au hack : même traitement que l'Échap du TARGET SCAN. Le
-		// préchargement lancé plus haut continue en tâche de fond — il ne monte
-		// rien dans la scène Three et a capturé sa propre base d'URL.
+		// Abandon au hack : `booting` (finishBoot()) a déjà monté le terrain dans
+		// la scène — « Le montage dans la scène a lieu ICI et pas dans
+		// preloadScene() : à partir de cet instant la zone est engagée, on ne
+		// revient plus en arrière » (voir finishBoot()). Rejouer la même zone
+		// rendrait le préchargement mémoïsé (le cache `preloads` de preloadFor()) :
+		// `finishBoot()` a déjà vidé son `collision` (`preloaded.collision = null`,
+		// juste après `new Physics(collision, …)`) — un second passage l'appellerait
+		// avec `null` et planterait. Même traitement que REDEPLOY quand runHack()
+		// sort mal (voir plus haut, "Un échec ... recharge la page") : on repart
+		// propre plutôt que d'essayer de continuer dans ce même chargement.
 		if (hack?.aborted) {
-			introFrozen = false;
-			continue;
+			location.href = location.pathname;
+			return new Promise(() => {}); // la navigation est en cours ; ne rien rendre entre-temps
 		}
 		// [ JACK IN ] a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 		// pendant le hack comme un unique pas de physique géant.

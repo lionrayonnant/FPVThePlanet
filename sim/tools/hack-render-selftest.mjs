@@ -75,13 +75,36 @@ await t('#33 : Échap abandonne et rend { aborted: true }', async () => {
 	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0, 'écran encore monté');
 });
 
+// La raison d'être du chantier : le bug de l'issue #33 vivait précisément
+// PENDANT le chargement ('hold'), avant que [ JACK IN ] ne soit armé — un
+// `ready` qui ne se résout jamais garde le hack coincé là, exactement comme
+// un terrain qui met du temps à charger derrière l'écran en jeu réel.
+await t('#33 : Échap AVANT l\'armement (pendant le chargement) abandonne déjà', async () => {
+	reset();
+	const p = runHack(dom.root, { hackType: 'GNSS SPOOF', family: 'freestyle5', ready: new Promise(() => {}) });
+	await tick();
+	assert.equal(jackIn(), undefined, 'JACK IN ne doit pas encore être monté pour ce test');
+	dom.key('Escape');
+	const out = await p;
+	assert.deepEqual(out, { aborted: true });
+	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0, 'écran encore monté');
+});
+
 await t('#33 : une double activation ne résout qu\'UNE fois', async () => {
 	const [p] = await openArmed();
+	// Compte les RÈGLEMENTS de la promesse, pas juste sa valeur : un second
+	// resolve() est silencieusement ignoré par construction, donc seul un
+	// compteur d'appels distingue « le garde a tourné une fois » de « il a
+	// tourné deux fois mais la seconde n'a rien changé ».
+	let settled = 0;
+	p.then(() => { settled++; });
 	const b = jackIn();
 	b.click();
 	b.click();
 	const out = await p;
+	await tick();
 	assert.equal(out?.aborted, undefined);
+	assert.equal(settled, 1, 'la promesse ne doit se régler qu\'une fois');
 	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0);
 });
 
