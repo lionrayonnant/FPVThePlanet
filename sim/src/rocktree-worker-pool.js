@@ -3,10 +3,19 @@
 // vol, contrairement à loadChunks() qui ne charge qu'une fois par scène —
 // créer et détruire un Worker module par nœud y dominerait le coût.
 //
-// POOL_SIZE : même ordre de grandeur que MAX_CONCURRENT (loader.js, 3) —
-// assez pour recouvrir fetch et décodage de plusieurs nœuds à la fois, pas
-// assez pour saturer le réseau ou la mémoire de plusieurs onglets.
-const POOL_SIZE = 3;
+// POOL_SIZE : 3 au départ, même ordre de grandeur que MAX_CONCURRENT
+// (loader.js) — assez pour recouvrir fetch et décodage de plusieurs nœuds à la
+// fois, pas assez pour saturer le réseau ou la mémoire de plusieurs onglets.
+//
+// Passé à 6 (#32) : avec les anneaux de LOD prolongés, une vague porte
+// beaucoup plus de nœuds, et le goulot n'est ni le réseau ni le budget de
+// build mais le DÉCODAGE (580 Kio d'ImageBitmap par nœud, dans le worker).
+// Mesuré en vol continu à 35 m/s, portée 2 km : à 3 workers la file de fetchs
+// s'accumulait jusqu'à 219 nœuds en attente et le sol manquait 0,86 % du
+// temps ; à 6, la file ne s'accumule plus du tout (0) et le manque tombe à
+// 0,44 %, pour 50 fps au lieu de 51. Monter le budget de build, lui, ne
+// changeait rien : ce n'était pas là que ça coinçait.
+const POOL_SIZE = 6;
 
 // Plafond de requêtes EN VOL par worker (#179). Sans lui, update() postait
 // tous les nœuds désirés d'un coup — 1055 messages au boot — et chaque

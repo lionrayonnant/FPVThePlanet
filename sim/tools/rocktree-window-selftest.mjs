@@ -318,4 +318,66 @@ await t('la fenêtre est un disque : un nœud dans le coin du carré de travers�
 	assert.equal(boxIntersectsDisc(edge, ORIGIN, r), true, 'une box à cheval sur le bord recoupe le disque');
 });
 
+await t('un nœud toujours désiré mais dont l\'exclude a changé est reconstruit, pas laissé tel quel (#22)', async () => {
+	// Depuis le LOD par anneaux, `exclude` dépend de la POSITION de la fenêtre :
+	// un nœud grossier n'exclut un octant que tant qu'un nœud plus fin le
+	// redessine. En volant, ce nœud fin sort du premier anneau et est libéré —
+	// si le grossier, lui, reste en place avec son ancien exclude, l'octant
+	// n'est plus dessiné par personne (trou) ; dans l'autre sens, il est
+	// dessiné deux fois (z-fight). Mesuré sur les vraies données à Paris :
+	// 70 nœuds sur 870 dérivent à chaque recentrage de 50 m.
+	let exclude = [];
+	const traverse = async () => ({ nodes: [{ ...NODE_A, exclude: [...exclude] }], radius: RADIUS });
+	const fetched = [], released = [];
+	const fetchNode = async (n) => { fetched.push({ path: n.path, exclude: n.exclude }); return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] }; };
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p, opts) => released.push([p, !!opts?.replaced]), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(fetched.map((f) => f.exclude), [[]]);
+	exclude = [3];
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	// Pas de libération SÈCHE : le mesh en place reste à l'écran jusqu'à ce que
+	// son remplaçant soit construit (sinon un anneau de sol disparaît ~1 s à
+	// chaque recentrage — mesuré en jeu : 8,17 % du sol absent à 583 ms).
+	// L'appelant reçoit le drapeau et sait que le build échangera.
+	assert.deepEqual(released, [['3060', true]], 'libération marquée « remplacement », pas une libération sèche');
+	assert.deepEqual(fetched.map((f) => f.exclude), [[], [3]], `refetché avec le nouvel exclude : ${JSON.stringify(fetched)}`);
+	// Et sans changement d'exclude, rien ne bouge : pas de churn gratuit.
+	await win.update({ lat: ORIGIN.lat + 2000 / 111320, lon: ORIGIN.lon });
+	assert.equal(fetched.length, 2, 'un exclude inchangé ne provoque aucun refetch');
+});
+
+await t('un nœud remplacé par un autre NIVEAU n\'est libéré qu\'une fois le remplaçant prêt (#32)', async () => {
+	// Le LOD par anneaux fait changer de niveau ~124 nœuds par recentrage
+	// (mesuré à Paris, portée 600 m) : le même sol passe du niveau 21 au 20,
+	// donc d'un chemin à son PARENT. Libérer l'ancien tout de suite rouvre le
+	// trou que l'échange de #31 avait fermé — sauf que là, le remplaçant n'a
+	// pas le même chemin, donc l'échange par path ne s'applique pas.
+	const PARENT = { path: '3060', epoch: 1014, imageryEpoch: null, flags: 0 };
+	const ENFANT = { path: '30601', epoch: 1014, imageryEpoch: null, flags: 0 };
+	let nodes = [ENFANT];
+	const traverse = async () => ({ nodes, radius: RADIUS });
+	let resolveFetch;
+	const fetchNode = async (n) => {
+		if (n.path === '3060') await new Promise((r) => { resolveFetch = r; });
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const released = [], ready = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: (p) => ready.push(p), onNodeReleased: (p, opts) => released.push([p, opts?.covered ? 'covered' : 'sec']), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	assert.deepEqual(ready, ['30601']);
+	// Le drone s'éloigne : le même sol passe au niveau du dessus.
+	nodes = [PARENT];
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	// La libération est MARQUÉE, pas sèche : c'est l'appelant (main.js) qui
+	// garde le mesh jusqu'à ce que sa file de builds soit vide — la fenêtre,
+	// elle, ne connaît que ses fetchs.
+	assert.deepEqual(released, [['30601', 'covered']], 'libération marquée « remplacé par un autre niveau »');
+	resolveFetch();
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(ready, ['30601', '3060'], 'le parent est arrivé');
+	// Et le nœud n'est plus compté comme chargé : s'il redevenait désiré, il
+	// serait refetché normalement.
+	assert.equal(win.pendingCount(), 0);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
