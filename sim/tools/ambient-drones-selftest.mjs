@@ -9,6 +9,12 @@
 //   node --expose-gc tools/ambient-drones-selftest.mjs
 import * as THREE from 'three';
 import { AmbientDrones } from '../src/ambient-drones.js';
+import { ambientSet, SWARM_UNIT_FAMILY, SWARM_UNIT_BUILD_FAMILY } from '../src/ambient.js';
+import { shapeOf, RECIPE_PROFILES } from '../src/drone-shape.js';
+import { buildDroneMesh } from '../src/drone-mesh.js';
+import { targetBuild } from './target-build.mjs';
+import { targetCamera } from './target-camera.mjs';
+import { PROFILES } from '../src/drone-profiles.js';
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -179,6 +185,68 @@ console.log('\nambient-drones : update() n\'alloue pas');
 		check('update() ne retient rien sur 20 000 frames', bytes < 32, `${bytes.toFixed(1)} o/frame`);
 	} else {
 		console.log('  SKIP  contrôle d\'allocation — relancer avec --expose-gc');
+	}
+	a.dispose();
+}
+
+console.log('\nambient-drones : le cluster laissé au ciel porte SA silhouette (#29)');
+{
+	// L'écart assumé de la tranche 5, et la ligne qui le porte : l'unité
+	// d'essaim laissée au ciel emprunte l'airframe d'un micro pour son BUILD
+	// (elle n'est pas dans PROFILES, donc targetBuild() n'a rien à en tirer)
+	// mais son MAILLAGE vient de sa propre recette. ambient-selftest.mjs
+	// vérifie que le modèle annonce les deux familles ; ce qui suit vérifie que
+	// l'instance en tire vraiment deux choses différentes, ce qui est le seul
+	// endroit où l'écart peut se perdre en silence.
+	const scan = { seed: 'swarm-amb', count: 4, index: 1, swarmAt: 0, swarmChance: 1 };
+	const set = ambientSet(scan);
+	const k = set.findIndex((d) => d.family === SWARM_UNIT_FAMILY);
+	check('le scan de test porte bien une unité d\'essaim', k >= 0, `${set.map((d) => d.family).join(' ')}`);
+	check('build et maillage ne viennent PAS de la même famille',
+		set[k].buildFamily === SWARM_UNIT_BUILD_FAMILY && set[k].shapeFamily === SWARM_UNIT_FAMILY);
+
+	const scene = makeScene();
+	const a = new AmbientDrones({ scene, bounds });
+	a.setScan(scan);
+	check('un maillage par ambiant', a.meshes.length === set.length, `${a.meshes.length}`);
+
+	// La preuve par la GÉOMÉTRIE, et à l'égalité exacte : on remonte les deux
+	// maillages candidats — celui de la recette swarmUnit et celui qu'on aurait
+	// eu en lisant le profil du build — avec le MÊME exemplaire et la MÊME
+	// caméra que l'instance, puis on compare au maillage réellement monté. Un
+	// seul des deux peut correspondre.
+	const build = targetBuild({ seed: set[k].buildSeed, family: set[k].buildFamily });
+	const camera = targetCamera({ seed: set[k].buildSeed, family: set[k].buildFamily });
+	const sig = (profile) => {
+		const m = buildDroneMesh(shapeOf({ profile, build, camera }), { colors: { frame: 0x808080, metal: 0x808080, prop: 0x808080, led: 0xffffff } });
+		const g = m.body.geometry;
+		g.computeBoundingSphere();
+		const out = `${g.attributes.position.count}@${g.boundingSphere.radius.toFixed(6)}`;
+		m.dispose();
+		return out;
+	};
+	const sigUnit = sig(RECIPE_PROFILES.swarmUnit);
+	const sigMicro = sig(build.profile);
+	check('les deux recettes candidates sont bien distinctes', sigUnit !== sigMicro, `${sigUnit} vs ${sigMicro}`);
+	const mounted = a.meshes[k].body.geometry;
+	mounted.computeBoundingSphere();
+	const sigMounted = `${mounted.attributes.position.count}@${mounted.boundingSphere.radius.toFixed(6)}`;
+	check('le maillage monté est CELUI de la recette swarmUnit',
+		sigMounted === sigUnit, `${sigMounted} (unit ${sigUnit}, micro ${sigMicro})`);
+	// Et l'ambiant VOLE bien sur l'airframe emprunté : masse et traînée
+	// viennent du build, pas de la recette. Les deux moitiés de l'écart, dans
+	// le même test.
+	check('mais il vole sur l\'airframe emprunté (masse du micro)',
+		Math.abs(a.model.builds[k].profile.mass / PROFILES.toothpick.mass - 1) < 0.25
+		&& a.model.builds[k].profile.family === SWARM_UNIT_BUILD_FAMILY,
+		`${a.model.builds[k].profile.family} ${a.model.builds[k].profile.mass.toFixed(3)} kg`);
+
+	// Les autres ambiants n'ont pas bougé : leur maillage vient toujours de
+	// leur propre exemplaire.
+	for (let i = 0; i < set.length; i++) {
+		if (i === k) continue;
+		check(`${set[i].family} : build et maillage restent la même famille`,
+			set[i].buildFamily === set[i].family && set[i].shapeFamily === set[i].family);
 	}
 	a.dispose();
 }

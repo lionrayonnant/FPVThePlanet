@@ -20,6 +20,75 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Essaim de drones (issue #29), tranche « apparition » : un TARGET SCAN peut
+  désormais tirer un *cluster* — un nœud de commandement et ses 6 à 12 unités —
+  avec 10 % de chance, et de façon certaine au 3e scan si les deux premiers
+  n'ont rien donné. Le cluster est toujours le signal le plus fort ; sa fiche
+  pré-hack dit `EST. MESH — MULTIPLE EMITTERS`, `(STRONGEST OF GROUP)` et
+  `COUNT UNKNOWN`, sans jamais révéler la machine ni la taille. Le tirage vit
+  sur un flux aléatoire séparé : à `swarmChance = 0` les candidats sont
+  identiques à ceux d'avant, graine par graine. La session persiste
+  `target.swarm` et `target.scan.swarmAt/swarmChance`
+  (`SESSION_SCHEMA_VERSION` passe à 3, sans migration : une session v2 n'a
+  simplement pas d'essaim). Un cluster laissé de côté vole comme UNE unité
+  ambiante. Chemin de dev : `?swarm=<n>` sur `?scene=` et `?live=`.
+
+- Essaim de drones (issue #29), tranche « apparition à l'écran » : le cluster
+  hacké vole enfin. `src/drone-shape.js` gagne deux recettes — l'unité de
+  reconnaissance 3" (carènes, caméra nue, pack 3S, antenne unique, LED forte à
+  l'arrière) et le nœud 6" que le joueur pilote (dôme de liaison, deux
+  antennes, pack 6S) — et `src/swarm-drones.js` porte l'instance : une seule
+  géométrie fusionnée et un seul matériau de corps pour toutes les unités,
+  24 draw calls à douze. L'essaim se pose au début du vol, se remet sur le
+  joueur au respawn et sur `__sim.teleport`, se tait au banc, et n'a aucun
+  effet sur le jeu. `__sim.debug().swarm` rend `{size, doctrine, raysCast,
+  blockedUnits, lagRange, drawCalls}`. `?swarm=<n>` donne maintenant vraiment
+  `n` unités — et refuse tout ce qui sort de 6..12 au lieu de le rabattre en
+  silence —, et `?family=swarmNode` ouvre un chemin de dev
+  vers le nœud sans le faire entrer dans le tirage ordinaire.
+
+- Essaim de drones (issue #29), tranche « le son » : l'essaim s'entend.
+  `src/swarm-audio.js` ne synthétise pas douze drones — douze sinus quasi
+  identiques se verrouillent en phase et donnent le son de test de synthé que
+  le projet s'interdit — mais un **chœur** : trois voix proches, réassignées en
+  continu aux trois unités les plus proches (gain, coupure, Doppler écrit à la
+  main, détune et lent wander), plus une nappe pour tout le reste, bruit
+  passe-bande étroit et trois sinus désaccordés autour de la fréquence de pale
+  moyenne. 24 nœuds, le même ordre que les ambiants ; rien au-dessus de
+  1,6 kHz, donc rien dans les 2–4 kHz où se fabrique la fatigue auditive.
+  Surtout, le budget devient **partagé et non additionné** : un bus `others`
+  (`src/audio-others.js`) reçoit ambiants et essaim et borne leur somme à
+  −12 dB sous l'`idleLevel` du joueur, quelle que soit la taille de l'essaim —
+  au prix d'environ 3 dB sur les ambiants, qui n'ont plus le plafond pour eux
+  seuls. Silence au gel de la physique et à la mort de la liaison, envoi vers
+  l'acoustique du lieu comme les ambiants.
+
+- Essaim de drones (issue #29), tranche « le modèle de vol » : `src/swarm.js`
+  fait voler la nuée sans jamais la faire traverser un mur, et **sans lancer un
+  rayon pour ça**. Le principe : là où le joueur est passé est libre par
+  construction, donc les unités volent dans son sillage — un anneau de 512
+  positions écrit toutes les 20 ms — et le pire comportement possible est « ils
+  volent en file indienne dans tes traces ». Chaque unité tient un slot
+  `(retard, latéral, vertical)` lu sur la piste et rejoint par un ressort qui
+  vit sur l'abscisse curviligne du sillage, ce qui rend le découplage
+  impossible : à marge nulle, l'unité est exactement sur la polyligne. Un
+  tourniquet de 6 rayons par frame valide les décalages latéraux, seul endroit
+  où le bâti peut mordre, et la marge s'achète **par rayon vert** et non par
+  seconde — sans quoi l'essaim se repliait en file en plein ciel sous 25 images
+  par seconde. Bornes physiques réelles : plein manche, l'essaim décroche puis
+  rattrape.
+
+- Essaim de drones (issue #29), tranche « l'essaim entoure le joueur » : les
+  doctrines étalaient jusqu'à 2 s de retard, soit 40 m de traînée à 20 m/s —
+  invisible en FPV, où l'on regarde devant. Elles étalent désormais en largeur
+  et en hauteur ce qu'elles étalaient en longueur, sans élargir d'un pouce la
+  fenêtre avant, qui extrapole du terrain non validé. Les quatre restent
+  distinctes, parce qu'elles sont le catalogue de formations à venir (#34) :
+  `column` garde sa traînée, `screen` vole en écran devant. Nouveau chemin de
+  dev `?swarm=<n>:<doctrine>` — sans lui, le tirage sur la plage 6..12 ne
+  produit jamais `wedge` ni `screen` et trois formations sur quatre restent
+  invisibles.
+
 - Piste de vol (issue #24) : une session enregistre désormais ce qu'elle a fait,
   pas seulement ses maxima — un échantillon à 5 Hz (temps, position, altitude,
   vitesse, gaz, taux de rotation), le point de départ, les captures
@@ -133,6 +202,42 @@ rapport avec les versions ci-dessous.
   de la simulation ; il tourne désormais aussi en pause, panneau de réglages
   ouvert et intro figée. Le filet anti-trou (#189) reste gelé, lui : il
   déclenche un respawn.
+
+- Essaim de drones (issue #46) : **les unités étaient trop lentes pour le nœud
+  que le joueur pilote.** `SWARM_UNIT.vMax` valait 24 m/s, et c'est ce nombre
+  qui borne la vitesse à laquelle une unité parcourt le sillage — sous le
+  plafond du `swarmNode`, mesuré au banc d'enveloppe à **33,4 m/s**, une unité
+  lisait donc le sillage moins vite que le nœud ne l'écrivait, et décrochait
+  **définitivement** au lieu de décrocher puis rattraper. `vMax` passe à 40 m/s,
+  20 % au-dessus du plafond mesuré et honnête pour un 3" de 330 g.
+
+  Monter ce nombre ne suffisait pas : le limiteur de pas **divisait** γ par deux
+  au lieu de le chercher, et la tête de lecture ne peut pas capitaliser d'avance
+  (elle est écrêtée à l'échantillon de sillage le plus récent, qui avance par
+  pas de 20 ms quelle que soit la cadence). Chaque pic de cette dent de scie
+  coûtait une demi-frame que les frames plates ne rendaient pas, si bien que le
+  mécanisme plafonnait en réalité à 0,81 × `vMax` — 32 m/s, sous les 33,4 du
+  nœud. γ est désormais cherché par dichotomie, et l'essaim suit jusqu'à 95 % de
+  sa propre vitesse maximale. Écart au slot après douze secondes à 33,4 m/s :
+  263 m avant, 2,93 m après.
+
+  La vitesse de slew de l'offset est découplée de celle de l'airframe
+  (`OFFSET_SLEW_MS`) : c'est une vitesse de **formation**, et sans ce plafond
+  plat un airframe plus rapide traverse une rue plus vite qu'il ne devrait
+  (1,54 m dans le bâti contre 0,85 m, en épingle à 60 fps). `LONG_FRAME_CEILING_M`
+  passe de 4,5 à 6 m : un airframe plus rapide creuse les transitoires de repli,
+  et 4,5 m ne laissait plus que 9 % de marge sur la mesure.
+
+- Essaim de drones (issue #29) : **on ne voyait aucun drone devant soi.** Deux
+  correctifs justes pris séparément se combinaient en porte à sens unique — le
+  plafond de marge se paie par rayon mais se reconstitue par seconde, or les
+  éclaireurs sont les seules unités testées à chaque frame, donc affamées dès
+  1,3 % de rayons bloqués ; puis, à marge nulle, le repli en file les rangeait
+  *derrière* le joueur. Ils ont maintenant leur propre sonde avant, tirée le
+  long de la tangente pure du sillage — le volume où le joueur est sur le point
+  de voler, donc l'extrapolation la plus sûre de la scène — et elle ne coûte
+  **qu'un seul rayon pour tout l'essaim**, leurs segments étant colinéaires. La
+  proportion d'unités effectivement devant le pilote passe de 2 % à 75 %.
 
 ## [0.3.0] - 2026-09-08
 

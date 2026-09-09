@@ -6,6 +6,7 @@ import {
 	VOICE, gainFor, cutoffFor, dopplerFor, bladeFreq, azimuthPan, voiceParams,
 } from './ambient-audio-model.mjs';
 import { AmbientAudio } from '../src/ambient-audio.js';
+import { _resetOthers } from '../src/audio-others.js';
 import { AUDIO } from '../src/audio.js';
 import { PROFILES } from '../src/drone-profiles.js';
 
@@ -81,9 +82,18 @@ test('voiceParams mute out sans allouer', () => {
 	assert.ok(Math.abs(out.freq / base.freq - Math.pow(2, 4 / 1200)) < 1e-9);
 });
 
+// Les trois nœuds du bus `others` (src/audio-others.js, issue #29), bâtis une
+// fois par contexte au premier branchement d'une voix.
+const BUS_NODES = 3;
+
 // ----------------------------------------------------------------- Web Audio
 // Faux contexte : compte les nœuds, garde les AudioParams, ne joue rien.
 function fakeContext() {
+	// Chaque faux contexte est un monde neuf : le bus `others` est un
+	// singleton de module (src/audio-others.js), et sans ça il resterait
+	// branché sur la destination du cas précédent — donc les nœuds du bus ne
+	// seraient comptés que dans le premier.
+	_resetOthers();
 	let created = 0;
 	const param = (v) => ({ value: v, setTargetAtTime(t) { this.value = t; }, setValueAtTime(t) { this.value = t; } });
 	// `targets` : les nœuds vers lesquels celui-ci a été branché. connect()
@@ -115,7 +125,7 @@ test('graphe : construit une fois, 6 nœuds par voix + bruit partagé, aucun nœ
 	const a = new AmbientAudio({ destination: dest, spaceInput: spaceIn });
 	a.start(ctx);
 	const after = ctx.created;
-	assert.ok(after >= 2 + 4 * 6 && after <= 2 + 4 * 6 + 3, `${after} nœuds`);
+	assert.ok(after >= 2 + 4 * 6 && after <= 2 + 4 * 6 + 3 + BUS_NODES, `${after} nœuds`);
 	const voices = [
 		{ d: 30, behind: 0, pan: 0.1, vRadial: 2, accelMag: 5, profile: PROFILES.race5 },
 		null, null, null,
@@ -156,7 +166,7 @@ test('start(ctx, dest2, space2) : override après construction sans destination'
 	const a = new AmbientAudio();
 	a.start(ctx, dest2, space2);
 	const after = ctx.created;
-	assert.ok(after >= 2 + 4 * 6 && after <= 2 + 4 * 6 + 3, `${after} nœuds`);
+	assert.ok(after >= 2 + 4 * 6 && after <= 2 + 4 * 6 + 3 + BUS_NODES, `${after} nœuds`);
 	assert.equal(a._dest, dest2);
 	assert.equal(a._spaceIn, space2);
 });

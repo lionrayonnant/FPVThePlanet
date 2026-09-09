@@ -11,6 +11,7 @@ import {
 	curveLocal, curveHeights, curveAt, derive, SAMPLES, HEIGHT_SAMPLES,
 	R_SPAWN, R_LEAVE, bubbleFor, insideBounds, outOfView, pickAnchor, validateCurve, AmbientModel,
 	attitudeFrom, tiltOf, clampTilt,
+	SWARM_UNIT_FAMILY, SWARM_UNIT_BUILD_FAMILY,
 } from '../src/ambient.js';
 import { generateTargetScan, TARGET_FAMILIES } from './target-model.mjs';
 import { targetBuild } from './target-build.mjs';
@@ -23,9 +24,11 @@ function check(label, ok, detail) {
 
 console.log('ambient: ensemble');
 {
+	// swarmChance 0 des deux côtés : un descripteur de scan sans clé d'essaim
+	// (session v2, scan de dev) se rejoue sans essaim, c'est ce qu'on compare.
 	const scan = { seed: 'set-a', count: 5, index: 2 };
 	const set = ambientSet(scan);
-	const full = generateTargetScan({ seed: 'set-a', count: 5 }).candidates;
+	const full = generateTargetScan({ seed: 'set-a', count: 5, swarmChance: 0 }).candidates;
 	check('n = count - 1', set.length === 4, `${set.length}`);
 	check('le pris est absent', set.every((d) => d.i !== 2));
 	check('familles = celles des candidats non pris',
@@ -38,9 +41,39 @@ console.log('ambient: ensemble');
 	check('jamais plus de MAX_DRONES', ambientSet({ seed: 'z', count: 5, index: 0 }).length <= MAX_DRONES);
 }
 
+console.log('\nambient: le cluster laissé de côté (issue #29)');
+{
+	// Le joueur a pris un autre signal : le cluster reste au ciel, mais comme
+	// UNE unité sur une routine ordinaire, pas comme une nuée de douze.
+	const scan = { seed: 'swarm-amb', count: 4, index: 1, swarmAt: 0, swarmChance: 1 };
+	const set = ambientSet(scan);
+	const left = set.find((d) => d.i === 0);
+	check('le cluster non pris devient un swarmUnit', left?.family === SWARM_UNIT_FAMILY, left?.family);
+	check('il emprunte un airframe existant pour son BUILD (pas de PROFILES)',
+		left?.buildFamily === SWARM_UNIT_BUILD_FAMILY, left?.buildFamily);
+	// Sa silhouette, elle, est la sienne depuis que la recette existe
+	// (src/drone-shape.js, RECIPE_PROFILES) : c'est le seul endroit où
+	// l'airframe du build et celui du maillage divergent.
+	check('mais il porte SA silhouette', left?.shapeFamily === SWARM_UNIT_FAMILY, left?.shapeFamily);
+	check('cet airframe se construit vraiment',
+		!!targetBuild({ seed: left.buildSeed, family: left.buildFamily }).profile);
+	check('les autres ambiants gardent leur famille',
+		set.filter((d) => d.i !== 0).every((d) => d.family === d.buildFamily));
+	// Et quand c'est LUI qu'on a pris, il n'y a pas d'unité au ciel.
+	const taken = ambientSet({ ...scan, index: 0 });
+	check('cluster pris → aucun swarmUnit ambiant',
+		taken.every((d) => d.family !== SWARM_UNIT_FAMILY));
+	// Sans les clés (session v2, scan de dev), aucun cluster n'est réinventé.
+	check('scan sans clé d\'essaim → aucun swarmUnit',
+		ambientSet({ seed: 'swarm-amb', count: 4, index: 1 }).every((d) => d.family !== SWARM_UNIT_FAMILY));
+}
+
 console.log('\nambient: routines');
 {
 	check('une routine par famille', TARGET_FAMILIES.every((f) => ROUTINES[f]));
+	// Le cluster laissé de côté (issue #29) : UNE unité, sur une routine
+	// ordinaire — orbite basse rapide, pas une nuée au loin.
+	check('une routine pour swarmUnit', !!ROUTINES[SWARM_UNIT_FAMILY]);
 	check('a_max(twr=2) = g·√3', Math.abs(lateralAccelMax(2) - G * Math.sqrt(3)) < 1e-9);
 	check('a_max(twr≤1) = 0', lateralAccelMax(1) === 0 && lateralAccelMax(0.5) === 0);
 
@@ -399,14 +432,17 @@ console.log('\nambient: attitude');
 	const rays = { groundBelow: () => 0, obstructionBetween: () => ({ blocked: false, span: 0 }) };
 	const cam = { fx: 0, fy: 0, fz: -1 }, player = { x: 0, y: 30, z: 0 }, wind = { x: 0, y: 0, z: 0 };
 	const SEEDS = 50, FRAMES = 600, WARMUP = 10;
-	for (const family of TARGET_FAMILIES) {
+	// swarmUnit (issue #29) est balayée comme les autres : elle n'est jamais
+	// pilotée, mais elle VOLE, et une routine invalide s'y verrait pareil.
+	for (const family of [...TARGET_FAMILIES, SWARM_UNIT_FAMILY]) {
+		const buildFamily = family === SWARM_UNIT_FAMILY ? SWARM_UNIT_BUILD_FAMILY : family;
 		let maxTilt = 0, sumTilt = 0, n = 0, born = 0;
 		for (let i = 0; i < SEEDS; i++) {
 			// Un ensemble d'UN SEUL drone de la famille : le balayage exerce la
 			// famille, pas la table des candidats d'un scan.
 			const buildSeed = `sweep::${family}::${i}`;
-			const set = [{ i: 0, id: 'x', family, buildSeed, rssiDbm: -60, mode: 'analog' }];
-			const builds = [targetBuild({ seed: buildSeed, family })];
+			const set = [{ i: 0, id: 'x', family, buildFamily, buildSeed, rssiDbm: -60, mode: 'analog' }];
+			const builds = [targetBuild({ seed: buildSeed, family: buildFamily })];
 			const m = new AmbientModel({ set, builds, bounds: bigRect, seed: buildSeed });
 			for (let f = 0; f < FRAMES; f++) {
 				m.update({ dt: 1 / 60, player, cam, fovDeg: 120, rays, top: 250, span: 400, wind });

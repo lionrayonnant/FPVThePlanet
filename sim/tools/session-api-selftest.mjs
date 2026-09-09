@@ -64,6 +64,50 @@ try {
 		s2.status === 201 && s2.body.session.seq === 2 && s2.body.session.targetSeq == null);
 	const sid2 = s2.body.session.id;
 
+	{
+		// --- l'essaim (issue #29) -------------------------------------------------
+		// Sur un opérateur À PART : les compteurs de sessions de `id` sont vérifiés
+		// plus bas, à la session près.
+		// Le serveur régénère le scan avec la chance que le client lui donne : sans
+		// elle il ne retrouverait pas le cluster que le joueur a vu.
+		const swarmOp = await call('POST', '/__operator', { name: 'apiswarm' });
+		const id = swarmOp.body.operator.id;
+		const sSwarm = await call('POST', `/__operator/${id}/sessions`, {
+			area: 'kyiv', weatherSnapshot: null,
+			targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: 1,
+		});
+		check('POST sessions : swarmChance 1 → cible cluster persistée',
+			sSwarm.status === 201
+			&& sSwarm.body.session.target.family === 'swarmNode'
+			&& sSwarm.body.session.target.hackType === 'NETWORK TAKEOVER'
+			&& sSwarm.body.session.target.classHint === 'MESH'
+			&& sSwarm.body.session.target.swarm.size >= 6
+			&& sSwarm.body.session.target.swarm.size <= 12
+			&& sSwarm.body.session.target.scan.swarmAt === 0
+			&& sSwarm.body.session.target.scan.swarmChance === 1,
+			JSON.stringify(sSwarm.body.session?.target));
+		check('POST sessions : la session porte le schéma v3',
+			sSwarm.body.session.schemaVersion === 3);
+
+		const sNoSwarm = await call('POST', `/__operator/${id}/sessions`, {
+			area: 'kyiv', weatherSnapshot: null,
+			targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: 0,
+		});
+		check('POST sessions : swarmChance 0 → aucune trace d\'essaim',
+			sNoSwarm.status === 201
+			&& sNoSwarm.body.session.target.family !== 'swarmNode'
+			&& sNoSwarm.body.session.target.swarm === null
+			&& sNoSwarm.body.session.target.scan.swarmAt === null);
+
+		for (const bad of [-0.5, 1.5, 'x']) {
+			const r = await call('POST', `/__operator/${id}/sessions`, {
+				area: 'kyiv', weatherSnapshot: null,
+				targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: bad,
+			});
+			check(`POST sessions : swarmChance ${bad} → 400`, r.status === 400, `${r.status}`);
+		}
+	}
+
 	// --- captures et élision --------------------------------------------------
 	const ph = await call('POST', `/__operator/${id}/sessions/${sid1}/photos`, PHOTO);
 	check('POST photos : accepté, et la réponse est déjà élidée',

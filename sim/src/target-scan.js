@@ -21,8 +21,11 @@ import { uiAudio } from './ui-audio.js';
 // `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
 // scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
 // alors pas de météo, le bloc CONDITIONS est simplement absent.
-export function runTargetScan(root, { seed, count, weather = null }) {
-	const scan = generateTargetScan({ seed, count });
+// `swarmChance` (issue #29): the caller computes it from the operator state
+// (the early guarantee) and it must be the SAME value it sends to the server,
+// so the screen hands it back with the choice rather than keeping it.
+export function runTargetScan(root, { seed, count, weather = null, swarmChance }) {
+	const scan = generateTargetScan({ seed, count, swarmChance });
 	const condBlock = conditionsBlock(weather);
 	const condLine = conditionsLine(weather);
 	return new Promise((resolve) => {
@@ -68,7 +71,7 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 		const finish = (index) => {
 			listNav.detach();
 			s.remove();
-			resolve({ seed: scan.seed, count: scan.count, index });
+			resolve({ seed: scan.seed, count: scan.count, index, swarmChance: scan.swarmChance, swarmAt: scan.swarmAt });
 		};
 
 		const sheet = (index) => {
@@ -85,6 +88,9 @@ export function runTargetScan(root, { seed, count, weather = null }) {
 				`LOCATION       ${d.location}`,
 				`SIGNAL         ${d.signal}`,
 				`DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}`,
+				// A cluster, and only a cluster, has a group to count — and the
+				// count is exactly what the player is not told before the hack.
+				...(d.count ? [`COUNT          ${d.count}`] : []),
 				`VIDEO          ${d.video}`,
 				`CONTROL        ${d.control}`,
 				`FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}`,

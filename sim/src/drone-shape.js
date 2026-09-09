@@ -19,13 +19,22 @@
 // caméra, fixations d'antenne — issue #283).
 
 import { PROFILES } from './drone-profiles.js';
+import { SWARM_UNIT } from './swarm.js';
 import { motorsOf } from './quad.js';
 import { armStart, plateOf } from '../tools/target-frame.mjs';
 
 const box = (role, at, size, extra = {}) => ({ kind: 'box', role, at, size, ...extra });
 const cyl = (role, at, r, h, extra = {}) => ({ kind: 'cylinder', role, at, size: [r, h], ...extra });
 
-const DUCTED = new Set(['cinewhoop', 'toothpick']);
+// Les étages de la demi-sphère du dôme. Trois : au-delà, on paie des triangles
+// pour un objet qui se lit à trente mètres.
+const DOME_SLABS = 3;
+
+const DUCTED = new Set(['cinewhoop', 'toothpick', 'swarmUnit']);
+
+// Families whose airframe is a MICRO: thin arms, no camera cage. A 3" recon
+// unit is built like a toothpick, not like a 5" freestyle.
+const MICRO = new Set(['toothpick', 'swarmUnit']);
 
 // Hauteur du plan d'hélice au-dessus du centre du corps, en mètres. Nommée
 // pour que la caméra et les pales s'y accrochent au lieu de recopier 0,020.
@@ -51,14 +60,41 @@ export const MOUNT = {
 // doit pas retomber en douce sur la silhouette.
 const DETAILS = new Set(['silhouette', 'onboard', 'portrait']);
 
+// Le donneur de HAUTEUR d'objectif d'une famille que tune-mount.mjs ne sonde
+// pas — l'outil boucle sur FAMILIES, et l'essaim (issue #29) n'y est pas. Son
+// AVANCÉE, elle, n'est pas empruntée : elle se recalcule par la règle que
+// l'outil applique lui-même, le bord avant de la plaque (−0,55·armZ).
+const MOUNT_DONOR = { swarmNode: 'heavy5', swarmUnit: 'toothpick' };
+
 // La position de l'oeil dans le repère du corps : c'est le montage mesuré, et
 // c'est la SEULE définition. La recette y pose son boîtier de caméra, la vue
 // embarquée y pose son objectif, la sonde de couverture l'y trouve — les trois
 // doivent lire le même point, sinon la borne DA ne veut plus rien dire.
 export function eyeOf(profile) {
-	const mount = MOUNT[profile.family] ?? MOUNT.freestyle5;
-	return [0, propPlaneY + mount.y, mount.z];
+	const mount = MOUNT[profile.family];
+	if (mount) return [0, propPlaneY + mount.y, mount.z];
+	const donor = MOUNT[MOUNT_DONOR[profile.family]] ?? MOUNT.freestyle5;
+	return [0, propPlaneY + donor.y, -0.55 * profile.armZ];
 }
+
+// Les profils qui n'existent QUE pour la recette (issue #29) : une machine
+// peut exister pour l'oeil sans exister pour le banc. `swarmUnit` n'est pas
+// dans PROFILES — elle n'est jamais pilotée, donc elle n'a ni PID ni tune —
+// mais shapeOf() prend un profil et non un nom de famille, donc il suffit de
+// lui en tendre un. Les dimensions viennent de SWARM_UNIT (src/swarm.js), la
+// seule définition ; `cells` remplace le pack du build, que cette machine
+// n'a pas (voir shapeOf).
+export const RECIPE_PROFILES = {
+	swarmUnit: {
+		family: SWARM_UNIT.family,
+		mass: SWARM_UNIT.mass,
+		armX: SWARM_UNIT.armX,
+		armZ: SWARM_UNIT.armZ,
+		propRadius: SWARM_UNIT.propRadius,
+		bladeCount: SWARM_UNIT.bladeCount,
+		cells: 3,
+	},
+};
 
 // Le planform d'une pale (issue #283) : les stations d'emplanture en bout,
 // chacune avec son bord d'attaque et son bord de fuite, en coordonnées LOCALES
@@ -114,7 +150,7 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	const { family, armX, armZ, propRadius, bladeCount, mass } = profile;
 	const parts = [];
 	const heavy = family === 'heavy5';
-	const micro = family === 'toothpick';
+	const micro = MICRO.has(family);
 
 	// Le châssis de l'exemplaire (issue #285) : la silhouette ne le lit pas.
 	const frame = onboard ? build.frame ?? null : null;
@@ -230,8 +266,11 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	// tools/tune-mount.mjs (bloc MOUNT ci-dessus).
 	if (!lensView) parts.push(box('camera', eyeOf(profile), [0.019, 0.019, 0.010], { rotX: camera.uptiltDeg * Math.PI / 180 }));
 
+	// Le pack de l'exemplaire, ou celui de la recette quand la machine n'a pas
+	// d'exemplaire du tout (issue #29 : swarmUnit emprunte un build, pas une
+	// batterie). Aucune famille de PROFILES ne porte `cells` à la racine.
+	const cells = profile.cells ?? build.spec.cells;
 	// Batterie sur le dessus : 20 mm par cellule.
-	const cells = build.spec.cells;
 	if (!lensView) parts.push(box('battery', [0, 0.008 + 0.0125, 0], [0.035, 0.025, 0.020 * cells]));
 	// Sa sangle, qui fait le tour du pack (#284, `portrait`) : une bande à
 	// peine plus large que lui, au milieu de sa longueur.
@@ -242,12 +281,29 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 		parts.push(box('sticker', [0, 0.008 + 0.025 + 0.0006, 0.010 + 0.007 * cells], [0.024, 0.0012, 0.014]));
 	}
 
+	// Le dôme de liaison du nœud d'essaim (issue #29), posé sur le pack : c'est
+	// LA pièce qui le distingue d'un 6" ordinaire, et la seule que la nuée voie
+	// de loin. Une demi-sphère basse résolution, empilée en cylindres — le
+	// maillage ne connaît pas la sphère et ne change pas (spec « Le maillage »),
+	// et le fil de fer sait déjà tracer un cylindre. Rôle inconnu de
+	// MATERIAL_OF : il sort en carbone, ce qu'un radome est.
+	if (!lensView && family === 'swarmNode') {
+		const domeR = 0.030, domeH = 0.022, base = 0.008 + 0.025;
+		for (let i = 0; i < DOME_SLABS; i++) {
+			const h = domeH / DOME_SLABS;
+			const t = (i + 0.5) / DOME_SLABS;                 // hauteur relative du milieu de l'étage
+			parts.push(cyl('dome', [0, base + (i + 0.5) * h, 0], domeR * Math.sqrt(1 - t * t), h));
+		}
+	}
+
 	// GoPro : toujours sur le cinewhoop ; sur un freestyle/heavy lourd.
 	// heavyBuild compare la masse de l'exemplaire à la masse NOMINALE de la
 	// famille (PROFILES[family].mass), pas à la masse du build lui-même — voir
 	// la NOTE du brief : build.variation est l'amplitude de tirage, pas le
 	// ratio de masse tiré.
-	const heavyBuild = mass > 1.05 * PROFILES[family].mass;
+	// `PROFILES[family]` est absent des familles recette-seule (swarmUnit) : elles
+	// n'ont pas de nominal auquel se comparer, donc aucun exemplaire n'est lourd.
+	const heavyBuild = mass > 1.05 * (PROFILES[family]?.mass ?? Infinity);
 	if (!lensView && (family === 'cinewhoop' || ((family === 'freestyle5' || heavy) && heavyBuild))) {
 		parts.push(box('gopro', [0, 0.008 + 0.025 + 0.0125, -0.35 * armZ], [0.040, 0.025, 0.030]));
 		// De près, une GoPro a un objectif (issue #285) : un cylindre sombre
@@ -257,7 +313,7 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	}
 
 	// Antennes à l'arrière ; deux sur le long range.
-	const nAnt = lensView ? 0 : family === 'longrange' ? 2 : 1;
+	const nAnt = lensView ? 0 : (family === 'longrange' || family === 'swarmNode') ? 2 : 1;
 	for (let i = 0; i < nAnt; i++) {
 		const x = nAnt === 2 ? (i === 0 ? -0.02 : 0.02) : 0;
 		parts.push(cyl('antenna', [x, 0.03, 0.5 * armZ], 0.0015, 0.060, { rotX: -Math.PI / 6 }));
@@ -267,7 +323,11 @@ export function shapeOf({ profile, build, camera, detail = 'silhouette' }) {
 	}
 
 	// LED à l'arrière.
-	if (!lensView) parts.push({ kind: 'point', role: 'led', at: [0, 0.004, 0.55 * armZ], size: [0.004] });
+	// L'unité d'essaim porte une LED FORTE (issue #29) : c'est sa seule lumière,
+	// et c'est elle qui fait lire douze machines comme une formation. Le
+	// billboard tire sa taille écran de `uMinPx` (src/drone-mesh.js) et non de
+	// cette dimension — celle-ci dit l'intention, swarm-drones.js la sert.
+	if (!lensView) parts.push({ kind: 'point', role: 'led', at: [0, 0.004, 0.55 * armZ], size: [family === 'swarmUnit' ? 0.007 : 0.004] });
 	// La barre de LED sur le bord arrière de la plaque (#284, `portrait`) :
 	// de près, le point qui strobe ne suffit pas, on voit le bandeau.
 	if (portrait) parts.push(box('ledbar', [0, 0, 0.55 * armZ + 0.002], [0.024, 0.005, 0.004]));

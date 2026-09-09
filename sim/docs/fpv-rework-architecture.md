@@ -323,5 +323,7 @@ par distraction :
 - **Direction artistique** : `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md`
 - **Roadmap** : `sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md`
 - **Ce document** : la traduction de l'une dans l'autre, côté code.
+- **Schémas** : `sim/docs/architecture-diagrams.md` — la même chose en Mermaid
+  (boucle de jeu, carte d'exécution, terrain, pile de vol, persistance).
 - **Suivi** : issues `PHASE 00` → `PHASE 25` sur le Project 2, label `roadmap-da`,
   milestones `P0` → `P3`.
