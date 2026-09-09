@@ -72,17 +72,64 @@ import { PROFILES } from './drone-profiles.js';
 // tune (spec: "une recette géométrique et des constantes cinématiques dans
 // src/swarm.js"). These are those constants.
 //
-// A 3" recon quad, ~330 g, ducted, nervous: twr ~5 and vMax ~24 m/s. The body
+// A 3" recon quad, ~330 g, ducted, nervous: twr ~5 and vMax 40 m/s. The body
 // drag is the toothpick's scaled by frontal area — same open-air coefficient
 // per unit of area, a bigger airframe. (0.027/0.038)^2 = 0.505 on the arm span.
+//
+// WHY vMax IS 40 AND NOT 24. `vMax` is not decoration: SPEED_MAX below is
+// exactly it, and SPEED_MAX caps the rate at which a unit's reading head walks
+// the wake (`_fly`: `cap = SPEED_MAX / speed`, `speed` being the NODE's own
+// speed where the head is reading). A unit whose vMax is below the node's top
+// speed therefore reads the wake slower than the node writes it, for as long
+// as the node keeps flying — the swarm does not fall behind and catch up, it
+// falls behind and stays there.
+//
+// The node's top speed is MEASURED, not read off its profile. swarmNode
+// (drone-profiles.js: 0.95 kg, 6S, four 10.5 N motors, TWR 4.5) flown headless
+// in an empty world at full throttle on a held attitude, the flight-envelope
+// bench of tools/selftest.mjs with no scene under it:
+//
+//     45 deg  30.0 m/s      60 deg  31.5 m/s
+//     70 deg  32.5 m/s      80 deg  33.4 m/s   <- the ceiling
+//
+// and it is there in three seconds, not asymptotically: 29.7 m/s at t = 3 s on
+// a 45 deg dash. Angle mode, whose tilt is capped at 42 deg, still gives
+// 24.9 m/s of ground speed at full stick — which is to say the OLD vMax of 24
+// was under the node's speed in the tamest mode the sim offers, and 28 % under
+// its real ceiling. That is the report ("les drones de l'essaim sont trop
+// lents") in one number.
+//
+// 40 m/s = 144 km/h is 20 % over the measured 33.4 m/s ceiling, and it is an
+// honest number for the airframe: a 330 g 3" on 4S/6S race motors does 130 to
+// 160 km/h in level flight. The margin is what turns a permanent stall back
+// into a transient one (measured below in tools/swarm-selftest.mjs: a 20 ->
+// 33 m/s punch still stretches the swarm ~7 m off its slots, and it closes).
+//
+// twr STAYS AT 5. It was swept against 6 over the same flights and changed
+// nothing measurable: along the track a unit is governed by the reading head's
+// spring and its SPEED cap, not by ACCEL_MAX, which only ever bounds the
+// OFFSET dynamics — and 5:1 already gives 48.1 m/s2 of lateral acceleration
+// against the node's 43.0. Likewise maxOmega, which is not a speed but the
+// blade rate the audio is built on (0.55 * maxOmega * bladeCount / 2π =
+// 1.10 kHz, and the discipline forbids energy in 2-4 kHz): 4200 rad/s is
+// 40 100 rpm, already race-3" territory, so a faster unit does not need a
+// faster prop and swarm-audio.js is untouched. And bodyDrag is per FRONTAL
+// AREA: the airframe did not get cleaner, it got more power, so the same
+// coefficient stands. At 40 m/s it leans the unit 24 deg, well under the
+// 70 deg clamp.
 const TOOTHPICK = PROFILES.toothpick;
 const DRAG_AREA_SCALE = (0.027 / 0.038) ** 2;
+
+// The measured ceiling of the machine the swarm follows — see above. Exported
+// so the selftest asserts the margin against a number with a provenance
+// instead of against a literal nobody can re-derive.
+export const NODE_TOP_SPEED_MS = 33.4;
 
 export const SWARM_UNIT = {
 	family: 'swarmUnit',
 	mass: 0.33,
 	twr: 5,
-	vMax: 24,
+	vMax: 40,
 	propRadius: 0.038,
 	bladeCount: 3,
 	armX: 0.027,
@@ -97,7 +144,9 @@ export const SWARM_UNIT = {
 
 // What the airframe can actually do. A unit cannot follow faster than the
 // machine flies: full stick and the swarm falls behind, then catches up. That
-// is the sensation the spec asks for, and it is nothing but these two numbers.
+// is the sensation the spec asks for, and it is nothing but these two numbers
+// — and the catching up only exists because vMax is over the node's own
+// ceiling, which is the whole reason it is 40 and not 24 (see above).
 export const ACCEL_MAX = lateralAccelMax(SWARM_UNIT.twr);   // 48.1 m/s^2
 export const SPEED_MAX = SWARM_UNIT.vMax;
 
@@ -352,6 +401,27 @@ const CEIL_RECOVER_PER_S = 0.2;
 // How fast the offset ENVELOPE closes, in metres per second. As fast as the
 // airframe flies and no faster: the fold is a flight, never a snap.
 const MAX_RADIUS_FALL = SWARM_UNIT.vMax;
+
+// How fast a unit may SLEW its offset — cross the corridor to the other side
+// of the track, chase a vertical target — in metres per second. It is NOT the
+// airframe's top speed, and tying it to one was a mistake that only stayed
+// invisible while the two numbers happened to be equal.
+//
+// It is a FORMATION rate, and the whole penetration matrix of
+// tools/swarm-selftest.mjs is calibrated on it: every accepted figure in that
+// file was measured with the offsets slewing at 24 m/s. Reading it off
+// SWARM_UNIT.vMax meant that raising the airframe's top speed — a change about
+// how fast the swarm can FOLLOW — silently widened how fast it may CROSS A
+// STREET, and the matrix went from 0.00 m to 0.57 m inside a building at
+// 22 m/s and 60 fps.
+//
+// 24 m/s is not tight: the widest doctrine asks for +-12 m of lateral offset,
+// so the full width of the envelope is crossed in one second, while the
+// doctrine's own spring (tau up to 0.80 s) takes some two and a half to settle
+// there. The slew is therefore never what the swarm's shape is waiting on —
+// it is only a ceiling on how fast geometry the rays have not re-authorised
+// can be re-entered, which is exactly what it should be.
+const OFFSET_SLEW_MS = 24;
 
 // Short-range separation so units do not stack: 1.5 m, and at N <= 12 that is
 // at most 66 pairs.
@@ -956,24 +1026,6 @@ export class SwarmModel {
 		const aN = dx * this._frame[f + 3] + dy * this._frame[f + 4] + dz * this._frame[f + 5];
 		const aB = dx * this._frame[f + 6] + dy * this._frame[f + 7] + dz * this._frame[f + 8];
 
-		// The offset: three critically damped springs on three scalars.
-		const oT0 = this._o[o], oN0 = this._o[o + 1], oB0 = this._o[o + 2];
-		let acT = om * om * (this._ot[o] - oT0) - 2 * om * this._ov[o] + aT;
-		let acN = om * om * (this._ot[o + 1] - oN0) - 2 * om * this._ov[o + 1] + aN;
-		let acB = om * om * (this._ot[o + 2] - oB0) - 2 * om * this._ov[o + 2] + aB;
-		const an = Math.hypot(acT, acN, acB);
-		if (an > ACCEL_MAX) { const g = ACCEL_MAX / an; acT *= g; acN *= g; acB *= g; }
-		let ovT = this._ov[o] + acT * dt, ovN = this._ov[o + 1] + acN * dt, ovB = this._ov[o + 2] + acB * dt;
-		const ovn = Math.hypot(ovT, ovN, ovB);
-		if (ovn > SPEED_MAX) { const g = SPEED_MAX / ovn; ovT *= g; ovN *= g; ovB *= g; }
-		let oT = oT0 + ovT * dt, oN = oN0 + ovN * dt, oB = oB0 + ovB * dt;
-		// The radius the margin bought, and not a centimetre more.
-		const orad = Math.hypot(oT, oN, oB);
-		if (orad > this._maxR[k]) {
-			const g = orad > 1e-12 ? this._maxR[k] / orad : 0;
-			oT *= g; oN *= g; oB *= g;
-		}
-
 		// The reading head: a critically damped spring on a scalar whose target
 		// advances at one second per second. Capped so the unit never reads the
 		// wake faster than the airframe could fly it — that cap, and nothing
@@ -1009,6 +1061,70 @@ export class SwarmModel {
 		const floor = this._oldestT();
 		let pinned = false;
 		if (this._count > 0 && sNew < floor) { sNew = floor; pinned = true; }
+
+		// The offset: three critically damped springs on three scalars.
+		const oT0 = this._o[o], oN0 = this._o[o + 1], oB0 = this._o[o + 2];
+		let acT = om * om * (this._ot[o] - oT0) - 2 * om * this._ov[o] + aT;
+		let acN = om * om * (this._ot[o + 1] - oN0) - 2 * om * this._ov[o + 1] + aN;
+		let acB = om * om * (this._ot[o + 2] - oB0) - 2 * om * this._ov[o + 2] + aB;
+		const an = Math.hypot(acT, acN, acB);
+		if (an > ACCEL_MAX) { const g = ACCEL_MAX / an; acT *= g; acN *= g; acB *= g; }
+		let ovT = this._ov[o] + acT * dt, ovN = this._ov[o + 1] + acN * dt, ovB = this._ov[o + 2] + acB * dt;
+		// THE OFFSET'S SHARE OF THE AIRFRAME, not the whole airframe. A unit's
+		// world velocity is the wake point's velocity plus the offset's: it
+		// rides the track at the rate the reading head just took, and swings
+		// about that. Clamping the offset at SPEED_MAX alone therefore
+		// authorised a TOTAL of track speed + SPEED_MAX — 46 m/s for a unit at
+		// 22 m/s, on an airframe that flies 24.
+		//
+		// The head is resolved FIRST, just above, precisely so this can be the
+		// remainder of a single budget rather than a second helping of it:
+		// following the node has priority, the formation gets what is left.
+		// Two things fall out of that order. The γ back-off at the bottom of
+		// this method almost never fires any more — it used to fire on EVERY
+		// frame above 33 m/s, where the head alone already spends the whole
+		// airframe, and halving γ halves the head advance, which is how a
+		// swarm that could fly 40 m/s came apart following a node at 33.4
+		// (15.1 m off slot, all of it head lag, against 0.96 m at 32). And the
+		// swarm narrows as it goes fast instead of breaking up, which is what
+		// a real formation does.
+		//
+		// It was invisible while vMax was 24, because what the offset could
+		// spend was capped by the envelope long before it was capped by this
+		// line. Raising vMax to 40 handed the same line 40 m/s of sideways
+		// swing in a 10 m street, and a hairpin — where the track frame turns
+		// over, so the doctrine's side swaps and the offset target crosses the
+		// street — put a unit 0.57 m inside a building at 22 m/s AND 60 fps.
+		// Measured in three ways: with the head cap pinned back to 24 and this
+		// line left at 40 it still went 0.58 m in (so the reading head is not
+		// the mechanism), and with this line pinned to 24 and the head left at
+		// 40 the whole matrix came back to 0.00 m (so this line is).
+		//
+		// So it is spent as a budget: what the airframe has left after
+		// following the track. Floored at zero rather than at some minimum —
+		// a unit the node has outrun keeps the offset it has and the ENVELOPE
+		// still collapses it (MAX_RADIUS_FALL, applied to the position below),
+		// so the fold never depends on this budget being non-zero.
+		//
+		// And under OFFSET_SLEW_MS as well, because the budget alone is not
+		// enough: it is loosest exactly where it must not be. In a hairpin the
+		// reading head falls behind, `_sv` drops under 0.73, and the budget
+		// opens back past 24 m/s on the one frame the doctrine's side swaps —
+		// 0.19 m inside a building at 22 m/s and 60 fps with only the budget
+		// in place, against 0.00 m with a flat 24.
+		const track = ((sNew - this._s[k]) / dt) * speed;
+		let ovMax = SPEED_MAX > track ? SPEED_MAX - track : 0;
+		if (ovMax > OFFSET_SLEW_MS) ovMax = OFFSET_SLEW_MS;
+		const ovn = Math.hypot(ovT, ovN, ovB);
+		if (ovn > ovMax) { const g = ovn > 1e-12 ? ovMax / ovn : 0; ovT *= g; ovN *= g; ovB *= g; }
+		let oT = oT0 + ovT * dt, oN = oN0 + ovN * dt, oB = oB0 + ovB * dt;
+		// The radius the margin bought, and not a centimetre more.
+		const orad = Math.hypot(oT, oN, oB);
+		if (orad > this._maxR[k]) {
+			const g = orad > 1e-12 ? this._maxR[k] / orad : 0;
+			oT *= g; oN *= g; oB *= g;
+		}
+
 
 		// Place it; and if a frame's worth of movement asks more of the
 		// airframe than it has, walk the whole step back rather than break the
