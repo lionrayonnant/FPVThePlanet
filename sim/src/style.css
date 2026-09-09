@@ -1620,3 +1620,29 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	letter-spacing: var(--track-ui);
 	margin: var(--space-4) 0 var(--space-2);
 }
+
+/* ===== ENRICHED MAP (issue #25) ============================================
+   One block, at the end of the file, so it merges cleanly against the DATA tab
+   branch. The enriched overlay is the map showing what the operator left in the
+   world: quiet ink, no permanent cyan or magenta (Bible §38), nothing that
+   reads as a dashboard widget (§37). */
+
+/* The toggle: top right, on the same scrim and the same `sc-switch`
+   typography as the layer and detail switches top left. */
+.map-mono .sc-enriched-controls { align-items: flex-end; }
+.map-mono .sc-map-controls .sc-enriched-switch { display: flex; white-space: nowrap; }
+
+/* The overlay canvas never takes the pointer: hit testing goes through the
+   map's own events, so a drag started over a track still pans. */
+.map-mono canvas.map-tracks { pointer-events: none; }
+
+/* The date a loss carries on hover. Positioned by transform from the layer,
+   in the overlay pane, so it travels with the map. */
+.map-mono .map-tracks-tip {
+	position: absolute; top: 0; left: 0;
+	padding: 1px var(--space-1);
+	background: var(--scrim);
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui); white-space: nowrap;
+}

@@ -97,6 +97,14 @@ rapport avec les versions ci-dessous.
   retenues par opérateur. Nouvelles routes `PUT`/`GET
   /__operator/:id/sessions/:sid/track` et `GET /__operator/:id/tracks?bbox=`
   (index décimé pour la carte) ; les sessions rendues portent `hasTrack`.
+- Carte enrichie (issue #25) : une bascule `ENRICHED` en haut à droite du GLOBAL
+  SCANNER pose sur la carte ce que l'opérateur y a laissé — les traces de vol en
+  polylignes fines et sans couleur par vol, les captures en petits carrés qui
+  deviennent des vignettes à partir du zoom 16, et une croix à chaque perte de
+  liaison, datée au survol et regroupée avec un compteur tant que deux croix
+  tombent à moins de 20 px. Tout est cliquable vers la fiche de session
+  existante. Éteinte, la carte est exactement celle d'avant et n'émet aucune
+  requête ; l'état est retenu dans les réglages de l'opérateur.
 
 - `ARCHIVE` devient `DATA` : une page qui défile, neuf sections de graphes mono
   — `RHYTHM`, `LIFE`, `SPEED × ALTITUDE`, `HOW THEY DIED`, `STICKS`,
