@@ -137,8 +137,6 @@ Run `npm run selftest:ci` locally before pushing. A selftest that needs scene da
 
 `npm run selftest` and `npm run selftest:scenes` stay local: they read `sim/public/scenes/`, which is gitignored.
 
-There is no CD yet, but a build is no longer dead on its own: `sim/server/` (issue #259, tranche T1) serves `/__operator`, `/__map-api` and the `dist/` files without Vite. `sim/tools/map-api-plugin.mjs` is only the Vite adapter for it; the routes live in `sim/server/api.mjs`, and `sim/tools/lib/paths.mjs` is the single place that resolves the data directory (`FPVTP_DATA_DIR`, defaulting to today's dev paths). What still blocks a real deployment is T2-T4 of `sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md` — read it before touching `sim/server/`.
-
 Commit identity
 
 The repo is public: commits must never carry a personal address. `.githooks/pre-commit`
