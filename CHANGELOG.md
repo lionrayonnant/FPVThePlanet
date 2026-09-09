@@ -185,6 +185,19 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- L'écran de fin de vol pouvait devenir une impasse : ni Échap, ni Entrée, ni
+  le clic, ni la manette n'en sortaient (issue #20). La sortie était en fait
+  DÉJÀ partie — le geste manette « n'importe quel bouton déconnecte » (#123)
+  la déclenchait dès l'armement — et elle ne revenait jamais : `finishSession()`
+  posait son verrou d'idempotence AVANT les deux actes qui peuvent ne pas
+  aboutir, un `flush()` réseau et la navigation. Le `catch` du flush ne voit
+  qu'un rejet, jamais une promesse qui ne s'installe pas, et rien ne relevait
+  le verrou : tout geste ultérieur ressortait en silence. Le verrou et ces deux
+  actes vivent désormais dans `src/flight-exit.js`, pur et couvert par
+  `tools/flight-exit-selftest.mjs` : le flush a un plafond (1,5 s), et une
+  navigation qui n'a pas emporté la page rend le geste au joueur au bout de
+  3 s plutôt que de condamner l'écran.
+
 - Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de
   vol (régression du LOD par anneaux, #22). Depuis ce LOD, l'`exclude` d'un
   nœud — les octants qu'un nœud plus fin redessine à sa place — dépend de la

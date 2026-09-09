@@ -231,9 +231,9 @@ export async function listTracks(bbox = null) {
 
 export function operatorBase() { return OP_BASE; }
 
-// Combien d'écritures attendent encore leur PATCH. Diagnostic seulement
-// (`__sim.endState()`, #20) : une sortie de vol qui pend dans flush() ne dit
-// pas d'elle-même si elle avait quelque chose à envoyer.
+// How many writes are still waiting for their PATCH. Diagnostic only
+// (`__sim.endState()`, #20): an exit that hangs in flush() cannot say on its
+// own whether it had anything to send.
 export function pendingCount() { return pending.size; }
 
 export async function flush() {
