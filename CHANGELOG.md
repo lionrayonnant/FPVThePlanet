@@ -121,6 +121,31 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- Essaim de drones (issue #46) : **les unités étaient trop lentes pour le nœud
+  que le joueur pilote.** `SWARM_UNIT.vMax` valait 24 m/s, et c'est ce nombre
+  qui borne la vitesse à laquelle une unité parcourt le sillage — sous le
+  plafond du `swarmNode`, mesuré au banc d'enveloppe à **33,4 m/s**, une unité
+  lisait donc le sillage moins vite que le nœud ne l'écrivait, et décrochait
+  **définitivement** au lieu de décrocher puis rattraper. `vMax` passe à 40 m/s,
+  20 % au-dessus du plafond mesuré et honnête pour un 3" de 330 g.
+
+  Monter ce nombre ne suffisait pas : le limiteur de pas **divisait** γ par deux
+  au lieu de le chercher, et la tête de lecture ne peut pas capitaliser d'avance
+  (elle est écrêtée à l'échantillon de sillage le plus récent, qui avance par
+  pas de 20 ms quelle que soit la cadence). Chaque pic de cette dent de scie
+  coûtait une demi-frame que les frames plates ne rendaient pas, si bien que le
+  mécanisme plafonnait en réalité à 0,81 × `vMax` — 32 m/s, sous les 33,4 du
+  nœud. γ est désormais cherché par dichotomie, et l'essaim suit jusqu'à 95 % de
+  sa propre vitesse maximale. Écart au slot après douze secondes à 33,4 m/s :
+  263 m avant, 2,93 m après.
+
+  La vitesse de slew de l'offset est découplée de celle de l'airframe
+  (`OFFSET_SLEW_MS`) : c'est une vitesse de **formation**, et sans ce plafond
+  plat un airframe plus rapide traverse une rue plus vite qu'il ne devrait
+  (1,54 m dans le bâti contre 0,85 m, en épingle à 60 fps). `LONG_FRAME_CEILING_M`
+  passe de 4,5 à 6 m : un airframe plus rapide creuse les transitoires de repli,
+  et 4,5 m ne laissait plus que 9 % de marge sur la mesure.
+
 - Essaim de drones (issue #29) : **on ne voyait aucun drone devant soi.** Deux
   correctifs justes pris séparément se combinaient en porte à sens unique — le
   plafond de marge se paie par rayon mais se reconstitue par seconde, or les

@@ -421,7 +421,10 @@ const MAX_RADIUS_FALL = SWARM_UNIT.vMax;
 // there. The slew is therefore never what the swarm's shape is waiting on —
 // it is only a ceiling on how fast geometry the rays have not re-authorised
 // can be re-entered, which is exactly what it should be.
-const OFFSET_SLEW_MS = 24;
+//
+// Exported so tools/swarm-selftest.mjs can state the property in terms of the
+// constant rather than of the number 24.
+export const OFFSET_SLEW_MS = 24;
 
 // Short-range separation so units do not stack: 1.5 m, and at N <= 12 that is
 // at most 66 pairs.
@@ -1130,13 +1133,73 @@ export class SwarmModel {
 		// airframe than it has, walk the whole step back rather than break the
 		// description: γ scales the advance of BOTH the head and the offset, so
 		// the unit is exactly `anchor(s) + frame(s)·o` at every γ.
-		let gamma = 1, ok = false;
-		for (let i = 0; i < 8 && !ok; i++) {
-			this._place(k, this._s[k] + gamma * (sNew - this._s[k]),
-				oT0 + gamma * (oT - oT0), oN0 + gamma * (oN - oN0), oB0 + gamma * (oB - oB0), fence);
-			const step = Math.hypot(this._trial[0] - px, this._trial[1] - py, this._trial[2] - pz);
-			ok = step <= SPEED_MAX * dt + 1e-9;
-			if (!ok && i < 7) gamma *= 0.5;
+		//
+		// γ IS SEARCHED, NOT HALVED. The first version tried 1, then 1/2, then
+		// 1/4: when a frame asked for 1 % more than the airframe has, it took
+		// HALF the advance it was allowed. That is not conservatism, it is a
+		// leak, and it is the mechanism that made the swarm come apart just
+		// under its own top speed.
+		//
+		// It leaks because the reading head cannot bank. `sNew` is clamped to
+		// the newest wake sample, which advances in WAKE_DT_S steps whatever
+		// the frame rate is, so a unit reading near the head gets a SAWTOOTH
+		// demand: nothing on the frames between two writes, a whole sample's
+		// worth on the frame after one. The average is the node's speed and
+		// fits inside SPEED_MAX; the peak does not, and every peak used to
+		// cost half a frame of advance that the flat frames could not give
+		// back — the head simply is not allowed to run ahead. The deficit
+		// therefore accumulates for as long as the node keeps flying.
+		//
+		// Measured, twelve seeds x sizes 6/9/12 x 30/60/120 fps, straight and
+		// level in clear sky, worst off-slot after twenty seconds:
+		//
+		//     node speed     halving        bisection
+		//     30 m/s          2.47 m          2.47 m
+		//     33.4 m/s       59.28 m          2.59 m   <- the node's ceiling
+		//     36 m/s        114.95 m          2.91 m
+		//     38 m/s        140.40 m          3.57 m
+		//     39 m/s        178.73 m         12.64 m
+		//
+		// So the honest ceiling of the mechanism was 0.81 x SPEED_MAX, not
+		// SPEED_MAX — 32 m/s on a 40 m/s airframe, under the node's own
+		// 33.4 — and raising vMax alone would only have moved that number, not
+		// made it true. Searched, the swarm follows to 95 % of SPEED_MAX and
+		// degrades past it, which is what a speed cap should look like.
+		//
+		// Bisection is safe even though the step is not monotone in γ on a
+		// curved wake: only a γ whose step was actually MEASURED under the cap
+		// is ever kept, so a non-monotone bracket costs accuracy, never
+		// safety. Seven halvings of the bracket put γ within 1/128 of the
+		// largest admissible one, for one _place() call more than before in
+		// the only case that pays for it.
+		const stepCap = SPEED_MAX * dt + 1e-9;
+		const fits = (g) => {
+			this._place(k, this._s[k] + g * (sNew - this._s[k]),
+				oT0 + g * (oT - oT0), oN0 + g * (oN - oN0), oB0 + g * (oB - oB0), fence);
+			return Math.hypot(this._trial[0] - px, this._trial[1] - py, this._trial[2] - pz) <= stepCap;
+		};
+		let gamma = 1, ok = fits(1);
+		if (!ok) {
+			// `lo` is the largest γ measured to fit, `hi` the smallest measured
+			// not to. γ = 0 fits trivially — the unit does not move — so `lo`
+			// is only ever left at 0 when even 1/128 of the step is too much,
+			// which is the tail discontinuity: the ANCHOR itself jumped, and
+			// no γ walks that back.
+			let lo = 0, hi = 1;
+			for (let i = 0; i < 7; i++) {
+				const mid = (lo + hi) / 2;
+				if (fits(mid)) lo = mid; else hi = mid;
+			}
+			ok = lo > 0;
+			// And in THAT case the unit is placed at `hi` and handed to the
+			// position clamp below, exactly as the halving loop used to leave
+			// it at its last probe. Placing it at γ = 0 instead deadlocks it:
+			// the clamp rescales a step, so a zero-length step gives it no
+			// direction, the unit stops dead, and `sNew` stays out of reach
+			// for every frame after — measured, a wedge froze at a right-angle
+			// corner and was 59 m behind ten seconds later.
+			gamma = ok ? lo : hi;
+			fits(gamma);   // leaves _trial (and _anchor, _frame) on the γ we keep
 		}
 		// γ cannot walk back the tail discontinuity (the position is the same
 		// for every γ once the head is pinned), so the limiter is skipped

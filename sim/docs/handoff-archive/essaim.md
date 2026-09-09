@@ -57,7 +57,8 @@ aucun rayon**.
 Les accélérations sont bornées par le TWR réel de la machine
 (`a_max = g·√(twr² − 1)`). Plein manche, l'essaim décroche puis rattrape : c'est
 physique, pas scripté. Le plafond de sensation est `SPEED_MAX = SWARM_UNIT.vMax`
-= 24 m/s — au-delà l'essaim décroche définitivement.
+— au-delà l'essaim décroche définitivement, et c'est exactement ce qui est
+arrivé tant que ce nombre valait 24 (voir « La vitesse des unités » plus bas).
 
 ## Le budget de rayons — 6 par frame, et ce que ça implique
 
@@ -140,6 +141,131 @@ on en voit quatre.
 Coût connu, accepté : un essaim plus large sollicite davantage le décalage
 latéral. Le solde est nettement **positif** aux cadences visées (slalom 60 fps
 1,83 → 0,88 m) et **négatif** de 0,5 à 1,0 m à 12 et 4 fps (issue #38).
+
+## La vitesse des unités (issue #46)
+
+Retour de vol du propriétaire : « les drones de l'essaim sont trop lents par
+rapport au master ». C'était un nombre, et il tenait à la phrase ci-dessus :
+`SPEED_MAX` borne la vitesse à laquelle la tête de lecture d'une unité parcourt
+le sillage. Une unité plus lente que le nœud lit donc le sillage moins vite que
+le nœud ne l'écrit, **tant que le joueur vole** : ce n'est pas un décrochage
+transitoire, c'est un décrochage permanent. `vMax` valait 24 ; le `swarmNode`
+plafonne à **33,4 m/s**, mesuré au banc d'enveloppe de `tools/selftest.mjs`
+(30,0 à 45°, 31,5 à 60°, 32,5 à 70°, 33,4 à 80°, atteint en trois secondes) et
+encore 24,9 m/s en mode angle, dont l'assiette est bridée à 42°.
+
+**`vMax` passe à 40 m/s** — 20 % au-dessus du plafond mesuré, et honnête pour
+l'airframe (un 3" de 330 g fait 130 à 160 km/h en palier). `NODE_TOP_SPEED_MS`
+est exporté pour que le selftest s'appuie sur un nombre qui a une provenance.
+`twr` reste à 5 et `maxOmega` à 4200 : balayés, sans effet mesurable, et
+`maxOmega` n'est pas une vitesse mais la fréquence de pale dont dépend le son.
+`bodyDrag` est par surface frontale : l'airframe n'est pas devenu plus propre,
+il a plus de puissance.
+
+### Ce que `vMax` seul ne suffisait pas à corriger — γ était *divisé*, pas cherché
+
+Monter `vMax` n'a pas suffi, et la raison est plus intéressante que le nombre.
+Le limiteur de pas essayait γ = 1, puis 1/2, puis 1/4 : quand une frame
+demandait 1 % de plus que ce que l'airframe a, l'unité prenait **la moitié** de
+ce à quoi elle avait droit.
+
+Ça fuit parce que **la tête de lecture ne peut pas capitaliser** : `sNew` est
+écrêté à l'échantillon de sillage le plus récent, qui avance par pas de
+`WAKE_DT_S` quelle que soit la cadence. Une unité qui lit près de la tête reçoit
+donc une demande **en dents de scie** — rien entre deux écritures, tout un
+échantillon sur la frame qui suit. La moyenne tient dans `SPEED_MAX` ; le pic
+non, et chaque pic coûtait une demi-frame d'avance que les frames plates ne
+pouvaient pas rendre. Le déficit s'accumule tant que le nœud vole.
+
+Mesuré, douze graines × tailles 6/9/12 × 30/60/120 fps, ligne droite en ciel
+clair, pire écart au slot après vingt secondes :
+
+| vitesse du nœud | γ divisé | γ cherché |
+|---|---|---|
+| 30 m/s | 2,47 m | 2,47 m |
+| **33,4 m/s** | **59,28 m** | **2,59 m** |
+| 36 m/s | 114,95 m | 2,91 m |
+| 38 m/s | 140,40 m | 3,57 m |
+| 39 m/s | 178,73 m | 12,64 m |
+
+Le vrai plafond du mécanisme était donc **0,81 × `SPEED_MAX`**, soit 32 m/s sur
+un airframe à 40 — sous les 33,4 du nœud. Monter `vMax` seul n'aurait fait que
+déplacer ce nombre. γ est maintenant **cherché par dichotomie** (sept
+bissections, γ à 1/128 près), et l'essaim suit jusqu'à 95 % de `SPEED_MAX`.
+
+Un piège dans le correctif, trouvé à la mesure : quand **aucun** γ ne convient
+— la discontinuité de queue, où c'est l'ancre elle-même qui saute — il faut
+placer l'unité au plus petit γ **essayé**, pas à γ = 0. L'écrêtage de position
+qui suit remet le pas à l'échelle : à γ = 0 il n'a aucune direction, l'unité
+s'arrête net et `sNew` reste hors de portée à chaque frame suivante. Un `wedge`
+s'est figé à un angle droit et se retrouvait 59 m derrière dix secondes plus
+tard.
+
+### `OFFSET_SLEW_MS` : l'offset slalome à une vitesse de formation
+
+`SPEED_MAX` était lu deux fois : par la tête de lecture **et** par la vitesse de
+l'offset. Un budget partagé corrige la première moitié (la vitesse monde d'une
+unité est celle du point de sillage **plus** celle de l'offset, donc écrêter
+l'offset à `SPEED_MAX` autorisait un total de 46 m/s sur un airframe qui en vole
+24). La seconde moitié demande un plafond **plat** : dans une épingle, la tête
+de lecture décroche, le budget se rouvre au-delà de 24 m/s précisément sur la
+frame où la doctrine change de côté, et l'offset traverse la rue.
+
+C'est une vitesse de **formation**, pas la vitesse de l'airframe, et toute la
+matrice de pénétration est calibrée dessus. Mesuré sur le tirage large
+(24 graines, tailles 6..12, 12/15/22 m/s, 3 024 vols par cadence) :
+
+| | avec `OFFSET_SLEW_MS` | budget seul |
+|---|---|---|
+| épingle 60 fps | 0,85 m | 1,54 m |
+| épingle 30 fps | 1,23 m | 1,80 m |
+| slalom 60 fps | 0,47 m | 0,77 m |
+| slalom 30 fps | 0,84 m | 0,83 m |
+
+Le slalom ne bouge pas, et c'est le point : le plafond de slew concerne la
+**traversée** d'une géométrie que les rayons n'ont pas ré-autorisée, et un
+slalom ne demande jamais à l'offset de traverser.
+
+### Ce que la montée de `vMax` a coûté aux constantes
+
+Comme prévu, un airframe plus rapide creuse mécaniquement les transitoires de
+repli. Sur un tirage assez large pour avoir une distribution (48 graines,
+tailles 6..12, 12/15/18/22/26/30 m/s, 4 032 vols), l'épingle sous frames de
+250 ms passe de **3,44 m** (airframe à 24) à **4,12 m** (airframe à 40), contre
+un plafond de 4,5 m : 9 % de marge, c'est-à-dire la dernière mesure avec un
+chiffre rond posé dessus — le mode d'échec que ce fichier documente déjà deux
+fois. `LONG_FRAME_CEILING_M` passe donc à **6 m**, le tiers de marge que 4,5
+avait sur 3,41 quand il a été posé.
+
+`ACCEPTED_TIGHT_M` et `ACCEPTED_WEAVE_M` restent à 1,5 m : remesurés sur le même
+tirage à 12/15/22 m/s, ils lisent 0,85 / 1,23 m (épingle) et 0,47 / 0,84 m
+(slalom) — **sous** ce qu'ils lisaient avant, pas au-dessus.
+
+Et le tirage de l'épingle aux cadences nominales passe de la rotation à huit
+graines au tirage large à 24, comme le slalom : la propriété que tient
+`OFFSET_SLEW_MS` est une propriété d'**épingle**, et la graine qui la révèle
+(`c-39`, un `wedge`) n'est pas dans les huit que cette case tirait. Une
+assertion qu'un défaut peut contourner n'est pas une assertion.
+
+### Ce qui distingue le correctif d'un essaim aimanté
+
+L'ancienne assertion « décroche puis rattrape » **passait sur le code cassé** :
+elle tenait le nœud à 34 m/s (décrochage : vrai même quand il est définitif),
+puis l'arrêtait (rattrapage : vrai parce que le nœud ne vole plus). Ce qui
+sépare les deux, c'est **rattraper pendant que le nœud est toujours à fond**.
+Sur le tirage du test (72 vols par ligne), écart au slot après douze secondes à
+33,4 m/s :
+
+| | départ 20 m/s | départ arrêté |
+|---|---|---|
+| `vMax` 24 (avant #46) | 263,51 m | 253,35 m |
+| `vMax` 40, γ divisé | 17,58 m | 32,16 m |
+| `vMax` 40, γ cherché | 2,93 m | 2,43 m |
+
+La première ligne ne se stabilise pas : elle croît tant que le nœud vole, et le
+vol n'est simplement pas assez long pour montrer jusqu'où. Plein manche coûte
+toujours 3,9 à 18,9 m d'étirement — le décrochage est bien là, il est
+redevenu **transitoire**.
 
 ## Le son : un chœur, pas douze drones
 
