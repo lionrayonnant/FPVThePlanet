@@ -1,7 +1,7 @@
 // Selftest de la bibliothèque pixel art (PHASE 20, Bible §41). Aucune E/S DOM.
 // Lancer : node tools/pixel-icons-selftest.mjs
 import assert from 'node:assert/strict';
-import { PIXEL_ICONS, ICON_NAMES, iconSVG, faviconDataURI } from '../src/pixel-icons.js';
+import { PIXEL_ICONS, ICON_NAMES, iconSVG } from '../src/pixel-icons.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -37,10 +37,6 @@ t('iconSVG : rend des rects crispEdges, pas d\'emoji', () => {
 	assert.match(svg, /<rect /);
 	assert.doesNotMatch(svg, /[\u{1F000}-\u{1FAFF}]/u);
 	assert.throws(() => iconSVG('rocket'));
-});
-
-t('faviconDataURI : data URI SVG du drone', () => {
-	assert.match(faviconDataURI(), /^data:image\/svg\+xml,/);
 });
 
 console.log(`\n${n} tests pixel-icons OK`);

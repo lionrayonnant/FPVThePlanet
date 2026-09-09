@@ -20,6 +20,18 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- La marque entre au dépôt (#58). `sim/public/brand/` porte les trois SVG —
+  `fpvtp-mark.svg` en `currentColor`, `fpvtp-icon.svg` sur son fond `--black`,
+  `fpvtp-mark-extrude.svg` pour l'extrusion — et `png/` sept tailles de 16 à
+  1024, deux fois : la marque seule et l'icône sur fond. `docs/marque.md`
+  devient la source de vérité de la géométrie, des verrouillages, de la zone de
+  respect et des interdits ; le README ouvre dessus.
+- Les fichiers arrivaient avec un manifeste de provenance C2PA d'environ 9 Ko
+  chacun — un PNG 16×16 qui pesait 6 Ko. Il est retiré sans réencoder l'image :
+  dans les PNG tous les chunks hors `IHDR`/`PLTE`/`IDAT`/`IEND`/`tRNS`, dans les
+  SVG le bloc `<metadata>` et l'attribut `xmlns:c2pa`. Les dix-sept fichiers
+  pèsent 27 Ko au lieu de 190 (#58).
+
 - Essaim de drones (issue #29), tranche « apparition » : un TARGET SCAN peut
   désormais tirer un *cluster* — un nœud de commandement et ses 6 à 12 unités —
   avec 10 % de chance, et de façon certaine au 3e scan si les deux premiers
@@ -121,6 +133,16 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- L'application prend la marque (#58). `sim/electron/build/icon.png` passe de 512
+  à 1024 px pour l'installeur NSIS et l'AppImage, et le favicon de
+  `sim/index.html` devient trois `<link>` vers `brand/png/` (16, 32, 48) au lieu
+  du data URI collé en dur. La marque est une grille de pixels : les exports
+  hintés restent nets là où un SVG rééchantillonné à 16 px ne l'est pas.
+- Les exports matriciels reviennent dans la palette : ils étaient rendus en
+  `#0a0a0a` / `#e6e3dc` quand `tokens.css` dit `--black: #0a0908` et
+  `--warm-white: #ece7dd`. Les deux couleurs sont échangées à l'identique plutôt
+  que l'image re-rastérisée, pour ne pas perdre le hinting (#58).
+
 - La fiche pré-hack du `TARGET SCAN` disparaît en tant qu'écran : ce qu'elle
   portait tient sur la ligne du signal, qui gagne le device à côté du RSSI et
   du mode vidéo — `01   -57 dBm   ANALOG   CINEWHOOP`. Activer la ligne choisit
@@ -182,6 +204,14 @@ rapport avec les versions ci-dessous.
   6,03/6,13 % à 5,67/5,67 % sur deux paires de passes, la moyenne reste dans
   le bruit (1,21/1,67 % contre 1,48/0,99 %). Le mécanisme supprime une classe
   de trous par construction ; son gain chiffré est faible.
+
+### Retiré
+
+- `faviconDataURI()` de `src/pixel-icons.js` : le favicon ne vient plus du drone
+  pixel art. L'option `background` d'`iconSVG()` part avec lui — elle n'existait
+  que pour ce data URI, qui ne voyait pas les `var(--…)` de la page. Les neuf
+  icônes elles-mêmes restent, `drone-portrait.js` et `drone-wire-svg.js` les
+  utilisent (#58).
 
 ### Corrigé
 
