@@ -185,6 +185,15 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- `main` était rouge : le retrait du CONTROL VECTOR (#33) a renommé
+  `tools/ritual-selftest.mjs` et `tools/ritual-bench.mjs` en
+  `tools/intro-primitives-*`, mais `selftest:operator` appelait toujours les
+  anciens noms. La chaîne mourait en `MODULE_NOT_FOUND` au milieu du log, après
+  plusieurs minutes, et toute PR ouverte échouait avec elle. `release-selftest`
+  — premier maillon de la chaîne — vérifie désormais que **chaque** chemin
+  `.mjs` cité par un script de `package.json` existe, et les nomme tous d'un
+  coup au lieu de laisser node buter sur le premier.
+
 - L'écran de fin de vol pouvait devenir une impasse : ni Échap, ni Entrée, ni
   le clic, ni la manette n'en sortaient (issue #20). La sortie était en fait
   DÉJÀ partie — le geste manette « n'importe quel bouton déconnecte » (#123)

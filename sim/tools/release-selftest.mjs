@@ -166,6 +166,21 @@ t('sim/package.json porte une version SemVer et le script release', () => {
 	assert.equal(lock.packages['']?.version, pkg.version);
 });
 
+t('chaque script de package.json pointe sur un fichier qui existe', () => {
+	// Un renommage qui oublie un maillon de `selftest:operator` ne se voit qu'en
+	// CI, plusieurs minutes plus tard, en MODULE_NOT_FOUND au milieu du log —
+	// c'est arrivé à `ritual-selftest.mjs`, devenu `intro-primitives-*`. Ce test
+	// ouvre la chaîne : il les nomme tous d'un coup, en une seconde.
+	const pkg = JSON.parse(fs.readFileSync(path.join(SIM_ROOT, 'package.json'), 'utf8'));
+	const missing = [];
+	for (const [name, body] of Object.entries(pkg.scripts)) {
+		for (const ref of body.match(/(?<![\w/.-])(?:tools|src|server)\/[\w./-]+\.mjs/g) || []) {
+			if (!fs.existsSync(path.join(SIM_ROOT, ref))) missing.push(`${name} -> ${ref}`);
+		}
+	}
+	assert.deepEqual(missing, [], `scripts pointant dans le vide :\n${missing.join('\n')}`);
+});
+
 t('release.mjs ne pousse rien tout seul', () => {
 	// La règle : pousser le tag déclenche la GitHub Release. Ça se décide à la main.
 	const src = fs.readFileSync(path.join(SIM_ROOT, 'tools/release.mjs'), 'utf8');
