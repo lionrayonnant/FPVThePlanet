@@ -8,7 +8,7 @@
 // désignerait plus rien de mesurable.
 //
 //   moteurs/vent/propwash/impacts → master(mute) → air(6k) ─┐
-//   SYSTEM / LINK / RITUAL ──────→ uiMaster(trim) ───────────┼→ limiteur → volume → destination
+//   SYSTEM / LINK ─────────────→ uiMaster(trim) ───────────┼→ limiteur → volume → destination
 //   MUSIQUE (issue #122) ────────→ musicMaster(vol) ─────────┘
 //
 // Quatre conséquences, toutes voulues :
