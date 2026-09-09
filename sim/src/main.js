@@ -12,7 +12,7 @@ import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
 import { bootstrap } from './bootstrap.js';
-import { operatorSelect, operatorKey, runTerminal, archiveScreen, fetchScenes } from './terminal.js';
+import { operatorSelect, operatorKey, runTerminal, dataScreen, fetchScenes } from './terminal.js';
 import { installClickFlash } from './motion.js';
 import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
@@ -2756,12 +2756,12 @@ async function chooseScene() {
 			continue;
 		}
 
-		// ARCHIVE resolves UPWARDS: a REVISIT is a flight, and it enters the
+		// DATA resolves UPWARDS: a REVISIT is a flight, and it enters the
 		// FIELD loop exactly like a choice made on the FIELD screen. Escape at
 		// the TARGET SCAN therefore falls back to FIELD, not to the logs — it
 		// is the same area, and that is where it is flown again.
-		if (mode === 'archive') {
-			const pick = await archiveLoop(ui);
+		if (mode === 'data') {
+			const pick = await dataLoop(ui);
 			if (!pick) continue;
 			const choice = await fieldLoop(ui, { quickRestart: pick });
 			if (choice) return choice;
@@ -2773,11 +2773,11 @@ async function chooseScene() {
 	}
 }
 
-// ARCHIVE from the root (D3). Yields { slug } when the operator asked to fly
+// DATA from the root (D3). Yields { slug } when the operator asked to fly
 // an area again, null when they go back up.
-async function archiveLoop(ui) {
+async function dataLoop(ui) {
 	const scenes = await fetchScenes();
-	return archiveScreen(ui, { api: operator, scenes });
+	return dataScreen(ui, { api: operator, scenes });
 }
 
 // La boucle FIELD : le jeu de la Bible, inchangé. Extraite telle quelle de

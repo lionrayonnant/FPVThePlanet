@@ -52,6 +52,22 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Vérifié
 
+- **Issue #26 — l'onglet `DATA`** (branche `feat/data-tab`) : `ARCHIVE` est
+  renommé et devient une page qui défile, neuf sections dans l'ordre de la spec
+  `docs/superpowers/specs/2026-09-08-flight-track-enriched-map-data-design.md`.
+  Toutes les séries viennent de `tools/data-model.mjs` (pur, 22 tests) et tout
+  le dessin de `src/graph.js`. `tools/data-render-selftest.mjs` fige l'ordre des
+  sections, le `NO TRACK` des trois qui ont besoin d'une piste, et le dépli des
+  cibles sous `FAMILIES` (le `TARGET LOG` a disparu en tant qu'écran).
+  `npm run selftest:ci` et `npm run build` passent.
+  - **Non vérifié** : le rendu réel des canvas — aucun navigateur n'a ouvert
+    cette page. Le faux DOM ne donne pas de contexte 2D, donc `src/graph.js` y
+    renonce silencieusement et les tests ne jugent que l'arbre.
+  - **Non vérifié** : les sections `HOW THEY DIED`, `STICKS` et `PROFILE` avec
+    de vraies données. Elles lisent l'index de pistes de #24, qui n'est pas
+    encore fusionné : `src/track-index.js` est le seul point d'entrée, et sans
+    route côté serveur il rend une liste vide.
+
 - `npm run selftest` : **158/158 PASS** (géodésie, sol, collision/CCD, textures,
   lien vidéo, pluie/brouillard, météo, + la boucle enveloppe de vol / propulsion
   sur les six familles PHASE 07). Les deux checks textures mesurent 14,7 |dRGB|
