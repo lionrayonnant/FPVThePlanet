@@ -18,15 +18,13 @@
 // Règle de sécurité (spec PHASE 09) : les labels/verdicts sont du vocabulaire
 // d'ambiance (liste blanche dans hack-model.mjs), les motifs sont des animations
 // décoratives. Aucune trame, aucun outil, aucune séquence exploitable.
-import { screen } from './terminal.js';
+import { screen, button, keyHints } from './terminal.js';
+import { menuNav } from './menu-nav.js';
 import {
 	HACK_TYPES, HACK_OVERRIDE, hackSequence,
 	HACK_STEP_GAP_MS, HACK_HOLD_MS, HACK_LOCK_MS,
 } from '../tools/hack-model.mjs';
 import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
-import { runRitual } from './ritual.js';
-import { ritualVector } from '../tools/ritual-model.mjs';
-import { getOperator } from './operator.js';
 import { notify } from './dialogue.js';
 import { scanContext } from './dialogue-context.js';
 
@@ -50,13 +48,23 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 	// était, le seul moment où l'analyse rend la main à l'opérateur passait dans
 	// la même graisse que les lignes de progression au-dessus (HANDOFF PHASE 09).
 	// Elle a maintenant son propre élément, au niveau DISPLAY.
-	s.box.innerHTML = `<pre class="hack-head">HACK // ${type}</pre>
-<pre class="hack-log"></pre>
-<pre class="hack-handover" hidden>${HACK_OVERRIDE}</pre>
-<pre class="hack-grammar" aria-hidden="true"></pre>`;
-	const logEl = s.box.querySelector('.hack-log');
-	const handoverEl = s.box.querySelector('.hack-handover');
-	const gramEl = s.box.querySelector('.hack-grammar');
+	//
+	// createElement plutôt qu'innerHTML, comme screen() lui-même et
+	// target-scan.js (issue #33) : rigoureusement le même arbre, mais montable
+	// sur le faux DOM de tools/lib/fake-dom.mjs, qui refuse un innerHTML non vide.
+	const headEl = document.createElement('pre');
+	headEl.className = 'hack-head';
+	headEl.textContent = `HACK // ${type}`;
+	const logEl = document.createElement('pre');
+	logEl.className = 'hack-log';
+	const handoverEl = document.createElement('pre');
+	handoverEl.className = 'hack-handover';
+	handoverEl.hidden = true;
+	handoverEl.textContent = HACK_OVERRIDE;
+	const gramEl = document.createElement('pre');
+	gramEl.className = 'hack-grammar';
+	gramEl.setAttribute('aria-hidden', 'true');
+	s.box.append(headEl, logEl, handoverEl, gramEl);
 
 	// RTC : de la couleur pendant la séquence automatique seulement. D9 est
 	// non négociable — le crew se tait avant l'armement du CONTROL VECTOR, et
@@ -79,6 +87,7 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		let raf = 0;
 		let done = false;
 		let armed = false;
+		let nav = null;
 		const timers = new Set();
 		const t0 = performance.now();
 		const nowMs = () => performance.now() - t0;
@@ -117,7 +126,9 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			}
 			logEl.textContent = out;
 			handoverEl.hidden = !(phase === 'lock' || phase === 'armed');
-			logEl.classList.toggle('hack-log-armed', phase === 'armed');
+			// add/remove rather than toggle(cls, cond): the fake DOM used by the
+			// render selftest (tools/lib/fake-dom.mjs) implements only those two.
+			logEl.classList[phase === 'armed' ? 'add' : 'remove']('hack-log-armed');
 		};
 
 		// --- machine à étapes -------------------------------------------------
@@ -148,28 +159,38 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			after(HACK_LOCK_MS, arm);
 		};
 
-		// PHASE 10 : le rituel réel remplace le [ JACK IN ] provisoire de PHASE 09.
-		// `armed` ne protège plus qu'un double-déclenchement de `arm()` lui-même —
-		// runRitual gère sa propre saisie (clavier + manette) et sa propre
-		// culmination, `hack.js` ne fait qu'attendre sa résolution puis finir.
-		// Monté sur `root`, pas `s.box` : le rituel casse le cadre terminal
-		// étroit de l'AUTOMATED ANALYSIS pour prendre tout le viewport (Bible
-		// §18-19, retour utilisateur PR #80 — doit se sentir comme un vrai
-		// événement, pas un écran de plus dans la même boîte).
+		// Abandoning is not a failure: the player simply does not want this
+		// target. main.js already knows this shape from the TARGET SCAN, whose
+		// Escape returns { cancelled: true } and loops back to the zone.
+		const abort = () => {
+			if (done) return;
+			teardown();
+			resolve({ aborted: true });
+		};
+
+		// The hack ends on a single deliberate gesture, and the screen can
+		// always be left (issue #33). What stood here was the CONTROL VECTOR
+		// ritual: it listened to the four arrow keys and NOTHING else, held a
+		// promise with no reject, and blocked every nav still mounted beneath
+		// it. A player who had forgotten the vector he registered once, at
+		// first launch, was stuck until he reloaded the page — and since
+		// fieldLoop awaits runHack(), the whole game loop was stuck with him.
+		//
+		// `[ JACK IN ]` is not new: it is what stood here before PHASE 10, and
+		// the crew already has lines for MANUAL_OVERRIDE and JACK_IN waiting
+		// for a call site (src/dialogue-fallback.js).
 		const arm = () => {
 			if (armed || done) return;
 			armed = true;
 			phase = 'armed';
 			paint();
-			// D9 : le crew parle avant l'armement, jamais pendant — la culmination
-			// du rituel est une seule chose à la fois. On coupe net ici, avant que
-			// runRitual() ne prenne l'écran.
+			// D9: the crew speaks before the handover, never during it.
 			stopHack();
-			const vector = ritualVector(getOperator()?.controlVector);
-			runRitual(root, { hackType: type, vector, seed }).then(finish, (err) => {
-				teardown();
-				reject(err instanceof Error ? err : new Error(String(err)));
-			});
+			s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
+			// D15: Escape leaves, and the screen says so. This screen had NO
+			// exit at all while the terrain loaded behind it.
+			s.box.appendChild(keyHints([['ESC', 'ABORT']]));
+			nav = menuNav(s.el, { back: abort });
 		};
 
 		// --- boucle d'animation unique --------------------------------------
@@ -190,6 +211,8 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			// (ready rejetée pendant 'hold') — sans ça le minuteur RTC survivrait à
 			// s.remove() sur un nœud détaché.
 			stopHack();
+			nav?.detach();
+			nav = null;
 			s.remove();
 		};
 
@@ -198,6 +221,11 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			teardown();
 			resolve();
 		};
+
+		// Test-only hook (tools/hack-render-selftest.mjs): the screen walks its
+		// phases on timers, and a render test has no business waiting seconds
+		// for them. Nothing in the game reads this.
+		globalThis.__hackTestArm = () => { timers.forEach(clearTimeout); timers.clear(); arm(); };
 
 		raf = requestAnimationFrame(loop);
 		runStep();

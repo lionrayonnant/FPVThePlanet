@@ -2952,7 +2952,15 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
-			await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+			// Abandon au hack : même traitement que l'Échap du TARGET SCAN. Le
+			// préchargement lancé plus haut continue en tâche de fond — il ne monte
+			// rien dans la scène Three et a capturé sa propre base d'URL.
+			if (hack?.aborted) {
+				MODE.live = false;
+				introFrozen = false;
+				continue;
+			}
 			introFrozen = false;
 			accumulator = 0;
 			lastTime = performance.now();
@@ -3034,8 +3042,15 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		await music.loadManifest();
 		await music.prepare(music.trackForFamily(cand._family, buildSeed));
 		music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack });
-		await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
-		// Le rituel a rendu la main : ne pas rejouer l'écart d'horloge accumulé
+		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+		// Abandon au hack : même traitement que l'Échap du TARGET SCAN. Le
+		// préchargement lancé plus haut continue en tâche de fond — il ne monte
+		// rien dans la scène Three et a capturé sa propre base d'URL.
+		if (hack?.aborted) {
+			introFrozen = false;
+			continue;
+		}
+		// [ JACK IN ] a rendu la main : ne pas rejouer l'écart d'horloge accumulé
 		// pendant le hack comme un unique pas de physique géant.
 		introFrozen = false;
 		accumulator = 0;
