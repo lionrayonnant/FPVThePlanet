@@ -186,6 +186,43 @@ export function describeTarget(candidate) {
 	};
 }
 
+// La ligne de la liste (issue #49). La fiche pré-hack était un écran ; sur ses
+// sept champs, quatre étaient les mêmes constantes pour toutes les cibles
+// (LOCATION KNOWN, DEVICE PARTIAL, CONTROL UNKNOWN, FLIGHT STATE UNKNOWN) et
+// n'ont donc jamais départagé deux signaux, et CONDITIONS est déjà en tête de
+// la liste. Ce qui informe le choix tient sur une ligne : id, signal, mode
+// vidéo, device.
+//
+// Construite depuis describeTarget() et non depuis le candidat brut : c'est ce
+// qui fait hériter la ligne de sa garantie — jamais _family, jamais _hackType,
+// jamais le vrai mode vidéo d'un signal non mesuré.
+//
+// Prend TOUS les candidats plutôt qu'un seul, parce que l'alignement des
+// colonnes est une propriété de l'ensemble : la ligne d'un cluster est bien
+// plus longue que les autres, et sans cette passe elle décalerait tout ce qui
+// la suit.
+const COL_GAP = '   ';
+
+export function scanLines(candidates) {
+	const cells = candidates.map((c) => {
+		const d = describeTarget(c);
+		return [
+			c.id,
+			d.signal,
+			d.video,
+			// COUNT n'existe que sur un cluster — une cible ordinaire n'a pas de
+			// groupe à compter, et le mot seul suffirait à trahir qu'il y en a un.
+			d.count ? `${d.deviceHint}, COUNT ${d.count}` : d.deviceHint,
+		];
+	});
+	// La dernière colonne ne se remplit pas : rien ne la suit, et la compléter
+	// laisserait une traîne d'espaces au bout de chaque ligne.
+	const widths = cells[0]?.slice(0, -1).map((_, i) => Math.max(...cells.map((r) => r[i].length))) ?? [];
+	return cells.map((row) => row
+		.map((cell, i) => (i < widths.length ? cell.padEnd(widths[i]) : cell))
+		.join(COL_GAP));
+}
+
 // Descripteur persisté sur la session. Le serveur l'obtient en régénérant le
 // scan puis en appelant ceci — le client n'envoie qu'un index.
 export function resolveTarget(scan, index) {

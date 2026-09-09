@@ -2,6 +2,12 @@
 // le joueur en choisit un. On n'affiche QUE ce qui est réellement connu avant
 // le vol — jamais la famille, la caméra, les rates, la batterie.
 //
+// Un seul écran depuis l'issue #49 : la fiche pré-hack a disparu et ce qu'elle
+// portait d'utile tient sur la ligne (tools/target-model.mjs:scanLines). Quatre
+// de ses sept champs étaient les mêmes constantes pour toutes les cibles et
+// n'ont jamais départagé deux signaux ; CONDITIONS est déjà en tête d'écran.
+// Activer une ligne CHOISIT donc la cible — une frappe, plus deux.
+//
 // Écran client pur : rendu avec le look terminal (screen/button de terminal.js),
 // aucune dépendance Three/Rapier. La génération vient de tools/target-model.mjs,
 // bundlée par Vite. La grammaire ↑/↓ + Entrée vit dans menu-nav.js (issue
@@ -9,11 +15,11 @@
 // cliquable, tabulable, et pilotable à la manette.
 import { screen, button, keyHints } from './terminal.js';
 import { menuNav } from './menu-nav.js';
-import { generateTargetScan, describeTarget } from '../tools/target-model.mjs';
-import { conditionsBlock, conditionsLine } from './weather.js';
+import { generateTargetScan, scanLines } from '../tools/target-model.mjs';
+import { conditionsBlock } from './weather.js';
 import { uiAudio } from './ui-audio.js';
 
-// Plus de RTC sur TARGET SCAN depuis #243 : ni sur la liste, ni sur la fiche.
+// Plus de RTC sur TARGET SCAN depuis #243.
 // Le crew ne commente plus l'écran qu'on regarde — il parle sur la racine, et
 // en toast pendant le hack et l'acquisition. TARGET_SCAN, TARGET_SELECTED et
 // WEATHER restent dans le flux mêlé de la racine.
@@ -27,7 +33,6 @@ import { uiAudio } from './ui-audio.js';
 export function runTargetScan(root, { seed, count, weather = null, swarmChance }) {
 	const scan = generateTargetScan({ seed, count, swarmChance });
 	const condBlock = conditionsBlock(weather);
-	const condLine = conditionsLine(weather);
 	return new Promise((resolve) => {
 		const s = screen(root);
 		// createElement plutôt qu'innerHTML, comme screen() lui-même : c'est ce
@@ -39,9 +44,11 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance }
 
 		const wrap = document.createElement('div');
 		wrap.className = 'terminal-list';
-		scan.candidates.forEach((c, i) => {
-			const row = `${c.id}   ${String(c.rssiDbm).padStart(4)} dBm   ${c.mode}`;
-			wrap.appendChild(button(row, () => sheet(i), 'terminal-row'));
+		// Les lignes sont calculées d'un bloc : l'alignement des colonnes est une
+		// propriété de l'ensemble, et la ligne d'un cluster est bien plus longue
+		// que les autres. L'écran affiche, il ne formate pas.
+		scanLines(scan.candidates).forEach((line, i) => {
+			wrap.appendChild(button(line, () => choose(i), 'terminal-row'));
 		});
 		s.box.appendChild(wrap);
 		// D15 : Échap ressort, et il le dit. La liste n'a pas de bouton BACK —
@@ -49,11 +56,22 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance }
 		// est la SEULE sortie visible de l'écran.
 		s.box.appendChild(keyHints([['ESC', 'BACK']]));
 
+		// La garde de l'issue #73, sous sa forme restante. Le défaut d'origine
+		// était que la même frappe atteignait à la fois le bouton focalisé et un
+		// second chemin d'activation : `sheet()` était appelée deux fois et deux
+		// fiches s'empilaient. Sans fiche il n'y a plus rien à empiler, mais les
+		// deux chemins existent toujours — sans ce drapeau on démonterait
+		// l'écran deux fois, le second démontage travaillant sur un arbre déjà
+		// retiré, et on jouerait le son du choix en double.
+		let done = false;
+
 		// Échap / bouton B ressort vers le choix de zone. L'écran ne sait pas ce
 		// que ça coûte — à cet instant main.js a déjà lancé le préchargement de
 		// la carte — donc il se contente de le signaler et laisse l'appelant
 		// décider : les écrans restent des clients purs.
 		const cancel = () => {
+			if (done) return;
+			done = true;
 			listNav.detach();
 			s.remove();
 			resolve({ cancelled: true });
@@ -61,66 +79,13 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance }
 
 		const listNav = menuNav(s.el, { back: cancel });
 
-		// Vue courante de l'écran. Une fiche déjà ouverte interdit d'en ouvrir
-		// une seconde (issue #73) : quand la même frappe atteint à la fois le
-		// bouton focalisé et un autre chemin d'activation, `sheet()` était
-		// appelée deux fois et deux fiches s'empilaient sur la liste. Récupérable
-		// au BACK, mais l'écran mentait sur l'endroit où on se trouve.
-		let activeView = 'list';
-
-		const finish = (index) => {
+		const choose = (index) => {
+			if (done) return;
+			done = true;
 			listNav.detach();
+			uiAudio.play('TARGET_FOUND');
 			s.remove();
 			resolve({ seed: scan.seed, count: scan.count, index, swarmChance: scan.swarmChance, swarmAt: scan.swarmAt });
-		};
-
-		const sheet = (index) => {
-			if (activeView !== 'list') return;
-			activeView = 'sheet';
-			s.el.style.display = 'none'; // la liste attend derrière la fiche
-
-			const d = describeTarget(scan.candidates[index]);
-			const s2 = screen(root);
-			const sheetPre = document.createElement('pre');
-			sheetPre.textContent = [
-				`TARGET ${scan.candidates[index].id}`,
-				'',
-				`LOCATION       ${d.location}`,
-				`SIGNAL         ${d.signal}`,
-				`DEVICE         ${d.device}${d.deviceHint ? `  (EST. ${d.deviceHint})` : ''}`,
-				// A cluster, and only a cluster, has a group to count — and the
-				// count is exactly what the player is not told before the hack.
-				...(d.count ? [`COUNT          ${d.count}`] : []),
-				`VIDEO          ${d.video}`,
-				`CONTROL        ${d.control}`,
-				`FLIGHT STATE   ${d.flightState}${condLine ? `\n\nCONDITIONS     ${condLine}` : ''}`,
-			].join('\n');
-			s2.box.appendChild(sheetPre);
-
-			let done = false;
-			const confirm = () => {
-				if (done) return;
-				done = true;
-				sheetNav.detach();
-				uiAudio.play('TARGET_FOUND');
-				s2.remove();
-				finish(index);
-			};
-			const back = () => {
-				if (done) return;
-				done = true;
-				activeView = 'list';
-				sheetNav.detach();
-				s2.remove();
-				s.el.style.display = ''; // la liste reprend la main (pile de navs)
-				listNav.focusAt(index);
-			};
-			s2.box.appendChild(button('CONFIRM', confirm, 'terminal-cta'));
-			s2.box.appendChild(button('BACK', back, 'terminal-cta'));
-			s2.box.appendChild(keyHints([['ESC', 'BACK']]));
-			// Le curseur se pose sur CONFIRM : « ↑/↓ + Entrée … Deux frappes, pas
-			// plus » (spec D5) reste vrai, au clavier comme à la manette.
-			const sheetNav = menuNav(s2.el, { back });
 		};
 	});
 }
