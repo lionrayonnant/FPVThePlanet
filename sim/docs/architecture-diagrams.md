@@ -201,3 +201,19 @@ flowchart TD
 
 Server-side operator state (D2) is one coherent place next to the terrain, it
 survives a browser cache wipe, and it is what makes multi-operator nearly free.
+
+---
+
+## 6. Inside the simulator
+
+Hand-drawn rather than generated: the engine itself, and where each module sits
+relative to the fixed step. Edit `diagrams/simulator.svg` directly.
+
+![The simulator: input and environment, the fixed-step loop, the image chain](diagrams/simulator.svg)
+
+Three things this is meant to make obvious. The controller, the airframe and
+Rapier are one loop at a fixed 1/250 s, capped at 12 steps per frame — the rest
+of the game runs once per frame around it. The environment models are pure and
+sit outside, writing into that loop rather than being part of it. And the image
+chain has an order that is physical, not arbitrary: the glass, then the link.
+

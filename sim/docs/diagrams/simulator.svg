@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1080" width="1500" height="1080" role="img" aria-labelledby="t d">
+<title id="t">FPVThePlanet! — the simulator</title>
+<desc id="d">The simulation engine: input, pure environment models, the fixed-step control and physics loop, and the image chain from camera to goggles.</desc>
+
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#6f9f86"/>
+  </marker>
+  <style>
+    .bg   { fill:#0b0e0d }
+    .lane { fill:#0e1412; stroke:#1f3229; stroke-width:1; rx:10 }
+    .box  { fill:#131b18; stroke:#2f4b3e; stroke-width:1.4; rx:6 }
+    .key  { fill:#14251d; stroke:#4f9d78; stroke-width:1.8; rx:6 }
+    .note { fill:none; stroke:#2b4136; stroke-width:1.2; stroke-dasharray:5 5; rx:6 }
+    .ttl  { font:600 21px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#e2f1e9 }
+    .sub  { font:12.5px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#8fae9e }
+    .lbl  { font:600 11.5px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#6f9f86; letter-spacing:.12em }
+    .h    { font:600 13.5px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#d2e9dc }
+    .p    { font:11.5px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#93ad9f }
+    .e    { font:11px ui-monospace,'SFMono-Regular',Menlo,Consolas,'DejaVu Sans Mono',monospace; fill:#7fa992 }
+    .ln   { fill:none; stroke:#5f8f77; stroke-width:1.6; marker-end:url(#a) }
+    .rule { stroke:#1e2b25; stroke-width:1 }
+  </style>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1500" height="1080"/>
+
+<text class="ttl" x="44" y="52">FPVThePlanet! — the simulator</text>
+<text class="sub" x="44" y="76">What actually runs while you fly: one fixed-step loop, pure environment models around it, one image chain out.</text>
+<line class="rule" x1="44" y1="96" x2="1456" y2="96"/>
+
+<!-- ============ LANE L : world and input ============ -->
+<rect class="lane" x="44" y="120" width="336" height="780"/>
+<text class="lbl" x="64" y="146">WORLD · INPUT</text>
+
+<rect class="box" x="64" y="168" width="296" height="96"/>
+<text class="h" x="80" y="192">input.js</text>
+<text class="p" x="80" y="212">gamepad · radio · keyboard</text>
+<text class="p" x="80" y="228">auto device mapping, user overrides</text>
+<text class="p" x="80" y="252">→ throttle 0..1, roll/pitch/yaw ±1</text>
+
+<rect class="box" x="64" y="292" width="296" height="74"/>
+<text class="h" x="80" y="316">weather snapshot</text>
+<text class="p" x="80" y="336">Open-Meteo, per area per day</text>
+<text class="p" x="80" y="354">one translation: toSimParams()</text>
+
+<rect class="box" x="64" y="392" width="296" height="92"/>
+<text class="h" x="80" y="416">wind.js</text>
+<text class="p" x="80" y="436">mean, wander, gusts, turbulence,</text>
+<text class="p" x="80" y="454">boundary layer, shelter, channelling</text>
+<text class="p" x="80" y="474">10 probes → air velocity at the drone</text>
+
+<rect class="box" x="64" y="510" width="296" height="86"/>
+<text class="h" x="80" y="534">rain.js · rainfall.js</text>
+<text class="p" x="80" y="554">mm/h, drop size, visibility</text>
+<text class="p" x="80" y="572">→ water on the glass, streaks in scene</text>
+<text class="p" x="80" y="590">→ bead drift, extra drag</text>
+
+<rect class="box" x="64" y="622" width="296" height="70"/>
+<text class="h" x="80" y="646">fog.js</text>
+<text class="p" x="80" y="666">visual range, veil, colour of the air</text>
+<text class="p" x="80" y="684">→ exp² density on every material</text>
+
+<rect class="box" x="64" y="718" width="296" height="96"/>
+<text class="h" x="80" y="742">terrain</text>
+<text class="p" x="80" y="762">baked FPVG chunks + FPVC collision,</text>
+<text class="p" x="80" y="780">or live rocktree streamed in LOD rings</text>
+<text class="p" x="80" y="802">local ENU: X east · Y up · Z south</text>
+
+<rect class="note" x="64" y="830" width="296" height="50"/>
+<text class="e" x="80" y="852">wind · rain · fog · link are pure:</text>
+<text class="e" x="80" y="870">no DOM, no Three, no Rapier — headless.</text>
+
+<!-- ============ LANE C : the fixed step ============ -->
+<rect class="lane" x="404" y="120" width="488" height="780"/>
+<text class="lbl" x="424" y="146">FIXED STEP — 1/250 s, UP TO 12 PER FRAME</text>
+
+<rect class="box" x="424" y="176" width="448" height="104"/>
+<text class="h" x="440" y="200">flightController.js</text>
+<text class="p" x="440" y="220">Betaflight-shaped: PID, rate presets</text>
+<text class="p" x="440" y="238">(cinematic / freestyle / race), airmode</text>
+<text class="p" x="440" y="262">update(sticks, state, dt) → motors[4]</text>
+
+<rect class="box" x="424" y="316" width="448" height="132"/>
+<text class="h" x="440" y="340">quad.js — airframe and air model</text>
+<text class="p" x="440" y="360">motor lag · thrust curve · prop drag torque</text>
+<text class="p" x="440" y="378">inflow · rotor and body drag · ground effect</text>
+<text class="p" x="440" y="396">propwash · battery sag and drain</text>
+<text class="p" x="440" y="420">→ force and torque on the body</text>
+<text class="e" x="440" y="438">knows no controller, no renderer</text>
+
+<rect class="box" x="424" y="484" width="448" height="128"/>
+<text class="h" x="440" y="508">physics.js / Rapier</text>
+<text class="p" x="440" y="528">sphere collider r = 0.15 m · full-res trimesh · CCD</text>
+<text class="p" x="440" y="546">linear and angular damping = 0 — drag is quad.js</text>
+<text class="p" x="440" y="564">resetForces() / resetTorques() every step</text>
+<text class="p" x="440" y="588">raycasts: groundBelow() · obstructionBetween()</text>
+
+<rect class="key" x="424" y="648" width="448" height="76"/>
+<text class="h" x="440" y="672">state</text>
+<text class="p" x="440" y="692">position · rotation · velocity · angular rate</text>
+<text class="p" x="440" y="710">battery voltage · impact impulse of the step</text>
+
+<rect class="box" x="424" y="752" width="448" height="78"/>
+<text class="h" x="440" y="776">geofence.js</text>
+<text class="p" x="440" y="796">soft recall as an acceleration × real mass,</text>
+<text class="p" x="440" y="814">injected INSIDE the step — the step resets forces</text>
+
+<!-- ============ LANE R : the image ============ -->
+<rect class="lane" x="916" y="120" width="540" height="780"/>
+<text class="lbl" x="936" y="146">IMAGE CHAIN — ONCE PER FRAME</text>
+
+<rect class="box" x="936" y="168" width="500" height="70"/>
+<text class="h" x="952" y="192">camera — fpv / chase / free</text>
+<text class="p" x="952" y="212">near = exactly 0.15, pinned to the collider radius</text>
+
+<rect class="box" x="936" y="258" width="500" height="86"/>
+<text class="h" x="952" y="282">Three.js scene</text>
+<text class="p" x="952" y="302">terrain chunks · sky.js · sun.js · cloud.js · rainfall.js</text>
+<text class="p" x="952" y="320">colour pipeline pass-through, linear out</text>
+
+<rect class="box" x="936" y="366" width="500" height="58"/>
+<text class="h" x="952" y="390">drone-osd.js</text>
+<text class="p" x="952" y="410">the target's own OSD — before any degradation</text>
+
+<rect class="box" x="936" y="446" width="500" height="108"/>
+<text class="h" x="952" y="470">lens.js — ONE fullscreen pass</text>
+<text class="p" x="952" y="490">barrel · lateral chromatic aberration · edge softness</text>
+<text class="p" x="952" y="508">vignette · 16-tap rotation blur · water on the glass</text>
+<text class="e" x="952" y="532">one sampling decision, not a chain of passes</text>
+
+<rect class="box" x="936" y="576" width="500" height="80"/>
+<text class="h" x="952" y="600">link.js</text>
+<text class="p" x="952" y="620">5.8 GHz budget in dB → RSSI, quality</text>
+<text class="p" x="952" y="638">analogue snow or digital macroblocking</text>
+
+<rect class="box" x="936" y="678" width="500" height="58"/>
+<text class="h" x="952" y="702">fpvtp-osd.js</text>
+<text class="p" x="952" y="722">our overlay — above the degradation, never under it</text>
+
+<rect class="key" x="936" y="758" width="500" height="52"/>
+<text class="h" x="952" y="790">GOGGLES</text>
+
+<rect class="note" x="936" y="828" width="500" height="48"/>
+<text class="e" x="952" y="850">Glass first, then the link: the RF snow is not vignetted,</text>
+<text class="e" x="952" y="868">because the vignette happened two boxes upstream.</text>
+
+<!-- ============ BOTTOM BAND ============ -->
+<text class="lbl" x="64" y="913">FED ONCE PER FRAME, AROUND THE LOOP</text>
+<rect class="lane" x="44" y="920" width="1412" height="106"/>
+
+<rect class="box" x="64" y="950" width="440" height="60"/>
+<text class="h" x="80" y="972">flight-end.js</text>
+<text class="p" x="80" y="992">crash above threshold · out of zone · link cut (hold K)</text>
+
+<rect class="box" x="536" y="950" width="420" height="60"/>
+<text class="h" x="552" y="972">session.js</text>
+<text class="p" x="552" y="992">telemetry sampled every 0.2 s → the archive</text>
+
+<rect class="box" x="988" y="950" width="448" height="60"/>
+<text class="h" x="1004" y="972">audio.js · ambient.js · music.js</text>
+<text class="p" x="1004" y="992">motor tone, air, rain, score — muted when frozen</text>
+
+<!-- ============ ARROWS ============ -->
+<!-- input -> controller -->
+<path class="ln" d="M360,216 C 392,216 396,228 420,228"/>
+<!-- weather -> wind/rain/fog -->
+<path class="ln" d="M212,366 L212,388"/>
+<!-- wind -> quad -->
+<path class="ln" d="M360,438 C 392,438 396,382 420,382"/>
+<!-- terrain -> physics -->
+<path class="ln" d="M360,766 C 392,766 396,580 420,580"/>
+<!-- controller -> quad -> physics -> state -->
+<path class="ln" d="M648,280 L648,312"/>
+<path class="ln" d="M648,448 L648,480"/>
+<path class="ln" d="M648,612 L648,644"/>
+<!-- state -> geofence -->
+<path class="ln" d="M560,724 L560,748"/>
+<!-- geofence -> physics, up the right gutter -->
+<path class="ln" d="M872,790 C 886,790 886,548 876,548"/>
+<!-- state -> controller, down the left gutter -->
+<path class="ln" d="M424,686 C 400,686 400,228 420,228"/>
+<text class="e" x="392" y="452" transform="rotate(-90 392 452)">state feedback</text>
+<!-- state -> camera -->
+<path class="ln" d="M872,676 C 902,676 906,203 932,203"/>
+<!-- image chain -->
+<path class="ln" d="M1186,238 L1186,254"/>
+<path class="ln" d="M1186,344 L1186,362"/>
+<path class="ln" d="M1186,424 L1186,442"/>
+<path class="ln" d="M1186,554 L1186,572"/>
+<path class="ln" d="M1186,656 L1186,674"/>
+<path class="ln" d="M1186,736 L1186,754"/>
+<!-- state -> bottom band -->
+<path class="ln" d="M648,901 C 560,916 400,930 284,946"/>
+<path class="ln" d="M648,901 L648,946"/>
+<path class="ln" d="M648,901 C 760,916 1060,930 1212,946"/>
+
+<text class="sub" x="44" y="1052">Hard constraints: local ENU metres (X east, Y up, Z south) · collider sphere 0.15 m, camera.near exactly 0.15 · Rapier damping zero, forces reset every step.</text>
+<text class="sub" x="44" y="1070">PID gains are measured with npm run tune, never hand-edited. The four motor outputs are a deliberately narrow interface, for a future SITL.</text>
+</svg>
