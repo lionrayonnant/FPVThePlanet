@@ -20,14 +20,18 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
-- Bannières de marque (`docs/brand/`) : quatre images composées — marque, nom et
-  accroche sur le fond `--black`. Celle de 1280 × 320 ouvre désormais le
-  `README.md`, à la place de l'icône seule de 72 px : elle porte déjà la marque
-  ET le nom. Les trois autres (social preview du dépôt, bandeau large, carré)
-  attendent un téléversement manuel là où elles vont. Elles ne partent pas dans
-  le bundle : rien ne les sert au navigateur, elles vivent hors de
-  `sim/public/`. Manifeste C2PA retiré sans réencoder, comme le reste de la
-  marque. `docs/marque.md` dit où va chacune.
+- Bannières de marque : cinq images composées — marque, nom et accroche sur le
+  fond `--black`. Celle de 1280 × 320 ouvre désormais le `README.md`, à la place
+  de l'icône seule de 72 px : elle porte déjà la marque ET le nom. Celle de
+  1200 × 630 devient la carte Open Graph de `sim/index.html`, avec ses métas
+  `og:` et `twitter:card` — sans `og:url`, parce que `deploy/` ne fixe aucun
+  domaine et qu'une URL canonique fausse vaut moins que pas d'URL. Les trois
+  dernières (social preview du dépôt, bandeau large, carré) attendent un
+  téléversement manuel là où elles vont. Seule la carte Open Graph entre dans
+  `sim/public/` : c'est la seule qu'une page doit servir, les quatre autres
+  restent dans `docs/brand/` et ne pèsent ni sur le bundle ni sur l'installeur.
+  Manifeste C2PA retiré sans réencoder, comme le reste de la marque.
+  `docs/marque.md` dit où va chacune.
 
 - La marque entre au dépôt (#58). `sim/public/brand/` porte les trois SVG —
   `fpvtp-mark.svg` en `currentColor`, `fpvtp-icon.svg` sur son fond `--black`,

@@ -9,6 +9,22 @@
 	<link rel="icon" type="image/png" sizes="32x32" href="/brand/png/fpvtp-icon-32.png">
 	<link rel="icon" type="image/png" sizes="48x48" href="/brand/png/fpvtp-icon-48.png">
 	<title>FPVThePlanet!</title>
+
+	<!-- The card a link to a deployed instance unfurls into. og:url is
+	     deliberately absent: deploy/ fixes no domain, and a wrong canonical URL
+	     is worse than none. The image path is root-relative for the same reason
+	     — scrapers resolve it against the page. Whoever pins a domain should add
+	     og:url and make this absolute. See docs/marque.md. -->
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="FPVThePlanet!">
+	<meta property="og:title" content="FPVThePlanet!">
+	<meta property="og:description" content="Voler en FPV au-dessus de vraies villes, dans le navigateur. Le décor n'est pas modélisé : c'est de la photogrammétrie 3D, la géométrie et les textures d'un lieu qui existe.">
+	<meta property="og:image" content="/brand/fpvtp-og-1200x630.png">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	<meta property="og:image:alt" content="FPVThePlanet! — it's not a level, it's Tokyo.">
+	<meta name="twitter:card" content="summary_large_image">
+
 	<link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
