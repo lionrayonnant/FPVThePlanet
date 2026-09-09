@@ -1,13 +1,13 @@
 // Selftest de rendu de l'écran TARGET SCAN (src/target-scan.js).
 //
-// Il couvre le défaut de l'issue #73 : quand la même frappe atteignait à la
-// fois le bouton focalisé et un second chemin d'activation, `sheet()` était
-// appelée deux fois et DEUX fiches s'empilaient sur la liste. C'était
-// récupérable (BACK deux fois), mais l'écran mentait sur l'endroit où on se
-// trouve, et la deuxième fiche gardait ses abonnements.
+// Depuis l'issue #49 la fiche pré-hack n'existe plus : la liste est le seul
+// écran, et activer une ligne CHOISIT la cible. Les tests suivent ce
+// déplacement — le défaut de l'issue #73 n'est plus « deux fiches s'empilent »
+// mais « une frappe qui arrive deux fois résout deux fois », qui est le même
+// bug sous sa forme restante et reste couvert ici.
 //
 // On vérifie l'ARBRE et le CÂBLAGE, pas l'apparence — même intention que
-// archive-render-selftest.mjs.
+// data-render-selftest.mjs.
 //
 // Lancer : node tools/target-scan-render-selftest.mjs
 
@@ -33,7 +33,6 @@ const open = () => {
 };
 
 const rows = () => dom.root.querySelectorAll('.terminal-row');
-const sheets = () => dom.root.querySelectorAll('button').filter((b) => b.textContent.includes('CONFIRM'));
 
 await t('la liste monte un bouton par signal détecté', async () => {
 	const p = open();
@@ -45,80 +44,69 @@ await t('la liste monte un bouton par signal détecté', async () => {
 	await p;
 });
 
-await t('#73 : deux activations du même signal n\'empilent qu\'UNE fiche', async () => {
-	// Le cœur de l'issue. Avant la garde, le second appel construisait un
-	// second écran fiche par-dessus le premier — deux CONFIRM à l'écran.
+await t('#49 : la ligne porte le signal, le mode vidéo ET le device', async () => {
+	// Ce qui remplace la fiche doit être RÉELLEMENT lisible sur la ligne, pas
+	// seulement présent dans l'objet que rend scanLines().
 	const p = open();
 	await tick();
-	const row = rows()[0];
-	row.click();
-	await tick();
-	assert.equal(sheets().length, 1, 'une fiche après la première activation');
-
-	row.click();            // la frappe qui arrivait deux fois
-	await tick();
-	assert.equal(sheets().length, 1, 'toujours UNE fiche après la seconde');
-
-	dom.key('Escape');      // un seul BACK doit suffire à revenir à la liste
-	await tick();
-	assert.equal(sheets().length, 0, 'la fiche est refermée');
-	assert.equal(rows().length, 4, 'et la liste a repris la main');
+	for (const row of rows()) {
+		assert.match(row.textContent, /-\d+ dBm/, `signal absent de « ${row.textContent} »`);
+		assert.match(row.textContent, /ANALOG|DIGITAL|UNKNOWN/, `mode absent de « ${row.textContent} »`);
+		// Le device est le seul champ qui n'a pas de forme fixe ; ce qui se
+		// vérifie ici est qu'il RESTE quelque chose après les trois autres.
+		const rest = row.textContent.replace(/^\s*\d+\s+-\d+ dBm[^A-Z]*/, '')
+			.replace(/^(ANALOG|DIGITAL|UNKNOWN)\s*/, '');
+		assert.ok(rest.trim().length > 0, `device absent de « ${row.textContent} »`);
+	}
+	// Et plus aucun des champs constants que la fiche répétait.
+	const text = dom.root.textContent;
+	for (const gone of ['LOCATION', 'FLIGHT STATE', 'CONTROL', 'PARTIAL', 'CONFIRM']) {
+		assert.ok(!text.includes(gone), `« ${gone} » survit à la suppression de la fiche`);
+	}
 	dom.key('Escape');
 	await p;
 });
 
-await t('#73 : rouvrir une fiche reste possible après un BACK', async () => {
-	// La garde ne doit pas coincer l'écran dans l'état « fiche » : c'est le
-	// risque d'un drapeau posé sans être rendu.
-	const p = open();
-	await tick();
-	rows()[0].click();
-	await tick();
-	dom.key('Escape');
-	await tick();
-	rows()[1].click();
-	await tick();
-	assert.equal(sheets().length, 1, 'la seconde fiche s\'ouvre normalement');
-	dom.key('Escape');
-	await tick();
-	dom.key('Escape');
-	await p;
-});
-
-await t('CONFIRM rend le signal choisi et démonte tout', async () => {
+await t('activer une ligne rend le signal choisi et démonte tout', async () => {
 	const p = open();
 	await tick();
 	rows()[2].click();
-	await tick();
-	dom.root.querySelectorAll('button').find((b) => b.textContent.includes('CONFIRM')).click();
 	const choice = await p;
 	assert.equal(choice.index, 2, 'l\'index rendu est celui du signal activé');
 	assert.ok(choice.seed, 'la graine du scan revient avec le choix');
 	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'plus rien à l\'écran');
 });
 
-await t('la fiche d\'un cluster affiche MESH, GROUP et COUNT — et rien de plus', async () => {
-	// Issue #29 : la fiche doit être RÉELLEMENT visible, pas seulement présente
-	// dans l'objet que rend describeTarget(). swarmChance 1 : le cluster est le
-	// plus fort signal, donc le premier bouton de la liste.
+await t('#73 : une frappe qui arrive deux fois ne choisit qu\'UNE fois', async () => {
+	// L'héritier direct du défaut de l'issue #73. Sans fiche il n'y a plus rien
+	// à empiler, mais les deux chemins d'activation existent toujours : sans
+	// garde, l'écran se démonterait deux fois et le second démontage
+	// travaillerait sur un arbre déjà retiré.
+	const p = open();
+	await tick();
+	const row = rows()[0];
+	row.click();
+	row.click();            // la frappe qui arrivait deux fois
+	const choice = await p;
+	assert.equal(choice.index, 0, 'le premier choix est celui qui compte');
+	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'écran démonté une seule fois');
+});
+
+await t('#29 : la ligne d\'un cluster dit MESH, GROUP et COUNT — et rien de plus', async () => {
+	// swarmChance 1 : le cluster est le plus fort signal, donc la première ligne.
 	reset();
 	const p = runTargetScan(dom.root, { seed: 'render::swarm', count: 4, swarmChance: 1 });
 	await tick();
-	rows()[0].click();
-	await tick();
-	const text = dom.root.textContent;
-	assert.match(text, /DEVICE\s+PARTIAL\s+\(EST\. MESH — MULTIPLE EMITTERS\)/);
-	assert.match(text, /SIGNAL\s+-\d+ dBm \(STRONGEST OF GROUP\)/);
-	assert.match(text, /COUNT\s+UNKNOWN/);
-	assert.ok(!text.includes('swarmNode'), 'la fiche ne nomme jamais la famille');
-	dom.key('Escape');
-	await tick();
-	// Une cible ordinaire n'a pas de ligne COUNT : il n'y a pas de groupe.
-	rows()[1].click();
-	await tick();
-	assert.ok(!dom.root.textContent.includes('COUNT'), 'pas de COUNT sur une cible ordinaire');
-	dom.key('Escape');
-	await tick();
+	const first = rows()[0].textContent;
+	assert.match(first, /-\d+ dBm \(STRONGEST OF GROUP\)/);
+	assert.match(first, /MESH — MULTIPLE EMITTERS/);
+	assert.match(first, /COUNT UNKNOWN/);
+	assert.ok(!first.includes('swarmNode'), 'la ligne ne nomme jamais la famille');
+	// Les cibles ordinaires du même scan ne parlent d'aucun groupe.
+	for (const row of rows().slice(1)) {
+		assert.ok(!row.textContent.includes('COUNT'), `COUNT sur une cible ordinaire : « ${row.textContent} »`);
+		assert.ok(!row.textContent.includes('GROUP'), `GROUP sur une cible ordinaire : « ${row.textContent} »`);
+	}
 	dom.key('Escape');
 	await p;
 });

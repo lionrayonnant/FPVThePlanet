@@ -651,39 +651,32 @@ TARGET SCAN
 
 SIGNALS DETECTED
 
-01   -54 dBm   ANALOG
-02   -59 dBm   UNKNOWN
-03   -67 dBm   DIGITAL
-04   -71 dBm   UNKNOWN
+01   -54 dBm   ANALOG    CINEWHOOP
+02   -59 dBm   UNKNOWN   5"
+03   -67 dBm   DIGITAL   LONG RANGE
+04   -71 dBm   UNKNOWN   5"
 ```
 
-Le joueur choisit.
+Le joueur choisit, et le choix EST l'activation de la ligne : un seul écran,
+une seule frappe.
 
-Avant le hack, FPVTP! n'affiche que ce qu'il sait réellement :
+> **Révision (issue #49) — la fiche pré-hack est devenue la ligne.** Le premier
+> jet ouvrait un second écran, `TARGET 02`, avec ses sept champs et un
+> `CONFIRM`. Quatre de ces champs — `LOCATION KNOWN`, `DEVICE PARTIAL`,
+> `CONTROL UNKNOWN`, `FLIGHT STATE UNKNOWN` — portaient la même valeur pour
+> toutes les cibles de tous les scans : ils décrivaient le jeu, pas le signal,
+> et n'ont donc jamais départagé deux choix. Un cinquième, `CONDITIONS`, était
+> déjà lisible en tête de la liste. Ce qui restait — le signal, le mode vidéo,
+> le bucket du device — tient sur la ligne, où il se compare d'un coup d'œil au
+> lieu de demander un aller-retour par cible.
+>
+> Ce qui ne change pas : les trois niveaux ci-dessous. Le device reste un `EST.`
+> et le mode vidéo non mesuré reste `UNKNOWN` nu. Un cluster (issue #29) garde
+> ses trois mentions — `(STRONGEST OF GROUP)`, `MESH — MULTIPLE EMITTERS`,
+> `COUNT UNKNOWN` — et ne révèle toujours ni la machine ni la taille du groupe.
 
-```text
-TARGET 02
-
-LOCATION
-KNOWN
-
-SIGNAL
--59 dBm
-
-DEVICE
-PARTIAL
-
-VIDEO
-UNKNOWN
-
-CONTROL
-UNKNOWN
-
-FLIGHT STATE
-UNKNOWN
-```
-
-Trois niveaux d'information :
+Avant le hack, FPVTP! n'affiche que ce qu'il sait réellement. Trois niveaux
+d'information :
 
 `KNOWN`
 

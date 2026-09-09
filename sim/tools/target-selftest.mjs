@@ -1,5 +1,5 @@
 import {
-	generateTargetScan, describeTarget, resolveTarget, swarmChanceFor,
+	generateTargetScan, describeTarget, scanLines, resolveTarget, swarmChanceFor,
 	FAMILY_CLASS, TARGET_FAMILIES, HACK_TYPES,
 	SWARM_CHANCE, SWARM_FAMILY, SWARM_CLASS_HINT, SWARM_HACK_TYPE,
 	SWARM_SIZE_MIN, SWARM_SIZE_MAX,
@@ -274,6 +274,80 @@ const WITNESS = [
 	const plain = resolveTarget(generateTargetScan({ seed: 'swarm-resolve', count: 4, swarmChance: 0 }), 0);
 	check('resolveTarget : pas de cluster → swarm null', plain.swarm === null);
 	check('resolveTarget : pas de cluster → swarmAt null', plain.scan.swarmAt === null);
+}
+
+// --- scanLines : la ligne de la liste (issue #49)
+//
+// La fiche pré-hack a disparu ; ce que le joueur lit pour choisir tient
+// désormais sur la ligne. Ces cas sont donc l'héritier direct de ceux de
+// describeTarget : la garantie « ne fuite jamais » se vérifie ici sur la chaîne
+// RÉELLEMENT affichée, pas sur un objet intermédiaire que personne ne voit.
+{
+	const scan = generateTargetScan({ seed: 'line-plain', count: 5, swarmChance: 0 });
+	const lines = scanLines(scan.candidates);
+	check('scanLines : une ligne par candidat', lines.length === scan.candidates.length);
+
+	// Les colonnes sont le seul intérêt d'une ligne unique : mal alignées, elle
+	// est moins lisible que la fiche qu'elle remplace. On vérifie la position,
+	// pas l'espacement — c'est ce que l'œil suit.
+	const at = (line, needle) => line.indexOf(needle);
+	const idCols = lines.map((l) => at(l, l.trim().slice(0, 2)));
+	check('scanLines : la colonne id est alignée', new Set(idCols).size === 1, String(idCols));
+	const dbmCols = lines.map((l) => at(l, ' dBm'));
+	check('scanLines : la colonne signal est alignée', new Set(dbmCols).size === 1, String(dbmCols));
+	scan.candidates.forEach((c, i) => {
+		const d = describeTarget(c);
+		check(`scanLines(${c.id}) porte l'id`, lines[i].includes(c.id));
+		check(`scanLines(${c.id}) porte le signal`, lines[i].includes(`${c.rssiDbm} dBm`));
+		check(`scanLines(${c.id}) porte le mode vidéo`, lines[i].includes(d.video));
+		check(`scanLines(${c.id}) porte le device`, lines[i].includes(d.deviceHint), lines[i]);
+	});
+	// Une ligne est une ligne : un saut la casserait en deux dans la liste.
+	check('scanLines : aucune ligne ne contient de saut', lines.every((l) => !l.includes('\n')));
+}
+
+{
+	// Ce que la ligne NE DIT PAS reste ce que la fiche ne disait pas.
+	for (const seed of ['line-leak-a', 'line-leak-b', 'line-leak-c']) {
+		const scan = generateTargetScan({ seed, count: 5, swarmChance: 0 });
+		const flat = scanLines(scan.candidates).join('\n');
+		scan.candidates.forEach((c) => {
+			check(`scanLines(${seed}/${c.id}) sans famille`, !flat.includes(c._family), c._family);
+			check(`scanLines(${seed}/${c.id}) sans hackType`, !flat.includes(c._hackType), c._hackType);
+			// Un mode non mesuré reste UNKNOWN : la ligne ne doit pas laisser
+			// filtrer le vrai mode, qui se découvre à la première image.
+			if (c.mode === 'UNKNOWN') {
+				const other = c._videoHint;
+				const line = scanLines(scan.candidates)[scan.candidates.indexOf(c)];
+				check(`scanLines(${seed}/${c.id}) ne fuite pas le vrai mode`, !line.includes(other), line);
+			}
+		});
+	}
+}
+
+{
+	// La ligne d'un cluster porte les trois mentions de l'ancienne fiche, et
+	// toujours pas la machine ni la taille (issue #29).
+	const scan = generateTargetScan({ seed: 'line-swarm', count: 4, swarmChance: 1 });
+	const lines = scanLines(scan.candidates);
+	const c = scan.candidates[0];
+	check('ligne cluster : STRONGEST OF GROUP', lines[0].includes('(STRONGEST OF GROUP)'), lines[0]);
+	check('ligne cluster : MESH — MULTIPLE EMITTERS', lines[0].includes('MESH — MULTIPLE EMITTERS'));
+	check('ligne cluster : COUNT UNKNOWN', lines[0].includes('COUNT UNKNOWN'));
+	check('ligne cluster : ne nomme pas la famille', !lines[0].includes(SWARM_FAMILY), lines[0]);
+	check('ligne cluster : ne fuite pas la doctrine', !lines[0].includes(c._swarm.doctrineSeed));
+	// Le RSSI est le seul nombre légitime : ailleurs, un chiffre serait la
+	// taille du groupe. Le `-57` du signal est retiré avant de chercher.
+	const withoutRssi = lines[0].replace(`${c.rssiDbm} dBm`, '').replace(c.id, '');
+	check('ligne cluster : aucun chiffre hors du RSSI', !/\d/.test(withoutRssi), withoutRssi);
+	// Les cibles ordinaires du MÊME scan ne parlent d'aucun groupe.
+	check('ligne ordinaire : pas de COUNT',
+		lines.slice(1).every((l) => !l.includes('COUNT')), lines.slice(1).join(' | '));
+	check('ligne ordinaire : pas de GROUP',
+		lines.slice(1).every((l) => !l.includes('GROUP')));
+	// Et la ligne longue du cluster ne désaligne pas celles d'en dessous.
+	const dbmCols = lines.map((l) => l.indexOf(' dBm'));
+	check('ligne cluster : les colonnes tiennent quand même', new Set(dbmCols).size === 1, String(dbmCols));
 }
 
 // --- garde-fou de dérive

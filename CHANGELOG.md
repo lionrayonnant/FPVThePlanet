@@ -121,6 +121,24 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- La fiche pré-hack du `TARGET SCAN` disparaît en tant qu'écran : ce qu'elle
+  portait tient sur la ligne du signal, qui gagne le device à côté du RSSI et
+  du mode vidéo — `01   -57 dBm   ANALOG   CINEWHOOP`. Activer la ligne choisit
+  la cible, une frappe au lieu de deux. Sur les sept champs de la fiche, quatre
+  (`LOCATION KNOWN`, `DEVICE PARTIAL`, `CONTROL UNKNOWN`, `FLIGHT STATE
+  UNKNOWN`) valaient la même chose pour toutes les cibles de tous les scans :
+  ils décrivaient le jeu, pas le signal, et n'ont jamais départagé deux choix ;
+  un cinquième, `CONDITIONS`, est déjà en tête de la liste. Les trois niveaux
+  `KNOWN / EST. / UNKNOWN` de la Bible §15 survivent intacts, et un cluster
+  garde ses trois mentions sans révéler ni la machine ni la taille (#49).
+- Les lignes du scan sont calculées par `tools/target-model.mjs:scanLines()`,
+  pas par l'écran : l'alignement des colonnes est une propriété de l'ensemble
+  des candidats — sans quoi la ligne longue d'un cluster décalerait toutes les
+  suivantes. Construites depuis `describeTarget()`, elles héritent de sa
+  garantie, désormais vérifiée sur la chaîne réellement affichée plutôt que sur
+  un objet intermédiaire : jamais la famille, jamais le type de hack, jamais le
+  vrai mode vidéo d'un signal non mesuré (#49).
+
 - Le `TARGET LOG` disparaît en tant qu'écran : ses entrées se lisent dans la
   section `FAMILIES` de `DATA`, groupées par famille de cible et rangées sous la
   survie moyenne qu'elles ont laissée (#26).
