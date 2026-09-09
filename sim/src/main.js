@@ -134,7 +134,9 @@ export const OPTS = {
 	live: params.has('live') ? params.get('live').split(',').map(Number) : null,
 	// Dev-only: ?swarm=8 forces a cluster of 8 on ?scene= and ?live=, the two
 	// paths that skip the TARGET SCAN and synthesise their own scan (#29).
-	// The RULE (an integer in 6..12, refused otherwise) lives in
+	// ?swarm=8:wedge also pins the doctrine (column/wedge/cloud/screen) instead
+	// of leaving it to the size-derived draw. The RULE (an integer in 6..12,
+	// an optional known doctrine name, refused otherwise) lives in
 	// tools/dev-flags.mjs, where a selftest can reach it.
 	swarm: params.get('swarm'),
 };

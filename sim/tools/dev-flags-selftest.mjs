@@ -10,6 +10,7 @@
 import { parseSwarmFlag, devFamilies } from './dev-flags.mjs';
 import { SWARM_SIZE_MIN, SWARM_SIZE_MAX, SWARM_FAMILY, TARGET_FAMILIES } from './target-model.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
+import { DOCTRINE_NAMES, doctrineFor } from '../src/swarm.js';
 
 let failures = 0;
 function check(label, ok, detail) {
@@ -61,6 +62,40 @@ console.log('dev-flags : ?swarm=<n>');
 		parseSwarmFlag('7').doctrineSeed !== parseSwarmFlag('8').doctrineSeed);
 	check('déterministe : deux appels, même graine',
 		parseSwarmFlag('7').doctrineSeed === parseSwarmFlag('7').doctrineSeed);
+}
+
+console.log('\ndev-flags : ?swarm=<n>:<doctrine>');
+{
+	// Rétrocompatibilité : la forme sans doctrine n'a pas bougé.
+	check('?swarm=8 (sans doctrine) rend toujours { size: 8, doctrineSeed: "dev::swarm::8" }',
+		JSON.stringify(parseSwarmFlag('8')) === JSON.stringify({ size: 8, doctrineSeed: 'dev::swarm::8' }));
+
+	// LA propriété qui motive ce drapeau : sur 6..12, le tirage sur la seule
+	// taille donne cloud six fois sur sept et jamais wedge/screen (vérifié sur
+	// 5000 graines). `:<doctrine>` doit rendre chacune des quatre atteignable,
+	// sur une taille où le tirage nu échoue déjà (n=8 donne cloud).
+	for (const name of DOCTRINE_NAMES) {
+		const d = parseSwarmFlag(`8:${name}`);
+		check(`?swarm=8:${name} rend size=8 et la doctrine ${name}`,
+			d.size === 8 && doctrineFor(d.doctrineSeed) === name);
+	}
+
+	// Doctrine inconnue : refus nommant les valeurs valides, jamais un
+	// rabattement sur le tirage nu — même règle que la taille hors plage.
+	check('?swarm=8:bogus refuse', refuses('8:bogus'));
+	check('le message nomme les doctrines valides', (() => {
+		try { parseSwarmFlag('8:bogus'); return false; } catch (e) {
+			return DOCTRINE_NAMES.every((name) => e.message.includes(name));
+		}
+	})());
+
+	// Toujours soumis à la règle de taille : une doctrine valide ne sauve pas
+	// une taille hors plage.
+	check('?swarm=99:wedge refuse (taille hors plage malgré une doctrine valide)', refuses('99:wedge'));
+
+	// Déterministe, comme la forme sans doctrine.
+	check('?swarm=8:wedge déterministe : deux appels, même graine',
+		parseSwarmFlag('8:wedge').doctrineSeed === parseSwarmFlag('8:wedge').doctrineSeed);
 }
 
 console.log('\ndev-flags : ?family=<f>');
