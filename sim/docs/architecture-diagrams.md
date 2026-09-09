@@ -21,7 +21,7 @@ One boot path, traversed with flags — never a parallel pipeline per mode (D7).
 flowchart TD
     LOAD["Page load — main.js"] --> INTRO["Cracktro intro<br/>src/intro.js"]
     INTRO --> OP{"Operator known?"}
-    OP -- "no" --> BOOT["BOOTSTRAP — hardware inventory,<br/>name, Control Vector, briefing<br/>src/bootstrap.js"]
+    OP -- "no" --> BOOT["BOOTSTRAP — hardware inventory,<br/>name, briefing<br/>src/bootstrap.js"]
     OP -- "yes" --> MODE
     BOOT --> MODE["SELECT OPERATION MODE<br/>src/menu-nav.js"]
 
@@ -191,7 +191,7 @@ flowchart TD
     OPCLIENT["src/operator.js<br/>key in localStorage"] -->|"POST /__operator"| STORE
     SESSION["src/session.js<br/>opens at first flight frame,<br/>samples telemetry every 0.2 s"] -->|"PATCH session, POST photo"| STORE
     STORE["operator-state/&lt;id&gt;.json<br/>tools/operator-store.mjs"]
-    STORE --> F1["controlVector · settings"]
+    STORE --> F1["settings"]
     STORE --> F2["terrainCache — areas kept"]
     STORE --> F3["worldState.weather — 7 days per area"]
     STORE --> F4["sessions[] — target, weather,<br/>telemetry, photos, verdict, seq numbers"]
