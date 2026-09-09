@@ -9,9 +9,9 @@
 // pattern's culmination + MANUAL OVERRIDE REQUIRED + [ JACK IN ]. `arm()`
 // only fires once the scripted sequence has played AND loading has finished
 // — but the screen can be left at ANY point before that too (issue #33): see
-// `abort()` below. The CONTROL VECTOR ritual (PHASE 10, ritual.js) used to
-// stand where `arm()` now hands off directly; ritual.js is unused dead code,
-// kept on disk for a later tranche to remove.
+// `abort()` below. The CONTROL VECTOR ritual (PHASE 10, formerly ritual.js)
+// used to stand where `arm()` now hands off directly; the ritual has since
+// been removed (#33).
 //
 // Pure client screen: terminal look (screen from terminal.js), NO Three/
 // Rapier/physics dependency. Never imported by the engine.

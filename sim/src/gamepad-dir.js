@@ -1,7 +1,7 @@
 // Lecture d'une direction de manette (D-pad ou stick gauche), factorisée
-// entre bootstrap.js (saisie du CONTROL VECTOR à la définition) et ritual.js
-// (saisie pendant un hack, PHASE 10). Fonction pure au sens DOM : seule
-// dépendance, navigator.getGamepads().
+// entre bootstrap.js (ses écrans de configuration) et menu-nav.js
+// (navigation générique). Fonction pure au sens DOM : seule dépendance,
+// navigator.getGamepads().
 //
 // `prev` : direction retenue au dernier appel (anti-répétition — sans elle,
 // une manette tenue en biais spammerait la même direction à chaque poll).
