@@ -468,15 +468,26 @@ export function buildSlots(name, size, seed, lag, lat, vert) {
 		// It is NOT symmetric, and the camera is why: the node's lens is
 		// uptilted 10-20 deg, so a unit above the pilot is in frame while its
 		// mirror image below is under the bottom edge. Measured on the cloud,
-		// which has the tallest envelope: a symmetric +-7 m draw put 7 % of the
+		// which has the tallest envelope: a symmetric +-6 m draw put 7 % of the
 		// swarm in frame at 10 m/s against 18 % before this tranche — the low
 		// units were spending the envelope and buying nothing. Down gets half
 		// the reach, which is also half the reach towards the ground.
+		//
+		// The `k % 4 < 2` split alternates up/down two units at a time, but at
+		// a size where a doctrine draws only two scouts (`scoutsFor` rounds to
+		// size / 3, so any doctrine at size 6 gets scouts = 2), those are
+		// slots k = 0 and 1 — both inside the `< 2` branch. So the two scouts
+		// of a 6-unit swarm are always above the pilot, never one above and
+		// one below. This is assumed, not a bug: scouts already trade width
+		// for depth (see AHEAD_LATERAL_MAX_M), and the same camera bias that
+		// justifies favouring "up" for the rear units favours it even more for
+		// the units the pilot is most likely to actually see.
 		const vSide = (k % 4 < 2) ? 1 : -1;
 		let up = d.vertical * (vSide > 0 ? 0.45 + 0.55 * rand() : 0.30 + 0.35 * rand());
 		// A scout's vertical is capped like its lateral: it is the one offset
-		// held over EXTRAPOLATED track, and 7 m of it points the unit at a roof
-		// the forward probe never asked about.
+		// held over EXTRAPOLATED track, and AHEAD_VERTICAL_MAX_M below caps it
+		// well short of d.vertical's full 6 m so it never points the unit at a
+		// roof the forward probe never asked about.
 		if (ahead) up = Math.min(up, AHEAD_VERTICAL_MAX_M);
 		lag[k] = l;
 		lat[k] = side * width;
