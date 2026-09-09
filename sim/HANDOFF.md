@@ -2664,10 +2664,14 @@ dans ses traces, jamais la traversée de mur.
 
 ### Pénétrations acceptées pour la v1 — ce sont des décisions
 
-~3 m dans le régime écrêté (frames de 250 ms) pour toute taille ≠ 12, et ~2,3 m à
-cadence nominale sur un slalom serré. Les constantes qui les portent vivent dans
-`tools/swarm-selftest.mjs` : **leur rôle n'est pas d'être petites, il est d'être
-vraies**. Une constante ajustée à 1 cm de sa mesure échoue au premier changement
+~3 m dans le régime écrêté (frames de 250 ms) pour toute taille ≠ 12. À cadence
+nominale, le harnais élargi de la tranche « entourer » mesure 0,68 m à 60 fps et
+0,70 m à 30 fps sur un slalom serré, contre `ACCEPTED_WEAVE_M = 1,5` — le
+rapprochement de l'essaim a divisé cette pénétration par trois, et la constante
+laisse désormais deux fois la marge du pire mesuré.
+
+Les constantes qui les portent vivent dans `tools/swarm-selftest.mjs` : **leur
+rôle n'est pas d'être petites, il est d'être vraies**. Une constante ajustée à 1 cm de sa mesure échoue au premier changement
 de graine — c'est arrivé deux fois.
 
 Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
