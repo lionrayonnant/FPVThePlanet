@@ -158,6 +158,55 @@ export const BLOCK_SPAN_M = 2;
 const OVERREACH_M = 3;
 const LOOKAHEAD_S = 0.8;
 
+// THE FORWARD PROBE, and why a scout needs two margins rather than one.
+//
+// One ray used to answer for both halves of a scout's slot: the forward
+// extrapolation AND the lateral offset. In a street they do not fail together
+// — it is the 4 m of lateral that meets the wall, several times a second —
+// but they were charged together, and the whole margin paid. Measured: a
+// scout is asked every frame (60 casts/s) while a rear unit is asked every
+// REAR_PERIOD_S (20/s), so the AIMD ceiling, charged per ray and rebuilt per
+// second, breaks even at 0.2 / (0.25 * 60) = 1.3 % of blocked casts for a
+// scout against 4 % for a rear unit. A real city is well past 1.3 %. Past it
+// the ceiling pins the margin near 0, and at margin 0 the fold reads
+// `fileLag`, which is POSITIVE — so a starved scout was filed 1.5 to 5 m
+// BEHIND the node. Third of the swarm ahead by design, none of it ahead in
+// flight; that is the bug this probe fixes.
+//
+// So the forward half gets its own ray and its own margin. The segment starts
+// at the newest REAL wake sample and follows the track's own tangent with
+// ZERO lateral and vertical offset: the volume the player is about to fly
+// through, which is the safest extrapolation the scene has, and the same
+// straight line every scout is carried along. Nothing else changes — the
+// lateral probe, its margin, the fold, the offset envelope and every bound
+// they hold are untouched, and a scout whose FORWARD probe really is blocked
+// still drops into `fileLag` exactly as before.
+//
+// THE BUDGET IS STILL SIX RAYS A FRAME, and there are two reasons it fits.
+//
+// One: this costs ONE ray for the whole swarm, not one per scout. Every scout
+// reading past the newest sample extrapolates from THAT sample along THAT
+// tangent — `_read()` has no other answer to give — so their forward segments
+// are collinear and share an origin, and the longest contains all the others.
+// One cast at the deepest reach answers for every scout at once. Two rays per
+// scout would have been 8 at size 12 and would not have fitted; one shared ray
+// makes the peak 4 scouts + 2 in the pass-2 turnstile = 6, exactly as before.
+//
+// Two: the ray is not taken off the top. It queues in the pass-2 turnstile on
+// the rear period, competing on overdue-ness like a rear unit, so it is one
+// candidate among nine at size 12 rather than a standing tax. Spending it
+// unconditionally every frame was tried and measured: it left ONE ray for
+// eight rear units and at 20 fps the swarm folded into single file IN CLEAR
+// SKY (mean margin 0.53 against 0.97), the exact failure this design exists
+// to avoid. Queued instead, it costs the rear a ninth of its service; that is
+// visible at 12 fps, where the worst penetration over 324 flights goes from
+// 1.71 m to 2.39 m, and nowhere else — see the geometry block of the selftest.
+//
+// The floor is what makes recovery possible: at forward margin 0 the segment
+// is still OVERREACH_M long, exactly as the lateral probe never shrinks below
+// its own overreach. A zero-length segment would come back green for free and
+// turn the AIMD into a bang-bang.
+
 // The global turnstile: 6 rays per frame, ~360/s, the same order as the wind
 // rosette. Never more, whatever the size or the doctrine.
 export const RAY_BUDGET = 6;
@@ -170,6 +219,21 @@ export const RAY_BUDGET = 6;
 // frames, a 250 ms frame would leave a rear unit unasked for three quarters of
 // a second while it flew 5 m.
 const REAR_PERIOD_S = 3 / 60;
+// How far the track's tangent may turn away from the one the forward probe
+// was cast on before that probe is due again whatever the clock says: 0.1 rad,
+// ~6 degrees.
+const FWD_TURN_COS = Math.cos(0.1);
+// How much track the forward probe reaches PAST the deepest scout, in seconds.
+// It is small on purpose — a tenth of the lateral probe's LOOKAHEAD_S — and
+// the number is a measured trade, not a guess. Swept against a 3 m hairpin at
+// 34 and 45 m/s (the worst the model is asked to survive) and a 4 m slalom
+// down a 12 m street: 0 s leaves a scout 0.027 m inside the hairpin's outer
+// wall; 0.03 s upwards closes it. Above that, every extra tenth costs scouts
+// in the slalom — 73 % of scout-frames in front at 0.1 s, 55 % at 0.2 s, 34 %
+// at 0.4 s, 11 % at 0.8 s, which is worse than the bug this probe fixes. So:
+// the smallest reach that closes the hairpin, with a 3x margin over the point
+// where it first closes.
+const FWD_LOOKAHEAD_S = 0.1;
 
 // A margin is only worth what the ray behind it is worth, and a ray goes stale
 // two ways: in TIME, and in GROUND COVERED. The clock alone is not enough —
@@ -404,6 +468,24 @@ export class SwarmModel {
 		this._riseLeft = new Float64Array(n); // how much margin this unit's last green ray still buys
 		this._ceil = new Float64Array(n);     // AIMD ceiling on the margin, see CEIL_BACKOFF
 		this._wasBlocked = new Uint8Array(n); // the previous verdict, OR'd into this one
+		// The forward probe: one ray and one margin for every scout at once,
+		// see THE FORWARD PROBE above. Same freshness and AIMD law as a unit's
+		// own margin, one scalar instead of an array.
+		this._fwdMargin = 0;
+		this._fwdCeil = 1;
+		this._fwdBlocked = 1;
+		this._fwdWasBlocked = 1;
+		this._fwdGreen = 0;
+		this._fwdRiseLeft = 0;
+		this._fwdLastCast = 0;
+		this._fwdDue = 0;
+		this._fwdGreenAt = new Float64Array(3);
+		this._fwdTan = new Float64Array(3);   // the tangent the probe was cast on
+		// How deep, in seconds of track, the deepest scout asks to be carried.
+		// Fixed by the slots, so the probe's reach is known without a scan.
+		let deepest = 0;
+		for (let k = 0; k < n; k++) if (-this.lag[k] > deepest) deepest = -this.lag[k];
+		this._aheadS = deepest;
 		this._sep = new Float64Array(3 * n);  // separation acceleration, world
 
 		// Per-frame scratch, allocated once.
@@ -450,6 +532,16 @@ export class SwarmModel {
 		this._riseLeft.fill(0);
 		this._ceil.fill(1);
 		this._wasBlocked.fill(1);
+		this._fwdMargin = 0;
+		this._fwdCeil = 1;
+		this._fwdBlocked = 1;
+		this._fwdWasBlocked = 1;
+		this._fwdGreen = 0;
+		this._fwdRiseLeft = 0;
+		this._fwdLastCast = 0;
+		this._fwdDue = 0;
+		this._fwdGreenAt.fill(0);
+		this._fwdTan.fill(0);
 		this._frame.fill(0);
 		this._sFrame.fill(0);
 		this._sAnchor.fill(0);
@@ -629,6 +721,24 @@ export class SwarmModel {
 		//    way around it inside a single pass.
 		for (let k = 0; k < n; k++) this._slotOf(k, time, dt);
 		this._castRays(terrain);
+		// The forward margin, on the same law as a unit's own: it decides how
+		// far ahead a scout may read, and nothing else.
+		{
+			const g = this._fwdGreenAt;
+			const hx = this._count ? this._wx[this._head] : g[0];
+			const hy = this._count ? this._wy[this._head] : g[1];
+			const hz = this._count ? this._wz[this._head] : g[2];
+			const moved = Math.hypot(hx - g[0], hy - g[1], hz - g[2]);
+			const fresh = !this._fwdBlocked && this._clock <= this._fwdGreen && moved <= MARGIN_FRESH_M;
+			this._fwdCeil = Math.min(1, this._fwdCeil + dt * CEIL_RECOVER_PER_S);
+			if (!fresh) {
+				this._fwdMargin = clamp01(this._fwdMargin - dt / MARGIN_FALL_S);
+			} else {
+				const step = Math.min(dt / MARGIN_RISE_S, this._fwdRiseLeft);
+				this._fwdRiseLeft -= step;
+				this._fwdMargin = Math.min(this._fwdCeil, clamp01(this._fwdMargin + step));
+			}
+		}
 		for (let k = 0; k < n; k++) {
 			const o = 3 * k;
 			const moved = Math.hypot(this._anchor[o] - this._greenAt[o], this._anchor[o + 1] - this._greenAt[o + 1], this._anchor[o + 2] - this._greenAt[o + 2]);
@@ -677,7 +787,12 @@ export class SwarmModel {
 		const o = 3 * k;
 		const m = this.margin[k];
 		const lag = this.lag[k];
-		const lagEff = lag < 0 ? lag * m + (1 - m) * this.fileLag[k] : lag;
+		// Ahead is bought by the FORWARD margin, sideways by the unit's own:
+		// a scout whose lateral probe is dead still leads the node as long as
+		// the corridor in front of the player is clear. Folding it into the
+		// file on a lateral verdict is what emptied the pilot's field of view.
+		const mf = this._fwdMargin;
+		const lagEff = lag < 0 ? lag * mf + (1 - mf) * this.fileLag[k] : lag;
 		this._sStar[k] = time - lagEff;
 		const w = this._read(this._sStar[k]);
 		const sf = 12 * k;
@@ -775,7 +890,7 @@ export class SwarmModel {
 		// by up to one wake period, so without this a folded scout read 3 ms
 		// of extrapolation — 4.8 cm off its own wake, for nothing.
 		if (this._count > 0) {
-			const newest = this._wt[this._head] + (this.lag[k] < 0 ? AHEAD_MAX_S * this.margin[k] : 0);
+			const newest = this._wt[this._head] + (this.lag[k] < 0 ? AHEAD_MAX_S * this._fwdMargin : 0);
 			if (sNew > newest) sNew = newest;
 		}
 		// The tail: a unit outrun for longer than the ring is long has nothing
@@ -864,8 +979,10 @@ export class SwarmModel {
 	// One obstruction test per unit and per turn, over the only stretch that is
 	// not the wake: the offset box around the unit's own anchor (see _cast()).
 	// A unit ahead is tested every turn — its slot is extrapolated, so nothing
-	// has ever validated it — a unit behind one turn in three. Never more than
-	// RAY_BUDGET casts, whatever the size and whatever the doctrine.
+	// has ever validated it — a unit behind one turn in three. On top of those,
+	// ONE shared forward probe (see THE FORWARD PROBE) queues with the rear.
+	// Never more than RAY_BUDGET casts, whatever the size and whatever the
+	// doctrine.
 	_castRays(terrain) {
 		this.raysLastFrame = 0;
 		// No ray provider (a boot frame, a scene still loading): nobody is
@@ -875,28 +992,101 @@ export class SwarmModel {
 		const n = this.size;
 		this._turn++;
 		let budget = RAY_BUDGET;
-		// Pass 1: everyone ahead. At most scoutsFor() units, which is <= 4 at
-		// size 12 — it always fits.
+		// Pass 1: everyone ahead, every frame, for the LATERAL half of its
+		// slot. At most scoutsFor() units, which is <= 4 at size 12 — it
+		// always fits.
 		for (let k = 0; k < n && budget > 0; k++) {
 			if (this.lag[k] >= 0) continue;
 			this._cast(terrain, k); budget--;
 		}
-		// Pass 2: the rear. `_due` caps a unit at one turn in three; among the
-		// units that are due, the most overdue goes first. That last part is
+		// Pass 2: the rear, and the forward probe with them. `_due` caps a
+		// unit at one turn in three; among the candidates that are due, the
+		// most overdue goes first, ties to the forward probe. That ordering is
 		// not decoration — with the budget the scouts leave (2 casts for 8
 		// units at size 12) a plain rotating cursor starved two units of the
 		// twelve for the whole flight, measured. Overdue grows without bound
-		// for a starved unit, so it always wins in the end.
+		// for a starved candidate, so it always wins in the end.
+		//
+		// The forward probe queues HERE, on the rear period, rather than being
+		// taken off the top: a ray spent unconditionally every frame left one
+		// single ray for eight rear units, and at 20 fps that starved them past
+		// the freshness bound — the swarm folded into single file IN CLEAR SKY,
+		// which is the exact failure the whole tranche exists to avoid. On the
+		// rear period it is asked 20 times a second, so its own AIMD break-even
+		// sits at 4 % of blocked casts like a rear unit's, not at 1.3 % like a
+		// scout's — and a segment with no lateral reach is nowhere near 4 %.
+
+		// When the forward probe is due, computed once for the frame. A verdict
+		// about a DIRECTION also goes stale in ANGLE, the way a verdict about a
+		// place goes stale in time and in ground covered: the probe cleared a
+		// straight line along the tangent it was cast on, and once the track
+		// has turned away from that tangent, the line the scouts are carried
+		// along is no longer the line that was cleared. Through a 3 m hairpin
+		// at 45 m/s the tangent swings tens of degrees between two rear-period
+		// casts, and a scout ended up 0.03 m inside the outer wall. So a turn
+		// of more than FWD_TURN_COS makes the probe due at once — which costs a
+		// rear ray in a hairpin and nothing at all in the straight flight that
+		// is most of a flight.
+		let fwdDue = -1;
+		if (this._aheadS > 0 && this._count > 0) {
+			fwdDue = this._clock - this._fwdDue;
+			const w = this._read(this._wt[this._head]);
+			const dot = w.tx * this._fwdTan[0] + w.ty * this._fwdTan[1] + w.tz * this._fwdTan[2];
+			if (dot < FWD_TURN_COS) fwdDue = this._clock - this._fwdLastCast;
+		}
 		while (budget > 0) {
 			let best = -1, over = -1;
+			if (fwdDue >= 0) { over = fwdDue; best = -2; }
 			for (let k = 0; k < n; k++) {
 				if (this.lag[k] < 0) continue;
 				const d = this._clock - this._due[k];
 				if (d >= 0 && d > over) { over = d; best = k; }
 			}
-			if (best < 0) break;
-			this._cast(terrain, best); budget--;
+			if (best === -1) break;
+			budget--;
+			if (best === -2) { this._castFwd(terrain); this._fwdDue = this._clock + REAR_PERIOD_S; fwdDue = -1; continue; }
+			this._cast(terrain, best);
 			this._due[best] = this._clock + REAR_PERIOD_S;
+		}
+	}
+
+	// The forward probe: the newest real wake sample, straight along the
+	// track's own tangent, no lateral and no vertical offset at all. See THE
+	// FORWARD PROBE above for why it is one ray and not one per scout, and why
+	// this volume is the safest extrapolation the scene has.
+	_castFwd(terrain) {
+		const g = this._fwdGreenAt;
+		const h = this._head;
+		const ax = this._wx[h], ay = this._wy[h], az = this._wz[h];
+		// The tangent and the track speed AT THE HEAD — the same pair every
+		// scout past the newest sample extrapolates along.
+		const w = this._read(this._wt[h]);
+		const since = Math.min(1, this._clock - this._fwdLastCast);
+		this._fwdLastCast = this._clock;
+		this._fwdTan[0] = w.tx; this._fwdTan[1] = w.ty; this._fwdTan[2] = w.tz;
+		// Exactly as deep as the deepest scout is being carried, plus the
+		// ground the track covers before the next verdict, plus the floor that
+		// keeps the segment real at forward margin 0. There is no LOOKAHEAD_S
+		// here, unlike the lateral probe, and the difference is the whole
+		// point: what the lateral probe anticipates is a unit being CARRIED
+		// sideways into a wall by a track turning under it, but no scout is
+		// ever carried further along the tangent than AHEAD_MAX_S — the
+		// extrapolation is bounded and the wake turns with the player instead
+		// of running on. A lookahead here measures where the straight line
+		// leaves the street, not where anything goes: down a slalom it made
+		// the probe red almost always and left the scouts FURTHER behind than
+		// before the fix (11 % of scout-frames in front against 34 %).
+		const reach = OVERREACH_M + w.speed * this._fwdMargin * (this._aheadS + FWD_LOOKAHEAD_S + since);
+		const r = terrain.obstructionBetween(ax, ay, az, ax + w.tx * reach, ay + w.ty * reach, az + w.tz * reach);
+		this.raysCast++; this.raysLastFrame++;
+		const hit = (r && r.blocked && r.span > BLOCK_SPAN_M) ? 1 : 0;
+		if (hit) this._fwdCeil = Math.max(0, Math.min(this._fwdCeil, this._fwdMargin) - CEIL_BACKOFF);
+		this._fwdBlocked = (hit || this._fwdWasBlocked) ? 1 : 0;
+		this._fwdWasBlocked = hit;
+		if (!this._fwdBlocked) {
+			this._fwdGreen = this._clock + Math.max(MARGIN_FRESH_S, MARGIN_FRESH_GRACE * since);
+			this._fwdRiseLeft = MARGIN_RISE_PER_RAY;
+			g[0] = ax; g[1] = ay; g[2] = az;
 		}
 	}
 

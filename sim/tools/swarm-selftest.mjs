@@ -675,6 +675,53 @@ console.log('\nswarm: it stays deployed when the frame rate does not');
 	}
 }
 
+console.log('\nswarm: the scouts stay in front of the pilot');
+{
+	// The defect this block exists for, reported from a real flight: "there is
+	// no drone in front of me". A third of the swarm is built ahead of the node
+	// and buildSlots() does put them there — but one margin used to answer for
+	// both halves of a scout's slot, the forward extrapolation and the lateral
+	// offset. In a 12 m street the lateral half is dead most of the time (that
+	// is what a 4 m offset in a 12 m street means), and at margin 0 the fold
+	// reads `fileLag`, which is POSITIVE: the scout was filed BEHIND the node.
+	//
+	// So the case that matters is not "a scout is ahead" — in clear sky it
+	// always was — it is A SCOUT WHOSE LATERAL MARGIN IS 0 AND WHICH IS STILL
+	// AHEAD. The first check makes sure the flight actually produces that
+	// situation, so the second one cannot pass by never meeting it.
+	const street = makeCity(60, 6);
+	const dt = 1 / 60, speed = 14, amplitude = 4;
+	let folded = 0, foldedAhead = 0, scouts = 0, scoutsAhead = 0;
+	for (const name of DOCTRINE_NAMES) {
+		const swarm = new SwarmModel({ size: 12, doctrineSeed: SEEDS[name], seed: 'build' });
+		const p = { x: 0, y: 10, z: 200 };
+		swarm.reset(p);
+		let t = 0;
+		for (let i = 0; i < Math.round(20 / dt); i++) {
+			t += dt;
+			// A slalom wall to wall down the street: the wake sweeps sideways
+			// under the swarm, which is what kills the lateral probes.
+			p.z = 200 - speed * t;
+			p.x = amplitude * Math.sin(2 * Math.PI * speed * t / 40);
+			swarm.update(p, t, dt, street.terrain, NO_WIND, null);
+			if (t < 4) continue;
+			for (let k = 0; k < swarm.size; k++) {
+				if (swarm.lag[k] >= 0) continue;
+				// The street runs along -z, so "ahead" is a smaller z.
+				const ahead = swarm.pos[3 * k + 2] < p.z;
+				scouts++; if (ahead) scoutsAhead++;
+				if (swarm.margin[k] < 0.05) { folded++; if (ahead) foldedAhead++; }
+			}
+		}
+	}
+	check('the 12 m street does kill the scouts\' lateral margins (else the next line proves nothing)',
+		folded >= 200, `${folded} scout-frames at lateral margin 0 out of ${scouts}`);
+	check('a scout holds its forward margin while its lateral margin is 0',
+		foldedAhead / folded >= 0.5, `${(foldedAhead / folded * 100).toFixed(0)} % of them still in front of the node`);
+	check('and the scouts are in front of the pilot down a 12 m street',
+		scoutsAhead / scouts >= 0.6, `${(scoutsAhead / scouts * 100).toFixed(0)} % of scout-frames ahead`);
+}
+
 console.log('\nswarm: the fallback holds on its own');
 {
 	// Every ray blocked from the first frame, with a fence, at speed: margins
