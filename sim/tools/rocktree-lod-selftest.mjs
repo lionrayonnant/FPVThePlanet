@@ -84,6 +84,10 @@ function samplePoints(loadRadiusM, level) {
 await t('ringsFor : anneaux bornés au rayon de chargement, jamais vides, niveaux décroissants', () => {
 	assert.deepEqual(ringsFor(300, 21), [{ radiusM: 150, level: 21 }, { radiusM: 300, level: 20 }]);
 	assert.deepEqual(ringsFor(600, 21), [{ radiusM: 150, level: 21 }, { radiusM: 300, level: 20 }, { radiusM: 600, level: 19 }]);
+	// La table va jusqu'à 2 km (#32) : un niveau de moins par doublement, et
+	// le dernier anneau absorbe tout rayon plus grand.
+	assert.deepEqual(ringsFor(2000, 21), [{ radiusM: 150, level: 21 }, { radiusM: 300, level: 20 }, { radiusM: 600, level: 19 }, { radiusM: 1200, level: 18 }, { radiusM: 2000, level: 17 }]);
+	assert.deepEqual(ringsFor(900, 21), [{ radiusM: 150, level: 21 }, { radiusM: 300, level: 20 }, { radiusM: 600, level: 19 }, { radiusM: 900, level: 18 }], 'le rayon borne le dernier anneau');
 	assert.deepEqual(ringsFor(100, 21), [{ radiusM: 100, level: 21 }]);
 	assert.deepEqual(ringsFor(150, 21), [{ radiusM: 150, level: 21 }], 'un rayon égal à la frontière ne crée pas d\'anneau vide');
 	assert.deepEqual(ringsFor(200, 15), [{ radiusM: 150, level: 15 }, { radiusM: 200, level: 14 }], 'plancher de niveau');
@@ -97,8 +101,8 @@ await t('boxInsideDisc / boxIntersectsDisc : coins et bords', () => {
 	assert.equal(boxIntersectsDisc(box(10), CENTER, 12), true);
 });
 
-for (const loadRadiusM of [300, 600]) {
-	await t(`assembleLod couvre chaque point du disque de ${loadRadiusM} m exactement une fois, avec ${loadRadiusM === 300 ? 2 : 3} anneaux`, () => {
+for (const loadRadiusM of [300, 600, 1200, 2000]) {
+	await t(`assembleLod couvre chaque point du disque de ${loadRadiusM} m exactement une fois, avec ${ringsFor(loadRadiusM, 21).length} anneaux`, () => {
 		const rings = ringNodes(loadRadiusM, 21);
 		const selected = assembleLod(rings, CENTER);
 		const full = syntheticTraverse(zoneOf({ ...CENTER, radius: loadRadiusM }), 21)
@@ -107,6 +111,7 @@ for (const loadRadiusM of [300, 600]) {
 			`${selected.length} nœuds retenus contre ${full.length} au niveau plein : le LOD ne réduit pas assez`);
 		const levels = new Set(selected.map((nd) => nd.level));
 		assert.equal(levels.size, rings.length, `niveaux retenus : ${[...levels]}`);
+		assert.ok(rings.length >= 2, 'au moins deux anneaux au-delà de 150 m');
 		for (const nd of selected) assert.ok(boxIntersectsDisc(nd.box, CENTER, loadRadiusM), `${nd.path} hors du disque`);
 		let bad = 0;
 		const pts = samplePoints(loadRadiusM, 21);

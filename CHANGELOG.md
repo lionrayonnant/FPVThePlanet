@@ -37,6 +37,103 @@ rapport avec les versions ci-dessous.
   existante. Éteinte, la carte est exactement celle d'avant et n'émet aucune
   requête ; l'état est retenu dans les réglages de l'opérateur.
 
+- `ARCHIVE` devient `DATA` : une page qui défile, neuf sections de graphes mono
+  — `RHYTHM`, `LIFE`, `SPEED × ALTITUDE`, `HOW THEY DIED`, `STICKS`,
+  `FAMILIES`, `GEOGRAPHY`, `PROFILE`, `RECORDS` — où l'opérateur lit sa propre
+  façon de voler. Aucun score, aucun niveau, aucune comparaison : ce qui s'est
+  passé, dessiné. Les sections qui ont besoin d'une piste de vol affichent
+  `NO TRACK` tant qu'il n'y en a pas ; les autres se lisent depuis les agrégats
+  de session, qui ne sont jamais jetés (#26).
+- `src/graph.js`, un petit kit de dessin canvas mono (barres, nuage, escalier,
+  histogramme) dans la typographie du terminal : une encre, et le magenta
+  seulement sur l'élément sélectionné (#26).
+- `tools/data-model.mjs` et son selftest : toutes les séries des neuf sections
+  sont calculées là, l'écran n'en calcule aucune (#26).
+
+### Modifié
+
+- Le `TARGET LOG` disparaît en tant qu'écran : ses entrées se lisent dans la
+  section `FAMILIES` de `DATA`, groupées par famille de cible et rangées sous la
+  survie moyenne qu'elles ont laissée (#26).
+- `fpvtp.mode` resté sur `archive` retombe sur `data` : un opérateur retrouve
+  son curseur là où il l'avait laissé (#26).
+
+- La portée de vue passe de 300 m à **600 m par défaut**, et le curseur VIEW
+  RANGE monte jusqu'à **2 km** au lieu de 600 m (issue #32). Ce qui le
+  permet : la table `LOD_RINGS` s'arrêtait à `levelDrop: 2`, donc tout au-delà
+  de 300 m était chargé au niveau 19 et la portée coûtait au carré. Elle
+  descend maintenant d'un niveau par doublement de distance jusqu'à 2 km —
+  1200 m coûtent 1270 nœuds au lieu de 1806, et 2000 m en coûtent 1370, soit
+  +37 % par rapport aux 600 m d'avant pour 3,3× la distance. Mesuré à Paris :
+  300 m → 740 nœuds, 892 textures, 64 fps ; 600 m → 1003 nœuds, 1200 textures,
+  62 fps ; 2000 m → 1370 nœuds, 1635 textures, 56 fps. La couverture reste
+  exacte à chaque portée (`tools/rocktree-lod-selftest.mjs` la verrouille
+  désormais jusqu'à 2 km : 26 521 nœuds au niveau plein → 732 avec le LOD,
+  chaque point du disque couvert exactement une fois).
+
+- Le fondu de bord du terrain live suit désormais le rayon (un sixième,
+  plafonné à 250 m) au lieu des 50 m fixes : sur un disque de 2 km, 50 m de
+  frange ne se voyaient plus et le bord redevenait la coupure nette que ce
+  fondu existe pour effacer. À 300 m il retrouve exactement sa valeur d'avant.
+
+- Le pool de workers de nœuds passe de 3 à 6. Avec les anneaux prolongés, le
+  goulot n'est ni le réseau ni le budget de build mais le décodage
+  (580 Kio d'ImageBitmap par nœud). Mesuré en vol continu à 35 m/s, portée
+  2 km : à 3 workers la file de fetchs montait à 219 nœuds en attente et le
+  sol manquait 0,86 % du temps ; à 6, elle ne s'accumule plus (0) et le manque
+  tombe à 0,44 %, pour 50 fps au lieu de 51.
+
+- Un nœud que le LOD remplace par un AUTRE NIVEAU (le même sol qui passe du
+  niveau 21 au 20 en s'éloignant) n'est plus retiré de la scène avant que son
+  remplaçant n'y soit posé. C'est le gros du churn : à 600 m de portée, un
+  recentrage change le niveau de ~124 nœuds contre ~16 qui quittent vraiment
+  le disque. La fenêtre marque la libération `covered` et `main.js` la diffère
+  jusqu'à ce que sa file de builds soit vide — c'est là, et pas dans la
+  fenêtre, que la décision doit se prendre : la fenêtre ne connaît que ses
+  fetchs, et libérer au retour du réseau (premier essai) creusait un trou PLUS
+  grand qu'avant. Effet mesuré, honnêtement : le pic de sol absent passe de
+  6,03/6,13 % à 5,67/5,67 % sur deux paires de passes, la moyenne reste dans
+  le bruit (1,21/1,67 % contre 1,48/0,99 %). Le mécanisme supprime une classe
+  de trous par construction ; son gain chiffré est faible.
+
+### Corrigé
+
+- Trous et z-fight dans le terrain LIVE après quelques centaines de mètres de
+  vol (régression du LOD par anneaux, #22). Depuis ce LOD, l'`exclude` d'un
+  nœud — les octants qu'un nœud plus fin redessine à sa place — dépend de la
+  position de la fenêtre, mais `RocktreeWindow.update()` traitait un nœud déjà
+  chargé comme définitif tant que son chemin restait désiré : il gardait le
+  maillage construit avec l'ancien `exclude`. Le nœud fin sortait du premier
+  anneau et était libéré, l'octant restait exclu chez le grossier, et plus rien
+  ne le dessinait. Mesuré à Paris, rayon 600 m : 70 nœuds périmés dès le
+  premier recentrage de 50 m, 171 sur 706 (500 octants troués, 108 dessinés en
+  double) après 300 m de vol. Un nœud dont l'`exclude` change est désormais
+  libéré et reconstruit ; le refetch ne touche pas le réseau (Cache API du
+  pool, #21).
+
+- L'« anneau qui recharge » en volant : le nœud reconstruit ci-dessus est
+  désormais ÉCHANGÉ, pas libéré puis rebâti. Les libérations passant avant les
+  builds, l'ancien maillage partait aussitôt et le sol manquait tout le temps
+  du refetch — un anneau de terrain disparaissait à chaque recentrage, le
+  temps d'une seconde. La fenêtre marque la libération `replaced` et garde le
+  mesh à l'écran ; `processLiveNodeWork()` retire l'ancien dans la frame même
+  où il pose le nouveau. Mesuré en jeu, saut de 80 m : pic de sol absent
+  8,17 % → 1,99 % à 550 ms, et ce qui reste est du sol RÉELLEMENT neuf (la
+  couronne entrante), pas un trou. Si le refetch échoue pour de bon, l'ancien
+  mesh est retiré à ce moment-là plutôt que laissé orphelin.
+
+- La PAUSE gelait le chargement du terrain. `processLiveNodeWork()` et le
+  recalcul de fenêtre vivaient sous le `if (!frozen)` de la boucle de frame :
+  mettre en pause arrêtait net la file de builds, et le monde restait à moitié
+  construit tant qu'on ne reprenait pas — mesuré, saut dans une zone vierge :
+  478 builds bloqués en file et 79 % du sol absent pendant TOUTE la pause,
+  tout revenu 1,2 s après la reprise. Or c'est précisément en pause qu'on
+  regarde le paysage, et qu'on le photographie : les artefacts qu'on croyait
+  voir sur les captures étaient un chargement suspendu. Le streaming n'est pas
+  de la simulation ; il tourne désormais aussi en pause, panneau de réglages
+  ouvert et intro figée. Le filet anti-trou (#189) reste gelé, lui : il
+  déclenche un respawn.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

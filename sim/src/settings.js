@@ -48,14 +48,18 @@ export const loadMusicVolume = () => loadPercent(MUSIC_KEY, 0.7);
 // ≈ ×9, c'est le GPU et kh.google.com de l'utilisateur, son choix. Défaut
 // 300 m : choisi par l'utilisateur à la première écoute du curseur.
 export const VIEW_RANGE_MIN_M = 100;
-export const VIEW_RANGE_MAX_M = 600;
+export const VIEW_RANGE_MAX_M = 2000;
 export function loadViewRange() {
 	try {
 		const raw = localStorage.getItem(VIEW_RANGE_KEY);
 		const saved = raw === null ? NaN : Number(raw);
 		if (Number.isFinite(saved) && saved >= VIEW_RANGE_MIN_M && saved <= VIEW_RANGE_MAX_M) return saved;
 	} catch { }
-	return 300;
+	// 600 m, pas 300 (#32) : depuis les anneaux de LOD prolongés, doubler la
+	// portée coûte 2 fps et ~180 Mo de textures (mesuré à Paris, 740 -> 1003
+	// nœuds). Un défaut à 300 m faisait s'arrêter le monde juste derrière le
+	// drone, ce qui se voit dès qu'on se retourne. Le curseur monte à 2 km.
+	return 600;
 }
 
 // The FPV look is on by default — a clean rectilinear camera is the thing this
@@ -324,7 +328,7 @@ export class Settings {
 				h('span', { class: 't-ui', text: 'View range' }),
 				h('input', {
 					id: 'viewrange', type: 'range',
-					min: String(VIEW_RANGE_MIN_M), max: String(VIEW_RANGE_MAX_M), step: '50',
+					min: String(VIEW_RANGE_MIN_M), max: String(VIEW_RANGE_MAX_M), step: '100',
 				}),
 				h('span', { id: 'viewrange-val', class: 't-data' }),
 				h('span', { class: 't-data', text: 'm' }),

@@ -26,6 +26,9 @@ const FALLBACK = {
 	'--yellow': '#d4b155',
 	'--orange': '#cf7b3e',
 	'--red': '#c8504a',
+	// The one demo colour a daily screen may touch, and only under the cursor:
+	// DATA marks the SELECTED item with it (issue #26, Bible §19).
+	'--magenta': '#e34de0',
 };
 
 export function token(name) {

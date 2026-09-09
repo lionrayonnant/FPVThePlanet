@@ -71,6 +71,15 @@ export const RETRY_MAX_ATTEMPTS = 3;
 // selftests, qui les lisaient ici.
 export { boxIntersectsDisc };
 
+// Deux listes d'octants exclus décrivent-elles le même maillage ? traverse()
+// et assembleLod() les rendent triées, mais un nœud sans exclude du tout
+// (traversée injectée par un test, nœud sans box) doit valoir la liste vide.
+function sameExclude(a = [], b = []) {
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
+	return a.every((d, i) => d === b[i]);
+}
+
 function p95(samples) {
 	if (samples.length === 0) return null;
 	const sorted = [...samples].sort((a, b) => a - b);
@@ -206,10 +215,67 @@ export class RocktreeWindow {
 		const local = ecefToLocalEnu(centerEcef, this._originEcef, this._originBasis);
 		this.windowCenterLocal = { x: local.x, z: local.z };
 
-		for (const path of this._nodes.keys()) {
-			if (desired.has(path)) continue;
+		// Libère ce qui n'est plus voulu — ET ce dont la GÉOMÉTRIE a changé.
+		// Depuis le LOD par anneaux (#22), `exclude` dépend de la position de
+		// la fenêtre : un nœud grossier n'exclut un octant que tant qu'un nœud
+		// plus fin le redessine. En volant, ce nœud fin sort du premier anneau
+		// et est libéré ; le grossier, lui, reste désiré. Sans cette
+		// comparaison il gardait le mesh construit avec l'ancien exclude —
+		// l'octant n'était plus dessiné par personne (trou béant à mi-distance)
+		// ou l'était deux fois (z-fight). Mesuré sur les vraies données à
+		// Paris : 70 nœuds sur 870 dérivent à chaque recentrage de 50 m, et
+		// l'erreur s'accumule tant que le nœud reste dans la fenêtre. Le
+		// refetch ne coûte pas de réseau (Cache API du pool, #21), seulement un
+		// re-build — le prix du bon maillage.
+		// Tous les préfixes des chemins désirés : de quoi reconnaître, pour un
+		// nœud qui s'en va, s'il est REMPLACÉ par un autre niveau (un ancêtre
+		// ou un descendant couvre le même sol) plutôt que vraiment quitté.
+		// Le LOD par anneaux en produit ~124 par recentrage à 600 m de portée,
+		// mesuré à Paris — bien plus que les ~16 qui sortent réellement du
+		// disque. Les libérer aussitôt rouvre le trou que l'échange de #31
+		// avait fermé : là, le remplaçant n'a PAS le même chemin (21 -> 20,
+		// c'est le parent), donc l'échange par chemin ne s'applique pas.
+		const desiredPrefixes = new Set();
+		for (const p of desired.keys()) for (let len = 1; len <= p.length; len++) desiredPrefixes.add(p.slice(0, len));
+		const coveredByOtherLevel = (path) => {
+			if (desiredPrefixes.has(path)) return true;               // un désiré descend sous lui
+			for (let len = 1; len < path.length; len++) if (desired.has(path.slice(0, len))) return true;   // un ancêtre désiré le couvre
+			return false;
+		};
+
+		// Les nœuds dont on garde le mesh à l'écran en attendant le remplaçant :
+		// si le refetch échoue, il faudra bien finir par le retirer (sinon plus
+		// aucune entrée ne le libérera jamais).
+		const replacing = new Set();
+		for (const path of [...this._nodes.keys()]) {
 			const entry = this._nodes.get(path);
+			const want = desired.get(path);
+			if (want && sameExclude(entry.exclude, want.exclude)) continue;
+			// Remplacé par un autre niveau : on le laisse à l'écran, l'appelant
+			// le retirera quand la vague sera CONSTRUITE. Deux niveaux du même
+			// sol dessinés ensemble une seconde, c'est un scintillement ; un
+			// trou, c'est le ciel à travers le sol. On préfère le scintillement.
+			if (!want && entry.status === 'ready' && coveredByOtherLevel(path)) {
+				// `covered` : l'appelant garde le mesh à l'écran jusqu'à ce que la
+				// VAGUE SOIT CONSTRUITE, pas seulement reçue du réseau. Cette
+				// nuance est tout : la fenêtre ne connaît que ses fetchs, elle
+				// ignore la file de builds étalée sous budget par frame — libérer
+				// au retour du réseau creusait un trou PLUS grand qu'avant
+				// (mesuré : 3,11 % de moyenne contre 0,54 %). C'est donc à
+				// l'appelant de choisir le moment.
+				this._nodes.delete(path);
+				this._onNodeReleased(path, { covered: true });
+				continue;
+			}
 			if (entry.status === 'pending') entry.controller.abort();
+			// Un nœud TOUJOURS désiré dont seul le maillage change n'est pas
+			// retiré de la scène tout de suite : `replaced` dit à l'appelant
+			// que le remplaçant arrive et qu'il échangera lui-même. Sinon
+			// l'ancien part immédiatement (les libérations passent avant les
+			// builds) et le sol manque le temps du refetch — mesuré en jeu :
+			// 8,17 % du sol absent 583 ms après un recentrage, refermé avant
+			// 1,2 s. C'est l'« anneau qui recharge » vu en volant.
+			else if (want) { this._onNodeReleased(path, { replaced: true }); replacing.add(path); }
 			else this._onNodeReleased(path);
 			this._nodes.delete(path);
 		}
@@ -228,10 +294,21 @@ export class RocktreeWindow {
 		for (const meta of missing) {
 			const path = meta.path;
 			const controller = new AbortController();
-			const entry = { status: 'pending', controller };
+			// `exclude` est retenu avec l'entrée : c'est lui que le prochain
+			// recalcul compare (voir la boucle de libération plus haut).
+			const entry = { status: 'pending', controller, exclude: meta.exclude, replacing: replacing.has(path) };
 			this._nodes.set(path, entry);
 			this._runFetch(path, meta, entry, performance.now(), 0);
 		}
+	}
+
+	// Abandon d'un fetch : l'entrée disparaît. Si elle remplaçait un mesh
+	// laissé à l'écran (voir `replaced` dans update()), c'est le dernier
+	// moment pour le retirer — sinon plus aucune entrée ne le connaît et il
+	// reste là, périmé, jusqu'à la fin de la session.
+	_giveUp(path, entry) {
+		this._nodes.delete(path);
+		if (entry.replacing) this._onNodeReleased(path);
 	}
 
 	// Une tentative de fetch pour `path`, avec retry en cas d'échec transitoire
@@ -264,7 +341,7 @@ export class RocktreeWindow {
 			if (err?.name === 'AbortError') return;
 			//   - 404/410 : nœud réellement absent, résultat NORMAL de ce
 			//     protocole (pas une panne). Jamais de retry.
-			if (err?.status === 404 || err?.status === 410) { this._nodes.delete(path); return; }
+			if (err?.status === 404 || err?.status === 410) { this._giveUp(path, entry); return; }
 			//   - tout le reste (coupure réseau, 5xx, status null) : échec
 			//     transitoire, on retente sur place plutôt que d'attendre le
 			//     prochain recalcul de fenêtre.
@@ -273,7 +350,7 @@ export class RocktreeWindow {
 				// reste désiré (il n'a jamais été retiré de `desired`) donc le
 				// prochain recalcul de fenêtre le retentera tant qu'il l'est
 				// toujours — la boucle de secours d'origine, conservée.
-				this._nodes.delete(path);
+				this._giveUp(path, entry);
 				return;
 			}
 			await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * RETRY_BACKOFF_FACTOR ** attempt));
