@@ -18,7 +18,7 @@ import {
 import { VOICE, gainFor, dopplerFor } from './ambient-audio-model.mjs';
 import { SwarmAudio } from '../src/swarm-audio.js';
 import { AmbientAudio } from '../src/ambient-audio.js';
-import { othersBus, _resetOthers } from '../src/audio-others.js';
+import { othersBus, setSwarmPresent, AMBIENT_ALONE, _resetOthers } from '../src/audio-others.js';
 import { SWARM_UNIT, MAX_SIZE } from '../src/swarm.js';
 import { AUDIO } from '../src/audio.js';
 
@@ -410,6 +410,89 @@ test('bus : le PREMIER appelant fige la destination, et `dest` le dit', () => {
 	const ctx2 = fakeContext();
 	const dest2 = ctx2.createGain();
 	assert.equal(othersBus(ctx2, dest2).dest, dest2);
+});
+
+// -------------------------------------- qui paie la part de l'essaim, et quand
+//
+// Le partage coûte ~3 dB aux ambiants, et un cluster ne tombe qu'une session
+// sur dix : le payer dans TOUS les vols, c'est provisionner neuf fois sur dix
+// une part que personne ne prend. Ces trois tests verrouillent les deux cas et
+// la sûreté d'ordre entre eux.
+
+test('sans essaim : les ambiants retrouvent le plafond entier (le niveau de #250)', () => {
+	_resetOthers();
+	const ctx = fakeContext();
+	const dest = ctx.createGain();
+	setSwarmPresent(false);
+	const amb = new AmbientAudio({ destination: dest });
+	amb.start(ctx);
+	const bus = othersBus(ctx, dest);
+	assert.ok(Math.abs(bus.ambient.gain.value - AMBIENT_ALONE) < 1e-12,
+		`trim ${bus.ambient.gain.value} au lieu de ${AMBIENT_ALONE}`);
+	// Le pire cas des ambiants EST le plafond : rien n'est ni gaspillé ni dépassé.
+	assert.ok(Math.abs(AMBIENT_WORST * bus.ambient.gain.value - OTHERS_CAP) < 1e-12);
+	// Et c'est bien ~3 dB au-dessus de la part partagée, pas un arrondi.
+	const gainDb = 20 * Math.log10(AMBIENT_ALONE / TRIM.ambient);
+	assert.ok(Math.abs(gainDb - 20 * Math.log10(1 / OTHERS.ambientShare)) < 1e-9);
+	assert.ok(gainDb > 3, `${gainDb} dB récupérés seulement`);
+	// La déclaration se pose aussi APRÈS la construction du graphe (le contexte
+	// s'ouvre au premier son d'interface, avant openFlightSession()).
+	setSwarmPresent(true);
+	assert.ok(Math.abs(bus.ambient.gain.value - TRIM.ambient) < 1e-12);
+	setSwarmPresent(false);
+	assert.ok(Math.abs(bus.ambient.gain.value - AMBIENT_ALONE) < 1e-12);
+});
+
+test('avec essaim : la somme reste sous le plafond, quelle que soit la taille', () => {
+	_resetOthers();
+	const ctx = fakeContext();
+	const dest = ctx.createGain();
+	setSwarmPresent(true);
+	const amb = new AmbientAudio({ destination: dest });
+	const sw = new SwarmAudio({ destination: dest });
+	amb.start(ctx);
+	sw.start(ctx);
+	const bus = othersBus(ctx, dest);
+	// Les trims LUS sur le graphe, pas les constantes du modèle : c'est le
+	// dernier maillon, et c'est lui que la déclaration peut fausser.
+	const ga = bus.ambient.gain.value, gs = bus.swarm.gain.value;
+	const r = rng(20260909);
+	const dNear = [0, 0, 0];
+	assert.ok(AMBIENT_WORST * ga + SWARM_WORST * gs <= OTHERS_CAP + 1e-12);
+	for (let i = 0; i < 20000; i++) {
+		const n = Math.floor(r() * 200);
+		for (let k = 0; k < 3; k++) dNear[k] = r() * r() * 300;
+		dNear.sort((a, b) => a - b);
+		const dMean = r() * r() * 300;
+		const sum = AMBIENT_WORST * ga + swarmSum(dNear, n, dMean) * gs;
+		assert.ok(sum <= OTHERS_CAP + 1e-12, `n=${n} → ${sum} > ${OTHERS_CAP}`);
+	}
+});
+
+test('plafond structurel : prendre la branche essaim suffit, sans déclaration', () => {
+	// LA propriété ne doit pas dépendre d'un ordre d'appel ni d'un appelant qui
+	// pense à parler. Un vol déclaré sans essaim où une voix d'essaim démarre
+	// quand même — bug, chemin de dev, essaim posé tard — doit revenir au
+	// partage tout seul, avant que cette voix ne s'entende.
+	_resetOthers();
+	const ctx = fakeContext();
+	const dest = ctx.createGain();
+	setSwarmPresent(false);
+	const amb = new AmbientAudio({ destination: dest });
+	amb.start(ctx);
+	assert.ok(Math.abs(othersBus(ctx, dest).ambient.gain.value - AMBIENT_ALONE) < 1e-12);
+	const sw = new SwarmAudio({ destination: dest });
+	sw.start(ctx);   // ne touche que la branche `swarm` du bus
+	const bus = othersBus(ctx, dest);
+	assert.ok(Math.abs(bus.ambient.gain.value - TRIM.ambient) < 1e-12,
+		'les ambiants sont restés au plafond entier alors que l\'essaim chante');
+	assert.ok(AMBIENT_WORST * bus.ambient.gain.value + SWARM_WORST * bus.swarm.gain.value
+		<= OTHERS_CAP + 1e-12);
+	// Et par défaut, sans aucune déclaration, c'est le partage qui tient.
+	_resetOthers();
+	const ctx2 = fakeContext();
+	const dest2 = ctx2.createGain();
+	assert.ok(Math.abs(othersBus(ctx2, dest2).ambient.gain.value - TRIM.ambient) < 1e-12);
 });
 
 console.log(`swarm-audio: ${passed} tests OK`);

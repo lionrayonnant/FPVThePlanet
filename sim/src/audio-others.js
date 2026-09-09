@@ -41,13 +41,51 @@
 // path, sent pre-trim and returning outside the bus, is unchanged — an
 // asymmetry this tranche introduces and does not fix, for the same reason.
 //
+// WHO PAYS THAT PRICE, AND WHEN. A cluster falls one session in ten, so paying
+// it in every flight would mean nine flights out of ten losing 3 dB of sky to
+// provision a swarm that is not there. The ambient branch therefore has two
+// gains and exactly one write per flight (setSwarmPresent(), called from
+// openFlightSession() in src/main.js, where the swarm is decided — before a
+// take-off, before an ambient is audible, and never per frame):
+//
+//   swarm present → TRIM.ambient  (the share; the ceiling is structural)
+//   no swarm      → AMBIENT_ALONE (the whole ceiling; the level #250 validated)
+//
+// The declaration is not what the ceiling RESTS on, because a level that is
+// only correct when someone remembers to call something is not a bound. The
+// safety net is below: taking the swarm branch of the bus is itself the
+// declaration, so the shared trim is in place before a swarm voice can be
+// heard, whatever the call order and whatever main.js said. `swarmPresent`
+// defaults to true for the same reason — sharing is the safe state.
+//
 // This module is deliberately tiny and owns no source. It is the only place
 // that knows the split, and the only thing sources need to know about it is
 // which branch they belong to.
-import { TRIM } from '../tools/swarm-audio-model.mjs';
+import { TRIM, OTHERS_CAP, AMBIENT_WORST } from '../tools/swarm-audio-model.mjs';
+
+// The ambient branch when nothing shares the ceiling with it: its own worst
+// case IS the cap, which is exactly the level #250 gave itself. CHOSEN, not
+// measured, like every relative level in this project (son.md:106-111).
+export const AMBIENT_ALONE = OTHERS_CAP / AMBIENT_WORST;
 
 let ctxRef = null;
 let bus = null;
+// Sharing is the safe state: an undeclared flight pays the swarm's share
+// rather than risking the ceiling.
+let swarmPresent = true;
+
+function applyAmbientTrim() {
+	if (bus) bus.ambient.gain.value = swarmPresent ? TRIM.ambient : AMBIENT_ALONE;
+}
+
+// Does this flight carry a swarm? ONE call per flight, from
+// openFlightSession() (src/main.js). Writes a single gain value — it neither
+// allocates nor reroutes anything, so it is safe before or after the graph is
+// built, and it must never be called per frame.
+export function setSwarmPresent(present) {
+	swarmPresent = !!present;
+	applyAmbientTrim();
+}
 
 // The bus for `ctx`, built once. `destination` is engineIn().
 //
@@ -65,15 +103,27 @@ export function othersBus(ctx, destination) {
 	out.gain.value = 1;
 	out.connect(destination);
 	const ambient = ctx.createGain();
-	ambient.gain.value = TRIM.ambient;
-	ambient.connect(out);
 	const swarm = ctx.createGain();
 	swarm.gain.value = TRIM.swarm;
+	ambient.connect(out);
 	swarm.connect(out);
 	ctxRef = ctx;
-	bus = { out, ambient, swarm, dest: destination, nodesCreated: 3 };
+	bus = {
+		out, ambient, dest: destination, nodesCreated: 3,
+		// Reading this branch IS the declaration, and that is what makes the
+		// ceiling structural rather than a matter of call order: whoever
+		// connects a swarm voice puts the shared trim in place by doing so,
+		// even if setSwarmPresent() was never called or was told otherwise.
+		// src/swarm-audio.js only ever reaches here when a swarm exists
+		// (SwarmDrones.update() returns before start() without a model).
+		get swarm() {
+			if (!swarmPresent) { swarmPresent = true; applyAmbientTrim(); }
+			return swarm;
+		},
+	};
+	applyAmbientTrim();
 	return bus;
 }
 
 // For the selftests, which build a fresh fake context per case.
-export function _resetOthers() { ctxRef = null; bus = null; }
+export function _resetOthers() { ctxRef = null; bus = null; swarmPresent = true; }

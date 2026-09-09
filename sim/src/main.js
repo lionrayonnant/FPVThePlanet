@@ -62,6 +62,7 @@ import { warmUp as warmUpTraverseWorker } from './rocktree-traverse-client.js';
 import { warmUp as warmUpNodePool } from './rocktree-worker-pool.js';
 import { AmbientDrones } from './ambient-drones.js';
 import { SwarmDrones } from './swarm-drones.js';
+import { setSwarmPresent } from './audio-others.js';
 import { PlayerDrone } from './onboard-drone.js';
 
 import { APP_VERSION } from './version.js';
@@ -1236,6 +1237,9 @@ async function bootLive([lat, lon]) {
 		swarm = new SwarmDrones({ scene });
 		// ?live= sort d'openFlightSession() avant la pose de l'essaim : c'est
 		// ici, et seul ?swarm= peut en poser un sur ce chemin.
+		// `?live=` sort d'openFlightSession() avant l'écriture du bus : c'est
+		// donc ici aussi que se pose la présence de l'essaim pour ce chemin.
+		if (OPTS.live) setSwarmPresent(!!devSwarm);
 		if (OPTS.live && devSwarm) { swarm.setSwarm(devSwarm); swarm.reset(physics.position); }
 	}
 	// Brouillard local du bord de fenêtre (#198, retour "rupture nette" après
@@ -3301,7 +3305,14 @@ async function openFlightSession() {
 	// `ambient.setScan()` juste au-dessus préfère le scan de la session au scan
 	// de dev. Le drapeau est un raccourci pour les chemins qui n'ont pas de
 	// session, pas un override de ce que le serveur a résolu.
-	swarm?.setSwarm(tgt?.swarm ?? devSwarm ?? null);
+	const flightSwarm = tgt?.swarm ?? devSwarm ?? null;
+	// Le bus `others` (src/audio-others.js) : UNE écriture par vol, ici, parce
+	// que c'est ici qu'on sait. Sans essaim, les ambiants récupèrent le plafond
+	// entier — leur niveau de #250 — au lieu de provisionner dans neuf vols sur
+	// dix une part que personne ne prendra. Avec essaim, la part partagée, qui
+	// est ce qui rend le plafond structurel.
+	setSwarmPresent(!!(swarm && flightSwarm));
+	swarm?.setSwarm(flightSwarm);
 	swarm?.reset(physics.position);
 
 	applyTargetCamera(targetCamera({ seed, family }));

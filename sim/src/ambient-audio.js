@@ -86,11 +86,13 @@ export class AmbientAudio {
 			const pan = ctx.createStereoPanner();
 			osc.connect(gain);
 			this._noise.connect(band).connect(bandGain).connect(gain);
-			// Le bus `others` (issue #29) et non `destination` directement :
-			// le budget est PARTAGÉ avec l'essaim, pas additionné — voir
-			// src/audio-others.js. C'est la seule ligne que l'essaim change
-			// ici, et elle coûte ~3 dB aux ambiants, qui n'ont plus le
-			// plafond pour eux seuls.
+			// The `others` bus (issue #29) rather than `destination`
+			// directly: the budget is SHARED with the swarm, not added — see
+			// src/audio-others.js. Still the only line the swarm changes
+			// here, and it no longer costs the ambients ~3 dB in every
+			// flight: the branch carries the whole ceiling (the level #250
+			// validated) unless the flight actually has a swarm, which
+			// setSwarmPresent() states once, before take-off.
 			gain.connect(low).connect(pan).connect(othersBus(ctx, this._dest).ambient);
 			osc.start();
 			this.nodesCreated += 6;
