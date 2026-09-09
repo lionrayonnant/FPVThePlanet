@@ -30,7 +30,7 @@ const MAPGUI = read('tools/map-gui/style.css');
 // toucher : le rituel et l'intro. Le hack, lui, reste en monochrome — c'est le
 // rituel qui explose, pas l'analyse qui le précède.
 const DEMO_TOKENS = ['--cyan', '--magenta', '--violet', '--electric'];
-const EVENT_SELECTORS = ['.ritual', '.intro'];
+const EVENT_SELECTORS = ['.intro'];
 
 // Découpe grossière mais suffisante : une règle = ce qui précède `{`, une fois
 // les commentaires retirés. Les blocs @media/@keyframes laissent leur préambule
