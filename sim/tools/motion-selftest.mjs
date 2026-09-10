@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
 installFakeDom();
-const { revealDelays, revealTargets, reveal, interpolateNumbers, revealDelayOf, watchReveal, LEAD_MS, exitScreen, EXIT_MS } = await import('../src/motion.js');
+const { revealDelays, revealTargets, reveal, interpolateNumbers, revealDelayOf, watchReveal, LEAD_MS, exitScreen, EXIT_MS, EXIT_REVEAL_MS } = await import('../src/motion.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -139,12 +139,24 @@ await at('exitScreen : sans matchMedia, la sortie est immédiate et ne marque ri
 	assert.equal(el.dataset.exit, undefined, 'rien à animer, donc rien à marquer');
 });
 
-await at('exitScreen : en navigateur, l\'écran est marqué puis la promesse rend la main', async () => {
+await at('exitScreen : par défaut, seul le CONTENU part — le fond noir tient', async () => {
 	globalThis.matchMedia = () => ({ matches: false });
 	try {
 		const el = document.createElement('div');
 		const p = exitScreen(el, { ms: 1 });
-		assert.equal(el.dataset.exit, '1', 'l\'écran sortant n\'est pas marqué');
+		// C'est ce marqueur que le CSS lit pour n'animer que .bootstrap-box :
+		// faire fondre le fond laissait voir la scène 3D entre deux écrans.
+		assert.equal(el.dataset.exit, 'content', 'l\'écran sortant n\'est pas marqué');
+		await p;
+	} finally { delete globalThis.matchMedia; }
+});
+
+await at('exitScreen : revealBehind emmène le fond — la sortie vers le vol', async () => {
+	globalThis.matchMedia = () => ({ matches: false });
+	try {
+		const el = document.createElement('div');
+		const p = exitScreen(el, { revealBehind: true, ms: 1 });
+		assert.equal(el.dataset.exit, 'screen');
 		await p;
 	} finally { delete globalThis.matchMedia; }
 });
@@ -160,6 +172,9 @@ await at('exitScreen : en mouvement réduit, immédiat — rien à regarder s\'�
 
 t('EXIT_MS : la sortie est plus courte que l\'entrée — un écran s\'éteint plus vite', () => {
 	assert.ok(EXIT_MS <= LEAD_MS, 'la sortie ne doit pas coûter plus que le noir d\'entrée');
+	// La sortie qui découvre le vol prend son temps : c'est une révélation,
+	// pas un enchaînement d'écrans.
+	assert.ok(EXIT_REVEAL_MS > EXIT_MS);
 });
 
 console.log(`motion-selftest: ${n} ok`);

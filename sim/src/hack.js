@@ -349,11 +349,12 @@ function runAcquired(root, { type, buildSeed }) {
 			nav?.detach();
 			nav = null;
 			delete globalThis.__hackTestFinish;
-			// Le dernier écran s'éteint dans le flux vidéo qui prend la main :
+			// Le dernier écran s'éteint DANS le flux vidéo qui prend la main :
 			// c'est la seule sortie du hack qui donne sur autre chose qu'un
-			// écran de terminal, et c'est là qu'une coupe franche se voyait le
-			// plus.
-			s.close().then(resolve);
+			// écran de terminal, donc la seule qui emmène son fond noir avec
+			// elle. Les deux transitions précédentes gardent le leur — sans
+			// quoi la carte déjà chargée apparaîtrait entre deux écrans.
+			s.close({ revealBehind: true }).then(resolve);
 		};
 
 		s.box.appendChild(keyHints([['ESC', 'SKIP']]));
