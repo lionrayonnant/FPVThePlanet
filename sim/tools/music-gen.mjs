@@ -23,14 +23,16 @@ export const STAGING = join(SIM, '.music-staging');
 // les poids) : son emplacement se donne par FPVTP_STABLE_AUDIO, avec pour
 // défaut un ../stableaudio3.0 à côté du dépôt.
 //
-// On appelle le python du venv directement plutôt que la commande
-// `stable-audio` : le venv est souvent créé ailleurs puis déplacé, et ses
-// shebangs pointent alors vers un chemin mort. PYTHONPATH sur les sources
-// parce que le paquet n'est pas installé dans le venv, juste résolu depuis
-// son répertoire.
+// L'installation est un PROJET uv (pyproject.toml + uv.lock) : on la lance donc
+// par `uv run --project`, jamais par un chemin d'interpréteur deviné. C'est uv
+// qui sait quel environnement correspond au verrou, et il le résout depuis la
+// racine du projet — ce qui règle au passage le problème qui avait motivé le
+// chemin direct : un venv créé ailleurs puis déplacé garde des shebangs morts,
+// alors que `uv run` n'en dépend pas.
+//
+// Plus de PYTHONPATH non plus : uv installe le paquet dans l'environnement.
 const SA_ROOT = resolve(process.env.FPVTP_STABLE_AUDIO ?? resolve(SIM, '../stableaudio3.0'));
-const PYTHON = join(SA_ROOT, '.venv/bin/python');
-const SA_SRC = join(SA_ROOT, 'stable-audio-3');
+const SA_PROJECT = join(SA_ROOT, 'pyproject.toml');
 
 export const DEFAULTS = {
 	// 90 s : assez long pour qu'un vol court ne boucle jamais, assez court pour
@@ -154,8 +156,8 @@ async function run() {
 		}
 	}
 
-	if (!existsSync(PYTHON)) {
-		throw new Error(`python du venv Stable Audio introuvable : ${PYTHON}\n`
+	if (!existsSync(SA_PROJECT)) {
+		throw new Error(`projet Stable Audio introuvable : ${SA_PROJECT}\n`
 			+ 'Donne le chemin de l\'installation avec FPVTP_STABLE_AUDIO=/chemin/vers/stableaudio3.0');
 	}
 
@@ -181,10 +183,14 @@ async function run() {
 	};
 
 	const code = await new Promise((res, rej) => {
-		const child = spawn(PYTHON, [join(HERE, 'music-gen.py')], {
-			env: { ...process.env, PYTHONPATH: SA_SRC },
+		const child = spawn('uv', ['run', '--project', SA_ROOT, 'python', join(HERE, 'music-gen.py')], {
 			stdio: ['pipe', 'pipe', 'inherit'],
 		});
+		// `uv` absent du PATH ne remonte pas comme un code de sortie : sans ça,
+		// l'erreur serait un ENOENT nu, sans dire ce qu'il faut installer.
+		child.on('error', (err) => rej(err.code === 'ENOENT'
+			? new Error('`uv` introuvable dans le PATH — https://docs.astral.sh/uv/getting-started/installation/')
+			: err));
 		let buf = '';
 		child.stdout.on('data', (d) => {
 			buf += d;

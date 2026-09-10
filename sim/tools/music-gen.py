@@ -8,7 +8,7 @@ Deux raisons de ne pas utiliser la CLI `stable-audio` fournie en amont :
 1. Le modèle `medium` pèse 1.4B et met plus longtemps à charger qu'à générer.
    La CLI recharge à chaque appel ; ici on charge UNE fois pour N morceaux.
 2. Sa sauvegarde passe par torchaudio.save() → torchcodec, qui n'est pas
-   installé dans ce venv. On écrit le WAV avec soundfile.
+   installé dans cet environnement. On écrit le WAV avec soundfile.
 
 Entrée (stdin) :
   {"model": "medium", "duration": 90, "steps": 8, "cfg_scale": 1.0,
