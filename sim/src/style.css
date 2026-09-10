@@ -1324,6 +1324,18 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	text-transform: uppercase;
 	color: var(--warm-white);
 }
+/* #57 — l'empreinte de la cible, à l'acquisition. Même grille pixel que la
+   grammaire du hack qu'elle remplace : c'est de l'ASCII, pas de la DISPLAY,
+   donc pas d'interlettrage. */
+.hack .hack-art {
+	margin: .8em 0 0;
+	font-family: var(--font-ascii);
+	font-size: var(--fs-display-s);
+	line-height: 1.05;
+	letter-spacing: 0;
+	white-space: pre;
+	color: var(--warm-white);
+}
 
 /* ---------- Intro demoscene au lancement (issue #106) ----------
    PRESS ANY KEY est calme, même grammaire que .bootstrap : pas de couleur,
