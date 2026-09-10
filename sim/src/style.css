@@ -323,7 +323,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	opacity: .8;
 }
 /* Le prix de l'empilement est la hauteur : onze lignes font 254 px à 22 px, et
-   [ESC] DISCONNECT doit rester à l'écran — #flight-end ne défile pas et `exitAt`
+   [ENTER] DISCONNECT doit rester à l'écran — #flight-end ne défile pas et `exitAt`
    ne bouge pas. Sous 820 px de haut, l'empreinte redescend au seul autre corps
    net de la police. Contrainte VERTICALE, donc requête sur la hauteur : c'est
    la colonne qui déborde, jamais la largeur (19 colonnes, 250 px). */
