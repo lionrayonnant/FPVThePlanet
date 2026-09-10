@@ -5,7 +5,8 @@
 // Toujours métrique, même quand la cible affiche des pieds : c'est NOTRE
 // station. Le désaccord entre les deux systèmes fait partie du propos.
 
-import { PORTRAIT_LINE } from './flight-end.js';
+import { PORTRAIT_LINE, RANDOMART_LINE } from './flight-end.js';
+import { randomart } from '../tools/randomart.mjs';
 // Le portrait de la machine perdue (#264). Du SVG en ligne : la couche locale
 // est du DOM, elle n'ouvre pas de contexte de rendu.
 import { dronePortrait } from './drone-portrait.js';
@@ -110,6 +111,7 @@ export class FpvtpOsd {
 		// se termine bien n'en construit jamais.
 		this._target = null;
 		this._portrait = null;
+		this._randomart = null;
 		// D11: the current view, and the only clickable element of the layer —
 		// the OSD is pointer-events: none, this one takes them back.
 		this._view = 'fpv';
@@ -151,6 +153,7 @@ export class FpvtpOsd {
 		if (this._target?.family === family && this._target?.buildSeed === buildSeed
 			&& this._target?.cameraSeed === cameraSeed) return;
 		this._dropPortrait();
+		this._randomart = null;
 		this._target = (family && buildSeed) ? { family, buildSeed, cameraSeed } : null;
 	}
 
@@ -172,6 +175,28 @@ export class FpvtpOsd {
 	_dropPortrait() {
 		this._portrait?.stop();
 		this._portrait = null;
+		this._randomart = null;
+	}
+
+	// L'empreinte de la machine perdue (#57). Fabriquée une seule fois, comme
+	// le portrait : la séquence de fin reconstruit ses lignes à chaque ligne
+	// qui apparaît. Sans exemplaire connu, la ligne retombe sur un blanc —
+	// jamais sur son jeton, qui n'est pas fait pour être lu.
+	//
+	// Le titre du cadre est `TGT ??` et non un numéro : `targetSeq` est
+	// attribué par le serveur et le client ne le connaît pas à cet endroit. Le
+	// numéro est ce que l'archive sait, pas ce que l'opérateur sait en vol.
+	_randomartNode() {
+		if (!this._randomart && this._target?.buildSeed) {
+			const pre = document.createElement('pre');
+			pre.className = 'flight-end-art';
+			pre.setAttribute('aria-hidden', 'true');
+			pre.textContent = randomart(this._target.buildSeed, {
+				title: 'TGT ??', tag: this._target.buildSeed,
+			});
+			this._randomart = pre;
+		}
+		return this._randomart ?? null;
 	}
 
 	show() { this.el.root.hidden = false; }
@@ -308,15 +333,20 @@ export class FpvtpOsd {
 		if (key !== this._endLines) {
 			this._endLines = key;
 			e.replaceChildren(...lines.map((text) => {
-				// La ligne du portrait n'est pas du texte : c'est le dessin de la
-				// machine. Faute d'exemplaire connu, elle retombe sur un blanc —
-				// jamais sur son jeton, qui n'est pas fait pour être lu.
+				// Ni le portrait ni l'empreinte ne sont du texte : ce sont deux
+				// dessins de la machine. Faute d'exemplaire connu, la ligne
+				// retombe sur un blanc — jamais sur son jeton, qui n'est pas
+				// fait pour être lu.
 				if (text === PORTRAIT_LINE) {
 					const node = this._portraitNode();
 					if (node) return node;
 				}
+				if (text === RANDOMART_LINE) {
+					const node = this._randomartNode();
+					if (node) return node;
+				}
 				const d = document.createElement('div');
-				d.textContent = text === PORTRAIT_LINE ? '' : text;
+				d.textContent = (text === PORTRAIT_LINE || text === RANDOMART_LINE) ? '' : text;
 				return d;
 			}));
 		}

@@ -7,6 +7,7 @@
 // supprimée emporte donc la trace de sa cible, ce qui est le comportement
 // voulu — le log ne conserve que la trace d'une session.
 import { formatVisibility, windLabel } from './lib/weather.mjs';
+import { randomart } from './randomart.mjs';
 import { PROFILES } from '../src/drone-profiles.js';
 
 // `LANDED` est parti avec l'atterrissage (D9, 2026-09-08) : aucun vol ne peut
@@ -139,12 +140,31 @@ function flightBlock(s) {
 	];
 }
 
+// L'empreinte de la CIBLE (issue #57). La graine est le `buildSeed` de
+// l'exemplaire, que `sanitizeTarget` ne stocke PAS : il stocke `scan { seed,
+// index }` précisément pour qu'on le reconstruise « sans le stocker deux fois »
+// (commentaire de resolveTarget). Aucune migration, donc : les sessions déjà
+// écrites contiennent déjà de quoi dessiner leur cible.
+//
+// Fallback to `s.randomart`: a session before #57 — or a session opened
+// without TARGET SCAN, which has no target at all — keeps the art it has
+// always displayed. We do not rewrite any archive.
+function randomartBlock(s) {
+	const scan = s?.target?.scan;
+	if (scan?.seed != null && Number.isInteger(scan.index)) {
+		const seed = `${scan.seed}::${scan.index}`;
+		const title = s?.targetSeq ? `TGT ${pad(s.targetSeq, 3)}` : 'TGT ??';
+		return ['RANDOMART', randomart(seed, { title, tag: seed })];
+	}
+	return s?.randomart ? ['RANDOMART', s.randomart] : null;
+}
+
 export function sessionDetail(s) {
 	const blocks = [
 		[`SESSION ${pad(s?.seq)}`],
 		[areaLabel(s?.area), stamp(s?.start)],
 		targetBlock(s),
-		s?.randomart ? ['RANDOMART', s.randomart] : null,
+		randomartBlock(s),
 		weatherBlock(s?.weatherSnapshot),
 		flightBlock(s),
 		// Zéro capture reste affiché : « aucune photo » est une information.

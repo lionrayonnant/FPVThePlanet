@@ -289,6 +289,37 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #flight-end div:empty { height: .6em; }
 
+/* #57 — l'empreinte de la machine perdue, à CÔTÉ du portrait et non dessous :
+   onze lignes d'ASCII empilées sous le dessin pousseraient [ESC] DISCONNECT
+   hors de l'écran, et exitAt ne bouge pas. `order` suffit à les apparier :
+   les deux jetons tombent au même horodatage, donc les deux nœuds arrivent
+   côte à côte dans la colonne flex, et `flex-flow: row wrap` sur le parent
+   n'est pas envisageable — il casserait les lignes de texte. On les sort donc
+   du flux vertical en les collant l'un à l'autre. */
+#flight-end .flight-end-art {
+	margin: 0;
+	font-family: var(--font-ascii);
+	font-size: var(--fs-display-s);
+	line-height: 1.05;
+	letter-spacing: 0;          /* l'ASCII n'est pas de la DISPLAY tracked */
+	text-transform: none;
+	white-space: pre;
+	color: var(--dim);
+	opacity: .8;
+}
+/* Le couple portrait + empreinte. Sous 720 px l'empreinte repasse dessous :
+   à cette largeur elle ne tient plus à côté du dessin. */
+@media (min-width: 720px) {
+	#flight-end .drone-viewer,
+	#flight-end .drone-portrait { margin-right: 1.2em; }
+	#flight-end .drone-viewer + .flight-end-art,
+	#flight-end .drone-portrait + .flight-end-art {
+		position: absolute;
+		left: 50%; margin-left: 6em;
+		top: 50%; transform: translateY(-50%);
+	}
+}
+
 /* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
    element of the layer you can grab: #flight-end is pointer-events: none, and
    this one takes them back so the machine can be turned. */
@@ -1291,6 +1322,18 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	font-size: var(--fs-display-s);
 	letter-spacing: var(--track-display);
 	text-transform: uppercase;
+	color: var(--warm-white);
+}
+/* #57 — l'empreinte de la cible, à l'acquisition. Même grille pixel que la
+   grammaire du hack qu'elle remplace : c'est de l'ASCII, pas de la DISPLAY,
+   donc pas d'interlettrage. */
+.hack .hack-art {
+	margin: .8em 0 0;
+	font-family: var(--font-ascii);
+	font-size: var(--fs-display-s);
+	line-height: 1.05;
+	letter-spacing: 0;
+	white-space: pre;
 	color: var(--warm-white);
 }
 

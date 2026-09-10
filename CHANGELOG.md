@@ -20,6 +20,11 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Le randomart devient l'empreinte de la cible : une machine, un art, le même à
+  chaque fois qu'on la retrouve. Il se trace sous les yeux de l'opérateur après
+  `[ JACK IN ]`, se fige au crash à côté du portrait de la machine perdue, et
+  signe la fiche de session dans les archives (#57).
+
 - Bannières de marque : cinq images composées — marque, nom et accroche sur le
   fond `--black`. Celle de 1280 × 320 ouvre désormais le `README.md`, à la place
   de l'icône seule de 72 px : elle porte déjà la marque ET le nom. Celle de
@@ -145,6 +150,9 @@ rapport avec les versions ci-dessous.
   sont calculées là, l'écran n'en calcule aucune (#26).
 
 ### Modifié
+
+- Le randomart de session (un art différent par vol) est remplacé par celui de
+  la cible. Les sessions déjà écrites gardent le leur (#57).
 
 - L'application prend la marque (#58). `sim/electron/build/icon.png` passe de 512
   à 1024 px pour l'installeur NSIS et l'AppImage, et le favicon de

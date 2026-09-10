@@ -19,6 +19,12 @@ export const TERMINATED = 'TERMINATED';         // la séquence est finie
 // de tomber d'accord sur une chaîne recopiée.
 export const PORTRAIT_LINE = '[PORTRAIT]';
 
+// Le jeton de l'empreinte (#57). Même mécanique que PORTRAIT_LINE : ce module
+// ne connaît que du texte, c'est src/fpvtp-osd.js qui remplace le jeton par
+// l'art de la machine perdue. Il tombe TOUJOURS avec le portrait — une machine
+// perdue est perdue de la même façon, quelle que soit la fin.
+export const RANDOMART_LINE = '[RANDOMART]';
+
 // Mise en scène, pas mesure : ces durées sont un choix, et elles se relisent
 // d'un coup d'œil. Secondes depuis l'impact.
 export const TIMELINE = {
@@ -44,6 +50,7 @@ export const TIMELINE = {
 		// C'est src/fpvtp-osd.js qui remplace ce jeton par le dessin ; le module
 		// reste pur, il ne connaît que des lignes.
 		[4.0, PORTRAIT_LINE],
+		[4.0, RANDOMART_LINE],
 		[4.6, ''],
 		[4.6, '[ESC] DISCONNECT'],
 		// #253 : REDEPLOY partage l'horodatage de DISCONNECT — les deux gestes
@@ -73,6 +80,7 @@ export const FENCE_TIMELINE = {
 		// couverture est perdue autant qu'une machine encastrée : il n'y avait
 		// aucune raison de ne la montrer qu'après un impact.
 		[2.4, PORTRAIT_LINE],
+		[2.4, RANDOMART_LINE],
 		[3.0, ''],
 		[3.0, '[ESC] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],
@@ -103,6 +111,7 @@ export const CUT_TIMELINE = {
 		// qui a prononcé la fin, la machine est perdue pareil — et c'est la
 		// seule fin qu'on choisit, donc la seule où l'on prend le temps.
 		[2.4, PORTRAIT_LINE],
+		[2.4, RANDOMART_LINE],
 		[3.0, ''],
 		[3.0, '[ESC] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],

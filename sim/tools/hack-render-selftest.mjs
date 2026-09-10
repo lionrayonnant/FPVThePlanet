@@ -8,6 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
+import { randomart } from '../tools/randomart.mjs';
 
 // { raf: true } : contrairement à target-scan.js, hack.js pousse
 // inconditionnellement requestAnimationFrame(loop) au démarrage (le motif
@@ -44,6 +45,13 @@ const openArmed = async () => {
 };
 
 const jackIn = () => dom.root.querySelectorAll('button').find((b) => b.textContent.includes('JACK IN'));
+
+// L'écran est démonté quand la promesse se résout : on retient la dernière
+// image de l'empreinte et le dernier texte de reprise en main au moment où
+// __hackTestFinish les pose.
+let lastArt = '';
+let lastHandover = '';
+globalThis.__hackTestObserve = (art, handover) => { lastArt = art; lastHandover = handover; };
 
 await t('#33 : à l\'armement, un bouton JACK IN est monté', async () => {
 	const [p] = await openArmed();
@@ -105,6 +113,62 @@ await t('#33 : une double activation ne résout qu\'UNE fois', async () => {
 	await tick();
 	assert.equal(out?.aborted, undefined);
 	assert.equal(settled, 1, 'la promesse ne doit se régler qu\'une fois');
+	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// L'acquisition : le fou marche APRÈS [ JACK IN ] (issue #57).
+
+const openArmedWithSeed = async () => {
+	reset();
+	const p = runHack(dom.root, {
+		hackType: 'GNSS SPOOF', family: 'freestyle5',
+		ready: Promise.resolve(), buildSeed: 'abc123::3',
+	});
+	await tick();
+	globalThis.__hackTestArm?.();
+	await tick();
+	return [p];
+};
+
+const artEl = () => dom.root.querySelectorAll('.hack-art')[0] ?? null;
+
+await t('#57 : JACK IN ouvre la phase d\'acquisition au lieu de résoudre', async () => {
+	const [p] = await openArmedWithSeed();
+	jackIn().click();
+	await tick();
+	assert.ok(artEl(), 'aucune empreinte à l\'écran');
+	assert.equal(dom.root.querySelectorAll('.hack-head').length, 1, 'écran démonté trop tôt');
+	globalThis.__hackTestFinish?.();
+	await p;
+});
+
+await t('#57 : l\'empreinte atteint son image complète et CONTROL ACQUIRED tombe', async () => {
+	const [p] = await openArmedWithSeed();
+	jackIn().click();
+	await tick();
+	globalThis.__hackTestFinish?.();
+	await p;
+	// __hackTestFinish pose l'image finale AVANT de démonter : on la lit sur le
+	// nœud détaché, que la closure du test tient encore.
+	assert.equal(lastArt, randomart('abc123::3', { title: 'TGT ??', tag: 'abc123::3' }));
+	assert.ok(lastHandover.includes('CONTROL ACQUIRED'));
+});
+
+await t('#57 : Échap pendant l\'acquisition résout, il ne laisse personne dedans', async () => {
+	const [p] = await openArmedWithSeed();
+	jackIn().click();
+	await tick();
+	dom.key('Escape');
+	const out = await p;
+	assert.equal(out?.aborted, undefined, 'Échap ici saute le battement, il n\'annule rien');
+	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0, 'écran encore monté');
+});
+
+await t('#57 : sans buildSeed, JACK IN résout comme avant', async () => {
+	const [p] = await openArmed();   // pas de buildSeed
+	jackIn().click();
+	await p;
 	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0);
 });
 

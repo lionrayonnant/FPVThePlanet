@@ -3005,7 +3005,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 				.catch((err) => console.warn('[music] piste du hack indisponible', err));
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
-			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
 			// Abandon au hack : contrairement à l'Échap du TARGET SCAN juste
 			// au-dessus, `booting` a déjà monté le terrain vivant dans la scène
 			// (bootLive() est placé volontairement AVANT le choix de cible, alors
@@ -3110,7 +3110,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
 			.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
 			.catch((err) => console.warn('[music] piste du hack indisponible', err));
-		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand });
+		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
 		// Abandon au hack : `booting` (finishBoot()) a déjà monté le terrain dans
 		// la scène — « Le montage dans la scène a lieu ICI et pas dans
 		// preloadScene() : à partir de cet instant la zone est engagée, on ne

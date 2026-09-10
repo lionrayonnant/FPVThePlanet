@@ -28,9 +28,17 @@ import {
 import { GRAMMARS, drawNeutral, cosmeticSeed } from './hack-grammars.js';
 import { notify } from './dialogue.js';
 import { scanContext } from './dialogue-context.js';
+import { randomartWalk, randomartFrame } from '../tools/randomart.mjs';
+import { reducedMotion } from './motion.js';
 
 const DOT_MIN = 3;
 const DOT_MAX = 15;
+
+// Mise en scène, pas mesure (comme les tables de src/flight-end.js).
+// L'empreinte se trace, puis on la regarde une demi-seconde avant que le flux
+// vidéo prenne la main.
+const ART_WALK_MS = 1000;
+const ART_HOLD_MS = 700;
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const padLabel = (s) => s.padEnd(18);
@@ -38,7 +46,7 @@ const padLabel = (s) => s.padEnd(18);
 // `ready`: promise for the background load (main.js). Resolves -> arm() can
 // fire once the sequence is done. Rejects -> tear down and propagate (boot
 // failure). Absent -> scripted sequence alone (the ?scene=/?family= paths).
-export function runHack(root, { hackType, family, ready, candidate = null } = {}) {
+export function runHack(root, { hackType, family, ready, candidate = null, buildSeed = null } = {}) {
 	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
 	const draw = GRAMMARS[type] || drawNeutral;
 	const seed = cosmeticSeed(family || type);
@@ -65,7 +73,12 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 	const gramEl = document.createElement('pre');
 	gramEl.className = 'hack-grammar';
 	gramEl.setAttribute('aria-hidden', 'true');
-	s.box.append(headEl, logEl, handoverEl, gramEl);
+	// L'empreinte de la cible (#57), vide jusqu'à l'acquisition.
+	const artEl = document.createElement('pre');
+	artEl.className = 'hack-art';
+	artEl.setAttribute('aria-hidden', 'true');
+	artEl.hidden = true;
+	s.box.append(headEl, logEl, handoverEl, gramEl, artEl);
 
 	// RTC: crew chatter during the automatic sequence only. D9 is
 	// non-negotiable — the crew is silent from the handover on, and
@@ -95,9 +108,12 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		const nowMs = () => performance.now() - t0;
 
 		// phase : 'run' séquence en cours · 'hold' attente du chargement ·
-		//         'lock' culmination du motif · 'armed' [ JACK IN ] disponible
+		//         'lock' culmination du motif · 'armed' [ JACK IN ] disponible ·
+		//         'acquired' l'empreinte se trace, le contrôle est pris (#57)
 		let phase = 'run';
 		let lockT0 = 0;
+		let walk = null;
+		let artT0 = 0;
 
 		let stepIdx = 0;
 		let stepStart = 0;          // ms du début du dwell de l'étape courante
@@ -127,8 +143,16 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 				out += `\n${'.'.repeat(k)}`;
 			}
 			logEl.textContent = out;
-			handoverEl.hidden = !(phase === 'lock' || phase === 'armed');
+			handoverEl.hidden = !(phase === 'lock' || phase === 'armed' || phase === 'acquired');
 			logEl.classList.toggle('hack-log-armed', phase === 'armed');
+			// #57 : pendant 'acquired', le log et le motif se taisent, l'empreinte
+			// se trace. `randomartFrame` pose E sur la case du dernier pas : le fou
+			// est son propre curseur.
+			if (phase === 'acquired') {
+				const n = walk.steps.length * (reducedMotion() ? 1
+					: clamp01((nowMs() - artT0) / ART_WALK_MS));
+				artEl.textContent = randomartFrame(walk, n, { title: 'TGT ??', tag: buildSeed });
+			}
 		};
 
 		// --- machine à étapes -------------------------------------------------
@@ -164,6 +188,9 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		// Escape returns { cancelled: true } and loops back to the zone.
 		const abort = () => {
 			if (done) return;
+			// #57 : une fois le contrôle pris, Échap ne renvoie plus au scan — il
+			// saute le battement. Le geste est fait, il n'y a rien à annuler.
+			if (phase === 'acquired') { handOver(); return; }
 			teardown();
 			resolve({ aborted: true });
 		};
@@ -196,7 +223,7 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		// --- boucle d'animation unique --------------------------------------
 		const loop = () => {
 			if (done) return;
-			draw(gramEl, { t: nowMs() / 1000, seed, lock: lockLevel() });
+			if (phase !== 'acquired') draw(gramEl, { t: nowMs() / 1000, seed, lock: lockLevel() });
 			paint();
 			raf = requestAnimationFrame(loop);
 		};
@@ -218,11 +245,42 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 			// whole life, one runHack() call overwriting the last (memory-release-
 			// selftest.mjs would have caught this eventually, on a real leak).
 			delete globalThis.__hackTestArm;
+			delete globalThis.__hackTestFinish;
 			s.remove();
 		};
 
+		// #57 — le battement d'acquisition. `[ JACK IN ]` est le GESTE ;
+		// `CONTROL ACQUIRED` est son RÉSULTAT, et il vient après. Le motif de la
+		// famille cède la place à l'empreinte de la machine, qui se trace, puis
+		// le flux vidéo prend la main.
+		//
+		// Sans `buildSeed` — les chemins d'aperçu `?hack=` — il n'y a pas de
+		// machine à graver : on résout directement, comme avant #57.
 		const finish = () => {
 			if (done) return;
+			if (!buildSeed) { handOver(); return; }
+			phase = 'acquired';
+			artT0 = nowMs();
+			walk = randomartWalk(buildSeed);
+			artEl.hidden = false;
+			gramEl.hidden = true;
+			handoverEl.textContent = 'CONTROL ACQUIRED';
+			paint();
+			after(reducedMotion() ? ART_HOLD_MS : ART_WALK_MS + ART_HOLD_MS, handOver);
+		};
+
+		// La sortie de la phase, et le seul point qui résout. Appelé par le
+		// minuteur, par Échap (qui SAUTE le battement — le contrôle est pris, on
+		// ne revient pas au scan) et par le crochet de test.
+		const handOver = () => {
+			if (done) return;
+			// L'empreinte est POSÉE dans son état final avant le démontage. Sauter
+			// le battement — Échap, ou le crochet de test — ne doit pas laisser une
+			// image à moitié tracée comme dernière chose à l'écran.
+			if (phase === 'acquired') {
+				artEl.textContent = randomartFrame(walk, walk.steps.length, { title: 'TGT ??', tag: buildSeed });
+			}
+			globalThis.__hackTestObserve?.(artEl.textContent, handoverEl.textContent);
 			teardown();
 			resolve();
 		};
@@ -231,6 +289,7 @@ export function runHack(root, { hackType, family, ready, candidate = null } = {}
 		// phases on timers, and a render test has no business waiting seconds
 		// for them. Nothing in the game reads this.
 		globalThis.__hackTestArm = () => { timers.forEach(clearTimeout); timers.clear(); arm(); };
+		globalThis.__hackTestFinish = () => { timers.forEach(clearTimeout); timers.clear(); handOver(); };
 
 		raf = requestAnimationFrame(loop);
 		runStep();
