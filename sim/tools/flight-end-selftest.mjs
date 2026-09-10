@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {
 	FlightEnd, TIMELINE, FENCE_TIMELINE, CUT_TIMELINE,
-	CUT, FLYING, CRASHING, TERMINATED, PORTRAIT_LINE,
+	CUT, FLYING, CRASHING, TERMINATED, PORTRAIT_LINE, RANDOMART_LINE,
 } from '../src/flight-end.js';
 // Namespace import: the removal of landing (D9, 2026-09-08) is asserted on the
 // module's surface itself, and a named import of a gone export would not even
@@ -355,6 +355,32 @@ t('cuttable : vrai en vol, faux une fois la fin engagée', () => {
 	fe.update(frame({ crashed: true }));
 	fe.update(frame({ crashed: true }));
 	assert.equal(fe.out.cuttable, false);
+});
+
+// ---------------------------------------------------------------------------
+// L'empreinte de la machine perdue (issue #57).
+
+t('#57 : le jeton d\'empreinte est sur les trois tables, avec le portrait', () => {
+	for (const table of [TIMELINE, FENCE_TIMELINE, CUT_TIMELINE]) {
+		const art = table.lines.find(([, text]) => text === RANDOMART_LINE);
+		const portrait = table.lines.find(([, text]) => text === PORTRAIT_LINE);
+		assert.ok(art, 'aucune ligne d\'empreinte');
+		assert.equal(art[0], portrait[0], 'l\'empreinte doit tomber avec le portrait');
+	}
+});
+
+t('#57 : la sortie ne recule sur aucune des trois tables', () => {
+	assert.equal(TIMELINE.exitAt, 4.6);
+	assert.equal(FENCE_TIMELINE.exitAt, 3.0);
+	assert.equal(CUT_TIMELINE.exitAt, 3.0);
+});
+
+t('#57 : après un crash, l\'empreinte est écrite avec le portrait', () => {
+	const fe = new FlightEnd();
+	fe.update(frame({ crashed: true }));
+	advance(fe, 4.2);
+	assert.ok(fe.out.lines.includes(RANDOMART_LINE));
+	assert.ok(fe.out.lines.includes(PORTRAIT_LINE));
 });
 
 console.log(`\n${n} tests OK`);
