@@ -71,6 +71,10 @@ export const RETRY_MAX_ATTEMPTS = 3;
 // selftests, qui les lisaient ici.
 export { boxIntersectsDisc };
 
+// Marqueur d'un mesh périmé gardé à l'écran (voir _giveUp) : une valeur
+// qu'aucun exclude réel (octants 0-7) ne peut égaler.
+const STALE_EXCLUDE = [-1];
+
 // Deux listes d'octants exclus décrivent-elles le même maillage ? traverse()
 // et assembleLod() les rendent triées, mais un nœud sans exclude du tout
 // (traversée injectée par un test, nœud sans box) doit valoir la liste vide.
@@ -251,23 +255,24 @@ export class RocktreeWindow {
 			const entry = this._nodes.get(path);
 			const want = desired.get(path);
 			if (want && sameExclude(entry.exclude, want.exclude)) continue;
+			// Un mesh est à l'écran pour ce chemin si le nœud est prêt — OU si
+			// son entrée est un refetch `replaced` (#31) encore en vol : l'ancien
+			// mesh y est toujours. C'est ce qui décide, pas `status` seul (#75) :
+			// un tel nœud qui change de niveau au recentrage suivant tombait
+			// dans la libération sèche parce qu'il était `pending`, et son mesh
+			// partait avec le remplaçant encore en vol — trou mesuré en vol.
+			const onScreen = entry.status === 'ready' || entry.replacing;
+			if (entry.status === 'pending') entry.controller.abort();
+			this._nodes.delete(path);
 			// Remplacé par un autre niveau : on le laisse à l'écran, l'appelant
 			// le retirera quand la vague sera CONSTRUITE. Deux niveaux du même
 			// sol dessinés ensemble une seconde, c'est un scintillement ; un
 			// trou, c'est le ciel à travers le sol. On préfère le scintillement.
-			if (!want && entry.status === 'ready' && coveredByOtherLevel(path)) {
-				// `covered` : l'appelant garde le mesh à l'écran jusqu'à ce que la
-				// VAGUE SOIT CONSTRUITE, pas seulement reçue du réseau. Cette
-				// nuance est tout : la fenêtre ne connaît que ses fetchs, elle
-				// ignore la file de builds étalée sous budget par frame — libérer
-				// au retour du réseau creusait un trou PLUS grand qu'avant
-				// (mesuré : 3,11 % de moyenne contre 0,54 %). C'est donc à
-				// l'appelant de choisir le moment.
-				this._nodes.delete(path);
-				this._onNodeReleased(path, { covered: true });
-				continue;
-			}
-			if (entry.status === 'pending') entry.controller.abort();
+			// `covered` : l'appelant garde le mesh jusqu'à ce que la VAGUE SOIT
+			// CONSTRUITE et plus aucun fetch en vol (LiveNodeQueue, #75) — la
+			// fenêtre ne connaît que ses fetchs, elle ignore la file de builds
+			// étalée sous budget par frame.
+			if (!want && onScreen && coveredByOtherLevel(path)) { this._onNodeReleased(path, { covered: true }); continue; }
 			// Un nœud TOUJOURS désiré dont seul le maillage change n'est pas
 			// retiré de la scène tout de suite : `replaced` dit à l'appelant
 			// que le remplaçant arrive et qu'il échangera lui-même. Sinon
@@ -275,9 +280,12 @@ export class RocktreeWindow {
 			// builds) et le sol manque le temps du refetch — mesuré en jeu :
 			// 8,17 % du sol absent 583 ms après un recentrage, refermé avant
 			// 1,2 s. C'est l'« anneau qui recharge » vu en volant.
-			else if (want) { this._onNodeReleased(path, { replaced: true }); replacing.add(path); }
-			else this._onNodeReleased(path);
-			this._nodes.delete(path);
+			if (want) {
+				if (onScreen) { this._onNodeReleased(path, { replaced: true }); replacing.add(path); }
+				continue;
+			}
+			// Un fetch neuf abandonné n'a rien à l'écran : rien à signaler.
+			if (onScreen) this._onNodeReleased(path);
 		}
 
 		// Fetch dans l'ordre de la distance au drone, pas de la marche de
@@ -302,13 +310,16 @@ export class RocktreeWindow {
 		}
 	}
 
-	// Abandon d'un fetch : l'entrée disparaît. Si elle remplaçait un mesh
-	// laissé à l'écran (voir `replaced` dans update()), c'est le dernier
-	// moment pour le retirer — sinon plus aucune entrée ne le connaît et il
-	// reste là, périmé, jusqu'à la fin de la session.
+	// Abandon d'un fetch. Si l'entrée remplaçait un mesh laissé à l'écran
+	// (voir `replaced` dans update()), ce mesh RESTE (#75) : le retirer
+	// ouvrait un trou là où le nœud est toujours désiré. L'entrée passe
+	// 'ready' avec un exclude qui ne peut égaler aucun exclude voulu — le
+	// prochain recalcul la voit donc périmée et retente (boucle de secours),
+	// et si le nœud quitte la fenêtre, elle est libérée comme les autres :
+	// rien n'est orphelin. Sinon (rien à l'écran) l'entrée disparaît.
 	_giveUp(path, entry) {
+		if (entry.replacing) { entry.status = 'ready'; entry.exclude = STALE_EXCLUDE; return; }
 		this._nodes.delete(path);
-		if (entry.replacing) this._onNodeReleased(path);
 	}
 
 	// Une tentative de fetch pour `path`, avec retry en cas d'échec transitoire

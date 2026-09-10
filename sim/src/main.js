@@ -59,6 +59,7 @@ import { DistantGround } from './ground.js';
 import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
+import { LiveNodeQueue } from './live-node-queue.js';
 import { warmUp as warmUpTraverseWorker } from './rocktree-traverse-client.js';
 import { warmUp as warmUpNodePool } from './rocktree-worker-pool.js';
 import { AmbientDrones } from './ambient-drones.js';
@@ -274,34 +275,14 @@ let liveWindow = null;          // RocktreeWindow actif en mode ?live=, sinon nu
 let fenceDome = null;           // FenceDome actif en mode ?live=, sinon null (#198)
 let liveEdgeUniforms = null;    // uniformes partagés du fondu de bord du terrain live, sinon null (#202)
 
-// Files du mode ?live= (#184) : les nœuds reçus/libérés attendent ici, et
-// processLiveNodeWork() les traite sous un budget par frame — le travail par
-// nœud est petit (~1,4 ms) mais arrive en rafales de plusieurs dizaines par
-// frame, et l'exécuter à l'arrivée gelait le rendu 70-330 ms par vague.
-const pendingNodeBuilds = new Map();    // path -> { matrix, meshes, sphereRadius }
-const pendingNodeReleases = [];         // paths dont mesh+collider sont à retirer
-// Paths qu'un AUTRE NIVEAU remplace (#32) : leur mesh reste à l'écran jusqu'à
-// ce que la file de builds soit vide, donc jusqu'à ce que le sol qu'ils
-// couvraient soit réellement redessiné. Le LOD par anneaux en produit ~124 par
-// recentrage à 600 m de portée (mesuré à Paris) — bien plus que les ~16 qui
-// quittent vraiment le disque. C'est ici, et pas dans la fenêtre, que la
-// décision se prend : la fenêtre ne connaît que ses fetchs, elle ignore cette
-// file-ci, et libérer au retour du réseau creusait un trou PLUS grand qu'avant
-// (3,11 % de sol absent en moyenne contre 0,54 %).
-const coveredReleases = [];
-// ~3 ms : ce qui tient dans une frame de 60 fps déjà occupée par la physique
-// et le rendu sans la faire déborder de 16,7 ms. Une vague de 800 nœuds
-// (~1,1 s de travail) s'étale ainsi sur ~5 s au lieu de geler l'image —
-// le tri par distance de rocktree-window.js fait apparaître le proche d'abord.
-const NODE_WORK_BUDGET_MS = 3;
-// Budget adaptatif (#189) : quand la file est profonde (recentrage de
-// fenêtre en vol), 3 ms/frame étalent une vague de 300 m sur 10-15 s de
-// remplissage visible. 8 ms restent sous une frame de 60 fps (steps ~1,6 ms
-// + rendu ~5 ms + 8 ≈ 15 ms, mesuré #187) et remplissent ~2,5× plus vite.
-// Le seuil évite de payer 8 ms sur le goutte-à-goutte normal (file quasi
-// vide : les nœuds arrivent au rythme du réseau).
-const DEEP_QUEUE_JOBS = 50;
-const DEEP_QUEUE_BUDGET_MS = 8;
+// Files du mode ?live= (#184, #75) : les nœuds reçus/libérés attendent dans
+// LiveNodeQueue (live-node-queue.js), et processLiveNodeWork() les draine
+// sous un budget par frame — le travail par nœud est petit (~1,4 ms) mais
+// arrive en rafales de plusieurs dizaines par frame, et l'exécuter à
+// l'arrivée gelait le rendu 70-330 ms par vague. L'ordre et le moment
+// (surtout celui des nœuds « couverts » par un autre niveau) sont la
+// politique du module, verrouillée par tools/live-node-queue-selftest.mjs.
+const liveQueue = new LiveNodeQueue();
 
 // Retire de la scène et de Rapier tout ce qu'un nœud avait posé, et rend sa
 // mémoire. Appelée par la file de libérations ET par l'échange d'un nœud
@@ -329,55 +310,44 @@ function disposeLiveNode(path) {
 	liveMeshes.delete(path);
 }
 
-// Draine les files sous budget. Les libérations d'abord : elles rendent de la
-// mémoire et leur retard laisserait des meshes fantômes hors fenêtre.
-function processLiveNodeWork(budgetMs = (pendingNodeBuilds.size > DEEP_QUEUE_JOBS ? DEEP_QUEUE_BUDGET_MS : NODE_WORK_BUDGET_MS)) {
+// Draine les files sous budget (voir LiveNodeQueue pour l'ordre et le moment).
+function processLiveNodeWork(budgetMs = liveQueue.budgetMs()) {
 	if (!liveWindow) return;
-	const start = performance.now();
-	while (performance.now() - start < budgetMs) {
-		if (pendingNodeReleases.length > 0) {
-			disposeLiveNode(pendingNodeReleases.shift());
-			continue;
-		}
-		const next = pendingNodeBuilds.entries().next();
-		if (next.done) {
-			// Plus rien à construire : la vague est posée, le sol que les nœuds
-			// d'un autre niveau couvraient est redessiné. Ils peuvent partir —
-			// à la prochaine tour de boucle, sous le même budget.
-			if (coveredReleases.length > 0) { pendingNodeReleases.push(...coveredReleases); coveredReleases.length = 0; continue; }
-			break;
-		}
-		const [path, job] = next.value;
-		pendingNodeBuilds.delete(path);
-		const built = buildNodeMesh(path, job.meshes);
-		// ÉCHANGE, pas remplacement différé (#31) : un nœud dont seul le
-		// maillage change (l'`exclude` du LOD par anneaux dépend de la
-		// position de la fenêtre) reste à l'écran jusqu'ici — la fenêtre l'a
-		// signalé `replaced` au lieu de le libérer. L'ancien ne part qu'une
-		// fois le nouveau construit, dans la MÊME frame : sans ça, les
-		// libérations passant avant les builds, un anneau de sol disparaissait
-		// ~1 s à chaque recentrage (mesuré : 8,17 % du sol absent à 583 ms).
-		if (liveMeshes.has(path)) disposeLiveNode(path);
-		const entries = [];
-		liveMeshes.set(path, entries);
-		for (const { mesh, colliderPath, vertices, indices } of built) {
-			// Le collider EN PREMIER (#179) : c'est la seule de ces étapes qui
-			// puisse lever (chemin déjà chargé, trimesh refusé par Rapier). Le
-			// mesh était auparavant ajouté à la scène avant elle et enregistré
-			// après — une exception sur le premier sous-maillage d'un nœud
-			// laissait donc un mesh dans la scène que plus rien ne libérait.
-			physics.addNodeCollider(colliderPath, vertices, indices);
-			scene.add(mesh);
-			// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
-			// rendu — sinon Three téléverse toutes les textures de la vague
-			// dans la frame où elles deviennent visibles.
-			const liveMap = mesh.material.uniforms?.uMap?.value;
-			if (liveMap) renderer.initTexture(liveMap);
-			entries.push({ colliderPath, mesh });
-		}
-	}
+	liveQueue.drain({
+		budgetMs,
+		pendingFetches: () => liveWindow.pendingCount(),
+		dispose: disposeLiveNode,
+		build: (path, job) => {
+			const built = buildNodeMesh(path, job.meshes);
+			// ÉCHANGE, pas remplacement différé (#31) : un nœud dont seul le
+			// maillage change (l'`exclude` du LOD par anneaux dépend de la
+			// position de la fenêtre) reste à l'écran jusqu'ici — la fenêtre l'a
+			// signalé `replaced` au lieu de le libérer. L'ancien ne part qu'une
+			// fois le nouveau construit, dans la MÊME frame : sans ça, les
+			// libérations passant avant les builds, un anneau de sol disparaissait
+			// ~1 s à chaque recentrage (mesuré : 8,17 % du sol absent à 583 ms).
+			if (liveMeshes.has(path)) disposeLiveNode(path);
+			const entries = [];
+			liveMeshes.set(path, entries);
+			for (const { mesh, colliderPath, vertices, indices } of built) {
+				// Le collider EN PREMIER (#179) : c'est la seule de ces étapes qui
+				// puisse lever (chemin déjà chargé, trimesh refusé par Rapier). Le
+				// mesh était auparavant ajouté à la scène avant elle et enregistré
+				// après — une exception sur le premier sous-maillage d'un nœud
+				// laissait donc un mesh dans la scène que plus rien ne libérait.
+				physics.addNodeCollider(colliderPath, vertices, indices);
+				scene.add(mesh);
+				// Upload GPU à l'arrivée, sous CE budget, plutôt qu'au premier
+				// rendu — sinon Three téléverse toutes les textures de la vague
+				// dans la frame où elles deviennent visibles.
+				const liveMap = mesh.material.uniforms?.uMap?.value;
+				if (liveMap) renderer.initTexture(liveMap);
+				entries.push({ colliderPath, mesh });
+			}
+		},
+	});
 	// UN refit du query-BVH pour tout le lot de la frame (#187) — add/remove
-	// ne le paient plus chacun. Doit rester APRÈS la boucle : groundBelow()
+	// ne le paient plus chacun. Doit rester APRÈS le drain : groundBelow()
 	// (spawn, AGL) lit le pipeline au plus tard à la frame suivante.
 	physics.flushNodeColliders();
 }
@@ -724,6 +694,8 @@ function exposeDebugGlobal() {
 		fence, distantGround,
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
+		// L'état des files du mode live (#75), pour mesurer une vague en vol.
+		liveStats: () => ({ builds: liveQueue.builds.size, swaps: liveQueue.swaps.size, covered: liveQueue.covered.size, releases: liveQueue.releases.length, pending: liveWindow?.pendingCount() ?? null }),
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
 		// with speed in m/s at 10 m and direction in degrees the wind comes from;
 		// gustPeak / gustDuration / gustRate can be passed too, for anyone who
@@ -1245,7 +1217,9 @@ async function bootLive([lat, lon]) {
 		// Ni l'un ni l'autre ne touche `physics` : ils peuvent donc courir
 		// pendant que Rapier s'initialise encore (#21).
 		onNodeReady: (path, matrix, meshes, sphereRadius) => {
-			pendingNodeBuilds.set(path, { matrix, meshes, sphereRadius });
+			// `swap` : un mesh est déjà à l'écran pour ce chemin (`replaced`,
+			// ou un couvert redemandé) — l'échange attendra la vague complète.
+			liveQueue.queueBuild(path, { matrix, meshes, sphereRadius }, { swap: liveMeshes.has(path) });
 			// Signal "la fenêtre bouge" pour le dôme numérique (#198) — au
 			// moment où le nœud est REÇU, pas où processLiveNodeWork() le
 			// construit sous budget : ce dernier peut traîner plusieurs
@@ -1255,20 +1229,18 @@ async function bootLive([lat, lon]) {
 		onNodeReleased: (path, opts) => {
 			// `replaced` (#31) : le nœud reste désiré, seul son maillage change
 			// et son remplaçant est déjà en route. On ne retire RIEN — c'est le
-			// build qui échangera, dans une seule frame. Sinon le sol manque
-			// tout le temps du refetch (les libérations passent avant les
-			// builds), et c'est l'anneau qui « recharge » vu en volant.
+			// build qui échangera, à la vague complète (LiveNodeQueue, #75).
+			// Sinon le sol manque tout le temps du refetch, et c'est l'anneau
+			// qui « recharge » vu en volant.
 			if (opts?.replaced) return;
-			// Remplacé par un autre niveau : on diffère, voir coveredReleases.
-			if (opts?.covered && liveMeshes.has(path)) { coveredReleases.push(path); fenceDome?.markChurn(); return; }
-			// Sans ce drapeau, la libération est franche. Un build encore en
-			// file est jeté — mais PAS au prix d'oublier ce qui est déjà en
-			// scène : depuis l'échange ci-dessus, un chemin peut être à la fois
-			// construit et en attente d'un remplaçant, et ne retirer que
-			// l'entrée de file laisserait mesh + collider orphelins.
-			const queued = pendingNodeBuilds.delete(path);
-			if (queued && !liveMeshes.has(path)) return;
-			pendingNodeReleases.push(path);
+			// Remplacé par un autre niveau : tenu à l'écran jusqu'à la vague
+			// complète, voir LiveNodeQueue.
+			if (opts?.covered && liveMeshes.has(path)) { liveQueue.queueCovered(path); fenceDome?.markChurn(); return; }
+			// Sans ce drapeau, la libération est franche : la file jette un
+			// build éventuel ET retire ce qui est en scène (depuis l'échange
+			// ci-dessus, un chemin peut être les deux à la fois).
+			if (!liveMeshes.has(path)) { liveQueue.dropBuild(path); return; }
+			liveQueue.queueRelease(path);
 			fenceDome?.markChurn();
 		},
 	});
@@ -1373,12 +1345,11 @@ async function bootLive([lat, lon]) {
 		// première vague, le sol arrive donc en premier.
 		processLiveNodeWork(25);
 		if (groundHere === null) groundHere = physics.groundBelow(0, 3000, 0, 6000);
-		waveDone = rocktreeWindow.pendingCount() === 0
-			&& pendingNodeBuilds.size === 0 && pendingNodeReleases.length === 0;
+		waveDone = rocktreeWindow.pendingCount() === 0 && liveQueue.idle();
 		if (groundHere !== null && waveDone) break;
 		if (performance.now() > bootDeadline) {
 			console.warn(`[rocktree] boot lâché au plafond de 45 s — sol ${groundHere !== null ? 'trouvé' : 'ABSENT'}, `
-				+ `${rocktreeWindow.pendingCount()} fetchs et ${pendingNodeBuilds.size} builds encore en vol`);
+				+ `${rocktreeWindow.pendingCount()} fetchs et ${liveQueue.builds.size} builds encore en vol`);
 			break;
 		}
 		await new Promise((r) => setTimeout(r, 10));
