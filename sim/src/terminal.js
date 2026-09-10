@@ -13,7 +13,7 @@ import { fetchTrackIndex, fetchTrack } from './track-index.js';
 import { bars, histogram, scatter, steps } from './graph.js';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
-import { watchReveal, countUp } from './motion.js';
+import { watchReveal, countUp, exitScreen } from './motion.js';
 import { versionLine } from './version.js';
 
 
@@ -42,7 +42,15 @@ export function screen(root, cls = '') {
 	// L'écran s'imprime de haut en bas (issue #224) : chaque bloc ajouté dans
 	// la boîte — maintenant ou après un fetch — reçoit son délai.
 	const unwatch = watchReveal(box);
-	return { el, box, remove: () => { unwatch(); el.remove(); } };
+	const remove = () => { unwatch(); el.remove(); };
+	// `close()` : la même chose, mais l'écran s'imprime à l'envers d'abord et la
+	// promesse ne rend la main qu'une fois qu'il est parti (#67). C'est ce qui
+	// permet d'ENCHAÎNER deux écrans sans que la cascade du second commence
+	// dans la frame où le premier disparaît. `remove()` reste synchrone : la
+	// plupart des écrans se démontent parce qu'on quitte le menu, et là il n'y
+	// a rien à regarder s'éteindre.
+	const close = () => exitScreen(el).then(remove);
+	return { el, box, remove, close };
 }
 
 export function button(label, onClick, cls = 'terminal-link', title = '') {

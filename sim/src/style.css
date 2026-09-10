@@ -96,6 +96,12 @@ button:focus::before {
 @keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @keyframes reveal-in { 0% { opacity: 0; } 50% { opacity: .45; } 100% { opacity: 1; } }
 [data-reveal] { animation: reveal-in var(--dur-2) steps(2, end) both; }
+/* #67 — l'impression inverse : l'écran qui s'en va. Les mêmes deux pas, à
+   l'envers, sur la durée la plus courte — un écran s'éteint plus vite qu'il ne
+   s'allume. `pointer-events: none` pendant la sortie : ce qui est en train de
+   disparaître n'accepte plus de clic. */
+@keyframes reveal-out { 0% { opacity: 1; } 50% { opacity: .45; } 100% { opacity: 0; } }
+[data-exit] { animation: reveal-out var(--dur-1) steps(2, end) both; pointer-events: none; }
 /* L'encre d'un bouton s'allume en une touche, pas instantanément. */
 .bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta {
 	transition: color var(--dur-1) linear, background-color var(--dur-1) linear, border-color var(--dur-1) linear;
@@ -108,7 +114,7 @@ button:focus::before {
 button.flash { animation: key-flash var(--dur-1) steps(1, end); }
 button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 @media (prefers-reduced-motion: reduce) {
-	[data-reveal], button.flash, button.flash:hover, button:focus::before,
+	[data-reveal], [data-exit], button.flash, button.flash:hover, button:focus::before,
 	.panel label:focus-within::before, #pad-map tr:focus-within td:first-child::before { animation: none; }
 	.bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta { transition: none; }
 }
@@ -1353,7 +1359,15 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	font-size: var(--fs-display-l);
 	letter-spacing: var(--track-display);
 	color: var(--warm-white);
-	animation: hack-cta-wait 1.4s steps(1, end) infinite;
+	/* DEUX animations, et la première n'est pas décorative : `.hack .hack-cta`
+	   est plus spécifique que `[data-reveal]`, donc écrire la seule respiration
+	   ici PRIVAIT le bouton de la cascade d'impression — il apparaissait d'un
+	   coup pendant que le reste de l'écran s'imprimait. Le délai posé par
+	   motion.js s'applique aux deux : le bouton s'imprime à son tour, et c'est
+	   à partir de là qu'il respire. */
+	animation:
+		reveal-in var(--dur-2) steps(2, end) both,
+		hack-cta-wait 1.4s steps(1, end) infinite;
 }
 /* Sous la souris, sous le focus : l'invite a été entendue, elle se tait. Sans
    ça l'animation reprend la main sur l'inversion de :hover un temps sur deux. */

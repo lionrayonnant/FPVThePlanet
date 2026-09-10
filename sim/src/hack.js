@@ -188,7 +188,7 @@ function runAnalysis(root, { type, hackType, family, ready, candidate }) {
 			phase = 'hold';
 			Promise.resolve(ready).then(
 				() => after(HACK_HOLD_MS, enterLock),
-				(err) => { teardown(); reject(err instanceof Error ? err : new Error(String(err))); },
+				(err) => { teardown().then(() => reject(err instanceof Error ? err : new Error(String(err)))); },
 			);
 		};
 
@@ -204,8 +204,7 @@ function runAnalysis(root, { type, hackType, family, ready, candidate }) {
 		// Escape returns { cancelled: true } and loops back to the zone.
 		const abort = () => {
 			if (done) return;
-			teardown();
-			resolve({ aborted: true });
+			teardown().then(() => resolve({ aborted: true }));
 		};
 
 		// D15, and this is the exit issue #33 found missing: mounted at SCREEN
@@ -227,6 +226,10 @@ function runAnalysis(root, { type, hackType, family, ready, candidate }) {
 			raf = requestAnimationFrame(loop);
 		};
 
+		// Rend une promesse : l'écran s'imprime à l'envers avant de partir, et
+		// l'écran suivant n'est monté qu'ensuite (#67). `done` est posé
+		// SYNCHRONEMENT — un second clic pendant la sortie ne doit rien
+		// déclencher, et la sortie dure 90 ms de plus qu'avant.
 		const teardown = () => {
 			done = true;
 			cancelAnimationFrame(raf);
@@ -243,15 +246,14 @@ function runAnalysis(root, { type, hackType, family, ready, candidate }) {
 			// whole life, one runHack() call overwriting the last (memory-release-
 			// selftest.mjs would have caught this eventually, on a real leak).
 			delete globalThis.__hackTestArm;
-			s.remove();
+			return s.close();
 		};
 
 		// D9: the crew speaks during the analysis, never past it — stopHack()
 		// runs in teardown() before the handover screen exists.
 		const handOver = () => {
 			if (done) return;
-			teardown();
-			resolve({});
+			teardown().then(() => resolve({}));
 		};
 
 		// Test-only hook (tools/hack-render-selftest.mjs): the screen walks its
@@ -283,12 +285,14 @@ function runHandover(root, { type }) {
 			done = true;
 			nav?.detach();
 			nav = null;
-			s.remove();
+			return s.close();
 		};
 
 		// Renoncer est encore possible ici : rien n'a été pris.
-		const abort = () => { if (done) return; teardown(); resolve({ aborted: true }); };
-		const engage = () => { if (done) return; teardown(); resolve({}); };
+		const abort = () => { if (done) return; teardown().then(() => resolve({ aborted: true })); };
+		// La sortie de l'écran couvre exactement le flash du bouton (--dur-1
+		// dans les deux cas) : le geste est vu, PUIS l'écran s'éteint.
+		const engage = () => { if (done) return; teardown().then(() => resolve({})); };
 
 		const cta = button('JACK IN', engage, 'terminal-cta hack-cta');
 		s.box.append(cta, keyHints([['ESC', 'ABORT']]));
@@ -345,8 +349,11 @@ function runAcquired(root, { type, buildSeed }) {
 			nav?.detach();
 			nav = null;
 			delete globalThis.__hackTestFinish;
-			s.remove();
-			resolve();
+			// Le dernier écran s'éteint dans le flux vidéo qui prend la main :
+			// c'est la seule sortie du hack qui donne sur autre chose qu'un
+			// écran de terminal, et c'est là qu'une coupe franche se voyait le
+			// plus.
+			s.close().then(resolve);
 		};
 
 		s.box.appendChild(keyHints([['ESC', 'SKIP']]));
