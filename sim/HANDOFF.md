@@ -1147,6 +1147,32 @@ Plan d'origine (contexte de la décision d'architecture) :
   complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
   (plus jamais −500), monde stable.
 
+- **Vol live : plus de trous au recentrage** (#75, vérifié navigateur le
+  2026-09-11). Symptôme : terrain rechargé à vue et troué en vol. Mesuré à
+  24 m/s (441 rayons `groundBelow` sur 200 × 200 m autour du drone, toutes
+  les 200 ms) : jusqu'à 7 % du sol absent à chaque vague de 50 m, ~20 % de
+  la scène échangée à chaque vague (4054 ajouts / 4164 retraits en 40 s).
+  Trois causes, toutes des libérations qui précédaient leur remplaçant :
+  (1) `coveredReleases` vidée dès que la file de builds était vide — or elle
+  l'EST au moment du recentrage (18 vidages sur 18 avec 190-314 fetchs en
+  vol) ; (2) un nœud `replaced` encore `pending` qui changeait de niveau
+  tombait dans la libération sèche (la branche « couvert » exigeait
+  `status === 'ready'`) ; (3) un grossier `replaced` avec un octant en plus
+  à exclure revenait du Cache API et se rebâtissait avant l'enfant fin.
+  Correctif : `src/live-node-queue.js` (files `releases` / `builds` /
+  `swaps` / `covered`) — les builds frais se posent au fil de l'eau, les
+  échanges et les couverts attendent la vague complète (`pendingCount() === 0`
+  ET plus de build frais), soupape `WAVE_STALL_MS` = 15 s ; la fenêtre juge
+  « à l'écran » par `status === 'ready' || entry.replacing`, et `_giveUp()`
+  garde le mesh périmé (`STALE_EXCLUDE`, retenté au recalcul suivant).
+  Mesuré après, même protocole : 0 trou sur 239 échantillons, 1,29 km ;
+  meshes en pointe 1441 contre 1113 (l'ancienne image tenue pendant la
+  vague), `pending` retombe à 0 dans 218 échantillons sur 239 — les vagues
+  se terminent, rien ne s'accumule. `__sim.liveStats()` expose l'état des
+  files. Le scintillement de niveau à l'échange (deux niveaux du même sol
+  une frame) reste, voulu : on préfère le scintillement au trou. Selftests :
+  `tools/live-node-queue-selftest.mjs` (13), fenêtre 19.
+
 - **#57 — le randomart est l'empreinte de la cible.** Graine = `buildSeed` de
   l'exemplaire. Trois moments : le fou trace sur l'écran `CONTROL ACQUIRED`
   (`src/hack.js`, `runAcquired()`), art figé au crash sous l'aperçu 3D (jeton

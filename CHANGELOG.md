@@ -87,6 +87,20 @@ rapport avec les versions ci-dessous.
   sortie de zone, coupure du lien) nomment maintenant `[ENTER] DISCONNECT`. Échap
   reste acceptée en doublon silencieux, comme le clic et n'importe quel bouton de
   manette (#71).
+- En vol live, le terrain se rechargeait à vue et se trouait à chaque recentrage
+  de fenêtre (tous les 50 m). Mesuré à 24 m/s au Champ de Mars : jusqu'à 7 % du
+  sol absent à chaque vague, par trois chemins — les nœuds « couverts » par un
+  autre niveau étaient libérés une frame après le recentrage (la file de builds
+  est vide à cet instant, les fetchs de la vague n'ayant pas encore répondu), un
+  nœud dont le refetch était encore en vol tombait dans la libération sèche s'il
+  changeait de niveau, et un nœud grossier rebâti avec un octant en moins
+  arrivait du cache avant l'enfant fin qui redessine cet octant. Règle unique
+  maintenant (`src/live-node-queue.js`) : l'ancienne image reste intacte jusqu'à
+  ce que la nouvelle soit complète — plus rien en vol ni en file — puis on
+  échange ; soupape à 15 s si le réseau ne suit pas. Un refetch qui échoue
+  garde le mesh périmé au lieu de le retirer. Mesuré après : 0 trou sur 239
+  échantillons et 1,3 km, pour ~30 % de meshes en plus en pointe pendant une
+  vague — moins optimisé, jamais troué (#75).
 
 ### Ajouté
 

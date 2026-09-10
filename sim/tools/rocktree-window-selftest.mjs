@@ -380,4 +380,61 @@ await t('un nœud remplacé par un autre NIVEAU n\'est libéré qu\'une fois le 
 	assert.equal(win.pendingCount(), 0);
 });
 
+await t('#75 : un nœud `replaced` encore en vol qui change de NIVEAU est libéré « covered », pas sèchement', async () => {
+	// Le cas mesuré en vol : recentrage 1, le nœud reste désiré avec un autre
+	// exclude → `replaced`, ancien mesh à l'écran, refetch en vol. Recentrage
+	// 2 avant la réponse : le même sol passe au parent. L'entrée est encore
+	// `pending`, mais un mesh EST à l'écran — le libérer sèchement ouvrait
+	// un trou jusqu'à l'arrivée du parent.
+	const PARENT = { path: '3060', epoch: 1014, imageryEpoch: null, flags: 0 };
+	const ENFANT = { path: '30601', epoch: 1014, imageryEpoch: null, flags: 0 };
+	let nodes = [{ ...ENFANT, exclude: [] }];
+	const traverse = async () => ({ nodes, radius: RADIUS });
+	let firstDone = false;
+	const fetchNode = async (n) => {
+		if (n.path === '30601' && firstDone) await new Promise(() => {});   // le refetch ne répond jamais
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const released = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p, opts) => released.push([p, opts?.covered ? 'covered' : opts?.replaced ? 'replaced' : 'sec']), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	firstDone = true;
+	nodes = [{ ...ENFANT, exclude: [3] }];
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	assert.deepEqual(released, [['30601', 'replaced']]);
+	nodes = [PARENT];
+	await win.update({ lat: ORIGIN.lat + 2000 / 111320, lon: ORIGIN.lon });
+	assert.deepEqual(released, [['30601', 'replaced'], ['30601', 'covered']], 'un mesh à l\'écran couvert par le parent est tenu, pas retiré');
+});
+
+await t('#75 : un refetch `replaced` qui échoue garde le mesh périmé à l\'écran et le retente au recalcul suivant', async () => {
+	let exclude = [];
+	const traverse = async () => ({ nodes: [{ ...NODE_A, exclude: [...exclude] }], radius: RADIUS });
+	let fail = false, fetched = 0;
+	const fetchNode = async () => {
+		fetched++;
+		if (fail) { const err = new Error('réseau'); err.status = 500; throw err; }
+		return { matrix: new Float64Array(16), copyrightIds: [], meshes: [] };
+	};
+	const released = [];
+	const win = new RocktreeWindow({ level: 21, origin: ORIGIN, onNodeReady: () => {}, onNodeReleased: (p, opts) => released.push([p, opts?.replaced ? 'replaced' : 'sec']), _traverse: traverse, _fetchNode: fetchNode });
+	await win.update(ORIGIN);
+	exclude = [3]; fail = true;
+	await win.update({ lat: ORIGIN.lat + 1000 / 111320, lon: ORIGIN.lon });
+	// Toutes les tentatives échouent (backoff 300 + 600 ms).
+	await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * 4));
+	assert.equal(win.pendingCount(), 0);
+	assert.deepEqual(released, [['3060', 'replaced']], 'pas de libération sèche : le mesh périmé vaut mieux qu\'un trou');
+	// Recalcul suivant, réseau revenu : l'entrée périmée est refetchée, pas oubliée.
+	fail = false;
+	const before = fetched;
+	await win.update({ lat: ORIGIN.lat + 2000 / 111320, lon: ORIGIN.lon });
+	assert.equal(fetched, before + 1, 'refetch de secours au recalcul suivant');
+	assert.deepEqual(released, [['3060', 'replaced'], ['3060', 'replaced']]);
+	// Et s'il quitte la fenêtre, il est libéré comme les autres : pas d'orphelin.
+	win._traverse = async () => ({ nodes: [], radius: RADIUS });
+	await win.update({ lat: ORIGIN.lat + 3000 / 111320, lon: ORIGIN.lon });
+	assert.deepEqual(released.at(-1), ['3060', 'sec']);
+});
+
 console.log(`rocktree-window-selftest : ${n} tests ok`);
