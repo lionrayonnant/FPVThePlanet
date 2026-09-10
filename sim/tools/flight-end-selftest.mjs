@@ -383,4 +383,15 @@ t('#57 : après un crash, l\'empreinte est écrite avec le portrait', () => {
 	assert.ok(fe.out.lines.includes(PORTRAIT_LINE));
 });
 
+// #67 : SOUS l'aperçu 3D, pas à côté. Le placement est du CSS, mais l'ordre
+// des lignes est ce qui le rend possible — l'empreinte doit venir APRÈS le
+// portrait dans la table, sans quoi elle se dessinerait au-dessus.
+t('#67 : l\'empreinte vient après le portrait sur les trois tables', () => {
+	for (const table of [TIMELINE, FENCE_TIMELINE, CUT_TIMELINE]) {
+		const texts = table.lines.map(([, text]) => text);
+		assert.ok(texts.indexOf(RANDOMART_LINE) > texts.indexOf(PORTRAIT_LINE),
+			'l\'empreinte doit se poser sous l\'aperçu, donc après lui');
+	}
+});
+
 console.log(`\n${n} tests OK`);

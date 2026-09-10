@@ -165,6 +165,40 @@ await t('#57 : Échap pendant l\'acquisition résout, il ne laisse personne deda
 	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0, 'écran encore monté');
 });
 
+// ---------------------------------------------------------------------------
+// L'invite se voit et se tait quand elle a été entendue (issue #67).
+
+await t('#67 : l\'invite a son PROPRE écran — l\'analyse est démontée', async () => {
+	const [p] = await openArmed();
+	assert.equal(dom.root.querySelectorAll('.hack-log').length, 0, 'le log de l\'analyse survit sous l\'invite');
+	assert.equal(dom.root.querySelectorAll('.hack-jack').length, 1, 'pas d\'écran dédié à l\'invite');
+	assert.match(jackIn().className, /\bhack-cta\b/, 'le CTA du hack n\'est pas gradé');
+	assert.match(jackIn().className, /\bterminal-cta\b/, '[ … ] vient de terminal-cta');
+	assert.match(dom.root.textContent, /MANUAL OVERRIDE/, 'l\'invite ne dit pas ce qu\'elle demande');
+	jackIn().click();
+	await p;
+});
+
+await t('#67 : Échap sur l\'invite renonce encore — rien n\'est pris', async () => {
+	const [p] = await openArmed();
+	dom.key('Escape');
+	const out = await p;
+	assert.deepEqual(out, { aborted: true });
+	assert.equal(dom.root.querySelectorAll('.hack-jack').length, 0, 'écran encore monté');
+});
+
+await t('#67 : le résultat a son PROPRE écran — l\'invite est démontée', async () => {
+	const [p] = await openArmedWithSeed();
+	jackIn().click();
+	await tick();
+	assert.equal(jackIn(), undefined, 'le bouton respire encore sous CONTROL ACQUIRED');
+	assert.equal(dom.root.querySelectorAll('.hack-jack').length, 0, 'écran d\'invite encore monté');
+	assert.equal(dom.root.querySelectorAll('.hack-acquired').length, 1, 'pas d\'écran dédié au résultat');
+	assert.match(dom.root.textContent, /CONTROL ACQUIRED/);
+	globalThis.__hackTestFinish?.();
+	await p;
+});
+
 await t('#57 : sans buildSeed, JACK IN résout comme avant', async () => {
 	const [p] = await openArmed();   // pas de buildSeed
 	jackIn().click();
