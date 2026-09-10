@@ -10,7 +10,6 @@
 //                        session terminée)
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
-import { randomart } from './randomart.mjs';
 import {
 	TARGET_FAMILIES, HACK_TYPES,
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
@@ -180,7 +179,6 @@ export function openSession({ operatorId, area, weatherSnapshot, target, seq, ta
 		end: null,
 		result: 'PENDING',
 		flightTelemetry: freshTelemetry(),
-		randomart: randomart(id, { tag: id.slice(-4) }),
 		photos: [],
 		comment: null,
 	};

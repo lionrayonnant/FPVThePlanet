@@ -6,6 +6,7 @@ import {
 	targetLogEntries, targetRow, areaLabel, stamp, duration, pad, fit, liveAreaId,
 } from './session-log-model.mjs';
 import { terminalModel } from './terminal-model.mjs';
+import { randomart } from './randomart.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -302,6 +303,57 @@ t('un vol LIVE n\'est jamais revisitable : sa zone live- ne correspond à aucune
 	// d'afficher REVISIT AREA : `areas.some((a) => a.slug === area)`.
 	const model = terminalModel({ operator: { name: 'neo', sessions: [] }, scenes: [] });
 	assert.ok(!model.areas.some((a) => a.slug === liveArea));
+});
+
+// ---------------------------------------------------------------------------
+// RANDOMART : l'empreinte de la CIBLE, pas celle de la session (issue #57).
+
+const withTarget = (over = {}) => ({
+	id: 'tokyo-0001', seq: 1, area: 'tokyo', result: 'CRASHED',
+	start: '2026-09-10T10:00:00.000Z', flightTelemetry: {}, photos: [],
+	targetSeq: 42,
+	target: {
+		family: 'freestyle5', signal: { rssiDbm: -60, mode: 'ANALOG' }, intel: {},
+		scan: { seed: 'abc123', count: 5, index: 3, swarmAt: null, swarmChance: 0.1 },
+	},
+	...over,
+});
+
+t('#57 : le détail grave l\'empreinte de la cible', () => {
+	const out = sessionDetail(withTarget());
+	assert.ok(out.includes('RANDOMART'));
+	assert.ok(out.includes(randomart('abc123::3', { title: 'TGT 042', tag: 'abc123::3' })));
+});
+
+t('#57 : deux sessions sur le MÊME exemplaire rendent la même empreinte', () => {
+	const a = sessionDetail(withTarget({ id: 'tokyo-0001', seq: 1 }));
+	const b = sessionDetail(withTarget({ id: 'tokyo-0009', seq: 9 }));
+	const art = randomart('abc123::3', { title: 'TGT 042', tag: 'abc123::3' });
+	assert.ok(a.includes(art) && b.includes(art));
+});
+
+t('#57 : deux exemplaires différents rendent des empreintes différentes', () => {
+	// Comparé à titre ÉGAL : sans ça le test passerait pour la mauvaise raison
+	// (un titre `FPV 06` par défaut ne se trouve évidemment pas dans une fiche
+	// titrée `TGT 042`), et ne dirait rien de la graine.
+	const other = withTarget();
+	other.target = { ...other.target, scan: { ...other.target.scan, index: 4 } };
+	const artOf = (i) => randomart(`abc123::${i}`, { title: 'TGT 042', tag: `abc123::${i}` });
+	assert.ok(sessionDetail(withTarget()).includes(artOf(3)));
+	assert.equal(sessionDetail(withTarget()).includes(artOf(4)), false);
+	assert.ok(sessionDetail(other).includes(artOf(4)));
+});
+
+t('#57 : une session d\'avant, sans cible, garde son randomart écrit', () => {
+	const old = withTarget({ target: null, targetSeq: null, randomart: '+--[OLD]--+' });
+	const out = sessionDetail(old);
+	assert.ok(out.includes('RANDOMART'));
+	assert.ok(out.includes('+--[OLD]--+'));
+});
+
+t('#57 : sans cible ni randomart écrit, aucun bloc RANDOMART', () => {
+	const bare = withTarget({ target: null, targetSeq: null });
+	assert.equal(sessionDetail(bare).includes('RANDOMART'), false);
 });
 
 console.log(`\n${n} ok`);

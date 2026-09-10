@@ -39,7 +39,7 @@ t('newSessionId : slug de zone + 4 hex, conforme à la regex', () => {
 	assert.throws(() => newSessionId('!!!'), /AREA UNUSABLE/);
 });
 
-t('openSession : forme PENDING complète, randomart posé, télémétrie à zéro', () => {
+t('openSession : forme PENDING complète, télémétrie à zéro', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'tokyo-shibuya', weatherSnapshot: WEATHER });
 	assert.equal(s.result, 'PENDING');
 	assert.equal(s.operatorId, 'neo-3f9c');
@@ -51,7 +51,6 @@ t('openSession : forme PENDING complète, randomart posé, télémétrie à zér
 	assert.ok(s.start);
 	assert.deepEqual(s.flightTelemetry, freshTelemetry());
 	assert.equal(s.weatherSnapshot.regime, 'CLEAR');
-	assert.ok(s.randomart.includes('[FPV 06]'));
 	assert.doesNotThrow(() => validateSession(s));
 });
 
