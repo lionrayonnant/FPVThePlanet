@@ -99,11 +99,23 @@ t('map-gui importe bien le socle partagé plutôt que de redéclarer ses jetons'
 	// Un seul jeton lui appartient encore, et c'est une mesure, pas un pigment.
 	const own = [...MAPGUI.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);
 	assert.deepEqual(own, ['--rail']);
+	// Côté jeu, un seul aussi (#73) : la taille de la marque sur le cracktro.
+	// Une mesure, pas un pigment — et elle DOIT être une variable, parce que le
+	// verrouillage empilé exprime tous ses écarts en modules de cette taille
+	// (docs/marque.md : l'écart au nom vaut 1 module, la zone de respect 4).
+	// Elle est locale et pas un jeton parce qu'elle ne vaut que là : rien
+	// d'autre dans le jeu ne se mesure en modules de marque.
+	const gameOwn = [...GAME.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);
+	assert.deepEqual(gameOwn, ['--mark-size'],
+		'un jeton local s\'est ajouté à src/style.css : est-ce bien une mesure, et pas un pigment ?');
 });
 
 t('tout var(--…) référencé par les feuilles est défini dans tokens.css', () => {
 	const defined = new Set([...TOKENS.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]));
+	// Les deux mesures locales, déclarées par la feuille qui s'en sert et
+	// vérifiées juste au-dessus : ce sont les seules dispenses.
 	defined.add('--rail');
+	defined.add('--mark-size');
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
 		for (const m of css.matchAll(/var\((--[a-z-]+)\)/g)) {
 			assert.ok(defined.has(m[1]), `${name} utilise ${m[1]}, que tokens.css ne définit pas`);

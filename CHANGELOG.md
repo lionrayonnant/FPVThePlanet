@@ -45,6 +45,37 @@ rapport avec les versions ci-dessous.
   taille nette de Departure Mono — que sous 820 px de hauteur de fenêtre, où la
   colonne repousserait `[ENTER] DISCONNECT` hors de l'écran (#67).
 
+### Ajouté
+
+- La marque entre dans le jeu (#73). `docs/marque.md` réservait depuis toujours
+  le verrouillage empilé — le symbole, puis `F P V T P !` dessous — au « splash,
+  boot » ; il n'avait jamais été posé, et la marque ne sortait que du favicon et
+  de la carte Open Graph. Elle tient maintenant le cracktro de lancement, et
+  elle s'y **trace module par module** : le cadre d'abord, parce que le cadre
+  EST le panneau, puis les quatorze cellules en ordre de lecture, puis le nom
+  s'inscrit dessous. La marque est un randomart figé (`marque.md`) et un
+  randomart, dans ce jeu, ça se trace (#57).
+- Tout tient dans la phase `reveal` de l'intro : aucune durée nouvelle,
+  `tools/intro-model.mjs` ne bouge pas, et le selftest refuse un tracé qui
+  déborderait sur la plasma. Le sinus-scroll ne possède plus que la phase
+  `plasma` — pendant `reveal` et à la résolution le verrouillage est immobile et
+  exact, c'est-à-dire juste aux deux moments où l'œil le lit.
+- La marque ne prend **jamais** une couleur demo, pas même sous la plasma : le
+  cyan et le magenta appartiennent à l'écran, pas au logo (`marque.md`,
+  « Interdits »). Sa zone de respect est opaque pour la même raison — sans ça
+  les chiffres de la plasma venaient jusque contre ses modules.
+- `tools/brand-mark-model.mjs` porte la géométrie, parce que le premier écran du
+  jeu ne peut pas dépendre d'un fetch. C'est une copie, et
+  `tools/brand-mark-selftest.mjs` est ce qui l'empêche de dériver : il lit
+  `public/brand/fpvtp-mark.svg` et le motif de `docs/marque.md`, et exige que
+  les trois décrivent la même marque.
+
+### Modifié
+
+- Le nom, sur le cracktro, passe de la display à `--font-ui` interlettré
+  `--track-ui` : c'est la composition que `docs/marque.md` impose au
+  verrouillage empilé, et la marque n'a qu'une composition (#73).
+
 ### Corrigé
 
 - L'écran de fin nommait `[ESC] DISCONNECT`, c'est-à-dire la seule touche que le
