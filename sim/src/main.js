@@ -695,7 +695,7 @@ function exposeDebugGlobal() {
 		// Overrides the sticks; pass null to hand control back.
 		setInput: (s) => { window.__simInput = s; },
 		// L'état des files du mode live (#75), pour mesurer une vague en vol.
-		liveStats: () => ({ builds: liveQueue.builds.size, swaps: liveQueue.swaps.size, covered: liveQueue.covered.size, releases: liveQueue.releases.length, pending: liveWindow?.pendingCount() ?? null }),
+		liveStats: () => ({ builds: liveQueue.builds.size, swaps: liveQueue.swaps.size, covered: liveQueue.covered.size, releases: liveQueue.releases.length, pending: liveWindow?.pendingCount() ?? null, edgeCenter: liveEdgeUniforms ? [liveEdgeUniforms.uWindowCenter.value.x, liveEdgeUniforms.uWindowCenter.value.y] : null, edgeRadius: liveEdgeUniforms?.uLoadRadiusM.value ?? null, edgeFade: liveEdgeUniforms?.uEdgeFadeM.value ?? null }),
 		// Wind is off by default. setWeather({speed, direction, gust, turbulence})
 		// with speed in m/s at 10 m and direction in degrees the wind comes from;
 		// gustPeak / gustDuration / gustRate can be passed too, for anyone who

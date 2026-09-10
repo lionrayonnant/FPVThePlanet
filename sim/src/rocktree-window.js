@@ -317,7 +317,11 @@ export class RocktreeWindow {
 	// prochain recalcul la voit donc périmée et retente (boucle de secours),
 	// et si le nœud quitte la fenêtre, elle est libérée comme les autres :
 	// rien n'est orphelin. Sinon (rien à l'écran) l'entrée disparaît.
-	_giveUp(path, entry) {
+	_giveUp(path, entry, err) {
+		// Bruyant : un nœud abandonné est un trou (ou un mesh périmé) que rien
+		// ne signale autrement — c'est ce qu'on lit en premier quand « le sol
+		// manque » sur un navigateur ou un réseau donnés (#75).
+		console.warn(`[rocktree] nœud ${path} abandonné${entry.replacing ? ' (mesh périmé gardé)' : ''} : ${err?.status ?? err?.name ?? 'erreur'} ${err?.message ?? ''}`);
 		if (entry.replacing) { entry.status = 'ready'; entry.exclude = STALE_EXCLUDE; return; }
 		this._nodes.delete(path);
 	}
@@ -352,7 +356,7 @@ export class RocktreeWindow {
 			if (err?.name === 'AbortError') return;
 			//   - 404/410 : nœud réellement absent, résultat NORMAL de ce
 			//     protocole (pas une panne). Jamais de retry.
-			if (err?.status === 404 || err?.status === 410) { this._giveUp(path, entry); return; }
+			if (err?.status === 404 || err?.status === 410) { this._giveUp(path, entry, err); return; }
 			//   - tout le reste (coupure réseau, 5xx, status null) : échec
 			//     transitoire, on retente sur place plutôt que d'attendre le
 			//     prochain recalcul de fenêtre.
@@ -361,7 +365,7 @@ export class RocktreeWindow {
 				// reste désiré (il n'a jamais été retiré de `desired`) donc le
 				// prochain recalcul de fenêtre le retentera tant qu'il l'est
 				// toujours — la boucle de secours d'origine, conservée.
-				this._giveUp(path, entry);
+				this._giveUp(path, entry, err);
 				return;
 			}
 			await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * RETRY_BACKOFF_FACTOR ** attempt));
