@@ -1147,6 +1147,16 @@ Plan d'origine (contexte de la décision d'architecture) :
   complet en 8,5 s avec 1682 meshes AU décollage ; Marseille minY −28,8
   (plus jamais −500), monde stable.
 
+- **#57 — le randomart est l'empreinte de la cible.** Graine = `buildSeed` de
+  l'exemplaire. Trois moments : le fou trace après `[ JACK IN ]` (`src/hack.js`,
+  phase `acquired`), art figé au crash à côté du portrait (jeton
+  `RANDOMART_LINE`, les trois tables de `src/flight-end.js`), art de la cible
+  dans `sessionDetail()`. `tools/randomart.mjs` est une feuille sans dépendance
+  — `node:crypto` est parti, l'image d'une graine donnée a donc changé. Aucune
+  archive n'a été réécrite : les sessions d'avant gardent leur champ
+  `randomart`, lu en repli. *Non vérifié à la main : le rendu côte à côte
+  portrait + empreinte sous 720 px de large.*
+
 ## Polish pré-release (issues #6 à #16, branche pre-release-polish)
 
 État au 2026-09-08. Spec :

@@ -1025,22 +1025,30 @@ MOTOR SETUP
 
 Le Randomart est inspiré du concept SSH.
 
-Il est associé à la session / cible.
+Il est associé à la **cible** : une machine = une empreinte. La graine est
+celle de l'exemplaire, celle-là même qui décide de sa famille, de sa livrée,
+de son cadre et de ses PID. Retrouver la même machine, c'est retrouver le même
+art.
 
 Il apparaît :
 
-- lors de la connexion ;
-- dans les archives ;
-- lors de certains événements comme une reconnexion ;
-- après une acquisition.
+- **à l'acquisition** : après `[ JACK IN ]`, le fou trace l'empreinte sous les
+  yeux de l'opérateur, puis `CONTROL ACQUIRED` ;
+- **au crash** : figé, à côté du portrait de la machine perdue ;
+- **dans les archives** : dans la fiche de session, à la place du randomart de
+  session, qui a disparu.
 
-Il peut apparaître de nouveau pendant une reconnexion ou après un événement de liaison.
+Il n'apparaît PAS sur le `TARGET SCAN` : avant le vol, on n'affiche que ce qui
+est réellement connu (§15), et l'empreinte d'un exemplaire n'en fait pas
+partie. On ne choisit pas un signal sur son art.
 
 Le Randomart n'est pas seulement décoratif :
 
 > **c'est l'empreinte visuelle de l'expérience.**
 
-Le `RANDOMART` est la signature de la session / cible.
+*(Révision 2026-09-10, issue #57 : la section décrivait un art « associé à la
+session / cible » et laissait les deux lectures ouvertes. Elle est tranchée
+sur la cible, et la liste des apparitions est celle qui est implémentée.)*
 
 ---
 
