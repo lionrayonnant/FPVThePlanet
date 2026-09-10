@@ -165,6 +165,27 @@ await t('#57 : Échap pendant l\'acquisition résout, il ne laisse personne deda
 	assert.equal(dom.root.querySelectorAll('.hack-head').length, 0, 'écran encore monté');
 });
 
+// ---------------------------------------------------------------------------
+// L'invite se voit et se tait quand elle a été entendue (issue #67).
+
+await t('#67 : le bouton armé porte .hack-cta — l\'invite au niveau DISPLAY', async () => {
+	const [p] = await openArmed();
+	assert.match(jackIn().className, /\bhack-cta\b/, 'le CTA du hack n\'est pas gradé');
+	assert.match(jackIn().className, /\bterminal-cta\b/, '[ … ] vient de terminal-cta');
+	jackIn().click();
+	await p;
+});
+
+await t('#67 : l\'invite disparaît dès que le geste est fait', async () => {
+	const [p] = await openArmedWithSeed();
+	const b = jackIn();
+	b.click();
+	await tick();
+	assert.equal(b.hidden, true, 'le bouton respire encore sous CONTROL ACQUIRED');
+	globalThis.__hackTestFinish?.();
+	await p;
+});
+
 await t('#57 : sans buildSeed, JACK IN résout comme avant', async () => {
 	const [p] = await openArmed();   // pas de buildSeed
 	jackIn().click();

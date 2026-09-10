@@ -1324,6 +1324,33 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	text-transform: uppercase;
 	color: var(--warm-white);
 }
+/* #67 — [ JACK IN ] est le geste, et il doit se voir comme tel. Au niveau UI et
+   aligné à gauche, il se lisait comme un lien de plus au bas d'un écran qui
+   charge encore ; l'analyse rendait la main sans que personne la prenne.
+   Il monte donc au niveau DISPLAY, centré sous MANUAL OVERRIDE REQUIRED, et il
+   RESPIRE : deux états francs qui alternent en pas — l'attente d'un terminal,
+   pas une pulsation douce (DA §46 : jamais de fondu long, jamais de glow). */
+.hack .hack-cta {
+	align-self: center;
+	margin: var(--space-4) 0 var(--space-2);
+	padding: 18px 40px;
+	border-color: var(--ink);
+	font-family: var(--font-display);
+	font-size: var(--fs-display-m);
+	letter-spacing: var(--track-display);
+	color: var(--warm-white);
+	animation: hack-cta-wait 1.4s steps(1, end) infinite;
+}
+/* Sous la souris, sous le focus : l'invite a été entendue, elle se tait. Sans
+   ça l'animation reprend la main sur l'inversion de :hover un temps sur deux. */
+.hack .hack-cta:hover, .hack .hack-cta:focus { animation: none; }
+@keyframes hack-cta-wait {
+	0%, 60% { border-color: var(--ink); color: var(--warm-white); }
+	60%, 100% { border-color: var(--rule-strong); color: var(--dim); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.hack .hack-cta { animation: none; }
+}
 /* #57 — l'empreinte de la cible, à l'acquisition. Même grille pixel que la
    grammaire du hack qu'elle remplace : c'est de l'ASCII, pas de la DISPLAY,
    donc pas d'interlettrage. */

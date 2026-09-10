@@ -18,6 +18,13 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Modifié
+
+- `[ JACK IN ]` se voit enfin : le geste qui clôt l'analyse monte au niveau
+  DISPLAY, centré sous `MANUAL OVERRIDE REQUIRED`, et respire en pas pour se
+  lire comme une invite en attente plutôt que comme un écran qui charge encore.
+  Il prend le focus, et s'efface dès qu'il a été pressé (#67).
+
 ### Ajouté
 
 - Le randomart devient l'empreinte de la cible : une machine, un art, le même à

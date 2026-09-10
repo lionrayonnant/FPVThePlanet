@@ -111,6 +111,7 @@ export function runHack(root, { hackType, family, ready, candidate = null, build
 		//         'lock' culmination du motif · 'armed' [ JACK IN ] disponible ·
 		//         'acquired' l'empreinte se trace, le contrôle est pris (#57)
 		let phase = 'run';
+		let ctaEl = null;           // [ JACK IN ], monté par arm() (#67)
 		let lockT0 = 0;
 		let walk = null;
 		let artT0 = 0;
@@ -210,6 +211,11 @@ export function runHack(root, { hackType, family, ready, candidate = null, build
 		// new: it is what stood here before PHASE 10, and the crew already has
 		// lines for MANUAL_OVERRIDE and JACK_IN waiting for a call site
 		// (src/dialogue-fallback.js).
+		//
+		// #67 : le geste se voit. Le bouton monte au niveau DISPLAY, centré, et
+		// respire en pas — sans cette attente lisible, la fin de la séquence
+		// automatique ne se distinguait pas d'un écran qui charge encore. Le
+		// style vit dans .hack-cta (style.css) ; ici on ne fait que le nommer.
 		const arm = () => {
 			if (armed || done) return;
 			armed = true;
@@ -217,7 +223,11 @@ export function runHack(root, { hackType, family, ready, candidate = null, build
 			paint();
 			// D9: the crew speaks before the handover, never during it.
 			stopHack();
-			s.box.appendChild(button('JACK IN', finish, 'terminal-cta'));
+			ctaEl = button('JACK IN', finish, 'terminal-cta hack-cta');
+			s.box.appendChild(ctaEl);
+			// Le clavier tombe sur le geste du moment : menuNav est déjà monté,
+			// mais il n'a rien à cibler tant que le bouton n'existe pas.
+			ctaEl.focus?.();
 		};
 
 		// --- boucle d'animation unique --------------------------------------
@@ -264,6 +274,9 @@ export function runHack(root, { hackType, family, ready, candidate = null, build
 			walk = randomartWalk(buildSeed);
 			artEl.hidden = false;
 			gramEl.hidden = true;
+			// Le geste est fait : l'invite n'a plus rien à demander (#67). La
+			// laisser respirer sous CONTROL ACQUIRED inviterait un second clic.
+			if (ctaEl) ctaEl.hidden = true;
 			handoverEl.textContent = 'CONTROL ACQUIRED';
 			paint();
 			after(reducedMotion() ? ART_HOLD_MS : ART_WALK_MS + ART_HOLD_MS, handOver);
