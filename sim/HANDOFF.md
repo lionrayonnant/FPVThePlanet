@@ -1164,8 +1164,16 @@ Plan d'origine (contexte de la décision d'architecture) :
   trace). Échap renonce sur les deux premiers, saute le battement sur le
   troisième. Le contrat rendu à `main.js` est inchangé : `{ aborted: true }`
   ou `undefined`. `tools/hack-render-selftest.mjs` : 13/13 OK.
+  Enchaînement : `screen().close()` (`src/terminal.js`) imprime l'écran à
+  l'envers (`exitScreen` dans `src/motion.js`, `[data-exit]` en CSS, `EXIT_MS`
+  = 90 ms) et ne rend la main qu'après — les trois écrans du hack passent par
+  là. Sans `matchMedia` (faux DOM) ou en mouvement réduit, la sortie est
+  immédiate : les selftests de rendu enchaînent en un microtask.
+  `tools/motion-selftest.mjs` : 16/16 OK.
+  L'empreinte du crash est en 22 px, avec un repli à 11 px sous 820 px de
+  hauteur de fenêtre (`#flight-end` ne défile pas, `exitAt` ne bouge pas).
   *Non vérifié à la main : le rendu réel des trois écrans dans le navigateur,
-  et la hauteur de l'empreinte 11 px sous l'aperçu 3D sur une petite fenêtre.*
+  et le point de bascule 820 px de l'empreinte sous l'aperçu 3D.*
 
 ## Polish pré-release (issues #6 à #16, branche pre-release-polish)
 

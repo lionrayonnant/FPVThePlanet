@@ -6,10 +6,11 @@ import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
 installFakeDom();
-const { revealDelays, revealTargets, reveal, interpolateNumbers, revealDelayOf, watchReveal, LEAD_MS } = await import('../src/motion.js');
+const { revealDelays, revealTargets, reveal, interpolateNumbers, revealDelayOf, watchReveal, LEAD_MS, exitScreen, EXIT_MS } = await import('../src/motion.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
+const at = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 
 // --- revealDelays -----------------------------------------------------------
 
@@ -123,6 +124,42 @@ t('interpolateNumbers : les décimales et la version ne bougent pas', () => {
 t('interpolateNumbers : la largeur est conservée pour ne pas faire sauter la ligne', () => {
 	assert.equal(interpolateNumbers('412 MB', 0), '  0 MB');
 	assert.equal(interpolateNumbers('42 SESSIONS', 0.1), ' 4 SESSIONS');
+});
+
+// --- exitScreen (#67) -------------------------------------------------------
+//
+// Le faux DOM n'a pas de matchMedia : c'est exactement le cas « aucun moteur
+// d'animation derrière le marqueur », où la sortie doit être immédiate — sans
+// quoi chaque enchaînement d'écrans coûterait 90 ms à tous les selftests de
+// rendu. On stimule ensuite le cas navigateur en posant un faux matchMedia.
+
+await at('exitScreen : sans matchMedia, la sortie est immédiate et ne marque rien', async () => {
+	const el = document.createElement('div');
+	await exitScreen(el);
+	assert.equal(el.dataset.exit, undefined, 'rien à animer, donc rien à marquer');
+});
+
+await at('exitScreen : en navigateur, l\'écran est marqué puis la promesse rend la main', async () => {
+	globalThis.matchMedia = () => ({ matches: false });
+	try {
+		const el = document.createElement('div');
+		const p = exitScreen(el, { ms: 1 });
+		assert.equal(el.dataset.exit, '1', 'l\'écran sortant n\'est pas marqué');
+		await p;
+	} finally { delete globalThis.matchMedia; }
+});
+
+await at('exitScreen : en mouvement réduit, immédiat — rien à regarder s\'éteindre', async () => {
+	globalThis.matchMedia = () => ({ matches: true });
+	try {
+		const el = document.createElement('div');
+		await exitScreen(el);
+		assert.equal(el.dataset.exit, undefined);
+	} finally { delete globalThis.matchMedia; }
+});
+
+t('EXIT_MS : la sortie est plus courte que l\'entrée — un écran s\'éteint plus vite', () => {
+	assert.ok(EXIT_MS <= LEAD_MS, 'la sortie ne doit pas coûter plus que le noir d\'entrée');
 });
 
 console.log(`motion-selftest: ${n} ok`);
