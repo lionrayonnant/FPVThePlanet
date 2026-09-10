@@ -46,11 +46,35 @@ là où la grille du SVG (pas de 15,2 sur 100 unités) donnerait de l'antialiasi
 C'est pour ça qu'ils existent plutôt que de laisser le navigateur rééchantillonner
 `fpvtp-icon.svg`. Recopier depuis ici, ne pas ré-exporter.
 
+### Bannières
+
+Les images composées — la marque, le nom et une accroche sur le fond `--black`.
+Elles vivent à deux endroits, et la frontière est celle du navigateur :
+`docs/brand/` pour celles que personne ne sert (dépôt, réseaux, téléversements à
+la main), `sim/public/brand/` pour la seule qu'une page doit livrer, la carte
+Open Graph.
+
+| fichier | dimensions | destination |
+|---|---|---|
+| `docs/brand/fpvtp-readme-1280x320.png` | 1280 × 320 | en-tête de `README.md` |
+| `docs/brand/fpvtp-github-social-1280x640.png` | 1280 × 640 | *social preview* du dépôt — GitHub → Settings → Social preview, à la main |
+| `docs/brand/fpvtp-wide-1500x500.png` | 1500 × 500 | bandeau de profil d'un réseau social, à la main |
+| `docs/brand/fpvtp-square-1080.png` | 1080 × 1080 | avatar, vignette carrée, à la main |
+| `sim/public/brand/fpvtp-og-1200x630.png` | 1200 × 630 | carte Open Graph d'une instance déployée, servie par la page |
+
+Les accroches (`POINT AT A CITY, FLY IT`, `IT'S NOT A LEVEL. IT'S TOKYO.`) sont
+composées dans l'image : rien ne les relit, les changer demande un ré-export.
+Comme le reste de la marque, les fichiers sont arrivés avec un manifeste C2PA —
+chunks `caBX` et `deBG`, 5,8 Ko par image — retiré sans réencoder, même règle
+que ci-dessous.
+
 ### Où la marque est employée
 
 | chemin | source |
 |---|---|
+| en-tête de `README.md` | `docs/brand/fpvtp-readme-1280x320.png` — la bannière porte déjà la marque ET le nom, elle a remplacé l'icône seule qui était là |
 | favicon de `sim/index.html` (16, 32, 48) | référence directement `sim/public/brand/png/` |
+| `og:image` de `sim/index.html` | `sim/public/brand/fpvtp-og-1200x630.png` — chemin **relatif à la racine**, et pas d'`og:url` : `deploy/` ne fixe aucun domaine, et une URL canonique fausse vaut moins que pas d'URL du tout. Le jour où un domaine est arrêté, poser `og:url` et passer l'image en absolu |
 | `sim/electron/build/icon.png` | copie de `png/fpvtp-icon-1024.png` — electron-builder l'empaquette dans l'installeur NSIS et l'AppImage |
 
 ### Sur les fichiers eux-mêmes
