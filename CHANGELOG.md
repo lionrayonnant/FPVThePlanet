@@ -31,9 +31,12 @@ rapport avec les versions ci-dessous.
 - Les écrans s'enchaînent au lieu de se remplacer : un écran qui s'en va
   s'imprime à l'envers — les deux mêmes pas que l'impression d'entrée, sur la
   durée la plus courte — et le suivant n'est monté qu'ensuite. La cascade du
-  second ne commence plus dans la frame où le premier disparaît. `screen()`
-  gagne un `close()` pour ça ; `remove()` reste synchrone partout où l'on quitte
-  simplement un menu. `[ JACK IN ]` récupère au passage la cascade d'impression
+  second ne commence plus dans la frame où le premier disparaît. Entre deux
+  écrans de terminal, seul le CONTENU s'en va — le fond noir tient jusqu'au
+  démontage, sinon la scène 3D déjà chargée apparaissait le temps de la
+  transition. Seul le dernier écran, celui qui donne sur le vol, emmène son
+  fond avec lui. `screen()` gagne un `close()` pour ça ; `remove()` reste
+  synchrone partout où l'on quitte simplement un menu. `[ JACK IN ]` récupère au passage la cascade d'impression
   dont sa propre animation le privait (#67).
 
 - Au crash, l'empreinte de la machine perdue passe d'à côté de l'aperçu 3D à

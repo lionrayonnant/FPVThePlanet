@@ -16,7 +16,9 @@ export const LEAD_MS = 90;   // extinction : le noir avant la première ligne
 export const STEP_MS = 40;   // un pas d'impression par ligne
 export const CAP_MS = 520;   // au-delà, tout s'imprime en même temps
 export const COUNT_MS = 360; // durée du roulement d'un compteur
-export const EXIT_MS = 90;   // impression inverse : l'écran qui s'en va (--dur-1)
+export const EXIT_MS = 90;         // impression inverse : le contenu qui s'en va (--dur-1)
+export const EXIT_REVEAL_MS = 180; // ... et le fond noir avec lui, quand il y a
+                                   // quelque chose derrière à découvrir (--dur-2)
 
 // Les conteneurs OUVERTS : ce sont leurs enfants qui s'impriment un à un, pas
 // le conteneur d'un coup — une colonne, une liste, une rangée de liens. Le
@@ -101,18 +103,30 @@ export function watchReveal(box) {
 // frame où l'ancien disparaissait, et les deux impressions se marchaient
 // dessus. Un écran s'éteint, puis le suivant s'allume.
 //
-// Même grammaire que l'entrée : deux pas, une durée de token, aucun fondu long
-// (Bible §45). C'est le CSS qui anime ([data-exit]) ; ici on ne fait que poser
-// le marqueur et rendre la main quand c'est fini.
+// Deux sorties, et la différence est ce qu'il y a DERRIÈRE :
+//
+//   'content'  — le défaut. Seul le CONTENU s'imprime à l'envers ; le fond noir
+//      de l'écran, lui, ne bouge pas. C'est ce qu'il faut entre deux écrans de
+//      terminal : faire fondre le fond laissait voir la scène 3D chargée
+//      dessous le temps de la transition — un flash de la carte alors qu'on
+//      n'est pas encore sur le drone.
+//   'screen'   — le fond part avec le contenu. Réservé au DERNIER écran d'un
+//      enchaînement, celui qui donne sur autre chose qu'un terminal : là, ce
+//      qu'on découvre dessous est justement le sujet.
+//
+// Même grammaire que l'entrée dans les deux cas : deux pas, une durée de token,
+// aucun fondu long (Bible §45). C'est le CSS qui anime ([data-exit]) ; ici on ne
+// fait que poser le marqueur et rendre la main quand c'est fini.
 //
 // Sans matchMedia — le faux DOM des selftests — il n'y a aucun moteur
-// d'animation derrière le marqueur : attendre 90 ms n'attendrait rien. La
-// sortie est alors immédiate, et les tests de rendu enchaînent les écrans en
-// un microtask comme avant.
-export function exitScreen(el, { ms = EXIT_MS } = {}) {
+// d'animation derrière le marqueur : attendre n'attendrait rien. La sortie est
+// alors immédiate, et les tests de rendu enchaînent les écrans en un microtask
+// comme avant.
+export function exitScreen(el, { revealBehind = false, ms = null } = {}) {
 	if (!el || typeof matchMedia !== 'function' || reducedMotion()) return Promise.resolve();
-	el.dataset.exit = '1';
-	return new Promise((resolve) => { setTimeout(resolve, ms); });
+	el.dataset.exit = revealBehind ? 'screen' : 'content';
+	const wait = ms ?? (revealBehind ? EXIT_REVEAL_MS : EXIT_MS);
+	return new Promise((resolve) => { setTimeout(resolve, wait); });
 }
 
 // --- compteurs ---------------------------------------------------------------

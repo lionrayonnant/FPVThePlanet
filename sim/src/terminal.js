@@ -49,7 +49,12 @@ export function screen(root, cls = '') {
 	// dans la frame où le premier disparaît. `remove()` reste synchrone : la
 	// plupart des écrans se démontent parce qu'on quitte le menu, et là il n'y
 	// a rien à regarder s'éteindre.
-	const close = () => exitScreen(el).then(remove);
+	//
+	// `close({ revealBehind: true })` pour le dernier écran d'un enchaînement,
+	// celui qui donne sur le vol : lui seul emmène son fond noir avec lui. Par
+	// défaut le fond tient jusqu'au démontage, sinon la scène 3D chargée
+	// dessous se voit entre deux écrans.
+	const close = (opts) => exitScreen(el, opts).then(remove);
 	return { el, box, remove, close };
 }
 

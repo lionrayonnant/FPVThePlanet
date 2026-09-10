@@ -99,9 +99,17 @@ button:focus::before {
 /* #67 — l'impression inverse : l'écran qui s'en va. Les mêmes deux pas, à
    l'envers, sur la durée la plus courte — un écran s'éteint plus vite qu'il ne
    s'allume. `pointer-events: none` pendant la sortie : ce qui est en train de
-   disparaître n'accepte plus de clic. */
+   disparaître n'accepte plus de clic.
+   Entre deux écrans de terminal, SEUL LE CONTENU s'en va : le fond noir tient
+   jusqu'au démontage. Le faire fondre laissait voir la scène 3D déjà chargée
+   dessous — un flash de la carte alors qu'on n'est pas encore sur le drone.
+   `[data-exit="screen"]` est l'exception assumée : le dernier écran d'un
+   enchaînement, celui qui donne sur le vol, emmène son fond avec lui, parce
+   que ce qu'on découvre dessous est justement le sujet. */
 @keyframes reveal-out { 0% { opacity: 1; } 50% { opacity: .45; } 100% { opacity: 0; } }
-[data-exit] { animation: reveal-out var(--dur-1) steps(2, end) both; pointer-events: none; }
+[data-exit] { pointer-events: none; }
+[data-exit="content"] > .bootstrap-box { animation: reveal-out var(--dur-1) steps(2, end) both; }
+[data-exit="screen"] { animation: reveal-out var(--dur-2) steps(2, end) both; }
 /* L'encre d'un bouton s'allume en une touche, pas instantanément. */
 .bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta {
 	transition: color var(--dur-1) linear, background-color var(--dur-1) linear, border-color var(--dur-1) linear;
@@ -114,7 +122,8 @@ button:focus::before {
 button.flash { animation: key-flash var(--dur-1) steps(1, end); }
 button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 @media (prefers-reduced-motion: reduce) {
-	[data-reveal], [data-exit], button.flash, button.flash:hover, button:focus::before,
+	[data-reveal], [data-exit], [data-exit] > .bootstrap-box,
+	button.flash, button.flash:hover, button:focus::before,
 	.panel label:focus-within::before, #pad-map tr:focus-within td:first-child::before { animation: none; }
 	.bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta { transition: none; }
 }

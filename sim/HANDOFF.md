@@ -1165,9 +1165,12 @@ Plan d'origine (contexte de la décision d'architecture) :
   troisième. Le contrat rendu à `main.js` est inchangé : `{ aborted: true }`
   ou `undefined`. `tools/hack-render-selftest.mjs` : 13/13 OK.
   Enchaînement : `screen().close()` (`src/terminal.js`) imprime l'écran à
-  l'envers (`exitScreen` dans `src/motion.js`, `[data-exit]` en CSS, `EXIT_MS`
-  = 90 ms) et ne rend la main qu'après — les trois écrans du hack passent par
-  là. Sans `matchMedia` (faux DOM) ou en mouvement réduit, la sortie est
+  l'envers (`exitScreen` dans `src/motion.js`, `[data-exit]` en CSS) et ne rend
+  la main qu'après — les trois écrans du hack passent par là. DEUX sorties :
+  `content` (défaut, `EXIT_MS` = 90 ms) n'anime que `.bootstrap-box`, le fond
+  noir tient — sans quoi la carte chargée se voyait entre deux écrans ;
+  `screen` (`revealBehind: true`, `EXIT_REVEAL_MS` = 180 ms) emmène le fond, et
+  n'est utilisé que par le dernier écran, celui qui découvre le vol. Sans `matchMedia` (faux DOM) ou en mouvement réduit, la sortie est
   immédiate : les selftests de rendu enchaînent en un microtask.
   `tools/motion-selftest.mjs` : 16/16 OK.
   L'empreinte du crash est en 22 px, avec un repli à 11 px sous 820 px de
