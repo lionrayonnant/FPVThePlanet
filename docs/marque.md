@@ -73,6 +73,7 @@ que ci-dessous.
 | chemin | source |
 |---|---|
 | en-tête de `README.md` | `docs/brand/fpvtp-readme-1280x320.png` — la bannière porte déjà la marque ET le nom, elle a remplacé l'icône seule qui était là |
+| cracktro de lancement (`sim/src/intro.js`) | verrouillage empilé, tracé module par module pendant la phase `reveal`. La géométrie est recopiée dans `sim/tools/brand-mark-model.mjs` — le premier écran du jeu ne peut pas dépendre d'un fetch — et `sim/tools/brand-mark-selftest.mjs` lit le SVG et le motif ci-dessus pour interdire à cette copie de dériver |
 | favicon de `sim/index.html` (16, 32, 48) | référence directement `sim/public/brand/png/` |
 | `og:image` de `sim/index.html` | `sim/public/brand/fpvtp-og-1200x630.png` — chemin **relatif à la racine**, et pas d'`og:url` : `deploy/` ne fixe aucun domaine, et une URL canonique fausse vaut moins que pas d'URL du tout. Le jour où un domaine est arrêté, poser `og:url` et passer l'image en absolu |
 | `sim/electron/build/icon.png` | copie de `png/fpvtp-icon-1024.png` — electron-builder l'empaquette dans l'installeur NSIS et l'AppImage |
@@ -114,6 +115,12 @@ la version en réserve (plaque pleine, motif creusé).
 compris pendant un rituel — le cyan et le magenta appartiennent à l'écran, pas
 au logo (Bible §19). Pas de rotation, pas de contour, pas d'ombre, pas de motif
 substitué.
+
+Le cracktro est le premier endroit où cet interdit mord vraiment : la marque y
+tient l'écran pendant que la phase plasma flambe en cyan, magenta, violet et
+bleu. `.intro-lockup` pose `color: var(--ink)` sur le conteneur du
+verrouillage, précisément pour que rien de la demo ne puisse redescendre
+dessus.
 
 ## Ce que la grille produit ailleurs
 

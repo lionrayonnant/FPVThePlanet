@@ -4,6 +4,15 @@
 // inchangé). Écran client pur : aucun Three/Rapier/physics, jamais importé
 // par le moteur.
 //
+// C'est aussi le seul endroit du jeu où la MARQUE se montre (#73) : le
+// verrouillage empilé de docs/marque.md — le symbole, puis `F P V T P !`
+// dessous — que le document réservait depuis toujours au « splash, boot ». Le
+// symbole se trace module par module pendant la phase `reveal`, parce que la
+// marque EST un randomart figé (marque.md) et qu'un randomart, dans ce jeu, ça
+// se trace (#57). Il ne prend JAMAIS une couleur demo, pas même sous la
+// plasma : le cyan et le magenta appartiennent à l'écran, pas au logo
+// (marque.md, « Interdits »).
+//
 // PRESS ANY KEY (calme, palette UI) fait passer le geste utilisateur qui
 // lance le cracktro (logo + plasma/raster + scrolltext, Bible §19 :
 // cyan/magenta/violet/bleu électrique réservés à ce moment). Ce même geste
@@ -13,7 +22,9 @@
 // n'importe quel geste coupe net (démontage complet) plutôt que d'attendre la
 // fin.
 import { INTRO_PHASES, INTRO_TOTAL_MS, RESOLUTION_AT_MS, phaseAt, SKIP_WRAP_MS } from '../tools/intro-model.mjs';
+import { MARK_RECTS, revealCount, nameVisibleAt } from '../tools/brand-mark-model.mjs';
 import { cosmeticSeed, RITUAL_PRIMITIVES } from './hack-grammars.js';
+import { reducedMotion } from './motion.js';
 
 const TITLE = 'FPVTP!';
 const GREETING = 'FPVTP! CREW PRESENTS … GREETINGS TO EVERY PILOT WHO EVER AUGERED IN — FLY IT LIKE YOU STOLE IT //';
@@ -50,6 +61,12 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 		let finished = false;
 		let logoSpans = [];
 		let burstEl = null;
+		let markEl = null;
+		let logoEl = null;
+		// Combien des 19 rectangles sont déjà dans le document. Le tracé n'efface
+		// jamais : il ajoute. Un compteur suffit donc, et une frame sautée se
+		// rattrape toute seule au tour suivant.
+		let painted = 0;
 
 		// « PRESS ANY KEY » vaut aussi pour la radio (issue #123) : n'importe quel
 		// bouton de manette passe le gate, puis saute le cracktro — mêmes règles
@@ -102,6 +119,10 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 			// SKIP_WRAP_MS — sans ce retrait immédiat, une deuxième frappe dans cette
 			// fenêtre relancerait le skip une deuxième fois.
 			skipped = true;
+			// Le skip atterrit sur la résolution, où la marque est censée être
+			// posée : on la termine ici plutôt que de la laisser à moitié écrite
+			// sur les 250 ms qui restent.
+			markComplete();
 			window.removeEventListener('keydown', onSkip);
 			wrap.removeEventListener('click', onSkip);
 			// Un dénouement bref plutôt qu'un cut visuel à la milliseconde près :
@@ -111,16 +132,55 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 		}
 
 		function renderLogo(elapsed, phase) {
-			// L'amplitude retombe à zéro pendant la résolution : le logo se pose,
-			// en phase avec la partition qui se résout sur BOOT_SIGNATURE.
-			const amp = phase === 'resolution'
-				? LOGO_AMP_PX * Math.max(0, 1 - (elapsed - RESOLUTION_AT_MS) / (INTRO_TOTAL_MS - RESOLUTION_AT_MS))
-				: LOGO_AMP_PX;
+			// Trois régimes, et c'est ce qui rend le verrouillage honnête (#73).
+			// Pendant `reveal` l'amplitude est NULLE : le symbole vient de se
+			// tracer, le nom s'inscrit dessous, et l'écart entre les deux est
+			// exactement celui que docs/marque.md impose — c'est là qu'on lit la
+			// marque. Pendant `plasma` le sinus-scroll possède l'écran, et le
+			// verrouillage se défait : c'est une demo, pas une charte. À la
+			// résolution l'amplitude retombe à zéro, le logo se pose en phase avec
+			// la partition qui rejoint BOOT_SIGNATURE — et le verrouillage
+			// redevient juste pour le dernier regard.
+			const amp = phase === 'reveal'
+				? 0
+				: phase === 'resolution'
+					? LOGO_AMP_PX * Math.max(0, 1 - (elapsed - RESOLUTION_AT_MS) / (INTRO_TOTAL_MS - RESOLUTION_AT_MS))
+					: LOGO_AMP_PX;
 			const t = elapsed / 1000;
 			for (let i = 0; i < logoSpans.length; i++) {
 				const y = amp * Math.sin(t * LOGO_OMEGA + i * LOGO_KAPPA);
 				logoSpans[i].style.transform = `translateY(${y.toFixed(2)}px)`;
 			}
+		}
+
+		// Pose les rectangles manquants jusqu'à `n`. Idempotent et monotone : on
+		// n'appelle jamais avec moins que ce qui est déjà là.
+		const SVG_NS = 'http://www.w3.org/2000/svg';
+		function paintMark(n) {
+			for (; painted < n; painted++) {
+				const r = MARK_RECTS[painted];
+				const rect = document.createElementNS(SVG_NS, 'rect');
+				rect.setAttribute('x', r.x);
+				rect.setAttribute('y', r.y);
+				rect.setAttribute('width', r.w);
+				rect.setAttribute('height', r.h);
+				markEl.appendChild(rect);
+			}
+		}
+
+		// Le nom, une fois la marque entière. La transition d'opacité (style.css)
+		// n'accroche que si le navigateur a déjà peint l'état initial — c'est le
+		// cas ici, le cracktro tourne depuis plus d'une seconde.
+		function showName() {
+			logoEl.classList.add('intro-logo-in');
+		}
+
+		// Tout, tout de suite. Le skip et `prefers-reduced-motion` y passent tous
+		// les deux : dans un cas comme dans l'autre, une marque à moitié tracée
+		// serait pire que pas de marque du tout.
+		function markComplete() {
+			paintMark(MARK_RECTS.length);
+			showName();
 		}
 
 		function renderBurst(elapsed) {
@@ -137,6 +197,12 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 			const elapsed = now - t0;
 			if (elapsed >= INTRO_TOTAL_MS) { finish(); return; }
 			const phase = phaseAt(elapsed);
+			// Le tracé appartient à `reveal` et n'en sort pas : dès que la plasma
+			// commence, la marque est entière quoi qu'il soit arrivé aux frames.
+			if (phase === 'reveal') {
+				paintMark(revealCount(elapsed));
+				if (nameVisibleAt(elapsed)) showName();
+			} else markComplete();
 			renderLogo(elapsed, phase);
 			if (phase === 'plasma') renderBurst(elapsed);
 			else burstEl.textContent = '';
@@ -146,16 +212,24 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 
 		function startCracktro() {
 			started = true;
+			// Le verrouillage empilé : le symbole, puis le nom dessous. Un seul
+			// conteneur, parce que l'écart entre les deux est une règle de la
+			// marque et pas une décision de mise en page.
 			wrap.innerHTML =
-				`<div class="intro-logo" aria-hidden="true">${TITLE.split('').map((ch) => `<span>${ch}</span>`).join('')}</div>`
+				'<div class="intro-lockup" aria-hidden="true">'
+				+ '<svg class="intro-mark" viewBox="0 0 100 100"></svg>'
+				+ `<div class="intro-logo">${TITLE.split('').map((ch) => `<span>${ch}</span>`).join('')}</div>`
+				+ '</div>'
 				+ '<pre class="intro-burst" aria-hidden="true"></pre>'
 				+ `<div class="intro-scroll" aria-hidden="true"><span>${GREETING}</span></div>`;
+			markEl = wrap.querySelector('.intro-mark');
+			logoEl = wrap.querySelector('.intro-logo');
 			logoSpans = Array.from(wrap.querySelectorAll('.intro-logo span'));
 			burstEl = wrap.querySelector('.intro-burst');
-			// La transition d'opacité (style.css) n'accroche que si le navigateur a
-			// déjà peint l'état initial : une frame de battement avant d'ajouter la
-			// classe qui la déclenche.
-			requestAnimationFrame(() => wrap.querySelector('.intro-logo').classList.add('intro-logo-in'));
+			// Mouvement réduit : la marque est posée, pas tracée. Même règle que
+			// partout ailleurs (motion.js) — on saute à l'état final plutôt que
+			// d'animer plus doucement.
+			if (reducedMotion()) markComplete();
 			window.addEventListener('keydown', onSkip);
 			wrap.addEventListener('click', onSkip);
 			raf = requestAnimationFrame(loop);

@@ -1435,13 +1435,55 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	50% { opacity: .35; }
 }
 
-.intro-logo {
+/* Le VERROUILLAGE EMPILÉ de docs/marque.md (#73) : le symbole, un module
+   d'écart, puis le nom. Les deux écarts sont exprimés en modules de la marque
+   (un module = 1/16 de sa largeur) plutôt qu'en pixels — c'est la règle du
+   document, pas une mise en page, et elle doit tenir à toutes les tailles.
+   La zone de respect est de 4 modules sur les quatre côtés : rien n'y entre,
+   et ici c'est la plasma qui est tenue dehors.
+
+   `color` est posée ICI, sur le conteneur du verrouillage, et pas héritée de
+   plus haut : c'est ce qui garantit l'interdit de marque.md (« pas de couleur
+   d'état ni de couleur demo sur la marque, y compris pendant un rituel »). Le
+   cyan et le magenta de la phase plasma vivent sur .intro-burst, qui n'est pas
+   un ancêtre de ceci — et si un jour ils remontaient, cette ligne les
+   arrêterait. */
+.intro-lockup {
+	--mark-size: clamp(120px, 26vw, 320px);
 	position: relative; z-index: 2;
-	font-family: var(--font-display);
-	font-size: clamp(44px, 12vw, 154px);
-	letter-spacing: var(--track-display);
-	line-height: 1;
+	display: flex; flex-direction: column; align-items: center;
+	gap: calc(var(--mark-size) / 16);
+	padding: calc(var(--mark-size) / 4);
 	color: var(--ink);
+	/* La zone de respect est OPAQUE. « Rien n'y entre, pas même la règle d'un
+	   panneau » (marque.md) : sans ce fond, les chiffres de la plasma passent
+	   derrière la marque et jusque contre ses modules — vérifié à l'écran, et
+	   c'est exactement ce que la règle interdit. La marque perce donc la demo
+	   plutôt que d'y flotter. */
+	background: var(--black);
+}
+
+/* Le symbole. `fill: currentColor` plutôt qu'une couleur littérale : le SVG
+   source n'en introduit aucune, et cette copie non plus (tools/brand-mark-model.mjs).
+   `crispEdges` parce que ce sont des modules sur une grille — un bord flou
+   serait un bord faux. */
+.intro-mark {
+	display: block;
+	width: var(--mark-size); height: var(--mark-size);
+	fill: currentColor;
+	shape-rendering: crispEdges;
+}
+
+/* Le nom. `--font-ui` en 500, interlettré `--track-ui` : c'est ce que
+   docs/marque.md impose au verrouillage empilé, et il l'emporte sur la display
+   que le cracktro écrivait avant — la marque n'a qu'une composition, elle ne
+   change pas d'écran en écran. */
+.intro-logo {
+	font-family: var(--font-ui); font-weight: 500;
+	font-size: calc(var(--mark-size) * .22);
+	letter-spacing: var(--track-ui);
+	line-height: 1;
+	text-transform: uppercase;
 	opacity: 0;
 	transition: opacity .4s ease;
 }
