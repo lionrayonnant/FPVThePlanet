@@ -381,9 +381,15 @@ t('#57 : deux sessions sur le MÊME exemplaire rendent la même empreinte', () =
 });
 
 t('#57 : deux exemplaires différents rendent des empreintes différentes', () => {
+	// Comparé à titre ÉGAL : sans ça le test passerait pour la mauvaise raison
+	// (un titre `FPV 06` par défaut ne se trouve évidemment pas dans une fiche
+	// titrée `TGT 042`), et ne dirait rien de la graine.
 	const other = withTarget();
 	other.target = { ...other.target, scan: { ...other.target.scan, index: 4 } };
-	assert.equal(sessionDetail(withTarget()).includes(randomart('abc123::4')), false);
+	const artOf = (i) => randomart(`abc123::${i}`, { title: 'TGT 042', tag: `abc123::${i}` });
+	assert.ok(sessionDetail(withTarget()).includes(artOf(3)));
+	assert.equal(sessionDetail(withTarget()).includes(artOf(4)), false);
+	assert.ok(sessionDetail(other).includes(artOf(4)));
 });
 
 t('#57 : une session d\'avant, sans cible, garde son randomart écrit', () => {
@@ -657,7 +663,6 @@ Sous le bloc `#flight-end div:empty { height: .6em; }`, ajouter :
 /* Le couple portrait + empreinte. Sous 720 px l'empreinte repasse dessous :
    à cette largeur elle ne tient plus à côté du dessin. */
 @media (min-width: 720px) {
-	#flight-end { position: absolute; }
 	#flight-end .drone-viewer,
 	#flight-end .drone-portrait { margin-right: 1.2em; }
 	#flight-end .drone-viewer + .flight-end-art,
@@ -895,6 +900,12 @@ Remplacer `finish` par le couple suivant (le bouton continue d'appeler `finish`)
 		// ne revient pas au scan) et par le crochet de test.
 		const handOver = () => {
 			if (done) return;
+			// L'empreinte est POSÉE dans son état final avant le démontage. Sauter
+			// le battement — Échap, ou le crochet de test — ne doit pas laisser une
+			// image à moitié tracée comme dernière chose à l'écran.
+			if (phase === 'acquired') {
+				artEl.textContent = randomartFrame(walk, walk.steps.length, { title: 'TGT ??', tag: buildSeed });
+			}
 			globalThis.__hackTestObserve?.(artEl.textContent, handoverEl.textContent);
 			teardown();
 			resolve();
