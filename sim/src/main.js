@@ -1515,11 +1515,12 @@ input.onAction = (action, event) => {
 	else if (action === 'photo') pendingCapture = true;
 	else if (action === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (action === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
-	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place. Entrée
-	// est un doublon d'Échap plutôt que le seul chemin : en plein écran
-	// navigateur, Échap est confisquée pour quitter le plein écran et ne
+	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place. C'est
+	// Entrée que la ligne nomme (#71) : en pointer lock, et a fortiori en plein
+	// écran navigateur, Échap est confisquée pour rendre le curseur et ne
 	// délivre jamais de keydown à la page (comportement du navigateur, pas un
-	// bug — voir le clic ci-dessous pour la même raison).
+	// bug — voir le clic ci-dessous pour la même raison). Échap reste acceptée
+	// en doublon silencieux : elle marche quand rien ne la confisque.
 	else if ((action === 'escape' || action === 'enter') && flightEnd.out.exitArmed) finishSession();
 	// #253 : REDEPLOY, clavier seulement (comme les touches banc ci-dessus) —
 	// la manette garde son geste « n'importe quel bouton déconnecte » plus bas.

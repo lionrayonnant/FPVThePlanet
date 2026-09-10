@@ -43,7 +43,19 @@ rapport avec les versions ci-dessous.
   SOUS lui : la même machine vue de deux façons, l'une sous l'autre. Elle garde
   le corps de 22 px du reste de l'écran de fin, et ne redescend à 11 px — l'autre
   taille nette de Departure Mono — que sous 820 px de hauteur de fenêtre, où la
-  colonne repousserait `[ESC] DISCONNECT` hors de l'écran (#67).
+  colonne repousserait `[ENTER] DISCONNECT` hors de l'écran (#67).
+
+### Corrigé
+
+- L'écran de fin nommait `[ESC] DISCONNECT`, c'est-à-dire la seule touche que le
+  navigateur peut confisquer : en pointer lock, et a fortiori en plein écran, il
+  garde Échap pour rendre le curseur et ne délivre aucun `keydown` à la page. Sur
+  l'écran dont la seule raison d'être est qu'on en sorte, la ligne promettait donc
+  une touche qui pouvait ne jamais arriver — mesuré par `__sim.endState()`, toutes
+  gardes propres, la sortie armée et le geste sans effet. Les trois tables (crash,
+  sortie de zone, coupure du lien) nomment maintenant `[ENTER] DISCONNECT`. Échap
+  reste acceptée en doublon silencieux, comme le clic et n'importe quel bouton de
+  manette (#71).
 
 ### Ajouté
 

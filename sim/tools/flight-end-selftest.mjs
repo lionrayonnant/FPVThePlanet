@@ -197,14 +197,16 @@ t('la première ligne de la clôture nomme la cause', () => {
 	assert.equal(FENCE_TIMELINE.lines[0][1], 'OUT OF COVERAGE');
 });
 
-t('D15: every end screen names ESCAPE, never ENTER', () => {
-	// V4: Escape is what goes back everywhere else in the game. Enter still
-	// works — browser fullscreen confiscates Escape — but it is not the line.
+t('#71: every end screen names ENTER, never ESC', () => {
+	// Measured, not preferred: pointer lock and browser fullscreen confiscate
+	// Escape and deliver no keydown, so the one screen whose only purpose is to
+	// be left must name the key that always arrives. Escape stays wired in
+	// main.js as a silent duplicate; it is just not what the line promises.
 	for (const tl of [TIMELINE, FENCE_TIMELINE, CUT_TIMELINE]) {
 		const lines = tl.lines.map(([, text]) => text);
-		assert.ok(lines.includes('[ESC] DISCONNECT'), 'the disconnect line names ESC');
+		assert.ok(lines.includes('[ENTER] DISCONNECT'), 'the disconnect line names ENTER');
 		assert.ok(lines.includes('[R] REDEPLOY'), 'and REDEPLOY sits next to it');
-		assert.ok(!lines.some((l) => l.includes('[ENTER]')), 'no line names ENTER');
+		assert.ok(!lines.some((l) => l.includes('[ESC]')), 'no line names ESC');
 	}
 });
 
