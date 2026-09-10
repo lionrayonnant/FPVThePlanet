@@ -20,10 +20,18 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
-- `[ JACK IN ]` se voit enfin : le geste qui clôt l'analyse monte au niveau
-  DISPLAY, centré sous `MANUAL OVERRIDE REQUIRED`, et respire en pas pour se
-  lire comme une invite en attente plutôt que comme un écran qui charge encore.
-  Il prend le focus, et s'efface dès qu'il a été pressé (#67).
+- L'acquisition se joue maintenant en trois écrans au lieu d'un seul qui change
+  de contenu : l'analyse automatique, puis `MANUAL OVERRIDE REQUIRED` et
+  `[ JACK IN ]` seuls au milieu de l'écran, puis `CONTROL ACQUIRED` et
+  l'empreinte de la machine qui se trace. Le geste ne partage plus son image
+  avec le log qui le précède ni avec le résultat qui le suit. `[ JACK IN ]`
+  passe au niveau DISPLAY, prend le focus et respire en pas pour se lire comme
+  une invite en attente (#67).
+
+- Au crash, l'empreinte de la machine perdue passe d'à côté de l'aperçu 3D à
+  SOUS lui : la même machine vue de deux façons, l'une sous l'autre. Elle se
+  pose à 11 px — la grille nette de Departure Mono — pour tenir dans la colonne
+  sans repousser `[ESC] DISCONNECT` hors de l'écran (#67).
 
 ### Ajouté
 

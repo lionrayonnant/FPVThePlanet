@@ -1032,9 +1032,11 @@ art.
 
 Il apparaît :
 
-- **à l'acquisition** : après `[ JACK IN ]`, le fou trace l'empreinte sous les
-  yeux de l'opérateur, puis `CONTROL ACQUIRED` ;
-- **au crash** : figé, à côté du portrait de la machine perdue ;
+- **à l'acquisition** : `[ JACK IN ]` a son écran, `CONTROL ACQUIRED` a le
+  sien, et c'est sur ce second écran que le fou trace l'empreinte sous les yeux
+  de l'opérateur. Le geste et son résultat ne partagent pas la même image ;
+- **au crash** : figé, sous l'aperçu 3D de la machine perdue — la même machine
+  vue de deux façons, l'une sous l'autre ;
 - **dans les archives** : dans la fiche de session, à la place du randomart de
   session, qui a disparu.
 
@@ -1045,6 +1047,10 @@ partie. On ne choisit pas un signal sur son art.
 Le Randomart n'est pas seulement décoratif :
 
 > **c'est l'empreinte visuelle de l'expérience.**
+
+*(Révision 2026-09-10, issue #67 : l'acquisition passe de deux temps sur un
+même écran à deux écrans, et l'empreinte du crash passe de « à côté » à
+« sous » l'aperçu 3D.)*
 
 *(Révision 2026-09-10, issue #57 : la section décrivait un art « associé à la
 session / cible » et laissait les deux lectures ouvertes. Elle est tranchée

@@ -289,35 +289,24 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 #flight-end div:empty { height: .6em; }
 
-/* #57 — l'empreinte de la machine perdue, à CÔTÉ du portrait et non dessous :
-   onze lignes d'ASCII empilées sous le dessin pousseraient [ESC] DISCONNECT
-   hors de l'écran, et exitAt ne bouge pas. `order` suffit à les apparier :
-   les deux jetons tombent au même horodatage, donc les deux nœuds arrivent
-   côte à côte dans la colonne flex, et `flex-flow: row wrap` sur le parent
-   n'est pas envisageable — il casserait les lignes de texte. On les sort donc
-   du flux vertical en les collant l'un à l'autre. */
+/* #57 — l'empreinte de la machine perdue, DANS le flux, juste sous l'aperçu 3D
+   (#67) : c'est la même machine vue de deux façons, et la lire à côté du dessin
+   en faisait deux objets posés l'un contre l'autre. Le prix de l'empilement est
+   la hauteur — onze lignes d'ASCII, et [ESC] DISCONNECT doit rester à l'écran
+   puisque `exitAt` ne bouge pas. D'où les 11 px : Departure Mono est une police
+   pixel, nette aux multiples de 11 seulement, et 22 px coûtaient 250 px de
+   hauteur là où 11 en coûtent 127. L'empreinte est une signature, pas une
+   illustration : à cette taille elle se lit comme telle. */
 #flight-end .flight-end-art {
-	margin: 0;
+	margin: .4em 0 0;
 	font-family: var(--font-ascii);
-	font-size: var(--fs-display-s);
+	font-size: var(--fs-micro);
 	line-height: 1.05;
 	letter-spacing: 0;          /* l'ASCII n'est pas de la DISPLAY tracked */
 	text-transform: none;
 	white-space: pre;
 	color: var(--dim);
 	opacity: .8;
-}
-/* Le couple portrait + empreinte. Sous 720 px l'empreinte repasse dessous :
-   à cette largeur elle ne tient plus à côté du dessin. */
-@media (min-width: 720px) {
-	#flight-end .drone-viewer,
-	#flight-end .drone-portrait { margin-right: 1.2em; }
-	#flight-end .drone-viewer + .flight-end-art,
-	#flight-end .drone-portrait + .flight-end-art {
-		position: absolute;
-		left: 50%; margin-left: 6em;
-		top: 50%; transform: translateY(-50%);
-	}
 }
 
 /* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
@@ -1324,19 +1313,37 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	text-transform: uppercase;
 	color: var(--warm-white);
 }
+/* #67 — trois écrans, trois choses à dire. L'invite et le résultat ont quitté
+   le bas du log : centrés, ils n'ont plus rien autour d'eux à quoi se
+   comparer. La boîte se resserre — un écran qui ne porte que trois lignes n'a
+   pas besoin des 820 px de l'analyse. */
+.hack-jack .terminal-box,
+.hack-acquired .terminal-box {
+	width: min(560px, 90vw);
+	align-items: center;
+	text-align: center;
+	gap: var(--space-3);
+}
+/* L'en-tête relie les trois temps entre eux, mais elle n'est plus le sujet :
+   sur l'invite et sur le résultat elle redescend au rang de mention. */
+.hack-jack .hack-head,
+.hack-acquired .hack-head {
+	font-size: var(--fs-ui); letter-spacing: var(--track-ui);
+	color: var(--dim); margin: 0;
+}
 /* #67 — [ JACK IN ] est le geste, et il doit se voir comme tel. Au niveau UI et
-   aligné à gauche, il se lisait comme un lien de plus au bas d'un écran qui
-   charge encore ; l'analyse rendait la main sans que personne la prenne.
-   Il monte donc au niveau DISPLAY, centré sous MANUAL OVERRIDE REQUIRED, et il
-   RESPIRE : deux états francs qui alternent en pas — l'attente d'un terminal,
-   pas une pulsation douce (DA §46 : jamais de fondu long, jamais de glow). */
+   aligné à gauche au bas du log, il se lisait comme un lien de plus sur un
+   écran qui charge encore ; l'analyse rendait la main sans que personne la
+   prenne. Il a maintenant son écran, et il y RESPIRE : deux états francs qui
+   alternent en pas — l'attente d'un terminal, pas une pulsation douce
+   (DA §46 : jamais de fondu long, jamais de glow). */
 .hack .hack-cta {
 	align-self: center;
 	margin: var(--space-4) 0 var(--space-2);
-	padding: 18px 40px;
+	padding: 22px 56px;
 	border-color: var(--ink);
 	font-family: var(--font-display);
-	font-size: var(--fs-display-m);
+	font-size: var(--fs-display-l);
 	letter-spacing: var(--track-display);
 	color: var(--warm-white);
 	animation: hack-cta-wait 1.4s steps(1, end) infinite;

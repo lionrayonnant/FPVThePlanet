@@ -1148,14 +1148,24 @@ Plan d'origine (contexte de la décision d'architecture) :
   (plus jamais −500), monde stable.
 
 - **#57 — le randomart est l'empreinte de la cible.** Graine = `buildSeed` de
-  l'exemplaire. Trois moments : le fou trace après `[ JACK IN ]` (`src/hack.js`,
-  phase `acquired`), art figé au crash à côté du portrait (jeton
+  l'exemplaire. Trois moments : le fou trace sur l'écran `CONTROL ACQUIRED`
+  (`src/hack.js`, `runAcquired()`), art figé au crash sous l'aperçu 3D (jeton
   `RANDOMART_LINE`, les trois tables de `src/flight-end.js`), art de la cible
   dans `sessionDetail()`. `tools/randomart.mjs` est une feuille sans dépendance
   — `node:crypto` est parti, l'image d'une graine donnée a donc changé. Aucune
   archive n'a été réécrite : les sessions d'avant gardent leur champ
-  `randomart`, lu en repli. *Non vérifié à la main : le rendu côte à côte
-  portrait + empreinte sous 720 px de large.*
+  `randomart`, lu en repli.
+
+- **#67 — l'acquisition se joue en trois écrans.** `runHack()` n'est plus une
+  machine à phases dans une seule boîte : `runAnalysis()` (le log, le motif,
+  l'attente de `ready`), `runHandover()` (`MANUAL OVERRIDE REQUIRED` +
+  `[ JACK IN ]` au niveau DISPLAY, focus pris, animation d'attente en pas,
+  `.hack-cta`), `runAcquired()` (`CONTROL ACQUIRED` + l'empreinte qui se
+  trace). Échap renonce sur les deux premiers, saute le battement sur le
+  troisième. Le contrat rendu à `main.js` est inchangé : `{ aborted: true }`
+  ou `undefined`. `tools/hack-render-selftest.mjs` : 13/13 OK.
+  *Non vérifié à la main : le rendu réel des trois écrans dans le navigateur,
+  et la hauteur de l'empreinte 11 px sous l'aperçu 3D sur une petite fenêtre.*
 
 ## Polish pré-release (issues #6 à #16, branche pre-release-polish)
 
