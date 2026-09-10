@@ -291,22 +291,29 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 
 /* #57 — l'empreinte de la machine perdue, DANS le flux, juste sous l'aperçu 3D
    (#67) : c'est la même machine vue de deux façons, et la lire à côté du dessin
-   en faisait deux objets posés l'un contre l'autre. Le prix de l'empilement est
-   la hauteur — onze lignes d'ASCII, et [ESC] DISCONNECT doit rester à l'écran
-   puisque `exitAt` ne bouge pas. D'où les 11 px : Departure Mono est une police
-   pixel, nette aux multiples de 11 seulement, et 22 px coûtaient 250 px de
-   hauteur là où 11 en coûtent 127. L'empreinte est une signature, pas une
-   illustration : à cette taille elle se lit comme telle. */
+   en faisait deux objets posés l'un contre l'autre.
+   Elle se lit à la même taille que le reste de l'écran de fin : à 11 px elle
+   était une vignette au moment où l'on demande de la regarder. Departure Mono
+   est une police pixel, nette aux multiples de 11 seulement — il n'y a donc
+   pas de taille intermédiaire, c'est 22 ou 11. */
 #flight-end .flight-end-art {
 	margin: .4em 0 0;
 	font-family: var(--font-ascii);
-	font-size: var(--fs-micro);
+	font-size: var(--fs-display-s);
 	line-height: 1.05;
 	letter-spacing: 0;          /* l'ASCII n'est pas de la DISPLAY tracked */
 	text-transform: none;
 	white-space: pre;
 	color: var(--dim);
 	opacity: .8;
+}
+/* Le prix de l'empilement est la hauteur : onze lignes font 254 px à 22 px, et
+   [ESC] DISCONNECT doit rester à l'écran — #flight-end ne défile pas et `exitAt`
+   ne bouge pas. Sous 820 px de haut, l'empreinte redescend au seul autre corps
+   net de la police. Contrainte VERTICALE, donc requête sur la hauteur : c'est
+   la colonne qui déborde, jamais la largeur (19 colonnes, 250 px). */
+@media (max-height: 820px) {
+	#flight-end .flight-end-art { font-size: var(--fs-micro); }
 }
 
 /* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only

@@ -29,9 +29,10 @@ rapport avec les versions ci-dessous.
   une invite en attente (#67).
 
 - Au crash, l'empreinte de la machine perdue passe d'à côté de l'aperçu 3D à
-  SOUS lui : la même machine vue de deux façons, l'une sous l'autre. Elle se
-  pose à 11 px — la grille nette de Departure Mono — pour tenir dans la colonne
-  sans repousser `[ESC] DISCONNECT` hors de l'écran (#67).
+  SOUS lui : la même machine vue de deux façons, l'une sous l'autre. Elle garde
+  le corps de 22 px du reste de l'écran de fin, et ne redescend à 11 px — l'autre
+  taille nette de Departure Mono — que sous 820 px de hauteur de fenêtre, où la
+  colonne repousserait `[ESC] DISCONNECT` hors de l'écran (#67).
 
 ### Ajouté
 
