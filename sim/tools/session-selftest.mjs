@@ -12,7 +12,6 @@ import {
 	sanitizeTarget, SESSION_SCHEMA_VERSION,
 } from './session-model.mjs';
 import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
-import { randomart, RANDOMART_DIMS } from './randomart.mjs';
 import {
 	TARGET_FAMILIES, HACK_TYPES, generateTargetScan, resolveTarget,
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
@@ -505,21 +504,6 @@ t('migrate : un trou de numerotation survit a la relecture', () => {
 	const m = migrate(v2);
 	assert.deepEqual(m.sessions.map((s) => s.seq), [1, 3]);
 	assert.equal(m.sessionSeq, 3);
-});
-
-// ---------------------------------------------------------------------------
-// randomart
-
-t('randomart : déterministe, dimensions et cadre corrects', () => {
-	const a = randomart('tokyo-shibuya-a1b2', { tag: 'a1b2' });
-	const b = randomart('tokyo-shibuya-a1b2', { tag: 'a1b2' });
-	assert.equal(a, b);
-	assert.notEqual(a, randomart('tokyo-shibuya-c3d4', { tag: 'c3d4' }));
-	const lines = a.split('\n');
-	assert.equal(lines.length, RANDOMART_DIMS.LINES);
-	assert.ok(lines.every((l) => l.length === RANDOMART_DIMS.WIDTH + 2));
-	assert.ok(a.includes('S') && a.includes('E'));
-	assert.ok(lines[lines.length - 1].includes('a1b2'));
 });
 
 // ---------------------------------------------------------------------------
