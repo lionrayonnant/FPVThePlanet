@@ -70,9 +70,13 @@ génération que tout le dépôt utilise déjà — FNV-1a puis xorshift, la fon
 `target-model.mjs` et `src/link.js`. 32 octets se tirent du flux, un par
 appel, octet de poids faible.
 
-`rngFrom` est réimporté depuis `target-build.mjs` plutôt que recopié : c'est
-déjà la fonction canonique du dépôt, et `randomart.mjs` n'a pas d'autre
-dépendance.
+`rngFrom` est RECOPIÉ dans `randomart.mjs`, pas importé — comme il l'est déjà
+dans `target-camera.mjs`, `target-model.mjs` et `src/link.js`, chacun avec le
+commentaire « même géné que… ». L'importer depuis `target-build.mjs`
+traînerait `PROFILES` et `drone-profiles.js` dans le chemin du serveur pour six
+lignes de hash. `randomart.mjs` reste une feuille sans aucune dépendance, ce
+qui est exactement ce qui lui permet d'être importé aussi bien par le serveur
+que par `session-log-model.mjs`, qui s'interdit tout `node:`.
 
 **Conséquence assumée** : le digest change, donc un `randomart(seed)` ne rend
 plus la même image qu'avant pour la même graine. Ça ne se voit nulle part —
