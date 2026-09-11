@@ -323,14 +323,20 @@ function localTerrain(root, scenes) {
 				actions.hidden = true;
 				actions.append(
 					button('OPEN', () => done(sc.slug), 'terminal-link', 'Fly this area'),
-					button('FORECAST', () => forecastScreen(root, sc), 'terminal-link', 'Preview weather over this area'),
-					button('REMOVE', async () => {
+					button('FORECAST', () => forecastScreen(root, sc), 'terminal-link', 'Preview weather over this area'));
+				// Removing an area is a LOCAL operation (issue #78): the terrain
+				// belongs to the instance, not to whoever is looking at it, and a
+				// shared server answers 403 to everyone. The button would only ever
+				// fail silently there, so it is not offered.
+				if (!sharedServer) {
+					actions.append(button('REMOVE', async () => {
 						closeSub();
 						const r = await fetch(`/__map-api/scenes/${sc.slug}`, { method: 'DELETE' });
 						if (!r.ok) return;
 						scenes = scenes.filter((x) => x.slug !== sc.slug);
 						render(Math.min(i, scenes.length - 1));
 					}, 'terminal-link', 'Delete this downloaded area'));
+				}
 
 				item.append(row, actions);
 				list.appendChild(item);

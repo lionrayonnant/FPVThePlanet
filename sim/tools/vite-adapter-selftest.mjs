@@ -11,6 +11,7 @@
 // routes se teste ailleurs.
 
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -42,6 +43,24 @@ try {
 	const operators = await fetch(base + '/__operator');
 	check('… et sur /__operator', operators.status === 200
 		&& Array.isArray((await operators.json()).operators));
+
+	// The origin guard travels with the API (issue #79), and it counts double
+	// here: the plugin mounts the API ahead of Vite's middlewares, so
+	// `allowedHosts` (the CVE-2025-24010 fix) covers neither /__operator nor
+	// /__map-api — this guard, alone, is what closes DNS rebinding in dev.
+	// fetch() protects `Host`; node:http sends what it is given.
+	const u = new URL(base);
+	const withHost = (host) => new Promise((resolve, reject) => {
+		const r = http.request({
+			hostname: u.hostname, port: u.port, path: '/__map-api/scenes', headers: { host },
+		}, (res) => { res.resume(); resolve(res.statusCode); });
+		r.on('error', reject);
+		r.end();
+	});
+	check('npm run dev: a foreign Host is refused on the API (DNS rebinding)',
+		await withHost('attacker.example') === 403);
+	check('… and loopback passes',
+		await withHost(`localhost:${u.port}`) === 200);
 
 	// L'adaptateur doit rendre la main à Vite sur tout le reste : sans le
 	// `next()`, la page ne se chargerait plus.

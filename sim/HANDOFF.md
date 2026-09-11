@@ -2984,10 +2984,13 @@ Suites ouvertes : #34 (formations commutables), #35 (détection des angles),
   code écrit, jamais testé interactivement par l'utilisateur.
 - Modes `angle` et `altitude` du contrôleur de vol — testés uniquement par
   construction du code, pas en vol piloté.
-- Exposer le serveur de dev par un tunnel expose aussi l'état opérateur
-  (`/__operator`). Le serveur autonome le dit autrement : en `--mode local` il
-  refuse un `--host` hors de la boucle locale, et `--mode shared` réclame une
-  clé d'opérateur.
+- Exposer le serveur de dev par un tunnel n'expose plus l'état opérateur
+  (`/__operator`) : depuis #79 l'API refuse en `local` tout `Host` hors de la
+  boucle locale, et toute méthode écrivante qui se présente cross-site. Un
+  tunnel (ngrok, cloudflared) reçoit donc 403 sur l'API — c'est voulu, et le
+  seul moyen de servir un tiers reste `--mode shared`, qui réclame une clé
+  d'opérateur. Le serveur autonome le disait déjà à sa façon : en `--mode
+  local` il refuse un `--host` hors de la boucle locale.
 - **Météo : ressenti en vol jamais éprouvé.** La chaîne est vérifiée bout en
   bout, mais personne n'a encore volé un jour de vent fort ou de brouillard réel
   pour dire si les valeurs qu'Open-Meteo renvoie donnent une expérience juste.

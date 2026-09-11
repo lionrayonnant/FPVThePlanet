@@ -42,6 +42,7 @@ import {
 	generateKey, hashKey, checkKey, acquireEnabled, invalidateKeyIndex, publicOperator,
 	operatorIdForKey, bearerOf, checkSignup, checkOperatorQuota,
 } from './auth.mjs';
+import { checkOrigin } from './origin.mjs';
 
 const BASE = '/__map-api';
 
@@ -623,7 +624,17 @@ function json(res, code, body) {
 // ordinaire (photo + ~33 % d'overhead base64) : plafond dédié pour cette route.
 const PHOTO_BODY_MAX = 8e6;
 
+// A cross-site request that skips the preflight can only carry a CORS-safelisted
+// content type — `text/plain`, a form encoding, or none at all — never
+// `application/json` (issue #79). Demanding it is a second lock behind
+// checkOrigin() and costs the client nothing: every caller in src/ already sets
+// it. A body with no type at all is refused too, because a Blob of empty type
+// is exactly how a page sends one without a preflight.
 function readBody(req, maxBytes = 1e6) {
+	const type = String(req.headers?.['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+	if (type && type !== 'application/json') {
+		return Promise.reject(new Error(`body must be application/json, got ${type}`));
+	}
 	return new Promise((resolve, reject) => {
 		let b = '';
 		req.on('data', (d) => {
@@ -631,6 +642,7 @@ function readBody(req, maxBytes = 1e6) {
 			if (b.length > maxBytes) { reject(new Error('body too large')); req.destroy(); }
 		});
 		req.on('end', () => {
+			if (b && !type) return reject(new Error('body must be application/json, Content-Type missing'));
 			try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(new Error('invalid JSON body')); }
 		});
 		req.on('error', reject);
@@ -792,6 +804,18 @@ function startJob(opts) {
 	return job;
 }
 
+// Destroying server-wide data is a LOCAL operation (issue #78).
+//
+// In `shared` every /__map-api/* route asks for SOME valid operator key, and
+// signup is self-service: there is no role, no ownership. Any player could
+// therefore wipe a scene for every user of the instance — and could not rebuild
+// it, since acquisition is hard-closed in `shared` (auth.mjs). The mode closes
+// the route, exactly as the acquisition flag closes POST /jobs, and it matches
+// the documented model: a shared instance serves LIVE only.
+const DESTRUCTION_ERROR = 'removal is disabled on a shared server';
+
+function destructionClosed() { return MODE === 'shared'; }
+
 const routes = [
 	// `acquire` (issue #60) : l'état RÉEL du droit d'acquérir — le drapeau posé ET
 	// le mode local. Le client s'en sert pour masquer DRAW BOX / DRAW SHAPE /
@@ -810,6 +834,7 @@ const routes = [
 	})],
 
 	['DELETE', /^\/scenes\/([a-z0-9-]+)$/, async (req, res, [slug], url) => {
+		if (destructionClosed()) return json(res, 403, { error: DESTRUCTION_ERROR });
 		const scenes = readScenes();
 		const i = scenes.findIndex((s) => s.slug === slug);
 		if (i < 0) return json(res, 404, { error: `aucune carte "${slug}"` });
@@ -894,6 +919,7 @@ const routes = [
 	}],
 
 	['DELETE', /^\/jobs\/([0-9a-f-]+)$/, async (req, res, [id]) => {
+		if (destructionClosed()) return json(res, 403, { error: DESTRUCTION_ERROR });
 		const job = jobs.get(id);
 		if (!job) return json(res, 404, { error: 'job inconnu' });
 		job.ctrl.abort();
@@ -943,7 +969,15 @@ export function createApi({ paths = defaultPaths, mode = 'local', logger = conso
 	P = paths;
 	MODE = mode;
 	return async function api(req, res, next) {
-		if (req.url === OP_BASE || req.url?.startsWith(OP_BASE + '/') || req.url?.startsWith(OP_BASE + '?')) {
+		const onOperator = req.url === OP_BASE || req.url?.startsWith(OP_BASE + '/') || req.url?.startsWith(OP_BASE + '?');
+		if (onOperator || req.url?.startsWith(BASE)) {
+			// Where the request comes FROM, before anything about who sends it
+			// (issue #79). Static files stay out of it: they are the same bytes
+			// for everyone, and in dev Vite has its own host check for them.
+			const foreign = checkOrigin({ mode: MODE, req });
+			if (foreign) return json(res, foreign.status, { error: foreign.error });
+		}
+		if (onOperator) {
 			const url = new URL(req.url, 'http://localhost');
 			const p = url.pathname.slice(OP_BASE.length) || '/';
 			// En `shared`, la racine n'a que deux réponses possibles : créer un
