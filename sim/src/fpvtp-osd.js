@@ -104,7 +104,7 @@ export class FpvtpOsd {
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
 		// D16: the first-flight line, same rule — what it says is decided
-		// elsewhere (tools/tour-model.mjs); this layer only paints it.
+		// elsewhere (tools/briefing-model.mjs); this layer only paints it.
 		this._hintText = '';
 		// #264 : l'exemplaire en vol, et son dessin une fois le lien perdu. Le
 		// dessin n'est fabriqué qu'au moment où la ligne apparaît — un vol qui
@@ -297,7 +297,7 @@ export class FpvtpOsd {
 	// changes: this is called sixty times a second.
 	//
 	// Three lines, once in an operator's life: this is not permanent help, it
-	// is a tour that ends.
+	// is a briefing that ends.
 	setHint(text) {
 		const next = text || '';
 		if (next === this._hintText) return;

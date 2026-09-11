@@ -53,35 +53,6 @@ Plan d'origine (contexte de la décision d'architecture) :
 
 ## Vérifié
 
-- **Issue #86 — the TOUR replaces the briefing** (branch
-  `claude/presentation-initiale-tour-935le9`). The four briefing screens of D16
-  are gone — `src/briefing.js`, `tools/briefing-model.mjs` and their two
-  selftests with them. In their place, a layer mounted on `#ui` right after
-  registration walks the interface WITH the operator: it finds where they are
-  standing by looking for the screen's class, says what THAT screen is, draws a
-  frame around the real element, and marks a stop read when they leave it.
-  - Six stops, one per place — `root`, `settings`, `field`, `scan` are required
-    and counted (`TOUR 2/4`), `bench` and `data` are said when walked into and
-    never waited for. What is said lives in `tools/tour-model.mjs` (pure), the
-    walking in `src/tour.js`.
-  - It never gates: no CONTINUE, no modal, no waiting on a gesture. `[ H ]` or
-    `[ DISMISS ]` ends it, SETTINGS / SYSTEM replays it (`REPLAY TOUR`), and it
-    goes silent wherever it does not know — a flight, a load, a hack.
-  - A place crossed in under 2.5 s was not read, and comes back.
-  - The three in-flight hints stay in the OSD and no longer hang on the tour
-    having been offered: `firstFlightPending()` now asks one question only, has
-    this operator flown.
-  - `node tools/tour-selftest.mjs` (25) and `node tools/tour-render-selftest.mjs`
-    (13) pass, both chained into `selftest:operator`. `selftest:ci` and
-    `npm run build` pass.
-  - **Non vérifié** : le rendu réel dans un navigateur — la position de la carte
-    en bas à gauche face aux toasts RTC en bas à droite, le cadre sur l'ancre
-    (le faux DOM n'a pas de `getBoundingClientRect`, donc aucun test ne le
-    juge), et le passage à une colonne sous 1100 px.
-  - **Limite connue** : un opérateur qui ne joue QU'À LA MANETTE n'a pas de
-    touche pour congédier le tour (`H` est un clavier) ; il se termine seul au
-    quatrième arrêt, et `[ DISMISS ]` reste cliquable.
-
 - **Issue #26 — l'onglet `DATA`** (branche `feat/data-tab`) : `ARCHIVE` est
   renommé et devient une page qui défile, neuf sections dans l'ordre de la spec
   `docs/superpowers/specs/2026-09-08-flight-track-enriched-map-data-design.md`.
@@ -1305,8 +1276,7 @@ ce dont son propre commentaire avertit. Arbitrage laissé au pilote.
 - Huit selftests neufs chaînés dans `selftest:operator` :
   `version-selftest`, `sun-agc-selftest`, `key-map-selftest`,
   `chase-camera-selftest`, `drone-viewer-selftest`, `settings-render-selftest`,
-  `briefing-selftest`, `briefing-render-selftest` (ces deux-là remplacés par
-  `tour-selftest` / `tour-render-selftest`, #86). `selftest:ci` (donc
+  `briefing-selftest`, `briefing-render-selftest`. `selftest:ci` (donc
   `selftest:operator` + `selftest:api`) et `npm run build` passent.
 - `landing-selftest` et `post-flight-selftest` retirés (l'atterrissage et
   l'écran `POST-FLIGHT ANALYSIS` n'existent plus).
@@ -1325,8 +1295,7 @@ La passe visuelle est faite par un autre agent en parallèle. Reste à confirmer
   y compris le glissement à la souris avec l'amortissement à zéro.
 - Le cadrage de la vue CHASE (1,6 m en arrière, 0,6 m au-dessus).
 - Les onglets de SETTINGS et le rebind KEYBOARD.
-- Les trois indices du premier vol (les écrans du briefing, eux, ont été
-  remplacés par le tour — #86, section « Vérifié » en tête de document).
+- Les écrans du briefing et les trois indices du premier vol.
 - L'exposition face au soleil.
 - `tools/selftest.mjs` §soleil : pas testé ici, aucune scène installée sur
   cette machine.
@@ -1335,8 +1304,7 @@ La passe visuelle est faite par un autre agent en parallèle. Reste à confirmer
 
 - L'atterrissage est retiré entièrement (le maintien au sol au repos reste).
 - `C` (free cam) est remplacé par `V` FPV/CHASE.
-- Le briefing existe (Bible §2 / Roadmap PHASE 13 révisée, notes datées) —
-  remplacé depuis par le tour (#86), même emplacement dans les deux documents.
+- Le briefing existe (Bible §2 / Roadmap PHASE 13 révisée, notes datées).
 - `rebind()` n'échange deux touches que si l'action perdante resterait sinon
   sans touche.
 - Le nudge manette au stick sur le viewer 3D de fin de vol est reporté.

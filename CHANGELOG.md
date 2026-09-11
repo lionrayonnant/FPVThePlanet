@@ -58,6 +58,29 @@ rapport avec les versions ci-dessous.
   le plant n'a pas bougé — `npm run tune` est identique au bit près — donc le
   tune reste exactement aussi mesuré qu'avant.
 
+### Modifié
+
+- Le soleil ne mange plus l'image (#94). Face à lui on ne voyait presque plus
+  rien, et la raison n'était pas « c'était trop fort » : trois termes
+  s'empilaient sur les mêmes pixels et **deux d'entre eux se combattaient**. Le
+  halo et le voile sont peints APRÈS le gain d'exposition — il le faut, sinon la
+  caméra s'auto-atténuerait son propre soleil — donc l'AGC ne pouvait pas les
+  reprendre : il ne pouvait qu'assombrir tout le reste en essayant. Les noirs
+  montaient à 0,27 près du soleil pendant que l'image tombait à 60 % de sa
+  luminance, et le contraste utile disparaissait exactement là où le pilote
+  regarde. Un premier passage (#11) avait rogné les deux sans voir qu'ils
+  tiraient en sens inverse.
+  Seul le terme additif pouvait trancher, puisqu'il est celui que rien ne
+  rattrape : halo 0,9 → 0,12, voile 0,14 → 0,03, disque ×1,6 → ×0,8. Et le
+  posemètre desserré en face (poids du disque 1,5 → 0,11) — moins de lumière
+  parasite à compenser, donc moins besoin de fermer. C'est ce poids qui bouge et
+  non `E_MIN`, parce que `E_MIN` a un autre métier (il normalise un ciel très
+  lumineux) et parce qu'une butée écrase la rampe : la fermeture reste
+  progressive sur toute la traversée du cadre, elle ne va simplement plus aussi
+  loin. Le soleil reste un événement optique — un disque net, un reste de halo —
+  mais il ne fait plus mur. Contraste près du soleil ×3, image loin de lui 50 %
+  plus claire.
+
 ### Sécurité
 
 - L'API du jeu regarde maintenant d'où vient la requête, en `local` comme en
@@ -86,23 +109,6 @@ rapport avec les versions ci-dessous.
   que du texte.
 
 ### Modifié
-
-- La présentation initiale n'est plus quatre écrans lus dans un couloir : c'est
-  un TOUR, un calque qui accompagne l'opérateur DANS l'interface (#86). Il
-  reconnaît l'écran où l'on se trouve, dit ce que CET écran est, encadre
-  l'élément dont il parle, et considère l'arrêt comme lu quand on s'en va.
-  Quatre arrêts comptés — la racine, les réglages, FIELD, le TARGET SCAN — et
-  deux facultatifs, BENCH et DATA, dits à qui y passe et jamais attendus. Il ne
-  bloque rien : pas de CONTINUE, pas de fenêtre modale, aucun geste exigé.
-  `[ H ]` ou `[ DISMISS ]` y met fin, `SETTINGS / SYSTEM` le rejoue (le bouton
-  devient `REPLAY TOUR`), et il se tait partout où il ne reconnaît rien — un
-  vol, un chargement, un hack. Un écran traversé en moins de 2,5 s n'a pas été
-  lu, et revient.
-
-- Les trois indices du premier vol ne dépendent plus de la présentation : ils
-  ne posaient qu'une question de travers — « a-t-on été briefé ? » — et un
-  opérateur qui passait le briefing perdait les trois lignes qui comptaient le
-  plus. Ils tiennent maintenant à une seule chose : ce vol est-il le premier.
 
 - L'acquisition se joue maintenant en trois écrans au lieu d'un seul qui change
   de contenu : l'analyse automatique, puis `MANUAL OVERRIDE REQUIRED` et

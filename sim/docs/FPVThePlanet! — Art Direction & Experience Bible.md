@@ -64,17 +64,6 @@ Le joueur décide.
 > faire : il énonce ce qu'une chose est et ce qu'une touche fait, une fois,
 > puis il s'efface. Le pilier tient — c'est de l'information, pas de
 > l'assistance.
->
-> **Révisé 2026-09-11 (#86) — le briefing devient un TOUR.** Les quatre écrans
-> disaient ce que le jeu contenait avant que l'opérateur en ait vu quoi que ce
-> soit : rien n'était montré, et rien n'était là où les mots avaient été. Le
-> tour dit les mêmes faits, mais SUR l'écran dont ils parlent, avec un cadre
-> autour de l'élément réel. Ce qui change pour le pilier : rien, et c'est la
-> condition de son existence. Il n'attend aucun geste, ne bloque aucun écran,
-> n'a pas de CONTINUE à presser — quitter un écran suffit à le faire avancer.
-> Il énonce, il montre où, il suit. `[ H ]` ou `[ DISMISS ]` y met fin,
-> `SETTINGS / SYSTEM` le rejoue, et il se tait partout où il ne reconnaît rien —
-> au vol, notamment, où seules restent les trois lignes de l'OSD.
 
 ### 2. Terrain persistent, flights ephemeral
 
@@ -1262,7 +1251,7 @@ plus :
 CONTROLLER   manette, axes, calibrage
 KEYBOARD     le mappage clavier, remappable
 AUDIO        volume, musique, luminosité
-SYSTEM       vue, lien, [ REPLAY TOUR ], [ RESET SETTINGS ], build
+SYSTEM       vue, lien, [ REPLAY BRIEFING ], [ RESET SETTINGS ], build
 ```
 
 Aucun curseur de monde n'y est revenu.

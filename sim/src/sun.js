@@ -439,14 +439,33 @@ export function sunDisc(elevationDeg, visibilityM = REF_VIS, cloudPct = 0) {
 export const E_MIN = 0.60;
 export const E_MAX = 4.0;
 export const E_MAX_NIGHT = 11.0;
-// Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Grand : un
-// soleil couvre une fraction dérisoire de l'image et domine pourtant la
-// mesure. Réduit avec E_MIN ci-dessus : `inFrame` grandit linéairement dès
-// que le soleil touche le bord du FOV, donc un poids fort fermait le
-// diaphragme bien avant que le disque soit vraiment au centre du cadre.
-// Revised 2026-09-08: playable against the sun — the disc now has to fill
-// twice as much of the frame to close the iris as far (#11).
-const SUN_METER_WEIGHT = 1.5;
+// Ce que pèse le disque solaire dans une moyenne pondérée du cadre. Un soleil
+// couvre une fraction dérisoire de l'image et domine pourtant la mesure, d'où un
+// poids supérieur à sa surface.
+//
+// Révisé 2026-09-11 (#94) : 1,5 → 0,11, et c'est ce poids qui bouge plutôt que
+// E_MIN, pour deux raisons.
+//
+// La première est que le diaphragme fermait pour compenser une lumière qu'il ne
+// pouvait pas retirer. Le halo et le voile de lens.js sont peints APRÈS le gain
+// — il le faut, sinon la caméra s'auto-atténuerait son propre soleil — donc
+// fermer n'enlevait rien au voile et ne faisait qu'assombrir le sujet. Le voile
+// ayant été coupé du même coup, il n'y a plus grand-chose à compenser.
+//
+// La seconde est que E_MIN a un autre métier. Il est aussi le plancher qui
+// normalise un ciel très lumineux ; le remonter pour régler une affaire de
+// soleil aurait déplacé un réglage sans rapport. Et surtout, E_MIN est une
+// BUTÉE : l'atteindre écrase la rampe, et l'AGC sauterait d'un coup à sa valeur
+// basse dès que le soleil touche le bord du cadre. En desserrant le poids, la
+// fermeture reste progressive sur toute la traversée du cadre — la mécanique
+// que l'issue #23 met en avant — elle ne va simplement plus aussi loin.
+//
+// 0,11 est posé, pas choisi : à l'éclairement de référence (ambiance 1) et
+// disque plein cadre, l'exposition vise 1/(1 + 0,11) = 0,90, soit les 10 % de
+// fermeture voulus, atteints exactement en butée de cadre. E_MIN (0,60) ne mord
+// donc plus jamais pour le soleil — hors soleil, 1/ambiance ne descend de toute
+// façon pas sous 0,917, même au zénith.
+export const SUN_METER_WEIGHT = 0.11;
 // Les caméras ferment vite et rouvrent lentement. Cette asymétrie EST la
 // mécanique que l'issue #23 met en avant ; symétrique, l'effet ne se remarque
 // même pas.

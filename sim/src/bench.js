@@ -134,12 +134,6 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 			resolve(mode);
 		};
 
-		// Les quatre voies dans un conteneur à elles (#86) : c'est UNE chose — le
-		// choix — et le tour a besoin de pouvoir l'encadrer sans encadrer la
-		// colonne entière. L'écart entre les voies vient de ce conteneur, et
-		// c'est exactement celui que la colonne posait avant lui.
-		const list = document.createElement('div');
-		list.className = 'bench-mode-list';
 		for (const mode of MODES) {
 			const m = MODE_SELECT[mode];
 			const wrap = document.createElement('div');
@@ -149,9 +143,8 @@ export function selectOperationMode(root, { last = loadLastMode(), operatorName 
 			sub.className = 'bench-mode-sub';
 			sub.textContent = m.lines.join('\n');
 			wrap.appendChild(sub);
-			list.appendChild(wrap);
+			left.appendChild(wrap);
 		}
-		left.appendChild(list);
 
 		// Pas de `back` : c'est la racine, il n'y a rien au-dessus.
 		nav = menuNav(s.el, { focusFirst: false });
