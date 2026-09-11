@@ -17,6 +17,7 @@ touche au sous-système concerné.
 | [meteo.md](docs/handoff-archive/meteo.md) | vent, pluie, gouttes sur la lentille, brouillard |
 | [bugs.md](docs/handoff-archive/bugs.md) | les 10 bugs du POC et la méthode qui les a trouvés |
 | [essaim.md](docs/handoff-archive/essaim.md) | l'essaim de drones (#29) : le sillage, le budget de rayons, les éclaireurs, les cinq axes d'échantillonnage |
+| [fuzzing.md](docs/handoff-archive/fuzzing.md) | le fuzzing (`npm run fuzz`) : les cibles, leur modèle de menace, ce qu'il a trouvé |
 
 ## Statut : ça vole
 

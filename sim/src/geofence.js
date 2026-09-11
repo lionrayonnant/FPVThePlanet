@@ -278,7 +278,13 @@ function corridor(caution, hold, edge, lost) {
 // Au-delà de 1 la valeur continue de croître — main.js s'en sert pour savoir
 // de combien on a dépassé.
 function progress(margin, c) {
-	return (c.caution - margin) / (c.caution - c.lost);
+	const span = c.caution - c.lost;
+	// A corridor of zero width has no progress to report — and it divides 0 by
+	// 0, which hands main.js a NaN it then ramps the image loss on. Only a map
+	// with no extent at all does this (the horizontal corridor is scaled by the
+	// map's own half-side), but a fence that answers NaN is worse than one that
+	// answers "nowhere near the edge".
+	return span > 0 ? (c.caution - margin) / span : 0;
 }
 
 function zoneOf(margin, c, previous) {
