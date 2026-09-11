@@ -5,13 +5,13 @@
 // par le moteur.
 //
 // C'est aussi le seul endroit du jeu où la MARQUE se montre (#73) : le
-// verrouillage empilé de docs/marque.md — le symbole, puis `F P V T P !`
+// verrouillage empilé de docs/brand.md — le symbole, puis `F P V T P !`
 // dessous — que le document réservait depuis toujours au « splash, boot ». Le
 // symbole se trace module par module pendant la phase `reveal`, parce que la
-// marque EST un randomart figé (marque.md) et qu'un randomart, dans ce jeu, ça
+// marque EST un randomart figé (brand.md) et qu'un randomart, dans ce jeu, ça
 // se trace (#57). Il ne prend JAMAIS une couleur demo, pas même sous la
 // plasma : le cyan et le magenta appartiennent à l'écran, pas au logo
-// (marque.md, « Interdits »).
+// (brand.md, « Interdits »).
 //
 // PRESS ANY KEY (calme, palette UI) fait passer le geste utilisateur qui
 // lance le cracktro (logo + plasma/raster + scrolltext, Bible §19 :
@@ -135,7 +135,7 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 			// Trois régimes, et c'est ce qui rend le verrouillage honnête (#73).
 			// Pendant `reveal` l'amplitude est NULLE : le symbole vient de se
 			// tracer, le nom s'inscrit dessous, et l'écart entre les deux est
-			// exactement celui que docs/marque.md impose — c'est là qu'on lit la
+			// exactement celui que docs/brand.md impose — c'est là qu'on lit la
 			// marque. Pendant `plasma` le sinus-scroll possède l'écran, et le
 			// verrouillage se défait : c'est une demo, pas une charte. À la
 			// résolution l'amplitude retombe à zéro, le logo se pose en phase avec

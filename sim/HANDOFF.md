@@ -10,13 +10,13 @@ touche au sous-système concerné.
 
 | fichier | contenu |
 |---|---|
-| [pipeline-cartes.md](docs/handoff-archive/pipeline-cartes.md) | GUI d'ajout de cartes, prep d'origine, passage au multi-cartes, support HEIC |
-| [modele-de-vol.md](docs/handoff-archive/modele-de-vol.md) | `quad.js` / `flightController.js`, le banc `tune-pid` |
-| [son.md](docs/handoff-archive/son.md) | synthèse Web Audio depuis les quatre moteurs, fatigue auditive |
-| [rendu-fpv.md](docs/handoff-archive/rendu-fpv.md) | `lens.js` (optique), lien vidéo RSSI par raycast |
-| [meteo.md](docs/handoff-archive/meteo.md) | vent, pluie, gouttes sur la lentille, brouillard |
+| [map-pipeline.md](docs/handoff-archive/map-pipeline.md) | GUI d'ajout de cartes, prep d'origine, passage au multi-cartes, support HEIC |
+| [flight-model.md](docs/handoff-archive/flight-model.md) | `quad.js` / `flightController.js`, le banc `tune-pid` |
+| [sound.md](docs/handoff-archive/sound.md) | synthèse Web Audio depuis les quatre moteurs, fatigue auditive |
+| [fpv-rendering.md](docs/handoff-archive/fpv-rendering.md) | `lens.js` (optique), lien vidéo RSSI par raycast |
+| [weather.md](docs/handoff-archive/weather.md) | vent, pluie, gouttes sur la lentille, brouillard |
 | [bugs.md](docs/handoff-archive/bugs.md) | les 10 bugs du POC et la méthode qui les a trouvés |
-| [essaim.md](docs/handoff-archive/essaim.md) | l'essaim de drones (#29) : le sillage, le budget de rayons, les éclaireurs, les cinq axes d'échantillonnage |
+| [swarm.md](docs/handoff-archive/swarm.md) | l'essaim de drones (#29) : le sillage, le budget de rayons, les éclaireurs, les cinq axes d'échantillonnage |
 
 ## Statut : ça vole
 
@@ -43,7 +43,7 @@ npm run selftest:operator  # état opérateur, terminal, météo du monde — pu
 
 Deux cartes prêtes à l'emploi dans `public/scenes/` (gitignored, ~900 Mo à
 deux) : `tour-eiffel` et `ile-de-la-cite-et-ile-saint-louis`. Pour en ajouter
-une autre : `npm run add-map -- "Nom" <lat> <lon>` — voir `docs/manuel.md` section
+une autre : `npm run add-map -- "Nom" <lat> <lon>` — voir `docs/manual.md` section
 « Ajouter une carte » pour le détail des options et le dimensionnement de
 `--radius`.
 
@@ -747,7 +747,7 @@ Plan d'origine (contexte de la décision d'architecture) :
     lieu**. Le propriétaire a fourni un HAR du trafic réel d'earth.google.com :
     Google Earth web parle un protocole interne, **rocktree**
     (`kh.google.com`), pas la Map Tiles API — aucune clé, aucun paramètre de
-    session. Détail dans `docs/superpowers/specs/2026-08-29-second-fournisseur-3d-design.md`,
+    session. Détail dans `docs/superpowers/specs/2026-08-29-second-3d-provider-design.md`,
     section « Amendement 2026-08-31 ». Client Node natif écrit dans
     `tools/lib/providers/google-earth.mjs` + `tools/lib/decoders/rocktree.mjs`
     — pas de vendoring d'`earth-reverse-engineering` (non maintenu depuis 2020,
@@ -1905,7 +1905,7 @@ la main ne juge pas une durée :
 Une tache douce s'étend sur la carte de FIELD sous les trajectoires, se
 densifie quand on repasse, et survit aux sessions. Ce n'est PAS « la zone est
 acquise, donc explorée » : un cadre où l'on n'a jamais volé reste vierge.
-Spec : `docs/superpowers/specs/2026-09-06-couverture-carte-design.md`.
+Spec : `docs/superpowers/specs/2026-09-06-map-coverage-design.md`.
 
 **Trois contraintes du dépôt ont façonné le design, vérifiées avant d'écrire :**
 
@@ -2313,7 +2313,7 @@ Autre correction de mesure : le tableau de l'issue #264 donnait le toothpick à
 balayage exhaustif de son enveloppe caméra donne 20,9 % à 28,8 %, et deux
 mesures indépendantes donnent **24,6 % en médiane, 28,7 % au pire**. Toutes les
 autres cases du tableau se reproduisent au chiffre près. Corrigé dans
-`docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md`.
+`docs/superpowers/specs/2026-09-06-player-drone-3d-design.md`.
 
 ### La borne ne mesurait pas ce qu'on affiche (corrigé après coup)
 
@@ -2627,7 +2627,7 @@ monotone).
 
 ## Essaim de drones (issue #29)
 
-Récit complet, décisions et pièges : [handoff-archive/essaim.md](docs/handoff-archive/essaim.md).
+Récit complet, décisions et pièges : [handoff-archive/swarm.md](docs/handoff-archive/swarm.md).
 Le lire avant de toucher `src/swarm.js`.
 
 Le TARGET SCAN tire un *cluster* dans 10 % des cas (certain au 3e scan) : le hack
@@ -3024,7 +3024,7 @@ réellement en vol.
 ## Versionnage du dépôt (issue #257)
 
 SemVer dans `sim/package.json`, entrées dans `CHANGELOG.md` à la racine, tag
-`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `docs/manuel.md`, section
+`vX.Y.Z` + GitHub Release par version. Mode d'emploi : `docs/manual.md`, section
 « Versionner et publier ».
 
 ### Vérifié — sans navigateur
@@ -3090,7 +3090,7 @@ Node autonome (`sim/server/`, extrait du plugin Vite) en deux hébergements —
 un VPS en mode `shared` (clé d'opérateur) et une app Electron installée en mode
 `local`. Le design complet, les faits vérifiés qui le dictent et les quatre
 tranches sont dans
-`docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`.
+`docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md`.
 
 **T1 livrée le 2026-09-07.** `sim/server/` existe : `api.mjs` (les deux tables
 de routes, déplacées sans changer un chemin ni un code de statut), `static.mjs`

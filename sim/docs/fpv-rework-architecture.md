@@ -1,12 +1,12 @@
 # FPVThePlanet! — architecture de la refonte DA / UX
 
 Audit de l'état du code au 2026-08-29, écrit pour la **PHASE 0** de la roadmap
-(`FPVThePlanet! — Roadmap d'implémentation DA - UX.md`), avant tout changement de
+(`FPVThePlanet! — DA-UX Implementation Roadmap.md`), avant tout changement de
 gameplay. Le but est double : dire ce que le simulateur fait aujourd'hui, et dire
 où chaque brique atterrit dans la boucle décrite par l'*Art Direction & Experience
 Bible*.
 
-Ce document est une source de vérité au même titre que `docs/manuel.md` (pipeline) et
+Ce document est une source de vérité au même titre que `docs/manual.md` (pipeline) et
 `HANDOFF.md` (état vérifié / non vérifié). Il ne les duplique pas : il décrit la
 **couche opérateur** que la refonte ajoute par-dessus.
 
@@ -312,7 +312,7 @@ par distraction :
 - Amortissements linéaire et angulaire de Rapier à **zéro** : la traînée est
   calculée par `quad.js`.
 - `resetForces()` / `resetTorques()` à **chaque** pas.
-- L'axe V des UV est retourné dans `prep.mjs` — voir `docs/manuel.md` avant de
+- L'axe V des UV est retourné dans `prep.mjs` — voir `docs/manual.md` avant de
   diagnostiquer une texture grise.
 - Le pipeline couleur est **pass-through** de bout en bout
   (`THREE.ColorManagement.enabled = false`, sortie linéaire) : toute conversion
@@ -325,7 +325,7 @@ par distraction :
 ## 7. Où sont les choses
 
 - **Direction artistique** : `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md`
-- **Roadmap** : `sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md`
+- **Roadmap** : `sim/docs/FPVThePlanet! — DA-UX Implementation Roadmap.md`
 - **Ce document** : la traduction de l'une dans l'autre, côté code.
 - **Schémas** : `sim/docs/architecture-diagrams.md` — la même chose en Mermaid
   (boucle de jeu, carte d'exécution, terrain, pile de vol, persistance).

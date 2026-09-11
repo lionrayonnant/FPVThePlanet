@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js (ShaderMaterial, BufferGeometry), Web Audio (nœuds construits une fois), Node selftests sans navigateur (`check()`/`assert`), Rapier via `physics.groundBelow` / `physics.obstructionBetween` seulement.
 
-**Spec:** `sim/docs/superpowers/specs/2026-09-06-drones-ambiants-design.md` (issue #250)
+**Spec:** `sim/docs/superpowers/specs/2026-09-06-ambient-drones-design.md` (issue #250)
 
 ## Global Constraints
 
@@ -1785,7 +1785,7 @@ Créer `tools/ambient-audio-model.mjs` :
 // solidaires de sa tête). Aucune Web Audio ici.
 //
 // Niveaux relatifs CHOISIS, pas mesurés, comme le reste du son
-// (docs/handoff-archive/son.md §« aucun agent n'écoute »).
+// (docs/handoff-archive/sound.md §« aucun agent n'écoute »).
 
 // idleLevel du joueur = 0,12 (src/audio.js). Quatre voix à d0 doivent rester
 // 12 dB dessous : 4·g0/(1 + d0/d0) = 2·g0 ≤ 0,12·10^(−12/20) = 0,0301.
@@ -1857,7 +1857,7 @@ Créer `src/ambient-audio.js` :
 //   noise ─ bp ─┼→ gain(distance) → lowpass(distance, dos) → panner ─┬→ destination (engineIn)
 //                                                                    └→ spaceInput (acoustique du lieu, #122)
 //
-// Sinus seulement, détune par voix (son.md : quatre voix en phase feraient un
+// Sinus seulement, détune par voix (sound.md : quatre voix en phase feraient un
 // son de test de synthé), coupure qui descend avec la distance (rien ne
 // remonte dans 2–4 kHz), Doppler écrit à la main sur osc.frequency — jamais
 // celui du PannerNode, retiré de la spec.

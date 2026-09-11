@@ -4,7 +4,7 @@
 // solidaires de sa tête). Aucune Web Audio ici.
 //
 // Niveaux relatifs CHOISIS, pas mesurés, comme le reste du son
-// (docs/handoff-archive/son.md §« aucun agent n'écoute »).
+// (docs/handoff-archive/sound.md §« aucun agent n'écoute »).
 
 // idleLevel du joueur = 0,12 (src/audio.js). Quatre voix à d0 doivent rester
 // 12 dB dessous : 4·g0/(1 + d0/d0) = 2·g0 ≤ 0,12·10^(−12/20) = 0,0301.

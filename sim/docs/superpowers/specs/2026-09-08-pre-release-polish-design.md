@@ -191,7 +191,7 @@ The flight ends by crash, geofence exit, or the player cutting the link
   display as they are; no migration, no `SCHEMA_VERSION` bump).
 - Copy: `session-log.js:265` credo becomes `A CRASHED TARGET IS LOST. THE LOG
   IS WHAT REMAINS.`; `#fo-status[data-kind="landed"]` CSS and `FADE.landed` go.
-- Docs: CLAUDE.md and `docs/manuel.md` cite `landing-selftest.mjs` as the
+- Docs: CLAUDE.md and `docs/manual.md` cite `landing-selftest.mjs` as the
   SKIP pattern; `tools/entry-state-selftest.mjs` (which SKIPs without a scene)
   becomes the cited example. Bible §24/§1768 ("atterrissage = fin propre"),
   Roadmap PHASE 14 §Landing, `fpv-rework-architecture.md:85` get a dated

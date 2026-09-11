@@ -8,7 +8,7 @@
 
 **Tech Stack:** JS ES modules, Vite, Three.js, Rapier (`@dimforge/rapier3d-compat`), harnais de test en Node pur (`node:assert/strict`), pas de framework de test.
 
-**Spec:** `sim/docs/superpowers/specs/2026-08-29-phase-14-fin-de-session-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-08-29-phase-14-end-of-session-design.md`
 
 ## Global Constraints
 

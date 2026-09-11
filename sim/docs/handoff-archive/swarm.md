@@ -271,7 +271,7 @@ redevenu **transitoire**.
 
 Douze voix individuelles sont exclues, et pas pour le coût : douze sinus quasi
 identiques se **verrouillent en phase** et produisent exactement le son de test
-de synthé que `son.md` interdit. Un essaim sonne comme un chœur — 3 voix
+de synthé que `sound.md` interdit. Un essaim sonne comme un chœur — 3 voix
 proches réassignées en continu aux 3 unités les plus proches, plus une nappe
 statistique pour le reste.
 

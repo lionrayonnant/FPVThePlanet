@@ -3,7 +3,7 @@
 # deploy.sh <tag> — livre une version de FPVTP! sur le VPS.
 #
 # Tranche T4 du design de déploiement :
-# sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md
+# sim/docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md
 #
 # Ce script tourne EN ROOT sur une machine de production. Il est écrit pour
 # échouer bruyamment et tôt plutôt que pour deviner.

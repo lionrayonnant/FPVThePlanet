@@ -1,7 +1,7 @@
 # Caddy — les deux entrées publiques du VPS FPVTP!.
 #
 # Tranche T4 du design de déploiement :
-# sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md
+# sim/docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md
 #
 # Installation : voir deploy/README.md.
 #   cp deploy/Caddyfile /etc/caddy/Caddyfile

@@ -74,13 +74,13 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
-- La marque entre dans le jeu (#73). `docs/marque.md` réservait depuis toujours
+- La marque entre dans le jeu (#73). `docs/brand.md` réservait depuis toujours
   le verrouillage empilé — le symbole, puis `F P V T P !` dessous — au « splash,
   boot » ; il n'avait jamais été posé, et la marque ne sortait que du favicon et
   de la carte Open Graph. Elle tient maintenant le cracktro de lancement, et
   elle s'y **trace module par module** : le cadre d'abord, parce que le cadre
   EST le panneau, puis les quatorze cellules en ordre de lecture, puis le nom
-  s'inscrit dessous. La marque est un randomart figé (`marque.md`) et un
+  s'inscrit dessous. La marque est un randomart figé (`brand.md`) et un
   randomart, dans ce jeu, ça se trace (#57).
 - Tout tient dans la phase `reveal` de l'intro : aucune durée nouvelle,
   `tools/intro-model.mjs` ne bouge pas, et le selftest refuse un tracé qui
@@ -88,19 +88,19 @@ rapport avec les versions ci-dessous.
   `plasma` — pendant `reveal` et à la résolution le verrouillage est immobile et
   exact, c'est-à-dire juste aux deux moments où l'œil le lit.
 - La marque ne prend **jamais** une couleur demo, pas même sous la plasma : le
-  cyan et le magenta appartiennent à l'écran, pas au logo (`marque.md`,
+  cyan et le magenta appartiennent à l'écran, pas au logo (`brand.md`,
   « Interdits »). Sa zone de respect est opaque pour la même raison — sans ça
   les chiffres de la plasma venaient jusque contre ses modules.
 - `tools/brand-mark-model.mjs` porte la géométrie, parce que le premier écran du
   jeu ne peut pas dépendre d'un fetch. C'est une copie, et
   `tools/brand-mark-selftest.mjs` est ce qui l'empêche de dériver : il lit
-  `public/brand/fpvtp-mark.svg` et le motif de `docs/marque.md`, et exige que
+  `public/brand/fpvtp-mark.svg` et le motif de `docs/brand.md`, et exige que
   les trois décrivent la même marque.
 
 ### Modifié
 
 - Le nom, sur le cracktro, passe de la display à `--font-ui` interlettré
-  `--track-ui` : c'est la composition que `docs/marque.md` impose au
+  `--track-ui` : c'est la composition que `docs/brand.md` impose au
   verrouillage empilé, et la marque n'a qu'une composition (#73).
 
 ### Corrigé
@@ -147,12 +147,12 @@ rapport avec les versions ci-dessous.
   `sim/public/` : c'est la seule qu'une page doit servir, les quatre autres
   restent dans `docs/brand/` et ne pèsent ni sur le bundle ni sur l'installeur.
   Manifeste C2PA retiré sans réencoder, comme le reste de la marque.
-  `docs/marque.md` dit où va chacune.
+  `docs/brand.md` dit où va chacune.
 
 - La marque entre au dépôt (#58). `sim/public/brand/` porte les trois SVG —
   `fpvtp-mark.svg` en `currentColor`, `fpvtp-icon.svg` sur son fond `--black`,
   `fpvtp-mark-extrude.svg` pour l'extrusion — et `png/` sept tailles de 16 à
-  1024, deux fois : la marque seule et l'icône sur fond. `docs/marque.md`
+  1024, deux fois : la marque seule et l'icône sur fond. `docs/brand.md`
   devient la source de vérité de la géométrie, des verrouillages, de la zone de
   respect et des interdits ; le README ouvre dessus.
 - Les fichiers arrivaient avec un manifeste de provenance C2PA d'environ 9 Ko
@@ -622,7 +622,7 @@ rapport avec les versions ci-dessous.
 - `sim/tools/server-selftest.mjs` (26 vérifications) et
   `sim/tools/vite-adapter-selftest.mjs`, chaînés dans `selftest:ci`.
 - `LICENSE` (GNU AGPL-3.0-only) et un `README.md` à la racine : le dépôt se
-  prépare à devenir public. `docs/manuel.md` reste le README technique.
+  prépare à devenir public. `docs/manual.md` reste le README technique.
 - `.githooks/pre-commit` — refuse un commit signé par une adresse hors liste
   blanche. `git config core.hooksPath .githooks` l'active dans un clone.
 - **Le jeu s'installe comme un jeu** (#291, tranche T2) : un installeur `.exe`
@@ -750,7 +750,7 @@ rapport avec les versions ci-dessous.
 ### Modifié
 
 - **Un seul README, à la racine.** Le dépôt en avait deux, et rien ne disait
-  lequel lire : `sim/README.md` devient `docs/manuel.md` — il reste entier,
+  lequel lire : `sim/README.md` devient `docs/manual.md` — il reste entier,
   mais ce n'est plus un README. La racine est la porte d'entrée, le manuel est
   le manuel. Les références de la documentation vivante suivent ; les plans et
   specs d'archive gardent les leurs, ils racontent ce qui a été édité ce

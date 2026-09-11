@@ -9,7 +9,7 @@ Ensuite, chaque nouvelle version se livre en une commande :
 `sudo /opt/fpvtp/deploy.sh v0.2.0`.
 
 Le design de référence est
-`sim/docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`
+`sim/docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md`
 (section « D4 »).
 
 ## Ce que la machine fait tourner

@@ -203,7 +203,7 @@ longrange 4.2 · heavy5 5.0 · microwhoop 2.0 · toothpick 3.9.
 6. **`selftest.mjs`** : boucle 7 familles, seuils dérivés. Itérer profils/rates
    jusqu'à vert partout.
 7. Mettre à jour `issue #44` (écart 6→7), `HANDOFF.md`, `README.md` (section
-   modèle de vol / familles), `docs/handoff-archive/modele-de-vol.md`.
+   modèle de vol / familles), `docs/handoff-archive/flight-model.md`.
 
 ## État final d'implémentation (2026-08-29)
 

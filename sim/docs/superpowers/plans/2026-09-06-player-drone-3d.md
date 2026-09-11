@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js (BufferGeometry fusionnée, ShaderMaterial, EffectComposer/RenderPass), SVG en ligne dans le DOM, selftests Node sans navigateur (`check()` / `assert` / faux DOM de `tools/lib/fake-dom.mjs`).
 
-**Spec:** `sim/docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md` (issue #264)
+**Spec:** `sim/docs/superpowers/specs/2026-09-06-player-drone-3d-design.md` (issue #264)
 
 ## Global Constraints
 
@@ -1588,12 +1588,12 @@ Expected: PASS.
 
 - [ ] **Step 5 : corriger la spec et commit**
 
-Dans `docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md`, remplacer la sous-section « Une liste d'arêtes » par une note disant que `drone-wire.js` dérive les arêtes des primitives, et pourquoi (une seconde description de la même géométrie serait à tenir synchronisée pour rien).
+Dans `docs/superpowers/specs/2026-09-06-player-drone-3d-design.md`, remplacer la sous-section « Une liste d'arêtes » par une note disant que `drone-wire.js` dérive les arêtes des primitives, et pourquoi (une seconde description de la même géométrie serait à tenir synchronisée pour rien).
 
 ```bash
 # dans package.json : && node tools/drone-wire-selftest.mjs
 npm run selftest:operator
-git add src/drone-wire.js tools/drone-wire-selftest.mjs package.json docs/superpowers/specs/2026-09-06-drone-joueur-3d-design.md
+git add src/drone-wire.js tools/drone-wire-selftest.mjs package.json docs/superpowers/specs/2026-09-06-player-drone-3d-design.md
 git commit -m "feat(drone joueur): le portrait fil de fer, projeté sans Three ni DOM (#264)"
 ```
 

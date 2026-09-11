@@ -14,7 +14,7 @@ npm run selftest:operator  # état opérateur, terminal, scanner, météo du mon
 
 ## Sommaire
 
-`grep -n '^#' docs/manuel.md` pour la ligne exacte d'une section.
+`grep -n '^#' docs/manual.md` pour la ligne exacte d'une section.
 
 - Contrôles
 - Ajouter une carte — depuis le jeu (GLOBAL SCANNER) · l'ancienne GUI ·
@@ -406,7 +406,7 @@ Deux choses à savoir :
   frontière de sécurité est le socket local, la même qu'avec le serveur de dev.
   `--mode shared` lève le garde-fou, mais l'authentification qui va avec (clé
   d'opérateur) n'existe pas encore : voir la tranche T3 du design
-  (`docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md`).
+  (`docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md`).
 - **Aucun repli SPA.** Un fichier absent rend un vrai 404 JSON, jamais
   `index.html` : le chargeur (`src/loader.js`) distingue une scène présente
   d'une scène absente par le type de contenu, et un hébergeur qui rabat tout sur
@@ -693,7 +693,7 @@ réel a montré que `kh.google.com` ne demande ni clé ni paramètre de session.
 Client Node natif dans `google-earth.mjs` + `decoders/rocktree.mjs`, écrits à
 partir de la documentation de protocole d'`earth-reverse-engineering`
 (non maintenu, sans licence — code réécrit, pas copié). Détail dans
-`docs/superpowers/specs/2026-08-29-second-fournisseur-3d-design.md`
+`docs/superpowers/specs/2026-08-29-second-3d-provider-design.md`
 (« Amendement 2026-08-31 ») et l'entrée HANDOFF « Second fournisseur 3D ».
 
 `--provider` (voir [Ajouter une carte](#ajouter-une-carte)) choisit

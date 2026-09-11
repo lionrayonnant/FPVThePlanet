@@ -102,7 +102,7 @@ t('map-gui importe bien le socle partagé plutôt que de redéclarer ses jetons'
 	// Côté jeu, un seul aussi (#73) : la taille de la marque sur le cracktro.
 	// Une mesure, pas un pigment — et elle DOIT être une variable, parce que le
 	// verrouillage empilé exprime tous ses écarts en modules de cette taille
-	// (docs/marque.md : l'écart au nom vaut 1 module, la zone de respect 4).
+	// (docs/brand.md : l'écart au nom vaut 1 module, la zone de respect 4).
 	// Elle est locale et pas un jeton parce qu'elle ne vaut que là : rien
 	// d'autre dans le jeu ne se mesure en modules de marque.
 	const gameOwn = [...GAME.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);

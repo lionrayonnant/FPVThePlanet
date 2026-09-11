@@ -35,7 +35,7 @@ Décision : le CONTROL VECTOR sort du jeu, entièrement.
 Le hack se termine par un bouton unique, `[ JACK IN ]`.
 
 Ce n'est pas une invention : c'est l'état qui précédait la PHASE 10, encore
-décrit dans `docs/manuel.md:842-844` — « L'écran se fige sur
+décrit dans `docs/manual.md:842-844` — « L'écran se fige sur
 `MANUAL OVERRIDE REQUIRED` + un bouton `[ JACK IN ]` **provisoire** ». Le
 provisoire devient le définitif.
 
@@ -185,7 +185,7 @@ décrit un moment qui n'existe plus.
 - **HANDOFF** : le bloc PHASE 10 (l. 201-236) disparaît, le bloc PHASE 20 (l.
   638-705) et la section des primitives partagées (l. 1660-1673) sont réécrits
   pour ne plus parler que de l'intro.
-- **`docs/manuel.md`** : l. 838-847 réécrit — le passage était **déjà périmé**,
+- **`docs/manual.md`** : l. 838-847 réécrit — le passage était **déjà périmé**,
   il décrit l'état d'avant la PHASE 10. Plus l. 347 et 596.
 - **Non touchés** : `CHANGELOG.md` (historique), les specs
   `superpowers/specs/2026-08-29-phase-10-*` (document historique), les notes de

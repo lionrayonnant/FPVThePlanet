@@ -15,7 +15,7 @@
 //
 // Three voices and a bed rather than twelve voices: see the model's header.
 // Twelve near-identical sines phase-lock into the synth-test tone
-// docs/handoff-archive/son.md:84-90 forbids, and no amount of level tuning
+// docs/handoff-archive/sound.md:84-90 forbids, and no amount of level tuning
 // fixes that — it is a structural property of the signal.
 //
 // `destination` and `spaceInput` do not exist when SwarmDrones is built:

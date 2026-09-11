@@ -4,7 +4,7 @@ GitHub : https://github.com/lionrayonnant/FPVThePlanet/issues/38
 Milestone : P0 — boucle fonctionnelle. Label : `roadmap-da`.
 
 Sources de vérité : `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md`
-(§12–14), `sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md`
+(§12–14), `sim/docs/FPVThePlanet! — DA-UX Implementation Roadmap.md`
 (PHASE 1), `sim/docs/fpv-rework-architecture.md` (D2, D5, D6, §3.7, §4).
 
 ## Objectif

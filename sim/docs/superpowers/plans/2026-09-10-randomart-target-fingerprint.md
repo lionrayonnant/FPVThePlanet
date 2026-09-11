@@ -8,7 +8,7 @@
 
 **Tech Stack:** JavaScript ESM pur, aucun paquet ajouté. Selftests `node:assert/strict` + `tools/lib/fake-dom.mjs`. Vite bundle `tools/*.mjs` pour le client.
 
-**Spec:** `sim/docs/superpowers/specs/2026-09-10-randomart-empreinte-de-cible-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-09-10-randomart-target-fingerprint-design.md`
 
 ## Global Constraints
 
@@ -1119,7 +1119,7 @@ se montre à trois moments.
 Au passage : `tools/hack-render-selftest.mjs` existait depuis #33 mais aucun
 script ne l'appelait — il entre dans `selftest:operator`.
 
-Spec : `sim/docs/superpowers/specs/2026-09-10-randomart-empreinte-de-cible-design.md`
+Spec : `sim/docs/superpowers/specs/2026-09-10-randomart-target-fingerprint-design.md`
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 BODY

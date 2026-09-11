@@ -8,7 +8,7 @@
 
 **Tech Stack:** JavaScript ES modules, Leaflet 1.9.4 (déjà dépendance), canvas 2D, selftests `node tools/*-selftest.mjs` avec `node:assert/strict`.
 
-**Spec:** `sim/docs/superpowers/specs/2026-09-06-couverture-carte-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-09-06-map-coverage-design.md`
 
 ## Global Constraints
 
@@ -1482,7 +1482,7 @@ Insérer dans `HANDOFF.md`, juste avant la ligne `## Non vérifié / à faire`, 
 Une tache douce s'étend sur la carte de FIELD sous les trajectoires, se
 densifie quand on repasse, et survit aux sessions. Ce n'est PAS « la zone est
 acquise, donc explorée » : un cadre où l'on n'a jamais volé reste vierge.
-Spec : `docs/superpowers/specs/2026-09-06-couverture-carte-design.md`.
+Spec : `docs/superpowers/specs/2026-09-06-map-coverage-design.md`.
 
 **Trois contraintes du dépôt ont façonné le design, vérifiées avant d'écrire :**
 
@@ -1573,7 +1573,7 @@ Vérifier d'abord : `gh pr view 244 --json state | jq -r .state`. Si `OPEN`, **s
 
 ```bash
 gh pr create --title "feat(couverture): la tache là où le drone est passé" --body "$(cat <<'EOF'
-Ferme #245. Spec : `sim/docs/superpowers/specs/2026-09-06-couverture-carte-design.md`.
+Ferme #245. Spec : `sim/docs/superpowers/specs/2026-09-06-map-coverage-design.md`.
 
 Une tache douce s'étend sur la carte de FIELD là où le drone est réellement passé, se densifie quand on repasse, et survit aux sessions — en terrain cuit comme en vol live. Ce n'est **pas** « la zone est acquise, donc explorée ».
 

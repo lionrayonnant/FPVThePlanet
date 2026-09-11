@@ -2334,7 +2334,7 @@ git commit -m "$(printf 'PHASE 21 : écran BUILD NOTES (#58)\n\nUne échelle de 
 **Files:**
 - Modify: `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md` (§9)
 - Modify: `sim/docs/superpowers/specs/2026-08-30-phase-21-lore-rtc-design.md`
-- Modify: `sim/HANDOFF.md`, `docs/manuel.md`
+- Modify: `sim/HANDOFF.md`, `docs/manual.md`
 
 - [ ] **Step 1: Corriger la Bible §9**
 

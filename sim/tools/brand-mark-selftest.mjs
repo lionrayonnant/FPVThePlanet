@@ -3,10 +3,10 @@
 //
 //  1. le modèle rend bien ce qu'on lui demande (ordre du tracé, comptage) ;
 //  2. le modèle DIT LA MÊME CHOSE que `public/brand/fpvtp-mark.svg` et que le
-//     motif écrit dans `docs/marque.md`.
+//     motif écrit dans `docs/brand.md`.
 //
 // La marque a une source, et ce n'est pas ce code : c'est le SVG, comme
-// `docs/marque.md` l'écrit (« recopier depuis ici, ne pas ré-exporter »). Le
+// `docs/brand.md` l'écrit (« recopier depuis ici, ne pas ré-exporter »). Le
 // modèle n'existe que parce qu'un écran de boot ne peut pas se permettre un
 // fetch qui échoue — il est une copie, et ce test est ce qui interdit à la
 // copie de dériver.
@@ -52,7 +52,7 @@ t('le SVG de la marque porte 19 rectangles, et rien d\'autre', () => {
 	const rects = svgRects();
 	assert.equal(rects.length, 19);
 	const svg = readFileSync(join(simRoot, 'public/brand/fpvtp-mark.svg'), 'utf8');
-	// Aucun trait, aucun arrondi, aucun chevauchement (marque.md, « Géométrie »).
+	// Aucun trait, aucun arrondi, aucun chevauchement (brand.md, « Géométrie »).
 	for (const forbidden of ['<path', '<circle', '<g ', 'rx=', 'ry=', 'stroke']) {
 		assert.ok(!svg.includes(forbidden), `le SVG ne doit pas contenir ${forbidden}`);
 	}
@@ -71,16 +71,16 @@ t('#73 : la marque n\'introduit aucune couleur — elle hérite celle du context
 	assert.ok(!/fill="(?!currentColor)/.test(svg), 'un fill littéral s\'est glissé dans le SVG');
 	// Et le modèle ne porte pas de couleur du tout : il ne connaît que des
 	// rectangles. C'est le CSS qui pose var(--ink) — et l'interdit de
-	// marque.md (« pas de couleur d'état ni de couleur demo ») ne tient que
+	// brand.md (« pas de couleur d'état ni de couleur demo ») ne tient que
 	// parce que rien ici ne peut en imposer une.
 	for (const r of MARK_RECTS) assert.deepEqual(Object.keys(r).sort(), ['h', 'w', 'x', 'y']);
 });
 
-t('#73 : le motif 5 × 5 du modèle est celui que docs/marque.md écrit', () => {
-	const md = readFileSync(join(repoRoot, 'docs/marque.md'), 'utf8');
+t('#73 : le motif 5 × 5 du modèle est celui que docs/brand.md écrit', () => {
+	const md = readFileSync(join(repoRoot, 'docs/brand.md'), 'utf8');
 	// Le premier bloc de cinq lignes de cinq jetons `.`/`#` du document.
 	const block = md.match(/```text\n((?:[.#](?: [.#]){4}\n){5})```/);
-	assert.ok(block, 'le motif 5 × 5 est introuvable dans docs/marque.md');
+	assert.ok(block, 'le motif 5 × 5 est introuvable dans docs/brand.md');
 	const rows = block[1].trimEnd().split('\n').map((l) => l.split(' ').join(''));
 	assert.deepEqual(PATTERN_ROWS, rows,
 		'le modèle et la documentation ne décrivent plus la même marque');
@@ -100,7 +100,7 @@ t('le cadre : cinq rectangles, interrompu au bord supérieur seulement', () => {
 	assert.equal(FRAME_RECTS.length, 5);
 	const top = FRAME_RECTS.filter((r) => r.y === 0);
 	assert.equal(top.length, 2, 'le bord supérieur est en deux morceaux');
-	// 28 unités d'interruption, centrées (marque.md, « Géométrie »).
+	// 28 unités d'interruption, centrées (brand.md, « Géométrie »).
 	const [left, right] = top.sort((a, b) => a.x - b.x);
 	assert.equal(right.x - (left.x + left.w), 28);
 	assert.equal(left.x + left.w, 50 - 14, 'l\'interruption est centrée');
@@ -156,7 +156,7 @@ t('#73 : tout le tracé tient dans la phase reveal — aucune durée nouvelle', 
 	// Les deux modèles restent indépendants (pas de minutage réinventé dans
 	// src/intro.js) mais doivent tomber d'accord : une marque encore en train
 	// de se tracer quand la plasma démarre serait la marque prise dans les
-	// couleurs demo, ce que marque.md interdit.
+	// couleurs demo, ce que brand.md interdit.
 	assert.ok(TRACE.nameAtMs < revealMs,
 		`le tracé (${TRACE.nameAtMs} ms) déborde de la phase reveal (${revealMs} ms)`);
 });

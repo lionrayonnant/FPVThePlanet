@@ -3,7 +3,7 @@
 // par src/intro.js.
 //
 // POURQUOI CE FICHIER EXISTE. La source de la marque est
-// `public/brand/fpvtp-mark.svg`, et docs/marque.md le dit sans ambiguïté :
+// `public/brand/fpvtp-mark.svg`, et docs/brand.md le dit sans ambiguïté :
 // « recopier depuis ici, ne pas ré-exporter ». Le cracktro ne peut pourtant pas
 // aller le chercher : c'est le tout premier écran, il se joue avant que quoi
 // que ce soit d'autre soit chargé, et un fetch qui traîne ou qui échoue y
@@ -16,10 +16,10 @@
 // Modifier la marque, c'est modifier le SVG — ce fichier suit, le test le
 // prouve.
 
-// La grille de 100 unités porte 16 modules (docs/marque.md, « Géométrie »).
+// La grille de 100 unités porte 16 modules (docs/brand.md, « Géométrie »).
 export const MODULE = 100 / 16;
 
-// Le motif, écrit exactement comme docs/marque.md l'écrit : 5 × 5, 14 cellules
+// Le motif, écrit exactement comme docs/brand.md l'écrit : 5 × 5, 14 cellules
 // pleines. Le selftest lit le document et compare — les deux ne peuvent pas
 // décrire deux marques différentes.
 export const PATTERN_ROWS = [
@@ -68,7 +68,7 @@ export const MARK_RECTS = [...FRAME_RECTS, ...CELL_RECTS];
 // d'un coup d'œil. Millisecondes depuis le début de la phase `reveal` de
 // l'intro (tools/intro-model.mjs), dans laquelle tout doit tenir — une marque
 // encore en train de se tracer quand la plasma démarre serait une marque prise
-// dans les couleurs demo, ce que docs/marque.md interdit.
+// dans les couleurs demo, ce que docs/brand.md interdit.
 export const TRACE = {
 	frameDoneMs: 320,   // le cadre est entier
 	doneMs: 1100,       // les 14 cellules sont tombées

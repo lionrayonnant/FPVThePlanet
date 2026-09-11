@@ -84,7 +84,7 @@ pilote. Ces usages ne sont pas dans cette version.
    (issue #122) et **non réécouté** depuis la correction de l'accumulation
    (`HANDOFF.md`, « Audio spatial »). `EngineAudio` fait ~60 nœuds. Le pire
    cas mesuré ne laisse que **1,6 dB** de marge au limiteur
-   (`docs/handoff-archive/son.md:92-98`). Règles non négociables du même
+   (`docs/handoff-archive/sound.md:92-98`). Règles non négociables du même
    document : sinus seulement (`:79-83`), détune entre voix obligatoire
    (`:84-90`), rien qui renvoie de l'énergie dans 2–4 kHz (`:66-75`), graphe
    construit une fois dans `start()` et zéro allocation par frame (`:31-42`),
@@ -375,7 +375,7 @@ aucun HRTF.
   modulé de ±15 % par `|a|` (le moteur monte en virage) ;
 - **détune** par voix, tiré dans ±9 cents, et un wander lent comme
   `AUDIO.wanderHz` : quatre voix qui se verrouillent en phase feraient le son
-  de test de synthé que `son.md:84-90` interdit ;
+  de test de synthé que `sound.md:84-90` interdit ;
 - gain `g = g0 / (1 + d/8)` avec `g0` tel que la somme des quatre voix au plus
   près (`d = 8 m`) reste **12 dB sous** l'`idleLevel` du joueur : la marge de
   1,6 dB du limiteur n'est pas à nous ; zéro au-delà de 250 m ;
@@ -394,7 +394,7 @@ aucun HRTF.
   vidéo est mort, le son aussi).
 
 Niveaux relatifs **choisis, pas mesurés**, comme le reste du son
-(`son.md:106-111`) ; on le dit dans le code.
+(`sound.md:106-111`) ; on le dit dans le code.
 
 ## Intégration dans `main.js`
 

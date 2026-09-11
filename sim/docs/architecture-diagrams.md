@@ -1,7 +1,7 @@
 # FPVThePlanet! — how it works, in diagrams
 
 Mermaid views of the running system. They summarise, they do not replace the
-sources of truth: `docs/manuel.md` (pipeline), `sim/docs/fpv-rework-architecture.md`
+sources of truth: `docs/manual.md` (pipeline), `sim/docs/fpv-rework-architecture.md`
 (module-by-module audit and decisions D1-D7), `sim/HANDOFF.md` (verified state).
 
 Rendered as PNG in `sim/docs/diagrams/`, for anywhere Mermaid is not rendered.

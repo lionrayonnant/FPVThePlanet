@@ -2,7 +2,7 @@
 
 > Note de session archivée, détachée de [HANDOFF.md](../../HANDOFF.md) le 2026-08-29 pour alléger le contexte.
 > La passe lens.js (barillet, aberration, flou de mouvement), le lien vidéo RSSI par raycast, et la recalibration du lien.
-> Pour retrouver une section : `grep -n "^#" rendu-fpv.md`.
+> Pour retrouver une section : `grep -n "^#" fpv-rendering.md`.
 
 ## Rendu FPV : l'optique de l'objectif (ajouté 2026-08-27)
 
