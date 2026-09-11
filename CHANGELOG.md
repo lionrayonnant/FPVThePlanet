@@ -18,6 +18,16 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Sécurité
+
+- Le paramètre `?scene=` n'atteint plus l'écran de chargement tel quel. Un
+  slug inconnu était repris dans le message « carte inconnue », que
+  `hud.fail()` écrivait via `innerHTML` : un lien forgé exécutait du balisage
+  dans l'origine du jeu pour tout joueur déjà inscrit, avec la clé d'opérateur
+  lisible depuis `localStorage`. Le slug est maintenant validé au chargement
+  (`[a-z0-9-]+`, la règle du serveur), et l'écran de chargement n'écrit plus
+  que du texte.
+
 ### Modifié
 
 - L'acquisition se joue maintenant en trois écrans au lieu d'un seul qui change

@@ -59,6 +59,22 @@ export function parseSwarmFlag(raw) {
 	throw new Error(`?swarm=${n}:${doctrineRaw} — no seed matched "${doctrineRaw}" in ${DOCTRINE_SEED_SEARCH_LIMIT} tries (this should never happen)`);
 }
 
+// `?scene=<slug>` — the scene a dev flies straight into, skipping the menu, or
+// null when the flag is absent. A slug is `[a-z0-9-]+` and nothing else: the
+// same rule the server enforces on `/scenes/<slug>/` and on
+// `DELETE /__map-api/scenes/:slug`. Refusing here, at load time, means the
+// raw value never reaches a message, a fetch URL or the DOM — the boot
+// failure path used to echo it into the loading screen with innerHTML, so a
+// crafted link ran markup in the app origin for any returning player.
+export const SCENE_SLUG_RE = /^[a-z0-9-]+$/;
+export function parseSceneFlag(raw) {
+	if (raw === null || raw === undefined || raw === '') return null;
+	if (!SCENE_SLUG_RE.test(raw)) {
+		throw new Error('?scene= attend un slug de carte (minuscules, chiffres, tirets) — reçu une valeur invalide');
+	}
+	return raw;
+}
+
 // `?family=<f>` — the families a DEV may fly. FAMILIES plus the swarm node,
 // and the node only here: it stays out of FAMILIES and TARGET_FAMILIES so a
 // real game can only ever reach it by hacking a cluster. Without this list

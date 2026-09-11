@@ -7,7 +7,7 @@
 // et `?swarm=<n>` que personne ne lisait. Le principe qu'elles partagent est
 // le seul vrai objet du test : un drapeau de dev REFUSE ce qu'il ne peut pas
 // honorer, il ne rend jamais autre chose que ce qu'on lui a demandé.
-import { parseSwarmFlag, devFamilies } from './dev-flags.mjs';
+import { parseSwarmFlag, parseSceneFlag, devFamilies } from './dev-flags.mjs';
 import { SWARM_SIZE_MIN, SWARM_SIZE_MAX, SWARM_FAMILY, TARGET_FAMILIES } from './target-model.mjs';
 import { FAMILIES } from '../src/drone-profiles.js';
 import { DOCTRINE_NAMES, doctrineFor } from '../src/swarm.js';
@@ -110,6 +110,25 @@ console.log('\ndev-flags : ?family=<f>');
 	check('le nœud reste hors de FAMILIES', !FAMILIES.includes(SWARM_FAMILY));
 	check('le nœud reste hors de TARGET_FAMILIES', !TARGET_FAMILIES.includes(SWARM_FAMILY));
 	check('devFamilies() ne mute pas FAMILIES', !FAMILIES.includes(SWARM_FAMILY));
+}
+
+console.log('\ndev-flags : ?scene=<slug>');
+{
+	const refusesScene = (raw) => {
+		try { parseSceneFlag(raw); return false; } catch { return true; }
+	};
+	check('absent : pas de carte', parseSceneFlag(null) === null && parseSceneFlag(undefined) === null && parseSceneFlag('') === null);
+	check('un slug passe tel quel', parseSceneFlag('paris-tour-eiffel') === 'paris-tour-eiffel' && parseSceneFlag('a1') === 'a1');
+	// LA propriété : rien qui ne soit pas un slug ne sort d'ici. Le message
+	// « carte inconnue » de main.js reprend la valeur, et l'écran de chargement
+	// l'affichait via innerHTML — un lien forgé exécutait du balisage dans
+	// l'origine du jeu.
+	check('du balisage est refusé', refusesScene('<img src=x onerror=alert(1)>'));
+	check('les guillemets et espaces sont refusés', refusesScene('a"b') && refusesScene('a b'));
+	check('les majuscules, points et slashs sont refusés', refusesScene('Paris') && refusesScene('../x') && refusesScene('a.b'));
+	check('le message de refus ne reprend pas la valeur', (() => {
+		try { parseSceneFlag('<b>'); return false; } catch (e) { return !e.message.includes('<b>'); }
+	})());
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
