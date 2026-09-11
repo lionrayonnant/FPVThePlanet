@@ -1210,10 +1210,13 @@ Plan d'origine (contexte de la décision d'architecture) :
   *Non vérifié à la main : le rendu réel des trois écrans dans le navigateur,
   et le point de bascule 820 px de l'empreinte sous l'aperçu 3D.*
 
-## Vol en translation et précession des rotors (issue #91)
+## Vol en translation et précession des rotors (issue #91, amputé par #103)
 
-Trois mécanismes ajoutés à `src/quad.js`, vérifiés **headless uniquement** —
-aucune scène n'était installée sur la machine où ils ont été écrits.
+Trois mécanismes avaient été ajoutés à `src/quad.js`, vérifiés **headless
+uniquement** — aucune scène n'était installée sur la machine où ils ont été
+écrits. Le troisième, le flapback, a été **retiré après essai en vol** : voir
+« Le flapback rendait l'appareil impilotable » ci-dessous. Restent la portance
+de translation et la précession.
 
 **Vérifié** (`node tools/aero-selftest.mjs`, dans `selftest:operator`) :
 - Portance de translation : +21 % de poussée à 20 m/s sur freestyle5, saturant
@@ -1224,14 +1227,9 @@ aucune scène n'était installée sur la machine où ils ont été écrits.
   anti-double-comptage : `kInflow` étant déjà la pente d'inflow, un second
   coefficient aurait été le même mécanisme mesuré deux fois (la faute que
   `kAxial` avait déjà commise, #71).
-- Flapback : le moment de moyeu vaut `FLAP_K·μ·T·R` par rotor à 0,00 % près
-  (isolé en coupant `lateralGain`), le clamp à μ = 0,5 mord, et en air calme
-  les couples de roulis/tangage sont **encore exactement les bras seuls** — le
-  nouveau bras ne peut pas avoir fui dans la poussée.
-- Tenir l'assiette à la vitesse de croisière dérivée de chaque famille coûte
-  **13 à 18 %** de manche piqué — un toothpick de 90 g et un heavy5 de 920 g
-  tombent dans la même fourchette, ce qui est l'adimensionnalisation qui fait
-  son travail.
+- ~~Flapback~~ : **retiré (#103)**, voir la section dédiée plus bas. En air
+  calme comme en translation, les couples de roulis/tangage sont de nouveau
+  exactement les bras seuls.
 - Précession : `H` est **exactement nul** sous roulis pur et tangage pur (le
   résultat structurel du X symétrique), non nul sous lacet avec le bon signe,
   et le câblage `H·ω` est exact à 0,0 e+0 une fois l'inflow coupé pour
@@ -1243,6 +1241,44 @@ aucune scène n'était installée sur la machine où ils ont été écrits.
 - `npm run tune` et `node tools/onboard-regime-selftest.mjs` sont **identiques
   au bit près**. Ce n'est pas une déception : c'est la meilleure preuve
   disponible que rien n'a fui dans le chemin à vitesse nulle.
+
+### Le flapback rendait l'appareil impilotable (#103)
+
+Signalé au jeu après le merge de #93 : le drone part en vrille et ne se rattrape
+pas. Reproduit sur un banc 6 DOF headless (`quad.js` + `flightController.js`,
+sans Rapier), plein manche de roulis puis de lacet à 26-36 m/s, freestyle5 :
+
+| | hors-axe |
+|---|---|
+| avant #91 | 1-2 °/s |
+| #93 mergé | **115 à 222 °/s** |
+| moment de moyeu (`FLAP_K`) seul | 76 °/s |
+| bras du plan d'hélice (`ROTOR_PLANE_Y_REF`) seul | 48-71 °/s |
+| portance de translation seule | 2 °/s |
+| précession seule | 3 °/s |
+| les deux moments retirés | 1-6 °/s |
+
+Les deux coupables sont les deux MOMENTS en plan, pas la portance ni la
+précession. Dès que l'appareil ne vole pas exactement le long de son axe de
+roulis, un moment proportionnel à la vitesse air balaie tangage et roulis à la
+fréquence de l'entrée, et la boucle de taux ne peut pas le rejeter comme elle
+rejette un moment constant.
+
+Pourquoi le banc de #91 ne l'a pas vu : la porte anti-divergence tenait
+l'appareil **en air calme**, où ces deux termes valent identiquement zéro. La
+section 4 de `tools/aero-selftest.mjs` tient désormais la même porte **en vol**,
+à deux fois la vitesse de croisière de chaque famille — 79 % du taux commandé
+avant le correctif, 1,9 % après.
+
+Et la question de modèle, laissée à #91 : une hélice rigide ne bascule pas son
+disque, une hélice qui bat ne rend pas de moment de moyeu. Prendre l'image
+battante pour la force (déjà dans `kLateral`) et l'image rigide pour le moment
+compte probablement la même dissymétrie deux fois. Ne pas remettre l'un sans
+avoir tranché l'autre.
+
+`ROTOR_PLANE_Y_REF` est reparti avec eux : la hauteur du plan d'hélice ne sert
+plus qu'au dessin, et `propPlaneY` est redevenu un nombre de
+`src/drone-shape.js`.
 
 **Les PID n'ont PAS été réécrits, et c'est une décision.** Le banc tourne à
 vitesse nulle, où aucun des trois effets n'existe : le plant n'a donc pas bougé

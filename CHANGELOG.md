@@ -18,6 +18,27 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Corrigé
+
+- Le flapback de #91 rendait l'appareil impilotable, il est retiré (#103).
+  Signalé au jeu : le drone part en vrille et ne se rattrape pas. Sur un banc
+  6 DOF headless, plein manche de roulis ou de lacet à 26-36 m/s, l'écart
+  hors-axe passait de 1-2 °/s avant #91 à **115-222 °/s**. Les coupables sont
+  les deux MOMENTS en plan — le moment de moyeu (`FLAP_K`) et le bras du plan
+  d'hélice (`ROTOR_PLANE_Y_REF`) — et non la portance de translation (2 °/s) ni
+  la précession (3 °/s), qui restent. Dès que l'appareil ne vole pas le long de
+  son axe de roulis, un moment proportionnel à la vitesse air balaie tangage et
+  roulis à la fréquence de l'entrée, et la boucle de taux ne peut pas le
+  rejeter.
+  La porte qui manquait est en place : la section 4 de `tools/aero-selftest.mjs`
+  tenait l'appareil **en air calme**, où tout #91 vaut identiquement zéro ; elle
+  le tient désormais **en vol**, à deux fois la vitesse de croisière de chaque
+  famille. Elle mesurait 79 % du taux commandé avant le correctif, 1,9 % après.
+  `npm run tune` reste identique au bit près, le banc tournant à vitesse nulle.
+  L'issue #91 rouvre sur la seule question du flapback, dont le double comptage
+  probable — image battante pour la force, image rigide pour le moment — reste à
+  trancher.
+
 ### Ajouté
 
 - La culmination du hack est de retour (#101). Le retrait du CONTROL VECTOR
@@ -51,22 +72,15 @@ rapport avec les versions ci-dessous.
     purement vertical restent identiques au bit près, et la branche de descente
     est laissée telle quelle : entre −2·vh et 0 la théorie n'a pas de solution
     du tout, et ce régime est déjà modélisé empiriquement comme propwash.
-  - **Flapback** : le disque bascule en arrière en vitesse d'avancement. La
-    force, elle, était déjà là — confondue dans la traînée de rotor, fittée au
-    comportement observé — donc seul le MOMENT est ajouté : le moment de moyeu
-    d'une hélice rigide, plus le bras que les forces en plan n'avaient jamais
-    eu, les moyeux étant posés dans le plan du centre de masse alors que les
-    hélices sont 2 cm au-dessus. Tenir l'assiette à la vitesse de croisière
-    coûte désormais 13 à 18 % de manche piqué, et ce chiffre est remarquablement
-    constant d'un toothpick de 90 g à un heavy5 de 920 g.
+  - ~~**Flapback**~~ : ajouté puis **retiré avant publication** (#103, voir
+    Corrigé plus haut) — les deux moments qu'il apportait rendaient l'appareil
+    impilotable en vitesse.
   - **Précession des rotors** : un lacet pendant un roulis déplace le nez.
     Complémentaire du terme d'inertie d'hélice déjà présent en lacet, pas
     redondant : l'un a besoin que le régime CHANGE, l'autre seulement qu'il ne
     soit pas nul.
   Aucun nouveau réglage par famille : tout se dérive de la géométrie et des
-  coefficients existants. La hauteur du plan d'hélice vit maintenant dans
-  `quad.js` et le dessin la lit de là, pour que le modèle de vol et l'image ne
-  puissent plus être en désaccord sur l'endroit où sont les hélices.
+  coefficients existants.
 - `sim/tools/aero-selftest.mjs` : banc sans Rapier, sans scène et sans
   navigateur, dans la chaîne CI, qui affirme des identités et jamais des
   nombres relevés — le résidu de Glauert, la limite de saturation contre la
