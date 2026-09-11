@@ -609,10 +609,12 @@ tools/weather-source.mjs acquisition Open-Meteo + cache par zone/jour dans le wo
 résolution** sur la carte chargée, et CCD activée — à 60 m/s le drone
 traverserait sinon une structure fine (ex. le treillis de la Tour Eiffel).
 
-**Contrôleur maison**, interface volontairement étroite
-(`update(sticks, state) -> {thrust, torque}`) pour rester substituable par un
-pont vers Betaflight SITL. Rates acro 800 °/s avec expo, boucle proportionnelle
-sur l'erreur de rate avec τ = 30 ms qui tient lieu de PID + dynamique moteur.
+**Contrôleur de forme Betaflight**, interface volontairement étroite
+(`update(sticks, state, dt) -> {motors[4], throttle, axes}`) pour rester
+substituable par un pont vers Betaflight SITL, qui rend lui aussi quatre
+sorties moteur et non une poussée et un couple. Actual rates, PID complet,
+TPA, feedforward, i-term relax, lissage RC et mixeur airmode : le détail est
+dans « Le modèle de vol » plus bas, qui fait foi.
 
 ## Limite connue : `selftest` est encore spécifique à la Tour Eiffel
 
@@ -794,6 +796,55 @@ propwash, batterie qui s'affaisse sous charge et se vide) ;
 i-term relax, TPA, feedforward, lissage RC, mixeur airmode) et ne sort que
 quatre commandes moteur.
 
+### Le vol en translation (#91)
+
+Trois mécanismes distinguent l'appareil lancé de l'appareil en stationnaire.
+
+**La portance de translation.** En avançant, le rotor s'échappe du flux qu'il
+vient lui-même de brasser : l'inflow chute, le rendement monte. Ce n'est pas un
+coefficient de plus — `kInflow` EST déjà la pente d'inflow de la théorie du
+disque actuateur, linéarisée dans l'axe, et le calcul la généralise au vol
+d'avancement en forme fermée (Glauert), donc sans itération à 250 Hz. Le facteur
+2 du code est ce qui en fait une généralisation et non une addition : en vol
+axial pur, la solution exacte place le flux à vh + Vc/2, si bien que le terme
+historique vaut exactement deux fois l'excès sur le stationnaire. L'air calme et
+la montée verticale restent identiques au bit près. **La descente est laissée
+intacte, délibérément** : entre −2·vh et 0 la théorie de la quantité de
+mouvement n'a aucune solution — c'est le régime d'anneau tourbillonnaire — et ce
+régime-là est déjà modélisé empiriquement, sous le nom de `propwash`.
+
+**Le flapback.** Le disque bascule en arrière et incline la poussée avec lui.
+La FORCE correspondante était déjà présente, confondue dans la traînée de rotor
+(`kLateral`, fittée au comportement observé), donc seul le moment est ajouté, et
+il vient de deux endroits : le moment de moyeu d'une hélice rigide, dont la
+racine ne peut pas évacuer la dissymétrie de portance 1/tour et la transmet
+telle quelle ; et le bras que les forces en plan n'avaient jamais eu, les moyeux
+étant posés dans le plan du centre de masse alors que les hélices sont 2 cm
+au-dessus. Cette hauteur vit dans `quad.js` et `src/drone-shape.js` la lit de là
+— le modèle de vol et le dessin ne peuvent pas être en désaccord sur l'endroit
+où sont les hélices.
+
+En normalisant le moment de moyeu par la poussée, la masse volumique, la corde,
+la pente de portance et **le nombre de pales** s'annulent tous : c'est la raison,
+longtemps implicite, pour laquelle `bladeCount` ne sert qu'à l'audio et jamais à
+la physique.
+
+**La précession des rotors.** Les quatre hélices portent un moment cinétique, et
+le faire pivoter coûte un couple. À ne pas confondre avec le terme d'inertie
+d'hélice déjà présent en lacet : celui-là est la réaction à l'accélération du
+rotor, celui-ci la précession. L'un a besoin que le régime CHANGE, l'autre
+seulement qu'il ne soit pas nul. Sur un X symétrique, la somme des sens × régimes
+est exactement nulle pour un roulis pur comme pour un tangage pur, quelle que
+soit la courbe rpm — donc ce que ça ajoute est précisément ce qu'un pilote
+rapporte : **du lacet pendant un roulis, et le nez bouge**.
+
+Aucun réglage nouveau par famille : tout se dérive de la géométrie et des
+coefficients déjà là.
+
+`node tools/aero-selftest.mjs` prouve les trois en moins d'une seconde, sans
+Rapier, sans scène et sans navigateur. Il porte aussi une version headless de la
+porte anti-divergence sous roulis tenu, qui réclamait Rapier et une scène.
+
 ### Les six familles (PHASE 07)
 
 `src/drone-profiles.js` décrit six familles d'appareils — masse, inertie, bras,
@@ -808,6 +859,15 @@ Le **PID est mesuré par famille**, jamais écrit à la main :
 retard moteur de la famille, mesure `torquePerMix`, et réécrit son bloc `pid`.
 `npm run tune` en fait le rapport pour les six. `npm run selftest` passe la
 boucle enveloppe de vol / propulsion sur chaque famille.
+
+Le banc tient le quad dans de l'air immobile, ce qui est le bon plant pour une
+boucle de taux et ce qui rend ses chiffres comparables à ceux du premier jour.
+C'est aussi pourquoi il ne voit rien du vol en translation, et pourquoi les PID
+livrés n'ont pas eu à bouger quand celui-ci est arrivé. `--cruise` le fait voler
+en avant, à la vitesse d'équilibre propre à chaque famille, et juge un candidat
+sur le PIRE des deux régimes — jamais sur la croisière seule, ce qui ne ferait
+que déplacer l'angle mort à l'autre bout de l'enveloppe. Hors défaut : l'activer
+change ce que « mesuré » veut dire.
 
 Un airframe bien plus rapide qu'un 5" (le toothpick) porte un `filterScale` qui
 ouvre les filtres roll/pitch, comme un vrai build micro. `QUAD` reste le profil

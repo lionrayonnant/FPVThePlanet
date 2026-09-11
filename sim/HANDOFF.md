@@ -1233,6 +1233,67 @@ Plan d'origine (contexte de la décision d'architecture) :
   *Non vérifié à la main : le rendu réel des trois écrans dans le navigateur,
   et le point de bascule 820 px de l'empreinte sous l'aperçu 3D.*
 
+## Vol en translation et précession des rotors (issue #91)
+
+Trois mécanismes ajoutés à `src/quad.js`, vérifiés **headless uniquement** —
+aucune scène n'était installée sur la machine où ils ont été écrits.
+
+**Vérifié** (`node tools/aero-selftest.mjs`, dans `selftest:operator`) :
+- Portance de translation : +21 % de poussée à 20 m/s sur freestyle5, saturant
+  exactement à `1 + 2·INFLOW_K0·inflowGain` de la poussée statique — une
+  identité, pas un clamp. Le résidu de l'équation de Glauert est à 2e-16.
+- L'air calme et le vol purement axial sont **identiques au bit près** à
+  l'avant-#91, sur une grille de 7 familles × 105 points. C'est le test
+  anti-double-comptage : `kInflow` étant déjà la pente d'inflow, un second
+  coefficient aurait été le même mécanisme mesuré deux fois (la faute que
+  `kAxial` avait déjà commise, #71).
+- Flapback : le moment de moyeu vaut `FLAP_K·μ·T·R` par rotor à 0,00 % près
+  (isolé en coupant `lateralGain`), le clamp à μ = 0,5 mord, et en air calme
+  les couples de roulis/tangage sont **encore exactement les bras seuls** — le
+  nouveau bras ne peut pas avoir fui dans la poussée.
+- Tenir l'assiette à la vitesse de croisière dérivée de chaque famille coûte
+  **13 à 18 %** de manche piqué — un toothpick de 90 g et un heavy5 de 920 g
+  tombent dans la même fourchette, ce qui est l'adimensionnalisation qui fait
+  son travail.
+- Précession : `H` est **exactement nul** sous roulis pur et tangage pur (le
+  résultat structurel du X symétrique), non nul sous lacet avec le bon signe,
+  et le câblage `H·ω` est exact à 0,0 e+0 une fois l'inflow coupé pour
+  l'isoler. 5 à 20 % d'une unité de mixer selon la famille.
+- **La porte #144 est maintenant headless** : roulis plein manche tenu 6 s,
+  puis roulis + lacet tenus, sur les six familles, en corps rigide sans Rapier.
+  Hors-axe à 0,0 % partout — la boucle de taux absorbe entièrement la
+  précession. L'ancienne version réclamait Rapier et une scène installée.
+- `npm run tune` et `node tools/onboard-regime-selftest.mjs` sont **identiques
+  au bit près**. Ce n'est pas une déception : c'est la meilleure preuve
+  disponible que rien n'a fui dans le chemin à vitesse nulle.
+
+**Les PID n'ont PAS été réécrits, et c'est une décision.** Le banc tourne à
+vitesse nulle, où aucun des trois effets n'existe : le plant n'a donc pas bougé
+à son point de fonctionnement, et le tune livré reste exactement aussi mesuré
+qu'avant. `node tools/tune-pid.mjs --cruise` a été ajouté pour pouvoir poser la
+question, et la réponse complète a été mesurée : elle achète des gains
+nettement plus raides sur quatre familles (tangage 0,054 → 0,098 sur cinewhoop
+et longrange, 0,08 → 0,15 sur toothpick) au prix d'un longrange franchement
+dégradé en air calme (settle roulis 78 → 142 ms, tangage 82 → 146 ms), et d'un
+bond de P que ce banc ne peut pas juger puisqu'il ne voit pas le bruit gyro —
+ce dont son propre commentaire avertit. Arbitrage laissé au pilote.
+
+**Non vérifié** :
+- `npm run selftest` (Rapier + scène) n'a **pas** été lancé. Les invariants
+  freestyle5 — hover 24 %, roulis 822 °/s, vitesse terminale 15,4 m/s — sont
+  attendus intacts (le stationnaire est identique au bit près, et la chute à
+  plat n'a pas de vitesse latérale) mais personne ne les a vus.
+- **Le ressenti en vol.** Trois choses à sentir : accélérer plein pot doit
+  demander de pousser progressivement, et couper les gaz à 30 m/s doit lever le
+  nez ; accélérer en palier doit faire monter sans toucher aux gaz ; du lacet
+  pendant un roulis tenu doit déplacer le nez, et changer de sens quand on
+  inverse le lacet. Si le premier point demande trop de manche, ce sont
+  `FLAP_K` ou `ROTOR_PLANE_Y_REF` qu'il faut re-mesurer, pas rabaisser au goût.
+- **Les carènes du cinewhoop.** Le modèle rotor ouvert est livré pour toutes les
+  familles. Une virole supprime le battement de pale mais ajoute son propre
+  moment de lèvre en vol d'avancement, et le net n'est pas mesuré — suivi en
+  issue plutôt qu'un `ductGain` inventé.
+
 ## Polish pré-release (issues #6 à #16, branche pre-release-polish)
 
 État au 2026-09-08. Spec :

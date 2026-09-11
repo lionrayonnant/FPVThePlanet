@@ -18,6 +18,46 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Le modèle de vol connaît maintenant le vol en translation (#91). Trois
+  mécanismes qui manquaient, et que tout pilote ressent :
+  - **Portance de translation** : en avançant, le rotor s'échappe de son propre
+    flux induit et gagne en rendement — +21 % de poussée à 20 m/s sur le 5"
+    de référence. Ce n'est pas un terme de plus : `kInflow` EST déjà la pente
+    d'inflow de la théorie du disque, et le nouveau calcul la GÉNÉRALISE, en
+    forme fermée (Glauert), sans itération à 250 Hz. L'air calme et le vol
+    purement vertical restent identiques au bit près, et la branche de descente
+    est laissée telle quelle : entre −2·vh et 0 la théorie n'a pas de solution
+    du tout, et ce régime est déjà modélisé empiriquement comme propwash.
+  - **Flapback** : le disque bascule en arrière en vitesse d'avancement. La
+    force, elle, était déjà là — confondue dans la traînée de rotor, fittée au
+    comportement observé — donc seul le MOMENT est ajouté : le moment de moyeu
+    d'une hélice rigide, plus le bras que les forces en plan n'avaient jamais
+    eu, les moyeux étant posés dans le plan du centre de masse alors que les
+    hélices sont 2 cm au-dessus. Tenir l'assiette à la vitesse de croisière
+    coûte désormais 13 à 18 % de manche piqué, et ce chiffre est remarquablement
+    constant d'un toothpick de 90 g à un heavy5 de 920 g.
+  - **Précession des rotors** : un lacet pendant un roulis déplace le nez.
+    Complémentaire du terme d'inertie d'hélice déjà présent en lacet, pas
+    redondant : l'un a besoin que le régime CHANGE, l'autre seulement qu'il ne
+    soit pas nul.
+  Aucun nouveau réglage par famille : tout se dérive de la géométrie et des
+  coefficients existants. La hauteur du plan d'hélice vit maintenant dans
+  `quad.js` et le dessin la lit de là, pour que le modèle de vol et l'image ne
+  puissent plus être en désaccord sur l'endroit où sont les hélices.
+- `sim/tools/aero-selftest.mjs` : banc sans Rapier, sans scène et sans
+  navigateur, dans la chaîne CI, qui affirme des identités et jamais des
+  nombres relevés — le résidu de Glauert, la limite de saturation contre la
+  constante d'inflow elle-même, le câblage exact de la précession avec l'inflow
+  coupé pour l'isoler. Il porte aussi une version headless de la porte
+  anti-divergence sous roulis tenu, qui exigeait Rapier et une scène installée.
+- `node tools/tune-pid.mjs --cruise` fait voler le banc en avant, à la vitesse
+  d'équilibre propre à chaque famille, et juge un candidat sur le PIRE des deux
+  régimes. Les PID livrés ne changent pas : au point de fonctionnement du banc
+  le plant n'a pas bougé — `npm run tune` est identique au bit près — donc le
+  tune reste exactement aussi mesuré qu'avant.
+
 ### Sécurité
 
 - L'API du jeu regarde maintenant d'où vient la requête, en `local` comme en
