@@ -20,7 +20,7 @@
 
 import { PROFILES } from './drone-profiles.js';
 import { SWARM_UNIT } from './swarm.js';
-import { motorsOf, ROTOR_PLANE_Y_REF } from './quad.js';
+import { motorsOf } from './quad.js';
 import { armStart, plateOf } from '../tools/target-frame.mjs';
 
 const box = (role, at, size, extra = {}) => ({ kind: 'box', role, at, size, ...extra });
@@ -39,11 +39,10 @@ const MICRO = new Set(['toothpick', 'swarmUnit']);
 // Rotor plane height above the body centre, in metres, so the camera and the
 // blades hang off a name instead of copying 0.020 around.
 //
-// It comes from quad.js because the physics needs it too (issue #91): it is the
-// lever the in-plane rotor forces act on, and the drawing and the flight model
-// disagreeing about where the props are would be a silent, unfindable bug. The
-// dependency runs physics -> drawing, never the other way (D6).
-export const propPlaneY = ROTOR_PLANE_Y_REF;
+// It lived in quad.js for as long as the flight model needed it as a lever
+// (#91); with those moments removed (#103) the physics has no opinion on where
+// the discs are, so the number comes home to the drawing that uses it.
+export const propPlaneY = 0.020;
 
 // Le montage de l'objectif : sa hauteur AU-DESSUS du plan d'hélice et son
 // avancée depuis le centre, en mètres.

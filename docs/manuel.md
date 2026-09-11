@@ -813,21 +813,27 @@ intacte, délibérément** : entre −2·vh et 0 la théorie de la quantité de
 mouvement n'a aucune solution — c'est le régime d'anneau tourbillonnaire — et ce
 régime-là est déjà modélisé empiriquement, sous le nom de `propwash`.
 
-**Le flapback.** Le disque bascule en arrière et incline la poussée avec lui.
-La FORCE correspondante était déjà présente, confondue dans la traînée de rotor
-(`kLateral`, fittée au comportement observé), donc seul le moment est ajouté, et
-il vient de deux endroits : le moment de moyeu d'une hélice rigide, dont la
-racine ne peut pas évacuer la dissymétrie de portance 1/tour et la transmet
-telle quelle ; et le bras que les forces en plan n'avaient jamais eu, les moyeux
-étant posés dans le plan du centre de masse alors que les hélices sont 2 cm
-au-dessus. Cette hauteur vit dans `quad.js` et `src/drone-shape.js` la lit de là
-— le modèle de vol et le dessin ne peuvent pas être en désaccord sur l'endroit
-où sont les hélices.
+**Le flapback, retiré (#103).** Le disque bascule en arrière et incline la
+poussée avec lui ; la FORCE correspondante est déjà présente, confondue dans la
+traînée de rotor (`kLateral`, fittée au comportement observé). #91 avait ajouté
+le MOMENT, de deux endroits : le moment de moyeu d'une hélice rigide, et le bras
+que les forces en plan n'avaient jamais eu, les hélices étant 2 cm au-dessus du
+centre de masse.
 
-En normalisant le moment de moyeu par la poussée, la masse volumique, la corde,
-la pente de portance et **le nombre de pales** s'annulent tous : c'est la raison,
-longtemps implicite, pour laquelle `bladeCount` ne sert qu'à l'audio et jamais à
-la physique.
+Les deux ont été retirés après essai en vol : l'appareil devenait impilotable.
+Tout ce qu'ils ajoutent croît avec la vitesse air et agit à la fois en tangage et
+en roulis, si bien qu'un lacet plein manche tenu au double de la vitesse de
+croisière faisait rouler l'appareil jusqu'à 79 % du taux de lacet commandé. La
+porte qui manquait mesure exactement cela : section 4 de
+`tools/aero-selftest.mjs`, désormais tenue **en vol** et plus seulement en air
+calme — là où tout #91 vaut identiquement zéro, ce qui explique qu'elle soit
+restée verte.
+
+Une question de modèle reste à trancher avant tout retour : une hélice rigide ne
+bascule pas son disque, et une hélice qui bat ne rend pas de moment de moyeu.
+Prendre l'image battante pour la force et l'image rigide pour le moment revient
+probablement à compter la même dissymétrie deux fois. C'est l'objet de l'issue
+#91, rouverte.
 
 **La précession des rotors.** Les quatre hélices portent un moment cinétique, et
 le faire pivoter coûte un couple. À ne pas confondre avec le terme d'inertie

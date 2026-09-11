@@ -13,7 +13,7 @@
 // symmetry) that a wrong implementation cannot satisfy by accident.
 import {
 	Propulsion, inducedVelocity, kThrustOf, kInflowOf, kLateralOf, INFLOW_K0,
-	mixOf, rotorPlaneYOf, ROTOR_PLANE_Y_REF, FLAP_K, cruiseSpeedOf,
+	mixOf, cruiseSpeedOf,
 } from '../src/quad.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
@@ -290,99 +290,28 @@ const cmd = (profile, thr, { roll = 0, pitch = 0, yaw = 0 } = {}) =>
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n3. flapback');
+console.log('\n3. no in-plane moment survives from #91 (issue #103)');
 
-// The rotor plane height is one number with two consumers — the flight model
-// here and the drawing in src/drone-shape.js — and a disagreement between them
-// would be silent. Assert they are the same object, and that the reference
-// build still sits at the height it is drawn at.
-{
-	check('the reference build sits at the drawn rotor plane height',
-		rotorPlaneYOf(PROFILES.freestyle5) === ROTOR_PLANE_Y_REF,
-		`${rotorPlaneYOf(PROFILES.freestyle5)} m`);
-	let ok = true, detail = '';
-	for (const fam of FAMILIES) {
-		const h = rotorPlaneYOf(PROFILES[fam]);
-		if (!(h > 0.004 && h < 0.05)) { ok = false; detail = `${fam} ${h}`; }
-	}
-	check('every family carries its props a plausible height above the CG', ok, detail);
-}
-
-// Direction, on both axes and both signs. Forward is -Z, so flying forward must
-// raise the nose; moving right must roll left, away from the relative wind.
-// A sign error anywhere in the cross product breaks at least one of these four.
+// The hub moment and the rotor-plane lever were removed: flown, they made the
+// airframe unusable. What has to stay true is that NOTHING puts a pitch or
+// roll moment on the airframe that the arms did not — which is also what kept
+// the still-air behaviour identical before they went in.
 {
 	let ok = true, detail = '';
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
 		const m = flat(0.5);
-		const fwd = settle(profile, m, air({ z: -20 })).torque;
-		const back = settle(profile, m, air({ z: +20 })).torque;
-		const right = settle(profile, m, air({ x: +20 })).torque;
-		const left = settle(profile, m, air({ x: -20 })).torque;
-		if (!(fwd.x > 0 && back.x < 0 && right.z > 0 && left.z < 0)) {
-			ok = false;
-			detail = `${fam}: fwd ${fwd.x.toFixed(4)} back ${back.x.toFixed(4)} right ${right.z.toFixed(4)} left ${left.z.toFixed(4)}`;
+		// Still air first, then the four directions that used to produce one.
+		const base = settle(profile, m, air()).torque;
+		for (const [name, v] of [['forward', { z: -20 }], ['backward', { z: 20 }], ['right', { x: 20 }], ['left', { x: -20 }]]) {
+			const t = settle(profile, m, air(v)).torque;
+			if (Math.abs(t.x - base.x) > 1e-12 || Math.abs(t.z - base.z) > 1e-12) {
+				ok = false;
+				detail = `${fam} ${name}: pitch ${t.x.toExponential(2)} roll ${t.z.toExponential(2)}`;
+			}
 		}
 	}
-	check('forward pitches up, backward pitches down, sideways rolls away from the wind', ok, detail);
-}
-
-// The hub moment on its own, against the formula it comes from, with the lever
-// term switched off by a scratch profile at lateralGain 0 — same isolation
-// trick as section 2, and necessary for the same reason: two mechanisms share
-// this axis and only one is under test.
-{
-	let worst = 0, worstAt = '';
-	for (const fam of FAMILIES) {
-		const profile = { ...PROFILES[fam], lateralGain: 0 };
-		const R = profile.propRadius;
-		for (const mu of [0.05, 0.15, 0.25]) {
-			const s0 = settle(profile, flat(0.5), air());
-			const V = mu * s0.omega[0] * R;
-			const s = settle(profile, flat(0.5), air({ z: -V }));
-			// Recomputed from the settled state, because the rpm and the thrust
-			// both move once the air is flowing.
-			const muActual = V / (s.omega[0] * R);
-			const want = 4 * FLAP_K * muActual * s.thrust[0] * R;
-			const rel = Math.abs(s.torque.x - want) / want;
-			if (rel > worst) { worst = rel; worstAt = `${fam} mu=${mu}`; }
-		}
-	}
-	check('the hub moment is FLAP_K * mu * T * R per rotor',
-		worst < 0.01, `worst relative error ${(worst * 100).toFixed(2)}% (${worstAt})`);
-}
-
-// The clamp, which is what keeps a first-order-in-mu result from being asked
-// about mu = 3. Past the limit the moment must stop tracking speed.
-{
-	let ok = true, detail = '';
-	for (const fam of FAMILIES) {
-		const profile = { ...PROFILES[fam], lateralGain: 0 };
-		// Idle rpm and a high speed puts mu far past the clamp.
-		const a = settle(profile, flat(0.08), air({ z: -40 })).torque.x;
-		const b = settle(profile, flat(0.08), air({ z: -80 })).torque.x;
-		if (!(b < 1.6 * a)) { ok = false; detail = `${fam}: ${a.toFixed(4)} -> ${b.toFixed(4)}`; }
-	}
-	check('past the advance-ratio limit the hub moment stops tracking speed', ok, detail);
-}
-
-// The budget that protects playability: at the speed the airframe actually
-// settles at, how much of the pitch mixer does holding attitude cost? Derived,
-// not posed — the cruise speed is where the drag of a 35-degree nose-down
-// attitude balances what the airframe can push through the air.
-{
-	let worst = 0, worstAt = '';
-	for (const fam of FAMILIES) {
-		const profile = PROFILES[fam];
-		const V = cruiseSpeedOf(profile);
-		const s = settle(profile, flat(0.5), air({ z: -V }));
-		const share = Math.abs(s.torque.x) / profile.pid.torquePerMix.pitch;
-		console.log(`        ${fam.padEnd(11)} cruise ${V.toFixed(1).padStart(5)} m/s   pitch-up ${s.torque.x.toFixed(4)} N.m = ${(share * 100).toFixed(1)}% of a mixer unit`);
-		if (share > worst) { worst = share; worstAt = fam; }
-	}
-	check('holding attitude at cruise costs a touch of stick, not the whole axis',
-		worst < 0.35, `worst ${(worst * 100).toFixed(1)}% of a mixer unit (${worstAt}, limit 35%)`);
+	check('edgewise air puts no pitch or roll moment on the airframe', ok, detail);
 }
 
 // The lever must not have leaked into the thrust moments. A force along body +Y
@@ -411,7 +340,7 @@ console.log('\n3. flapback');
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n4. held roll does not diverge off-axis (the #144 gate)');
+console.log('\n4. held roll does not diverge off-axis (the #144 gate, and #103 at speed)');
 
 // The failure this guards against is the one that pulled the 1S tinywhoop out
 // of PHASE 07: hold full roll for six seconds and watch pitch and yaw walk away
@@ -496,61 +425,130 @@ function heldRoll(profile, seconds = 6, sticks = { throttle: 0.5, roll: 1, pitch
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n5. what the pilot actually sees');
-
-// The moment above is invisible in flight, and deliberately so: in acro the
-// rate loop commands zero pitch RATE and rejects a steady pitching moment
-// completely — that is its job. "At 20 m/s the craft pitches up" is therefore
-// false by construction, and a test asserting it would measure noise.
+// The same gate, AT SPEED (issue #103). The one above holds the airframe in
+// still air, which is where the whole of #91 is identically zero — so it went
+// green while the game had become unflyable. Everything #91 added scales with
+// airspeed, and the moments among it act across pitch and roll: the case that
+// matters is a roll held while there IS air moving past.
 //
-// What IS visible is what the controller has to do to keep holding attitude:
-// the front motors run lower than the rear ones. That trim is the signature,
-// and it is compared against a moment computed from momentum theory rather
-// than against a recorded number.
+// Flown the way a quad actually is: the velocity vector is horizontal and the
+// airframe carries a nose-down attitude, so the air arrives at an angle to the
+// disc. Rolling then sweeps that angle around the body axes, and a moment that
+// is steady in the wind axes becomes an oscillation in the body ones — which a
+// rate loop cannot reject the way it rejects a constant. Attitude is integrated
+// here (the section above needs no attitude at all, still air having no
+// direction), but the trajectory is not: holding the velocity fixed is what
+// keeps the measurement about the moments rather than about where the craft
+// wandered.
+const ALPHA = (35 * Math.PI) / 180; // nose-down attitude of a quad at speed
+
+// Twice the settling speed, because that is what a dive reaches and what the
+// report that opened #103 was flown at. Cruise alone is too kind: the moments
+// are linear in airspeed, so a gate posed at the gentlest speed the airframe
+// ever sees measures a quarter of the problem.
+const SPEED_FACTOR = 2;
+
+function heldRollAtSpeed(profile, seconds = 4, sticks = { throttle: 0.5, roll: 1, pitch: 0, yaw: 0 }) {
+	const fc = new FlightController({ profile });
+	const prop = new Propulsion({ profile, seed: 3 });
+	const I = profile.inertia;
+	const V = SPEED_FACTOR * cruiseSpeedOf(profile);
+	// Nose-down by ALPHA about body +X, velocity horizontal and forward (-Z).
+	let q = { x: Math.sin(-ALPHA / 2), y: 0, z: 0, w: Math.cos(-ALPHA / 2) };
+	let w = { x: 0, y: 0, z: 0 };
+	const peak = { x: 0, y: 0, z: 0 };
+	const steps = Math.round(seconds / DT);
+	for (let i = 0; i < steps; i++) {
+		const vBody = unrotate(q, { x: 0, y: 0, z: -V });
+		const state = { rotation: q, angularVelocity: rotate(q, w), position: { x: 0, y: 100, z: 0 }, velocity: { x: 0, y: 0, z: -V } };
+		const { motors } = fc.update(sticks, state, DT);
+		const { torque } = prop.step(motors, { v: vBody, omega: w, agl: null, shake: 0 }, DT);
+		const Iw = { x: I.x * w.x, y: I.y * w.y, z: I.z * w.z };
+		const gyro = {
+			x: w.y * Iw.z - w.z * Iw.y,
+			y: w.z * Iw.x - w.x * Iw.z,
+			z: w.x * Iw.y - w.y * Iw.x,
+		};
+		w = {
+			x: w.x + ((torque.x - gyro.x) / I.x) * DT,
+			y: w.y + ((torque.y - gyro.y) / I.y) * DT,
+			z: w.z + ((torque.z - gyro.z) / I.z) * DT,
+		};
+		q = normalize(integrateQ(q, w, DT));
+		if (i * DT > 0.5) {   // past the step response of the input itself
+			peak.x = Math.max(peak.x, Math.abs(w.x));
+			peak.y = Math.max(peak.y, Math.abs(w.y));
+			peak.z = Math.max(peak.z, Math.abs(w.z));
+		}
+	}
+	// Per axis, because which axis is the excursion depends on what is
+	// commanded: under a held yaw the yaw rate is the input, not a symptom.
+	return { peak, V };
+}
+
+function rotate(q, v) {
+	const { x, y, z, w } = q;
+	const tx = 2 * (y * v.z - z * v.y), ty = 2 * (z * v.x - x * v.z), tz = 2 * (x * v.y - y * v.x);
+	return {
+		x: v.x + w * tx + (y * tz - z * ty),
+		y: v.y + w * ty + (z * tx - x * tz),
+		z: v.z + w * tz + (x * ty - y * tx),
+	};
+}
+const unrotate = (q, v) => rotate({ x: -q.x, y: -q.y, z: -q.z, w: q.w }, v);
+
+function integrateQ(q, w, dt) {
+	const h = dt / 2;
+	return {
+		x: q.x + h * (w.x * q.w + w.y * q.z - w.z * q.y),
+		y: q.y + h * (w.y * q.w + w.z * q.x - w.x * q.z),
+		z: q.z + h * (w.z * q.w + w.x * q.y - w.y * q.x),
+		w: q.w - h * (w.x * q.x + w.y * q.y + w.z * q.z),
+	};
+}
+function normalize(q) {
+	const n = Math.hypot(q.x, q.y, q.z, q.w);
+	return { x: q.x / n, y: q.y / n, z: q.z / n, w: q.w / n };
+}
+
 {
 	let worst = 0, worstAt = '';
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
-		const trimAt = (V) => {
-			const fc = new FlightController({ profile });
-			const prop = new Propulsion({ profile, seed: 5 });
-			const I = profile.inertia;
-			let w = { x: 0, y: 0, z: 0 };
-			let sum = 0, n = 0;
-			const steps = 750;
-			for (let i = 0; i < steps; i++) {
-				const state = { rotation: IDENTITY, angularVelocity: w, position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 } };
-				const { motors } = fc.update({ throttle: 0.5, roll: 0, pitch: 0, yaw: 0 }, state, DT);
-				const { torque } = prop.step(motors, air({ z: -V }, w), DT);
-				const Iw = { x: I.x * w.x, y: I.y * w.y, z: I.z * w.z };
-				w = {
-					x: w.x + ((torque.x - (w.y * Iw.z - w.z * Iw.y)) / I.x) * DT,
-					y: w.y + ((torque.y - (w.z * Iw.x - w.x * Iw.z)) / I.y) * DT,
-					z: w.z + ((torque.z - (w.x * Iw.y - w.y * Iw.x)) / I.z) * DT,
-				};
-				// Last third only: the loop needs time to find the trim.
-				if (i > (2 * steps) / 3) {
-					// Front pair minus rear pair. Motor order is Betaflight's:
-					// 1 rear right, 2 front right, 3 rear left, 4 front left.
-					sum += (motors[1] + motors[3]) / 2 - (motors[0] + motors[2]) / 2;
-					n++;
-				}
-			}
-			return sum / n;
-		};
-		const V = cruiseSpeedOf(profile);
-		const still = trimAt(0);
-		const fast = trimAt(V);
-		// Nose-down, unmistakably, and still leaving most of the motor range to
-		// fly with. A trim that ate half the range would mean the pilot spends
-		// the axis holding the attitude instead of steering with it.
-		const ok = Math.abs(still) < 0.005 && fast < -0.002 && fast > -0.35;
-		console.log(`        ${fam.padEnd(11)} cruise ${V.toFixed(1).padStart(5)} m/s   trim at rest ${still.toFixed(5)}   at cruise ${fast.toFixed(5)}`);
-		if (!ok) { worst = 1; worstAt = `${fam} (${still.toFixed(5)} / ${fast.toFixed(5)})`; }
+		const { peak, V } = heldRollAtSpeed(profile);
+		const commanded = RATE_PRESETS[profile.rates].roll.max * Math.PI / 180;
+		const peakOff = Math.max(peak.x, peak.y);
+		const ratio = peakOff / commanded;
+		console.log(`        ${fam.padEnd(11)} at ${V.toFixed(0).padStart(2)} m/s  roll ${(peak.z * 180 / Math.PI).toFixed(0).padStart(4)} deg/s   off-axis ${(peakOff * 180 / Math.PI).toFixed(0).padStart(4)} deg/s   = ${(ratio * 100).toFixed(1)}%`);
+		if (ratio > worst) { worst = ratio; worstAt = fam; }
 	}
-	check('holding attitude at cruise costs nose-down trim, nothing at rest, and never the axis',
-		worst === 0, worstAt && `${worstAt} did not`);
+	check('a held full roll AT SPEED leaves pitch and yaw alone too',
+		worst < 0.25, `worst ${(worst * 100).toFixed(1)}% of commanded (${worstAt}, limit 25%)`);
 }
+
+// A full yaw at speed is the same failure seen from the other axis: the air
+// comes round the airframe instead of the airframe round the air.
+{
+	let worst = 0, worstAt = '';
+	for (const fam of FAMILIES) {
+		const profile = PROFILES[fam];
+		const { peak, V } = heldRollAtSpeed(profile, 4, { throttle: 0.5, roll: 0, pitch: 0, yaw: 1 });
+		const commanded = RATE_PRESETS[profile.rates].yaw.max * Math.PI / 180;
+		// Roll and pitch only: yaw is the command here.
+		const peakOff = Math.max(peak.x, peak.z);
+		const ratio = peakOff / commanded;
+		console.log(`        ${fam.padEnd(11)} at ${V.toFixed(0).padStart(2)} m/s  yaw held: worst off-axis ${(peakOff * 180 / Math.PI).toFixed(0).padStart(4)} deg/s = ${(ratio * 100).toFixed(1)}%`);
+		if (ratio > worst) { worst = ratio; worstAt = fam; }
+	}
+	check('a held full yaw AT SPEED does not roll the airframe over',
+		worst < 0.25, `worst ${(worst * 100).toFixed(1)}% of commanded (${worstAt}, limit 25%)`);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n5. what the pilot actually sees');
+
+// The trim signature that stood here measured the flapback moment, which is
+// gone (#103). What is left to see is the lift.
 
 // And the lift, end to end: the same stick lifts harder in translation, so the
 // stick that hovers has to come DOWN as the air starts flowing. Compared
