@@ -9,6 +9,8 @@
 import { formatVisibility, windLabel } from './lib/weather.mjs';
 import { randomart } from './randomart.mjs';
 import { PROFILES } from '../src/drone-profiles.js';
+// A stored value is not guaranteed to have text: see lib/as-text.mjs.
+import { asText } from './lib/as-text.mjs';
 
 // `LANDED` est parti avec l'atterrissage (D9, 2026-09-08) : aucun vol ne peut
 // plus produire ce verdict. Les vieilles sessions qui le portent restent
@@ -30,10 +32,19 @@ export const SESSION_FILTERS = ['ALL', 'CRASHED', 'WITH PHOTOS'];
 // sans nom reste identifiable, et deux vols au même endroit portent le même
 // identifiant.
 export function liveAreaId(place, lat, lon) {
-	const named = String(place ?? '').trim();
+	const named = asText(place).trim();
 	if (named) return `live-${named}`;
 	const n = (v) => (Number.isFinite(v) ? v.toFixed(4) : '0');
 	return `live-${n(lat)}-${n(lon)}`;
+}
+
+// A measured number, or `—` when it is not one. JSON has no NaN and no
+// Infinity literal, but `1e400` parses to Infinity, so a hand-edited or
+// half-written operator file reaches these screens holding one — and
+// `(v ?? 0).toFixed(1)` prints it verbatim. A log that says
+// `MAX SPEED Infinity m/s` is worse than one that admits it does not know.
+function metric(v, digits = 0) {
+	return Number.isFinite(v) ? v.toFixed(digits) : '—';
 }
 
 export function pad(n, width = 5) {
@@ -52,13 +63,13 @@ export function pad(n, width = 5) {
 // chaque ligne s'alignait sur le nom de SA zone. L'ellipse dit que c'est coupé,
 // plutôt que de laisser croire à un nom qui finit là.
 export function fit(s, width) {
-	const v = String(s ?? '');
+	const v = asText(s);
 	if (v.length <= width) return v.padEnd(width);
 	return width <= 1 ? '…' : `${v.slice(0, width - 1)}…`;
 }
 
 export function areaLabel(slug) {
-	const s = String(slug ?? '').trim();
+	const s = asText(slug).trim();
 	return s ? s.replace(/-+/g, ' ').toUpperCase() : 'UNKNOWN AREA';
 }
 
@@ -89,7 +100,9 @@ export function filterSessions(sessions, filter) {
 }
 
 function familyLabel(family) {
-	return PROFILES[family]?.label ?? String(family ?? 'UNKNOWN');
+	// Own property only: `PROFILES['constructor']` is not a profile.
+	const profile = Object.hasOwn(PROFILES, family) ? PROFILES[family] : null;
+	return profile?.label ?? asText(family, 'UNKNOWN');
 }
 
 export function sessionRow(s) {
@@ -98,7 +111,7 @@ export function sessionRow(s) {
 		fit(`SESSION ${pad(s?.seq)}`, 14),
 		fit(areaLabel(s?.area), 26),
 		fit(target, 11),
-		fit(String(s?.result ?? 'UNKNOWN'), 8),
+		fit(asText(s?.result, 'UNKNOWN'), 8),
 		duration(s?.flightTelemetry?.durationS),
 	].join(' ');
 }
@@ -109,7 +122,7 @@ function targetBlock(s) {
 	const t = s?.target;
 	if (!t) return null;
 	const lines = [`TARGET ${pad(s.targetSeq, 3)}`, familyLabel(t.family)];
-	if (t.signal) lines[1] += `  ${t.signal.rssiDbm} dBm ${t.signal.mode}`;
+	if (t.signal) lines[1] += `  ${metric(t.signal.rssiDbm)} dBm ${t.signal.mode ?? 'UNKNOWN'}`;
 	if (t.hackType) lines.push(t.hackType);
 	return lines;
 }
@@ -133,9 +146,9 @@ function flightBlock(s) {
 	return [
 		'FLIGHT',
 		duration(tel.durationS),
-		`MAX SPEED ${(tel.maxSpeedMs ?? 0).toFixed(1)} m/s`
-			+ ` · MAX ALT ${Math.round(tel.maxAltitudeM ?? 0)} m`
-			+ ` · DISTANCE ${Math.round(tel.distanceM ?? 0)} m`,
+		`MAX SPEED ${metric(tel.maxSpeedMs, 1)} m/s`
+			+ ` · MAX ALT ${metric(tel.maxAltitudeM)} m`
+			+ ` · DISTANCE ${metric(tel.distanceM)} m`,
 		`RESULT ${s?.result ?? 'UNKNOWN'}`,
 	];
 }
@@ -182,7 +195,9 @@ export function targetLogEntries(sessions) {
 			sessionId: s.id,
 			family: s.target.family,
 			label: familyLabel(s.target.family),
-			rssiDbm: s.target.signal?.rssiDbm ?? null,
+			// Finite or nothing: the value crosses into the DATA screen's family
+			// plot, where a NaN is a point that cannot be drawn.
+			rssiDbm: Number.isFinite(s.target.signal?.rssiDbm) ? s.target.signal.rssiDbm : null,
 			mode: s.target.signal?.mode ?? null,
 			hackType: s.target.hackType ?? null,
 			area: s.area,
@@ -193,13 +208,13 @@ export function targetLogEntries(sessions) {
 }
 
 export function targetRow(e) {
-	const signal = e.rssiDbm == null ? 'NO SIGNAL' : `${String(e.rssiDbm).padStart(4)} dBm ${e.mode}`;
+	const signal = e.rssiDbm == null ? 'NO SIGNAL' : `${String(e.rssiDbm).padStart(4)} dBm ${e.mode ?? 'UNKNOWN'}`;
 	return [
 		fit(`TARGET ${pad(e.targetSeq, 3)}`, 11),
 		fit(e.label, 14),
 		fit(signal, 17),
 		fit(areaLabel(e.area), 26),
 		fit(stamp(e.at), 17),
-		String(e.result ?? 'UNKNOWN'),
+		asText(e.result, 'UNKNOWN'),
 	].join(' ');
 }

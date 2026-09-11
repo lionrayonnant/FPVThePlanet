@@ -180,7 +180,13 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 export function isValidCalibration(cal) {
 	if (!cal || typeof cal !== 'object') return false;
 	if (cal.throttleMode !== 'full' && cal.throttleMode !== 'half') return false;
-	if (!isNum(cal.deadband)) return false;
+	// Strictly under 1, and not negative: normalizeChannel rescales the travel
+	// left over the deadband, so a stored `deadband: 1` divides by zero and the
+	// stick reads NaN at full stop — a dead flight, from one bad key. The live
+	// calibration never writes such a value (it clamps to DEADBAND_MIN/MAX);
+	// a hand-edited or half-written entry can, and this gate is what stands
+	// between that entry and the motors.
+	if (!isNum(cal.deadband) || cal.deadband < 0 || cal.deadband >= 1) return false;
 	const ch = cal.channels;
 	if (!ch || typeof ch !== 'object') return false;
 	return CAL_CHANNELS.every((name) => {

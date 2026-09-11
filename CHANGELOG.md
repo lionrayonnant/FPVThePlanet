@@ -18,6 +18,61 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Une passe de **fuzzing**, `npm run fuzz` (`sim/tools/fuzz.mjs` pour les
+  modules purs, `sim/tools/fuzz-api.mjs` pour les routes HTTP contre un vrai
+  serveur, harnais partagé dans `sim/tools/lib/fuzz.mjs`). Seize cibles, chacune
+  avec l'invariant qu'elle vérifie et le modèle de menace de son entrée ; graine
+  fixe, donc rejouable et intégrée à `selftest:ci`. Ce qu'elle a trouvé est dans
+  `sim/docs/handoff-archive/fuzzing.md`.
+
+### Corrigé
+
+- **Une seule frame invalide tuait le contrôleur de vol pour de bon.** Les
+  filtres de `AxisPid` sont des moyennes glissantes : un manche non fini — un
+  calibrage cassé — ou un état physique parti en NaN les empoisonnait
+  définitivement, et les moteurs restaient à NaN bien après le retour à la
+  normale. En mode `altitude`, `holdAltitude` faisait la même chose. Les manches
+  sont désormais bornés à l'entrée, un pas de PID non fini réinitialise ses
+  propres filtres, et le mixer refuse un gaz non fini (`clamp()` ne retient pas
+  un NaN : toute comparaison avec NaN est fausse).
+
+- **Une piste pouvait être écrite sans pouvoir être relue.** La quantification
+  multiplie (`lat × 1e5`) : une valeur absurde mais finie débordait à l'infini
+  et `validateTrack()` refusait alors le fichier que `encodeTrack()` venait
+  d'écrire. Le vol était perdu à la lecture.
+
+- **`String(v)` n'est pas total, et six endroits le supposaient.**
+  `{"area": {"toString": null}}` est du JSON valide et fait lever `String()` :
+  le journal des sessions mourait en affichant un vol stocké, et
+  `validateSession` répondait un message du moteur au lieu de nommer le champ.
+  Nouveau `sim/tools/lib/as-text.mjs`, utilisé par `slugify`, `areaLabel`,
+  `fit`, `familyLabel`, les validateurs de session et de piste.
+
+- **`keyLabel()` rendait des propriétés héritées.** Une touche stockée valant
+  `constructor` faisait afficher `function Object() { [native code] }` dans les
+  réglages. Lecture en propriété propre, comme `PROFILES[family]`.
+
+- **Un `deadband` stocké à 1 rendait NaN manche en butée** :
+  `normalizeChannel()` divise par `1 - deadband`. `isValidCalibration()`, la
+  porte entre le fichier et les moteurs, exige maintenant `0 <= deadband < 1`.
+
+- **Un couloir de largeur nulle divisait par zéro** dans `progress()`
+  (`geofence.js`), et `main.js` fait monter la perte d'image sur ce nombre.
+
+- **`normalizeBenchConfig()` promettait de ne jamais lever, et levait** :
+  `Number()` lève sur un symbole, un bigint, et sur un objet sans chemin vers
+  une primitive.
+
+- **`mergeTelemetry(null, …)` était un TypeError** : un paramètre par défaut ne
+  couvre que `undefined`, et `"flightTelemetry": null` tient dans un fichier
+  JSON — `closeSession()` mourait dessus au lieu de fermer le vol.
+
+- **`MAX SPEED Infinity m/s` sur le détail d'une session.** JSON n'a pas de
+  littéral Infinity, mais `1e400` en produit un, et `(v ?? 0).toFixed(1)`
+  l'imprimait. Une télémétrie non finie s'affiche maintenant `—`.
+
 ### Sécurité
 
 - Le paramètre `?scene=` n'atteint plus l'écran de chargement tel quel. Un

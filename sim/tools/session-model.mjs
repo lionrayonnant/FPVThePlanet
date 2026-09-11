@@ -10,6 +10,7 @@
 //                        session terminée)
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
+import { asText, nameOf } from './lib/as-text.mjs';
 import {
 	TARGET_FAMILIES, HACK_TYPES,
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
@@ -117,9 +118,9 @@ const STORED_FAMILIES = [...TARGET_FAMILIES, SWARM_FAMILY];
 export function sanitizeTarget(raw) {
 	if (raw == null) return null;
 	if (typeof raw !== 'object') throw new Error('target invalide');
-	if (!STORED_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${raw.family}`);
+	if (!STORED_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${asText(raw.family, nameOf(raw.family))}`);
 	if (raw.hackType != null && !HACK_TYPES.includes(raw.hackType)) {
-		throw new Error(`hackType de cible inconnu : ${raw.hackType}`);
+		throw new Error(`hackType de cible inconnu : ${asText(raw.hackType, nameOf(raw.hackType))}`);
 	}
 	const sig = raw.signal;
 	if (!sig || typeof sig !== 'object') throw new Error('target.signal manquant');
@@ -191,7 +192,13 @@ export function openSession({ operatorId, area, weatherSnapshot, target, seq, ta
 
 // Fusionne deux jeux d'agrégats : `max` sur les pics, `+` sur les cumuls.
 // Associative — trois segments dans n'importe quel ordre donnent le même total.
-export function mergeTelemetry(a = ZERO_TELEMETRY, b = ZERO_TELEMETRY) {
+export function mergeTelemetry(rawA = ZERO_TELEMETRY, rawB = ZERO_TELEMETRY) {
+	// A default parameter only covers `undefined`. A stored session whose
+	// `flightTelemetry` is null — JSON can hold that, and a file written by
+	// hand does — reached this as `null` and closeSession died on it with a
+	// TypeError instead of closing the flight.
+	const a = rawA ?? ZERO_TELEMETRY;
+	const b = rawB ?? ZERO_TELEMETRY;
 	const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
 	return {
 		durationS: n(a.durationS) + n(b.durationS),
@@ -281,8 +288,8 @@ export function deleteSession(state, sid) {
 // Garde-fou serveur : rejette tout ce qui n'a pas la forme attendue.
 export function validateSession(s) {
 	if (!s || typeof s !== 'object') throw new Error('session illisible');
-	if (!SESSION_ID_RE.test(String(s.id ?? ''))) throw new Error('id de session invalide');
-	if (!STORED_RESULTS.includes(s.result)) throw new Error(`result inconnu : ${s.result}`);
+	if (!SESSION_ID_RE.test(asText(s.id))) throw new Error('id de session invalide');
+	if (!STORED_RESULTS.includes(s.result)) throw new Error(`result inconnu : ${asText(s.result, nameOf(s.result))}`);
 	if (!s.operatorId) throw new Error('operatorId requis');
 	if (!slugify(s.area)) throw new Error('area invalide');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throw si malformé

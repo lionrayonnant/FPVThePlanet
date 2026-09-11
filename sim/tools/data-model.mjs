@@ -26,6 +26,7 @@
 
 import { PROFILES } from '../src/drone-profiles.js';
 import { areaLabel, pad, targetLogEntries } from './session-log-model.mjs';
+import { asText } from './lib/as-text.mjs';
 
 // Twelve weeks: a season. Long enough to see a habit form, short enough that
 // the bar for a week you flew once is still readable.
@@ -256,7 +257,10 @@ export function stickSeries(track, { bins = 10 } = {}) {
 // disappear — it acquired an axis. `targetLogEntries()` stays the one source.
 
 function familyLabel(family) {
-	return PROFILES[family]?.label ?? String(family ?? 'UNKNOWN');
+	// Own property only, and a value that may have no text: a family read from
+	// a stored session is neither a key of this table nor necessarily a string.
+	const profile = Object.hasOwn(PROFILES, family) ? PROFILES[family] : null;
+	return profile?.label ?? asText(family, 'UNKNOWN');
 }
 
 export function familySeries(sessions) {

@@ -165,7 +165,12 @@ const KEY_LABELS = {
 export function keyLabel(key) {
 	const k = normalizeKey(key);
 	if (!k) return '—';
-	return KEY_LABELS[k] ?? k.toUpperCase();
+	// Own properties only. A stored key is a string from localStorage, and
+	// `KEY_LABELS['constructor']` is not undefined — it is Object's
+	// constructor, which `??` happily accepts and the Settings screen then
+	// renders as `function Object() { [native code] }`. Same for `__proto__`
+	// and `toString`.
+	return Object.hasOwn(KEY_LABELS, k) ? KEY_LABELS[k] : k.toUpperCase();
 }
 
 // One row per action, in KEY_ACTIONS order, keys already labelled — what the

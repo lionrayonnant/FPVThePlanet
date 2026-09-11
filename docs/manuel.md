@@ -537,6 +537,24 @@ Restent locaux, par nature : `npm run selftest` (rejoue la scène `tour-eiffel`)
 et `npm run selftest:scenes` (compare `scenes.json` aux scènes installées sur
 *cette* machine).
 
+`selftest:ci` finit par `npm run fuzz`, la passe de fuzzing — graine fixe, donc
+déterministe comme le reste de la chaîne :
+
+```bash
+npm run fuzz                    # tools/fuzz.mjs puis tools/fuzz-api.mjs
+node tools/fuzz.mjs --list      # les cibles et leur modèle de menace
+node tools/fuzz.mjs --only flight --cases 20000 --seed 7
+node tools/fuzz-api.mjs --cases 2000     # vrai serveur, requêtes malformées
+```
+
+Elle vise ce que les selftests ne visent pas : l'entrée que personne n'a écrite
+— une clé `localStorage` éditée à la main, un fichier opérateur à moitié écrit,
+un axe de manette en butée, un état physique parti en NaN, un corps HTTP qui
+n'est pas du JSON. Chaque cible déclare un invariant que le code promet vraiment
+et le modèle de menace de son entrée ; une trouvaille se rejoue avec
+`--seed <n> --cases <n>`. Le détail, et ce que la première passe a trouvé :
+[`sim/docs/handoff-archive/fuzzing.md`](../sim/docs/handoff-archive/fuzzing.md).
+
 Il n'y a **pas de déploiement continu** : le build statique ne sait pas démarrer
 seul, il lui faut l'API opérateur `/__operator` que seul le serveur de dev
 fournit. Voir `HANDOFF.md`, section « Versionnage du dépôt ».
@@ -585,6 +603,9 @@ Les numéros de build de l'écran `BUILD NOTES` (`tools/buildnotes-model.mjs`,
 tools/add-map.mjs     téléchargement + pré-traitement + enregistrement, en une commande
 tools/prep.mjs         OBJ+MTL+JPEG -> binaires (hors ligne, par carte)
 tools/selftest.mjs     vérifications géodésie / vol / collision, sans navigateur
+tools/fuzz.mjs         fuzzing des modules purs (vol, état stocké, écrans)
+tools/fuzz-api.mjs     fuzzing des routes HTTP contre un vrai serveur
+tools/lib/fuzz.mjs     le harnais : générateurs, invariants, réduction, graines
 src/loader.js          fetch + workers -> BufferGeometry & DataArrayTexture, sélection de la scène active
 src/worker.js           parse le binaire, découpe la planche en layers
 src/TileMaterial.js     shader GLSL3 sampler2DArray + brouillard

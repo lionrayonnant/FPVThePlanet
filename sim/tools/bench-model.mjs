@@ -133,7 +133,12 @@ function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 // passe par Number.isFinite APRÈS la conversion pour que null/''/undefined
 // retombent tous sur le défaut plutôt que sur zéro.
 function num(v, fallback, limit) {
-	const n = typeof v === 'number' ? v : Number(v);
+	// Number() THROWS on a symbol, a bigint, and on any object with no path to
+	// a primitive (`Object.create(null)`, which is what a stored config becomes
+	// on some JSON paths). This function is the one that promises the caller a
+	// playable config no matter what is in localStorage, so it swallows that.
+	let n;
+	try { n = typeof v === 'number' ? v : Number(v); } catch { return fallback; }
 	if (v === null || v === undefined || v === '' || !Number.isFinite(n)) return fallback;
 	return limit ? clamp(n, limit.min, limit.max) : n;
 }
