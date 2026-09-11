@@ -13,7 +13,7 @@
 // symmetry) that a wrong implementation cannot satisfy by accident.
 import {
 	Propulsion, inducedVelocity, kThrustOf, kInflowOf, kLateralOf, INFLOW_K0,
-	mixOf, rotorPlaneYOf, ROTOR_PLANE_Y_REF, FLAP_K,
+	mixOf, rotorPlaneYOf, ROTOR_PLANE_Y_REF, FLAP_K, cruiseSpeedOf,
 } from '../src/quad.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
@@ -45,19 +45,6 @@ function settle(profile, motors, a, steps = 600) {
 }
 
 const flat = (thr) => [thr, thr, thr, thr];
-
-// The speed an airframe actually settles at: where the drag of a 35-degree
-// nose-down attitude balances what it can push through the air. Derived rather
-// than picked, so each family is questioned about its own flight envelope
-// instead of a number borrowed from the 5-inch.
-//   4*kLateral*w_hover*V + 0.5*rho*bodyDrag.z*V^2 = m*g*tan(35 deg)
-function cruiseSpeed(profile) {
-	const wHover = Math.sqrt((profile.mass * GRAVITY) / 4 / kThrustOf(profile));
-	const a = 0.5 * AIR_DENSITY * profile.bodyDrag.z;
-	const b = 4 * kLateralOf(profile) * wHover;
-	const c = -profile.mass * GRAVITY * Math.tan((35 * Math.PI) / 180);
-	return (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
-}
 
 console.log('aero — translational flight and rotor precession\n');
 
@@ -388,7 +375,7 @@ console.log('\n3. flapback');
 	let worst = 0, worstAt = '';
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
-		const V = cruiseSpeed(profile);
+		const V = cruiseSpeedOf(profile);
 		const s = settle(profile, flat(0.5), air({ z: -V }));
 		const share = Math.abs(s.torque.x) / profile.pid.torquePerMix.pitch;
 		console.log(`        ${fam.padEnd(11)} cruise ${V.toFixed(1).padStart(5)} m/s   pitch-up ${s.torque.x.toFixed(4)} N.m = ${(share * 100).toFixed(1)}% of a mixer unit`);
@@ -551,7 +538,7 @@ console.log('\n5. what the pilot actually sees');
 			}
 			return sum / n;
 		};
-		const V = cruiseSpeed(profile);
+		const V = cruiseSpeedOf(profile);
 		const still = trimAt(0);
 		const fast = trimAt(V);
 		// Nose-down, unmistakably, and still leaving most of the motor range to
@@ -575,7 +562,7 @@ console.log('\n5. what the pilot actually sees');
 		const profile = PROFILES[fam];
 		const hover = ((profile.mass * GRAVITY) / (4 * profile.maxThrustPerMotor)) ** (1 / (2 * profile.rpmCurve));
 		// What stick holds the same total thrust at 20 m/s? Bisect on the model.
-		const V = cruiseSpeed(profile);
+		const V = cruiseSpeedOf(profile);
 		const totalAt = (stick, v) => settle(profile, flat(stick), air({ z: -v })).force.y;
 		const want = totalAt(hover, 0);
 		let lo = 0, hi = hover;

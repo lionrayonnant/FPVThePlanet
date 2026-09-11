@@ -218,6 +218,23 @@ export function rotorPlaneYOf(profile = QUAD) {
 	return ROTOR_PLANE_RATIO * profile.propRadius;
 }
 
+// The speed an airframe settles at when it is actually being flown: where the
+// drag of a 35-degree nose-down attitude balances what it can push through the
+// air. Derived rather than picked, so a bench that wants to ask a family about
+// forward flight asks it about ITS forward flight and not a 5-inch's.
+//
+//   4*kLateral*w_hover*V + 0.5*rho*bodyDrag.z*V^2 = m*g*tan(35 deg)
+//
+// Rotor drag is linear in V and body drag quadratic, hence the quadratic; the
+// positive root is the only physical one.
+export function cruiseSpeedOf(profile = QUAD) {
+	const wHover = Math.sqrt((profile.mass * GRAVITY) / 4 / kThrustOf(profile));
+	const a = 0.5 * AIR_DENSITY * profile.bodyDrag.z;
+	const b = 4 * kLateralOf(profile) * wHover;
+	const c = -profile.mass * GRAVITY * Math.tan((35 * Math.PI) / 180);
+	return (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+}
+
 // Ground-effect reach as a multiple of propRadius, fixed to reproduce
 // freestyle5's measured 0.22 m reach on its 0.0635 m prop exactly, so every
 // other family's reach scales off its own disk instead of freestyle5's.
