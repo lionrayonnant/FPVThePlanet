@@ -11,7 +11,8 @@
 //
 // Contrat d'une primitive de rituel (PHASE 10) : draw(el, { t: number, seed: number, dur?: number }).
 // Même toolkit ASCII, pas de `lock` — la couleur (cyan/magenta/violet/bleu
-// électrique, Bible §19) est appliquée par le conteneur (src/intro.js), pas
+// électrique, Bible §19) est appliquée par le conteneur (src/culmination.js
+// ou src/intro.js), pas
 // par la primitive : le rendu reste du texte brut, une seule teinte à la fois.
 // `dur` (PHASE 20) est optionnel, défaut 4 — voir le contrat étendu plus bas.
 
@@ -22,7 +23,8 @@ const frame = (rows) => rows.map((r) => r.padEnd(W).slice(0, W)).join('\n');
 
 // Petit hash déterministe chaîne -> graine cosmétique [0,1) (varie le bruit
 // d'un vol à l'autre, ne révèle jamais la famille au joueur). Partagé par
-// hack.js (motif d'analyse) et intro.js (primitives de culmination, PHASE 10).
+// hack.js (motif d'analyse), culmination.js et intro.js (primitives de
+// culmination, PHASE 10).
 export function cosmeticSeed(str) {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < String(str).length; i++) {
@@ -300,17 +302,18 @@ export const GRAMMARS = {
 };
 
 // ============================================================================
-// Primitives de culmination du rituel (PHASE 10, Bible §18-19 ; PHASE 20,
-// Bible §40), rejouées par le cracktro de lancement (src/intro.js) : les 11
-// en boucle, dans l'ordre, à cadence fixe (BEAT_MS dans src/intro.js) — pas
-// 24+ animations écrites à la main.
+// Culmination primitives (PHASE 10, Bible §18-19; PHASE 20, Bible §40). 11
+// composable blocks with two call sites: the hack culmination
+// (src/culmination.js), where the family picks a weighted subset
+// (FAMILY_PRIMITIVES below), and the launch cracktro (src/intro.js), which
+// runs all 11 in order at a fixed cadence — not 24+ hand-written animations.
 //
-// Contrat étendu (PHASE 20) : draw(el, { t: number, seed: number, dur?: number = 4 }).
-// `dur` est la fenêtre visible d'un battement en secondes (aujourd'hui
-// toujours 0,5 s, BEAT_MS dans src/intro.js), pas la durée totale de la
-// culmination — seules les primitives dont le cycle interne dépasserait
-// cette fenêtre en tiennent compte (pulseRing, vectorSweep) ; les autres
-// l'ignorent sans casser.
+// Extended contract (PHASE 20): draw(el, { t: number, seed: number, dur?: number = 4 }).
+// `dur` is the visible window of ONE beat in seconds (`variant.ms /
+// variant.beats` in src/culmination.js, BEAT_MS in src/intro.js), not the
+// whole culmination — only the primitives whose internal cycle would outrun
+// that window use it (pulseRing, vectorSweep); the others ignore it without
+// breaking.
 
 // Vocabulaire d'ambiance déjà en liste blanche (hack-model.mjs) : réutilisé
 // tel quel, aucun nouveau mot de "procédure" n'est introduit ici.
@@ -502,4 +505,17 @@ export const RITUAL_PRIMITIVES = {
 	scanBurst, glitchShift, pulseRing, gridSwarm,
 	waveformSpike, vectorSweep, memoryScroll, chromaSplit,
 	colorFlash, textWarp, bannerBurst,
+};
+
+// 2-4 primitives weighted per family: the same 11 functions for all of them,
+// only the subset + the order change (a grammar, not dozens of hand-written
+// sequences). A missing family would fall back to a generic pair — in practice
+// HACK_TYPES (6) covers every entry, checked by culmination-selftest.mjs.
+export const FAMILY_PRIMITIVES = {
+	'COMMAND INJECTION': ['scanBurst', 'gridSwarm', 'glitchShift', 'colorFlash'],
+	'LINK HIJACK': ['pulseRing', 'waveformSpike', 'colorFlash'],
+	'TELEMETRY SPOOF': ['waveformSpike', 'chromaSplit', 'textWarp'],
+	'GNSS SPOOF': ['vectorSweep', 'chromaSplit', 'bannerBurst'],
+	'NETWORK TAKEOVER': ['gridSwarm', 'pulseRing', 'bannerBurst'],
+	'FIRMWARE OVERRIDE': ['memoryScroll', 'scanBurst', 'textWarp'],
 };

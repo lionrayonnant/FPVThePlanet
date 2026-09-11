@@ -1,8 +1,8 @@
-// Selftest des primitives demo scene (PHASE 20). Elles ont été écrites pour le
-// rituel CONTROL VECTOR, retiré du jeu (#33) ; src/intro.js les exécute encore
-// à CHAQUE lancement, et ce fichier est le seul endroit où leur contrat et leur
-// budget sont vérifiés. C'est la raison pour laquelle il a été renommé plutôt
-// que supprimé avec le rituel.
+// Selftest des primitives demo scene (PHASE 20). Elles ont deux sites d'appel :
+// src/intro.js, qui les exécute à CHAQUE lancement, et src/culmination.js, la
+// culmination du hack (#101). Ce fichier est le seul endroit où leur contrat et
+// leur budget sont vérifiés — la composition par famille, elle, est couverte
+// par tools/culmination-selftest.mjs.
 // Lancer : node tools/intro-primitives-selftest.mjs
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -43,13 +43,14 @@ t('primitives : dur absent → comportement par défaut (compat PHASE 10)', () =
 	}
 });
 
-// Le cracktro de lancement (issue #106) rejoue les mêmes primitives que le
-// rituel : c'est un événement au sens de la Bible §19, pas un écran quotidien.
+// Le cracktro de lancement (issue #106) rejoue les mêmes primitives que la
+// culmination : c'est un événement au sens de la Bible §19, pas un écran
+// quotidien.
 // Le garde-fou n'avait pas été élargi quand la PR #118 a été mergée, et il
 // échouait donc sur `main` avant la PHASE 19.
-const EVENT_MODULES = new Set(['hack-grammars.js', 'intro.js']);
+const EVENT_MODULES = new Set(['hack-grammars.js', 'intro.js', 'culmination.js']);
 
-t('acceptation #57 : aucune primitive demo scene hors événement (grammars et intro seuls)', () => {
+t('acceptation #57 : aucune primitive demo scene hors événement (grammars, culmination, intro)', () => {
 	const dir = new URL('../src/', import.meta.url);
 	for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
 		if (EVENT_MODULES.has(f)) continue;

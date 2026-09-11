@@ -27,10 +27,11 @@ const GAME = read('src/style.css');
 const MAPGUI = read('tools/map-gui/style.css');
 
 // Les couleurs demo (Bible §19), et les seuls endroits qui ont le droit d'y
-// toucher : le rituel et l'intro. Le hack, lui, reste en monochrome — c'est le
-// rituel qui explose, pas l'analyse qui le précède.
+// toucher : la culmination du hack (#101) et l'intro. Le reste du hack, lui,
+// reste en monochrome — c'est la culmination qui explose, pas l'analyse qui la
+// précède.
 const DEMO_TOKENS = ['--cyan', '--magenta', '--violet', '--electric'];
-const EVENT_SELECTORS = ['.intro'];
+const EVENT_SELECTORS = ['.intro', '.culmination'];
 
 // Découpe grossière mais suffisante : une règle = ce qui précède `{`, une fois
 // les commentaires retirés. Les blocs @media/@keyframes laissent leur préambule
@@ -125,7 +126,7 @@ t('tout var(--…) référencé par les feuilles est défini dans tokens.css', (
 
 // ------------------------------------------------- la ségrégation de la demo
 
-t('la palette demo ne sort que sur le rituel et l\'intro', () => {
+t('la palette demo ne sort que sur la culmination et l\'intro', () => {
 	for (const { selector, body } of rules(GAME)) {
 		const used = DEMO_TOKENS.filter((tk) => body.includes(`var(${tk})`));
 		if (!used.length) continue;

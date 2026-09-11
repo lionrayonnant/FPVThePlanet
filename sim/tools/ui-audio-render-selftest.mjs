@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { fakeAudioContext, reaches } from './lib/fake-audio-ctx.mjs';
 import * as bus from '../src/audio-bus.js';
-import { UI_EVENTS, BOOT_SIGNATURE, INTRO_SCORE, INTRO_SCORE_MS } from './ui-audio-model.mjs';
+import { UI_EVENTS, BOOT_SIGNATURE, INTRO_SCORE, INTRO_SCORE_MS, scoreFor } from './ui-audio-model.mjs';
 import { HACK_TYPES } from './target-model.mjs';
 import { UiAudio } from '../src/ui-audio.js';
 
@@ -79,6 +79,46 @@ t('BOOT : cinq notes, aux instants de BOOT_SIGNATURE', () => {
 		assert.ok(Math.abs(starts[i] - (10 + note.atMs / 1000)) < 1e-6,
 			`note ${i} : ${starts[i]} au lieu de ${10 + note.atMs / 1000}`);
 	});
+});
+
+// --- culmination (#101) -------------------------------------------------------
+
+t('playCulmination : un départ par événement de la partition, aux bons instants', () => {
+	for (const family of HACK_TYPES) {
+		for (const ms of [1000, 2000, 3000, 4000]) {
+			const { ctx, ui } = fresh();
+			ctx.currentTime = 5;
+			ui.playCulmination(family, ms);
+			const score = scoreFor(family, ms);
+			const starts = audibleStarts(ctx);
+			assert.equal(starts.length, score.length, `${family}/${ms}`);
+			score.map((e) => 5 + e.atMs / 1000).sort((a, b) => a - b).forEach((want, i) => {
+				assert.ok(Math.abs(starts[i] - want) < 1e-6, `${family}/${ms} événement ${i}`);
+			});
+		}
+	}
+});
+
+t('playCulmination : tout est programmé d\'un coup, sur l\'horloge audio', () => {
+	// Une culmination de 1 à 4 s doit rester juste même si une frame saute
+	// pendant que la carte finit de charger : rien ne doit dépendre d'un timer.
+	const { ctx, ui } = fresh();
+	ui.playCulmination('NETWORK TAKEOVER', 4000);
+	const starts = audibleStarts(ctx);
+	assert.ok(Math.max(...starts) - Math.min(...starts) > 3.5,
+		'la partition n\'est pas étalée sur toute la variante');
+});
+
+t('playCulmination : famille inconnue → silence, pas de plantage', () => {
+	const { ctx, ui } = fresh();
+	ui.playCulmination('PAS UNE FAMILLE', 2000);
+	assert.equal(sources(ctx).length, 0);
+});
+
+t('playCulmination : sans Web Audio, silencieux et sans exception', () => {
+	bus._reset();
+	bus._setContextFactory(() => null);
+	assert.doesNotThrow(() => new UiAudio().playCulmination('LINK HIJACK', 2000));
 });
 
 // --- intro (issue #106) -------------------------------------------------------

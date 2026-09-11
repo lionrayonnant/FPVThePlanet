@@ -112,7 +112,7 @@ verrouillage long 200 px. Sous 16 px le cadre se referme visuellement : utiliser
 la version en réserve (plaque pleine, motif creusé).
 
 **Interdits :** pas de couleur d'état ni de couleur demo sur la marque, y
-compris pendant un rituel — le cyan et le magenta appartiennent à l'écran, pas
+compris pendant une culmination — le cyan et le magenta appartiennent à l’écran, pas
 au logo (Bible §19). Pas de rotation, pas de contour, pas d'ombre, pas de motif
 substitué.
 

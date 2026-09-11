@@ -9,7 +9,7 @@
 // Aucune voix, aucun narrateur, aucune commande vocale (Bible §37).
 import { ensureContext, context, uiIn } from './audio-bus.js';
 import {
-	UI_EVENTS, BOOT_SIGNATURE,
+	UI_EVENTS, BOOT_SIGNATURE, scoreFor,
 	INTRO_SCORE, INTRO_SCORE_MS,
 } from '../tools/ui-audio-model.mjs';
 
@@ -24,6 +24,7 @@ const LEVEL = {
 	boot: 0.30,
 	system: 0.22,
 	link: 0.26,
+	culmination: 0.34,
 	intro: 0.28,        // la partition du cracktro : elle accompagne, elle ne culmine pas
 	carrier: 0.06,      // un lit, pas un événement
 };
@@ -276,10 +277,25 @@ export class UiAudio {
 	}
 
 
+	// --- culmination (#101) ---------------------------------------------------
+
+	// Scheduled IN ONE GO on the AudioContext clock, never on
+	// requestAnimationFrame: a one-to-four-second culmination has to stay
+	// rhythmically right even if a frame is dropped while the map finishes
+	// loading.
+	playCulmination(hackType, variantMs) {
+		const ctx = ensureContext();
+		if (!ctx) return;
+		const t0 = ctx.currentTime;
+		for (const ev of scoreFor(hackType, variantMs)) {
+			this._voice(ctx, ev, t0 + ev.atMs / 1000, LEVEL.culmination);
+		}
+	}
+
 	// --- intro (issue #106) --------------------------------------------------
 
-	// Programmée D'UN COUP sur l'horloge de l'AudioContext : la partition ne
-	// doit pas dépendre du rAF qui anime
+	// Programmée D'UN COUP sur l'horloge de l'AudioContext, même raison que
+	// playCulmination() : la partition ne doit pas dépendre du rAF qui anime
 	// l'écran, que le chargement du cracktro peut faire sauter.
 	//
 	// INTRO_SCORE ET la résolution (BOOT_SIGNATURE, à INTRO_SCORE_MS) passent

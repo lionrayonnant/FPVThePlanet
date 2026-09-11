@@ -655,8 +655,9 @@ MANUAL OVERRIDE
 JACK IN
 ```
 
-*(mis à jour, PHASE 10 : `CONTROL VECTOR` et `RITUAL` retirés du pipeline,
-issue #33 — `MANUAL OVERRIDE` mène directement à `JACK IN`.)*
+*(mis à jour, PHASE 10 : `CONTROL VECTOR` retiré du pipeline, issue #33 —
+`MANUAL OVERRIDE` mène directement à `JACK IN`. La culmination qui suit le
+geste est revenue, issue #101.)*
 
 ---
 
@@ -717,7 +718,22 @@ entrées, `UI_FAMILY` : `SYSTEM`/`LINK`) ; le bloc CSS `.ritual*` disparaît.
 Les grammaires visuelles par famille de hack (PHASE 9) restent : c'est
 `AUTOMATED ANALYSIS` qui identifie la cible à l'écran, pas le geste retiré ici.
 Les quatre couleurs demo scene (cyan/magenta/violet/bleu électrique) restent
-dans le jeu, mais n'ont plus qu'un porteur : l'intro (Bible §19).
+dans le jeu.
+
+### Révision du 2026-09-12 (issue #101) — la culmination revient
+
+Le retrait a emporté deux choses là où une seule posait problème : la SAISIE du
+vecteur, et la culmination qu'elle ouvrait. `[ JACK IN ]` coupait dès lors droit
+au résultat, et le geste ne tombait plus sur rien.
+
+La culmination revient seule, sur son propre écran entre l'invite et le
+résultat : `src/culmination.js`, une à quatre secondes (variante V1–V4,
+`tools/culmination-model.mjs`), les primitives pondérées par famille
+(`FAMILY_PRIMITIVES`) et la signature sonore par famille
+(`CULMINATION_SCORES`, `scoreFor`, `uiAudio.playCulmination()`). Elle démarre
+seule et se résout seule : rien à taper, Échap saute le battement. La saisie du
+vecteur, elle, ne revient pas — c'est elle, et elle seule, qui bloquait le
+joueur. Les couleurs demo scene ont donc deux porteurs (Bible §19), pas un.
 
 ---
 
@@ -838,7 +854,8 @@ Cela fait partie de l'esthétique.
 
 Rendre l'entrée dans le drone physiquement immédiate.
 
-Après `[ JACK IN ]` *(PHASE 10 : plus de rituel entre le hack et le vol)* :
+Après `[ JACK IN ]` *(PHASE 10 : plus de saisie de vecteur entre le hack et le
+vol ; #101 : la culmination, elle, tient toujours la seconde qui suit le geste)* :
 
 ```text
 CONTROL ACQUIRED
@@ -1109,12 +1126,15 @@ tututuuut tuuuuu-tuu
 
 uniquement comme signature de boot / démarrage.
 
-### Rituals *(retiré, PHASE 10 — issue #33)*
+### Culmination *(rétablie, issue #101)*
 
-Cette sous-section décrivait une signature sonore IDM / demo scene par hack,
-avec des variantes V1–V4. Le rituel qui la portait est retiré ; le hack n'a
-plus de vocabulaire sonore propre (`SYSTEM`/`LINK` seulement, Bible §34), et
-l'esthétique IDM / demo scene ne joue plus qu'à l'intro (PHASE 20).
+Une signature sonore IDM / demo scene par hack, avec des variantes V1–V4.
+Retirée en même temps que la saisie du CONTROL VECTOR (PHASE 10), elle est
+revenue sur son propre écran : `CULMINATION_SCORES` dans
+`tools/ui-audio-model.mjs`, jouée par `uiAudio.playCulmination()` d'un coup sur
+l'horloge audio. Elle ne passe PAS par le vocabulaire clos `UI_EVENTS`
+(`SYSTEM`/`LINK` seulement, Bible §34) : ce n'est pas un accusé de réception,
+c'est une partition.
 
 ---
 
@@ -1211,10 +1231,10 @@ color flashes
 text deformation
 ```
 
-Ces primitives composaient les rituels d'acquisition ; depuis leur retrait
-(PHASE 10), `src/intro.js` reste leur seul consommateur, à chaque lancement du
-jeu (`tools/intro-primitives-selftest.mjs`, renommé du `ritual-selftest.mjs`
-d'origine).
+Ces primitives ont deux consommateurs : `src/intro.js`, à chaque lancement du
+jeu, et `src/culmination.js`, à chaque acquisition (#101). Leur contrat et leur
+budget sont tenus par `tools/intro-primitives-selftest.mjs` ; la composition par
+famille, par `tools/culmination-selftest.mjs`.
 
 ---
 

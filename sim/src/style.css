@@ -1401,10 +1401,68 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	color: var(--warm-white);
 }
 
+/* ---------- Hack culmination (PHASE 10, restored #101) ----------
+   Cyan/magenta/violet/electric blue: reserved for this moment and for the
+   launch cracktro (Bible §19, "one to four seconds of madness, then back to
+   calm"). Nowhere else in the game — no permanent glow (DA §46). Full
+   viewport, breaking out of the terminal frame behind it: a real event, not
+   one more screen in the same box (user feedback PR #80). */
+.culmination {
+	position: fixed; inset: 0;
+	z-index: 12; /* above .bootstrap/.hack (11) */
+	display: flex; align-items: center; justify-content: center;
+	background: var(--black);
+	overflow: hidden;
+	text-align: center;
+}
+/* A 44×12 character grid scaled to the viewport rather than to the surrounding
+   text: at this size the pattern deliberately overflows the edges — that is
+   what has to feel like an explosion crossing the screen. */
+.culmination-burst {
+	position: absolute; inset: 0; z-index: 1;
+	display: flex; align-items: center; justify-content: center;
+	font-family: var(--font-ascii);
+	line-height: 1.02;
+	white-space: pre;
+	font-size: clamp(22px, 4.2vw, 77px);
+}
+.culmination-burst--cyan { color: var(--cyan); }
+.culmination-burst--magenta { color: var(--magenta); }
+.culmination-burst--violet { color: var(--violet); }
+.culmination-burst--blue { color: var(--electric); }
+
+/* A halo breathing through the culmination: atmosphere, not information. */
+.culmination::after {
+	content: '';
+	position: absolute; inset: -20%;
+	background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .1), transparent 60%); /* palette-ok: the culmination's light halo, not an interface tint */
+	animation: culmination-pulse .9s ease-in-out infinite;
+	pointer-events: none;
+}
+@keyframes culmination-pulse {
+	0%, 100% { opacity: .35; transform: scale(1); }
+	50% { opacity: .85; transform: scale(1.08); }
+}
+
+/* One hit per beat: the culmination has to strike the screen, not just change
+   the pattern on it. */
+@keyframes culmination-boom {
+	0% { transform: scale(1.09); filter: brightness(1.9) saturate(1.5); }
+	100% { transform: scale(1); filter: brightness(1) saturate(1); }
+}
+.culmination-boom { animation: culmination-boom .16s ease-out; }
+
+/* Reduced motion keeps the event, drops the strobe: one pattern, a steady
+   halo, no hit. src/culmination.js collapses it to a single beat on its side. */
+@media (prefers-reduced-motion: reduce) {
+	.culmination::after { animation: none; opacity: .5; }
+	.culmination-boom { animation: none; }
+}
+
 /* ---------- Intro demoscene au lancement (issue #106) ----------
    PRESS ANY KEY est calme, même grammaire que .bootstrap : pas de couleur,
    juste un clignotement discret pour lire comme une invite plutôt qu'un texte
-   figé. Le cracktro qui suit est, depuis le retrait du rituel (#33), le SEUL
+   figé. Le cracktro qui suit est, avec la culmination du hack (#101), le seul
    endroit du jeu où la palette cyan/magenta/violet/bleu électrique apparaît
    (Bible §19) — réservée aux moments spectaculaires, jamais en continu
    (DA §46). z-index
@@ -1513,8 +1571,9 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	to { transform: translateX(-100%); }
 }
 
-/* Grille ASCII des primitives de rituel (hack-grammars.js), réemployées telles
-   quelles pour le plasma/raster de la phase plasma — même idiome que les burst du rituel, retiré depuis (#33). */
+/* Grille ASCII des primitives de culmination (hack-grammars.js), réemployées
+   telles quelles pour le plasma/raster de la phase plasma — même idiome que
+   .culmination-burst. */
 .intro-burst {
 	position: absolute; inset: 0; z-index: 1;
 	display: flex; align-items: center; justify-content: center;
