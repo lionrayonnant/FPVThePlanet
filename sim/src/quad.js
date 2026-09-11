@@ -107,7 +107,7 @@ function diskAreaOf(profile) {
 // in `inflowGain`/`buffetGain` — that missing correction, and nobody knowing
 // how much more of it a ~34 g/~20 mm-prop craft would need, is why the
 // prototyped 1S tinywhoop was pulled from PHASE 07.
-const INFLOW_K0 = 0.169;
+export const INFLOW_K0 = 0.169;
 const BUFFET_K0 = INFLOW_K0;
 
 // kLateral (rotor/body drag -> yaw damping) is one job, not two, and its own
@@ -135,6 +135,104 @@ export const PROPWASH_TORQUE_FRAC = 0.402;
 
 export function kLateralOf(profile = QUAD) {
 	return LATERAL_K0 * diskAreaOf(profile) * (profile.lateralGain ?? 1);
+}
+
+// Hover induced velocity per unit rpm: vh = omega * sqrt(kThrust / (2*rho*A)),
+// straight out of momentum theory (T = 2*rho*A*vh^2 with T = kThrust*omega^2).
+// Precomputed once per airframe; it is the only scale the inflow below needs.
+export function vhPerOmegaOf(profile = QUAD) {
+	return Math.sqrt(kThrustOf(profile) / (2 * AIR_DENSITY * diskAreaOf(profile)));
+}
+
+// Glauert's induced velocity for a rotor in EDGEWISE flight, in closed form.
+//
+// The disc equation v_i * sqrt(Vx^2 + v_i^2) = vh^2 is a quadratic in v_i^2, so
+// there is no reason to iterate for it — and every reason not to, at 250 Hz.
+// Solving x*(Vx^2 + x) = vh^4 for x = v_i^2 and taking the positive root gives
+//   v_i = sqrt( (sqrt(Vx^4 + 4*vh^4) - Vx^2) / 2 )
+// which loses all its significant digits once Vx >> vh, precisely the fast
+// forward flight this was added for. The conjugate form below is algebraically
+// identical and numerically stable everywhere:
+//   v_i = vh^2 * sqrt( 2 / (sqrt(Vx^4 + 4*vh^4) + Vx^2) )
+//
+// `vEdge2` is the SQUARED edgewise speed, because that is what the caller
+// already has and squaring it back would only cost accuracy.
+export function inducedVelocity(vh, vEdge2) {
+	if (vh <= 0) return 0;
+	// Hover and pure vertical flight are the common case AND the one that has to
+	// come back unchanged to the last bit: the formula below does return vh
+	// there, but only after a square root and a divide that cost it an ulp. Say
+	// it exactly instead. Anything that used to hover still hovers identically.
+	if (vEdge2 <= 0) return vh;
+	const vh2 = vh * vh;
+	return vh2 * Math.sqrt(2 / (Math.sqrt(vEdge2 * vEdge2 + 4 * vh2 * vh2) + vEdge2));
+}
+
+// Flapback, in two parts, and a note on what is NOT here.
+//
+// A rotor in edgewise flight develops an in-plane force as well as a thrust,
+// and the disc tilts back, tilting the thrust with it. Both of those are
+// ALREADY in this file: with a flapping angle proportional to the advance ratio
+// mu = V/(wR), the in-plane component of a tilted thrust works out as
+// (k*kThrust/R)*w*V — the same shape as the rotor drag `kLateral*w*v` below,
+// which was fitted to observed behaviour and therefore contains them lumped
+// together. Adding a flapback FORCE would be that coefficient counted twice.
+//
+// What is missing is the MOMENT, and it comes from two places.
+//
+// One: the hub moment. On a rigid propeller the blade root cannot flap away the
+// once-per-revolution lift dissymmetry of edgewise flight, so it hands it to
+// the hub. Blade element, uniform inflow, first order in mu, summed over the
+// blades and then normalised by the same theory's thrust — rho, chord, lift
+// slope and the BLADE COUNT all cancel, which is worth saying because the
+// question of why bladeCount never reaches the physics keeps coming back:
+//
+//   M_hub = FLAP_K * T * V_edge / w,     FLAP_K = (theta/3 - lambda/4)
+//                                                 / (theta/3 - lambda/2)
+//
+// evaluated on the real props: 5x4.3 gives 1.314, 5x4.9 gives 1.256, 7x4 gives
+// 1.307. Four percent apart, so one global constant anchored on the reference
+// build, exactly as INFLOW_K0 and GROUND_EFFECT_REACH_RATIO are.
+export const FLAP_K = 1.31;
+
+// The derivation is first order in mu, so it is clamped there. Normal flight
+// sits at mu 0.13 to 0.25; this only bites in a low-rpm dive, where the
+// linearisation had stopped meaning anything anyway.
+const FLAP_MU_MAX = 0.5;
+
+// Two: the moment arm the in-plane forces never had. The rotor hubs sit at
+// (armX, 0, armZ) — in the plane of the centre of mass — so the rotor drag has
+// only ever produced the yaw moment in step(), and no pitch or roll at all. But
+// the discs are above the body: src/drone-shape.js draws them at 20 mm, and the
+// Rapier body's centre of mass IS the body centre (no offset, see physics.js).
+//
+// That 20 mm is the reference build's. A toothpick with 38 mm arms does not
+// carry its props two centimetres up, so scale it off the disc — anchored so
+// freestyle5 reproduces exactly the height it is drawn at. Thrust moments are
+// untouched by construction: a force along body +Y has no moment about a lever
+// that is itself along +Y.
+export const ROTOR_PLANE_Y_REF = 0.020;
+const ROTOR_PLANE_RATIO = ROTOR_PLANE_Y_REF / 0.0635;
+
+export function rotorPlaneYOf(profile = QUAD) {
+	return ROTOR_PLANE_RATIO * profile.propRadius;
+}
+
+// The speed an airframe settles at when it is actually being flown: where the
+// drag of a 35-degree nose-down attitude balances what it can push through the
+// air. Derived rather than picked, so a bench that wants to ask a family about
+// forward flight asks it about ITS forward flight and not a 5-inch's.
+//
+//   4*kLateral*w_hover*V + 0.5*rho*bodyDrag.z*V^2 = m*g*tan(35 deg)
+//
+// Rotor drag is linear in V and body drag quadratic, hence the quadratic; the
+// positive root is the only physical one.
+export function cruiseSpeedOf(profile = QUAD) {
+	const wHover = Math.sqrt((profile.mass * GRAVITY) / 4 / kThrustOf(profile));
+	const a = 0.5 * AIR_DENSITY * profile.bodyDrag.z;
+	const b = 4 * kLateralOf(profile) * wHover;
+	const c = -profile.mass * GRAVITY * Math.tan((35 * Math.PI) / 180);
+	return (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
 }
 
 // Ground-effect reach as a multiple of propRadius, fixed to reproduce
@@ -222,12 +320,18 @@ export class Propulsion {
 		this._kInflow = kInflowOf(profile);
 		this._kBuffet = kBuffetOf(profile);
 		this._kLateral = kLateralOf(profile);
+		this._vhPerOmega = vhPerOmegaOf(profile);
+		this._rotorY = rotorPlaneYOf(profile);
 		this.seed = seed >>> 0;
 		this._rng = mulberry32(this.seed);
 		this.battery = new Battery(profile.battery);
 		this.omega = [0, 0, 0, 0];
 		this.thrust = [0, 0, 0, 0];
 		this.propwash = 0;
+		// Net rotor angular momentum about body +Y, N.m.s. Read by the tests and
+		// worth having by name: it is zero for every symmetric stick input and
+		// only wakes up under yaw or motor saturation.
+		this.hRotor = 0;
 		// Band-limited noise for the two things that shake the airframe without
 		// the pilot asking: its own downwash, and the air it is flying through.
 		// The wind that produces the second one is not modelled here — quad.js
@@ -244,6 +348,7 @@ export class Propulsion {
 		this.omega.fill(0);
 		this.thrust.fill(0);
 		this.propwash = 0;
+		this.hRotor = 0;
 		// Filter state and the noise stream too: without this a respawn lands in
 		// the middle of whatever the airframe was doing when it hit the ground,
 		// and no two runs of the same test are comparable.
@@ -308,6 +413,8 @@ export class Propulsion {
 		let load = 0, thrustTotal = 0;
 		let tx = 0, ty = 0, tz = 0;
 		let dragX = 0, dragZ = 0;
+		// Net angular momentum of the four spinning rotors, about body +Y.
+		let hRotor = 0;
 
 		for (let i = 0; i < 4; i++) {
 			const m = this._motors[i];
@@ -332,10 +439,35 @@ export class Propulsion {
 			const w = this.omega[i];
 			const dOmega = (w - prev) / dt;
 
-			// Thrust: static term minus what the axial inflow takes away. Clamped
-			// at zero rather than allowed to go negative — a prop windmilling
+			// Thrust: static term minus what the inflow takes away. Clamped at
+			// zero rather than allowed to go negative — a prop windmilling
 			// backwards is outside anything this model claims to cover.
-			let t = this._kThrust * w * w - this._kInflow * w * vy;
+			//
+			// `dw` is the flow through the disc in excess of what a hover already
+			// has, and it carries BOTH the axial term this model always had and
+			// the edgewise one it never did. Writing it as one quantity is the
+			// whole point: kInflow IS the actuator-disc inflow slope, so a second
+			// coefficient for forward flight would be the same mechanism measured
+			// twice — the mistake `kAxial` already made once (issue #71).
+			//
+			// The factor 2 is what makes this a generalisation rather than an
+			// addition. In pure axial flight the exact momentum-theory solution
+			//   v_i = -Vc/2 + sqrt(Vc^2/4 + vh^2)
+			// puts the disc-normal flow at vh + Vc/2 to first order, i.e. an
+			// excess of Vc/2 over hover — so the term this file has always
+			// applied, -kInflow*w*Vc, is exactly -kInflow*w*(2 * excess). Keep
+			// that 2 and the axial branch comes back bit for bit while the
+			// edgewise branch falls out for free.
+			//
+			// DESCENT IS DELIBERATELY LEFT ALONE. Between -2*vh and 0 the
+			// momentum theory has no solution at all — that is the vortex ring
+			// state — and this file already models that regime empirically, as
+			// `propwash` above. The separable form below only ever adds the
+			// edgewise term, which is the one that was missing.
+			const vh = w * this._vhPerOmega;
+			const vEdge2 = vx * vx + vz * vz;
+			const dw = vy + 2 * (inducedVelocity(vh, vEdge2) - vh);
+			let t = this._kThrust * w * w - this._kInflow * w * dw;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
@@ -363,8 +495,71 @@ export class Propulsion {
 			dragZ += dz;
 			ty += m.z * dx - m.x * dz;
 
+			// ...and the rest of that same cross product, which this file never
+			// took: the rotor sits at (m.x, h, m.z), not (m.x, 0, m.z). With
+			// r = (m.x, h, m.z) and F = (dx, 0, dz), the y component is the yaw
+			// moment just above and the other two are these. The thrust moments
+			// higher up are untouched — r_y is parallel to the thrust, so it has
+			// no lever on it.
+			tx += this._rotorY * dz;
+			tz -= this._rotorY * dx;
+
+			// The rigid-prop hub moment. Same direction as the pair above — the
+			// rotor group pushing back, above the centre of mass — so both are
+			// M = k * (v_edge x yHat), and (vx, 0, vz) x (0, 1, 0) = (-vz, 0, vx).
+			// Check the sign the way the axis convention demands: flying forward
+			// is vz < 0, so -vz > 0, so tx > 0, which is nose up. Moving right is
+			// vx > 0, so tz > 0, which is roll left — away from the relative wind.
+			//
+			// Written as a magnitude over the edgewise speed rather than the
+			// obvious mu * t * R, so that the clamp stays exact and there is no
+			// second divide by w.
+			const wR = w * P.propRadius;
+			const vEdge = Math.sqrt(vEdge2);
+			if (vEdge > 1e-9 && wR > 1e-6) {
+				const mu = Math.min(FLAP_MU_MAX, vEdge / wR);
+				const scale = (FLAP_K * mu * t * P.propRadius) / vEdge;
+				tx += scale * -vz;
+				tz += scale * vx;
+			}
+
+			hRotor += m.spin * P.propInertia * w;
 			load += (w / P.maxOmega) ** 3;
 		}
+
+		// Gyroscopic precession of the rotor group. The rotors carry angular
+		// momentum H about body +Y, and in a rotating frame that costs a torque
+		// -omega x H — tilt a spinning disc and it pushes back ninety degrees
+		// round.
+		//
+		// This is NOT the propInertia term already in the yaw sum above. Writing
+		// the rotor contribution to dL/dt in the body frame gives two pieces:
+		// dH/dt, the reaction to spinning a prop up, which is that yaw term; and
+		// omega x H, the precession, which is this one. Complementary, not
+		// redundant — one needs the rpm to be CHANGING, the other only needs it
+		// to be nonzero.
+		//
+		//   -omega x (0, H, 0) = (H*omega.z, 0, -H*omega.x)
+		//
+		// so it is pure roll<->pitch and touches yaw not at all, which it must
+		// not, H being along Y.
+		//
+		// Worth knowing what this does and does not produce. On a symmetric X,
+		// sum(spin_i * omega_i) is EXACTLY zero for a pure roll command and for
+		// a pure pitch command, whatever the rpm curve: the two motors handed
+		// +delta carry opposite spins, and so do the two handed -delta. H is
+		// nonzero only under yaw, under motor saturation, and for a drawn
+		// specimen whose props do not match. So what this adds is precisely what
+		// a pilot reports: yaw while rolling and the nose moves.
+		//
+		// It cannot destabilise anything by adding energy — tau . omega =
+		// -(omega x H) . omega is identically zero, so the term does no work.
+		// What it can do is be integrated badly: an explicit step amplifies a
+		// rotation at H/sqrt(Ix*Iz) by sqrt(1 + (rate*dt)^2) per step. That
+		// product is checked per family in tools/aero-selftest.mjs.
+		this.hRotor = hRotor;
+		tx += hRotor * omega.z;
+		tz -= hRotor * omega.x;
 
 		bat.update(load, dt);
 

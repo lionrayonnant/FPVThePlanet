@@ -34,7 +34,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { Propulsion } from '../src/quad.js';
+import { Propulsion, cruiseSpeedOf } from '../src/quad.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS, setGains } from '../src/flightController.js';
 
@@ -42,6 +42,20 @@ const ZERO = { x: 0, y: 0, z: 0 };
 // Set BENCH_OMEGA=0 to bench the airframe without the per-motor inflow damping,
 // which is how its cost was measured against the old model.
 const BENCH_OMEGA = process.env.BENCH_OMEGA !== '0';
+
+// The bench holds the quad in still air by default, which is the right plant
+// for a rate loop and is why every number it prints is comparable back to the
+// day it was written. It is ALSO why it is blind to everything issue #91 added:
+// translational lift and flapback are identically zero at zero airspeed, and
+// precession contributes nothing either, since on a symmetric X the net rotor
+// momentum is exactly zero under a pure roll or pitch command and a yaw command
+// spins the body about the very axis the momentum lies along.
+//
+// `--cruise` flies the bench forward at the family's own settling speed
+// instead, which is the only way a sweep can be asked whether the new
+// aerodynamics want a different tune. Off by default: turning it on changes
+// what "measured" means, so it has to be asked for.
+let CRUISE = false;
 
 const DT = 1 / 250;
 const DEG = Math.PI / 180;
@@ -57,10 +71,13 @@ const FULL_MIX = { roll: [1, 1, -1, -1], pitch: [-1, 1, -1, 1], yaw: [-1, 1, 1, 
 // { axis: {p, d} } applied on top of the family's tune, used by the sweep.
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
 
-function run({ profile, axis, seconds = 1.2, stick, throttle = 0.35, override }) {
+function run({ profile, axis, seconds = 1.2, stick, throttle = 0.35, override, cruise = CRUISE }) {
 	const fc = new FlightController({ profile });
 	if (override) for (const ax of AXES) if (override[ax]) setGains(fc.gains, ax, override[ax]);
 	const prop = new Propulsion({ profile });
+	// Body frame, forward is -Z. Zero unless --cruise, in which case the whole
+	// bench is identical to the one that has always been run.
+	const air = cruise ? { x: 0, y: 0, z: -cruiseSpeedOf(profile) } : ZERO;
 	const I = profile.inertia;
 	let w = { x: 0, y: 0, z: 0 };
 	const trace = [];
@@ -80,7 +97,7 @@ function run({ profile, axis, seconds = 1.2, stick, throttle = 0.35, override })
 		// reads orientation.
 		const state = { rotation: IDENTITY, angularVelocity: w, position: ZERO, velocity: ZERO };
 		const { motors } = fc.update(s, state, DT);
-		const { torque } = prop.step(motors, { v: ZERO, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
+		const { torque } = prop.step(motors, { v: air, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
 
 		// I*wdot = tau - w x (I*w)
 		const Iw = { x: I.x * w.x, y: I.y * w.y, z: I.z * w.z };
@@ -100,13 +117,13 @@ function run({ profile, axis, seconds = 1.2, stick, throttle = 0.35, override })
 	return trace;
 }
 
-function metrics(profile, axis, override) {
+function metrics(profile, axis, override, cruise = CRUISE) {
 	// Centre, then full stick for 0.6 s, then centre again. Starting at the stop
 	// would prime the RC smoothing filters to it on their first sample, so no
 	// smoothing — and therefore no feedforward — would ever happen and the bench
 	// would be measuring a controller nobody flies.
 	const preset = profile.rates;
-	const trace = run({ profile, axis, override, seconds: 1.4, stick: (t) => (t >= STEP_AT && t < STEP_AT + 0.6 ? 1 : 0) });
+	const trace = run({ profile, axis, override, cruise, seconds: 1.4, stick: (t) => (t >= STEP_AT && t < STEP_AT + 0.6 ? 1 : 0) });
 	const comp = AXIS_RATE[axis];
 	const target = RATE_PRESETS[preset][axis].max * DEG * SIGN[axis];
 	const rate = trace.map((s) => s.w[comp]);
@@ -267,15 +284,31 @@ function sweepAxis(profile, axis) {
 		? (micro ? [0, 0.0005, 0.0010, 0.0020, 0.0035, 0.0055, 0.0080] : [0, 0.0005, 0.0010, 0.0020])
 		: [0.0003, 0.0005, 0.0007, 0.0010, 0.0014, 0.0019];
 
+	// One regime or two. A tune that is excellent in a hover and rings at speed
+	// is not a better tune, it is a tune measured in one place — so under
+	// --cruise the cost a candidate is judged on is the WORST of the two
+	// regimes, not the cruise one. Optimising for cruise alone would just move
+	// the blind spot from one end of the envelope to the other.
+	const costOf = (m) => Math.max(0, m.rise - lim.rise * 0.75)
+		+ 4 * Math.max(0, m.overshoot - 6)
+		+ 0.25 * Math.max(0, m.settle - lim.settle * 0.6)
+		+ 0.5 * m.bounce;
+
 	const results = [];
 	for (const p of pRange) {
 		for (const d of dRange) {
-			const m = metrics(profile, axis, { [axis]: { p, d } });
-			const cost = Math.max(0, m.rise - lim.rise * 0.75)
-				+ 4 * Math.max(0, m.overshoot - 6)
-				+ 0.25 * Math.max(0, m.settle - lim.settle * 0.6)
-				+ 0.5 * m.bounce;
-			results.push({ p, d, ...m, cost });
+			const still = metrics(profile, axis, { [axis]: { p, d } }, false);
+			const costStill = costOf(still);
+			if (!CRUISE) {
+				results.push({ p, d, ...still, costStill, costCruise: null, cost: costStill });
+				continue;
+			}
+			const fast = metrics(profile, axis, { [axis]: { p, d } }, true);
+			const costCruise = costOf(fast);
+			// The reported metrics stay the still-air ones, so the table reads
+			// against every table this bench has ever printed; the two costs say
+			// what the extra regime found.
+			results.push({ p, d, ...still, costStill, costCruise, cost: Math.max(costStill, costCruise) });
 		}
 	}
 	results.sort((a, b) => a.cost - b.cost);
@@ -285,8 +318,16 @@ function sweepAxis(profile, axis) {
 	// preference will happily pick a fragile corner that "won" a flat cost
 	// landscape by a rounding error.
 	const minCost = results[0].cost;
-	const clean = results.filter((r) => r.cost <= minCost + 0.5 && r.overshoot <= 10 && r.settle <= lim.settle * 1.15 && r.rise <= lim.rise * 1.05);
-	const pool = clean.length ? clean : [results[0]];
+	const wellBehaved = (r) => r.overshoot <= 10 && r.settle <= lim.settle * 1.15 && r.rise <= lim.rise * 1.05;
+	const clean = results.filter((r) => r.cost <= minCost + 0.5 && wellBehaved(r));
+	// When nothing is both cheapest AND well-behaved, take the cheapest that is
+	// at least well-behaved, and only fall back to the raw winner when the grid
+	// holds nothing well-behaved at all. Dropping straight to results[0] here
+	// was how the two-regime cost handed longrange a pitch tune that overshot
+	// 11.6 % and rang for 138 ms: a cost can be lowest and still describe a
+	// tune nobody would fly.
+	const decent = results.filter(wellBehaved);
+	const pool = clean.length ? clean : (decent.length ? [decent[0]] : [results[0]]);
 	pool.sort((a, b) => a.p - b.p || a.d - b.d);
 	return { best: pool[0], results, lim, pRange, dRange };
 }
@@ -357,6 +398,10 @@ function writeFamily(family) {
 // ---------------------------------------------------------------------------
 
 const argv = process.argv.slice(2);
+CRUISE = argv.includes('--cruise');
+if (CRUISE) {
+	console.log('--cruise: the bench flies forward at each family\'s own settling speed');
+}
 
 if (argv.includes('--write')) {
 	const which = argv[argv.indexOf('--write') + 1];
@@ -368,15 +413,16 @@ if (argv.includes('--write')) {
 	for (const f of fams) writeFamily(f);
 	console.log('\ndone. review the diff, run `npm run tune` and `npm run selftest`, then commit.');
 } else if (argv.includes('--sweep')) {
-	const rest = argv.filter((a) => a !== '--sweep');
+	const rest = argv.filter((a) => a !== '--sweep' && a !== '--cruise');
 	const axis = AXES.includes(rest[0]) ? rest[0] : 'roll';
 	const family = rest.find((a) => FAMILIES.includes(a)) ?? DEFAULT_FAMILY;
 	const profile = PROFILES[family];
 	const { results } = sweepAxis(profile, axis);
 	console.log(`\nsweep "${axis}" on ${family} — current is P=${profile.pid[axis].p} D=${profile.pid[axis].d}`);
-	console.log('  P       D        rise   over   settle  bounce   cost');
+	console.log(`  P       D        rise   over   settle  bounce   cost${CRUISE ? '    (still / cruise)' : ''}`);
 	for (const r of results.slice(0, 10)) {
-		console.log(`  ${r.p.toFixed(3)}  ${r.d.toFixed(4)}  ${r.rise.toFixed(0).padStart(4)}ms ${r.overshoot.toFixed(1).padStart(5)}% ${r.settle.toFixed(0).padStart(5)}ms ${r.bounce.toFixed(0).padStart(5)}  ${r.cost.toFixed(1).padStart(6)}`);
+		const both = CRUISE ? `   ${r.costStill.toFixed(1)} / ${r.costCruise.toFixed(1)}` : '';
+		console.log(`  ${r.p.toFixed(3)}  ${r.d.toFixed(4)}  ${r.rise.toFixed(0).padStart(4)}ms ${r.overshoot.toFixed(1).padStart(5)}% ${r.settle.toFixed(0).padStart(5)}ms ${r.bounce.toFixed(0).padStart(5)}  ${r.cost.toFixed(1).padStart(6)}${both}`);
 	}
 	console.log(`\nrun \`node tools/tune-pid.mjs --write ${family}\` to sweep every axis and write the block.`);
 } else {
