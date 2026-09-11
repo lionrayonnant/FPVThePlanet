@@ -15,6 +15,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -88,6 +89,27 @@ const at = (b) => async (p, init) => {
 const get = at(base);
 const bodyOf = (r) => { try { return JSON.parse(r.buf.toString()); } catch { return {}; } };
 const bearer = (k) => ({ authorization: `Bearer ${k}` });
+
+// `Host`, `Origin` and `Sec-Fetch-Site` are exactly the headers a browser will
+// not let a page set — and fetch() guards them too. node:http sends whatever it
+// is given, which is what playing the attacker of #79 needs.
+const raw = (b) => (p, { method = 'GET', headers = {}, body } = {}) => new Promise((resolve, reject) => {
+	const u = new URL(b + p);
+	const req = http.request({
+		hostname: u.hostname, port: u.port, path: u.pathname + u.search, method, headers,
+	}, (res) => {
+		let text = '';
+		res.setEncoding('utf8');
+		res.on('data', (d) => { text += d; });
+		res.on('end', () => resolve({
+			status: res.statusCode, text,
+			body: (() => { try { return JSON.parse(text); } catch { return {}; } })(),
+		}));
+	});
+	req.on('error', reject);
+	if (body !== undefined) req.write(body);
+	req.end();
+});
 
 try {
 	// --- le port 0 a bien été résolu ------------------------------------------
@@ -267,6 +289,71 @@ try {
 	check('une option inconnue sort en erreur au lieu de démarrer',
 		badOption.status === 2 && /option inconnue/.test(badOption.stderr));
 
+	// ================= issue #79: where the request comes FROM =================
+	//
+	// In `local` there is no key: the boundary is the loopback socket, and a
+	// browser crosses it for any page the developer visits. Two guards
+	// (server/origin.mjs), both on headers a page cannot forge.
+	const rawLocal = raw(base);
+
+	// DNS rebinding: the name flips to 127.0.0.1 and the attacker page becomes
+	// same-origin — but `Host` still carries the attacker's name.
+	check('local: a foreign Host (DNS rebinding) is refused on /__map-api',
+		(await rawLocal('/__map-api/scenes', { headers: { host: 'attacker.example' } })).status === 403);
+	check('local: … and on /__operator, where the data is',
+		(await rawLocal('/__operator', { headers: { host: 'attacker.example' } })).status === 403);
+	check('local: loopback passes — 127.0.0.2 and localhost included',
+		(await rawLocal('/__map-api/scenes')).status === 200
+		&& (await rawLocal('/__map-api/scenes', { headers: { host: `127.0.0.2:${started.port}` } })).status === 200
+		&& (await rawLocal('/__map-api/scenes', { headers: { host: `localhost:${started.port}` } })).status === 200);
+	// The guard covers the API, not the file server: those are the same bytes
+	// for everyone, and in dev Vite has its own host check for them.
+	check('local: a static file is not concerned',
+		(await rawLocal('/scenes.json', { headers: { host: 'attacker.example' } })).status === 200);
+
+	// CSRF: a simple request (no preflight) goes through whether or not its
+	// answer can be read — writing is enough.
+	const csrf = (headers, body = JSON.stringify({ name: 'csrf' })) => rawLocal('/__operator', {
+		method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body,
+	});
+	check('local: a cross-site POST is refused (Sec-Fetch-Site)',
+		(await csrf({ 'sec-fetch-site': 'cross-site' })).status === 403);
+	check('local: a same-site POST (a sibling subdomain) too',
+		(await csrf({ 'sec-fetch-site': 'same-site' })).status === 403);
+	check('local: a foreign Origin is refused',
+		(await csrf({ origin: 'https://attacker.example' })).status === 403);
+	check('local: Origin null (sandboxed iframe, file://) is refused',
+		(await csrf({ origin: 'null' })).status === 403);
+	check('local: a cross-site DELETE is refused like a POST',
+		(await rawLocal(`/__map-api/scenes/${SLUG}`, {
+			method: 'DELETE', headers: { 'sec-fetch-site': 'cross-site' },
+		})).status === 403);
+	// POSITIVE control: the game's own page still writes.
+	check('local: the game page passes — same-origin, and its Origin is the Host',
+		(await csrf({ 'sec-fetch-site': 'same-origin', origin: base })).status === 201);
+	// A cross-site READ is deliberately not blocked: the Host check above closes
+	// rebinding, and without CORS headers the answer stays unreadable anyway.
+	check('local: a cross-site read from the right host is not blocked',
+		(await rawLocal('/__map-api/scenes', { headers: { 'sec-fetch-site': 'cross-site' } })).status === 200);
+
+	// The second lock: a simple POST cannot carry application/json.
+	check('local: a text/plain body is refused (simple POST, no preflight)',
+		(await csrf({ 'content-type': 'text/plain', 'sec-fetch-site': 'same-origin' })).status === 400);
+	check('local: a body with no Content-Type is refused too (Blob of empty type)',
+		(await rawLocal('/__operator', {
+			method: 'POST', headers: { 'sec-fetch-site': 'same-origin' }, body: JSON.stringify({ name: 'blob' }),
+		})).status === 400);
+
+	// ================= issue #78: removing is a LOCAL operation ================
+	//
+	// POSITIVE control in `local`: the guard lets it through and the empty
+	// catalogue is what stops the request. The `shared` 403 is further down.
+	const gone = await rawLocal(`/__map-api/scenes/${SLUG}`, { method: 'DELETE' });
+	check('local: DELETE /__map-api/scenes/<slug> is not gated — 404, empty catalogue',
+		gone.status === 404 && /aucune carte/.test(gone.body.error ?? ''));
+	check('local: DELETE /__map-api/jobs/<id> neither — 404, unknown job',
+		(await rawLocal('/__map-api/jobs/00000000-0000-0000-0000-000000000000', { method: 'DELETE' })).status === 404);
+
 	// ================= issue #60 : la clé d'opérateur =========================
 	//
 	// Mécanisme 1 : QUI parle au serveur. En `local`, personne ne le demande.
@@ -431,6 +518,27 @@ try {
 	check('shared, drapeau absent : acquire:false, et POST /jobs 403',
 		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).acquire === false
 		&& (await postJob(sbase, bearer(KEY))).status === 403);
+
+	// --- issue #78: one player does not delete everybody's map ----------------
+	//
+	// Signup is self-service and there is neither role nor ownership: a valid
+	// key must therefore not be enough to erase a scene for the whole instance
+	// — all the more so as it could not be rebuilt, acquisition being closed in
+	// `shared`. The scene is listed in the catalogue on purpose: the refusal has
+	// to be the guard, not a 404.
+	fs.writeFileSync(path.join(DATA, 'scenes.json'), JSON.stringify([{ slug: SLUG, name: 'Testville' }], null, '\t'));
+	check('shared: the scene is indeed in the catalogue',
+		bodyOf(await sget('/__map-api/scenes', { headers: bearer(KEY) })).scenes.some((s) => s.slug === SLUG));
+	const wipe = await sget(`/__map-api/scenes/${SLUG}?raw=1`, { method: 'DELETE', headers: bearer(KEY) });
+	check('shared: DELETE /__map-api/scenes/<slug> with a valid key is refused (403)',
+		wipe.status === 403 && /disabled/.test(bodyOf(wipe).error ?? ''));
+	check('… and nothing on disk was touched',
+		fs.existsSync(path.join(sceneDir, 'chunk-0.bin'))
+		&& JSON.parse(fs.readFileSync(path.join(DATA, 'scenes.json'), 'utf8')).length === 1);
+	check('shared: DELETE /__map-api/jobs/<id> is refused too (403), before even looking the job up',
+		(await sget('/__map-api/jobs/00000000-0000-0000-0000-000000000000', {
+			method: 'DELETE', headers: bearer(KEY),
+		})).status === 403);
 
 	// --- le plafond d'inscriptions, en `shared` ------------------------------
 	//

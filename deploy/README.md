@@ -225,6 +225,13 @@ Note sur le contrôle de santé : le `401` ci-dessus est la réponse NORMALE de
 `deploy.sh` accepte 200, 401 et 403 — ce qu'il vérifie, c'est que Node répond,
 pas qu'il ouvre la porte.
 
+Note sur ce que `shared` refuse en plus (#78) : `DELETE /__map-api/scenes/:slug`
+et `DELETE /__map-api/jobs/:id` rendent `403`, clé d'opérateur valide ou non.
+L'inscription est libre et il n'y a ni rôle ni propriétaire : sans ce refus,
+n'importe quel joueur inscrit effacerait un terrain pour toute l'instance, sans
+moyen de le reconstruire (l'acquisition est fermée en `shared`). Une scène ne se
+retire donc que depuis le shell de la machine.
+
 Variante possible si l'on préfère : installer Node sur la machine (`apt` ou
 NodeSource) et changer l'`ExecStart` en `/usr/bin/node`. Ce répertoire suit
 la forme décrite par le design (runtime embarqué), parce qu'elle rend la

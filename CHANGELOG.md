@@ -20,6 +20,23 @@ rapport avec les versions ci-dessous.
 
 ### Sécurité
 
+- L'API du jeu regarde maintenant d'où vient la requête, en `local` comme en
+  `shared` (#79). En `local` elle n'a pas de clé — la frontière est le socket
+  local — et n'importe quelle page visitée pendant un `npm run dev` pouvait
+  donc écrire dedans (requête simple, sans preflight), voire tout lire par
+  rebinding DNS : profils, sessions, captures, catalogue de scènes, et
+  jusqu'à la suppression d'un terrain de plusieurs heures. `/__operator` et
+  `/__map-api` exigent désormais un `Host` de boucle locale en `local`, et
+  refusent toute méthode écrivante qui se présente cross-site (`Origin`,
+  `Sec-Fetch-Site`) ; un corps qui n'est pas `application/json` est refusé
+  avec.
+- En `shared`, une clé d'opérateur ne suffit plus à supprimer une scène pour
+  tout le monde (#78). L'inscription étant libre et sans rôle ni propriétaire,
+  n'importe quel joueur inscrit pouvait effacer un terrain de l'instance —
+  sans moyen de le reconstruire, l'acquisition étant fermée en `shared`.
+  `DELETE /__map-api/scenes/:slug` et `DELETE /__map-api/jobs/:id` rendent
+  maintenant 403 en `shared`, comme `POST /jobs` : une instance partagée sert
+  le LIVE, elle ne se fait pas défaire par ses visiteurs.
 - Le paramètre `?scene=` n'atteint plus l'écran de chargement tel quel. Un
   slug inconnu était repris dans le message « carte inconnue », que
   `hud.fail()` écrivait via `innerHTML` : un lien forgé exécutait du balisage
