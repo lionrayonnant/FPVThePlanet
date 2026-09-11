@@ -55,7 +55,12 @@ export class Hud {
 
 	fail(err) {
 		clearInterval(this._clock);
-		this.el.status.innerHTML = `<span class="err">${err}</span>`;
+		// Error text is data, never markup: a message that carried user input
+		// (an unknown ?scene= slug) used to run through innerHTML.
+		const span = document.createElement('span');
+		span.className = 'err';
+		span.textContent = String(err);
+		this.el.status.replaceChildren(span);
 		this.el.bar.style.width = '0%';
 	}
 

@@ -40,7 +40,7 @@ import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-mod
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
-import { parseSwarmFlag, devFamilies } from '../tools/dev-flags.mjs';
+import { parseSwarmFlag, parseSceneFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
@@ -109,7 +109,9 @@ export const OPTS = {
 	anisotropy: params.has('aniso') ? Number(params.get('aniso')) : 8,
 	maxChunks: params.has('chunks') ? Number(params.get('chunks')) : Infinity,
 	skipCollision: params.get('collision') === '0',
-	scene: params.get('scene'),
+	// The slug rule ([a-z0-9-]+, refused otherwise) lives in tools/dev-flags.mjs,
+	// where a selftest can reach it; the raw value never leaves this line.
+	scene: parseSceneFlag(params.get('scene')),
 	// Dev-only override: ?family=race5 flies that drone family regardless of the
 	// TARGET SCAN choice (PHASE 08). One of:
 	//   freestyle5 race5 cinewhoop longrange heavy5 toothpick
