@@ -282,32 +282,32 @@ t('SYSTEM shows the version, hides the view range until ?live=, and Reset needs 
 	assert.ok(!reset.textContent.includes('CONFIRM'), 'the second press fires and disarms');
 });
 
-t('REPLAY TOUR appears only once the slot is filled', () => {
+t('REPLAY BRIEFING appears only once the slot is filled', () => {
 	const p = mount();
-	assert.equal(p.settings.onReplayTour, null, 'the slot exists and starts empty');
+	assert.equal(p.settings.onReplayBriefing, null, 'the slot exists and starts empty');
 	p.settings.open('system');
-	assert.equal(p.btn('REPLAY TOUR'), undefined, 'nothing to replay, nothing on screen');
+	assert.equal(p.btn('REPLAY BRIEFING'), undefined, 'nothing to replay, nothing on screen');
 
 	let played = 0;
-	p.settings.onReplayTour = () => { played++; };
+	p.settings.onReplayBriefing = () => { played++; };
 	p.settings.open('system');
-	const btn = p.btn('REPLAY TOUR');
-	assert.ok(btn, 'the button appears once a tour exists');
+	const btn = p.btn('REPLAY BRIEFING');
+	assert.ok(btn, 'the button appears once a briefing exists');
 	btn.click();
 	assert.equal(played, 1);
 });
 
-t('REPLAY TOUR is not offered in flight', () => {
+t('REPLAY BRIEFING is not offered in flight', () => {
 	// F2: TAB opens the panel over a running flight, and the briefing mounts
 	// full terminal screens — replaying it there is a way out of the session.
 	const p = mount();
-	p.settings.onReplayTour = () => { };
+	p.settings.onReplayBriefing = () => { };
 	p.settings.flightActive = true;
 	p.settings.open('system');
-	assert.equal(p.btn('REPLAY TOUR'), undefined, 'no way into the tour mid-flight');
+	assert.equal(p.btn('REPLAY BRIEFING'), undefined, 'no way into the briefing mid-flight');
 	p.settings.flightActive = false;
 	p.settings.open('system');
-	assert.ok(p.btn('REPLAY TOUR'), 'and it comes back on the ground');
+	assert.ok(p.btn('REPLAY BRIEFING'), 'and it comes back on the ground');
 });
 
 // --- the key hints ----------------------------------------------------------

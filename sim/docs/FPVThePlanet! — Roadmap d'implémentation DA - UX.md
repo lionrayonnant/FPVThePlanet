@@ -861,12 +861,6 @@ Pas de tutoriel.
 > et dans `SETTINGS`, jamais à l'entrée en vol. « Pas de 3-2-1-GO, le joueur
 > reprend immédiatement les sticks » reste vrai : rien de ce qui suit n'attend
 > un geste du joueur.
->
-> **Révisé 2026-09-11 (#86) — c'est un TOUR, pas un briefing.** Un calque qui
-> accompagne l'opérateur dans l'interface au lieu de quatre écrans lus avant
-> elle. Toujours pas de tutoriel : il n'attend aucun geste, ne gate rien, et
-> s'arrête net à l'entrée en vol — où il ne reste que les trois lignes de l'OSD,
-> inchangées.
 
 Le joueur reprend immédiatement les sticks.
 

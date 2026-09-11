@@ -21,7 +21,7 @@ One boot path, traversed with flags — never a parallel pipeline per mode (D7).
 flowchart TD
     LOAD["Page load — main.js"] --> INTRO["Cracktro intro<br/>src/intro.js"]
     INTRO --> OP{"Operator known?"}
-    OP -- "no" --> BOOT["BOOTSTRAP — hardware inventory,<br/>name, then the tour<br/>src/bootstrap.js"]
+    OP -- "no" --> BOOT["BOOTSTRAP — hardware inventory,<br/>name, briefing<br/>src/bootstrap.js"]
     OP -- "yes" --> MODE
     BOOT --> MODE["SELECT OPERATION MODE<br/>src/menu-nav.js"]
 
