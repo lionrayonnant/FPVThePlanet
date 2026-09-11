@@ -5,11 +5,31 @@ sources of truth: `docs/manuel.md` (pipeline), `sim/docs/fpv-rework-architecture
 (module-by-module audit and decisions D1-D7), `sim/HANDOFF.md` (verified state).
 
 Rendered as PNG in `sim/docs/diagrams/`, for anywhere Mermaid is not rendered.
-Regenerate them after editing a diagram below:
+**Regenerate them after editing any diagram below** — they went stale once
+already, silently, because nothing checks them: between 2026-09-09 and
+2026-09-11 the markdown lost the CONTROL VECTOR, gained a guided tour and lost
+it again, while the PNGs still showed the first version.
+
+The one-liner writes `out-1.png`, `out-2.png`… in source order, which is why it
+is worth spelling out the renaming rather than leaving it to memory. From the
+repo root:
 
 ```bash
-npx @mermaid-js/mermaid-cli -i sim/docs/architecture-diagrams.md -o out.md -e png
+npx @mermaid-js/mermaid-cli -i sim/docs/architecture-diagrams.md -o out.md -e png -s 2
+mv out-1.png sim/docs/diagrams/01-player-loop.png
+mv out-2.png sim/docs/diagrams/02-runtime-map.png
+mv out-3.png sim/docs/diagrams/03-terrain-paths.png
+mv out-4.png sim/docs/diagrams/04-flight-stack.png
+mv out-5.png sim/docs/diagrams/05-persistence.png
+rm out.md
 ```
+
+`-s 2` renders at twice the size, which is what keeps the text readable when a
+tall diagram is scaled to page width. On a headless box Chromium needs a
+sandbox flag: add `-p puppeteer.json` with
+`{"args": ["--no-sandbox", "--disable-setuid-sandbox"]}`.
+
+`diagrams/simulator.svg` is hand-drawn and is NOT generated — see section 6.
 
 ---
 
@@ -41,7 +61,7 @@ flowchart TD
     FLIGHT --> END{"How it ends"}
     END -- "crash above threshold" --> DEAD
     END -- "geofence exit" --> DEAD
-    END -- "pilot cuts the link, hold K" --> DEAD
+    END -- "link cut, hold K" --> DEAD
     DEAD["LINK LOST — the machine is gone.<br/>src/flight-end.js, closes CRASHED"] --> ARCH["Session written to the archive<br/>src/session.js -> server"]
     ARCH --> MODE
 
@@ -149,7 +169,7 @@ Narrow on purpose — four motor outputs, so a SITL can replace the controller
 later. No art-direction module is ever a dependency of the engine (D6).
 
 ```mermaid
-flowchart LR
+flowchart TB
     IN["input.js<br/>throttle 0..1, roll/pitch/yaw -1..1<br/>auto gamepad mapping"]
     FC["flightController.js<br/>Betaflight-shaped, PID measured with<br/>npm run tune -> motors[4]"]
     QUAD["quad.js<br/>motor lag, thrust, prop drag torque,<br/>inflow, body drag, ground effect,<br/>propwash, battery sag"]
