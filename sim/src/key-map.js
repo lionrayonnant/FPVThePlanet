@@ -16,7 +16,7 @@
 // flight, and input.js passes them through under their own names.
 
 // Ordered list — this order drives the KEYBOARD tab in Settings and the
-// briefing. `hold: true` marks an action read continuously (an axis, or the
+// tour. `hold: true` marks an action read continuously (an axis, or the
 // link cut) rather than fired once on keydown.
 export const KEY_ACTIONS = [
 	{ id: 'throttleUp',   label: 'THROTTLE UP',   group: 'flight', hold: true },
@@ -169,7 +169,7 @@ export function keyLabel(key) {
 }
 
 // One row per action, in KEY_ACTIONS order, keys already labelled — what the
-// Settings tab and the briefing render.
+// Settings tab and the tour render.
 export function keyMapRows(map) {
 	return KEY_ACTIONS.map(action => ({
 		id: action.id,

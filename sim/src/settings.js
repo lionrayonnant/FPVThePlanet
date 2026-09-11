@@ -157,9 +157,9 @@ function h(tag, props = {}, children = []) {
 export class Settings {
 	constructor(root, input) {
 		this.input = input;
-		// Filled by main.js when a briefing exists (D16). While it is null the
-		// SYSTEM tab draws no REPLAY BRIEFING button: nothing to replay.
-		this.onReplayBriefing = null;
+		// Filled by main.js when a tour exists (#86). While it is null the
+		// SYSTEM tab draws no REPLAY TOUR button: nothing to replay.
+		this.onReplayTour = null;
 		// The action being rebound, or null. Module-level state would be wrong
 		// here — two panels never coexist, but the listener is per panel.
 		this._capture = null;
@@ -321,7 +321,7 @@ export class Settings {
 	}
 
 	// SYSTEM — what belongs to the installation rather than to the pilot: the
-	// live view range, the briefing, the reset, and which build this is.
+	// live view range, the tour, the reset, and which build this is.
 	buildSystem(box) {
 		box.appendChild(h('div', { id: 'viewrange-row', hidden: true }, [
 			h('label', {}, [
@@ -369,7 +369,7 @@ export class Settings {
 	}
 
 	// Open the panel straight onto a tab. The terminal uses it to land on
-	// KEYBOARD or CONTROLLER from a briefing that just named them.
+	// KEYBOARD or CONTROLLER from a tour stop that just named them.
 	open(tab) {
 		this.toggleSettings(true);
 		if (tab) this.selectTab(tab);
@@ -517,18 +517,18 @@ export class Settings {
 	// SYSTEM TAB
 	// ---------------------------------------------------------------------------
 
-	// The briefing button exists only when there is a briefing to replay, which
-	// is why this is redrawn on every visit rather than once at construction:
-	// main.js fills the slot long after the panel is built.
+	// The replay button exists only when there is a tour to replay, which is why
+	// this is redrawn on every visit rather than once at construction: main.js
+	// fills the slot long after the panel is built.
 	//
 	// It is also hidden in flight: the panel is reachable with TAB while flying,
-	// and the briefing mounts full terminal screens — over a running session,
-	// that is a way out of the flight, not a setting.
+	// and the tour walks the terminal — over a running session it would point at
+	// screens that are not there.
 	renderSystem() {
 		const row = this.el?.replayRow ?? this._sections.system.querySelector('[id="replay-row"]');
 		row.replaceChildren();
-		if (this.onReplayBriefing && !this.flightActive) {
-			row.appendChild(button('REPLAY BRIEFING', () => this.onReplayBriefing?.(), 'terminal-cta'));
+		if (this.onReplayTour && !this.flightActive) {
+			row.appendChild(button('REPLAY TOUR', () => this.onReplayTour?.(), 'terminal-cta'));
 		}
 	}
 

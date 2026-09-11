@@ -47,6 +47,23 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- La présentation initiale n'est plus quatre écrans lus dans un couloir : c'est
+  un TOUR, un calque qui accompagne l'opérateur DANS l'interface (#86). Il
+  reconnaît l'écran où l'on se trouve, dit ce que CET écran est, encadre
+  l'élément dont il parle, et considère l'arrêt comme lu quand on s'en va.
+  Quatre arrêts comptés — la racine, les réglages, FIELD, le TARGET SCAN — et
+  deux facultatifs, BENCH et DATA, dits à qui y passe et jamais attendus. Il ne
+  bloque rien : pas de CONTINUE, pas de fenêtre modale, aucun geste exigé.
+  `[ H ]` ou `[ DISMISS ]` y met fin, `SETTINGS / SYSTEM` le rejoue (le bouton
+  devient `REPLAY TOUR`), et il se tait partout où il ne reconnaît rien — un
+  vol, un chargement, un hack. Un écran traversé en moins de 2,5 s n'a pas été
+  lu, et revient.
+
+- Les trois indices du premier vol ne dépendent plus de la présentation : ils
+  ne posaient qu'une question de travers — « a-t-on été briefé ? » — et un
+  opérateur qui passait le briefing perdait les trois lignes qui comptaient le
+  plus. Ils tiennent maintenant à une seule chose : ce vol est-il le premier.
+
 - L'acquisition se joue maintenant en trois écrans au lieu d'un seul qui change
   de contenu : l'analyse automatique, puis `MANUAL OVERRIDE REQUIRED` et
   `[ JACK IN ]` seuls au milieu de l'écran, puis `CONTROL ACQUIRED` et
