@@ -2,127 +2,106 @@
 
 # FPVThePlanet!
 
-**Voler en FPV au-dessus de vraies villes, dans le navigateur.** Le décor n'est
-pas modélisé : c'est de la photogrammétrie 3D, la géométrie et les textures d'un
-lieu qui existe. Le pilotage est celui d'un quad Betaflight — acro par défaut,
-manette reconnue toute seule.
+**Fly FPV over real cities, in your browser.** The scenery is not modelled: it is
+3D photogrammetry, the geometry and textures of a place that exists. The flying
+is a Betaflight quad — acro by default, radio recognised on its own.
 
-![Le terminal d'opérateur, onglet LIVE, sur une installation neuve](docs/scanner.png)
+<!-- TRAILER — replace the `TODO` href with the video URL, and swap the
+     thumbnail for a frame exported from the edit (or maxresdefault.jpg). -->
+[![Watch the trailer](docs/scanner.png)](TODO)
 
-Autour du vol il y a un jeu : un terminal d'opérateur où l'on épingle un lieu,
-scanne une cible, décroche un accès, vole, se pose — et retrouve la session dans
-une archive qui se relit, avec sa météo, sa télémétrie et ses captures.
+## Play
 
-## Démarrer
+**[Download the latest release](https://github.com/lionrayonnant/FPVThePlanet/releases/latest)**
+— a `.exe` installer for Windows, an `.AppImage` for Linux, both self-updating.
 
-Il faut **Node 22** et un navigateur qui fait du WebGL2 (Chrome ou Chromium
-recommandé : sa Gamepad API reconnaît une radio dès qu'on bouge un manche).
+From source you need **Node 22** and a WebGL2 browser (Chromium recommended: its
+Gamepad API picks up a radio as soon as you move a stick).
 
 ```bash
 git clone https://github.com/lionrayonnant/FPVThePlanet.git
-cd FPVThePlanet/sim
-npm install
-npm run dev          # http://localhost:5173
+cd FPVThePlanet/sim && npm install && npm run dev   # http://localhost:5173
 ```
 
-**Ce que tu peux faire tout de suite :** un dépôt fraîchement cloné n'a aucun
-terrain sur disque — le catalogue commence vide, c'est normal. Va sur l'onglet
-**LIVE**, clique la carte pour poser une épingle, `[ FLY LIVE ]`. Les tuiles
-arrivent en direct pendant le vol, rien n'est écrit sur ton disque.
+A fresh clone has no terrain on disk and the catalogue starts empty — that is
+normal. Open the **LIVE** tab, click the map to drop a pin, `[ FLY LIVE ]`:
+tiles arrive during the flight and nothing is written to your disk.
 
-L'autre voie — télécharger une zone pour la garder et voler hors ligne — est
-**fermée par défaut** ; voir « D'où vient le terrain » plus bas.
+**Controls.** A USB gamepad or radio is detected automatically — Mode 2,
+remappable and calibratable under `Tab`, with live bars to identify each axis.
+Keyboard: `W`/`S` throttle · `A`/`D` yaw · arrows or mouse for roll and pitch ·
+`R` respawn · `M` mode (acro / angle / altitude) · `C` free camera · `Tab`
+settings.
 
-### Piloter
+## How it works
 
-**Manette / radio USB** : détectée automatiquement, Mode 2 par défaut,
-remappable et calibrable dans `Tab`, avec des barres en direct pour identifier
-chaque axe.
+```mermaid
+flowchart LR
+    TERM["Operator terminal<br/>pin a place"] --> SCAN["TARGET SCAN<br/>lock an access"]
+    SCAN --> BUILD["The machine is drawn<br/>per target"]
+    BUILD --> FLY["FLIGHT"]
+    FLY -- "crash, geofence,<br/>or you cut the link" --> LOST["LINK LOST<br/>the machine is gone"]
+    LOST --> ARCH["Session archived —<br/>weather, telemetry, photos"]
+    ARCH --> TERM
+```
 
-**Clavier** : `W`/`S` gaz · `A`/`D` lacet · flèches ou souris roulis-tangage ·
-`R` respawn · `M` mode (acro / angle / altitude) · `C` caméra libre ·
-`Tab` réglages.
+The world persists, the machine does not. Terrain is heavy, expensive and kept;
+the drone is free, drawn per target, lost on crash.
 
-## Les trois façons de le faire tourner
+```mermaid
+flowchart LR
+    GE["Google Earth<br/>rocktree protocol"] --> LIVE["LIVE — streamed in the browser<br/>LOD rings, 3 workers, Cache API"]
+    GE --> ACQ["ACQUIRE — fetched and decoded in Node<br/>FPVTP_ACQUIRE=1 only"]
+    ACQ --> PREP["prep.mjs — ECEF to local ENU,<br/>chunks, texture arrays, collision"]
+    PREP --> DISK["public/scenes/&lt;slug&gt;/"]
+    LIVE --> SCENE["Three.js scene + Rapier trimesh"]
+    DISK --> SCENE
+```
+
+Tiles come from Google Earth's internal `rocktree` protocol — no key, no
+account. In LIVE it is the player's own browser that fetches them: they never
+pass through a server and nothing is kept. **Acquisition** — downloading an area
+and baking it to playable terrain on disk — is another matter, and is **closed
+by default**: it only opens with `FPVTP_ACQUIRE=1` in the environment, and never
+in `--mode shared`. Neither CI nor the distributed applications set it. The
+imagery stays © Google and is never redistributed: every install downloads its
+own, and no baked terrain is published here.
+
+## Built with
+
+Plain JavaScript, no transpiler. **Three.js** for rendering, **Rapier** (WASM)
+for physics, **Vite** for development and the build, **Electron** for the
+installed app. The standalone server is bare `node:http` — zero dependencies.
+Flight lives in `sim/src/quad.js` (mass, inertia, motor lag, blade drag, ground
+effect, propwash, battery sag) and `sim/src/flightController.js`; the gains are
+measured with `npm run tune`, never guessed.
 
 | | |
 |---|---|
-| `npm run dev` | le développement : Vite, rechargement à chaud |
-| `npm run build` puis `node server/index.mjs --dist dist --open` | le jeu servi pour de vrai, sans Vite — c'est aussi ce qui tourne sur un serveur |
-| `npx electron-builder` | une application installée (`.exe` NSIS, `.AppImage`), avec mise à jour automatique |
+| `npm run dev` | development: Vite, hot reload |
+| `npm run build` then `node server/index.mjs --dist dist --open` | the game served for real, without Vite — also what runs on a server |
+| `npx electron-builder` | the installed app (`.exe`, `.AppImage`), with auto-update |
+| `npm run selftest:ci` | the full chain: ~1,200 checks, no browser |
 
-Le serveur autonome écoute sur `127.0.0.1` et **refuse** une autre adresse tant
-qu'on ne lui passe pas `--mode shared` — auquel cas il réclame une clé
-d'opérateur à chaque requête. `deploy/` contient de quoi le mettre derrière
-Caddy sur une machine louée.
-
-`npm run build` enchaîne `vite build` et `node sim/tools/precompress.mjs` : un
-`.br` et un `.gz` à côté de chaque fichier texte du build, que le serveur
-autonome sert avec `Content-Encoding` (jamais sur un `Range`, une ETag par
-représentation). Rapier et `three` ont leur propre chunk, en cache d'une
-version à l'autre ; le menu n'attend plus le WASM de Rapier. En vol LIVE, la
-fenêtre de streaming charge par anneaux de niveau de détail
-(`sim/tools/lib/rocktree/lod.mjs`), garde ses bulks dans le worker de
-traversée et persiste bulks et nœuds sur disque (Cache API,
-`sim/src/rocktree-cache.js`, vidable depuis DevTools → Application → Cache
-Storage → `fpvtp-rocktree-v1`).
-
-## D'où vient le terrain
-
-Les tuiles viennent de Google Earth, par son protocole interne `rocktree`
-(`sim/tools/lib/providers/google-earth.mjs`) : pas de clé, pas de compte. En
-mode LIVE, c'est le navigateur du joueur qui va les chercher — elles ne
-transitent jamais par un serveur, et rien n'est conservé.
-
-**L'acquisition** — télécharger une zone, la décoder et l'écrire sur disque
-comme terrain jouable — est autre chose, et elle est **fermée par défaut**. Elle
-ne s'ouvre qu'avec `FPVTP_ACQUIRE=1` dans l'environnement, et jamais en
-`--mode shared`, quoi qu'il arrive :
-
-```bash
-FPVTP_ACQUIRE=1 npm run dev     # [ DRAW BOX ] et [ ACQUIRE AREA ] réapparaissent
-```
-
-Ni l'intégration continue ni les applications construites pour être distribuées
-ne posent cette variable. L'imagerie reste © Google et n'est jamais
-redistribuée : chaque installation télécharge la sienne, et aucun terrain cuit
-n'est publié ici.
-
-## Comment c'est fait
-
-JavaScript sans transpileur. **Three.js** pour le rendu, **Rapier** (WASM) pour
-la physique, **Vite** pour le développement et le build, **Electron** pour
-l'application installée. Le serveur est du `node:http` nu — aucune dépendance.
-
-Le modèle de vol vit dans `sim/src/quad.js` (masse, inertie, retard moteur,
-traînée de pale, effet de sol, propwash, affaissement de batterie) et le
-contrôleur dans `sim/src/flightController.js`. Les gains ne sont pas devinés :
-ils se mesurent avec `npm run tune`.
-
-```bash
-npm run selftest:ci     # la chaîne complète : ~1 200 vérifications, sans navigateur
-```
-
-## Où lire la suite
+## Read on
 
 | | |
 |---|---|
-| [`docs/manuel.md`](docs/manuel.md) | commandes, ajout de cartes, pré-traitement, modèle de vol, réglage du PID |
-| [`sim/HANDOFF.md`](sim/HANDOFF.md) | ce qui est vérifié, et surtout ce qui ne l'est pas |
-| [`sim/docs/`](sim/docs/) | direction artistique, feuille de route, spécifications de conception |
-| [`deploy/README.md`](deploy/README.md) | installer le serveur sur une machine |
-| [`CHANGELOG.md`](CHANGELOG.md) | ce qui a changé, version par version |
+| [`docs/manuel.md`](docs/manuel.md) | commands, adding maps, the prep pipeline, the flight model, PID tuning |
+| [`sim/docs/architecture-diagrams.md`](sim/docs/architecture-diagrams.md) | six more diagrams of the running system |
+| [`sim/HANDOFF.md`](sim/HANDOFF.md) | what is verified, and above all what is not |
+| [`deploy/README.md`](deploy/README.md) | putting the server on a machine |
+| [`CHANGELOG.md`](CHANGELOG.md) | what changed, version by version |
 
-## Licence
+## License
 
-[GNU AGPL-3.0-only](LICENSE). En clair : le code est libre, et quiconque héberge
-une version modifiée pour d'autres personnes doit en publier les sources.
+[GNU AGPL-3.0-only](LICENSE). Plainly: the code is free, and anyone hosting a
+modified version for other people must publish their sources.
 
-Ce qui est embarqué et vient d'ailleurs, sous sa propre licence :
-[Three.js](https://threejs.org/), [Rapier](https://rapier.rs/),
-[Leaflet](https://leafletjs.com/) et
-[Leaflet-Geoman](https://geoman.io/leaflet-geoman) (voir `sim/package.json`) ;
-les fontes **IBM Plex Mono** et **Departure Mono** sous SIL Open Font License,
-dont le texte voyage avec elles dans `sim/public/fonts/` ; la musique de
-`sim/public/music/`, générée pour ce projet ; les fonds de carte
-© OpenStreetMap, la recherche de lieux © Nominatim.
+Bundled third-party work keeps its own licence: [Three.js](https://threejs.org/),
+[Rapier](https://rapier.rs/), [Leaflet](https://leafletjs.com/) and
+[Leaflet-Geoman](https://geoman.io/leaflet-geoman) (see `sim/package.json`); the
+**IBM Plex Mono** and **Departure Mono** fonts under the SIL Open Font License,
+whose text travels with them in `sim/public/fonts/`; the music in
+`sim/public/music/`, generated for this project; map tiles © OpenStreetMap,
+place search © Nominatim.
