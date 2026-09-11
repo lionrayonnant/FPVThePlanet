@@ -62,6 +62,7 @@ export class FpvtpOsd {
 				</div>
 				<div id="fo-pause" hidden>PAUSED<small>PRESS SPACE</small></div>
 				<div id="fo-status" hidden></div>
+				<div id="fo-turtle" hidden></div>
 				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
 				<div id="fo-hint" hidden></div>
 				<div id="flight-end" hidden></div>
@@ -83,6 +84,7 @@ export class FpvtpOsd {
 			pause: q('#fo-pause'),
 			status: q('#fo-status'),
 			cut: q('#fo-cut'),
+			turtle: q('#fo-turtle'),
 			hint: q('#fo-hint'),
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
@@ -103,6 +105,8 @@ export class FpvtpOsd {
 		this._flashUntil = 0;
 		// #216 : le dernier libellé peint, pour ne pas réécrire le DOM à 60 Hz.
 		this._cutText = '';
+		// #105 : même règle pour la ligne du retournement.
+		this._turtleText = '';
 		// D16: the first-flight line, same rule — what it says is decided
 		// elsewhere (tools/briefing-model.mjs); this layer only paints it.
 		this._hintText = '';
@@ -271,7 +275,10 @@ export class FpvtpOsd {
 	//
 	// Nommer la touche à l'écran est le sujet même de l'issue : sans ça le
 	// geste existe et personne ne le trouve.
-	setCut({ stuck = false, cutProgress = 0 } = {}) {
+	// `key` est la touche RÉELLEMENT liée à la coupure (#105) : elle était
+	// écrite en dur ici, ce qui mentait à quiconque l'avait remappée — nommer la
+	// touche à l'écran ne vaut que si c'est la bonne.
+	setCut({ stuck = false, cutProgress = 0 } = {}, key = 'K') {
 		const e = this.el.cut;
 		const cutting = cutProgress > 0;
 		if (!cutting && !stuck) {
@@ -279,7 +286,7 @@ export class FpvtpOsd {
 			return;
 		}
 		e.hidden = false;
-		const text = cutting ? 'CUTTING LINK' : '[HOLD K] CUT LINK';
+		const text = cutting ? 'CUTTING LINK' : `[HOLD ${String(key).toUpperCase()}] CUT LINK`;
 		if (text !== this._cutText) {
 			this._cutText = text;
 			this.el.cutText.textContent = text;
@@ -289,6 +296,18 @@ export class FpvtpOsd {
 		// déjà quelque chose.
 		this.el.cutBar.hidden = !cutting;
 		this.el.cutBar.style.width = `${Math.round(cutProgress * 100)}%`;
+	}
+
+	// Le retournement (#105). Juste au-dessus du rappel de coupure, et pour la
+	// même raison : une machine sur le dos a deux issues, et celle qui rend la
+	// machine se lit avant celle qui la perd. Comme #fo-cut, rien ne se décide
+	// ici — turtle.js a déjà tranché, on peint.
+	setTurtle({ eligible = false } = {}, key = 'T') {
+		const text = eligible ? `[${String(key).toUpperCase()}] TURTLE` : '';
+		if (text === this._turtleText) return;
+		this._turtleText = text;
+		this.el.turtle.textContent = text;
+		this.el.turtle.hidden = !text;
 	}
 
 	// The first-flight line (D16). Like #fo-cut: what it says is decided

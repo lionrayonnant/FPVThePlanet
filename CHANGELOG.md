@@ -18,6 +18,18 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Mode turtle (#105). Une machine sur le dos n'avait qu'une issue depuis D9 :
+  couper le lien et la perdre. Une touche — `T` par défaut, remappable comme les
+  autres — la remet à l'endroit, et la ligne `[T] TURTLE` s'affiche à l'écran
+  dès que la machine est immobile ET sur le dos, au-dessus du rappel
+  `[HOLD K] CUT LINK` : des deux issues, celle qui rend la machine se lit avant
+  celle qui la perd. Le retournement est assisté plutôt que piloté aux moteurs
+  inversés (pas de `motors[4]` signé, pas de modèle de pale inversée), mais son
+  couple est plafonné à ce que deux moteurs de l'appareil peuvent réellement
+  produire, et il s'arrête seul — assiette rétablie, ou délai dépassé.
+
 ### Corrigé
 
 - Le flapback de #91 rendait l'appareil impilotable, il est retiré (#103).

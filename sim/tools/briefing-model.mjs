@@ -51,7 +51,10 @@ const up = (s) => String(s ?? '').toUpperCase();
 // First key bound to an action in the live map, already labelled by
 // key-map.js. Falls back to the default letter so the row never reads "—"
 // on a build that hands over no rows at all.
-function keyOf(keyRows, id, fallback) {
+// The key an action actually answers to, for anything that has to NAME it on
+// screen. Exported since #105: the OSD lines are the other client, and two
+// copies of this lookup would drift the day a key is rebound.
+export function keyOf(keyRows, id, fallback) {
 	const row = (keyRows ?? []).find((r) => r.id === id);
 	return row?.keys?.[0] || fallback;
 }
