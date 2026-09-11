@@ -106,7 +106,7 @@ t('map-gui importe bien le socle partagé plutôt que de redéclarer ses jetons'
 	// Elle est locale et pas un jeton parce qu'elle ne vaut que là : rien
 	// d'autre dans le jeu ne se mesure en modules de marque.
 	const gameOwn = [...GAME.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);
-	assert.deepEqual(gameOwn, ['--mark-size'],
+	assert.deepEqual(gameOwn, ['--mark-size', '--tour-band'],
 		'un jeton local s\'est ajouté à src/style.css : est-ce bien une mesure, et pas un pigment ?');
 });
 
@@ -116,6 +116,10 @@ t('tout var(--…) référencé par les feuilles est défini dans tokens.css', (
 	// vérifiées juste au-dessus : ce sont les seules dispenses.
 	defined.add('--rail');
 	defined.add('--mark-size');
+	// La hauteur de la bande du tour (#86) : une mesure, pas un pigment, et la
+	// seule chose du jeu qui se mesure contre le tour — la bande elle-même, le
+	// rembourrage que chaque écran lui réserve, et le décalage des toasts RTC.
+	defined.add('--tour-band');
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
 		for (const m of css.matchAll(/var\((--[a-z-]+)\)/g)) {
 			assert.ok(defined.has(m[1]), `${name} utilise ${m[1]}, que tokens.css ne définit pas`);

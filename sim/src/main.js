@@ -18,8 +18,8 @@ import { EngineAudio } from './audio.js';
 import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
-import { runBriefing } from './briefing.js';
-import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint } from '../tools/briefing-model.mjs';
+import { runTour } from './tour.js';
+import { shouldTour, markFirstFlight, firstFlightPending, flightHint } from '../tools/tour-model.mjs';
 import { keyMapRows, actionForKey } from './key-map.js';
 import { FlightExit } from './flight-exit.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
@@ -192,44 +192,58 @@ let camSpec = null;
 // changements, et pour que applyTargetCamera() recompose la nuit en cours.
 let lastNightGain = 0;
 const settings = new Settings(document.getElementById('ui'), input);
-// The briefing (D16). What it shows is read LIVE from the input stack, so a
-// key rebound a minute ago is the key it names. The slot is filled here, right
-// after the panel is built: renderSystem() draws [ REPLAY BRIEFING ] on tab
-// entry, and the panel can be opened long before any flight.
-function briefingArgs() {
-	// The OSD's TR corner reads `usingGamepad`, which only turns true once a
-	// stick has actually MOVED. The briefing runs before any flight, so it asks
-	// the weaker question: is a pad plugged in at all. A pad that is there and
-	// silent is still the device this player is about to fly with.
-	const pad = input.getGamepad?.() ?? null;
+// The tour (#86). The replay slot is filled here, right after the panel is
+// built: renderSystem() draws [ REPLAY TOUR ] on tab entry, and the panel can be
+// opened long before any flight.
+//
+// `input` and `keyRows` are handed over as FUNCTIONS, read by the tour on every
+// tick: a pad plugged in halfway through, or a key rebound in the very panel a
+// card is pointing at, is on that card immediately.
+function tourArgs() {
 	return {
-		input: { kind: input.usingGamepad || pad ? 'gamepad' : 'keyboard', name: pad?.id ?? '' },
-		keyRows: keyMapRows(input.getKeyMap()),
-		// Opens the panel on the named tab and resolves when it closes: the
-		// briefing screen waits underneath rather than being torn down.
-		openSettings: async (tab) => { settings.open(tab); await settings.closed(); },
-		// Both Escape listeners sit on `window`: while the panel is up, the
-		// Escape that closes it must not also skip the briefing behind it.
-		isSettingsOpen: () => settings.settingsOpen,
+		store: localStorage,
+		input: () => {
+			// The OSD's TR corner reads `usingGamepad`, which only turns true
+			// once a stick has actually MOVED. The tour runs before any flight,
+			// so it asks the weaker question: is a pad plugged in at all. A pad
+			// that is there and silent is still the device this player is about
+			// to fly with.
+			const pad = input.getGamepad?.() ?? null;
+			return { kind: input.usingGamepad || pad ? 'gamepad' : 'keyboard', name: pad?.id ?? '' };
+		},
+		keyRows: () => keyMapRows(input.getKeyMap()),
 	};
 }
+// The live layer, or null. One at a time: a replay ends the one that is walking
+// before it starts another, or the two would poll the same places and fight
+// over the same corner of the screen.
+let tour = null;
 // `force` is the replay: it ignores the seen flag, which is the whole point of
-// a button that says REPLAY.
-async function playBriefing({ force = false } = {}) {
-	if (!force && !shouldBrief(localStorage)) return;
-	await runBriefing(document.getElementById('ui'), briefingArgs());
-	// Marked whether it was read or skipped: a briefing you refused is a
-	// briefing you were offered.
-	markBriefed(localStorage);
+// a button that says REPLAY. Nothing here is awaited — the tour is a layer, not
+// a screen, and the game goes on underneath it from the first frame.
+function startTour({ force = false } = {}) {
+	tour?.end();
+	tour = null;
+	if (!force && !shouldTour(localStorage)) return;
+	// A replay starts the walk from nothing — `force` and `restart` are the same
+	// intent seen from the two sides of the call.
+	tour = runTour(document.getElementById('ui'), {
+		...tourArgs(), restart: force,
+		// TAB opens the Settings panel in flight, and SETTINGS is one of the
+		// stops: without this the tour would come back up over the FPV image.
+		silent: () => settings.flightActive,
+		onEnd: () => { tour = null; },
+	});
 }
-settings.onReplayBriefing = async () => {
-	// The panel closes first: the briefing is a full screen, not a layer over
-	// the settings it just came out of.
+settings.onReplayTour = () => {
+	// The panel closes first: the tour's first stop is the root, and a replay
+	// that started behind an open panel would point at a screen nobody can see.
 	settings.toggleSettings(false);
-	await playBriefing({ force: true });
+	startTour({ force: true });
 };
-// The three in-flight hints of D16 exist for ONE flight, and never at the
-// bench. Armed at the start of each flight, spent when that flight ends.
+// The three in-flight hints exist for ONE flight, and never at the bench: they
+// are where the tour ends (#86), said by the OSD rather than by a layer over
+// the FPV image. Armed at the start of each flight, spent when that flight ends.
 let hintFlight = false;
 let hintAirborneAt = null;
 // Une touche de menu pressée s'inverse un instant (issue #224).
@@ -1533,7 +1547,7 @@ function finishSession({ redeploy = false } = {}) {
 	if (flightExit.busy) return;
 	// The flight is over: the flag that says "the sticks fly the machine" must
 	// stop saying it. The reload clears it anyway, but Settings reads it in the
-	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
+	// meantime (gamepad nav, and the REPLAY TOUR button of F2).
 	settings.flightActive = false;
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
@@ -2778,10 +2792,11 @@ async function chooseScene() {
 	// Le bootstrap, inchangé (issue #60) : la clé rendue par la création part dans
 	// localStorage sans un écran de plus. ARCHIVE > OPERATOR > [ SHOW KEY ] est le
 	// chemin, délibéré, du jour où l'on veut emporter son profil ailleurs.
-	// The briefing runs INSIDE the bootstrap, right after the control vector is
+	// The tour is MOUNTED inside the bootstrap, right after the operator is
 	// registered — the only moment where a player has just been made and has
-	// not yet chosen anything.
-	const register = () => bootstrap(ui, undefined, { briefing: () => playBriefing() });
+	// not yet chosen anything. It does not block: the layer goes up and the
+	// terminal opens underneath it.
+	const register = () => bootstrap(ui, undefined, { tour: () => startTour() });
 
 	const { needsBootstrap, choices, needsKey } = await operator.loadOperator();
 	if (needsKey) {
@@ -3323,8 +3338,9 @@ async function openFlightSession() {
 	spawnX = physics.spawn.x;
 	spawnZ = physics.spawn.z;
 	sessionStartedAt = Date.now();
-	// D16 : briefed, never flown, not the bench — the only flight that gets the
-	// three hints.
+	// Never flown, not the bench — the only flight that gets the three hints
+	// (#86: no longer conditioned on the tour having been offered, which cost
+	// the three lines to anyone who dismissed it).
 	hintFlight = !MODE.bench && firstFlightPending(localStorage);
 	hintAirborneAt = null;
 	fpvtpOsd.setHint(null);

@@ -1582,6 +1582,9 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	display: grid; grid-template-columns: minmax(340px, 42%) 1fr; gap: 0;
 }
 .bench-modes .terminal-left { gap: var(--space-5); justify-content: center; }
+/* Les quatre voies, groupées (#86) : le même écart qu'avant, porté par le
+   conteneur qui les tient plutôt que par la colonne. */
+.bench-mode-list { display: flex; flex-direction: column; gap: var(--space-5); }
 /* La colonne droite porte le bloc RTC, pas une carte : elle a besoin d'un
    rembourrage que `.terminal-right` de FIELD n'a pas (la carte y est en
    `inset: 0`). Centré verticalement comme les voies en face. */
@@ -1748,4 +1751,141 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	color: var(--light-grey);
 	font-family: var(--font-ui); font-size: var(--fs-micro);
 	letter-spacing: var(--track-ui); white-space: nowrap;
+}
+
+/* ===== THE TOUR (#86) ======================================================
+   The layer that walks the interface with the operator, replacing the four
+   briefing screens of D16. It is never a screen: it sits over whatever is
+   mounted, takes no pointer except on its own button, and takes no key except
+   the one it writes.
+
+   It is a BAND along the bottom of the window rather than a card floating over
+   the middle of one, and the interface makes room for it: `body.tour-on` gives
+   every screen underneath a bottom padding of exactly its height. A tour that
+   hides the thing it is pointing at would be worse than no tour.
+
+   z-index 30: above #settings (20), itself above the terminal (11) — the panel
+   is one of the places the tour has something to say about, so the band has to
+   stay readable over it. */
+:root {
+	/* The height of the band, and therefore the room every screen makes for it.
+	   Local and not a token: nothing else in the game is measured against the
+	   tour, exactly as --mark-size is measured against the mark alone. */
+	--tour-band: 150px;
+}
+
+.tour {
+	position: fixed; inset: 0;
+	z-index: 30; pointer-events: none;
+}
+.tour[hidden] { display: none; }
+
+/* Every screen gets out of the way, including the two that set their own
+   padding (the root, which has none, and the Settings panel, which centres). */
+body.tour-on .bootstrap { padding-bottom: var(--tour-band); }
+body.tour-on #settings { padding-bottom: var(--tour-band); }
+/* The two full-frame screens measure themselves in `100vh`, so a padding on
+   their host leaves them exactly as tall as before and they run under the band.
+   They are the two that matter most here — the root and FIELD are two of the
+   four stops — so they are shortened by the same amount, by name. */
+body.tour-on .bench-modes .terminal-box,
+body.tour-on .terminal-field .terminal-box { height: calc(100vh - var(--tour-band)); }
+/* The crew keeps its corner: the toasts move up by the height of the band
+   rather than being cut in half by it. */
+body.tour-on .rtc-toasts { bottom: calc(var(--tour-band) + var(--space-3)); }
+
+/* The frame around the element the card is about. Positioned in viewport
+   coordinates by src/tour.js — width/height are the anchor's box, the offset is
+   a transform, so it costs no layout. `outline` rather than `border`: it does
+   not participate in the box, so the frame can never shift what it points at. */
+.tour-spot {
+	position: absolute; top: 0; left: 0;
+	outline: var(--rule-w) solid var(--rule-strong);
+	outline-offset: 3px;
+	animation: tour-spot 1.8s steps(1, end) infinite;
+}
+.tour-spot[hidden] { display: none; }
+@keyframes tour-spot {
+	0%, 60% { outline-color: var(--rule-strong); }
+	61%, 100% { outline-color: var(--rule); }
+}
+
+.tour-card {
+	position: absolute; left: 0; right: 0; bottom: 0;
+	box-sizing: border-box;
+	min-height: var(--tour-band);
+	display: flex; align-items: center; gap: var(--space-5);
+	border-top: var(--rule-w) solid var(--rule-strong);
+	background: var(--black);
+	padding: var(--space-3) var(--space-5);
+	/* The band takes no pointer of its own — only its button does, through the
+	   `#ui button` rule. A strip that swallowed clicks along the bottom of the
+	   window would be a tour standing in the way of the interface. */
+	pointer-events: none;
+	animation: tour-card-in var(--dur-3) ease both;
+}
+.tour-card pre { margin: 0; }
+/* Which stop, on the left, at a fixed width: the eye finds the counter in the
+   same place from one screen to the next. */
+.tour-head { flex: 0 0 auto; width: 220px; }
+.tour-step {
+	color: var(--faint);
+	font-family: var(--font-ui); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui);
+}
+.tour-title {
+	margin-top: var(--space-1) !important;
+	color: var(--ink);
+	font-family: var(--font-display); font-size: var(--fs-display-s);
+	letter-spacing: var(--track-display);
+}
+.tour-lines {
+	flex: 1 1 auto; min-width: 0;
+	color: var(--dim);
+	font-family: var(--font-data); font-size: var(--fs-data); line-height: 1.8;
+	letter-spacing: var(--track-data);
+	white-space: pre-wrap; overflow-wrap: anywhere;
+}
+/* The last card is the only one that is not about something on screen: no
+   frame, and a line of ink rather than the usual dim. */
+.tour-card[data-kind="done"] .tour-lines { color: var(--ink); }
+
+.tour-acts {
+	flex: 0 0 auto;
+	display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+}
+/* The band is outside `.bootstrap`, so the house button rule does not reach it:
+   the same look, written once more rather than loosened over there. */
+.tour-acts button.terminal-cta {
+	padding: 9px 14px;
+	background: transparent; color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong);
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui); text-transform: uppercase;
+	cursor: pointer;
+	transition: color var(--dur-1) linear, background-color var(--dur-1) linear, border-color var(--dur-1) linear;
+}
+.tour-acts button.terminal-cta:hover,
+.tour-acts button.terminal-cta:focus-visible {
+	background: var(--warm-white); color: var(--black); border-color: var(--warm-white);
+}
+.tour-acts pre.terminal-keys { margin: 0 !important; }
+
+@keyframes tour-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Narrow: the terminal stacks its two columns at 1100 px, and so does the band
+   — the counter above the lines, the way out under them. It grows, so the room
+   made for it grows with it. */
+@media (max-width: 1100px) {
+	:root { --tour-band: 210px; }   /* stacked: three rows instead of one */
+	.tour-card { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+	.tour-head { width: auto; }
+	.tour-acts { flex-direction: row; align-items: center; gap: var(--space-3); }
+}
+
+/* Movement is comfort, not information: whoever refuses it keeps the frame and
+   the band, without the blink and without the slide. */
+@media (prefers-reduced-motion: reduce) {
+	.tour-spot { animation: none; }
+	.tour-card { animation-duration: .01ms; }
 }

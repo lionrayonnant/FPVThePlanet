@@ -34,7 +34,10 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance }
 	const scan = generateTargetScan({ seed, count, swarmChance });
 	const condBlock = conditionsBlock(weather);
 	return new Promise((resolve) => {
-		const s = screen(root);
+		// `terminal-scan` names the screen for the tour (#86), which finds where
+		// the operator is standing by looking for it. The look is unchanged: the
+		// class carries no style.
+		const s = screen(root, 'terminal-scan');
 		// createElement plutôt qu'innerHTML, comme screen() lui-même : c'est ce
 		// qui rend l'écran montable sur le faux DOM, donc testable sans
 		// navigateur (tools/target-scan-render-selftest.mjs, issue #73).
