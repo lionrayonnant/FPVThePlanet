@@ -116,11 +116,27 @@ const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than 
 // c'est qu'ils sont tous multipliés par uSunAmount, qui descend de la
 // transmittance atmosphérique et de la couverture nuageuse — le voile ne peut
 // donc jamais contredire le régime météo affiché au joueur avant le vol.
+//
+// Révisé 2026-09-11 (#94), et la raison mérite d'être écrite parce qu'elle n'est
+// pas « c'était trop fort ». Le halo et le voile sont ajoutés APRÈS le gain
+// d'exposition — obligatoirement, sinon la caméra s'auto-atténuerait son propre
+// soleil — donc l'AGC ne peut pas les reprendre. Il ne peut qu'assombrir TOUT
+// LE RESTE en essayant. Les deux effets travaillaient donc l'un contre l'autre :
+// la lumière ajoutée près du soleil levait les noirs à 0,27 pendant que le gain
+// tombait à 0,60, et ce qui restait de contraste utile disparaissait exactement
+// là où le pilote regarde. Un premier passage (#11) avait rogné les deux sans
+// voir qu'ils se combattaient.
+//
+// Seul le terme additif peut trancher, puisqu'il est celui que rien ne rattrape.
+// Il est donc coupé franchement, et le posemètre desserré en face (SUN_METER_WEIGHT
+// dans sun.js) : moins de lumière parasite à compenser, donc moins besoin de
+// fermer. Le soleil reste un événement optique — un disque net, un reste de
+// halo — mais il ne fait plus mur.
 const SUN_DISC = 0.020;    // rayon du disque, en unités de l'espace carré
 const SUN_HALO = 0.32;     // rayon du lobe autour du disque
-const SUN_HALO_GAIN = 0.9; // ce que le halo ajoute au plus fort
-// Revised 2026-09-08: playable against the sun — less black-lift (#11).
-const SUN_VEIL = 0.14;     // remontée des noirs quand le soleil est dans le champ
+const SUN_HALO_GAIN = 0.12; // ce que le halo ajoute au plus fort
+const SUN_DISC_GAIN = 0.8; // ce que le disque lui-même ajoute
+const SUN_VEIL = 0.03;     // remontée des noirs quand le soleil est dans le champ
 
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
@@ -212,6 +228,7 @@ const LensShader = {
 			#define SUN_HALO ${SUN_HALO.toFixed(3)}
 			#define SUN_HALO_GAIN ${SUN_HALO_GAIN.toFixed(2)}
 			#define SUN_VEIL ${SUN_VEIL.toFixed(3)}
+			#define SUN_DISC_GAIN ${SUN_DISC_GAIN.toFixed(2)}
 			uniform vec3 uSunPos;
 			uniform vec3 uSunColor;
 			uniform float uSunAmount;
@@ -551,7 +568,7 @@ const LensShader = {
 					// ne fait que quelques pixels et un bord dur y crénellerait.
 					float disc = uSunAmount
 						* (1.0 - smoothstep(SUN_DISC * 0.6, SUN_DISC, sd));
-					c += uSunColor * disc * 1.6;
+					c += uSunColor * disc * SUN_DISC_GAIN;
 				}
 			#endif
 
