@@ -14,14 +14,18 @@
 //   2. runHandover  — MANUAL OVERRIDE REQUIRED et [ JACK IN ], seuls au
 //      milieu de l'écran. C'est une INVITE : rien d'autre n'y bouge, et le
 //      bouton respire pour dire qu'il attend quelqu'un.
-//   3. runAcquired  — CONTROL ACQUIRED et l'empreinte de la machine qui se
+//   3. runCulmination — une à quatre secondes de folie demo scene (#101). Le
+//      geste doit tomber sur quelque chose : c'est la seule réponse, et elle
+//      ne demande rien à personne. Vit dans src/culmination.js.
+//   4. runAcquired  — CONTROL ACQUIRED et l'empreinte de la machine qui se
 //      trace. Le résultat du geste, jamais mélangé au geste lui-même.
 //
 // L'écran peut être quitté à N'IMPORTE quel point avant l'acquisition (issue
-// #33) : voir `abort()` dans les deux premiers. Sur le troisième, le contrôle
-// est déjà pris — Échap saute le battement au lieu d'annuler. Le CONTROL
-// VECTOR ritual (PHASE 10, formerly ritual.js) used to stand where the
-// handover screen is now; the ritual has since been removed (#33).
+// #33) : voir `abort()` dans les deux premiers. Sur les deux derniers, le
+// contrôle est déjà pris — Échap saute le battement au lieu d'annuler. The
+// CONTROL VECTOR ritual (PHASE 10, formerly ritual.js) used to stand where the
+// handover screen is now; its vector entry was removed (#33) and the
+// culmination that followed it came back on its own screen (#101).
 //
 // Pure client screens: terminal look (screen from terminal.js), NO Three/
 // Rapier/physics dependency. Never imported by the engine.
@@ -40,6 +44,7 @@ import { notify } from './dialogue.js';
 import { scanContext } from './dialogue-context.js';
 import { randomartWalk, randomartFrame } from '../tools/randomart.mjs';
 import { reducedMotion } from './motion.js';
+import { runCulmination } from './culmination.js';
 
 const DOT_MIN = 3;
 const DOT_MAX = 15;
@@ -92,6 +97,11 @@ export async function runHack(root, { hackType, family, ready, candidate = null,
 
 	const handover = await runHandover(root, { type });
 	if (handover?.aborted) return { aborted: true };
+
+	// Le geste est passé : plus rien n'annule. La culmination se joue sur tous
+	// les chemins, y compris les aperçus `?hack=` — elle ne dépend que de la
+	// famille et de la graine cosmétique, jamais de la machine.
+	await runCulmination(root, { hackType: type, seed: buildSeed ?? family ?? type });
 
 	// Sans `buildSeed` — les chemins d'aperçu `?hack=` — il n'y a pas de machine
 	// à graver : le geste rend la main directement, comme avant #57.

@@ -200,7 +200,10 @@ Plan d'origine (contexte de la décision d'architecture) :
     PHASE 17, mais pas remis en scène).
   - PHASE 10 construisait puis a retiré un rituel manuel ici (`CONTROL
     VECTOR` + QTE) — voir la note sous PHASE 20 pour le retrait (issue #33).
-    Ce que PHASE 09 pose reste l'état réel : `[ JACK IN ]` seul.
+    Ce que PHASE 09 pose reste l'état réel pour le GESTE : `[ JACK IN ]` seul,
+    rien à retaper. Ce que le geste ouvre a en revanche été rétabli (issue
+    #101) : la culmination, `src/culmination.js`, entre l'invite et
+    `CONTROL ACQUIRED`.
 - **PHASE 15 — Session Complete (issue #52)**, branche `phase-15-post-flight`.
   - `tools/post-flight-model.mjs` (`analyzeFlight()`) : logique pure de
     déduction, dont l'entrée est le `flightTelemetry` OBSERVÉ pendant la
@@ -610,24 +613,27 @@ Plan d'origine (contexte de la décision d'architecture) :
     `iconSVG` en rects `crispEdges` (aucun emoji), `faviconDataURI` — le
     favicon de `index.html` est ce drone pixel art. `tools/pixel-icons-selftest.mjs` :
     5/5 OK.
-  - **Révisé (2026-09-09, issue #33) — les primitives ne servent plus qu'à
-    l'intro.** PHASE 20 avait construit 11 primitives ASCII composables
-    (`RITUAL_PRIMITIVES` dans `src/hack-grammars.js`) pour la culmination du
-    rituel d'acquisition, consommées par `src/ritual.js` (retiré) et
-    partagées avec `src/intro.js` depuis l'issue #124. Le rituel étant retiré,
-    `intro.js` en est désormais le **seul** consommateur, à chaque lancement
-    du jeu — pas seulement à l'acquisition d'une cible.
-    `tools/ritual-selftest.mjs` et `tools/ritual-bench.mjs` sont renommés
-    `intro-primitives-selftest.mjs` / `intro-primitives-bench.mjs` : même
-    contrat `{ t, seed, dur }`, même budget 2 ms/frame ; le garde-fou
-    d'acceptation #57 devient `EVENT_MODULES = new Set(['hack-grammars.js',
-    'intro.js'])` (`ritual.js` disparu de la liste blanche avec lui).
-    `RITUAL_PRIMITIVES` garde son nom — l'intro les nomme déjà ainsi
-    (`style.css`) et renommer aurait élargi le diff sans le justifier.
-  - Le détail historique de la vérification par famille de hack (six
-    familles, culmination visuelle, vecteur de secours) décrivait un écran
-    qui n'existe plus ; voir la note de révision de la Bible §15 et le bloc
-    PHASE 10 de la roadmap pour ce qui l'a remplacé (`[ JACK IN ]`).
+  - **Révisé (2026-09-09, issue #33 ; re-révisé le 2026-09-12, issue #101) —
+    les primitives ont deux consommateurs.** PHASE 20 avait construit 11
+    primitives ASCII composables (`RITUAL_PRIMITIVES` dans
+    `src/hack-grammars.js`) pour la culmination de l'acquisition, consommées
+    par `src/ritual.js` et partagées avec `src/intro.js` depuis l'issue #124.
+    Le retrait du CONTROL VECTOR a emporté `ritual.js`, laissant `intro.js`
+    seul ; #101 a rétabli la culmination dans `src/culmination.js`, qui les
+    consomme à nouveau, pondérées par famille (`FAMILY_PRIMITIVES`, revenu
+    dans `hack-grammars.js`). Le garde-fou d'acceptation #57 est donc
+    `EVENT_MODULES = new Set(['hack-grammars.js', 'intro.js',
+    'culmination.js'])`. `tools/intro-primitives-selftest.mjs` /
+    `intro-primitives-bench.mjs` (renommés des `ritual-*`) gardent le contrat
+    `{ t, seed, dur }` et le budget 2 ms/frame ; `tools/culmination-selftest.mjs`
+    tient la composition par famille et les variantes V1–V4.
+    `RITUAL_PRIMITIVES` garde son nom — les deux consommateurs les nomment
+    déjà ainsi et renommer aurait élargi le diff sans le justifier.
+  - Le détail historique de la SAISIE par famille de hack (vecteur, vecteur
+    de secours) décrivait un écran qui n'existe plus ; voir la note de
+    révision de la Bible §15 et le bloc PHASE 10 de la roadmap pour ce qui l'a
+    remplacé (`[ JACK IN ]`). La culmination visuelle, elle, est de retour
+    (#101) — Bible §19.
 
 - **Sélection par polygone libre (issue #30)** — `DRAW SHAPE` dans le GLOBAL
   SCANNER, `drawPolygon` dans `add-map.html`, `--poly` dans `export-obj` et dans
@@ -1365,7 +1371,7 @@ PHASE 26. Restent donc entièrement à juger à l'écran et aux sticks :
 ### Le parcours à jouer pour clore la phase
 
 1. **FIELD non régressé** : mode select → FIELD → Home → FLY → TARGET SCAN →
-   hack → `[ JACK IN ]` *(rituel retiré, issue #33)* → vol → pose →
+   hack → `[ JACK IN ]` → culmination *(#101)* → `CONTROL ACQUIRED` → vol → pose →
    POST-FLIGHT → note → KEEP TERRAIN → Home. La
    session doit apparaître au SESSION LOG et les compteurs du pied de page avoir
    bougé. Puis un crash : LINK LOST → TARGET LOST → sortie, **et pas de respawn**.
@@ -1700,7 +1706,7 @@ commandés, c'est-à-dire un tune trop nerveux pour cette masse, pas une
 divergence. C'est bien un re-mesurage de tune qu'il lui faut, ce que #71 disait
 déjà.
 
-## Les primitives demo scene ne servent plus qu'à l'intro (issues #124, #33)
+## Les primitives demo scene : deux porteurs (issues #124, #33, #101)
 
 Historique de la règle, dans l'ordre : PHASE 20 (#57) disait que les
 primitives demo scene appartiennent au **rituel** d'acquisition et n'en
@@ -1713,9 +1719,15 @@ rituel, donc le même vocabulaire. `EVENT_MODULES` a tenu `ritual.js`,
 `hack-grammars.js`, `intro.js`.
 
 Le retrait du CONTROL VECTOR (issue #33) a retiré `ritual.js` de l'équation :
-`src/intro.js` est désormais le **seul** consommateur, à chaque lancement du
-jeu. Le selftest est renommé `tools/intro-primitives-selftest.mjs` et
-`EVENT_MODULES` devient `new Set(['hack-grammars.js', 'intro.js'])`.
+`src/intro.js` est resté seul consommateur, le selftest a été renommé
+`tools/intro-primitives-selftest.mjs` et `EVENT_MODULES` est devenu
+`new Set(['hack-grammars.js', 'intro.js'])`.
+
+Le retrait avait emporté la culmination avec la saisie, ce que #101 a corrigé :
+`src/culmination.js` la rejoue entre `[ JACK IN ]` et `CONTROL ACQUIRED`, avec
+`FAMILY_PRIMITIVES` de retour dans `hack-grammars.js`. `EVENT_MODULES` vaut
+donc `new Set(['hack-grammars.js', 'intro.js', 'culmination.js'])` — deux
+porteurs, l'intro et la culmination, exactement ce que dit la Bible §19.
 
 Ce qui n'a pas changé : tout module de `src/` autre que ceux de la liste qui
 référencerait ces primitives fait toujours échouer le selftest. Élargir cette

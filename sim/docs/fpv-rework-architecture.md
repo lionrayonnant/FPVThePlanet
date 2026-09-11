@@ -298,7 +298,8 @@ le respawn en vol.
 **Nouveau** — couche opérateur, world state, cache terrain par opérateur, modèle
 de session, génération de cibles, types de hack, entry state, Randomart,
 photos, journaux, RTC. *(Le rituel manuel d'acquisition — CONTROL VECTOR + QTE
-— a fait partie de cette liste, puis a été retiré entièrement, issue #33.)*
+— a fait partie de cette liste, puis a été retiré entièrement, issue #33 ; la
+culmination qui le suivait est revenue seule, sans saisie, issue #101.)*
 
 ---
 

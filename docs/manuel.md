@@ -904,13 +904,22 @@ propre à la famille de hack (`src/hack-grammars.js`, purement décoratif).
 L'écran s'arrête sur `MANUAL OVERRIDE REQUIRED` et un bouton `[ JACK IN ]`,
 avec `[ESC] ABORT` monté dès l'affichage de l'écran — utilisable pendant tout
 le chargement en arrière-plan, pas seulement une fois l'écran armé.
-Activer `[ JACK IN ]` termine l'acquisition ; abandonner (Échap ou
-`[ESC] ABORT`) résout `runHack()` en `{ aborted: true }` plutôt que de
-rejeter, et recharge la page de zone comme le ferait l'annulation d'un TARGET
-SCAN. Il n'y a plus de vecteur à retenir ni à retaper entre les deux : le
-CONTROL VECTOR, qui occupait cet écran jusqu'à l'issue #33, a été retiré
-entièrement (voir la note de révision de la Bible §15 et le bloc PHASE 10 de
-la roadmap).
+Activer `[ JACK IN ]` ouvre la **culmination** (`src/culmination.js`) : une à
+quatre secondes plein écran de primitives demo scene pondérées par la famille
+de hack (`FAMILY_PRIMITIVES`), dans les quatre couleurs réservées aux
+événements, avec la signature sonore de la famille
+(`uiAudio.playCulmination()`) pendant que la musique se retire. La variante
+V1–V4 est tirée sur la graine de la cible, donc rejouable. Rien n'y est à
+presser : elle démarre seule et rend la main seule, Échap saute le battement.
+Vient ensuite l'écran `CONTROL ACQUIRED` et son empreinte, puis le vol.
+
+Abandonner (Échap ou `[ESC] ABORT`), tant que le geste n'est pas passé, résout
+`runHack()` en `{ aborted: true }` plutôt que de rejeter, et recharge la page
+de zone comme le ferait l'annulation d'un TARGET SCAN. Il n'y a en revanche
+plus de vecteur à retenir ni à retaper : le CONTROL VECTOR, qui occupait cet
+écran jusqu'à l'issue #33, a été retiré entièrement — son retrait avait emporté
+la culmination avec lui, rétablie par l'issue #101 (voir la note de révision de
+la Bible §15/§19 et le bloc PHASE 10 de la roadmap).
 
 Hook de dev : `?hack=<type>` (ex. `?hack=gnss-spoof`) prévisualise un motif sur
 les chemins qui court-circuitent le TARGET SCAN (`?scene=`, `?family=`).

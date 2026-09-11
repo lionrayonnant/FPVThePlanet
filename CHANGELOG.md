@@ -20,6 +20,27 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- La culmination du hack est de retour (#101). Le retrait du CONTROL VECTOR
+  (#33) avait supprimé `src/ritual.js` en entier, alors que le problème tenait
+  à la moitié haute du fichier : la saisie d'un vecteur mémorisé hors du jeu,
+  qui bloquait un joueur l'ayant oublié. La culmination qui suivait est partie
+  avec elle, et `[ JACK IN ]` coupait droit au résultat.
+  Elle revient seule, sur son propre écran entre l'invite et `CONTROL
+  ACQUIRED` : `src/culmination.js`, une à quatre secondes plein écran
+  (variante V1–V4 tirée sur la graine de la cible,
+  `tools/culmination-model.mjs`), les primitives demo scene pondérées par
+  famille (`FAMILY_PRIMITIVES`, revenu dans `src/hack-grammars.js`), les quatre
+  couleurs d'événement, un coup à chaque battement, et la signature sonore de
+  la famille (`CULMINATION_SCORES` / `scoreFor` dans
+  `tools/ui-audio-model.mjs`, `uiAudio.playCulmination()`) pendant que la
+  musique se retire. Rien à presser : elle démarre seule, rend la main seule,
+  Échap saute le battement. `prefers-reduced-motion` la réduit à un seul
+  battement sans flash.
+  Ce qui ne revient pas : la saisie du vecteur, son riser (`ritualTension`) et
+  le blocage qu'ils portaient. La Bible §19 compte donc à nouveau deux porteurs
+  de la palette demo scene, l'intro et la culmination, ce que vérifient
+  `tools/palette-selftest.mjs` et `tools/intro-primitives-selftest.mjs`.
+
 - Le modèle de vol connaît maintenant le vol en translation (#91). Trois
   mécanismes qui manquaient, et que tout pilote ressent :
   - **Portance de translation** : en avançant, le rotor s'échappe de son propre

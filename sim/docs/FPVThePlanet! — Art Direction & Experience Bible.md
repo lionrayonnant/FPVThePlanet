@@ -701,11 +701,16 @@ Il ne détermine **pas** la difficulté du vol.
 
 # 19. Demo Scene
 
-*(révisée le 2026-09-09, issue #33 — voir la note de révision en §15 : la demo
-scene ne décore plus l'acquisition, elle vit entièrement dans l'intro.)*
+*(révisée le 2026-09-09, issue #33 — voir la note de révision en §15 ; révisée
+à nouveau le 2026-09-12, issue #101 : le retrait du CONTROL VECTOR avait
+emporté la culmination avec la saisie. La saisie ne revient pas ; la
+culmination, si.)*
 
-La demo scene est **événementielle** : elle se joue une fois par lancement, à
-l'écran `PRESS ANY KEY` (`src/intro.js`), et nulle part ailleurs.
+La demo scene est **événementielle**. Elle a deux porteurs, et deux seulement :
+
+- l'intro, une fois par lancement, à l'écran `PRESS ANY KEY` (`src/intro.js`) ;
+- la culmination du hack (`src/culmination.js`), une à quatre secondes après
+  `[ JACK IN ]`, avant `CONTROL ACQUIRED`.
 
 Pas de cyan/magenta en permanence.
 
@@ -713,15 +718,15 @@ Pas de glitch permanent.
 
 Pas de HUD psychédélique.
 
-Les couleurs exceptionnelles — cyan, magenta, violet, bleu électrique — n'ont
-plus qu'un seul porteur : l'intro. Elles ne reviennent ni au hack, ni à
-l'acquisition d'une cible, ni à aucun autre écran : `[ JACK IN ]` est un bouton
-de terminal ordinaire, pas un événement demo scene.
+Les couleurs exceptionnelles — cyan, magenta, violet, bleu électrique — ne
+sortent que là. Elles ne reviennent ni à l'analyse qui précède le geste, ni à
+l'écran du résultat, ni à aucun autre écran : `[ JACK IN ]` est un bouton de
+terminal ordinaire, c'est ce qu'il DÉCLENCHE qui est l'événement.
 
 La règle :
 
-> **Une intro, une fois, quelques secondes de folie, puis le calme pour tout
-> le reste de la session.**
+> **Quelques secondes de folie quand quelque chose se prend, puis le calme pour
+> tout le reste de la session.**
 
 Cet événement doit provoquer une **montée d'adrénaline avant d'entrer dans le
 jeu** — pas avant chaque pilotage.
@@ -1332,8 +1337,9 @@ electronica, IDM, techno, trance. Pas de modern EDM, pas de musique de film.
 
 L'arc : la musique s'installe **sourdement** au lancement du HACK — filtrée,
 lointaine, la musique de la pièce d'à côté. Elle se retire pendant l'analyse
-automatique, qui garde sa culmination jusqu'à `[ JACK IN ]`. Elle **explose au
-drop** sur le drone. Puis elle vit
+automatique, et se retire tout à fait — `music.duck()` — pour laisser la
+culmination du hack tenir seule sa signature sonore. Elle **explose au drop**
+sur le drone. Puis elle vit
 avec le vol : son intensité suit ce que le pilote subit, pas seulement ce qu'il
 fait. Au crash elle meurt à l'instant du choc, avec l'image. À la pose, elle
 relâche.
@@ -1685,8 +1691,9 @@ Le joueur reprend immédiatement les sticks.
 - photos ;
 - commentaires ;
 - son sans musique pendant le vol ;
-- IDM / demo scene pour l'intro *(recentré le 2026-09-09, issue #33 : la demo
-  scene ne décorait plus que l'acquisition/rituel, retirée avec lui — voir §19)*;
+- IDM / demo scene pour l'intro et la culmination du hack *(recentré le
+  2026-09-09, issue #33 ; la culmination est revenue le 2026-09-12, issue #101
+  — voir §19)* ;
 - crew décoratif.
 - BENCH — le banc, seconde voie du jeu (§48).
 
