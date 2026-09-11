@@ -168,6 +168,56 @@ export function inducedVelocity(vh, vEdge2) {
 	return vh2 * Math.sqrt(2 / (Math.sqrt(vEdge2 * vEdge2 + 4 * vh2 * vh2) + vEdge2));
 }
 
+// Flapback, in two parts, and a note on what is NOT here.
+//
+// A rotor in edgewise flight develops an in-plane force as well as a thrust,
+// and the disc tilts back, tilting the thrust with it. Both of those are
+// ALREADY in this file: with a flapping angle proportional to the advance ratio
+// mu = V/(wR), the in-plane component of a tilted thrust works out as
+// (k*kThrust/R)*w*V — the same shape as the rotor drag `kLateral*w*v` below,
+// which was fitted to observed behaviour and therefore contains them lumped
+// together. Adding a flapback FORCE would be that coefficient counted twice.
+//
+// What is missing is the MOMENT, and it comes from two places.
+//
+// One: the hub moment. On a rigid propeller the blade root cannot flap away the
+// once-per-revolution lift dissymmetry of edgewise flight, so it hands it to
+// the hub. Blade element, uniform inflow, first order in mu, summed over the
+// blades and then normalised by the same theory's thrust — rho, chord, lift
+// slope and the BLADE COUNT all cancel, which is worth saying because the
+// question of why bladeCount never reaches the physics keeps coming back:
+//
+//   M_hub = FLAP_K * T * V_edge / w,     FLAP_K = (theta/3 - lambda/4)
+//                                                 / (theta/3 - lambda/2)
+//
+// evaluated on the real props: 5x4.3 gives 1.314, 5x4.9 gives 1.256, 7x4 gives
+// 1.307. Four percent apart, so one global constant anchored on the reference
+// build, exactly as INFLOW_K0 and GROUND_EFFECT_REACH_RATIO are.
+export const FLAP_K = 1.31;
+
+// The derivation is first order in mu, so it is clamped there. Normal flight
+// sits at mu 0.13 to 0.25; this only bites in a low-rpm dive, where the
+// linearisation had stopped meaning anything anyway.
+const FLAP_MU_MAX = 0.5;
+
+// Two: the moment arm the in-plane forces never had. The rotor hubs sit at
+// (armX, 0, armZ) — in the plane of the centre of mass — so the rotor drag has
+// only ever produced the yaw moment in step(), and no pitch or roll at all. But
+// the discs are above the body: src/drone-shape.js draws them at 20 mm, and the
+// Rapier body's centre of mass IS the body centre (no offset, see physics.js).
+//
+// That 20 mm is the reference build's. A toothpick with 38 mm arms does not
+// carry its props two centimetres up, so scale it off the disc — anchored so
+// freestyle5 reproduces exactly the height it is drawn at. Thrust moments are
+// untouched by construction: a force along body +Y has no moment about a lever
+// that is itself along +Y.
+export const ROTOR_PLANE_Y_REF = 0.020;
+const ROTOR_PLANE_RATIO = ROTOR_PLANE_Y_REF / 0.0635;
+
+export function rotorPlaneYOf(profile = QUAD) {
+	return ROTOR_PLANE_RATIO * profile.propRadius;
+}
+
 // Ground-effect reach as a multiple of propRadius, fixed to reproduce
 // freestyle5's measured 0.22 m reach on its 0.0635 m prop exactly, so every
 // other family's reach scales off its own disk instead of freestyle5's.
@@ -254,6 +304,7 @@ export class Propulsion {
 		this._kBuffet = kBuffetOf(profile);
 		this._kLateral = kLateralOf(profile);
 		this._vhPerOmega = vhPerOmegaOf(profile);
+		this._rotorY = rotorPlaneYOf(profile);
 		this.seed = seed >>> 0;
 		this._rng = mulberry32(this.seed);
 		this.battery = new Battery(profile.battery);
@@ -397,7 +448,8 @@ export class Propulsion {
 			// `propwash` above. The separable form below only ever adds the
 			// edgewise term, which is the one that was missing.
 			const vh = w * this._vhPerOmega;
-			const dw = vy + 2 * (inducedVelocity(vh, vx * vx + vz * vz) - vh);
+			const vEdge2 = vx * vx + vz * vz;
+			const dw = vy + 2 * (inducedVelocity(vh, vEdge2) - vh);
 			let t = this._kThrust * w * w - this._kInflow * w * dw;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
@@ -425,6 +477,34 @@ export class Propulsion {
 			dragX += dx;
 			dragZ += dz;
 			ty += m.z * dx - m.x * dz;
+
+			// ...and the rest of that same cross product, which this file never
+			// took: the rotor sits at (m.x, h, m.z), not (m.x, 0, m.z). With
+			// r = (m.x, h, m.z) and F = (dx, 0, dz), the y component is the yaw
+			// moment just above and the other two are these. The thrust moments
+			// higher up are untouched — r_y is parallel to the thrust, so it has
+			// no lever on it.
+			tx += this._rotorY * dz;
+			tz -= this._rotorY * dx;
+
+			// The rigid-prop hub moment. Same direction as the pair above — the
+			// rotor group pushing back, above the centre of mass — so both are
+			// M = k * (v_edge x yHat), and (vx, 0, vz) x (0, 1, 0) = (-vz, 0, vx).
+			// Check the sign the way the axis convention demands: flying forward
+			// is vz < 0, so -vz > 0, so tx > 0, which is nose up. Moving right is
+			// vx > 0, so tz > 0, which is roll left — away from the relative wind.
+			//
+			// Written as a magnitude over the edgewise speed rather than the
+			// obvious mu * t * R, so that the clamp stays exact and there is no
+			// second divide by w.
+			const wR = w * P.propRadius;
+			const vEdge = Math.sqrt(vEdge2);
+			if (vEdge > 1e-9 && wR > 1e-6) {
+				const mu = Math.min(FLAP_MU_MAX, vEdge / wR);
+				const scale = (FLAP_K * mu * t * P.propRadius) / vEdge;
+				tx += scale * -vz;
+				tz += scale * vx;
+			}
 
 			hRotor += m.spin * P.propInertia * w;
 			load += (w / P.maxOmega) ** 3;
