@@ -10,7 +10,7 @@
 // scaled so its own worst case is exactly its share of the ceiling — 12 dB
 // below the player's idleLevel — so the SUM of the two worst cases IS the
 // ceiling. Without this, twelve more voices would be free to eat the 1.6 dB of
-// limiter headroom that docs/handoff-archive/son.md:92-98 measured as the whole
+// limiter headroom that docs/handoff-archive/sound.md:92-98 measured as the whole
 // margin of the mix.
 //
 // EXACTLY HOW STRONG EACH HALF OF THAT CLAIM IS — the two are not equal:
@@ -65,7 +65,7 @@ import { TRIM, OTHERS_CAP, AMBIENT_WORST } from '../tools/swarm-audio-model.mjs'
 
 // The ambient branch when nothing shares the ceiling with it: its own worst
 // case IS the cap, which is exactly the level #250 gave itself. CHOSEN, not
-// measured, like every relative level in this project (son.md:106-111).
+// measured, like every relative level in this project (sound.md:106-111).
 export const AMBIENT_ALONE = OTHERS_CAP / AMBIENT_WORST;
 
 let ctxRef = null;

@@ -3,7 +3,7 @@
 // the arithmetic, and tools/swarm-audio-selftest.mjs runs it in Node.
 //
 // Why a choir and not twelve drones. Twelve near-identical sines phase-lock
-// and produce exactly the synth-test tone docs/handoff-archive/son.md:84-90
+// and produce exactly the synth-test tone docs/handoff-archive/sound.md:84-90
 // forbids — the same failure the four player motors had before the detune was
 // added. So the swarm is two stages: THREE near voices, continuously
 // reassigned to the three nearest units, plus ONE bed for everything else,
@@ -13,12 +13,12 @@
 // a single `others` bus with a fixed ceiling: their sum is bounded at
 // OTHERS.headroomDb below the player's idleLevel — the bound #250 had given
 // itself for four voices. A swarm of twelve therefore cannot, by
-// construction, eat the 1.6 dB of limiter headroom son.md:92-98 measured. The
+// construction, eat the 1.6 dB of limiter headroom sound.md:92-98 measured. The
 // price is that the ambients lose ~3 dB compared to when they had the whole
 // budget to themselves; that is what "shared" means.
 //
 // Every relative level below is CHOSEN, not measured, like the rest of the
-// sound (son.md:106-111). No agent can listen; what is guaranteed here is the
+// sound (sound.md:106-111). No agent can listen; what is guaranteed here is the
 // structure, the frequencies and the ceiling, not the taste.
 import { VOICE, gainFor, bladeFreq } from './ambient-audio-model.mjs';
 
@@ -68,7 +68,7 @@ export const SWARM_AUDIO = {
 	// Narrow bandpass on the noise, centred on the MEAN blade frequency, then
 	// two lowpasses. bedCenterMax is the guard the spec asks for: nothing —
 	// fundamental or band — may reach into 2-4 kHz, the peak of the equal
-	// loudness curve and the whole reason son.md exists.
+	// loudness curve and the whole reason sound.md exists.
 	bedQ: 6,
 	bedCenterMax: 1600,
 	bedLowpass: 1600, bedLowpassQ: 0.707, bedLowpassStages: 2,
@@ -78,7 +78,7 @@ export const SWARM_AUDIO = {
 	// azimuth barely moves it, and it moves slowly.
 	bedPanScale: 0.35, bedPanTau: 1.5,
 
-	// Detune is MANDATORY (son.md:84-90), and the wander with it: the beat
+	// Detune is MANDATORY (sound.md:84-90), and the wander with it: the beat
 	// wanted is between ALMOST identical frequencies, not identical ones.
 	detuneCents: 9,
 	wanderCents: 4,

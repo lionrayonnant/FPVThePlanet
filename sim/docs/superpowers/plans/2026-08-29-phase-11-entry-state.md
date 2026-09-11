@@ -1030,7 +1030,7 @@ Expected: all green, build succeeds (none of these exercise `main.js`'s browser-
 
 - [ ] **Step 7: Browser verification**
 
-Run: `cd sim && npm run dev`, open `http://localhost:5173/?scene=tour-eiffel` (bypasses the terminal, boots straight to flight — see `docs/manuel.md`).
+Run: `cd sim && npm run dev`, open `http://localhost:5173/?scene=tour-eiffel` (bypasses the terminal, boots straight to flight — see `docs/manual.md`).
 
 Check:
 - The drone is already moving/tilted on the very first frame (not sitting still at the old fixed spawn).

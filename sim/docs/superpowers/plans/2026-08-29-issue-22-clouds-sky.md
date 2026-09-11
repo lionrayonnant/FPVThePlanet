@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js (GLSL3, `ShaderMaterial`), Vite, JS ES modules sans framework. Vérification headless par `node tools/selftest.mjs`, vérification visuelle par chrome-devtools.
 
-**Spec:** `sim/docs/superpowers/specs/2026-08-29-issue-22-nuages-ciel-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-08-29-issue-22-clouds-sky-design.md`
 
 ## Global Constraints
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** JavaScript ES modules, Vite, selftests maison en Node (`node:assert/strict`), faux DOM maison (`tools/lib/fake-dom.mjs`).
 
-**Spec:** `sim/docs/superpowers/specs/2026-09-09-retrait-control-vector-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-09-09-control-vector-removal-design.md`
 
 ## Global Constraints
 
@@ -624,9 +624,9 @@ Dernière tâche : c'est ici, et seulement ici, que `npm run selftest:ci` tourne
 
 **Files:**
 - Modify: `sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md`
-- Modify: `sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md`
+- Modify: `sim/docs/FPVThePlanet! — DA-UX Implementation Roadmap.md`
 - Modify: `sim/HANDOFF.md`
-- Modify: `docs/manuel.md`
+- Modify: `docs/manual.md`
 - Modify: `sim/docs/architecture-diagrams.md`, `sim/docs/fpv-rework-architecture.md`
 - Modify: `CHANGELOG.md`
 
@@ -644,7 +644,7 @@ Réécrire PHASE 10 (l. 672-731) : la phase devient le retrait, pas la construct
 
 Supprimer le bloc PHASE 10 (l. 201-236). Réécrire le bloc PHASE 20 (l. 638-705) et la section des primitives partagées (l. 1660-1673) pour ne plus parler que de l'intro. Mettre à jour les mentions ponctuelles : l. 472, 1041, 1047, 1092, 1328, 1399, 1579, 1971, 2072-2085, 2849, 2884-2885, 2900, 2907, 2924-2955.
 
-- [ ] **Step 4: `docs/manuel.md`**
+- [ ] **Step 4: `docs/manual.md`**
 
 Réécrire l. 838-847 — **le passage était déjà périmé**, il décrit l'état d'avant la PHASE 10 et annonce le rituel comme à venir. Il devient la description de l'état réel : le hack s'arrête sur `MANUAL OVERRIDE REQUIRED` et un bouton `[ JACK IN ]`, avec `[ESC] ABORT` pour abandonner. Mettre à jour l. 347 et 596.
 

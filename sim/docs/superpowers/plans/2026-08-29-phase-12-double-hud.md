@@ -1903,7 +1903,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `sim/HANDOFF.md`
-- Modify: `docs/manuel.md` (si les commandes ou les modules y sont listés)
+- Modify: `docs/manual.md` (si les commandes ou les modules y sont listés)
 
 - [ ] **Step 1: Mettre `HANDOFF.md` à jour**
 

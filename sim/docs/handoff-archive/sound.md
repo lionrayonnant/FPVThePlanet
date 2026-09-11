@@ -2,7 +2,7 @@
 
 > Note de session archivée, détachée de [HANDOFF.md](../../HANDOFF.md) le 2026-08-29 pour alléger le contexte.
 > Synthèse Web Audio depuis les quatre moteurs, et la correction de fatigue auditive.
-> Pour retrouver une section : `grep -n "^#" son.md`.
+> Pour retrouver une section : `grep -n "^#" sound.md`.
 
 ## Son : synthèse depuis les quatre moteurs (ajouté 2026-08-26)
 

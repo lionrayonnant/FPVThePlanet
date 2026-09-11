@@ -76,7 +76,7 @@ T11 docs, changelog, visual pass, PR
 ### Task 4: Remove landing (D9, #10)
 
 **Files:**
-- Modify: `sim/src/flight-end.js`, `sim/src/main.js`, `sim/src/input.js`, `sim/src/terminal.js:373-377`, `sim/src/session-log.js:265`, `sim/tools/session-model.mjs`, `sim/tools/session-log-model.mjs`, `sim/server/api.mjs` (comments), `sim/src/style.css:201`, `sim/src/fpvtp-osd.js:177`, `sim/src/music.js:185`, `sim/src/physics.js:425` (comment), `sim/package.json`, `CLAUDE.md:136`, `docs/manuel.md:512`, docs notes
+- Modify: `sim/src/flight-end.js`, `sim/src/main.js`, `sim/src/input.js`, `sim/src/terminal.js:373-377`, `sim/src/session-log.js:265`, `sim/tools/session-model.mjs`, `sim/tools/session-log-model.mjs`, `sim/server/api.mjs` (comments), `sim/src/style.css:201`, `sim/src/fpvtp-osd.js:177`, `sim/src/music.js:185`, `sim/src/physics.js:425` (comment), `sim/package.json`, `CLAUDE.md:136`, `docs/manual.md:512`, docs notes
 - Delete: `sim/src/post-flight.js`, `sim/tools/post-flight-model.mjs`, `sim/tools/post-flight-selftest.mjs`, `sim/tools/landing-selftest.mjs`
 - Test: `sim/tools/flight-end-selftest.mjs`, `sim/tools/session-log-selftest.mjs`, `sim/tools/session-api-selftest.mjs`
 
@@ -89,7 +89,7 @@ T11 docs, changelog, visual pass, PR
 - [ ] `input.js`: remove the `j` key branch and the gamepad disarm gesture (`:708-717` and the stick-hold detection around `:805`); remove `'disarm'` from any action list.
 - [ ] Session layer: `session-model.mjs` (`SESSION_RESULTS`, `resumeSession()`, `closeSession` verdict check), `session-log-model.mjs` (`SESSION_FILTERS`, filter case), `session-log.js:265` credo → `A CRASHED TARGET IS LOST. THE LOG IS WHAT REMAINS.`, `terminal.js:373-377` RESUME button and the `{ slug, resume }` propagation (leave `slug` REVISIT). `server/api.mjs` comments. Reading old `LANDED` sessions must still work (test above).
 - [ ] Delete the four files; remove `post-flight-selftest.mjs` and `landing-selftest.mjs` from `selftest:operator`; `style.css` `[data-kind="landed"]`, `fpvtp-osd.js:177` comment, `music.js` `FADE.landed`, `physics.js:425` comment.
-- [ ] Docs: CLAUDE.md and `docs/manuel.md` now cite `tools/entry-state-selftest.mjs` as the SKIP pattern. Add dated notes (not rewrites): Bible near line 1038/1060/1768, Roadmap PHASE 14 §Landing (`:926-929`), `fpv-rework-architecture.md:85` — "Revised 2026-09-08 — landing removed; a flight ends by crash, geofence exit or the pilot cutting the link (hold K)." CHANGELOG `Retiré`.
+- [ ] Docs: CLAUDE.md and `docs/manual.md` now cite `tools/entry-state-selftest.mjs` as the SKIP pattern. Add dated notes (not rewrites): Bible near line 1038/1060/1768, Roadmap PHASE 14 §Landing (`:926-929`), `fpv-rework-architecture.md:85` — "Revised 2026-09-08 — landing removed; a flight ends by crash, geofence exit or the pilot cutting the link (hold K)." CHANGELOG `Retiré`.
 - [ ] `npm run selftest:ci` green; commit `refactor(flight): remove landing — a flight ends by crash, fence or a cut link`.
 
 ### Task 5: Remappable key map — model and input wiring (D13, #14)
@@ -193,7 +193,7 @@ T11 docs, changelog, visual pass, PR
 
 **Files:**
 - Create: `sim/src/briefing.js`, `sim/tools/briefing-model.mjs`, `sim/tools/briefing-selftest.mjs`, `sim/tools/briefing-render-selftest.mjs`
-- Modify: `sim/src/bootstrap.js` (call the briefing after `registeredScreen`), `sim/src/main.js` (`settings.onReplayBriefing`, first-flight hints feed), `sim/src/fpvtp-osd.js` (`#fo-hint`, `setHint(text|null)`), `sim/src/settings.js` (button wiring only), `sim/src/style.css`, Bible §2 and Roadmap PHASE 13 (dated revision notes), `docs/manuel.md` (one paragraph)
+- Modify: `sim/src/bootstrap.js` (call the briefing after `registeredScreen`), `sim/src/main.js` (`settings.onReplayBriefing`, first-flight hints feed), `sim/src/fpvtp-osd.js` (`#fo-hint`, `setHint(text|null)`), `sim/src/settings.js` (button wiring only), `sim/src/style.css`, Bible §2 and Roadmap PHASE 13 (dated revision notes), `docs/manual.md` (one paragraph)
 
 **Interfaces:**
 - `tools/briefing-model.mjs` (pure):
@@ -209,7 +209,7 @@ T11 docs, changelog, visual pass, PR
 
 - [ ] Model selftest: four screens in order `INPUT, THE TERMINAL, A SESSION, BRIEFING COMPLETE`; the INPUT screen rows for a keyboard equal `keyMapRows(DEFAULT_KEY_MAP)` labels; for a gamepad they name sticks; `shouldBrief` true when the key is absent, false when set, false with a null store; `flightHint` returns `THROTTLE UP` before take-off, `[TAB] SETTINGS` for 6 s after take-off, `[HOLD K] CUT LINK` from 30 s, `null` when `bench` or not `firstFlight`. Render selftest: screens mount with `[ CONTINUE ]` and the ESC hint; Escape resolves. Red → implement → green.
 - [ ] Wire: `bootstrap.js` runs the briefing after registration (and `markBriefed`); `main.js` sets `settings.onReplayBriefing = () => runBriefing(...)`; per frame `fpvtpOsd.setHint(flightHint({...}))`; `markFirstFlight` when a non-bench session ends. `#fo-hint` styled like `#fo-cut`.
-- [ ] Docs: Bible §2 after "Le jeu ne l'interdit pas. Le joueur décide." and Roadmap PHASE 13 "Pas de tutoriel." get the dated note from spec D16; Bible §31 lists the four Settings tabs as now built. `docs/manuel.md` gets a short "Briefing" paragraph (where it runs, how to replay, the two storage keys).
+- [ ] Docs: Bible §2 after "Le jeu ne l'interdit pas. Le joueur décide." and Roadmap PHASE 13 "Pas de tutoriel." get the dated note from spec D16; Bible §31 lists the four Settings tabs as now built. `docs/manual.md` gets a short "Briefing" paragraph (where it runs, how to replay, the two storage keys).
 - [ ] Chain both selftests, `selftest:ci`, commit `feat(briefing): a first briefing after registration, replayable from Settings, three hints on the first flight`.
 
 ### Task 11: Close out
