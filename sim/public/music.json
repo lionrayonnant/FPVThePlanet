@@ -1073,6 +1073,176 @@
 			"lufs": -13.8
 		},
 		{
+			"id": "swarmNode-1d442523",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-1d442523.opus",
+			"durS": 86.101,
+			"bpm": 138,
+			"axes": {
+				"darkness": null,
+				"energy": "relentless and driving",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 138 BPM, relentless and driving, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::7",
+			"modelSeed": 1621117629,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "swarmNode-1fd677fc",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-1fd677fc.opus",
+			"durS": 86.138,
+			"bpm": 136,
+			"axes": {
+				"atmosphere": "restless and shifting",
+				"darkness": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 136 BPM, restless and shifting, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::6",
+			"modelSeed": 1321294402,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.7
+		},
+		{
+			"id": "swarmNode-46487569",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-46487569.opus",
+			"durS": 85.545,
+			"bpm": 136,
+			"axes": {
+				"aggression": null,
+				"energy": "relentless and driving",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 136 BPM, relentless and driving, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::3",
+			"modelSeed": 1643475737,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.5
+		},
+		{
+			"id": "swarmNode-57f0e82f",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-57f0e82f.opus",
+			"durS": 85.914,
+			"bpm": 141,
+			"axes": {
+				"darkness": null,
+				"density": null,
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 141 BPM, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::9",
+			"modelSeed": 1094415097,
+			"model": "stable-audio-3-medium",
+			"lufs": -14
+		},
+		{
+			"id": "swarmNode-62d143d6",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-62d143d6.opus",
+			"durS": 86.137,
+			"bpm": 140,
+			"axes": {
+				"atmosphere": "restless and shifting",
+				"energy": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 140 BPM, restless and shifting, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::2",
+			"modelSeed": 1856426170,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
+			"id": "swarmNode-7b1c01cd",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-7b1c01cd.opus",
+			"durS": 86.148,
+			"bpm": 132,
+			"axes": {
+				"aggression": null,
+				"energy": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 132 BPM, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::0",
+			"modelSeed": 1060063024,
+			"model": "stable-audio-3-medium",
+			"lufs": -14
+		},
+		{
+			"id": "swarmNode-9315c5e1",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-9315c5e1.opus",
+			"durS": 84.985,
+			"bpm": 138,
+			"axes": {
+				"atmosphere": null,
+				"density": "dense layered arrangement",
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 138 BPM, dense layered arrangement, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::4",
+			"modelSeed": 107109052,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "swarmNode-a9a70780",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-a9a70780.opus",
+			"durS": 85.957,
+			"bpm": 133,
+			"axes": {
+				"density": null,
+				"energy": null,
+				"grain": "raw hardware synthesizers"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 133 BPM, raw hardware synthesizers, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::1",
+			"modelSeed": 1934781393,
+			"model": "stable-audio-3-medium",
+			"lufs": -14
+		},
+		{
+			"id": "swarmNode-cb2f39eb",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-cb2f39eb.opus",
+			"durS": 86.117,
+			"bpm": 140,
+			"axes": {
+				"aggression": "harsh distorted edges",
+				"density": null,
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 140 BPM, harsh distorted edges, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::8",
+			"modelSeed": 590862040,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.9
+		},
+		{
+			"id": "swarmNode-ec1b7c5e",
+			"pool": "swarmNode",
+			"file": "music/swarmNode/swarmNode-ec1b7c5e.opus",
+			"durS": 86.55,
+			"bpm": 134,
+			"axes": {
+				"aggression": null,
+				"atmosphere": "restless and shifting",
+				"grain": "vintage drum machines and analog hardware"
+			},
+			"prompt": "dark industrial hard techno with an early-1980s horror-score motif on top, starts immediately in full flow, the groove already running from the first bar, no intro, no build-up, no gradual fade-in, hard mechanical four-to-the-floor kick leading the whole track, obsessive four-note minor ostinato repeating without variation over a static bass pedal, fat detuned screaming hoover lead used as a recurring alarm, constant deep sub bass pressure underneath, never letting go, dry close-miked production with almost no reverb, everything pressed against the ear, stalking and relentless, something large closing in formation, vintage analog sequencers, cold polysynth and overdriven drum machines, 134 BPM, restless and shifting, vintage drum machines and analog hardware, instrumental, no vocals, no festival EDM, no modern EDM drop, no cinematic trailer music",
+			"seed": "v1::5",
+			"modelSeed": 676417613,
+			"model": "stable-audio-3-medium",
+			"lufs": -13.8
+		},
+		{
 			"id": "toothpick-187e50f7",
 			"pool": "toothpick",
 			"file": "music/toothpick/toothpick-187e50f7.opus",

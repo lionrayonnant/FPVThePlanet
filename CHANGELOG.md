@@ -20,6 +20,9 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Dix morceaux SWARM NODE dans la bibliothèque (#118). Le pool du #116 était
+  déclaré et vide ; il est maintenant au niveau des autres — 83 morceaux au
+  total. 132 à 141 BPM, bouclés et normalisés à -14 LUFS comme le reste.
 - Un pool musical pour SWARM NODE (#116). La 7ᵉ famille — le nœud de
   commandement d'un essaim — était absente de `MUSIC_POOLS` : le vol le plus
   rare du jeu était aussi le seul à se jouer en silence. Son noyau est une
