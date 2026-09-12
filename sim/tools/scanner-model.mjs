@@ -6,6 +6,7 @@ import {
 	latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters,
 	polygonGrid, maskOutline, polygonBounds, polygonArea, polygonProbePoint,
 } from './lib/tiles.mjs';
+import { asText } from './lib/as-text.mjs';
 
 export {
 	latticeEdges, intersectBox, tileGrid, boxDimensions, tileSizeMeters,
@@ -33,7 +34,21 @@ export function zoneCentre(zone, zoom) {
 // ---------------------------------------------------------------- formats
 
 const NF = new Intl.NumberFormat('en-US');
-export const num = (n) => NF.format(Math.round(n));
+
+// The counterpart of asText(): only primitives have a number. `Math.round()`
+// throws on a Symbol and on `{valueOf: null}`, and both shapes are reachable
+// from a provider answer.
+const asNumber = (v) => {
+	const t = typeof v;
+	return (t === 'number' || t === 'string' || t === 'boolean' || t === 'bigint') ? Number(v) : NaN;
+};
+
+const isObj = (v) => !!v && typeof v === 'object';
+
+export const num = (n) => {
+	const x = asNumber(n);
+	return Number.isFinite(x) ? NF.format(Math.round(x)) : '—';
+};
 
 // Décimal (1 GB = 1e9), comme tools/terminal-model.mjs : c'est la même Home.
 export function bytes(n) {
@@ -72,20 +87,24 @@ export function bar(level, width = 12) {
 export function areaAnalysis(d) {
 	if (!d) return null;
 	const { grid, estimate: e, dimensions, tileMeters } = d;
+	// The answer is ours, but a truncated one and an older build's both reach
+	// this screen. No table beats a TypeError on the rail.
+	if (!isObj(grid) || !isObj(e) || !isObj(dimensions)) return null;
+	const area = asNumber(dimensions.area), side = asNumber(tileMeters);
 	return {
 		// Sur un tracé libre, « cols × rows » serait l'emprise, pas ce qu'on
 		// balaie : on annoncerait 1 350 tuiles là où on n'en demande que 732, et
 		// l'économie — toute la raison d'être du polygone — resterait invisible.
 		tiles: grid.masked
-			? `${num(grid.columns)} / ${num(grid.cols * grid.rows)}`
-			: `${grid.cols} × ${grid.rows}`,
+			? `${num(grid.columns)} / ${num(asNumber(grid.cols) * asNumber(grid.rows))}`
+			: `${num(grid.cols)} × ${num(grid.rows)}`,
 		columns: num(grid.columns),
 		requests: num(e.probes),
-		surface: `${(dimensions.area / 1e6).toFixed(2)} km²`,
+		surface: Number.isFinite(area) ? `${(area / 1e6).toFixed(2)} km²` : '—',
 		span: `${num(dimensions.width)} × ${num(dimensions.height)} m`,
-		tileSide: `${tileMeters.toFixed(0)} m`,
+		tileSide: Number.isFinite(side) ? `${side.toFixed(0)} m` : '—',
 		data: bytes(e.prepBytes),
-		dataRange: `${bytes(e.prepBytesRange[0])} – ${bytes(e.prepBytesRange[1])}`,
+		dataRange: `${bytes(e.prepBytesRange?.[0])} – ${bytes(e.prepBytesRange?.[1])}`,
 		download: bytes(e.rawBytes),
 		time: duration(e.totalSeconds),
 		heavy: e.warn === true,
@@ -131,8 +150,12 @@ const FULL_SCALE = 70;       // densité au-delà de laquelle la barre est plein
 // pour les deux.
 function densityOf(place) {
 	for (const token of [place?.addresstype, place?.type, place?.category, place?.class]) {
-		const k = String(token ?? '').toLowerCase();
-		if (k && DENSITY[k] !== undefined) return { perKm2: DENSITY[k], token: k };
+		const k = asText(token).toLowerCase();
+		// Object.hasOwn, not `!== undefined`: `DENSITY['__proto__']` is
+		// Object.prototype, and a density of Object.prototype renders
+		// « ~NaN–NaN DRONES ». Nominatim will not send that token; a mirror of
+		// it might.
+		if (k && Object.hasOwn(DENSITY, k)) return { perKm2: DENSITY[k], token: k };
 	}
 	return { perKm2: UNKNOWN_DENSITY, token: null };
 }
@@ -189,7 +212,7 @@ export function signalDensity({ place, areaKm2 }) {
 // mémoire qui n'a rien à faire dans un panneau de jeu — et qui noierait le seul
 // morceau lisible. Le log serveur garde la trace complète.
 function firstLine(msg) {
-	const line = String(msg ?? '').split('\n').map((l) => l.trim()).find(Boolean);
+	const line = asText(msg).split('\n').map((l) => l.trim()).find(Boolean);
 	if (!line) return 'unknown error';
 	return line.length > 160 ? `${line.slice(0, 157)}…` : line;
 }
@@ -215,7 +238,7 @@ export function chosenSource(registry, chosen) {
 // moitié de l'information — un « NO COVERAGE » anonyme ne dit pas s'il faut
 // changer de zone ou changer de source.
 export function coverageLine({ plan, probe, provider }) {
-	const who = provider?.label ?? 'The source';
+	const who = asText(provider?.label) || 'The source';
 	if (probe) {
 		// « La sonde a échoué » n'est PAS « il n'y a rien ici ». Un jeton absent,
 		// un exporteur qui plante, un réseau coupé : rendre ça en « NO COVERAGE »
@@ -236,19 +259,24 @@ export function coverageLine({ plan, probe, provider }) {
 			// protocole probe() le prévoit encore pour un futur fournisseur.
 			undecodable: `${num(probe.undecodable ?? 0)} tiles came back but ${who} could not decode them. Covered, unusable.`,
 			none: `Nothing came back at the centre of the area. ${who} most likely has no photogrammetry here.`,
-		}[probe.status] ?? probe.message;
+			// The fallback carries a status we do not know — some future
+			// provider's. The message is still the exporter's, so it goes
+			// through firstLine() like the error path: a panic dump must not
+			// reach the rail whole.
+		}[probe.status] ?? firstLine(probe.message);
 		return { status: probe.status, label, detail };
 	}
 	if (plan) {
 		if (plan.columns === 0) {
 			return {
 				status: 'none', label: 'OUTSIDE REGION',
-				detail: `Region "${plan.trigger}" declares no coverage here: all ${num(plan.pruned)} columns fall outside it.`,
+				detail: `Region "${asText(plan.trigger, '?')}" declares no coverage here: all ${num(plan.pruned)} columns fall outside it.`,
 			};
 		}
+		const region = asText(plan.trigger, '?');
 		const detail = plan.pruned > 0
-			? `Region "${plan.trigger}" — ${num(plan.columns)} columns inside its extent, ${num(plan.pruned)} pruned.`
-			: `Region "${plan.trigger}" — ${num(plan.columns)} columns inside its extent.`;
+			? `Region "${region}" — ${num(plan.columns)} columns inside its extent, ${num(plan.pruned)} pruned.`
+			: `Region "${region}" — ${num(plan.columns)} columns inside its extent.`;
 		return { status: 'planned', label: 'REGION FOUND', detail };
 	}
 	return { status: 'unprobed', label: 'UNPROBED', detail: `${who} only serves photogrammetry over part of the world. Probe before acquiring.` };
@@ -293,7 +321,7 @@ export function prunedBands(plan) {
 // deux implémentations plutôt que de faire confiance à ce commentaire.
 const LIGATURES = { œ: 'oe', Œ: 'oe', æ: 'ae', Æ: 'ae', ø: 'o', Ø: 'o', ß: 'ss', đ: 'd', ł: 'l', Ł: 'l', ð: 'd', þ: 'th' };
 export function slugify(n) {
-	return String(n).replace(/[œŒæÆøØßđłŁðþ]/g, (c) => LIGATURES[c])
+	return asText(n).replace(/[œŒæÆøØßđłŁðþ]/g, (c) => LIGATURES[c])
 		.normalize('NFD').replace(/[̀-ͯ]/g, '')
 		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
@@ -301,7 +329,7 @@ export function slugify(n) {
 // Nom par défaut d'une zone à partir d'un résultat Nominatim : « TOKYO », pas
 // « Tokyo, Japan, 100-0001 ».
 export function designationFrom(hit) {
-	const raw = hit?.name || String(hit?.display_name ?? '').split(',')[0] || '';
+	const raw = asText(hit?.name) || asText(hit?.display_name).split(',')[0] || '';
 	return raw.trim();
 }
 
@@ -310,7 +338,10 @@ export function designationFrom(hit) {
 // `prep` reste accepté pour compatibilité (anciens jobs déjà en vol avant le
 // découpage decode/rebuild), mais addMap() n'émet plus que decode/rebuild.
 const PHASE_LABEL = { download: 'FETCH', decode: 'DECODE', rebuild: 'REBUILD', prep: 'REBUILD' };
-export const phaseLabel = (p) => PHASE_LABEL[p] ?? String(p ?? '').toUpperCase();
+// The lookup goes through asText() rather than `PHASE_LABEL[p]`: indexing an
+// object converts the key, so `{toString: null}` throws before the map is even
+// consulted.
+export const phaseLabel = (p) => { const k = asText(p); return PHASE_LABEL[k] ?? k.toUpperCase(); };
 
 // Avancement de l'acquisition. Pendant le téléchargement on connaît le compteur
 // de tuiles et une estimation de la cible : le rapport est honnête tant qu'on ne
@@ -404,7 +435,7 @@ export function pipelineStats(pipeline) {
 //
 // Fonction pure : c'est elle qu'on teste, scanner.js ne fait que l'exécuter.
 export function acquireStep({ zone, source, name, plan = null, probe = null } = {}) {
-	const clean = String(name ?? '').trim();
+	const clean = asText(name).trim();
 	// Ordre délibéré : on nomme le PREMIER manque, pas tous. « DRAW AN AREA » et
 	// « PICK A SOURCE » ne se disent pas en même temps sur un bouton.
 	if (!zone) return { action: null, label: 'ACQUIRE AREA', disabled: true, why: 'DRAW AN AREA FIRST' };

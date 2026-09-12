@@ -27,6 +27,7 @@
 import { PROFILES } from '../src/drone-profiles.js';
 import { areaLabel, pad, targetLogEntries } from './session-log-model.mjs';
 import { asText } from './lib/as-text.mjs';
+import { clampTelemetry } from './lib/telemetry-bounds.mjs';
 
 // Twelve weeks: a season. Long enough to see a habit form, short enough that
 // the bar for a week you flew once is still readable.
@@ -46,7 +47,9 @@ function chronological(sessions) {
 		.sort((a, b) => (ms(a.start) ?? 0) - (ms(b.start) ?? 0));
 }
 
-function telemetry(s) { return (s && s.flightTelemetry) || {}; }
+// Clamped on read: the operator file is hand-editable, and one 1e308 turned a
+// whole career into Infinity — num() guards each input, never the sum (#83).
+function telemetry(s) { return clampTelemetry(s && s.flightTelemetry); }
 
 // ---------------------------------------------------------------------------
 // Reading a track

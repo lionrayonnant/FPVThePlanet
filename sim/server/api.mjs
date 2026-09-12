@@ -197,7 +197,7 @@ const opRoutes = [
 		// elle a donc un plafond par adresse, et lui seul. Rien en `local`.
 		const flood = checkSignup({ mode: MODE, req });
 		if (flood) return json(res, flood.status, { error: flood.error });
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		let name;
 		try { name = validateName(b.name); }
 		catch (e) { return json(res, 400, { error: e.message }); }
@@ -251,7 +251,7 @@ const opRoutes = [
 	}],
 
 	['PATCH', /^\/([^/]+)$/, async (req, res, [id]) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		if (!OP_WRITABLE_KEYS.has(b.key)) {
 			return json(res, 400, { error: `clé non modifiable : ${b.key}` });
 		}
@@ -313,7 +313,7 @@ const opRoutes = [
 	// scenes.json. C'est une estimation d'écran, pas une donnée de terrain
 	// autoritative : on se contente d'en contrôler la forme.
 	['POST', /^\/([^/]+)\/terrain-cache$/, async (req, res, [id]) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		const slug = String(b.slug ?? '').trim();
 		if (!slug) return json(res, 400, { error: 'slug manquant' });
 		let state;
@@ -346,7 +346,7 @@ const opRoutes = [
 	// vol. Une session close ne se rouvre pas (D9, 2026-09-08 : l'atterrissage
 	// a disparu, et avec lui la reprise).
 	['POST', /^\/([^/]+)\/sessions$/, async (req, res, [id]) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
@@ -404,7 +404,7 @@ const opRoutes = [
 	// encore PENDING ou déjà close — contrairement à la clôture ci-dessus, une
 	// note n'est pas un verdict, elle peut s'ajouter après coup.
 	['PATCH', /^\/([^/]+)\/sessions\/([^/]+)\/comment$/, async (req, res, [id, sid]) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
@@ -434,7 +434,7 @@ const opRoutes = [
 		// n'est jamais bloqué : ouvrir et clore une session passe toujours.
 		const full = checkOperatorQuota({ mode: MODE, dir: P.OPERATOR_DIR, id });
 		if (full) return json(res, full.status, { error: full.error });
-		const b = await readBody(req, PHOTO_BODY_MAX);
+		const b = await readBody(req, res, PHOTO_BODY_MAX);
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
@@ -468,7 +468,7 @@ const opRoutes = [
 		// elle passe par le quota. Le vol lui-même n'est jamais bloqué.
 		const full = checkOperatorQuota({ mode: MODE, dir: P.OPERATOR_DIR, id });
 		if (full) return json(res, full.status, { error: full.error });
-		const b = await readBody(req, PHOTO_BODY_MAX);
+		const b = await readBody(req, res, PHOTO_BODY_MAX);
 		let state;
 		try { state = _readOperator(id); }
 		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
@@ -584,7 +584,7 @@ const opRoutes = [
 ];
 
 async function closeSessionRoute(req, res, [id, sid]) {
-	const b = await readBody(req);
+	const b = await readBody(req, res);
 	let state;
 	try { state = _readOperator(id); }
 	catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
@@ -615,6 +615,11 @@ const jobs = new Map();
 let current = null;
 
 function json(res, code, body) {
+	// The response may already be gone: readBody() answers 413 itself and then
+	// destroys the socket, and the rejection it raises still travels up to a
+	// route's catch. writeHead() on a finished response throws, which would
+	// replace the answer the client actually got with a logged crash (#84).
+	if (res.headersSent || res.writableEnded) return;
 	const s = JSON.stringify(body);
 	res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
 	res.end(s);
@@ -630,22 +635,56 @@ const PHOTO_BODY_MAX = 8e6;
 // checkOrigin() and costs the client nothing: every caller in src/ already sets
 // it. A body with no type at all is refused too, because a Blob of empty type
 // is exactly how a page sends one without a preflight.
-function readBody(req, maxBytes = 1e6) {
+// Lingering close. A socket destroyed while bytes are still in flight sends
+// RST, and the client throws away the 413 it had already received — which is
+// how the reset survived the first fix (seen on Windows CI, five requests in
+// four hundred). So the server keeps reading and discarding for a moment after
+// it has answered, bounded in both bytes and time; nginx calls this
+// lingering_close and does it for the same reason. An abusive body still gets
+// nothing more than this.
+const LINGER_BYTES = 4e6;
+const LINGER_MS = 2000;
+
+function readBody(req, res, maxBytes = 1e6) {
 	const type = String(req.headers?.['content-type'] ?? '').split(';')[0].trim().toLowerCase();
 	if (type && type !== 'application/json') {
 		return Promise.reject(new Error(`body must be application/json, got ${type}`));
 	}
 	return new Promise((resolve, reject) => {
 		let b = '';
+		let over = false, drained = 0, timer = null;
+		const hangUp = () => { clearTimeout(timer); timer = null; req.destroy(); };
 		req.on('data', (d) => {
+			if (over) {
+				// Answered already: count what still arrives, never keep it.
+				drained += d.length;
+				if (drained > LINGER_BYTES) hangUp();
+				return;
+			}
 			b += d;
-			if (b.length > maxBytes) { reject(new Error('body too large')); req.destroy(); }
+			if (b.length > maxBytes) {
+				over = true;
+				b = '';
+				// Answer, THEN stop listening. Destroying the socket first
+				// turned the 413 the server meant to send into an ECONNRESET
+				// the GUI reads as « network error » (#84). The rest of the
+				// body is still never parsed, which is the point of the cap.
+				json(res, 413, { error: 'body too large' });
+				reject(new Error('body too large'));
+				timer = setTimeout(hangUp, LINGER_MS);
+				timer.unref?.();
+			}
 		});
 		req.on('end', () => {
+			clearTimeout(timer); timer = null;
+			// An oversized body that finished on its own needs no hang-up: the
+			// answer is out and the socket closes the ordinary way.
+			if (over) return;
 			if (b && !type) return reject(new Error('body must be application/json, Content-Type missing'));
 			try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(new Error('invalid JSON body')); }
 		});
-		req.on('error', reject);
+		req.on('close', () => { clearTimeout(timer); timer = null; });
+		req.on('error', (e) => { clearTimeout(timer); timer = null; reject(e); });
 	});
 }
 
@@ -857,7 +896,7 @@ const routes = [
 	// chaque déplacement de la souris. Indépendante du fournisseur (géométrie
 	// et coût estimé seulement) : pas de b.provider ici.
 	['POST', /^\/describe$/, async (req, res) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		const zone = requireZone(b);
 		json(res, 200, describe(zone, intIn(b.zoom, 13, 20, 20), intIn(b.altitude, 1, 60, 20)));
 	}],
@@ -866,7 +905,7 @@ const routes = [
 	// hors emprise, et rend l'emprise de couverture — sans télécharger une seule
 	// tuile.
 	['POST', /^\/plan$/, async (req, res) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		const zone = requireZone(b);
 		const provider = requireProvider(b);
 		const zoom = intIn(b.zoom, 13, 20, 20), altitude = intIn(b.altitude, 1, 60, 20);
@@ -877,7 +916,7 @@ const routes = [
 
 	// Sonde : la seule preuve qu'il y a vraiment de la photogrammétrie ici.
 	['POST', /^\/probe$/, async (req, res) => {
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		const zone = requireZone(b);
 		const provider = requireProvider(b);
 		const c = centreOf(zone);
@@ -900,7 +939,7 @@ const routes = [
 			return json(res, 403, { error: 'acquisition de terrain désactivée sur ce serveur' });
 		}
 		if (current) return json(res, 409, { error: 'une extraction est déjà en cours', jobId: current.id });
-		const b = await readBody(req);
+		const b = await readBody(req, res);
 		const zone = requireZone(b);
 		const provider = requireProvider(b);
 		const name = String(b.name ?? '').trim();
@@ -1003,6 +1042,10 @@ export function createApi({ paths = defaultPaths, mode = 'local', logger = conso
 			try {
 				return await route[2](req, res, route[1].exec(p).slice(1), url);
 			} catch (e) {
+				// readBody() answers its own 413 and then rejects: the request
+				// is already handled, and a stack in the log would say
+				// otherwise.
+				if (res.headersSent) return;
 				logger.error(`[operator] ${p}: ${e.stack ?? e.message}`);
 				return json(res, 400, { error: e.message });
 			}
@@ -1031,6 +1074,7 @@ export function createApi({ paths = defaultPaths, mode = 'local', logger = conso
 		try {
 			return await route[2](req, res, route[1].exec(p).slice(1), url);
 		} catch (e) {
+			if (res.headersSent) return;   // readBody() already answered 413
 			logger.error(`[map-api] ${p}: ${e.stack ?? e.message}`);
 			return json(res, 400, { error: e.message });
 		}

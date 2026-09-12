@@ -178,15 +178,8 @@ const target = {
 				body: sendable ? body : undefined,
 			});
 		} catch (err) {
-			// readBody() destroys the request as soon as a body passes its cap, so
-			// an oversized one is answered with a reset rather than with the 400
-			// the route meant to send. Documented here rather than failed on: the
-			// routes that carry a real payload (photos, tracks) have the 8 MB cap,
-			// so only an abusive body reaches this, and holding the connection
-			// open to answer politely is what an abusive body wants (issue #84).
-			// Every OTHER
-			// dead connection is a finding.
-			if (sendable && body.length > 1e6) return null;
+			// No exception any more: an oversized body gets a 413 before the
+			// socket goes (#84). A dead connection is always a finding.
 			return `the connection died instead of answering (${err?.cause?.code ?? err.message})`;
 		}
 		if (res.status >= 500) {

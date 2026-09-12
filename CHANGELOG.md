@@ -97,6 +97,30 @@ rapport avec les versions ci-dessous.
 
 ### Corrigé
 
+- **La télémétrie n'avait aucune borne supérieure : une session pouvait être
+  stockée sans jamais pouvoir être close** (#83). `validateSession()` ne
+  demandait que « fini et >= 0 », et la valeur vient du navigateur : un
+  `durationS` de 1e308 passait, puis `1e308 + 1e308` débordait à `Infinity` à la
+  fusion — le verdict était refusé et le vol restait `PENDING` pour toujours ;
+  l'écran DATA, lui, annonçait une carrière d'`Infinity` secondes. Chaque champ
+  a désormais son plafond (`sim/tools/lib/telemetry-bounds.mjs`), la fusion
+  sature au lieu de déborder, et l'écran DATA applique les mêmes bornes à la
+  lecture — le fichier d'opérateur reste éditable à la main.
+- **Un corps de requête trop gros recevait une coupure de connexion au lieu
+  d'une réponse** (#84). `readBody()` détruisait la socket dès le dépassement du
+  plafond, donc le 400 que la route envoyait ensuite partait dans le vide : le
+  client lisait `ECONNRESET` et la GUI affichait « erreur réseau » là où le
+  serveur voulait dire « corps trop gros ». Il répond maintenant 413 puis
+  continue de lire et de jeter le reste quelques instants — une socket détruite
+  alors que des octets sont encore en vol envoie un RST, et le client jette la
+  réponse qu'il avait déjà reçue. C'est le `lingering_close` de nginx, borné en
+  octets et en temps ; le corps n'est toujours jamais analysé.
+- **Le GLOBAL SCANNER mourait sur une réponse de fournisseur mal formée**
+  (#85). `String(v)` n'est pas total et `Math.round(v)` non plus : sept appels
+  passent par `asText()`/`asNumber()`, `areaAnalysis()` ne déréférence plus une
+  réponse `/describe` tronquée, `DENSITY['__proto__']` ne rend plus
+  « ~NaN–NaN DRONES », et un panic Go du sous-processus n'arrive plus entier
+  sur le rail. Une cible `scanner` a été ajoutée à `npm run fuzz`.
 - **Une seule frame invalide tuait le contrôleur de vol pour de bon.** Les
   filtres de `AxisPid` sont des moyennes glissantes : un manche non fini — un
   calibrage cassé — ou un état physique parti en NaN les empoisonnait

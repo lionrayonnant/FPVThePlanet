@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { slugify } from './operator-store.mjs';
 import { asText, nameOf } from './lib/as-text.mjs';
+import { TELEMETRY_MAX } from './lib/telemetry-bounds.mjs';
 import {
 	TARGET_FAMILIES, HACK_TYPES,
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
@@ -45,6 +46,8 @@ const ZERO_TELEMETRY = {
 	maxAltitudeM: 0,
 	distanceM: 0,
 };
+
+export { TELEMETRY_MAX };
 
 export function freshTelemetry() {
 	return { ...ZERO_TELEMETRY };
@@ -200,12 +203,18 @@ export function mergeTelemetry(rawA = ZERO_TELEMETRY, rawB = ZERO_TELEMETRY) {
 	const a = rawA ?? ZERO_TELEMETRY;
 	const b = rawB ?? ZERO_TELEMETRY;
 	const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+	// The sums are capped, not just the inputs: a session already at the
+	// ceiling must still be closeable, and a merge that overshot it would
+	// produce a session validateSession refuses — the flight would stay
+	// PENDING forever (#83). Saturating is the honest answer: the cap is
+	// unreachable by flying, so only a lie ever hits it.
+	const cap = (k, v) => Math.min(v, TELEMETRY_MAX[k]);
 	return {
-		durationS: n(a.durationS) + n(b.durationS),
-		distanceM: n(a.distanceM) + n(b.distanceM),
-		maxSpeedMs: Math.max(n(a.maxSpeedMs), n(b.maxSpeedMs)),
-		maxRateDps: Math.max(n(a.maxRateDps), n(b.maxRateDps)),
-		maxAltitudeM: Math.max(n(a.maxAltitudeM), n(b.maxAltitudeM)),
+		durationS: cap('durationS', n(a.durationS) + n(b.durationS)),
+		distanceM: cap('distanceM', n(a.distanceM) + n(b.distanceM)),
+		maxSpeedMs: cap('maxSpeedMs', Math.max(n(a.maxSpeedMs), n(b.maxSpeedMs))),
+		maxRateDps: cap('maxRateDps', Math.max(n(a.maxRateDps), n(b.maxRateDps))),
+		maxAltitudeM: cap('maxAltitudeM', Math.max(n(a.maxAltitudeM), n(b.maxAltitudeM))),
 	};
 }
 
@@ -311,6 +320,7 @@ export function validateSession(s) {
 	for (const k of Object.keys(ZERO_TELEMETRY)) {
 		const v = t[k];
 		if (!Number.isFinite(v) || v < 0) throw new Error(`télémétrie.${k} invalide`);
+		if (v > TELEMETRY_MAX[k]) throw new Error(`télémétrie.${k} hors bornes (max ${TELEMETRY_MAX[k]})`);
 	}
 	if (s.result !== 'PENDING' && !s.end) throw new Error('session fermée sans end');
 	if (!Array.isArray(s.photos)) throw new Error('photos invalide');

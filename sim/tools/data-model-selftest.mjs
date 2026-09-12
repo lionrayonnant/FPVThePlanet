@@ -9,6 +9,7 @@
 // Run: node tools/data-model-selftest.mjs
 
 import assert from 'node:assert/strict';
+import { TELEMETRY_MAX } from './lib/telemetry-bounds.mjs';
 import {
 	rhythmSeries, lifeSeries, speedAltitudeSeries, lossSeries, stickSeries,
 	familySeries, geographySeries, profileSeries, trackSamples, trackIndexOf,
@@ -123,6 +124,14 @@ t('life: no session is an empty series, not a crash', () => {
 	assert.deepEqual(l.bars, []);
 	assert.equal(l.maxS, 0);
 	assert.equal(l.meanS, 0);
+});
+
+t('a hand-edited file cannot make the career Infinity (#83)', () => {
+	const huge = { durationS: 1e308, distanceM: 1e308, maxSpeedMs: 1e308, maxRateDps: 1e308, maxAltitudeM: 1e308 };
+	const sessions = [session({ id: 'a', flightTelemetry: huge }), session({ id: 'b', flightTelemetry: huge })];
+	const l = lifeSeries(sessions);
+	assert.equal(l.meanS, TELEMETRY_MAX.durationS);
+	assert.equal(geographySeries(sessions).distanceM, 2 * TELEMETRY_MAX.distanceM);
 });
 
 // --------------------------------------------------------- SPEED × ALTITUDE

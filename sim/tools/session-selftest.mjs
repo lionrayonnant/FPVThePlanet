@@ -9,7 +9,7 @@ import {
 	sanitizeComment, annotateSession,
 	sanitizePhoto, addPhoto,
 	stripPhotoData, stripOperatorPhotoData, deleteSession,
-	sanitizeTarget, SESSION_SCHEMA_VERSION,
+	sanitizeTarget, SESSION_SCHEMA_VERSION, TELEMETRY_MAX,
 } from './session-model.mjs';
 import { migrate, freshState, SCHEMA_VERSION } from './operator-store.mjs';
 import {
@@ -74,6 +74,23 @@ t('mergeTelemetry : max sur les pics, somme sur les cumuls, associatif', () => {
 	assert.equal(ab_c.maxSpeedMs, 27);
 	assert.equal(ab_c.maxRateDps, 900);
 	assert.equal(ab_c.maxAltitudeM, 55);
+});
+
+t('télémétrie : chaque champ est borné, et une session bornée reste fermable (#83)', () => {
+	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris' });
+	for (const [k, max] of Object.entries(TELEMETRY_MAX)) {
+		const at = { ...freshTelemetry(), [k]: max };
+		assert.equal(validateSession({ ...s, flightTelemetry: at }).flightTelemetry[k], max, k);
+		const over = { ...freshTelemetry(), [k]: max * 1.0001 };
+		assert.throws(() => validateSession({ ...s, flightTelemetry: over }), /hors bornes/, k);
+	}
+	// Le défaut d'origine : 1e308 stocké, puis fusionné avec lui-même, donnait
+	// Infinity — et la session restait PENDING pour toujours.
+	const huge = { durationS: 1e308, distanceM: 1e308, maxSpeedMs: 1e308, maxRateDps: 1e308, maxAltitudeM: 1e308 };
+	const merged = mergeTelemetry(huge, huge);
+	for (const [k, max] of Object.entries(TELEMETRY_MAX)) assert.equal(merged[k], max, k);
+	const closed = closeSession({ ...s, flightTelemetry: merged }, { result: 'CRASHED', telemetry: merged });
+	assert.doesNotThrow(() => validateSession(closed));
 });
 
 t('closeSession : pose end + result, fusionne la télémétrie', () => {
