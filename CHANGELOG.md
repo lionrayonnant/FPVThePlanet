@@ -18,6 +18,20 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Modifié
+
+- Les deux clôtures — la muraille du bord de carte (`geofence-dome.js`) et le
+  dôme de fenêtre live (`fence-dome.js`) — partagent désormais un champ commun
+  (`src/fence-field.js`) : une masse organique cyan/magenta à la place des
+  lignes de scan (#107). Signalé au jeu : « les rayons se voient un peu trop ».
+  Les bandes horizontales se projetaient en éventail depuis le point de fuite
+  dès qu'on longeait le mur ; le motif est maintenant un fbm à domaine déformé,
+  ses veines suivent les lignes de niveau du champ et n'ont donc aucune
+  direction privilégiée. S'y ajoutent un Fresnel (discrète de face, franche en
+  rasant), une bande qui suit la hauteur d'œil, une dominante qui glisse du
+  cyan vers le magenta en approchant du bord, et un anneau qui part du point
+  le plus proche du drone à cadence croissante — silence complet au centre.
+
 ### Corrigé
 
 - Le flapback de #91 rendait l'appareil impilotable, il est retiré (#103).
