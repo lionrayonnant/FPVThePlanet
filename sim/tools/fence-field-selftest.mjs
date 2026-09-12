@@ -199,6 +199,7 @@ if (validator.error) {
 		'uniform vec3 cameraPosition;',
 		'in vec3 position;',
 		'in vec3 normal;',
+		'in vec2 uv;',
 	].join('\n');
 	const FRAGMENT_PROLOGUE = ['#version 300 es', 'precision highp float;'].join('\n');
 
@@ -214,10 +215,18 @@ if (validator.error) {
 		assert.equal(out.status, 0, `${label} (${stage}) ne compile pas :\n${out.stdout}${out.stderr}`);
 	};
 
+	const { createRocktreeMaterial, createLiveEdgeUniforms } = await import('../src/RocktreeMaterial.js');
+
 	const scene = new THREE.Scene();
+	const edgeUniforms = createLiveEdgeUniforms(0x4dd8e8);
 	const fences = [
 		['wall', new GeofenceWall(scene, { min: [-100, 0, -100], max: [100, 50, 100] }).material],
 		['dome', new FenceDome(scene).material],
+		// Le terrain live lit le même champ pour la couleur de sa brume (#107) :
+		// les deux variantes de son matériau (texturée ou gris plat) portent le
+		// GLSL partagé et doivent donc compiler elles aussi.
+		['terrain-map', createRocktreeMaterial(edgeUniforms, { map: new THREE.Texture() })],
+		['terrain-flat', createRocktreeMaterial(edgeUniforms, { color: 0x808080 })],
 	];
 	for (const [label, material] of fences) {
 		t(`${label} : le vertex shader compile`, () => {

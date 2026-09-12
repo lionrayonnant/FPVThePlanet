@@ -248,6 +248,14 @@ export class FenceDome {
 	// pour fogDensityFor() sans recalculer la même géométrie deux fois.
 	get distanceRatio() { return this._lastRatio; }
 
+	// Le temps et le biais de teinte du champ, lus par main.js pour les pousser
+	// sur les uniformes du terrain live (RocktreeMaterial.js) : la brume dans
+	// laquelle le terrain se dissout doit être la MÊME matière que ce dôme, à
+	// la même seconde et à la même dominante — sinon elles dérivent l'une par
+	// rapport à l'autre et la couture se revoit (#107).
+	get fieldTime() { return this.material.uniforms.uTime.value; }
+	get hueBias() { return this.material.uniforms.uHueBias.value; }
+
 	dispose() {
 		this.scene.remove(this.mesh);
 		this.mesh.geometry.dispose();

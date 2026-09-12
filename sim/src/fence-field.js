@@ -267,11 +267,12 @@ export const FENCE_FIELD_GLSL = /* glsl */`
 	// Trois octaves, lacunarité 2 : la période reste entière à chaque octave,
 	// donc le repli tient. La variété ne vient pas d'une lacunarité exotique
 	// mais des dérives temporelles, non commensurables entre elles.
-	float fenceFbm(vec2 p, float cells, float t) {
-		float sum = 0.0, amp = 0.5, c = cells;
+	float fenceFbmN(vec2 p, float cells, float t, int octaves) {
+		float sum = 0.0, amp = 0.5, c = cells, norm = 0.0;
 		vec2 drift = vec2(0.0137, 0.0091);
-		for (int k = 0; k < 3; k++) {
+		for (int k = 0; k < octaves; k++) {
 			sum += amp * fenceNoise(p + drift * t, c);
+			norm += amp;
 			p *= 2.0;
 			c *= 2.0;
 			amp *= 0.5;
@@ -279,33 +280,70 @@ export const FENCE_FIELD_GLSL = /* glsl */`
 			// rapport irrationnel : les octaves ne se réalignent jamais.
 			drift = vec2(-drift.y * 1.6180339, drift.x * 1.3247180);
 		}
-		return sum / 0.875;
+		return sum / norm;
 	}
+
+	float fenceFbm(vec2 p, float cells, float t) { return fenceFbmN(p, cells, t, 3); }
 
 	// Domain warp : deux champs lents qui déplacent l'échantillonnage. Même
 	// \`cells\` que le champ warpé, sinon la couture revient.
-	vec2 fenceWarp(vec2 p, float cells, float t) {
-		float a = fenceFbm(p + vec2(11.7, 3.1), cells, t);
-		float b = fenceFbm(p + vec2(29.3, 47.9), cells, -t * 0.77);
+	vec2 fenceWarpN(vec2 p, float cells, float t, int octaves) {
+		float a = fenceFbmN(p + vec2(11.7, 3.1), cells, t, octaves);
+		float b = fenceFbmN(p + vec2(29.3, 47.9), cells, -t * 0.77, octaves);
 		return (vec2(a, b) - 0.5) * FENCE_WARP;
 	}
 
-	vec4 fenceField(FenceIn f) {
+	vec2 fenceWarp(vec2 p, float cells, float t) { return fenceWarpN(p, cells, t, 3); }
+
+	// Le champ nu : (valeur, masse) pour une coordonnée de surface. Extrait de
+	// fenceField() pour que le BROUILLARD du terrain live le lise aussi
+	// (RocktreeMaterial.js) — le terrain se dissout alors dans la clôture
+	// elle-même, à la couleur qu'elle a dans cette direction-là, au lieu d'un
+	// cyan plat qui ne faisait que l'approcher.
+	// « octaves » : 3 pour la clôture, qui se regarde de près et de face ; 2
+	// pour la nappe de brume du terrain, qui se regarde en enfilade sur des
+	// centaines de mètres et dont la troisième octave n'est jamais résolue à
+	// l'écran. Le champ coûte trois fbm et le terrain couvre tout l'écran,
+	// donc chaque octave épargnée compte : mesuré à 20 rendus par frame pour
+	// sortir du régime vsync, le terrain passe de 0,84 à 0,98 ms par rendu sur
+	// 4 Mpx, soit +16 % — pour une différence que la capture ne montre pas.
+	vec2 fenceFieldRawN(vec2 surf, float time, float wrap, int octaves) {
 		// Grille recalée pour que le tour fasse un nombre entier de cellules ;
 		// hors périmètre connu (wrap = 0) on tombe sur l'échelle nominale.
 		float cells = 0.0;
 		vec2 p;
-		if (f.wrap > 0.0) {
-			cells = max(1.0, floor(f.wrap / FENCE_FEATURE_M + 0.5));
-			p = vec2(f.surf.x / f.wrap * cells, f.surf.y / FENCE_FEATURE_M);
+		if (wrap > 0.0) {
+			cells = max(1.0, floor(wrap / FENCE_FEATURE_M + 0.5));
+			p = vec2(surf.x / wrap * cells, surf.y / FENCE_FEATURE_M);
 		} else {
-			p = f.surf / FENCE_FEATURE_M;
+			p = surf / FENCE_FEATURE_M;
 		}
-
-		float field = fenceFbm(p + fenceWarp(p, cells, f.time), cells, f.time);
+		float field = fenceFbmN(p + fenceWarpN(p, cells, time, octaves), cells, time, octaves);
 		// Des paquets, pas un voile uniforme : c'est le seuillage doux qui fait
 		// lire la chose comme une masse et non comme du bruit.
-		float mass = smoothstep(0.30, 0.78, field);
+		return vec2(field, smoothstep(0.30, 0.78, field));
+	}
+
+	vec2 fenceFieldRaw(vec2 surf, float time, float wrap) {
+		return fenceFieldRawN(surf, time, wrap, 3);
+	}
+
+	// La teinte du champ : le biais place le point d'équilibre, le champ fait
+	// courir les deux couleurs l'une dans l'autre, « boost » sert aux accents
+	// (l'anneau de ping sur la clôture).
+	// « spread » est un paramètre et non la constante : le trajet cyan → magenta
+	// passe par du bleu en RGB, ce qui ne se voit pas sur la clôture (alpha
+	// faible, le terrain transparaît) mais saute aux yeux sur une brume opaque,
+	// qui prend alors des allures de mer turquoise. La paroi peut s'offrir tout
+	// l'écart ; la nappe reste près de sa dominante.
+	vec3 fenceTint(float field, float hueBias, float boost, float spread, vec3 cyan, vec3 magenta) {
+		float hue = clamp(hueBias + (field - 0.5) * spread + boost, 0.0, 1.0);
+		return mix(cyan, magenta, hue);
+	}
+
+	vec4 fenceField(FenceIn f) {
+		vec2 fm = fenceFieldRaw(f.surf, f.time, f.wrap);
+		float field = fm.x, mass = fm.y;
 
 		// Veines : les lignes de niveau du champ, donc une structure qui suit la
 		// masse au lieu de lui être superposée.
@@ -349,11 +387,9 @@ export const FENCE_FIELD_GLSL = /* glsl */`
 		// nulle part où l'œil regarde. En facteur, il traverse la masse.
 		alpha = min(1.0, alpha * (1.0 + ring * 1.8));
 
-		// Le champ fait courir les deux teintes l'une dans l'autre ; le biais
-		// déplace le point d'équilibre, l'anneau tire vers le magenta sur son
-		// passage — le ping se lit comme une couleur, pas comme un flash.
-		float hue = clamp(f.hueBias + (field - 0.5) * FENCE_HUE_SPREAD + ring * 0.6, 0.0, 1.0);
-		return vec4(mix(f.cyan, f.magenta, hue), alpha);
+		// L'anneau tire vers le magenta sur son passage : le ping se lit comme
+		// une couleur, pas comme un flash.
+		return vec4(fenceTint(field, f.hueBias, ring * 0.6, FENCE_HUE_SPREAD, f.cyan, f.magenta), alpha);
 	}
 `;
 

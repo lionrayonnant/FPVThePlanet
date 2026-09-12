@@ -2385,6 +2385,12 @@ if (!frozen) {
 			liveEdgeUniforms.uEdgeFadeM.value = edgeFadeForRadius(liveRadius);
 		}
 		liveEdgeUniforms.uFogDensity.value = scene.fog.density;
+		// Le terrain se dissout dans la clôture elle-même (#107) : même champ,
+		// même seconde, même dominante que le dôme — sinon les deux matières
+		// dérivent l'une par rapport à l'autre et la couture se revoit.
+		liveEdgeUniforms.uFieldTime.value = fenceDome.fieldTime;
+		liveEdgeUniforms.uHueBias.value = fenceDome.hueBias;
+		liveEdgeUniforms.uEyeY.value = physics.position.y;
 	}
 	// Muraille numérique du bord de carte pré-cuite (#199) : même principe,
 	// géométrie de bbox plutôt que de rayon — voir geofence-dome.js.
