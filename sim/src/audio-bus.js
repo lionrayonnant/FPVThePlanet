@@ -41,7 +41,13 @@ const UI_TRIM = 0.5;
 // 0.55 / √2. Même raison de baisser le moteur plutôt que de remonter la
 // musique — les morceaux entrent à -14 LUFS et le slider musique est déjà à
 // son défaut mesuré (0.7), donc le seul degré de liberté propre est ici.
-const ENGINE_TRIM = 0.39;
+//
+// Troisième écoute (issue #112) : -3 dB n'avaient pas suffi, on double le pas.
+// -6 dB, soit la moitié de 0.39. Le moteur sort maintenant ~11 dB sous son
+// niveau d'origine ; si une quatrième écoute le redemande, le problème n'est
+// plus la balance mais le spectre du moteur, et c'est src/audio.js qu'il faut
+// regarder, pas ce trim.
+const ENGINE_TRIM = 0.20;
 
 // Pas de trim musical, contrairement à UI_TRIM. C'est délibéré, et c'est une
 // correction : il y en avait un à 0.7, multiplié par un slider dont le défaut
