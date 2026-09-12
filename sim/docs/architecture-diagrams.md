@@ -58,26 +58,36 @@ none of it: tiles go to the player's browser and are never kept.
 ## 3. Where terrain comes from — two paths, one flight
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+  'fontSize':'15px',
+  'primaryColor':'#EEF4FC','primaryTextColor':'#22303C','primaryBorderColor':'#9BB3CD',
+  'lineColor':'#8496A8','edgeLabelBackground':'#FFFFFF',
+  'clusterBkg':'#FBFDFF','clusterBorder':'#D6E2EE',
+  'tertiaryColor':'#FFFFFF'}}}%%
 flowchart TD
     subgraph BAKED["Baked area — acquired once, flown offline"]
-        A1["lat, lon + box"] --> A2["providers/google-earth.mjs<br/>fetch + decode in Node"]
-        A2 --> A3["tools/prep.mjs<br/>ECEF -> local ENU, chunking,<br/>texture arrays, FPVC collision"]
+        A1["lat, lon + box"] --> A2["<b>providers/google-earth.mjs</b><br/>fetch + decode in Node"]
+        A2 --> A3["<b>tools/prep.mjs</b><br/>ECEF → local ENU, chunking,<br/>texture arrays, FPVC collision"]
         A3 --> A4["public/scenes/&lt;slug&gt;/<br/>manifest.json, FPVG chunks"]
-        A4 --> A5["tools/add-map.mjs -> scenes.json"]
-        A5 --> A6["loader.js: sceneBase, loadManifest,<br/>loadChunks, loadCollision"]
+        A4 --> A5["<b>tools/add-map.mjs</b> → scenes.json"]
+        A5 --> A6["<b>loader.js</b><br/>sceneBase, loadManifest,<br/>loadChunks, loadCollision"]
     end
 
     subgraph LIVE["LIVE area — streamed during the flight"]
-        B1["Pin on the map"] --> B2["rocktree-traverse-client.js<br/>traversal in a worker"]
-        B2 --> B3["rocktree-window.js<br/>LOD rings around the drone"]
-        B3 --> B4["rocktree-worker-pool.js<br/>3 workers, capped in-flight requests"]
-        B4 --> B5["rocktree-cache.js<br/>Cache API, bulks and nodes"]
-        B5 --> B6["Node meshes built on the fly<br/>+ rocktree-fence.js soft edge"]
+        B1["Pin on the map"] --> B2["<b>rocktree-traverse-client.js</b><br/>traversal in a worker"]
+        B2 --> B3["<b>rocktree-window.js</b><br/>LOD rings around the drone"]
+        B3 --> B4["<b>rocktree-worker-pool.js</b><br/>3 workers, capped in-flight requests"]
+        B4 --> B5["<b>rocktree-cache.js</b><br/>Cache API, bulks and nodes"]
+        B5 --> B6["Node meshes built on the fly<br/>+ <b>rocktree-fence.js</b> soft edge"]
     end
 
     A6 --> SCENE["Three.js scene + Rapier trimesh"]
     B6 --> SCENE
     SCENE --> FLY["Flight"]
+
+    classDef flight fill:#E3F3EA,stroke:#6FAE8B,color:#164A30
+    class FLY flight
 ```
 
 Hard constraints that survive everything: coordinates are local ENU metres,
