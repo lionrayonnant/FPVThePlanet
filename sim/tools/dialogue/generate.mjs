@@ -326,7 +326,7 @@ async function main() {
 	if (rate > 0.05) console.warn(`\n⚠  taux de rejet ${(rate * 100).toFixed(1)} % avec ${backend}/${model} — revoir prompts/events/${EVENTS[event].shard}.md avant de continuer`);
 
 	if (a['dry-run']) { console.log('(--dry-run : rien écrit)'); return; }
-	writeFileSync(shardPath(event), `${JSON.stringify(shard, null, 2)}\n`);
+	writeFileSync(shardPath(event), `${JSON.stringify(shard, null, '\t')}\n`);
 	console.log(`écrit : public/dialogue/${EVENTS[event].shard}.json`);
 }
 

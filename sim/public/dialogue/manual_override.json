@@ -6651,6 +6651,2059 @@
 					"text": "the seat is warm"
 				}
 			]
+		},
+		{
+			"id": "manual_override/0627",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "no automatic steps left"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0628",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "anything left to run?"
+				},
+				{
+					"speaker": "root",
+					"text": "nothing"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0629",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's a soft halt"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's a full stop"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0630",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "state: awaiting operator"
+				},
+				{
+					"speaker": "root",
+					"text": "and now"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "now nothing moves until someone says so"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0631",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the fans spun down when it halted"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0632",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if we hand it back to auto—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "auto is done here"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0633",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the job is parked in a wait state"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0634",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this is the normal stop"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "normal stops don't wait on a person"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0635",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it isn't stuck. it's standing still."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0636",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "operator decision: required"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0637",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who's at the console?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name}"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0638",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "we can hand this back"
+				},
+				{
+					"speaker": "root",
+					"text": "there's nothing to hand it back to"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0639",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "automation: halted"
+				},
+				{
+					"speaker": "root",
+					"text": "so it is"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "and it stays that way for now"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0640",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the terminal is still showing the last frame"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0641",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if the halt was intended then we—"
+				},
+				{
+					"speaker": "root",
+					"text": "it's a halt either way"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0642",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the socket stays allocated while it waits"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0643",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we logged this as a fault"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't a fault. it's a stop."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0644",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "things that stop on purpose stop quietly"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0645",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} goes no further on its own"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0646",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything to sign off on?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one decision"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0647",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing else will run without a person"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one queued step is still armed"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0648",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "{hack_type}: state change logged"
+				},
+				{
+					"speaker": "root",
+					"text": "so it's on us now"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "on someone"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0649",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the console cursor hasn't moved since the halt"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0650",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if nobody claims it in the next—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's claimed"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0651",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "handoff record written to disk"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0652",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this is a fault"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's a designed stop"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0653",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every path we build ends at a chair"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0654",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the machine ran out of opinions"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0655",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything automatic still pending?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0656",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we log this as an error"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "log it as a wait"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0657",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "scheduler: no further steps"
+				},
+				{
+					"speaker": "root",
+					"text": "then it sits"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0658",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has the floor"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0659",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the last automatic step closed cleanly, so we can—"
+				},
+				{
+					"speaker": "root",
+					"text": "we're past that"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0660",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the process is resident, not running"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0661",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} broke"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type} finished what it was allowed to do"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0662",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the quiet ones hand it back sooner"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0663",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "a machine that asks for help is working correctly"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0664",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "status?"
+				},
+				{
+					"speaker": "cron",
+					"text": "awaiting manual input"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0665",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it'll resume on its own eventually"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it won't"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0666",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "control transferred to console"
+				},
+				{
+					"speaker": "root",
+					"text": "{operator_name} sees it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "seeing isn't deciding"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0667",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the automatic part is over"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0668",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before we touch anything we should—"
+				},
+				{
+					"speaker": "root",
+					"text": "it's already stopped"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0669",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the wait state holds until someone acts on it"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0670",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's a failure"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. it exited the way it was written to."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0671",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the second hand still moves"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0672",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the machine has nothing further to contribute"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0673",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's it sitting on?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type}"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0674",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it crashed"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it halted. the process is still there."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0675",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "so who owns this now"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody has taken it"
+				},
+				{
+					"speaker": "cron",
+					"text": "owner field: empty"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0676",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "wait state entered"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0677",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if we let it sit here it'll—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it will sit here"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0678",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the session stays allocated while it's parked"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0679",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "this is an expected stop"
+				},
+				{
+					"speaker": "root",
+					"text": "expected stops don't wake people up"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0680",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the hallway lights are on a different timer"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0681",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it handed us a chair and went home"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0682",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything still queued?"
+				},
+				{
+					"speaker": "cron",
+					"text": "no scheduled steps remain"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0683",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we can let it try once more"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there is nothing left for it to try"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0684",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "it's waiting on a person"
+				},
+				{
+					"speaker": "root",
+					"text": "which person"
+				},
+				{
+					"speaker": "cron",
+					"text": "assignment: none"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0685",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "console attached: {operator_name}"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0686",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "log it as a stop and we move—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's already logged"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0687",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the auto chain has no next step registered"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0688",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that halt isn't logged as a fault"
+				},
+				{
+					"speaker": "root",
+					"text": "it is on my end"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0689",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the machine stops where the paperwork starts"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0690",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "it's not thinking. it's sitting."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0691",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything still running?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0692",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "auto finished its part"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it didn't finish. it stopped."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0693",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this is the handoff point"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's a halt. handoff is what we do about it."
+				},
+				{
+					"speaker": "root",
+					"text": "same line in the log either way"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0694",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the rack fans are the only thing moving in here"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0695",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if the halt point moved since last run then—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it didn't move"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0696",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "scheduler: handoff state recorded"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0697",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} is finished"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type} is parked"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0698",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the corridor smells like rain and there are no windows"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0699",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it does everything except decide"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0700",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "what state is it in?"
+				},
+				{
+					"speaker": "cron",
+					"text": "state: operator hold"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0701",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing to sign off here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there is. the handoff."
+				}
+			]
+		},
+		{
+			"id": "manual_override/0702",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "control: released"
+				},
+				{
+					"speaker": "root",
+					"text": "released to whom?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "whoever answers first"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0703",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the automatic steps all ran and then the list ended"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0704",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if we mark this as an error then the—"
+				},
+				{
+					"speaker": "root",
+					"text": "it isn't an error"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0705",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "queue: no successor job"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0706",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "auto can pick this back up"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not from here it can't"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0707",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the tape reel keeps turning after the music ends"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0708",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it ran out of road"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0709",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "where did it land?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "on the manual step"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0710",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "looks like a timeout"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no timer expired"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0711",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "{hack_type}: awaiting manual step"
+				},
+				{
+					"speaker": "root",
+					"text": "anyone taking it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not yet"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0712",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the process table still lists it"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0713",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if we restart the chain from the top then—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it stops here again"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0714",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "manual step registered"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0715",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the wrong stop point"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's the only one there is"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0716",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "somewhere a light went off and nobody saw it"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0717",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "pipeline: manual step reached"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0718",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's holding {hack_type}?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "a person"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0719",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "it dropped the job"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it handed the job over"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0720",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "operator step pending"
+				},
+				{
+					"speaker": "root",
+					"text": "who's on console"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the seat is empty"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0721",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the log ends mid-column"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0722",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we should write this up before—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's already in the record"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0723",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the handle stays open until someone closes it"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0724",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that shouldn't need a person"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it was written to need one"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0725",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every machine keeps one door it won't open"
+				}
+			]
+		},
+		{
+			"id": "manual_override/0726",
+			"events": [
+				"MANUAL_OVERRIDE"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name}. it's your line now."
+				}
+			]
 		}
 	]
 }
