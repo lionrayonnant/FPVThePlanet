@@ -110,9 +110,11 @@ rapport avec les versions ci-dessous.
   d'une réponse** (#84). `readBody()` détruisait la socket dès le dépassement du
   plafond, donc le 400 que la route envoyait ensuite partait dans le vide : le
   client lisait `ECONNRESET` et la GUI affichait « erreur réseau » là où le
-  serveur voulait dire « corps trop gros ». Il répond maintenant 413, attend que
-  la réponse soit partie, et raccroche seulement après — le reste du corps n'est
-  toujours jamais lu.
+  serveur voulait dire « corps trop gros ». Il répond maintenant 413 puis
+  continue de lire et de jeter le reste quelques instants — une socket détruite
+  alors que des octets sont encore en vol envoie un RST, et le client jette la
+  réponse qu'il avait déjà reçue. C'est le `lingering_close` de nginx, borné en
+  octets et en temps ; le corps n'est toujours jamais analysé.
 - **Le GLOBAL SCANNER mourait sur une réponse de fournisseur mal formée**
   (#85). `String(v)` n'est pas total et `Math.round(v)` non plus : sept appels
   passent par `asText()`/`asNumber()`, `areaAnalysis()` ne déréférence plus une

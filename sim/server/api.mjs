@@ -635,6 +635,16 @@ const PHOTO_BODY_MAX = 8e6;
 // checkOrigin() and costs the client nothing: every caller in src/ already sets
 // it. A body with no type at all is refused too, because a Blob of empty type
 // is exactly how a page sends one without a preflight.
+// Lingering close. A socket destroyed while bytes are still in flight sends
+// RST, and the client throws away the 413 it had already received — which is
+// how the reset survived the first fix (seen on Windows CI, five requests in
+// four hundred). So the server keeps reading and discarding for a moment after
+// it has answered, bounded in both bytes and time; nginx calls this
+// lingering_close and does it for the same reason. An abusive body still gets
+// nothing more than this.
+const LINGER_BYTES = 4e6;
+const LINGER_MS = 2000;
+
 function readBody(req, res, maxBytes = 1e6) {
 	const type = String(req.headers?.['content-type'] ?? '').split(';')[0].trim().toLowerCase();
 	if (type && type !== 'application/json') {
@@ -642,27 +652,39 @@ function readBody(req, res, maxBytes = 1e6) {
 	}
 	return new Promise((resolve, reject) => {
 		let b = '';
+		let over = false, drained = 0, timer = null;
+		const hangUp = () => { clearTimeout(timer); timer = null; req.destroy(); };
 		req.on('data', (d) => {
+			if (over) {
+				// Answered already: count what still arrives, never keep it.
+				drained += d.length;
+				if (drained > LINGER_BYTES) hangUp();
+				return;
+			}
 			b += d;
-			// Answer, THEN hang up. Destroying the socket first turned the 413
-			// the server meant to send into an ECONNRESET the GUI reads as
-			// « network error » (#84). Reading the rest of the body to close
-			// politely is exactly what an abusive body wants, so the socket
-			// still goes — the client just has its answer first.
 			if (b.length > maxBytes) {
+				over = true;
+				b = '';
+				// Answer, THEN stop listening. Destroying the socket first
+				// turned the 413 the server meant to send into an ECONNRESET
+				// the GUI reads as « network error » (#84). The rest of the
+				// body is still never parsed, which is the point of the cap.
 				json(res, 413, { error: 'body too large' });
 				reject(new Error('body too large'));
-				// Destroying the socket before the answer has left it would
-				// discard the answer: wait for the flush.
-				if (res.writableFinished) req.destroy();
-				else res.once('finish', () => req.destroy());
+				timer = setTimeout(hangUp, LINGER_MS);
+				timer.unref?.();
 			}
 		});
 		req.on('end', () => {
+			clearTimeout(timer); timer = null;
+			// An oversized body that finished on its own needs no hang-up: the
+			// answer is out and the socket closes the ordinary way.
+			if (over) return;
 			if (b && !type) return reject(new Error('body must be application/json, Content-Type missing'));
 			try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(new Error('invalid JSON body')); }
 		});
-		req.on('error', reject);
+		req.on('close', () => { clearTimeout(timer); timer = null; });
+		req.on('error', (e) => { clearTimeout(timer); timer = null; reject(e); });
 	});
 }
 
