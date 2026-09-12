@@ -28,7 +28,7 @@
 // règle. Chaque clôture ne garde que sa paramétrisation de surface — sphère
 // (azimut, élévation) ou boîte (périmètre, altitude) — et sa normale.
 
-// La paire de la culmination (docs/marque.md : « le cyan et le magenta
+// La paire de la culmination (docs/brand.md : « le cyan et le magenta
 // appartiennent à l'écran »), reprise telle quelle depuis palette.js /
 // tokens.css. fence-dome.js re-exporte CYAN pour ne pas casser ses
 // importateurs.

@@ -183,4 +183,15 @@ This contains huge generated files. Use ls, du, stat, grep, etc. from the shell.
 
 For exploration across many files in tools/ or src/, prefer an Explore agent.
 
-Everything in the code, docs... must be in english. Do efficient comments.
+## Language
+
+Everything in the code, docs, selftest labels, CI workflows and file names must
+be in English. Comments should be efficient.
+
+Much of the existing tree is still French — the sweep was rejected as a single
+pass because it would have conflicted with every open branch. The rule is
+per-file instead: **a file you touch for other reasons leaves in English.**
+Translate its comments and its selftest labels as part of that work, do not open
+a separate PR for it, and do not translate files the work did not otherwise
+need. User-facing game text is already English and stays that way (D5);
+`CHANGELOG.md` entries stay French, they are release notes, not code.
