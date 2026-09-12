@@ -8,7 +8,7 @@ pulled from Google Earth, so it's the actual geometry and textures of a place
 that exists. The flight model is a Betaflight quad, acro by default, and a radio
 is recognised without setup.
 
-https://github.com/user-attachments/assets/a9d82838-43e4-452c-9cf1-1293dba485ec
+https://github.com/user-attachments/assets/d18df585-a85d-484f-8743-3dce02777d50
 
 ## Play
 
