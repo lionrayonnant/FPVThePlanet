@@ -34,12 +34,18 @@ function test(name, fn) {
 
 // --- pools et familles ------------------------------------------------------
 
-test('chaque famille de drone a son pool, et menu est le seul pool en plus', () => {
+test('chaque famille de drone a son pool, et les deux pools hors FAMILIES sont connus', () => {
 	for (const f of FAMILIES) {
 		assert.ok(MUSIC_POOLS.includes(f), `famille ${f} sans pool musical`);
 		assert.equal(poolForFamily(f), f);
 	}
-	assert.deepEqual(MUSIC_POOLS.filter((p) => !FAMILIES.includes(p)), ['menu']);
+	// Deux pools ne sont pas dans FAMILIES, pour deux raisons opposées : `menu`
+	// n'est pas un drone du tout, et `swarmNode` en est un qui se PILOTE mais
+	// que FAMILIES exclut volontairement (jamais un candidat de scan ordinaire,
+	// jamais un ambiant — src/drone-profiles.js). L'ordre suit MUSIC_POOLS.
+	assert.deepEqual(MUSIC_POOLS.filter((p) => !FAMILIES.includes(p)), ['menu', 'swarmNode']);
+	// Et celui-là, contrairement à `menu`, DOIT rendre un pool.
+	assert.equal(poolForFamily('swarmNode'), 'swarmNode');
 });
 
 test('menu n\'est pas un pool de drone', () => {
