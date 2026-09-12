@@ -8,16 +8,27 @@
 // L'opacité grandit doucement du centre de la fenêtre (où tu voles) vers le
 // bord réel (là où le rappel doux commence) — courbe extraite en fonction
 // pure pour rester testable en Node, comme rangeFor()/intensityForRange()
-// de fog.js. Le glitch (bruit superposé aux lignes de scan) pulse à chaque
-// churn de la fenêtre (nœud reçu/libéré) et décroît ensuite ; markChurn()
-// est appelé depuis les callbacks onNodeReady/onNodeReleased déjà branchés
-// par main.js — ce module n'a besoin d'aucune nouvelle plomberie côté
-// rocktree-window.js pour ce signal.
+// de fog.js. Le glitch (bruit superposé au champ) pulse à chaque churn de la
+// fenêtre (nœud reçu/libéré) et décroît ensuite ; markChurn() est appelé
+// depuis les callbacks onNodeReady/onNodeReleased déjà branchés par main.js —
+// ce module n'a besoin d'aucune nouvelle plomberie côté rocktree-window.js
+// pour ce signal.
+//
+// L'apparence elle-même (masse organique cyan/magenta, veines, Fresnel,
+// anneau de ping) vient de fence-field.js et est partagée mot pour mot avec
+// la muraille de carte pré-cuite — voir #107.
 
 import * as THREE from 'three';
 import { fogDensity } from './rain.js';
+import {
+	CYAN, MAGENTA, FENCE_FIELD_GLSL, FENCE_DISCARD_ALPHA,
+	hueBiasFor, PingClock, nearestOnSphereSurface,
+} from './fence-field.js';
 
-export const CYAN = 0x4dd8e8;
+// Re-exporté depuis fence-field.js, où vivent désormais les deux couleurs de
+// la clôture : les importateurs historiques (main.js, geofence-dome.js) n'ont
+// rien à changer.
+export { CYAN };
 
 // Brouillard local qui épaissit près du VRAI bord (#198, retour "rupture
 // nette" après vérification en vol) : le terrain live n'a AUCUN brouillard
@@ -47,12 +58,15 @@ export function fogDensityFor(distanceRatio) {
 // Opacité de base, du centre de la fenêtre (ratio 0) au bord réel (ratio 1).
 // CHOISI, pas mesuré — même statut que RAMP_M/TRUST_MARGIN_M dans ce coin du
 // code. Première passe (0.08 -> 0.75) jugée quasi invisible en vol réel (voir
-// 5a958e6) : le pattern du fragment shader multiplie encore ce nombre par
-// 0.25-1.0 selon les lignes de scan (voir plus bas), donc un plancher de 0.08
-// finissait sous les 0.02 d'alpha réel entre deux lignes — sous le seuil de
-// perception face à un terrain photo. Remonté ici (0.20 -> 0.92) ; à retoucher
-// encore si ce n'est toujours pas assez au prochain retour en vol.
-export const OPACITY_FLOOR = 0.20;
+// 5a958e6) ; remontée ensuite à 0.20 -> 0.92 pour compenser un motif qui
+// retombait sous le seuil de perception entre deux lignes de scan.
+//
+// Depuis #107 le champ ne repose plus sur ces lignes et le Fresnel module
+// fortement l'alpha selon l'angle de vue : le plancher redescend, parce que
+// la clôture est vue EN PERMANENCE et n'a le droit de s'imposer que quand
+// elle a quelque chose à dire. Le plafond, lui, reste haut — au bord, elle
+// doit être franche.
+export const OPACITY_FLOOR = 0.12;
 export const OPACITY_CEIL = 0.92;
 
 // Le ratio est clampé : un léger dépassement du rayon (churn en cours, drone
@@ -84,6 +98,8 @@ export class FenceDome {
 		// exposé via distanceRatio pour que main.js pousse fogDensityFor() sur
 		// scene.fog sans recalculer la même géométrie deux fois.
 		this._lastRatio = 0;
+		this._ping = new PingClock();
+		this._impactAge = 1e4;
 
 		this.material = new THREE.ShaderMaterial({
 			glslVersion: THREE.GLSL3,
@@ -92,60 +108,78 @@ export class FenceDome {
 			depthWrite: false,
 			fog: false,
 			uniforms: {
-				uColor: { value: new THREE.Color(CYAN) },
+				uCyan: { value: new THREE.Color(CYAN) },
+				uMagenta: { value: new THREE.Color(MAGENTA) },
 				uTime: { value: 0 },
 				uOpacity: { value: 0 },
+				uHueBias: { value: 0 },
 				uGlitch: { value: 0 },
+				uImpact: { value: new THREE.Vector2(0, 0) },
+				uImpactAge: { value: 1e4 },
+				uRadius: { value: 1 },
 			},
 			vertexShader: /* glsl */`
 				out vec3 vDir;
+				out vec3 vView;
 				void main() {
 					// Sphère unité mise à l'échelle par la matrice modèle (voir
 					// update()) : la position locale EST la direction depuis le
 					// centre, comme pour SkyDome.
 					vDir = position;
-					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+					vec4 world = modelMatrix * vec4(position, 1.0);
+					vView = cameraPosition - world.xyz;
+					gl_Position = projectionMatrix * viewMatrix * world;
 				}
 			`,
 			fragmentShader: /* glsl */`
-				uniform vec3 uColor;
-				uniform float uTime, uOpacity, uGlitch;
+				uniform vec3 uCyan, uMagenta;
+				uniform float uTime, uOpacity, uHueBias, uGlitch, uImpactAge, uRadius;
+				uniform vec2 uImpact;
 				in vec3 vDir;
+				in vec3 vView;
 				out vec4 outColor;
 
-				float hash21(vec2 p) {
-					p = fract(p * vec2(123.34, 456.21));
-					p += dot(p, p + 45.32);
-					return fract(p.x * p.y);
-				}
+				${FENCE_FIELD_GLSL}
 
 				void main() {
 					vec3 d = normalize(vDir);
-					// Élévation locale sur la sphère (radians) : axe des lignes de
-					// scan horizontales, qui balaient dans le temps.
+					// Coordonnée de surface en MÈTRES D'ARC, pour que le champ ait
+					// la même échelle physique que sur la muraille : azimut le long
+					// du bord, élévation en vertical. Même convention que
+					// nearestOnSphereSurface(), qui alimente uImpact.
+					float azimuth = atan(d.z, d.x);
+					if (azimuth < 0.0) azimuth += 6.28318530718;
 					float elevation = asin(clamp(d.y, -1.0, 1.0));
-					float scan = 0.5 + 0.5 * sin(elevation * 40.0 - uTime * 1.5);
-					// Bandes plus larges (pow 3 au lieu de 8, #198 v1 quasi
-					// invisible en vol réel) : la ligne doit rester lisible
-					// entre deux passages, pas juste un pixel de large.
-					scan = pow(scan, 3.0);
 
-					// Bruit/glitch : hash sur la direction ET un temps quantifié en
-					// blocs — un scintillement numérique, pas un fondu doux.
-					float t = floor(uTime * 12.0);
-					float glitch = hash21(d.xz * 37.0 + t) * uGlitch;
-
-					float pattern = clamp(scan * 0.6 + glitch * 0.8, 0.0, 1.0);
-					// Plancher de motif remonté (0.45 au lieu de 0.25, même
-					// raison que OPACITY_FLOOR/CEIL plus haut) : la brume cyan
-					// entre les lignes de scan doit se voir, pas seulement les
-					// lignes elles-mêmes.
-					outColor = vec4(uColor, uOpacity * (0.45 + 0.55 * pattern));
+					FenceIn f;
+					f.surf = vec2(azimuth, elevation) * uRadius;
+					// Sur une sphère unité la position EST la normale.
+					f.normal = d;
+					f.view = vView;
+					f.cyan = uCyan;
+					f.magenta = uMagenta;
+					f.time = uTime;
+					f.opacity = uOpacity;
+					f.hueBias = uHueBias;
+					f.impact = uImpact;
+					f.impactAge = uImpactAge;
+					// Le dôme est recentré sur l'altitude du drone à chaque frame :
+					// la hauteur d'œil est donc l'élévation nulle, par construction.
+					f.eyeV = 0.0;
+					f.edgeFade = 1.0;       // une sphère n'a pas de bord à cacher
+					f.wrap = 6.28318530718 * uRadius;
+					// Le churn de la fenêtre de streaming : un scintillement qui
+					// traverse la masse quand un nœud arrive ou part. C'est le seul
+					// endroit où cette clôture diffère de celle du bord de carte.
+					f.extra = uGlitch;
+					vec4 c = fenceField(f);
+					if (c.a < ${FENCE_DISCARD_ALPHA.toFixed(4)}) discard;
+					outColor = c;
 				}
 			`,
 		});
 
-		this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), this.material);
+		this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), this.material);
 		// depthTest reste actif (contrairement à SkyDome) : ce dôme a un rayon
 		// réel et doit s'occulter correctement avec le terrain déjà chargé, pas
 		// jouer les fonds infinis.
@@ -186,16 +220,41 @@ export class FenceDome {
 			dronePosLocal.x - windowCenterLocal.x,
 			dronePosLocal.z - windowCenterLocal.z,
 		) / loadRadiusM;
-		this._lastRatio = Math.min(1, Math.max(0, distanceRatio));
+		const ratio = Math.min(1, Math.max(0, distanceRatio));
+		this._lastRatio = ratio;
 		this.material.uniforms.uOpacity.value = opacityFor(distanceRatio);
+		this.material.uniforms.uHueBias.value = hueBiasFor(ratio);
 		this.material.uniforms.uGlitch.value = glitchFor(this._secondsSinceChurn);
+		this.material.uniforms.uRadius.value = loadRadiusM;
 		this.material.uniforms.uTime.value += dt;
+
+		// Le ping part du point du dôme le plus proche du drone — même règle
+		// que la muraille : silence tant qu'on vole au centre de la fenêtre.
+		this._impactAge += dt;
+		if (this._ping.advance(dt, ratio)) {
+			// Le centre du dôme est à l'altitude du drone (voir setPosition
+			// ci-dessus), donc le centre en Y est dronePosLocal.y.
+			const surf = nearestOnSphereSurface(
+				dronePosLocal, windowCenterLocal, loadRadiusM, dronePosLocal.y,
+			);
+			this.material.uniforms.uImpact.value.set(surf.u, surf.v);
+			this._impactAge = 0;
+		}
+		this.material.uniforms.uImpactAge.value = this._impactAge;
 		return this;
 	}
 
 	// 0 au centre de la fenêtre, 1 au bord réel (clampé) — main.js s'en sert
 	// pour fogDensityFor() sans recalculer la même géométrie deux fois.
 	get distanceRatio() { return this._lastRatio; }
+
+	// Le temps et le biais de teinte du champ, lus par main.js pour les pousser
+	// sur les uniformes du terrain live (RocktreeMaterial.js) : la brume dans
+	// laquelle le terrain se dissout doit être la MÊME matière que ce dôme, à
+	// la même seconde et à la même dominante — sinon elles dérivent l'une par
+	// rapport à l'autre et la couture se revoit (#107).
+	get fieldTime() { return this.material.uniforms.uTime.value; }
+	get hueBias() { return this.material.uniforms.uHueBias.value; }
 
 	dispose() {
 		this.scene.remove(this.mesh);
