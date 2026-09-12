@@ -107,3 +107,7 @@ Bundled third-party work keeps its own licence: [Three.js](https://threejs.org/)
 Open Font License, whose text sits next to them in `sim/public/fonts/`. The
 music in `sim/public/music/` was generated for this project. Map tiles are
 © OpenStreetMap and place search is © Nominatim.
+
+## Contributions
+
+Still reading? Contributions are welcome!
