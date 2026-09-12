@@ -1,5 +1,4 @@
 
-https://github.com/user-attachments/assets/3a83db9a-8e14-4c13-b5ac-6ce74b68e8ce
 <img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
 # FPVThePlanet!
