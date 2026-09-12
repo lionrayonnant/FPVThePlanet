@@ -157,8 +157,14 @@ export function createRocktreeMaterial(edgeUniforms, { map, color } = {}) {
 			// terrain reparaît sous les bancs clairs et disparaît sous les
 			// denses. Une brume ne se reconnaît pas à sa couleur, elle se
 			// reconnaît à ce qu'elle cache inégalement.
+			// Le plafond est 1.0, PAS davantage : la masse ne peut qu'ÉCLAIRCIR
+			// la brume, jamais l'épaissir. Un plafond au-dessus de 1 laissait les
+			// bancs denses ajouter jusqu'à 45 % de brouillard, et en vol le
+			// terrain entier virait au turquoise délavé — on voulait le voir
+			// reparaître dans les trouées, pas le perdre sous les bancs. Ainsi
+			// bornée, la densité reste au pire celle d'avant #107.
 			const float FOG_DENS_LO = 0.55;
-			const float FOG_DENS_HI = 1.45;
+			const float FOG_DENS_HI = 1.0;
 
 			void main() {
 				vec3 c = ${map ? 'texture(uMap, vUv).rgb' : 'uColor'};
