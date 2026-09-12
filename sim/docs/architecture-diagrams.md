@@ -34,7 +34,46 @@ sandbox flag: add `-p puppeteer.json` with
 ## 1. The loop the player goes through
 
 One boot path, traversed with flags — never a parallel pipeline per mode (D7).
-<img width="931" height="2251" alt="1 — The loop the player goes through" src="https://github.com/user-attachments/assets/22eacb52-708a-4b39-a243-df51047d80b8" />
+
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+  'fontSize':'15px',
+  'primaryColor':'#EEF4FC','primaryTextColor':'#22303C','primaryBorderColor':'#9BB3CD',
+  'lineColor':'#8496A8','edgeLabelBackground':'#FFFFFF',
+  'clusterBkg':'#FBFDFF','clusterBorder':'#D6E2EE',
+  'tertiaryColor':'#FFFFFF'}}}%%
+flowchart TD
+    LOAD["Page load<br/><b>main.js</b>"] --> INTRO["Cracktro intro<br/><b>intro.js</b>"]
+    INTRO --> OP{"Operator<br/>known?"}
+    OP -- "no" --> BOOT["BOOTSTRAP<br/>hardware inventory, name, briefing<br/><b>bootstrap.js</b>"]
+    OP -- "yes" --> MODE
+    BOOT --> MODE["SELECT OPERATION MODE<br/><b>menu-nav.js</b>"]
+
+    MODE -- "SETTINGS" --> SET["Settings — the panel Tab opens<br/><b>settings.js</b>"] --> MODE
+    MODE -- "DATA" --> DATA["Session archive<br/>logs, photos, telemetry, REVISIT<br/><b>session-log.js</b>"]
+    MODE -- "BENCH" --> BENCH["BENCH<br/>airframe, terrain, weather<br/>no target, no ceremony<br/><b>bench.js</b>"]
+    MODE -- "FIELD" --> TERM["Operator terminal<br/>a cached area, or a LIVE pin<br/><b>terminal.js · scanner.js</b>"]
+
+    DATA -- "REVISIT" --> TERM
+    TERM --> SCAN["TARGET SCAN<br/>seeded candidates, area weather<br/><b>target-scan.js</b>"]
+    SCAN -- "ESC" --> TERM
+    SCAN --> BUILD["Draw the machine<br/>family + build seed<br/><b>target-build.mjs</b>"]
+    BUILD --> HACK["HACK — the terrain loads behind it<br/><b>hack.js</b>"]
+
+    BENCH --> FLIGHT
+    HACK --> FLIGHT["FLIGHT<br/>entry state: already airborne<br/><b>entry-state.js</b>"]
+
+    FLIGHT --> END{"How it<br/>ends"}
+    END -- "crash" --> DEAD
+    END -- "geofence exit" --> DEAD
+    END -- "link cut, hold K" --> DEAD
+    DEAD["LINK LOST — the machine is gone<br/><b>flight-end.js</b>, closes CRASHED"] --> ARCH["Session written to the archive<br/><b>session.js</b> → server"]
+    ARCH --> MODE
+
+    classDef flight fill:#E3F3EA,stroke:#6FAE8B,color:#164A30
+    classDef stop fill:#FBEBEB,stroke:#D9A0A0,color:#6E2222
+    class FLIGHT flight
+    class DEAD stop
 
 > The world persists. The machine doesn't. Terrain is heavy, expensive, kept;
 > the drone is free, drawn per target, lost on crash. There is no respawn in
@@ -47,8 +86,60 @@ One boot path, traversed with flags — never a parallel pipeline per mode (D7).
 `npm run dev` *is* the game (D1). The same routes are served without Vite by
 `sim/server/` for the standalone build and the Electron app.
 
-<img width="1463" height="1389" alt="2 — Runtime map" src="https://github.com/user-attachments/assets/de11ace3-6ebc-4fcf-a1e5-7c200117273c" /># FPVThePlanet! — how it works, in diagrams
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+  'fontSize':'15px',
+  'primaryColor':'#EEF4FC','primaryTextColor':'#22303C','primaryBorderColor':'#9BB3CD',
+  'lineColor':'#8496A8','edgeLabelBackground':'#FFFFFF',
+  'clusterBkg':'#FBFDFF','clusterBorder':'#D6E2EE',
+  'tertiaryColor':'#FFFFFF'}}}%%
+flowchart LR
+    subgraph BROWSER["Browser — Vite bundle"]
+        UI["Operator terminal, scanner,<br/>screens, OSD, settings"]
+        SIMLOOP["Simulation loop<br/><b>main.js</b>"]
+        THREE["Three.js renderer<br/>+ lens compositing pass"]
+        RAPIER["Rapier WASM<br/>trimesh collision"]
+        WORKERS["Workers<br/>FPVG parse, rocktree pool, traversal"]
+        CACHE["Cache API 'fpvtp-rocktree-v1'<br/>+ localStorage 'fpvtp.*'"]
+    end
 
+    subgraph SERVER["Node — <b>server/api.mjs</b>, no dependencies"]
+        MAPAPI["<b>/__map-api</b><br/>describe, plan, probe, jobs SSE, scenes"]
+        OPAPI["<b>/__operator</b><br/>operator state, sessions, photos, world"]
+        STATIC["dist/ static files<br/>precompressed br / gz"]
+    end
+
+    subgraph DISK["Data dir — FPVTP_DATA_DIR"]
+        SCENES["scenes/&lt;slug&gt;/ + scenes.json<br/>baked terrain"]
+        OPSTATE["operator-state/<br/>one JSON per operator"]
+        GCACHE["cache/google-earth/"]
+    end
+
+    subgraph EXT["External"]
+        GE["Google Earth rocktree<br/>kh.google.com — no key"]
+        OM["Open-Meteo — weather"]
+        OSM["OpenStreetMap + Nominatim<br/>tiles and search"]
+    end
+
+    UI --> OPAPI
+    UI --> MAPAPI
+    UI --> OSM
+    SIMLOOP --> THREE
+    SIMLOOP --> RAPIER
+    SIMLOOP --> WORKERS
+    WORKERS --> CACHE
+    WORKERS -- "LIVE flight,<br/>straight from the browser" --> GE
+    MAPAPI -- "acquisition<br/>FPVTP_ACQUIRE=1 only" --> GE
+    MAPAPI --> SCENES
+    OPAPI --> OPSTATE
+    OPAPI --> OM
+    MAPAPI --> GCACHE
+    STATIC --> BROWSER
+    SIMLOOP --> SCENES
+
+    classDef ext fill:#FFF7E6,stroke:#E2C583,color:#5A4412
+    class GE,OM,OSM ext
+    
 Acquisition — downloading an area, decoding it and writing playable terrain —
 is closed by default and never available in `--mode shared`. LIVE flight needs
 none of it: tiles go to the player's browser and are never kept.
