@@ -24,13 +24,14 @@ export function buildLibrary(manifest) {
 	return [...tracks].sort((a, b) => rank(a) - rank(b) || String(a.id).localeCompare(String(b.id)));
 }
 
-// Les filtres offerts : ALL, puis les pools RÉELLEMENT présents.
+// Les filtres offerts : ALL, puis les pools RÉELLEMENT présents dans la
+// bibliothèque déjà bâtie.
 //
 // `swarmNode` est déclaré dans MUSIC_POOLS mais vide aujourd'hui ; un filtre sur
 // lequel on tombe toujours vide est du bruit. Il apparaîtra le jour où il aura
 // des morceaux, sans qu'on touche à ce fichier.
-export function libraryFilters(manifest) {
-	const present = new Set(buildLibrary(manifest).map((t) => t.pool));
+export function libraryFilters(library) {
+	const present = new Set((library ?? []).map((t) => t.pool));
 	return ['ALL', ...MUSIC_POOLS.filter((p) => present.has(p))];
 }
 

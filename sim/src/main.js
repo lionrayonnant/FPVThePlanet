@@ -46,6 +46,8 @@ import { normalizeHackType } from '../tools/hack-model.mjs';
 import { targetCamera } from '../tools/target-camera.mjs';
 import { targetBuild } from '../tools/target-build.mjs';
 import { music } from './music.js';
+import { radio } from './radio.js';
+import { runJukebox } from './jukebox.js';
 import { space } from './space.js';
 import { flightIntensity, PHASE_INTENSITY, FADE } from '../tools/music-model.mjs';
 import { droneOsdLayout } from '../tools/drone-osd-model.mjs';
@@ -2198,7 +2200,10 @@ function frame() {
 		// pas à `closes`, pour qu'elle meure À L'INSTANT DU CHOC, avec l'image.
 		// Attendre la ligne « LINK LOST » (1,6 s) laisserait la musique jouer
 		// par-dessus l'épave qui roule (issue #122).
-		music.kill();
+		//
+		// Sauf la radio (issue #120) : elle n'est pas la musique de ce vol, elle
+		// est ce que l'opérateur a mis en fond. Un crash ne coupe pas la radio.
+		if (!radio.owns) music.kill();
 		// L'acoustique se tait avec le drone. Sans cet appel le réseau garde sa
 		// dernière valeur de wet et l'énergie déjà accumulée dans ses boucles :
 		// le bruit continuait dans les menus après la fin de session.
@@ -2549,7 +2554,11 @@ if (!frozen) {
 	// setIntensity ne déplace que des AudioParams : aucun nœud n'est créé par
 	// frame. Gelé, on ne touche à rien — la musique tient sa valeur pendant une
 	// pause au lieu de retomber au plancher.
-	if (!frozen && music.playing) {
+	//
+	// La radio (issue #120) est hors de cet arc : elle joue à plat. Sans ce
+	// garde, couper les gaz la passerait au filtre fermé, ce qui n'a aucun sens
+	// pour une bande-son qu'on a choisie soi-même.
+	if (!frozen && !radio.owns && music.playing) {
 		music.setIntensity(flightIntensity({
 			throttle: sticks.throttle,
 			speedMs: Math.hypot(v.x, v.y, v.z),
@@ -2923,6 +2932,14 @@ async function chooseScene() {
 			continue;
 		}
 
+		// JUKEBOX ne mène nulle part : on écoute, on remonte. Et la radio, elle,
+		// ne remonte pas avec nous — elle continue de jouer dans les menus et
+		// dans le vol qui suivra (issue #120).
+		if (mode === 'jukebox') {
+			await runJukebox(ui);
+			continue;
+		}
+
 		// DATA resolves UPWARDS: a REVISIT is a flight, and it enters the
 		// FIELD loop exactly like a choice made on the FIELD screen. Escape at
 		// the TARGET SCAN therefore falls back to FIELD, not to the logs — it
@@ -3041,10 +3058,14 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			// hack dure plusieurs secondes au minimum : la musique entre dedans,
 			// ce qui est de toute façon sa place — elle est le premier indice
 			// sensoriel de la machine, pas un préalable à l'écran.
-			music.loadManifest()
-				.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
-				.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
-				.catch((err) => console.warn('[music] piste du hack indisponible', err));
+			// Pas quand la radio tient l'antenne (issue #120) : le joueur a choisi sa
+			// bande-son, le hack ne la lui enlève pas en fondu.
+			if (!radio.owns) {
+				music.loadManifest()
+					.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
+					.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
+					.catch((err) => console.warn('[music] piste du hack indisponible', err));
+			}
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
 			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
@@ -3148,10 +3169,14 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		// hack dure plusieurs secondes au minimum : la musique entre dedans,
 		// ce qui est de toute façon sa place — elle est le premier indice
 		// sensoriel de la machine, pas un préalable à l'écran.
-		music.loadManifest()
-			.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
-			.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
-			.catch((err) => console.warn('[music] piste du hack indisponible', err));
+		// Pas quand la radio tient l'antenne (issue #120) : le joueur a choisi sa
+		// bande-son, le hack ne la lui enlève pas en fondu.
+		if (!radio.owns) {
+			music.loadManifest()
+				.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
+				.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
+				.catch((err) => console.warn('[music] piste du hack indisponible', err));
+		}
 		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
 		// Abandon au hack : `booting` (finishBoot()) a déjà monté le terrain dans
 		// la scène — « Le montage dans la scène a lieu ICI et pas dans
@@ -3261,6 +3286,10 @@ function prepareMenuMusic() {
 }
 
 async function startMenuMusic() {
+	// La radio l'emporte (issue #120). Le garde `!music.playing` plus bas ne
+	// suffit pas : il court avec le fondu de la radio, pendant lequel
+	// `music.playing` peut être brièvement faux.
+	if (radio.owns) return;
 	if (menuMusicStarted) return;
 	menuMusicStarted = true;
 	// Le volume musique du joueur n'est appliqué qu'au boot de la scène
@@ -3272,6 +3301,17 @@ async function startMenuMusic() {
 	// là, sinon la musique de menu s'inviterait par-dessus le hack.
 	if (ready && !music.playing) music.play({ intensity: PHASE_INTENSITY.MENU });
 }
+
+// La radio rend l'antenne : le terminal retrouve sa musique (issue #120).
+// `menuMusicStarted` est mémoïsé pour ne jouer qu'une fois par chargement —
+// sans ce réarmement, couper la radio laisserait les menus muets jusqu'au
+// rechargement. La graine repart à zéro aussi : reprendre exactement le morceau
+// du boot sonnerait comme un bégaiement.
+radio.onRelease(() => {
+	menuMusicStarted = false;
+	menuMusicReady = null;
+	startMenuMusic().catch(() => { /* la musique de menu n'est jamais critique */ });
+});
 
 async function startup() {
 	// Synchrone dans le handler du geste : c'est ce qui autorise
@@ -3386,7 +3426,11 @@ async function openFlightSession() {
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
-	music.drop();
+	//
+	// Rien à décharger si c'est la radio qui joue (issue #120) : elle est déjà
+	// à plein spectre, et elle n'a pas été duckée — culmination.js saute son
+	// duck pour la même raison. Les deux gestes vont ensemble.
+	if (!radio.owns) music.drop();
 	spawnY = physics.spawn.y;
 	spawnX = physics.spawn.x;
 	spawnZ = physics.spawn.z;

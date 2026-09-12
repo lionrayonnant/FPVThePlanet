@@ -47,11 +47,14 @@ t('buildLibrary : un manifeste absent ou vide rend une liste vide', () => {
 });
 
 t('libraryFilters : ALL puis les pools PRÉSENTS seulement', () => {
-	assert.deepEqual(libraryFilters(fake), ['ALL', 'menu', 'race5']);
+	const lib = buildLibrary(fake);
+	assert.deepEqual(libraryFilters(lib), ['ALL', 'menu', 'race5']);
 	// swarmNode est déclaré dans MUSIC_POOLS mais absent du manifeste : il ne
 	// doit pas offrir un filtre toujours vide.
 	assert.ok(MUSIC_POOLS.includes('swarmNode'));
-	assert.ok(!libraryFilters(fake).includes('swarmNode'));
+	assert.ok(!libraryFilters(lib).includes('swarmNode'));
+	assert.deepEqual(libraryFilters([]), ['ALL']);
+	assert.deepEqual(libraryFilters(null), ['ALL']);
 });
 
 t('filterLibrary : ALL ne filtre rien, un pool ne rend que lui', () => {
@@ -148,7 +151,7 @@ if (existsSync(manifestPath)) {
 
 	t('bibliothèque réelle : les filtres ne proposent que du non vide', () => {
 		const lib = buildLibrary(real);
-		for (const f of libraryFilters(real)) {
+		for (const f of libraryFilters(lib)) {
 			assert.ok(filterLibrary(lib, f).length > 0, `filtre vide : ${f}`);
 		}
 	});
