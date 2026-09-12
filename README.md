@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/3a83db9a-8e14-4c13-b5ac-6ce74b68e8ce
 <img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
 # FPVThePlanet!
@@ -7,9 +9,7 @@ pulled from Google Earth, so it's the actual geometry and textures of a place
 that exists. The flight model is a Betaflight quad, acro by default, and a radio
 is recognised without setup.
 
-<!-- TRAILER: replace TODO with the video URL, and swap the thumbnail for a
-     frame exported from the edit. -->
-[![Watch the trailer](docs/scanner.png)](TODO)
+https://github.com/user-attachments/assets/a9d82838-43e4-452c-9cf1-1293dba485ec
 
 ## Play
 
