@@ -183,11 +183,23 @@ export const POOLS = {
 		// « dry close-miked, almost no reverb » n'est pas un détail de
 		// production : c'est ce qui sépare ce pool de HEAVY, entièrement bâti
 		// sur les longues décroissances et l'espace du temple.
+		//
+		// L'ATTAQUE IMMÉDIATE est une contrainte de jeu, pas un goût. Ce morceau
+		// démarre au DROP, à la fin du hack, là où il faut de l'impact — une
+		// mise en place de vingt secondes y est rédhibitoire. La v1 disait
+		// « slowly swelling sub bass growing under everything » : une
+		// instruction de montée, et les trois morceaux mettaient trop longtemps
+		// à se poser. Le sub reste, mais présent d'emblée.
+		//
+		// Le rognage de tête de music-loop.mjs ne sauve pas : il ne coupe que le
+		// SILENCE mesuré, pas une intro douce.
 		core: 'dark industrial hard techno with an early-1980s horror-score motif on top, '
+			+ 'starts immediately in full flow, the groove already running from the first bar, '
+			+ 'no intro, no build-up, no gradual fade-in, '
 			+ 'hard mechanical four-to-the-floor kick leading the whole track, '
 			+ 'obsessive four-note minor ostinato repeating without variation over a static bass pedal, '
 			+ 'fat detuned screaming hoover lead used as a recurring alarm, '
-			+ 'slowly swelling sub bass growing under everything, '
+			+ 'constant deep sub bass pressure underneath, never letting go, '
 			+ 'dry close-miked production with almost no reverb, everything pressed against the ear, '
 			+ 'stalking and relentless, something large closing in formation, '
 			+ 'vintage analog sequencers, cold polysynth and overdriven drum machines',
@@ -249,6 +261,11 @@ export const POOL_AXIS_BANS = {
 		// sub qui monte — ne vaut que sombre.
 		darkness: ['brighter and more open'],
 		aggression: ['smooth and rounded'],        // vs « screaming », « overdriven »
+		// Même leçon que `menu`, pour une raison différente : ici « sparse »
+		// contredit « already running from the first bar » et rend un morceau
+		// qui s'installe au lieu de frapper. Le tirage qui l'avait reçu était
+		// le plus faible du premier lot de 5,6 dB.
+		density: ['sparse arrangement, lots of space'],
 		// Même raison que heavy5 : le grain tracker jure avec « vintage analog
 		// sequencers ».
 		grain: ['gritty digital samplers, early tracker character'],
