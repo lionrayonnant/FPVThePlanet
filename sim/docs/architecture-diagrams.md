@@ -197,29 +197,43 @@ Narrow on purpose — four motor outputs, so a SITL can replace the controller
 later. No art-direction module is ever a dependency of the engine (D6).
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+  'fontSize':'15px',
+  'primaryColor':'#EEF4FC','primaryTextColor':'#22303C','primaryBorderColor':'#9BB3CD',
+  'lineColor':'#8496A8','edgeLabelBackground':'#FFFFFF',
+  'clusterBkg':'#FBFDFF','clusterBorder':'#D6E2EE',
+  'tertiaryColor':'#FFFFFF'}}}%%
 flowchart TB
-    IN["input.js<br/>throttle 0..1, roll/pitch/yaw -1..1<br/>auto gamepad mapping"]
-    FC["flightController.js<br/>Betaflight-shaped, PID measured with<br/>npm run tune -> motors[4]"]
-    QUAD["quad.js<br/>motor lag, thrust, prop drag torque,<br/>inflow, body drag, ground effect,<br/>propwash, battery sag"]
-    PHY["physics.js / Rapier<br/>full-res trimesh, CCD,<br/>zero damping, forces reset each step"]
+    IN["<b>input.js</b><br/>throttle 0..1 · roll/pitch/yaw −1..1<br/>auto gamepad mapping"]
+    FC["<b>flightController.js</b><br/>Betaflight-shaped<br/>PID measured with npm run tune → motors[4]"]
+    QUAD["<b>quad.js</b><br/>motor lag, thrust, prop drag torque,<br/>inflow, body drag, ground effect,<br/>propwash, battery sag"]
+    PHY["<b>physics.js</b> / Rapier<br/>full-res trimesh, CCD,<br/>zero damping, forces reset each step"]
 
     IN --> FC --> QUAD --> PHY
     PHY -- "state feedback" --> FC
 
-    WEATHER["World weather snapshot<br/>Open-Meteo, per area per day"] --> WRF["wind.js · rain.js · fog.js"]
+    WEATHER["World weather snapshot<br/>Open-Meteo, per area per day"] --> WRF["<b>wind.js · rain.js · fog.js</b><br/>pure models, never a dependency<br/>of the engine (D6)"]
     WRF --> QUAD
     WRF --> LENS
 
-    PHY --> CAM["Camera: fpv / chase / free"]
-    CAM --> LENS["lens.js — one fullscreen pass:<br/>barrel, chromatic aberration, vignette,<br/>rotation blur, lens water"]
-    DOSD["drone-osd.js — the target's own OSD"] --> LENS
-    LENS --> LINK["link.js — 5.8 GHz budget,<br/>RSSI, analogue/digital degradation"]
-    LINK --> FOSD["fpvtp-osd.js — our overlay,<br/>above the degradation"]
+    PHY --> CAM["Camera — fpv / chase / free"]
+    CAM --> LENS["<b>lens.js</b> — one fullscreen pass<br/>barrel, chromatic aberration, vignette,<br/>rotation blur, lens water, sun"]
+    DOSD["<b>drone-osd.js</b><br/>the target's own OSD"] --> LENS
+    LENS --> LINK["<b>link.js</b> — 5.8 GHz budget, RSSI<br/>analogue / digital degradation"]
+    LINK --> FOSD["<b>fpvtp-osd.js</b> — our overlay,<br/>above the degradation"]
     FOSD --> SCREEN["Goggles"]
 
-    PHY --> FENCE["geofence.js — soft recall, then exit"]
-    PHY --> FE["flight-end.js<br/>crash · out of zone · link cut"]
+    PHY --> FENCE["<b>geofence.js</b><br/>soft recall, then exit"]
+    PHY --> FE["<b>flight-end.js</b><br/>crash · out of zone · link cut"]
     FENCE --> FE
+
+    classDef env fill:#FFF7E6,stroke:#E2C583,color:#5A4412
+    classDef stop fill:#FBEBEB,stroke:#D9A0A0,color:#6E2222
+    classDef out fill:#E3F3EA,stroke:#6FAE8B,color:#164A30
+    class WEATHER,WRF env
+    class FE stop
+    class SCREEN out
 ```
 
 The order is physical: the lens is glass in front of the sensor, the link is what
@@ -235,16 +249,26 @@ else — telemetry sampling, weather, audio, screens — once per frame.
 ## 5. What is persisted, and where
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+  'fontSize':'15px',
+  'primaryColor':'#EEF4FC','primaryTextColor':'#22303C','primaryBorderColor':'#9BB3CD',
+  'lineColor':'#8496A8','edgeLabelBackground':'#FFFFFF',
+  'clusterBkg':'#FBFDFF','clusterBorder':'#D6E2EE',
+  'tertiaryColor':'#FFFFFF'}}}%%
 flowchart TD
-    OPCLIENT["src/operator.js<br/>key in localStorage"] -->|"POST /__operator"| STORE
-    SESSION["src/session.js<br/>opens at first flight frame,<br/>samples telemetry every 0.2 s"] -->|"PATCH session, POST photo"| STORE
-    STORE["operator-state/&lt;id&gt;.json<br/>tools/operator-store.mjs"]
+    OPCLIENT["<b>operator.js</b><br/>key in localStorage"] -->|"POST /__operator"| STORE
+    SESSION["<b>session.js</b><br/>opens at the first flight frame,<br/>samples telemetry every 0.2 s"] -->|"PATCH session<br/>POST photo"| STORE
+    STORE["operator-state/&lt;id&gt;.json<br/><b>tools/operator-store.mjs</b>"]
     STORE --> F1["settings"]
-    STORE --> F2["terrainCache — areas kept"]
-    STORE --> F3["worldState.weather — 7 days per area"]
-    STORE --> F4["sessions[] — target, weather,<br/>telemetry, photos, verdict, seq numbers"]
-    F4 --> DATASCREEN["DATA screen: replayable archive"]
+    STORE --> F2["terrainCache<br/>areas kept"]
+    STORE --> F3["worldState.weather<br/>7 days per area"]
+    STORE --> F4["sessions[]<br/>target, weather, telemetry,<br/>photos, verdict, seq numbers"]
+    F4 --> DATASCREEN["DATA screen<br/>replayable archive"]
     LS["localStorage 'fpvtp.*'<br/>gamepad map, audio, lens, mode"] --> BROWSERONLY["Browser-local only"]
+
+    classDef io fill:#F0EBFA,stroke:#B2A4DA,color:#3A2F5E
+    class LS,BROWSERONLY io
 ```
 
 Server-side operator state (D2) is one coherent place next to the terrain, it
