@@ -75,11 +75,11 @@ flowchart TD
     classDef stop fill:#FBEBEB,stroke:#D9A0A0,color:#6E2222
     class FLIGHT flight
     class DEAD stop
+```
 
 > The world persists. The machine doesn't. Terrain is heavy, expensive, kept;
 > the drone is free, drawn per target, lost on crash. There is no respawn in
 > FIELD — `BENCH` is the exception, where nothing is lost.
-```
 
 ---
 
