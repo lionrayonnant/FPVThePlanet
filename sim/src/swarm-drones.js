@@ -175,7 +175,7 @@ export class SwarmDrones {
 	reset(player) { this.model?.reset(player ?? null); this._silenced = false; }
 
 	// Frozen physics: the units do not move, so a held note would be worse
-	// than nothing (son.md:41-42).
+	// than nothing (sound.md:41-42).
 	setMuted(b) { this.audio.setMuted(b); }
 	// Latches the silence: see `_silenced` in the constructor.
 	silence() { this._silenced = true; this.audio.silence(); }

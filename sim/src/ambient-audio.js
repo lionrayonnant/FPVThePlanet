@@ -5,7 +5,7 @@
 //   noise ─ bp ─┼→ gain(distance) → lowpass(distance, dos) → panner ─┬→ destination (engineIn)
 //                                                                    └→ spaceInput (acoustique du lieu, #122)
 //
-// Sinus seulement, détune par voix (son.md : quatre voix en phase feraient un
+// Sinus seulement, détune par voix (sound.md : quatre voix en phase feraient un
 // son de test de synthé), coupure qui descend avec la distance (rien ne
 // remonte dans 2–4 kHz), Doppler écrit à la main sur osc.frequency — jamais
 // celui du PannerNode, retiré de la spec.

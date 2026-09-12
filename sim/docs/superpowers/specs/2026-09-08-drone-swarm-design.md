@@ -72,7 +72,7 @@ Ce que ce n'est **pas** :
 8. **Son** : sinus seulement, détune entre voix obligatoire, rien qui renvoie
    d'énergie dans 2–4 kHz, graphe construit une fois dans `start()`, zéro
    allocation par frame, silence quand la physique est gelée
-   (`docs/handoff-archive/son.md:31-42, 66-90`). Le pire cas mesuré ne laisse
+   (`docs/handoff-archive/sound.md:31-42, 66-90`). Le pire cas mesuré ne laisse
    que **1,6 dB** de marge au limiteur (`:92-98`). `EngineAudio` fait ~60
    nœuds, `AmbientAudio` ~24.
 9. **Boucle de rendu** : dt clampé à 250 ms, convention `frozen ? 0 : dt`,
@@ -355,7 +355,7 @@ littéral. La sortie traverse `lens.render` comme tout le reste.
 
 Douze voix individuelles sont exclues, et pas seulement pour le coût : douze
 sinus quasi identiques se verrouillent en phase et produisent exactement le son
-de test de synthé que `son.md:84-90` interdit. Un essaim ne sonne pas comme
+de test de synthé que `sound.md:84-90` interdit. Un essaim ne sonne pas comme
 douze drones, il sonne comme un **chœur**.
 
 - **3 voix proches**, réassignées en continu aux 3 unités les plus proches — le
@@ -386,7 +386,7 @@ bus au lieu de `engineIn()` directement, `src/ambient-audio.js:88`) et c'est la
 Envoi vers `space.input` comme les ambiants, à gain égal au sec : l'essaim
 résonne dans la cour où il passe. `setMuted(frozen)`, silence sur `linkDead`.
 Niveaux relatifs **choisis et non mesurés**, dit dans le code, comme le reste du
-son (`son.md:106-111`).
+son (`sound.md:106-111`).
 
 ## Les modules
 

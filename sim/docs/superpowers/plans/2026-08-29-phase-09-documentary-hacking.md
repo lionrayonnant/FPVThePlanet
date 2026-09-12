@@ -17,7 +17,7 @@ l'appelle dans `chooseScene()` après `runTargetScan`. Les helpers testables
 **Tech Stack:** JS ESM natif, Vite (bundle client), Three.js/Rapier (moteur —
 NON touché), `node:assert/strict` pour les selftests (logique pure, pas de DOM).
 
-**Spec:** `sim/docs/superpowers/specs/2026-08-29-phase-09-hacking-documentaire-design.md`
+**Spec:** `sim/docs/superpowers/specs/2026-08-29-phase-09-documentary-hacking-design.md`
 
 ## Global Constraints
 
@@ -58,7 +58,7 @@ NON touché), `node:assert/strict` pour les selftests (logique pure, pas de DOM)
 | `src/style.css` | styles `.hack-*` | Modifier |
 | `src/main.js` | câblage `runHack` dans `chooseScene`, hook debug `?hack=` | Modifier |
 | `package.json` | ajouter `hack-selftest.mjs` au runner `selftest:operator` | Modifier |
-| `sim/HANDOFF.md`, `docs/manuel.md` | état vérifié/non vérifié, section hacking | Modifier |
+| `sim/HANDOFF.md`, `docs/manual.md` | état vérifié/non vérifié, section hacking | Modifier |
 
 ---
 
@@ -824,7 +824,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ## Task 7 : Revue de sûreté + documentation
 
 **Files:**
-- Modify: `sim/HANDOFF.md`, `docs/manuel.md`
+- Modify: `sim/HANDOFF.md`, `docs/manual.md`
 
 - [ ] **Step 1 : Revue de sûreté du diff**
 
@@ -839,7 +839,7 @@ Si un doute : neutraliser (remplacer par du bruit purement graphique).
 
 - [ ] **Step 2 : Section README**
 
-Dans `docs/manuel.md`, à côté de la description du TARGET SCAN (PHASE 08),
+Dans `docs/manual.md`, à côté de la description du TARGET SCAN (PHASE 08),
 ajouter un paragraphe : les six familles de hack (`HACK_TYPES`), le fait que
 `hackType` est une propriété de cible tirée à la génération (`target-model.mjs`),
 indépendante de la difficulté du vol, persistée sur la session. Mentionner le
@@ -865,7 +865,7 @@ gh issue comment 46 --repo lionrayonnant/FPVThePlanet --body "PHASE 09 implémen
 - [ ] **Step 5 : Commit**
 
 ```bash
-git add sim/HANDOFF.md docs/manuel.md
+git add sim/HANDOFF.md docs/manual.md
 git commit -m "PHASE 09 — docs : section hacking, état HANDOFF, revue de sûreté
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"

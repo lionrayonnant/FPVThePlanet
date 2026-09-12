@@ -2,7 +2,7 @@
 
 > Note de session archivée, détachée de [HANDOFF.md](../../HANDOFF.md) le 2026-08-29 pour alléger le contexte.
 > Le passage de « poussée+couple sur une sphère » au modèle quad.js / flightController.js, et le banc tune-pid.
-> Pour retrouver une section : `grep -n "^#" modele-de-vol.md`.
+> Pour retrouver une section : `grep -n "^#" flight-model.md`.
 
 ## Modèle de vol réaliste (ajouté 2026-08-26, session suivante)
 

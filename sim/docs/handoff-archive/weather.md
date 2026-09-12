@@ -2,12 +2,12 @@
 
 > Note de session archivée, détachée de [HANDOFF.md](../../HANDOFF.md) le 2026-08-29 pour alléger le contexte.
 > Les quatre modèles purs (wind.js, rain.js, rainfall.js, fog.js) et leurs vérifications banc + vol.
-> Pour retrouver une section : `grep -n "^#" meteo.md`.
+> Pour retrouver une section : `grep -n "^#" weather.md`.
 
 ## Le vent (issue #20)
 
 `src/wind.js`, sur le moule de `link.js` : modèle pur, `physics.js` lance les
-rayons, `main.js` câble. Voir `docs/manuel.md` pour le modèle lui-même.
+rayons, `main.js` câble. Voir `docs/manual.md` pour le modèle lui-même.
 
 **Vérifié** — 28 checks dans `tools/selftest.mjs`, section `vent` :
 
@@ -69,7 +69,7 @@ double-ombrerait la ville.
 ## La pluie (issue #24)
 
 `src/rain.js` (modèle pur, sans THREE) + `src/rainfall.js` (les stries) +
-`loader.setFog()` pour la visibilité. Voir `docs/manuel.md` pour le modèle.
+`loader.setFog()` pour la visibilité. Voir `docs/manual.md` pour le modèle.
 
 **Vérifié au banc** — 17 checks, section `pluie` de `tools/selftest.mjs` :
 
@@ -206,7 +206,7 @@ du fichier pour être bougées ensemble.
 ## Le brouillard (issue #21)
 
 `src/fog.js` (modèle pur, sans THREE) + `loader.setFog()` pour la densité et la
-couleur + le voile d'objectif dans `src/lens.js`. Voir `docs/manuel.md` pour le
+couleur + le voile d'objectif dans `src/lens.js`. Voir `docs/manual.md` pour le
 modèle. `TileMaterial.js` **n'a pas été touché** : l'extinction exp² qui y était
 déjà suffit tant qu'il n'y a pas de terme d'altitude.
 

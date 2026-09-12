@@ -89,7 +89,7 @@ ground effect, propwash, battery sag) and the controller in
 
 | | |
 |---|---|
-| [`docs/manuel.md`](docs/manuel.md) | commands, adding maps, the prep pipeline, the flight model, PID tuning |
+| [`docs/manual.md`](docs/manual.md) | commands, adding maps, the prep pipeline, the flight model, PID tuning |
 | [`sim/docs/architecture-diagrams.md`](sim/docs/architecture-diagrams.md) | six more diagrams of the running system |
 | [`sim/HANDOFF.md`](sim/HANDOFF.md) | what's verified and what isn't |
 | [`deploy/README.md`](deploy/README.md) | putting the server on a machine |

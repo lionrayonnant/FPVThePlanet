@@ -10,7 +10,7 @@
 //      Indépendant du premier, et fermé par défaut.
 //
 // Les confondre serait l'erreur de conception que la spec nomme explicitement
-// (docs/superpowers/specs/2026-09-07-deploiement-double-mode-design.md, D2).
+// (docs/superpowers/specs/2026-09-07-dual-mode-deployment-design.md, D2).
 //
 // Aucune dépendance : node:crypto et node:fs.
 

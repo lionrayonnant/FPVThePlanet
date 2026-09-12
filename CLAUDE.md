@@ -35,7 +35,7 @@ lat,lon
 → sim/tools/add-map.mjs
 → sim/public/scenes.json
 
-See docs/manuel.md for prep details. Do not re-derive or replace its ECEF→ENU, VRAM, draw-call, or texture-array logic without reason.
+See docs/manual.md for prep details. Do not re-derive or replace its ECEF→ENU, VRAM, draw-call, or texture-array logic without reason.
 
 Scene loading
 
@@ -69,17 +69,17 @@ Drone collider is always a sphere radius 0.15 m. Camera near is exactly 0.15.
 Realism comes from quad.js mass/inertia, not a more detailed collider.
 Rapier linear/angular damping is zero intentionally; drag is computed by quad.js.
 Reset Rapier forces/torques every step (resetForces() / resetTorques()).
-UV V-axis is flipped in prep.mjs. Check docs/manuel.md before diagnosing grey textures as bad source data.
+UV V-axis is flipped in prep.mjs. Check docs/manual.md before diagnosing grey textures as bad source data.
 Do not read raw/prepped scene data with Read.
 Documentation
 
 Sources of truth:
 
-docs/manuel.md: commands, maps, prep pipeline.
-docs/marque.md: the mark — geometry, lockups, clear space, what is forbidden. The files live in sim/public/brand/; copy from there rather than re-exporting.
+docs/manual.md: commands, maps, prep pipeline.
+docs/brand.md: the mark — geometry, lockups, clear space, what is forbidden. The files live in sim/public/brand/; copy from there rather than re-exporting.
 sim/HANDOFF.md: current verified/unverified state only. Detailed per-subsystem session narratives are split into sim/docs/handoff-archive/*.md — read one only when touching that subsystem.
 sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md: the art direction and the target experience. Validated; do not re-litigate it, implement it.
-sim/docs/FPVThePlanet! — Roadmap d'implémentation DA - UX.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
+sim/docs/FPVThePlanet! — DA-UX Implementation Roadmap.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
 sim/docs/fpv-rework-architecture.md: audit of the existing code, the cross-cutting decisions (D1-D7), and what each module becomes. Read before touching the rework.
 GitHub Issues + Project: roadmap/status. The rework is issues PHASE 00-26, label roadmap-da, milestones P0-P3.
 
@@ -95,7 +95,7 @@ Issue numbers quoted throughout this repo's history refer to that older repo
 and do not resolve here until the issues are migrated. Push here, never there.
 
 Licensed AGPL-3.0-only
-(`LICENSE` at the root, `README.md` is the public front door — `docs/manuel.md`
+(`LICENSE` at the root, `README.md` is the public front door — `docs/manual.md`
 stays the technical one). Two things change the day the switch is flipped:
 `sim/electron-builder.yml` can move from `provider: generic` to
 `provider: github` (the generic HTTP feed only exists because a private repo
@@ -183,4 +183,15 @@ This contains huge generated files. Use ls, du, stat, grep, etc. from the shell.
 
 For exploration across many files in tools/ or src/, prefer an Explore agent.
 
-Everything in the code, docs... must be in english. Do efficient comments.
+## Language
+
+Everything in the code, docs, selftest labels, CI workflows and file names must
+be in English. Comments should be efficient.
+
+Much of the existing tree is still French — the sweep was rejected as a single
+pass because it would have conflicted with every open branch. The rule is
+per-file instead: **a file you touch for other reasons leaves in English.**
+Translate its comments and its selftest labels as part of that work, do not open
+a separate PR for it, and do not translate files the work did not otherwise
+need. User-facing game text is already English and stays that way (D5);
+`CHANGELOG.md` entries stay French, they are release notes, not code.

@@ -1,8 +1,8 @@
 # Pipeline d'ajout de cartes — notes de session
 
 > Note de session archivée, détachée de [HANDOFF.md](../../HANDOFF.md) le 2026-08-29 pour alléger le contexte.
-> Couvre la GUI d'ajout, le pré-traitement d'origine, le passage au multi-cartes et le support HEIC. Voir aussi `docs/manuel.md`.
-> Pour retrouver une section : `grep -n "^#" pipeline-cartes.md`.
+> Couvre la GUI d'ajout, le pré-traitement d'origine, le passage au multi-cartes et le support HEIC. Voir aussi `docs/manual.md`.
+> Pour retrouver une section : `grep -n "^#" map-pipeline.md`.
 
 ## GUI d'ajout de cartes (issue #26) — vérifié
 
@@ -64,7 +64,7 @@ pré-traite une fois en ~10s :
 | VRAM textures | ~4,9 Go | ~1,65 Go |
 | Résolution | 12,6 texels/m | 6,3 texels/m (16 cm/texel) |
 
-Architecture (voir aussi `docs/manuel.md`, plus détaillé sur le repère de coordonnées
+Architecture (voir aussi `docs/manual.md`, plus détaillé sur le repère de coordonnées
 et le format binaire) :
 
 ```
@@ -108,7 +108,7 @@ choisir dans un menu plutôt qu'être limité à la tuile Tour Eiffel codée en 
   îles. Pas généralisé faute de demande explicite ; à faire si `selftest`
   doit devenir un vrai gate multi-cartes.
 - Doc utilisateur complète (comment ajouter une carte, dimensionner
-  `--radius`, options d'`add-map.mjs`) dans `docs/manuel.md`.
+  `--radius`, options d'`add-map.mjs`) dans `docs/manual.md`.
 
 Décisions actées (voir le plan pour le raisonnement complet) : navigateur
 three.js plutôt que moteur natif, physique Rapier plutôt qu'intégrateur maison,
