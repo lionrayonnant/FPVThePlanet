@@ -86,14 +86,19 @@ const someProfile = (r) => PROFILES[pick(r, FAMILIES)];
 // symbols and prototype-less objects do not.
 const jsonRoundTrip = (v) => { try { return JSON.parse(jsonText(v)); } catch { return null; } };
 
-// Absurd but short of where the arithmetic itself gives up. Telemetry has no
-// upper bound anywhere — the client sends it, validateSession only asks for
-// "finite and >= 0" — so a durationS of 1e308 is storable today, and adding it
-// to itself overflows: the flight can then never be closed, and the DATA screen
-// reports a career of Infinity seconds. That is one finding about what the
-// server agrees to store (issue #83); re-deriving it from six targets on every
-// run would drown everything else. Drop this clamp when the bound lands.
-const plausible = (v) => (Number.isFinite(v) ? Math.max(-1e9, Math.min(1e9, v)) : v);
+// Telemetry is bounded field by field since #83 (session.TELEMETRY_MAX), so the
+// generator aims AT the bounds rather than away from them: a third of the
+// values land just under the ceiling, a third just over it, the rest is
+// ordinary flight. The clamp that used to live here is gone with the defect.
+const telemetryValue = (r, k, hi) => {
+	const max = session.TELEMETRY_MAX[k];
+	switch (int(r, 0, 3)) {
+		case 0: return nearNumber(r, max * 0.99, max);
+		case 1: return nearNumber(r, max, max * 4);
+		case 2: return pick(r, [max, max + 1, max - 1e-9, 1e308, Infinity, -0]);
+		default: return nearNumber(r, 0, hi);
+	}
+};
 
 // A session as the operator file holds one: valid shape, hostile numbers. This
 // is what a text layer really sees — the file passed validateSession once, and
@@ -128,9 +133,9 @@ const storedSession = (r) => ({
 	end: pick(r, ['2026-08-28T22:00:52.000Z', null, '']),
 	result: pick(r, ['CRASHED', 'PENDING']),
 	flightTelemetry: {
-		durationS: plausible(nearNumber(r, 0, 3600)), distanceM: plausible(nearNumber(r, 0, 50000)),
-		maxSpeedMs: plausible(nearNumber(r, 0, 60)), maxRateDps: plausible(nearNumber(r, 0, 2000)),
-		maxAltitudeM: plausible(nearNumber(r, -100, 500)),
+		durationS: telemetryValue(r, 'durationS', 3600), distanceM: telemetryValue(r, 'distanceM', 50000),
+		maxSpeedMs: telemetryValue(r, 'maxSpeedMs', 60), maxRateDps: telemetryValue(r, 'maxRateDps', 2000),
+		maxAltitudeM: telemetryValue(r, 'maxAltitudeM', 500),
 	},
 	photos: chance(r, 0.3) ? [{ w: int(r, 1, 4000), h: int(r, 1, 4000), ts: '2026-08-28T21:50:00.000Z' }] : [],
 	comment: pick(r, [null, '', 'x'.repeat(400), 'note']),
@@ -590,11 +595,17 @@ const targets = [
 				}
 			}
 		}
-		// Telemetry merge is associative by design (three segments, any order).
+		// Telemetry merge is associative by design (three segments, any order),
+		// and since #83 it saturates rather than overflowing: whatever three
+		// segments say, the result is still a telemetry the validator accepts —
+		// otherwise the flight could never be closed.
 		const t = s.flightTelemetry;
 		const merged = session.mergeTelemetry(session.mergeTelemetry(t, t), t);
 		const bad = firstNonFinite(merged);
 		if (bad) return `mergeTelemetry produced ${bad}`;
+		for (const [k, max] of Object.entries(session.TELEMETRY_MAX)) {
+			if (!(merged[k] >= 0 && merged[k] <= max)) return `mergeTelemetry produced ${k} = ${pretty(merged[k])}, over ${max}`;
+		}
 		if (Number.isFinite(now)) session.reconcileStaleSessions(state, now);
 		return null;
 	},
