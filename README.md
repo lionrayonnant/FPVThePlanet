@@ -1,8 +1,6 @@
 
 <img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
-# FPVThePlanet!
-
 FPV drone flying over real cities, in the browser. The scenery is photogrammetry
 pulled from Google Earth, so it's the actual geometry and textures of a place
 that exists. The flight model is a Betaflight quad, acro by default, and a radio
