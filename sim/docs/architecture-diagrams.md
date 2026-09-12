@@ -35,6 +35,7 @@ sandbox flag: add `-p puppeteer.json` with
 
 One boot path, traversed with flags — never a parallel pipeline per mode (D7).
 
+```mermaid
 %%{init: {'theme':'base','themeVariables':{
   'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
   'fontSize':'15px',
@@ -78,6 +79,7 @@ flowchart TD
 > The world persists. The machine doesn't. Terrain is heavy, expensive, kept;
 > the drone is free, drawn per target, lost on crash. There is no respawn in
 > FIELD — `BENCH` is the exception, where nothing is lost.
+```
 
 ---
 
@@ -86,6 +88,7 @@ flowchart TD
 `npm run dev` *is* the game (D1). The same routes are served without Vite by
 `sim/server/` for the standalone build and the Electron app.
 
+```mermaid
 %%{init: {'theme':'base','themeVariables':{
   'fontFamily':'ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
   'fontSize':'15px',
@@ -139,7 +142,8 @@ flowchart LR
 
     classDef ext fill:#FFF7E6,stroke:#E2C583,color:#5A4412
     class GE,OM,OSM ext
-    
+```
+
 Acquisition — downloading an area, decoding it and writing playable terrain —
 is closed by default and never available in `--mode shared`. LIVE flight needs
 none of it: tiles go to the player's browser and are never kept.
