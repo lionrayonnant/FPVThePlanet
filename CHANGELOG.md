@@ -20,6 +20,19 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- JUKEBOX (#120), cinquième voie à la racine : la bibliothèque musicale entière,
+  enfin écoutable. Jusqu'ici un morceau ne s'entendait que si le tirage le
+  donnait — déterministe sur la famille et la graine du drone — et tout le reste
+  restait invisible. C'est une radio et pas un lecteur : elle enchaîne toute
+  seule, et elle **continue de jouer quand on la quitte**, dans les menus comme
+  en vol. On choisit sa bande-son, puis on décolle avec.
+
+  Elle n'est pas la musique du vol pour autant. L'arc du hack — la musique
+  sourde, le duck du rituel, l'explosion au drop, l'intensité qui suit le
+  pilote, la mort au choc — appartient à FIELD et ne bouge pas d'un pouce
+  lorsque la radio est éteinte. Quand elle joue, elle joue à plat et le vol ne
+  la touche plus : ni filtre aux gaz, ni coupure au crash.
+
 - Un pool musical pour SWARM NODE (#116). La 7ᵉ famille — le nœud de
   commandement d'un essaim — était absente de `MUSIC_POOLS` : le vol le plus
   rare du jeu était aussi le seul à se jouer en silence. Son noyau est une

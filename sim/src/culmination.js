@@ -18,6 +18,7 @@ import { cosmeticSeed, RITUAL_PRIMITIVES, FAMILY_PRIMITIVES } from './hack-gramm
 import { pickVariant } from '../tools/culmination-model.mjs';
 import { reducedMotion } from './motion.js';
 import { music } from './music.js';
+import { radio } from './radio.js';
 import { uiAudio } from './ui-audio.js';
 
 const COLORS = ['cyan', 'magenta', 'violet', 'blue']; // Bible §19 — reserved for this moment
@@ -57,7 +58,12 @@ export function runCulmination(container, { hackType, seed } = {}) {
 		// signature (Bible §36) and it is THAT which must peak; music at full
 		// level over it would make the six culminations indistinguishable. It
 		// comes back right after, for the drop (music.drop() in main.js).
-		music.duck();
+		//
+		// NOT while the radio holds the air (issue #120). The duck and the
+		// unduck are ONE gesture belonging to ONE owner: main.js already skips
+		// the drop for the radio, so ducking here would leave it at 0.55 for the
+		// rest of the session — silently, after a single FIELD hack.
+		if (!radio.owns) music.duck();
 		// Scheduled in one go on the audio clock: the rhythm must not depend on
 		// frames, which the map still loading can drop.
 		uiAudio.playCulmination(hackType, totalMs);
