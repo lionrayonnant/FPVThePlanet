@@ -21,8 +21,8 @@ rapport avec les versions ci-dessous.
 ### Ajouté
 
 - Bibliothèque musicale : 143 pistes au lieu de 73. Chaque pool double à peu
-  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Une
-  piste `heavy5` retirée, manifeste et fichier.
+  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Aucune
+  piste retirée.
 - Dialogue : un nouveau lot d'environ 100 répliques par shard sur les onze
   événements, soit 1 100 entrées de plus.
 - JUKEBOX (#120), cinquième voie à la racine : la bibliothèque musicale entière,
