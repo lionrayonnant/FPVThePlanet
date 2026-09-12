@@ -32,6 +32,10 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- `[T] TURTLE` et `[HOLD K] CUT LINK` s'affichent après 1,5 s d'immobilité au
+  lieu de 4 (#114). Les deux lisent le même `stuck` : une machine coincée
+  proposait sa sortie trop tard pour qu'on croie encore qu'il y en avait une.
+
 - Le moteur est baissé de 9 dB au total par rapport à la musique (#110, #112).
   Le trim moteur passe de 0.55 à 0.39 puis à 0.20 : après #122, le bruit du
   drone écrasait encore les morceaux, et -3 dB n'ont pas suffi. On baisse le
