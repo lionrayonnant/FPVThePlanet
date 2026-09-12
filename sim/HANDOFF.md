@@ -1307,6 +1307,47 @@ ce dont son propre commentaire avertit. Arbitrage laissé au pilote.
   moment de lèvre en vol d'avancement, et le net n'est pas mesuré — suivi en
   issue plutôt qu'un `ductGain` inventé.
 
+## Mode turtle — le retournement assisté (issue #105)
+
+État au 2026-09-12. `src/turtle.js` : machine pure, même forme que
+`flight-end.js`. Éligible quand la machine est ARMÉE, IMMOBILE (`stuck`, décidé
+par `flight-end.js` — une seule définition de l'immobilité dans le jeu) et SUR
+LE DOS (`up.y < -0.2`, soit ~102° franchis : à 90° pile on est sur le flanc, et
+de là on peut encore s'envoler). Un appui sur `T` (remappable) lance une boucle
+d'assiette du second ordre, amortie critiquement, réglée pour un retournement en
+0,6 s ; elle rend la main sur assiette rétablie ou au bout de 2,5 s, jamais
+au-delà.
+
+Ce n'est PAS le turtle de Betaflight : les moteurs ne s'inversent pas. Ce qui
+tient le raccourci honnête est le plafond — le couple demandé ne dépasse jamais
+`2 × maxThrustPerMotor × armX`, ce que deux moteurs de l'appareil produisent
+réellement. Pendant le retournement les moteurs se taisent et le maintien au sol
+lâche (son amortissement combattrait exactement le mouvement demandé).
+
+`physics.step()` a gagné un 4ᵉ argument, `externalTorque`, pour la même raison
+que `external` : `resetTorques()` en tête de la méthode efface tout `addTorque`
+appelé du dehors.
+
+### Vérifié — sans navigateur
+
+- `node tools/turtle-selftest.mjs` : 13 cas — éligibilité (debout, sur le flanc,
+  en mouvement, désarmé), l'appui hors offre qui ne fait rien, le retournement
+  qui converge et s'arrête seul, l'absence de dépassement de l'autre côté, le
+  délai de garde sur une machine coincée, le plafond de couple, l'axe dégénéré à
+  plat dos, la perte de la machine en cours, `reset()`.
+- `npm run build` passe.
+
+### NON vérifié — personne n'a VU le geste
+
+- Le ressenti : est-ce que 0,6 s est le bon tempo, est-ce que la machine retombe
+  proprement sur ses pieds avec une sphère de collision, est-ce qu'un
+  retournement contre un mur ou sur une pente raide se comporte décemment.
+- Les deux lignes à l'écran ensemble (`[T] TURTLE` au-dessus de
+  `[HOLD K] CUT LINK`) : lisibilité, placement, chevauchement éventuel avec le
+  réticule.
+- Le seuil `UPSIDE_DOWN` à -0,2 sur des crashs réels : trop strict, et la ligne
+  ne s'affiche pas là où un pilote l'attend.
+
 ## Polish pré-release (issues #6 à #16, branche pre-release-polish)
 
 État au 2026-09-08. Spec :

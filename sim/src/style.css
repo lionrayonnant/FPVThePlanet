@@ -262,6 +262,24 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	padding: var(--space-2) var(--space-4);
 	background: var(--scrim-soft);
 }
+/* Le retournement (#105). Même face et même place que #fo-cut, un cran plus
+   haut : les deux apparaissent ensemble sur une machine sur le dos, et celle
+   qui la rend se lit avant celle qui la perd. */
+#fo-turtle {
+	position: absolute;
+	left: 50%;
+	top: 55%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: 12px;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+}
 /* La jauge du maintien : une règle qui se remplit, pas une barre de
    chargement. Elle n'existe que pendant le geste. */
 #fo-cut-bar {

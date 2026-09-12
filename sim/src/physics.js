@@ -355,7 +355,12 @@ export class Physics {
 	// pouvoir traîner d'un pas sur l'autre, et resetForces() en tête de cette
 	// méthode rend tout addForce appelé du dehors silencieusement inopérant.
 	// Seule cliente aujourd'hui : la clôture de zone (#139).
-	step(motors, dt = this.world.timestep, external = null) {
+	//
+	// `externalTorque` : un couple en N·m, repère MONDE, pour exactement la même
+	// raison et avec exactement la même contrainte — resetTorques() en tête de
+	// cette méthode efface tout addTorque appelé du dehors. Seul client
+	// aujourd'hui : le retournement assisté (#105).
+	step(motors, dt = this.world.timestep, external = null, externalTorque = null) {
 		// Rapier keeps user forces until they are cleared; without this every
 		// previous step's thrust stays applied and the quad rockets off.
 		this.body.resetForces(false);
@@ -410,6 +415,7 @@ export class Physics {
 		const tw = rotateVec(q, torque.x, torque.y, torque.z);
 		this.body.addTorque(tw, true);
 		if (external) this.body.addForce(external, true);
+		if (externalTorque) this.body.addTorque(externalTorque, true);
 
 		let impact = 0;
 		this.world.step(this.events);

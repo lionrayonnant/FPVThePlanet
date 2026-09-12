@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
 import { releaseTexturePixels } from './TileMaterial.js';
-import { initPhysics, Physics } from './physics.js';
+import { initPhysics, Physics, rotateVec } from './physics.js';
 import { crashThreshold, idleThrottle } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
@@ -19,7 +19,7 @@ import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { runBriefing } from './briefing.js';
-import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint } from '../tools/briefing-model.mjs';
+import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint, keyOf } from '../tools/briefing-model.mjs';
 import { keyMapRows, actionForKey } from './key-map.js';
 import { FlightExit } from './flight-exit.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
@@ -54,6 +54,7 @@ import { DroneOsd } from './drone-osd.js';
 import { FpvtpOsd } from './fpvtp-osd.js';
 import { creditText } from './provider-credit.js';
 import { FlightEnd, FLYING } from './flight-end.js';
+import { Turtle, maxRollTorque } from './turtle.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
 import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
@@ -544,6 +545,19 @@ let pendingCapture = false;
 
 const flightEnd = new FlightEnd();
 
+// Le retournement assisté (#105). Alimenté DANS la boucle de pas fixe, comme la
+// clôture de zone : son couple doit partir dans le même pas que la poussée, et
+// son terme d'amortissement veut les 250 Hz plutôt que la fréquence d'affichage.
+const turtle = new Turtle();
+// L'appui, posé par onAction et consommé par le premier pas fixe qui suit. Une
+// pression n'est pas un maintien : elle ne vaut qu'une fois, quel que soit le
+// nombre de pas dans la frame.
+let turtlePressed = false;
+// L'inertie de roulis/tangage du profil courant, une seule valeur : le
+// retournement tourne autour d'un axe HORIZONTAL, et les deux inerties
+// s'accordent à quelques pour cent sur toutes les familles.
+const flipInertia = (profile) => (profile.inertia.x + profile.inertia.z) / 2;
+
 // Le lien vu par lens.js quand la machine est morte : quality 0 et frozen sont
 // exactement ce que le shader interprète déjà comme « plus rien n'arrive ».
 // Aucun code d'image nouveau, seulement le mode de dégradation le plus profond.
@@ -760,6 +774,7 @@ function exposeDebugGlobal() {
 			physics.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 			physics.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 			flightEnd.reset();
+			turtle.reset();
 			fence.reset();
 			// Sinon un second crash dans la même page ne re-forcerait pas la
 			// dégradation du lien : setLink(true) ne s'exécute qu'un coup par vol.
@@ -1486,6 +1501,12 @@ input.onAction = (action, event) => {
 	else if (action === 'cycleMode') controller?.cycleMode();
 	else if (action === 'view') setView(viewMode === 'fpv' ? 'chase' : 'fpv');
 	else if (action === 'photo') pendingCapture = true;
+	// Le retournement (#105). Un appui, pas un maintien : ceci ne détruit rien,
+	// et turtle.js refuse de lui-même tant que la machine n'est pas sur le dos
+	// et immobile — la touche est donc inerte partout ailleurs. Reposé plutôt
+	// qu'accumulé : une pression pendant la pause ne doit pas se déclencher à la
+	// reprise.
+	else if (action === 'turtle') turtlePressed = flightEnd.phase === FLYING;
 	else if (action === 'tab') { event.preventDefault(); settings.toggleSettings(); }
 	else if (action === 'escape' && settings.settingsOpen) settings.toggleSettings(false);
 	// Le joueur sort lui-même du contrôle : rien ne le sort à sa place. C'est
@@ -1624,6 +1645,9 @@ function respawn() {
 		}));
 	}
 	link.reset();
+	// La machine vient d'être remise en état : un retournement en cours n'a plus
+	// d'objet, et son couple ne doit pas survivre au saut.
+	turtle.reset();
 	// Pour l'HYSTÉRÉSIS, et pour elle seule : sans ce reset, zoneOf() jugerait
 	// la première frame d'après-respawn à l'aune de la zone d'avant. La perte
 	// sur le lien, elle, est déjà partie — link.reset() (juste au-dessus) remet
@@ -1910,7 +1934,33 @@ function frame() {
 		let steps = 0;
 		while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
 			const { motors } = controller.update(sticks, physics, FIXED_STEP);
-			if (touchdown) motors.fill(0);
+			// Le retournement assisté (#105). Il lit le `stuck` de la frame
+			// PRÉCÉDENTE — flightEnd.update() tourne après cette boucle — et
+			// c'est sans conséquence : l'immobilité se mesure sur quatre
+			// secondes, une frame de retard ne la déplace pas. Jamais sur une
+			// épave : une machine morte ne se retourne pas.
+			const q = physics.rotation;
+			const up = rotateVec(q, 0, 1, 0);
+			turtle.update({
+				dt: FIXED_STEP,
+				armed: controller.armed && !flightEnd.out.linkDead,
+				stuck: flightEnd.out.stuck,
+				pressed: turtlePressed,
+				up,
+				angularVelocity: physics.angularVelocity,
+				inertia: flipInertia(physics.profile),
+				maxTorque: maxRollTorque(physics.profile),
+			});
+			turtlePressed = false;
+			// Un retournement n'est pas un vol : les moteurs se taisent pendant
+			// que le couple fait le travail. Et le maintien au sol lâche —
+			// l'amortissement qui empêche la sphère de rouler sans fin
+			// combattrait exactement le mouvement qu'on demande.
+			if (turtle.out.active) {
+				motors.fill(0);
+				physics.setGroundHold(false);
+			}
+			if (touchdown && !turtle.out.active) motors.fill(0);
 			// La clôture lit la position de CE pas, et sa force part DANS ce
 			// pas : physics.step() commence par resetForces(), un addForce
 			// appelé d'ici serait effacé sans jamais être intégré. D'où le
@@ -1958,7 +2008,8 @@ function frame() {
 					}
 				}
 			}
-			const impact = physics.step(motors, FIXED_STEP, fenceForce);
+			const impact = physics.step(motors, FIXED_STEP, fenceForce,
+				turtle.out.active ? turtle.out.torque : null);
 			// NO LOSS (PHASE 26) : au banc le choc reste un choc — la physique
 			// ne se négocie pas, la machine encaisse, culbute et s'arrête. Mais
 			// rien n'est perdu, donc rien ne meurt : ni l'image, ni le son, ni
@@ -2008,6 +2059,7 @@ function frame() {
 					console.warn('[rocktree] drone tombé dans un trou de la carte (nœud absent) — respawn');
 					physics.reset();
 					flightEnd.reset();
+					turtle.reset();
 				}
 			}
 		}
@@ -2562,7 +2614,17 @@ if (!frozen) {
 		live: MODE.live,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
-	fpvtpOsd.setCut(flightEnd.out);
+	// Les deux issues d'une machine coincée (#216, #105). Les libellés nomment
+	// la touche réellement liée, donc la carte de touches vive — relue seulement
+	// sur les frames qui affichent quelque chose, ce qui est rare par nature.
+	if (flightEnd.out.stuck || flightEnd.out.cutProgress > 0 || turtle.out.eligible) {
+		const rows = keyMapRows(input.getKeyMap());
+		fpvtpOsd.setCut(flightEnd.out, keyOf(rows, 'cutLink', 'K'));
+		fpvtpOsd.setTurtle(turtle.out, keyOf(rows, 'turtle', 'T'));
+	} else {
+		fpvtpOsd.setCut(flightEnd.out);
+		fpvtpOsd.setTurtle(turtle.out);
+	}
 	// D16: the first flight, and only it, gets three lines. Take-off is a
 	// metre and a half above the spawn — enough that a bounce on the ground is
 	// not one.

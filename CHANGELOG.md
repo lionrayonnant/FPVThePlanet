@@ -18,6 +18,18 @@ rapport avec les versions ci-dessous.
 
 ## [Non publié]
 
+### Ajouté
+
+- Mode turtle (#105). Une machine sur le dos n'avait qu'une issue depuis D9 :
+  couper le lien et la perdre. Une touche — `T` par défaut, remappable comme les
+  autres — la remet à l'endroit, et la ligne `[T] TURTLE` s'affiche à l'écran
+  dès que la machine est immobile ET sur le dos, au-dessus du rappel
+  `[HOLD K] CUT LINK` : des deux issues, celle qui rend la machine se lit avant
+  celle qui la perd. Le retournement est assisté plutôt que piloté aux moteurs
+  inversés (pas de `motors[4]` signé, pas de modèle de pale inversée), mais son
+  couple est plafonné à ce que deux moteurs de l'appareil peuvent réellement
+  produire, et il s'arrête seul — assiette rétablie, ou délai dépassé.
+
 ### Modifié
 
 - Les deux clôtures — la muraille du bord de carte (`geofence-dome.js`) et le
@@ -31,6 +43,13 @@ rapport avec les versions ci-dessous.
   rasant), une bande qui suit la hauteur d'œil, une dominante qui glisse du
   cyan vers le magenta en approchant du bord, et un anneau qui part du point
   le plus proche du drone à cadence croissante — silence complet au centre.
+- En mode `?live=`, le terrain lointain ne se dissout plus dans un cyan plat
+  mais dans ce même champ (#107) : la brume prend ses paquets et ses filaments
+  magenta, et sa densité est modulée par la masse, si bien que le terrain
+  reparaît dans les trouées. La nappe est échantillonnée à la position monde du
+  fragment — pas projetée sur le dôme, ce qui recréait un éventail de rayons —
+  et à deux octaves plutôt que trois, le détail fin n'étant jamais résolu sur
+  une brume vue en enfilade.
 
 ### Corrigé
 
