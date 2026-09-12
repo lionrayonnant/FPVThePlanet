@@ -36,7 +36,12 @@ const UI_TRIM = 0.5;
 // référence et l'écrasait encore un peu — ce trim-ci baisse le moteur au lieu
 // de remonter encore la musique, pour ne pas dépasser le calibrage -14 LUFS
 // de la bibliothèque de morceaux.
-const ENGINE_TRIM = 0.55;
+//
+// Deuxième écoute (issue #110) : toujours trop haut. -3 dB de plus, soit
+// 0.55 / √2. Même raison de baisser le moteur plutôt que de remonter la
+// musique — les morceaux entrent à -14 LUFS et le slider musique est déjà à
+// son défaut mesuré (0.7), donc le seul degré de liberté propre est ici.
+const ENGINE_TRIM = 0.39;
 
 // Pas de trim musical, contrairement à UI_TRIM. C'est délibéré, et c'est une
 // correction : il y en avait un à 0.7, multiplié par un slider dont le défaut

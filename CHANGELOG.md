@@ -32,6 +32,11 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- Le moteur est baissé de 3 dB par rapport à la musique (#110). Le trim moteur
+  passe de 0.55 à 0.39 : après #122, le bruit du drone écrasait encore les
+  morceaux. On baisse le moteur plutôt que de remonter la musique, dont le
+  calibrage -14 LUFS est la référence de toute la bibliothèque.
+
 - Les deux clôtures — la muraille du bord de carte (`geofence-dome.js`) et le
   dôme de fenêtre live (`fence-dome.js`) — partagent désormais un champ commun
   (`src/fence-field.js`) : une masse organique cyan/magenta à la place des
