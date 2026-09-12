@@ -8529,6 +8529,2140 @@
 					"text": "not the rain"
 				}
 			]
+		},
+		{
+			"id": "target_selected/0602",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} and the sheet has nothing else worth reading"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0603",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the wind doing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{wind}"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0604",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that gear looks recent"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it runs {video_type}, nothing recent runs {video_type}"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0605",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i don't love this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal} says otherwise"
+				},
+				{
+					"speaker": "root",
+					"text": "the number isn't what i'm looking at"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0606",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary} since morning and nobody has touched the blinds"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0607",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} chain on this looks like it was spliced by —"
+				},
+				{
+					"speaker": "root",
+					"text": "i've seen the splice, it holds"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0608",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} means one cable in, one cable out, nothing to configure"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0609",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "visibility's workable"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the sheet says {visibility}, that isn't the same word"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0610",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the plate on that housing faces the wrong way"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0611",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "sheet's open, take it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0612",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "rain doing anything"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{rain}, no change since the last read"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0613",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "weak little thing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal} is not weak, it's just not loud"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0614",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} and {wind} m/s, that's a normal tuesday"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the mount on this one isn't rated for a normal tuesday"
+				},
+				{
+					"speaker": "root",
+					"text": "then it's been lucky"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0615",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} from a box that someone bolted to a drainpipe"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0616",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the install notes on the sheet are in someone's handwriting, which means —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "means it was never entered properly, yes"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0617",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{visibility} out, so the sheet's optical fields are guesswork"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0618",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "video field's wrong on this record"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it says {video_type} and the housing agrees with it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0619",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "this one was on a list once"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0620",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s and the sheet still calls the mount fixed"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0621",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video",
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on the sheet that changes the pick"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{video_type}, {signal}, and a maintenance address"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0622",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm",
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} and a clean line of sight, take it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "clean for a dry day. it is {rain} out."
+				}
+			]
+		},
+		{
+			"id": "target_selected/0623",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} on a record filed this recently"
+				},
+				{
+					"speaker": "root",
+					"text": "somebody emptied an old parts bin"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "or the record is new and the hardware is not"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0624",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the mount shares its bracket with a street light"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0626",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} means one coax in and nothing to configure"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0627",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "sheet says wind {wind}, the mast readout disagrees"
+				},
+				{
+					"speaker": "root",
+					"text": "the mast is the one that's wrong"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0628",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "someone already paid for that view"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0629",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal}, pointed at a service wall, for three years"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0630",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on this record we have not seen twice already"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0631",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "cheap install, cheap everything on it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the housing is not cheap. only the bracket is."
+				}
+			]
+		},
+		{
+			"id": "target_selected/0632",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "detail sheet held on one record"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the video field and the housing do not agree"
+				},
+				{
+					"speaker": "root",
+					"text": "then one of them was typed in by hand"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0633",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{visibility} out and the stair lights are on at this hour"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0634",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the cable leaves frame at the gutter and then it —"
+				},
+				{
+					"speaker": "root",
+					"text": "noted"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0635",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "rssi field reads {signal}, and the sheet rounds it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0636",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that class of box has no night mode"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "this one does. it is the later revision."
+				}
+			]
+		},
+		{
+			"id": "target_selected/0637",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the curtains on the third floor are new"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0638",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "good pick, if you enjoy looking at a loading bay"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0639",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the {rain} on the lens or in the air"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "in the air"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0640",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "whole assembly went up in one afternoon"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bracket is older than what is bolted to it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0641",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who signs off on a {video_type} chain in a building like that"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "whoever quoted lowest that year"
+				},
+				{
+					"speaker": "root",
+					"text": "that narrows nothing"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0642",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} off a bracket that is holding two other things"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0643",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} run on this leaves the building at the roof and then —"
+				},
+				{
+					"speaker": "root",
+					"text": "not our side of the wall"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0644",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} record, no audio field on the sheet at all"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0645",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{wind} m/s, the sheet is reading that off the wrong mast"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is the only mast we have"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0646",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "that stairwell used to be outside"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0647",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "four years of that view and somebody is still paying the bill"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0648",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything odd on the record"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal} and a filing date, that is the whole sheet"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0649",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{visibility} out, nothing worth looking at anyway"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the sheet's optical fields were filled in at noon"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0650",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} chain terminates somewhere the record does not name"
+				},
+				{
+					"speaker": "root",
+					"text": "then it terminates in a cupboard like every other one"
+				},
+				{
+					"speaker": "jensen",
+					"text": "a cupboard, sure"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0651",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary}, and every housing on that face is angled down"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0652",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the bracket work on this is the same contractor as the —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different bolts"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0653",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal}, and the record has no revision history"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0654",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain}, that housing has no seal worth the name"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it has a seal, it is just ugly"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0655",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the second floor was empty last time too"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0656",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{video_type}, because upgrading it would mean admitting it was there"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0657",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "still {weather_summary} out there"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "since before the record was opened"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0658",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} says that box is nearer than the sheet claims"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it says the wall between us is thin, nothing else"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0659",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s and that mount was never rated for a facade"
+				},
+				{
+					"speaker": "root",
+					"text": "it has survived worse than today"
+				},
+				{
+					"speaker": "jensen",
+					"text": "has it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0660",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{visibility}, and the loading bay lights have been on since morning"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0661",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} is fine, but the sheet lists the owner as a holding company that —"
+				},
+				{
+					"speaker": "root",
+					"text": "they all are"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0662",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "record's open, rssi field populated, {signal}"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0663",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that mount won't move at {wind} m/s"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it moves, you just can't see it move"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0664",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i filed that one myself, once"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0665",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "someone chose that angle on purpose, which is the sad part"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0666",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on the sheet besides {video_type}"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "a serial, and it's blank"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0667",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary}, so the sheet's optical read is stale"
+				},
+				{
+					"speaker": "root",
+					"text": "the sheet's optical read is always stale"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0668",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} off something bolted that badly"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bracket isn't in the record"
+				},
+				{
+					"speaker": "root",
+					"text": "no, it isn't"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0669",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{visibility}, and the whole facade is lit from below"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0670",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "a {video_type} chain that age usually runs its return through the —"
+				},
+				{
+					"speaker": "root",
+					"text": "take the record, we're not writing a survey"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0671",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain, {wind} m/s, nothing on the sheet accounts for either"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0672",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's a decent pick"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's a service corridor with a camera aimed at it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0673",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the fourth window has never been open"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0674",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{video_type} — the format that outlived everyone who specified it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0675",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what does the sheet say about the approach"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing useful, {visibility} out anyway"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0676",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal}, that's a short run of cable"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "or a long one with an amp in the middle"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0677",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} field was edited after the record was filed"
+				},
+				{
+					"speaker": "root",
+					"text": "by who"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "field's there, the name isn't"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0678",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary} all week and that housing still has a shadow on it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0679",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the owner line, i want to know who pays for a view of a —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's a letting agent, it's always a letting agent"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0680",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s, {weather_summary}, and the record lists none of it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0681",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} doesn't match that housing class"
+				},
+				{
+					"speaker": "root",
+					"text": "housings get swapped, records don't"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0682",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the paint on that wall is newer than the wall"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0683",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal}, and the housing is aimed at a fence"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0684",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how old is that record"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "filed once, never touched since"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0685",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "easy one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the mount says otherwise"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0686",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who owns that roof"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "sheet names a management office"
+				},
+				{
+					"speaker": "root",
+					"text": "that is not an owner"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0687",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type}, and the sheet carries no service date at all"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0688",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that bracket is carrying the gutter as well as the —"
+				},
+				{
+					"speaker": "root",
+					"text": "noted"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0689",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "housing that size takes a twelve volt feed and nothing else"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0690",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that is a rooftop unit"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits under the eaves, the elevation field is wrong"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0691",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the third bulb has never been replaced"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0692",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary}, and somebody still washed that window"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0693",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what does the video field say"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{video_type}, nothing after it"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0694",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{visibility} visibility, the optical fields on this are a guess"
+				},
+				{
+					"speaker": "root",
+					"text": "the fields are fine, the weather is the problem"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0695",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "why is it angled at the door"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is not, it points past the door"
+				},
+				{
+					"speaker": "root",
+					"text": "then at what"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0696",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain, and the underside of that housing is still dusty"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0697",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the cable drops behind the sign and comes back out at the —"
+				},
+				{
+					"speaker": "root",
+					"text": "i do not need the route"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0698",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} on a cable run that short is what you would expect"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0699",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "record has it south facing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the shadow has it west"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0700",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "someone repainted the number on that door"
+				}
+			]
+		},
+		{
+			"id": "target_selected/0701",
+			"events": [
+				"TARGET_SELECTED"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "excellent view of a bin store"
+				}
+			]
 		}
 	]
 }

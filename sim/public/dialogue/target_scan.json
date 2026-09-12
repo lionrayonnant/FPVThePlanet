@@ -8452,6 +8452,2069 @@
 					"text": "the log says no. the log has been wrong."
 				}
 			]
+		},
+		{
+			"id": "target_scan/0631",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every row on that list has the same carrier spacing"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0632",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how many of these are {video_type}?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "two. the rest are mixed."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0633",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "decent haul for this block"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't. half of those returns overlap."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0634",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} never used to give us this many"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the receiver was swapped in march"
+				},
+				{
+					"speaker": "jensen",
+					"text": "that isn't what changed"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0635",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the weakest return on the list is sitting right on the noise floor"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0636",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if you sort by strength instead the order becomes—"
+				},
+				{
+					"speaker": "root",
+					"text": "same entries. different order. still a list."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0637",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} is about what this band gives at that range"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0638",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that reading rounded wrong"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. the display truncates, the value is fine."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0639",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of those rows has been on a list before"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0640",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nobody reads past the fourth entry. nobody."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0642",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the returns are grouped, so the array is probably tilted"
+				},
+				{
+					"speaker": "root",
+					"text": "it's tilted the same way in every block. that's the terrain."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0643",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone recognise the spread on this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it matches the last {location} sweep closely"
+				},
+				{
+					"speaker": "jensen",
+					"text": "closely is doing a lot of work there"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0644",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two entries share a carrier to the decimal"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0645",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "before anyone touches anything i want the array log—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "pulled it. nothing unusual in it."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0646",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "analog entries always read a few dB hot on this receiver"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0647",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{video_type} shouldn't show up down here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it should. the band was reassigned two years ago."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0648",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "lists like this are usually shorter by the time anyone reads them"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0649",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has been on that screen long enough to memorise it"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0650",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is any of this worth flagging?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not from the numbers on screen"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0651",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{target_count} came back on this pass"
+				},
+				{
+					"speaker": "root",
+					"text": "no, two of those are the same emitter seen twice"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0652",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on that list you'd flag before we go further"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the second row has no video tag at all"
+				},
+				{
+					"speaker": "root",
+					"text": "{location} does that sometimes"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0653",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the receiver gain is still set from the last block"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0654",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if we re-run with the narrow filter the list would probably—"
+				},
+				{
+					"speaker": "root",
+					"text": "we're not re-running anything"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0655",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} entries always take a moment longer to resolve on this receiver"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0656",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is good for that distance"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't. that band loses more than you think."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0657",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of those rows has a neighbour"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0658",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a list this long is just a longer way of saying we don't know"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0659",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how does {video_type} sit in this block"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "about like everywhere else"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0660",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "scan's fresh, we can work off it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it was fresh when the sweep started. that was a while ago."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0661",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bottom two rows carry the same strength to the digit"
+				},
+				{
+					"speaker": "root",
+					"text": "rounding"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not at {target_count} entries it isn't"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0662",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has read that column three times now"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0663",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the sweep log, i want to know when the array last—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's open. nothing unusual in it."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0664",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the list redraws whenever the buffer flushes. nothing changes in it."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0665",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} on that row is below what the receiver can hold"
+				},
+				{
+					"speaker": "root",
+					"text": "it held it. it's on the list."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0666",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i'd read that list bottom to top"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0667",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the sort is stable, so the order you see is the order they arrived"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0668",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {target_count} a normal return for this band"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's within what we've logged"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0669",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we've scanned {location} enough to know what comes back"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we've scanned it twice and both lists were different"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0670",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} row has a carrier offset i don't recognise"
+				},
+				{
+					"speaker": "root",
+					"text": "local interference"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there's nothing local in that block"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0671",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the strengths on that list are all within four dB of each other"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0672",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the last {location} sweep had a different band plan, so the rows here—"
+				},
+				{
+					"speaker": "root",
+					"text": "same band plan. i set it."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0673",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "receiver's been on since the last block, readings drift a little warm"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0674",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that list is sorted by strength"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't. that's arrival order."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0675",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of those rows will still be there tomorrow"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0676",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we have a list. that's the good news and also all the news."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0677",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how common is {video_type} in a block like this"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "about a third of what we pull here"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0678",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{target_count} is a thin return for a sweep this wide"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's average. the wide sweeps always read thin."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0679",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two rows have carriers close enough to be the same emitter"
+				},
+				{
+					"speaker": "root",
+					"text": "or two emitters in the same room"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the list can't tell us which"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0680",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has been on that column longer than the sweep took"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0681",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if nobody has a reason to skip the top row then we—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i have a reason. the carrier wanders."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0682",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the list holds until the buffer flushes, then it redraws the same"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0683",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} is too weak to work with at this range"
+				},
+				{
+					"speaker": "root",
+					"text": "we've flown worse than that and come back"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0684",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "lists are easier to read when you already know what's missing"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0685",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every row on that screen is somebody's afternoon"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0686",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything in the video column i should care about"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing unusual for this band"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0687",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} always gives us a clean list"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not the north end. that one comes back full of splatter."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0688",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the bottom rows are barely above the floor"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they're above it. that's all the receiver claims."
+				},
+				{
+					"speaker": "root",
+					"text": "above it isn't the same as usable"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0689",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the antenna was still settling when the first rows came in"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0690",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the older sweeps for this block, i want to see whether {target_count}—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "archive's offline. has been since morning."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0691",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the band plan for this block puts two of those rows in the same channel"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0692",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that column reads {video_type} all the way down"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not all the way. one row is blank."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0693",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "a list is only as honest as whoever stopped scanning"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0694",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we could have sorted this by hand faster than we've read it"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0695",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {target_count} in range for a sweep this size?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's ordinary"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0696",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the weak rows are just receiver noise dressed up"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they have carriers. noise doesn't."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0697",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone want to explain the gap between rows four and five"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the band is allocated there. nothing was transmitting."
+				},
+				{
+					"speaker": "root",
+					"text": "or nothing was transmitting while we listened"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0698",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {location} band plan hasn't been revised since we started using it"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0699",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if you compare the spacing against the reference table you'll find—"
+				},
+				{
+					"speaker": "root",
+					"text": "i have the table open. keep going in a minute."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0700",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the strength column is rounded to the digit. the raw values aren't."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0701",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} puts that one well inside range"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "inside range for the receiver, not for us"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0702",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of those rows has better manners than the rest"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0703",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} is reading that screen like it owes money"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0704",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "does {video_type} give us anything the others don't?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "cleaner sync. that's all."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0705",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the list came back in one pass so it's current"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the buffer is current. the emitters aren't obliged to be."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0706",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the older {location} sweeps used a different reference level"
+				},
+				{
+					"speaker": "root",
+					"text": "so the numbers aren't comparable"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not without converting them, and nobody has"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0707",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the column widths were picked for a list half this long"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0708",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{target_count} rows, and the last two came in after the antenna—"
+				},
+				{
+					"speaker": "root",
+					"text": "i saw. it doesn't change the reading."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0709",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the video column comes from the sync pattern, not from the header"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0710",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the rows are ordered by when they came in"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they're ordered by channel. arrival was a coincidence."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0711",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of those was somewhere else this morning"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0712",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a list. finally something we can argue about."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0713",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything odd in the video column"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it reads {video_type} on most rows. nothing odd."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0714",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's a heavy return for a block this size"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's ordinary. we just haven't swept here in a while."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0715",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is this the same band plan we used on the last {location} pass"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "close. the reference level isn't the same."
+				},
+				{
+					"speaker": "root",
+					"text": "then the strengths aren't comparable"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0716",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the strength column truncates, it doesn't round"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0717",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if you take the spacing between rows three and four and—"
+				},
+				{
+					"speaker": "root",
+					"text": "not now. read the list first."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0718",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the receiver logs each row when it resolves, not when it arrives"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0719",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is workable"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not through this much structure it isn't"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0720",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the quiet rows are the ones that answer"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0721",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the column header is wrong and has been for two years"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0722",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"scan.count"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how does {target_count} compare to what this block usually gives"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "about the same"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0723",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} is taking a long time with this"
+				},
+				{
+					"speaker": "root",
+					"text": "good. the fast reads are the ones we redo."
+				}
+			]
+		},
+		{
+			"id": "target_scan/0724",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the last {location} list, i want to compare"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the archive only keeps the summary, not the rows"
+				},
+				{
+					"speaker": "root",
+					"text": "then somebody decided the rows didn't matter"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0725",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two rows resolved from the same sweep window"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0726",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "before we go any further i want the gain settings from—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "unchanged since the last block"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0727",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the list is held in the scan buffer until something else needs it"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0729",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{location} keeps better records than we do"
+				}
+			]
+		},
+		{
+			"id": "target_scan/0730",
+			"events": [
+				"TARGET_SCAN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "every list looks the same after the fourth row"
+				}
+			]
 		}
 	]
 }

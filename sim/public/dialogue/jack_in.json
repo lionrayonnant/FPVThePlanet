@@ -7347,6 +7347,1893 @@
 					"text": "the session opened an hour ago"
 				}
 			]
+		},
+		{
+			"id": "jack_in/0629",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "mux settled?"
+				},
+				{
+					"speaker": "root",
+					"text": "settled"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0630",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the last of it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the trim table still has our values in it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0631",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the rate loop is running off the old clock source"
+				},
+				{
+					"speaker": "root",
+					"text": "it'll hold"
+				},
+				{
+					"speaker": "cron",
+					"text": "source: unchanged"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0632",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the console stopped scrolling"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0633",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "one more thing, the accel axis on the —"
+				},
+				{
+					"speaker": "root",
+					"text": "not now"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0634",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "input path: external"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0635",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the right profile"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's the one from the bench, not the field"
+				},
+				{
+					"speaker": "root",
+					"text": "then it's the bench one. hands off."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0636",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every handoff sounds like the room getting bigger"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0637",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "done talking"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0638",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "cron, state"
+				},
+				{
+					"speaker": "cron",
+					"text": "state: handed"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0639",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing left on our side"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the log stream is still ours"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0640",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "clean handoff"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the second radio never answered"
+				},
+				{
+					"speaker": "cron",
+					"text": "channel: open"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0641",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "control owner changed"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0642",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "before it goes, the throttle curve —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's already gone"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0643",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the serial port is at 115200, same as always"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0645",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the handoff was decided somewhere else"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0647",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything still pinned to us?"
+				},
+				{
+					"speaker": "cron",
+					"text": "pins: released"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0648",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "control moves on my mark"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it moves when the mux settles, not on your mark"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0649",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who owns the input path right now"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we do, until the swap"
+				},
+				{
+					"speaker": "root",
+					"text": "that is not what the register says"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0650",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bench lamp is still on in the other room"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0651",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the accel scale on the third axis is —"
+				},
+				{
+					"speaker": "root",
+					"text": "later"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0652",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "receiver is on the same failsafe profile as last week"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0653",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the profile is right"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the profile is last week's"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0654",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the fence is not where we left it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0655",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i have done my share of the typing"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0656",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "mux owner?"
+				},
+				{
+					"speaker": "cron",
+					"text": "input path: operator"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0657",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has the stick"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} has it after the next frame, not now"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0658",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything left in our queue"
+				},
+				{
+					"speaker": "cron",
+					"text": "queue: present"
+				},
+				{
+					"speaker": "root",
+					"text": "that is not an answer i can use"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0659",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"drone.label"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {drone_type} has a scratch on the canopy that was not there monday"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0660",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "before it goes out, confirm the —"
+				},
+				{
+					"speaker": "cron",
+					"text": "control owner: operator"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0661",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "serial log is writing to the same file as this morning"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0662",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that rate profile is not the one we tested"
+				},
+				{
+					"speaker": "root",
+					"text": "it is the one we shipped"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0663",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we never wrote the part that decides when to let go"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0664",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i will be at the bench, not watching"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0665",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is anything still ours"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0666",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "handoff is clean"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "handoff is clean on our side"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0667",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "state: control released"
+				},
+				{
+					"speaker": "root",
+					"text": "then we are done"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we are done when the log says so"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0668",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the rack fans spun up and nothing asked them to"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0669",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the failsafe timeout is set to the value we —"
+				},
+				{
+					"speaker": "root",
+					"text": "leave it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0670",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "input path is on the same mux channel as the bench rig"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0671",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that trim is centred"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is not, it is a hair left"
+				},
+				{
+					"speaker": "root",
+					"text": "close enough"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0672",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the last person to hold this stick never signed off"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0673",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "my part is typing the word go, and i have typed it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0674",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "where does the input sit now"
+				},
+				{
+					"speaker": "cron",
+					"text": "owner: external"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0675",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the receiver profile matches the bench"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different profile, same name"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0677",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "log rotated. new file opened."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0678",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "one note on the yaw rate before it —"
+				},
+				{
+					"speaker": "root",
+					"text": "too late, it is out of our hands"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0680",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that is the tested build"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the tested build had a different date on it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0681",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we never wrote the part that takes it back"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0682",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "whatever happens next is not on this channel"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0683",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "is the input path ours or theirs"
+				},
+				{
+					"speaker": "root",
+					"text": "theirs, since a minute ago"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0684",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing left to check"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the trim table is still the old one"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0685",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "stick is live?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bus says yes, the log says nothing"
+				},
+				{
+					"speaker": "cron",
+					"text": "input source changed"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0686",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bench rig is still armed and nobody is at the bench"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0687",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before it goes, the throttle floor on this build is —"
+				},
+				{
+					"speaker": "root",
+					"text": "it is gone"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0688",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "receiver is bound on the primary channel"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0689",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the build we signed off"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't. the one we signed off has the older rate table."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0690",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bench clock runs slow on tuesdays and only tuesdays"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0691",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "my last useful act today was plugging it in"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0692",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who holds the input"
+				},
+				{
+					"speaker": "cron",
+					"text": "input owner: external"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0693",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "trim is where we left it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "yaw is off centre. small, but it's off."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0694",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"drone.label"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {drone_type} came back from the bench with a different canopy"
+				},
+				{
+					"speaker": "root",
+					"text": "same serial"
+				},
+				{
+					"speaker": "cron",
+					"text": "log: inventory record unchanged"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0695",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the ground strap is warm and nothing has drawn through it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0696",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "one thing, the failsafe channel is mapped to —"
+				},
+				{
+					"speaker": "root",
+					"text": "it's out of our hands"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0697",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "input path: reassigned"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0698",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that telemetry rate is not what the config says"
+				},
+				{
+					"speaker": "root",
+					"text": "the config is right. read it again."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0699",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "someone put a chair back in the corridor overnight"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0700",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i've handed off worse things to worse people"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0701",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the debug socket closed"
+				},
+				{
+					"speaker": "cron",
+					"text": "socket state: closed"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0702",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} is on the same profile as last run"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different profile. it was rewritten thursday."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0703",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything holding on our end"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bench rig still has a session open"
+				},
+				{
+					"speaker": "cron",
+					"text": "session list: two entries"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0704",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the rack camera shows our room from an angle we don't have a camera at"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0705",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "one last thing before it moves, the arm switch —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it already moved"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0706",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "log: control owner written to disk"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0707",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the motor order on this build is reversed"
+				},
+				{
+					"speaker": "root",
+					"text": "no. it's the numbering that's reversed, not the wiring."
+				}
+			]
+		},
+		{
+			"id": "jack_in/0708",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the drawer under the bench is locked and there is no key on the board"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0711",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we're done here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the debug socket is still bound"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0712",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the arm switch is mapped to a different channel than the sheet says"
+				},
+				{
+					"speaker": "root",
+					"text": "the sheet is old"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the sheet is what we signed"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0713",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bench rig is drawing on the same rail"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0715",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "input owner: written to disk"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0716",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the build off the bench"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bench build had the old receiver map"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0717",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the hallway door was propped open and nobody came through it"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0718",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing further from me"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0719",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "state"
+				},
+				{
+					"speaker": "cron",
+					"text": "control: released"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0720",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"drone.label"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the {drone_type} is on the profile we set"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it came back off the bench on a different one"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0721",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the failsafe is not bound to the same receiver as the arm switch"
+				},
+				{
+					"speaker": "root",
+					"text": "it was on friday"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "friday is not now"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0722",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the canopy screw is a size we do not stock"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0723",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before it moves, the motor order on this —"
+				},
+				{
+					"speaker": "root",
+					"text": "too late to matter"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0724",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "input source: bound to remote"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0725",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "trim was set on the bench"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bench has its own trim and it is not this one"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0726",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the antenna on the rack is pointed at a wall"
+				}
+			]
+		},
+		{
+			"id": "jack_in/0727",
+			"events": [
+				"JACK_IN"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has it"
+				}
+			]
 		}
 	]
 }

@@ -7999,6 +7999,1859 @@
 					"text": "wrong question to ask a map"
 				}
 			]
+		},
+		{
+			"id": "area_search/0606",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "half these borders were traced from an atlas that was already wrong"
+				}
+			]
+		},
+		{
+			"id": "area_search/0607",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on the western shelf?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "survey data from there is thirty years old"
+				}
+			]
+		},
+		{
+			"id": "area_search/0608",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "inland is always safer"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. inland is where the elevation models get lazy."
+				}
+			]
+		},
+		{
+			"id": "area_search/0609",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "someone say something useful about the southern band"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i have never pulled a set from down there"
+				},
+				{
+					"speaker": "jensen",
+					"text": "neither has anyone"
+				}
+			]
+		},
+		{
+			"id": "area_search/0610",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the coastline redraws itself every time the tiles reload"
+				}
+			]
+		},
+		{
+			"id": "area_search/0611",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the projection near the poles stretches everything until it—"
+				},
+				{
+					"speaker": "root",
+					"text": "yes. everyone knows. keep looking."
+				}
+			]
+		},
+		{
+			"id": "area_search/0612",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "labels and terrain come from separate sources, they disagree often"
+				}
+			]
+		},
+		{
+			"id": "area_search/0613",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that river runs east"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it runs south. the overlay is rotated."
+				},
+				{
+					"speaker": "root",
+					"text": "then the overlay is wrong, not me"
+				}
+			]
+		},
+		{
+			"id": "area_search/0614",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i stopped looking at maps the year they got accurate"
+				}
+			]
+		},
+		{
+			"id": "area_search/0615",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the whole world is available and we are looking at one bay"
+				}
+			]
+		},
+		{
+			"id": "area_search/0616",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is anyone awake on the other channel?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "area_search/0617",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "desert is the easiest terrain to work with"
+				},
+				{
+					"speaker": "root",
+					"text": "it is the easiest to acquire and the worst to fly"
+				}
+			]
+		},
+		{
+			"id": "area_search/0619",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a mountain in the index with no height recorded"
+				}
+			]
+		},
+		{
+			"id": "area_search/0620",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "mikhail, i do not need the history of the survey, i need—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "understood"
+				}
+			]
+		},
+		{
+			"id": "area_search/0621",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the grid is metric below the fold and imperial above it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0622",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the scale bar is off by a factor"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the scale bar is fine. you are reading the wrong one."
+				}
+			]
+		},
+		{
+			"id": "area_search/0623",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "some of these places were named twice and only one name stuck"
+				}
+			]
+		},
+		{
+			"id": "area_search/0625",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we have anything good near water?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "everything is near water at this zoom"
+				}
+			]
+		},
+		{
+			"id": "area_search/0626",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the northern hemisphere tiles were surveyed more recently"
+				},
+				{
+					"speaker": "root",
+					"text": "no, the southern set was resampled after"
+				}
+			]
+		},
+		{
+			"id": "area_search/0627",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone have a reason to avoid the western half"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the source for that half is older"
+				},
+				{
+					"speaker": "jensen",
+					"text": "older is not the same as worse"
+				}
+			]
+		},
+		{
+			"id": "area_search/0628",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two of these islands share a name and neither one corrects it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0629",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the shading model assumes a light source that sits at—"
+				},
+				{
+					"speaker": "root",
+					"text": "i do not need the light source, i need a sector"
+				}
+			]
+		},
+		{
+			"id": "area_search/0630",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "place names load from a flat index, no hierarchy, that is why search is slow"
+				}
+			]
+		},
+		{
+			"id": "area_search/0631",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that inlet is freshwater"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is tidal, it is on the salt register"
+				}
+			]
+		},
+		{
+			"id": "area_search/0632",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "two of us have already been somewhere on this map"
+				}
+			]
+		},
+		{
+			"id": "area_search/0633",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the world is round and we have been looking at the same corner of it all shift"
+				}
+			]
+		},
+		{
+			"id": "area_search/0634",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the southern index even populated"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "partially"
+				}
+			]
+		},
+		{
+			"id": "area_search/0635",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "flat terrain is boring to work"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "flat terrain is where the data is clean"
+				}
+			]
+		},
+		{
+			"id": "area_search/0636",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the elevation source for that whole band came from one survey"
+				},
+				{
+					"speaker": "root",
+					"text": "and?"
+				},
+				{
+					"speaker": "jensen",
+					"text": "ask who paid for the survey"
+				}
+			]
+		},
+		{
+			"id": "area_search/0637",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the ocean is rendered as one colour, there is no depth in this index"
+				}
+			]
+		},
+		{
+			"id": "area_search/0638",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "fine, we take the peninsula, anything anyone wants to—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the peninsula is two indices, they do not join"
+				}
+			]
+		},
+		{
+			"id": "area_search/0639",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the label layer and the terrain layer use different datums"
+				}
+			]
+		},
+		{
+			"id": "area_search/0640",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that town is inland"
+				},
+				{
+					"speaker": "root",
+					"text": "it was inland, the index has not been updated"
+				}
+			]
+		},
+		{
+			"id": "area_search/0641",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "whatever {operator_name} settles on, it was decided before the map opened"
+				}
+			]
+		},
+		{
+			"id": "area_search/0642",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we could have crossed the continent in the time it takes to look at it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0643",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything wrong with {location}"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing i can prove"
+				}
+			]
+		},
+		{
+			"id": "area_search/0644",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the index lists elevation in feet for that region"
+				},
+				{
+					"speaker": "root",
+					"text": "it is metres everywhere, the region is not special"
+				}
+			]
+		},
+		{
+			"id": "area_search/0645",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "someone give me an opinion on the eastern band"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i have worked from that source, it holds"
+				},
+				{
+					"speaker": "jensen",
+					"text": "it held then"
+				}
+			]
+		},
+		{
+			"id": "area_search/0646",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the terrain layer and the road layer were surveyed a decade apart"
+				}
+			]
+		},
+		{
+			"id": "area_search/0647",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the datum on the southern sheet is older than the one we—"
+				},
+				{
+					"speaker": "root",
+					"text": "then use the northern sheet"
+				}
+			]
+		},
+		{
+			"id": "area_search/0648",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "zoom steps are powers of two, nothing renders between them"
+				}
+			]
+		},
+		{
+			"id": "area_search/0649",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that bay is saltwater"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is not, the index has it as an inland sea"
+				}
+			]
+		},
+		{
+			"id": "area_search/0650",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i would not go where the index is confident"
+				}
+			]
+		},
+		{
+			"id": "area_search/0651",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a map is a very slow way to make a decision"
+				}
+			]
+		},
+		{
+			"id": "area_search/0652",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the eastern index searchable yet?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "same flat table as the rest"
+				}
+			]
+		},
+		{
+			"id": "area_search/0653",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "open water is the cheapest terrain there is"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no, water has no reference points, it is the worst"
+				}
+			]
+		},
+		{
+			"id": "area_search/0654",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone worked a coastline like that one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i have worked two, they behaved differently"
+				},
+				{
+					"speaker": "jensen",
+					"text": "coastlines do that"
+				}
+			]
+		},
+		{
+			"id": "area_search/0655",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a border on this sheet that no other sheet agrees with"
+				}
+			]
+		},
+		{
+			"id": "area_search/0656",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has been over the same latitude four—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "three"
+				}
+			]
+		},
+		{
+			"id": "area_search/0657",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the shading is baked into the tile, it does not move with the sun"
+				}
+			]
+		},
+		{
+			"id": "area_search/0658",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} is coastal"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits well back from the water"
+				}
+			]
+		},
+		{
+			"id": "area_search/0659",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "some of these were nicer before they were surveyed"
+				}
+			]
+		},
+		{
+			"id": "area_search/0660",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "every place on this map has someone who would defend it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0661",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "do we have a preference on terrain type"
+				},
+				{
+					"speaker": "root",
+					"text": "not one i am going to state out loud"
+				}
+			]
+		},
+		{
+			"id": "area_search/0662",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the elevation index for that band is second-hand"
+				},
+				{
+					"speaker": "root",
+					"text": "second-hand is still hand"
+				}
+			]
+		},
+		{
+			"id": "area_search/0663",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we could work anywhere on this sheet"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "anywhere is not a location"
+				},
+				{
+					"speaker": "root",
+					"text": "i am aware"
+				}
+			]
+		},
+		{
+			"id": "area_search/0664",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "whoever indexed the western half spelled the same river three ways"
+				}
+			]
+		},
+		{
+			"id": "area_search/0665",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "talk me out of the northern shelf"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the survey there was flown in winter, which means—"
+				}
+			]
+		},
+		{
+			"id": "area_search/0666",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the search index and the tile index are two separate files, they drift"
+				}
+			]
+		},
+		{
+			"id": "area_search/0667",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that whole shelf is underwater"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is a floodplain, it is under water four months a year"
+				}
+			]
+		},
+		{
+			"id": "area_search/0668",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "there is a version of this map with one more island on it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0669",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a decision made slowly is not a better decision"
+				}
+			]
+		},
+		{
+			"id": "area_search/0670",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how old is the southern imagery"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "older than the roads on it"
+				}
+			]
+		},
+		{
+			"id": "area_search/0671",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the mountains on that sheet are drawn, not measured"
+				},
+				{
+					"speaker": "root",
+					"text": "they are measured, the shading is just decorative"
+				}
+			]
+		},
+		{
+			"id": "area_search/0672",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "give me one argument for the southern coast"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the survey there is recent"
+				},
+				{
+					"speaker": "jensen",
+					"text": "recent is not the same as correct"
+				}
+			]
+		},
+		{
+			"id": "area_search/0673",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a valley on this sheet with two names and one of them is a joke"
+				}
+			]
+		},
+		{
+			"id": "area_search/0674",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if you compare the two sheets at the same latitude the offset is—"
+				},
+				{
+					"speaker": "root",
+					"text": "i am not comparing sheets tonight"
+				}
+			]
+		},
+		{
+			"id": "area_search/0675",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the search field matches on prefix only, that is why half your queries return nothing"
+				}
+			]
+		},
+		{
+			"id": "area_search/0676",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that whole region is farmland"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it was farmland on the sheet, on the imagery it is houses"
+				}
+			]
+		},
+		{
+			"id": "area_search/0677",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i would not pick the one that looks easiest"
+				}
+			]
+		},
+		{
+			"id": "area_search/0678",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we have looked at more of this world than most people ever will"
+				}
+			]
+		},
+		{
+			"id": "area_search/0680",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "one of these sheets was drawn twice and only the second one got filed"
+				}
+			]
+		},
+		{
+			"id": "area_search/0681",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a map has never once picked itself"
+				}
+			]
+		},
+		{
+			"id": "area_search/0682",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything decent in the interior?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the interior sheets are all from the same survey run"
+				}
+			]
+		},
+		{
+			"id": "area_search/0683",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "low ground is always easier to work"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. low ground means the horizon sits on top of you."
+				}
+			]
+		},
+		{
+			"id": "area_search/0684",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "someone pick a hemisphere and we go from there"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the two hemispheres are indexed by different teams"
+				},
+				{
+					"speaker": "jensen",
+					"text": "then it hardly narrows anything"
+				}
+			]
+		},
+		{
+			"id": "area_search/0685",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the tile borders line up but the contours across them do not"
+				}
+			]
+		},
+		{
+			"id": "area_search/0686",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if you compare the two survey years the naming convention already—"
+				},
+				{
+					"speaker": "root",
+					"text": "i am looking at a map, not a filing cabinet"
+				}
+			]
+		},
+		{
+			"id": "area_search/0687",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the index caches the last query, that is why the second search feels different"
+				}
+			]
+		},
+		{
+			"id": "area_search/0688",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that inlet runs north"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it runs north on the label layer only"
+				}
+			]
+		},
+		{
+			"id": "area_search/0689",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "there is a sheet i would not open on this machine"
+				}
+			]
+		},
+		{
+			"id": "area_search/0690",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} is under the cursor and has been for some time"
+				}
+			]
+		},
+		{
+			"id": "area_search/0691",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who indexed the island chains?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody claims that file"
+				}
+			]
+		},
+		{
+			"id": "area_search/0692",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the western sheets are the newer ones"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they were filed later. they were not surveyed later."
+				}
+			]
+		},
+		{
+			"id": "area_search/0693",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there are two sheets covering that strait and they overlap badly"
+				},
+				{
+					"speaker": "root",
+					"text": "take the one with fewer names on it"
+				},
+				{
+					"speaker": "jensen",
+					"text": "names are not the part that disagrees"
+				}
+			]
+		},
+		{
+			"id": "area_search/0694",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the coast on that sheet was traced from imagery, not from a survey"
+				}
+			]
+		},
+		{
+			"id": "area_search/0695",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has gone past the same strait twice, so either it is good or—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the strait is fine, the sheet under it is not"
+				}
+			]
+		},
+		{
+			"id": "area_search/0696",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "terrain tiles are square, the index is not, that is where the gaps come from"
+				}
+			]
+		},
+		{
+			"id": "area_search/0697",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that peninsula is on the older sheet"
+				},
+				{
+					"speaker": "root",
+					"text": "it is on both, it just moved a little"
+				}
+			]
+		},
+		{
+			"id": "area_search/0698",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i have seen this coastline under a different name"
+				}
+			]
+		},
+		{
+			"id": "area_search/0699",
+			"events": [
+				"AREA_SEARCH"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the whole world indexed and we are auditing one estuary"
+				}
+			]
 		}
 	]
 }

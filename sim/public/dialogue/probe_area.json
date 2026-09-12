@@ -7333,6 +7333,2032 @@
 					"text": "we're looking at it now"
 				}
 			]
+		},
+		{
+			"id": "probe_area/0578",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles and not one of them interesting"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0579",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how big"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_mb}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0580",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's a light one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't, the edges are packed"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0581",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} again"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "estimate came back the same as the last two we passed on"
+				},
+				{
+					"speaker": "root",
+					"text": "hm"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0582",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "half the estimate is water"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0583",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the neighbouring sector so we can compare the—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already open"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0584",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the estimate counts a partial border tile as a whole one"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0585",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "probe's within a hair of last week's"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "last week's was a different bounding box"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0586",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "you're measuring the wrong side of it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0587",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nobody has ever regretted walking away from a sector like this"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0588",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything worth taking in {location}?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "hills, mostly"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0589",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the estimate is reliable out here"
+				},
+				{
+					"speaker": "root",
+					"text": "it wasn't on the last three coastal runs"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0590",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "worth it or not"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "depends what you want out of it"
+				},
+				{
+					"speaker": "root",
+					"text": "that's not an answer i can log"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0591",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "probe finished for {location}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0592",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the north half is a lot denser than the—"
+				},
+				{
+					"speaker": "root",
+					"text": "i see it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0593",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tile size is uniform here, so the payload figure is just arithmetic"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0594",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the probe covers the river too"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it stops at the bank, i read the bounds"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0595",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "probe it twice and keep the second one"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0596",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} will want the one with the towers, they always do"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0597",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who has room for {terrain_mb}"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody, we take it anyway"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0598",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "probe says {terrain_size} tiles"
+				},
+				{
+					"speaker": "root",
+					"text": "that's not a lot"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is for this kind of ground"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0599",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we have anything on {location} from before"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing filed"
+				},
+				{
+					"speaker": "cron",
+					"text": "no prior record for this area"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0600",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the probe skipped the two tiles along the ridge"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0601",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before we decide, the western edge is going to be—"
+				},
+				{
+					"speaker": "root",
+					"text": "i saw it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0603",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb} sounds high for that footprint"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the footprint is bigger than it looks on the overview"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0604",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i'd take the eastern half. no reason."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0605",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "probe ran twice and agreed with itself, which is new"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0606",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything under {location} worth the trip"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "roofs and a rail yard"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0607",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "this one's denser than the last three"
+				},
+				{
+					"speaker": "root",
+					"text": "same as the last three, you just looked harder"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0608",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "take it or move on"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the estimate covers ground we have no use for"
+				},
+				{
+					"speaker": "root",
+					"text": "so trim it and tell me what's left"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0609",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "probe state changed for {location}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0610",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "fine, we take the whole—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not the whole. the south strip is water."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0611",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tiles here are the same dimensions as everywhere else, nothing special"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0612",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb}, so call it two sectors' worth"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one and a half. the second one is mostly border."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0613",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{location} was easier before the survey"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0614",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we probed a field. congratulations to everyone involved."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0615",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who asked for this area"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it was next on the list"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0616",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the estimate is usually low out here"
+				},
+				{
+					"speaker": "root",
+					"text": "it's been high every time i've checked"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0617",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} gets the call on this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "then somebody should show them the north edge first"
+				},
+				{
+					"speaker": "jensen",
+					"text": "they've seen it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0618",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the probe put a seam right through {location}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0619",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the southern tiles come back thinner than the—"
+				},
+				{
+					"speaker": "root",
+					"text": "thinner is fine"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0620",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles at the usual pitch, no surprises in the layout"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0621",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "sparse sector"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't. you're reading the coastline as gaps."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0622",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "probes are more honest when nobody reads them"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0623",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we looked, we saw roofs, everyone can go home"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0624",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what did it come back with"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_mb}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0625",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the densest thing we've probed all week"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the one before it was denser"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0628",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before you decide, the edge tiles are—"
+				},
+				{
+					"speaker": "root",
+					"text": "i'm not deciding yet"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0629",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "flat ground, so the payload tracks the footprint almost exactly"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0630",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb} is nothing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's nothing until you put four of them on one disk"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0631",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "someone else measured this ground first"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0632",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} is going to look at that estimate and probe it again anyway"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0633",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the estimate any good out here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "good enough to plan with"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0634",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing but fields, we skip it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there's a rail yard on the east side"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0636",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the probe read the same ridge twice and called it two features"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0637",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "so {location} is the one we—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "you haven't seen the western edge"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0638",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles, standard pitch, nothing irregular in the layout"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0639",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's flat ground"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{location} has a ridge along the west, it's in the probe"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0640",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the edges agreed too quickly"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0641",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb} to find out there's a car park"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0642",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the count"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0643",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "sparse, we can skip the second pass"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's not sparse, the probe sampled the empty corner"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0644",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we want {location} or the one south of it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the southern probe is older than the survey"
+				},
+				{
+					"speaker": "root",
+					"text": "then we're deciding on nothing"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0645",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the probe put the same elevation on every tile in the middle band"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0646",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the payload figure assumes uniform texture, which out here is—"
+				},
+				{
+					"speaker": "root",
+					"text": "assume it, we'll see"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0647",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_mb} at the resolution we normally pull, no adjustment needed"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0648",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we've had this sector before"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different bounds. the overlap is one row."
+				}
+			]
+		},
+		{
+			"id": "probe_area/0649",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{location} probes well in the autumn"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0650",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we looked at a hill and had opinions about it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0651",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "flat or not"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "flat, with a quarry"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0652",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb} is more than we planned for"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's what we planned for, the plan said two sectors"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0653",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} wanted the coastline"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the probe bounds cut it at the harbour"
+				},
+				{
+					"speaker": "root",
+					"text": "so either we widen or we don't"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0654",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every tile on the eastern column came back the same size"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0655",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "fine, {location}, we widen the bounds and—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "then the estimate is void"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0656",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles",
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles comes to {terrain_mb}, which is the usual ratio"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0657",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "probe's fine, it ran clean"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it ran clean on stale bounds, that's not the same thing"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0658",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the ground here was measured once with string"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0659",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles of somebody's back garden"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0660",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "dense or not"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "middling"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0661",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "small job"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_mb} is not small"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0662",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "area probe finished"
+				},
+				{
+					"speaker": "root",
+					"text": "and"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing in it that decides for you"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0663",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there's a rail line through the middle and nothing either side of it"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0664",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the western column reads thinner than the rest of the—"
+				},
+				{
+					"speaker": "root",
+					"text": "noted"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0665",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "pitch matches our last set, so nothing needs rescaling afterwards"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0666",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that count includes the border ring"
+				},
+				{
+					"speaker": "root",
+					"text": "it never has before"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it does today"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0667",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "you can hear it when the wind drops"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0668",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a whole probe to confirm there is grass"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0669",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how does {location} compare"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "heavier"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0670",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we've never touched this ground"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's in the march log"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0671",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "estimate look right to you"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the numbers are fine, the bounds aren't"
+				},
+				{
+					"speaker": "root",
+					"text": "then we redraw the bounds or we don't"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0672",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "probe returned for {location}"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0673",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we take {location} and widen out to the—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not before the bounds get a second look"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0674",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "same projection as the last sector, the tile grid lines up on its own"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0675",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{terrain_mb} for that footprint tracks"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "only if the texture is uniform, and it isn't"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0676",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the lights down there run on nothing"
+				}
+			]
+		},
+		{
+			"id": "probe_area/0677",
+			"events": [
+				"PROBE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"terrain.tiles"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_size} tiles and a weather station"
+				}
+			]
 		}
 	]
 }

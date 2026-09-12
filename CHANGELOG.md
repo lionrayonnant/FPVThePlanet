@@ -20,6 +20,11 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Bibliothèque musicale : 143 pistes au lieu de 73. Chaque pool double à peu
+  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Une
+  piste `heavy5` retirée, manifeste et fichier.
+- Dialogue : un nouveau lot d'environ 100 répliques par shard sur les onze
+  événements, soit 1 100 entrées de plus.
 - JUKEBOX (#120), cinquième voie à la racine : la bibliothèque musicale entière,
   enfin écoutable. Jusqu'ici un morceau ne s'entendait que si le tirage le
   donnait — déterministe sur la famille et la graine du drone — et tout le reste
@@ -52,6 +57,8 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- `tools/dialogue/generate.mjs` écrit les shards en tabulations, comme le corpus
+  depuis sa réindentation : une génération ne réécrit plus tout le fichier.
 - `[T] TURTLE` et `[HOLD K] CUT LINK` s'affichent après 1,5 s d'immobilité au
   lieu de 4 (#114). Les deux lisent le même `stuck` : une machine coincée
   proposait sa sortie trop tard pour qu'on croie encore qu'il y en avait une.

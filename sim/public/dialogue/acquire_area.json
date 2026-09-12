@@ -12572,6 +12572,1944 @@
 					"text": "there is a bird in the texture. it is in four tiles at once."
 				}
 			]
+		},
+		{
+			"id": "acquire_area/0689",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "sector picked. somebody wake the decoder."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0690",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who owns the acquisition slot"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody. it was free."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0691",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the tile stream looks healthy"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the stream looks healthy. the tiles do not."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0692",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we keep the second texture set"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "depends if anything reads it"
+				},
+				{
+					"speaker": "cron",
+					"text": "texture set registered"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0693",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the material names are all lowercase in this one"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0694",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before we commit the grid i want to walk the edge tiles one by —"
+				},
+				{
+					"speaker": "root",
+					"text": "walk them while it loads"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0695",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "indices are 16 bit. that matches the header for once."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0697",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "this one comes in quiet. they usually do not."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0698",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the archive was packed on a friday. it shows."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0699",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the buffer allocated"
+				},
+				{
+					"speaker": "cron",
+					"text": "buffer allocated"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0700",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "same source as last week, so same settings"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different source. the compression tag changed."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0701",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two tiles carry the same identifier"
+				},
+				{
+					"speaker": "root",
+					"text": "which one do we keep"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i was hoping you had a preference"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0702",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the roads in this set have no thickness"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0703",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i want the whole set resident before anyone touches the —"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it will not fit"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0704",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "acquisition slot opened. decode handler attached."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0705",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the elevation reads sane"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "sane and correct are not the same word"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0706",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "leave the east column alone"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0708",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "do we log the source revision"
+				},
+				{
+					"speaker": "root",
+					"text": "we log everything and read none of it"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0709",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "sector is picked, start pulling"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the slot is still held by the last job"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0710",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the north tiles came in on a different projection"
+				},
+				{
+					"speaker": "root",
+					"text": "same source as the rest"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "same source, different week"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0711",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a road in this set that ends at a wall"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0712",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the edge tiles can wait, nobody goes out that far unless they—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they do"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0713",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "textures are dxt1. no alpha in this set."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0714",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "grid origin reads correct"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it reads plausible"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0715",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i would not lean on the east half of this one"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0716",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "somebody picked the one sector made entirely of parking"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0717",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"terrain.megabytes"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how big is the pull"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{terrain_mb}"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0718",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the decoder handles this format fine"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it handles it. fine is your word."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0719",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we bake the atlas now"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the second texture set has not arrived"
+				},
+				{
+					"speaker": "root",
+					"text": "it may not arrive"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0720",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "texture set 2 registered. atlas handle open."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0721",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before the bake i want the normals compared against the—"
+				},
+				{
+					"speaker": "root",
+					"text": "bake it"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0722",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the index buffer is packed in the order the tiles arrived"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0723",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the footer gives the scale in metres"
+				},
+				{
+					"speaker": "root",
+					"text": "the header disagrees with the footer"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0724",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "sector like this, i would come in the long way"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0725",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location}. of all the places to file."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0726",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the decoder attached?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "attached"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0727",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this set will sit in memory whole"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not with the second texture pass"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0728",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "does anyone care about the water tiles here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there is water in this sector"
+				},
+				{
+					"speaker": "root",
+					"text": "that was not the question"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0729",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the tile ids in this set skip every fourth number"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0730",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i pulled the footer and the projection string reads—"
+				},
+				{
+					"speaker": "root",
+					"text": "read it after the decode. not during."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0731",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "textures come in at 512. we upsample nothing."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0732",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the grid spacing matches the last set"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it does not. this one is finer."
+				},
+				{
+					"speaker": "root",
+					"text": "then it does not"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0733",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the good tiles are always in the middle"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0734",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "somebody picked a sector that is ninety percent roof"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0735",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who packed this archive"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no name in the footer"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0736",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we have enough to start the bake"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not until the second texture set registers"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0737",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is this the same source we used in spring"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "same format. different packer."
+				},
+				{
+					"speaker": "jensen",
+					"text": "could be either"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0738",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every material in this table has the same specular value"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0739",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "give me the sector bounds and then we can—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "bounds are in the manifest. open it."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0740",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the decoder wants the tiles in row order. they arrive in row order."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0741",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that seam on the west edge is a defect"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is the tile boundary. it is supposed to be there."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0742",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "somebody already paid for this sector once"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0744",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how does the elevation look"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "flat where it should be flat"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0745",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the atlas will fit in one page"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it will not. count the roof textures."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0746",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we trust the source revision on this"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the field is blank"
+				},
+				{
+					"speaker": "root",
+					"text": "so that is a no"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0747",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the index buffer is sorted by material, not by tile"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0748",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i want the normals checked before we—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already running. stop asking."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0749",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tile pitch is uniform across the set"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0750",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that column came in twice"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no, it came in once and got listed twice"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0751",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the roofs here were measured in winter"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0752",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "somebody filed a sector with no ground under half of it"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0753",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what projection is this in"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the same one as everything else"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0754",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "textures land before the mesh, always"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not in this format. mesh first."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0755",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "can the atlas take both texture sets"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it can take them. reading them back is the part i doubt."
+				},
+				{
+					"speaker": "root",
+					"text": "so find out"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0756",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every tile in the south row shares one material slot"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0757",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i would rather we confirmed the bounds before the decoder gets—"
+				},
+				{
+					"speaker": "root",
+					"text": "decoder is already attached"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0758",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "sector registered. tile stream open."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0760",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "leave the footer alone. it is fine where it is."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0761",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the author field says operator. very helpful."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0762",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "do we need both lod sets"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we will use one and carry both"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0763",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that gap on the south edge is a stitching fault"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is in the source. we stitched it correctly."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0765",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nobody labelled the south half of this sector at all"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0766",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "skip the second texture set, we will never read—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is already resident"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0767",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "mesh handler registered. texture handler registered."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0768",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the origin sits on a corner"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits on a centre. corners are what you see."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0769",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the corners of this one were cut twice. by different hands."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0770",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "a sector picked at this hour is a sector nobody wants seen"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0771",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what format is the elevation in"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "sixteen bit, signed"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0772",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the stream is steady, we can start the bake"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the last column has not arrived. baking now bakes a hole."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0773",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this source revision looks older than the one we agreed on"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is older. the newer one was never published."
+				},
+				{
+					"speaker": "root",
+					"text": "then who told me it was"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0774",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the material table has a slot named temp. it is the only one in use."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0775",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i would compare this tile pitch against the archive before we—"
+				},
+				{
+					"speaker": "root",
+					"text": "attach the decoder, compare it after"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0776",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "normals are packed in the same buffer as the positions"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0777",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the bounds in the footer are right"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they are the bounds of the request, not of the data"
+				},
+				{
+					"speaker": "root",
+					"text": "close enough for the allocator"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0778",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "leave one tile unloaded. pick which one yourself."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0779",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the source packed every roof as a separate object. all of them named roof."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0780",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the texture handler on the same queue"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "separate queue, same thread"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0781",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we have used this archive before, the settings carry over"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the packer changed in between. nothing carries over."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0782",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "can the atlas hold the second set without a split"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it depends on the padding we choose"
+				},
+				{
+					"speaker": "cron",
+					"text": "atlas allocation requested. no page committed."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0783",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the tile ids here are strings. someone quoted the numbers."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0784",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "hold the bake until i see the west edge stitched, i am not going to—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the west edge stitched an hour ago"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0785",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "elevation handler bound. texture handler bound."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0786",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the scale is in feet"
+				},
+				{
+					"speaker": "root",
+					"text": "the footer says metres"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the footer is not what built the mesh"
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0787",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "this sector was filed under a different name once. the tiles kept it."
+				}
+			]
+		},
+		{
+			"id": "acquire_area/0788",
+			"events": [
+				"ACQUIRE_AREA"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "somebody surveyed a sector that is mostly fence"
+				}
+			]
 		}
 	]
 }

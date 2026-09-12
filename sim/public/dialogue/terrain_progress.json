@@ -6552,6 +6552,2033 @@
 					"text": "it goes somewhere. just not here"
 				}
 			]
+		},
+		{
+			"id": "terrain_progress/0576",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "third sector this week where the rivers arrive before the banks do"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0577",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "still chewing on it?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "still chewing"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0578",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that tile boundary is fine"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is off by a vertex row along the south edge"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0579",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the hollow under the east overpass is back"
+				},
+				{
+					"speaker": "root",
+					"text": "source data or the bake?"
+				},
+				{
+					"speaker": "cron",
+					"text": "mesh job: reopened"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0580",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every roof in this sector faces the same way as the river"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0581",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if the packing comes back tangled again i am pulling the whole—"
+				},
+				{
+					"speaker": "cron",
+					"text": "texture bake: requeued"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0582",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the atlas is padded to the same margin we used on the last sector"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0583",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the coastline follows the survey"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the survey has a pier there"
+				},
+				{
+					"speaker": "root",
+					"text": "then the survey is old"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0584",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "sectors like this one usually have a quieter name"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0585",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i have watched worse data come in from better places"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0586",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone actually sitting on this one?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i have the window open"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0587",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the seams here look like the ones from last time"
+				},
+				{
+					"speaker": "root",
+					"text": "last time was a different provider"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0588",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "why is the water flat here and stepped two tiles over"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "two capture passes, stitched"
+				},
+				{
+					"speaker": "root",
+					"text": "ask whoever stitched them"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0589",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a fence in the geometry that is in none of the photos"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0590",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "open the next sector while this one is still—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not from this account"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0591",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the atlas came in at the same resolution as the rest of {location}"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0592",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{location} is running on the default bake config"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't, the margin was set by hand"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0593",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "keep the first copy"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0594",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "this sector has never once come in clean on the first pass"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0595",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything i need to look at?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing on my side"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0596",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "east half came in the way i expected"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the east half came in with two overlapping shells"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0597",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything odd in the incoming set"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one texture is indexed against an atlas we already closed"
+				},
+				{
+					"speaker": "cron",
+					"text": "texture bake: reindexed"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0598",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every bridge in {location} arrives without its underside"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0599",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the slope on the west side is coming in at half the density we—"
+				},
+				{
+					"speaker": "root",
+					"text": "log it, keep the feed open"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0600",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the mesh and the collision hull use different winding order here"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0601",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that plateau is flat because it is flat"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is flat because the source had nothing to put there"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0602",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the parts that come in last were never the parts anyone photographed"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0603",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i have watched paint cure with more incident"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0604",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "are we near the end of this"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the queue still has things in it"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0605",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the last batch matched the survey"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the survey was corrected after that batch was cut"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0606",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "mesh job: handed off"
+				},
+				{
+					"speaker": "root",
+					"text": "handed off to what"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nothing on my side picked it up"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0607",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the railway texture is stitched from three different seasons"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0609",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the atlas margin matches the config, nothing to adjust"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0610",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the coast tiles are indexed south to north"
+				},
+				{
+					"speaker": "root",
+					"text": "they were north to south the whole way in"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0611",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "somebody cleaned this sector before it reached us"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0612",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "good data, boring channel. i will take it"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0613",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the hull tracking the geometry"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "so far, yes"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0614",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the quarry came through better than i thought"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the quarry came through with its walls facing outward"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0615",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "bake node: replaced"
+				},
+				{
+					"speaker": "root",
+					"text": "same config as the rest of {location}?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i cannot read the config on that node"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0616",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the drainage ditches in {location} all run uphill by a hand's width"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0617",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if that margin comes back off by one more pixel i am—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is not off"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0618",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "normals and tangents came out of the same pass, so they agree"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0619",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the bridge deck sits at survey height"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits a meter under it"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0620",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "whoever owned this data before us kept the negatives"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0621",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "another ridge, another afternoon of my one life"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0622",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is there anything in this batch i need to see?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0623",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the west atlas is a straight copy of the east one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they differ, the tree line moved"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0624",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there are fence posts in the mesh that are in none of the photography"
+				},
+				{
+					"speaker": "root",
+					"text": "survey error"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the photography is the survey"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0625",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every field boundary here is a clean rectangle except one"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0626",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the collision hull is wound the opposite way from the—"
+				},
+				{
+					"speaker": "root",
+					"text": "seen it. patching"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0627",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tiles index west to east here, which is what the config asks for"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0628",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the coastline came in where the survey put it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the survey has two coastlines for this sector"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0629",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i would not keep a copy of this one"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0630",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the geometry is doing what geometry does"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0631",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "has this sector given us trouble before?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "twice"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0632",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nobody needs to sit on this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "somebody does, the last unattended bake wrote over itself"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0633",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who owns the bake config for {location}?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the file has no author"
+				},
+				{
+					"speaker": "cron",
+					"text": "bake config: read-only"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0634",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the shoreline texture has a boat in it that the mesh does not"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0635",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "bring a second node up before this one—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "both nodes are already on it"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0636",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the lod thresholds match what we set for the last sector"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0637",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that culvert is real, it is in the survey"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is in the mesh twice"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0638",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "nothing here was measured twice"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0639",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i have now looked at every rock in this valley once"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0640",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "does the collision hull still match?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "so far"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0641",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the atlas padding is the same as the last sector"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the bottom edge is one row short"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0642",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the river tiles index differently from the rest of the set"
+				},
+				{
+					"speaker": "root",
+					"text": "reindex them"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "then they stop agreeing with the survey"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0643",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the treeline stops dead at the sector boundary"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0644",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if that winding order comes back reversed i am going to—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it did not"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0645",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "bake node: online"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0646",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the roofline on the market block is correct"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it sits above the wall holding it up"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0647",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "some ground is only ground from above"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0648",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "riveting work, watching dirt turn into slightly better dirt"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0649",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {location} behaving?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no worse than usual"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0650",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the shoreline agrees with the photography"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the photography was shot at low water"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0651",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the stairs in the old quarter are arriving as ramps"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the source has them as ramps"
+				},
+				{
+					"speaker": "root",
+					"text": "then the source is wrong"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0652",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a chimney in this sector with no building under it"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0653",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the second atlas is on a different filter setting than the—"
+				},
+				{
+					"speaker": "root",
+					"text": "same setting, different log"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0654",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tile edges are snapping to the grid we gave them, nothing to fix"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0655",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the terrace above the town is meant to read flat"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it reads as one polygon"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0656",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the roads here were drawn before the town was"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0657",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i am going to know these trees by name before this is over"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0658",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "are we still on the first pass?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we are on the pass we were on"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0659",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the cliff came in correct"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the cliff has a step in it that the survey does not"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0660",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the culvert texture is brighter than everything around it"
+				},
+				{
+					"speaker": "root",
+					"text": "sun angle"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there is no sun in that texture"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0661",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "every door in this sector is the same width"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0662",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "if that atlas comes back on the wrong filter i am going to—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it came back on the wrong filter"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0663",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "lightmap and diffuse share the tile order, nothing to reconcile"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0664",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the tower height is right"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the tower is short of the survey"
+				},
+				{
+					"speaker": "root",
+					"text": "then the survey is wrong"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0665",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "this valley has been acquired before"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0666",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the data is fine. that is everything i have for the channel today."
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0667",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "still the same sector?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "same sector, same config"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0668",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the terrace wall sits where the photography puts it"
+				},
+				{
+					"speaker": "root",
+					"text": "that photography was shot from the wrong side of the valley"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0669",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who put in a second atlas pass?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not me"
+				},
+				{
+					"speaker": "cron",
+					"text": "atlas pass: queued"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0670",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the footpaths in {location} all end at the sector edge"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0671",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if we index these tiles the way the last crew did we will—"
+				},
+				{
+					"speaker": "root",
+					"text": "we are not the last crew"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0672",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "tile borders overlap by exactly the padding we asked for"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0673",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the market roofs are correct"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they are correct and identical. one of those is a problem."
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0674",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "nothing here was built for anyone to stand in"
+				}
+			]
+		},
+		{
+			"id": "terrain_progress/0675",
+			"events": [
+				"TERRAIN_PROGRESS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i will be here, watching a hillside become slightly more itself"
+				}
+			]
 		}
 	]
 }

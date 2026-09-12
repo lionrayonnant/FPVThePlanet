@@ -8545,6 +8545,2135 @@
 					"text": "your screen has one"
 				}
 			]
+		},
+		{
+			"id": "target_analysis/0617",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who maintains the {hack_type} table these days?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0618",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is plenty for an unattended run"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is plenty for a supervised one"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0619",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i would have gone manual here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} entry exists, so the seq takes it"
+				},
+				{
+					"speaker": "root",
+					"text": "that is not the same as agreeing"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0620",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two of the {video_type} rigs on that block share a channel"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0621",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "last time a script ran alone in here we spent a week—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different rack"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0622",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} table is sorted by vendor, not by model"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0623",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the {hack_type} entry is the newer one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is the older one with a newer date on it"
+				},
+				{
+					"speaker": "root",
+					"text": "fine"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0624",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the chair is still facing the wall"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0625",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "nothing for me to do but sit here and look competent"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0626",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what generation is the {video_type} board on this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "old"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0627",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "unattended is the whole reason we wrote the seq"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we wrote it so the boring ones would not need you"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0628",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "auto-seq: {hack_type} entry selected"
+				},
+				{
+					"speaker": "root",
+					"text": "i still think the hand route is cleaner on this vendor"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "cleaner and slower are both true"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0629",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} has the same three targets bookmarked every week"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0630",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "has anyone actually read the seq end to—"
+				},
+				{
+					"speaker": "cron",
+					"text": "watchdog: process registered"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0631",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} boards on this vendor put the sync on the wrong pin"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0632",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} is the obvious route here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "obvious is not the same as appropriate"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0633",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i have been on this vendor before. not from here."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0634",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the seq runs the same whether anyone is in the room"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0635",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {signal} typical for this block?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "for this block, yes"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0636",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "leave it to the seq"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "i would not. this vendor is not in the notes."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0637",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who owns the seq this quarter?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "nobody wrote it down after the move"
+				},
+				{
+					"speaker": "root",
+					"text": "then we find out when something needs signing"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0638",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video",
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "this {video_type} board is older than the {hack_type} entry we have for it"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0639",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "don't touch anything while the seq is—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "my hands are on the desk"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0640",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the vendor ships two board revisions under one model number"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0641",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the notes say revision b"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the notes were written before the recall"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0642",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i knew a room that sounded like this one"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0643",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i am paid to watch a box think"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0644",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {operator_name} on channel?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "logged in, not typing"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0645",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} is what everyone uses on this vendor"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "everyone here. that is a smaller set than you think."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0646",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "watchdog: sequence armed"
+				},
+				{
+					"speaker": "root",
+					"text": "who armed it?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not in the log"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0647",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the building on the left has no windows on the third floor"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0648",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "root, the vendor notes for this model are dated—"
+				},
+				{
+					"speaker": "root",
+					"text": "later"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0649",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} here, same as the last three on this street"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0650",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the {video_type} rig from the east block"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different mount. same paint."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0651",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "i have seen this model opened from the other side"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0652",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the seq and i have the same job description"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0653",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything unusual about the {hack_type} entry?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is short"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0654",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "automation gets this vendor right"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "automation gets the common revision right"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0655",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} picked this one out of a list of forty"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "why this one?"
+				},
+				{
+					"speaker": "root",
+					"text": "did not say"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0656",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} tuner on this board runs hot enough to read in the dark"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0657",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} entry assumes the older bootloader, which means—"
+				},
+				{
+					"speaker": "root",
+					"text": "i wrote the entry"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0658",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type} on this family goes through the service port, not the main bus"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0659",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "unattended is fine on a target this dull"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "dull is not the same as documented"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0660",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the ones that look boring are the ones people remember wrong"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0661",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "my entire contribution tonight is not pressing anything"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0662",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what are we sitting at on the link"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal}"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0663",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} is the shortest way in here"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "shortest on paper. this vendor reorders the sectors."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0664",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "auto-seq: {hack_type} armed"
+				},
+				{
+					"speaker": "root",
+					"text": "who reviewed the entry last"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the log stops before the name"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0665",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} has been holding the same heading for a while now"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0666",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i checked the board revision and it does not match what the notes—"
+				},
+				{
+					"speaker": "root",
+					"text": "notes are three years old. skip it."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0667",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{video_type} on this model shares its ground with the radio side"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0668",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "manual would have been cleaner on a {hack_type} this old"
+				},
+				{
+					"speaker": "root",
+					"text": "cleaner and slower and i am neither"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0669",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "somebody already left the lights on in that block"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0670",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the seq does not care that we are watching it, which is humbling"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0671",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the {hack_type} entry the one from the winter batch"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "yes"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0672",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is a comfortable number"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is a comfortable number on a flat roof. that is not a flat roof."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0673",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "watchdog: auto path selected"
+				},
+				{
+					"speaker": "root",
+					"text": "did anyone ask it to choose"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it chooses when nobody says otherwise"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0674",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "two {video_type} rigs on that face and only one cable run to the street"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0675",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} table lists this vendor twice, once under the parent company and—"
+				},
+				{
+					"speaker": "root",
+					"text": "pick the newer row"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0676",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} entry has a comment block and no author"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0677",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the newer {video_type} board"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it is not, the case is the same but the tuner moved"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0678",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the quiet part of the street is not the quiet part"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0679",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i have been promoted to furniture for the next few minutes"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0680",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "link reading?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal}, flat"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0681",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} is the standard route for this family"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "standard for the parent company, not for this model"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0682",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who last touched the {hack_type} entry"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no name on it"
+				},
+				{
+					"speaker": "root",
+					"text": "then we find out the hard way"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0683",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "there is a second {video_type} cable on that wall going nowhere"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0684",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} entry assumes a service port that this revision—"
+				},
+				{
+					"speaker": "root",
+					"text": "noted. sit on it."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0685",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} and the neighbour block reads within a dB of it"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0686",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the seq handles this vendor without help"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it handled one board of theirs. that is not the same claim."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0687",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "somebody else already wrote the notes for this one"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0688",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "my job tonight is to disagree with a machine that cannot hear me"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0689",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the {video_type} chain look like"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one run to the street, badly stapled"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0690",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "automation has never cost us a target"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it cost us two. you were not on channel either time."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0691",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "auto path: {hack_type}"
+				},
+				{
+					"speaker": "root",
+					"text": "i would rather have hands on this one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "so would the vendor, probably"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0692",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} table has an entry for a model that was never shipped"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0693",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} has been sitting on this block since—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the seq is working. leave it."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0694",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal} here, and the meter on this box rounds up"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0695",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the {hack_type} notes came from the vendor themselves"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they came from a mirror of the vendor. not the same paper."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0696",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the ones with no name on the plate are the ones with a name somewhere else"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0697",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "i am supervising a decision that was made before i sat down"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0698",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what is the {video_type} side of this rig doing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "sitting there"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0699",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the {hack_type} route fits this box well enough"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it fits the parent model. this one is a spin-off with its own bus."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0700",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "why do we keep the old {hack_type} entry around"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "because nobody has a reason to delete it"
+				},
+				{
+					"speaker": "cron",
+					"text": "auto-seq: engaged"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0701",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{signal}, and the antenna is pointed away from us"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0702",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {hack_type} entry references a document that i cannot—"
+				},
+				{
+					"speaker": "root",
+					"text": "then it is not part of tonight"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0703",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the {video_type} line on this family is unshielded past the junction box"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0704",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the seq picked the right entry"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it picked the first matching entry. those are different things."
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0705",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "there is a version of this street where the numbers run the other way"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0706",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i have read this entry so often i could get it wrong from memory"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0707",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone review the {hack_type} entry since the winter"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0708",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is nothing to think about"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the meter on this box has never agreed with the one downstairs"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0709",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"cron"
+			],
+			"requires": [
+				"target.video"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "this {video_type} board has a header nobody documented"
+				},
+				{
+					"speaker": "root",
+					"text": "the vendor documents nothing they can charge for later"
+				},
+				{
+					"speaker": "cron",
+					"text": "watchdog: entry matched"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0710",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} has not moved the stick in a while"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0711",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we have done this vendor enough times that—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "under three different model numbers, root"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0712",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type} on this family wants the board powered from cold"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0713",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the notes are current"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the notes were copied from a box that shipped two revisions ago"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0714",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "somebody cleaned this one before we got here"
+				}
+			]
+		},
+		{
+			"id": "target_analysis/0715",
+			"events": [
+				"TARGET_ANALYSIS"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the seq has better hours than anyone on this channel"
+				}
+			]
 		}
 	]
 }
