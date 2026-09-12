@@ -6026,6 +6026,2084 @@
 					"text": "later than today"
 				}
 			]
+		},
+		{
+			"id": "hack/0610",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that sector was already writable, so"
+				}
+			]
+		},
+		{
+			"id": "hack/0611",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "which bank does the {hack_type} land in"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the first one"
+				}
+			]
+		},
+		{
+			"id": "hack/0612",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that went in clean"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no, the tail block came back different"
+				}
+			]
+		},
+		{
+			"id": "hack/0613",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything on the secondary bus"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "something answered once and stopped"
+				},
+				{
+					"speaker": "root",
+					"text": "hm"
+				}
+			]
+		},
+		{
+			"id": "hack/0614",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the lamp on the programmer stays lit through the whole write now"
+				}
+			]
+		},
+		{
+			"id": "hack/0615",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if the vendor block is signed we should really—"
+				},
+				{
+					"speaker": "root",
+					"text": "it isn't"
+				}
+			]
+		},
+		{
+			"id": "hack/0616",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "erase runs before write on this part, always has"
+				}
+			]
+		},
+		{
+			"id": "hack/0617",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the correct offset"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's the correct offset for the older revision"
+				}
+			]
+		},
+		{
+			"id": "hack/0618",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "it was already ours before you touched it"
+				}
+			]
+		},
+		{
+			"id": "hack/0619",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type}, same as every other tuesday"
+				}
+			]
+		},
+		{
+			"id": "hack/0620",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "did the vendor page come up"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it came up blank"
+				}
+			]
+		},
+		{
+			"id": "hack/0621",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bus went quiet when it took"
+				},
+				{
+					"speaker": "root",
+					"text": "the bus is always quiet, you just stopped talking"
+				}
+			]
+		},
+		{
+			"id": "hack/0622",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who signed off on that image originally"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the field is there, it's just spaces"
+				},
+				{
+					"speaker": "root",
+					"text": "of course it is"
+				}
+			]
+		},
+		{
+			"id": "hack/0623",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name}'s hands stopped moving while it went through"
+				}
+			]
+		},
+		{
+			"id": "hack/0624",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the config page after and we'll—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already pulled it"
+				}
+			]
+		},
+		{
+			"id": "hack/0625",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the write pin is pulled low by a resistor, not by us"
+				}
+			]
+		},
+		{
+			"id": "hack/0626",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that byte order is backwards"
+				},
+				{
+					"speaker": "root",
+					"text": "it's backwards on the datasheet too"
+				}
+			]
+		},
+		{
+			"id": "hack/0627",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "some of them come back"
+				}
+			]
+		},
+		{
+			"id": "hack/0628",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} and it still let us in without asking twice"
+				}
+			]
+		},
+		{
+			"id": "hack/0629",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the case going back on"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "eventually"
+				}
+			]
+		},
+		{
+			"id": "hack/0630",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} took on the first pass"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "second pass, the first one came back empty"
+				}
+			]
+		},
+		{
+			"id": "hack/0631",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anything odd in the vendor page"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the layout doesn't match the datasheet i have"
+				},
+				{
+					"speaker": "cron",
+					"text": "override: applied"
+				}
+			]
+		},
+		{
+			"id": "hack/0632",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the programmer clip is warmer than the board it's sitting on"
+				}
+			]
+		},
+		{
+			"id": "hack/0633",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "before we close it out, the write-protect strap is still—"
+				},
+				{
+					"speaker": "root",
+					"text": "it's in, leave the strap alone"
+				}
+			]
+		},
+		{
+			"id": "hack/0634",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "page size is 256 bytes on this part, so it goes in page at a time"
+				}
+			]
+		},
+		{
+			"id": "hack/0635",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the production image"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't, the tail block reads as an engineering build"
+				}
+			]
+		},
+		{
+			"id": "hack/0636",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "they keep the old one around for a reason"
+				}
+			]
+		},
+		{
+			"id": "hack/0637",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type}, and the thing never once asked who we were"
+				}
+			]
+		},
+		{
+			"id": "hack/0638",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "did the erase come back before the write"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "yes"
+				}
+			]
+		},
+		{
+			"id": "hack/0639",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} is the worst link we've pushed one of these over"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no, the harbour job was worse and it still took"
+				}
+			]
+		},
+		{
+			"id": "hack/0640",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "write cycle: entered"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the supply rail sagged when it entered"
+				},
+				{
+					"speaker": "root",
+					"text": "the rail on the bench does that too"
+				}
+			]
+		},
+		{
+			"id": "hack/0641",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "someone soldered the header on by hand, the joints aren't machine"
+				}
+			]
+		},
+		{
+			"id": "hack/0642",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "pull the config page, i want to see whether the vendor left—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already have it, it's blank"
+				}
+			]
+		},
+		{
+			"id": "hack/0643",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the bootloader sits below the image, we never touch that region"
+				}
+			]
+		},
+		{
+			"id": "hack/0644",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "that's not the {hack_type} region, that's scratch"
+				},
+				{
+					"speaker": "root",
+					"text": "it's the region the map says it is"
+				}
+			]
+		},
+		{
+			"id": "hack/0645",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "nothing here was ever locked in the first place"
+				}
+			]
+		},
+		{
+			"id": "hack/0646",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the hard part was finding the screwdriver"
+				}
+			]
+		},
+		{
+			"id": "hack/0647",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the {hack_type} the same revision as the last one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one minor up"
+				}
+			]
+		},
+		{
+			"id": "hack/0648",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "target state: changed"
+				},
+				{
+					"speaker": "root",
+					"text": "changed is doing a lot of work in that sentence"
+				}
+			]
+		},
+		{
+			"id": "hack/0649",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} hasn't said anything since we started"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "there's nothing to say from that end"
+				},
+				{
+					"speaker": "cron",
+					"text": "channel: quiet"
+				}
+			]
+		},
+		{
+			"id": "hack/0650",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "bus arbitration: released"
+				}
+			]
+		},
+		{
+			"id": "hack/0651",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the tail block has something in it that isn't—"
+				},
+				{
+					"speaker": "root",
+					"text": "padding"
+				}
+			]
+		},
+		{
+			"id": "hack/0652",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "this part latches write enable on the falling edge"
+				}
+			]
+		},
+		{
+			"id": "hack/0653",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the {hack_type} block"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "that's the boot vector, one bank over"
+				}
+			]
+		},
+		{
+			"id": "hack/0654",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "it answers to a different name in the morning"
+				}
+			]
+		},
+		{
+			"id": "hack/0655",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "another one for the collection"
+				}
+			]
+		},
+		{
+			"id": "hack/0656",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the link sitting at"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{signal}"
+				}
+			]
+		},
+		{
+			"id": "hack/0657",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the erase took the whole block"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it took the sector, not the block"
+				}
+			]
+		},
+		{
+			"id": "hack/0658",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the vendor page is blank"
+				},
+				{
+					"speaker": "root",
+					"text": "then someone blanked it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "or it shipped that way"
+				}
+			]
+		},
+		{
+			"id": "hack/0659",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "someone taped over the model number on the underside"
+				}
+			]
+		},
+		{
+			"id": "hack/0660",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "get it off the clip before you—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already off"
+				}
+			]
+		},
+		{
+			"id": "hack/0661",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the write enable line is held by the clip, not by the board"
+				}
+			]
+		},
+		{
+			"id": "hack/0662",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that image is the shipping revision"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's one revision behind"
+				}
+			]
+		},
+		{
+			"id": "hack/0663",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "check which way the numbers run"
+				}
+			]
+		},
+		{
+			"id": "hack/0664",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type}, on a device that cost less than the cable"
+				}
+			]
+		},
+		{
+			"id": "hack/0665",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {operator_name} still on the channel"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "yes"
+				}
+			]
+		},
+		{
+			"id": "hack/0666",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the bus settled straight after"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it settled, then it stopped settling"
+				}
+			]
+		},
+		{
+			"id": "hack/0667",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "who keeps the master copy of these images"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "whoever built the rack"
+				},
+				{
+					"speaker": "root",
+					"text": "that's not an answer"
+				}
+			]
+		},
+		{
+			"id": "hack/0668",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the second screw hole never had a screw in it"
+				}
+			]
+		},
+		{
+			"id": "hack/0669",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "read me the last four bytes of the—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "zeroes"
+				}
+			]
+		},
+		{
+			"id": "hack/0670",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the part wants the unlock sequence before any write, so it gets the unlock sequence"
+				}
+			]
+		},
+		{
+			"id": "hack/0671",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the {hack_type} region"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "one bank up from it"
+				}
+			]
+		},
+		{
+			"id": "hack/0672",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "it was waiting for someone, not for us specifically"
+				}
+			]
+		},
+		{
+			"id": "hack/0673",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "twelve years of engineering and the lock was a jumper"
+				}
+			]
+		},
+		{
+			"id": "hack/0674",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "did it take"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it took"
+				}
+			]
+		},
+		{
+			"id": "hack/0675",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "we'll need a power cycle after this"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "this part re-reads on its own, no cycle"
+				}
+			]
+		},
+		{
+			"id": "hack/0676",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that trailing region wasn't in the map we had"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it isn't in any map we had"
+				},
+				{
+					"speaker": "cron",
+					"text": "region table: read"
+				}
+			]
+		},
+		{
+			"id": "hack/0677",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{operator_name} put the headset down before it finished and picked it back up after"
+				}
+			]
+		},
+		{
+			"id": "hack/0678",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "hold on, the boot vector should be pointing at—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it points where it always pointed"
+				}
+			]
+		},
+		{
+			"id": "hack/0679",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "device mode: programming"
+				}
+			]
+		},
+		{
+			"id": "hack/0680",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the strap needs to come off before we read back"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "reads work with it on, it only gates writes"
+				}
+			]
+		},
+		{
+			"id": "hack/0681",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the ones with no label are the ones that get used"
+				}
+			]
+		},
+		{
+			"id": "hack/0682",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{hack_type} on a board with a hand-cut ground plane, sure"
+				}
+			]
+		},
+		{
+			"id": "hack/0683",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's holding the reset line"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "we are"
+				}
+			]
+		},
+		{
+			"id": "hack/0684",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.rssiDbm"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{signal} was going to drop the link halfway through"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it never wavered"
+				}
+			]
+		},
+		{
+			"id": "hack/0685",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "there's a second image below the one we wrote"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "different build, same date stamp"
+				},
+				{
+					"speaker": "jensen",
+					"text": "leave it there"
+				}
+			]
+		},
+		{
+			"id": "hack/0686",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the enclosure screws are three different lengths and none of them are right"
+				}
+			]
+		},
+		{
+			"id": "hack/0687",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "once the verify pass comes back i want the tail block—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already reading it"
+				}
+			]
+		},
+		{
+			"id": "hack/0688",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "write protect: cleared"
+				}
+			]
+		},
+		{
+			"id": "hack/0689",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "the {hack_type} sits at the base of flash"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "top of flash on this vendor, they run it backwards"
+				}
+			]
+		},
+		{
+			"id": "hack/0690",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the last one on this line was warm too"
+				}
+			]
+		},
+		{
+			"id": "hack/0691",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type}, and the label on the box says do not modify"
+				}
+			]
+		},
+		{
+			"id": "hack/0692",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "did the unlock go through"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it went through"
+				}
+			]
+		},
+		{
+			"id": "hack/0693",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the boot region"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no, boot sits lower, that's user flash"
+				}
+			]
+		},
+		{
+			"id": "hack/0694",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anyone recognise the vendor id on this part"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's not in the table we have"
+				},
+				{
+					"speaker": "jensen",
+					"text": "it wouldn't be"
+				}
+			]
+		},
+		{
+			"id": "hack/0695",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the clip is holding the reset line down the whole way through"
+				}
+			]
+		},
+		{
+			"id": "hack/0696",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "if the vendor left the lock bits set then we'd have to—"
+				},
+				{
+					"speaker": "root",
+					"text": "they didn't"
+				}
+			]
+		},
+		{
+			"id": "hack/0697",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "erase is block-granular on this part, write is page-granular"
+				}
+			]
+		},
+		{
+			"id": "hack/0698",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the image we wanted"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's the right family, wrong revision"
+				},
+				{
+					"speaker": "root",
+					"text": "close enough for this one"
+				}
+			]
+		},
+		{
+			"id": "hack/0699",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the serial on that one runs backwards from mine"
+				}
+			]
+		},
+		{
+			"id": "hack/0700",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the programmer fan is louder than the drone will be"
+				}
+			]
+		},
+		{
+			"id": "hack/0701",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "which side of the map does the {hack_type} land on"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the low side"
+				}
+			]
+		},
+		{
+			"id": "hack/0702",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the part acknowledged before the clock settled"
+				},
+				{
+					"speaker": "root",
+					"text": "the clock settled first, you read the wrong trace"
+				}
+			]
+		},
+		{
+			"id": "hack/0703",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"jensen"
+			],
+			"requires": [
+				"operator.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{operator_name} left the bench before the write"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "they were back for it"
+				},
+				{
+					"speaker": "jensen",
+					"text": "were they"
+				}
+			]
+		},
+		{
+			"id": "hack/0704",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "there's a pencil mark on the silkscreen next to pin one"
+				}
+			]
+		},
+		{
+			"id": "hack/0705",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "read back the first page before we—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already up"
+				}
+			]
+		},
+		{
+			"id": "hack/0706",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the supply rail holds at three three under the write, it always has"
+				}
+			]
+		},
+		{
+			"id": "hack/0707",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's the config word"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "that's padding, the config word is two rows up"
+				}
+			]
+		},
+		{
+			"id": "hack/0708",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "someone else's hands were on this before ours"
+				}
+			]
+		},
+		{
+			"id": "hack/0709",
+			"events": [
+				"HACK"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"target.hackType"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{hack_type} on a thing that still ships with a paper manual"
+				}
+			]
 		}
 	]
 }

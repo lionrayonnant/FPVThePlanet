@@ -20,6 +20,24 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Bibliothèque musicale : 143 pistes au lieu de 73. Chaque pool double à peu
+  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Une
+  piste `heavy5` retirée, manifeste et fichier.
+- Dialogue : un nouveau lot d'environ 100 répliques par shard sur les onze
+  événements, soit 1 100 entrées de plus.
+- JUKEBOX (#120), cinquième voie à la racine : la bibliothèque musicale entière,
+  enfin écoutable. Jusqu'ici un morceau ne s'entendait que si le tirage le
+  donnait — déterministe sur la famille et la graine du drone — et tout le reste
+  restait invisible. C'est une radio et pas un lecteur : elle enchaîne toute
+  seule, et elle **continue de jouer quand on la quitte**, dans les menus comme
+  en vol. On choisit sa bande-son, puis on décolle avec.
+
+  Elle n'est pas la musique du vol pour autant. L'arc du hack — la musique
+  sourde, le duck du rituel, l'explosion au drop, l'intensité qui suit le
+  pilote, la mort au choc — appartient à FIELD et ne bouge pas d'un pouce
+  lorsque la radio est éteinte. Quand elle joue, elle joue à plat et le vol ne
+  la touche plus : ni filtre aux gaz, ni coupure au crash.
+
 - Un pool musical pour SWARM NODE (#116). La 7ᵉ famille — le nœud de
   commandement d'un essaim — était absente de `MUSIC_POOLS` : le vol le plus
   rare du jeu était aussi le seul à se jouer en silence. Son noyau est une
@@ -39,6 +57,8 @@ rapport avec les versions ci-dessous.
 
 ### Modifié
 
+- `tools/dialogue/generate.mjs` écrit les shards en tabulations, comme le corpus
+  depuis sa réindentation : une génération ne réécrit plus tout le fichier.
 - `[T] TURTLE` et `[HOLD K] CUT LINK` s'affichent après 1,5 s d'immobilité au
   lieu de 4 (#114). Les deux lisent le même `stuck` : une machine coincée
   proposait sa sortie trop tard pour qu'on croie encore qu'il y en avait une.

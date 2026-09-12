@@ -1,15 +1,12 @@
-<img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
-# FPVThePlanet!
+<img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
 FPV drone flying over real cities, in the browser. The scenery is photogrammetry
 pulled from Google Earth, so it's the actual geometry and textures of a place
 that exists. The flight model is a Betaflight quad, acro by default, and a radio
 is recognised without setup.
 
-<!-- TRAILER: replace TODO with the video URL, and swap the thumbnail for a
-     frame exported from the edit. -->
-[![Watch the trailer](docs/scanner.png)](TODO)
+https://github.com/user-attachments/assets/d18df585-a85d-484f-8743-3dce02777d50
 
 ## Play
 
@@ -110,3 +107,7 @@ Bundled third-party work keeps its own licence: [Three.js](https://threejs.org/)
 Open Font License, whose text sits next to them in `sim/public/fonts/`. The
 music in `sim/public/music/` was generated for this project. Map tiles are
 © OpenStreetMap and place search is © Nominatim.
+
+## Contributions
+
+Still reading? Contributions are welcome!

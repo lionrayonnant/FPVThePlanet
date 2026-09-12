@@ -37,15 +37,16 @@ import { simParamsOf } from './lib/weather.mjs';
 
 export const BENCH_VERSION = 1;
 
-// The four ways in. FIELD is the Bible's loop, BENCH is the sandbox, DATA is
-// everything that is cold, SETTINGS is everything that is set once. The order is
-// the message: fly first, read second, tune last (D3, D6).
+// The five ways in. FIELD is the Bible's loop, BENCH is the sandbox, DATA is
+// everything that is cold, JUKEBOX is the library you can finally hear, and
+// SETTINGS is everything that is set once. The order is the message: fly first,
+// read second, listen third, tune last (D3, D6).
 //
 // `archive` was renamed `data` (issue #26): the tab stopped being a shelf of
 // logs and became a page that reads the operator's own flying back. A stored
 // `fpvtp.mode` may still hold the old word — `loadLastMode()` in src/bench.js
 // maps it here rather than dropping the cursor back on FIELD.
-export const MODES = ['field', 'bench', 'data', 'settings'];
+export const MODES = ['field', 'bench', 'data', 'jukebox', 'settings'];
 
 // Copie de l'écran de choix. En anglais (D5), et vérifiée par le selftest :
 // c'est la première chose que voit un opérateur après son nom, et elle doit
@@ -66,6 +67,13 @@ export const MODE_SELECT = {
 	data: {
 		label: 'DATA',
 		lines: ['flight records · telemetry', 'where you have been'],
+	},
+	// The second line is load-bearing, not flavour: a radio that keeps playing
+	// after you walk out is the one thing about this way that is invisible
+	// until it surprises you (issue #120).
+	jukebox: {
+		label: 'JUKEBOX',
+		lines: ['the whole library · every pool', 'it keeps playing when you leave'],
 	},
 	settings: {
 		label: 'SETTINGS',

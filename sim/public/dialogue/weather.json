@@ -7915,6 +7915,2238 @@
 					"text": "vis is {visibility}. you can't see the horizon."
 				}
 			]
+		},
+		{
+			"id": "weather/0605",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s and the coffee still went cold at the usual rate"
+				}
+			]
+		},
+		{
+			"id": "weather/0606",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "still raining out there?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{rain}. same as when you asked this morning"
+				}
+			]
+		},
+		{
+			"id": "weather/0607",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} usually flattens everything out"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not today. vis reads {visibility} and it's uneven"
+				}
+			]
+		},
+		{
+			"id": "weather/0608",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"cron"
+			],
+			"requires": [
+				"weather.windMs",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s, and it swung around sometime after lunch"
+				},
+				{
+					"speaker": "root",
+					"text": "swung from what"
+				},
+				{
+					"speaker": "cron",
+					"text": "conditions: {weather_summary}"
+				}
+			]
+		},
+		{
+			"id": "weather/0609",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "vis {visibility}. the far side of {location} is just outline now"
+				}
+			]
+		},
+		{
+			"id": "weather/0610",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain means we should probably check the—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "already checked. it's dry underneath"
+				}
+			]
+		},
+		{
+			"id": "weather/0611",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary}, so the roof sensor is reading ambient and nothing else"
+				}
+			]
+		},
+		{
+			"id": "weather/0612",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "anemometer says {wind}, that's the east one"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "east one's been offline since friday. that's the mast reading"
+				}
+			]
+		},
+		{
+			"id": "weather/0613",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{weather_summary} is how it usually starts"
+				}
+			]
+		},
+		{
+			"id": "weather/0614",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility} and somebody still parked on the pad markings"
+				}
+			]
+		},
+		{
+			"id": "weather/0615",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the wind doing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{wind}. steady. nothing to report"
+				}
+			]
+		},
+		{
+			"id": "weather/0616",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain is what's eating the vis"
+				},
+				{
+					"speaker": "root",
+					"text": "no, vis was {visibility} before any of it started"
+				}
+			]
+		},
+		{
+			"id": "weather/0617",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} came in off the water, i'd guess"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "wind's {wind} and pointing the other way"
+				},
+				{
+					"speaker": "root",
+					"text": "then i don't know where it came from"
+				}
+			]
+		},
+		{
+			"id": "weather/0619",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "vis {visibility}. the tower light is doing that thing where it—"
+				},
+				{
+					"speaker": "root",
+					"text": "it's a bad bulb. it's been a bad bulb for a year"
+				}
+			]
+		},
+		{
+			"id": "weather/0620",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain. the window on the north side leaks at this angle"
+				}
+			]
+		},
+		{
+			"id": "weather/0621",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{wind} m/s under {weather_summary} is the calmest we've had this week"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "tuesday was calmer. i wrote it down"
+				}
+			]
+		},
+		{
+			"id": "weather/0622",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{wind} again"
+				}
+			]
+		},
+		{
+			"id": "weather/0623",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.summary",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} over {location}. nobody's going to complain about that"
+				}
+			]
+		},
+		{
+			"id": "weather/0624",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "can you see the water tower"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. vis is {visibility}"
+				}
+			]
+		},
+		{
+			"id": "weather/0625",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary}, so everything out there is the same shade of nothing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the water still reads darker, it isn't uniform"
+				}
+			]
+		},
+		{
+			"id": "weather/0626",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "wind's {wind}"
+				},
+				{
+					"speaker": "root",
+					"text": "from where?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "depends which mast you believe"
+				}
+			]
+		},
+		{
+			"id": "weather/0627",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the gauge on the annex has read {rain} since the shift opened"
+				}
+			]
+		},
+		{
+			"id": "weather/0628",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{visibility} vis, so leave the gain where it—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's already there"
+				}
+			]
+		},
+		{
+			"id": "weather/0629",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "at {wind} m/s the mast oscillates, the readout averages that out"
+				}
+			]
+		},
+		{
+			"id": "weather/0630",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the summary field says {weather_summary}"
+				},
+				{
+					"speaker": "root",
+					"text": "roof camera disagrees"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the roof camera is pointed at a wall"
+				}
+			]
+		},
+		{
+			"id": "weather/0631",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "not all of the sky is weather"
+				}
+			]
+		},
+		{
+			"id": "weather/0632",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "i stopped looking out the window. the readout is more polite."
+				}
+			]
+		},
+		{
+			"id": "weather/0633",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "gauge still alive?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "reads {rain}, same as the annex one"
+				}
+			]
+		},
+		{
+			"id": "weather/0634",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{visibility} vis, worse than yesterday"
+				},
+				{
+					"speaker": "root",
+					"text": "yesterday you couldn't find the fence"
+				}
+			]
+		},
+		{
+			"id": "weather/0635",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "conditions record written"
+				},
+				{
+					"speaker": "root",
+					"text": "{weather_summary} again?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the field hasn't turned over since morning"
+				}
+			]
+		},
+		{
+			"id": "weather/0636",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s and the crane on the south block is swinging slow"
+				}
+			]
+		},
+		{
+			"id": "weather/0637",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the anemometer wants recalibrating, it's been flat at {wind} since—"
+				},
+				{
+					"speaker": "root",
+					"text": "log it"
+				}
+			]
+		},
+		{
+			"id": "weather/0638",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain, the annex drain takes it, the roof one never has"
+				}
+			]
+		},
+		{
+			"id": "weather/0639",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis is {visibility}, that's the haze off the tower"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "that's the yard burning again, different thing"
+				}
+			]
+		},
+		{
+			"id": "weather/0640",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "the rain here is older than the roof it lands on"
+				}
+			]
+		},
+		{
+			"id": "weather/0641",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary}. good news is the roof leaks either way."
+				}
+			]
+		},
+		{
+			"id": "weather/0642",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the mast reading?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{wind}, hasn't moved a decimal in an hour"
+				}
+			]
+		},
+		{
+			"id": "weather/0643",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain won't reach anything under the overhang"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "wind's {wind}, it comes in sideways on that side"
+				}
+			]
+		},
+		{
+			"id": "weather/0644",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "vis {visibility}"
+				},
+				{
+					"speaker": "root",
+					"text": "worth sitting on?"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it looked like this all last week"
+				}
+			]
+		},
+		{
+			"id": "weather/0645",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary}, and the vis reads {visibility} on both sensors"
+				}
+			]
+		},
+		{
+			"id": "weather/0646",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "at {wind} m/s i'd leave the trim alone and just—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the trim is already where you left it last week"
+				}
+			]
+		},
+		{
+			"id": "weather/0647",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain, so the pad is wet at the seams and dry in the middle"
+				}
+			]
+		},
+		{
+			"id": "weather/0648",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility} is the cloud deck sitting low"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's haze. the deck is well above {weather_summary} level."
+				}
+			]
+		},
+		{
+			"id": "weather/0649",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "weather is one of the things they let us keep"
+				}
+			]
+		},
+		{
+			"id": "weather/0650",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary}. my one good window and it's a wall."
+				}
+			]
+		},
+		{
+			"id": "weather/0651",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "has the rain let up at all"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "no. still {rain}."
+				}
+			]
+		},
+		{
+			"id": "weather/0652",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{wind} m/s, that's coming off the river"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "wrong side of the building for that"
+				}
+			]
+		},
+		{
+			"id": "weather/0653",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is {weather_summary} what the roof station is calling it too"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "roof station calls everything the same thing"
+				},
+				{
+					"speaker": "cron",
+					"text": "visibility field updated: {visibility}"
+				}
+			]
+		},
+		{
+			"id": "weather/0654",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "wind sample recorded: {wind} m/s"
+				}
+			]
+		},
+		{
+			"id": "weather/0655",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "vis is {visibility}, which is the same as it was when the shift—"
+				},
+				{
+					"speaker": "root",
+					"text": "i was here for that part"
+				}
+			]
+		},
+		{
+			"id": "weather/0656",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s is the ten-minute mean, not the gust"
+				}
+			]
+		},
+		{
+			"id": "weather/0657",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain under {weather_summary}, that's the tail end of it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's the front end. the pressure hasn't dropped yet."
+				}
+			]
+		},
+		{
+			"id": "weather/0658",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{weather_summary} suits the place better than sun did"
+				}
+			]
+		},
+		{
+			"id": "weather/0659",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{visibility} vis. everyone out there is having the same afternoon."
+				}
+			]
+		},
+		{
+			"id": "weather/0660",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "what's the summary field say"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary}"
+				}
+			]
+		},
+		{
+			"id": "weather/0661",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s and steady all morning"
+				},
+				{
+					"speaker": "root",
+					"text": "it wasn't steady. it dropped off around the shift change."
+				}
+			]
+		},
+		{
+			"id": "weather/0662",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"cron"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain is going to make the roof markings useless"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the markings were repainted, they hold wet"
+				},
+				{
+					"speaker": "cron",
+					"text": "conditions snapshot stored, vis {visibility}"
+				}
+			]
+		},
+		{
+			"id": "weather/0663",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary} across all of {location}, not just our block"
+				}
+			]
+		},
+		{
+			"id": "weather/0664",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "with {visibility} vis and {wind} m/s i'd say the afternoon is—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the afternoon is the afternoon"
+				}
+			]
+		},
+		{
+			"id": "weather/0665",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s on the roof station, {weather_summary} on the sheet, both logged"
+				}
+			]
+		},
+		{
+			"id": "weather/0666",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility} is the haze, not the cloud"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "cloud base is low enough to be both"
+				}
+			]
+		},
+		{
+			"id": "weather/0667",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "there's a month here that keeps coming back"
+				}
+			]
+		},
+		{
+			"id": "weather/0668",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain, and of course the one umbrella is in the van"
+				}
+			]
+		},
+		{
+			"id": "weather/0669",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "has it been {weather_summary} since this morning"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "since before that"
+				}
+			]
+		},
+		{
+			"id": "weather/0670",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s is off the north sensor"
+				},
+				{
+					"speaker": "root",
+					"text": "north one's been shaded by the crane for a week"
+				}
+			]
+		},
+		{
+			"id": "weather/0671",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility",
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility}, that's the rain doing it"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain doesn't move vis that far"
+				},
+				{
+					"speaker": "root",
+					"text": "then something else is"
+				}
+			]
+		},
+		{
+			"id": "weather/0672",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary} sits on {location} longer than it does anywhere inland"
+				}
+			]
+		},
+		{
+			"id": "weather/0673",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "at {wind} m/s you'd want to check the trim before—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "trim was checked at shift open"
+				}
+			]
+		},
+		{
+			"id": "weather/0674",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "weather summary changed: {weather_summary}"
+				}
+			]
+		},
+		{
+			"id": "weather/0675",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the sheet says {rain} rain"
+				},
+				{
+					"speaker": "root",
+					"text": "the courtyard puddles say otherwise"
+				}
+			]
+		},
+		{
+			"id": "weather/0676",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{weather_summary}. someone always asks about that one."
+				}
+			]
+		},
+		{
+			"id": "weather/0677",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility}, so the view is free today"
+				}
+			]
+		},
+		{
+			"id": "weather/0678",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "which sensor is giving us {wind}"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the annex mast, same as always"
+				}
+			]
+		},
+		{
+			"id": "weather/0679",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} usually keeps the vis honest"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it reads {visibility}, so no"
+				}
+			]
+		},
+		{
+			"id": "weather/0680",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "wind swung sometime after the {weather_summary} came in"
+				},
+				{
+					"speaker": "root",
+					"text": "swung to what"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s, direction field is blank"
+				}
+			]
+		},
+		{
+			"id": "weather/0681",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain, vis {visibility}, and the street below is perfectly dry"
+				}
+			]
+		},
+		{
+			"id": "weather/0682",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "vis {visibility} means the far markers are gone, so the frame reference—"
+				},
+				{
+					"speaker": "root",
+					"text": "use the tower, it's closer"
+				}
+			]
+		},
+		{
+			"id": "weather/0683",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "rain state: {rain}"
+				}
+			]
+		},
+		{
+			"id": "weather/0684",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} is just the season over {location}"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the season here is dry, this isn't it"
+				}
+			]
+		},
+		{
+			"id": "weather/0685",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "three buildings on this street have no weather at all"
+				}
+			]
+		},
+		{
+			"id": "weather/0686",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s, which is exactly what the sheet said it would be"
+				}
+			]
+		},
+		{
+			"id": "weather/0687",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "how bad is the vis"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{visibility}, same reading on both units"
+				}
+			]
+		},
+		{
+			"id": "weather/0688",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{rain} rain, that's nothing"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it's enough to soak the cabling run on the roof"
+				}
+			]
+		},
+		{
+			"id": "weather/0689",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary} is sitting on us since the shift opened"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "wind's been {wind} the whole time under it"
+				},
+				{
+					"speaker": "root",
+					"text": "then something's holding it there"
+				}
+			]
+		},
+		{
+			"id": "weather/0690",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary",
+				"area.name"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{weather_summary} over {location} and the coast is clear as glass"
+				}
+			]
+		},
+		{
+			"id": "weather/0691",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility} means the far markers are gone and we'd be flying on—"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the markers were repainted last month, nobody can read them anyway"
+				}
+			]
+		},
+		{
+			"id": "weather/0692",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{wind} m/s is the roof sensor, the ground one always reads lower"
+				}
+			]
+		},
+		{
+			"id": "weather/0693",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.summary",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "the sheet calls it {weather_summary}, the vis says otherwise"
+				},
+				{
+					"speaker": "root",
+					"text": "{visibility} vis fits {weather_summary} fine"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "not with the cloud base where it is"
+				}
+			]
+		},
+		{
+			"id": "weather/0694",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{rain} rain, and it stops at the fence line"
+				}
+			]
+		},
+		{
+			"id": "weather/0695",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{weather_summary}. the one day i brought the good jacket."
+				}
+			]
+		},
+		{
+			"id": "weather/0696",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "is the rain still logging"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "{rain}, updated a minute ago"
+				}
+			]
+		},
+		{
+			"id": "weather/0697",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "{wind} m/s is off the river, it always is"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the vane says north, the river's the other way"
+				}
+			]
+		},
+		{
+			"id": "weather/0698",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.visibility",
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility} and it hasn't moved all afternoon"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "it moved, the sensor just averages it flat"
+				},
+				{
+					"speaker": "root",
+					"text": "so which one of you is lying"
+				}
+			]
+		},
+		{
+			"id": "weather/0699",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"cron"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "cron",
+					"text": "summary field updated: {weather_summary}"
+				}
+			]
+		},
+		{
+			"id": "weather/0700",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail",
+				"root"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "at {wind} m/s the mast sway is inside tolerance, so the reading is—"
+				},
+				{
+					"speaker": "root",
+					"text": "nobody asked about the mast"
+				}
+			]
+		},
+		{
+			"id": "weather/0701",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"mikhail"
+			],
+			"requires": [
+				"weather.rain",
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "mikhail",
+					"text": "{rain} rain and vis {visibility}, both sampled off the same head"
+				}
+			]
+		},
+		{
+			"id": "weather/0702",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root",
+				"mikhail"
+			],
+			"requires": [
+				"weather.summary"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "that's not {weather_summary}, that's just haze"
+				},
+				{
+					"speaker": "mikhail",
+					"text": "the station disagrees and the station is calibrated"
+				}
+			]
+		},
+		{
+			"id": "weather/0703",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"jensen"
+			],
+			"requires": [
+				"weather.windMs"
+			],
+			"lines": [
+				{
+					"speaker": "jensen",
+					"text": "{wind} m/s. the same number was on the board in the old office."
+				}
+			]
+		},
+		{
+			"id": "weather/0704",
+			"events": [
+				"WEATHER"
+			],
+			"rarity": "COMMON",
+			"characters": [
+				"root"
+			],
+			"requires": [
+				"weather.visibility"
+			],
+			"lines": [
+				{
+					"speaker": "root",
+					"text": "vis {visibility}, so the view from the break room is finally honest"
+				}
+			]
 		}
 	]
 }
