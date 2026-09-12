@@ -15,7 +15,7 @@
 // de 1995-99, le tribal-goa de 1997-2000. Viser l'ancêtre plutôt que le
 // revival garde l'unité du jeu sans rien s'interdire.
 //
-// Ces sept prompts définissent le centre de gravité, PAS sept genres verrouillés :
+// Ces huit prompts définissent le centre de gravité, PAS huit genres verrouillés :
 // buildPrompt() les décale sur six axes pour que deux morceaux d'une même
 // famille se ressemblent sans être le même.
 //
@@ -26,7 +26,10 @@
 import { rngFrom } from './target-build.mjs';
 
 // Les six clés de famille sont celles de src/drone-profiles.js FAMILIES, plus
-// `menu` qui n'est pas un drone mais l'ambiance du terminal.
+// deux qui n'y sont pas : `menu`, qui n'est pas un drone mais l'ambiance du
+// terminal, et `swarmNode`, la famille délibérément absente de FAMILIES — le
+// nœud de commandement d'un essaim, jamais un candidat ordinaire, jamais un
+// ambiant, mais bel et bien PILOTÉ (issue #116).
 export const MUSIC_POOLS = [
 	'menu',
 	'freestyle5',
@@ -35,6 +38,7 @@ export const MUSIC_POOLS = [
 	'longrange',
 	'heavy5',
 	'toothpick',
+	'swarmNode',
 ];
 
 // Le noyau de chaque pool. `core` est la description de genre, `bpm` la
@@ -148,6 +152,58 @@ export const POOLS = {
 			+ 'agile melodic sequences, warm digital synthesizer textures, '
 			+ 'underground PC and rave culture atmosphere, energetic and lightweight',
 	},
+	// La huitième entrée, et la seule qui ne soit pas dans FAMILIES : le nœud de
+	// commandement d'un essaim (issue #116). Le vol le plus rare du jeu était
+	// aussi le seul à se jouer en silence.
+	//
+	// La cible a été choisie en écoute comparée, une mécanique d'inquiétude à la
+	// fois. Ce qui a été ÉCARTÉ compte autant que ce qui reste :
+	//   — le pulse fin et nu de Carpenter, parce qu'il contredit le hoover : la
+	//     peur fine et sèche et la peur grasse et désaccordée ne sont pas la
+	//     même peur, et un prompt qui demande les deux fait trancher le modèle ;
+	//   — la mesure impaire de `Halloween`, juste sur le fond (un motif qui ne
+	//     tombe jamais) mais que Stable Audio suit mal ;
+	//   — le cluster dissonant, qui est le terrain de `menu` ;
+	//   — la sirène industrielle, doublon du hoover.
+	//
+	// Carpenter reste, mais pour son OSSATURE — ostinato mineur figé sur une
+	// pédale de basse immobile — pas pour son timbre. C'est aussi ce qui règle
+	// une vieille tension : `longrange` v3 avait produit du Carpenter et l'avait
+	// rejeté (trop lent, trop statique), et sa v4 passe son temps à le fuir. Ici
+	// il a enfin une maison.
+	swarmNode: {
+		label: 'SWARM NODE',
+		// Le nœud est une machine lourde qui porte son élan. Descendre le centre
+		// le sépare de RACE (142-154) par le TEMPO en plus du timbre. Le
+		// recouvrement qui reste est celui de MICRO (132-144), où aucune
+		// confusion n'est possible : trance claire et euphorique d'un côté,
+		// techno sèche en mineur de l'autre.
+		bpm: [132, 142],
+		feel: 'menace qui avance, motif qui ne lâche pas, une masse qui se rapproche',
+		// « dry close-miked, almost no reverb » n'est pas un détail de
+		// production : c'est ce qui sépare ce pool de HEAVY, entièrement bâti
+		// sur les longues décroissances et l'espace du temple.
+		//
+		// L'ATTAQUE IMMÉDIATE est une contrainte de jeu, pas un goût. Ce morceau
+		// démarre au DROP, à la fin du hack, là où il faut de l'impact — une
+		// mise en place de vingt secondes y est rédhibitoire. La v1 disait
+		// « slowly swelling sub bass growing under everything » : une
+		// instruction de montée, et les trois morceaux mettaient trop longtemps
+		// à se poser. Le sub reste, mais présent d'emblée.
+		//
+		// Le rognage de tête de music-loop.mjs ne sauve pas : il ne coupe que le
+		// SILENCE mesuré, pas une intro douce.
+		core: 'dark industrial hard techno with an early-1980s horror-score motif on top, '
+			+ 'starts immediately in full flow, the groove already running from the first bar, '
+			+ 'no intro, no build-up, no gradual fade-in, '
+			+ 'hard mechanical four-to-the-floor kick leading the whole track, '
+			+ 'obsessive four-note minor ostinato repeating without variation over a static bass pedal, '
+			+ 'fat detuned screaming hoover lead used as a recurring alarm, '
+			+ 'constant deep sub bass pressure underneath, never letting go, '
+			+ 'dry close-miked production with almost no reverb, everything pressed against the ear, '
+			+ 'stalking and relentless, something large closing in formation, '
+			+ 'vintage analog sequencers, cold polysynth and overdriven drum machines',
+	},
 };
 
 // Les six axes de variation de l'issue #122. Chaque axe propose trois
@@ -195,6 +251,27 @@ export const POOL_AXIS_BANS = {
 		// Le grain tracker jure avec le temple : HEAVY est organique.
 		grain: ['gritty digital samplers, early tracker character'],
 	},
+	swarmNode: {
+		// Le mode d'échec documenté de `longrange` v3 : un noyau d'horreur plus
+		// un axe qui retient donne du statique, et le statique n'inquiète pas —
+		// il endort. Le noyau dit « leading », « relentless ».
+		energy: ['restrained and patient'],
+		// Le SEUL bannissement de cet axe du fichier, et le plus important :
+		// éclaircir ce pool l'annule. Tout le reste — l'ostinato, le hoover, le
+		// sub qui monte — ne vaut que sombre.
+		darkness: ['brighter and more open'],
+		aggression: ['smooth and rounded'],        // vs « screaming », « overdriven »
+		// Même leçon que `menu`, pour une raison différente : ici « sparse »
+		// contredit « already running from the first bar » et rend un morceau
+		// qui s'installe au lieu de frapper. Le tirage qui l'avait reçu était
+		// le plus faible du premier lot de 5,6 dB.
+		density: ['sparse arrangement, lots of space'],
+		// Même raison que heavy5 : le grain tracker jure avec « vintage analog
+		// sequencers ».
+		grain: ['gritty digital samplers, early tracker character'],
+		// `atmosphere: 'hypnotic and repetitive'` reste AUTORISÉ et souhaité :
+		// c'est la définition de l'ostinato, pas une contradiction.
+	},
 	menu: {
 		// Les DEUX extrêmes, et c'est le second qui a mordu à l'écoute.
 		// Le noyau dit déjà « sparse minimal percussion, patient and watchful » ;
@@ -218,7 +295,7 @@ export const POOL_AXIS_BANS = {
 // de festival ou de la musique de bande-annonce.
 export const NEGATIVES_COMMON = 'no festival EDM, no modern EDM drop, no cinematic trailer music';
 
-// Six familles sur sept sont strictement instrumentales.
+// Sept pools sur huit sont strictement instrumentaux.
 export const NO_VOICE = 'instrumental, no vocals';
 
 // HEAVY est la seule exception, et elle est étroite : un chœur traité comme un

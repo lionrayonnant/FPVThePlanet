@@ -20,6 +20,13 @@ rapport avec les versions ci-dessous.
 
 ### Ajouté
 
+- Un pool musical pour SWARM NODE (#116). La 7ᵉ famille — le nœud de
+  commandement d'un essaim — était absente de `MUSIC_POOLS` : le vol le plus
+  rare du jeu était aussi le seul à se jouer en silence. Son noyau est une
+  techno dure menée par le kick, hoover gras en lead, sèche et proche ; à
+  Carpenter elle emprunte l'ossature — ostinato mineur figé sur une pédale de
+  basse immobile — et non le timbre. 132-142 BPM.
+
 - Mode turtle (#105). Une machine sur le dos n'avait qu'une issue depuis D9 :
   couper le lien et la perdre. Une touche — `T` par défaut, remappable comme les
   autres — la remet à l'endroit, et la ligne `[T] TURTLE` s'affiche à l'écran
