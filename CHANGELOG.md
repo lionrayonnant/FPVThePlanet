@@ -21,8 +21,8 @@ rapport avec les versions ci-dessous.
 ### Ajouté
 
 - Bibliothèque musicale : 143 pistes au lieu de 73. Chaque pool double à peu
-  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Une
-  piste `heavy5` retirée, manifeste et fichier.
+  près, et le drone d'essaim reçoit enfin le sien, `swarmNode`, 10 pistes. Aucune
+  piste retirée.
 - Dialogue : un nouveau lot d'environ 100 répliques par shard sur les onze
   événements, soit 1 100 entrées de plus.
 - JUKEBOX (#120), cinquième voie à la racine : la bibliothèque musicale entière,
@@ -90,6 +90,21 @@ rapport avec les versions ci-dessous.
   une brume vue en enfilade.
 
 ### Corrigé
+
+- Le randomart rend la main au drone, et à rien d'autre (#122). Signalé au jeu :
+  après l'empreinte de `CONTROL ACQUIRED`, l'écran montrait la carte — vue de
+  DESSOUS en reconnaissance FIELD — puis le drone apparaissait un battement plus
+  tard. Tout ce qui se voit d'un vol était monté APRÈS la résolution du hack,
+  donc après le fondu qui emmène son fond noir : la caméra de la cible, les
+  hélices dans le cadre, la disposition de l'OSD et son allumage attendaient un
+  `session.open()` — un aller-retour serveur. Et `bootLive()` ne posait jamais sa
+  caméra, restée à l'origine ENU, soit l'altitude 0 de l'ellipsoïde : sous le
+  terrain, d'où la carte vue de dessous. Le vol s'arme désormais pendant que
+  quelque chose le couvre encore : au geste `[ JACK IN ]` sur FIELD — jamais au
+  boot, parce que tous les écrans d'avant le geste peuvent encore renoncer et que
+  renoncer ne doit rien laisser derrière, pas même une session `PENDING` —, sous
+  l'écran de chargement partout ailleurs. La caméra se pose sur la machine,
+  assiette d'entrée comprise, dans les deux moitiés de boot.
 
 - Le flapback de #91 rendait l'appareil impilotable, il est retiré (#103).
   Signalé au jeu : le drone part en vrille et ne se rattrape pas. Sur un banc
