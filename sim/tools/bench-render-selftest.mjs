@@ -52,11 +52,11 @@ await ta('mode select : les quatre voies, avec ce que chacune coûte', async () 
 	const text = dom.root.textContent;
 	assert.ok(text.includes(MODE_SELECT.title), 'le titre');
 	// D3/D6 : l'ORDRE est le message — voler, puis le banc, puis ce qui est
-	// froid, puis les réglages. DATA et SETTINGS ne sont plus des liens
-	// enterrés dans un onglet de FIELD.
+	// froid, puis ce qui s'écoute, puis les réglages. DATA, JUKEBOX et SETTINGS
+	// ne sont plus des liens enterrés dans un onglet de FIELD.
 	const ctas = dom.root.querySelectorAll('.bench-mode').map((w) => w.querySelector('button').textContent);
-	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ DATA ]', '[ SETTINGS ]']);
-	for (const m of ['field', 'bench', 'data', 'settings']) {
+	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ DATA ]', '[ JUKEBOX ]', '[ SETTINGS ]']);
+	for (const m of ['field', 'bench', 'data', 'jukebox', 'settings']) {
 		for (const l of MODE_SELECT[m].lines) assert.ok(text.includes(l), `« ${l} » est affichée`);
 	}
 	btn('FIELD').click();

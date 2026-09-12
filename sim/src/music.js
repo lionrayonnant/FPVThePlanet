@@ -72,21 +72,23 @@ export class Music {
 	}
 
 	/**
-	 * Décode un morceau sans le jouer. Appelé pendant que l'écran de hack
-	 * tourne, en parallèle du préchargement de la scène : au moment du drop le
-	 * buffer doit déjà être là, un fetch à cet instant se verrait.
+	 * Décode un morceau SANS RIEN RETENIR, et rend `{ entry, buffer }`, prêt à
+	 * passer en `ready` à play().
+	 *
+	 * C'est par là que précharge la radio (src/radio.js), et c'est délibéré :
+	 * `this.pending` est un créneau UNIQUE, partagé avec le chemin du jeu. Une
+	 * radio qui préchargerait par prepare() verrait un hack lancé pendant
+	 * qu'elle joue échanger le buffer sous elle.
 	 */
-	async prepare(entry) {
+	async decode(entry) {
 		if (!entry || this.failed) return null;
-		if (this.pending?.entry?.id === entry.id) return this.pending;
 		const ctx = ensureContext();
 		if (!ctx) return null;
 		try {
 			const res = await fetch(`${import.meta.env.BASE_URL}${entry.file}`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
-			this.pending = { entry, buffer };
-			return this.pending;
+			return { entry, buffer };
 		} catch (e) {
 			console.warn(`[music] ${entry.id} illisible (${e.message})`);
 			return null;
@@ -94,11 +96,38 @@ export class Music {
 	}
 
 	/**
-	 * Joue le morceau préparé. Si une voix tourne déjà, elle s'efface en
-	 * `fadeMs` pendant que la nouvelle entre — c'est le passage menu → drone.
+	 * Décode un morceau sans le jouer et le retient dans le créneau partagé.
+	 * Appelé pendant que l'écran de hack tourne, en parallèle du préchargement
+	 * de la scène : au moment du drop le buffer doit déjà être là, un fetch à
+	 * cet instant se verrait.
 	 */
-	play({ intensity = PHASE_INTENSITY.MENU, fadeMs = FADE.menuToHack } = {}) {
-		const ready = this.pending;
+	async prepare(entry) {
+		if (entry && this.pending?.entry?.id === entry.id) return this.pending;
+		const ready = await this.decode(entry);
+		if (ready) this.pending = ready;
+		return ready;
+	}
+
+	/**
+	 * Joue un morceau décodé. Si une voix tourne déjà, elle s'efface en
+	 * `fadeMs` pendant que la nouvelle entre — c'est le passage menu → drone.
+	 *
+	 * Les quatre options qui suivent existent toutes pour la radio
+	 * (src/radio.js) et valent par défaut ce que le jeu a toujours fait :
+	 *
+	 * `ready`    le morceau à jouer. Par défaut le créneau partagé, que la
+	 *            lecture consomme ; la radio passe le sien, décodé à part.
+	 * `loop`     une voix bouclée ne se termine JAMAIS d'elle-même. La radio,
+	 *            elle, a besoin d'une fin — c'est son signal d'enchaînement.
+	 * `onEnded`  appelé à cette fin naturelle, et à elle seule.
+	 * `remember` l'anneau des récents existe pour que les tirages DU JEU ne se
+	 *            répètent pas. Une session d'écoute le remplirait (12 de
+	 *            profondeur) et fausserait durablement les tirages en vol.
+	 */
+	play({
+		intensity = PHASE_INTENSITY.MENU, fadeMs = FADE.menuToHack,
+		ready = this.pending, loop = true, onEnded = null, remember = true,
+	} = {}) {
 		if (!ready) return false;
 		const ctx = ensureContext();
 		if (!ctx) return false;
@@ -108,7 +137,7 @@ export class Music {
 		const { cutoffHz, gain } = intensityParams(intensity);
 		const source = ctx.createBufferSource();
 		source.buffer = ready.buffer;
-		source.loop = true;   // les fichiers sont pré-bouclés par tools/music-loop.mjs
+		source.loop = loop;   // les fichiers sont pré-bouclés par tools/music-loop.mjs
 
 		const lowpass = ctx.createBiquadFilter();
 		lowpass.type = 'lowpass';
@@ -124,15 +153,46 @@ export class Music {
 		const duck = ctx.createGain();
 		duck.gain.value = 1;
 
+		const voice = { source, lowpass, gain: gainNode, duck, entry: ready.entry, retired: false };
+
+		// LE propriétaire unique de `onended`, et c'est tout le sujet. Il se
+		// déclenche pour DEUX raisons qu'il faut distinguer : la fin naturelle
+		// d'une voix non bouclée, et le stop() programmé par _retire() quand on
+		// la remplace en fondu. `retired` est ce qui les sépare — sans lui, un
+		// NEXT pressé pendant un fondu annoncerait une fin qui n'a pas eu lieu
+		// et ferait double-avancer la radio.
+		//
+		// Le démontage vit ici pour les deux chemins : c'est le seul endroit
+		// où l'on peut déconnecter sans couper le fondu, et sans lui chaque
+		// transition laisserait un AudioBuffer vivant.
+		source.onended = () => {
+			try {
+				source.disconnect();
+				lowpass.disconnect();
+				gainNode.disconnect();
+				duck.disconnect();
+			} catch { /* déjà démonté */ }
+			source.buffer = null;
+			if (voice.retired) return;
+			// Fin naturelle : plus rien ne joue. Le garde d'identité empêche un
+			// NEXT rapide d'annuler la voix NEUVE au lieu de celle qui finit.
+			if (this.current === voice) { this.current = null; this.intensity = 0; }
+			onEnded?.(voice.entry);
+		};
+
 		source.connect(lowpass).connect(gainNode).connect(duck).connect(musicIn());
 		source.start();
 		this.nodesCreated += 4;
 
-		this.current = { source, lowpass, gain: gainNode, duck, entry: ready.entry };
-		this.pending = null;
+		this.current = voice;
+		// Ne vider QUE le créneau partagé : la radio joue le sien, qui n'y est
+		// jamais passé.
+		if (ready === this.pending) this.pending = null;
 		this.intensity = intensity;
-		this.recent = pushRecent(this.recent, ready.entry.id);
-		writeRecent(this.recent);
+		if (remember) {
+			this.recent = pushRecent(this.recent, ready.entry.id);
+			writeRecent(this.recent);
+		}
 		return true;
 	}
 
@@ -190,27 +250,21 @@ export class Music {
 	}
 
 	/**
-	 * Éteint une voix et la démonte. `onended` est le seul endroit où l'on peut
-	 * déconnecter sans couper le fondu : sans ce démontage, chaque transition
-	 * laisserait un AudioBuffer vivant et la mémoire monterait sur une longue
-	 * session.
+	 * Éteint une voix. Le démontage, lui, vit dans le `onended` posé par
+	 * play() — c'est le seul endroit où l'on peut déconnecter sans couper le
+	 * fondu, et le poser une seule fois est ce qui permet de distinguer une
+	 * voix qu'on retire d'un morceau qui se termine.
 	 */
 	_retire(voice, fadeMs) {
 		const ctx = ensureContext();
 		if (!ctx) return;
+		// AVANT le stop() : c'est ce drapeau que lira le onended déclenché par
+		// l'arrêt programmé ci-dessous. Une voix retirée ne s'annonce pas finie.
+		voice.retired = true;
 		const endsAt = ctx.currentTime + Math.max(0.01, fadeMs / 1000);
 		voice.gain.gain.cancelScheduledValues(ctx.currentTime);
 		voice.gain.gain.setValueAtTime(voice.gain.gain.value, ctx.currentTime);
 		voice.gain.gain.linearRampToValueAtTime(0, endsAt);
-		voice.source.onended = () => {
-			try {
-				voice.source.disconnect();
-				voice.lowpass.disconnect();
-				voice.gain.disconnect();
-				voice.duck.disconnect();
-			} catch { /* déjà démonté */ }
-			voice.source.buffer = null;
-		};
 		try { voice.source.stop(endsAt); } catch { /* déjà arrêté */ }
 	}
 
