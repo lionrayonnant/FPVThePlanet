@@ -481,7 +481,10 @@ const _fenceForce = { x: 0, y: 0, z: 0 };
 // Le manifeste de la scène, hissé de boot() : l'OSD drone en tire la lat/lon.
 let sceneManifest = null;
 let emitter = null;
-// Le drone du joueur (issue #264) : monté à l'ouverture de session, une fois la
+// armFlight()'s promise, which arms exactly once: the boot calls it, the
+// startup() chain awaits it (see armFlight()).
+let flightArming = null;
+// Le drone du joueur (issue #264) : monté à l'armement du vol, une fois la
 // caméra de la cible connue — la recette lit son uptilt. Null au banc en vol
 // libre ?live=, comme les ambiants : ce chemin de dev ne monte pas de caméra.
 let playerDrone = null;
@@ -944,7 +947,13 @@ function exposeDebugGlobal() {
 	window.__simInput = null;
 }
 
-async function finishBoot(preloading) {
+// `arm` (#122, voir armFlight()) : qui monte le vol — la cible, la caméra de la
+// machine, ses hélices, son OSD — et donc QUAND. Vrai par défaut, sous l'écran
+// de chargement, qui est le seul à couvrir ce moment sur les chemins sans
+// cérémonie (?scene=, l'override ?family=, le banc). Les chemins FIELD passent
+// faux : là, c'est le geste [ JACK IN ] qui arme, parce que rien ne doit
+// toucher au monde avant lui et que tout doit être en place après lui.
+async function finishBoot(preloading, { arm = true } = {}) {
 	const preloaded = await preloading;
 	const { manifest, meshes, collision, t0 } = preloaded;
 
@@ -1077,13 +1086,14 @@ async function finishBoot(preloading) {
 
 	// Draw one frame here so any remaining driver-side work happens behind the
 	// loading screen rather than as a frozen first frame.
-	// Draw one frame here so any remaining driver-side work happens behind the
-	// loading screen rather than as a frozen first frame.
 	stage('first-frame');
 	hud.progress('premier rendu…', 0.98);
 	hud.detail('');
 	await nextPaint();
-	camera.position.set(physics.position.x, physics.position.y, physics.position.z);
+	// The camera onto the machine, entry attitude included — the frame drawn
+	// here is then the one flight starts on, and nothing has to snap into place
+	// when the loading screen (or the hack screen) lets go.
+	placeCamera(0);
 	// Through the composer, not the renderer: otherwise the lens pass compiles its
 	// shader on the first frame of flight instead of behind the loading screen.
 	lens.render(camera, 1 / 60);
@@ -1168,6 +1178,20 @@ async function finishBoot(preloading) {
 	lens.setLink({ mode: lensLinkMode, severity: linkCfg.severity });
 
 
+	// Armed under the loading screen: the target is resolved, the camera sits on
+	// the machine (entry attitude included), its props are in frame and its OSD
+	// is up — all of it before the screen lets go, never after. After the
+	// weather, because session.open() carries its snapshot away.
+	if (arm) {
+		hud.progress('acquisition de la cible…', 0.99);
+		await nextPaint();
+		await armFlight();
+		// A second frame, now that the onboard pass and the OSD exist: their
+		// shaders compile here, behind the loading screen, rather than on the
+		// first frame of flight.
+		lens.render(camera, 1 / 60);
+	}
+
 	timeline[timeline.length - 1].ms = Math.round(performance.now() - timeline[timeline.length - 1].at);
 	console.table(timeline.map(s => ({ étape: s.name, ms: s.ms })));
 	console.log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
@@ -1201,7 +1225,7 @@ const ROCKTREE_LEVEL = 21;
 // Boot minimal pour ?live=lat,lon (#168) : pas de manifest, pas de
 // collision.bin, pas de météo. Origine ENU fixée UNE FOIS ici, au point de
 // spawn — pas de recentrage en vol (hors périmètre, voir la spec).
-async function bootLive([lat, lon]) {
+async function bootLive([lat, lon], { arm = true } = {}) {
 	// Trois latences indépendantes, RECOUVERTES plutôt qu'additionnées (#21) :
 	// l'init de Rapier (chunk WASM à charger et compiler), la première
 	// traversée rocktree (6 frontières de bulks séquentielles sur le réseau)
@@ -1460,6 +1484,17 @@ async function bootLive([lat, lon]) {
 	controller = new FlightController({ profile: PROFILE, rates: benchRates ?? undefined });
 
 	audio.start();
+	// The camera onto the machine before the first frame (#122), on every path and
+	// whoever arms the flight. Without it it stays at the ENU origin —
+	// ellipsoid altitude 0, so UNDER the terrain — and what appears is the map
+	// seen from below. The scene path gets this from its own first-frame stage.
+	placeCamera(0);
+	// `?live=` is a dev shortcut that mounts neither target nor OSD (see
+	// openFlightSession()): it only ever had its camera to place.
+	if (arm) {
+		if (OPTS.live) setView('fpv');
+		else await armFlight();
+	}
 	renderer.compile(scene, camera);
 	hud.ready();
 	// window.__sim doit exister avant la première frame : c'est ce que toute
@@ -1868,6 +1903,16 @@ function frame() {
 	// est gelée arme le drone à l'insu du joueur — taper dans le panneau de
 	// remappage suffisait à mettre le gaz à fond.
 	const frozen = simFrozen();
+
+	// The drone's OSD is mounted BEFORE the flight (armFlight()), so it is
+	// already on screen under the last hack screen — which is the point: the
+	// randomart fades onto it. But its clock is a wall clock, and the freeze
+	// has no defined length: the [ JACK IN ] prompt waits for the player as
+	// long as they want. So the start stays pinned to now for as long as the
+	// freeze holds; openFlightSession() sets it one last time when control is
+	// handed over. Without this the revealed OSD showed the time spent in the
+	// hack, then jumped back to zero.
+	if (introFrozen) sessionStartedAt = Date.now();
 
 	const sticks = window.__simInput ?? input.update(dt, { frozen });
 	audio.setMuted(frozen);
@@ -3030,7 +3075,9 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			benchRates = build.rates;
 			logBuild(build);
 			console.log(`[field] vol en direct → ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-			const booting = bootLive(flyChoice.live);
+			// `arm: false` : c'est le geste [ JACK IN ] qui arme le vol, pas le
+			// boot — voir armFlight() et le `commit` de runHack() plus bas.
+			const booting = bootLive(flyChoice.live, { arm: false });
 
 			// La musique se charge DERRIÈRE l'écran de hack (issue #33), pas
 			// devant. L'attendre laissait l'écran VIDE — le TARGET SCAN démonté,
@@ -3047,7 +3094,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 				.catch((err) => console.warn('[music] piste du hack indisponible', err));
 			// Le terrain se streame DERRIÈRE l'écran de hack, exactement comme la
 			// scène cuite se charge derrière lui : c'est à ça que sert cet écran.
-			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
+			const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed, commit: armFlight });
 			// Abandon au hack : contrairement à l'Échap du TARGET SCAN juste
 			// au-dessus, `booting` a déjà monté le terrain vivant dans la scène
 			// (bootLive() est placé volontairement AVANT le choix de cible, alors
@@ -3130,7 +3177,9 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		flightBuildSeed = buildSeed;
 		controller = new FlightController({ profile: PROFILE, rates: build.rates });
 		logBuild(build);
-		const booting = finishBoot(preloading);
+		// `arm: false` : même règle que le chemin en direct juste au-dessus, le
+		// geste [ JACK IN ] arme le vol (voir le `commit` de runHack()).
+		const booting = finishBoot(preloading, { arm: false });
 		// Le morceau se décode PENDANT l'AUTOMATED ANALYSIS, en parallèle du
 		// chargement de la scène : au drop le buffer doit déjà être là. Le tirage
 		// est déterministe sur buildSeed — reprendre une session, c'est reprendre ce
@@ -3152,7 +3201,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			.then(() => music.prepare(music.trackForFamily(cand._family, buildSeed)))
 			.then(() => music.play({ intensity: PHASE_INTENSITY.HACK, fadeMs: FADE.menuToHack }))
 			.catch((err) => console.warn('[music] piste du hack indisponible', err));
-		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed });
+		const hack = await runHack(ui, { hackType: cand._hackType, family: cand._family, ready: booting, candidate: cand, buildSeed, commit: armFlight });
 		// Abandon au hack : `booting` (finishBoot()) a déjà monté le terrain dans
 		// la scène — « Le montage dans la scène a lieu ICI et pas dans
 		// preloadScene() : à partir de cet instant la zone est engagée, on ne
@@ -3355,9 +3404,10 @@ function bootFailureMessage(err) {
 	return err.message;
 }
 
-// Ouvre la session dès que la première image de vol est prête (PHASE 06). La
-// météo est déjà résolue par boot(). Une ouverture qui échoue ne bloque pas le
-// vol — la session est du décor, pas une dépendance du moteur.
+// THE HANDOVER: what is left to do once the last hack screen has given control
+// back — the drop, and the flight clock. Everything else — the open session
+// (PHASE 06), the target's camera, the props, the OSD — was armed DURING the
+// load by armFlight(), just below.
 async function openFlightSession() {
 	// `return;` dans le `.then((choice) => { if (choice === null) return; ... })`
 	// juste au-dessus ne coupe QUE ce callback, pas la chaîne : `.then(openFlightSession)`
@@ -3383,19 +3433,57 @@ async function openFlightSession() {
 	// Dev-only ?live= shortcut. A LIVE flight chosen from the terminal opens a session below (#218).
 	// Every flight starts in FPV (D11), this path included.
 	if (OPTS.live) { setView('fpv'); return; }
+	// Already armed by the boot — behind the loading screen, or behind the hack
+	// screen, which awaits this very promise. Awaiting it here all the same is
+	// what guarantees that no path can ever fly without a camera or without an
+	// OSD, however it reached the flight.
+	await armFlight();
 	// Le drop. La musique passe du filtre fermé de l'écran de hack au plein
 	// spectre : c'est la décharge, et c'est le seul moment de l'arc qui doit
 	// s'entendre comme un événement plutôt que comme une dérive.
 	music.drop();
-	spawnY = physics.spawn.y;
-	spawnX = physics.spawn.x;
-	spawnZ = physics.spawn.z;
+	// The flight clock starts HERE and not at the arming: between the two sits
+	// the [ JACK IN ] prompt, which has no duration — the player can stare at
+	// it for a minute. frame() keeps this clock pinned for the whole freeze
+	// (introFrozen), so that the OSD already mounted under the last hack screen
+	// reads 0 there rather than the time spent in front of the prompt.
 	sessionStartedAt = Date.now();
 	// D16 : briefed, never flown, not the bench — the only flight that gets the
 	// three hints.
 	hintFlight = !MODE.bench && firstFlightPending(localStorage);
 	hintAirborneAt = null;
 	fpvtpOsd.setHint(null);
+}
+
+// Everything the FIRST VISIBLE frame of a flight must already carry (#122): the
+// resolved target, the machine's camera, its props in frame and its OSD.
+//
+// This used to run after the last hack screen had faded INTO the video feed,
+// and session.open() is a server round trip: the randomart gave way to a bare
+// map, seen from a camera still sitting at the ENU origin (under the ground on
+// the live path), with no OSD at all, and the drone popped in a beat later.
+// CONTROL ACQUIRED now hands over straight to the machine's own OSD.
+//
+// Two call sites, and the split is the whole point:
+//
+//   - on FIELD, the `commit` of runHack() — the [ JACK IN ] gesture. Not the
+//     boot: every screen before that gesture still aborts, and abandoning a
+//     hack must leave NOTHING behind, least of all a session on the server.
+//     The culmination and the machine's print cover the round trip.
+//   - everywhere else (?scene=, the dev ?family= override, the bench), the
+//     boot itself, under the loading screen, which is what covers it there.
+//
+// Idempotent: openFlightSession() awaits it either way, and one of the two has
+// always already run.
+function armFlight() {
+	flightArming ??= armFlightOnce();
+	return flightArming;
+}
+
+async function armFlightOnce() {
+	spawnY = physics.spawn.y;
+	spawnX = physics.spawn.x;
+	spawnZ = physics.spawn.z;
 	// Résolue dans le try, lue après : une ouverture de session ratée ne doit
 	// pas laisser le vol sans caméra ni sans OSD.
 	let tgt = null;

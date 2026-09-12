@@ -1307,6 +1307,71 @@ ce dont son propre commentaire avertit. Arbitrage laissé au pilote.
   moment de lèvre en vol d'avancement, et le net n'est pas mesuré — suivi en
   issue plutôt qu'un `ductGain` inventé.
 
+## Le randomart rend la main au drone (issue #122)
+
+État au 2026-09-12. La règle de mise en scène : le dernier écran du hack
+(`CONTROL ACQUIRED` et son empreinte) s'éteint DANS le flux vidéo de la machine.
+Avant, il s'éteignait sur une carte nue — vue de DESSOUS en reconnaissance
+FIELD — et le drone apparaissait un battement plus tard, parce que tout ce qui
+se voit d'un vol était monté APRÈS la résolution de `runHack()`, derrière un
+`session.open()` qui est un aller-retour serveur.
+
+`openFlightSession()` est coupé en deux :
+
+- `armFlight()` (mémoïsé, idempotent) monte tout ce qui se VOIT — session
+  ouverte, caméra de la cible, `PlayerDrone`, disposition de l'OSD,
+  `fpvtpOsd.show()`, `setView('fpv')`, le point de spawn que l'OSD lit pour son
+  altitude ;
+- `openFlightSession()` ne garde que la prise de contrôle : le drop, et le
+  départ de l'horloge du vol.
+
+Le QUAND est le cœur du correctif, et il diffère selon le chemin :
+
+- FIELD : au geste `[ JACK IN ]`, via le `commit` de `runHack()`. Jamais au
+  boot — tous les écrans d'avant le geste peuvent encore renoncer, et renoncer
+  ne doit rien laisser derrière, pas même une session `PENDING` sur le serveur.
+  La culmination (1 à 4 s) et l'empreinte (1,7 s) couvrent l'aller-retour, et
+  `runAcquired()` l'attend avant de lâcher son fond noir ;
+- partout ailleurs (`?scene=`, l'override `?family=`, le banc) : dans le boot,
+  sous l'écran de chargement, avant `hud.ready()`. D'où le drapeau `arm` de
+  `finishBoot()` / `bootLive()`, à vrai par défaut, à faux sur les deux chemins
+  FIELD.
+
+Deux corollaires :
+
+- `bootLive()` ne posait JAMAIS sa caméra avant sa première image : elle restait
+  à l'origine ENU, soit l'altitude 0 de l'ellipsoïde, donc SOUS le terrain —
+  c'était ça, « la carte vue de dessous ». Les deux moitiés de boot appellent
+  désormais `placeCamera(0)`, qui pose aussi l'ORIENTATION (assiette d'entrée et
+  uptilt), là où le chemin scène ne posait que la position ;
+- l'OSD étant à l'écran pendant tout le gel, `frame()` épingle
+  `sessionStartedAt` tant que `introFrozen` tient : sans ça le chronomètre
+  révélé affichait le temps passé devant l'invite, puis sautait à zéro.
+
+### Vérifié — sans navigateur
+
+- `node tools/handover-selftest.mjs` : 7 blocs, un garde de SOURCE sur
+  `src/main.js` et `src/hack.js` (même motif que `swarm-wiring-selftest.mjs`,
+  même raison : `main.js` n'est pas instanciable en Node). Il fige l'ordre
+  (armement avant `hud.ready()` et avant `setAnimationLoop`), le partage
+  (ce que monte l'armement n'est plus dans `openFlightSession()`, et
+  réciproquement pour le drop et l'horloge), le `commit` de FIELD (après le
+  geste, sous la culmination, attendu avant le fondu) et la caméra posée dans
+  les deux boots.
+- `npm run selftest:ci` passe, `npm run build` passe.
+
+### NON vérifié — personne n'a VU la transition corrigée
+
+- Le passage lui-même, à l'œil : l'empreinte qui s'éteint sur l'OSD et les
+  hélices, sans un seul frame de carte nue, sur les deux chemins (zone acquise
+  et reconnaissance FIELD).
+- Le drop, qui tombe toujours 180 ms (`EXIT_REVEAL_MS`) après le début du fondu,
+  donc sur une image de vol désormais complète : à écouter, c'est peut-être
+  maintenant qu'il faut le glisser dans la culmination.
+- Le coût de `session.open()` sous la culmination : si le serveur traîne,
+  l'empreinte tient l'écran plus longtemps que ses 1,7 s. Aucun timeout n'a été
+  ajouté (`operator.js` n'en a pas).
+
 ## Mode turtle — le retournement assisté (issue #105)
 
 État au 2026-09-12. `src/turtle.js` : machine pure, même forme que

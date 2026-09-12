@@ -87,9 +87,19 @@ const pre = (cls, text = '') => {
 // down and propagate (boot failure). Absent -> scripted sequence alone (the
 // ?scene=/?family= paths).
 //
+// `commit` (#122): what taking control actually costs, run ONCE the gesture is
+// in and
+// awaited BEFORE the last screen fades (main.js: armFlight()). Two things ride
+// on that placement. Nothing may touch the world before the gesture — every
+// screen up to it still aborts, and abandoning must leave no trace, not a
+// session on the server. And nothing visible may be mounted after the fade —
+// the last screen gives onto the drone's video feed, so the camera, the props
+// and the OSD have to be there already. Between the two there is the
+// culmination and the machine's own print, which is cover enough.
+//
 // Rend `{ aborted: true }` si le joueur a renoncé avant l'acquisition, sinon
 // `undefined`. C'est la seule chose que main.js lit.
-export async function runHack(root, { hackType, family, ready, candidate = null, buildSeed = null } = {}) {
+export async function runHack(root, { hackType, family, ready, candidate = null, buildSeed = null, commit = null } = {}) {
 	const type = HACK_TYPES.includes(hackType) ? hackType : 'UNKNOWN';
 
 	const analysis = await runAnalysis(root, { type, hackType, family, ready, candidate });
@@ -98,14 +108,22 @@ export async function runHack(root, { hackType, family, ready, candidate = null,
 	const handover = await runHandover(root, { type });
 	if (handover?.aborted) return { aborted: true };
 
-	// Le geste est passé : plus rien n'annule. La culmination se joue sur tous
-	// les chemins, y compris les aperçus `?hack=` — elle ne dépend que de la
-	// famille et de la graine cosmétique, jamais de la machine.
+	// Le geste est passé : plus rien n'annule, donc c'est ici que le vol
+	// s'arme — sous la culmination, et non après elle.
+	const committed = commit ? commit() : null;
+
+	// La culmination se joue sur tous les chemins, y compris les aperçus
+	// `?hack=` — elle ne dépend que de la famille et de la graine cosmétique,
+	// jamais de la machine.
 	await runCulmination(root, { hackType: type, seed: buildSeed ?? family ?? type });
 
 	// Sans `buildSeed` — les chemins d'aperçu `?hack=` — il n'y a pas de machine
 	// à graver : le geste rend la main directement, comme avant #57.
-	if (buildSeed) await runAcquired(root, { type, buildSeed });
+	if (buildSeed) await runAcquired(root, { type, buildSeed, committed });
+	// Jamais avalé : un armement qui échoue est un échec de boot, et c'est la
+	// chaîne startup() qui l'affiche. runAcquired() l'a laissé passer pour
+	// pouvoir se démonter quand même.
+	await committed;
 	return undefined;
 }
 
@@ -318,7 +336,7 @@ function runHandover(root, { type }) {
 //    qu'il produit, et il a son propre écran. Le motif de la famille a disparu
 //    avec l'analyse ; ce qui se trace ici est l'empreinte de LA machine — la
 //    même à chaque fois qu'on la retrouve.
-function runAcquired(root, { type, buildSeed }) {
+function runAcquired(root, { type, buildSeed, committed = null }) {
 	const s = screen(root, 'hack hack-acquired');
 	const artEl = pre('hack-art');
 	artEl.setAttribute('aria-hidden', 'true');
@@ -346,7 +364,7 @@ function runAcquired(root, { type, buildSeed }) {
 		// La sortie, et le seul point qui résout. Appelé par le minuteur, par
 		// Échap (qui SAUTE le battement — le contrôle est pris, on ne revient
 		// pas au scan) et par le crochet de test.
-		const handOver = () => {
+		const handOver = async () => {
 			if (done) return;
 			// L'empreinte est POSÉE dans son état final avant le démontage. Sauter
 			// le battement ne doit pas laisser une image à moitié tracée comme
@@ -359,6 +377,12 @@ function runAcquired(root, { type, buildSeed }) {
 			nav?.detach();
 			nav = null;
 			delete globalThis.__hackTestFinish;
+			// Le vol doit être armé AVANT que le fond noir ne s'en aille : c'est
+			// tout le sujet de cet écran. Normalement déjà résolu — l'armement a
+			// couru sous la culmination — et sinon l'empreinte, déjà posée dans
+			// son état final, tient l'écran le temps qu'il finisse. Un rejet ne
+			// bloque pas le démontage : runHack() le relève après.
+			await Promise.resolve(committed).catch(() => {});
 			// Le dernier écran s'éteint DANS le flux vidéo qui prend la main :
 			// c'est la seule sortie du hack qui donne sur autre chose qu'un
 			// écran de terminal, donc la seule qui emmène son fond noir avec
