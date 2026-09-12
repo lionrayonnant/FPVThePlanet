@@ -40,6 +40,7 @@ const data = await import('./data-model.mjs');
 const targetModel = await import('./target-model.mjs');
 const hack = await import('./hack-model.mjs');
 const { parseSceneFlag, parseSwarmFlag, SCENE_SLUG_RE } = await import('./dev-flags.mjs');
+const scanner = await import('./scanner-model.mjs');
 
 const ZONES = [NOMINAL, CAUTION, HOLD, LOST];
 const MOTOR_IDLE_MAX = 1 + 1e-9;
@@ -708,6 +709,101 @@ const targets = [
 		if (normalized !== null && !targetModel.HACK_TYPES.includes(normalized)) return `normalizeHackType invented ${pretty(normalized)}`;
 		const ms = hack.hackSequenceMs(normalized);
 		if (!Number.isFinite(ms) || ms <= 0) return `hackSequenceMs(${pretty(normalized)}) = ${ms}`;
+		return null;
+	},
+},
+
+{
+	name: 'scanner',
+	note: 'GLOBAL SCANNER — Nominatim, the provider registry and the probe answer to the acquisition screen; none of those three is ours',
+	gen(r) {
+		// A Nominatim hit as `format=jsonv2` renders one, then bent. The
+		// provider is reachable and well-behaved on most runs; the point of the
+		// target is the run where it is not.
+		const hit = {
+			name: pick(r, ['Tokyo', '', 'Île de la Cité', 42, null, { toString: null }]),
+			display_name: pick(r, ['Tokyo, Japan, 100-0001', '', ...NASTY_STRINGS.slice(0, 4), { toString: null }, ['a']]),
+			addresstype: pick(r, ['city', 'neighbourhood', 'building', 'nope', null, { toString: null }]),
+			type: pick(r, ['administrative', null]),
+			category: pick(r, ['boundary', 'place', null]),
+		};
+		const probeStatus = pick(r, ['ok', 'none', 'undecodable', 'error', 'nope', null]);
+		return {
+			hit: chance(r, 0.35) ? mutate(r, hit, 2) : hit,
+			areaKm2: pick(r, [12.4, 0, -1, 1e9, NaN, Infinity, null]),
+			// /__map-api/describe: ours, but an older build's answer and a
+			// truncated one both reach the same screen.
+			describe: chance(r, 0.4) ? anyValue(r, 2) : mutate(r, {
+				grid: { cols: int(r, 1, 60), rows: int(r, 1, 60), columns: int(r, 1, 3600), masked: chance(r, 0.5) },
+				estimate: {
+					probes: int(r, 1, 5000), prepBytes: int(r, 0, 4e9),
+					prepBytesRange: [int(r, 0, 1e9), int(r, 0, 4e9)],
+					rawBytes: int(r, 0, 4e9), totalSeconds: int(r, 0, 90000), warn: chance(r, 0.3),
+				},
+				dimensions: { area: nearNumber(r, 0, 5e6), width: int(r, 1, 4000), height: int(r, 1, 4000) },
+				tileMeters: nearNumber(r, 1, 500),
+			}, 2),
+			// The exporter's answer. `message` is a Go panic on a bad day.
+			probe: chance(r, 0.4) ? null : {
+				status: probeStatus,
+				exported: pick(r, [12, 0, -1, NaN, null, { toString: null }]),
+				undecodable: pick(r, [3, 0, null]),
+				message: pick(r, ['open ./config.json: no such file\ngoroutine 1 [running]:\n…', '', null, 42, { toString: null }, 'x'.repeat(5000)]),
+			},
+			plan: chance(r, 0.5) ? null : {
+				trigger: pick(r, ['jp', '', null, { toString: null }]),
+				columns: pick(r, [120, 0, -1, NaN]),
+				pruned: pick(r, [0, 40, -1, NaN]),
+			},
+			provider: pick(r, [{ id: 'google', label: 'Google Earth' }, { id: 'x' }, null, { label: { toString: null } }]),
+			registry: chance(r, 0.3) ? anyValue(r, 2) : { providers: [{ id: 'google', label: 'Google Earth' }, null, { label: 'no id' }], default: pick(r, ['google', 'gone', null]) },
+			name: pick(r, ['Tokyo', '', '   ', 'Île de la Cité', '🛸', { toString: null }, 42, null, 'A'.repeat(400)]),
+			zone: chance(r, 0.5) ? null : { bbox: { south: 48.8, north: 48.9, west: 2.2, east: 2.4 } },
+			phase: pick(r, ['download', 'decode', 'rebuild', 'prep', 'nope', null, { toString: null }, 7]),
+		};
+	},
+	check(c) {
+		// Every one of these formats a value that came from outside. The
+		// contract is the same for all of them: a string for the screen, or a
+		// named refusal — never an engine TypeError, which is what `String(v)`
+		// on `{"toString": null}` raises (issue #85).
+		const designation = scanner.designationFrom(c.hit);
+		if (typeof designation !== 'string') return `designationFrom returned ${pretty(designation)}`;
+		const slug = scanner.slugify(designation);
+		if (!/^[a-z0-9-]*$/.test(slug)) return `slugify produced ${pretty(slug)}`;
+
+		const label = scanner.phaseLabel(c.phase);
+		if (typeof label !== 'string') return `phaseLabel returned ${pretty(label)}`;
+
+		const d = scanner.signalDensity({ place: c.hit, areaKm2: c.areaKm2 });
+		if (typeof d.known !== 'boolean') return `signalDensity.known = ${pretty(d.known)}`;
+		const dLeak = textLeak(d);
+		if (dLeak) return `signalDensity ${dLeak}`;
+
+		// areaAnalysis is fed our own /describe, so the shape is usually right.
+		// What it must not do is take the screen down when it is not.
+		const a = scanner.areaAnalysis(c.describe);
+		if (a !== null && typeof a.columns !== 'string') return `areaAnalysis.columns = ${pretty(a.columns)}`;
+
+		// The verdict line is read by an operator deciding whether to spend ten
+		// minutes acquiring: it must always say something.
+		const v = scanner.coverageLine({ plan: c.plan, probe: c.probe, provider: c.provider });
+		if (typeof v.label !== 'string' || !v.label) return `coverageLine gave no label: ${pretty(v)}`;
+		const rail = scanner.railLine({ describe: c.describe, plan: c.plan, probe: c.probe, provider: c.provider });
+		if (typeof rail.text !== 'string' || !rail.text) return `railLine gave no text: ${pretty(rail)}`;
+		// A Go panic dump must not reach the rail whole.
+		if (rail.detail.length > 4096) return `railLine detail is ${rail.detail.length} chars long`;
+
+		const choices = scanner.sourceChoices(c.registry);
+		if (!Array.isArray(choices)) return `sourceChoices returned ${pretty(choices)}`;
+		if (choices.some((p) => !p?.id)) return 'sourceChoices kept a provider without an id';
+
+		// The button is the end of the chain: whatever came in, it names one
+		// action and one reason.
+		const step = scanner.acquireStep({ zone: c.zone, source: c.provider, name: c.name, plan: c.plan, probe: c.probe });
+		if (typeof step.label !== 'string' || !step.label) return `acquireStep gave no label: ${pretty(step)}`;
+		if (step.disabled && !step.why) return 'acquireStep disabled the button without saying why';
+		if (!['probe', 'acquire', null].includes(step.action)) return `acquireStep invented action ${pretty(step.action)}`;
 		return null;
 	},
 },
