@@ -302,10 +302,11 @@ t('sérialisation : rien de ce qui est stocké ne dit qu\'un vol a eu lieu', () 
 // ---------------------------------------------------------------------------
 // La copie
 
-// D3/D6 : DATA et SETTINGS montent à la racine, sous FIELD et BENCH. L'ordre
-// est le message — on vole d'abord, on consulte ensuite, on règle en dernier.
-t('MODE_SELECT : quatre voies, nommées, en anglais', () => {
-	assert.deepEqual(MODES, ['field', 'bench', 'data', 'settings']);
+// D3/D6 : DATA, JUKEBOX et SETTINGS montent à la racine, sous FIELD et BENCH.
+// L'ordre est le message — on vole d'abord, on consulte ensuite, on écoute, on
+// règle en dernier.
+t('MODE_SELECT : cinq voies, nommées, en anglais', () => {
+	assert.deepEqual(MODES, ['field', 'bench', 'data', 'jukebox', 'settings']);
 	assert.equal(MODE_SELECT.field.label, 'FIELD');
 	assert.equal(MODE_SELECT.bench.label, 'BENCH');
 	// Issue #26 : ARCHIVE est devenu DATA, et la copie dit ce qu'on y lit —
@@ -313,6 +314,11 @@ t('MODE_SELECT : quatre voies, nommées, en anglais', () => {
 	assert.equal(MODE_SELECT.data.label, 'DATA');
 	assert.deepEqual(MODE_SELECT.data.lines, ['flight records · telemetry', 'where you have been']);
 	assert.equal(MODE_SELECT.archive, undefined, 'l\'ancienne entrée ne survit pas au renommage');
+	// Issue #120 : la seconde ligne du JUKEBOX prévient que la radio ne
+	// s'arrête pas à la porte. C'est la seule façon de le savoir avant de le
+	// constater.
+	assert.equal(MODE_SELECT.jukebox.label, 'JUKEBOX');
+	assert.ok(MODE_SELECT.jukebox.lines[1].includes('keeps playing'));
 	assert.equal(MODE_SELECT.settings.label, 'SETTINGS');
 	// Deux lignes sous chaque voie : ce qu'elle contient, en deux temps.
 	for (const m of MODES) assert.equal(MODE_SELECT[m].lines.length, 2, `${m} a deux lignes`);
