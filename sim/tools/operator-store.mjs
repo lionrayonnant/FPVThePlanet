@@ -1,11 +1,12 @@
 // Logique pure de l'état opérateur (PHASE 01). Aucune E/S : importable
 // aussi bien par le plugin de dev que par le selftest.
 import { randomBytes } from 'node:crypto';
+import { asText } from './lib/as-text.mjs';
 
 export const SCHEMA_VERSION = 3;
 
 export function slugify(s) {
-	return String(s ?? '')
+	return asText(s)
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '');

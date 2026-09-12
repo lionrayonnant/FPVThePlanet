@@ -152,6 +152,10 @@ export const ANGLE_STRENGTH = 9.0;   // rad/s of rate demand per rad of angle er
 const ALT_KP = 3.2, ALT_KD = 3.6;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+// clamp() alone cannot hold a boundary: every comparison against NaN is false,
+// so a NaN walks through it untouched. Anything read from outside this module
+// goes through here first.
+const finiteOr = (v, fallback) => (Number.isFinite(v) ? v : fallback);
 
 // First-order lowpass, the PT1 Betaflight uses everywhere.
 class PT1 {
@@ -216,7 +220,15 @@ class AxisPid {
 		this.prevGyro = gyro;
 		this.prevSetpoint = setpoint;
 
-		return this.g.p * error * tpa + this.i + this.g.d * dGyro * tpa + ff;
+		const out = this.g.p * error * tpa + this.i + this.g.d * dGyro * tpa + ff;
+		// The filter chain is a set of running averages: feed it one NaN — a
+		// stick from a broken calibration, a body state Rapier blew up on — and
+		// `y += (x - y) * k` keeps it forever, so the motors stay NaN for the
+		// rest of the session even after the input comes back. A real FC does
+		// not survive its own sensors this way either: it resets. Costs one
+		// isFinite per axis per step and never fires on a healthy frame.
+		if (!Number.isFinite(out)) { this.reset(); return 0; }
+		return out;
 	}
 }
 
@@ -303,7 +315,16 @@ export class FlightController {
 
 	// sticks: {throttle 0..1, roll/pitch/yaw -1..1}
 	// state:  {rotation, angularVelocity, position, velocity}, world frame
-	update(sticks, state, dt) {
+	update(rawSticks, state, dt) {
+		// The contract above is enforced here rather than assumed: input.js
+		// reads a gamepad and a calibration file, and neither is guaranteed to
+		// hand over a number in range.
+		const sticks = {
+			throttle: clamp(finiteOr(rawSticks?.throttle, 0), 0, 1),
+			roll: clamp(finiteOr(rawSticks?.roll, 0), -1, 1),
+			pitch: clamp(finiteOr(rawSticks?.pitch, 0), -1, 1),
+			yaw: clamp(finiteOr(rawSticks?.yaw, 0), -1, 1),
+		};
 		const q = state.rotation;
 		const rates = this.rates;
 
@@ -326,15 +347,22 @@ export class FlightController {
 
 		let throttle = sticks.throttle;
 		if (this.mode === 'altitude') {
+			// The held altitude is the one piece of state here that outlives a
+			// frame, so it is the one that must never take a NaN: a single
+			// non-finite position would otherwise hold the throttle at NaN for
+			// the rest of the flight, long after the body state recovered.
+			const y = finiteOr(state.position?.y, this.holdAltitude ?? 0);
+			const vy = finiteOr(state.velocity?.y, 0);
 			const demand = (sticks.throttle - 0.5) * 2;
 			if (Math.abs(demand) > 0.08 || this.holdAltitude === null) {
-				this.holdAltitude = state.position.y;
+				this.holdAltitude = y;
 				throttle = hoverThrottle(this.profile, q) + demand * 0.35;
 			} else {
-				const a = ALT_KP * (this.holdAltitude - state.position.y) - ALT_KD * state.velocity.y;
+				const a = ALT_KP * (this.holdAltitude - y) - ALT_KD * vy;
 				throttle = hoverThrottle(this.profile, q) * (1 + a / GRAVITY);
 			}
-			throttle = clamp(throttle, 0, 1);
+			// hoverThrottle() reads the attitude, which can be NaN on its own.
+			throttle = clamp(finiteOr(throttle, 0), 0, 1);
 		}
 
 		const w = state.angularVelocity;
@@ -358,6 +386,10 @@ export class FlightController {
 	//   2. throttle is then slid to whatever keeps the scaled mix inside range,
 	//      so attitude authority survives at any stick position.
 	mix(roll, pitch, yaw, throttle) {
+		// Altitude hold reads state.position/velocity, so a blown-up body state
+		// reaches the mixer as a NaN throttle. Nothing below can recover from
+		// that — clamp() lets NaN straight through — so it stops here.
+		throttle = finiteOr(throttle, MOTOR_IDLE);
 		const raw = this._mix.map((m) => roll * m.roll + pitch * m.pitch + yaw * m.yaw);
 		let lo = Infinity, hi = -Infinity;
 		for (const v of raw) { if (v < lo) lo = v; if (v > hi) hi = v; }

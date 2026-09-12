@@ -11,6 +11,9 @@
 // previous real value), so decoding is a running sum and quantization error
 // never accumulates.
 
+// A refusal has to survive the value it refuses: see lib/as-text.mjs.
+import { asText, nameOf } from './lib/as-text.mjs';
+
 export const TRACK_VERSION = 1;
 
 // One hour armed at 5 Hz. A hard cap rather than unbounded growth; a longer
@@ -40,6 +43,14 @@ const q = (v, k) => Math.round(v * QUANT[k]);
 
 function finite(v) { return typeof v === 'number' && Number.isFinite(v); }
 
+
+// `finite` is not enough on its own: quantization MULTIPLIES, so a value that
+// is merely absurd (1e308 m, which a physics blow-up can produce) overflows to
+// Infinity on the way in, and validateTrack then refuses the very file
+// encodeTrack just wrote — the flight is lost at read time instead of at write
+// time. A sample is only writable if what lands on the wire is a real integer.
+function storable(v, k) { return finite(v) && Number.isSafeInteger(q(v, k)); }
+
 // --- encode / decode -------------------------------------------------------
 
 // `samples`: [{ t, lat, lon, alt, spd, thr, rate }] in real units, in order.
@@ -60,7 +71,7 @@ export function encodeTrack(samples, events = {}, { truncated = false } = {}) {
 	for (const s of src) {
 		if (n >= MAX_SAMPLES) break;
 		if (!s || typeof s !== 'object') continue;
-		if (!FIELDS.every((k) => finite(s[k]))) continue;
+		if (!FIELDS.every((k) => storable(s[k], k))) continue;
 		for (const k of FIELDS) {
 			const v = q(s[k], k);
 			cols[k].push(DELTA_FIELDS.includes(k) && n > 0 ? v - prev[k] : v);
@@ -111,12 +122,13 @@ export function decodeTrack(stored) {
 }
 
 function encodeStart(e) {
-	if (!e || !finite(e.lat) || !finite(e.lon)) return null;
+	if (!e || !storable(e.lat, 'lat') || !storable(e.lon, 'lon')) return null;
 	return { lat: q(e.lat, 'lat'), lon: q(e.lon, 'lon') };
 }
 
 function encodeEnd(e) {
-	if (!e || !finite(e.lat) || !finite(e.lon) || !finite(e.alt) || !finite(e.spd)) return null;
+	if (!e || !storable(e.lat, 'lat') || !storable(e.lon, 'lon')
+		|| !storable(e.alt, 'alt') || !storable(e.spd, 'spd')) return null;
 	if (!END_RESULTS.has(e.result)) return null;
 	return {
 		lat: q(e.lat, 'lat'), lon: q(e.lon, 'lon'),
@@ -128,7 +140,8 @@ function encodeEnd(e) {
 function encodePhotos(list) {
 	if (!Array.isArray(list)) return [];
 	return list.filter((p) => p && Number.isInteger(p.i) && p.i >= 0
-		&& finite(p.lat) && finite(p.lon) && finite(p.heading))
+		&& storable(p.lat, 'lat') && storable(p.lon, 'lon') && finite(p.heading)
+		&& Number.isSafeInteger(Math.round(p.heading)))
 		.map((p) => ({
 			i: p.i, lat: q(p.lat, 'lat'), lon: q(p.lon, 'lon'),
 			// Degrees, normalized: the map only ever draws a direction.
@@ -144,7 +157,7 @@ function encodePhotos(list) {
 export function validateTrack(stored) {
 	const st = stored;
 	if (!st || typeof st !== 'object' || Array.isArray(st)) throw new Error('track: not an object');
-	if (st.v !== TRACK_VERSION) throw new Error(`track: unknown version ${st.v}`);
+	if (st.v !== TRACK_VERSION) throw new Error(`track: unknown version ${asText(st.v, nameOf(st.v))}`);
 	if (typeof st.truncated !== 'boolean') throw new Error('track.truncated: not a boolean');
 	if (!Number.isInteger(st.n) || st.n < 0) throw new Error('track.n: not a sample count');
 	if (st.n > MAX_SAMPLES) throw new Error(`track.n: ${st.n} over MAX_SAMPLES`);
