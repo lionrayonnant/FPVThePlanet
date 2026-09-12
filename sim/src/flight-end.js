@@ -144,9 +144,16 @@ export const CUT_TIMELINE = {
 // issue d'un drone au sol : il doit donc s'afficher aussi sur une pose
 // parfaite, ce que ces seuils larges garantissent. Au pire il s'affiche pour
 // un pilote qui n'en avait pas besoin ; il ne manque à personne.
+//
+// STUCK_S est passé de 4 s à 1,5 s (#114). Quatre secondes devant une machine
+// calée, sans rien à l'écran qui dise qu'il existe une issue, c'est le temps
+// qu'il faut pour croire qu'il n'y en a pas. Et ce seuil ne porte pas que le
+// rappel de coupure : turtle.js lit le même `stuck`, donc [T] TURTLE attendait
+// lui aussi. Le prix du raccourci est un rappel qui s'affiche sur un
+// stationnaire tenu — ce que le paragraphe ci-dessus assume déjà.
 export const CUT = {
 	HOLD_S: 2,      // s de maintien pour couper
-	STUCK_S: 4,     // s d'immobilité avant que le rappel s'affiche
+	STUCK_S: 1.5,   // s d'immobilité avant que le rappel s'affiche
 	V_STUCK: 0.5,   // m/s
 	W_STUCK: 0.5,   // rad/s
 };
