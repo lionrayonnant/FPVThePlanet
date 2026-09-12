@@ -45,8 +45,9 @@ rapport avec les versions ci-dessous.
   le plus proche du drone à cadence croissante — silence complet au centre.
 - En mode `?live=`, le terrain lointain ne se dissout plus dans un cyan plat
   mais dans ce même champ (#107) : la brume prend ses paquets et ses filaments
-  magenta, et sa densité est modulée par la masse, si bien que le terrain
-  reparaît dans les trouées. La nappe est échantillonnée à la position monde du
+  magenta, et la masse éclaircit sa densité par endroits, si bien que le
+  terrain reparaît dans les trouées — jamais l'inverse : la brume n'est au pire
+  jamais plus épaisse qu'avant. La nappe est échantillonnée à la position monde du
   fragment — pas projetée sur le dôme, ce qui recréait un éventail de rayons —
   et à deux octaves plutôt que trois, le détail fin n'étant jamais résolu sur
   une brume vue en enfilade.
