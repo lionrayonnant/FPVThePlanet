@@ -263,7 +263,7 @@ export class Settings {
 	// moved here whole. Every id is the one startCalibration/renderCalibration
 	// already write to: this tab changed address, not behaviour.
 	buildController(box) {
-		box.appendChild(h('p', { id: 'pad-name', text: 'no controller detected' }));
+		box.appendChild(h('p', { id: 'pad-name', text: 'NO CONTROLLER DETECTED' }));
 		// What the BROWSER sees, and the choice when it sees several (issue
 		// #162). Without this list a misclassified radio — or one simply absent
 		// from the enumeration — left the pilot with no recourse at all.
@@ -271,7 +271,11 @@ export class Settings {
 		// Measured calibration (issue #277). The button is always there; the
 		// note beside it only ever speaks of a device that was NEVER calibrated.
 		box.appendChild(h('div', { id: 'cal-row' }, [
-			h('button', { id: 'calibrate', type: 'button', text: 'Calibrate' }),
+			// `terminal-cta` : les crochets sont la marque d'une décision, et
+			// CALIBRATE en est une au même titre que [ RESET KEYS ] deux onglets
+			// plus loin. Deux conventions de bouton cohabitaient dans le même
+			// panneau.
+			h('button', { id: 'calibrate', type: 'button', class: 'terminal-cta', text: '[ CALIBRATE ]' }),
 			h('span', { id: 'cal-note', class: 'spec' }),
 		]));
 		box.appendChild(h('div', { id: 'cal-screen', hidden: true }, [
@@ -287,7 +291,7 @@ export class Settings {
 		// CANCEL moved below it.
 		box.appendChild(h('div', { id: 'cal-drone', hidden: true }));
 		box.appendChild(h('div', { id: 'cal-cancel-row', hidden: true }, [
-			h('button', { id: 'cal-cancel', type: 'button', text: 'Cancel' }),
+			h('button', { id: 'cal-cancel', type: 'button', class: 'terminal-cta', text: '[ CANCEL ]' }),
 		]));
 		box.appendChild(h('div', { id: 'cal-summary', class: 'spec', hidden: true }));
 		box.appendChild(h('table', { id: 'pad-map' }));
@@ -855,7 +859,7 @@ export class Settings {
 	buildAxisRows() {
 		this.buildPadList();
 		const pad = this.input.getGamepad();
-		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'no controller detected';
+		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'NO CONTROLLER DETECTED';
 		this.renderCalibration(pad);
 		if (!pad) { this.el.padMap.replaceChildren(); this._axisRows = []; return; }
 

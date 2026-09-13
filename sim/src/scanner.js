@@ -127,7 +127,7 @@ const JOB_PANEL = `
 	<dl class="sc-readout">
 		<dt>PHASE</dt><dd class="sc-job-phase">—</dd>
 		<dt>TILES</dt><dd class="sc-job-tiles">—</dd>
-		<dt>ELAPSED</dt><dd class="sc-job-elapsed">0 S</dd>
+		<dt>ELAPSED</dt><dd class="sc-job-elapsed">0 s</dd>
 	</dl>
 	<div class="sc-bars">
 		${barRow('sc-bar-terrain', 'TERRAIN')}

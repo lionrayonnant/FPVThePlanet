@@ -143,7 +143,7 @@ t('areaAnalysis : reprend les chiffres du serveur', () => {
 	assert.equal(a.requests, '130,240');
 	assert.equal(a.surface, '1.82 km²');
 	assert.equal(a.data, '412 MB');
-	assert.equal(a.time, '~12 MIN');
+	assert.equal(a.time, '~12 min');
 	assert.equal(a.tileSide, '25 m');
 	assert.equal(a.heavy, false);
 	assert.equal(areaAnalysis(null), null);
@@ -269,11 +269,11 @@ t('acquisitionProgress : honnête sur ce qu\'il sait', () => {
 t('formats', () => {
 	assert.equal(bytes(412e6), '412 MB');
 	assert.equal(bytes(0), '—');
-	assert.equal(duration(10), '< 1 MIN');
-	assert.equal(duration(740), '~12 MIN');
-	assert.equal(duration(7400), '~2 H 3 MIN');
-	assert.equal(elapsed(0), '0 S');
-	assert.equal(elapsed(134_000), '2 MIN 14 S');
+	assert.equal(duration(10), '< 1 min');
+	assert.equal(duration(740), '~12 min');
+	assert.equal(duration(7400), '~2 h 3 min');
+	assert.equal(elapsed(0), '0 s');
+	assert.equal(elapsed(134_000), '2 min 14 s');
 	assert.equal(bar(0, 4), '░░░░');
 	assert.equal(bar(1, 4), '████');
 	assert.equal(bar(.5, 4), '██░░');
