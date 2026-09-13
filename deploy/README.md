@@ -5,6 +5,20 @@ This is not a provisioning script: every step is typed by hand, in order, as
 root. It is written for someone who does not know the project — nothing here is
 left to be guessed.
 
+**Become root before step 1, and stay there:**
+
+```sh
+sudo -i
+```
+
+Most providers hand you an unprivileged account — `ubuntu` on OVH, `debian` on
+others — never root, so without this the very first commands fail with
+`Permission denied` after appearing to work. Prefixing individual commands with
+`sudo` also works, but note that `sudo` does not travel down a pipe: in
+`curl … | gpg --dearmor -o /usr/share/keyrings/…` it is `gpg` that needs the
+privilege, not `curl`, so it has to read `curl … | sudo gpg …`. Every step
+below is written for a root shell.
+
 After that, each new version ships in one command:
 `sudo /opt/fpvtp/deploy.sh v1.0.0`.
 
