@@ -135,7 +135,7 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 			const sess = rows()[i];
 			if (!sess) return;
 			busy = true;
-			s.el.style.display = 'none';
+			s.el.hidden = true;
 			const r = await runSessionDetail(root, sess.id, { scenes });
 			if (r?.revisit) return finish(r.revisit);
 			if (r?.deleted) {
@@ -143,7 +143,7 @@ export function runSessionLog(root, { operator, scenes = null } = {}) {
 				if (k >= 0) all.splice(k, 1);
 			}
 			busy = false;
-			s.el.style.display = '';
+			s.el.hidden = false;
 			draw(i);
 		};
 
