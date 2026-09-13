@@ -24,6 +24,65 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+Ce que la première mise en ligne réelle a trouvé. La 1.0.0 a été taguée avant
+qu'une instance publique existe : tout ce qui suit a été découvert en la
+déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
+
+### Corrigé
+
+- **La carte de l'onglet LIVE ne s'affichait plus** : toutes les tuiles
+  OpenStreetMap revenaient en 403 « Access blocked ». L'en-tête
+  `Referrer-Policy: no-referrer`, ajouté par la passe de sécurité de la 1.0.0,
+  retirait le `Referer` des requêtes de tuiles — or la politique d'usage d'OSM
+  exige un `Referer` ou un User-Agent qui identifie l'application, et un
+  navigateur n'envoie qu'un User-Agent générique. Remplacé par
+  `strict-origin-when-cross-origin`, qui garde l'intention : le même-origine
+  conserve l'URL complète, donc le slug de scène et la graine de build ne
+  sortent toujours pas, et OSM reçoit l'origine nue dont il a besoin.
+
+  Invisible en développement, parce que Vite ne sert aucun de ces en-têtes :
+  seule une vraie mise en production pouvait le montrer. **Concerne aussi les
+  applications de bureau 1.0.0**, qui embarquent le même serveur.
+- `deploy.sh` téléchargeait les métadonnées JSON de l'asset au lieu de
+  l'archive, et `tar` échouait sur « not in gzip format ». `gh_api` pose
+  `Accept: application/vnd.github+json` et la fonction de téléchargement en
+  ajoutait un second en `application/octet-stream` : curl envoie les deux,
+  GitHub honore le premier. Le script passe maintenant par
+  `browser_download_url`, qui sert les octets sans négociation de contenu —
+  possible parce que le dépôt est public. Il vérifie en plus que le fichier
+  reçu est bien une archive, et affiche ses premiers octets sinon.
+- Caddy journalise vers journald au lieu d'un fichier. `output file` imposait
+  de créer `/var/log/caddy` à la main, entre deux étapes précises, et refusait
+  quand même de démarrer le service alors que le répertoire appartenait bien à
+  `caddy` et y était inscriptible. Une ligne de configuration pour un mode de
+  panne spécifique à la plateforme : `journalctl -u caddy -f` donne les mêmes
+  accès et laisse la rotation au système.
+
+### Modifié
+
+- `deploy/README.md` : la checklist supposait un shell root sans jamais dire
+  comment en obtenir un, alors qu'aucun hébergeur ne donne root — la première
+  commande échouait après avoir eu l'air de fonctionner. Le piège du tube est
+  signalé avec (`sudo` doit élever `gpg` et `tee`, pas `curl`).
+- La consigne de durcissement SSH nommait le fichier
+  `sshd_config.d/99-hardening.conf`. `sshd` applique la **première** définition
+  qu'il lit et parcourt les extraits dans l'ordre lexical — l'inverse de la
+  convention systemd. Les images cloud Ubuntu livrent un `50-cloud-init.conf`
+  avec `PasswordAuthentication yes`, qui gagnait : le fichier de durcissement
+  existait, disait la bonne chose, et ne faisait rien. Renommé en `01-`, et la
+  vérification lit désormais `sshd -T` plutôt que le fichier.
+- `README.md` : la construction de l'app de bureau réclame `npm run build`
+  d'abord. `electron-builder` empaquette `dist/` tel quel sans jamais le
+  reconstruire, et `dist/` est gitignoré, donc changer de branche puis
+  empaqueter livrait la nouvelle coquille Electron autour de l'ancien jeu.
+
+### Ajouté
+
+- `deploy/README.md` gagne une section « Hardening the machine » : SSH par
+  clés, restriction du port 22, `fail2ban`, mises à jour automatiques, et le
+  mode SSL à vérifier derrière un CDN. Le service était déjà bien confiné par
+  son unité systemd ; la machine, elle, n'était couverte nulle part.
+
 ## [1.0.0] - 2026-09-13
 
 Première version publique. Le jeu existait déjà en 0.3.0 ; ce qui change ici,
