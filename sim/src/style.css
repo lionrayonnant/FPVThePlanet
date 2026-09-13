@@ -140,14 +140,14 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	z-index: 10;
 }
 #loading .box { width: min(420px, 80vw); text-align: center; }
-#loading h1 {
-	margin: 0 0 .3em;
-	font-family: var(--font-display);
-	font-size: var(--fs-display-s);
-	letter-spacing: var(--track-display);
-	font-weight: 400;
-	text-transform: uppercase;
-}
+/* Le verrouillage du boot est celui de l'intro (.lockup, plus bas), à l'échelle
+   d'un écran de chargement : assez grand pour être la marque, assez petit pour
+   laisser la barre et ses relevés sous lui. Sa zone de respect (4 modules) est
+   la seule marge — rien d'autre n'en pose ici. */
+.loading-lockup { margin: 0 auto; }
+/* Spécificité voulue : `.lockup` pose la taille du cracktro plus bas dans la
+   feuille et l'emporterait sinon sur une simple classe. */
+#loading .loading-lockup { --mark-size: clamp(72px, 12vw, 128px); }
 #loading p { margin: 0 0 1.2em; color: var(--dim); min-height: 1.4em; }
 #loading .bar { height: 2px; background: var(--rule); overflow: hidden; }
 /* La progression est de l'information, mais pas une alerte : elle se marque en
@@ -1500,7 +1500,9 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .intro-gate {
 	margin: 0;
 	font-family: var(--font-ui); font-weight: 500;
-	font-size: clamp(16px, 2.6vw, 26px);
+	/* Dans l'échelle UI, pas dans un clamp qui n'appartient à aucune des deux :
+	   c'est une ligne d'interface, pas un moment DISPLAY. */
+	font-size: var(--fs-ui-l);
 	letter-spacing: var(--track-ui);
 	text-transform: uppercase;
 	color: var(--ink);
@@ -1524,26 +1526,19 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    cyan et le magenta de la phase plasma vivent sur .intro-burst, qui n'est pas
    un ancêtre de ceci — et si un jour ils remontaient, cette ligne les
    arrêterait. */
-.intro-lockup {
+.lockup {
 	--mark-size: clamp(120px, 26vw, 320px);
-	position: relative; z-index: 2;
 	display: flex; flex-direction: column; align-items: center;
 	gap: calc(var(--mark-size) / 16);
 	padding: calc(var(--mark-size) / 4);
 	color: var(--ink);
-	/* La zone de respect est OPAQUE. « Rien n'y entre, pas même la règle d'un
-	   panneau » (brand.md) : sans ce fond, les chiffres de la plasma passent
-	   derrière la marque et jusque contre ses modules — vérifié à l'écran, et
-	   c'est exactement ce que la règle interdit. La marque perce donc la demo
-	   plutôt que d'y flotter. */
-	background: var(--black);
 }
 
 /* Le symbole. `fill: currentColor` plutôt qu'une couleur littérale : le SVG
    source n'en introduit aucune, et cette copie non plus (tools/brand-mark-model.mjs).
    `crispEdges` parce que ce sont des modules sur une grille — un bord flou
    serait un bord faux. */
-.intro-mark {
+.lockup-mark {
 	display: block;
 	width: var(--mark-size); height: var(--mark-size);
 	fill: currentColor;
@@ -1554,20 +1549,32 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    docs/brand.md impose au verrouillage empilé, et il l'emporte sur la display
    que le cracktro écrivait avant — la marque n'a qu'une composition, elle ne
    change pas d'écran en écran. */
-.intro-logo {
+.lockup-name {
 	font-family: var(--font-ui); font-weight: 500;
 	font-size: calc(var(--mark-size) * .22);
 	letter-spacing: var(--track-ui);
 	line-height: 1;
 	text-transform: uppercase;
-	opacity: 0;
-	transition: opacity .4s ease;
 }
-.intro-logo.intro-logo-in { opacity: 1; }
 /* Une span par colonne : c'est elle que le sinus-scroll (src/intro.js) déplace
    verticalement, colonne par colonne, pour le déchirement classique du
    "dot scroller" demoscene. */
-.intro-logo span { display: inline-block; will-change: transform; }
+.lockup-name span { display: inline-block; will-change: transform; }
+
+/* Ce que le cracktro ajoute au verrouillage, et lui seul : il se tient
+   au-dessus de la plasma, et sa zone de respect est OPAQUE. « Rien n'y entre,
+   pas même la règle d'un panneau » (docs/brand.md) : sans ce fond, les chiffres
+   de la plasma passent derrière la marque et jusque contre ses modules —
+   vérifié à l'écran, et c'est exactement ce que la règle interdit. La marque
+   perce donc la demo plutôt que d'y flotter. */
+.intro-lockup {
+	position: relative; z-index: 2;
+	background: var(--black);
+}
+/* Le nom n'arrive qu'une fois la marque entière : ici seulement il est d'abord
+   absent. Partout ailleurs le verrouillage est posé d'un bloc. */
+.intro-lockup .lockup-name { opacity: 0; transition: opacity var(--dur-3) linear; }
+.intro-lockup .lockup-name.intro-logo-in { opacity: 1; }
 
 .intro-scroll {
 	position: absolute; bottom: 8vh; left: 0; width: 100%;
