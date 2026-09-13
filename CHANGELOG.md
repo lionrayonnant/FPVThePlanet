@@ -733,6 +733,9 @@ rapport avec les versions ci-dessous.
   seul l'aurait laissée survivre inerte. Côté serveur, `controlVector` sort de
   `OP_WRITABLE_KEYS` et `validateControlVector` disparaît avec son import.
 
+- Le **scrolltext du cracktro** : la ligne de greetings qui défilait en bas de
+  l'intro disparaît. Le logo, la plasma et la résolution restent inchangés.
+
 ## [0.3.0] - 2026-09-08
 
 ### Ajouté

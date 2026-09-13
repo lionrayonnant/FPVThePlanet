@@ -14,7 +14,7 @@
 // (brand.md, « Interdits »).
 //
 // PRESS ANY KEY (calme, palette UI) fait passer le geste utilisateur qui
-// lance le cracktro (logo + plasma/raster + scrolltext, Bible §19 :
+// lance le cracktro (logo + plasma/raster, Bible §19 :
 // cyan/magenta/violet/bleu électrique réservés à ce moment). Ce même geste
 // ouvre l'AudioContext et lance l'ambiance du terminal (callback
 // `onFirstGesture`) : le cracktro n'a plus de partition propre, mais il n'est
@@ -27,7 +27,6 @@ import { cosmeticSeed, RITUAL_PRIMITIVES } from './hack-grammars.js';
 import { reducedMotion } from './motion.js';
 
 const TITLE = 'FPVTP!';
-const GREETING = 'FPVTP! CREW PRESENTS … GREETINGS TO EVERY PILOT WHO EVER AUGERED IN — FLY IT LIKE YOU STOLE IT //';
 
 const REVEAL_MS = INTRO_PHASES[0].durMs;
 
@@ -220,8 +219,7 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 				+ '<svg class="intro-mark" viewBox="0 0 100 100"></svg>'
 				+ `<div class="intro-logo">${TITLE.split('').map((ch) => `<span>${ch}</span>`).join('')}</div>`
 				+ '</div>'
-				+ '<pre class="intro-burst" aria-hidden="true"></pre>'
-				+ `<div class="intro-scroll" aria-hidden="true"><span>${GREETING}</span></div>`;
+				+ '<pre class="intro-burst" aria-hidden="true"></pre>';
 			markEl = wrap.querySelector('.intro-mark');
 			logoEl = wrap.querySelector('.intro-logo');
 			logoSpans = Array.from(wrap.querySelectorAll('.intro-logo span'));
