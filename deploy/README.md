@@ -193,6 +193,113 @@ theirs: there is no password, no e-mail address, and no self-service reset.
 
 ---
 
+## Hardening the machine
+
+The service is already sandboxed hard — read `fpvtp.service`: no shell, no
+home, `ProtectSystem=strict`, a syscall filter, and a listener bound to
+127.0.0.1 so the only way in is through Caddy. The application is not where a
+box like this gets taken. **SSH and an unpatched kernel are.** Everything below
+is about the machine, not the game, and none of it is in the steps above.
+
+Do this before the domain is public. A public link is port-scanned within the
+hour, and every one of those scans tries SSH.
+
+### SSH: keys only
+
+Password authentication is the whole attack. Copy your key up, confirm it
+works in a **second terminal you keep open**, and only then close the door —
+locking yourself out of a fresh VPS is a rebuild, not an inconvenience.
+
+```sh
+ssh-copy-id root@<origin-ip>      # from your machine
+```
+
+Then, on the server, in `/etc/ssh/sshd_config.d/99-hardening.conf`:
+
+```
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+```
+
+`sshd -t && systemctl reload ssh`. Test from the still-open second terminal
+before you trust it.
+
+`PermitRootLogin prohibit-password` rather than `no` keeps this simple: the
+delivery script runs as root anyway. If you would rather have a named sudo
+user, create it and set `no` — both are defensible; what is not defensible is
+leaving passwords on.
+
+### Restrict who may even reach port 22
+
+The `ufw` rules above open 22 to the internet. If your home address is static,
+narrow it and the scanning stops mattering:
+
+```sh
+ufw delete allow 22/tcp
+ufw allow from <your-ip> to any port 22 proto tcp
+```
+
+If it is not static — most consumer connections are not — leave it open and
+install `fail2ban`, which bans an address after a handful of failures:
+
+```sh
+apt install -y fail2ban
+systemctl enable --now fail2ban
+fail2ban-client status sshd
+```
+
+Its defaults are sane for SSH. This is a mitigation, not a fix: with password
+authentication off, a brute force cannot succeed anyway. It mostly keeps the
+logs readable.
+
+### Automatic security updates
+
+The single highest-value line here, because it is the one that keeps working
+after you stop paying attention:
+
+```sh
+apt install -y unattended-upgrades
+dpkg-reconfigure -plow unattended-upgrades
+```
+
+Confirm it is actually enabled — the package being installed is not the same
+as the timer running:
+
+```sh
+systemctl status unattended-upgrades
+grep -r "Unattended-Upgrade" /etc/apt/apt.conf.d/20auto-upgrades
+```
+
+Node is not in that stream: the runtime travels inside the release archive, so
+a Node security fix reaches this machine through a new release of the game, not
+through `apt`. That is deliberate — see "The Node runtime" — but it means you
+have to actually ship one.
+
+### Cloudflare, if you are behind it
+
+Set SSL/TLS mode to **Full (strict)**. Caddy holds a real Let's Encrypt
+certificate, so strict validation works and nothing breaks; anything weaker
+lets the leg between Cloudflare and your origin be intercepted, which is the
+whole thing you were trying to protect. Check it rather than assume it.
+
+Worth turning on while you are there: Bot Fight Mode, and a rate-limiting rule
+on `/__operator/*`. The server's own signup limit is five per hour per address,
+which is the right shape but is enforced after the request reaches Node.
+
+### What to watch on the day
+
+```sh
+journalctl -u fpvtp -f            # the game
+journalctl -u caddy -f            # TLS, and every request that reaches you
+fail2ban-client status sshd       # who is knocking
+```
+
+The game's log names operator ids. They are not credentials — the key is
+hashed on disk and shown once — but they are user-chosen names, so treat a log
+paste the way you would treat any other user data before putting it in a public
+issue.
+
 ## Behind Cloudflare (optional, and all-or-nothing)
 
 Proxying the domain through Cloudflare — the orange cloud — is the cheapest way
