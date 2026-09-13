@@ -35,6 +35,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **`npm run traffic` : un rapport unique pour le trafic de l'instance et celui
+  du dépôt.** Une connexion ssh (journal Caddy, opérateurs, vols) puis `gh`
+  en local (vues, clones, téléchargements), agrégés dans
+  `tools/traffic-model.mjs` — pur, donc couvert par
+  `tools/traffic-selftest.mjs` sans VPS ni réseau. L'outil ne lit que : aucun
+  état, aucun cache, aucun fichier écrit. Les adresses arrivent déjà tronquées
+  en /24 par Caddy, le rapport compte donc des blocs et jamais des personnes.
+
 - `sim/tools/export-support-marks.mjs` : exporte les trois marques de pourboire
   de `src/pixel-icons.js` en SVG autonomes (`docs/brand/mark-*.svg`) pour le
   README, avec un mode `--check` contre la dérive.

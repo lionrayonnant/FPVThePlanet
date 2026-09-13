@@ -30,6 +30,7 @@ npm run selftest:operator  # operator state, terminal, scanner, world weather
 - Removing a map — when an area returns nothing
 - The operator terminal
 - Running the game without Vite — the standalone server
+- Watching the traffic — `npm run traffic` · what it reads · what it cannot
 - The dialogue pipeline (crew RTC) — `dialogue:gen` · `dialogue:inspect` ·
   `dialogue:check` · the two backends · the review policy
 - Available maps
@@ -430,6 +431,53 @@ Two things to know:
 `tools/map-api-plugin.mjs` is now nothing more than an adapter: it mounts the
 same `createApi()` on Vite's middlewares. `tools/vite-adapter-selftest.mjs`
 checks that it does not drift from the server.
+
+## Watching the traffic
+
+```bash
+npm run traffic -- --host root@vps.example.org
+npm run traffic -- --host vps --days 30
+npm run traffic -- --no-github        # the instance alone
+npm run traffic -- --no-server        # GitHub alone, no ssh
+```
+
+The host can live in `FPVTP_VPS` instead of being typed every time.
+
+One report, two sources that cannot reach each other. The Caddy access log
+only exists in the VPS's journal, and the GitHub traffic API only answers a
+token with push access — which belongs on a workstation, not on a public
+machine. So the tool runs where you are: one `ssh` connection, then `gh`
+locally. It reads and writes nothing, anywhere.
+
+What it shows, and what each figure is worth:
+
+| line | what it really counts |
+|---|---|
+| requests 24h / Nd | lines of Caddy's access log, bots included |
+| distinct blocks | masked `/24`s, so neighbourhoods — never people |
+| 4xx / 5xx | what the instance refused or failed to serve |
+| operators | files in `/var/lib/fpvtp/operator-state`, one per signup |
+| flights | session files under `operator-state/tracks/` |
+| views, clones | GitHub, 14 days maximum, robots included |
+| downloads | the release assets — the only figure a person made |
+
+Three things it cannot do, by construction:
+
+- **nothing before the access log existed.** The `log` block in
+  `deploy/Caddyfile` is what creates it, and journald starts at the reload that
+  installed it. An empty window right after is the expected state and the
+  report says so rather than showing a bare zero.
+- **no identity.** Caddy truncates every address to a `/24` before writing it
+  (`ip_mask`, see `deploy/Caddyfile`), so the report can count sources and
+  never a person. That is deliberate: the game's front page promises exactly
+  that, and a measurement tool is not a reason to break it.
+- **no history.** journald's window is bounded (`journalctl --disk-usage`), so
+  a figure not written down is a figure lost. The tool keeps no state on
+  purpose — there is no cache to grow stale and no file to leak.
+
+`node tools/traffic-selftest.mjs` covers the parsing, the windows and the
+layout; the arithmetic is in `tools/traffic-model.mjs`, which has neither ssh
+nor network in it.
 
 ## The dialogue pipeline (crew RTC)
 
