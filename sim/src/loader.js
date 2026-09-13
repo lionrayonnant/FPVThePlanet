@@ -30,7 +30,7 @@ export function sceneBase(slug) {
 // Lists maps prepared with tools/add-map.mjs, for the pre-flight menu.
 export async function loadSceneList() {
 	const res = await fetch(`${BASE}scenes.json`);
-	if (!servedJson(res)) throw new Error(`scenes.json introuvable (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — lancez « npm run add-map » d'abord`);
+	if (!servedJson(res)) throw new Error(`scenes.json not found (HTTP ${res.status}, ${res.headers.get('content-type') || 'no type'}) — run "npm run add-map" first`);
 	const all = await res.json();
 	// Garde-fou : ignorer les scènes dont le dossier n'existe pas physiquement
 	// (typiquement après un clone fresh où scenes.json est commité mais pas
@@ -58,7 +58,7 @@ export async function loadManifest(base) {
 	const res = await fetch(base + 'manifest.json');
 	// Le message doit nommer CE qui manque : c'est tout ce que le joueur voit
 	// sur l'écran de chargement quand le boot échoue.
-	if (!servedJson(res)) throw new Error(`${base}manifest.json : scène non installée (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — lancez « npm run add-map », ou « node tools/sync-scenes.mjs » si scenes.json a dérivé du disque`);
+	if (!servedJson(res)) throw new Error(`${base}manifest.json : scene not installed (HTTP ${res.status}, ${res.headers.get('content-type') || 'no type'}) — run "npm run add-map", or "node tools/sync-scenes.mjs" if scenes.json has drifted from disk`);
 	return res.json();
 }
 
@@ -146,7 +146,7 @@ export function loadChunks(manifest, base, { fogColor, fogDensity, maxChunks = I
 			clearTimeout(watchdog);
 			watchdog = setTimeout(() => {
 				worker.terminate();
-				reject(new Error(`chunk ${index}: worker de tuile muet depuis ${WORKER_SILENCE_MS / 1000} s — mémoire insuffisante ? fermez les autres onglets du jeu, puis rechargez`));
+				reject(new Error(`chunk ${index}: tile worker silent for ${WORKER_SILENCE_MS / 1000} s — out of memory? close the game's other tabs, then reload`));
 			}, WORKER_SILENCE_MS);
 		};
 		arm();
@@ -213,7 +213,7 @@ export async function loadCollision(manifest, base, onProgress) {
 	// soupe de triangles, et l'échec se produit bien plus loin, sans rapport
 	// visible avec sa cause. Le fichier réel est servi en octet-stream.
 	if (!res.ok || (res.headers.get('content-type') || '').includes('text/html')) {
-		throw new Error(`${manifest.collision.file} : collision introuvable (HTTP ${res.status}, ${res.headers.get('content-type') || 'sans type'}) — scène incomplète, relancez « npm run prep »`);
+		throw new Error(`${manifest.collision.file} : collision not found (HTTP ${res.status}, ${res.headers.get('content-type') || 'no type'}) — incomplete scene, re-run "npm run prep"`);
 	}
 
 	// ~90MB: stream it so the loading screen can show real progress.

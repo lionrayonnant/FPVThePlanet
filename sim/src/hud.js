@@ -9,7 +9,7 @@ export class Hud {
 		root.insertAdjacentHTML('beforeend', `
 			<div id="loading" hidden><div class="box">
 				<h1>FPVThePlanet!</h1>
-				<p id="loading-status">chargement…</p>
+				<p id="loading-status">LOADING…</p>
 				<div class="bar"><div id="loading-bar"></div></div>
 				<p id="loading-detail"></p>
 				<p id="loading-clock"></p>
@@ -44,7 +44,7 @@ export class Hud {
 			const total = (performance.now() - t0) / 1000;
 			const inStage = (performance.now() - this._stage.at) / 1000;
 			this.el.clock.textContent = this._stage.name
-				? `${total.toFixed(0)} s — étape « ${this._stage.name} » depuis ${inStage.toFixed(0)} s`
+				? `${total.toFixed(0)} s — ${this._stage.name.toUpperCase()} FOR ${inStage.toFixed(0)} s`
 				: `${total.toFixed(0)} s`;
 		}, 250);
 	}
