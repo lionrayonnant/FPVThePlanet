@@ -246,9 +246,10 @@ function tipRow(onOpen) {
 	row.className = 'terminal-tips';
 	for (const group of TIP_BUTTONS) {
 		const b = screenButton('', () => onOpen(group, b), 'terminal-tip-btn');
-		// 24px, an exact doubling of the 12x12 grid. Any other size lands pixels
-		// on half-pixels, which is where crispEdges stops being able to help.
-		b.appendChild(iconImg(group.icon, { size: 24, alt: '' }));
+		// 36px, an exact tripling of the 12x12 grid. Any size that is not a whole
+		// multiple lands pixels on half-pixels, which is where crispEdges stops
+		// being able to help — and this mark is the tile's headline.
+		b.appendChild(iconImg(group.icon, { size: 36, alt: '' }));
 		const name = document.createElement('span');
 		name.className = 'terminal-tip-name';
 		name.textContent = group.alt;

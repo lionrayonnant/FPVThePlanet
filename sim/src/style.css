@@ -730,10 +730,13 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	align-items: center;
 	gap: .45em;
 	margin-top: .35em;
-	font-size: var(--fs-micro);
-	color: var(--faint);
+	/* DATA level, not micro: this is the one line in the footer a player is
+	   meant to click, and at 11px in --faint it was furniture. */
+	font-family: var(--font-data);
+	font-size: var(--fs-data);
+	color: var(--light-grey);
 	text-decoration: none;
-	letter-spacing: .08em;
+	letter-spacing: var(--track-data);
 }
 .terminal-meta:hover { color: var(--light-grey); text-decoration: underline; }
 .terminal-meta:focus-visible {
@@ -744,13 +747,15 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .terminal-source-mark, .terminal-mark { display: inline-flex; }
 
 /* The footer's two categories. A heading is not a link and must not look like
-   one: micro type, tracked wide, dimmer than what it introduces. */
+   one — but it still has to be READ: DATA level in --light-grey (5.26:1), the
+   same step as the imagery credit above it. At --fs-micro in --faint both
+   headings disappeared into the footer they were supposed to organise. */
 .bootstrap-box pre.terminal-meta-head {
-	color: var(--faint);
+	color: var(--light-grey);
 	font-family: var(--font-data);
-	font-size: var(--fs-micro);
+	font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
-	margin: var(--space-3) 0 0;
+	margin: var(--space-4) 0 0;
 }
 
 /* The tip tiles: a mark, the coin's name under it, and a real edge around both.
@@ -765,14 +770,14 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	flex-direction: column;
 	align-items: center;
 	gap: var(--space-2);
-	min-width: 5.5rem;
-	padding: var(--space-3) var(--space-4);
+	min-width: 7rem;
+	padding: var(--space-4);
 	background: var(--dark-grey);
 	border: var(--rule-w) solid var(--rule-strong);
 	color: var(--ink);
-	font-family: var(--font-data);
-	font-size: var(--fs-micro);
-	letter-spacing: var(--track-data);
+	font-family: var(--font-ui);
+	font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
 	line-height: 1;
 	cursor: pointer;
 }
