@@ -18,6 +18,7 @@ import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
 import { versionLine, SOURCE_URL, LICENCE } from './version.js';
 import { iconDataUri } from './pixel-icons.js';
+import { ADDRESSES, HANDLE, SUPPORT_LINES, paymentUri } from '../tools/support-model.mjs';
 
 
 // How many areas the Home shows under the map before handing over to MORE….
@@ -173,7 +174,7 @@ async function forecastScreen(root, scene) {
 // setWindowOpenHandler, which hands https to the system browser.
 function sourceLink() {
 	const a = document.createElement('a');
-	a.className = 'terminal-source';
+	a.className = 'terminal-meta terminal-source';
 	// setAttribute rather than the properties: the render selftests mount this
 	// on a fake DOM that tracks attributes, and an offer the tests cannot see is
 	// an offer nothing stops from disappearing.
@@ -195,6 +196,14 @@ function sourceLink() {
 
 	a.appendChild(document.createTextNode(` SOURCE · ${LICENCE}`));
 	return a;
+}
+
+// SUPPORT, one line under the source link. Same register, same restraint: it
+// names itself and says nothing more. The screen behind it does the talking.
+function supportLink(onOpen) {
+	const b = screenButton('SUPPORT', onOpen);
+	b.className = `${b.className} terminal-meta terminal-support`.trim();
+	return b;
 }
 
 function areaRow(sc, { onActivate, onWeather = null } = {}) {
@@ -509,6 +518,101 @@ async function operatorScreen(root, api) {
 // A hand-written version ladder (tools/buildnotes-model.mjs), unlocked by the
 // counters the operator has already accumulated. Decorative: it resolves no
 // flight, just a BACK to the Home.
+// SUPPORT — where the money would go, if you felt like it.
+//
+// A secondary screen rather than a sixth entry at SELECT OPERATION MODE: a tip
+// jar is not a mode, and putting it beside FIELD and BENCH would say it is.
+// It hangs off the footer, one line under the source link, which is where a
+// player who is already looking for the project behind the game will look.
+//
+// Crypto only, and the screen says why rather than leaving it odd. Every fiat
+// rail verifies the recipient's identity, which is the one thing not on offer
+// here, and a payment page under a legal name would undo a pseudonym the
+// repository keeps everywhere else.
+function supportScreen(root, onClose = () => {}) {
+	const s = screen(root, 'terminal-box support');
+	let close = () => { s.remove(); onClose(); };
+
+	const head = document.createElement('pre');
+	head.textContent = 'SUPPORT //';
+	s.box.appendChild(head);
+
+	const said = document.createElement('pre');
+	said.className = 'terminal-sub';
+	said.textContent = SUPPORT_LINES.join('\n');
+	s.box.appendChild(said);
+
+	// The handle first. Ninety-five characters of base58 is not something a
+	// person reads, remembers or types — this one line is, and it resolves to
+	// the same wallets as everything below it.
+	const handleRow = document.createElement('div');
+	handleRow.className = 'support-entry support-handle';
+	const hl = document.createElement('pre');
+	hl.className = 'support-label';
+	hl.textContent = 'ONE LINE, ANY COIN';
+	const hv = document.createElement('pre');
+	hv.className = 'support-value';
+	hv.textContent = HANDLE;
+	handleRow.append(hl, hv, copyButton(HANDLE));
+	s.box.appendChild(handleRow);
+
+	for (const entry of ADDRESSES) {
+		const row = document.createElement('div');
+		row.className = 'support-entry';
+
+		const label = document.createElement('pre');
+		label.className = 'support-label';
+		label.textContent = entry.label;
+
+		const note = document.createElement('pre');
+		note.className = 'support-note';
+		note.textContent = entry.note;
+
+		// The address, whole. Never truncated with an ellipsis: an address you
+		// cannot read in full is an address you cannot check against what your
+		// wallet pasted, and checking is the only defence a donor has.
+		const value = document.createElement('pre');
+		value.className = 'support-value';
+		value.textContent = entry.address;
+
+		row.append(label, note, value, copyButton(entry.address), copyButton(paymentUri(entry), 'COPY URI'));
+		s.box.appendChild(row);
+	}
+
+	const foot = document.createElement('pre');
+	foot.className = 'terminal-foot';
+	foot.textContent = 'NO FIAT: EVERY CARD RAIL WANTS THE AUTHOR\'S PAPERS. THESE DO NOT.';
+	s.box.appendChild(foot);
+
+	backRow(s.box, close);
+	s.box.appendChild(keyHints([['ESC', 'BACK']]));
+
+	// menuNav, like every other screen: cursor, keyboard, gamepad, and above all
+	// Escape doing something. buildNotesScreen carries the comment about being
+	// the one screen that forgot this; there is no reason to be the second.
+	let nav = null;
+	const closeAndDetach = () => { nav?.detach(); close(); };
+	nav = menuNav(s.el, { back: closeAndDetach });
+	nav.focusAt(0);
+	return s;
+}
+
+// A copy button that says whether it worked, because a silent copy button is
+// indistinguishable from a broken one — and here the thing being copied is a
+// payment address, where "I think it copied" is not good enough.
+function copyButton(text, label = 'COPY') {
+	const b = screenButton(label, async () => {
+		let ok = false;
+		try {
+			await navigator.clipboard.writeText(text);
+			ok = true;
+		} catch { ok = false; }
+		b.textContent = ok ? '[ COPIED ]' : '[ SELECT IT BY HAND ]';
+		setTimeout(() => { b.textContent = `[ ${label} ]`; }, 2000);
+	});
+	return b;
+}
+
 function buildNotesScreen(root, operator) {
 	const s = screen(root);
 	const c = countersOf(operator);
@@ -1204,6 +1308,14 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		// be inside the program, so it sits on the one screen every session
 		// passes through.
 		left.appendChild(sourceLink());
+		// FIELD has no `behind()` of its own — that helper lives in dataScreen —
+		// so the hide/restore is done here. Hiding rather than removing keeps the
+		// map, the pin and the selected area exactly as they were: opening SUPPORT
+		// must cost a player nothing.
+		left.appendChild(supportLink(() => {
+			s.el.hidden = true;
+			supportScreen(root, () => { s.el.hidden = false; nav?.focusAt(0); });
+		}));
 
 		// D15: Escape goes back up, and it says so — but it must say what Escape
 		// ACTUALLY does in the state on screen. While an area is drawn, Escape

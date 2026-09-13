@@ -725,7 +725,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    gets the inverse-video focus marker the rest of the terminal uses rather than
    the browser's outline, which style.css removes globally. Underlined only on
    hover: a permanent underline in this typeface reads as a scanline. */
-.terminal-source {
+.terminal-meta {
 	display: inline-flex;
 	align-items: center;
 	gap: .45em;
@@ -735,13 +735,58 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-decoration: none;
 	letter-spacing: .08em;
 }
-.terminal-source:hover { color: var(--light-grey); text-decoration: underline; }
-.terminal-source:focus-visible {
+.terminal-meta:hover { color: var(--light-grey); text-decoration: underline; }
+.terminal-meta:focus-visible {
 	outline: none;
 	background: var(--ink);
 	color: var(--black);
 }
 .terminal-source-mark { display: inline-flex; }
+/* SUPPORT is a <button> and SOURCE is an <a>; they sit on the same line and
+   must read as one pair, so the button gives up every default a button has. */
+/* SUPPORT. The addresses are the content, so they get the room: full width,
+   wrapping anywhere, in the mono face at a size that stays readable rather than
+   one that flatters the layout. Nothing here is ever truncated — an address you
+   cannot read in full is one you cannot check against what your wallet pasted. */
+.support-entry {
+	margin: 1.4em 0;
+	padding-left: .8em;
+	border-left: 1px solid var(--rule-strong);
+}
+.support-label {
+	color: var(--ink);
+	letter-spacing: .12em;
+}
+.support-note {
+	color: var(--faint);
+	font-size: var(--fs-micro);
+	margin: .2em 0 .5em;
+}
+.support-value {
+	color: var(--light-grey);
+	/* anywhere, not break-word: base58 and bech32 have no spaces and no hyphens,
+	   so the only place to break is between two characters. */
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	user-select: all;
+	margin-bottom: .5em;
+}
+/* The handle is the one line a person can actually read, so it is the one line
+   that gets to look like a headline. */
+.support-handle .support-value {
+	color: var(--ink);
+	font-size: var(--fs-body);
+	letter-spacing: .06em;
+}
+
+button.terminal-meta {
+	background: none;
+	border: 0;
+	padding: 0;
+	margin-left: 1.2em;
+	font: inherit;
+	cursor: pointer;
+}
 .terminal-source-mark svg { display: block; }
 
 /* BUILD NOTES: a version number, then its indented lines. The indent is

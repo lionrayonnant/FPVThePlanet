@@ -78,6 +78,26 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Ajouté
 
+- **Un écran SUPPORT**, accessible depuis le pied de page de FIELD, à côté du
+  lien source. Trois adresses — Monero, Bitcoin en paiement silencieux
+  (BIP352), Bitcoin classique — plus une poignée Cake lisible, `fpvtp@cake.cash`,
+  qui est la seule ligne qu'un humain peut retenir ou dicter : quatre-vingt-quinze
+  caractères de base58 ne sont pas une interface. Chaque adresse est affichée
+  **en entier**, jamais tronquée, et copiable d'un bouton qui dit s'il a réussi.
+
+  Crypto uniquement, et l'écran le dit plutôt que de laisser la question en
+  suspens : tous les rails fiat vérifient l'identité du bénéficiaire, ce que ce
+  projet ne propose pas, et une page de paiement à l'état civil déferait le
+  pseudonyme que le dépôt tient partout ailleurs.
+
+  Les adresses vivent dans un module pur, `tools/support-model.mjs`, pour une
+  raison précise : `tools/support-selftest.mjs` les revérifie **par checksum à
+  chaque passage de CI** — bech32 et bech32m pour Bitcoin, Keccak-256 pour
+  Monero, l'implémentation étant elle-même contrôlée sur le vecteur de test
+  officiel avant qu'on lui fasse confiance. Une coquille dans une légende est
+  embarrassante ; une coquille dans une adresse envoie l'argent d'un inconnu là
+  où personne ne pourra jamais le dépenser, et le dépôt comme les binaires la
+  porteraient pour la durée de la version.
 - **Le jeu dit où sont ses sources.** Une ligne `< > SOURCE · AGPL-3.0` sous le
   pied de page de FIELD, cliquable, et une marque discrète dans l'OSD en vol.
   Ce n'est pas de la promotion : l'article 13 de l'AGPL exige qu'un joueur qui

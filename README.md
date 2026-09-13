@@ -120,6 +120,28 @@ Open Font License, whose text sits next to them in `sim/public/fonts/`. The
 music in `sim/public/music/` was generated for this project. Map tiles are
 © OpenStreetMap and place search is © Nominatim.
 
+## Support
+
+The game is free and stays free. Nothing in it is paywalled, counted, or
+remembered about you. If it gave you something, there is a `SUPPORT` line under
+the terminal footer, and the same addresses are here:
+
+| | |
+|---|---|
+| one line, any coin | `fpvtp@cake.cash` |
+| Monero | `42RnnFdtNasaiUQGEASPGRXjHcr2pDocwXCwGUAhwyp7KbAhbKwCHrEfeYMkUMpo7gQdEABWy9LoRd4iEUFMq2SXKdHPqKt` |
+| Bitcoin, silent payment | `sp1qq2tuvemuzgu6hudsu7jf2h90gl6xemav67s3x3f34l76qtfl6dzgcq43r30lvckcz4qat2x8ju5a36sdqr2r3fe72cqpudvlqh797agdkcvkvkl4` |
+| Bitcoin | `bc1qmwm3rcvzkwaft40yrtynym3yww20t2atfr45yg` |
+
+Crypto only, and not out of enthusiasm: every card rail verifies the identity of
+whoever receives the money, and this project is published under a pseudonym.
+
+These addresses live in `sim/tools/support-model.mjs`, and
+`sim/tools/support-selftest.mjs` re-verifies every one of them by checksum on
+every CI run — bech32 and bech32m for Bitcoin, Keccak-256 for Monero. A typo in
+a caption is embarrassing; a typo in an address sends a stranger's money
+somewhere nobody can spend it.
+
 ## Contributions
 
 Still reading? Contributions are welcome.

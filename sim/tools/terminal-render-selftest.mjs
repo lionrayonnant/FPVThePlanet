@@ -9,6 +9,7 @@
 // Run: node tools/terminal-render-selftest.mjs
 
 import assert from 'node:assert/strict';
+import { ADDRESSES, HANDLE } from './support-model.mjs';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
 const dom = installFakeDom();
@@ -501,6 +502,29 @@ await ta('home: the source is offered, which the AGPL requires of a network inst
 	assert.equal(link.getAttribute('target'), '_blank', 'opens outside, or Electron blocks it');
 	assert.match(link.getAttribute('rel') ?? '', /noopener/, 'and does not hand over the opener');
 	await close(p);
+});
+
+await ta('support: the addresses reach the screen whole, and nothing is truncated', async () => {
+	// support-selftest.mjs proves the addresses are valid; this proves the
+	// screen does not mangle them on the way out. An address shortened with an
+	// ellipsis for layout is an address a donor cannot check against what their
+	// wallet pasted, which is the only defence they have — so the assertion is
+	// character-for-character.
+	reset();
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	dom.root.querySelectorAll('.terminal-support').at(-1).click();
+	await new Promise((r) => setTimeout(r, 0));
+
+	const box = dom.root.querySelectorAll('.terminal-box').at(-1);
+	assert.match(box.textContent, /SUPPORT \/\//, 'the support screen is the one on top');
+	assert.ok(box.textContent.includes(HANDLE), 'the readable handle is there');
+	for (const a of ADDRESSES) {
+		assert.ok(box.textContent.includes(a.address), `${a.id}: the address is on screen in full`);
+		assert.ok(box.textContent.includes(a.label), `${a.id}: and it is labelled`);
+	}
+	assert.doesNotMatch(box.textContent, /\u2026|\.\.\./, 'nothing is elided');
+	await unwind(p);
 });
 
 // --- OPERATOR KEY -----------------------------------------------------------
