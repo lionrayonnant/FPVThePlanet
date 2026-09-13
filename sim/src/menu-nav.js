@@ -1,32 +1,32 @@
-// Navigation clavier + manette des menus (issue #123). Généralise la
-// convention écrite deux fois indépendamment (session-log.js, target-scan.js) :
-// ↑/↓ déplacent un curseur, ←/→ règlent ou changent de filtre, Entrée active,
-// Échap/Retour arrière remonte. Le curseur EST le focus natif du navigateur
-// (element.focus()) : Tab, souris, clavier et manette racontent la même
-// histoire, et le marqueur ▌ (peint par style.css sur :focus) ne peut jamais
-// diverger de l'élément réellement actif. Ce module ne touche à aucun style.
+// Keyboard and gamepad navigation of the menus (issue #123). It generalises the
+// convention that had been written twice independently (session-log.js,
+// target-scan.js): up/down move a cursor, left/right adjust or change filter,
+// Enter activates, Escape/Backspace goes back up. The cursor IS the browser's
+// native focus (element.focus()): Tab, mouse, keyboard and pad all tell the same
+// story, and the ▌ marker (painted by style.css on :focus) can never disagree
+// with the element that is actually active. This module touches no style.
 //
-// Un écran s'abonne EXPLICITEMENT via menuNav(). Deux contextes ne
-// s'abonnent jamais, parce que les flèches y veulent dire autre chose :
-// certains écrans de bootstrap.js, où la direction est la donnée saisie —
-// ils posent un blockNav() pour rendre inertes les écrans restés montés
-// dessous — et le vol (input.js), où c'est une commande.
-// Les événements dont la cible est un champ de saisie texte sont ignorés
-// (sauf Échap) : la recherche du scanner reste éditable.
+// A screen subscribes EXPLICITLY through menuNav(). Two contexts never do,
+// because the arrows mean something else there: some of bootstrap.js's screens,
+// where the direction IS the data being entered — they lay down a blockNav() to
+// make the screens still mounted underneath inert — and the flight (input.js),
+// where it is a command.
+// Events whose target is a text field are left alone (except Escape): the
+// scanner's search stays editable.
 import { readGamepadDir } from './gamepad-dir.js';
 
-// ---------- logique pure (testée par tools/menu-nav-selftest.mjs) ----------
+// ---------- pure logic (covered by tools/menu-nav-selftest.mjs) ----------
 
-// Index suivant dans une liste circulaire. Sans élément courant (focus perdu
-// après un re-rendu), on entre par le bord d'où vient le mouvement.
+// The next index in a circular list. With no current element (focus lost after
+// a re-render) we enter by the edge the movement comes from.
 export function nextIndex(length, current, delta) {
 	if (!length) return -1;
 	if (current < 0) return delta > 0 ? 0 : length - 1;
 	return (current + delta + length) % length;
 }
 
-// Valeur suivante d'un <input type=range> : un pas borné dans la direction
-// demandée — la manette règle un slider exactement comme les flèches natives.
+// The next value of an <input type=range>: one clamped step in the direction
+// asked for — the pad adjusts a slider exactly as the native arrows do.
 export function stepValue({ value, min, max, step }, dir) {
 	const s = Number.isFinite(step) && step > 0 ? step : 1;
 	const lo = Number.isFinite(min) ? min : 0;
@@ -35,9 +35,9 @@ export function stepValue({ value, min, max, step }, dir) {
 	return Math.min(hi, Math.max(lo, next));
 }
 
-// Les touches d'un champ où l'on tape du texte lui appartiennent (issue #123 :
-// sans cette règle la recherche du scanner devient inéditable). Un range ou
-// une checkbox n'est pas de la saisie de texte.
+// The keys of a field you type into belong to it (issue #123: without this rule
+// the scanner's search becomes uneditable). A range or a checkbox is not text
+// entry.
 export function isTextEntryKind(tag, type) {
 	if (tag === 'TEXTAREA') return true;
 	if (tag !== 'INPUT') return false;
@@ -48,36 +48,35 @@ export function isTextEntry(el) {
 	return !!el && isTextEntryKind(el.tagName, String(el.type ?? '').toLowerCase());
 }
 
-// ---------- pile d'écrans ----------
+// ---------- the stack of screens ----------
 
-// Le nav actif est le plus haut de la pile dont l'écran est encore visible :
-// un panneau ouvert par-dessus (Settings sur la Home, une fiche sur sa liste)
-// prend la main sans que l'écran du dessous ait à se désabonner — il suffit
-// que le dessous soit masqué ou monté plus tôt.
+// The active nav is the topmost one on the stack whose screen is still visible:
+// a panel opened on top (Settings over the Home, a record over its list) takes
+// over without the screen underneath having to unsubscribe — it is enough that
+// the one underneath is hidden, or was mounted earlier.
 const stack = [];
 
 const isShown = (el) => el.isConnected && (el.checkVisibility?.() ?? true);
 
-// Un écran RETIRÉ du DOM sans que son detach() ait été appelé laissait derrière
-// lui sa scrutation manette et son écouteur clavier (issue #210) : la pile est
-// au niveau du module, donc chaque écran traversé dans la session ajoutait un
-// timer à 80 ms et un `back` déclenchable depuis un écran mort. On ne peut pas
-// se contenter de `isShown` pour conclure à la mort : une liste MASQUÉE derrière
-// sa fiche (target-scan) est invisible mais bien vivante, et doit reprendre la
-// main au retour. `isConnected` fait exactement la différence — masqué reste
-// connecté, retiré ne l'est plus. Le drapeau `seen` évite de tuer un nav créé
-// juste avant l'insertion de son écran dans le document : il est posé au
-// montage (le cas courant) et rafraîchi à chaque balayage (le cas d'un écran
-// abonné puis inséré). Ne le poser QU'au balayage ne suffisait pas — un écran
-// retiré avant le premier tick n'aurait jamais été vu vivant, donc jamais
-// ramassé.
+// A screen REMOVED from the DOM without its detach() having been called used to
+// leave its gamepad poll and its key listener behind (issue #210): the stack is
+// module-level, so every screen crossed in a session added an 80 ms timer and a
+// `back` that could still be triggered from a dead screen. `isShown` alone
+// cannot conclude death: a list HIDDEN behind its record (target-scan) is
+// invisible but very much alive, and must take over again on the way back.
+// `isConnected` draws exactly that line — hidden stays connected, removed does
+// not. The `seen` flag avoids killing a nav created just before its screen is
+// inserted into the document: it is set at mount (the common case) and
+// refreshed on every sweep (the case of a screen subscribed then inserted).
+// Setting it ONLY on the sweep was not enough — a screen removed before the
+// first tick would never have been seen alive, so never collected.
 function isDead(entry) {
 	if (entry.container.isConnected) { entry.seen = true; return false; }
 	return !!entry.seen;
 }
 
-// Balayage paresseux : tout chemin qui consulte la pile en profite, sans
-// imposer un timer de ménage à part.
+// A lazy sweep: every path that consults the stack pays for it, and no separate
+// housekeeping timer is needed.
 function reap() {
 	for (let i = stack.length - 1; i >= 0; i--) {
 		if (isDead(stack[i])) stack[i].release?.();
@@ -92,9 +91,9 @@ function topNav() {
 	return null;
 }
 
-// Rend inertes tous les navs pendant qu'un écran non-abonné (capture du
-// CONTROL VECTOR, rituel) est monté par-dessus. Retourne la fonction qui
-// libère la pile.
+// Makes every nav inert while an unsubscribed screen (the CONTROL VECTOR
+// capture, the ritual) is mounted on top. Returns the function that releases
+// the stack.
 export function blockNav(container) {
 	const entry = { container, blocker: true, seen: !!container.isConnected };
 	entry.release = () => {
@@ -110,23 +109,23 @@ const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), '
 
 const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
-// Boutons standard gamepad : 0 = A/sud (activer), 1 = B/est (remonter) —
-// les mêmes que partout ailleurs sur la Standard Gamepad.
+// Standard gamepad buttons: 0 = A/south (activate), 1 = B/east (go back up) —
+// the same as everywhere else on the Standard Gamepad.
 const PAD_CONFIRM = 0;
 const PAD_BACK = 1;
-const PAD_POLL_MS = 80; // même cadence que bootstrap.js
+const PAD_POLL_MS = 80; // the same cadence as bootstrap.js
 
-// `container` : l'élément racine de l'écran (généralement s.el). Options :
-// - back    : Échap / Retour arrière / bouton B — remonter d'un écran.
-// - onDir   : ←/→ quand le focus n'est pas sur un contrôle réglable — pour
-//             les filtres du SESSION LOG. Retourne true si la direction est
-//             consommée ; sinon ←/→ navigue comme ↑/↓.
-// - focusFirst : poser le curseur sur le premier élément au montage (défaut).
-//             À désactiver quand l'écran place lui-même son focus (scanner).
-// - gamepad : brancher la manette (défaut). À désactiver quand les sticks
-//             veulent déjà dire autre chose — le panneau Settings ouvert EN
-//             VOL, où ils pilotent le drone et déplaceraient le curseur et les
-//             sliders à chaque geste.
+// `container`: the screen's root element (usually s.el). Options:
+// - back    : Escape / Backspace / B button — go back up one screen.
+// - onDir   : left/right when the focus is not on an adjustable control — for
+//             the SESSION LOG's filters. Returns true if the direction is
+//             consumed; otherwise left/right navigate like up/down.
+// - focusFirst : put the cursor on the first element at mount (the default).
+//             Turn it off when the screen places its own focus (scanner).
+// - gamepad : wire the pad up (the default). Turn it off when the sticks
+//             already mean something else — the Settings panel opened IN
+//             FLIGHT, where they fly the drone and would move the cursor and
+//             the sliders on every gesture.
 export function menuNav(container, { back = null, onDir = null, focusFirst = true, gamepad = true } = {}) {
 	const nav = { container, seen: !!container.isConnected };
 
@@ -145,8 +144,8 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		if (i >= 0) els[i].focus();
 	};
 
-	// ←/→ : règle le contrôle focalisé quand c'en est un (slider, select),
-	// sinon l'écran décide (filtres), sinon navigue (issue #123, Settings).
+	// left/right: adjust the focused control when it is one (slider, select),
+	// otherwise the screen decides (filters), otherwise navigate (issue #123).
 	const adjust = (el, dir) => {
 		if (!el) return false;
 		if (el.matches('input[type="range"]')) {
@@ -155,8 +154,8 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 			}, dir);
 			if (next !== Number(el.value)) {
 				el.value = String(next);
-				// Le même événement que le geste souris : les oninput existants
-				// (settings.js) persistent et ré-émettent sans rien savoir de nous.
+				// The same event as the mouse gesture: the existing oninput handlers
+				// (settings.js) persist and re-emit without knowing we exist.
 				el.dispatchEvent(new Event('input', { bubbles: true }));
 			}
 			return true;
@@ -179,24 +178,57 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		move(dir === 'right' ? 1 : -1);
 	};
 
+	// The cursor IS native focus — so a click that lands beside a button (the
+	// screen's background, a title, a line of text) makes it DISAPPEAR: the
+	// browser blurs, nothing carries the ▌ marker any more, and Enter activates
+	// nothing. It then took an arrow to bring it back — at the top of the list,
+	// not where it was — or Escape to leave the screen and come back. The
+	// gamepad poll already had its answer ("cursor lost: A puts it back first");
+	// the keyboard and the mouse had none.
+	//
+	// So the focus is PUT BACK where it was. On `focusout` rather than by
+	// blocking `mousedown`: preventing the default would indeed keep the focus,
+	// but it would also kill mouse selection — and things here are selected by
+	// hand (a payment address, a log line), to the point that the COPY button's
+	// own fallback reads "SELECT IT BY HAND".
+	//
+	// Deferred by one turn: `document.activeElement` is only up to date AFTER
+	// the event. If the focus landed somewhere else inside the screen (another
+	// button, a field), or if another nav took over in the meantime, we touch
+	// nothing.
+	const restore = (el) => setTimeout(() => {
+		if (topNav() !== nav) return;
+		const now = document.activeElement;
+		if (now && now !== document.body && container.contains(now)) return;
+		// Leaving a text field is an intention: the cursor is not sent back into
+		// it, nor into another one — on FIELD the search is the FIRST control of
+		// the screen, so "go back to the top" would have put it right back. The
+		// cursor restarts from the first control you can press.
+		if (el && !isTextEntry(el) && isShown(el) && container.contains(el)) { el.focus(); return; }
+		const els = focusables();
+		(els.find((e) => !isTextEntry(e)) ?? els[0])?.focus();
+	}, 0);
+
+	const onFocusOut = (e) => { if (topNav() === nav) restore(e.target); };
+
 	const onKey = (e) => {
 		if (topNav() !== nav) return;
 		if (isTextEntry(e.target)) {
-			// Échap sort quand même de l'écran : il n'édite rien. Tout le reste
-			// (flèches, Retour arrière, Entrée) appartient au champ.
+			// Escape still leaves the screen: it edits nothing. Everything else
+			// (arrows, Backspace, Enter) belongs to the field.
 			if (e.key === 'Escape' && back) { e.preventDefault(); back(); }
 			return;
 		}
 		const dir = KEY_TO_DIR[e.key];
 		if (dir) { e.preventDefault(); handleDir(dir); return; }
 		if ((e.key === 'Escape' || e.key === 'Backspace') && back) { e.preventDefault(); back(); }
-		// Entrée n'est pas gérée ici : un bouton focalisé la reçoit nativement.
+		// Enter is not handled here: a focused button receives it natively.
 	};
 
-	// Manette : mêmes directions que le clavier (readGamepadDir), plus A pour
-	// activer l'élément focalisé et B pour remonter. Front montant seulement,
-	// et l'état initial est « tenu » : le bouton qui a validé l'écran précédent
-	// ne doit pas traverser jusqu'à celui-ci.
+	// Pad: the same directions as the keyboard (readGamepadDir), plus A to
+	// activate the focused element and B to go back up. Rising edge only, and
+	// the initial state is "held": the button that validated the previous screen
+	// must not carry through to this one.
 	let padPrev = null;
 	const padHeld = { [PAD_CONFIRM]: true, [PAD_BACK]: true };
 	const padPoll = !gamepad ? 0 : setInterval(() => {
@@ -213,7 +245,7 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 				else {
 					const el = focused();
 					if (el) el.click?.();
-					else focusAt(0); // curseur perdu : A le repose d'abord
+					else focusAt(0); // cursor lost: A puts it back first
 				}
 			}
 			padHeld[b] = down;
@@ -221,16 +253,20 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 	}, PAD_POLL_MS);
 
 	nav.focusAt = focusAt;
-	// `release` est le nom que la pile connaît (reap), `detach` celui que les
-	// écrans appellent : une seule et même fonction, idempotente.
+	// `release` is the name the stack knows (reap), `detach` the one the screens
+	// call: one and the same function, idempotent.
 	nav.detach = nav.release = () => {
 		clearInterval(padPoll);
 		window.removeEventListener('keydown', onKey);
+		container.removeEventListener('focusout', onFocusOut);
 		const i = stack.indexOf(nav);
 		if (i >= 0) stack.splice(i, 1);
 	};
 
 	window.addEventListener('keydown', onKey);
+	// focusout bubbles (unlike blur): a single listener on the screen covers
+	// every control it has, including the ones a re-render creates later.
+	container.addEventListener('focusout', onFocusOut);
 	stack.push(nav);
 	if (focusFirst) focusAt(0);
 	return nav;

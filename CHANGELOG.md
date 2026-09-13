@@ -30,6 +30,17 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Corrigé
 
+- **Le curseur disparaissait dès qu'un clic tombait à côté d'un bouton.** Le
+  curseur EST le focus natif du navigateur : cliquer sur le fond d'un écran, un
+  titre ou une ligne de texte le fait perdre, plus rien ne porte le marqueur ▌
+  et Entrée n'active plus rien. Il fallait une flèche — qui repartait du haut de
+  la liste — ou Échap pour ressortir et revenir. Le focus est désormais **reposé
+  là où il était**, sur `focusout` plutôt qu'en bloquant le `mousedown` : la
+  sélection à la souris reste possible, et on sélectionne à la main dans ces
+  écrans (une adresse de paiement, une ligne de journal). Sortir d'un champ de
+  saisie reste une intention : le curseur repart alors du premier contrôle sur
+  lequel on peut appuyer, sans y être renvoyé.
+
 - **JUKEBOX, onglet ALL : les lignes étaient écrasées à 6,5 px.** Les 143
   morceaux étaient bien là, dans l'ordre, avec le bon texte, et aucun n'était
   lisible. Un `flex-direction: column` avec un `max-height` ne déborde pas dans

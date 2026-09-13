@@ -1,8 +1,8 @@
-// Selftest de src/menu-nav.js (issue #123). L'essentiel est de la logique pure
-// sans E/S. La fin du fichier couvre en plus le CYCLE DE VIE de la pile de
-// navs sur le faux DOM (issue #210) : c'est là qu'un écran retiré sans
-// detach() laissait derrière lui une scrutation manette à 80 ms.
-// Lancer : node tools/menu-nav-selftest.mjs
+// Selftest of src/menu-nav.js (issue #123). Most of it is pure logic with no
+// I/O. The end of the file also covers the LIFECYCLE of the nav stack on the
+// fake DOM (issue #210): that is where a screen removed without detach() left
+// an 80 ms gamepad poll behind it.
+// Run: node tools/menu-nav-selftest.mjs
 import assert from 'node:assert/strict';
 import { nextIndex, stepValue, isTextEntry, isTextEntryKind } from '../src/menu-nav.js';
 
@@ -11,78 +11,78 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 // --- nextIndex --------------------------------------------------------------
 
-t('nextIndex : circule dans les deux sens', () => {
+t('nextIndex: circles both ways', () => {
 	assert.equal(nextIndex(3, 0, 1), 1);
 	assert.equal(nextIndex(3, 2, 1), 0);
 	assert.equal(nextIndex(3, 0, -1), 2);
 });
 
-t('nextIndex : sans focus courant, on entre par le bord d\'où vient le mouvement', () => {
+t('nextIndex: with no current focus, enter by the edge the movement comes from', () => {
 	assert.equal(nextIndex(4, -1, 1), 0);
 	assert.equal(nextIndex(4, -1, -1), 3);
 });
 
-t('nextIndex : liste vide -> -1 (rien à focaliser)', () => {
+t('nextIndex: an empty list -> -1 (nothing to focus)', () => {
 	assert.equal(nextIndex(0, -1, 1), -1);
 	assert.equal(nextIndex(0, 0, -1), -1);
 });
 
 // --- stepValue --------------------------------------------------------------
 
-t('stepValue : un pas dans la direction demandée', () => {
+t('stepValue: one step in the direction asked for', () => {
 	assert.equal(stepValue({ value: 50, min: 0, max: 100, step: 1 }, 'right'), 51);
 	assert.equal(stepValue({ value: 50, min: 0, max: 100, step: 1 }, 'left'), 49);
 });
 
-t('stepValue : borné aux extrémités du slider', () => {
+t('stepValue: clamped at both ends of the slider', () => {
 	assert.equal(stepValue({ value: 100, min: 0, max: 100, step: 1 }, 'right'), 100);
 	assert.equal(stepValue({ value: 0, min: 0, max: 100, step: 1 }, 'left'), 0);
 });
 
-t('stepValue : respecte un pas fractionnaire (obturation 0.5)', () => {
+t('stepValue: a fractional step is honoured (shutter 0.5)', () => {
 	assert.equal(stepValue({ value: 8, min: 0, max: 20, step: 0.5 }, 'right'), 8.5);
 });
 
-t('stepValue : attributs absents (NaN) -> pas de 1 sur 0..100', () => {
+t('stepValue: missing attributes (NaN) -> a step of 1 over 0..100', () => {
 	assert.equal(stepValue({ value: 99.5, min: NaN, max: NaN, step: NaN }, 'right'), 100);
 	assert.equal(stepValue({ value: 0.5, min: NaN, max: NaN, step: NaN }, 'left'), 0);
 });
 
 // --- isTextEntry ------------------------------------------------------------
 
-t('isTextEntryKind : les champs où l\'on tape gardent leurs touches', () => {
-	// La recherche du scanner (type=search), le nom d'opérateur (type=text) et
-	// la note post-vol (textarea) doivent rester éditables (issue #123).
+t('isTextEntryKind: the fields you type into keep their keys', () => {
+	// The scanner's search (type=search), the operator name (type=text) and the
+	// post-flight note (textarea) must stay editable (issue #123).
 	assert.equal(isTextEntryKind('INPUT', 'search'), true);
 	assert.equal(isTextEntryKind('INPUT', 'text'), true);
 	assert.equal(isTextEntryKind('TEXTAREA', 'textarea'), true);
 });
 
-t('isTextEntryKind : slider, checkbox et bouton ne sont pas de la saisie', () => {
-	// Un range focalisé doit se régler avec ←/→ dans Settings, pas absorber
-	// la navigation entière.
+t('isTextEntryKind: a slider, a checkbox and a button are not text entry', () => {
+	// A focused range must be adjustable with left/right in Settings, not
+	// swallow the whole navigation.
 	assert.equal(isTextEntryKind('INPUT', 'range'), false);
 	assert.equal(isTextEntryKind('INPUT', 'checkbox'), false);
 	assert.equal(isTextEntryKind('BUTTON', 'button'), false);
 	assert.equal(isTextEntryKind('SELECT', 'select-one'), false);
 });
 
-t('isTextEntry : cible absente -> false', () => {
+t('isTextEntry: no target -> false', () => {
 	assert.equal(isTextEntry(null), false);
 	assert.equal(isTextEntry(undefined), false);
 });
 
-// --- cycle de vie de la pile (issue #210) ------------------------------------
+// --- the stack's lifecycle (issue #210) --------------------------------------
 
-// Ces tests-ci ont besoin d'un DOM : ils sont montés après les tests purs pour
-// que ceux-ci restent lisibles sans harnais.
+// These need a DOM: they are mounted after the pure tests so that those stay
+// readable without a harness.
 const { installFakeDom } = await import('./lib/fake-dom.mjs');
 const dom = installFakeDom();
 const { menuNav } = await import('../src/menu-nav.js');
 
-// On compte les scrutations en interceptant setInterval/clearInterval plutôt
-// qu'en interrogeant process._getActiveHandles() : celui-ci ne rapporte plus
-// les timers sur Node 26, et le test « passait » en mesurant zéro partout.
+// The polls are counted by intercepting setInterval/clearInterval rather than
+// by asking process._getActiveHandles(): that one no longer reports timers on
+// Node 26, and the test "passed" by measuring zero everywhere.
 const live = new Set();
 const realSet = globalThis.setInterval;
 const realClear = globalThis.clearInterval;
@@ -93,26 +93,26 @@ const timers = () => live.size;
 const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-await ta('un écran RETIRÉ du DOM sans detach() ne garde pas sa scrutation', async () => {
-	// Le cas de #210 : l'écran est remplacé (reset / replaceChildren) au lieu
-	// d'être fermé. Personne n'appelle detach(), et le setInterval survivait —
-	// assez pour bloquer une suite de selftests entière.
+await ta('a screen REMOVED from the DOM without detach() keeps no poll', async () => {
+	// The #210 case: the screen is replaced (reset / replaceChildren) instead of
+	// being closed. Nobody calls detach(), and the setInterval used to survive —
+	// enough to block a whole selftest run.
 	const before = timers();
 	const el = document.createElement('div');
 	dom.root.appendChild(el);
 	el.appendChild(document.createElement('button'));
 	menuNav(el);
-	assert.equal(timers(), before + 1, 'la scrutation est bien ouverte au montage');
+	assert.equal(timers(), before + 1, 'the poll is open at mount');
 
-	dom.root.replaceChildren();          // l'écran s'en va sans se désabonner
-	await sleep(200);                    // la scrutation se ramasse elle-même
-	assert.equal(timers(), before, 'plus aucune scrutation derrière un écran mort');
+	dom.root.replaceChildren();          // the screen leaves without unsubscribing
+	await sleep(200);                    // the poll collects itself
+	assert.equal(timers(), before, 'no poll left behind a dead screen');
 });
 
-await ta('un écran seulement MASQUÉ garde sa scrutation (la liste sous sa fiche)', async () => {
-	// La distinction qui rend #210 non trivial : target-scan.js masque sa liste
-	// derrière la fiche (display:none) et la reprend au retour. Masqué n'est
-	// pas mort — la confondre avec un retrait couperait la navigation au BACK.
+await ta('a screen only HIDDEN keeps its poll (the list under its record)', async () => {
+	// The distinction that makes #210 non-trivial: target-scan.js hides its list
+	// behind the record (display:none) and takes it back on the way out. Hidden
+	// is not dead — confusing it with a removal would cut navigation at BACK.
 	const before = timers();
 	const el = document.createElement('div');
 	dom.root.appendChild(el);
@@ -120,9 +120,56 @@ await ta('un écran seulement MASQUÉ garde sa scrutation (la liste sous sa fich
 	const nav = menuNav(el);
 	el.style.display = 'none';
 	await sleep(200);
-	assert.equal(timers(), before + 1, 'la liste masquée est toujours abonnée');
+	assert.equal(timers(), before + 1, 'the hidden list is still subscribed');
 	nav.detach();
-	assert.equal(timers(), before, 'et detach() la libère normalement');
+	assert.equal(timers(), before, 'and detach() releases it normally');
+	dom.root.replaceChildren();
+});
+
+// --- the cursor lost to a click ----------------------------------------------
+
+await ta('the cursor comes back where it was when a click lands beside it', async () => {
+	// The cursor IS native focus: a click on the screen's background makes it
+	// disappear, and Enter activates nothing any more. It took an arrow (which
+	// restarted from the top) or Escape to leave the screen and come back.
+	const el = document.createElement('div');
+	dom.root.appendChild(el);
+	const a = document.createElement('button');
+	const b = document.createElement('button');
+	el.append(a, b);
+	const nav = menuNav(el);
+	b.focus();
+
+	b.blur();                                   // the click lands on the scenery
+	assert.equal(document.activeElement, null, 'the focus really is lost');
+	el.dispatchEvent({ type: 'focusout', target: b });
+	await sleep(0);
+
+	assert.equal(document.activeElement, b, 'the cursor is put back where it was');
+	nav.detach();
+	dom.root.replaceChildren();
+});
+
+await ta('leaving a text field does not send the cursor back into it', async () => {
+	// Leaving a field is an intention, not an accident: the cursor restarts from
+	// the first control rather than being forced back into the typing.
+	const el = document.createElement('div');
+	dom.root.appendChild(el);
+	// The field FIRST, like FIELD's search: "go back to the top" would have been
+	// enough to put it back, and the test would have proved nothing.
+	const input = document.createElement('input');
+	input.type = 'text';
+	const btn = document.createElement('button');
+	el.append(input, btn);
+	const nav = menuNav(el);
+	input.focus();
+
+	input.blur();
+	el.dispatchEvent({ type: 'focusout', target: input });
+	await sleep(0);
+
+	assert.equal(document.activeElement, btn, 'the cursor restarts from the first control');
+	nav.detach();
 	dom.root.replaceChildren();
 });
 
