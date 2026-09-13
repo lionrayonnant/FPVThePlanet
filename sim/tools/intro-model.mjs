@@ -8,13 +8,13 @@
 // attend un geste (c'est aussi le geste qui débloque l'AudioContext).
 
 // Trois mouvements, dans l'ordre : le logo se révèle, le cracktro tourne
-// (plasma/raster + scrolltext), puis la partition se résout sur la signature
+// (plasma/raster), puis la partition se résout sur la signature
 // de boot existante (BOOT_SIGNATURE, ui-audio-model.mjs). Les durées sont
 // fixées ICI et nulle part ailleurs : src/intro.js ne réinvente pas de
 // minutage, il lit celui-ci.
 export const INTRO_PHASES = [
 	{ name: 'reveal', durMs: 1500 },      // logo ASCII qui se pose, sinus-scroll par colonne
-	{ name: 'plasma', durMs: 4000 },      // raster bars/plasma + scrolltext horizontal
+	{ name: 'plasma', durMs: 4000 },      // raster bars/plasma
 	{ name: 'resolution', durMs: 1500 },  // la partition rejoint BOOT_SIGNATURE
 ];
 
