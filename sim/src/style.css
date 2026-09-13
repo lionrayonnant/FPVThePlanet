@@ -145,7 +145,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
 	background: var(--black);
-	z-index: 10;
+	z-index: var(--z-loading);
 }
 #loading .box { width: min(420px, 80vw); text-align: center; }
 /* Le verrouillage du boot est celui de l'intro (.lockup, plus bas), à l'échelle
@@ -370,9 +370,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	position: fixed; inset: 0;
 	display: grid; place-items: center;
 	background: var(--scrim);
-	/* Above the operator terminal (z-index 11) as well as the flight HUD, so the
+	/* Above the operator terminal (--z-screen) as well as the flight HUD, so the
 	   Tab panel opens on top whether it is called from the terminal or in flight. */
-	z-index: 20;
+	z-index: var(--z-panel);
 }
 .panel {
 	pointer-events: auto;
@@ -546,7 +546,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	   crash au rapport puis à la Home, un seul noir continu, sans saut de
 	   teinte. Les panneaux posés dessus (Settings, carte) gardent leur gris. */
 	background: var(--black);
-	z-index: 11;
+	z-index: var(--z-screen);
 }
 .bootstrap-box {
 	width: min(840px, 88vw);
@@ -723,9 +723,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .bootstrap button.terminal-tab[data-off="true"][data-on="true"] { color: var(--black); }
 /* V3: the briefing sits ABOVE the terminal screen. On the REPLAY path the root
    menu is re-mounted behind it the moment the panel closes, and at equal
-   z-index (11) the later screen wins — the briefing text was in the DOM and
-   invisible. Settings stays at 20, above both. */
-.bootstrap.briefing { z-index: 12; }
+   z-index (--z-screen) the later screen wins — the briefing text was in the DOM
+   and invisible. Settings stays above both. */
+.bootstrap.briefing { z-index: var(--z-screen-over); }
 .terminal-right { position: relative; min-width: 0; }
 .terminal-map { position: absolute; inset: 0; }
 /* Sous 1100px on empile. Le rail remplace toujours le bloc de texte, jamais la
@@ -1015,17 +1015,6 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	border: var(--rule-w) solid var(--warm-white);
 	width: 8px; height: 8px; margin: -4px 0 0 -4px;
 }
-/* Une tuile qui ne vient pas n'est pas une panne : la zone est jouable hors
-   ligne par définition. On le dit une fois, en encre éteinte, et le cadre de la
-   zone reste dessiné sur le fond nu. */
-.map-offline {
-	position: absolute; inset: auto 0 50% 0; margin: 0; text-align: center;
-	z-index: 400; pointer-events: none;
-	color: var(--faint);
-	font-family: var(--font-data); font-size: var(--fs-data);
-	letter-spacing: var(--track-data);
-}
-
 .sc-pin {
 	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
 	font-size: var(--fs-data); letter-spacing: .1em;
@@ -1168,7 +1157,6 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .sc-readout dt { color: var(--light-grey); font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase; }
 .sc-readout dd { margin: 0; font-variant-numeric: tabular-nums; }
 
-.sc-density { margin: 0; font-family: var(--font-data); font-size: var(--fs-ui); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
 .sc-verdict { margin: 0; letter-spacing: var(--track-ui); text-transform: uppercase; }
 /* Un verdict de couverture est exactement le cas que la Bible §38 autorise :
    la couleur EST l'information. */
@@ -1300,13 +1288,13 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    écran est portée par sa durée de vie (`notify()` rend un `stop()`, et le flux
    s'arrête si le calque quitte le document), pas par sa place dans le DOM.
 
-   z-index 12 : juste au-dessus de `.bootstrap` (11), qui est l'écran terminal.
+   --z-screen-over : juste au-dessus de l'écran terminal.
 
    `pointer-events: none` : le crew est décoratif (Bible §10), il ne doit jamais
    intercepter un clic destiné au formulaire en dessous. */
 .rtc-toasts {
 	position: fixed; right: var(--space-5); bottom: var(--space-5);
-	z-index: 12; pointer-events: none;
+	z-index: var(--z-screen-over); pointer-events: none;
 	display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);
 	max-width: min(320px, 60vw);
 }
@@ -1340,7 +1328,6 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 }
 
 @media (max-width: 900px) {
-	.scanner { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
 	.scanner-panel { border-left: 0; border-top: var(--rule-w) solid var(--rule-strong); }
 }
 
@@ -1449,7 +1436,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    one more screen in the same box (user feedback PR #80). */
 .culmination {
 	position: fixed; inset: 0;
-	z-index: 12; /* above .bootstrap/.hack (11) */
+	z-index: var(--z-screen-over); /* au-dessus de .bootstrap/.hack */
 	display: flex; align-items: center; justify-content: center;
 	background: var(--black);
 	overflow: hidden;
@@ -1505,11 +1492,11 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    figé. Le cracktro qui suit est, avec la culmination du hack (#101), le seul
    endroit du jeu où la palette cyan/magenta/violet/bleu électrique apparaît
    (Bible §19) — réservée aux moments spectaculaires, jamais en continu
-   (DA §46). z-index
-   au-dessus de tout : c'est le tout premier écran du jeu. */
+   (DA §46). --z-intro, au-dessus de tout : c'est le tout premier écran du jeu,
+   et il passait à égalité avec SETTINGS — l'ordre du DOM tranchait. */
 .intro {
 	position: fixed; inset: 0;
-	z-index: 20;
+	z-index: var(--z-intro);
 	display: flex; flex-direction: column; align-items: center; justify-content: center;
 	background: var(--black);
 	overflow: hidden;

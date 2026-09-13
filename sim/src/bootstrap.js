@@ -4,7 +4,8 @@
 import * as operatorApi from './operator.js';
 import { menuNav, blockNav } from './menu-nav.js';
 import { uiAudio } from './ui-audio.js';
-import { watchReveal, reducedMotion, STEP_MS } from './motion.js';
+import { reducedMotion, STEP_MS } from './motion.js';
+import { mountScreen, screenButton } from './screen.js';
 import { versionLine } from './version.js';
 
 
@@ -115,18 +116,11 @@ function crewNotes(rows) {
 
 // ---------- montage d'écran ----------
 
+// La chaîne de bootstrap monte le MÊME écran que le terminal (screen.js) : elle
+// en montait une copie qui n'avait jamais gagné `close()`, et restait le seul
+// endroit du jeu dont les écrans s'en allaient d'un coup sec.
 function screen(root) {
-	const el = document.createElement('div');
-	el.className = 'bootstrap';
-	el.innerHTML = '<div class="bootstrap-box"></div>';
-	root.appendChild(el);
-	const box = el.querySelector('.bootstrap-box');
-	const unwatch = watchReveal(box); // issue #224
-	return {
-		el,
-		box,
-		remove: () => { unwatch(); el.remove(); },
-	};
+	return mountScreen(root);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -182,14 +176,7 @@ async function hardwareScreen(root) {
 	});
 }
 
-function button(label, onClick) {
-	const b = document.createElement('button');
-	b.type = 'button';
-	b.textContent = `[ ${label} ]`;
-	b.className = 'bootstrap-btn';
-	b.onclick = onClick;
-	return b;
-}
+const button = (label, onClick) => screenButton(label, onClick, 'bootstrap-btn');
 
 // ---------- écran 2 : OPERATOR NAME ----------
 

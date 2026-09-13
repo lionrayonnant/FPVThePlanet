@@ -13,7 +13,8 @@ import { fetchTrackIndex, fetchTrack } from './track-index.js';
 import { bars, histogram, scatter, steps } from './graph.js';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
-import { watchReveal, countUp, exitScreen } from './motion.js';
+import { countUp } from './motion.js';
+import { mountScreen, screenButton } from './screen.js';
 import { versionLine } from './version.js';
 
 
@@ -29,44 +30,10 @@ const COMPACT_AREAS = 5;
 let lastTab = 'live';
 
 export function screen(root, cls = '') {
-	const el = document.createElement('div');
-	el.className = `bootstrap terminal ${cls}`.trim();
-	// createElement plutôt qu'innerHTML : rigoureusement le même arbre, mais
-	// sans passer par l'analyseur HTML — ce qui rend l'écran montable sur le
-	// faux DOM de tools/lib/fake-dom.mjs, comme le faux AudioContext rend le
-	// son testable sans navigateur.
-	const box = document.createElement('div');
-	box.className = 'bootstrap-box terminal-box';
-	el.appendChild(box);
-	root.appendChild(el);
-	// L'écran s'imprime de haut en bas (issue #224) : chaque bloc ajouté dans
-	// la boîte — maintenant ou après un fetch — reçoit son délai.
-	const unwatch = watchReveal(box);
-	const remove = () => { unwatch(); el.remove(); };
-	// `close()` : la même chose, mais l'écran s'imprime à l'envers d'abord et la
-	// promesse ne rend la main qu'une fois qu'il est parti (#67). C'est ce qui
-	// permet d'ENCHAÎNER deux écrans sans que la cascade du second commence
-	// dans la frame où le premier disparaît. `remove()` reste synchrone : la
-	// plupart des écrans se démontent parce qu'on quitte le menu, et là il n'y
-	// a rien à regarder s'éteindre.
-	//
-	// `close({ revealBehind: true })` pour le dernier écran d'un enchaînement,
-	// celui qui donne sur le vol : lui seul emmène son fond noir avec lui. Par
-	// défaut le fond tient jusqu'au démontage, sinon la scène 3D chargée
-	// dessous se voit entre deux écrans.
-	const close = (opts) => exitScreen(el, opts).then(remove);
-	return { el, box, remove, close };
+	return mountScreen(root, { cls: `terminal ${cls}`.trim(), boxCls: 'terminal-box' });
 }
 
-export function button(label, onClick, cls = 'terminal-link', title = '') {
-	const b = document.createElement('button');
-	b.type = 'button';
-	b.className = cls;
-	b.textContent = cls.split(' ').includes('terminal-cta') ? `[ ${label} ]` : label;
-	b.onclick = onClick;
-	if (title) b.title = title;
-	return b;
-}
+export const button = screenButton;
 
 // Une rangée « A · B · C » de liens inline, séparés par des points médians.
 function navRow(entries) {
@@ -388,14 +355,14 @@ AREA     ${area ? areaLabel(area) : 'UNKNOWN'}
 WHEN     ${String(when).replace('T', ' ').slice(0, 16) || 'UNKNOWN'}
 RESULT   ${ls.result ?? 'UNKNOWN'}`));
 		s.box.appendChild(button('VIEW SESSION', async () => {
-			s.el.style.display = 'none';
+			s.el.hidden = true;
 			const { runSessionDetail } = await import('./session-log.js');
 			const r = await runSessionDetail(root, ls.id, { scenes: null });
 			// REVISIT et DELETE ferment LAST SESSION : dans les deux cas l'écran
 			// qu'on avait sous les yeux ne décrit plus l'état courant.
 			if (r?.revisit) { done(r.revisit); return; }
 			if (r?.deleted) { done(); return; }
-			s.el.style.display = '';
+			s.el.hidden = false;
 			nav?.focusAt(0);
 		}, 'terminal-cta'));
 		const areaKnown = area && model.areas.some((a) => a.slug === area);

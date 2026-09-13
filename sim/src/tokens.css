@@ -131,6 +131,18 @@
 	--dur-blink: 1.1s;
 	--dur-sweep: 1.6s;
 
+	/* ---------- empilement ----------
+	   Cinq plans, nommés. Les valeurs nues (10, 11, 12, 20) se recopiaient d'un
+	   écran à l'autre et deux éléments sans rapport partageaient 20 : c'est
+	   l'ordre du DOM qui tranchait, donc personne.
+	   Le chargement est DESSOUS à dessein : PHASE 13 le fait vivre derrière le
+	   TARGET SCAN, ce n'est pas lui qui tient l'écran. */
+	--z-loading: 10;
+	--z-screen: 11;      /* un écran terminal plein cadre */
+	--z-screen-over: 12; /* ce qui se pose dessus : briefing, crew, culmination */
+	--z-panel: 20;       /* SETTINGS, par-dessus tout écran */
+	--z-intro: 30;       /* le tout premier écran du jeu, au-dessus de tout */
+
 	/* ---------- états ----------
 	   Un contrôle hors d'atteinte s'écrit d'une seule façon : moins d'encre, la
 	   même quantité partout. Trois opacités différentes (.3, .35, .4) disaient
