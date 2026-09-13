@@ -12,8 +12,15 @@
 // (revealDelays, revealTargets, interpolateNumbers) est couverte par
 // tools/motion-selftest.mjs sur le faux DOM.
 
+// Les trois durées de tokens.css, en millisecondes, pour le JS qui doit faire
+// attendre exactement ce que le CSS anime. Écrire 400 à la main dans un module
+// et 360 ms dans la feuille, c'est deux mouvements qui se croisent.
+export const DUR_1 = 90;
+export const DUR_2 = 180;
+export const DUR_3 = 360;
+
 export const LEAD_MS = 90;   // extinction : le noir avant la première ligne
-export const STEP_MS = 40;   // un pas d'impression par ligne
+export const STEP_MS = 40;   // un pas d'impression par ligne (bootstrap.js le lit aussi)
 export const CAP_MS = 520;   // au-delà, tout s'imprime en même temps
 export const COUNT_MS = 360; // durée du roulement d'un compteur
 export const EXIT_MS = 90;         // impression inverse : le contenu qui s'en va (--dur-1)
