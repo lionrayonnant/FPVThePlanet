@@ -95,6 +95,44 @@ rapport avec les versions ci-dessous.
   et à deux octaves plutôt que trois, le détail fin n'étant jamais résolu sur
   une brume vue en enfilade.
 
+- **Une passe de cohérence visuelle sur tout le jeu** (#133 à #140). Le système
+  était sain — `tokens.css` fait autorité et `palette-selftest` tenait — mais
+  presque toute la dérive vivait hors de sa portée : dans le JS, dans le HTML,
+  dans les valeurs non-couleur et dans les chaînes affichées.
+
+  L'écran de chargement **parle anglais** : neuf étapes, l'unité `Mo`, les trois
+  erreurs de `loader.js` qui s'affichent telles quelles, et `lang`. Le preset de
+  rates que l'OSD annonce à chaque vol s'appelait « cinéma ».
+
+  La **marque n'a plus qu'une composition** (`src/brand-lockup.js`) : le boot
+  écrivait le nom long en Departure Mono capitalisée, soit « FPVTHEPLANET! »,
+  que `docs/brand.md` n'autorise nulle part.
+
+  Les **états** cessent de changer de sens d'un écran à l'autre : une seule
+  opacité désactivée au lieu de trois, un bouton de panneau qui s'inverse comme
+  le même bouton ailleurs, un focus qui est le marqueur ▌ et rien d'autre, et le
+  périphérique actif qui ne porte plus exactement l'encre du survol.
+
+  Le **mouvement** rentre dans les trois durées, deux cadences entretenues
+  rejoignent les jetons, et le mouvement réduit couvre enfin les trois
+  animations infinies et l'impression ligne à ligne du bootstrap et du BRIEFING.
+
+  Les **crochets** ne veulent plus dire trois choses : `[ LABEL ]` un bouton,
+  `[LABEL]` une touche, et c'est tout. Les infobulles natives disparaissent, et
+  les symboles SI passent en minuscules.
+
+  **Toute valeur typographique sort de l'échelle** : le corps du jeu était à
+  14px, quinze tailles et cinq interlettrages étaient écrits en clair, une
+  trentaine d'espacements étaient magiques.
+
+  Un **seul montage d'écran** (`src/screen.js`) au lieu de deux, dont un seul
+  avait gagné l'impression inverse de #67 ; cinq plans d'empilement nommés ; et
+  le CSS mort s'en va.
+
+  Enfin, `palette-selftest` **voit ses angles morts** : la palette demo atteinte
+  par `token()`, les échelles écrites en pixels, et le français dans une chaîne
+  affichée.
+
 ### Corrigé
 
 - **La télémétrie n'avait aucune borne supérieure : une session pouvait être
