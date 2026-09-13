@@ -1598,26 +1598,6 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .intro-lockup .lockup-name { opacity: 0; transition: opacity var(--dur-3) linear; }
 .intro-lockup .lockup-name.intro-logo-in { opacity: 1; }
 
-.intro-scroll {
-	position: absolute; bottom: 8vh; left: 0; width: 100%;
-	z-index: 2;
-	font-family: var(--font-ascii);
-	white-space: nowrap;
-	font-size: clamp(11px, 2vw, 22px);
-	letter-spacing: var(--track-ui-tight);
-	color: var(--dim);
-	transition: opacity .3s ease;
-}
-.intro-scroll span {
-	display: inline-block;
-	transform: translateX(100vw);
-	animation: intro-scroll-marquee 6s linear infinite;
-}
-@keyframes intro-scroll-marquee {
-	from { transform: translateX(100vw); }
-	to { transform: translateX(-100%); }
-}
-
 /* Grille ASCII des primitives de culmination (hack-grammars.js), réemployées
    telles quelles pour le plasma/raster de la phase plasma — même idiome que
    .culmination-burst. */
@@ -1635,12 +1615,11 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .intro-burst--violet { color: var(--violet); }
 .intro-burst--blue { color: var(--electric); }
 
-/* Résolution : la plasma et le scrolltext s'effacent, le logo (déjà retombé à
-   plat par renderLogo()) reste seul, en phase avec BOOT_SIGNATURE. */
-.intro-resolution .intro-burst,
-.intro-resolution .intro-scroll {
+/* Résolution : la plasma s'efface, le logo (déjà retombé à plat par
+   renderLogo()) reste seul, en phase avec BOOT_SIGNATURE. */
+.intro-resolution .intro-burst {
 	opacity: 0;
-	transition: opacity .3s ease;
+	transition: opacity var(--dur-3) linear;
 }
 
 /* ---------- BENCH (PHASE 26) ---------- */
