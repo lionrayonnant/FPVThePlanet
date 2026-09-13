@@ -28,12 +28,23 @@
 //   X-Frame-Options  the belt to frame-ancestors' braces, for the CSP-less
 //                    case and for older browsers. The game is never framed.
 //   Referrer-Policy  a scene URL carries ?scene=<slug> and sometimes a build
-//                    seed; none of that needs to reach a tile CDN.
+//                    seed; none of that needs to reach a tile CDN. But
+//                    `no-referrer` was too blunt and broke the map: the
+//                    OpenStreetMap tile policy requires a Referer or a
+//                    User-Agent that identifies the application, and a browser
+//                    sends a generic UA — so stripping the Referer made every
+//                    tile request anonymous and their servers answered 403
+//                    "Access blocked" (osm.wiki/Blocked). It did not show in
+//                    dev, because Vite serves none of these headers.
+//                    `strict-origin-when-cross-origin` keeps the intent: the
+//                    full URL stays same-origin, a cross-origin request carries
+//                    the bare origin, and a downgrade to HTTP carries nothing.
+//                    The slug and the seed still never leave.
 //   COOP             keeps a popup from reaching back into this origin.
 export const BASELINE = {
 	'x-content-type-options': 'nosniff',
 	'x-frame-options': 'DENY',
-	'referrer-policy': 'no-referrer',
+	'referrer-policy': 'strict-origin-when-cross-origin',
 	'cross-origin-opener-policy': 'same-origin',
 };
 

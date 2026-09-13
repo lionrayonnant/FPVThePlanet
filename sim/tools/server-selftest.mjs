@@ -339,7 +339,11 @@ try {
 		for (const [name, want] of Object.entries({
 			'x-content-type-options': 'nosniff',
 			'x-frame-options': 'DENY',
-			'referrer-policy': 'no-referrer',
+			// NOT no-referrer: OpenStreetMap's tile policy needs a Referer or an
+			// identifying User-Agent, and stripping it got every basemap tile 403'd
+			// in production. Same-origin still sends the full URL, so the scene slug
+			// and the build seed stay in.
+			'referrer-policy': 'strict-origin-when-cross-origin',
 			'cross-origin-opener-policy': 'same-origin',
 		})) {
 			check(`${name} is set on the document, the API and an error alike`,
