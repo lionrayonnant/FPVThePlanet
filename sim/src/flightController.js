@@ -27,7 +27,7 @@ export const MODES = ['acro', 'angle', 'altitude'];
 // violent full stick at the same time.
 export const RATE_PRESETS = {
 	cinematic: {
-		label: 'cinéma',
+		label: 'cinematic',
 		roll:  { centre: 120, max: 380, expo: 0.40 },
 		pitch: { centre: 120, max: 380, expo: 0.40 },
 		yaw:   { centre: 110, max: 300, expo: 0.40 },

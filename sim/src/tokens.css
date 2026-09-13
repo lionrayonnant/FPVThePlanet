@@ -104,8 +104,22 @@
 	--track-display: .12em;
 	--track-ui: .16em;
 	--track-data: .02em;
+	/* Le même niveau UI, resserré : la couche de vol, les champs de saisie et
+	   l'épingle de la carte portent du texte en capitales qui doit rester
+	   compact — .16em y déborde. Écrit .1em / .06em / .12em selon l'endroit, il
+	   n'était pas une décision mais sept décisions. */
+	--track-ui-tight: .1em;
+	/* Et l'inverse : l'écartement du seul écran où la liaison s'éteint
+	   (#flight-end). Trois fois --track-display, parce que ces trois mots ne
+	   sont pas une interface — c'est le moment où il n'y a plus rien à piloter.
+	   Écrit ici pour que ce soit une décision et non une valeur égarée. */
+	--track-wide: .35em;
 
 	/* ---------- graduations ---------- */
+	/* Le cran sous l'échelle : l'écart d'une rangée à la suivante dans une liste
+	   serrée (touches, périphériques, verbes du rail), où --space-1 sépare déjà
+	   trop. Trois endroits l'écrivaient 2px chacun de leur côté. */
+	--space-0: 2px;
 	--space-1: 4px;
 	--space-2: 9px;
 	--space-3: 14px;

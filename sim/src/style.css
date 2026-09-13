@@ -28,7 +28,7 @@ html, body {
 	height: 100%;
 	overflow: hidden;
 	background: var(--black);
-	font: 400 14px/1.45 var(--font-data);
+	font: 400 var(--fs-data)/1.45 var(--font-data);
 	letter-spacing: var(--track-data);
 	color: var(--ink);
 }
@@ -66,7 +66,7 @@ button:focus::before {
 .panel label:focus-within::before {
 	content: '▌';
 	position: absolute;
-	left: -18px; top: 50%;
+	left: -0.9em; top: 50%;
 	transform: translateY(-50%);
 	line-height: 1;
 	font-family: var(--font-ascii);
@@ -78,7 +78,7 @@ button:focus::before {
 #pad-map tr:focus-within td:first-child::before {
 	content: '▌';
 	position: absolute;
-	left: -14px; top: 50%;
+	left: -0.9em; top: 50%;
 	transform: translateY(-50%);
 	line-height: 1;
 	font-family: var(--font-ascii);
@@ -181,7 +181,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-size: var(--fs-data);
 	font-variant-numeric: tabular-nums;
 	line-height: 1.6;
-	letter-spacing: .04em;
+	letter-spacing: var(--track-data);
 	color: var(--ink);
 	text-shadow: var(--shadow);
 	/* Très doux, et sur la couche seule : ce n'est pas le vignettage de
@@ -189,19 +189,19 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	mask-image: radial-gradient(ellipse 120% 120% at 50% 50%, #000 60%, rgba(0, 0, 0, .82) 100%); /* palette-ok: stops d'un masque alpha, pas du pigment */
 }
 #fpvtp-osd .corner { position: absolute; }
-#fpvtp-osd .tl { top: 12px; left: 14px; }
-#fpvtp-osd .tr { top: 12px; right: 14px; text-align: right; }
-#fpvtp-osd .bl { bottom: 12px; left: 14px; }
-#fpvtp-osd .br { bottom: 12px; right: 14px; text-align: right; }
+#fpvtp-osd .tl { top: var(--space-3); left: var(--space-3); }
+#fpvtp-osd .tr { top: var(--space-3); right: var(--space-3); text-align: right; }
+#fpvtp-osd .bl { bottom: var(--space-3); left: var(--space-3); }
+#fpvtp-osd .br { bottom: var(--space-3); right: var(--space-3); text-align: right; }
 /* Le crédit fournisseur est une mention légale, pas une information de vol :
    il se tient en retrait du reste de l'OSD. */
-#fo-credit { font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+#fo-credit { font-size: var(--fs-micro); color: var(--faint); letter-spacing: var(--track-data); }
 /* L'identifiant de la zone est ce que l'OSD a de plus important : il le dit en
    pleine encre pendant que ses voisins descendent en gris (Bible §38 — pas de
    couleur qui ne transmette rien). */
 #fo-ident { color: var(--ink); }
-#fo-rates, #fo-input, #fo-fps { font-size: 12px; color: var(--dim); }
-#fo-env { font-size: 12px; color: var(--ink); }
+#fo-rates, #fo-input, #fo-fps { font-size: var(--fs-micro); color: var(--dim); }
+#fo-env { font-size: var(--fs-micro); color: var(--ink); }
 /* The view toggle (D11). The only clickable element of the OSD: the layer is
    pointer-events: none and this one takes them back for itself. A button, but
    one that reads like the lines around it — this is flight information, not an
@@ -215,8 +215,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	border: 0;
 	padding: 0;
 	font: inherit;
-	font-size: 12px;
-	letter-spacing: .04em;
+	font-size: var(--fs-micro);
+	letter-spacing: var(--track-data);
 	text-transform: uppercase;
 	color: var(--dim);
 	text-shadow: inherit;
@@ -248,8 +248,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	display: block;
 	font-family: var(--font-ui);
 	font-weight: 500;
-	font-size: 12px;
-	letter-spacing: .1em;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
 	color: var(--dim);
 }
 /* La coupure du lien (#216). Sous le réticule, hors des quatre coins : ce
@@ -263,8 +263,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-align: center;
 	font-family: var(--font-ui);
 	font-weight: 500;
-	font-size: 12px;
-	letter-spacing: .1em;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
 	text-transform: uppercase;
 	color: var(--dim);
 	padding: var(--space-2) var(--space-4);
@@ -281,8 +281,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-align: center;
 	font-family: var(--font-ui);
 	font-weight: 500;
-	font-size: 12px;
-	letter-spacing: .1em;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
 	text-transform: uppercase;
 	color: var(--dim);
 	padding: var(--space-2) var(--space-4);
@@ -310,8 +310,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-align: center;
 	font-family: var(--font-ui);
 	font-weight: 500;
-	font-size: 12px;
-	letter-spacing: .1em;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
 	text-transform: uppercase;
 	color: var(--dim);
 	padding: var(--space-2) var(--space-4);
@@ -324,7 +324,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	display: flex; flex-direction: column; align-items: center; justify-content: center;
 	gap: .5em;
 	font-family: var(--font-display);
-	font-size: var(--fs-display-s); letter-spacing: .35em; text-transform: uppercase;
+	font-size: var(--fs-display-s); letter-spacing: var(--track-wide); text-transform: uppercase;
 	color: var(--dim);
 	pointer-events: none;
 }
@@ -386,7 +386,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	   un portable 1366×768 il était rogné en haut et en bas, sans recours. */
 	max-height: 92vh;
 	overflow-y: auto;
-	padding: var(--space-5) 30px;
+	padding: var(--space-5);
 	/* D14: the panel takes the terminal's ground. The same black as the Home
 	   and as signal loss — Settings is no longer a dialog box laid over the
 	   game, it is a screen of the machine. The rule lifts it off the scrim. */
@@ -409,7 +409,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 		linear-gradient(transparent, var(--rule-strong));
 	background-position: 0 0, 0 100%, 0 0, 0 100%;
 	background-repeat: no-repeat;
-	background-size: 100% 34px, 100% 34px, 100% 10px, 100% 10px;
+	background-size: 100% var(--space-5), 100% var(--space-5), 100% var(--space-2), 100% var(--space-2);
 	background-attachment: local, local, scroll, scroll;
 	border: var(--rule-w) solid var(--rule);
 	display: flex; flex-direction: column; gap: var(--space-3);
@@ -467,7 +467,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    reaches it, whatever the row has to say, and the button that changes it. The
    columns are fixed so the keys line up in a column — that is what makes the
    table readable at a glance rather than row by row. */
-.key-rows { display: flex; flex-direction: column; gap: 2px; }
+.key-rows { display: flex; flex-direction: column; gap: var(--space-0); }
 .key-row {
 	display: grid; grid-template-columns: 1fr 6em auto min-content;
 	align-items: center; gap: var(--space-2);
@@ -480,8 +480,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	margin: 0; width: auto; padding: 2px var(--space-2);
 	font-size: var(--fs-micro); white-space: nowrap;
 }
-#pad-name { margin: 0 0 1em; font-size: 12px; color: var(--dim); word-break: break-all; }
-#pad-map { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+#pad-name { margin: 0 0 1em; font-size: var(--fs-data); color: var(--dim); word-break: break-all; }
+#pad-map { width: 100%; border-collapse: collapse; font-size: var(--fs-data); font-variant-numeric: tabular-nums; }
 #pad-map td { padding: var(--space-1) 6px var(--space-1) 0; }
 #pad-map select, .panel select {
 	background: var(--dark-grey); color: var(--ink);
@@ -492,7 +492,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .panel select:disabled { opacity: var(--op-disabled); }
 .axisbar { position: relative; height: 4px; background: var(--rule); width: 100%; min-width: 90px; }
 .axisbar i { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--warm-white); }
-.panel label { display: flex; align-items: center; gap: .7em; margin: .5em 0; font-size: 12px; }
+.panel label { display: flex; align-items: center; gap: .7em; margin: .5em 0; font-size: var(--fs-data); }
 .panel input[type=range] { flex: 1; accent-color: var(--warm-white); }
 .panel input[type=range]:disabled { opacity: var(--op-disabled); }
 .panel label.check { justify-content: flex-start; }
@@ -510,16 +510,16 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    changer de comportement selon son ancêtre. */
 .panel button:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .panel .presets { display: flex; gap: .5em; margin: .5em 0; }
-.panel .presets button { margin-top: 0; padding: 5px; font-size: var(--fs-micro); }
+.panel .presets button { margin-top: 0; padding: var(--space-1); font-size: var(--fs-micro); }
 /* L'état actif s'écrit en vidéo inverse, jamais en couleur (Bible §38). */
 .panel .presets button.on { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .panel .presets button:disabled { opacity: var(--op-disabled); cursor: default; }
 /* Bloc en lecture seule : la fiche caméra de la cible et l'aide clavier. */
-.panel .spec { font-size: 12px; color: var(--dim); line-height: 1.7; margin-bottom: 10px; }
+.panel .spec { font-size: var(--fs-data); color: var(--dim); line-height: 1.7; margin-bottom: var(--space-2); }
 .panel .spec b { color: var(--ink); font-weight: 400; }
 /* Inline with its slider rather than on its own line, unlike every other
    button in the panel. */
-#wind-dir-rand { margin-top: 0; width: auto; padding: 1px 7px; }
+#wind-dir-rand { margin-top: 0; width: auto; padding: var(--space-0) var(--space-2); }
 
 #loading-detail, #loading-clock {
 	margin: .9em 0 0;
@@ -550,7 +550,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 .bootstrap-box {
 	width: min(840px, 88vw);
-	display: flex; flex-direction: column; gap: 18px;
+	display: flex; flex-direction: column; gap: var(--space-4);
 }
 /* Les <pre> sont la machine qui parle : niveau DISPLAY, sur la grille 11 px de
    Departure Mono pour rester nets. Tout ce que l'opérateur manipule autour —
@@ -564,22 +564,22 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	color: var(--ink);
 }
 .bootstrap-box pre.bootstrap-vec { font-size: var(--fs-display-m); }
-.bootstrap-row { display: flex; align-items: center; gap: 12px; font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
+.bootstrap-row { display: flex; align-items: center; gap: var(--space-3); font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
 /* Un échec est une information : il se dit en rouge, pas en accent. Avant la
    PHASE 19 cette ligne était cyan — la couleur demo servait de couleur d'erreur. */
 .bootstrap-err { color: var(--red); min-height: 1.4em; font-family: var(--font-ui); font-size: var(--fs-ui); letter-spacing: var(--track-ui); }
 .bootstrap input, .bootstrap textarea {
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
-	padding: 15px 18px;
+	padding: var(--space-3) var(--space-4);
 	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui-l);
-	letter-spacing: .1em;
+	letter-spacing: var(--track-ui-tight);
 }
 .bootstrap input:focus, .bootstrap textarea:focus { outline: none; border-color: var(--warm-white); }
 .bootstrap textarea { resize: vertical; min-height: 4.5em; }
 .bootstrap-btn, .bootstrap button {
 	align-self: flex-start;
-	padding: 15px 21px;
+	padding: var(--space-3) var(--space-4);
 	background: transparent; color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
 	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui);
@@ -608,7 +608,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 /* The Home is calm: no cards, no big metrics, no rounded corners. Navigation is
    inline text; the one framed control is [ GLOBAL SCANNER ]. */
 
-.terminal-box { gap: 24px; }
+.terminal-box { gap: var(--space-4); }
 .terminal-nav {
 	line-height: 1.9;
 	font-family: var(--font-ui); font-weight: 500;
@@ -711,7 +711,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 /* La recherche, au-dessus des onglets : commune aux deux (#222). Ses règles
    d'input sont celles du rail, pour que le champ AREA NAME et la recherche se
    reconnaissent. */
-.terminal-search { display: flex; flex-direction: column; gap: 11px; }
+.terminal-search { display: flex; flex-direction: column; gap: var(--space-2); }
 .terminal-search:empty { display: none; }
 /* Les onglets LOCAL · LIVE (#222) : deux mots sur un filet, l'actif en vidéo
    inverse — le même signe d'état que les commutateurs du scanner. */
@@ -812,10 +812,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 button.terminal-area {
 	box-sizing: border-box;
-	display: flex; align-items: baseline; gap: 20px; width: 100%;
+	display: flex; align-items: baseline; gap: var(--space-4); width: 100%;
 	font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui);
 	border: 0; background: none; text-align: left; cursor: pointer; color: var(--ink);
-	padding: 1px 0 1px 1.2em;
+	padding: var(--space-0) 0 var(--space-0) 1.2em;
 }
 /* Le survol inverse ; le focus, lui, est le marqueur ▌ et rien d'autre — c'est
    la règle de #123, et cette rangée était le seul endroit à le dire deux fois,
@@ -875,7 +875,7 @@ button.terminal-area:focus::before { left: 0; }
 	flex: 0 1 auto; min-width: 0;
 	font-family: var(--font-ascii);
 	font-size: var(--fs-display-s);
-	letter-spacing: .06em;
+	letter-spacing: var(--track-ui-tight);
 	color: var(--ink);
 	border-left: var(--rule-w) solid var(--rule-strong);
 	padding-left: var(--space-3);
@@ -918,7 +918,7 @@ button.terminal-row,
 	white-space: pre; overflow-x: auto;
 }
 button.terminal-row {
-	padding: 1px 0 1px 1.2em; border: 0; background: none;
+	padding: var(--space-0) 0 var(--space-0) 1.2em; border: 0; background: none;
 	text-align: left; cursor: pointer;
 }
 button.terminal-row:hover { background: var(--warm-white); color: var(--black); }
@@ -1005,7 +1005,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    conteneur qu'on lui donne, donc c'est le MÊME élément que `.map-mono`. */
 .map-mono.leaflet-container .leaflet-control-attribution {
 	background: var(--scrim); color: var(--faint);
-	font-family: var(--font-data); font-size: 10px; letter-spacing: var(--track-data);
+	font-family: var(--font-data); font-size: var(--fs-micro); letter-spacing: var(--track-data);
 	border-radius: 0;
 	padding: 1px var(--space-2);
 }
@@ -1030,7 +1030,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 }
 .sc-pin {
 	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
-	font-size: var(--fs-data); letter-spacing: .1em;
+	font-size: var(--fs-data); letter-spacing: var(--track-ui-tight);
 	white-space: nowrap; text-shadow: var(--shadow);
 }
 
@@ -1038,7 +1038,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	border-left: var(--rule-w) solid var(--rule-strong);
 	padding: var(--space-5) var(--space-5) 18px;
 	overflow-y: auto;
-	display: flex; flex-direction: column; gap: 20px;
+	display: flex; flex-direction: column; gap: var(--space-4);
 	font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui);
 }
 /* Le titre de l'écran, seul élément DISPLAY du panneau. */
@@ -1048,23 +1048,23 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	font-size: var(--fs-display-s); letter-spacing: var(--track-display);
 	text-transform: uppercase;
 }
-.sc-block { display: flex; flex-direction: column; gap: 11px; }
+.sc-block { display: flex; flex-direction: column; gap: var(--space-2); }
 .sc-h { margin: 0; font-size: var(--fs-ui); letter-spacing: var(--track-ui); color: var(--light-grey); text-transform: uppercase; }
 .sc-hint { margin: 0; font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); color: var(--faint); }
-.sc-row { display: flex; gap: 11px; align-items: stretch; }
+.sc-row { display: flex; gap: var(--space-2); align-items: stretch; }
 
 .scanner-panel input, .scanner-search input {
 	flex: 1; min-width: 0;
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
-	padding: 10px 13px; font: inherit; letter-spacing: .12em;
+	padding: 10px 13px; font: inherit; letter-spacing: var(--track-ui-tight);
 }
 .scanner-panel input:focus, .scanner-search input:focus { outline: none; border-color: var(--warm-white); }
 .scanner-search { font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
 
 .sc-btn, .sc-cta {
 	align-self: flex-start;
-	padding: 10px 15px;
+	padding: var(--space-2) var(--space-3);
 	background: transparent; color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
 	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-ui);
@@ -1077,10 +1077,10 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    ligne par manette : identifiant, classe déduite, axes, boutons. Le
    périphérique actif porte le même marqueur ▌ que le curseur des menus, pour
    qu'« actif » se lise partout de la même façon. */
-#pad-list { display: flex; flex-direction: column; gap: 2px; margin: var(--space-1) 0; }
+#pad-list { display: flex; flex-direction: column; gap: var(--space-0); margin: var(--space-1) 0; }
 #pad-list button.pad-entry {
 	border: 0; background: none; text-align: left; cursor: pointer;
-	color: var(--light-grey); padding: 1px 0;
+	color: var(--light-grey); padding: var(--space-0) 0;
 	font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data);
 	/* Ces lignes se REPLIENT au lieu de se tronquer : les identifiants sont
 	   longs, et les chiffres du diagnostic (classe, axes, boutons) sont en fin
@@ -1153,12 +1153,12 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
    pas deux étapes. Chacun porte sous lui ce qu'il coûte, en encre éteinte, pour
    qu'on n'ait pas à savoir ce que « live » veut dire avant de choisir. */
 .sc-verbs { gap: var(--space-3); }
-.sc-verb { display: flex; flex-direction: column; gap: 2px; }
+.sc-verb { display: flex; flex-direction: column; gap: var(--space-0); }
 .sc-verb .sc-hint { padding-left: 0; }
 
 .sc-results { display: flex; flex-direction: column; }
 .sc-result {
-	text-align: left; padding: 7px 0;
+	text-align: left; padding: var(--space-2) 0;
 	background: none; border: 0; border-bottom: var(--rule-w) solid var(--rule);
 	color: var(--dim); font: inherit; font-size: var(--fs-ui); cursor: pointer;
 }
@@ -1225,7 +1225,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 /* TERRAIN/FETCH/DECODE/REBUILD, puis RF ANALYSIS/TARGET SEARCH (PHASE 05,
    Bible §8) : une rangée = un libellé fixe + la même `.sc-bar` qu'ailleurs. */
 .sc-bars { display: flex; flex-direction: column; gap: var(--space-2); }
-.sc-bar-row { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 11px; }
+.sc-bar-row { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: var(--space-2); }
 .sc-bar-label { font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase; color: var(--light-grey); }
 
 .sc-log-block { flex: 1; min-height: 120px; }
@@ -1402,7 +1402,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .hack .hack-cta {
 	align-self: center;
 	margin: var(--space-4) 0 var(--space-2);
-	padding: 22px 56px;
+	padding: var(--space-4) calc(var(--space-5) + var(--space-4));
 	border-color: var(--ink);
 	font-family: var(--font-display);
 	font-size: var(--fs-display-l);
@@ -1604,7 +1604,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	font-family: var(--font-ascii);
 	white-space: nowrap;
 	font-size: clamp(11px, 2vw, 22px);
-	letter-spacing: .1em;
+	letter-spacing: var(--track-ui-tight);
 	color: var(--dim);
 	transition: opacity .3s ease;
 }
