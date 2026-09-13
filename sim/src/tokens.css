@@ -119,6 +119,12 @@
 	--dur-2: 180ms;
 	--dur-3: 360ms;
 
+	/* ---------- états ----------
+	   Un contrôle hors d'atteinte s'écrit d'une seule façon : moins d'encre, la
+	   même quantité partout. Trois opacités différentes (.3, .35, .4) disaient
+	   la même chose sur trois écrans. */
+	--op-disabled: .35;
+
 	/* Traits fins, angles droits, très peu d'ombres (Bible §38). L'ombre ne
 	   sert qu'au texte posé sur l'image FPV, qui n'a aucun fond à lui. */
 	--rule-w: 1px;
