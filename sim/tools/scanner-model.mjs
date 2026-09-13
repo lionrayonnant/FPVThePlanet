@@ -63,16 +63,18 @@ export function bytes(n) {
 // simple au triple, annoncer « 12 min 34 s » serait mentir.
 export function duration(s) {
 	if (!Number.isFinite(s) || s < 0) return '—';
-	if (s < 45) return '< 1 MIN';
-	if (s < 3600) return `~${Math.round(s / 60)} MIN`;
+	if (s < 45) return '< 1 min';
+	if (s < 3600) return `~${Math.round(s / 60)} min`;
 	const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
-	return m ? `~${h} H ${m} MIN` : `~${h} H`;
+	return m ? `~${h} h ${m} min` : `~${h} h`;
 }
 
-// Chronomètre d'acquisition : lui est exact, c'est une mesure.
+// Chronomètre d'acquisition : lui est exact, c'est une mesure. Unités en
+// minuscules — ce sont des symboles SI, et c'est déjà ce qu'écrivent le journal
+// de session (`4m 12s`) et l'OSD (`m/s`, `dBm`).
 export function elapsed(ms) {
 	const s = Math.max(0, Math.round(ms / 1000));
-	return s < 60 ? `${s} S` : `${Math.floor(s / 60)} MIN ${String(s % 60).padStart(2, '0')} S`;
+	return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
 }
 
 export function bar(level, width = 12) {

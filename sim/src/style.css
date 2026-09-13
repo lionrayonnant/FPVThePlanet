@@ -594,6 +594,15 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    d'ink plutôt que le gris de repos des autres CTA, pour rester le seul
    bouton qui accroche l'œil sans sortir de la palette. */
 .terminal-scanner-cta { border-color: var(--ink); }
+/* Un OUTIL — DRAW BOX, DRAW SHAPE — arme un mode, il ne décide de rien : pas de
+   crochets, et le format compact du rail du scanner (.sc-btn), auquel il est
+   rigoureusement identique. Les deux mêmes boutons existaient sous deux
+   apparences selon l'écran qui les portait. */
+.bootstrap button.terminal-tool {
+	padding: var(--space-2) var(--space-3);
+	border-color: var(--rule-strong);
+	font-size: var(--fs-ui);
+}
 
 /* ---------- operator terminal (PHASE 02) ---------- */
 /* The Home is calm: no cards, no big metrics, no rounded corners. Navigation is
@@ -616,6 +625,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 /* Survol : la ligne s'allume, elle ne change pas de teinte. */
 .terminal-nav button.terminal-link:hover { background: var(--warm-white); color: var(--black); }
+/* Le filtre ACTIF d'une liste (journal de session, jukebox) : vidéo inverse,
+   comme tout état actif du jeu. Il s'écrivait entre crochets, forme déjà prise
+   par les touches clavier de keyHints(). */
+.terminal-nav button.terminal-link[data-on="true"] { background: var(--warm-white); color: var(--black); }
 /* Le pied de page compte des sessions et des octets : c'est de la donnée, pas
    la machine qui parle — il redescend donc du niveau DISPLAY hérité des <pre>
    vers le niveau DATA. */

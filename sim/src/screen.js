@@ -41,8 +41,10 @@ export function mountScreen(root, { cls = '', boxCls = '' } = {}) {
 
 // Un bouton d'écran. Les crochets appartiennent au CTA et à lui seul : c'est ce
 // qui les distingue d'une touche clavier citée dans une aide (terminal.js,
-// keyHints).
-export function screenButton(label, onClick, cls = 'terminal-link', title = '') {
+// keyHints). Pas de `title` : l'infobulle native est du mobilier navigateur, que
+// la Bible §44 refuse partout ailleurs — un bouton dit ce qu'il fait dans son
+// libellé, ou la ligne d'aide sous lui le dit.
+export function screenButton(label, onClick, cls = 'terminal-link') {
 	const b = document.createElement('button');
 	b.type = 'button';
 	b.className = cls;
@@ -50,6 +52,5 @@ export function screenButton(label, onClick, cls = 'terminal-link', title = '') 
 		? `[ ${label} ]`
 		: label;
 	b.onclick = onClick;
-	if (title) b.title = title;
 	return b;
 }

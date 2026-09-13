@@ -39,9 +39,9 @@ export const button = screenButton;
 function navRow(entries) {
 	const row = document.createElement('div');
 	row.className = 'terminal-nav';
-	entries.forEach(([label, fn, title], i) => {
+	entries.forEach(([label, fn], i) => {
 		if (i) row.appendChild(document.createTextNode(' · '));
-		row.appendChild(button(label, fn, 'terminal-link', title));
+		row.appendChild(button(label, fn, 'terminal-link'));
 	});
 	return row;
 }
@@ -289,8 +289,8 @@ function localTerrain(root, scenes) {
 				actions.className = 'terminal-nav terminal-area-actions';
 				actions.hidden = true;
 				actions.append(
-					button('OPEN', () => done(sc.slug), 'terminal-link', 'Fly this area'),
-					button('FORECAST', () => forecastScreen(root, sc), 'terminal-link', 'Preview weather over this area'));
+					button('OPEN', () => done(sc.slug), 'terminal-link'),
+					button('FORECAST', () => forecastScreen(root, sc), 'terminal-link'));
 				// Removing an area is a LOCAL operation (issue #78): the terrain
 				// belongs to the instance, not to whoever is looking at it, and a
 				// shared server answers 403 to everyone. The button would only ever
@@ -302,7 +302,7 @@ function localTerrain(root, scenes) {
 						if (!r.ok) return;
 						scenes = scenes.filter((x) => x.slug !== sc.slug);
 						render(Math.min(i, scenes.length - 1));
-					}, 'terminal-link', 'Delete this downloaded area'));
+					}, 'terminal-link'));
 				}
 
 				item.append(row, actions);
@@ -575,9 +575,12 @@ export function dataScreen(root, { api = operatorApi, scenes = null, openMap = n
 		// The sections that need a trace say so in the same words everywhere.
 		const noTrack = (box, why = 'NO TRACK') => box.appendChild(pre(why, 'terminal-foot'));
 
-		const link = (row, label, fn, title = '') => {
+		// Pas d'infobulle : `title` est du mobilier navigateur, que la Bible §44
+		// refuse partout ailleurs (cf. le refus de confirm() dans
+		// confirm-button.js). Un lien dit ce qu'il fait dans son libellé.
+		const link = (row, label, fn) => {
 			if (row.children.length) row.appendChild(document.createTextNode(' · '));
-			row.appendChild(button(label, fn, 'terminal-link', title));
+			row.appendChild(button(label, fn, 'terminal-link'));
 		};
 		const linkRow = () => {
 			const row = document.createElement('div');
@@ -702,8 +705,8 @@ export function dataScreen(root, { api = operatorApi, scenes = null, openMap = n
 				: '');
 			if (data.flights.length > 1) {
 				const row = linkRow();
-				link(row, 'PREVIOUS FLIGHT', () => step(-1), 'Profile the flight before this one');
-				link(row, 'NEXT FLIGHT', () => step(1), 'Profile the flight after this one');
+				link(row, 'PREVIOUS FLIGHT', () => step(-1));
+				link(row, 'NEXT FLIGHT', () => step(1));
 				prof.appendChild(row);
 			}
 			if (profile) {
@@ -720,19 +723,19 @@ export function dataScreen(root, { api = operatorApi, scenes = null, openMap = n
 
 			// 9. RECORDS — the raw log at the bottom, unchanged, and everything
 			// that is read rather than drawn.
-			const rec = section('RECORDS', 'the log, the vector, the operator, the notes');
+			const rec = section('RECORDS', 'THE LOG · THE LAST SESSION · THE OPERATOR · THE NOTES');
 			const row = linkRow();
 			link(row, 'SESSION LOG', () => behind(async () => {
 				const { runSessionLog } = await import('./session-log.js');
 				return await runSessionLog(root, { operator: api.getOperator(), scenes });
-			}), 'Browse every past flight session');
+			}));
 			link(row, 'LAST SESSION', () => behind(async () => {
 				const r = await lastSessionScreen(root, model);
 				// lastSessionScreen yields a slug, or nothing.
 				return typeof r === 'string' ? r : r ?? undefined;
-			}), 'Review your most recent flight');
-			link(row, 'OPERATOR', () => behind(() => operatorScreen(root, api)), 'View operator identity and stats');
-			link(row, 'BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())), 'Read unlocked build notes for this version');
+			}));
+			link(row, 'OPERATOR', () => behind(() => operatorScreen(root, api)));
+			link(row, 'BUILD NOTES', () => behind(() => buildNotesScreen(root, api.getOperator())));
 			rec.appendChild(row);
 
 			paint();
@@ -1072,8 +1075,11 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 				const row = document.createElement('div');
 				row.className = 'terminal-acts';
 				row.append(
-					button('DRAW BOX', draw('Rectangle'), 'terminal-cta terminal-scanner-cta', 'Trace a rectangular area on the map to download'),
-					button('DRAW SHAPE', draw('Polygon'), 'terminal-cta terminal-scanner-cta', 'Trace a free-form area on the map to download'),
+					// Armer un outil n'est pas prendre une décision : pas de crochets,
+					// exactement comme les mêmes boutons dans le rail du scanner
+					// (scanner.js, .sc-btn). Les crochets restent aux CTA.
+					button('DRAW BOX', draw('Rectangle'), 'terminal-tool'),
+					button('DRAW SHAPE', draw('Polygon'), 'terminal-tool'),
 				);
 				left.appendChild(row);
 			}

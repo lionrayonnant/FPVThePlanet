@@ -104,12 +104,15 @@ export function runJukebox(root) {
 			libraryFilters(library).forEach((f, i) => {
 				if (i) filters.appendChild(document.createTextNode(' · '));
 				const label = f.toUpperCase();
-				// Le filtre actif se lit entre crochets, comme le SESSION LOG :
-				// pas de classe dédiée, la maison est calme (Bible §30).
-				filters.appendChild(button(f === filter ? `[${label}]` : label, () => {
+				// Le filtre actif s'écrit en vidéo inverse, comme tout état actif du
+				// jeu. Il se lisait entre crochets — typographiquement identique à
+				// une touche clavier citée dans une aide (keyHints).
+				const b = button(label, () => {
 					filter = f;
 					draw();
-				}));
+				});
+				if (f === filter) b.dataset.on = 'true';
+				filters.appendChild(b);
 			});
 			s.box.appendChild(filters);
 
