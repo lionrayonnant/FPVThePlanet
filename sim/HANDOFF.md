@@ -79,6 +79,50 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 
 ## Vérifié
 
+- **The motors are a torque balance now, not a curve fit (2026-09-13).** The
+  first of the five ranked gaps below. `omega = omegaMax * cmd^rpmCurve` plus a
+  first-order lag was three fitted constants per family standing in for one
+  mechanism, and being fitted they could absorb anything — no combination was
+  ever wrong, so nothing could be checked. `src/motor.js` is the textbook
+  model: back-EMF, winding current, `Ke*(i - i0)` of torque, and
+  `J*domega/dt = Q_motor - Q_prop`.
+  - **What it preserves.** Winding resistance is DERIVED from `maxOmega`
+    rather than stored, so every family's top-end rpm — and its thrust, its
+    thrust-to-weight, its top speed — is unchanged to the digit. Verified:
+    steadyOmega at full throttle reproduces `maxOmega` to 0.0000% for all six.
+  - **What it replaces.** `rpmCurve`, `tauSpinUp` and `tauSpinDown` are gone
+    from the profiles; `motor: { kv, noLoadCurrent }` (from the motor each
+    family already named in its comment) replaces them. The spin-up/spin-down
+    asymmetry is now a CONSEQUENCE of the ESC passing only part of the
+    regenerative current, measured at 24 ms against 36 ms where the old fitted
+    pair said 22/45.
+  - **Two physics errors fixed on the way.** The hover stick now inverts the
+    real balance instead of `cmd^(2*rpmCurve)` (freestyle5 0.245 -> 0.342,
+    closer to the ~30% a real 6:1 5" actually hovers at); and pack current is
+    not winding current — an ESC is a buck converter and the pack only supplies
+    the `duty` fraction, which took a 5" hover from 34 A to **12 A**, what a
+    650 g quad really draws.
+  - **Measured against the old fit** (freestyle5): hover drift still exactly 0,
+    climb 31.93 -> 34.04 m/s, terminal descent on a chop -16.96 -> **-18.67
+    m/s**, top speed at 42 deg 97 -> 100 km/h. The harder fall is the idle
+    motor making less than the power law pretended.
+  - PID blocks rewritten by `tools/tune-pid.mjs --write all`, never by hand.
+  - **A finding the fit could not have produced, and a REGRESSION to weigh.**
+    Made to answer for real motors, `race5` and `toothpick` come out at 48-51%
+    of no-load rpm, and the toothpick's numbers imply ~11 A a motor where a
+    real 1102 pulls 5-7. Their data was scaled from freestyle5, never measured.
+    The consequence is visible in the tuner: it reported **2** axis/family
+    combinations outside their targets before this change and **4** after, and
+    both new ones are the toothpick's roll and pitch (rise 62 ms against a
+    49 ms limit). The model is right and the toothpick's data is not, but the
+    toothpick is measurably worse off today than it was. Correcting it needs
+    real bench numbers for a 2.5" micro, which nobody has here — worth an issue
+    rather than an invented value.
+  - **Non vérifié** : no browser has flown this either. The hover stick moving
+    from 0.245 to 0.342 also puts a hover right on `TPA_BREAK` (0.35), which is
+    where throttle-dependent gain attenuation starts — unexamined, and the
+    first thing to look at if the tune feels odd around hover.
+
 - **The rotor made the drone float, two ways (2026-09-13).** Reported as "the
   drone's gravity is wrong", then "it floats, it is too light, everywhere".
   Both defects are in `quad.js`, both in the descent branch, and neither is a

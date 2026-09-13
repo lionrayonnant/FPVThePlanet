@@ -53,6 +53,34 @@ Ce que la première mise en ligne réelle a trouvé. La 1.0.0 a été taguée av
 qu'une instance publique existe : tout ce qui suit a été découvert en la
 déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
+### Modifié
+
+- **Les moteurs sont un bilan de couple, plus un ajustement de courbe.**
+  `omega = omegaMax * cmd^rpmCurve` suivi d'un retard du premier ordre, c'était
+  TROIS constantes ajustées par famille (`rpmCurve`, `tauSpinUp`,
+  `tauSpinDown`) pour un seul mécanisme — et étant ajustées, elles pouvaient
+  tout absorber : aucune combinaison n'était jamais fausse, donc rien n'était
+  vérifiable. Nouveau `sim/src/motor.js` : force contre-électromotrice
+  `e = Ke·omega`, courant `i = (duty·V − e)/R`, couple `Ke·(i − i0)`, et le
+  bilan `J·domega/dt = Q_moteur − Q_hélice`. Tout ce que les trois constantes
+  encodaient en tombe : la forme du régime en fonction du manche (la racine
+  d'une quadratique, dont l'exposant 0,65 était l'approximation — c'est
+  pourquoi il tenait entre 0,5 et 1), l'asymétrie montée/descente (mesurée
+  désormais à 24 ms contre 36 ms, contre 22/45 ms posés à la main), le pack qui
+  sagge, et le courant — qui était un SECOND ajustement à côté du premier.
+  Les trois constantes disparaissent des profils, remplacées par
+  `motor: { kv, noLoadCurrent }` pris du moteur que chaque famille nommait déjà
+  en commentaire ; la résistance n'est pas stockée mais **dérivée de maxOmega**,
+  donc le régime de pointe — et avec lui la poussée, le rapport poussée-poids
+  et la vitesse max — reste autoritatif, au chiffre près, pour les six
+  familles. Deux erreurs physiques corrigées au passage : le manche de
+  stationnaire s'inverse maintenant par le vrai bilan et non par
+  `cmd^(2·rpmCurve)` (0,245 → 0,342 sur freestyle5, plus proche des ~30 % d'un
+  vrai 5" en 6:1), et le courant PACK n'est pas le courant BOBINAGE — un ESC est
+  un hacheur, le pack ne fournit que la fraction `duty`, ce qui ramène le
+  stationnaire d'un 5" de 34 A à **12 A**, ce que tire réellement un 650 g.
+  PID réécrits par `tools/tune-pid.mjs --write all`, jamais à la main.
+
 ### Corrigé
 
 - **Le régime d'anneau tourbillonnaire ne lâchait jamais, et ignorait la

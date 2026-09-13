@@ -6,6 +6,12 @@
 // frame the rest of the sim uses (X = right, Y = up, Z = back, forward = -Z).
 // Inertia is {x: pitch, y: yaw, z: roll}.
 //
+// `rpmCurve`, `tauSpinUp` and `tauSpinDown` are GONE. They were three fitted
+// constants standing in for one mechanism, and src/motor.js now derives all
+// three from the torque balance of the motor named in each family's comment —
+// so `motor: { kv, noLoadCurrent }` replaces them, and winding resistance is
+// derived from maxOmega rather than stored.
+//
 // The `pid` block of every family is written by `tools/tune-pid.mjs --write`,
 // never by hand (see CLAUDE.md). `p`/`d` are the swept rate-loop gains; `i` is
 // tied to `p` through I_TIME in flightController.js; the feedforward is derived
@@ -45,9 +51,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 10.0,
 		maxOmega: 3140,
-		rpmCurve: 0.65,
-		tauSpinUp: 0.022,
-		tauSpinDown: 0.045,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 2207 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 2450, noLoadCurrent: 1.0 },
 		torqueRatio: 0.019,
 		// inflowGain/buffetGain/lateralGain are corrections against
 		// quad.js's disk-area formula for kInflow/kBuffet/kLateral (see
@@ -86,9 +95,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 12.5,
 		maxOmega: 3560,
-		rpmCurve: 0.65,
-		tauSpinUp: 0.020,
-		tauSpinDown: 0.042,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 2207 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 2650, noLoadCurrent: 1.0 },
 		torqueRatio: 0.018,
 		inflowGain: 1.014607,
 		buffetGain: 1.014607,
@@ -96,10 +108,10 @@ export const PROFILES = {
 		bodyDrag: { x: 0.009, y: 0.025, z: 0.009 },
 		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.012, maxCurrent: 115 },
 		pid: {
-			roll:  { p: 0.046, d: 1.00e-3 },
-			pitch: { p: 0.046, d: 1.00e-3 },
-			yaw:   { p: 0.18, d: 0 },
-			torquePerMix: { roll: 2.620, pitch: 2.620, yaw: 0.637 },
+			roll:  { p: 0.084, d: 1.40e-3 },
+			pitch: { p: 0.084, d: 1.40e-3 },
+			yaw:   { p: 0.14, d: 0 },
+			torquePerMix: { roll: 2.798, pitch: 2.798, yaw: 0.681 },
 		},
 	},
 
@@ -124,9 +136,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 4.1,
 		maxOmega: 4200,
-		rpmCurve: 0.62,
-		tauSpinUp: 0.026,
-		tauSpinDown: 0.052,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 1404 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 3800, noLoadCurrent: 0.5 },
 		torqueRatio: 0.024,          // ducted props run at higher blade loading
 		inflowGain: 2.322297,        // small disk (3.8 cm prop) needs real correction
 		buffetGain: 2.322297,
@@ -134,10 +149,10 @@ export const PROFILES = {
 		bodyDrag: { x: 0.030, y: 0.045, z: 0.030 },
 		battery: { cells: 4, capacityMah: 1100, internalOhm: 0.014, maxCurrent: 70 },
 		pid: {
-			roll:  { p: 0.084, d: 1.90e-3 },
-			pitch: { p: 0.054, d: 1.40e-3 },
+			roll:  { p: 0.098, d: 1.90e-3 },
+			pitch: { p: 0.098, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 0.969, pitch: 0.969, yaw: 0.388 },
+			torquePerMix: { roll: 1.049, pitch: 1.049, yaw: 0.420 },
 		},
 	},
 
@@ -162,9 +177,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 10.5,   // 2806.5 on 6S pulls well over 1 kgf a corner
 		maxOmega: 2450,
-		rpmCurve: 0.66,
-		tauSpinUp: 0.032,
-		tauSpinDown: 0.068,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 2806.5 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 1300, noLoadCurrent: 1.2 },
 		torqueRatio: 0.021,
 		inflowGain: 0.997672,
 		buffetGain: 0.997672,
@@ -172,10 +190,10 @@ export const PROFILES = {
 		bodyDrag: { x: 0.012, y: 0.040, z: 0.012 },
 		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90 },
 		pid: {
-			roll:  { p: 0.054, d: 1.90e-3 },
-			pitch: { p: 0.054, d: 1.90e-3 },
+			roll:  { p: 0.084, d: 1.90e-3 },
+			pitch: { p: 0.072, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 3.939, pitch: 3.939, yaw: 0.788 },
+			torquePerMix: { roll: 4.129, pitch: 4.129, yaw: 0.826 },
 		},
 	},
 
@@ -198,9 +216,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 10.5,
 		maxOmega: 3000,
-		rpmCurve: 0.65,
-		tauSpinUp: 0.024,
-		tauSpinDown: 0.048,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 2207 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 1960, noLoadCurrent: 1.0 },
 		torqueRatio: 0.019,
 		inflowGain: 0.995080,
 		buffetGain: 0.995080,
@@ -208,10 +229,10 @@ export const PROFILES = {
 		bodyDrag: { x: 0.011, y: 0.032, z: 0.011 },
 		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.011, maxCurrent: 100 },
 		pid: {
-			roll:  { p: 0.084, d: 1.90e-3 },
-			pitch: { p: 0.084, d: 1.90e-3 },
+			roll:  { p: 0.098, d: 1.90e-3 },
+			pitch: { p: 0.098, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 2.946, pitch: 2.946, yaw: 0.700 },
+			torquePerMix: { roll: 3.080, pitch: 3.080, yaw: 0.731 },
 		},
 	},
 
@@ -252,9 +273,12 @@ export const PROFILES = {
 		bladeCount: 2,
 		maxThrustPerMotor: 0.68,
 		maxOmega: 4600,
-		rpmCurve: 0.62,
-		tauSpinUp: 0.014,
-		tauSpinDown: 0.030,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 1102 at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 11000, noLoadCurrent: 0.2 },
 		torqueRatio: 0.014,        // bi-blade 2.5" props: modest prop-drag torque, loose yaw
 		inflowGain: 2.806033,      // small disk (3.2 cm prop) needs real correction
 		buffetGain: 2.806033,
@@ -262,10 +286,10 @@ export const PROFILES = {
 		bodyDrag: { x: 0.0018, y: 0.0050, z: 0.0018 },
 		battery: { cells: 2, capacityMah: 450, internalOhm: 0.045, maxCurrent: 18 },
 		pid: {
-			roll:  { p: 0.08, d: 1.00e-3 },
-			pitch: { p: 0.08, d: 1.00e-3 },
-			yaw:   { p: 0.32, d: 5.00e-4 },
-			torquePerMix: { roll: 0.099, pitch: 0.099, yaw: 0.036 },
+			roll:  { p: 0.08, d: 1.90e-3 },
+			pitch: { p: 0.08, d: 1.90e-3 },
+			yaw:   { p: 0.24, d: 1.00e-3 },
+			torquePerMix: { roll: 0.104, pitch: 0.104, yaw: 0.038 },
 		},
 	},
 
@@ -302,9 +326,12 @@ export const PROFILES = {
 		bladeCount: 3,
 		maxThrustPerMotor: 10.5,   // TWR ~= 4.5 at this mass
 		maxOmega: 2720,
-		rpmCurve: 0.65,
-		tauSpinUp: 0.028,
-		tauSpinDown: 0.058,
+		// The motor itself (src/motor.js). KV is the one this family's own
+		// comment already names; noLoadCurrent is a 2806-class at its nominal pack.
+		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
+		// so top-end rpm stays authoritative and this block adds no fitted
+		// constant.
+		motor: { kv: 1500, noLoadCurrent: 1.2 },
 		torqueRatio: 0.020,
 		inflowGain: 0.996376,
 		buffetGain: 0.996376,

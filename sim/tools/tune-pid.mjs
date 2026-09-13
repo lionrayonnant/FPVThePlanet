@@ -36,7 +36,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Propulsion, cruiseSpeedOf } from '../src/quad.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
-import { FlightController, RATE_PRESETS, setGains } from '../src/flightController.js';
+import { FlightController, RATE_PRESETS, setGains, hoverThrottle } from '../src/flightController.js';
+
+const IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 
 const ZERO = { x: 0, y: 0, z: 0 };
 // Set BENCH_OMEGA=0 to bench the airframe without the per-motor inflow damping,
@@ -175,7 +177,7 @@ function sustainedAccel(profile, axis) {
 // (0.15) that motor saturation and the rpm-squared curvature do not bend the
 // slope, large enough to sit well above numerical noise.
 function measureTorquePerMix(profile) {
-	const hover = ((profile.mass * 9.81) / (4 * profile.maxThrustPerMotor)) ** (1 / (2 * profile.rpmCurve));
+	const hover = hoverThrottle(profile, IDENTITY_Q);
 	const level = 0.15;
 	const out = {};
 	for (const axis of AXES) {

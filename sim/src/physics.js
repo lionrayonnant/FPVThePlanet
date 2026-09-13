@@ -271,7 +271,9 @@ export class Physics {
 		this.body.setLinvel(ZERO, true);
 		this.body.setAngvel(ZERO, true);
 		this.propulsion.reset();
-		this.propulsion.primeFor(hoverThrottle(this.profile, IDENTITY));
+		this.propulsion.primeFor(
+			hoverThrottle(this.profile, IDENTITY, this.propulsion.battery.voltage),
+		);
 		this.wind.reset();
 		this._agl = null;
 		this._aglCounter = 0;
@@ -292,7 +294,9 @@ export class Physics {
 		this.body.setLinvel(linvel, true);
 		this.body.setAngvel(angvel, true);
 		this.propulsion.reset();
-		this.propulsion.primeFor(hoverThrottle(this.profile, quaternion));
+		this.propulsion.primeFor(
+			hoverThrottle(this.profile, quaternion, this.propulsion.battery.voltage),
+		);
 		this.wind.reset();
 		this._agl = null;
 		this._aglCounter = 0;

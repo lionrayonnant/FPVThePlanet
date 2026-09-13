@@ -13,6 +13,7 @@
 
 import { Turbulence, mulberry32 } from './wind.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
+import { motorConstants, stepMotor, steadyOmega, dutyForOmega } from './motor.js';
 
 const AIR_DENSITY = 1.225;
 export const GRAVITY = 9.81;
@@ -37,7 +38,12 @@ export const HOVER_THRUST = hoverThrust(QUAD);
 // le manche de stationnaire (hoverStick, tools/selftest.mjs) de la même
 // famille.
 export function idleThrottle(profile = QUAD) {
-	return ((profile.mass * GRAVITY) / (8 * profile.maxThrustPerMotor)) ** (1 / (2 * profile.rpmCurve));
+	// Solved through the motor (src/motor.js) rather than by inverting
+	// cmd^(2*rpmCurve) by hand: rpm comes from a torque balance now, and that
+	// power law was only ever an approximation of it.
+	const c = motorConstants(profile);
+	const omega = Math.sqrt((profile.mass * GRAVITY) / 2 / 4 / kThrustOf(profile));
+	return dutyForOmega(c, omega, profile.battery.cells * 4.2);
 }
 
 // Measured contact forces: gentle landing ~290N, 10 m/s touchdown ~1600N,
@@ -288,10 +294,13 @@ export class Battery {
 		return cell * this.cells;
 	}
 
-	// `load` is the summed (omega/omegaMax)^3 of the four motors: electrical
-	// power into a prop goes with the cube of rpm.
-	update(load, dt) {
-		this.current = this.maxCurrent * Math.min(1, load / 4);
+	// `current` is the real summed winding current of the four motors, from the
+	// torque balance in src/motor.js. It used to be `maxCurrent * min(1,
+	// load/4)` off a cube-of-rpm proxy — a second fit standing next to the
+	// motor fit, with nothing tying the two together. Now the pack sags because
+	// of the amps the windings are actually drawing.
+	update(current, dt) {
+		this.current = current;
 		this.voltage = Math.max(this.cells * 3.0, this.openCircuit() - this.current * this.internalOhm);
 		if (this.drain) this.usedMah += (this.current * dt * 1000) / 3600;
 		return this.voltage;
@@ -319,6 +328,7 @@ export class Propulsion {
 		this._kBuffet = kBuffetOf(profile);
 		this._kLateral = kLateralOf(profile);
 		this._vhPerOmega = vhPerOmegaOf(profile);
+		this._motor = motorConstants(profile);
 		this.seed = seed >>> 0;
 		this._rng = mulberry32(this.seed);
 		this.battery = new Battery(profile.battery);
@@ -360,8 +370,7 @@ export class Propulsion {
 	// axial inflow are left out on purpose: those need real airspeed/agl, and
 	// the very next step() call folds them in anyway.
 	primeFor(cmd) {
-		const omegaMax = this.profile.maxOmega * this.battery.thrustScale;
-		const w = omegaMax * Math.pow(clamp01(cmd), this.profile.rpmCurve);
+		const w = steadyOmega(this._motor, clamp01(cmd), this.battery.voltage);
 		const t = Math.max(0, this._kThrust * w * w);
 		for (let i = 0; i < 4; i++) {
 			this.omega[i] = w;
@@ -386,7 +395,6 @@ export class Propulsion {
 		const shake = air.shake ?? 0;
 		const bat = this.battery;
 		const P = this.profile;
-		const omegaMax = P.maxOmega * bat.thrustScale;
 
 		// Descending into your own downwash: the disc is eating turbulent air it
 		// already threw down, so it loses thrust and the airframe shakes. Moving
@@ -455,7 +463,7 @@ export class Propulsion {
 		const groundReach = GROUND_EFFECT_REACH_RATIO * P.propRadius;
 		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
 
-		let load = 0, thrustTotal = 0;
+		let current = 0, thrustTotal = 0;
 		let tx = 0, ty = 0, tz = 0;
 		let dragX = 0, dragZ = 0;
 		// Net angular momentum of the four spinning rotors, about body +Y.
@@ -477,12 +485,20 @@ export class Propulsion {
 			// lag is the single biggest contributor to how a quad feels: it is
 			// what separates "snappy" from "floaty", and making spin-down slower
 			// than spin-up is what makes an inverted save genuinely hard.
-			const target = omegaMax * Math.pow(clamp01(motors[i]), P.rpmCurve);
-			const tau = target > this.omega[i] ? P.tauSpinUp : P.tauSpinDown;
+			// The prop's own aerodynamic torque is what loads the motor, and it is
+			// THIS rotor's real thrust from the previous step, not kQ*omega^2:
+			// descending into your own wake loads the disc harder and the rpm
+			// droops for it. One step of lag on a 4 ms grid, and a coupling the
+			// old first-order lag could not express at all.
 			const prev = this.omega[i];
-			this.omega[i] = prev + (target - prev) * (1 - Math.exp(-dt / tau));
-			const w = this.omega[i];
+			const spun = stepMotor(
+				this._motor, prev, clamp01(motors[i]), bat.voltage,
+				P.torqueRatio * this.thrust[i], dt,
+			);
+			this.omega[i] = spun.omega;
+			const w = spun.omega;
 			const dOmega = (w - prev) / dt;
+			current += spun.packCurrent;
 
 			// Thrust: static term minus what the inflow takes away. Clamped at
 			// zero rather than allowed to go negative — a prop windmilling
@@ -563,7 +579,6 @@ export class Propulsion {
 
 
 			hRotor += m.spin * P.propInertia * w;
-			load += (w / P.maxOmega) ** 3;
 		}
 
 		// Gyroscopic precession of the rotor group. The rotors carry angular
@@ -600,7 +615,7 @@ export class Propulsion {
 		tx += hRotor * omega.z;
 		tz -= hRotor * omega.x;
 
-		bat.update(load, dt);
+		bat.update(current, dt);
 
 		// Airframe drag, quadratic and anisotropic in the body frame.
 		const q = 0.5 * AIR_DENSITY;

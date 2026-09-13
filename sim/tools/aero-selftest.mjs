@@ -16,7 +16,9 @@ import {
 	mixOf, cruiseSpeedOf, vhPerOmegaOf,
 } from '../src/quad.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
-import { FlightController, RATE_PRESETS } from '../src/flightController.js';
+import { FlightController, RATE_PRESETS, hoverThrottle } from '../src/flightController.js';
+
+const IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 
 const DT = 1 / 250;
 const GRAVITY = 9.81;
@@ -145,12 +147,10 @@ console.log('1. translational lift generalises the axial inflow');
 	let worstHover = 0, worstHoverAt = '';
 	let worstPast = 0, worstPastAt = '';
 	let notUnimodal = '';
-	// The stick that holds a hover, inverted through the thrust curve:
-	// T/Tmax = cmd^(2*rpmCurve). Same derivation as flightController's
-	// hoverThrottle(), written out rather than imported so this check does not
-	// lean on the controller.
-	const hoverStick = (p) =>
-		((p.mass * 9.81) / (4 * p.maxThrustPerMotor)) ** (1 / (2 * p.rpmCurve));
+	// The stick that holds a hover. Since src/motor.js this is a torque
+	// balance, not a power law, so it comes from the one implementation of it
+	// rather than being re-derived here.
+	const hoverStick = (p) => hoverThrottle(p, IDENTITY_Q);
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
 		const thr = hoverStick(profile);
@@ -669,7 +669,7 @@ console.log('\n5. what the pilot actually sees');
 	let ok = true, detail = '';
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
-		const hover = ((profile.mass * GRAVITY) / (4 * profile.maxThrustPerMotor)) ** (1 / (2 * profile.rpmCurve));
+		const hover = hoverThrottle(profile, IDENTITY_Q);
 		// What stick holds the same total thrust at 20 m/s? Bisect on the model.
 		const V = cruiseSpeedOf(profile);
 		const totalAt = (stick, v) => settle(profile, flat(stick), air({ z: -v })).force.y;

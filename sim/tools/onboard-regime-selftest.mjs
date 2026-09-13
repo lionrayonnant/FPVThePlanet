@@ -1,7 +1,7 @@
-// node tools/onboard-regime-selftest.mjs — ce que les hélices racontent
-// (issue #264). On ne teste pas le rendu ici, mais la PHYSIQUE que le rendu
-// donne à lire : quel moteur accélère sur quel manche, et comment le régime
-// répond au temps et à la batterie.
+// node tools/onboard-regime-selftest.mjs — what the props are saying (issue
+// #264). This does not test the rendering, but the PHYSICS the rendering gives
+// the viewer to read: which motor speeds up on which stick, and how the rpm
+// answers to time and to the battery.
 import { Propulsion, mixOf, idleThrottle } from '../src/quad.js';
 import { PROFILES } from '../src/drone-profiles.js';
 
@@ -14,7 +14,7 @@ const STILL = { v: { x: 0, y: 0, z: 0 }, omega: null, agl: null, shake: 0 };
 const profile = PROFILES.freestyle5;
 const mix = mixOf(profile);
 
-// Commandes moteur pour un manche donné, par le mixeur réel.
+// Motor commands for a given stick, through the real mixer.
 const cmd = (thr, { roll = 0, pitch = 0, yaw = 0 } = {}) =>
 	mix.map((m) => Math.max(0, Math.min(1, thr + m.roll * roll + m.pitch * pitch + m.yaw * yaw)));
 
@@ -27,85 +27,105 @@ const settle = (motors, seconds = 1.5) => {
 
 console.log('onboard-regime');
 
-// 1. Le lacet, la promesse centrale : les deux hélices DU CHAMP sont les
-//    avant — moteurs 1 (avant-droit, spin −1) et 3 (avant-gauche, spin +1) —
-//    donc deux diagonales opposées. quad.js pose yaw: -m.spin et son
-//    commentaire fixe le sens : « yaw left = +omega.y -> spin-down motors up ».
+// 1. Yaw, the central promise: the two props IN FRAME are the front ones —
+//    motors 1 (front right, spin -1) and 3 (front left, spin +1) — so two
+//    opposite diagonals. quad.js sets yaw: -m.spin and its comment fixes the
+//    direction: "yaw left = +omega.y -> spin-down motors up".
 {
 	const left = settle(cmd(0.5, { yaw: +1 }));
-	check('lacet à gauche : l\'avant-droite accélère, l\'avant-gauche ralentit',
+	check('yaw left: the front right speeds up, the front left slows down',
 		left.omega[1] > left.omega[3], `${left.omega[1].toFixed(0)} vs ${left.omega[3].toFixed(0)} rad/s`);
 	const right = settle(cmd(0.5, { yaw: -1 }));
-	check('lacet à droite : l\'inverse', right.omega[1] < right.omega[3],
+	check('yaw right: the other way round', right.omega[1] < right.omega[3],
 		`${right.omega[1].toFixed(0)} vs ${right.omega[3].toFixed(0)} rad/s`);
-	check('lacet : les deux avant tournent en sens opposés dans le mixeur',
+	check('yaw: the two front props turn opposite ways in the mixer',
 		Math.sign(mix[1].yaw) === -Math.sign(mix[3].yaw));
 }
 
-// 2. Le tangage bouge les deux avant ENSEMBLE. Le roulis les SÉPARE — et il
-//    faut le dire exactement : mixOf() donne un coefficient de roulis non nul
-//    aux quatre moteurs, et les deux avant sont de part et d'autre de l'axe,
-//    donc le roulis a sur la paire visible la MÊME signature de signes que le
-//    lacet. L'issue #264 annonçait « le roulis n'en bouge qu'une » : c'est
-//    faux. Sur les deux hélices du champ, seul le tangage a une signature
-//    propre.
+// 2. Pitch moves the two front props TOGETHER. Roll SEPARATES them — and it has
+//    to be said exactly: mixOf() gives all four motors a non-zero roll
+//    coefficient, and the two front ones sit on either side of the axis, so on
+//    the visible pair roll has the SAME sign signature as yaw. Issue #264
+//    claimed "roll only moves one of them": that is wrong. Of the two props in
+//    frame, only pitch has a signature of its own.
 {
 	const p = settle(cmd(0.5, { pitch: +0.5 }));
 	const neutral = settle(cmd(0.5));
 	const d1 = p.omega[1] - neutral.omega[1], d3 = p.omega[3] - neutral.omega[3];
-	check('tangage : les deux hélices du champ vont dans le même sens',
+	check('pitch: the two props in frame go the same way',
 		Math.sign(d1) === Math.sign(d3) && Math.abs(d1) > 1, `${d1.toFixed(0)} / ${d3.toFixed(0)}`);
 	const r = settle(cmd(0.5, { roll: +0.5 }));
 	const r1 = r.omega[1] - neutral.omega[1], r3 = r.omega[3] - neutral.omega[3];
-	check('roulis : elles vont en sens contraires',
+	check('roll: they go opposite ways',
 		Math.sign(r1) === -Math.sign(r3), `${r1.toFixed(0)} / ${r3.toFixed(0)}`);
 }
 
-// 3. L'asymétrie du retard moteur : quad.js:328-331, « making spin-down slower
-//    than spin-up ». À l'image, les hélices s'emballent net et redescendent
-//    lentement.
+// 3. The asymmetry of the motor lag: props wind up sharply and come back down
+//    slowly. It used to be asserted twice — once as behaviour, and once as
+//    `profile.tauSpinDown > profile.tauSpinUp`, which was reading the input
+//    data back rather than testing anything. Since src/motor.js there is no
+//    such field to read: the asymmetry is a CONSEQUENCE of the ESC only
+//    letting part of the regenerative current through, so going up the motor
+//    is driven and coming down it is not. It can therefore only be measured,
+//    which is what both checks below now do.
 {
 	const p = new Propulsion({ profile, seed: 1 });
 	const dt = 1 / 250;
 	for (let i = 0; i < 250; i++) p.step(cmd(0.3), STILL, dt);
 	const base = p.omega[0];
-	for (let i = 0; i < 25; i++) p.step(cmd(0.9), STILL, dt);   // 0,1 s de montée
+	for (let i = 0; i < 25; i++) p.step(cmd(0.9), STILL, dt);   // 0.1 s winding up
 	const up = p.omega[0] - base;
-	for (let i = 0; i < 25; i++) p.step(cmd(0.3), STILL, dt);   // 0,1 s de descente
+	for (let i = 0; i < 25; i++) p.step(cmd(0.3), STILL, dt);   // 0.1 s coming down
 	const down = p.omega[0] - base;
-	// Le `|| up > 0` du plan rendait ce check tautologique : `up` est positif dès
-	// que le manche monte. On garde la seule branche qui mord — sur la MÊME
-	// fenêtre de 0,1 s, la montée gagne plus que la descente ne rend.
-	check('montée en régime plus raide que la descente', up > Math.abs(down - up),
-		`+${up.toFixed(0)} puis ${(down - up).toFixed(0)} rad/s`);
-	check('l\'asymétrie est bien dans le profil', profile.tauSpinDown > profile.tauSpinUp,
-		`tauSpinUp ${profile.tauSpinUp} < tauSpinDown ${profile.tauSpinDown}`);
+	// The plan's `|| up > 0` made this tautological: `up` is positive the moment
+	// the stick rises. Only the branch that bites is kept — over the SAME 0.1 s
+	// window, the climb gains more than the fall gives back.
+	check('winding up is steeper than coming down', up > Math.abs(down - up),
+		`+${up.toFixed(0)} then ${(down - up).toFixed(0)} rad/s`);
+
+	// The same asymmetry as a time constant, measured from the model rather than
+	// read off the profile: how long each direction takes to cover 63% of the
+	// same rpm step.
+	const tau = (from, to) => {
+		const q = new Propulsion({ profile, seed: 1 });
+		for (let i = 0; i < 500; i++) q.step(cmd(from), STILL, dt);
+		const start = q.omega[0];
+		const target = settle(cmd(to), 3).omega[0];
+		for (let i = 0; i < 500; i++) {
+			q.step(cmd(to), STILL, dt);
+			if (Math.abs(q.omega[0] - start) >= 0.632 * Math.abs(target - start)) return (i + 1) * dt;
+		}
+		return Infinity;
+	};
+	const tUp = tau(0.3, 0.9), tDown = tau(0.9, 0.3);
+	check('spin-down is slower than spin-up, as a measured time constant',
+		tDown > tUp, `up ${(tUp * 1000).toFixed(0)} ms, down ${(tDown * 1000).toFixed(0)} ms`);
 }
 
-// 4. La batterie : quad.js:205-207, « Motor rpm tracks voltage, so a sagging
-//    pack lowers the ceiling on thrust ». Les hélices annoncent le pack mourant.
-//    On vide le pack par sa CHARGE, pas par sa tension : `voltage` est une
-//    valeur dérivée que `Battery.update()` recalcule à chaque pas depuis
-//    `openCircuit()` — donc depuis `usedMah`. Y écrire à la main ne survit pas
-//    au premier step, et les deux propulsions finissent au même régime.
+// 4. The battery: "Motor rpm tracks voltage, so a sagging pack lowers the
+//    ceiling on thrust". The props announce the dying pack. The pack is emptied
+//    by its CHARGE, not by its voltage: `voltage` is a derived value that
+//    `Battery.update()` recomputes on every step from `openCircuit()`, and so
+//    from `usedMah`. Writing to it by hand does not survive the first step, and
+//    the two propulsions end up at the same rpm.
 {
 	const full = settle(cmd(0.8), 1.0);
 	const flat = new Propulsion({ profile, seed: 1 });
-	flat.battery.usedMah = 0.9 * profile.battery.capacityMah;   // ~9 % de charge
+	flat.battery.usedMah = 0.9 * profile.battery.capacityMah;   // ~9% of charge
 	const dt = 1 / 250;
 	for (let i = 0; i < 250; i++) flat.step(cmd(0.8), STILL, dt);
-	// Marge mesurée : 374 rad/s, ~14 %. Le seuil à 5 % laisse le modèle de sag
-	// bouger sans que le check devienne une comparaison de flottants voisins.
-	check('pack vidé : plafond de régime abaissé', flat.omega[0] < 0.95 * full.omega[0],
-		`${flat.omega[0].toFixed(0)} < ${full.omega[0].toFixed(0)} rad/s, soit ${(full.omega[0] - flat.omega[0]).toFixed(0)} de moins`);
+	// The 5% threshold leaves the sag model room to move without the check
+	// becoming a comparison of neighbouring floats.
+	check('empty pack: the rpm ceiling comes down', flat.omega[0] < 0.95 * full.omega[0],
+		`${flat.omega[0].toFixed(0)} < ${full.omega[0].toFixed(0)} rad/s, i.e. ${(full.omega[0] - flat.omega[0]).toFixed(0)} less`);
 }
 
-// 5. Au ralenti, le régime est bas mais non nul : c'est le cas où les pales se
-//    distinguent une à une dans le champ.
+// 5. At idle the rpm is low but not zero: this is the case where the blades can
+//    be told apart one by one in frame.
 {
 	const idle = settle(cmd(idleThrottle(profile)));
-	check('ralenti : régime bas et non nul', idle.omega[0] > 0 && idle.omega[0] < 0.6 * profile.maxOmega,
-		`${idle.omega[0].toFixed(0)} rad/s sur ${profile.maxOmega}`);
+	check('idle: low rpm, and not zero', idle.omega[0] > 0 && idle.omega[0] < 0.6 * profile.maxOmega,
+		`${idle.omega[0].toFixed(0)} rad/s out of ${profile.maxOmega}`);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);

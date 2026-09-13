@@ -32,6 +32,9 @@ import { CATEGORIES, RANGES, sampleCandidate, geometrySafe, rolloutSafe, generat
 import { Geofence, NOMINAL as GF_NOMINAL } from '../src/geofence.js';
 import { AmbientModel, ambientSet, curveAt, HEIGHT_SAMPLES } from '../src/ambient.js';
 import {
+import { motorConstants, steadyOmega } from '../src/motor.js';
+
+const IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 	sunPosition, sunVector, refracted, airMass,
 	transmittance, skyColor, skyChroma, ambientLevel, skyLevel, sunDisc,
 	SunField, REF_ELEV, REF_VIS, SKY_REF, E_MAX, nightSensor, nightAmount, NIGHT_FLOOR_DEG,
@@ -59,7 +62,7 @@ const STEP = 1 / 250;
 // so the hover stick position has to be inverted through that curve rather than
 // read off a ratio. On the 5" freestyle it lands around 25%; a low-thrust
 // cinewhoop or whoop sits near half stick.
-const hoverStick = (p) => ((p.mass * 9.81) / (4 * p.maxThrustPerMotor)) ** (1 / (2 * p.rpmCurve));
+const hoverStick = (p) => hoverThrottle(p, IDENTITY_Q);
 let HOVER = hoverStick(PROFILE);
 
 // Flat-plate terminal velocity from the profile's vertical body drag — what the
@@ -1923,7 +1926,7 @@ console.log('\napplyEntryState');
 	// moteurs ne doivent pas repartir de zéro (props visuellement à l'arrêt,
 	// audio silencieux sur la première image malgré une vitesse déjà réelle).
 	const cmd = hoverThrottle(phys.profile, state.quaternion);
-	const expectedOmega = phys.profile.maxOmega * Math.pow(cmd, phys.profile.rpmCurve);
+	const expectedOmega = steadyOmega(motorConstants(phys.profile), cmd, phys.propulsion.battery.voltage);
 	check('propulsion primed: omega matches hoverThrottle at the entry quaternion, not zero',
 		phys.propulsion.omega.every((w) => Math.abs(w - expectedOmega) < 1e-6),
 		`omega=${phys.propulsion.omega.map((x) => x.toFixed(1))}`);
@@ -1935,7 +1938,7 @@ console.log('\napplyEntryState');
 	// Un respawn statique (retour à spawn, à l'identité) reprend aussi déjà en
 	// régime plutôt qu'à l'arrêt complet, pour la même raison.
 	const cmdReset = hoverThrottle(phys.profile, { x: 0, y: 0, z: 0, w: 1 });
-	const expectedOmegaReset = phys.profile.maxOmega * Math.pow(cmdReset, phys.profile.rpmCurve);
+	const expectedOmegaReset = steadyOmega(motorConstants(phys.profile), cmdReset, phys.propulsion.battery.voltage);
 	check('reset(): propulsion also primed at hover, not zeroed',
 		phys.propulsion.omega.every((w) => Math.abs(w - expectedOmegaReset) < 1e-6),
 		`omega=${phys.propulsion.omega.map((x) => x.toFixed(1))}`);

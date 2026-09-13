@@ -1,4 +1,5 @@
-import { mixOf } from './quad.js';
+import { mixOf, kThrustOf } from './quad.js';
+import { motorConstants, dutyForOmega } from './motor.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 
 // Betaflight-shaped flight controller. The interface is
@@ -364,12 +365,17 @@ export class FlightController {
 			const y = finiteOr(state.position?.y, this.holdAltitude ?? 0);
 			const vy = finiteOr(state.velocity?.y, 0);
 			const demand = (sticks.throttle - 0.5) * 2;
+			// The pack's real voltage, not its nominal one: the stick that holds
+			// a hover climbs as the pack drains, and solving at 4.2 V a cell
+			// would under-command by exactly the sag.
+			const volts = finiteOr(state.battery?.voltage, this.profile.battery.cells * 4.2);
+			const hover = hoverThrottle(this.profile, q, volts);
 			if (Math.abs(demand) > 0.08 || this.holdAltitude === null) {
 				this.holdAltitude = y;
-				throttle = hoverThrottle(this.profile, q) + demand * 0.35;
+				throttle = hover + demand * 0.35;
 			} else {
 				const a = ALT_KP * (this.holdAltitude - y) - ALT_KD * vy;
-				throttle = hoverThrottle(this.profile, q) * (1 + a / GRAVITY);
+				throttle = hover * (1 + a / GRAVITY);
 			}
 			// hoverThrottle() reads the attitude, which can be NaN on its own.
 			throttle = clamp(finiteOr(throttle, 0), 0, 1);
@@ -420,12 +426,15 @@ export class FlightController {
 // Throttle that cancels gravity at the current tilt, inverted through the
 // thrust curve so it lands on the right stick position instead of assuming
 // thrust is linear in throttle.
-export function hoverThrottle(profile, q) {
+export function hoverThrottle(profile, q, volts = profile.battery.cells * 4.2) {
 	const up = rotate(q, 0, 1, 0);
 	const need = (profile.mass * GRAVITY) / Math.max(0.35, up.y);
-	const fraction = clamp(need / (4 * profile.maxThrustPerMotor), 0, 1);
-	// T/Tmax = cmd^(2*rpmCurve)  =>  cmd = (T/Tmax)^(1/(2*rpmCurve))
-	return fraction ** (1 / (2 * profile.rpmCurve));
+	const perMotor = clamp(need / 4, 0, profile.maxThrustPerMotor);
+	// Thrust -> rpm through the prop, rpm -> stick through the motor's own
+	// torque balance (src/motor.js). This used to invert `cmd^(2*rpmCurve)`,
+	// which stopped being the right curve when rpm stopped being a power law.
+	const omega = Math.sqrt(perMotor / kThrustOf(profile));
+	return dutyForOmega(motorConstants(profile), omega, volts);
 }
 
 function rotate(q, x, y, z) {

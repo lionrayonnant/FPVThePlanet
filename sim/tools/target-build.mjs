@@ -96,7 +96,7 @@ export const DEFAULT_VARIATION = 1;
 // compare un à un au profil de référence.
 export const INVARIANTS = [
 	'family', 'label', 'rates', 'propRadius', 'bladeCount',
-	'armX', 'armZ', 'filterScale', 'rpmCurve', 'radius',
+	'armX', 'armZ', 'filterScale', 'radius',
 ];
 
 // Hash FNV-1a d'une chaîne → graine 32 bits, puis xorshift (même géné que
