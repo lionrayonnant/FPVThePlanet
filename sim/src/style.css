@@ -481,12 +481,12 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	padding: 2px var(--space-1); font: inherit;
 }
 .panel select { flex: 1; }
-.panel select:disabled { opacity: .3; }
+.panel select:disabled { opacity: var(--op-disabled); }
 .axisbar { position: relative; height: 4px; background: var(--rule); width: 100%; min-width: 90px; }
 .axisbar i { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--warm-white); }
 .panel label { display: flex; align-items: center; gap: .7em; margin: .5em 0; font-size: 12px; }
 .panel input[type=range] { flex: 1; accent-color: var(--warm-white); }
-.panel input[type=range]:disabled { opacity: .3; }
+.panel input[type=range]:disabled { opacity: var(--op-disabled); }
 .panel label.check { justify-content: flex-start; }
 .panel label.check input { accent-color: var(--warm-white); width: 14px; height: 14px; }
 .panel button {
@@ -497,12 +497,15 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-size: var(--fs-data); letter-spacing: var(--track-ui); text-transform: uppercase;
 	cursor: pointer;
 }
-.panel button:hover { border-color: var(--warm-white); }
+/* Un bouton de panneau s'inverse au survol, comme le MÊME bouton s'inverse
+   partout ailleurs (terminal, scanner, bootstrap) : `terminal-cta` ne peut pas
+   changer de comportement selon son ancêtre. */
+.panel button:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
 .panel .presets { display: flex; gap: .5em; margin: .5em 0; }
 .panel .presets button { margin-top: 0; padding: 5px; font-size: var(--fs-micro); }
 /* L'état actif s'écrit en vidéo inverse, jamais en couleur (Bible §38). */
 .panel .presets button.on { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
-.panel .presets button:disabled { opacity: .3; cursor: default; }
+.panel .presets button:disabled { opacity: var(--op-disabled); cursor: default; }
 /* Bloc en lecture seule : la fiche caméra de la cible et l'aide clavier. */
 .panel .spec { font-size: 12px; color: var(--dim); line-height: 1.7; margin-bottom: 10px; }
 .panel .spec b { color: var(--ink); font-weight: 400; }
@@ -578,7 +581,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .bootstrap-btn:hover, .bootstrap button:hover:not(:disabled) {
 	background: var(--warm-white); color: var(--black); border-color: var(--warm-white);
 }
-.bootstrap button:disabled { opacity: .4; cursor: default; }
+.bootstrap button:disabled { opacity: var(--op-disabled); cursor: default; }
 /* Le contrôle encadré du terminal (voir commentaire plus bas) : un filet
    d'ink plutôt que le gris de repos des autres CTA, pour rester le seul
    bouton qui accroche l'œil sans sortir de la palette. */
@@ -754,7 +757,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 /* La zone que la carte cadre et que [ FLY ] volera. Un filet à gauche plutôt
    qu'un aplat : le blanc plein est réservé au curseur. */
 .terminal-areas-compact button.terminal-area[data-selected] {
-	box-shadow: inset 2px 0 0 0 var(--ink);
+	/* Un filet, tracé comme tous les filets du jeu (--rule-w), et pas une ombre
+	   portée qui doublait l'épaisseur de la maison. Le padding gauche du bouton
+	   absorbe la bordure : la colonne ne bouge pas d'un pixel. */
+	border-left: var(--rule-w) solid var(--ink);
+	padding-left: calc(1.2em - var(--rule-w));
 }
 /* Sur l'écran complet, la météo est en DISPLAY à dessein : c'est la ligne qu'on
    vient y lire (#76). Sur la Home elle redescend au niveau UI — la couleur
@@ -789,11 +796,14 @@ button.terminal-area {
 	border: 0; background: none; text-align: left; cursor: pointer; color: var(--ink);
 	padding: 1px 0 1px 1.2em;
 }
-button.terminal-area:hover, button.terminal-area:focus {
+/* Le survol inverse ; le focus, lui, est le marqueur ▌ et rien d'autre — c'est
+   la règle de #123, et cette rangée était le seul endroit à le dire deux fois,
+   donc le seul où clavier et souris ne se voyaient pas pareil. */
+button.terminal-area:hover {
 	background: var(--warm-white); color: var(--black);
 }
-button.terminal-area:hover .terminal-area-size, button.terminal-area:focus .terminal-area-size,
-button.terminal-area:hover .terminal-area-weather, button.terminal-area:focus .terminal-area-weather {
+button.terminal-area:hover .terminal-area-size,
+button.terminal-area:hover .terminal-area-weather {
 	color: inherit;
 }
 button.terminal-area:focus::before { left: 0; }
@@ -1052,7 +1062,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 }
 .sc-cta { border: 0; padding: var(--space-2) 0; }
 .sc-btn:hover:not(:disabled), .sc-cta:hover:not(:disabled) { background: var(--warm-white); color: var(--black); border-color: var(--warm-white); }
-.sc-btn:disabled, .sc-cta:disabled { opacity: .35; cursor: default; }
+.sc-btn:disabled, .sc-cta:disabled { opacity: var(--op-disabled); cursor: default; }
 /* La liste des périphériques que le navigateur énumère (issue #162). Une
    ligne par manette : identifiant, classe déduite, axes, boutons. Le
    périphérique actif porte le même marqueur ▌ que le curseur des menus, pour
@@ -1067,8 +1077,11 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	   de ligne — une ellipse mangeait exactement ce qu'on vient y lire. */
 	white-space: normal; overflow-wrap: anywhere;
 }
-#pad-list button.pad-entry:hover, #pad-list button.pad-entry:focus { color: var(--ink); }
-#pad-list button.pad-entry[data-active] { color: var(--ink); }
+#pad-list button.pad-entry:hover { color: var(--ink); }
+/* Le périphérique ACTIF s'écrit en vidéo inverse, comme tout état actif du jeu.
+   Il portait la même encre pleine que le survol : la souris passant dessus, on
+   ne pouvait plus dire lequel des deux était branché. */
+#pad-list button.pad-entry[data-active] { background: var(--warm-white); color: var(--black); }
 
 /* Assistant de calibrage (issue #277). Pendant la mesure, la consigne est la
    SEULE chose que le pilote doit lire : la liste des périphériques et le
