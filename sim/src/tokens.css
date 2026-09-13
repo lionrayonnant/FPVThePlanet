@@ -118,6 +118,18 @@
 	--dur-1: 90ms;
 	--dur-2: 180ms;
 	--dur-3: 360ms;
+	/* Les deux cadences entretenues, celles qui tournent tant qu'un écran est
+	   là : ce qui clignote (curseur, invites) et ce qui balaie (une progression
+	   sans compteur). Elles étaient écrites 1,1 / 1,4 / 1,6 s selon l'endroit,
+	   c'est-à-dire trois pouls dans la même pièce. */
+	--dur-blink: 1.1s;
+	--dur-sweep: 1.6s;
+	/* Les deux cadences entretenues, celles qui tournent tant qu'un écran est
+	   là : ce qui clignote (curseur, invites) et ce qui balaie (une progression
+	   sans compteur). Elles étaient écrites 1,1 / 1,4 / 1,6 s selon l'endroit,
+	   c'est-à-dire trois pouls dans la même pièce. */
+	--dur-blink: 1.1s;
+	--dur-sweep: 1.6s;
 
 	/* ---------- états ----------
 	   Un contrôle hors d'atteinte s'écrit d'une seule façon : moins d'encre, la

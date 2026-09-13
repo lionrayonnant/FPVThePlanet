@@ -6,6 +6,7 @@
 // JAMAIS rien (aucun await sur son chargement dans un chemin d'interaction), et
 // il n'est JAMAIS une source d'information sur l'état réel du pipeline.
 import { EVENTS } from '../tools/dialogue/catalog.mjs';
+import { DUR_3 } from './motion.js';
 import { select, emptyMemory } from '../tools/dialogue/engine.mjs';
 import { planExchange, nextGapMs } from '../tools/dialogue/cadence.mjs';
 import { render } from '../tools/dialogue/render.mjs';
@@ -179,7 +180,7 @@ export function notify({ event, context, host }) {
 	const drop = (card) => {
 		if (!card.isConnected) return;
 		card.dataset.out = '1';
-		setTimeout(() => card.remove(), 400);
+		setTimeout(() => card.remove(), DUR_3);
 	};
 
 	const stop = runStream({

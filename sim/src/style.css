@@ -58,7 +58,7 @@ button:focus::before {
 	/* Le marqueur est le curseur, pas une cible : un clic dessus doit toucher
 	   ce qu'il y a derrière, pas agrandir le bouton. */
 	pointer-events: none;
-	animation: cursor-blink 1.1s step-end infinite;
+	animation: cursor-blink var(--dur-blink) step-end infinite;
 }
 /* Un contrôle réglable (slider, select, checkbox) porte le marqueur sur sa
    ligne entière : c'est la ligne que ←/→ règle (issue #123, Settings). */
@@ -72,7 +72,7 @@ button:focus::before {
 	font-family: var(--font-ascii);
 	color: var(--ink);
 	pointer-events: none;
-	animation: cursor-blink 1.1s step-end infinite;
+	animation: cursor-blink var(--dur-blink) step-end infinite;
 }
 #pad-map td:first-child { position: relative; }
 #pad-map tr:focus-within td:first-child::before {
@@ -84,7 +84,7 @@ button:focus::before {
 	font-family: var(--font-ascii);
 	color: var(--ink);
 	pointer-events: none;
-	animation: cursor-blink 1.1s step-end infinite;
+	animation: cursor-blink var(--dur-blink) step-end infinite;
 }
 
 /* ---------- mouvement des menus (issue #224) ---------- */
@@ -126,6 +126,14 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	button.flash, button.flash:hover, button:focus::before,
 	.panel label:focus-within::before, #pad-map tr:focus-within td:first-child::before { animation: none; }
 	.bootstrap button, .terminal-nav button.terminal-link, .sc-result, .sc-btn, .sc-cta { transition: none; }
+	/* Ce qui tourne SANS FIN est ce que le mouvement réduit vise en premier, et
+	   c'était précisément ce qui restait : l'invite du gate, le balayage d'une
+	   progression sans compteur, et les deux barres qui glissent. L'information
+	   reste — la barre saute à sa valeur, le balayage devient une barre pleine. */
+	.intro-gate { animation: none; }
+	.sc-bar[data-indeterminate="1"] i { animation: none; }
+	#loading-bar, .sc-bar i { transition: none; }
+	.intro-lockup .lockup-name { transition: none; }
 }
 
 #ui { position: fixed; inset: 0; pointer-events: none; }
@@ -152,7 +160,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #loading .bar { height: 2px; background: var(--rule); overflow: hidden; }
 /* La progression est de l'information, mais pas une alerte : elle se marque en
    pleine encre, pas en couleur (Bible §38). */
-#loading-bar { height: 100%; width: 0; background: var(--warm-white); transition: width .2s ease; }
+#loading-bar { height: 100%; width: 0; background: var(--warm-white); transition: width var(--dur-2) linear; }
 .err { color: var(--red); }
 
 /* ---------- hud ---------- */
@@ -1207,10 +1215,10 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .sc-pin-place { margin: 0; letter-spacing: var(--track-ui); text-transform: uppercase; }
 
 .sc-bar { height: 3px; background: var(--rule); overflow: hidden; }
-.sc-bar i { display: block; height: 100%; width: 0; background: var(--warm-white); transition: width .3s linear; }
+.sc-bar i { display: block; height: 100%; width: 0; background: var(--warm-white); transition: width var(--dur-2) linear; }
 /* Pendant la conversion le pipeline ne rend aucun compteur : la barre le dit
    plutôt que d'inventer une progression. */
-.sc-bar[data-indeterminate="1"] i { width: 100% !important; animation: sc-sweep 1.6s linear infinite; transform-origin: left; }
+.sc-bar[data-indeterminate="1"] i { width: 100% !important; animation: sc-sweep var(--dur-sweep) linear infinite; transform-origin: left; }
 @keyframes sc-sweep { 0% { transform: scaleX(0); } 50% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
 
 /* TERRAIN/FETCH/DECODE/REBUILD, puis RF ANALYSIS/TARGET SEARCH (PHASE 05,
@@ -1307,11 +1315,12 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	background: var(--black);
 	padding: var(--space-2) var(--space-3);
 	max-width: 100%;
-	animation: rtc-toast-in .28s ease both;
+	animation: rtc-toast-in var(--dur-2) steps(2, end) both;
 }
 /* Sortie pilotée par un attribut et non par un retrait sec : le nœud reste
-   400 ms de plus pour que le fondu ait lieu (voir notify() dans dialogue.js). */
-.rtc-toast[data-out="1"] { animation: rtc-toast-out .4s ease both; }
+   --dur-3 de plus pour que la sortie ait lieu — dialogue.js lit la même
+   durée dans la feuille plutôt que d'en garder une copie. */
+.rtc-toast[data-out="1"] { animation: rtc-toast-out var(--dur-3) steps(2, end) both; }
 .rtc-toast-who {
 	margin: 0; color: var(--light-grey);
 	font-family: var(--font-ui); font-size: var(--fs-ui);
@@ -1322,10 +1331,10 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	font-family: var(--font-data); font-size: var(--fs-data);
 	white-space: pre-wrap; overflow-wrap: anywhere;
 }
-@keyframes rtc-toast-in  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rtc-toast-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rtc-toast-out { from { opacity: 1; } to { opacity: 0; } }
 /* Le mouvement est du confort, pas de l'information : qui n'en veut pas garde
-   l'apparition et la disparition, sans le glissement ni la durée. */
+   l'apparition et la disparition, sans la durée. */
 @media (prefers-reduced-motion: reduce) {
 	.rtc-toast, .rtc-toast[data-out="1"] { animation-duration: .01ms; }
 }
@@ -1407,7 +1416,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	   à partir de là qu'il respire. */
 	animation:
 		reveal-in var(--dur-2) steps(2, end) both,
-		hack-cta-wait 1.4s steps(1, end) infinite;
+		hack-cta-wait var(--dur-blink) steps(1, end) infinite;
 }
 /* Sous la souris, sous le focus : l'invite a été entendue, elle se tait. Sans
    ça l'animation reprend la main sur l'inversion de :hover un temps sur deux. */
@@ -1519,7 +1528,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	letter-spacing: var(--track-ui);
 	text-transform: uppercase;
 	color: var(--ink);
-	animation: intro-gate-blink 1.6s step-end infinite;
+	animation: intro-gate-blink var(--dur-blink) step-end infinite;
 }
 @keyframes intro-gate-blink {
 	0%, 100% { opacity: .85; }
