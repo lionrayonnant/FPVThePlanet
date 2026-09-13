@@ -467,8 +467,40 @@ await ta('forecast: an area name is rendered as text, never as markup', async ()
 	const box = dom.root.querySelectorAll('.terminal-box').at(-1);
 	assert.match(box.textContent, /^FORECAST \/\//, 'the forecast screen is the one on top');
 	assert.ok(box.textContent.includes(HOSTILE.toUpperCase()), 'the name is on screen, verbatim');
-	assert.equal(dom.root.querySelectorAll('img').length, 0, 'and it built no element');
+	// Not "no <img> anywhere": the footer legitimately carries one, the source
+	// mark, whose src is a data: URI built from a static table. What must not
+	// exist is an element that came from the STRING — so the check names the
+	// payload instead of counting tags, which also makes it survive the next
+	// legitimate image.
+	for (const img of dom.root.querySelectorAll('img')) {
+		const src = img.getAttribute?.('src') ?? img.src ?? '';
+		assert.ok(String(src).startsWith('data:'),
+			`an <img> was built from the hostile name: src=${src}`);
+		assert.equal(img.getAttribute?.('onerror') ?? null, null, 'no onerror survived');
+	}
 	await unwind(p);
+});
+
+await ta('home: the source is offered, which the AGPL requires of a network instance', async () => {
+	// Section 13: a player interacting with this program over a network must be
+	// OFFERED the corresponding source. On someone else's instance they never
+	// see the repository, the LICENSE file or the README, so the offer has to be
+	// in the program. This is the test that it stays there.
+	reset();
+	modeReply = 'shared';
+	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
+	await new Promise((r) => setTimeout(r, 0));
+	const link = dom.root.querySelectorAll('.terminal-source').at(-1);
+	assert.ok(link, 'the source link is on the root screen');
+	assert.match(link.getAttribute('href'), /^https:\/\/github\.com\//, 'it points at the repository');
+	assert.match(link.textContent, /SOURCE/, 'and it says what it is');
+	assert.match(link.textContent, /AGPL-3\.0/, 'and under what terms');
+	// target=_blank is load-bearing, not cosmetic: electron/main.js refuses to
+	// navigate the window off its own origin, so without it the desktop app
+	// swallows the click and the offer is a dead link.
+	assert.equal(link.getAttribute('target'), '_blank', 'opens outside, or Electron blocks it');
+	assert.match(link.getAttribute('rel') ?? '', /noopener/, 'and does not hand over the opener');
+	await close(p);
 });
 
 // --- OPERATOR KEY -----------------------------------------------------------

@@ -12,7 +12,16 @@ import { randomart } from '../tools/randomart.mjs';
 import { dronePortrait } from './drone-portrait.js';
 import { droneViewer } from './drone-viewer.js';
 import { storedKeyLabel } from './key-map.js';
-import { versionLine } from './version.js';
+import { versionLine, SOURCE_URL } from './version.js';
+import { iconSVG } from './pixel-icons.js';
+
+// The repository without its scheme: the OSD is dense and 'https://' earns
+// nothing there. It is not a link — the flight holds pointer lock, so a
+// clickable target in the video frame would be a trap rather than a bridge.
+// The terminal's footer carries the real link; this is the reminder that the
+// thing you are flying has source, visible on the surface a stream or a
+// screenshot actually shows.
+const SOURCE_HOST = SOURCE_URL.replace(/^https?:\/\//, '');
 
 // Where the wind pushes from, in the drone's frame: index 0 is straight ahead.
 const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
@@ -44,6 +53,7 @@ export class FpvtpOsd {
 			<div id="fpvtp-osd" hidden>
 				<div class="corner tl">
 					<div id="fo-ident">${versionLine()}</div>
+					<div id="fo-source">${iconSVG('source', { size: 9 })} ${SOURCE_HOST}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
 				</div>

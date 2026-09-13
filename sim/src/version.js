@@ -12,3 +12,16 @@ export function versionLineFor(v) {
 export function versionLine() {
 	return versionLineFor(APP_VERSION);
 }
+
+// Where the source lives, and under what terms.
+//
+// This is not decoration and not marketing. The AGPL's section 13 requires that
+// anyone interacting with the program THROUGH A NETWORK be offered the
+// corresponding source, and a hosted instance is exactly that case: a player on
+// someone else's server never touches the repository, the licence file or the
+// README. The offer has to be in the program.
+//
+// It lives here rather than in a screen because two surfaces show it (the FIELD
+// footer, the settings panel) and a second copy is how they come to disagree.
+export const SOURCE_URL = 'https://github.com/lionrayonnant/FPVThePlanet';
+export const LICENCE = 'AGPL-3.0';

@@ -78,6 +78,21 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Ajouté
 
+- **Le jeu dit où sont ses sources.** Une ligne `< > SOURCE · AGPL-3.0` sous le
+  pied de page de FIELD, cliquable, et une marque discrète dans l'OSD en vol.
+  Ce n'est pas de la promotion : l'article 13 de l'AGPL exige qu'un joueur qui
+  interagit avec le programme **à travers un réseau** se voie offrir les sources
+  correspondantes — or sur l'instance de quelqu'un d'autre, il ne voit jamais le
+  dépôt, ni le fichier `LICENSE`, ni le README. L'offre doit être dans le
+  programme.
+
+  L'icône vient du jeu lui-même : `src/pixel-icons.js` (PHASE 20, Bible §41)
+  existait depuis longtemps et n'était branché à rien ; c'est son premier
+  usage. Une paire de chevrons plutôt qu'une marque de plateforme — à douze
+  pixels un glyphe de branche tourne à la bouillie, et le lien pointe vers les
+  sources, où qu'elles soient hébergées. En vol la marque n'est **pas**
+  cliquable : le vol capture le pointeur, une cible dans l'image serait un
+  piège ; c'est le pied de page du terminal qui porte le lien.
 - `deploy/README.md` gagne une section « Hardening the machine » : SSH par
   clés, restriction du port 22, `fail2ban`, mises à jour automatiques, et le
   mode SSL à vérifier derrière un CDN. Le service était déjà bien confiné par

@@ -199,6 +199,18 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    in full ink while its neighbours come down to grey (Bible §38 — no colour that
    carries nothing). */
 #fo-ident { color: var(--ink); }
+/* The source mark in flight. Quieter than the version above it and NOT
+   clickable: the flight holds pointer lock, so a target in the video frame
+   would be a trap. It is a reminder, on the surface a stream or a screenshot
+   actually shows; the terminal footer carries the link you can follow. */
+#fo-source {
+	font-size: var(--fs-micro);
+	color: var(--faint);
+	display: flex;
+	align-items: center;
+	gap: .4em;
+}
+#fo-source svg { display: block; opacity: .8; }
 #fo-rates, #fo-input, #fo-fps { font-size: var(--fs-micro); color: var(--dim); }
 #fo-env { font-size: var(--fs-micro); color: var(--ink); }
 /* The view toggle (D11). The only clickable element of the OSD: the layer is
@@ -708,6 +720,29 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    status line, not a table: nothing in it is aligned on a column, so wrapping
    costs it nothing. */
 .terminal-left pre.terminal-foot { white-space: normal; }
+
+/* The source line under the footer (AGPL section 13). It is a real link, so it
+   gets the inverse-video focus marker the rest of the terminal uses rather than
+   the browser's outline, which style.css removes globally. Underlined only on
+   hover: a permanent underline in this typeface reads as a scanline. */
+.terminal-source {
+	display: inline-flex;
+	align-items: center;
+	gap: .45em;
+	margin-top: .35em;
+	font-size: var(--fs-micro);
+	color: var(--faint);
+	text-decoration: none;
+	letter-spacing: .08em;
+}
+.terminal-source:hover { color: var(--light-grey); text-decoration: underline; }
+.terminal-source:focus-visible {
+	outline: none;
+	background: var(--ink);
+	color: var(--black);
+}
+.terminal-source-mark { display: inline-flex; }
+.terminal-source-mark svg { display: block; }
 
 /* BUILD NOTES: a version number, then its indented lines. The indent is
    hanging — first line at 2ch, wrap at 4ch — so that a note that overflows

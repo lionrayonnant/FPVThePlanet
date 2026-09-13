@@ -16,7 +16,8 @@ import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
 import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
-import { versionLine } from './version.js';
+import { versionLine, SOURCE_URL, LICENCE } from './version.js';
+import { iconDataUri } from './pixel-icons.js';
 
 
 // How many areas the Home shows under the map before handing over to MORE….
@@ -163,6 +164,39 @@ async function forecastScreen(root, scene) {
 // changes.
 //
 // `onWeather`: the severity, once known, for a caller that sorts on it.
+// The source line: the project's own 12x12 icon (Bible §41) and the repository.
+// The icon set existed and was wired to nothing; this is its first use.
+//
+// target=_blank is required, not stylistic: in the desktop app
+// electron/main.js refuses to navigate the window off its own origin, so a
+// plain link would be silently blocked. Opening a new window routes it through
+// setWindowOpenHandler, which hands https to the system browser.
+function sourceLink() {
+	const a = document.createElement('a');
+	a.className = 'terminal-source';
+	// setAttribute rather than the properties: the render selftests mount this
+	// on a fake DOM that tracks attributes, and an offer the tests cannot see is
+	// an offer nothing stops from disappearing.
+	a.setAttribute('href', SOURCE_URL);
+	a.setAttribute('target', '_blank');
+	a.setAttribute('rel', 'noopener noreferrer');
+
+	// An <img> with a data: URI rather than inline SVG: this file builds every
+	// node with createElement, and the fake DOM the render selftests use refuses
+	// innerHTML outright — which is the guard that keeps an injection from ever
+	// finding a door here. An attribute sidesteps the question entirely.
+	const mark = document.createElement('img');
+	mark.className = 'terminal-source-mark';
+	mark.setAttribute('src', iconDataUri('source', { size: 10 }));
+	mark.setAttribute('alt', '');
+	mark.setAttribute('width', '10');
+	mark.setAttribute('height', '10');
+	a.appendChild(mark);
+
+	a.appendChild(document.createTextNode(` SOURCE · ${LICENCE}`));
+	return a;
+}
+
 function areaRow(sc, { onActivate, onWeather = null } = {}) {
 	const row = document.createElement('button');
 	row.type = 'button';
@@ -1162,6 +1196,14 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		foot.textContent = model.footer;
 		left.appendChild(foot);
 		countUp(foot);
+
+		// The bridge to the source, and the AGPL's section 13: anyone
+		// interacting with this program over a network must be OFFERED the
+		// corresponding source, and a player on someone else's instance never
+		// sees the repository, the LICENSE file or the README. The offer has to
+		// be inside the program, so it sits on the one screen every session
+		// passes through.
+		left.appendChild(sourceLink());
 
 		// D15: Escape goes back up, and it says so — but it must say what Escape
 		// ACTUALLY does in the state on screen. While an area is drawn, Escape
