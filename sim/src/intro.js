@@ -23,6 +23,7 @@
 // fin.
 import { INTRO_PHASES, INTRO_TOTAL_MS, RESOLUTION_AT_MS, phaseAt, SKIP_WRAP_MS } from '../tools/intro-model.mjs';
 import { MARK_RECTS, revealCount, nameVisibleAt } from '../tools/brand-mark-model.mjs';
+import { stackedLockup } from './brand-lockup.js';
 import { cosmeticSeed, RITUAL_PRIMITIVES } from './hack-grammars.js';
 import { reducedMotion } from './motion.js';
 
@@ -212,19 +213,17 @@ export function runIntro(root, { onFirstGesture = null } = {}) {
 
 		function startCracktro() {
 			started = true;
-			// Le verrouillage empilé : le symbole, puis le nom dessous. Un seul
-			// conteneur, parce que l'écart entre les deux est une règle de la
-			// marque et pas une décision de mise en page.
+			// Le verrouillage vient de brand-lockup.js — une seule composition de
+			// la marque dans le jeu. Le cracktro en vide seulement le symbole :
+			// c'est lui qui le repeint rectangle par rectangle pendant `reveal`.
 			wrap.innerHTML =
-				'<div class="intro-lockup" aria-hidden="true">'
-				+ '<svg class="intro-mark" viewBox="0 0 100 100"></svg>'
-				+ `<div class="intro-logo">${TITLE.split('').map((ch) => `<span>${ch}</span>`).join('')}</div>`
-				+ '</div>'
+				stackedLockup({ name: TITLE, extra: 'intro-lockup', splitName: true })
 				+ '<pre class="intro-burst" aria-hidden="true"></pre>'
 				+ `<div class="intro-scroll" aria-hidden="true"><span>${GREETING}</span></div>`;
-			markEl = wrap.querySelector('.intro-mark');
-			logoEl = wrap.querySelector('.intro-logo');
-			logoSpans = Array.from(wrap.querySelectorAll('.intro-logo span'));
+			markEl = wrap.querySelector('.lockup-mark');
+			markEl.replaceChildren();
+			logoEl = wrap.querySelector('.lockup-name');
+			logoSpans = Array.from(wrap.querySelectorAll('.lockup-name span'));
 			burstEl = wrap.querySelector('.intro-burst');
 			// Mouvement réduit : la marque est posée, pas tracée. Même règle que
 			// partout ailleurs (motion.js) — on saute à l'état final plutôt que
