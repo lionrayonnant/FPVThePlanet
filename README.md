@@ -1,10 +1,50 @@
+<div align="center">
 
 <img src="docs/brand/fpvtp-readme-1280x320.png" alt="FPVThePlanet! — point at a city, fly it" width="100%">
 
-FPV drone flying over real cities, in the browser. The scenery is photogrammetry
-pulled from Google Earth, so it's the actual geometry and textures of a place
-that exists. The flight model is a Betaflight quad, acro by default, and a radio
-is recognised without setup.
+**FPV drone flying over real cities, in the browser.**<br>
+Photogrammetry from Google Earth, a Betaflight quad, and a radio that works without setup.
+
+[![Release](https://img.shields.io/github/v/release/lionrayonnant/FPVThePlanet?style=flat-square&labelColor=0d0d0d&color=d8d8d8&label=release)](https://github.com/lionrayonnant/FPVThePlanet/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/lionrayonnant/FPVThePlanet/ci.yml?branch=main&style=flat-square&labelColor=0d0d0d&color=d8d8d8&label=ci)](https://github.com/lionrayonnant/FPVThePlanet/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--only-d8d8d8?style=flat-square&labelColor=0d0d0d)](LICENSE)
+[![Discussions](https://img.shields.io/badge/discussions-open-d8d8d8?style=flat-square&labelColor=0d0d0d)](https://github.com/lionrayonnant/FPVThePlanet/discussions)
+
+**[Download](https://github.com/lionrayonnant/FPVThePlanet/releases/latest)** ·
+**[Run from source](#play)** ·
+**[How it works](#how-it-works)** ·
+**[Manual](docs/manual.md)** ·
+**[Contribute](CONTRIBUTING.md)**
+
+</div>
+
+## Support
+
+The game is free and stays free. Nothing in it is paywalled, counted, or
+remembered about you. If it gave you something, the terminal footer carries
+three marks — Cake Wallet, Bitcoin, Monero — and the same addresses are here:
+
+| | |
+|---|---|
+| **One line, any coin** | `fpvtp@cake.cash` |
+| **Monero** | `42RnnFdtNasaiUQGEASPGRXjHcr2pDocwXCwGUAhwyp7KbAhbKwCHrEfeYMkUMpo7gQdEABWy9LoRd4iEUFMq2SXKdHPqKt` |
+| **Bitcoin** · silent payment | `sp1qq2tuvemuzgu6hudsu7jf2h90gl6xemav67s3x3f34l76qtfl6dzgcq43r30lvckcz4qat2x8ju5a36sdqr2r3fe72cqpudvlqh797agdkcvkvkl4` |
+| **Bitcoin** | `bc1qmwm3rcvzkwaft40yrtynym3yww20t2atfr45yg` |
+
+Crypto only, and not out of enthusiasm: every card rail verifies the identity of
+whoever receives the money, and this project is published under a pseudonym.
+
+These addresses live in `sim/tools/support-model.mjs`, and
+`sim/tools/support-selftest.mjs` re-verifies every one of them by checksum on
+every CI run — bech32 and bech32m for Bitcoin, Keccak-256 for Monero. A typo in
+a caption is embarrassing; a typo in an address sends a stranger's money
+somewhere nobody can spend it.
+
+---
+
+The scenery is photogrammetry pulled from Google Earth, so it's the actual
+geometry and textures of a place that exists. The flight model is a Betaflight
+quad, acro by default, and a radio is recognised without setup.
 
 https://github.com/user-attachments/assets/d18df585-a85d-484f-8743-3dce02777d50
 
@@ -29,11 +69,15 @@ A fresh clone has no terrain on disk, so the catalogue starts empty. Open the
 LIVE tab, click the map to drop a pin, then `[ FLY LIVE ]`. Tiles stream in
 during the flight and nothing is written to your disk.
 
-Controls: a USB gamepad or radio is detected automatically in Mode 2, and you
-can remap and calibrate it under `Tab`, with live bars to identify each axis. On
-the keyboard, `W`/`S` is throttle, `A`/`D` is yaw, the arrows or the mouse do
-roll and pitch, `M` switches flight mode (acro, angle, altitude), `C` is the
-free camera, `T` flips the machine back over, `Tab` opens settings.
+### Controls
+
+| | |
+|---|---|
+| radio / gamepad | detected automatically in Mode 2; remap and calibrate under `Tab`, with live bars to identify each axis |
+| throttle, yaw | `W`/`S`, `A`/`D` |
+| roll, pitch | the arrows, or the mouse |
+| `M` | flight mode: acro, angle, altitude |
+| `C` · `T` · `Tab` | free camera · flip the machine back over · settings |
 
 Acro is the default, on a keyboard as much as on a radio — the keyboard axes
 ramp rather than snapping to full deflection, which is what makes that
@@ -106,42 +150,6 @@ ground effect, propwash, battery sag) and the controller in
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | how the project works, and the rules that actually bite |
 | [`sim/HANDOFF.md`](sim/HANDOFF.md) | the maintainer's working log: what is measured, what is not. Internal, and still largely in French |
 
-## License
-
-Copyright © 2026 lionrayonnant. [GNU AGPL-3.0-only](LICENSE). The code is free,
-and anyone hosting a modified version for other people has to publish their
-sources.
-
-Bundled third-party work keeps its own licence: [Three.js](https://threejs.org/),
-[Rapier](https://rapier.rs/), [Leaflet](https://leafletjs.com/) and
-[Leaflet-Geoman](https://geoman.io/leaflet-geoman), all listed in
-`sim/package.json`. The IBM Plex Mono and Departure Mono fonts are under the SIL
-Open Font License, whose text sits next to them in `sim/public/fonts/`. The
-music in `sim/public/music/` was generated for this project. Map tiles are
-© OpenStreetMap and place search is © Nominatim.
-
-## Support
-
-The game is free and stays free. Nothing in it is paywalled, counted, or
-remembered about you. If it gave you something, the terminal footer carries
-three marks — Cake Wallet, Bitcoin, Monero — and the same addresses are here:
-
-| | |
-|---|---|
-| one line, any coin | `fpvtp@cake.cash` |
-| Monero | `42RnnFdtNasaiUQGEASPGRXjHcr2pDocwXCwGUAhwyp7KbAhbKwCHrEfeYMkUMpo7gQdEABWy9LoRd4iEUFMq2SXKdHPqKt` |
-| Bitcoin, silent payment | `sp1qq2tuvemuzgu6hudsu7jf2h90gl6xemav67s3x3f34l76qtfl6dzgcq43r30lvckcz4qat2x8ju5a36sdqr2r3fe72cqpudvlqh797agdkcvkvkl4` |
-| Bitcoin | `bc1qmwm3rcvzkwaft40yrtynym3yww20t2atfr45yg` |
-
-Crypto only, and not out of enthusiasm: every card rail verifies the identity of
-whoever receives the money, and this project is published under a pseudonym.
-
-These addresses live in `sim/tools/support-model.mjs`, and
-`sim/tools/support-selftest.mjs` re-verifies every one of them by checksum on
-every CI run — bech32 and bech32m for Bitcoin, Keccak-256 for Monero. A typo in
-a caption is embarrassing; a typo in an address sends a stranger's money
-somewhere nobody can spend it.
-
 ## Contributions
 
 Still reading? Contributions are welcome.
@@ -157,3 +165,17 @@ Questions, tuning talk and "is this supposed to work like that" belong in
 [Discussions](https://github.com/lionrayonnant/FPVThePlanet/discussions).
 Vulnerabilities go through [`SECURITY.md`](SECURITY.md), never a public issue.
 Everyone taking part is held to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+Copyright © 2026 lionrayonnant. [GNU AGPL-3.0-only](LICENSE). The code is free,
+and anyone hosting a modified version for other people has to publish their
+sources.
+
+Bundled third-party work keeps its own licence: [Three.js](https://threejs.org/),
+[Rapier](https://rapier.rs/), [Leaflet](https://leafletjs.com/) and
+[Leaflet-Geoman](https://geoman.io/leaflet-geoman), all listed in
+`sim/package.json`. The IBM Plex Mono and Departure Mono fonts are under the SIL
+Open Font License, whose text sits next to them in `sim/public/fonts/`. The
+music in `sim/public/music/` was generated for this project. Map tiles are
+© OpenStreetMap and place search is © Nominatim.

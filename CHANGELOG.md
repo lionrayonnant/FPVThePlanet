@@ -24,6 +24,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Modifié
+
+- **README : en-tête de présentation et soutien remonté en haut.** Bannière,
+  badges (release, CI, licence, Discussions) et liens de navigation dans un
+  bloc centré ; la section « Support » et ses adresses crypto passent juste
+  sous l'en-tête au lieu d'être en bas de page. Les commandes sont regroupées
+  dans un tableau.
+
 ## [1.1.0] - 2026-09-13
 
 Ce que la première mise en ligne réelle a trouvé. La 1.0.0 a été taguée avant
