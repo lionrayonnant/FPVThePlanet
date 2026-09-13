@@ -20,7 +20,9 @@ import { iconSVG } from './pixel-icons.js';
 // clickable target in the video frame would be a trap rather than a bridge.
 // The terminal's footer carries the real link; this is the reminder that the
 // thing you are flying has source, visible on the surface a stream or a
-// screenshot actually shows.
+// screenshot actually shows. The mark is the same one the terminal footer now
+// carries — one destination, one logo, or the two surfaces start disagreeing
+// about what they point at.
 const SOURCE_HOST = SOURCE_URL.replace(/^https?:\/\//, '');
 
 // Where the wind pushes from, in the drone's frame: index 0 is straight ahead.
@@ -53,7 +55,7 @@ export class FpvtpOsd {
 			<div id="fpvtp-osd" hidden>
 				<div class="corner tl">
 					<div id="fo-ident">${versionLine()}</div>
-					<div id="fo-source">${iconSVG('source', { size: 9 })} ${SOURCE_HOST}</div>
+					<div id="fo-source">${iconSVG('github', { size: 9 })} ${SOURCE_HOST}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
 				</div>

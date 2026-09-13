@@ -9,7 +9,7 @@
 // Run: node tools/terminal-render-selftest.mjs
 
 import assert from 'node:assert/strict';
-import { ADDRESSES, HANDLE } from './support-model.mjs';
+import { ADDRESSES, HANDLE, TIP_BUTTONS } from './support-model.mjs';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
 const dom = installFakeDom();
@@ -391,6 +391,11 @@ await ta('home: the LIVE tab credits the imagery it is about to stream', async (
 	const credit = dom.root.querySelector('.terminal-credit');
 	assert.ok(credit, 'the LIVE tab carries a credit line');
 	assert.match(credit.textContent, /\u00a9 Google/, 'the same literal the flight OSD paints');
+	// And it sits at the FOOT of the column, with the other legal notices,
+	// not wedged between the LIVE rail and the thing that takes off.
+	const column = [...dom.root.querySelector('.terminal-left').children];
+	assert.ok(column.indexOf(credit) > column.findIndex((e) => e.className?.includes('terminal-foot')),
+		'the credit comes after the build footer');
 	// And it belongs to LIVE: LOCAL flies terrain already on disk, whose credit
 	// travelled with the acquisition.
 	await openLocal();
@@ -494,8 +499,12 @@ await ta('home: the source is offered, which the AGPL requires of a network inst
 	const link = dom.root.querySelectorAll('.terminal-source').at(-1);
 	assert.ok(link, 'the source link is on the root screen');
 	assert.match(link.getAttribute('href'), /^https:\/\/github\.com\//, 'it points at the repository');
-	assert.match(link.textContent, /SOURCE/, 'and it says what it is');
-	assert.match(link.textContent, /AGPL-3\.0/, 'and under what terms');
+	// The word SOURCE is the category heading now and the licence is the link's
+	// own text: the mark says WHERE, the words say WHAT and under what terms.
+	// Both halves are asserted, because half an offer is not one.
+	const heads = dom.root.querySelectorAll('.terminal-meta-head').map((e) => e.textContent);
+	assert.ok(heads.some((h) => h.includes('SOURCE')), 'the offer is named');
+	assert.match(link.textContent, /AGPL-3\.0/, 'and made under stated terms');
 	// target=_blank is load-bearing, not cosmetic: electron/main.js refuses to
 	// navigate the window off its own origin, so without it the desktop app
 	// swallows the click and the offer is a dead link.
@@ -504,27 +513,45 @@ await ta('home: the source is offered, which the AGPL requires of a network inst
 	await close(p);
 });
 
-await ta('support: the addresses reach the screen whole, and nothing is truncated', async () => {
+await ta('tips: three marks, and each one opens its own addresses whole', async () => {
 	// support-selftest.mjs proves the addresses are valid; this proves the
-	// screen does not mangle them on the way out. An address shortened with an
+	// windows do not mangle them on the way out. An address shortened with an
 	// ellipsis for layout is an address a donor cannot check against what their
 	// wallet pasted, which is the only defence they have — so the assertion is
 	// character-for-character.
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
-	dom.root.querySelectorAll('.terminal-support').at(-1).click();
-	await new Promise((r) => setTimeout(r, 0));
 
-	const box = dom.root.querySelectorAll('.terminal-box').at(-1);
-	assert.match(box.textContent, /SUPPORT \/\//, 'the support screen is the one on top');
-	assert.ok(box.textContent.includes(HANDLE), 'the readable handle is there');
-	for (const a of ADDRESSES) {
-		assert.ok(box.textContent.includes(a.address), `${a.id}: the address is on screen in full`);
-		assert.ok(box.textContent.includes(a.label), `${a.id}: and it is labelled`);
+	const marks = dom.root.querySelectorAll('.terminal-tip-btn');
+	assert.equal(marks.length, TIP_BUTTONS.length, 'one mark per currency');
+	// Each tile names its coin under the mark. Three unlabelled glyphs in a
+	// corner are something to decipher, and nobody gives to a puzzle.
+	for (const [i, b] of marks.entries()) {
+		assert.ok(b.textContent.includes(TIP_BUTTONS[i].alt), 'the tile names its coin');
+		assert.ok(b.querySelectorAll('img').length, 'and carries its mark');
 	}
-	assert.doesNotMatch(box.textContent, /\u2026|\.\.\./, 'nothing is elided');
-	await unwind(p);
+
+	for (const [i, group] of TIP_BUTTONS.entries()) {
+		dom.root.querySelectorAll('.terminal-tip-btn').at(i).click();
+		await new Promise((r) => setTimeout(r, 0));
+		const box = dom.root.querySelectorAll('.terminal-box').at(-1);
+		assert.ok(box.textContent.includes(group.title), `${group.id}: the window says which coin`);
+		for (const e of group.entries) {
+			assert.ok(box.textContent.includes(e.address), `${group.id}: ${e.id} is on screen in full`);
+		}
+		assert.doesNotMatch(box.textContent, /\u2026|\.\.\./, `${group.id}: nothing is elided`);
+		// BACK returns to FIELD with the map untouched — opening a tip window
+		// must cost a player nothing.
+		box.querySelectorAll('button').find((b) => b.textContent === '[ BACK ]').click();
+		await new Promise((r) => setTimeout(r, 0));
+	}
+
+	// Every address, and the handle, reachable from the footer.
+	const all = TIP_BUTTONS.flatMap((g) => g.entries.map((e) => e.address));
+	for (const a of ADDRESSES) assert.ok(all.includes(a.address), `${a.id}: unreachable`);
+	assert.ok(all.includes(HANDLE), 'the readable handle has a window too');
+	await close(p);
 });
 
 // --- OPERATOR KEY -----------------------------------------------------------

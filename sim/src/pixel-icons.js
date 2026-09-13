@@ -149,6 +149,76 @@ export const PIXEL_ICONS = {
 		'............',
 		'............',
 	],
+	// The GitHub mark, which is where the source link goes. A vendor's logo is
+	// normally the wrong answer at twelve pixels — but this one destination is a
+	// platform, and its silhouette survives the grid where "a branch glyph" does
+	// not: two ears, a body, one tail. A filled silhouette lights more pixels
+	// than a line glyph, which is why the density check allows for it.
+	github: [
+		'..##....##..',
+		'.####..####.',
+		'.##########.',
+		'############',
+		'##.#....#.##',
+		'############',
+		'############',
+		'.##########.',
+		'.##########.',
+		'.###.##.###.',
+		'..##.##.##..',
+		'..##....##..',
+	],
+	// Bitcoin: the B with its two stems, and no coin around it. The disc is what
+	// turns to mud first at this size — the letterform alone is what people
+	// actually recognise, and it stays two clean strokes wide.
+	bitcoin: [
+		'...#..#.....',
+		'...#..#.....',
+		'..#######...',
+		'..##....##..',
+		'..##....##..',
+		'..#######...',
+		'..##....##..',
+		'..##.....##.',
+		'..##.....##.',
+		'..#######...',
+		'...#..#.....',
+		'...#..#.....',
+	],
+	// Monero: the ring and the M inside it, which is the whole mark. The middle
+	// vertex drops below the shoulders the way the real glyph does; drawn as an
+	// outline rather than a disc so the M has somewhere to live.
+	monero: [
+		'...######...',
+		'.##......##.',
+		'.#........#.',
+		'#.##....##.#',
+		'#.###..###.#',
+		'#.#.####.#.#',
+		'#.#..##..#.#',
+		'#.#......#.#',
+		'.#........#.',
+		'.##......##.',
+		'...######...',
+		'............',
+	],
+	// Cake Wallet: a cake. The brand's own slice does not survive twelve pixels
+	// — the tiers and the candle do, and they say "cake" without borrowing a
+	// mark that would misrepresent it.
+	cake: [
+		'.....#......',
+		'.....#......',
+		'...######...',
+		'.##########.',
+		'############',
+		'#.##.##.##.#',
+		'.##########.',
+		'.#........#.',
+		'.#.######.#.',
+		'.#........#.',
+		'.##########.',
+		'............',
+	],
 };
 
 export const ICON_NAMES = Object.keys(PIXEL_ICONS);

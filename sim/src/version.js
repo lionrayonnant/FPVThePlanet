@@ -25,3 +25,9 @@ export function versionLine() {
 // footer, the settings panel) and a second copy is how they come to disagree.
 export const SOURCE_URL = 'https://github.com/lionrayonnant/FPVThePlanet';
 export const LICENCE = 'AGPL-3.0';
+
+// What the footer asks for above the mark. The licence obligation is to OFFER
+// the source; asking for a star is a different sentence and is allowed to sound
+// like one — it is the cheapest thing a player can give back, and the tip row
+// underneath says what the expensive one would be.
+export const SOURCE_CALL = 'SOURCE · LEAVE A STAR ON GITHUB';

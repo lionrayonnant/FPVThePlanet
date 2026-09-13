@@ -13,7 +13,7 @@
 // checked against the official Keccak test vector before its verdict is
 // trusted — an unverified hash proving an unverified address is worth nothing.
 import assert from 'node:assert/strict';
-import { ADDRESSES, HANDLE, SUPPORT_LINES, paymentUri } from './support-model.mjs';
+import { ADDRESSES, HANDLE, SUPPORT_LINES, SUPPORT_TAGLINE, TIP_BUTTONS, paymentUri } from './support-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -160,11 +160,35 @@ t('every entry renders a payment URI its wallet will recognise', () => {
 		assert.equal(paymentUri(a), `${a.uri}${a.address}`);
 		assert.match(paymentUri(a), /^(monero|bitcoin):/);
 	}
+	// The handle is not a URI scheme. It gets no URI rather than a string no
+	// wallet can open — a COPY URI button that copies rubbish is worse than an
+	// absent one, because the donor believes it worked.
+	assert.equal(paymentUri({ uri: null, address: HANDLE }), null);
 });
 
-t('the screen has something to say, in the terminal voice', () => {
+t('the window has something to say, in the terminal voice', () => {
 	assert.ok(SUPPORT_LINES.length >= 2);
-	for (const l of SUPPORT_LINES) assert.equal(l, l.toUpperCase(), 'the terminal speaks in upper case');
+	for (const l of [...SUPPORT_LINES, SUPPORT_TAGLINE]) {
+		assert.equal(l, l.toUpperCase(), 'the terminal speaks in upper case');
+	}
+});
+
+// The footer shows three marks and no words, so the marks are the only route to
+// an address. A currency that loses its button is an address nobody can reach —
+// which, from a donor's side, is the same outcome as a wrong address.
+t('every address is reachable from a footer mark, and every mark from an icon', () => {
+	const reachable = TIP_BUTTONS.flatMap((b) => b.entries.map((e) => e.address));
+	for (const a of ADDRESSES) {
+		assert.ok(reachable.includes(a.address), `${a.id}: no footer mark opens it`);
+	}
+	assert.ok(reachable.includes(HANDLE), 'the handle has a mark of its own');
+	for (const b of TIP_BUTTONS) {
+		assert.ok(b.icon && b.alt && b.title, `${b.id}: a mark needs an icon and a name`);
+		assert.ok(b.entries.length >= 1, `${b.id}: a window with nothing in it`);
+		// alt is the ONLY text on the button: a screen reader, and the render
+		// selftest, have nothing else to go on.
+		assert.equal(b.alt, b.alt.toUpperCase());
+	}
 });
 
 console.log(`\n${n} support tests OK — every address verified by checksum`);

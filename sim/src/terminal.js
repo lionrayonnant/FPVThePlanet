@@ -16,9 +16,10 @@ import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
 import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
-import { versionLine, SOURCE_URL, LICENCE } from './version.js';
+import { versionLine, SOURCE_URL, SOURCE_CALL, LICENCE } from './version.js';
 import { iconDataUri } from './pixel-icons.js';
-import { ADDRESSES, HANDLE, SUPPORT_LINES, paymentUri } from '../tools/support-model.mjs';
+import { token } from './palette.js';
+import { TIP_BUTTONS, SUPPORT_LINES, SUPPORT_TAGLINE, paymentUri } from '../tools/support-model.mjs';
 
 
 // How many areas the Home shows under the map before handing over to MORE….
@@ -165,8 +166,52 @@ async function forecastScreen(root, scene) {
 // changes.
 //
 // `onWeather`: the severity, once known, for a caller that sorts on it.
-// The source line: the project's own 12x12 icon (Bible §41) and the repository.
-// The icon set existed and was wired to nothing; this is its first use.
+// --- the footer's two categories: where the code is, and where a tip goes.
+//
+// They were one undifferentiated stack of links. A repository and a tip jar are
+// not the same offer — one is a licence obligation, the other is a request —
+// and a player who is looking for one should never have to read the other.
+// Each gets its own heading, and each speaks in marks rather than in words:
+// a logo is recognised before it is read, which "SUPPORT" never was.
+
+// A category heading in the footer. Micro type, one word or one line.
+function metaHead(text) {
+	const p = document.createElement('pre');
+	p.className = 'terminal-meta-head';
+	p.textContent = text;
+	return p;
+}
+
+// A 12x12 icon as an <img>.
+//
+// An <img> with a data: URI rather than inline SVG: this file builds every node
+// with createElement, and the fake DOM the render selftests use refuses
+// innerHTML outright — which is the guard that keeps an injection from ever
+// finding a door here. An attribute sidesteps the question entirely.
+//
+// The colour is RESOLVED here, not inherited. `currentColor` inside an <img>
+// does not see the page: the browser renders the SVG in its own context, where
+// `color` is the initial value — so every mark came out near-black on a black
+// screen and the row read as three empty boxes. token() reads the same
+// stylesheet the rest of the interface uses (src/palette.js), so there is still
+// no second copy of the palette.
+//
+// `alt` is not decoration either: it is the name a screen reader — and the
+// render selftest — has for a button whose content is a picture.
+function iconImg(name, { size = 12, alt = '', cls = 'terminal-mark' } = {}) {
+	const img = document.createElement('img');
+	img.className = cls;
+	img.setAttribute('src', iconDataUri(name, { size, color: token('--warm-white') }));
+	img.setAttribute('alt', alt);
+	img.setAttribute('width', String(size));
+	img.setAttribute('height', String(size));
+	return img;
+}
+
+// The source line: GitHub's mark and the licence. The mark rather than the
+// project's own chevron pair, because the destination IS that platform and a
+// player identifies it in one glance; the licence stays in words, because
+// AGPL-3.0 is a legal term and no glyph carries it.
 //
 // target=_blank is required, not stylistic: in the desktop app
 // electron/main.js refuses to navigate the window off its own origin, so a
@@ -181,29 +226,37 @@ function sourceLink() {
 	a.setAttribute('href', SOURCE_URL);
 	a.setAttribute('target', '_blank');
 	a.setAttribute('rel', 'noopener noreferrer');
-
-	// An <img> with a data: URI rather than inline SVG: this file builds every
-	// node with createElement, and the fake DOM the render selftests use refuses
-	// innerHTML outright — which is the guard that keeps an injection from ever
-	// finding a door here. An attribute sidesteps the question entirely.
-	const mark = document.createElement('img');
-	mark.className = 'terminal-source-mark';
-	mark.setAttribute('src', iconDataUri('source', { size: 10 }));
-	mark.setAttribute('alt', '');
-	mark.setAttribute('width', '10');
-	mark.setAttribute('height', '10');
-	a.appendChild(mark);
-
-	a.appendChild(document.createTextNode(` SOURCE · ${LICENCE}`));
+	a.appendChild(iconImg('github', { size: 12, alt: 'GITHUB', cls: 'terminal-source-mark' }));
+	a.appendChild(document.createTextNode(` ${LICENCE}`));
 	return a;
 }
 
-// SUPPORT, one line under the source link. Same register, same restraint: it
-// names itself and says nothing more. The screen behind it does the talking.
-function supportLink(onOpen) {
-	const b = screenButton('SUPPORT', onOpen);
-	b.className = `${b.className} terminal-meta terminal-support`.trim();
-	return b;
+// The tip row: one tile per currency, each opening its own window.
+//
+// No full screen any more. A tip jar that takes the whole frame asks more of a
+// player than it is worth — the window opens over FIELD, says one thing, and
+// closes.
+//
+// A tile rather than a bare icon: three unlabelled glyphs in a corner are
+// something to decipher, and nobody gives to a puzzle. The mark is what carries
+// the recognition and the coin's NAME is under it — which is the opposite of
+// the word this replaced: "SUPPORT" said nothing about what would happen next.
+function tipRow(onOpen) {
+	const row = document.createElement('div');
+	row.className = 'terminal-tips';
+	for (const group of TIP_BUTTONS) {
+		const b = screenButton('', () => onOpen(group, b), 'terminal-tip-btn');
+		// 24px, an exact doubling of the 12x12 grid. Any other size lands pixels
+		// on half-pixels, which is where crispEdges stops being able to help.
+		b.appendChild(iconImg(group.icon, { size: 24, alt: '' }));
+		const name = document.createElement('span');
+		name.className = 'terminal-tip-name';
+		name.textContent = group.alt;
+		b.appendChild(name);
+		b.dataset.tip = group.id;
+		row.appendChild(b);
+	}
+	return row;
 }
 
 function areaRow(sc, { onActivate, onWeather = null } = {}) {
@@ -518,23 +571,28 @@ async function operatorScreen(root, api) {
 // A hand-written version ladder (tools/buildnotes-model.mjs), unlocked by the
 // counters the operator has already accumulated. Decorative: it resolves no
 // flight, just a BACK to the Home.
-// SUPPORT — where the money would go, if you felt like it.
+// A TIP WINDOW — where the money would go, if you felt like it.
 //
-// A secondary screen rather than a sixth entry at SELECT OPERATION MODE: a tip
-// jar is not a mode, and putting it beside FIELD and BENCH would say it is.
-// It hangs off the footer, one line under the source link, which is where a
-// player who is already looking for the project behind the game will look.
+// One window per currency, opened from the mark in the FIELD footer. Not a mode
+// at SELECT OPERATION MODE (a tip jar is not a mode), and no longer a full
+// screen either: it says one thing, and a screen that takes the whole frame to
+// say one thing asks more of a player than the thing is worth.
 //
-// Crypto only, and the screen says why rather than leaving it odd. Every fiat
-// rail verifies the recipient's identity, which is the one thing not on offer
-// here, and a payment page under a legal name would undo a pseudonym the
-// repository keeps everywhere else.
-function supportScreen(root, onClose = () => {}) {
-	const s = screen(root, 'terminal-box support');
-	let close = () => { s.remove(); onClose(); };
+// Crypto only. The window does not argue the point — a line explaining why
+// there is no card button reads as a defence, and a tip jar that defends itself
+// is asking for more than it should. The README carries the reasoning.
+function tipWindow(root, group, onClose = () => {}) {
+	const s = screen(root, `terminal-tip tip-${group.id}`);
+	const close = () => { s.remove(); onClose(); };
 
-	const head = document.createElement('pre');
-	head.textContent = 'SUPPORT //';
+	const head = document.createElement('div');
+	head.className = 'tip-head';
+	// The same 24px mark as the button that opened it: the window answers the
+	// click by showing what was clicked, which is what says it is the right one.
+	head.appendChild(iconImg(group.icon, { size: 24, alt: '' }));
+	const title = document.createElement('pre');
+	title.textContent = group.title;
+	head.appendChild(title);
 	s.box.appendChild(head);
 
 	const said = document.createElement('pre');
@@ -542,31 +600,28 @@ function supportScreen(root, onClose = () => {}) {
 	said.textContent = SUPPORT_LINES.join('\n');
 	s.box.appendChild(said);
 
-	// The handle first. Ninety-five characters of base58 is not something a
-	// person reads, remembers or types — this one line is, and it resolves to
-	// the same wallets as everything below it.
-	const handleRow = document.createElement('div');
-	handleRow.className = 'support-entry support-handle';
-	const hl = document.createElement('pre');
-	hl.className = 'support-label';
-	hl.textContent = 'ONE LINE, ANY COIN';
-	const hv = document.createElement('pre');
-	hv.className = 'support-value';
-	hv.textContent = HANDLE;
-	handleRow.append(hl, hv, copyButton(HANDLE));
-	s.box.appendChild(handleRow);
+	if (group.note) {
+		const n = document.createElement('pre');
+		n.className = 'support-note';
+		n.textContent = group.note;
+		s.box.appendChild(n);
+	}
 
-	for (const entry of ADDRESSES) {
+	for (const entry of group.entries) {
 		const row = document.createElement('div');
 		row.className = 'support-entry';
 
 		const label = document.createElement('pre');
 		label.className = 'support-label';
 		label.textContent = entry.label;
+		row.appendChild(label);
 
-		const note = document.createElement('pre');
-		note.className = 'support-note';
-		note.textContent = entry.note;
+		if (entry.note) {
+			const note = document.createElement('pre');
+			note.className = 'support-note';
+			note.textContent = entry.note;
+			row.appendChild(note);
+		}
 
 		// The address, whole. Never truncated with an ellipsis: an address you
 		// cannot read in full is an address you cannot check against what your
@@ -574,24 +629,22 @@ function supportScreen(root, onClose = () => {}) {
 		const value = document.createElement('pre');
 		value.className = 'support-value';
 		value.textContent = entry.address;
+		row.appendChild(value);
 
-		row.append(label, note, value, copyButton(entry.address), copyButton(paymentUri(entry), 'COPY URI'));
+		row.appendChild(copyButton(entry.address));
+		// The handle is not a URI scheme, so it gets no URI button rather than
+		// a button that copies something no wallet can open.
+		const uri = paymentUri(entry);
+		if (uri) row.appendChild(copyButton(uri, 'COPY URI'));
 		s.box.appendChild(row);
 	}
-
-	const foot = document.createElement('pre');
-	foot.className = 'terminal-foot';
-	foot.textContent = 'NO FIAT: EVERY CARD RAIL WANTS THE AUTHOR\'S PAPERS. THESE DO NOT.';
-	s.box.appendChild(foot);
-
-	backRow(s.box, close);
-	s.box.appendChild(keyHints([['ESC', 'BACK']]));
 
 	// menuNav, like every other screen: cursor, keyboard, gamepad, and above all
 	// Escape doing something. buildNotesScreen carries the comment about being
 	// the one screen that forgot this; there is no reason to be the second.
 	let nav = null;
 	const closeAndDetach = () => { nav?.detach(); close(); };
+	backRow(s.box, closeAndDetach);
 	nav = menuNav(s.el, { back: closeAndDetach });
 	nav.focusAt(0);
 	return s;
@@ -1187,24 +1240,6 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 
 		if (tab === 'live') {
 			left.appendChild(liveRail);
-			// The imagery credit, before the flight as well as during it.
-			//
-			// A LIVE take-off streams Google's 3D imagery, and Google requires the
-			// copyright of rendered tiles to be displayed. In flight the OSD says
-			// it (fpvtp-osd.js setCredit, main.js LIVE_CREDIT); here it did not,
-			// so the one screen that OFFERS the imagery carried no attribution at
-			// all. It is an obligation, not a nicety: it is written at DATA level
-			// in --light-grey rather than in the --faint of a decorative note.
-			//
-			// The same literal as the OSD, deliberately, so the two cannot
-			// disagree: the per-node copyright ids the tile workers decode are
-			// still dropped before they could become text, and inventing a
-			// different wording here would only make the disagreement look
-			// intentional.
-			const credit = document.createElement('pre');
-			credit.className = 'terminal-credit';
-			credit.textContent = `LIVE IMAGERY ${LIVE_IMAGERY_CREDIT}`;
-			left.appendChild(credit);
 		} else if (drawing) {
 			// WORKING state: an area is drawn, the body becomes the scanner's
 			// rail. The map has not moved by a single pixel — which is the entire
@@ -1301,20 +1336,52 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		left.appendChild(foot);
 		countUp(foot);
 
+		// The imagery credit, before the flight as well as during it.
+		//
+		// A LIVE take-off streams Google's 3D imagery, and Google requires the
+		// copyright of rendered tiles to be displayed. In flight the OSD says it
+		// (fpvtp-osd.js setCredit, main.js LIVE_CREDIT). It is an obligation,
+		// not a nicety: DATA level in --light-grey, never the --faint of a
+		// decorative note.
+		//
+		// It sits at the FOOT of the column rather than under the LIVE rail: a
+		// legal notice belongs with the other legal notices — the licence, the
+		// source — not wedged between the rail and the thing that takes off,
+		// where it read as a step in the flow.
+		//
+		// The same literal as the OSD, deliberately, so the two cannot disagree:
+		// the per-node copyright ids the tile workers decode are still dropped
+		// before they could become text, and inventing a different wording here
+		// would only make the disagreement look intentional. LIVE only: LOCAL
+		// flies terrain already on disk, whose credit travelled with it.
+		if (tab === 'live') {
+			const credit = document.createElement('pre');
+			credit.className = 'terminal-credit';
+			credit.textContent = `LIVE IMAGERY ${LIVE_IMAGERY_CREDIT}`;
+			left.appendChild(credit);
+		}
+
 		// The bridge to the source, and the AGPL's section 13: anyone
 		// interacting with this program over a network must be OFFERED the
 		// corresponding source, and a player on someone else's instance never
 		// sees the repository, the LICENSE file or the README. The offer has to
 		// be inside the program, so it sits on the one screen every session
 		// passes through.
+		left.appendChild(metaHead(SOURCE_CALL));
 		left.appendChild(sourceLink());
-		// FIELD has no `behind()` of its own — that helper lives in dataScreen —
-		// so the hide/restore is done here. Hiding rather than removing keeps the
-		// map, the pin and the selected area exactly as they were: opening SUPPORT
-		// must cost a player nothing.
-		left.appendChild(supportLink(() => {
-			s.el.hidden = true;
-			supportScreen(root, () => { s.el.hidden = false; nav?.focusAt(0); });
+
+		// And the tip jar, which is a different kind of offer and says so by
+		// standing in its own category with its own line.
+		//
+		// FIELD is left MOUNTED and visible under the window: the map, the pin
+		// and the selected area stay exactly where they were, which is what makes
+		// this a window rather than a detour. menuNav takes care of itself — the
+		// active nav is the topmost one on the stack, so the window has the
+		// keyboard for as long as it is open. On the way out the cursor goes back
+		// to the mark that opened it, not to the top of the column.
+		left.appendChild(metaHead(SUPPORT_TAGLINE));
+		left.appendChild(tipRow((group, mark) => {
+			tipWindow(root, group, () => mark.focus());
 		}));
 
 		// D15: Escape goes back up, and it says so — but it must say what Escape

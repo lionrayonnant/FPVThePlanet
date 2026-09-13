@@ -75,20 +75,34 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
   d'abord. `electron-builder` empaquette `dist/` tel quel sans jamais le
   reconstruire, et `dist/` est gitignoré, donc changer de branche puis
   empaqueter livrait la nouvelle coquille Electron autour de l'ancien jeu.
+- Le crédit d'imagerie Google descend au **bas** de la colonne FIELD, avec les
+  autres mentions légales — licence, sources — au lieu d'être coincé entre le
+  rail LIVE et ce qui décolle, où il se lisait comme une étape du parcours.
+  Toujours sur LIVE seulement : le terrain déjà sur le disque a emporté son
+  crédit avec lui.
 
 ### Ajouté
 
-- **Un écran SUPPORT**, accessible depuis le pied de page de FIELD, à côté du
-  lien source. Trois adresses — Monero, Bitcoin en paiement silencieux
-  (BIP352), Bitcoin classique — plus une poignée Cake lisible, `fpvtp@cake.cash`,
-  qui est la seule ligne qu'un humain peut retenir ou dicter : quatre-vingt-quinze
+- **Un pourboire, en trois marques.** Le pied de page de FIELD porte les logos
+  Cake Wallet, Bitcoin et Monero, dessinés dans la grille 12×12 du jeu, sous une
+  ligne qui dit à quoi ça sert. Chacun ouvre une petite fenêtre par-dessus FIELD
+  — la carte, l'épingle et la zone choisie restent exactement où elles étaient.
+  Un logo se reconnaît avant de se lire, ce qu'un bouton « SUPPORT » ne faisait
+  pas, et un pot à pourboires n'a pas besoin de tout le cadre pour dire une seule
+  chose.
+
+  Trois adresses — Monero, Bitcoin en paiement silencieux (BIP352), Bitcoin
+  classique, les deux dernières dans la même fenêtre puisque c'est une seule
+  décision pour qui donne — plus une poignée Cake lisible, `fpvtp@cake.cash`,
+  la seule ligne qu'un humain peut retenir ou dicter : quatre-vingt-quinze
   caractères de base58 ne sont pas une interface. Chaque adresse est affichée
   **en entier**, jamais tronquée, et copiable d'un bouton qui dit s'il a réussi.
 
-  Crypto uniquement, et l'écran le dit plutôt que de laisser la question en
-  suspens : tous les rails fiat vérifient l'identité du bénéficiaire, ce que ce
-  projet ne propose pas, et une page de paiement à l'état civil déferait le
-  pseudonyme que le dépôt tient partout ailleurs.
+  Crypto uniquement : tous les rails fiat vérifient l'identité du bénéficiaire,
+  ce que ce projet ne propose pas, et une page de paiement à l'état civil
+  déferait le pseudonyme que le dépôt tient partout ailleurs. La fenêtre ne le
+  dit pas — expliquer l'absence de bouton carte transforme une petite offre en
+  plaidoirie ; c'est le README qui porte le raisonnement.
 
   Les adresses vivent dans un module pur, `tools/support-model.mjs`, pour une
   raison précise : `tools/support-selftest.mjs` les revérifie **par checksum à
@@ -98,19 +112,22 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
   embarrassante ; une coquille dans une adresse envoie l'argent d'un inconnu là
   où personne ne pourra jamais le dépenser, et le dépôt comme les binaires la
   porteraient pour la durée de la version.
-- **Le jeu dit où sont ses sources.** Une ligne `< > SOURCE · AGPL-3.0` sous le
-  pied de page de FIELD, cliquable, et une marque discrète dans l'OSD en vol.
+- **Le jeu dit où sont ses sources.** Sous le pied de page de FIELD, une
+  catégorie à part — « SOURCE · LEAVE A STAR ON GITHUB », le logo GitHub et
+  `AGPL-3.0` —, cliquable, et la même marque discrète dans l'OSD en vol.
   Ce n'est pas de la promotion : l'article 13 de l'AGPL exige qu'un joueur qui
   interagit avec le programme **à travers un réseau** se voie offrir les sources
   correspondantes — or sur l'instance de quelqu'un d'autre, il ne voit jamais le
   dépôt, ni le fichier `LICENSE`, ni le README. L'offre doit être dans le
   programme.
 
-  L'icône vient du jeu lui-même : `src/pixel-icons.js` (PHASE 20, Bible §41)
-  existait depuis longtemps et n'était branché à rien ; c'est son premier
-  usage. Une paire de chevrons plutôt qu'une marque de plateforme — à douze
-  pixels un glyphe de branche tourne à la bouillie, et le lien pointe vers les
-  sources, où qu'elles soient hébergées. En vol la marque n'est **pas**
+  Les icônes viennent du jeu lui-même : `src/pixel-icons.js` (PHASE 20, Bible
+  §41) existait depuis longtemps et n'était branché à rien ; c'est son premier
+  usage. La bibliothèque gagne quatre marques — GitHub, Bitcoin, Monero, un
+  gâteau pour Cake Wallet — dessinées pour survivre à douze pixels : la
+  silhouette pour GitHub, le ₿ sans sa pièce, l'anneau et le M de Monero. Le
+  mot est ce qu'on décode, la marque est ce qu'on reconnaît. En vol elle n'est
+  **pas**
   cliquable : le vol capture le pointeur, une cible dans l'image serait un
   piège ; c'est le pied de page du terminal qui porte le lien.
 - `deploy/README.md` gagne une section « Hardening the machine » : SSH par

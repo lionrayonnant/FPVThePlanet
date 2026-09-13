@@ -721,7 +721,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    costs it nothing. */
 .terminal-left pre.terminal-foot { white-space: normal; }
 
-/* The source line under the footer (AGPL section 13). It is a real link, so it
+/* The source link under its heading (AGPL section 13). It is a real link, so it
    gets the inverse-video focus marker the rest of the terminal uses rather than
    the browser's outline, which style.css removes globally. Underlined only on
    hover: a permanent underline in this typeface reads as a scanline. */
@@ -741,10 +741,75 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	background: var(--ink);
 	color: var(--black);
 }
-.terminal-source-mark { display: inline-flex; }
-/* SUPPORT is a <button> and SOURCE is an <a>; they sit on the same line and
-   must read as one pair, so the button gives up every default a button has. */
-/* SUPPORT. The addresses are the content, so they get the room: full width,
+.terminal-source-mark, .terminal-mark { display: inline-flex; }
+
+/* The footer's two categories. A heading is not a link and must not look like
+   one: micro type, tracked wide, dimmer than what it introduces. */
+.bootstrap-box pre.terminal-meta-head {
+	color: var(--faint);
+	font-family: var(--font-data);
+	font-size: var(--fs-micro);
+	letter-spacing: var(--track-data);
+	margin: var(--space-3) 0 0;
+}
+
+/* The tip tiles: a mark, the coin's name under it, and a real edge around both.
+   Everything else in this footer is a dim line of micro type — these three are
+   the only thing in it asking for a decision, so they are the only thing built
+   like a control. The mark is resolved warm white (terminal.js iconImg), and
+   the tile inverts whole under the cursor, which is the terminal's own idiom
+   for "this is the one". */
+.terminal-tips { display: flex; align-items: stretch; gap: var(--space-3); margin-top: var(--space-3); }
+.terminal-tip-btn {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-2);
+	min-width: 5.5rem;
+	padding: var(--space-3) var(--space-4);
+	background: var(--dark-grey);
+	border: var(--rule-w) solid var(--rule-strong);
+	color: var(--ink);
+	font-family: var(--font-data);
+	font-size: var(--fs-micro);
+	letter-spacing: var(--track-data);
+	line-height: 1;
+	cursor: pointer;
+}
+.terminal-tip-btn:hover,
+.terminal-tip-btn:focus-visible {
+	outline: none;
+	background: var(--ink);
+	color: var(--black);
+	border-color: var(--ink);
+}
+/* The mark's colour is baked into the image, so the inversion has to be done to
+   the pixels: `filter` is the only thing that reaches inside an <img>. */
+.terminal-tip-btn:hover .terminal-mark,
+.terminal-tip-btn:focus-visible .terminal-mark { filter: invert(1); }
+.terminal-tip-name { white-space: nowrap; }
+
+/* A tip window, not a screen: it says one thing, so it takes the room one thing
+   needs and leaves FIELD legible behind it. The ground is translucent rather
+   than the chain's opaque black — what is behind is where the player was, and
+   they are coming straight back to it.
+
+   The width is set by the addresses: a bech32 or base58 string has nowhere to
+   break but between two characters, and a narrow column turns one address into
+   six ragged lines nobody can check. */
+/* color-mix rather than an rgba() literal: the ground is the chain's own black,
+   thinned — tokens.css stays the only place a colour is written down. */
+.bootstrap.terminal-tip { background: color-mix(in srgb, var(--black) 84%, transparent); }
+.terminal-tip .bootstrap-box {
+	width: min(620px, 88vw);
+	border: var(--rule-w) solid var(--rule-strong);
+	background: var(--black);
+	padding: var(--space-5);
+}
+.tip-head { display: flex; align-items: center; gap: .6em; }
+.tip-head pre { letter-spacing: var(--track-display); }
+
+/* A tip window. The addresses are the content, so they get the room: full width,
    wrapping anywhere, in the mono face at a size that stays readable rather than
    one that flatters the layout. Nothing here is ever truncated — an address you
    cannot read in full is one you cannot check against what your wallet pasted. */
@@ -771,22 +836,16 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	user-select: all;
 	margin-bottom: .5em;
 }
-/* The handle is the one line a person can actually read, so it is the one line
-   that gets to look like a headline. */
-.support-handle .support-value {
+/* The Cake handle is the one line in the whole tip jar a person can read out
+   loud, remember, or type — so it is the one line that gets to look like a
+   headline rather than like a checksum. (It used to ask for --fs-body, a token
+   that does not exist: the rule was silently doing nothing.) */
+.tip-cake .support-value {
 	color: var(--ink);
-	font-size: var(--fs-body);
-	letter-spacing: .06em;
+	font-size: var(--fs-ui-l);
+	letter-spacing: var(--track-ui);
 }
 
-button.terminal-meta {
-	background: none;
-	border: 0;
-	padding: 0;
-	margin-left: 1.2em;
-	font: inherit;
-	cursor: pointer;
-}
 .terminal-source-mark svg { display: block; }
 
 /* BUILD NOTES: a version number, then its indented lines. The indent is

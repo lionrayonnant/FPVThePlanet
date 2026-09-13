@@ -123,8 +123,8 @@ music in `sim/public/music/` was generated for this project. Map tiles are
 ## Support
 
 The game is free and stays free. Nothing in it is paywalled, counted, or
-remembered about you. If it gave you something, there is a `SUPPORT` line under
-the terminal footer, and the same addresses are here:
+remembered about you. If it gave you something, the terminal footer carries
+three marks — Cake Wallet, Bitcoin, Monero — and the same addresses are here:
 
 | | |
 |---|---|
