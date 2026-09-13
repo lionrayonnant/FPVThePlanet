@@ -79,6 +79,49 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 
 ## Vérifié
 
+- **The rotor made the drone float, two ways (2026-09-13).** Reported as "the
+  drone's gravity is wrong", then "it floats, it is too light, everywhere".
+  Both defects are in `quad.js`, both in the descent branch, and neither is a
+  tuning constant — the flight model's headline numbers all sit inside real
+  5" envelopes (mass 0.65 kg, T/W 6.3, hover stick 0.245, flat terminal
+  16-19 m/s, 97 km/h at 42 deg, 32 m/s climb) and were left alone.
+  - **The axial inflow term had no bound.** It is a first-order slope — the
+    comment deriving it says so — but it was evaluated as far out as
+    Vc/vh = -3.5. The consequence ran backwards: at a held hover throttle
+    `freestyle5` made 0.92x its weight at 8 m/s of descent and **1.23x at
+    25 m/s**, so the faster it fell the harder it pushed back. It now stops at
+    the windmill brake boundary Vc = -2*vh, where momentum theory has a valid
+    solution again. Braking thrust at 25 m/s: 1.23x -> 1.035x.
+  - **The vortex ring state used absolute m/s thresholds and never let go.**
+    The #71 mistake again: vh spans 5.3 m/s (toothpick) to 11.5 m/s
+    (cinewhoop), so a fixed 2 m/s onset meant 0.38 vh on one airframe and
+    0.17 vh on another. And it saturated for ever — a disc was held in full
+    VRS at 40 m/s of descent, where the rotor is firmly in windmill brake and
+    no ring can exist. It is now a band in units of vh, its ends calibrated to
+    reproduce `freestyle5`'s measured onset and peak exactly on its own
+    7.17 m/s hover vh. freestyle5's rising edge is unchanged to the hundredth;
+    the toothpick now peaks at 6 m/s and the cinewhoop at 12 instead of both
+    at 8.
+  - Hover and full-throttle climb are bit-identical (31.928 m/s before and
+    after both changes). Terminal descent on a throttle chop: -16.4 ->
+    -16.96 m/s. `aero-selftest` goes from 21 to 25 checks, the four new ones
+    all structural rather than recorded numbers; each was confirmed to fail
+    against the behaviour it replaces.
+  - **Non vérifié** : no browser has flown either change. Everything above is
+    bench measurement on the pure model. Whether the airframe now *feels*
+    heavy enough to the pilot is exactly what is untested, and the remaining
+    "too light" may not be a defect at all — see the audit below.
+  - **Known remaining gaps, ranked** (none of them started): no motor/ESC
+    electrical model (`omega = omegaMax * cmd^rpmCurve` plus a first-order lag
+    is a kinematic fit, not a torque balance); no blade flapping moment
+    (issue #91, reverted by #103, still open); no gyro noise / Betaflight
+    filter chain / loop latency, so the controller reads perfect body rates;
+    CT/CQ constant with advance ratio; thrust clamped at zero, so no braking
+    or inverted prop behaviour; and `UPDRAFT_GAIN = 0.35 * wind speed` in
+    `wind.js` hands out up to +3.2 m/s of slope lift near terrain in a fresh
+    wind, which is real physics but is the leading remaining suspect for
+    "it floats everywhere".
+
 - **Gravity stopped whenever the render slowed down (2026-09-13).** Reported as
   "the drone's gravity is wrong / the quad does not respect real physics". The
   flight model was **not** the cause and was left untouched: benched headlessly,
