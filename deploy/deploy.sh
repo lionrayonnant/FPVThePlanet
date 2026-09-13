@@ -155,34 +155,43 @@ if ! gh_api -o "$RELEASE_JSON" "https://api.github.com/repos/${REPO}/releases/ta
      ${TOKEN_FILE} and try again."
 fi
 
-# An asset is (id, name). They are listed once, then picked from.
+# An asset is (name, url). They are listed once, then picked from.
 ASSETS="${STAGING}/assets.tsv"
-jq -r '.assets[] | "\(.id)\t\(.name)"' "$RELEASE_JSON" > "$ASSETS"
+jq -r '.assets[] | "\(.name)\t\(.browser_download_url)"' "$RELEASE_JSON" > "$ASSETS"
 [ -s "$ASSETS" ] || die "release ${TAG} has no attached asset."
 
-# Downloads an asset by its id. The API serves the binary when
-# `application/octet-stream` is asked for; this works for a public repository
-# just as it did for a private one, so the path stays uniform.
+# Downloads an asset from its browser_download_url, which serves the bytes with
+# no content negotiation at all.
+#
+# NOT through the API's /releases/assets/<id> endpoint, which is what this did
+# before and which never actually worked: gh_api sets
+# `Accept: application/vnd.github+json`, adding a second
+# `Accept: application/octet-stream` sends BOTH, and GitHub honours the first —
+# so the "archive" was the asset's JSON metadata and tar reported
+# "not in gzip format". That endpoint exists for private repositories, where a
+# token is required for the download itself. This one is public, so the plain
+# URL is both simpler and immune to the whole question.
 download_asset() {
-	local id="$1" dest="$2"
+	local url="$1" dest="$2"
 	# `< /dev/null`: this function is called from a `while read` loop reading a
 	# file on stdin; curl must not touch it.
-	gh_api -H "Accept: application/octet-stream" -o "$dest" \
-		"https://api.github.com/repos/${REPO}/releases/assets/${id}" < /dev/null
+	curl --fail --silent --show-error --location \
+		--retry 3 --retry-delay 2 --connect-timeout 15 \
+		-o "$dest" "$url" < /dev/null
 }
 
 # The first asset whose name contains "linux-x64".
-SERVER_ID=""; SERVER_NAME=""
-while IFS=$'\t' read -r id name; do
+SERVER_URL=""; SERVER_NAME=""
+while IFS=$'\t' read -r name url; do
 	case "$name" in
-		*linux-x64*) SERVER_ID="$id"; SERVER_NAME="$name"; break ;;
+		*linux-x64*) SERVER_URL="$url"; SERVER_NAME="$name"; break ;;
 	esac
 done < "$ASSETS"
 
-if [ -z "$SERVER_ID" ]; then
+if [ -z "$SERVER_URL" ]; then
 	die "no \"linux-x64\" asset in release ${TAG}.
      Assets present:
-$(sed 's/^[0-9]*\t/       - /' "$ASSETS")
+$(cut -f1 "$ASSETS" | sed 's/^/       - /')
      .github/workflows/release.yml publishes
      \"fpvtp-server-<tag>-linux-x64.tar.gz\" — the server, the built game, a
      Node runtime and deploy/. A release that predates that workflow does not
@@ -191,7 +200,16 @@ fi
 
 say "Server asset: ${SERVER_NAME}"
 ARCHIVE="${STAGING}/${SERVER_NAME}"
-download_asset "$SERVER_ID" "$ARCHIVE" || die "download of ${SERVER_NAME} failed."
+download_asset "$SERVER_URL" "$ARCHIVE" || die "download of ${SERVER_NAME} failed."
+
+# What came back must actually be the archive. Without this the first sign of
+# trouble is tar's "not in gzip format", which names neither the file nor the
+# reason.
+case "$(file -b --mime-type "$ARCHIVE" 2>/dev/null || echo unknown)" in
+	application/gzip|application/x-gzip|application/x-tar|application/zip|application/x-xz|unknown) ;;
+	*) die "downloaded ${SERVER_NAME} is not an archive:
+     $(head -c 200 "$ARCHIVE")" ;;
+esac
 
 # --- b. Unpacking -----------------------------------------------------------
 # Unpack into a temporary folder THEN move: a release only appears under its
@@ -308,11 +326,11 @@ if [ ! -d "$UPDATES_DIR" ]; then
 fi
 
 dropped=0
-while IFS=$'\t' read -r id name; do
+while IFS=$'\t' read -r name url; do
 	case "$name" in
 		*.exe|*.AppImage|*.blockmap|latest.yml|latest-linux.yml)
 			tmp="${STAGING}/desktop-${name}"
-			if ! download_asset "$id" "$tmp"; then
+			if ! download_asset "$url" "$tmp"; then
 				warn "download of ${name} failed — skipped."
 				continue
 			fi
