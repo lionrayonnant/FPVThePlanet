@@ -856,7 +856,7 @@ button.terminal-area:focus::before { left: 0; }
 }
 /* Rangée d'actions (OPEN · FORECAST · REMOVE) : masquée tant que la carte de
    la rangée au-dessus n'est pas activée (Entrée/clic) — Échap la referme. */
-.terminal-area-actions { padding-left: 1.2em; margin: 2px 0 0; display: flex; align-items: center; gap: var(--space-2); }
+.terminal-area-actions { padding-left: 1.2em; margin: var(--space-0) 0 0; display: flex; align-items: center; gap: var(--space-2); }
 .terminal-area-actions[hidden] { display: none; }
 .terminal-area-size { white-space: pre; color: var(--light-grey); font-family: var(--font-data); font-size: var(--fs-data); letter-spacing: var(--track-data); font-variant-numeric: tabular-nums; }
 /* Le temps qu'il fait sur la zone. Retour utilisateur du 2026-08-29 : « au
@@ -1026,7 +1026,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .map-mono .marker-icon {
 	border-radius: 0 !important; background: var(--dark-grey);
 	border: var(--rule-w) solid var(--warm-white);
-	width: 8px; height: 8px; margin: -4px 0 0 -4px;
+	width: 8px; height: 8px; margin: -4px 0 0 -4px; /* scale-ok: la marge CENTRE la poignée sur son point, elle vaut sa moitié */
 }
 .sc-pin {
 	color: var(--ink); font-family: var(--font-ui); font-weight: 500;
@@ -1057,7 +1057,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	flex: 1; min-width: 0;
 	background: var(--dark-grey); color: var(--ink);
 	border: var(--rule-w) solid var(--rule-strong);
-	padding: 10px 13px; font: inherit; letter-spacing: var(--track-ui-tight);
+	padding: var(--space-2) var(--space-3); font: inherit; letter-spacing: var(--track-ui-tight);
 }
 .scanner-panel input:focus, .scanner-search input:focus { outline: none; border-color: var(--warm-white); }
 .scanner-search { font-family: var(--font-ui); font-size: var(--fs-ui-l); letter-spacing: var(--track-ui); }
@@ -1800,7 +1800,7 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .bench-slider::-moz-range-track { height: var(--rule-w); background: var(--rule-strong); }
 .bench-slider::-webkit-slider-thumb {
 	appearance: none; -webkit-appearance: none;
-	width: 5px; height: 13px; margin-top: -6px;
+	width: 5px; height: 13px; margin-top: -6px; /* scale-ok: la marge centre le pouce sur sa piste, elle vaut sa moitié */
 	background: var(--ink); border: 0; border-radius: 0;
 }
 .bench-slider::-moz-range-thumb {
