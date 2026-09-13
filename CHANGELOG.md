@@ -41,6 +41,14 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
   saisie reste une intention : le curseur repart alors du premier contrôle sur
   lequel on peut appuyer, sans y être renvoyé.
 
+  Deux déclencheurs, parce qu'un seul navigateur ne suffit pas à prouver un
+  correctif de focus : Chrome ne déplace le focus qu'une fois, au `mousedown`,
+  et `focusout` y suffisait ; **Firefox** défocalise au `mousedown` PUIS
+  réattribue le focus à la fin du clic — le rétablissement, différé d'un tour,
+  tombait entre les deux et le clic le défaisait. L'écouteur `click`, qui passe
+  après toute la séquence souris, est celui qui tient dans cet ordre-là. Les
+  deux sont sans effet quand le focus est déjà quelque part dans l'écran.
+
 - **JUKEBOX, onglet ALL : les lignes étaient écrasées à 6,5 px.** Les 143
   morceaux étaient bien là, dans l'ordre, avec le bon texte, et aucun n'était
   lisible. Un `flex-direction: column` avec un `max-height` ne déborde pas dans

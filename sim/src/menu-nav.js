@@ -186,17 +186,30 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 	// gamepad poll already had its answer ("cursor lost: A puts it back first");
 	// the keyboard and the mouse had none.
 	//
-	// So the focus is PUT BACK where it was. On `focusout` rather than by
-	// blocking `mousedown`: preventing the default would indeed keep the focus,
-	// but it would also kill mouse selection — and things here are selected by
-	// hand (a payment address, a log line), to the point that the COPY button's
-	// own fallback reads "SELECT IT BY HAND".
+	// So the focus is PUT BACK where it was, rather than blocking `mousedown`:
+	// preventing the default would indeed keep the focus, but it would also kill
+	// mouse selection — and things here are selected by hand (a payment address,
+	// a log line), to the point that the COPY button's own fallback reads
+	// "SELECT IT BY HAND".
 	//
+	// TWO triggers, because one browser is not enough to prove a focus fix.
+	// `focusout` alone works in Chrome, where the focus moves once, on
+	// mousedown. Firefox blurs on mousedown AND settles the focus again when the
+	// click completes: the restore, deferred by one turn, landed between the two
+	// and the click undid it. The `click` listener runs after the whole mouse
+	// sequence, so it is the one that holds there. Both are idempotent — when
+	// the focus is already somewhere inside the screen they do nothing at all.
+	//
+	// `lastFocused` is fed by focusin rather than read off the event, because
+	// the click that loses the cursor carries no memory of where it was.
+	let lastFocused = null;
+	const onFocusIn = (e) => { lastFocused = e.target; };
+
 	// Deferred by one turn: `document.activeElement` is only up to date AFTER
 	// the event. If the focus landed somewhere else inside the screen (another
 	// button, a field), or if another nav took over in the meantime, we touch
 	// nothing.
-	const restore = (el) => setTimeout(() => {
+	const restore = (hint = null) => setTimeout(() => {
 		if (topNav() !== nav) return;
 		const now = document.activeElement;
 		if (now && now !== document.body && container.contains(now)) return;
@@ -204,12 +217,16 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		// it, nor into another one — on FIELD the search is the FIRST control of
 		// the screen, so "go back to the top" would have put it right back. The
 		// cursor restarts from the first control you can press.
+		const el = hint ?? lastFocused;
 		if (el && !isTextEntry(el) && isShown(el) && container.contains(el)) { el.focus(); return; }
 		const els = focusables();
 		(els.find((e) => !isTextEntry(e)) ?? els[0])?.focus();
 	}, 0);
 
 	const onFocusOut = (e) => { if (topNav() === nav) restore(e.target); };
+	// Every screen that subscribes is full-frame (`.bootstrap`, fixed inset 0),
+	// so a click that lands on nothing still lands in here.
+	const onClick = () => { if (topNav() === nav) restore(); };
 
 	const onKey = (e) => {
 		if (topNav() !== nav) return;
@@ -259,14 +276,19 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		clearInterval(padPoll);
 		window.removeEventListener('keydown', onKey);
 		container.removeEventListener('focusout', onFocusOut);
+		container.removeEventListener('focusin', onFocusIn);
+		container.removeEventListener('click', onClick);
 		const i = stack.indexOf(nav);
 		if (i >= 0) stack.splice(i, 1);
 	};
 
 	window.addEventListener('keydown', onKey);
-	// focusout bubbles (unlike blur): a single listener on the screen covers
-	// every control it has, including the ones a re-render creates later.
+	// focusin/focusout bubble (unlike focus/blur): a single pair of listeners on
+	// the screen covers every control it has, including the ones a re-render
+	// creates later.
+	container.addEventListener('focusin', onFocusIn);
 	container.addEventListener('focusout', onFocusOut);
+	container.addEventListener('click', onClick);
 	stack.push(nav);
 	if (focusFirst) focusAt(0);
 	return nav;

@@ -150,6 +150,31 @@ await ta('the cursor comes back where it was when a click lands beside it', asyn
 	dom.root.replaceChildren();
 });
 
+await ta('a click alone puts the cursor back, without a focusout to help', async () => {
+	// Chrome moves the focus once, on mousedown, so focusout is enough there.
+	// Firefox blurs on mousedown AND settles the focus again when the click
+	// completes — the deferred restore landed between the two and the click
+	// undid it. This is the trigger that holds in that order: nothing but the
+	// click, and the cursor still comes back.
+	const el = document.createElement('div');
+	dom.root.appendChild(el);
+	const a = document.createElement('button');
+	const b = document.createElement('button');
+	el.append(a, b);
+	const nav = menuNav(el);
+	b.focus();
+	// focusin is what remembers the cursor: the click carries no memory of it.
+	el.dispatchEvent({ type: 'focusin', target: b });
+
+	b.blur();
+	el.dispatchEvent({ type: 'click', target: el, preventDefault() {} });
+	await sleep(0);
+
+	assert.equal(document.activeElement, b, 'the cursor is back on the same control');
+	nav.detach();
+	dom.root.replaceChildren();
+});
+
 await ta('leaving a text field does not send the cursor back into it', async () => {
 	// Leaving a field is an intention, not an accident: the cursor restarts from
 	// the first control rather than being forced back into the typing.
