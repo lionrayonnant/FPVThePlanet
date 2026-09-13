@@ -156,7 +156,7 @@ const devSwarm = parseSwarmFlag(OPTS.swarm);
 // une tuile inexistante — un monde silencieusement invalide où le drone dérive
 // dans le vide sans le moindre message. Planter ici, tôt et lisiblement.
 if (OPTS.live && (OPTS.live.length !== 2 || !OPTS.live.every(Number.isFinite))) {
-	throw new Error(`?live= attend "lat,lon" numériques — reçu "${params.get('live')}"`);
+	throw new Error(`?live= expects numeric "lat,lon" — got "${params.get('live')}"`);
 }
 // `?family=swarmNode&scene=<slug>&swarm=12` is the full dev path to the node;
 // see tools/dev-flags.mjs for why the list is built there and not here.
@@ -666,15 +666,15 @@ async function preloadScene(slug) {
 	hud.startClock();
 
 	stage('manifest');
-	hud.progress('lecture du manifest…', 0.01);
+	hud.progress('READING MANIFEST…', 0.01);
 	const manifest = await loadManifest(base);
 
 	const totalMB = (manifest.chunks.reduce((s, c) => s + c.geoBytes + c.texBytes, 0)
 		+ manifest.collision.bytes) / 1e6;
-	hud.detail(`${totalMB.toFixed(0)} Mo à charger`);
+	hud.detail(`${totalMB.toFixed(0)} MB TO LOAD`);
 
 	stage('rapier-init');
-	hud.progress('initialisation de la physique…', 0.02);
+	hud.progress('PHYSICS INIT…', 0.02);
 	await initPhysics();
 
 	stage('chunks');
@@ -682,16 +682,16 @@ async function preloadScene(slug) {
 		{ fogColor: SKY, fogDensity: FOG_DENSITY, maxChunks: OPTS.maxChunks,
 		  mipmaps: OPTS.mipmaps, anisotropy: OPTS.anisotropy },
 		({ bytes, totalBytes, done, total, decoding }) => {
-			hud.progress(`tuiles ${done}/${total}${decoding > 0 ? ` — décodage de ${decoding} planche(s)…` : '…'}`,
+			hud.progress(`TILES ${done}/${total}${decoding > 0 ? ` — DECODING ${decoding} SHEET(S)…` : '…'}`,
 				0.02 + 0.45 * (bytes / totalBytes));
-			hud.detail(`${(bytes / 1e6).toFixed(0)} / ${(totalBytes / 1e6).toFixed(0)} Mo`);
+			hud.detail(`${(bytes / 1e6).toFixed(0)} / ${(totalBytes / 1e6).toFixed(0)} MB`);
 		});
 	console.log('chunk timings (ms):', JSON.stringify(timings));
 
 	stage('collision-download');
 	const collision = await loadCollision(manifest, base, (f, received) => {
-		hud.progress('maillage de collision…', 0.47 + 0.28 * f);
-		hud.detail(`${(received / 1e6).toFixed(0)} / ${(manifest.collision.bytes / 1e6).toFixed(0)} Mo`);
+		hud.progress('COLLISION MESH…', 0.47 + 0.28 * f);
+		hud.detail(`${(received / 1e6).toFixed(0)} / ${(manifest.collision.bytes / 1e6).toFixed(0)} MB`);
 	});
 
 	return { slug, manifest, meshes, collision, t0 };
@@ -972,7 +972,7 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	rainfall.setSize(innerHeight * renderer.getPixelRatio(), camera.fov);
 
 	stage('collision-build');
-	hud.progress('construction de l’arbre de collision…', 0.76);
+	hud.progress('BUILDING COLLISION TREE…', 0.76);
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
 	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
@@ -1068,7 +1068,7 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	stage('gpu-upload');
 	hud.detail('');
 	for (let i = 0; i < meshes.length; i++) {
-		hud.progress(`téléversement des textures ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
+		hud.progress(`UPLOADING TEXTURES ${i + 1}/${meshes.length}…`, 0.80 + 0.16 * (i / meshes.length));
 		await nextPaint();
 		renderer.initTexture(meshes[i].material.uniforms.uMap.value);
 		// Sur le GPU, donc plus en RAM (issue #249) : ces pixels étaient le
@@ -1082,14 +1082,14 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	// that flag it waits forever. compile() does the same work synchronously and
 	// always returns, so use that instead.
 	stage('shader-compile');
-	hud.progress('compilation du shader…', 0.95);
+	hud.progress('COMPILING SHADER…', 0.95);
 	await nextPaint();
 	renderer.compile(scene, camera);
 
 	// Draw one frame here so any remaining driver-side work happens behind the
 	// loading screen rather than as a frozen first frame.
 	stage('first-frame');
-	hud.progress('premier rendu…', 0.98);
+	hud.progress('FIRST FRAME…', 0.98);
 	hud.detail('');
 	await nextPaint();
 	// The camera onto the machine, entry attitude included — the frame drawn
@@ -1185,7 +1185,7 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	// is up — all of it before the screen lets go, never after. After the
 	// weather, because session.open() carries its snapshot away.
 	if (arm) {
-		hud.progress('acquisition de la cible…', 0.99);
+		hud.progress('ACQUIRING TARGET…', 0.99);
 		await nextPaint();
 		await armFlight();
 		// A second frame, now that the onboard pass and the OSD exist: their
@@ -3439,7 +3439,7 @@ startup()
 // quoi faire, plutôt que d'afficher « unreachable ».
 function bootFailureMessage(err) {
 	if (err instanceof WebAssembly.RuntimeError) {
-		return 'physique : mémoire insuffisante — fermez les autres onglets du jeu, puis rechargez';
+		return 'physics: out of memory — close the game\'s other tabs, then reload';
 	}
 	return err.message;
 }
