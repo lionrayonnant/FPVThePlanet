@@ -55,6 +55,30 @@ t('a throttle chop shows drag, not thrust, doing the carrying', () => {
 	assert.ok(b.thrustUp < 0.6, `thrustUp ${b.thrustUp}`);
 });
 
+t('meanVerticalSpeed is a speed, and matches the body it was read from', () => {
+	// It shipped named meanVerticalAccel while accumulating linvel().y. Pinned
+	// against a climb whose speed is known independently.
+	const p = new Physics(EMPTY, { x: 0, y: 4000, z: 0 }, { profile: PROFILES.freestyle5, weather: { wind: 0 } });
+	const c = new FlightController({ profile: PROFILES.freestyle5 });
+	c.armed = true;
+	// Settle at full throttle first, so the window averages a steady climb.
+	for (let i = 0; i < 250 * 8; i++) {
+		const { motors } = c.update({ throttle: 1, roll: 0, pitch: 0, yaw: 0 }, p, DT);
+		p.step(motors, DT);
+	}
+	p.beginForceBudget();
+	for (let i = 0; i < 250 * 2; i++) {
+		const { motors } = c.update({ throttle: 1, roll: 0, pitch: 0, yaw: 0 }, p, DT);
+		p.step(motors, DT);
+	}
+	const b = p.forceBudget();
+	assert.ok(
+		Math.abs(b.meanVerticalSpeed - p.body.linvel().y) < 0.5,
+		`budget ${b.meanVerticalSpeed} vs body ${p.body.linvel().y}`,
+	);
+	assert.ok(b.meanVerticalSpeed > 20, `a full-throttle climb should be fast: ${b.meanVerticalSpeed}`);
+});
+
 t('the budget reads back once and then stops', () => {
 	const p = new Physics(EMPTY, { x: 0, y: 4000, z: 0 }, { profile: PROFILES.freestyle5 });
 	assert.equal(p.forceBudget(), null, 'a budget never begun reads null');

@@ -507,7 +507,7 @@ export class Physics {
 			steps: 0, seconds: 0,
 			thrust: 0, staticThrust: 0, inflow: 0, groundEffect: 0, vortexRing: 0,
 			bodyDrag: 0, rotorDrag: 0, residual: 0,
-			windUp: 0, windSpeed: 0, tilt: 0, verticalAccel: 0,
+			windUp: 0, windSpeed: 0, tilt: 0, verticalSpeed: 0,
 		};
 		return true;
 	}
@@ -535,7 +535,9 @@ export class Physics {
 			meanTiltDeg: +(b.tilt / n).toFixed(1),
 			meanUpdraft: +(b.windUp / n).toFixed(2),
 			meanWindSpeed: +(b.windSpeed / n).toFixed(2),
-			meanVerticalAccel: +(b.verticalAccel / n).toFixed(3),
+			// Vertical SPEED, not acceleration: this accumulates linvel().y. It
+			// shipped once named meanVerticalAccel, which it never was.
+			meanVerticalSpeed: +(b.verticalSpeed / n).toFixed(3),
 		};
 		if (!keepGoing) this._budget = null;
 		return out;
@@ -564,7 +566,7 @@ export class Physics {
 		b.tilt += (Math.acos(Math.max(-1, Math.min(1, up.y))) * 180) / Math.PI;
 		b.windUp += windUp;
 		b.windSpeed += Math.hypot(this.wind.out.x, this.wind.out.y, this.wind.out.z);
-		b.verticalAccel += this.body.linvel().y;
+		b.verticalSpeed += this.body.linvel().y;
 		b.seconds += dt;
 		b.steps++;
 	}

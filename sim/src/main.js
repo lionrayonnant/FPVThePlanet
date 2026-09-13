@@ -779,6 +779,27 @@ function exposeDebugGlobal() {
 		// sliders are gone (PHASE 04) and the world decides. They exist for
 		// debugging and for tuning, not as a hidden settings panel.
 		setFog: (f) => fog.setParams(f),
+		// A tape measure between two points of the flight. Call it once where you
+		// want to measure FROM, fly, call it again: it reports the separation in
+		// local ENU metres. Built to settle whether the rendered world is at
+		// true scale, which is what is left once the force budget says no force
+		// is holding the machine up: fly level with the foot of a landmark, call
+		// it, climb level with its top, call it again. The Eiffel Tower is 330 m
+		// to the tip, 276 m to the top floor, 115 m to the second.
+		ruler: (() => {
+			let from = null;
+			return () => {
+				const p = physics.position;
+				if (!from) { from = { x: p.x, y: p.y, z: p.z }; return { marked: from }; }
+				const dx = p.x - from.x, dy = p.y - from.y, dz = p.z - from.z;
+				from = null;
+				return {
+					up: +dy.toFixed(1),
+					horizontal: +Math.hypot(dx, dz).toFixed(1),
+					straightLine: +Math.hypot(dx, dy, dz).toFixed(1),
+				};
+			};
+		})(),
 		// Where the drone's weight actually goes, in flight, over real terrain
 		// and the real weather of the place. __sim.budget() starts it,
 		// __sim.budget(true) reads it back. Everything is a fraction of weight
