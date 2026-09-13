@@ -77,6 +77,59 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 "Adding a map", for the options and for sizing `--radius`.
 
 
+### In flight right now: `claude/drone-gravity-fix-ofdhrh` (2026-09-13)
+
+Six commits, not merged, no pull request. Started from "the drone's gravity is
+wrong", then "it floats, it is too light, everywhere". Five of the six are
+flight-model or scheduling fixes, each measured and each with its own guard in
+the selftest chain; the sixth is the instrument that should decide what comes
+next.
+
+**NOTHING ON THIS BRANCH HAS BEEN FLOWN IN A BROWSER.** Every number in it is
+bench measurement on the pure model. That is the single most important thing to
+change, and it is why the branch is waiting.
+
+First thing to do locally, before any more code:
+
+```bash
+git fetch origin claude/drone-gravity-fix-ofdhrh
+git checkout claude/drone-gravity-fix-ofdhrh
+cd sim && npm install && npm run dev
+```
+
+then fly the way that felt wrong, and in the browser console:
+
+```js
+__sim.budget()        // start measuring
+// ... 30 s of the flying that feels floaty ...
+__sim.budget(true)    // read it back
+```
+
+Everything it prints is a fraction of the airframe's weight along world +Y. A
+hover should be `thrustUp` ~ 1.00 with the rest at zero. **Whatever else is
+above zero is the air carrying the machine**, which is the "it floats" being
+reported. The leading suspect it was built to test: `UPDRAFT_GAIN = 0.35 *
+wind speed` in `wind.js` gives up to 3.2 m/s of slope lift near terrain in a
+fresh wind — measured at 5.6% of weight and +1.3 m/s of climb on a held hover
+stick — and the weather is the zone's real forecast. If instead `thrustUp` is
+1.00 and everything else is zero while it still feels light, the flight model
+is not the problem and the rendered world scale is the next place to look.
+
+Open items, in the order they matter:
+
+1. The toothpick is measurably worse off (see the motor-model entry below):
+   the tuner reports 4 axis/family combinations outside target where it
+   reported 2. Needs real bench numbers for a 2.5" micro, not an invented
+   value. Worth an issue.
+2. A hover now sits at 0.342 stick, which is right on `TPA_BREAK` (0.35).
+   Unexamined, and the first thing to check if the tune feels odd near hover.
+3. The remaining ranked gaps, none started: blade flapping moment (#91), gyro
+   noise / Betaflight filter chain / loop latency, CT/CQ against advance
+   ratio, thrust clamped at zero.
+4. `race5` shares the toothpick's data problem (48-51% of no-load rpm) but is
+   not yet failing anything.
+
+
 ## Vérifié
 
 - **The motors are a torque balance now, not a curve fit (2026-09-13).** The
