@@ -228,7 +228,8 @@ locking yourself out of a fresh VPS is a rebuild, not an inconvenience.
 ssh-copy-id root@<origin-ip>      # from your machine
 ```
 
-Then, on the server, in `/etc/ssh/sshd_config.d/99-hardening.conf`:
+Then, on the server, in **`/etc/ssh/sshd_config.d/01-hardening.conf`** — the
+number matters, see below:
 
 ```
 PasswordAuthentication no
@@ -236,8 +237,24 @@ KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 ```
 
-`sshd -t && systemctl reload ssh`. Test from the still-open second terminal
-before you trust it.
+```sh
+sshd -t && systemctl reload ssh
+sshd -T | grep -iE "^(passwordauthentication|permitrootlogin)"
+```
+
+**`01-`, not `99-`.** sshd applies the FIRST definition of an option it reads,
+and the snippets in `sshd_config.d/` are read in lexical order — the opposite of
+the systemd and logrotate convention, where the last file wins. Ubuntu cloud
+images ship `50-cloud-init.conf` containing `PasswordAuthentication yes`, so a
+`99-hardening.conf` sorts after it and is silently ignored. The file is there,
+it says the right thing, and it does nothing.
+
+Which is why the verification above reads `sshd -T` and not the file: only the
+effective configuration tells the truth. Do not skip it — this exact mistake
+left a machine accepting passwords for an hour while a hardening file sat next
+to the one overriding it.
+
+Test from the still-open second terminal before you trust any of it.
 
 `PermitRootLogin prohibit-password` rather than `no` keeps this simple: the
 delivery script runs as root anyway. If you would rather have a named sudo
