@@ -900,7 +900,7 @@ Un airframe bien plus rapide qu'un 5" (le toothpick) porte un `filterScale` qui
 ouvre les filtres roll/pitch, comme un vrai build micro. `QUAD` reste le profil
 par défaut (5" freestyle, valeurs d'origine inchangées).
 
-Presets de rates, touche `P` : **cinéma** (380 °/s), **freestyle** (820 °/s),
+Presets de rates, touche `P` : **cinematic** (380 °/s), **freestyle** (820 °/s),
 **race** (1100 °/s), **long range** (360 °/s), **micro** (420 °/s). Chaque
 famille démarre sur le sien.
 
