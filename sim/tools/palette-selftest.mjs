@@ -11,7 +11,7 @@
 // verra pas en relisant du CSS : la grille 11 px de Departure Mono, et le fait
 // que les deux familles ne partagent pas la même chasse.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -64,6 +64,55 @@ function colourLiterals(css) {
 	});
 	return hits;
 }
+
+// Un JS sans ses commentaires, et les chaînes qu'il contient. Écrit à la main
+// plutôt qu'avec une expression régulière : une apostrophe française dans un
+// commentaire — il y en a partout dans ce dépôt — ouvre une fausse chaîne et
+// fait dérailler toute analyse naïve. Le parcours caractère par caractère est
+// la seule façon de distinguer les trois états (code, commentaire, chaîne).
+function scanJs(src) {
+	const strings = [];
+	let code = '';
+	let line = 1;
+	for (let i = 0; i < src.length; i++) {
+		const c = src[i];
+		if (c === '\n') { line++; code += c; continue; }
+		if (c === '/' && src[i + 1] === '/') {
+			while (i < src.length && src[i] !== '\n') i++;
+			i--;
+			continue;
+		}
+		if (c === '/' && src[i + 1] === '*') {
+			i += 2;
+			while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+				if (src[i] === '\n') { line++; code += '\n'; }
+				i++;
+			}
+			i++;
+			continue;
+		}
+		if (c === "'" || c === '"' || c === '`') {
+			const quote = c;
+			const start = line;
+			let text = '';
+			code += c;
+			i++;
+			for (; i < src.length; i++) {
+				if (src[i] === '\\') { text += src[i + 1]; i += 1; continue; }
+				if (src[i] === quote) break;
+				if (src[i] === '\n') { line++; }
+				text += src[i];
+			}
+			strings.push({ line: start, text });
+			code += text + quote;
+			continue;
+		}
+		code += c;
+	}
+	return { code, strings };
+}
+const stripComments = (src) => scanJs(src).code;
+const stringLiterals = (src) => scanJs(src).strings;
 
 // ---------------------------------------------------------------- les jetons
 
@@ -255,6 +304,115 @@ t('pointer-events : tout écran portant une carte reprend la main sur le pointeu
 	assert.ok(bloc, '.terminal-field existe');
 	assert.match(bloc[0], /pointer-events:\s*auto/,
 		'sans quoi la carte est visible mais sourde');
+});
+
+// ====================================================================== #140
+// L'ANGLE MORT. Tout ce qui précède ne regarde que le CSS, et la dérive vit
+// ailleurs : dans le JS qui peint lui-même, dans les valeurs non-couleur, et
+// dans les chaînes qui s'affichent. Les trois blocs qui suivent le couvrent.
+
+// --- (a) la palette demo atteinte par le JS ---------------------------------
+
+// `token('--cyan')` contourne exactement ce que la règle CSS plus haut
+// interdit. Deux écrans quotidiens y touchent, et ce sont des EXCEPTIONS
+// ASSUMÉES, pas des oublis : la tache de couverture perdrait sa lisibilité en
+// monochrome, et le point sélectionné de DATA est le seul repère d'une page de
+// graphes. Elles sont nommées ici pour qu'une troisième ne passe pas en
+// silence.
+const DEMO_JS_ALLOWED = new Map([
+	['src/intro.js', 'le cracktro (Bible §19)'],
+	['src/culmination.js', 'la culmination du hack (#101)'],
+	['src/palette.js', 'la table de repli, qui déclare la même exception'],
+	['src/scanner.js', 'EXCEPTION ASSUMÉE : la tache de couverture de la carte'],
+	['src/map-coverage.js', 'EXCEPTION ASSUMÉE : la tache de couverture de la carte'],
+	['src/graph.js', 'EXCEPTION ASSUMÉE : l\'élément sélectionné d\'un graphe DATA'],
+]);
+
+t('la palette demo ne s\'atteint pas non plus par token() depuis un écran quotidien', () => {
+	for (const f of readdirSync(join(sim, 'src')).filter((f) => f.endsWith('.js'))) {
+		const rel = `src/${f}`;
+		const js = stripComments(read(rel));
+		const used = DEMO_TOKENS.filter((tk) => js.includes(`token('${tk}')`) || js.includes(`'${tk}'`));
+		if (!used.length) continue;
+		assert.ok(DEMO_JS_ALLOWED.has(rel),
+			`${rel} atteint ${used.join(', ')} par le JS : la règle CSS ne le voit pas. `
+			+ 'Si c\'est voulu, l\'inscrire dans DEMO_JS_ALLOWED avec sa raison.');
+	}
+});
+
+// --- (b) les échelles -------------------------------------------------------
+
+// Une taille, un interlettrage ou un espacement écrit en pixels est une échelle
+// de plus : c'est ainsi que le corps du jeu s'était retrouvé à 14px, hors des
+// deux échelles, et que trente paddings magiques cohabitaient. Les dimensions
+// d'un composant (la hauteur d'une barre, la taille d'une tuile Leaflet) ne
+// sont pas des espacements et ne passent pas ici — seuls padding, margin et gap
+// sont des décisions de rythme.
+const SCALE_PROPS = /(?:^|[;{\s])(font-size|letter-spacing|padding|margin|gap|row-gap|column-gap)(-top|-right|-bottom|-left)?: *([^;]+)/g;
+
+// La console d'extraction (tools/map-gui/) est hors du jeu et garde pour
+// l'instant ses propres tailles : c'est l'objet de son issue, pas de celle-ci.
+t('aucune taille, aucun interlettrage, aucun espacement hors des jetons', () => {
+	for (const [name, css] of [['src/style.css', GAME]]) {
+		const src = css.split('\n');
+		const bare = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+		const hits = [];
+		bare.split('\n').forEach((line, i) => {
+			if (src[i].includes('scale-ok:')) return;
+			for (const m of line.matchAll(SCALE_PROPS)) {
+				const value = m[3].trim();
+				// Ce qui est légitime : un jeton, un calcul de jetons, zéro, une
+				// mesure relative au texte (em, ch) ou à la fenêtre (vw, %).
+				if (value.includes('var(--')) continue;
+				// Un clamp() de police display est déjà jugé, et plus durement, par
+				// le test de la grille 11 px de Departure Mono.
+				if (value.includes('clamp(')) continue;
+				if (!/\d/.test(value)) continue;
+				if (!/\b\d*\.?\d+px\b/.test(value)) continue;
+				hits.push(`${i + 1}: ${src[i].trim()}`);
+			}
+		});
+		const uniq = [...new Set(hits)];
+		assert.deepEqual(uniq, [],
+			`${name} écrit une échelle en clair :\n    ${uniq.join('\n    ')}`);
+	}
+});
+
+// --- (c) la langue de l'écran ----------------------------------------------
+
+// Bible §11 : le jeu est entièrement en anglais. Les COMMENTAIRES, eux, sont
+// français — c'est la langue de travail du dépôt (#88). Le test ne regarde donc
+// que les chaînes, commentaires retirés pour de bon (un apostrophe français
+// dans un commentaire ressemble sinon à une chaîne), et seulement dans les
+// modules qui écrivent à l'écran : ailleurs, un message de console en français
+// est à sa place.
+const SCREEN_MODULES = [
+	'hud.js', 'loader.js', 'terminal.js', 'bench.js', 'settings.js', 'scanner.js',
+	'session-log.js', 'jukebox.js', 'briefing.js', 'bootstrap.js', 'intro.js',
+	'flight-end.js', 'fpvtp-osd.js', 'hack.js', 'brand-lockup.js', 'screen.js',
+	'flightController.js', 'target-scan.js', 'calibration.js', 'confirm-button.js',
+];
+const ACCENTED = /[À-ÖØ-öø-ÿŒœ«»]/;
+// Les accents ne suffisent pas : « chargement… » n'en porte aucun, et c'est
+// précisément la chaîne qui tenait l'écran le plus vu du jeu. D'où cette poignée
+// de mots outils français, pris entiers — aucun n'est un mot anglais.
+const FRENCH_WORDS = /\b(le|la|les|des|une|un|pour|avec|dans|sur|pas|est|sont|aucun|aucune|chargement|fermez|lancez|relancez|touche|écran)\b/i;
+
+t('aucun mot français dans une chaîne des modules qui écrivent à l\'écran', () => {
+	const hits = [];
+	for (const f of SCREEN_MODULES) {
+		const src = read(`src/${f}`);
+		const lines = src.split('\n');
+		for (const { line, text } of stringLiterals(src)) {
+			// Un commentaire HTML dans un gabarit n'est pas affiché non plus.
+			const shown = text.replace(/<!--[\s\S]*?-->/g, '');
+			if (!ACCENTED.test(shown) && !FRENCH_WORDS.test(shown)) continue;
+			if (/console\.(log|warn|error|info|debug)/.test(lines[line - 1] ?? '')) continue;
+			hits.push(`src/${f}:${line}: ${shown.trim().slice(0, 70)}`);
+		}
+	}
+	assert.deepEqual(hits, [],
+		`du français atteint l'écran :\n    ${hits.join('\n    ')}`);
 });
 
 console.log(`\n  ${n} tests OK — langage visuel (PHASE 19)`);
