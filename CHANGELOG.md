@@ -30,7 +30,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   badges (release, CI, licence, Discussions) et liens de navigation dans un
   bloc centré ; la section « Support » et ses adresses crypto passent juste
   sous l'en-tête au lieu d'être en bas de page. Les commandes sont regroupées
-  dans un tableau.
+  dans un tableau, chaque adresse précédée de sa marque (Cake Wallet, Monero,
+  Bitcoin).
+
+### Ajouté
+
+- `sim/tools/export-support-marks.mjs` : exporte les trois marques de pourboire
+  de `src/pixel-icons.js` en SVG autonomes (`docs/brand/mark-*.svg`) pour le
+  README, avec un mode `--check` contre la dérive.
 
 ## [1.1.0] - 2026-09-13
 

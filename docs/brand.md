@@ -68,6 +68,21 @@ re-export. Like the rest of the mark, the files arrived with a C2PA manifest —
 `caBX` and `deBG` chunks, 5.8 kB per image — removed without re-encoding, same
 rule as below.
 
+### The tip marks
+
+`docs/brand/mark-cake.svg`, `mark-monero.svg` and `mark-bitcoin.svg` are the
+three marks of the terminal footer, written out for the README — which has no
+game to draw them and no `currentColor` to give them. They are generated, never
+drawn by hand:
+
+```bash
+node sim/tools/export-support-marks.mjs           # write them
+node sim/tools/export-support-marks.mjs --check   # fail if they have drifted
+```
+
+The geometry stays in `sim/src/pixel-icons.js`; the export only adds a colour,
+because a README image has to hold on GitHub's light theme and its dark one.
+
 ### Where the mark is used
 
 | path | source |
