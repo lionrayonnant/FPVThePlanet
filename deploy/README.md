@@ -94,7 +94,9 @@ install -d -o root -m 0755 /srv/fpvtp-updates
 ```
 
 There is no log directory to create: the Caddyfile logs to journald, not to a
-file. `journalctl -u caddy -f` is the access log.
+file. Its `log` block is what turns `journalctl -u caddy -f` into an access
+log — Caddy records only errors until that directive exists — and it truncates
+every address to a /24 before writing it.
 
 ## 3. The GitHub token (optional)
 
@@ -323,8 +325,30 @@ which is the right shape but is enforced after the request reaches Node.
 ```sh
 journalctl -u fpvtp -f            # the game
 journalctl -u caddy -f            # TLS, and every request that reaches you
+                                  # (JSON: pipe it through `jq`)
 fail2ban-client status sshd       # who is knocking
 ```
+
+Counting the traffic, rather than watching it go by:
+
+```sh
+# the busiest paths today
+journalctl -u caddy --since today -o cat \
+  | jq -r 'select(.request?) | .request.uri' | sort | uniq -c | sort -rn | head
+
+# how many distinct /24 blocks reached the game this week
+journalctl -u caddy --since -7d -o cat \
+  | jq -r 'select(.request?) | .request.remote_ip' | sort -u | wc -l
+
+# players, which is a different question: one file per operator, one per flight
+ls /var/lib/fpvtp/operator-state/*.json | wc -l
+find /var/lib/fpvtp/operator-state/tracks -name '*.json' -mtime -7 | wc -l
+```
+
+The addresses in that log are already masked, so the second command counts
+neighbourhoods and not people. That is the intended resolution: the project
+promises a player that nothing is remembered about them, and an operator still
+needs to know whether the machine is being used.
 
 The game's log names operator ids. They are not credentials — the key is
 hashed on disk and shown once — but they are user-chosen names, so treat a log

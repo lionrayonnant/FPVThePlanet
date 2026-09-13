@@ -71,19 +71,41 @@ fpvtp.example.org {
 	# installed on it). If you add it, first check that an acquisition job
 	# still shows its progress live.
 
-	# Access logs go to journald, not to a file.
+	# ACCESS LOG. Caddy writes NONE without this directive: a site logs only
+	# its errors until `log` is present, so `journalctl -u caddy` shows TLS and
+	# failures and nothing about who visited. This block is what makes it the
+	# access log the checklist claims it is.
 	#
-	# `output file /var/log/caddy/fpvtp.log` was here and it cost a deployment.
-	# The package's unit declares neither LogsDirectory= nor ReadWritePaths=, so
-	# the directory has to be created by hand — and creating it correctly
-	# (caddy:caddy, writable, verified with `sudo -u caddy touch`) still left the
-	# service refusing to start with `open …/fpvtp.log: permission denied`. One
-	# line of configuration, one platform-specific failure mode, and a checklist
-	# step that has to be done between two other steps or nothing starts.
+	# `output file /var/log/caddy/fpvtp.log` was here once and it cost a
+	# deployment. The package's unit declares neither LogsDirectory= nor
+	# ReadWritePaths=, so the directory has to be created by hand — and creating
+	# it correctly (caddy:caddy, writable, verified with `sudo -u caddy touch`)
+	# still left the service refusing to start with
+	# `open …/fpvtp.log: permission denied`. Caddy already writes to stderr and
+	# systemd already captures it, so the default destination is journald and
+	# rotation becomes journald's problem, which is where it belongs.
 	#
-	# Caddy already writes everything to stderr and systemd already captures it,
-	# so nothing is lost:  journalctl -u caddy -f
-	# Rotation becomes journald's problem, which is where it belongs.
+	# THE IP MASK IS NOT DECORATION. The README promises that nothing is counted
+	# or remembered about a player; a raw access log breaks that promise on the
+	# first request. Truncated to a /24 (IPv4) and a /48 (IPv6) the log still
+	# gives volume, endpoints and a coarse geography — everything an operator
+	# needs — and stops identifying anyone. Remove the filter and you are keeping
+	# personal data, with what that implies.
+	#
+	# Reading it back:
+	#   journalctl -u caddy --since today -o cat \
+	#     | jq -r 'select(.request?) | .request.uri' | sort | uniq -c | sort -rn
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+			}
+		}
+	}
 }
 
 # ---------------------------------------------------------------------------
@@ -141,5 +163,7 @@ updates.fpvtp.example.org {
 	@installers path *.exe *.AppImage *.blockmap
 	header @installers Cache-Control "public, max-age=31536000, immutable"
 
-	# journald here too — see the note in the block above.
+	# No access log here on purpose: an installer download says nothing about a
+	# player, and the Releases API answers most of them anyway. Add the same
+	# `log` block as above if you want to measure the download page.
 }

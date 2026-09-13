@@ -35,6 +35,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **Journal d'accès Caddy, adresses masquées.** `deploy/Caddyfile` ne portait
+  aucune directive `log` : Caddy ne journalisait donc que ses erreurs, et
+  `journalctl -u caddy` ne disait rien du trafic malgré ce qu'affirmait
+  `deploy/README.md`. Le bloc ajouté écrit en JSON vers journald et tronque
+  chaque adresse à un /24 (IPv6 : /48), pour mesurer le volume sans retenir
+  personne. `deploy/README.md` gagne les commandes de comptage (chemins les
+  plus demandés, blocs distincts, opérateurs et vols enregistrés).
+
 - `sim/tools/export-support-marks.mjs` : exporte les trois marques de pourboire
   de `src/pixel-icons.js` en SVG autonomes (`docs/brand/mark-*.svg`) pour le
   README, avec un mode `--check` contre la dérive.
