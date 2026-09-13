@@ -116,6 +116,20 @@ function diskAreaOf(profile) {
 // step().
 const AXIAL_INFLOW_LIMIT = 2;
 
+// The vortex ring band, in multiples of the rotor's hover induced velocity vh.
+// ONSET and PEAK are freestyle5's old absolute 2 and 8 m/s divided by its own
+// 7.17 m/s hover vh, so the reference airframe keeps the behaviour it was
+// tuned to and every other family scales off its own disc. END is the windmill
+// brake boundary: past it the flow through the disc is fully established and
+// no ring can form, so the loss must be gone rather than saturated. LATERAL_IN
+// / LATERAL_OUT are the same treatment of the sideways escape (2 and 8 m/s):
+// translating fast enough leaves your own column behind.
+const VRS_ONSET = 2 / 7.17;
+const VRS_PEAK = 8 / 7.17;
+const VRS_END = AXIAL_INFLOW_LIMIT;
+const VRS_LATERAL_IN = 2 / 7.17;
+const VRS_LATERAL_OUT = 8 / 7.17;
+
 export const INFLOW_K0 = 0.169;
 const BUFFET_K0 = INFLOW_K0;
 
@@ -378,9 +392,57 @@ export class Propulsion {
 		// already threw down, so it loses thrust and the airframe shakes. Moving
 		// sideways fast enough gets you out of the column, which is why propwash
 		// only bites on hard vertical stops and tight corners.
+		// Two things were wrong with the old form
+		// `clamp01((descent - 2) / 6) * clamp01((8 - lateral) / 6)`.
+		//
+		// First, its thresholds were in ABSOLUTE m/s, the same for every family
+		// — exactly the mistake kAxial already made once (issue #71). The
+		// regime is set by the rotor's own induced velocity vh, and that spans
+		// 5.3 m/s (toothpick) to 11.5 m/s (cinewhoop) across the six families,
+		// so a fixed 2 m/s onset meant entering VRS at 0.38 vh on one airframe
+		// and 0.17 vh on another — a factor of 2.2 on a threshold that is
+		// supposed to be a property of the flow, not of the model.
+		//
+		// Second, and worse, it SATURATED and stayed there: once past 8 m/s of
+		// descent the disc was held in full vortex ring state for ever, at 20
+		// or 40 m/s alike. A vortex ring cannot exist there. Past Vd = 2*vh the
+		// rotor is in the windmill brake state — the same boundary the axial
+		// inflow term stops at, and for the same reason — where the flow is
+		// fully established upward through the disc and smooth. The real curve
+		// is a BAND, not a ramp: it rises from onset, peaks while the ring is
+		// fully formed, and is gone by the windmill brake boundary.
+		//
+		// The band is in units of vh, with the ends chosen to reproduce
+		// freestyle5's measured onset and peak exactly on its own 7.17 m/s
+		// hover vh (2 and 8 m/s -> 0.279 and 1.116 vh) — the same rule the rest
+		// of this file follows (INFLOW_K0, LATERAL_K0,
+		// GROUND_EFFECT_REACH_RATIO): the reference airframe keeps the feel it
+		// was tuned to, every other family scales off its own disc instead of
+		// borrowing freestyle5's numbers.
+		//
+		// vh here is the rotor group's, from the PREVIOUS step's mean rpm — the
+		// per-rotor vh is not known until the loop below, and `buffet` already
+		// uses the same mean for the same reason. With the motors stopped there
+		// is no downwash to descend into and no vh to divide by, hence the
+		// guard.
 		const lateral = Math.hypot(vBody.x, vBody.z);
 		const descent = -vBody.y;
-		this.propwash = clamp01((descent - 2) / 6) * clamp01((8 - lateral) / 6);
+		const vhRef = ((this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4)
+			* this._vhPerOmega;
+		if (vhRef <= 0) {
+			this.propwash = 0;
+		} else {
+			const x = descent / vhRef;
+			const band = x <= VRS_ONSET || x >= VRS_END
+				? 0
+				: x < VRS_PEAK
+					? (x - VRS_ONSET) / (VRS_PEAK - VRS_ONSET)
+					: (VRS_END - x) / (VRS_END - VRS_PEAK);
+			const escape = clamp01(
+				(VRS_LATERAL_OUT - lateral / vhRef) / (VRS_LATERAL_OUT - VRS_LATERAL_IN),
+			);
+			this.propwash = band * escape;
+		}
 
 		// Ground effect: the disc pushes against a surface it cannot displace, so
 		// thrust rises. Reach is one rotor diameter-ish, scaled off THIS profile's

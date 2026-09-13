@@ -132,6 +132,66 @@ console.log('1. translational lift generalises the axial inflow');
 		worst < 1e-12, `worst rise ${worst.toExponential(1)} (${worstAt})`);
 }
 
+// The vortex ring state is a BAND, not a ramp that saturates. It had absolute
+// m/s thresholds shared by every family (the kAxial mistake of #71 again: vh
+// runs from 5.3 to 11.5 m/s across the six, so a fixed 2 m/s onset meant 0.38
+// vh on one airframe and 0.17 vh on another), and it never let go — a disc was
+// held in full VRS at 40 m/s of descent, where no ring can exist because the
+// rotor is firmly in the windmill brake state.
+//
+// Structural, not recorded numbers: zero at a hover, zero once past the
+// boundary, and a single interior maximum in between.
+{
+	let worstHover = 0, worstHoverAt = '';
+	let worstPast = 0, worstPastAt = '';
+	let notUnimodal = '';
+	// The stick that holds a hover, inverted through the thrust curve:
+	// T/Tmax = cmd^(2*rpmCurve). Same derivation as flightController's
+	// hoverThrottle(), written out rather than imported so this check does not
+	// lean on the controller.
+	const hoverStick = (p) =>
+		((p.mass * 9.81) / (4 * p.maxThrustPerMotor)) ** (1 / (2 * p.rpmCurve));
+	for (const fam of FAMILIES) {
+		const profile = PROFILES[fam];
+		const thr = hoverStick(profile);
+		const settled = settle(profile, flat(thr), air({ y: 0 }));
+		const vh = settled.omega[0] * vhPerOmegaOf(profile);
+
+		if (settled.prop.propwash > worstHover) {
+			worstHover = settled.prop.propwash; worstHoverAt = fam;
+		}
+		// Just past the windmill brake boundary and well beyond: the ring must
+		// be gone. Probed from 2.05 rather than exactly 2 because vh here is
+		// the HOVER rpm's, while the model divides by the rpm the rotor
+		// actually settles at in a descent — the two differ by a fraction of a
+		// percent, so a probe sitting exactly on the boundary lands an epsilon
+		// inside the band and proves nothing either way.
+		for (const mult of [2.05, 3, 5, 8]) {
+			const s = settle(profile, flat(thr), air({ y: -mult * vh }));
+			if (s.prop.propwash > worstPast) {
+				worstPast = s.prop.propwash; worstPastAt = `${fam} at ${mult}*vh`;
+			}
+		}
+		// One rise then one fall, no second hump.
+		const curve = [];
+		for (let m = 0; m <= 2.4; m += 0.05) {
+			curve.push(settle(profile, flat(thr), air({ y: -m * vh })).prop.propwash);
+		}
+		let turns = 0;
+		for (let i = 1; i < curve.length - 1; i++) {
+			const a = curve[i] - curve[i - 1], b = curve[i + 1] - curve[i];
+			if (a > 1e-9 && b < -1e-9) turns++;
+		}
+		if (turns > 1 && !notUnimodal) notUnimodal = `${fam} has ${turns} peaks`;
+	}
+	check('a hover is never in the vortex ring state',
+		worstHover === 0, `worst propwash ${worstHover.toExponential(1)} (${worstHoverAt})`);
+	check('the vortex ring state is gone past the windmill brake boundary',
+		worstPast === 0, `worst propwash ${worstPast.toExponential(1)} (${worstPastAt})`);
+	check('the vortex ring band has a single peak, for every family',
+		notUnimodal === '', notUnimodal || 'one rise, one fall');
+}
+
 // The saturation is structural, not a clamp: as Vx grows, v_i falls to zero, so
 // the flow deficit tends to -2*vh and the thrust gain tends to a fixed fraction
 // of the static thrust. Working it through, kInflow*w*2*vh / (kThrust*w^2)

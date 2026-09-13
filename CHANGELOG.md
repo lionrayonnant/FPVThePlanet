@@ -55,6 +55,24 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Corrigé
 
+- **Le régime d'anneau tourbillonnaire ne lâchait jamais, et ignorait la
+  taille des hélices.** Deux défauts dans `propwash`. Ses seuils étaient en
+  m/s ABSOLUS, identiques pour les six familles — exactement l'erreur que
+  `kAxial` avait déjà commise (issue #71) : la vitesse induite vh va de
+  5,3 m/s (toothpick) à 11,5 m/s (cinewhoop), donc un seuil fixe à 2 m/s
+  faisait entrer en VRS à 0,38 vh sur une machine et 0,17 vh sur une autre,
+  un facteur 2,2 sur un seuil censé être une propriété de l'écoulement. Pire,
+  la courbe SATURAIT et y restait : passé 8 m/s de descente le disque était
+  maintenu en VRS plein, à 20 comme à 40 m/s. Or aucun anneau ne peut exister
+  là-bas — au-delà de Vd = 2·vh le rotor est en **moulinet**, écoulement
+  établi et lisse. C'est une BANDE, pas une rampe. Elle est désormais exprimée
+  en unités de vh, ses extrémités calées pour reproduire exactement l'onset et
+  le pic mesurés de `freestyle5` sur son propre vh de 7,17 m/s (2 et 8 m/s →
+  0,279 et 1,116 vh) : la machine de référence garde son ressenti au
+  centième, chaque autre famille culmine enfin à SON régime. Trois gardes
+  structurelles dans `tools/aero-selftest.mjs` (zéro au stationnaire, zéro
+  au-delà du moulinet, un seul pic par famille).
+
 - **Le drone refusait de tomber : plus il descendait vite, plus il poussait
   fort.** Signalé comme « le drone flotte, il est trop léger ». Le terme
   d'inflow axial de `quad.js` est une pente au PREMIER ORDRE — le commentaire
