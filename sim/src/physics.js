@@ -176,6 +176,8 @@ export class Physics {
 		// step() between the ground query and the world step.
 		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 		this._obstruction = { blocked: false, span: 0 };
+		// Vertical force budget (diagnostics). Null until beginForceBudget().
+		this._budget = null;
 	}
 
 	// Swap the airframe family without rebuilding the trimesh world — the wasm
@@ -441,6 +443,8 @@ export class Physics {
 			impact = Math.max(impact, e.totalForceMagnitude());
 		});
 
+		if (this._budget) this._accumulateBudget(q, dt, wy);
+
 		if (this._groundHold) {
 			const k = Math.exp(-dt / 0.15);
 			const lv = this.body.linvel();
@@ -479,6 +483,90 @@ export class Physics {
 			this.body.setAngvel({ x: av.x * k * fa, y: av.y * k * fa, z: av.z * k * fa }, true);
 		}
 		return impact;
+	}
+
+	// ---------------------------------------------------------------------
+	// Vertical force budget.
+	//
+	// Four corrections to the flight model measured right and changed the feel
+	// very little, which is itself evidence: it says the weight the pilot is
+	// missing is not where those corrections were. Rather than guess a fifth
+	// time, this measures where the drone's weight actually goes IN FLIGHT,
+	// over real terrain and the real weather of the place — neither of which a
+	// headless bench has.
+	//
+	// Everything is resolved along world +Y and reported as a fraction of the
+	// airframe's weight, so the numbers add up to something a pilot can read:
+	// "thrust is carrying 0.96 of the weight and the air is carrying 0.07".
+	//
+	// The thrust terms come from quad.js's own breakdown, which sums to its
+	// force.y by construction; `residual` below is the check on that, and it
+	// stays at zero unless the split and the force stop agreeing.
+	beginForceBudget() {
+		this._budget = {
+			steps: 0, seconds: 0,
+			thrust: 0, staticThrust: 0, inflow: 0, groundEffect: 0, vortexRing: 0,
+			bodyDrag: 0, rotorDrag: 0, residual: 0,
+			windUp: 0, windSpeed: 0, tilt: 0, verticalAccel: 0,
+		};
+		return true;
+	}
+
+	// Averages since beginForceBudget(), as multiples of weight. Call it after
+	// flying for a while; pass true to keep accumulating instead of stopping.
+	forceBudget(keepGoing = false) {
+		const b = this._budget;
+		if (!b || b.steps === 0) return null;
+		const n = b.steps;
+		const out = {
+			seconds: +b.seconds.toFixed(2),
+			// Fractions of weight, along world +Y. Positive holds the drone up.
+			thrustUp: +(b.thrust / n).toFixed(4),
+			ofWhich: {
+				staticThrust: +(b.staticThrust / n).toFixed(4),
+				inflow: +(b.inflow / n).toFixed(4),
+				groundEffect: +(b.groundEffect / n).toFixed(4),
+				vortexRing: +(b.vortexRing / n).toFixed(4),
+			},
+			bodyDragUp: +(b.bodyDrag / n).toFixed(4),
+			rotorDragUp: +(b.rotorDrag / n).toFixed(4),
+			residual: +(b.residual / n).toFixed(6),
+			// Context the numbers above are meaningless without.
+			meanTiltDeg: +(b.tilt / n).toFixed(1),
+			meanUpdraft: +(b.windUp / n).toFixed(2),
+			meanWindSpeed: +(b.windSpeed / n).toFixed(2),
+			meanVerticalAccel: +(b.verticalAccel / n).toFixed(3),
+		};
+		if (!keepGoing) this._budget = null;
+		return out;
+	}
+
+	_accumulateBudget(q, dt, windUp) {
+		const b = this._budget;
+		const d = this.propulsion.diag;
+		const W = this.profile.mass * GRAVITY;
+		// Body +Y resolved onto world +Y: the cosine of the tilt, and the only
+		// reason a tilted quad falls.
+		const up = rotateVec(q, 0, 1, 0);
+		// The body-frame drag vectors have to be rotated in full — a tilted
+		// airframe's sideways drag has a vertical component.
+		const bd = rotateVec(q, d.bodyDrag.x, d.bodyDrag.y, d.bodyDrag.z);
+		const rd = rotateVec(q, d.rotorDrag.x, 0, d.rotorDrag.z);
+		b.thrust += (d.thrust * up.y) / W;
+		b.staticThrust += (d.staticThrust * up.y) / W;
+		b.inflow += (d.inflow * up.y) / W;
+		b.groundEffect += (d.groundEffect * up.y) / W;
+		b.vortexRing += (-d.vortexRing * up.y) / W;
+		b.bodyDrag += bd.y / W;
+		b.rotorDrag += rd.y / W;
+		// staticThrust + inflow + groundEffect - vortexRing must be thrust.
+		b.residual += ((d.staticThrust + d.inflow + d.groundEffect - d.vortexRing - d.thrust) * up.y) / W;
+		b.tilt += (Math.acos(Math.max(-1, Math.min(1, up.y))) * 180) / Math.PI;
+		b.windUp += windUp;
+		b.windSpeed += Math.hypot(this.wind.out.x, this.wind.out.y, this.wind.out.z);
+		b.verticalAccel += this.body.linvel().y;
+		b.seconds += dt;
+		b.steps++;
 	}
 
 	// Landed, throttle cut: cuts the wind off and damps the residual velocity so

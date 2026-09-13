@@ -347,6 +347,12 @@ export class Propulsion {
 		this._buffet = [new Turbulence(6, this._rng), new Turbulence(6, this._rng), new Turbulence(6, this._rng)];
 		// Filled in by step(); read by the HUD and the tests.
 		this.force = { x: 0, y: 0, z: 0 };
+		// Where force.y came from, mechanism by mechanism. Diagnostics only —
+		// nothing in the flight model reads it. See Physics.forceBudget().
+		this.diag = {
+			staticThrust: 0, inflow: 0, groundEffect: 0, vortexRing: 0, thrust: 0,
+			bodyDrag: { x: 0, y: 0, z: 0 }, rotorDrag: { x: 0, z: 0 },
+		};
 		this.torque = { x: 0, y: 0, z: 0 };
 	}
 
@@ -464,6 +470,7 @@ export class Propulsion {
 		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
 
 		let current = 0, thrustTotal = 0;
+		let staticTotal = 0, inflowTotal = 0, groundExtra = 0, vrsLoss = 0;
 		let tx = 0, ty = 0, tz = 0;
 		let dragX = 0, dragZ = 0;
 		// Net angular momentum of the four spinning rotors, about body +Y.
@@ -549,10 +556,21 @@ export class Propulsion {
 			// of inducedVelocity() — come through untouched and bit-identical.
 			const vyAxial = Math.max(vy, -AXIAL_INFLOW_LIMIT * vh);
 			const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
-			let t = this._kThrust * w * w - this._kInflow * w * dw;
-			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
+			const tStatic = this._kThrust * w * w;
+			const tInflow = -this._kInflow * w * dw;
+			let t = tStatic + tInflow;
+			const tBare = Math.max(0, t);
+			t = tBare * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
+			// Diagnostics, not physics: the same thrust split into where it came
+			// from, so a force budget can say which mechanism is holding the
+			// machine up. Five adds per rotor against a loop that already does
+			// two square roots — see Physics.forceBudget().
+			staticTotal += tStatic;
+			inflowTotal += tBare - Math.max(0, tStatic);
+			groundExtra += tBare * (ground - 1) * (1 - 0.22 * this.propwash);
+			vrsLoss += tBare * ground * 0.22 * this.propwash;
 
 			// Roll and pitch torque come out of where the motors are, not out of
 			// a coefficient: tau = sum(r x F) with F along body +Y.
@@ -626,6 +644,18 @@ export class Propulsion {
 		this.force.x = dragX + bx;
 		this.force.y = thrustTotal + by;
 		this.force.z = dragZ + bz;
+
+		// The body-frame breakdown behind force.y, for the force budget. By
+		// construction staticThrust + inflow + groundEffect - vortexRing is
+		// thrustTotal exactly, which Physics asserts rather than assumes.
+		const d = this.diag;
+		d.staticThrust = staticTotal;
+		d.inflow = inflowTotal;
+		d.groundEffect = groundExtra;
+		d.vortexRing = vrsLoss;
+		d.thrust = thrustTotal;
+		d.bodyDrag = { x: bx, y: by, z: bz };
+		d.rotorDrag = { x: dragX, z: dragZ };
 
 		if (this.propwash > 0.01) {
 			// Turbulent thrust across the disc is uneven, so the airframe gets

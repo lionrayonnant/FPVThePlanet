@@ -779,6 +779,12 @@ function exposeDebugGlobal() {
 		// sliders are gone (PHASE 04) and the world decides. They exist for
 		// debugging and for tuning, not as a hidden settings panel.
 		setFog: (f) => fog.setParams(f),
+		// Where the drone's weight actually goes, in flight, over real terrain
+		// and the real weather of the place. __sim.budget() starts it,
+		// __sim.budget(true) reads it back. Everything is a fraction of weight
+		// resolved along world +Y: thrustUp near 1 in a hover, and whatever the
+		// air is carrying on top of it is the "it floats" the pilot feels.
+		budget: (read = false) => (read ? physics.forceBudget() : physics.beginForceBudget()),
 		// What the world said about this zone today, and what it became.
 		weather: () => weather,
 		// The flight session in progress (PHASE 06), or null.
