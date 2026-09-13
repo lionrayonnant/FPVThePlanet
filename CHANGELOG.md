@@ -55,6 +55,24 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Corrigé
 
+- **La gravité s'arrêtait dès que le rendu ralentissait.** Deux défauts
+  indépendants, tous les deux dans l'horloge et aucun dans le modèle de vol.
+  D'abord, `Physics.step(motors, dt)` ignorait son `dt` côté Rapier : le moteur
+  intégrait toujours `world.timestep`, donc la cellule avançait de `dt` pendant
+  que la gravité, les vitesses et les contacts avançaient de 1/250 s — un pas de
+  1/50 s tombait au **cinquième de g**. Ensuite, la boucle de frame n'achetait
+  au plus que 12 pas de 1/250 s, soit 48 ms de monde par frame, et **jetait** le
+  reste de l'accumulateur : en dessous de ~21 fps toute la simulation passait au
+  ralenti (48 % du temps réel à 10 fps, 3 % pendant les stalls de streaming de
+  700-1700 ms déjà documentés). Le symptôme visible étant un drone qui reste
+  suspendu au lieu de tomber, le défaut se lisait comme une gravité cassée. Le
+  pas est désormais **étiré** (borné à 1/60 s) au lieu d'être abandonné : le
+  coût d'un rattrapage reste plafonné à 12 pas — la raison d'être du plafond —
+  mais le monde avance bien du temps réellement écoulé, jusqu'à 200 ms par
+  frame. Une machine qui tient la cadence tourne exactement sur la grille 250 Hz
+  d'avant, au bit près. Nouveau `sim/src/frame-pacing.js` et
+  `tools/frame-pacing-selftest.mjs` (9 tests, dans la chaîne CI).
+
 - **Le curseur disparaissait dès qu'un clic tombait à côté d'un bouton.** Le
   curseur EST le focus natif du navigateur : cliquer sur le fond d'un écran, un
   titre ou une ligne de texte le fait perdre, plus rien ne porte le marqueur ▌

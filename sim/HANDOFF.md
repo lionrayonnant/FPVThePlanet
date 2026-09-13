@@ -79,6 +79,41 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 
 ## Vérifié
 
+- **Gravity stopped whenever the render slowed down (2026-09-13).** Reported as
+  "the drone's gravity is wrong / the quad does not respect real physics". The
+  flight model was **not** the cause and was left untouched: benched headlessly,
+  `freestyle5` holds 9.81 m/s² of weight against a correct Rapier mass, reaches
+  a 19.3 m/s flat terminal velocity, sinks correctly with tilt (−2.4 m/s at 42°
+  on the level hover stick) and descends smoothly right across the throttle
+  band. Two clock defects, both outside `quad.js`:
+  - `Physics.step(motors, dt)` **ignored its `dt`** for Rapier, which always
+    integrated `world.timestep`. The airframe advanced by `dt` while gravity,
+    velocities and contacts advanced by 1/250 s — a 1/50 s step fell at a fifth
+    of g. Measured: `dv = −0.039 m/s` for every `dt`. Now the world timestep
+    follows `dt`, mirrored JS-side because Rapier keeps it as an f32 (reading it
+    back gives `0.004000000189989805`, so comparing against it reported a change
+    on every step).
+  - The frame loop bought at most `12 × 1/250 s = 48 ms` of world per frame and
+    **discarded** the rest of the accumulator. Below ~21 fps the whole
+    simulation ran in slow motion: 96 % of real time at 20 fps, 72 % at 15,
+    **48 % at 10**, and 3 % through the 700–1700 ms streaming stalls already
+    documented under #184/#187. The visible symptom is a drone hanging in the
+    air instead of falling. The step is now **stretched** (capped at 1/60 s)
+    rather than dropped, so a frame honours up to 200 ms of real time while the
+    catch-up still costs at most 12 steps. Past that the excess is still
+    dropped on purpose: replaying more than a fifth of a second of blind flight
+    in one frame flies the quad into terrain it never saw.
+  - The schedule moved to `src/frame-pacing.js` (pure, no DOM, no Rapier) so it
+    could be asserted without a browser. `tools/frame-pacing-selftest.mjs`, 9
+    tests, in the CI chain; both defects were re-introduced one at a time and
+    confirmed to fail it. A machine keeping up steps on the same 250 Hz grid as
+    before, bit for bit. `npm run selftest:ci` and `npm run build` pass.
+  - **Non vérifié** : no browser has flown this. The frame-rate claims are
+    measured against the schedule and against Rapier headlessly, not against a
+    real stalling render loop. Whether 1/60 s catch-up steps stay visually
+    smooth through a real streaming wave — and whether CCD holds the 0.15 m
+    sphere on those longer steps against live rocktree colliders — is untested.
+
 - **Issue #26 — l'onglet `DATA`** (branche `feat/data-tab`) : `ARCHIVE` est
   renommé et devient une page qui défile, neuf sections dans l'ordre de la spec
   `docs/superpowers/specs/2026-09-08-flight-track-enriched-map-data-design.md`.

@@ -3,13 +3,13 @@ import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { hoverThrottle } from './flightController.js';
 import { WindField, PROBE_COUNT, PROBE_RANGE, PROBE_DOWN, probeDirection } from './wind.js';
 
-// Rayon du collider sphérique. Toujours 0,15 m, toutes familles confondues
-// (camera.near y est épinglé) — nommé ici parce que la friction au sol en a
-// besoin pour passer du linéaire à l'angulaire.
+// Radius of the spherical collider. Always 0.15 m, every family (camera.near
+// is pinned to it) — named here because the ground friction needs it to go
+// from linear to angular.
 const COLLIDER_RADIUS = 0.15;
 
-// Coefficient de friction des pieds du drone sur le sol, utilisé par le ground
-// hold (voir step()). Justifié là-bas.
+// Friction coefficient of the drone's feet on the ground, used by the ground
+// hold (see step()). Justified there.
 const MU_GROUND = 0.6;
 
 export { QUAD, HOVER_THRUST, hoverThrust };
@@ -19,18 +19,18 @@ export const maxThrust = (profile = QUAD) => 4 * profile.maxThrustPerMotor;
 export const MAX_THRUST = 4 * QUAD.maxThrustPerMotor;
 export const DRONE = QUAD;      // old name, still used by tools/
 
-// Rapier arrive par import() dynamique, pas par import statique (#21) : le
-// paquet `-compat` embarque son WASM en base64, soit ~2 Mo des 2,9 Mo du
-// bundle principal. En statique, le menu, le terminal et le scanner
-// attendaient son téléchargement et sa compilation avant d'exister. Chargé
-// ici, Vite en fait un chunk séparé, demandé au premier initPhysics() — et
-// recouvert avec la traversée rocktree en direct (bootLive), avec les tuiles
-// d'une scène cuite (preloadScene), ou préchauffé depuis le menu.
+// Rapier arrives through a dynamic import(), not a static one (#21): the
+// `-compat` package embeds its WASM as base64, about 2 MB of the 2.9 MB main
+// bundle. Statically imported, the menu, the terminal and the scanner all
+// waited on its download and compilation before they could exist. Loaded
+// here, Vite makes it a separate chunk, requested at the first initPhysics()
+// — and overlapped with the live rocktree traversal (bootLive), with a baked
+// scene's tiles (preloadScene), or prewarmed from the menu.
 //
-// TOUT usage de RAPIER passe par initPhysics() d'abord : c'était déjà le
-// contrat (RAPIER.init() est requis avant le moindre World), il est juste
-// devenu structurel. La promesse est mémorisée : appels concurrents ou
-// répétés ne chargent qu'une fois.
+// EVERY use of RAPIER goes through initPhysics() first: that was already the
+// contract (RAPIER.init() is required before any World at all), it has just
+// become structural. The promise is memoised: concurrent or repeated calls
+// load it only once.
 let RAPIER = null;
 let rapierReady = null;
 export function initPhysics() {
@@ -43,12 +43,12 @@ export function initPhysics() {
 
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
 
-// Détache un ArrayBuffer (le transfère à personne) : sa mémoire est rendue
-// immédiatement, sans attendre le ramasse-miettes. Sans effet sur un
-// SharedArrayBuffer ou un tampon déjà détaché ; jamais d'exception.
+// Detaches an ArrayBuffer (transfers it to nobody): its memory is handed back
+// immediately, without waiting for the garbage collector. No effect on a
+// SharedArrayBuffer or an already-detached buffer; never throws.
 export function detachBuffer(buf) {
 	if (!(buf instanceof ArrayBuffer) || buf.byteLength === 0) return;
-	try { structuredClone(buf, { transfer: [buf] }); } catch { /* déjà détaché, ou non transférable */ }
+	try { structuredClone(buf, { transfer: [buf] }); } catch { /* already detached, or not transferable */ }
 }
 const ZERO = { x: 0, y: 0, z: 0 };
 
@@ -58,14 +58,20 @@ export class Physics {
 		// freestyle build; a session (PHASE 06+) passes its target's profile.
 		this.profile = options.profile ?? DEFAULT_PROFILE;
 		this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
-		this.world.timestep = 1 / 250;
+		// Mirrored on the JS side because Rapier keeps its timestep as an f32:
+		// reading world.timestep back gives 0.004000000189989805 for 1/250, so
+		// comparing against it would report a change on every single step, and
+		// the default value of step()'s `dt` would drift off the grid the rest
+		// of the sim works on.
+		this._timestep = 1 / 250;
+		this.world.timestep = this._timestep;
 
 		this.groundBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-		// Mode ?live= (#168, #170) : pas de collision.bin, donc un trimesh de
-		// scène à 0 sommet. Rapier n'accepte pas un trimesh vide (RuntimeError
-		// wasm "unreachable" côté ColliderDesc.trimesh) — sauter la création
-		// dans ce cas et laisser groundBody nu, prêt à recevoir des colliders
-		// de nœuds rocktree via addNodeCollider().
+		// ?live= mode (#168, #170): no collision.bin, so a scene trimesh with 0
+		// vertices. Rapier does not accept an empty trimesh (wasm RuntimeError
+		// "unreachable" inside ColliderDesc.trimesh) — skip the creation in that
+		// case and leave groundBody bare, ready to receive rocktree node
+		// colliders through addNodeCollider().
 		this.groundCollider = null;
 		if (collision.vertices.length > 0 && collision.indices.length > 0) {
 			this.groundCollider = this.world.createCollider(
@@ -75,9 +81,9 @@ export class Physics {
 				this.groundBody,
 			);
 		}
-		// Colliders rocktree progressifs (#168, #170) : un trimesh par nœud
-		// reçu en vol, sur ce MÊME corps fixe — Rapier accepte plusieurs
-		// colliders par corps nativement, pas besoin d'un corps par nœud.
+		// Progressive rocktree colliders (#168, #170): one trimesh per node
+		// received in flight, on this SAME fixed body — Rapier accepts several
+		// colliders per body natively, no need for one body per node.
 		this._nodeColliders = new Map();
 
 		this.spawn = { ...spawn };
@@ -111,18 +117,18 @@ export class Physics {
 		this.collider = this.world.createCollider(
 			RAPIER.ColliderDesc.ball(COLLIDER_RADIUS)
 				.setDensity(0)
-				// Un quad ne rebondit pas : pieds souples, hélices, châssis carbone
-				// qui encaisse. 0.35 le faisait ricocher comme une balle et rendait
-				// toute pose impossible.
+				// A quad does not bounce: soft feet, props, a carbon frame that takes
+				// the hit. 0.35 made it ricochet like a ball and made any landing
+				// impossible.
 				//
-				// PHASE 08 : PHASE 06 avait posé 0.05 / 1.0, mesuré sur freestyle5
-				// seul (06 précède les familles). Croisé avec le sweep 6 familles
-				// de PHASE 07, cette paire fait déraper le toothpick (ultra-léger)
-				// à 1.55 m/s sur le maillage penté, au-dessus du seuil « sits still »
-				// de tools/selftest.mjs. Re-balayé rest×fric contre ce selftest
-				// (tour-eiffel) : 0.15 / 1.0 remet le toothpick à 0.99 m/s, garde
-				// toutes les familles vertes et « a gentle landing » à 483 N (≪ 1500).
-				// 0.15 reste franchement sans rebond — loin des 0.35 qui ricochaient.
+				// PHASE 08: PHASE 06 had set 0.05 / 1.0, measured on freestyle5 alone
+				// (06 predates the families). Crossed with PHASE 07's 6-family sweep,
+				// that pair makes the toothpick (ultra-light) slide at 1.55 m/s on the
+				// sloped mesh, above the "sits still" threshold of tools/selftest.mjs.
+				// Re-swept restitution x friction against that selftest (tour-eiffel):
+				// 0.15 / 1.0 puts the toothpick back at 0.99 m/s, keeps every family
+				// green and "a gentle landing" at 483 N (much less than 1500). 0.15 is
+				// still frankly bounce-free — far from the 0.35 that ricocheted.
 				.setRestitution(0.15)
 				.setFriction(1.0)
 				.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
@@ -185,49 +191,48 @@ export class Physics {
 		);
 	}
 
-	// Lâche les tableaux JS qui ont servi à construire le trimesh de scène
-	// (issue #249). Rapier en a fait sa propre copie dans la mémoire WASM ;
-	// côté JS il ne reste que le cache `_shape` du Collider, qui retient les
-	// vues `vertices`/`indices` et donc tout le collision.bin (36 Mo sur
-	// paristest, 100+ sur les grandes zones) pour toute la vie de la page.
-	// Rapier recharge ce cache à la demande (ensureShapeIsCached), donc le
-	// vider est sans effet sur les requêtes — et personne ici ne lit
-	// `collider.shape`. Le tampon est ensuite DÉTACHÉ pour être rendu tout de
-	// suite, sans attendre un GC qui, sous pression mémoire, arrive trop tard.
+	// Releases the JS arrays that were used to build the scene trimesh (issue
+	// #249). Rapier has made its own copy in WASM memory; on the JS side all
+	// that is left is the Collider's `_shape` cache, which holds the
+	// `vertices`/`indices` views and therefore the whole collision.bin (36 MB on
+	// paristest, 100+ on the large zones) for the lifetime of the page. Rapier
+	// reloads that cache on demand (ensureShapeIsCached), so emptying it has no
+	// effect on queries — and nobody here reads `collider.shape`. The buffer is
+	// then DETACHED so it is handed back at once, without waiting for a GC that,
+	// under memory pressure, arrives too late.
 	releaseSourceArrays(collision) {
 		if (this.groundCollider && '_shape' in this.groundCollider) this.groundCollider._shape = null;
 		detachBuffer(collision?.vertices?.buffer);
 	}
 
-	// #168, #170 : convertit la géométrie d'UN nœud rocktree fraîchement
-	// décodé en collider Rapier, sur le même groundBody que le trimesh de
-	// scène (s'il existe) ou seul (mode ?live=, pas de collision.bin).
-	// Mêmes réglages de friction/restitution que le trimesh de scène — un sol
-	// qui se comporte pareil des deux côtés, cuit ou streamé.
+	// #168, #170: converts the geometry of ONE freshly decoded rocktree node
+	// into a Rapier collider, on the same groundBody as the scene trimesh (if
+	// there is one) or on its own (?live= mode, no collision.bin). Same
+	// friction/restitution settings as the scene trimesh — ground that behaves
+	// the same on both sides, baked or streamed.
 	addNodeCollider(path, vertices, indices) {
 		if (this._nodeColliders.has(path)) {
-			throw new Error(`addNodeCollider: "${path}" est déjà chargé — removeNodeCollider() d'abord`);
+			throw new Error(`addNodeCollider: "${path}" is already loaded — removeNodeCollider() first`);
 		}
-		// Un trimesh à 0 triangle (nœud dont la géométrie tronque entièrement à
-		// layerBounds[3], ou dont tous les triangles sont dégénérés/exclus)
-		// plante le WASM de Rapier — RuntimeError: unreachable, PAS une
-		// exception JS propre — au lieu de lever une erreur pour indices vides.
-		// Reproduit hors navigateur : ColliderDesc.trimesh(v, new Uint32Array(0))
-		// suffit. Rien à collisionner de toute façon : path reste enregistré
-		// (collider null) pour que removeNodeCollider() reste symétrique, sans
-		// jamais appeler trimesh().
+		// A 0-triangle trimesh (a node whose geometry truncates entirely at
+		// layerBounds[3], or whose triangles are all degenerate/excluded) crashes
+		// Rapier's WASM — RuntimeError: unreachable, NOT a clean JS exception —
+		// instead of raising an error for empty indices. Reproduced outside the
+		// browser: ColliderDesc.trimesh(v, new Uint32Array(0)) is enough. Nothing
+		// to collide with anyway: path stays registered (collider null) so that
+		// removeNodeCollider() stays symmetric, without ever calling trimesh().
 		if (indices.length < 3) {
-			console.warn(`[physics] addNodeCollider("${path}") : 0 triangle après troncature, collider ignoré`);
+			console.warn(`[physics] addNodeCollider("${path}"): 0 triangles after truncation, collider skipped`);
 			this._nodeColliders.set(path, null);
 			return;
 		}
-		// SANS corps parent (#184) : un collider attaché à groundBody force
-		// Rapier à recalculer les propriétés de masse du corps au step suivant
-		// en sommant TOUS ses trimesh — mesuré à ~57 ms par step dès qu'une
-		// vague de streaming ajoute des nœuds à chaque frame (spirale de
-		// rattrapage de l'accumulateur : frames de 700-1700 ms). Un collider
-		// sans parent est statique dans le monde, aucune propriété de masse à
-		// recalculer, et se comporte identiquement face au drone.
+		// WITHOUT a parent body (#184): a collider attached to groundBody forces
+		// Rapier to recompute the body's mass properties on the next step by
+		// summing ALL of its trimeshes — measured at ~57 ms per step as soon as a
+		// streaming wave adds nodes on every frame (accumulator catch-up spiral:
+		// frames of 700-1700 ms). A collider with no parent is static in the
+		// world, has no mass properties to recompute, and behaves identically
+		// towards the drone.
 		const collider = this.world.createCollider(
 			RAPIER.ColliderDesc.trimesh(vertices, indices)
 				.setFriction(0.9)
@@ -238,22 +243,22 @@ export class Physics {
 	}
 
 	removeNodeCollider(path) {
-		if (!this._nodeColliders.has(path)) throw new Error(`removeNodeCollider: "${path}" n'est pas chargé`);
-		// null : path enregistré par addNodeCollider() pour un nœud à 0 triangle
-		// (voir plus haut) — jamais passé à Rapier, rien à lui retirer.
+		if (!this._nodeColliders.has(path)) throw new Error(`removeNodeCollider: "${path}" is not loaded`);
+		// null: a path registered by addNodeCollider() for a 0-triangle node (see
+		// above) — never handed to Rapier, nothing to remove from it.
 		const collider = this._nodeColliders.get(path);
 		if (collider) this.world.removeCollider(collider, true);
 		this._nodeColliders.delete(path);
 		this._queryDirty = true;
 	}
 
-	// Rapier ne rafraîchit l'accélération des requêtes (castRay etc.) que dans
-	// world.step() — un collider ajouté/retiré hors step() reste invisible à
-	// groundBelow() tant qu'on ne force pas la mise à jour. Mais la forcer À
-	// CHAQUE opération coûtait ~0,4 ms × opération (164 ms cumulés mesurés sur
-	// une vague de 400 nœuds, #187) : add/remove posent un flag, et l'appelant
-	// (processLiveNodeWork, la boucle d'attente du sol de bootLive) paie UN
-	// refit par lot, ici.
+	// Rapier only refreshes the query acceleration structure (castRay and the
+	// rest) inside world.step() — a collider added or removed outside step()
+	// stays invisible to groundBelow() until the update is forced. But forcing
+	// it on EVERY operation cost ~0.4 ms per operation (164 ms in total measured
+	// over a wave of 400 nodes, #187): add/remove raise a flag instead, and the
+	// caller (processLiveNodeWork, bootLive's wait-for-ground loop) pays for ONE
+	// refit per batch, here.
 	flushNodeColliders() {
 		if (!this._queryDirty) return;
 		this._queryDirty = false;
@@ -341,26 +346,35 @@ export class Physics {
 		return this._probe;
 	}
 
-	// La rosace de sondage telle que le dernier step() l'a lancée, ou null si
-	// aucun sondage n'a encore eu lieu. Lecture seule, aucun rayon de plus :
-	// l'acoustique du lieu (src/space.js) se sert des MÊMES rayons que l'ombre
-	// de vent, ce qui est la raison pour laquelle elle est gratuite.
+	// The probe rosette as the last step() cast it, or null if no probing has
+	// happened yet. Read-only, not one extra ray: the acoustics of the place
+	// (src/space.js) use the SAME rays as the wind shadow, which is the reason
+	// they are free.
 	get probe() { return this._probed ? this._probe : null; }
 
 	// One fixed step. `motors` is four commands in 0..1 straight from the mixer.
 	// Returns the largest contact force seen during the step, for crash detection.
 	//
-	// `external` : une force en newtons, repère MONDE, ajoutée au même pas que
-	// la poussée. Un paramètre et non un setter : une force externe ne doit pas
-	// pouvoir traîner d'un pas sur l'autre, et resetForces() en tête de cette
-	// méthode rend tout addForce appelé du dehors silencieusement inopérant.
-	// Seule cliente aujourd'hui : la clôture de zone (#139).
+	// `external`: a force in newtons, WORLD frame, added on the same step as the
+	// thrust. A parameter and not a setter: an external force must not be able
+	// to linger from one step to the next, and resetForces() at the top of this
+	// method makes any addForce called from outside silently useless. Its only
+	// client today: the zone fence (#139).
 	//
-	// `externalTorque` : un couple en N·m, repère MONDE, pour exactement la même
-	// raison et avec exactement la même contrainte — resetTorques() en tête de
-	// cette méthode efface tout addTorque appelé du dehors. Seul client
-	// aujourd'hui : le retournement assisté (#105).
-	step(motors, dt = this.world.timestep, external = null, externalTorque = null) {
+	// `externalTorque`: a torque in N.m, WORLD frame, for exactly the same
+	// reason and under exactly the same constraint — resetTorques() at the top
+	// of this method wipes any addTorque called from outside. Its only client
+	// today: assisted turtle mode (#105).
+	step(motors, dt = this._timestep, external = null, externalTorque = null) {
+		// Rapier integrates `world.timestep`, NOT the dt handed to this method.
+		// Without this line the two disagreed the moment a caller asked for
+		// anything but 1/250 s: quad.js advanced the airframe by dt while the
+		// world advanced gravity, velocity and contacts by a fixed 1/250 s, so
+		// a 1/50 s step fell at a FIFTH of g. The dt parameter was a lie to
+		// everything below this class, which is also what made an adaptive
+		// catch-up step impossible to write (see main.js).
+		if (this._timestep !== dt) { this._timestep = dt; this.world.timestep = dt; }
+
 		// Rapier keeps user forces until they are cleared; without this every
 		// previous step's thrust stays applied and the quad rockets off.
 		this.body.resetForces(false);
@@ -386,10 +400,10 @@ export class Physics {
 		// this step's is what the wind field is about to decide — 4 ms of lag on
 		// a quantity that only sets a turbulence time constant.
 		const wind = this.wind.update(p.y, this._probed ? this._probe : null, this.airspeed, dt);
-		// Ground hold : le drone est posé, gaz coupés (décidé par main.js). Le
-		// vent ne le pousse plus — au sol on est à l'abri, et surtout un quad
-		// posé ne doit pas glisser tout seul — et on saigne sa vitesse résiduelle
-		// pour qu'une sphère de collision ne roule pas sans fin.
+		// Ground hold: the drone is down, throttle cut (decided by main.js). The
+		// wind no longer pushes it — on the ground you are sheltered, and above
+		// all a landed quad must not slide off on its own — and its residual
+		// velocity is bled off so a collision sphere does not roll for ever.
 		const wx = this._groundHold ? 0 : wind.x;
 		const wy = this._groundHold ? 0 : wind.y;
 		const wz = this._groundHold ? 0 : wind.z;
@@ -427,34 +441,33 @@ export class Physics {
 			const k = Math.exp(-dt / 0.15);
 			const lv = this.body.linvel();
 			const av = this.body.angvel();
-			// Deux amortissements, pas un : l'exponentiel saigne vite un
-			// transitoire violent (un roulis de 8 rad/s au contact retombe en
-			// moins d'une seconde), mais il ne l'annule jamais — il le divise.
-			// Or la gravité le long de la pente en réinjecte à chaque pas : sur
-			// un terrain réel, ces deux-là s'équilibrent à un fluage permanent
-			// (mesuré sur tour-eiffel : 0,07 à 0,38 rad/s sur des pentes de 1 à
-			// 3°, jamais décroissant). C'est ce fluage qui rendait la pose
-			// impossible à reconnaître — la sphère roule sans fin.
+			// Two dampings, not one: the exponential bleeds a violent transient
+			// off quickly (an 8 rad/s roll on contact falls away in under a
+			// second), but it never cancels it — it only divides it. And gravity
+			// along the slope re-injects some on every step: on real terrain the
+			// two balance out at a permanent creep (measured on tour-eiffel: 0.07
+			// to 0.38 rad/s on slopes of 1 to 3 degrees, never decreasing). That
+			// creep is what made a landing impossible to recognise — the sphere
+			// rolls for ever.
 			//
-			// Ce qui manque au modèle est la friction statique : un quad posé
-			// tient sur ses pieds, il ne roule pas comme une bille. On l'ajoute
-			// donc telle quelle, en Coulomb — une décélération constante mu*g
-			// qui, contrairement à un facteur exponentiel, ANNULE le mouvement
-			// au lieu de l'asymptoter, et qui tient l'appareil sur toute pente
-			// sous l'angle de friction atan(mu). mu = 0,6 : pieds plastique /
-			// caoutchouc sur pierre ou béton (0,5-0,8 en pratique), soit une
-			// tenue jusqu'à 31° — cohérent avec la limite déjà mesurée du
-			// modèle sphère (au-delà de ~33° la sphère glisse et quitte la
-			// pente, mesuré au banc de pose retiré avec l'atterrissage — D9,
-			// 2026-09-08).
+			// What the model is missing is static friction: a landed quad sits on
+			// its feet, it does not roll like a marble. So it is added as such, in
+			// Coulomb form — a constant deceleration mu*g which, unlike an
+			// exponential factor, CANCELS the motion instead of asymptoting to it,
+			// and which holds the machine on any slope below the friction angle
+			// atan(mu). mu = 0.6: plastic/rubber feet on stone or concrete (0.5-0.8
+			// in practice), i.e. a hold up to 31 degrees — consistent with the
+			// already-measured limit of the sphere model (beyond ~33 degrees the
+			// sphere slides and leaves the slope, measured on the landing bench
+			// removed along with landing itself — D9, 2026-09-08).
 			const dv = MU_GROUND * GRAVITY * dt;
 			const sp = Math.hypot(lv.x, lv.z);
-			// `sp <= dv` : la friction avait de quoi tout arrêter dans ce pas.
-			// On s'arrête, on ne repart pas en arrière.
+			// `sp <= dv`: friction had enough to stop everything within this step.
+			// So it stops, it does not set off backwards.
 			const fl = sp <= dv ? 0 : (sp - dv) / sp;
-			// Même friction vue en rotation : au point de contact, une sphère de
-			// rayon R qui roule à v tourne à v/R, donc la même décélération
-			// linéaire vaut dv/R en angulaire.
+			// The same friction seen in rotation: at the contact point, a sphere of
+			// radius R rolling at v turns at v/R, so the same linear deceleration
+			// is worth dv/R in angular terms.
 			const dw = dv / COLLIDER_RADIUS;
 			const sw = Math.hypot(av.x, av.y, av.z);
 			const fa = sw <= dw ? 0 : (sw - dw) / sw;
@@ -464,9 +477,9 @@ export class Physics {
 		return impact;
 	}
 
-	// Posé, gaz coupés : coupe le vent et amortit la vitesse résiduelle pour que
-	// le drone s'immobilise au lieu de rouler comme une bille. Décidé par
-	// main.js (qui seul connaît l'état de l'armement et des gaz).
+	// Landed, throttle cut: cuts the wind off and damps the residual velocity so
+	// the drone comes to rest instead of rolling like a marble. Decided by
+	// main.js (which alone knows the arming and throttle state).
 	setGroundHold(on) { this._groundHold = !!on; }
 
 	// Height above ground as the wind probe sees it — hundreds of metres rather
