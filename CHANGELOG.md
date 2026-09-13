@@ -30,6 +30,16 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Corrigé
 
+- **JUKEBOX, onglet ALL : les lignes étaient écrasées à 6,5 px.** Les 143
+  morceaux étaient bien là, dans l'ordre, avec le bon texte, et aucun n'était
+  lisible. Un `flex-direction: column` avec un `max-height` ne déborde pas dans
+  sa barre de défilement : par défaut il **rétrécit** ses enfants jusqu'à ce que
+  tout rentre. En dessous d'une vingtaine d'éléments rien ne bouge — d'où un
+  filtre par pool parfait et un seul onglet cassé. La même forme existait quatre
+  fois (les deux listes, le panneau des réglages, la page DATA) ;
+  `tools/list-layout-selftest.mjs` refuse désormais une cinquième qui
+  l'oublierait.
+
 - **La carte de l'onglet LIVE ne s'affichait plus** : toutes les tuiles
   OpenStreetMap revenaient en 403 « Access blocked ». L'en-tête
   `Referrer-Policy: no-referrer`, ajouté par la passe de sécurité de la 1.0.0,
@@ -80,7 +90,6 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
   rail LIVE et ce qui décolle, où il se lisait comme une étape du parcours.
   Toujours sur LIVE seulement : le terrain déjà sur le disque a emporté son
   crédit avec lui.
-
 ### Ajouté
 
 - **Un pourboire, en trois marques.** Le pied de page de FIELD porte les logos
