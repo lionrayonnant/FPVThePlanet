@@ -107,6 +107,15 @@ function diskAreaOf(profile) {
 // in `inflowGain`/`buffetGain` — that missing correction, and nobody knowing
 // how much more of it a ~34 g/~20 mm-prop craft would need, is why the
 // prototyped 1S tinywhoop was pulled from PHASE 07.
+// How far into a descent the linear axial inflow term stays applicable, in
+// multiples of the rotor's own hover induced velocity vh. 2 is the windmill
+// brake boundary: for Vc <= -2*vh momentum theory has a solution again, and
+// between there and zero it has none at all (the vortex ring state, carried
+// here by `propwash`). Beyond that boundary a first-order slope fitted around
+// hover is not evidence of anything, so it stops growing. See its use in
+// step().
+const AXIAL_INFLOW_LIMIT = 2;
+
 export const INFLOW_K0 = 0.169;
 const BUFFET_K0 = INFLOW_K0;
 
@@ -440,7 +449,28 @@ export class Propulsion {
 			// edgewise term, which is the one that was missing.
 			const vh = w * this._vhPerOmega;
 			const vEdge2 = vx * vx + vz * vz;
-			const dw = vy + 2 * (inducedVelocity(vh, vEdge2) - vh);
+			// The axial part of `dw` is a FIRST-ORDER slope — the comment above
+			// derives it as such, from the Vc/2 excess that momentum theory gives
+			// "to first order". Unbounded, it was being evaluated at Vc/vh as far
+			// out as -3.5 in a fast descent, several times past anything a linear
+			// expansion can claim. The consequence was backwards: at a held hover
+			// throttle the quad produced 0.92x its weight at 8 m/s of descent but
+			// 1.23x at 25 m/s, so the faster it fell the harder it pushed back.
+			// It refused to fall, which is the "it floats, it has no weight"
+			// the pilot reports — and `propwash` could not answer for it, being
+			// saturated from 8 m/s onwards.
+			//
+			// The bound is the windmill-brake boundary Vc = -2*vh, not a chosen
+			// number: it is where momentum theory has a valid solution again
+			// (between it and zero lies the vortex ring state, which has none and
+			// which this file models empirically as `propwash`). Past it, the
+			// linear term stops growing instead of running away.
+			//
+			// ONLY the descent side of the axial term is clamped. Hover (vy = 0),
+			// climb, and the edgewise term — translational lift, the whole point
+			// of inducedVelocity() — come through untouched and bit-identical.
+			const vyAxial = Math.max(vy, -AXIAL_INFLOW_LIMIT * vh);
+			const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
 			let t = this._kThrust * w * w - this._kInflow * w * dw;
 			t = Math.max(0, t) * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;

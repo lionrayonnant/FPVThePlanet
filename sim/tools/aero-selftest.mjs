@@ -13,7 +13,7 @@
 // symmetry) that a wrong implementation cannot satisfy by accident.
 import {
 	Propulsion, inducedVelocity, kThrustOf, kInflowOf, kLateralOf, INFLOW_K0,
-	mixOf, cruiseSpeedOf,
+	mixOf, cruiseSpeedOf, vhPerOmegaOf,
 } from '../src/quad.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS } from '../src/flightController.js';
@@ -57,6 +57,7 @@ console.log('1. translational lift generalises the axial inflow');
 // the exported coefficients — an expression that shares no code with step().
 {
 	let worst = 0, worstAt = '';
+	let worstInBand = 0, worstInBandAt = '';
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
 		const kT = kThrustOf(profile), kI = kInflowOf(profile);
@@ -71,14 +72,64 @@ console.log('1. translational lift generalises the axial inflow');
 				// propwash rather than re-deriving that too — it is not what this
 				// check is about.
 				const pw = 1 - 0.22 * s.prop.propwash;
-				const want = Math.max(0, kT * w * w - kI * w * vy) * pw;
+				// The axial term is a first-order slope and is applied only as far
+				// as the windmill brake boundary Vc = -2*vh, past which a descent
+				// no longer buys thrust without limit (see step()). Written out
+				// here from the exported coefficients, sharing no code with it.
+				const vyAxial = Math.max(vy, -2 * w * vhPerOmegaOf(profile));
+				const want = Math.max(0, kT * w * w - kI * w * vyAxial) * pw;
 				const rel = Math.abs(s.thrust[0] - want) / Math.max(1e-9, Math.abs(want));
 				if (rel > worst) { worst = rel; worstAt = `${fam} thr=${thr} vy=${vy}`; }
+				// Inside the slope's own validity band nothing may have moved: the
+				// bound must not have disturbed hover, climb or a gentle descent.
+				if (vy >= -2 * w * vhPerOmegaOf(profile)) {
+					const unbounded = Math.max(0, kT * w * w - kI * w * vy) * pw;
+					const relU = Math.abs(s.thrust[0] - unbounded) / Math.max(1e-9, Math.abs(unbounded));
+					if (relU > worstInBand) { worstInBand = relU; worstInBandAt = `${fam} thr=${thr} vy=${vy}`; }
+				}
 			}
 		}
 	}
-	check('no edgewise speed: thrust is exactly the old axial formula',
+	check('no edgewise speed: thrust is exactly the bounded axial formula',
 		worst < 1e-15, `worst relative error ${worst.toExponential(1)} (${worstAt})`);
+	check('inside the slope\'s validity band the axial branch is untouched',
+		worstInBand < 1e-15,
+		`worst relative error ${worstInBand.toExponential(1)} (${worstInBandAt})`);
+}
+
+// The anti-float invariant, stated structurally rather than as a recorded
+// number: past the windmill brake boundary, falling faster must not buy more
+// thrust. Unbounded, the first-order axial slope did exactly that — at a held
+// hover throttle freestyle5 made 0.92x its weight at 8 m/s of descent and
+// 1.23x at 25 m/s, so the harder it fell the harder it pushed back. That is
+// the "it floats, it has no weight" a pilot reports, and nothing else in this
+// file was in a position to catch it.
+{
+	let worst = 0, worstAt = '';
+	for (const fam of FAMILIES) {
+		const profile = PROFILES[fam];
+		for (let n = 1; n <= 20; n++) {
+			const thr = n / 20;
+			let prev = null;
+			// The boundary is -2*vh and vh follows the rpm, so it moves with the
+			// throttle: derive it from the settled omega rather than assuming a
+			// descent rate that is past it for every family (a toothpick at 0.7
+			// throttle is still inside the band at 14 m/s).
+			const settled = settle(profile, flat(thr), air({ y: -1 }));
+			const boundary = 2 * settled.omega[0] * vhPerOmegaOf(profile);
+			for (let vy = -boundary - 1; vy >= -boundary - 30; vy -= 2) {
+				const s = settle(profile, flat(thr), air({ y: vy }));
+				const t = s.thrust[0];
+				if (prev !== null && t > prev) {
+					const rise = (t - prev) / Math.max(1e-9, prev);
+					if (rise > worst) { worst = rise; worstAt = `${fam} thr=${thr} vy=${vy}`; }
+				}
+				prev = t;
+			}
+		}
+	}
+	check('past the windmill brake boundary, falling faster never buys more thrust',
+		worst < 1e-12, `worst rise ${worst.toExponential(1)} (${worstAt})`);
 }
 
 // The saturation is structural, not a clamp: as Vx grows, v_i falls to zero, so

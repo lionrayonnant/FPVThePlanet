@@ -55,6 +55,23 @@ déployant pour de bon, et rien de tout cela ne pouvait l'être autrement.
 
 ### Corrigé
 
+- **Le drone refusait de tomber : plus il descendait vite, plus il poussait
+  fort.** Signalé comme « le drone flotte, il est trop léger ». Le terme
+  d'inflow axial de `quad.js` est une pente au PREMIER ORDRE — le commentaire
+  qui le dérive le dit — mais il était appliqué sans borne. En descente rapide
+  il était donc évalué jusqu'à Vc/vh = −3,5, plusieurs fois au-delà de ce qu'un
+  développement linéaire peut prétendre, et la conséquence partait à l'envers :
+  à manche de stationnaire tenu, `freestyle5` produisait 0,92 × son poids à
+  8 m/s de descente mais **1,23 ×** à 25 m/s. Le `propwash`, qui porte le régime
+  d'anneau tourbillonnaire, saturait dès 8 m/s et ne pouvait plus rien y
+  opposer. Le terme axial s'arrête désormais à la frontière du **moulinet**
+  (Vc = −2·vh) — pas un nombre choisi : c'est là que la théorie de la quantité
+  de mouvement admet de nouveau une solution. Seul le côté descente est borné :
+  stationnaire, montée et portance translationnelle passent **au bit près**
+  (montée plein gaz : 31,928 m/s avant comme après). Deux gardes dans
+  `tools/aero-selftest.mjs`, dont l'invariant structurel « au-delà de la
+  frontière, tomber plus vite n'achète jamais plus de poussée ».
+
 - **La gravité s'arrêtait dès que le rendu ralentissait.** Deux défauts
   indépendants, tous les deux dans l'horloge et aucun dans le modèle de vol.
   D'abord, `Physics.step(motors, dt)` ignorait son `dt` côté Rapier : le moteur
