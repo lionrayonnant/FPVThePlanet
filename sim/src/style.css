@@ -955,7 +955,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    --faint of a hint. Same face and same tone as the footer beneath it. */
 .bootstrap-box pre.terminal-credit {
 	color: var(--light-grey);
-	font-family: var(--font-data); font-size: var(--fs-micro);
+	/* The same step as the build line it now sits under: both are things the
+	   program states rather than things anyone came to read, and a legal notice
+	   set one size smaller than its neighbour reads as the one being hidden. */
+	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
 	margin: var(--space-2) 0 0;
 }
