@@ -721,56 +721,41 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    costs it nothing. */
 .terminal-left pre.terminal-foot { white-space: normal; }
 
-/* The source link under its heading (AGPL section 13). It is a real link, so it
-   gets the inverse-video focus marker the rest of the terminal uses rather than
-   the browser's outline, which style.css removes globally. Underlined only on
-   hover: a permanent underline in this typeface reads as a scanline. */
-.terminal-meta {
-	display: inline-flex;
-	align-items: center;
-	gap: .45em;
-	margin-top: .35em;
-	/* DATA level, not micro: this is the one line in the footer a player is
-	   meant to click, and at 11px in --faint it was furniture. */
-	font-family: var(--font-data);
-	font-size: var(--fs-data);
-	color: var(--light-grey);
-	text-decoration: none;
-	letter-spacing: var(--track-data);
-}
-.terminal-meta:hover { color: var(--light-grey); text-decoration: underline; }
-.terminal-meta:focus-visible {
-	outline: none;
-	background: var(--ink);
-	color: var(--black);
-}
-.terminal-source-mark, .terminal-mark { display: inline-flex; }
+.terminal-mark { display: inline-flex; }
 
 /* The footer's two categories. A heading is not a link and must not look like
    one — but it still has to be READ: DATA level in --light-grey (5.26:1), the
    same step as the imagery credit above it. At --fs-micro in --faint both
    headings disappeared into the footer they were supposed to organise. */
 .bootstrap-box pre.terminal-meta-head {
-	color: var(--light-grey);
-	font-family: var(--font-data);
-	font-size: var(--fs-data);
-	letter-spacing: var(--track-data);
+	color: var(--dim);
+	font-family: var(--font-ui);
+	font-size: var(--fs-ui);
+	letter-spacing: var(--track-ui);
 	margin: var(--space-4) 0 0;
 }
 
-/* The tip tiles: a mark, the coin's name under it, and a real edge around both.
-   Everything else in this footer is a dim line of micro type — these three are
-   the only thing in it asking for a decision, so they are the only thing built
-   like a control. The mark is resolved warm white (terminal.js iconImg), and
-   the tile inverts whole under the cursor, which is the terminal's own idiom
-   for "this is the one". */
+/* The footer's tiles: a mark, a name under it, and a real edge around both.
+   Four of them, in two categories — the repository under SOURCE, the three
+   coins under the tip line. They are the only things in this footer asking for
+   a decision, so they are the only things built like a control, and they are
+   all built the SAME: one of them at half the size of the others reads as an
+   afterthought rather than as a second category.
+
+   The mark is resolved warm white (terminal.js iconImg), and the tile inverts
+   whole under the cursor, which is the terminal's own idiom for "this one". */
 .terminal-tips { display: flex; align-items: stretch; gap: var(--space-3); margin-top: var(--space-3); }
-.terminal-tip-btn {
-	display: flex;
+.terminal-mark-tile {
+	display: inline-flex;
 	flex-direction: column;
 	align-items: center;
 	gap: var(--space-2);
+	/* flex-start, or the column's stretch turns the lone SOURCE tile into a
+	   full-width bar: a tile is a target, and a target the width of the panel
+	   stops looking like one. */
+	align-self: flex-start;
 	min-width: 7rem;
+	margin-top: var(--space-3);
 	padding: var(--space-4);
 	background: var(--dark-grey);
 	border: var(--rule-w) solid var(--rule-strong);
@@ -779,10 +764,12 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font-size: var(--fs-ui);
 	letter-spacing: var(--track-ui);
 	line-height: 1;
+	text-decoration: none;
 	cursor: pointer;
 }
-.terminal-tip-btn:hover,
-.terminal-tip-btn:focus-visible {
+.terminal-tips .terminal-mark-tile { margin-top: 0; }
+.terminal-mark-tile:hover,
+.terminal-mark-tile:focus-visible {
 	outline: none;
 	background: var(--ink);
 	color: var(--black);
@@ -790,8 +777,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 }
 /* The mark's colour is baked into the image, so the inversion has to be done to
    the pixels: `filter` is the only thing that reaches inside an <img>. */
-.terminal-tip-btn:hover .terminal-mark,
-.terminal-tip-btn:focus-visible .terminal-mark { filter: invert(1); }
+.terminal-mark-tile:hover .terminal-mark,
+.terminal-mark-tile:focus-visible .terminal-mark { filter: invert(1); }
 .terminal-tip-name { white-space: nowrap; }
 
 /* A tip window, not a screen: it says one thing, so it takes the room one thing
@@ -851,7 +838,6 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	letter-spacing: var(--track-ui);
 }
 
-.terminal-source-mark svg { display: block; }
 
 /* BUILD NOTES: a version number, then its indented lines. The indent is
    hanging — first line at 2ch, wrap at 4ch — so that a note that overflows

@@ -219,15 +219,22 @@ function iconImg(name, { size = 12, alt = '', cls = 'terminal-mark' } = {}) {
 // setWindowOpenHandler, which hands https to the system browser.
 function sourceLink() {
 	const a = document.createElement('a');
-	a.className = 'terminal-meta terminal-source';
+	// The same tile as the tips below it: same mark size, same type, same edge.
+	// The two categories are different offers, not different weights — one of
+	// them rendered at half the size of the other read as an afterthought, and
+	// the AGPL's offer is the one obligation on this screen.
+	a.className = 'terminal-mark-tile terminal-source';
 	// setAttribute rather than the properties: the render selftests mount this
 	// on a fake DOM that tracks attributes, and an offer the tests cannot see is
 	// an offer nothing stops from disappearing.
 	a.setAttribute('href', SOURCE_URL);
 	a.setAttribute('target', '_blank');
 	a.setAttribute('rel', 'noopener noreferrer');
-	a.appendChild(iconImg('github', { size: 12, alt: 'GITHUB', cls: 'terminal-source-mark' }));
-	a.appendChild(document.createTextNode(` ${LICENCE}`));
+	a.appendChild(iconImg('github', { size: 36, alt: 'GITHUB' }));
+	const name = document.createElement('span');
+	name.className = 'terminal-tip-name';
+	name.textContent = LICENCE;
+	a.appendChild(name);
 	return a;
 }
 
@@ -245,7 +252,7 @@ function tipRow(onOpen) {
 	const row = document.createElement('div');
 	row.className = 'terminal-tips';
 	for (const group of TIP_BUTTONS) {
-		const b = screenButton('', () => onOpen(group, b), 'terminal-tip-btn');
+		const b = screenButton('', () => onOpen(group, b), 'terminal-mark-tile terminal-tip-btn');
 		// 36px, an exact tripling of the 12x12 grid. Any size that is not a whole
 		// multiple lands pixels on half-pixels, which is where crispEdges stops
 		// being able to help — and this mark is the tile's headline.
@@ -1326,11 +1333,40 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 			}
 		}
 
-		// --- the footer: where the game runs, and nothing more
+		// The bridge to the source, and the AGPL's section 13: anyone
+		// interacting with this program over a network must be OFFERED the
+		// corresponding source, and a player on someone else's instance never
+		// sees the repository, the LICENSE file or the README. The offer has to
+		// be inside the program, so it sits on the one screen every session
+		// passes through.
+		left.appendChild(metaHead(SOURCE_CALL));
+		left.appendChild(sourceLink());
+
+		// And the tip jar, which is a different kind of offer and says so by
+		// standing in its own category with its own line.
+		//
+		// FIELD is left MOUNTED and visible under the window: the map, the pin
+		// and the selected area stay exactly where they were, which is what makes
+		// this a window rather than a detour. menuNav takes care of itself — the
+		// active nav is the topmost one on the stack, so the window has the
+		// keyboard for as long as it is open. On the way out the cursor goes back
+		// to the mark that opened it, not to the top of the column.
+		left.appendChild(metaHead(SUPPORT_TAGLINE));
+		left.appendChild(tipRow((group, mark) => {
+			tipWindow(root, group, () => mark.focus());
+		}));
+
+		// --- the small print, last: where the game runs, and whose imagery it
+		// streams.
 		//
 		// No row of links any more (D4, D6): MODE only did what Escape already
 		// does, and SETTINGS moved to the root. A menu that repeats its exits on
 		// every floor has no floors.
+		//
+		// It comes AFTER the tiles, at the very bottom of the column. Both lines
+		// are things the program must state, not things anyone is here to read:
+		// above the tiles they were two grey lines between a player and the two
+		// offers the footer actually makes.
 		const foot = document.createElement('pre');
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;
@@ -1361,29 +1397,6 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 			credit.textContent = `LIVE IMAGERY ${LIVE_IMAGERY_CREDIT}`;
 			left.appendChild(credit);
 		}
-
-		// The bridge to the source, and the AGPL's section 13: anyone
-		// interacting with this program over a network must be OFFERED the
-		// corresponding source, and a player on someone else's instance never
-		// sees the repository, the LICENSE file or the README. The offer has to
-		// be inside the program, so it sits on the one screen every session
-		// passes through.
-		left.appendChild(metaHead(SOURCE_CALL));
-		left.appendChild(sourceLink());
-
-		// And the tip jar, which is a different kind of offer and says so by
-		// standing in its own category with its own line.
-		//
-		// FIELD is left MOUNTED and visible under the window: the map, the pin
-		// and the selected area stay exactly where they were, which is what makes
-		// this a window rather than a detour. menuNav takes care of itself — the
-		// active nav is the topmost one on the stack, so the window has the
-		// keyboard for as long as it is open. On the way out the cursor goes back
-		// to the mark that opened it, not to the top of the column.
-		left.appendChild(metaHead(SUPPORT_TAGLINE));
-		left.appendChild(tipRow((group, mark) => {
-			tipWindow(root, group, () => mark.focus());
-		}));
 
 		// D15: Escape goes back up, and it says so — but it must say what Escape
 		// ACTUALLY does in the state on screen. While an area is drawn, Escape

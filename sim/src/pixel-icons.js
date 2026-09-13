@@ -159,14 +159,14 @@ export const PIXEL_ICONS = {
 		'.####..####.',
 		'.##########.',
 		'############',
-		'##.#....#.##',
+		'###..##..###',
 		'############',
 		'############',
 		'.##########.',
-		'.##########.',
-		'.###.##.###.',
-		'..##.##.##..',
+		'..########..',
+		'..###..###..',
 		'..##....##..',
+		'...#....#...',
 	],
 	// Bitcoin: the B with its two stems, and no coin around it. The disc is what
 	// turns to mud first at this size — the letterform alone is what people
