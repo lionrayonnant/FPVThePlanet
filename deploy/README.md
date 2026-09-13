@@ -93,8 +93,8 @@ install -d -o fpvtp -g fpvtp -m 0750 /var/lib/fpvtp
 install -d -o root -m 0755 /srv/fpvtp-updates
 ```
 
-Caddy's log directory is NOT here: the `caddy` user it must belong to does not
-exist until the package is installed. It is the first command of step 4.
+There is no log directory to create: the Caddyfile logs to journald, not to a
+file. `journalctl -u caddy -f` is the access log.
 
 ## 3. The GitHub token (optional)
 
@@ -125,13 +125,6 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
   | tee /etc/apt/sources.list.d/caddy-stable.list
 apt update && apt install -y caddy
-
-# Now that the package has created the `caddy` user, its log directory. Do this
-# BEFORE the first reload: the Caddyfile logs to /var/log/caddy/fpvtp.log, and a
-# reload with the directory missing is refused with `setting up custom log
-# 'log0'` — Caddy keeps the previous config and the service stays up, so the
-# failure is easy to miss.
-install -d -o caddy -g caddy -m 0750 /var/log/caddy
 ```
 
 Then install this directory's configuration, replacing the `example.org`

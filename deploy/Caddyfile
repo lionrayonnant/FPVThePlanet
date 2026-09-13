@@ -28,6 +28,7 @@ fpvtp.example.org {
 	# reproduce (the dynamic /scenes.json catalogue built from the data
 	# directory, the deliberate absence of an SPA fallback, the immutable
 	# Cache-Control).
+
 	# WITHOUT A CDN (Caddy is the only proxy) — keep this line.
 	#
 	# It drops any X-Forwarded-For the CLIENT sent, before the proxy builds its
@@ -70,9 +71,19 @@ fpvtp.example.org {
 	# installed on it). If you add it, first check that an acquisition job
 	# still shows its progress live.
 
-	log {
-		output file /var/log/caddy/fpvtp.log
-	}
+	# Access logs go to journald, not to a file.
+	#
+	# `output file /var/log/caddy/fpvtp.log` was here and it cost a deployment.
+	# The package's unit declares neither LogsDirectory= nor ReadWritePaths=, so
+	# the directory has to be created by hand — and creating it correctly
+	# (caddy:caddy, writable, verified with `sudo -u caddy touch`) still left the
+	# service refusing to start with `open …/fpvtp.log: permission denied`. One
+	# line of configuration, one platform-specific failure mode, and a checklist
+	# step that has to be done between two other steps or nothing starts.
+	#
+	# Caddy already writes everything to stderr and systemd already captures it,
+	# so nothing is lost:  journalctl -u caddy -f
+	# Rotation becomes journald's problem, which is where it belongs.
 }
 
 # ---------------------------------------------------------------------------
@@ -130,7 +141,5 @@ updates.fpvtp.example.org {
 	@installers path *.exe *.AppImage *.blockmap
 	header @installers Cache-Control "public, max-age=31536000, immutable"
 
-	log {
-		output file /var/log/caddy/fpvtp-updates.log
-	}
+	# journald here too — see the note in the block above.
 }
