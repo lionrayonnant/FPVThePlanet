@@ -103,6 +103,15 @@ fpvtp.example.org {
 					ipv4 24
 					ipv6 48
 				}
+				# BOTH fields, always. Caddy writes remote_ip (the peer) AND
+				# client_ip (the peer, or the forwarded address once
+				# trusted_proxies is set). Masking one and forgetting the other
+				# leaves the address in the log in full, which is the whole thing
+				# this block exists to avoid.
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
 			}
 		}
 	}
