@@ -29,6 +29,7 @@
 // No scene, no network, no browser. A few seconds.
 import assert from 'node:assert/strict';
 import { initPhysics, Physics } from '../src/physics.js';
+import { propLossFactor } from '../src/motor.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { gravityTrimFactor, Propulsion, GRAVITY } from '../src/quad.js';
 import {
@@ -250,13 +251,21 @@ console.log('\nCRITERION 4 (§7, §8.1, §8.2) — thrust-to-weight and the hove
 		check('the measured families bracket 8:1', false, 'no bracketing pair');
 	}
 
-	// Thrust is quadratic in rpm, which is the whole reason a 30% stick holds up
-	// an 8:1 machine. Checked directly on the plant rather than asserted.
+	// Thrust is quadratic in rpm TIMES the prop-loss factor, which is why a ~30%
+	// stick holds up an 8:1 machine. It is no longer the bare square law: a blade
+	// tip approaching Mach loses lift, so the curve sits above the square law at
+	// part throttle and flattens at the top. Checked on the plant, against the
+	// law written out from the exported factor rather than against a number.
 	for (const fam of ['freestyle5', 'toothpick']) {
 		const P = PROFILES[fam];
 		const a = settled(P, 0.5), b = settled(P, 1.0);
-		const ratio = (b.thrust / a.thrust) / ((b.omega / a.omega) ** 2);
-		check(`${fam}: thrust goes as rpm squared`, Math.abs(ratio - 1) < 0.06, ratio.toFixed(4));
+		const lossRatio = propLossFactor(P, b.omega) / propLossFactor(P, a.omega);
+		const ratio = (b.thrust / a.thrust) / (((b.omega / a.omega) ** 2) * lossRatio);
+		check(`${fam}: thrust goes as rpm squared times the prop-loss factor`,
+			Math.abs(ratio - 1) < 0.06, ratio.toFixed(4));
+		// And the factor really is doing something, or the check above is vacuous.
+		check(`${fam}: the prop-loss factor is not a no-op between half and full`,
+			Math.abs(lossRatio - 1) > 0.05, `loss ratio ${lossRatio.toFixed(4)}`);
 	}
 }
 

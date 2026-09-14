@@ -189,7 +189,7 @@ t('the ceiling survives a stick that slams up and down without ringing', () => {
 	let w = 0, worst = 0;
 	for (let i = 0; i < 4 / DT; i++) {
 		const duty = (i % 100) < 50 ? 1 : 0.15;
-		const s = stepMotor(c, w, duty, V, c.kQ * w * w, DT);
+		const s = stepMotor(c, w, duty, V, c.kQ * c.loss(w) * w * w, DT);
 		w = s.omega;
 		worst = Math.max(worst, s.current);
 		assert.ok(Number.isFinite(w) && w >= 0, `step ${i}: ${w}`);
@@ -319,7 +319,12 @@ t('escCurrentLimit null and the legacy curve give the old behaviour exactly', ()
 			// A duty too low to overcome the no-load current parks the rotor;
 			// the balance below only means anything once it is turning.
 			if (w === 0) continue;
-			assert.ok(Math.abs(c.kQ * w * w - c.Ke * ((duty * V - c.Ke * w) / c.R - c.i0)) < 1e-6 * (1 + w),
+			// The load is `kQ * loss(w) * w^2`, not `kQ * w^2`: the prop-loss
+			// factor is on the torque too, because quad.js loads the motor with
+			// `torqueRatio * thrust` and thrust carries it. Asserting the bare
+			// square law here is what caught the two inversions drifting apart.
+			const load = c.kQ * c.loss(w) * w * w;
+			assert.ok(Math.abs(load - c.Ke * ((duty * V - c.Ke * w) / c.R - c.i0)) < 1e-6 * (1 + w),
 				`${f} at ${duty}`);
 			assert.ok(Math.abs(dutyForOmega(c, w, V) - duty) < 1e-9, `${f} at ${duty}`);
 		}

@@ -114,6 +114,12 @@ function computeMotorConstants(profile) {
 		i0: profile.motor.noLoadCurrent,
 		J: rotorInertiaOf(profile),
 		kQ: kTorqueOf(profile),
+		// The prop-loss factor as a function of rpm, carried here so the two
+		// closed-form inversions below load the motor with the SAME torque the
+		// plant does. quad.js loads it with `torqueRatio * thrust`, and thrust
+		// carries this factor; leaving `kQ * w^2` bare here put the analytic hover
+		// stick 6% light, because the two disagreed by exactly the factor.
+		loss: (w) => propLossFactor(profile, w),
 		// The electrical damping dQ/domega. Constant, and the term that makes
 		// spin-up faster than spin-down.
 		electricalDamping: (Ke * Ke) / R,
@@ -201,7 +207,7 @@ export function stepMotor(c, omega, duty, volts, loadTorque, dt) {
 // curve the moment the rpm comes from a torque balance instead of a power law.
 export function dutyForOmega(c, omega, volts) {
 	if (!(volts > 0)) return 1;
-	const load = c.kQ * omega * omega;
+	const load = c.kQ * lossAt(c, omega) * omega * omega;
 	let duty = (c.R * (load / c.Ke + c.i0) + c.Ke * omega) / volts;
 	// A stick the ESC would refuse is not a stick that holds this rpm.
 	const ceiling = dutyCeiling(c, omega, volts);
@@ -216,6 +222,35 @@ export function dutyForOmega(c, omega, volts) {
 //   Ke*((duty*V - Ke*w)/R - i0) = kQ*w^2
 //
 // is a quadratic in w; the positive root is the only physical one.
+// `c.loss` is optional so a hand-built constants object still works.
+function lossAt(c, omega) {
+	const f = c.loss ? c.loss(omega) : 1;
+	return f > 0 && Number.isFinite(f) ? f : 1;
+}
+
+// The closed form below solves `kQ*w^2` for w. With the loss factor the load is
+// `kQ*loss(w)*w^2`, which has no closed form, so the root is walked: solve with
+// the loss held at the previous estimate, three passes. Same shape as
+// quad.js:omegaForThrust(), same reason, and the round trip through
+// dutyForOmega() is asserted in tools/motor-selftest.mjs.
+function steadyWithLoss(c, duty, volts, closed) {
+	let w = closed(c, duty, volts);
+	if (!c.loss) return w;
+	// Iterated to convergence rather than a fixed three passes: three left 1.8e-6
+	// on the duty round trip, and the round trip is asserted at 1e-9. This is not
+	// in the per-step path — stepMotor() integrates analytically and never calls
+	// it — so the extra passes cost nothing that matters. The cap is a guard, not
+	// a budget: it converges in well under ten.
+	for (let i = 0; i < 40; i++) {
+		const f = lossAt(c, w);
+		const next = closed({ ...c, kQ: c.kQ * f, loss: null }, duty, volts);
+		const moved = Math.abs(next - w);
+		w = next;
+		if (moved <= 1e-13 * (1 + Math.abs(w))) break;
+	}
+	return w;
+}
+
 export function steadyOmega(c, duty, volts) {
 	// Under a current ceiling the settling point is where the load torque meets
 	// the torque the limiter allows: kQ*w^2 = Ke*(iLimit - i0), a single square
@@ -224,11 +259,11 @@ export function steadyOmega(c, duty, volts) {
 		const torqueAtLimit = c.Ke * (c.iLimit - c.i0);
 		if (torqueAtLimit > 0) {
 			const wLimit = Math.sqrt(torqueAtLimit / c.kQ);
-			const free = freeSteadyOmega(c, duty, volts);
+			const free = steadyWithLoss(c, duty, volts, freeSteadyOmega);
 			return free < wLimit ? free : wLimit;
 		}
 	}
-	return freeSteadyOmega(c, duty, volts);
+	return steadyWithLoss(c, duty, volts, freeSteadyOmega);
 }
 
 function freeSteadyOmega(c, duty, volts) {

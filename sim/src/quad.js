@@ -49,7 +49,7 @@
 
 import { Turbulence, mulberry32 } from './wind.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
-import { motorConstants, stepMotor, steadyOmega, dutyForOmega } from './motor.js';
+import { propLossFactor, motorConstants, stepMotor, steadyOmega, dutyForOmega } from './motor.js';
 import { Battery, PACK_DRAINS } from './battery.js';
 import { airDensity } from './air.js';
 import { dragScaleByDiameter } from './curves.js';
@@ -106,12 +106,34 @@ export const HOVER_THRUST = hoverThrust(QUAD);
 // Values per family: freestyle5 0.143 - race5 0.106 - cinewhoop 0.250 -
 // longrange 0.185 - heavy5 0.169 - toothpick 0.231 — all well under the same
 // family's hover stick (hoverStick, tools/selftest.mjs).
+// Rotor speed that makes a given thrust, inverted through the prop-loss factor.
+//
+// `T = kThrust * loss(w) * w^2` has no closed form once `loss` depends on w, so
+// it is a fixed point: start from the square-law answer and divide by the loss
+// at that speed. `loss` is smooth and between ~1 and ~1.3 over the whole range,
+// iterated to convergence rather than a fixed count, because the duty round
+// trip through it is asserted at 1e-9 and three passes left 1.8e-6. Not in the
+// per-step path.
+export function omegaForThrust(profile, thrustPerMotor) {
+	const k = kThrustOf(profile);
+	if (!(thrustPerMotor > 0) || !(k > 0)) return 0;
+	let w = Math.sqrt(thrustPerMotor / k);
+	for (let i = 0; i < 40; i++) {
+		const f = propLossFactor(profile, w);
+		const next = f > 0 ? Math.sqrt(thrustPerMotor / (k * f)) : w;
+		const moved = Math.abs(next - w);
+		w = next;
+		if (moved <= 1e-13 * (1 + w)) break;
+	}
+	return w;
+}
+
 export function idleThrottle(profile = QUAD) {
 	// Solved through the motor (src/motor.js) rather than by inverting
 	// cmd^(2*rpmCurve) by hand: rpm comes from a torque balance now, and that
 	// power law was only ever an approximation of it.
 	const c = motorConstants(profile);
-	const omega = Math.sqrt((profile.mass * GRAVITY) / 2 / 4 / kThrustOf(profile));
+	const omega = omegaForThrust(profile, (profile.mass * GRAVITY) / 2 / 4);
 	return dutyForOmega(c, omega, profile.battery.cells * 4.2);
 }
 
@@ -467,7 +489,7 @@ export class Propulsion {
 	// the very next step() call folds them in anyway.
 	primeFor(cmd) {
 		const w = steadyOmega(this._motor, clamp01(cmd), this.battery.voltage);
-		const t = Math.max(0, this._kThrust * w * w);
+		const t = Math.max(0, this._kThrust * propLossFactor(this.profile, w) * w * w);
 		for (let i = 0; i < 4; i++) {
 			this.omega[i] = w;
 			this.thrust[i] = t;
@@ -551,8 +573,13 @@ export class Propulsion {
 		// guard.
 		const lateral = Math.hypot(vBody.x, vBody.z);
 		const descent = -vBody.y;
-		const vhRef = ((this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4)
-			* this._vhPerOmega;
+		// Same correction as the per-rotor vh below: the vortex-ring band is
+		// normalised in units of induced velocity, so it has to use the same
+		// induced velocity the thrust does or the band drifts against the flow it
+		// describes.
+		const wMeanRef = (this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3]) / 4;
+		const vhRef = wMeanRef * this._vhPerOmega
+			* Math.sqrt(propLossFactor(this.profile, wMeanRef));
 		if (vhRef <= 0) {
 			this.propwash = 0;
 		} else {
@@ -668,7 +695,15 @@ export class Propulsion {
 			// state — and this file already models that regime empirically, as
 			// `propwash` above. The separable form below only ever adds the
 			// edgewise term, which is the one that was missing.
-			const vh = w * this._vhPerOmega;
+			// vh carries the SAME prop-loss factor as the thrust, under a square
+			// root: hover induced velocity is sqrt(T / 2*rho*A), so if the blade
+			// makes `loss` times the thrust at this rpm it also pushes the air
+			// sqrt(loss) times as hard. Leaving vh on the bare square law was the
+			// first thing tried and it broke the hover: the static term went up
+			// 32% while the inflow that pays for it did not, and the analytic hover
+			// stick came out 6% light. The momentum theory and the blade share one
+			// disc; they have to be scaled together or not at all.
+			const vh = w * this._vhPerOmega * Math.sqrt(propLossFactor(P, w));
 			const vEdge2 = vx * vx + vz * vz;
 			// The axial part of `dw` is a FIRST-ORDER slope — the comment above
 			// derives it as such, from the Vc/2 excess that momentum theory gives
@@ -692,7 +727,13 @@ export class Propulsion {
 			// of inducedVelocity() — come through untouched and bit-identical.
 			const vyAxial = Math.max(vy, -AXIAL_INFLOW_LIMIT * vh);
 			const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
-			const tStatic = this._kThrust * w * w;
+			// Prop losses (src/motor.js): a blade tip approaching Mach and a pitch
+			// away from its design point stop making lift. Normalised at maxOmega,
+			// so full-throttle thrust — and with it maxThrustPerMotor, the
+			// thrust-to-weight and the top speed — is unchanged, and only the SHAPE
+			// of the curve below it moves. It moves the right way: a real propeller
+			// sits above the square law at part throttle and flattens at the top.
+			const tStatic = this._kThrust * propLossFactor(P, w) * w * w;
 			const tInflow = -this._kInflow * w * dw;
 			let t = tStatic + tInflow;
 			const tBare = Math.max(0, t);

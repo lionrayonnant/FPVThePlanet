@@ -17,6 +17,7 @@ import {
 	groundEffectStrength, gravityTrimFactor, propInchesOf, specDragScaleOf, map,
 } from '../src/quad.js';
 import { airDensity } from '../src/air.js';
+import { propLossFactor } from '../src/motor.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS, hoverThrottle } from '../src/flightController.js';
 
@@ -80,14 +81,21 @@ console.log('1. translational lift generalises the axial inflow');
 				// as the windmill brake boundary Vc = -2*vh, past which a descent
 				// no longer buys thrust without limit (see step()). Written out
 				// here from the exported coefficients, sharing no code with it.
-				const vyAxial = Math.max(vy, -2 * w * vhPerOmegaOf(profile));
-				const want = Math.max(0, kT * w * w - kI * w * vyAxial) * pw;
+				// kT and vh both carry the prop-loss factor of src/motor.js: the
+				// blade makes `loss` times the static thrust at this rpm, and the
+				// induced velocity that pays for it goes as its square root. Same
+				// two scalings the model applies, written out from the exported
+				// coefficients and sharing no code with it.
+				const loss = propLossFactor(profile, w);
+				const vh = w * vhPerOmegaOf(profile) * Math.sqrt(loss);
+				const vyAxial = Math.max(vy, -2 * vh);
+				const want = Math.max(0, kT * loss * w * w - kI * w * vyAxial) * pw;
 				const rel = Math.abs(s.thrust[0] - want) / Math.max(1e-9, Math.abs(want));
 				if (rel > worst) { worst = rel; worstAt = `${fam} thr=${thr} vy=${vy}`; }
 				// Inside the slope's own validity band nothing may have moved: the
 				// bound must not have disturbed hover, climb or a gentle descent.
-				if (vy >= -2 * w * vhPerOmegaOf(profile)) {
-					const unbounded = Math.max(0, kT * w * w - kI * w * vy) * pw;
+				if (vy >= -2 * vh) {
+					const unbounded = Math.max(0, kT * loss * w * w - kI * w * vy) * pw;
 					const relU = Math.abs(s.thrust[0] - unbounded) / Math.max(1e-9, Math.abs(unbounded));
 					if (relU > worstInBand) { worstInBand = relU; worstInBandAt = `${fam} thr=${thr} vy=${vy}`; }
 				}
@@ -120,7 +128,10 @@ console.log('1. translational lift generalises the axial inflow');
 			// descent rate that is past it for every family (a toothpick at 0.7
 			// throttle is still inside the band at 14 m/s).
 			const settled = settle(profile, flat(thr), air({ y: -1 }));
-			const boundary = 2 * settled.omega[0] * vhPerOmegaOf(profile);
+			// vh carries sqrt(prop-loss) exactly as the model's does — the boundary
+			// is in units of induced velocity, so it moves with it.
+			const boundary = 2 * settled.omega[0] * vhPerOmegaOf(profile)
+				* Math.sqrt(propLossFactor(profile, settled.omega[0]));
 			for (let vy = -boundary - 1; vy >= -boundary - 30; vy -= 2) {
 				const s = settle(profile, flat(thr), air({ y: vy }));
 				const t = s.thrust[0];
@@ -157,7 +168,8 @@ console.log('1. translational lift generalises the axial inflow');
 		const profile = PROFILES[fam];
 		const thr = hoverStick(profile);
 		const settled = settle(profile, flat(thr), air({ y: 0 }));
-		const vh = settled.omega[0] * vhPerOmegaOf(profile);
+		const vh = settled.omega[0] * vhPerOmegaOf(profile)
+			* Math.sqrt(propLossFactor(profile, settled.omega[0]));
 
 		if (settled.prop.propwash > worstHover) {
 			worstHover = settled.prop.propwash; worstHoverAt = fam;
@@ -212,9 +224,17 @@ console.log('1. translational lift generalises the axial inflow');
 		const target = 1 + 2 * INFLOW_K0 * (profile.inflowGain ?? 1);
 		const s = settle(profile, flat(0.6), air({ z: -1e8 }));
 		const w = s.omega[0];
-		const ratio = s.thrust[0] / (kT * w * w);
-		const err = Math.abs(ratio - target);
-		if (err > worst) { worst = err; worstAt = `${fam} ${ratio.toFixed(7)} vs ${target.toFixed(7)}`; }
+		// Both halves carry the prop-loss factor, and they carry different powers
+		// of it: the static term goes as `loss`, the induced term as sqrt(loss)
+		// because vh does. So against the static term the saturation limit is
+		// 1 + (target-1)/sqrt(loss), which collapses back to `target` the moment
+		// the factor is 1. Writing it out this way keeps the identity between two
+		// independently composed exports rather than pinning a measured number.
+		const loss = propLossFactor(profile, w);
+		const targetHere = 1 + (target - 1) / Math.sqrt(loss);
+		const ratio = s.thrust[0] / (kT * loss * w * w);
+		const err = Math.abs(ratio - targetHere);
+		if (err > worst) { worst = err; worstAt = `${fam} ${ratio.toFixed(7)} vs ${targetHere.toFixed(7)}`; }
 	}
 	check('thrust gain saturates at exactly 1 + 2*INFLOW_K0*inflowGain',
 		worst < 1e-6, `worst deviation ${worst.toExponential(1)} (${worstAt})`);
@@ -276,9 +296,13 @@ const cmd = (profile, thr, { roll = 0, pitch = 0, yaw = 0 } = {}) =>
 // so the spins cancel exactly for roll and for pitch no matter what the rpm
 // curve does to the magnitudes.
 {
-	let worst = 0, worstAt = '';
+	let worst = 0, worstAt = '', hScale = 0;
 	for (const fam of FAMILIES) {
 		const profile = PROFILES[fam];
+		// One rotor's angular momentum at hover rpm: the magnitude the four are
+		// cancelling. The residue is asserted against this rather than against an
+		// absolute floor.
+		hScale = Math.max(hScale, profile.propInertia * profile.maxOmega * 0.4);
 		for (const axis of ['roll', 'pitch']) {
 			for (const d of [0.1, 0.25, 0.5, 0.9]) {
 				for (const thr of [0.2, 0.5, 0.8]) {
@@ -289,7 +313,13 @@ const cmd = (profile, thr, { roll = 0, pitch = 0, yaw = 0 } = {}) =>
 		}
 	}
 	check('pure roll and pure pitch carry no net rotor momentum',
-		worst < 1e-18, `worst |H| ${worst.toExponential(1)} N.m.s (${worstAt})`);
+		// Relative, not absolute. 1e-18 was one ulp of the quantity being
+		// cancelled (~0.0125 N.m.s), so any change to a profile's thrust could
+		// push the residue over it while the cancellation stayed exact. Scaled by
+		// the momentum of a single rotor, this asserts the same thing and cannot
+		// be broken by arithmetic that did not change.
+		worst < 1e-12 * hScale, `worst |H| ${worst.toExponential(1)} N.m.s, `
+			+ `${(worst / hScale).toExponential(1)} of one rotor (${worstAt})`);
 }
 
 // ...and yaw does, opposing the commanded direction, because the airframe's

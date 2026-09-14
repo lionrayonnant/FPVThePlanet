@@ -1,4 +1,4 @@
-import { mixOf, kThrustOf, gravityTrimFactor } from './quad.js';
+import { mixOf, kThrustOf, gravityTrimFactor, omegaForThrust } from './quad.js';
 import { motorConstants, dutyForOmega } from './motor.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { rateFor, actualRateDeg, maxRateDeg } from './rates.js';
@@ -459,8 +459,11 @@ export function hoverThrottle(profile, q, volts = profile.battery.cells * 4.2) {
 	const perMotor = clamp(need / 4, 0, profile.maxThrustPerMotor);
 	// Thrust -> rpm through the prop, rpm -> stick through the motor's own
 	// torque balance (src/motor.js). This used to invert `cmd^(2*rpmCurve)`,
-	// which stopped being the right curve when rpm stopped being a power law.
-	const omega = Math.sqrt(perMotor / kThrustOf(profile));
+	// which stopped being the right curve when rpm stopped being a power law --
+	// and then stopped being a closed form at all when the prop-loss factor made
+	// thrust more than proportional to rpm squared. omegaForThrust() is that
+	// inversion, in quad.js beside the forward law it undoes.
+	const omega = omegaForThrust(profile, perMotor);
 	return dutyForOmega(motorConstants(profile), omega, volts);
 }
 
