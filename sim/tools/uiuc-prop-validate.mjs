@@ -111,6 +111,29 @@ export function calibrate(p, rpm, ct, cp) {
 	});
 }
 
+// Error against advance ratio, in tenth-wide bins, with the SIGN kept.
+//
+// This is the view that matters and the reason it is built in rather than done
+// on the side. A mean error over a whole database says "the model is 77% out"
+// and stops there. The same points split by J said something an average cannot:
+// the error grew monotonically with advance ratio and never changed sign, which
+// is a structural defect and not scatter — and its shape named the term that
+// was missing, the zero-lift angle of a cambered section. A mean absolute error
+// alone would have hidden that behind the propellers that happened to agree.
+export const BIN_WIDTH = 0.1;
+export const BIN_COUNT = 12;
+
+function newBins() {
+	return Array.from({ length: BIN_COUNT }, (_, i) => ({
+		lo: i * BIN_WIDTH, hi: (i + 1) * BIN_WIDTH,
+		n: 0, absCt: 0, signedCt: 0, absCp: 0, signedCp: 0,
+	}));
+}
+
+function binFor(bins, J) {
+	return bins[Math.min(BIN_COUNT - 1, Math.max(0, Math.floor(J / BIN_WIDTH)))];
+}
+
 export function analyse(root) {
 	const props = new Map();
 	for (const f of walk(root)) {
@@ -127,6 +150,7 @@ export function analyse(root) {
 	}
 
 	const results = [];
+	const bins = newBins();
 	for (const [name, p] of props) {
 		if (!p.static.length || !p.sweeps.length) continue;
 		// The static point nearest the middle of the measured rpm range: the ends
@@ -147,6 +171,12 @@ export function analyse(root) {
 				const eCt = Math.abs(got.ct - ct) / ct;
 				sumCt += eCt;
 				sumCp += Math.abs(got.cp - cp) / cp;
+				const b = binFor(bins, J);
+				b.n++;
+				b.absCt += eCt;
+				b.signedCt += (got.ct - ct) / ct;
+				b.absCp += Math.abs(got.cp - cp) / cp;
+				b.signedCp += (got.cp - cp) / cp;
 				n++;
 				if (eCt > worst) { worst = eCt; worstAt = `J=${J.toFixed(2)}`; }
 			}
@@ -157,6 +187,7 @@ export function analyse(root) {
 			d: p.diameter / INCH, pitch: p.pitch / INCH, cd0: geom.cd0,
 		});
 	}
+	results.bins = bins;
 	return results;
 }
 
@@ -253,8 +284,23 @@ for (const r of results) {
 const meanCt = results.reduce((a, r) => a + r.ct, 0) / results.length;
 const meanCp = results.reduce((a, r) => a + r.cp, 0) / results.length;
 console.log(`\nacross all ${results.length}: CT ${(meanCt * 100).toFixed(1)}%, CP ${(meanCp * 100).toFixed(1)}%`);
+
+console.log('\nAgainst advance ratio. The SIGNED column is the one to read: scatter');
+console.log('averages towards zero there, so a signed error that tracks J and keeps');
+console.log('its sign is a missing term, not noise.\n');
+console.log('J           pts    |err CT|    signed    |err CP|    signed');
+for (const b of results.bins) {
+	if (!b.n) continue;
+	const pc = (v) => `${((100 * v) / b.n).toFixed(1).padStart(8)}%`;
+	console.log(`${b.lo.toFixed(1)}-${b.hi.toFixed(1)} ${String(b.n).padStart(7)}  ${pc(b.absCt)} ${pc(b.signedCt)}  ${pc(b.absCp)} ${pc(b.signedCp)}`);
+}
+
 console.log('\nFor reference: blade-element momentum theory with a generic aerofoil is');
 console.log('usually quoted at 10-20% on CT for props this small, and worse on CP,');
 console.log('where Reynolds number is low and published polars stop applying. Under');
 console.log('that is the model working. Well over it is the model being wrong, and');
 console.log('the shape of the error against J says where.');
+console.log('\nNote on the tail. The relative error grows with J because CT itself goes');
+console.log('to zero: the same absolute miss is 5% at J=0.1 and 200% one point before');
+console.log('the thrust-zero knee. That is why the signed column, not the magnitude,');
+console.log('is what a defect shows up in.');
