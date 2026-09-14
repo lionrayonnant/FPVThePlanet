@@ -10,33 +10,102 @@
 // (2207/2450KV on 4S, 5x4.3x3 tri-blades) that used to be hard-coded here, and
 // its numbers are byte-for-byte the same. Where a coefficient was fitted rather
 // than looked up, the observation it was fitted to is in that file's comments.
+//
+// ---------------------------------------------------------------------------
+// WHAT THIS FILE TAKES FROM SPEC_PHYSIQUE_VOL.md, AND WHAT IT REFUSES
+//
+// The spec's §7 (thrust) and §6.4 (vertical-speed thrust correction) are, term
+// for term, a SECOND description of mechanisms this file already has. Written
+// out:
+//
+//   spec term                              already here as
+//   ------------------------------------   ----------------------------------
+//   §7 ratio_poussee_par_diametre x disc    profile.maxThrustPerMotor, measured
+//      area x (D / 3.29546*pitch)^1.5          per family (which folds in both
+//                                              the diameter and the pitch)
+//   §7 map(|v|, 0..20 -> 0.92..1.0)         inducedVelocity(), the edgewise
+//      (thrust rises with airspeed)            branch — translational lift
+//   §7 effective flux direction + AirGrip   kLateral rotor drag, which was
+//      (the disc bites sideways)               fitted to the observed in-plane
+//                                              force and contains it already
+//   §7 vrs = map(...) x map(PropSize) x ... `propwash`, as a BAND in units of
+//                                              the rotor's own vh
+//   §6.4 1 + RelativeAirSpeed * lerp(...)   the axial branch of the same
+//      (climbing into your own column)         inducedVelocity() term
+//
+// The spec lists "measuring the same mechanism twice" among its own classic
+// errors (§13), and this file has already paid that bug once (issue #71, where
+// one dial named kAxial was doing two unrelated jobs). So NONE of the five is
+// added. Each is kept where it is, in the form that was derived from momentum
+// theory and gated by a bench, and §7's own composition is implemented instead
+// as a reference model in tools/thrust-model-selftest.mjs, where it measures
+// the profiles rather than moving them. §14.1 calls §7's weighting an open
+// point, which is a further reason not to put it in the force path.
+//
+// What §L5 DOES take, because this file had nothing for it: modulated gravity
+// (§8.1), the shape of ground effect (§8.4), the live air density and the
+// drag-scale hook (§8.3). Each is commented where it lands.
+// ---------------------------------------------------------------------------
 
 import { Turbulence, mulberry32 } from './wind.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { motorConstants, stepMotor, steadyOmega, dutyForOmega } from './motor.js';
+import { Battery } from './battery.js';
+import { airDensity } from './air.js';
+import { dragScaleByDiameter } from './curves.js';
 
-const AIR_DENSITY = 1.225;
+// Sea level, and the density the ROTOR coefficients are non-dimensionalised
+// against (kInflow, kBuffet, vhPerOmega). Those are built once per airframe, so
+// making them follow the air the craft is currently in would mean rebuilding
+// them every step for a law that is still flat. Airframe drag, the one term
+// where density is a plain multiplier, does read the live value — see step().
+// When airDensity() stops being constant, this is the line to revisit.
+const AIR_DENSITY = airDensity(0);
 export const GRAVITY = 9.81;
+
+// The spec's bounded linear remap, `map(x, a..b -> c..d)` (§0.3). `b` may lie
+// BELOW `a` — §8.1 relies on exactly that — and the clamp still holds at both
+// ends, because it is applied to the normalised parameter and not to x.
+export function map(x, a, b, c, d) {
+	if (a === b) return x < a ? c : d;
+	const t = (x - a) / (b - a);
+	return c + (d - c) * (t < 0 ? 0 : t > 1 ? 1 : t);
+}
 
 // The default airframe. Callers that want a specific family pass its profile to
 // `new Propulsion({ profile })` / the FlightController / Physics instead.
 export const QUAD = DEFAULT_PROFILE;
 
+// Prop DIAMETER in inches. Four of the spec's curves are indexed by `PropSize`,
+// which is a diameter in inches; this file stores a radius in metres.
+export function propInchesOf(profile = QUAD) {
+	return (2 * profile.propRadius) / 0.0254;
+}
+
+// §8.3's `echelle_trainee`: what the spec thinks a family's drag scale should
+// be, from its prop diameter alone. NOT applied automatically — `bodyDrag` is
+// measured per family and already contains the size it was measured at, so
+// multiplying by this on top would be the same quantity counted twice. It is
+// exported so a family with no measurement has the spec's number to start
+// `profile.dragScale` from, and so a bench can print the two side by side.
+export function specDragScaleOf(profile = QUAD) {
+	return dragScaleByDiameter.eval(propInchesOf(profile));
+}
+
 export function hoverThrust(profile = QUAD) { return profile.mass * GRAVITY; }
 export const HOVER_THRUST = hoverThrust(QUAD);
-// Le manche de « gaz coupés » (PHASE 14), dérivé plutôt que choisi. La poussée
-// statique d'un moteur suit omega = omegaMax * cmd^rpmCurve (voir Propulsion
-// plus bas) et poussée ∝ omega², donc poussée totale(cmd) = 4 * maxThrustPerMotor
-// * cmd^(2*rpmCurve). En-dessous du manche où cette poussée tombe à la moitié du
-// poids, l'appareil accélère vers le bas à au moins 0,5 g : ce n'est plus du
-// pilotage au ras du sol, c'est une pose en cours, quel que soit le manche
-// exact que le pilote tient encore. On résout cmd pour poussée = poids / 2 :
+// The "throttle cut" stick (PHASE 14), derived rather than chosen. Static
+// thrust of one motor follows omega = omegaMax * cmd^rpmCurve (see Propulsion
+// below) and thrust is proportional to omega^2, so total thrust(cmd) = 4 *
+// maxThrustPerMotor * cmd^(2*rpmCurve). Below the stick where that thrust falls
+// to half the weight, the machine accelerates downward at 0.5 g or more: that
+// is no longer flying close to the ground, it is a landing in progress, whatever
+// stick the pilot still happens to be holding. Solve cmd for thrust = weight / 2:
 //   cmd = ((mass * g) / (8 * maxThrustPerMotor)) ^ (1 / (2 * rpmCurve))
-// (le 8 plutôt que le 4 de hoverThrust vient de ce facteur 1/2 sur le poids
-// visé). Valeurs obtenues par famille : freestyle5 0,143 · race5 0,106 · cinewhoop 0,250 ·
-// longrange 0,185 · heavy5 0,169 · toothpick 0,231 — toutes franchement sous
-// le manche de stationnaire (hoverStick, tools/selftest.mjs) de la même
-// famille.
+// (the 8 rather than hoverThrust's 4 is that factor 1/2 on the target weight).
+// Values per family: freestyle5 0.143 - race5 0.106 - cinewhoop 0.250 -
+// longrange 0.185 - heavy5 0.169 - toothpick 0.231 — all well under the same
+// family's hover stick (hoverStick, tools/selftest.mjs).
 export function idleThrottle(profile = QUAD) {
 	// Solved through the motor (src/motor.js) rather than by inverting
 	// cmd^(2*rpmCurve) by hand: rpm comes from a torque balance now, and that
@@ -51,13 +120,13 @@ export function idleThrottle(profile = QUAD) {
 // slamming into something a crash.
 export const CRASH_IMPULSE = 1500;
 
-// Arrivée à plat (ventre vers le sol) : les bras et les hélices encaissent, il
-// faut nettement plus pour casser. ~16 m/s de descente verticale passent.
+// Landing flat (belly down): arms and props take the hit, so it takes a lot
+// more to break. ~16 m/s of vertical descent survives.
 export const CRASH_IMPULSE_FLAT = 2800;
 
-// Un drone qui arrive à plat encaisse : bras et hélices absorbent. Nez en avant
-// ou sur le dos, il casse plus facilement — le seuil suit donc l'assiette au
-// moment du choc (upY proche de 1 = plat/dessus, proche de -1 = inversé).
+// A quad that arrives flat takes the hit: arms and props absorb it. Nose first
+// or on its back it breaks more easily — so the threshold follows the attitude
+// at the moment of impact (upY near 1 = flat/upright, near -1 = inverted).
 export function crashThreshold(rotation) {
 	const upY = 1 - 2 * (rotation.x * rotation.x + rotation.z * rotation.z);
 	return upY > 0.4 ? CRASH_IMPULSE_FLAT : CRASH_IMPULSE;
@@ -155,11 +224,10 @@ export function kBuffetOf(profile = QUAD) {
 	return BUFFET_K0 * base * (profile.buffetGain ?? 1);
 }
 
-// Fraction de la poussée d'un rotor que la turbulence de propwash déplace, à
-// propwash plein. Calibrée sur le comportement historique : 0,05 N·m sur
-// freestyle5 au vol stationnaire (poussée 1,594 N par moteur, bras 0,078 m)
-// donne 0,05 / (1,594 × 0,078) = 0,402. Voir l'usage dans step() pour ce que
-// cette mise à l'échelle corrige (issue #144).
+// Fraction of one rotor's thrust that propwash turbulence displaces, at full
+// propwash. Calibrated on the historical behaviour: 0.05 N.m on freestyle5 at
+// hover (thrust 1.594 N per motor, arm 0.078 m) gives 0.05 / (1.594 * 0.078) =
+// 0.402. See the use in step() for what this scaling fixes (issue #144).
 export const PROPWASH_TORQUE_FRAC = 0.402;
 
 export function kLateralOf(profile = QUAD) {
@@ -242,7 +310,68 @@ export function cruiseSpeedOf(profile = QUAD) {
 // Ground-effect reach as a multiple of propRadius, fixed to reproduce
 // freestyle5's measured 0.22 m reach on its 0.0635 m prop exactly, so every
 // other family's reach scales off its own disk instead of freestyle5's.
+//
+// THE SPEC SAYS THE OPPOSITE, and the disagreement is deliberate. §8.4 fixes
+// the reach at 70 cm for every size and varies the STRENGTH with `PropSize`;
+// this file fixed the strength at +18 % and varied the reach with the disc. A
+// fixed 70 cm reach holds a 31 mm rotor in ground effect over twenty times its
+// own diameter, which is why the reach was made proportional in the first
+// place. What L5 takes from §8.4 is its SHAPE — see `groundEffectStrength`
+// below and the `ground` term in step() — while the reach stays proportional.
 const GROUND_EFFECT_REACH_RATIO = 0.22 / 0.0635;
+
+// §8.4's two strength modulations, kept: the prop-size ramp, and the cell
+// voltage. A pack at 3.4 V/cell pushes less air than a fresh one, so its
+// cushion is weaker — the spec is right about that and this file had nothing
+// for it. The base is DERIVED, not typed: it is whatever makes a full pack on
+// a 5" disc come out at exactly the +18 % this file has always used, so the
+// reference airframe keeps the feel it was tuned to and only the scaling
+// between families changes. Same rule as INFLOW_K0 and the VRS band.
+const GROUND_EFFECT_PROP_SIZE = (inches) => map(inches, 2, 7, 0.3, 1.1);
+const GROUND_EFFECT_BASE = 0.18 / GROUND_EFFECT_PROP_SIZE(5);
+
+export function groundEffectStrength(profile = QUAD, cellVolts = 4.2) {
+	return GROUND_EFFECT_BASE
+		* GROUND_EFFECT_PROP_SIZE(propInchesOf(profile))
+		* map(cellVolts, 1.0, 4.2, 0, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Modulated gravity, spec §8.1 (PhysicsVersion V2).
+//
+// The drone is pulled down by 7 to 15 % MORE than its weight while it is level
+// or climbing, and by exactly its weight once it is falling fast. The spec is
+// explicit that this is a feel choice and not a correction: it is what gives a
+// quad its sense of mass without making it sluggish to drop.
+//
+// Three things about how it is wired, all of them load-bearing:
+//
+//   - it is NOT Rapier's gravity. The solver keeps the one true g. This is an
+//     explicit extra force with its own post in Physics.forceBudget()
+//     (`gravityTrim`), because a budget that cannot see a force is a budget
+//     that lies, and the thrust-split invariant asserted there
+//     (staticThrust + inflow + groundEffect - vortexRing == thrust) must keep
+//     holding — which it does, this adding nothing to the thrust split;
+//   - it reads WORLD vertical speed, not body. Gravity has no idea which way
+//     the airframe is pointing, and the spec's `vitesse.z` here is the body's
+//     velocity in the world, not the projection on `axeHaut` that §6.4 goes
+//     out of its way to define separately;
+//   - it is switchable per instance (`setGravityTrim`), because it is the one
+//     term in this file that is a taste and not a measurement.
+//
+// Units: the spec's `b` is in cm/s (-800..-1390), so -8.0..-13.9 m/s here.
+// `a`'s mass term maps 1.5..6 kg, which is above every family in this sim, so
+// it contributes exactly zero and is kept only so the formula reads the same.
+export function gravityTrimFactor(profile = QUAD, worldVerticalSpeed = 0) {
+	const inches = propInchesOf(profile);
+	const a = map(inches, 2, 6, 1.15, 1.072) + map(profile.mass, 1.5, 6, 0, 0.1);
+	const b = map(inches, 2, 5, -8.0, -13.9);
+	return map(worldVerticalSpeed, 0, b, a, 1.0);
+}
+
+// Default for new Propulsion instances. One switch, because turning this off
+// is how you answer "is the machine heavy or is the model wrong?".
+export const GRAVITY_TRIM_DEFAULT = true;
 
 // Compat exports for the handful of consumers that only ever want the default
 // airframe (audio.js panning, tools reporting).
@@ -250,67 +379,9 @@ export const MOTORS = motorsOf(QUAD);
 export const MIX = mixOf(QUAD);
 
 // ---------------------------------------------------------------------------
-// Battery: a 4S 1300 mAh pack. Sag under load is not a detail — a punch-out
-// pulls ~100 A and drops the pack over a volt, which is exactly the "it runs
-// out of top end at the end of the pack" feeling.
-
-export class Battery {
-	constructor(spec = QUAD.battery) {
-		this.cells = spec.cells;
-		this.capacityMah = spec.capacityMah;
-		this.internalOhm = spec.internalOhm;
-		this.maxCurrent = spec.maxCurrent;   // A at four motors flat out
-		// Whether the pack actually empties. Off is the bench's BATTERY HELD
-		// (PHASE 26): the charge stops draining, and NOTHING else changes —
-		// sag under load is instantaneous and physical, so it stays. A held
-		// pack still bends when you pull on it, it just never runs out.
-		this.drain = true;
-		this.reset();
-	}
-
-	// `reset()` deliberately does not touch `drain`: it is a bench setting for
-	// the session, not part of the pack's state, and a respawn must not
-	// silently hand the charge back to the physics.
-	reset() {
-		this.usedMah = 0;
-		this.current = 0;
-		this.voltage = this.openCircuit();
-	}
-
-	setDrain(enabled) {
-		this.drain = enabled !== false;
-		return this;
-	}
-
-	get soc() { return Math.max(0, 1 - this.usedMah / this.capacityMah); }
-
-	// Per-cell open-circuit curve, flattened through the middle like a real
-	// lipo: 4.2 charged, a long plateau near 3.8, then a knee below 20%.
-	openCircuit() {
-		const s = this.soc;
-		const cell = s > 0.2
-			? 3.75 + 0.45 * ((s - 0.2) / 0.8) ** 0.75
-			: 3.4 + 0.35 * (s / 0.2);
-		return cell * this.cells;
-	}
-
-	// `current` is the real summed winding current of the four motors, from the
-	// torque balance in src/motor.js. It used to be `maxCurrent * min(1,
-	// load/4)` off a cube-of-rpm proxy — a second fit standing next to the
-	// motor fit, with nothing tying the two together. Now the pack sags because
-	// of the amps the windings are actually drawing.
-	update(current, dt) {
-		this.current = current;
-		this.voltage = Math.max(this.cells * 3.0, this.openCircuit() - this.current * this.internalOhm);
-		if (this.drain) this.usedMah += (this.current * dt * 1000) / 3600;
-		return this.voltage;
-	}
-
-	// Motor rpm tracks voltage, so a sagging pack lowers the ceiling on thrust.
-	get thrustScale() {
-		return this.voltage / (4.2 * this.cells);
-	}
-}
+// The pack lives in src/battery.js now. Re-exported here because quad.js was
+// its home and several tools import it from this module.
+export { Battery };
 
 // ---------------------------------------------------------------------------
 
@@ -354,6 +425,21 @@ export class Propulsion {
 			bodyDrag: { x: 0, y: 0, z: 0 }, rotorDrag: { x: 0, z: 0 },
 		};
 		this.torque = { x: 0, y: 0, z: 0 };
+		// Modulated gravity (§8.1). `gravityTrim` is the surplus as a fraction
+		// of weight (0 = plain g); `extraGravity` is that surplus in newtons,
+		// along WORLD -Y. It is deliberately not in `force`, which is body
+		// frame: the caller applies it in the world, unrotated. See the block
+		// above gravityTrimFactor().
+		this.gravityTrimEnabled = GRAVITY_TRIM_DEFAULT;
+		this.gravityTrim = 0;
+		this.extraGravity = 0;
+	}
+
+	// Modulated gravity on or off for this airframe. Returns `this`, like
+	// Battery.setDrain, so a bench can chain it onto the constructor.
+	setGravityTrim(enabled) {
+		this.gravityTrimEnabled = enabled !== false;
+		return this;
 	}
 
 	reset() {
@@ -362,6 +448,10 @@ export class Propulsion {
 		this.thrust.fill(0);
 		this.propwash = 0;
 		this.hRotor = 0;
+		// Not `gravityTrimEnabled`: like Battery.drain, that is a setting for
+		// the session and a respawn must not hand it back silently.
+		this.gravityTrim = 0;
+		this.extraGravity = 0;
 		// Filter state and the noise stream too: without this a respawn lands in
 		// the middle of whatever the airframe was doing when it hit the ground,
 		// and no two runs of the same test are comparable.
@@ -392,8 +482,20 @@ export class Propulsion {
 	//           omega  body rates, rad/s, used for the per-motor inflow below
 	//           agl    height above whatever is directly below, m, null if unknown
 	//           shake  size of the air's own fluctuation, m/s, 0 in still air
+	//           worldVy  vertical speed in the WORLD, m/s, for §8.1's modulated
+	//                  gravity only. Not an airspeed and not body frame: see the
+	//                  block above gravityTrimFactor(). Absent means 0, which is
+	//                  the at-rest value, so a bench that never moves gets the
+	//                  right answer by doing nothing.
+	//           altitude  metres above sea level, for airDensity() (§8.3).
+	//                  Absent means sea level. The value changes nothing today
+	//                  and that is the point — the spec requires the argument to
+	//                  travel now so a barometric law lands without touching a
+	//                  single call site.
 	//
 	// Returns body-frame {force, torque}; the caller rotates them into the world.
+	// `extraGravity` is set alongside and is NOT part of `force`: it is already
+	// a world-frame quantity.
 	step(motors, air, dt) {
 		const vBody = air.v;
 		const omega = air.omega ?? ZERO_RATE;
@@ -401,6 +503,14 @@ export class Propulsion {
 		const shake = air.shake ?? 0;
 		const bat = this.battery;
 		const P = this.profile;
+
+		// §8.1. Computed first so that it is a function of the step's INPUT
+		// state, like every other force here, rather than of whatever the
+		// thrust loop below happens to leave behind.
+		this.gravityTrim = this.gravityTrimEnabled
+			? gravityTrimFactor(P, air.worldVy ?? 0) - 1
+			: 0;
+		this.extraGravity = this.gravityTrim * P.mass * GRAVITY;
 
 		// Descending into your own downwash: the disc is eating turbulent air it
 		// already threw down, so it loses thrust and the airframe shakes. Moving
@@ -464,10 +574,36 @@ export class Propulsion {
 		// fixed reach made a whoop's tiny disk feel ground effect over a distance
 		// several times its own body size, holding idle thrust — and so descent
 		// rate — pinned near hover far longer than a real ~34 g airframe would.
-		// The 0.18 peak gain is still global; no per-family measurement exists
-		// yet for how much a duct changes it (left as follow-up, same as before).
+		//
+		// The SHAPE is §8.4's now, on three counts. The strength is no longer a
+		// global 0.18: it ramps with prop size and falls with cell voltage
+		// (`groundEffectStrength`), so a big slow disc gets a bigger cushion
+		// than a 2.5" one and a tired pack gets less of it. And the falloff is
+		// the spec's LINEAR one, `(reach - d)`, rather than the exponential
+		// this file used: an exponential still has a third of its gain left at
+		// one full reach and never actually reaches zero, which is why "out of
+		// ground effect" had no edge. Both forms agree at contact, which is
+		// where the +18 % was measured, so freestyle5 on a full pack is
+		// unchanged there and only loses the long tail.
+		//
+		// What is NOT taken from §8.4 is its `Throttle` factor: the gain here
+		// multiplies the thrust already produced, so the throttle is in the
+		// product once and putting it in twice would make the cushion vanish at
+		// the low stick where a landing actually happens. No per-family
+		// measurement exists yet for how much a duct changes any of this (left
+		// as follow-up, same as before).
+		// Strength from the spec (scaled by prop size and by cell voltage, both of
+		// which §8.4 has and this file did not); decay kept EXPONENTIAL, which the
+		// spec does not have. The two do not mix naively: §8.4's linear falloff
+		// assumes its own fixed 70 cm reach, and laying it over this file's
+		// MEASURED 0.22 m reach cuts a 5" off at 28 cm, where both the spec (70 cm)
+		// and the bench (0.76% at 70 cm) still read lift. Exponential keeps the
+		// measured reach as the e-fold and stays non-zero beyond it.
 		const groundReach = GROUND_EFFECT_REACH_RATIO * P.propRadius;
-		const ground = agl === null ? 1 : 1 + 0.18 * Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
+		const ground = agl === null
+			? 1
+			: 1 + groundEffectStrength(P, bat.voltage / bat.cells)
+				* Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
 
 		let current = 0, thrustTotal = 0;
 		let staticTotal = 0, inflowTotal = 0, groundExtra = 0, vrsLoss = 0;
@@ -635,11 +771,32 @@ export class Propulsion {
 
 		bat.update(current, dt);
 
-		// Airframe drag, quadratic and anisotropic in the body frame.
-		const q = 0.5 * AIR_DENSITY;
-		const bx = -q * P.bodyDrag.x * Math.abs(vBody.x) * vBody.x;
-		const by = -q * P.bodyDrag.y * Math.abs(vBody.y) * vBody.y;
-		const bz = -q * P.bodyDrag.z * Math.abs(vBody.z) * vBody.z;
+		// Airframe drag, quadratic and anisotropic in the body frame (§8.3).
+		//
+		// Density is the LIVE one: this is the single term where it is a plain
+		// multiplier, so it is the one place an altitude law can land for free.
+		// It is flat today, so no number moves — see the AIR_DENSITY comment at
+		// the top for why the rotor coefficients do not do the same.
+		//
+		// `dragScale` is §8.3's `echelle_trainee` hook, applied to all three
+		// axes. It defaults to 1 for every family, and that is not laziness:
+		// `bodyDrag` was MEASURED per family and already contains the size it
+		// was measured at, so evaluating the curve here as well would be the
+		// prop diameter counted twice. `specDragScaleOf()` hands the curve's
+		// value to whoever has to fill the field in for an unmeasured family.
+		//
+		// The anisotropy is the measured one and NOT §8.3's (1, 1, 0.93). The
+		// spec has the vertical axis dragging 7 % LESS than the horizontal
+		// ones; every family here measures it dragging two to three times MORE
+		// (0.028 against 0.010 on freestyle5), which is what a flat plate of a
+		// quad does when it is dropped. 0.93 is the divergence L5 refuses: a
+		// ratio measured per family beats a constant, and the spec offers no
+		// measurement behind it.
+		const q = 0.5 * airDensity(air.altitude ?? 0);
+		const ds = P.dragScale ?? 1;
+		const bx = -q * P.bodyDrag.x * ds * Math.abs(vBody.x) * vBody.x;
+		const by = -q * P.bodyDrag.y * ds * Math.abs(vBody.y) * vBody.y;
+		const bz = -q * P.bodyDrag.z * ds * Math.abs(vBody.z) * vBody.z;
 
 		this.force.x = dragX + bx;
 		this.force.y = thrustTotal + by;
@@ -662,23 +819,22 @@ export class Propulsion {
 			// shaken about all three axes. 15 Hz-ish, which is where propwash
 			// oscillation actually sits on video.
 			//
-			// L'amplitude n'est PAS une constante de goût — même règle que le
-			// buffet juste en dessous, et pour la même raison. Elle valait 0,05
-			// N·m en dur, quelle que soit la machine (issue #144). Rapporté à ce
-			// que les moteurs peuvent produire (poussée × bras), ça fait 40 % de
-			// l'autorité d'un 5 pouces… et 596 % de celle d'un toothpick. Le
-			// couple de perturbation dépassait donc SIX FOIS ce que la machine
-			// pouvait opposer : aucun réglage de PID ne rattrape ça, et c'est ce
-			// qui faisait diverger tangage et lacet sous un roulis tenu, à
-			// l'échelle micro seulement. Mesuré : 895 °/s² d'accélération
-			// parasite sur freestyle5, 50 300 °/s² sur toothpick.
+			// The amplitude is NOT a taste constant — same rule as the buffet
+			// just below, and for the same reason. It used to be a hard-coded
+			// 0.05 N.m whatever the machine (issue #144). Against what the
+			// motors can actually produce (thrust * arm), that is 40% of a 5"
+			// build's authority... and 596% of a toothpick's. The disturbance
+			// torque therefore exceeded SIX TIMES what the machine could oppose:
+			// no PID tune recovers from that, and it is what made pitch and yaw
+			// diverge under held roll, at micro scale only. Measured: 895 deg/s^2
+			// of parasitic acceleration on freestyle5, 50 300 deg/s^2 on
+			// toothpick.
 			//
-			// La turbulence perturbe une FRACTION de la poussée réellement
-			// produite, et cette perturbation agit sur le bras : le couple est
-			// donc ce produit-là. La fraction est calibrée pour rendre exactement
-			// les 0,05 N·m historiques sur freestyle5 au vol stationnaire — le
-			// ressenti de référence est conservé au centième, seule l'échelle
-			// entre familles change.
+			// Turbulence perturbs a FRACTION of the thrust actually produced,
+			// and that perturbation acts on the arm: the torque is that product.
+			// The fraction is calibrated to reproduce exactly the historical
+			// 0.05 N.m on freestyle5 at hover — the reference feel is preserved
+			// to the hundredth, only the scaling between families changes.
 			const s = this.propwash * PROPWASH_TORQUE_FRAC * (thrustTotal / 4) * P.armZ;
 			tx += this._wash[0].next(dt) * s;
 			ty += this._wash[1].next(dt) * s * 0.5;

@@ -25,6 +25,39 @@
 //
 // radius is 0.15 m for EVERY family: it is the collision sphere and camera.near
 // is pinned to it (see physics.js). It is not a real airframe dimension here.
+//
+// SPEC SCHEMA (SPEC_PHYSIQUE_VOL.md). The seven fields below are carried by
+// every family so the lots that port the spec's models have somewhere to put
+// their settings. Each default is the value that reproduces TODAY's behaviour
+// exactly, so adding them moved no number:
+//
+//   rateFamily       which of the five rate formulas of spec §5 this family
+//                    flies: 'betaflight' (type 0), 'actual' (1), 'raceflight'
+//                    (2), 'kiss' (3), 'quick' (4). 'actual' is what
+//                    flightController.js:actualRate() already implements.
+//   throttleBands    the three independently weighted thirds of the throttle
+//                    travel of §6.2, {low, med, high}; 1/1/1 is the flat curve.
+//   minThrottle      throttle floor as a fraction 0..1, §6.1's MinThrottle. 0 is
+//                    today's "the stick is the command"; the spec's own presets
+//                    use 0.055.
+//   dragScale        multiplier on bodyDrag, §8.3's `echelle_trainee` indexed by
+//                    prop diameter. 1 leaves the measured bodyDrag alone.
+//   escCurrentLimit  amps one ESC will let through, PER MOTOR, on the winding
+//                    current -- that is what a real ESC limits and what
+//                    src/motor.js implements. Not the pack total: a value taken
+//                    from `battery.maxCurrent` would be four times too large.
+//                    null = uncapped, which is what src/motor.js does today.
+//   dischargeCurve   which §11 discharge curve the pack follows: 'lipo'
+//                    (default), 'liion', or 'legacy' for the analytic curve
+//                    src/battery.js used before the spec curves landed. Lives on
+//                    `battery`, beside the cells and the capacity.
+//   gyroNoise        gyro noise injected into the rate loop, rad/s RMS. 0 is a
+//                    perfect gyro, which is what the loop reads today.
+//   loopDelay        extra control-loop latency in seconds, on top of the fixed
+//                    step. 0 is today's zero-latency loop.
+//
+// These defaults are NOT a tune: a lot that starts using a field replaces the
+// default with a measured value for that family, and says so in a comment.
 
 // Every family's `pid` block is written by `node tools/tune-pid.mjs --write
 // <family|all>`, which sweeps P/D against that family's own inertia and motor
@@ -70,7 +103,14 @@ export const PROFILES = {
 		buffetGain: 1.000535,
 		lateralGain: 0.999253,
 		bodyDrag: { x: 0.010, y: 0.028, z: 0.010 },
-		battery: { cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 100 },
+		battery: { cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 100, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.062, d: 0.0014 },
 			pitch: { p: 0.066, d: 0.0015 },
@@ -114,7 +154,14 @@ export const PROFILES = {
 		buffetGain: 1.014607,
 		lateralGain: 0.919313,
 		bodyDrag: { x: 0.009, y: 0.025, z: 0.009 },
-		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.012, maxCurrent: 115 },
+		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.012, maxCurrent: 115, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.084, d: 1.40e-3 },
 			pitch: { p: 0.084, d: 1.40e-3 },
@@ -159,7 +206,14 @@ export const PROFILES = {
 		buffetGain: 2.322297,
 		lateralGain: 1.942993,       // ducts fight translation hard
 		bodyDrag: { x: 0.030, y: 0.045, z: 0.030 },
-		battery: { cells: 4, capacityMah: 1100, internalOhm: 0.014, maxCurrent: 70 },
+		battery: { cells: 4, capacityMah: 1100, internalOhm: 0.014, maxCurrent: 70, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.098, d: 1.90e-3 },
 			pitch: { p: 0.098, d: 1.90e-3 },
@@ -204,7 +258,14 @@ export const PROFILES = {
 		buffetGain: 0.997672,
 		lateralGain: 0.917682,
 		bodyDrag: { x: 0.012, y: 0.040, z: 0.012 },
-		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90 },
+		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.084, d: 1.90e-3 },
 			pitch: { p: 0.072, d: 1.90e-3 },
@@ -247,7 +308,14 @@ export const PROFILES = {
 		buffetGain: 0.995080,
 		lateralGain: 1.039223,
 		bodyDrag: { x: 0.011, y: 0.032, z: 0.011 },
-		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.011, maxCurrent: 100 },
+		battery: { cells: 6, capacityMah: 1300, internalOhm: 0.011, maxCurrent: 100, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.098, d: 1.90e-3 },
 			pitch: { p: 0.098, d: 1.90e-3 },
@@ -308,7 +376,14 @@ export const PROFILES = {
 		buffetGain: 2.806033,
 		lateralGain: 1.035958,
 		bodyDrag: { x: 0.0018, y: 0.0050, z: 0.0018 },
-		battery: { cells: 2, capacityMah: 450, internalOhm: 0.045, maxCurrent: 18 },
+		battery: { cells: 2, capacityMah: 450, internalOhm: 0.045, maxCurrent: 18, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.08, d: 1.90e-3 },
 			pitch: { p: 0.08, d: 1.90e-3 },
@@ -365,7 +440,14 @@ export const PROFILES = {
 		buffetGain: 0.996376,
 		lateralGain: 0.978452,
 		bodyDrag: { x: 0.012, y: 0.038, z: 0.012 },
-		battery: { cells: 6, capacityMah: 2200, internalOhm: 0.0105, maxCurrent: 95 },
+		battery: { cells: 6, capacityMah: 2200, internalOhm: 0.0105, maxCurrent: 95, dischargeCurve: 'lipo' },
+		rateFamily: 'actual',
+		throttleBands: { low: 1, med: 1, high: 1 },
+		minThrottle: 0,
+		dragScale: 1,
+		escCurrentLimit: null,
+		gyroNoise: 0,
+		loopDelay: 0,
 		// Measured by `node tools/tune-pid.mjs --write swarmNode` off this
 		// family's own inertia and motor lag. See CLAUDE.md — never hand-edited.
 		pid: {
