@@ -26,6 +26,25 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **Modes Acro3D et GPS.** Gaz bidirectionnel — poussée inversée, mixeur signé,
+  `stepMotor` bidirectionnel — et maintien de position qui produit une *assiette*
+  confiée à l'auto-nivellement existant, sur le précédent du mode angle : pas de
+  second contrôleur, un seul réglage. Retour au point depuis 2, 20 et 60 m sur
+  les six familles en 9 à 17 s, un seul dépassement, moins d'1 cm de dérive
+  d'altitude.
+- **Un gyroscope, et la mesure qui dit quand l'allumer** (`src/gyro.js`). Bruit
+  large bande exprimé en densité, tons synchrones du rotor, notch dynamique,
+  filtre RPM, ligne à retard, anti-gravity, D-max. **Tout est livré inerte** et
+  c'est prouvé : 36 traces de rejeu identiques à l'octet, rapport du tuner
+  inchangé. Le chiffre qui décide : un notch dégénère au-delà de 0,45 de
+  Nyquist, soit 56 Hz à 250 Hz, alors que les fondamentales rotor vont de 155 à
+  816 Hz en vol — à cette cadence le notch n'est pas faible, il est absent.
+  `?loop=<hz>` existe pour mesurer le jour où le bruit s'allumera.
+- **Harnais de rejeu de vol** (`npm run replay`). Six séquences de manches fixées
+  volées à travers le vrai contrôleur et le vrai Rapier, puis différenciées sur
+  des grandeurs qu'un pilote reconnaît. Déterminisme prouvé en processus, en
+  ordre inverse et en processus neuf.
+
 - **Modèle de vol calqué sur la spécification de vol.** Cinq familles de rates
   des firmwares du commerce au lieu d'une seule (`src/rates.js`), pondération de
   la course de gaz en trois bandes (`src/throttle.js`), courbes de réponse à
@@ -42,6 +61,25 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Modifié
 
+- **Quatre familles de drones portaient les chiffres du 5" freestyle.** Le
+  fichier l'admettait en commentaire. Une famille sur six seulement était dans la
+  bande de régime attendue, et un micro 2,5" sortait à 3,08:1 de rapport
+  poussée/poids là où un vrai est à 4-6. Chaque nombre dérive désormais de trois
+  règles ancrées sur la machine de référence, et les pièces viennent d'un
+  catalogue. Cinq familles sur six dans la bande, rapports poussée/poids en
+  classe partout. Conséquence : le toothpick était **impossible à régler**, aucun
+  point de la grille P/D n'atteignait la cible ; sur la machine corrigée le
+  tuner y va directement, et les combinaisons hors cible passent de 4 à 2.
+- **La courbe de poussée se courbe.** Les pertes d'hélice atteignent le modèle :
+  manche de stationnaire −10,7 % sur le 5" freestyle, −14,1 % sur le race,
+  **plein gaz inchangé** (vitesse de pointe 142,4 → 142,3 km/h).
+- **Le modèle d'hélice par éléments de pale, réparé.** L'en-tête accusait
+  l'écoulement de travers ; la soufflerie UIUC souffle le long de l'arbre, le
+  défaut était purement axial. La vraie cause était une ligne de portance
+  symétrique — une vraie pale est cambrée. Erreur moyenne sur 187 hélices
+  82,7 % → 31,1 %, et le biais signé qui atteignait −222 % revient à quelques
+  pourcents partout. Le cycle limite est résolu : le résidu de vitesse induite
+  avait trois racines, ce qu'un commentaire affirmant l'inverse cachait.
 - **Le drone a du poids au stationnaire.** Le poids est majoré de 7 à 15 % à
   vitesse verticale nulle et revient à 1,0 en descente rapide — une force
   explicite avec son poste au budget, jamais le `g` de Rapier. C'est la réponse
