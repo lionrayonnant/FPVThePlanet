@@ -1,6 +1,8 @@
-import { mixOf, kThrustOf } from './quad.js';
+import { mixOf, kThrustOf, gravityTrimFactor } from './quad.js';
 import { motorConstants, dutyForOmega } from './motor.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
+import { rateFor, actualRateDeg, maxRateDeg } from './rates.js';
+import { throttleChain, DEFAULT_THROTTLE } from './throttle.js';
 
 // Betaflight-shaped flight controller. The interface is
 //
@@ -21,6 +23,12 @@ const GRAVITY = 9.81;
 
 export const MODES = ['acro', 'angle', 'altitude'];
 
+// Every preset here is in the ACTUAL family — { centre, max, expo }. src/rates.js
+// carries the spec's five other families, parameterised { rcRate, superRate,
+// expo }; an axis entry that names a `type` is dispatched there instead. Nothing
+// in this table does yet, deliberately: switching a preset's family is a change
+// of feel.
+//
 // Betaflight "Actual Rates": centre sensitivity sets the slope around centre,
 // max rate sets the stops, expo bends the curve between them. Unlike the old
 // single-exponent curve, these two are independent, which is the whole reason
@@ -233,13 +241,12 @@ class AxisPid {
 	}
 }
 
+// Betaflight's ACTUAL rates, in rad/s. The curve itself now lives in
+// src/rates.js next to the spec's five families (§5); this is the rad/s
+// boundary and the name tools/geofence-measure.mjs and tools/fuzz.mjs import.
+// Same operations in the same order as before, so the last bit is unchanged.
 export function actualRate(stick, r) {
-	// Betaflight's ACTUAL rates, verbatim in shape.
-	const rc = clamp(stick, -1, 1);
-	const a = Math.abs(rc);
-	const expof = r.expo * (a ** 3) + a * (1 - r.expo);
-	const stickMovement = Math.max(0, r.max - r.centre);
-	return Math.sign(rc) * (a * r.centre + stickMovement * expof) * DEG;
+	return actualRateDeg(stick, r) * DEG;
 }
 
 export class FlightController {
@@ -269,6 +276,8 @@ export class FlightController {
 		// alongside the table is what lets the HUD and the OSD still say "race"
 		// about a machine whose numbers are nobody else's.
 		this.rates = opts.rates ?? RATE_PRESETS[this.preset];
+		// Throttle travel shaping (§4.1, §6.2). DEFAULT_THROTTLE is inert.
+		this.throttleCurve = opts.throttle ?? DEFAULT_THROTTLE;
 		this.holdAltitude = null;
 		this.gains = buildGains(this.profile);
 		// filterScale only touches roll and pitch. Those loops are gyro-noise /
@@ -340,10 +349,15 @@ export class FlightController {
 		const rates = this.rates;
 
 		// Rate setpoints, in the body frame and in the sign convention above.
+		// rateFor() dispatches on the shape of the axis entry: today's
+		// { centre, max, expo } is ACTUAL, a { type, rcRate, superRate, expo }
+		// is one of the spec's five families (§5). It returns deg/s, which is
+		// what §5 specifies; this `* DEG` is the one place on this path where
+		// the repo's rad/s convention is entered.
 		let sp = {
-			x: actualRate(sticks.pitch, rates.pitch),
-			y: actualRate(-sticks.yaw, rates.yaw),
-			z: actualRate(-sticks.roll, rates.roll),
+			x: rateFor(sticks.pitch, rates.pitch) * DEG,
+			y: rateFor(-sticks.yaw, rates.yaw) * DEG,
+			z: rateFor(-sticks.roll, rates.roll) * DEG,
 		};
 
 		if (this.mode !== 'acro') {
@@ -352,11 +366,20 @@ export class FlightController {
 			const upB = unrotate(q, 0, 1, 0);
 			const wantPitch = Math.sin(sticks.pitch * ANGLE_MAX_TILT);
 			const wantRoll = Math.sin(sticks.roll * ANGLE_MAX_TILT);
-			sp.x = clamp(ANGLE_STRENGTH * (wantPitch + upB.z), -rates.pitch.max * DEG, rates.pitch.max * DEG);
-			sp.z = clamp(-ANGLE_STRENGTH * (wantRoll + upB.x), -rates.roll.max * DEG, rates.roll.max * DEG);
+			// maxRateDeg() is `max` for an ACTUAL axis and the measured
+			// full-stick rate for a spec family, which has no such field.
+			const maxPitch = maxRateDeg(rates.pitch) * DEG;
+			const maxRoll = maxRateDeg(rates.roll) * DEG;
+			sp.x = clamp(ANGLE_STRENGTH * (wantPitch + upB.z), -maxPitch, maxPitch);
+			sp.z = clamp(-ANGLE_STRENGTH * (wantRoll + upB.x), -maxRoll, maxRoll);
 		}
 
-		let throttle = sticks.throttle;
+		// Throttle chain, §4.1 + §6.2 (src/throttle.js). The default config is
+		// the identity, so nothing moves until a lot turns the bands, the
+		// MinThrottle floor or the shape curve on. Altitude hold below solves
+		// for its own throttle and reads the RAW stick as its climb demand, so
+		// the chain deliberately does not sit in front of it.
+		let throttle = throttleChain(sticks.throttle, this.throttleCurve);
 		if (this.mode === 'altitude') {
 			// The held altitude is the one piece of state here that outlives a
 			// frame, so it is the one that must never take a NaN: a single
@@ -428,7 +451,11 @@ export class FlightController {
 // thrust is linear in throttle.
 export function hoverThrottle(profile, q, volts = profile.battery.cells * 4.2) {
 	const up = rotate(q, 0, 1, 0);
-	const need = (profile.mass * GRAVITY) / Math.max(0.35, up.y);
+	// The weight to cancel is the TRIMMED weight (src/quad.js, §8.1): the trim is
+	// a real world -Y force on the body, so solving for `mass * g` alone
+	// under-commands by exactly the trim and an altitude hold sinks. Evaluated at
+	// zero vertical speed, which is what a hover is.
+	const need = (profile.mass * GRAVITY * gravityTrimFactor(profile, 0)) / Math.max(0.35, up.y);
 	const perMotor = clamp(need / 4, 0, profile.maxThrustPerMotor);
 	// Thrust -> rpm through the prop, rpm -> stick through the motor's own
 	// torque balance (src/motor.js). This used to invert `cmd^(2*rpmCurve)`,

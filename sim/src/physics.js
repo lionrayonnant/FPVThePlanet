@@ -142,7 +142,8 @@ export class Physics {
 		this.wind = new WindField(options.windSeed);
 		if (options.weather) this.wind.setParams(options.weather);
 		// Reused, so the per-step call into quad.js does not allocate.
-		this._air = { v: null, omega: null, agl: null, shake: 0 };
+		// `worldVy` and `altitude` are not airspeeds: see quad.js:step().
+		this._air = { v: null, omega: null, agl: null, shake: 0, worldVy: 0, altitude: 0 };
 
 		// Ground effect only reaches a rotor diameter or so, and a raycast at the
 		// full 250 Hz against 3.7M triangles is wasted work. 25 Hz is far faster
@@ -427,11 +428,26 @@ export class Physics {
 		air.omega = unrotateVec(q, w.x, w.y, w.z);
 		air.agl = this._agl;
 		air.shake = this.wind.intensity * this.wind.local;
+		// Ground-frame vertical speed, for modulated gravity (§8.1) only.
+		air.worldVy = v.y;
+		// Metres above sea level for airDensity(). Scene coordinates are local
+		// ENU with an arbitrary origin, so p.y is a height above that origin and
+		// NOT an altitude; until a scene carries its own datum, sea level is the
+		// honest answer and the argument travels so the call sites never have to
+		// change again (src/air.js).
+		air.altitude = 0;
 
 		const { force, torque } = this.propulsion.step(motors, air, dt);
 
 		const fw = rotateVec(q, force.x, force.y, force.z);
 		this.body.addForce(fw, true);
+		// Modulated gravity (§8.1): an explicit force along world -Y, never a
+		// change to the solver's own g. Rapier's gravity stays the one true
+		// value, so the force budget can still account for every newton and the
+		// thrust-split invariant it asserts is untouched. See quad.js.
+		if (this.propulsion.extraGravity !== 0) {
+			this.body.addForce({ x: 0, y: -this.propulsion.extraGravity, z: 0 }, true);
+		}
 		const tw = rotateVec(q, torque.x, torque.y, torque.z);
 		this.body.addTorque(tw, true);
 		if (external) this.body.addForce(external, true);
@@ -506,7 +522,7 @@ export class Physics {
 		this._budget = {
 			steps: 0, seconds: 0,
 			thrust: 0, staticThrust: 0, inflow: 0, groundEffect: 0, vortexRing: 0,
-			bodyDrag: 0, rotorDrag: 0, residual: 0,
+			bodyDrag: 0, rotorDrag: 0, gravityTrim: 0, residual: 0,
 			windUp: 0, windSpeed: 0, tilt: 0, verticalSpeed: 0,
 		};
 		return true;
@@ -530,6 +546,12 @@ export class Physics {
 			},
 			bodyDragUp: +(b.bodyDrag / n).toFixed(4),
 			rotorDragUp: +(b.rotorDrag / n).toFixed(4),
+			// Modulated gravity (spec 8.1), as a fraction of nominal weight and
+			// signed like every other post here: NEGATIVE, because it pulls
+			// down. It is its own line and not folded into anything, which is
+			// the whole point of adding it as a force rather than as a change
+			// to the solver's g. Zero when the trim is switched off.
+			gravityTrimUp: +(b.gravityTrim / n).toFixed(4),
 			residual: +(b.residual / n).toFixed(6),
 			// Context the numbers above are meaningless without.
 			meanTiltDeg: +(b.tilt / n).toFixed(1),
@@ -561,6 +583,9 @@ export class Physics {
 		b.vortexRing += (-d.vortexRing * up.y) / W;
 		b.bodyDrag += bd.y / W;
 		b.rotorDrag += rd.y / W;
+		// World frame already, and never rotated: gravity does not care which
+		// way the airframe points.
+		b.gravityTrim += -this.propulsion.extraGravity / W;
 		// staticThrust + inflow + groundEffect - vortexRing must be thrust.
 		b.residual += ((d.staticThrust + d.inflow + d.groundEffect - d.vortexRing - d.thrust) * up.y) / W;
 		b.tilt += (Math.acos(Math.max(-1, Math.min(1, up.y))) * 180) / Math.PI;

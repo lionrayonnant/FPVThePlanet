@@ -2782,8 +2782,17 @@ if (!frozen) {
 		// NO COVERAGE comes before RXLOSS: inside the warning corridor the fence
 		// IS the cause of the RXLOSS, and showing the effect rather than the
 		// cause would tell the pilot to come back towards... nothing.
+		// Capacity first, voltage as the backstop -- which is the way round every
+		// real OSD does it, and for the reason the discharge curve makes obvious:
+		// a LiPo sits between 4.2 and 3.65 V for ninety percent of its charge and
+		// then moves fast. Voltage therefore CANNOT warn early; measured on a
+		// freestyle5 hover it fires 18 s before the pack can no longer hold the
+		// machine up, and 8 s on a cinewhoop. The same flights give 49 s and 14 s
+		// of notice off the capacity gauge. The pilot is not being asked to fly
+		// better, only to be told in time.
 		warning: bat.voltage / PROFILE.battery.cells < 3.4 ? 'LOW VOLTAGE'
 			: fence.out.warning ? fence.out.warning
+			: bat.soc <= 0.15 ? `BATT ${Math.max(0, Math.round(bat.soc * 100))}%`
 			: link.out.quality < 0.25 ? 'RXLOSS' : '',
 	});
 

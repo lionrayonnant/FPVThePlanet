@@ -14,7 +14,9 @@
 import {
 	Propulsion, inducedVelocity, kThrustOf, kInflowOf, kLateralOf, INFLOW_K0,
 	mixOf, cruiseSpeedOf, vhPerOmegaOf,
+	groundEffectStrength, gravityTrimFactor, propInchesOf, specDragScaleOf, map,
 } from '../src/quad.js';
+import { airDensity } from '../src/air.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS, hoverThrottle } from '../src/flightController.js';
 
@@ -683,6 +685,203 @@ console.log('\n5. what the pilot actually sees');
 		if (!(stick20 < hover - 0.005)) { ok = false; detail = `${fam}: ${stick20.toFixed(4)} vs hover ${hover.toFixed(4)}`; }
 	}
 	check('the stick that holds a hover comes down once the air is flowing', ok, detail);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n6. ground effect, drag and modulated gravity (spec 8.1, 8.3, 8.4)');
+
+// Ground effect is now 8.4's SHAPE on this file's reach. Both halves of that
+// sentence are checked: the shape, and the reach this file refuses to give up.
+{
+	const P = PROFILES.freestyle5;
+	const R = P.propRadius;
+	const REACH = (0.22 / 0.0635) * R;
+	// The gain the model actually applies, read back by dividing a thrust at a
+	// given height by the same thrust out of ground effect. Nothing here knows
+	// the formula; it only knows that ground effect is a multiplier.
+	const gainAt = (profile, agl, steps = 900) => {
+		const free = settle(profile, flat(0.5), { ...air({}), agl: null }, steps);
+		const near = settle(profile, flat(0.5), { ...air({}), agl }, steps);
+		return near.thrust[0] / free.thrust[0] - 1;
+	};
+
+	// At contact, on a full pack, the reference airframe keeps the +18 % it was
+	// measured at. This is the calibration point of GROUND_EFFECT_BASE, asserted
+	// against the bare number rather than against the function that produces it.
+	check(
+		'a 5-inch on a full pack still gains exactly the measured 18 % at contact',
+		Math.abs(groundEffectStrength(P, 4.2) - 0.18) < 1e-12,
+		`${(groundEffectStrength(P, 4.2) * 100).toFixed(2)}%`,
+	);
+	// The spec's prop-size ramp, as an ORDERING rather than as six numbers.
+	{
+		const rows = FAMILIES.map((f) => [f, propInchesOf(PROFILES[f]), groundEffectStrength(PROFILES[f], 4.2)])
+			.sort((a, b) => a[1] - b[1]);
+		let monotone = true;
+		for (let i = 1; i < rows.length; i++) if (rows[i][2] < rows[i - 1][2] - 1e-12) monotone = false;
+		for (const [f, inches, g] of rows) {
+			console.log(`        ${f.padEnd(11)} ${inches.toFixed(2).padStart(5)}"  cushion ${(g * 100).toFixed(1).padStart(5)}%`);
+		}
+		check('a bigger disc gets a bigger cushion, every family in order', monotone);
+	}
+	// The one thing 8.4 had that this file did not: a tired pack pushes less air.
+	check(
+		'a sagging pack loses its cushion, and a dead one has none',
+		groundEffectStrength(P, 3.5) < groundEffectStrength(P, 4.2)
+			&& Math.abs(groundEffectStrength(P, 1.0)) < 1e-12,
+		`4.2 V ${(groundEffectStrength(P, 4.2) * 100).toFixed(1)}% -> 3.5 V ${(groundEffectStrength(P, 3.5) * 100).toFixed(1)}%`,
+	);
+	// The shape: linear, and ACTUALLY zero at one reach. The exponential this
+	// replaced still had a third of its gain left there.
+	{
+		const mid = gainAt(P, P.propRadius + REACH / 2);
+		const contact = gainAt(P, P.propRadius);
+		const outside = gainAt(P, P.propRadius + REACH * 1.01);
+		// Read back at half of one reach it must be half the gain. The NET
+		// thrust change is smaller than the multiplier applied (0.18 of applied
+		// gain shows up as ~0.11 of thrust) because a disc pushed harder loads
+		// its motor harder and the rpm droops for it — the torque balance in
+		// src/motor.js, working as intended. The RATIO is what is linear, and
+		// that droop bends it by a couple of percent, hence the tolerance.
+		// EXPONENTIAL, not the linear falloff of 8.4. The spec's linear form comes
+		// with the spec's own fixed 70 cm reach; laid over this file's MEASURED
+		// 0.22 m reach it cuts a 5" off at 28 cm, where both the spec and the
+		// bench still read lift. So the spec sets the STRENGTH (prop size, cell
+		// voltage) and the measurement keeps the DECAY. One reach is one e-fold:
+		// 1/e of the gain left, not zero.
+		check(
+			'the falloff is exponential: one reach is one e-fold, and it never hits zero',
+			Math.abs(mid / contact - Math.exp(-0.5)) < 0.05
+				&& Math.abs(outside / contact - Math.exp(-1.01)) < 0.05,
+			`contact ${(contact * 100).toFixed(1)}%, half-reach ${(mid * 100).toFixed(1)}%, past reach ${(outside * 100).toFixed(3)}%`,
+		);
+		check(
+			'and it never takes thrust away, at any height',
+			[0, 0.02, 0.1, 0.3, 1, 5].every((h) => gainAt(P, h) >= -1e-9),
+		);
+	}
+	// THE DIVERGENCE THIS FILE KEEPS. 8.4 fixes the reach at 70 cm for every
+	// size; here it scales with the disc. Asserted as the consequence that
+	// motivated it: a 31 mm rotor must be out of ground effect long before
+	// twenty times its own diameter.
+	{
+		const T = PROFILES.toothpick;
+		const tReach = (0.22 / 0.0635) * T.propRadius;
+		check(
+			'reach scales with the disc: a toothpick barely feels the ground at the spec\'s fixed 70 cm',
+			tReach < 0.2 && gainAt(T, 0.70) < 0.002 && gainAt(T, T.propRadius) > 0,
+			`toothpick reach ${(tReach * 100).toFixed(0)} cm against the spec's 70 cm`,
+		);
+		const ratios = FAMILIES.map((f) => ((0.22 / 0.0635) * PROFILES[f].propRadius) / PROFILES[f].propRadius);
+		check(
+			'and it is the SAME multiple of the disc for every family',
+			ratios.every((r) => Math.abs(r - ratios[0]) < 1e-12),
+		);
+	}
+}
+
+// 8.3: the drag-scale hook and the density argument.
+{
+	const P = PROFILES.freestyle5;
+	const V = 12;
+	const dragAt = (profile, altitude) => {
+		// Hold the motors stopped so the only horizontal force left is airframe
+		// drag: rotor drag is proportional to rpm and vanishes with it.
+		const a = { ...air({ z: V }), altitude };
+		const s = settle(profile, flat(0), a, 400);
+		return s.force.z;
+	};
+	const base = dragAt(P, 0);
+	// Computed from the profile alone, sharing no code with step().
+	const want = -0.5 * airDensity(0) * P.bodyDrag.z * V * V;
+	check(
+		'airframe drag is 0.5 rho Cd v^2, straight from the profile',
+		Math.abs(base - want) < 1e-9,
+		`${base.toFixed(4)} N vs ${want.toFixed(4)} N`,
+	);
+	check(
+		'dragScale multiplies it exactly, and 1 is a no-op',
+		Math.abs(dragAt({ ...P, dragScale: 2 }, 0) - 2 * base) < 1e-9
+			&& Math.abs(dragAt({ ...P, dragScale: 1 }, 0) - base) < 1e-9,
+	);
+	check(
+		'the altitude argument travels and changes nothing while the law is flat',
+		Math.abs(dragAt(P, 3000) - base) < 1e-12,
+		'8.3 requires the argument now so a barometric law lands without touching a caller',
+	);
+	// The curve is exported but NOT applied: that is the anti-double-counting
+	// decision, and it is worth an assertion so nobody quietly wires it in.
+	check(
+		'8.3\'s echelle_trainee is available but not applied — bodyDrag was measured',
+		FAMILIES.every((f) => (PROFILES[f].dragScale ?? 1) === 1)
+			&& specDragScaleOf(PROFILES.cinewhoop) < 0.5
+			&& specDragScaleOf(PROFILES.longrange) > 1.2,
+		`the curve would say cinewhoop x${specDragScaleOf(PROFILES.cinewhoop).toFixed(3)},`
+		+ ` longrange x${specDragScaleOf(PROFILES.longrange).toFixed(3)}`,
+	);
+}
+
+// 8.1: the trim is a world-frame force and must not contaminate the body-frame
+// return value. quad.js is tested here without Rapier, so this is the only
+// place that can say so about quad.js alone.
+{
+	const P = PROFILES.freestyle5;
+	const run = (trim, worldVy) => {
+		const p = new Propulsion({ profile: P, seed: 21 }).setGravityTrim(trim);
+		let r = null;
+		for (let i = 0; i < 400; i++) r = p.step(flat(0.5), { ...air({}), worldVy }, DT);
+		return { force: { ...r.force }, torque: { ...r.torque }, extra: p.extraGravity };
+	};
+	const off = run(false, 0), on = run(true, 0);
+	check(
+		'modulated gravity leaves the body-frame force and torque untouched',
+		off.force.x === on.force.x && off.force.y === on.force.y && off.force.z === on.force.z
+			&& off.torque.x === on.torque.x && off.torque.y === on.torque.y && off.torque.z === on.torque.z,
+	);
+	check(
+		'it is switchable, and off means exactly zero newtons',
+		off.extra === 0 && on.extra > 0,
+		`on: ${on.extra.toFixed(3)} N, ${(on.extra / (P.mass * GRAVITY) * 100).toFixed(1)}% of weight`,
+	);
+	// The spec's own shape: 7 to 15 % at rest, back to 1.0 once falling fast.
+	{
+		let worstHigh = 0, worstLow = Infinity;
+		for (const f of FAMILIES) {
+			const a = gravityTrimFactor(PROFILES[f], 0);
+			worstHigh = Math.max(worstHigh, a);
+			worstLow = Math.min(worstLow, a);
+		}
+		check(
+			'8.1\'s band: every family is trimmed between 7 % and 15 % at rest',
+			worstLow > 1.07 - 1e-9 && worstHigh < 1.15 + 1e-9,
+			`${((worstLow - 1) * 100).toFixed(1)}% to ${((worstHigh - 1) * 100).toFixed(1)}%`,
+		);
+		check(
+			'and it is gone, exactly, in a fast descent — and never helps a climb',
+			FAMILIES.every((f) => gravityTrimFactor(PROFILES[f], -25) === 1)
+				&& FAMILIES.every((f) => gravityTrimFactor(PROFILES[f], 30) === gravityTrimFactor(PROFILES[f], 0)),
+		);
+		check(
+			'it decreases monotonically as the drone falls faster',
+			FAMILIES.every((f) => {
+				let prev = Infinity;
+				for (let v = 2; v >= -30; v -= 0.25) {
+					const g = gravityTrimFactor(PROFILES[f], v);
+					if (g > prev + 1e-12) return false;
+					prev = g;
+				}
+				return true;
+			}),
+		);
+	}
+	// map() is the spec's own remap and half the file now leans on it. Bounded
+	// at both ends, including when the range runs backwards, which 8.1 needs.
+	check(
+		'map() is bounded at both ends, forwards and backwards',
+		map(-5, 0, 10, 1, 2) === 1 && map(50, 0, 10, 1, 2) === 2
+			&& map(5, 0, -10, 1, 2) === 1 && map(-50, 0, -10, 1, 2) === 2
+			&& Math.abs(map(-5, 0, -10, 1, 2) - 1.5) < 1e-12,
+	);
 }
 
 console.log(`\n${failures ? `${failures} FAIL` : 'all PASS'}`);
