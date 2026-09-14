@@ -24,6 +24,42 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Modèle de vol calqué sur la spécification de vol.** Cinq familles de rates
+  des firmwares du commerce au lieu d'une seule (`src/rates.js`), pondération de
+  la course de gaz en trois bandes (`src/throttle.js`), courbes de réponse à
+  clés (`src/curves.js`), densité de l'air prise par altitude (`src/air.js`),
+  catalogue de pièces en données (`src/spec-data/`). Tout est inerte par défaut :
+  les rates restent ACTUAL, les bandes à 1/1/1, et un banc le prouve à l'égalité
+  flottante exacte sur un balayage de 4001 points.
+- **Les neuf critères d'acceptation en banc** (`tools/spec-acceptance-selftest.mjs`),
+  avec des cibles re-dérivées par famille plutôt que recopiées. Le critère 4
+  passe et retrouve le chiffre de la spécification par un autre chemin : à 8:1
+  le stationnaire demande 27,6 % de manche, la spec annonce « ≈30 % ».
+- **Limite de courant ESC par moteur** et les deux courbes de décharge, lipo et
+  li-ion (`src/battery.js`, sorti de `quad.js`).
+
+### Modifié
+
+- **Le drone a du poids au stationnaire.** Le poids est majoré de 7 à 15 % à
+  vitesse verticale nulle et revient à 1,0 en descente rapide — une force
+  explicite avec son poste au budget, jamais le `g` de Rapier. C'est la réponse
+  au rapport « ça flotte, c'est trop léger, partout » que le budget de forces
+  n'avait pas su expliquer. `hoverThrottle()` en tient compte, sinon le maintien
+  d'altitude coulait de 2 m/s.
+- **L'alerte batterie passe de la tension à la capacité.** Un LiPo reste entre
+  4,2 et 3,65 V pendant 90 % de sa charge, donc la tension ne peut pas prévenir
+  tôt : elle laissait 18 s avant la panne sur un 5", 8 s sur un cinewhoop. La
+  jauge de capacité en laisse 49 et 14. Le coude de la courbe de décharge est
+  adouci pour la même raison — tel que livré il laissait 6,6 s entre « un
+  pilote se pose » et « ça ne tient plus ».
+- **Les pertes d'hélice s'appliquent à la pale, pas au KV.** Les deux courbes de
+  perte corrigent `kThrust`, pas le régime : un KV est une propriété du
+  bobinage, il ignore quelle hélice y est boulonnée.
+- **Effet de sol** : la force échelonne désormais avec la taille d'hélice et la
+  tension par cellule, la décroissance mesurée reste exponentielle.
+
 ### Modifié
 
 - **README : en-tête de présentation et soutien remonté en haut.** Bannière,
