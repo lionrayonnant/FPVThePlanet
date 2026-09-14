@@ -47,7 +47,7 @@
 		"validate:props": "node tools/uiuc-prop-validate.mjs"
 	},
 	"dependencies": {
-		"@dimforge/rapier3d-compat": "^0.14.0",
+		"@dimforge/rapier3d-compat": "^0.20.0",
 		"@geoman-io/leaflet-geoman-free": "^2.20.0",
 		"electron-updater": "^6.8.9",
 		"leaflet": "^1.9.4",
