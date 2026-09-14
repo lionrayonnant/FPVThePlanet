@@ -36,6 +36,8 @@
 // saying their scaled-from-freestyle5 numbers do not describe their own motors.
 // That is a finding the old form could not have produced.
 
+import { kvLossTipSpeed, kvLossPropPitch } from './curves.js';
+
 // The bell's inertia as a fraction of the prop's, from freestyle5's measured
 // tauSpinUp. A 2207 bell is roughly 8 g at r ~ 11 mm, so ~1e-6 kg.m2 against a
 // 4e-6 prop = 0.25 — the same order, which is the check that this is a real
@@ -73,9 +75,18 @@ export function rotorInertiaOf(profile) {
 // before this model existed, while the dynamics around that point become
 // physical. It also means this file adds no fitted constant of its own: KV and
 // the no-load current are the only new numbers, and both are the motor's.
+//
+// THE REFERENCE CELL VOLTAGE. Spec §10 names 4.0 V per cell as the reference
+// for computing the maximum regime. It is not the anchor used here, and the
+// disagreement is deliberate: `maxOmega` is this sim's measured full-throttle
+// rpm on a FULL pack, and both discharge curves of §11 put a full cell at
+// 4.2 V. Deriving R at 4.0 would let a full pack overspeed `maxOmega` by about
+// 5%, which is exactly the authority the rest of this file is built to keep.
+export const FULL_CELL_VOLTS = 4.2;
+
 export function resistanceOf(profile) {
 	const Ke = backEmf(profile.motor.kv);
-	const volts = profile.battery.cells * 4.2;
+	const volts = profile.battery.cells * FULL_CELL_VOLTS;
 	const torqueAtMax = kTorqueOf(profile) * profile.maxOmega * profile.maxOmega;
 	const currentAtMax = torqueAtMax / Ke + profile.motor.noLoadCurrent;
 	return (volts - Ke * profile.maxOmega) / currentAtMax;
@@ -107,7 +118,29 @@ function computeMotorConstants(profile) {
 		// spin-up faster than spin-down.
 		electricalDamping: (Ke * Ke) / R,
 		braking: ESC_BRAKING,
+		// Per-motor winding-current ceiling, amps. `null` on the profile means
+		// no limiter, which is what this model did before one existed.
+		iLimit: profile.escCurrentLimit > 0 ? profile.escCurrentLimit : Infinity,
 	};
+}
+
+// The largest duty that will not push the winding past `c.iLimit` at this
+// omega. Rearranging i = (duty*V - Ke*w)/R for duty.
+//
+// THIS IS THE WHOLE LIMITER, and the form matters more than the number. The
+// obvious implementation — integrate the step, then clamp the current that
+// comes out — oscillates, and not subtly: the clamp is a discontinuity sitting
+// inside an integrator, so the rotor overshoots the limit, gets chopped, falls
+// under it, is released, and rings at the loop rate forever. Capping the DUTY
+// instead is what a real ESC does and it cannot ring, because the cap is a
+// continuous, monotonically INCREASING function of omega: as the motor speeds
+// up the back-EMF does part of the work, the cap relaxes, and the closed loop
+// has no edge to bounce off. The current approaches the ceiling from below and
+// stays there.
+export function dutyCeiling(c, omega, volts) {
+	if (!(c.iLimit < Infinity) || !(volts > 0)) return 1;
+	const d = (c.R * c.iLimit + c.Ke * omega) / volts;
+	return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
 // One step of the balance, returned as the new omega plus the current drawn.
@@ -124,6 +157,12 @@ function computeMotorConstants(profile) {
 // it, which is a coupling this model gets for free and the old lag could not
 // express at all.
 export function stepMotor(c, omega, duty, volts, loadTorque, dt) {
+	// The ESC's current ceiling, applied where an ESC applies it: on the duty
+	// it is about to command, before anything is integrated. See dutyCeiling().
+	if (c.iLimit < Infinity) {
+		const ceiling = dutyCeiling(c, omega, volts);
+		if (duty > ceiling) duty = ceiling;
+	}
 	const drive = duty * volts;
 	// Regenerating when the back-EMF exceeds what the ESC is applying. The ESC
 	// only lets part of that current through, so both the drive and the damping
@@ -163,7 +202,10 @@ export function stepMotor(c, omega, duty, volts, loadTorque, dt) {
 export function dutyForOmega(c, omega, volts) {
 	if (!(volts > 0)) return 1;
 	const load = c.kQ * omega * omega;
-	const duty = (c.R * (load / c.Ke + c.i0) + c.Ke * omega) / volts;
+	let duty = (c.R * (load / c.Ke + c.i0) + c.Ke * omega) / volts;
+	// A stick the ESC would refuse is not a stick that holds this rpm.
+	const ceiling = dutyCeiling(c, omega, volts);
+	if (duty > ceiling) duty = ceiling;
 	return duty < 0 ? 0 : duty > 1 ? 1 : duty;
 }
 
@@ -175,9 +217,118 @@ export function dutyForOmega(c, omega, volts) {
 //
 // is a quadratic in w; the positive root is the only physical one.
 export function steadyOmega(c, duty, volts) {
+	// Under a current ceiling the settling point is where the load torque meets
+	// the torque the limiter allows: kQ*w^2 = Ke*(iLimit - i0), a single square
+	// root, and the motor settles there instead of wherever the duty pointed.
+	if (c.iLimit < Infinity) {
+		const torqueAtLimit = c.Ke * (c.iLimit - c.i0);
+		if (torqueAtLimit > 0) {
+			const wLimit = Math.sqrt(torqueAtLimit / c.kQ);
+			const free = freeSteadyOmega(c, duty, volts);
+			return free < wLimit ? free : wLimit;
+		}
+	}
+	return freeSteadyOmega(c, duty, volts);
+}
+
+function freeSteadyOmega(c, duty, volts) {
 	const A = c.kQ;
 	const B = c.electricalDamping;
 	const C = c.Ke * c.i0 - (c.Ke * duty * volts) / c.R;
 	if (C >= 0) return 0;                   // not enough volts to turn the prop
 	return (-B + Math.sqrt(B * B - 4 * A * C)) / (2 * A);
+}
+
+// ---------------------------------------------------------------------------
+// PROP LOSS (spec §6.1). The two keyed curves the spec calls `perte_kv_*`, plus
+// its transonic saturation.
+//
+// WHERE THE SPEC PUTS THEM, AND WHY THIS FILE DOES NOT. §6.1 multiplies the
+// rpm by `perte_kv_vitesse_son(vTip/346)` and `perte_kv_pas_helice(pitch/dia)`,
+// i.e. it shaves the KV. That reading does not survive contact with a torque
+// balance: KV is an electrical property of the winding, it does not know what
+// prop is bolted on and it certainly does not change with airspeed at the blade
+// tip. What the two curves actually describe is a BLADE — a tip approaching
+// Mach where the section stops making lift, and a pitch/diameter ratio away
+// from the one the blade was designed around. Both are prop coefficients.
+//
+// So they are exported here as a correction on the THRUST coefficient, not on
+// the rpm. Thrust goes as kThrust*omega^2, so a spec factor f on omega is a
+// factor f^2 on kThrust and the thrust at a given stick comes out the same;
+// what does NOT happen is the motor silently losing its top-end rpm, which
+// would make `maxOmega` stop being authoritative and would fight `resistanceOf`
+// directly.
+//
+// NORMALISED AT maxOmega. `propLossFactor` divides by its own value at
+// maxOmega, so it is exactly 1 there. That keeps every family's
+// maxThrustPerMotor, thrust-to-weight and hover stick untouched and moves only
+// the SHAPE of the thrust curve between idle and full: below maxOmega the tip
+// is slower, loses less, and the prop is relatively more effective than the
+// bare quadratic says. That is the right sign — a real prop's thrust curve sits
+// above omega^2 at part throttle and flattens at the top — and it is the only
+// form of the correction that does not quietly re-scale the whole airframe.
+// `propTipLoss` is the raw, un-normalised spec value for anyone who wants it.
+//
+// The torque coefficient is deliberately NOT corrected. A stalled tip stops
+// making lift; it does not stop making drag, it makes more. Scaling kQ by the
+// same factor would say the prop gets cheaper to turn as it stalls, which is
+// backwards, and it would break the closed form of `steadyOmega` for nothing.
+
+// The spec is explicit: 346 m/s, not 340 and not the ISA value.
+export const SPEED_OF_SOUND = 346;
+
+const INCH = 0.0254;
+
+// Prop diameter in inches, the unit every curve of §11 is indexed by.
+export function propDiameterInches(profile) {
+	return (2 * profile.propRadius) / INCH;
+}
+
+// vTip = rpm/60 * pi * diameter, which in rad/s and metres is just omega*r.
+export function tipSpeed(profile, omega) {
+	return omega * profile.propRadius;
+}
+
+// §6.1's transonic ceiling on tip speed: a 2" prop is allowed 62% of the speed
+// of sound, a 6" or bigger the whole of it. `map` is the spec's bounded remap.
+export function transonicLimit(profile) {
+	const d = propDiameterInches(profile);
+	const t = Math.min(1, Math.max(0, (d - 2) / 4));
+	return SPEED_OF_SOUND * (0.62 + t * (1.0 - 0.62));
+}
+
+// The rpm §6.1 would have produced: the two loss curves, then the saturation.
+// Kept as an "effective omega" rather than as a factor because the saturation
+// step is written in the spec as a lerp between two SPEEDS, and expressing it
+// any other way loses the fact that the result is bounded by `transonicLimit`.
+export function effectiveOmega(profile, omega) {
+	if (!(omega > 0)) return 0;
+	const r = profile.propRadius;
+	let w = omega * kvLossTipSpeed.eval(tipSpeed(profile, omega) / SPEED_OF_SOUND);
+	w *= kvLossPropPitch.eval(profile.propPitch / (2 * r));
+	const limit = transonicLimit(profile);
+	const vTip = w * r;
+	const ratio = vTip / limit;
+	if (ratio >= 0.75) {
+		const capped = Math.min(vTip, limit * 0.85) / r;
+		const t = Math.min(1, (ratio - 0.75) / 0.25);
+		w += (capped - w) * t;
+	}
+	return w;
+}
+
+// The raw spec factor on kThrust: (effective omega / omega)^2.
+export function propTipLoss(profile, omega) {
+	if (!(omega > 0)) return 1;
+	const f = effectiveOmega(profile, omega) / omega;
+	return f * f;
+}
+
+// The same thing normalised so that it is 1 at maxOmega — the one to multiply
+// kThrust by. See the block comment above for why the normalisation is not a
+// cosmetic detail.
+export function propLossFactor(profile, omega) {
+	const ref = propTipLoss(profile, profile.maxOmega);
+	if (!(ref > 0)) return 1;
+	return propTipLoss(profile, omega) / ref;
 }
