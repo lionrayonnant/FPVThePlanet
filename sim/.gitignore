@@ -13,3 +13,4 @@ operator-state/
 
 # Sorties d'electron-builder (installeurs, app décompressée).
 release/
+.data/

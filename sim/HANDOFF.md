@@ -77,7 +77,14 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 "Adding a map", for the options and for sizing `--radius`.
 
 
-### In flight right now: `claude/drone-gravity-fix-ofdhrh` (2026-09-13)
+### In flight right now: `claude/drone-gravity-fix-ofdhrh` (2026-09-14)
+
+> **Resuming this? Read [`docs/PICKUP.md`](docs/PICKUP.md) and run `npm run
+> resume` from `sim/`.** That file is the current brief for this branch — what
+> is on it, what is open and in what order — and the script fetches the
+> propeller database, runs the validation that needs it, and runs the physics
+> benches. The block below is the older summary and PICKUP.md supersedes it
+> where they disagree.
 
 Six commits, not merged, no pull request. Started from "the drone's gravity is
 wrong", then "it floats, it is too light, everywhere". Five of the six are
