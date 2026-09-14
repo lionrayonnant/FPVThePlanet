@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics, rotateVec } from './physics.js';
-import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep } from './frame-pacing.js';
+import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep, parseControlRate } from './frame-pacing.js';
 import { PACK_DRAINS, crashThreshold, idleThrottle } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
@@ -154,7 +154,18 @@ export const OPTS = {
 	// an optional known doctrine name, refused otherwise) lives in
 	// tools/dev-flags.mjs, where a selftest can reach it.
 	swarm: params.get('swarm'),
+	// Dev-only: ?loop=1000 runs the CONTROL loop at that rate inside the
+	// unchanged 250 Hz physics grid. It exists because a gyro that reports
+	// rotor vibration reports it at the shaft frequency, 155-816 Hz across the
+	// six families, and a 250 Hz loop cannot represent any of it — see
+	// src/frame-pacing.js and tools/loop-rate-bench.mjs. The RULE (one of
+	// 250/500/1000/2000/4000, refused otherwise) lives in frame-pacing.js,
+	// beside the accumulator it substeps.
+	loop: params.get('loop'),
 };
+// Substeps of the physics step the controller runs, 1 unless ?loop= says
+// otherwise. Throws on a rate the accumulator could not honour exactly.
+const CONTROL_SUBSTEPS = parseControlRate(OPTS.loop);
 // The swarm a dev scan carries, or null. Throws on anything the game itself
 // could not draw — see tools/dev-flags.mjs for why it refuses instead of
 // clamping.
@@ -2116,8 +2127,22 @@ function frame() {
 		// step stretch, and only as far as MAX_CATCHUP_STEP — see its comment.
 		const h = catchUpStep(accumulator);
 		let steps = 0;
+		// The controller substep: `hc` is h at CONTROL_SUBSTEPS == 1, exactly,
+		// so the default loop divides nothing and runs the arithmetic it always
+		// ran.
+		const hc = CONTROL_SUBSTEPS === 1 ? h : h / CONTROL_SUBSTEPS;
 		while (accumulator >= h && steps < MAX_STEPS_PER_FRAME) {
-			const { motors } = controller.update(sticks, physics, h);
+			// Several controller iterations per physics step, on a zero-order
+			// hold of the body state — which is what the hardware does too: the
+			// ESC holds the last DSHOT frame for the whole interval, and the
+			// airframe does not actually rotate at the frequencies the gyro
+			// reports. The LAST substep's motor command is the one the physics
+			// integrates; the earlier ones exist so the filters, the notches and
+			// the noise live at the loop's own rate.
+			let motors;
+			for (let c = 0; c < CONTROL_SUBSTEPS; c++) {
+				({ motors } = controller.update(sticks, physics, hc));
+			}
 			// Assisted turtle mode (#105). It reads the PREVIOUS frame's `stuck`
 			// — flightEnd.update() runs after this loop — and that is harmless:
 			// stillness is measured over four seconds, and one frame of lag does

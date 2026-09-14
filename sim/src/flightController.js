@@ -3,6 +3,7 @@ import { motorConstants, dutyForOmega } from './motor.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { rateFor, actualRateDeg, maxRateDeg } from './rates.js';
 import { throttleChain, DEFAULT_THROTTLE } from './throttle.js';
+import { Gyro, AxisFilter, LoopDelay } from './gyro.js';
 
 // Betaflight-shaped flight controller. The interface is
 //
@@ -148,6 +149,60 @@ const FF_CUTOFF = 30;           // Hz, PT1 on the feedforward
 // thing that separates "flicks overshoot 45%" from "flicks land on the number".
 const RC_SMOOTHING = 40;        // Hz
 
+// ---------------------------------------------------------------------------
+// The three Betaflight mechanisms this loop was missing, and why all three
+// ship INERT.
+//
+// gyroNoise and loopDelay are profile fields and both are 0 on every family
+// (src/drone-profiles.js). The two constants below are the same decision for
+// two things that have no profile field and must not grow one: a lot does not
+// get to invent profile schema on its way past. They are written here at the
+// value that changes nothing, with the value the bench measured beside them,
+// so turning them on is one edit and not one search.
+//
+// The reason they are off is not caution about the code, it is caution about
+// the tune: src/drone-profiles.js's PID blocks were swept by
+// tools/tune-pid.mjs against a loop with no noise, no latency, no anti-gravity
+// and a fixed D. Every one of these four moves the plant that sweep was run
+// against. They go on together with a re-sweep, not one at a time on a whim.
+
+// Anti-gravity. Punch the throttle and a quad drops its nose: the motors take
+// milliseconds to reach the new rpm and the I term, which was holding the
+// trim, is suddenly holding the wrong one. Betaflight answers by boosting I
+// (and a fraction of P) for exactly as long as the throttle is moving, which
+// is what the high-pass below measures.
+//   0    = off, the loop as tuned, and what ships.
+//   3.5  = measured by `node tools/loop-rate-bench.mjs --antigravity`: on a
+//          freestyle5 with a 5 mm CoG offset, punching the throttle from 0.25
+//          to 0.95 gives away 10.13 deg of pitch at gain 0, 8.95 deg at 3.5
+//          (-12 %) and 8.24 deg at 6.0 (-19 %). It costs nothing at a steady
+//          stick: the high-pass below reads zero and agBoost is exactly 1.
+//          This is the one of the four that is a pure win, and it is off only
+//          because it moves the plant tools/tune-pid.mjs swept against.
+export const ANTI_GRAVITY_GAIN = 0;
+const ANTI_GRAVITY_P_FRACTION = 0.35;   // how much of the I boost P also takes
+const ANTI_GRAVITY_CUTOFF = 5;          // Hz, the "slow average" of the throttle
+
+// D-max. D is the term that amplifies gyro noise, so a tune picks a D that is
+// quiet at rest and is then short of D exactly where D is wanted — in a fast
+// flick. Betaflight lets D rise toward a maximum when the gyro or the setpoint
+// is actually moving, and fall back when it is not.
+//   1.0  = off, D is the swept value at all times. This is what ships, and
+//          unlike the other three it is what the bench RECOMMENDS.
+//
+// `node tools/loop-rate-bench.mjs --dmax` measured it and the answer was no:
+// on freestyle5 at 1 kHz with gyroNoise 0.08, going from 1.0 to 1.6 slows the
+// flick from 70 to 98 ms, leaves 7.3 % of rate 100 ms after the stick centres
+// instead of 5.1 %, and does not move the resting motor ripple at all
+// (1.03e-2 either way). That is not a surprise once stated plainly: D-max
+// buys a LOWER resting D, and the resting D here is already the value
+// tools/tune-pid.mjs chose against a silent gyro. The mechanism only pays
+// once that sweep is re-run with the noise on and comes back with a smaller
+// D. Until then raising this is a pure loss, measured.
+export const D_MAX_RATIO = 1.0;
+const D_MAX_SLEW_FULL = 900 * DEG;   // rad/s/s of setpoint slew that reaches D_MAX
+const D_MAX_CUTOFF = 12;             // Hz, PT1 on the boost so D does not chatter
+
 const MOTOR_IDLE = 0.055;       // Betaflight dynamic idle: props never stop, or
                                 // there is nothing to recover from
 
@@ -183,7 +238,12 @@ class AxisPid {
 	// smoothing) for airframes whose rotational dynamics are much faster than the
 	// 5" this chain was set for. A real FC does the same: micro builds run the
 	// filters two to four times higher. 1 == the reference 5" chain, untouched.
-	constructor(gains, filterScale = 1) {
+	// `conditioned` turns on the gyro conditioning chain (RPM notches + dynamic
+	// notch, src/gyro.js). It is null unless the airframe has gyroNoise, and
+	// that is not an optimisation: a notch on a noiseless signal removes
+	// nothing and costs phase, so leaving it in would be a pure handicap. The
+	// filters exist because the noise does.
+	constructor(gains, filterScale = 1, conditioned = false, dMax = D_MAX_RATIO) {
 		this.g = gains;
 		this.i = 0;
 		this.prevGyro = 0;
@@ -195,6 +255,9 @@ class AxisPid {
 		const rc = RC_SMOOTHING * filterScale;
 		this.rcLpf = [new PT1(rc), new PT1(rc), new PT1(rc)];
 		this.relaxLpf = new PT1(RELAX_CUTOFF);
+		this.notches = conditioned ? new AxisFilter() : null;
+		this.dMax = dMax;
+		this.dMaxLpf = dMax > 1 ? new PT1(D_MAX_CUTOFF) : null;
 		this.first = true;
 	}
 
@@ -204,9 +267,14 @@ class AxisPid {
 		this.gyroLpf.reset(); this.dLpf.reset(); this.ffLpf.reset();
 		for (const f of this.rcLpf) f.reset();
 		this.relaxLpf.reset();
+		if (this.notches) this.notches.reset();
+		if (this.dMaxLpf) this.dMaxLpf.reset();
 	}
 
-	step(rawSetpoint, gyroRaw, dt, tpa) {
+	// `agBoost` is anti-gravity, 1 when the throttle is steady. `rotorOmega` is
+	// the four shaft speeds the RPM notches follow, or null.
+	step(rawSetpoint, gyroRaw, dt, tpa, agBoost = 1, rotorOmega = null) {
+		if (this.notches) gyroRaw = this.notches.step(gyroRaw, rotorOmega, dt);
 		let setpoint = rawSetpoint;
 		for (const f of this.rcLpf) setpoint = f.step(setpoint, dt);
 		this.setpoint = setpoint;
@@ -224,12 +292,23 @@ class AxisPid {
 
 		const setpointHpf = Math.abs(setpoint - this.relaxLpf.step(setpoint, dt));
 		const relax = clamp(1 - setpointHpf / RELAX_THRESHOLD, 0, 1);
-		this.i = clamp(this.i + this.g.i * error * dt * relax, -I_LIMIT, I_LIMIT);
+		this.i = clamp(this.i + this.g.i * agBoost * error * dt * relax, -I_LIMIT, I_LIMIT);
 
 		this.prevGyro = gyro;
 		this.prevSetpoint = setpoint;
 
-		const out = this.g.p * error * tpa + this.i + this.g.d * dGyro * tpa + ff;
+		// D-max: D rises toward D_MAX_RATIO while the stick is actually moving.
+		// Driven by the setpoint slew rather than by |dGyro|, which is the half
+		// of Betaflight's own measure that does NOT feed back on itself — a
+		// boost driven by the D term it multiplies is a positive loop, and with
+		// noise in the signal it is a positive loop on noise.
+		let d = this.g.d;
+		if (this.dMaxLpf) {
+			const drive = clamp(Math.abs(setpointSlew) / D_MAX_SLEW_FULL, 0, 1);
+			d *= 1 + (this.dMax - 1) * this.dMaxLpf.step(drive, dt);
+		}
+		const pBoost = 1 + (agBoost - 1) * ANTI_GRAVITY_P_FRACTION;
+		const out = this.g.p * pBoost * error * tpa + this.i + d * dGyro * tpa + ff;
 		// The filter chain is a set of running averages: feed it one NaN — a
 		// stick from a broken calibration, a body state Rapier blew up on — and
 		// `y += (x - y) * k` keeps it forever, so the motors stay NaN for the
@@ -286,11 +365,33 @@ export class FlightController {
 		// prop-drag torque — opening its filters just lets the loop outrun the
 		// motors and hunt, so yaw keeps the reference chain on every family.
 		const fs = this.profile.filterScale ?? 1;
+		// The sensor, the latency and the conditioning chain. All three are
+		// driven by profile fields that are 0 on every family today, so all
+		// three are inert: `gyro` short-circuits to the true body rates,
+		// `loopDelay` returns the vector it was handed, and `conditioned` is
+		// false so no notch is even constructed. See src/gyro.js.
+		// Four overrides, all of them defaulting to the value that changes
+		// nothing. They are constructor options and NOT new profile fields: a
+		// lot does not get to invent profile schema on its way past, and the two
+		// fields that do exist (gyroNoise, loopDelay) are read from the profile
+		// here. The overrides are how tools/loop-rate-bench.mjs can price a
+		// setting without editing src/, which is the only way a "measured, not
+		// guessed" number ever gets measured.
+		const noise = opts.gyroNoise ?? this.profile.gyroNoise ?? 0;
+		this.gyro = new Gyro({ noise, seed: (opts.seed ?? 0x9e37) >>> 0 });
+		this.loopDelay = new LoopDelay(opts.loopDelay ?? this.profile.loopDelay ?? 0);
+		this.antiGravity = opts.antiGravity ?? ANTI_GRAVITY_GAIN;
+		const dMax = opts.dMax ?? D_MAX_RATIO;
+		// `filters` forces the conditioning chain on or off independently of the
+		// noise. Left alone it follows the noise, which is the rule that matters:
+		// a notch on a clean signal removes nothing and costs phase.
+		const conditioned = opts.filters ?? noise > 0;
 		this.pid = {
-			roll: new AxisPid(this.gains.roll, fs),
-			pitch: new AxisPid(this.gains.pitch, fs),
-			yaw: new AxisPid(this.gains.yaw, 1),
+			roll: new AxisPid(this.gains.roll, fs, conditioned, dMax),
+			pitch: new AxisPid(this.gains.pitch, fs, conditioned, dMax),
+			yaw: new AxisPid(this.gains.yaw, 1, conditioned, dMax),
 		};
+		this.agLpf = new PT1(ANTI_GRAVITY_CUTOFF);
 		this._mix = mixOf(this.profile);
 		this.motors = [0, 0, 0, 0];
 		this.axes = { roll: 0, pitch: 0, yaw: 0 };
@@ -330,6 +431,9 @@ export class FlightController {
 
 	reset() {
 		for (const p of Object.values(this.pid)) p.reset();
+		this.gyro.reset();
+		this.loopDelay.reset();
+		this.agLpf.reset();
 		this.holdAltitude = null;
 	}
 
@@ -405,13 +509,31 @@ export class FlightController {
 		}
 
 		const w = state.angularVelocity;
-		const wBody = unrotate(q, w.x, w.y, w.z);
+		// The true body rates, and then what the gyro makes of them. With
+		// gyroNoise 0 and loopDelay 0 both calls hand `wBody` straight back —
+		// the same object, the same doubles.
+		const wTrue = unrotate(q, w.x, w.y, w.z);
+		// Four shaft speeds in rad/s, straight off Propulsion, or null. The RPM
+		// notches follow them; a caller with no Propulsion (the headless benches
+		// in tools/) simply has no RPM telemetry, which is a configuration a
+		// real machine also flies in.
+		const rotorOmega = state.rotorOmega ?? null;
+		const wBody = this.loopDelay.step(this.gyro.sample(wTrue, rotorOmega, dt), dt);
 
 		const tpa = 1 - TPA_FACTOR * clamp((throttle - TPA_BREAK) / (1 - TPA_BREAK), 0, 1);
 
-		const pitch = this.pid.pitch.step(sp.x, wBody.x, dt, tpa);
-		const yaw = this.pid.yaw.step(sp.y, wBody.y, dt, tpa);
-		const roll = this.pid.roll.step(sp.z, wBody.z, dt, tpa);
+		// Anti-gravity: how hard the throttle is moving right now, measured as
+		// the throttle minus its own slow average — the same high-pass shape
+		// I-term relax uses on the setpoint, and for the same reason. It stays
+		// non-zero for the whole punch rather than for the instant the stick
+		// moved.
+		const agBoost = this.antiGravity > 0
+			? 1 + this.antiGravity * Math.abs(throttle - this.agLpf.step(throttle, dt))
+			: 1;
+
+		const pitch = this.pid.pitch.step(sp.x, wBody.x, dt, tpa, agBoost, rotorOmega);
+		const yaw = this.pid.yaw.step(sp.y, wBody.y, dt, tpa, agBoost, rotorOmega);
+		const roll = this.pid.roll.step(sp.z, wBody.z, dt, tpa, agBoost, rotorOmega);
 		this.axes = { roll, pitch, yaw };
 
 		return { motors: this.mix(roll, pitch, yaw, throttle), throttle, axes: this.axes };

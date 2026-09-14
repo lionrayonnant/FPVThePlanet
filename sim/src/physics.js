@@ -315,6 +315,17 @@ export class Physics {
 	get angularVelocity() { return this.body.angvel(); }
 	get battery() { return this.propulsion.battery; }
 
+	// The four shaft speeds, rad/s, as Propulsion holds them. A live reference
+	// and not a copy: flightController.js reads this every step for its RPM
+	// notches (src/gyro.js), and a fresh array 250 times a second — 1000 times
+	// once the loop substeps — is garbage nobody needs. Nothing downstream
+	// writes to it.
+	get rotorOmega() { return this.propulsion.omega; }
+
+	// The same thing in rpm, which is what a person reads. Allocates, so it is
+	// for the OSD and the benches, never for the loop.
+	get rpm() { return this.propulsion.rpm; }
+
 	// speed m/s at 10 m, direction in degrees the wind comes from, gust and
 	// turbulence 0..1. See wind.js for what each one does.
 	setWeather(params) {
