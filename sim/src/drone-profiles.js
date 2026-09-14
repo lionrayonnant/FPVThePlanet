@@ -49,6 +49,10 @@ export const PROFILES = {
 		propRadius: 0.0635,
 		propInertia: 4.0e-6,
 		bladeCount: 3,
+		// Geometric pitch in metres (5x4.3x3, the pitch is the 4.3). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.1092,
 		maxThrustPerMotor: 10.0,
 		maxOmega: 3140,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -93,6 +97,10 @@ export const PROFILES = {
 		propRadius: 0.0635,
 		propInertia: 3.6e-6,
 		bladeCount: 3,
+		// Geometric pitch in metres (5x4.9x3). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.1245,
 		maxThrustPerMotor: 12.5,
 		maxOmega: 3560,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -134,6 +142,10 @@ export const PROFILES = {
 		propRadius: 0.0381,
 		propInertia: 1.8e-6,
 		bladeCount: 3,
+		// Geometric pitch in metres (3" tri-blade; the family names no pitch, so the common 3x2x3). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.0508,
 		maxThrustPerMotor: 4.1,
 		maxOmega: 4200,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -175,6 +187,10 @@ export const PROFILES = {
 		propRadius: 0.0889,
 		propInertia: 1.1e-5,
 		bladeCount: 3,
+		// Geometric pitch in metres (7x4x3). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.1016,
 		maxThrustPerMotor: 10.5,   // 2806.5 on 6S pulls well over 1 kgf a corner
 		maxOmega: 2450,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -214,6 +230,10 @@ export const PROFILES = {
 		propRadius: 0.0635,
 		propInertia: 4.0e-6,
 		bladeCount: 3,
+		// Geometric pitch in metres (same 5x4.3x3 as freestyle5). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.1092,
 		maxThrustPerMotor: 10.5,
 		maxOmega: 3000,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -271,6 +291,10 @@ export const PROFILES = {
 		propRadius: 0.0318,
 		propInertia: 3.0e-7,
 		bladeCount: 2,
+		// Geometric pitch in metres (2.5" bi-blade; no pitch named, so the common 2.5x1.9x2). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.0483,
 		maxThrustPerMotor: 0.68,
 		maxOmega: 4600,
 		// The motor itself (src/motor.js). KV is the one this family's own
@@ -324,6 +348,10 @@ export const PROFILES = {
 		propRadius: 0.0762,
 		propInertia: 6.9e-6,
 		bladeCount: 3,
+		// Geometric pitch in metres (6" class, interpolated like the rest of this profile). src/blade-element.js turns it
+		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
+		// real hardware, not a coefficient.
+		propPitch: 0.1016,
 		maxThrustPerMotor: 10.5,   // TWR ~= 4.5 at this mass
 		maxOmega: 2720,
 		// The motor itself (src/motor.js). KV is the one this family's own
