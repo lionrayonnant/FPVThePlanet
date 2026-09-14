@@ -221,10 +221,10 @@ export const PROFILES = {
 		gyroNoise: 0,
 		loopDelay: 0,
 		pid: {
-			roll:  { p: 0.084, d: 1.40e-3 },
-			pitch: { p: 0.084, d: 1.40e-3 },
-			yaw:   { p: 0.14, d: 0 },
-			torquePerMix: { roll: 2.798, pitch: 2.798, yaw: 0.681 },
+			roll:  { p: 0.03, d: 5.00e-4 },
+			pitch: { p: 0.03, d: 5.00e-4 },
+			yaw:   { p: 0.34, d: 0 },
+			torquePerMix: { roll: 3.064, pitch: 3.064, yaw: 0.745 },
 		},
 	},
 
@@ -285,7 +285,7 @@ export const PROFILES = {
 			roll:  { p: 0.098, d: 1.90e-3 },
 			pitch: { p: 0.098, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 1.049, pitch: 1.049, yaw: 0.420 },
+			torquePerMix: { roll: 1.038, pitch: 1.038, yaw: 0.415 },
 		},
 	},
 
@@ -335,9 +335,9 @@ export const PROFILES = {
 		loopDelay: 0,
 		pid: {
 			roll:  { p: 0.084, d: 1.90e-3 },
-			pitch: { p: 0.072, d: 1.90e-3 },
+			pitch: { p: 0.084, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 4.129, pitch: 4.129, yaw: 0.826 },
+			torquePerMix: { roll: 4.199, pitch: 4.199, yaw: 0.840 },
 		},
 	},
 
@@ -399,10 +399,10 @@ export const PROFILES = {
 		gyroNoise: 0,
 		loopDelay: 0,
 		pid: {
-			roll:  { p: 0.098, d: 1.90e-3 },
-			pitch: { p: 0.098, d: 1.90e-3 },
+			roll:  { p: 0.054, d: 1.00e-3 },
+			pitch: { p: 0.054, d: 1.00e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 3.080, pitch: 3.080, yaw: 0.731 },
+			torquePerMix: { roll: 3.276, pitch: 3.276, yaw: 0.778 },
 		},
 	},
 
@@ -487,10 +487,10 @@ export const PROFILES = {
 		gyroNoise: 0,
 		loopDelay: 0,
 		pid: {
-			roll:  { p: 0.08, d: 1.90e-3 },
-			pitch: { p: 0.08, d: 1.90e-3 },
-			yaw:   { p: 0.24, d: 1.00e-3 },
-			torquePerMix: { roll: 0.104, pitch: 0.104, yaw: 0.038 },
+			roll:  { p: 0.08, d: 1.00e-3 },
+			pitch: { p: 0.08, d: 1.00e-3 },
+			yaw:   { p: 0.24, d: 5.00e-4 },
+			torquePerMix: { roll: 0.162, pitch: 0.162, yaw: 0.060 },
 		},
 	},
 
