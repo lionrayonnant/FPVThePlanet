@@ -40,6 +40,20 @@ export function cellVolts(curve, consumed) {
 // coefficient as well would count the prop size twice. It is exported, and a
 // profile can opt in with `battery.drainScale`, for the case where a family's
 // pack life has to be pinned to a measured figure the physics does not reach.
+// Whether a pack empties at all, anywhere in the game.
+//
+// FALSE, and deliberately: a sortie is not ended by its battery. The coulomb
+// count below is real, measured from the winding current and covered by
+// tools/motor-selftest.mjs — it is simply not consumed. Everything that makes a
+// pack feel like a pack is unaffected, because all of it is sag: pull hard and
+// the terminal voltage drops, the rpm droops for it, and the punch-out costs
+// what it costs. What goes away is only the clock.
+//
+// Flipping this to true restores a bounded sortie, and the machinery is all
+// still here and still tested: the two discharge curves, the capacity gauge in
+// the OSD, and the BENCH panel's BATTERY toggle, which is this same switch.
+export const PACK_DRAINS = false;
+
 export function drainScaleForDiameter(inches) {
 	const ref = batteryDrainByDiameter.eval(5);
 	return batteryDrainByDiameter.eval(inches) / ref;
@@ -62,11 +76,12 @@ export class Battery {
 		this.curve = DISCHARGE[this.chemistry] ?? null;
 		// Opt-in multiplier on the coulomb count, see drainScaleForDiameter().
 		this.drainScale = spec.drainScale > 0 ? spec.drainScale : 1;
-		// Whether the pack actually empties. Off is the bench's BATTERY HELD
-		// (PHASE 26): the charge stops draining, and NOTHING else changes —
-		// sag under load is instantaneous and physical, so it stays. A held
-		// pack still bends when you pull on it, it just never runs out.
-		this.drain = true;
+		// Whether the pack actually empties. See PACK_DRAINS: off by default, so
+		// the charge is decorative and NOTHING else changes — sag under load is
+		// instantaneous and physical, so it stays. A held pack still bends when
+		// you pull on it, it just never runs out. Off is also the bench's
+		// BATTERY HELD (PHASE 26), which is the same switch.
+		this.drain = PACK_DRAINS;
 		this.reset();
 	}
 

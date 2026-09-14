@@ -3,7 +3,7 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setF
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics, rotateVec } from './physics.js';
 import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep } from './frame-pacing.js';
-import { crashThreshold, idleThrottle } from './quad.js';
+import { PACK_DRAINS, crashThreshold, idleThrottle } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
@@ -474,7 +474,7 @@ function applyBenchConfig() {
 	// rebuilds the Propulsion — hence the pack. Setting the flag again HERE,
 	// after the airframe change rather than once at boot, is what stops an
 	// in-flight airframe change from quietly handing the charge back.
-	physics?.battery?.setDrain(c.battery !== 'HELD');
+	physics?.battery?.setDrain(PACK_DRAINS && c.battery !== 'HELD');
 }
 
 // The bench panel, opened over the flight (B key). The SAME screen as the

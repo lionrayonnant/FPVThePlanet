@@ -48,12 +48,18 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   au rapport « ça flotte, c'est trop léger, partout » que le budget de forces
   n'avait pas su expliquer. `hoverThrottle()` en tient compte, sinon le maintien
   d'altitude coulait de 2 m/s.
-- **L'alerte batterie passe de la tension à la capacité.** Un LiPo reste entre
-  4,2 et 3,65 V pendant 90 % de sa charge, donc la tension ne peut pas prévenir
-  tôt : elle laissait 18 s avant la panne sur un 5", 8 s sur un cinewhoop. La
-  jauge de capacité en laisse 49 et 14. Le coude de la courbe de décharge est
-  adouci pour la même raison — tel que livré il laissait 6,6 s entre « un
-  pilote se pose » et « ça ne tient plus ».
+- **La batterie ne borne plus la sortie** (`PACK_DRAINS`, `src/battery.js`). Le
+  pack ne se vide pas : une exploration ne s'arrête pas sur une panne sèche. Rien
+  d'autre ne change, parce que tout ce qui fait qu'un pack se sent est du sag —
+  tire 90 A et la tension tombe encore de 0,225 V/cellule, le régime fléchit, le
+  punch-out coûte ce qu'il coûte. Seule l'horloge disparaît. Le compteur de
+  coulombs, les deux courbes de décharge et l'interrupteur BATTERY du banc
+  restent en place et testés.
+- **L'alerte batterie est passée de la tension à la capacité**, pour le jour où
+  cet interrupteur rebascule : un LiPo reste entre 4,2 et 3,65 V pendant 90 % de
+  sa charge, donc la tension ne peut pas prévenir tôt — elle laissait 18 s avant
+  la panne sur un 5", 8 s sur un cinewhoop, contre 49 et 14 pour la capacité. Le
+  coude de la courbe de décharge est adouci pour la même raison.
 - **Les pertes d'hélice s'appliquent à la pale, pas au KV.** Les deux courbes de
   perte corrigent `kThrust`, pas le régime : un KV est une propriété du
   bobinage, il ignore quelle hélice y est boulonnée.

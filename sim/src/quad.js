@@ -50,7 +50,7 @@
 import { Turbulence, mulberry32 } from './wind.js';
 import { DEFAULT_PROFILE } from './drone-profiles.js';
 import { motorConstants, stepMotor, steadyOmega, dutyForOmega } from './motor.js';
-import { Battery } from './battery.js';
+import { Battery, PACK_DRAINS } from './battery.js';
 import { airDensity } from './air.js';
 import { dragScaleByDiameter } from './curves.js';
 
@@ -381,7 +381,7 @@ export const MIX = mixOf(QUAD);
 // ---------------------------------------------------------------------------
 // The pack lives in src/battery.js now. Re-exported here because quad.js was
 // its home and several tools import it from this module.
-export { Battery };
+export { Battery, PACK_DRAINS };
 
 // ---------------------------------------------------------------------------
 

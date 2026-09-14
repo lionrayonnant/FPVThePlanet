@@ -13,7 +13,7 @@ import {
 	resistanceOf, kTorqueOf, effectiveOmega, tipSpeed, transonicLimit,
 	propTipLoss, propLossFactor, propDiameterInches, FULL_CELL_VOLTS,
 } from '../src/motor.js';
-import { Battery, drainScaleForDiameter } from '../src/battery.js';
+import { PACK_DRAINS, Battery, drainScaleForDiameter } from '../src/battery.js';
 import { lipoDischarge, liionDischarge } from '../src/curves.js';
 
 let n = 0;
@@ -342,6 +342,27 @@ t('a full pack is bit-identical under lipo and under the old analytic curve', ()
 	const a = new Battery({ ...spec, dischargeCurve: 'legacy' });
 	const b = new Battery({ ...spec, dischargeCurve: 'lipo' });
 	assert.equal(a.voltage, b.voltage);
+});
+
+t('a decorative pack still sags: the clock goes, the feel stays', () => {
+	// PACK_DRAINS is false — a sortie is not ended by its battery. The point of
+	// this test is that NOTHING ELSE went with it. Sag is what makes a pack feel
+	// like a pack, and sag is instantaneous: it comes from the internal
+	// resistance, not from the charge. Pull 90 A out of a full pack and the
+	// terminal voltage must still drop, or the punch-out has quietly become free.
+	assert.equal(PACK_DRAINS, false, 'PACK_DRAINS flipped: the sortie is bounded again');
+	const b = new Battery(PROFILES.freestyle5.battery);
+	assert.equal(b.drain, false);
+	for (let i = 0; i < 250 * 300; i++) b.update(40, DT);
+	assert.equal(b.usedMah, 0, 'a held pack consumed charge');
+	assert.equal(b.soc, 1);
+	const rest = b.update(0, DT) / b.cells;
+	const pulled = b.update(90, DT) / b.cells;
+	assert.ok(rest - pulled > 0.15, `sag went with the drain: ${rest} -> ${pulled} V/cell`);
+	// And the switch still works, for the bench panel and for the day it flips.
+	assert.equal(b.setDrain(true).drain, true);
+	b.update(40, DT);
+	assert.ok(b.usedMah > 0, 'setDrain(true) no longer drains');
 });
 
 console.log(`motor-selftest : ${n} tests ok`);
