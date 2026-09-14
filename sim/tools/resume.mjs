@@ -26,8 +26,9 @@ function git(...args) {
 	catch { return '?'; }
 }
 
-function has(cmd) {
-	return spawnSync(cmd, ['--version'], { stdio: 'ignore' }).status === 0;
+// `unzip --version` exits 10, so probe each tool with a flag it accepts.
+function has(cmd, arg = '--version') {
+	return spawnSync(cmd, [arg], { stdio: 'ignore' }).status === 0;
 }
 
 rule('where you are');
@@ -40,7 +41,7 @@ line(`worktree ${dirty ? 'HAS UNCOMMITTED CHANGES' : 'clean'}`);
 rule('propeller database (UIUC)');
 if (fs.existsSync(DB)) {
 	line(`already here: ${DB}`);
-} else if (!has('curl') || !has('unzip')) {
+} else if (!has('curl') || !has('unzip', '-v')) {
 	line('curl and unzip are needed to fetch it automatically, and one is missing.');
 	line(`download by hand: ${ZIP_URL}`);
 	line(`unzip into:       ${DATA}/`);
