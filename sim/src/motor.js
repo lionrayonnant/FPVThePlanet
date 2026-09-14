@@ -149,6 +149,16 @@ export function dutyCeiling(c, omega, volts) {
 	return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
+// The mirror of dutyCeiling for a motor driven the other way round (Acro3D,
+// §3.2): the same rearrangement with the winding ceiling taken as -iLimit. Only
+// reached when a caller asks for bidirectional operation — the forward path
+// never calls it, which is why nothing below changes for a normal flight.
+export function dutyFloor(c, omega, volts) {
+	if (!(c.iLimit < Infinity) || !(volts > 0)) return -1;
+	const d = (c.Ke * omega - c.R * c.iLimit) / volts;
+	return d > 0 ? 0 : d < -1 ? -1 : d;
+}
+
 // One step of the balance, returned as the new omega plus the current drawn.
 //
 // The electrical part is integrated analytically rather than by an explicit
@@ -162,22 +172,45 @@ export function dutyCeiling(c, omega, volts) {
 // descending into your own wake loads the prop harder and the rpm droops for
 // it, which is a coupling this model gets for free and the old lag could not
 // express at all.
-export function stepMotor(c, omega, duty, volts, loadTorque, dt) {
+// `loadTorque` is a MAGNITUDE, always >= 0: its direction is the one that
+// opposes the shaft, which is `s` below, not the caller's sign convention.
+//
+// `bidirectional` lifts the one assumption in here that a reversible motor
+// breaks — that omega never goes below zero. It is off by default and the whole
+// forward path leaves it off, so every expression below reduces to exactly the
+// arithmetic this function has always done when omega >= 0 and duty >= 0: `s`
+// is 1 and `1 * x` is x, bit for bit. The generalisation is three sign factors,
+// not a second model:
+//
+//   - the friction and prop torques oppose the shaft, so they carry `s`;
+//   - the ESC brakes when its torque opposes the shaft, which is the same
+//     comparison mirrored;
+//   - the floor at zero rpm becomes the floor of whichever direction is
+//     commanded, i.e. no floor at all.
+export function stepMotor(c, omega, duty, volts, loadTorque, dt, bidirectional = false) {
 	// The ESC's current ceiling, applied where an ESC applies it: on the duty
 	// it is about to command, before anything is integrated. See dutyCeiling().
 	if (c.iLimit < Infinity) {
 		const ceiling = dutyCeiling(c, omega, volts);
 		if (duty > ceiling) duty = ceiling;
+		if (bidirectional) {
+			const floor = dutyFloor(c, omega, volts);
+			if (duty < floor) duty = floor;
+		}
 	}
 	const drive = duty * volts;
+	// Which way the shaft is turning, and at a standstill which way it is about
+	// to. This is 1 on the whole forward path.
+	const s = omega > 0 ? 1 : omega < 0 ? -1 : (drive >= 0 ? 1 : -1);
 	// Regenerating when the back-EMF exceeds what the ESC is applying. The ESC
 	// only lets part of that current through, so both the drive and the damping
 	// scale with it: a freewheeling ESC (braking 0) leaves the prop to do all
 	// the slowing.
-	const gain = drive >= c.Ke * omega ? 1 : c.braking;
+	const driving = s > 0 ? drive >= c.Ke * omega : drive <= c.Ke * omega;
+	const gain = driving ? 1 : c.braking;
 	const a = gain * c.electricalDamping;
 	// Losses that do not depend on omega: iron and bearing drag, plus the prop.
-	const b = gain * (c.Ke * drive) / c.R - c.Ke * c.i0 - loadTorque;
+	const b = gain * (c.Ke * drive) / c.R - s * (c.Ke * c.i0) - s * loadTorque;
 	let next;
 	if (a > 0) {
 		const omegaInf = b / a;
@@ -185,10 +218,13 @@ export function stepMotor(c, omega, duty, volts, loadTorque, dt) {
 	} else {
 		next = omega + (b / c.J) * dt;
 	}
-	if (next < 0) next = 0;
+	if (!bidirectional && next < 0) next = 0;
 	// Winding current: what circulates in the motor.
 	const winding = (drive - c.Ke * next) / c.R;
-	const i = winding > 0 ? winding : gain * winding;
+	// Driving is "the current pushes the shaft the way it is going"; only the
+	// regenerating half is throttled by the ESC. The sign of the winding current
+	// was that test while omega could not be negative, and `s` is what it means.
+	const i = (s > 0 ? winding > 0 : winding < 0) ? winding : gain * winding;
 	// Pack current is NOT the winding current. An ESC is a buck converter: the
 	// winding current keeps circulating through the freewheeling path during
 	// the PWM off-time, and the pack only supplies it for the duty fraction.

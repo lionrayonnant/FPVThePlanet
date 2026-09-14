@@ -22,7 +22,21 @@ import { Gyro, AxisFilter, LoopDelay } from './gyro.js';
 const DEG = Math.PI / 180;
 const GRAVITY = 9.81;
 
-export const MODES = ['acro', 'angle', 'altitude'];
+// `acro3d` and `gps` are §2.5's ControlMode 3 and 5. `altitude` is not in the
+// spec and stays: it exists, it is wired, and it is what a pilot who wants to
+// film uses. `horizon` is reserved by §2.5 with no specified behaviour, so it
+// is deliberately absent — a mode nobody can define is a mode nobody can fly.
+//
+// The order is the CYCLE order (cycleMode), and the two new entries go last on
+// purpose: a keyboard pilot who taps the mode key once still lands in angle,
+// exactly where they landed before.
+export const MODES = ['acro', 'angle', 'altitude', 'acro3d', 'gps'];
+
+// The modes that self-level, i.e. that replace the pilot's rate demand on roll
+// and pitch with an attitude demand. This was written `mode !== 'acro'`, which
+// meant the same three names; naming them is what lets acro3d join without
+// inheriting self-levelling, which would be the opposite of the point.
+const LEVELLED = new Set(['angle', 'altitude', 'gps']);
 
 // Every preset here is in the ACTUAL family — { centre, max, expo }. src/rates.js
 // carries the spec's five other families, parameterised { rcRate, superRate,
@@ -215,6 +229,95 @@ export const ANGLE_MAX_TILT = 42 * DEG;
 export const ANGLE_STRENGTH = 9.0;   // rad/s of rate demand per rad of angle error
 const ALT_KP = 3.2, ALT_KD = 3.6;
 
+// ---------------------------------------------------------------------------
+// GPS position hold (§9.6).
+//
+// UNITS. The spec is written in centimetres and degrees; this repo is metres
+// and radians, and the conversion is not cosmetic here. The distance error is
+// shaped by `distance ^ 1.35`, and a power law is the one thing a change of
+// unit does NOT survive: the same exponent on centimetres is 100^1.35 = 631
+// times the number it is on metres. Any gain copied out of a centimetre
+// implementation is wrong by that factor. These gains were therefore MEASURED
+// in metres, by tools/gps-hold-bench.mjs, not converted.
+//
+// WHAT THE SPEC LEAVES OUT. §9.6 names five settings and gives a value for
+// none of them, gives no PID gains, and names `PropSizeToSpeedKmh` — a prop
+// size to top speed table — that exists nowhere in the document or in
+// donnees/. The four numbers below are this implementation's, and the speed
+// table is deliberately absent: the tilt limit is what caps the speed here,
+// which is the same cap expressed as the thing the pilot can actually feel.
+export const GPS_DEFAULTS = {
+	// GpsDeadZone: stick travel under which the hold takes over. Above it the
+	// pilot flies an angle mode bounded by the same tilt limit, and the hold
+	// point follows the machine so that letting go stops it where it is.
+	deadZone: 0.06,
+	// MaxGpsTiltAngle. Also, in the absence of PropSizeToSpeedKmh, the only
+	// speed limiter there is: level flight at this angle is the fastest this
+	// mode goes, family by family.
+	maxTilt: 22 * DEG,
+	// MaxGpsVerticalSpeed, m/s.
+	maxVerticalSpeed: 4,
+	// GpsYawSpeedFactor, deg/s at full stick. §9.6 integrates the heading with
+	// it directly, so it is a rate, not a gain.
+	yawSpeedFactor: 90,
+	// The two position PIDs (§9.4), in radians of tilt per shaped metre. D is
+	// what does the work: the position error is an integral of the velocity, so
+	// it lags, and P alone on a quad that coasts is an oscillator with a period
+	// of several seconds — which is exactly the "retour au neutre oscille"
+	// §9.6 warns about from the other direction.
+	// Measured by tools/gps-hold-selftest.mjs, swept on a 20 m displacement
+	// across all six families: this pair settles inside 10 s with a single
+	// overshoot worth 5 % of the displacement, and holds that shape from 2 m out
+	// to 60 m. More P is faster and rings; more D is calmer and takes 14 s.
+	p: 0.035,
+	i: 0.004,
+	d: 0.130,
+	// IntegralDecayRate of §9.4, per second. The integral exists for a steady
+	// crosswind and must not remember one that has gone.
+	integralDecay: 0.3,
+	// How hard the heading hold pulls, rad/s of yaw per rad of heading error.
+	yawStrength: 3.0,
+};
+
+// §9.6's integral reset thresholds. Past these the machine is not holding a
+// position any more, it is recovering an attitude, and an integral wound up
+// during the recovery is what makes the return to neutral ring.
+const GPS_I_RESET_AXIS = 20 * DEG;
+const GPS_I_RESET_TOTAL = 30 * DEG;
+
+// The exponent §9.6 puts on the distance error. Above one metre it grows the
+// demand faster than distance; below it, slower — so a machine 30 m out leans
+// hard and one 30 cm out barely leans at all, which is the whole reason the
+// spec shapes the error instead of scaling it.
+const GPS_ERROR_EXPONENT = 1.35;
+
+// §9.4's generic PID, written exactly as the spec writes it: an integral that
+// DECAYS rather than being clamped, and a derivative of the error (not of the
+// measurement — this loop's setpoint is a fixed point, so there is no setpoint
+// kick to avoid). Used only by the GPS hold; the rate loop above is
+// Betaflight's, and the two have nothing to say to each other.
+class SpecPid {
+	constructor(cfg) { this.cfg = cfg; this.reset(); }
+	reset() { this.integral = 0; this.prevError = 0; this.derivative = 0; this.first = true; }
+	resetIntegral() { this.integral = 0; }
+	step(error, dt, limit) {
+		const c = this.cfg;
+		this.integral = this.integral * Math.exp(-c.integralDecay * dt) + error * dt;
+		if (this.first) { this.prevError = error; this.first = false; }
+		this.derivative = (error - this.prevError) / dt;
+		this.prevError = error;
+		const out = c.p * error + c.i * this.integral + c.d * this.derivative;
+		return clamp(out, -limit, limit);
+	}
+}
+
+// Into [-180, 180) degrees, which is the interval §9.6 names.
+export function normaliseHeading(deg) {
+	let d = (deg + 180) % 360;
+	if (d < 0) d += 360;
+	return d - 180;
+}
+
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 // clamp() alone cannot hold a boundary: every comparison against NaN is false,
 // so a NaN walks through it untouched. Anything read from outside this module
@@ -358,6 +461,16 @@ export class FlightController {
 		// Throttle travel shaping (§4.1, §6.2). DEFAULT_THROTTLE is inert.
 		this.throttleCurve = opts.throttle ?? DEFAULT_THROTTLE;
 		this.holdAltitude = null;
+		// §9.6. The settings are constructor options, not profile fields: they are
+		// the pilot's, like the rates, and a family does not own them.
+		this.gps = { ...GPS_DEFAULTS, ...(opts.gps ?? {}) };
+		// Armed lazily on the first step spent in the mode, like holdAltitude:
+		// setMode() has no state to memorise a position from.
+		this.gpsHold = null;
+		this.gpsHeading = null;
+		this.gpsPid = { x: new SpecPid(this.gps), z: new SpecPid(this.gps) };
+		// +1, or -1 while Acro3D has the props turning backwards.
+		this.direction = 1;
 		this.gains = buildGains(this.profile);
 		// filterScale only touches roll and pitch. Those loops are gyro-noise /
 		// filter-delay limited, and a fast micro airframe needs them opened up.
@@ -435,6 +548,14 @@ export class FlightController {
 		this.loopDelay.reset();
 		this.agLpf.reset();
 		this.holdAltitude = null;
+		// §9.6: "La réinitialisation du mode remet tous les PID à zéro et recale
+		// point de maintien et cap." Nulling the two re-arms them on the next
+		// step, which is where the machine actually is.
+		this.gpsPid.x.reset();
+		this.gpsPid.z.reset();
+		this.gpsHold = null;
+		this.gpsHeading = null;
+		this.direction = 1;
 	}
 
 	// sticks: {throttle 0..1, roll/pitch/yaw -1..1}
@@ -464,12 +585,24 @@ export class FlightController {
 			z: rateFor(-sticks.roll, rates.roll) * DEG,
 		};
 
-		if (this.mode !== 'acro') {
+		if (LEVELLED.has(this.mode)) {
 			// Self-levelling feeds the same rate loop rather than adding a second
 			// controller underneath it, so angle mode and acro share one tune.
+			// GPS hold (§9.6) follows that precedent exactly: it is a position
+			// loop that produces an ATTITUDE, which enters here as the same two
+			// sines a stick would have produced, and the yaw it holds enters as
+			// the same rate setpoint. No second controller, one tune.
 			const upB = unrotate(q, 0, 1, 0);
-			const wantPitch = Math.sin(sticks.pitch * ANGLE_MAX_TILT);
-			const wantRoll = Math.sin(sticks.roll * ANGLE_MAX_TILT);
+			let wantPitch, wantRoll;
+			if (this.mode === 'gps') {
+				const g = this.stabGps(sticks, state, upB, dt);
+				wantPitch = g.pitch;
+				wantRoll = g.roll;
+				sp.y = clamp(g.yawRate, -maxRateDeg(rates.yaw) * DEG, maxRateDeg(rates.yaw) * DEG);
+			} else {
+				wantPitch = Math.sin(sticks.pitch * ANGLE_MAX_TILT);
+				wantRoll = Math.sin(sticks.roll * ANGLE_MAX_TILT);
+			}
 			// maxRateDeg() is `max` for an ACTUAL axis and the measured
 			// full-stick rate for a spec family, which has no such field.
 			const maxPitch = maxRateDeg(rates.pitch) * DEG;
@@ -484,7 +617,23 @@ export class FlightController {
 		// for its own throttle and reads the RAW stick as its climb demand, so
 		// the chain deliberately does not sit in front of it.
 		let throttle = throttleChain(sticks.throttle, this.throttleCurve);
-		if (this.mode === 'altitude') {
+		// Acro3D (§3.2, §4.1). The stick stops being "how much gas" and becomes
+		// "how much, which way": centre is zero thrust, and either half of the
+		// travel is a full throttle range with the props turning the other way.
+		// §4.1 puts the throttle curve on |Throttle| and this is that, in this
+		// repo's 0..1 stick convention rather than the spec's -1..1.
+		//
+		// `direction` is the ONLY thing this mode adds downstream. Everything
+		// after it — TPA, anti-gravity, the whole rate loop — sees the magnitude
+		// and cannot tell which way up the machine is, which is correct: the
+		// gyro cannot either.
+		let direction = 1;
+		if (this.mode === 'acro3d') {
+			const signed = clamp(sticks.throttle * 2 - 1, -1, 1);
+			direction = signed < 0 ? -1 : 1;
+			throttle = throttleChain(signed < 0 ? -signed : signed, this.throttleCurve);
+		}
+		if (this.mode === 'altitude' || this.mode === 'gps') {
 			// The held altitude is the one piece of state here that outlives a
 			// frame, so it is the one that must never take a NaN: a single
 			// non-finite position would otherwise hold the throttle at NaN for
@@ -499,7 +648,13 @@ export class FlightController {
 			const hover = hoverThrottle(this.profile, q, volts);
 			if (Math.abs(demand) > 0.08 || this.holdAltitude === null) {
 				this.holdAltitude = y;
-				throttle = hover + demand * 0.35;
+				// §9.6's MaxGpsVerticalSpeed: in GPS the climb stick asks for a
+				// SPEED and is closed on the speed, so the number means metres
+				// per second and can be honoured. Altitude mode keeps its open
+				// loop — changing it would be a change of feel nobody asked for.
+				throttle = this.mode === 'gps'
+					? hover * (1 + (ALT_KD * (demand * this.gps.maxVerticalSpeed - vy)) / GRAVITY)
+					: hover + demand * 0.35;
 			} else {
 				const a = ALT_KP * (this.holdAltitude - y) - ALT_KD * vy;
 				throttle = hover * (1 + a / GRAVITY);
@@ -536,7 +691,145 @@ export class FlightController {
 		const roll = this.pid.roll.step(sp.z, wBody.z, dt, tpa, agBoost, rotorOmega);
 		this.axes = { roll, pitch, yaw };
 
-		return { motors: this.mix(roll, pitch, yaw, throttle), throttle, axes: this.axes };
+		this.direction = direction;
+		return {
+			motors: direction < 0
+				? this.mix3d(roll, pitch, yaw, throttle, direction)
+				: this.mix(roll, pitch, yaw, throttle),
+			throttle,
+			// +1 normally, -1 when Acro3D has the props turning backwards. The
+			// magnitude above is what the HUD and the audio already read; this is
+			// the half of the command they could not see before.
+			direction,
+			axes: this.axes,
+		};
+	}
+
+	// The Acro3D mixer. Same airmode arithmetic as mix() — the same scaling, the
+	// same throttle slide — run in the rotors' own frame and then turned over.
+	//
+	// The one thing that is NOT a sign flip is where `dir` sits. With every
+	// rotor pushing the other way, MORE thrust on the right-hand pair rolls the
+	// machine the OTHER way, so the mix deltas have to be turned over before the
+	// scaling, not after: `dir * (…)` on `raw`, and `dir *` again on the way
+	// out. Flip only the output and every axis of the rate loop closes with the
+	// wrong sign, which is a diverging quad, not a mushy one.
+	mix3d(roll, pitch, yaw, throttle, dir) {
+		throttle = finiteOr(throttle, MOTOR_IDLE);
+		const raw = this._mix.map((m) => dir * (roll * m.roll + pitch * m.pitch + yaw * m.yaw));
+		let lo = Infinity, hi = -Infinity;
+		for (const v of raw) { if (v < lo) lo = v; if (v > hi) hi = v; }
+
+		const span = hi - lo;
+		const room = 1 - MOTOR_IDLE;
+		const scale = span > room ? room / span : 1;
+
+		const centre = clamp(throttle, MOTOR_IDLE - lo * scale, 1 - hi * scale);
+		for (let i = 0; i < 4; i++) {
+			this.motors[i] = dir * clamp(centre + raw[i] * scale, MOTOR_IDLE, 1);
+		}
+		if (!this.armed) this.motors.fill(0);
+		return this.motors;
+	}
+
+	// §9.6's position hold, and the only part of this controller that knows
+	// where the machine IS rather than only how it is turning.
+	//
+	// It returns what a stick would have returned: the two sines the
+	// self-levelling branch above wants, plus the yaw rate the heading hold
+	// asks for. That is the whole reason it can share the rate loop's tune.
+	//
+	// `upB` is the world up seen from the body, so sin(pitch) = -upB.z and
+	// sin(roll) = -upB.x — the identities at the top of this file.
+	stabGps(sticks, state, upB, dt) {
+		const cfg = this.gps;
+		const q = state.rotation;
+		const px = finiteOr(state.position?.x, 0);
+		const pz = finiteOr(state.position?.z, 0);
+
+		// Heading, degrees clockwise from world north (-Z), which is the unit
+		// and the interval §9.6 writes the yaw hold in.
+		const fwd = rotate(q, 0, 0, -1);
+		const heading = Math.atan2(fwd.x, -fwd.z) / DEG;
+		if (this.gpsHeading === null) this.gpsHeading = heading;
+		if (this.gpsHold === null) this.gpsHold = { x: px, z: pz };
+
+		// "capCible += entreeLacet x dt x GpsYawSpeedFactor", normalised.
+		this.gpsHeading = normaliseHeading(this.gpsHeading + sticks.yaw * dt * cfg.yawSpeedFactor);
+		const headingError = normaliseHeading(this.gpsHeading - heading) * DEG;
+		// Yaw left is +omega.y and the heading grows clockwise, so a target to
+		// the right of the nose is a NEGATIVE yaw rate.
+		const yawRate = -cfg.yawStrength * headingError;
+
+		const held = Math.abs(sticks.roll) <= cfg.deadZone && Math.abs(sticks.pitch) <= cfg.deadZone;
+
+		// World-frame lean demand, radians, +X east and +Z south.
+		let leanX = 0, leanZ = 0;
+		if (held) {
+			const ex = this.gpsHold.x - px;
+			const ez = this.gpsHold.z - pz;
+			const d = Math.hypot(ex, ez);
+			// "L'erreur de distance est mise en forme par distance ^ 1.35 avant
+			// d'entrer dans les PID." The shaping is on the DISTANCE; the
+			// direction is what puts it back on two axes, which is why the unit
+			// vector is taken before the power and not after. Shaping each
+			// component on its own would make the demand depend on the compass
+			// bearing of the drift, which it must not.
+			const shaped = d > 0 ? Math.pow(d, GPS_ERROR_EXPONENT) : 0;
+			const ux = d > 0 ? ex / d : 0;
+			const uz = d > 0 ? ez / d : 0;
+			leanX = this.gpsPid.x.step(shaped * ux, dt, cfg.maxTilt);
+			leanZ = this.gpsPid.z.step(shaped * uz, dt, cfg.maxTilt);
+			// "bornées par MaxGpsTiltAngle" — on the COMPOSITE, not per axis:
+			// two axes each at the limit is 1.41 times the limit, and the limit
+			// is an inclination, which has no axes.
+			const lean = Math.hypot(leanX, leanZ);
+			if (lean > cfg.maxTilt) {
+				const k = cfg.maxTilt / lean;
+				leanX *= k; leanZ *= k;
+			}
+		} else {
+			// Above the dead zone the pilot flies, inside the same tilt limit,
+			// and the hold point follows the machine so that letting go parks it
+			// where it is rather than flying it back to where the mode started.
+			this.gpsHold.x = px;
+			this.gpsHold.z = pz;
+			this.gpsPid.x.reset();
+			this.gpsPid.z.reset();
+			const fx = Math.hypot(fwd.x, fwd.z);
+			const fwdX = fx > 0 ? fwd.x / fx : 0;
+			const fwdZ = fx > 0 ? fwd.z / fx : -1;
+			// Stick pitch up is nose up, i.e. backwards, so the lean is -pitch.
+			const along = -sticks.pitch * cfg.maxTilt;
+			const across = sticks.roll * cfg.maxTilt;
+			// Right of forward, in the horizontal plane: (x, z) -> (-z, x).
+			leanX = along * fwdX + across * -fwdZ;
+			leanZ = along * fwdZ + across * fwdX;
+		}
+
+		// World lean -> body. Forward is -Z in the body, right is +X.
+		const fh = Math.hypot(fwd.x, fwd.z);
+		const fwdX = fh > 0 ? fwd.x / fh : 0;
+		const fwdZ = fh > 0 ? fwd.z / fh : -1;
+		const leanFwd = leanX * fwdX + leanZ * fwdZ;
+		const leanRight = leanX * -fwdZ + leanZ * fwdX;
+		// Leaning forward is pitching DOWN, which is negative stick pitch.
+		const wantPitch = Math.sin(clamp(-leanFwd, -cfg.maxTilt, cfg.maxTilt));
+		const wantRoll = Math.sin(clamp(leanRight, -cfg.maxTilt, cfg.maxTilt));
+
+		// §9.6's integral reset. The attitude ERROR, not the attitude: an
+		// integral wound up while the machine is still swinging back onto the
+		// demanded angle is what makes the return to neutral ring, and that is
+		// exactly what the spec says this guards against.
+		const errPitch = Math.asin(clamp(wantPitch, -1, 1)) - Math.asin(clamp(-upB.z, -1, 1));
+		const errRoll = Math.asin(clamp(wantRoll, -1, 1)) - Math.asin(clamp(-upB.x, -1, 1));
+		if (Math.abs(errPitch) > GPS_I_RESET_AXIS || Math.abs(errRoll) > GPS_I_RESET_AXIS
+			|| Math.hypot(errPitch, errRoll) > GPS_I_RESET_TOTAL) {
+			this.gpsPid.x.resetIntegral();
+			this.gpsPid.z.resetIntegral();
+		}
+
+		return { pitch: wantPitch, roll: wantRoll, yawRate, held };
 	}
 
 	// Airmode mixer. Two things happen here that a naive `throttle + mix` misses,

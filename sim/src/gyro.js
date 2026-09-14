@@ -265,7 +265,13 @@ export class RpmFilter {
 		if (!rotorOmega) return x;
 		let y = x;
 		for (const e of this.notches) {
-			const f = (rotorOmega[e.m] / TWO_PI) * e.h;
+			// Magnitude: in Acro3D a rotor turns backwards, and a shaft spinning
+			// the other way vibrates at the same frequency. Without the abs the
+			// notch is handed a negative centre frequency and goes transparent at
+			// exactly the moment the machine is inverted and needs it most. Taken
+			// here rather than in physics.js, whose `rotorOmega` getter returns
+			// the live array on purpose and must not allocate a copy per step.
+			const f = (Math.abs(rotorOmega[e.m]) / TWO_PI) * e.h;
 			if (f < RPM_MIN_HZ) { e.n.bypass = true; continue; }
 			e.n.setFrequency(f, dt);
 			y = e.n.step(y);
