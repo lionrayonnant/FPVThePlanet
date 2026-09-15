@@ -1,4 +1,4 @@
-// node tools/drone-shape-selftest.mjs — la recette PURE du quad (issue #250).
+// node tools/drone-shape-selftest.mjs — the PURE geometric recipe of the quad (issue #250).
 import { shapeOf, RECIPE_PROFILES, eyeOf } from '../src/drone-shape.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { motorsOf } from '../src/quad.js';
@@ -20,84 +20,91 @@ const make = (family, seed = `shape::${family}`, detail = undefined) => {
 console.log('drone-shape');
 for (const family of FAMILIES) {
 	const s = make(family);
-	check(`${family}: 4 bras, 4 moteurs, 4 hélices`, roles(s, 'arm').length === 4 && roles(s, 'motor').length === 4 && roles(s, 'prop').length === 4);
-	check(`${family}: une plaque, une caméra, une batterie, une LED`, roles(s, 'plate').length === 1 && roles(s, 'camera').length === 1 && roles(s, 'battery').length === 1 && roles(s, 'led').length === 1);
+	check(`${family}: 4 arms, 4 motors, 4 props`, roles(s, 'arm').length === 4 && roles(s, 'motor').length === 4 && roles(s, 'prop').length === 4);
+	check(`${family}: one plate, one camera, one battery, one LED`, roles(s, 'plate').length === 1 && roles(s, 'camera').length === 1 && roles(s, 'battery').length === 1 && roles(s, 'led').length === 1);
 	const prop = roles(s, 'prop')[0];
-	check(`${family}: disque = propRadius`, Math.abs(prop.size[0] - PROFILES[family].propRadius) < 1e-9);
+	check(`${family}: disc = propRadius`, Math.abs(prop.size[0] - PROFILES[family].propRadius) < 1e-9);
 	const motors = roles(s, 'motor');
-	check(`${family}: moteurs à (±armX, ±armZ)`, motors.every((m) => Math.abs(Math.abs(m.at[0]) - PROFILES[family].armX) < 1e-9 && Math.abs(Math.abs(m.at[2]) - PROFILES[family].armZ) < 1e-9));
-	check(`${family}: rayon englobant > hypot(arm) + prop`, s.boundingRadius >= Math.hypot(PROFILES[family].armX, PROFILES[family].armZ) + PROFILES[family].propRadius);
-	check(`${family}: toutes les pièces sous le rayon englobant`, s.parts.every((p) => Math.hypot(...p.at) <= s.boundingRadius + 1e-9));
-	check(`${family}: caméra inclinée du uptilt`, Math.abs(roles(s, 'camera')[0].rotX - targetCamera({ seed: `shape::${family}`, family }).uptiltDeg * Math.PI / 180) < 1e-9);
-	check(`${family}: LED à l'arrière (+Z)`, roles(s, 'led')[0].at[2] > 0);
-	check(`${family}: caméra à l'avant (−Z)`, roles(s, 'camera')[0].at[2] < 0);
+	check(`${family}: motors at (+-armX, +-armZ)`, motors.every((m) => Math.abs(Math.abs(m.at[0]) - PROFILES[family].armX) < 1e-9 && Math.abs(Math.abs(m.at[2]) - PROFILES[family].armZ) < 1e-9));
+	check(`${family}: bounding radius > hypot(arm) + prop`, s.boundingRadius >= Math.hypot(PROFILES[family].armX, PROFILES[family].armZ) + PROFILES[family].propRadius);
+	check(`${family}: every part inside the bounding radius`, s.parts.every((p) => Math.hypot(...p.at) <= s.boundingRadius + 1e-9));
+	check(`${family}: camera tilted by the uptilt`, Math.abs(roles(s, 'camera')[0].rotX - targetCamera({ seed: `shape::${family}`, family }).uptiltDeg * Math.PI / 180) < 1e-9);
+	check(`${family}: LED at the back (+Z)`, roles(s, 'led')[0].at[2] > 0);
+	check(`${family}: camera at the front (-Z)`, roles(s, 'camera')[0].at[2] < 0);
 }
 
-// Issue #264 : la géométrie visible et le mixeur lisent la MÊME table.
-// quad.js:64-71 — 1 arrière-droit spin +1, 2 avant-droit spin −1,
-// 3 arrière-gauche spin −1, 4 avant-gauche spin +1.
+// Issue #264: the visible geometry and the mixer read the SAME table.
+// quad.js:64-71 — 1 rear-right spin +1, 2 front-right spin -1,
+// 3 rear-left spin -1, 4 front-left spin +1.
 for (const family of FAMILIES) {
 	const s = make(family);
 	const props = roles(s, 'prop');
 	const motors = motorsOf(PROFILES[family]);
-	check(`${family}: chaque hélice porte son index moteur`,
+	check(`${family}: every prop carries its motor index`,
 		props.every((p, i) => p.motor === i) && props.length === 4,
 		props.map((p) => p.motor).join(','));
-	check(`${family}: l'hélice k est à la position du moteur k`,
+	check(`${family}: prop k sits at motor k's position`,
 		props.every((p) => {
 			const m = motors[p.motor];
 			return Math.abs(p.at[0] - m.x) < 1e-9 && Math.abs(p.at[2] - m.z) < 1e-9;
 		}));
-	check(`${family}: l'hélice k porte le spin du moteur k`,
+	check(`${family}: prop k carries motor k's spin`,
 		props.every((p) => p.spin === motors[p.motor].spin));
-	// Les deux hélices DANS LE CHAMP sont les avant : moteurs 1 et 3.
+	// The two props IN FRAME are the front ones: motors 1 and 3.
 	const front = props.filter((p) => p.at[2] < 0).map((p) => p.motor).sort();
-	check(`${family}: les deux hélices avant sont les moteurs 1 et 3`,
+	check(`${family}: the two front props are motors 1 and 3`,
 		front.join(',') === '1,3', front.join(','));
-	check(`${family}: les deux avant tournent en sens opposés`,
+	check(`${family}: the two front props turn opposite ways`,
 		props[1].spin === -props[3].spin);
-	// Bras, moteurs et conduits portent le même index que leur hélice.
+	// Arms, motors and ducts carry the same index as their prop.
 	for (const role of ['arm', 'motor', 'duct']) {
 		const r = roles(s, role);
 		if (!r.length) continue;
-		check(`${family}: chaque ${role} porte son index moteur`,
+		check(`${family}: every ${role} carries its motor index`,
 			r.every((p, i) => p.motor === i) && r.length === 4,
 			r.map((p) => p.motor).join(','));
 	}
 }
-// Issue #264 : non-régression. shapeOf() SANS `detail` doit rendre exactement
-// la même géométrie d'une session à l'autre — mêmes primitives, mêmes
-// positions, mêmes tailles —, sinon les drones ambiants changeraient d'aspect
-// en douce. L'empreinte est insensible à l'ORDRE des parts (les hélices
-// naissent maintenant de motorsOf(), qui les énumère dans l'ordre Betaflight)
-// et ignore les champs ajoutés (`motor`, `spin`) : ce qu'on gèle, c'est la
-// forme, pas la recette.
+// Issue #264: non-regression. shapeOf() WITHOUT `detail` must return exactly
+// the same geometry from one session to the next — same primitives, same
+// positions, same sizes — or the ambient drones would quietly change shape. The
+// fingerprint is insensitive to the ORDER of the parts (props now come out of
+// motorsOf(), which enumerates them in Betaflight order) and ignores the added
+// fields (`motor`, `spin`): what is frozen is the shape, not the recipe.
 //
-// Elles ont été recalculées une seconde fois quand tools/tune-mount.mjs a
-// re-mesuré le montage : sa règle de hauteur est passée de « la plus grande que
-// la borne autorise » à « celle qui rend les hélices le plus présentes sous la
-// borne » (les deux disent la même chose au bord de la plaque, la seconde reste
-// juste si l'objectif avance), ce qui a déplacé quatre familles de 0,1 à 0,2 mm.
+// They were recomputed a second time when tools/tune-mount.mjs re-measured the
+// mount: its height rule went from "the tallest the bound allows" to "the one
+// that makes the props most present under the bound" (the two say the same
+// thing at the edge of the plate, the second stays right if the lens moves
+// forward), which shifted four families by 0.1 to 0.2 mm.
 //
-// Les six empreintes ont été recalculées une première fois quand la part caméra
-// est passée AU-DESSUS du plan d'hélice — le bloc MOUNT mesuré (#264, voir l'en-tête de
-// tools/tune-mount.mjs) l'a montée de quelques millimètres, son avancée étant
-// restée celle de la recette. Rien d'autre n'a bougé, et les ambiants ne sont
-// pas rendus autrement pour autant : src/drone-mesh.js traite la part `camera`
-// comme toutes les autres, c'est une boîte de 19×19×10 mm qui a changé de
-// hauteur.
+// The six fingerprints were recomputed a first time when the camera part moved
+// ABOVE the prop plane — the measured MOUNT block (#264, see the header of
+// tools/tune-mount.mjs) raised it by a few millimetres, its forward offset
+// staying the recipe's. Nothing else moved, and the ambients are not rendered
+// any differently for it: src/drone-mesh.js treats the `camera` part like every
+// other one, it is a 19x19x10 mm box that changed height.
 //
-// L'empreinte du toothpick a été recalculée une troisième fois quand les quatre
-// familles extrapolées de freestyle5 ont repris des pièces de catalogue : son
-// hélice est passée de 0,0318 à 0,03175 m, qui est exactement 2,5 pouces. Le
-// maillage a bougé de 0,05 mm, et le nombre est désormais un fait plutôt qu'un
-// arrondi. Toute autre dérive de ces empreintes est une régression.
+// The toothpick's fingerprint was recomputed a third time when the four
+// families extrapolated from freestyle5 took up catalogue parts: its prop went
+// from 0.0318 to 0.03175 m, which is exactly 2.5 inches. The mesh moved by
+// 0.05 mm, and the number is now a fact rather than a rounding.
+//
+// The longrange's fingerprint was recomputed a fourth time when the last
+// extrapolated family took up catalogue parts too: its phantom 7x4x3 became the
+// catalogue's `7037` AS A BI-BLADE (see src/drone-profiles.js, which says why:
+// as a tri-blade the same prop makes 14.5 N an arm, 5.4:1 on any honest bill of
+// materials, which is no longer a cruiser). `propRadius` and the arms did not
+// move — 88.9 mm and 0.105 m are still there — so the only thing that changed
+// in the geometry is the `blades` field of the four discs, and the blades of
+// the detail levels, going from 3 to 2. Any other drift of these fingerprints
+// is a regression.
 {
 	const GOLDEN = {
 		freestyle5: '7060140541d230dd',
 		race5: 'd8da56b6dd4c251f',
 		cinewhoop: 'e8adbcc42d131eb3',
-		longrange: 'afdf242d80843cd8',
+		longrange: '7630c7839b672e41',
 		heavy5: '962cbf465e9905b9',
 		toothpick: 'c69c69ba7694ef60',
 	};
@@ -106,28 +113,28 @@ for (const family of FAMILIES) {
 			.map((p) => JSON.stringify({ kind: p.kind, role: p.role, at: p.at, size: p.size, rotX: p.rotX ?? 0, rotY: p.rotY ?? 0, blades: p.blades ?? 0 }))
 			.sort();
 		const digest = createHash('sha256').update(rows.join('\n')).digest('hex').slice(0, 16);
-		check(`${family}: géométrie par défaut inchangée`, digest === GOLDEN[family], digest);
+		check(`${family}: default geometry unchanged`, digest === GOLDEN[family], digest);
 	}
 }
-check('long range : disques de 88,9 mm', Math.abs(roles(make('longrange'), 'prop')[0].size[0] - 0.0889) < 1e-4);
-check('micro : deux pales', roles(make('toothpick'), 'prop')[0].blades === 2);
-check('micro : empattement 76 mm', Math.abs(2 * PROFILES.toothpick.armX - 0.076) < 1e-3);
-check('cinewhoop : 4 conduits', roles(make('cinewhoop'), 'duct').length === 4);
-check('micro : 4 conduits', roles(make('toothpick'), 'duct').length === 4);
-check('race : pas de conduit', roles(make('race5'), 'duct').length === 0);
-check('cinewhoop : une GoPro', roles(make('cinewhoop'), 'gopro').length === 1);
-check('long range : deux antennes', roles(make('longrange'), 'antenna').length === 2);
-check('race : une antenne', roles(make('race5'), 'antenna').length === 1);
-check('heavy : plaque de 10 mm', Math.abs(roles(make('heavy5'), 'plate')[0].size[1] - 0.010) < 1e-9);
-check('freestyle : plaque de 6 mm', Math.abs(roles(make('freestyle5'), 'plate')[0].size[1] - 0.006) < 1e-9);
+check('long range: 88.9 mm discs', Math.abs(roles(make('longrange'), 'prop')[0].size[0] - 0.0889) < 1e-4);
+check('micro: two blades', roles(make('toothpick'), 'prop')[0].blades === 2);
+check('micro: 76 mm wheelbase', Math.abs(2 * PROFILES.toothpick.armX - 0.076) < 1e-3);
+check('cinewhoop: 4 ducts', roles(make('cinewhoop'), 'duct').length === 4);
+check('micro: 4 ducts', roles(make('toothpick'), 'duct').length === 4);
+check('race: no duct', roles(make('race5'), 'duct').length === 0);
+check('cinewhoop: one GoPro', roles(make('cinewhoop'), 'gopro').length === 1);
+check('long range: two antennas', roles(make('longrange'), 'antenna').length === 2);
+check('race: one antenna', roles(make('race5'), 'antenna').length === 1);
+check('heavy: 10 mm plate', Math.abs(roles(make('heavy5'), 'plate')[0].size[1] - 0.010) < 1e-9);
+check('freestyle: 6 mm plate', Math.abs(roles(make('freestyle5'), 'plate')[0].size[1] - 0.006) < 1e-9);
 {
-	// Batterie : longueur = 20 mm · cells.
+	// Battery: length = 20 mm * cells.
 	const s = make('longrange');
-	check('batterie 6S = 120 mm', Math.abs(roles(s, 'battery')[0].size[2] - 0.12) < 1e-9);
+	check('6S battery = 120 mm', Math.abs(roles(s, 'battery')[0].size[2] - 0.12) < 1e-9);
 }
 {
-	// Un build lourd de freestyle porte une GoPro ; un léger non. On cherche
-	// deux graines : la variation de masse est ±12 %.
+	// A heavy freestyle build carries a GoPro; a light one does not. Two seeds
+	// are searched for: the mass variation is +-12%.
 	let heavy = null, light = null;
 	for (let i = 0; i < 200 && !(heavy && light); i++) {
 		const b = targetBuild({ seed: `gp::${i}`, family: 'freestyle5' });
@@ -135,12 +142,12 @@ check('freestyle : plaque de 6 mm', Math.abs(roles(make('freestyle5'), 'plate')[
 		if (ratio > 1.05 && !heavy) heavy = `gp::${i}`;
 		if (ratio < 1.0 && !light) light = `gp::${i}`;
 	}
-	check('freestyle lourd : GoPro', roles(make('freestyle5', heavy), 'gopro').length === 1, heavy);
-	check('freestyle léger : pas de GoPro', roles(make('freestyle5', light), 'gopro').length === 0, light);
+	check('heavy freestyle: GoPro', roles(make('freestyle5', heavy), 'gopro').length === 1, heavy);
+	check('light freestyle: no GoPro', roles(make('freestyle5', light), 'gopro').length === 0, light);
 }
-check('même build → même recette', JSON.stringify(make('race5', 'same')) === JSON.stringify(make('race5', 'same')));
+check('same build -> same recipe', JSON.stringify(make('race5', 'same')) === JSON.stringify(make('race5', 'same')));
 
-// Issue #264 : trois niveaux de détail, et le défaut ne bouge PAS.
+// Issue #264: three detail levels, and the default does NOT move.
 {
 	const seed = 'lod::freestyle5';
 	const build = targetBuild({ seed, family: 'freestyle5' });
@@ -150,141 +157,141 @@ check('même build → même recette', JSON.stringify(make('race5', 'same')) ===
 	const onboard = shapeOf({ profile: build.profile, build, camera, detail: 'onboard' });
 	const portrait = shapeOf({ profile: build.profile, build, camera, detail: 'portrait' });
 
-	check('detail absent ≡ silhouette', JSON.stringify(base) === JSON.stringify(silhouette));
-	check('silhouette : aucune pale', silhouette.parts.every((p) => p.role !== 'blade'));
-	check('onboard : 3 pales par hélice (freestyle)', onboard.parts.filter((p) => p.role === 'blade').length === 12);
-	check('onboard : le disque enveloppe est conservé', onboard.parts.filter((p) => p.role === 'prop').length === 4);
-	// L'enveloppe balayée est ce que tools/prop-coverage.mjs mesure et ce que le
-	// shader fond en flou : si un niveau la retirait, la borne DA deviendrait
-	// aveugle. Les pales S'AJOUTENT au disque, elles ne le remplacent pas.
-	check('le disque enveloppe survit aux trois niveaux',
+	check('no detail === silhouette', JSON.stringify(base) === JSON.stringify(silhouette));
+	check('silhouette: no blade', silhouette.parts.every((p) => p.role !== 'blade'));
+	check('onboard: 3 blades per prop (freestyle)', onboard.parts.filter((p) => p.role === 'blade').length === 12);
+	check('onboard: the swept disc is kept', onboard.parts.filter((p) => p.role === 'prop').length === 4);
+	// The swept disc is what tools/prop-coverage.mjs measures and what the shader
+	// blurs: if a level removed it, the art-direction bound would go blind. The
+	// blades ADD to the disc, they do not replace it.
+	check('the swept disc survives all three levels',
 		[silhouette, onboard, portrait].every((s) => s.parts.filter((p) => p.role === 'prop').length === 4));
-	// `onboard` RETIRE délibérément la carrosserie — l'objectif ne filme pas son
-	// propre boîtier — et n'ajoute que les pales. Ce qu'il ne doit jamais
-	// retirer, c'est un rotor : sans eux la vue embarquée n'a plus de sujet.
-	// Les BRAS, eux, changent avec le châssis (#285) : leur point de départ
-	// dépend du patron. Ce qui ne bouge jamais, c'est le moteur au bout.
+	// `onboard` deliberately REMOVES the bodywork — the lens does not film its own
+	// housing — and adds only the blades. What it must never remove is a rotor:
+	// without them the onboard view has no subject left. The ARMS do change with
+	// the frame (#285): where they start depends on the pattern. What never moves
+	// is the motor at the end.
 	const ROTOR = new Set(['motor', 'prop', 'duct']);
-	check('onboard garde tous les rotors de la silhouette',
+	check('onboard keeps every rotor of the silhouette',
 		silhouette.parts.filter((p) => ROTOR.has(p.role))
 			.every((p) => onboard.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
-	check('onboard : quatre bras, chacun arrivant à son moteur',
+	check('onboard: four arms, each reaching its motor',
 		onboard.parts.filter((p) => p.role === 'arm').length === 4);
-	check('onboard retire la carrosserie',
+	check('onboard removes the bodywork',
 		onboard.parts.every((p) => ROTOR.has(p.role) || ['arm', 'blade', 'tape', 'bell'].includes(p.role)));
-	check('portrait ajoute à la silhouette, ne retire rien (la plaque et les bras suivent le châssis)',
+	check('portrait adds to the silhouette, removes nothing (plate and arms follow the frame)',
 		silhouette.parts.filter((p) => !['plate', 'arm'].includes(p.role)).every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
-	check('portrait ajoute, ne retire rien',
+	check('portrait adds, removes nothing',
 		onboard.parts.every((p) => portrait.parts.some((q) => q.role === p.role && q.at.join() === p.at.join())));
-	check('portrait ⊇ onboard', onboard.parts.length < portrait.parts.length);
-	check('portrait : cloches moteur', portrait.parts.filter((p) => p.role === 'bell').length === 4);
-	check('rayon englobant identique aux trois niveaux',
+	check('portrait superset of onboard', onboard.parts.length < portrait.parts.length);
+	check('portrait: motor bells', portrait.parts.filter((p) => p.role === 'bell').length === 4);
+	check('bounding radius identical at all three levels',
 		silhouette.boundingRadius === onboard.boundingRadius && onboard.boundingRadius === portrait.boundingRadius);
-	check('chaque pale porte le moteur et le sens de son hélice',
+	check('every blade carries the motor and spin of its prop',
 		onboard.parts.filter((p) => p.role === 'blade').every((p) => Number.isInteger(p.motor) && Math.abs(p.spin) === 1));
-	check('micro : 2 pales par hélice', shapeOf({
+	check('micro: 2 blades per prop', shapeOf({
 		profile: targetBuild({ seed: 'lod::tp', family: 'toothpick' }).profile,
 		build: targetBuild({ seed: 'lod::tp', family: 'toothpick' }),
 		camera: targetCamera({ seed: 'lod::tp', family: 'toothpick' }),
 		detail: 'onboard',
 	}).parts.filter((p) => p.role === 'blade').length === 8);
-	// Un niveau inconnu est une faute de frappe, pas un silhouette silencieux.
+	// An unknown level is a typo, not a silent silhouette.
 	let threw = false;
 	try { shapeOf({ profile: build.profile, build, camera, detail: 'moyen' }); } catch { threw = true; }
-	check('un niveau inconnu lève', threw);
-	// Toutes les pièces des trois niveaux restent sous le rayon englobant.
-	check('les pales et les cloches tiennent sous le rayon englobant',
+	check('an unknown level throws', threw);
+	// Every part of all three levels stays inside the bounding radius.
+	check('blades and bells fit inside the bounding radius',
 		portrait.parts.every((p) => Math.hypot(...p.at) <= portrait.boundingRadius + 1e-9));
 }
 
-// Issue #264 : ce que l'objectif peut voir. Le niveau `onboard` ne porte QUE
-// les rotors — un objectif ne filme pas son propre boîtier (la part `camera`
-// est centrée sur l'oeil : rendue, elle couvre tout le cadre), ni le pack, la
-// GoPro et les antennes, qui vivent derrière lui. Le `portrait`, lui, montre la
-// machine entière : c'est une fiche, pas une vue subjective.
+// Issue #264: what the lens can see. The `onboard` level carries ONLY the
+// rotors — a lens does not film its own housing (the `camera` part is centred on
+// the eye: rendered, it covers the whole frame), nor the pack, the GoPro and the
+// antennas, which live behind it. `portrait` shows the whole machine instead:
+// it is a data sheet, not a first-person view.
 {
 	const ROTORS = new Set(['arm', 'motor', 'prop', 'duct', 'blade', 'tape', 'bell']);
 	for (const family of FAMILIES) {
-		const embarque = new Set(make(family, `shape::${family}`, 'onboard').parts.map((p) => p.role));
-		check(`${family}: la vue embarquée ne porte que les rotors`,
-			[...embarque].every((r) => ROTORS.has(r)), [...embarque].join(' '));
-		check(`${family}: la vue embarquée porte bien ses hélices et ses pales`,
-			embarque.has('prop') && embarque.has('blade'));
+		const onboardRoles = new Set(make(family, `shape::${family}`, 'onboard').parts.map((p) => p.role));
+		check(`${family}: the onboard view carries only the rotors`,
+			[...onboardRoles].every((r) => ROTORS.has(r)), [...onboardRoles].join(' '));
+		check(`${family}: the onboard view does carry its props and blades`,
+			onboardRoles.has('prop') && onboardRoles.has('blade'));
 		const portrait = new Set(make(family, `shape::${family}`, 'portrait').parts.map((p) => p.role));
-		check(`${family}: le portrait garde la machine entière`,
+		check(`${family}: the portrait keeps the whole machine`,
 			portrait.has('camera') && portrait.has('battery') && portrait.has('plate') && portrait.has('led'),
 			[...portrait].join(' '));
 	}
 }
 
-// --------------------------------------------------------- l'essaim (#29)
+// ----------------------------------------------------------- the swarm (#29)
 //
-// Deux machines de plus, et une seule d'entre elles est une famille : le nœud
-// vit dans PROFILES (on le pilote), l'unité n'existe que comme recette (on ne
-// la pilote jamais, donc elle n'a ni PID ni tune). Le selftest les traite
-// exactement pareil, parce que shapeOf() les traite exactement pareil : il
-// prend un PROFIL, pas un nom de famille.
-console.log('\ndrone-shape : essaim (#29)');
+// Two more machines, and only one of them is a family: the node lives in
+// PROFILES (it gets flown), the unit exists only as a recipe (it is never
+// flown, so it has neither PID nor tune). This selftest treats them exactly
+// alike, because shapeOf() treats them exactly alike: it takes a PROFILE, not a
+// family name.
+console.log('\ndrone-shape: swarm (#29)');
 {
 	const node = make('swarmNode', 'shape::swarmNode');
 	const unitProfile = RECIPE_PROFILES.swarmUnit;
 	const unit = shapeOf({ profile: unitProfile, build: {}, camera: targetCamera({ seed: 'shape::swarmUnit', family: 'swarmUnit' }) });
 
 	for (const [name, s, profile] of [['swarmNode', node, PROFILES.swarmNode], ['swarmUnit', unit, unitProfile]]) {
-		check(`${name}: 4 bras, 4 moteurs, 4 disques`,
+		check(`${name}: 4 arms, 4 motors, 4 discs`,
 			roles(s, 'arm').length === 4 && roles(s, 'motor').length === 4 && roles(s, 'prop').length === 4);
-		check(`${name}: une plaque, une caméra, une batterie, une LED`,
+		check(`${name}: one plate, one camera, one battery, one LED`,
 			roles(s, 'plate').length === 1 && roles(s, 'camera').length === 1 && roles(s, 'battery').length === 1 && roles(s, 'led').length === 1);
-		check(`${name}: disque = propRadius`, Math.abs(roles(s, 'prop')[0].size[0] - profile.propRadius) < 1e-9);
-		check(`${name}: trois pales`, roles(s, 'prop').every((p) => p.blades === 3));
-		check(`${name}: moteurs à (±armX, ±armZ)`,
+		check(`${name}: disc = propRadius`, Math.abs(roles(s, 'prop')[0].size[0] - profile.propRadius) < 1e-9);
+		check(`${name}: three blades`, roles(s, 'prop').every((p) => p.blades === 3));
+		check(`${name}: motors at (+-armX, +-armZ)`,
 			roles(s, 'motor').every((m) => Math.abs(Math.abs(m.at[0]) - profile.armX) < 1e-9 && Math.abs(Math.abs(m.at[2]) - profile.armZ) < 1e-9));
-		// Géométrie FINIE : pas un NaN, pas un Infinity, pas une taille nulle.
-		// Une recette qui lirait un champ absent du profil sortirait d'ici.
-		check(`${name}: toutes les dimensions finies et positives`,
+		// FINITE geometry: no NaN, no Infinity, no zero size. A recipe reading a
+		// field the profile does not carry would surface right here.
+		check(`${name}: every dimension finite and positive`,
 			s.parts.every((p) => p.at.every(Number.isFinite) && p.size.every((v) => Number.isFinite(v) && v > 0))
 			&& Number.isFinite(s.boundingRadius) && s.boundingRadius > 0);
-		check(`${name}: toutes les pièces sous le rayon englobant`,
+		check(`${name}: every part inside the bounding radius`,
 			s.parts.every((p) => Math.hypot(...p.at) <= s.boundingRadius + 1e-9));
-		check(`${name}: caméra à l'avant, LED à l'arrière`,
+		check(`${name}: camera at the front, LED at the back`,
 			roles(s, 'camera')[0].at[2] < 0 && roles(s, 'led')[0].at[2] > 0);
-		check(`${name}: l'oeil est au bord avant de la plaque`,
+		check(`${name}: the eye is at the front edge of the plate`,
 			Math.abs(eyeOf(profile)[2] + 0.55 * profile.armZ) < 1e-9, `${eyeOf(profile)[2]}`);
 	}
 
-	check('swarmUnit : carènes, comme le cinewhoop', roles(unit, 'duct').length === 4);
-	check('swarmUnit : anneau r = 1,12·propRadius',
+	check('swarmUnit: ducts, like the cinewhoop', roles(unit, 'duct').length === 4);
+	check('swarmUnit: ring r = 1.12 * propRadius',
 		Math.abs(roles(unit, 'duct')[0].size[0] - 1.12 * unitProfile.propRadius) < 1e-9);
-	check('swarmUnit : une seule antenne', roles(unit, 'antenna').length === 1);
-	check('swarmUnit : batterie 3S = 60 mm', Math.abs(roles(unit, 'battery')[0].size[2] - 0.060) < 1e-9);
-	check('swarmUnit : pas de GoPro, pas de dôme',
+	check('swarmUnit: a single antenna', roles(unit, 'antenna').length === 1);
+	check('swarmUnit: 3S battery = 60 mm', Math.abs(roles(unit, 'battery')[0].size[2] - 0.060) < 1e-9);
+	check('swarmUnit: no GoPro, no dome',
 		roles(unit, 'gopro').length === 0 && roles(unit, 'dome').length === 0);
-	check('swarmUnit : LED plus forte que celle d\'un ambiant ordinaire',
+	check('swarmUnit: a stronger LED than an ordinary ambient',
 		roles(unit, 'led')[0].size[0] > roles(make('freestyle5'), 'led')[0].size[0]);
 
-	check('swarmNode : un dôme sur le dessus', roles(node, 'dome').length === 3
+	check('swarmNode: a dome on top', roles(node, 'dome').length === 3
 		&& roles(node, 'dome').every((d) => d.at[1] > roles(node, 'battery')[0].at[1]));
-	check('swarmNode : le dôme se rétrécit en montant',
+	check('swarmNode: the dome narrows as it rises',
 		roles(node, 'dome').every((d, i, a) => i === 0 || d.size[0] < a[i - 1].size[0]));
-	check('swarmNode : deux antennes', roles(node, 'antenna').length === 2);
-	check('swarmNode : pas de carène, pas de GoPro',
+	check('swarmNode: two antennas', roles(node, 'antenna').length === 2);
+	check('swarmNode: no duct, no GoPro',
 		roles(node, 'duct').length === 0 && roles(node, 'gopro').length === 0);
-	check('swarmNode : batterie 6S = 120 mm', Math.abs(roles(node, 'battery')[0].size[2] - 0.12) < 1e-9);
+	check('swarmNode: 6S battery = 120 mm', Math.abs(roles(node, 'battery')[0].size[2] - 0.12) < 1e-9);
 
-	// Le compte de triangles, dans l'ORDRE annoncé par la spec (~300 pour
-	// l'unité). On compte ce que src/drone-mesh.js monterait, sans monter quoi
-	// que ce soit : la primitive et ses segments suffisent. Un disque à 12
-	// côtés, un cylindre à 8, un anneau ouvert à 12.
+	// The triangle count, in the ORDER the spec announces (~300 for the unit).
+	// What src/drone-mesh.js would build is counted without building anything:
+	// the primitive and its segment count are enough. A disc has 12 sides, a
+	// cylinder 8, an open ring 12.
 	const tris = (s) => s.parts.reduce((n, p) => n + ({
 		box: 12, cylinder: 8 * 2 + 2 * 8, ring: 12 * 2, disc: 12, point: 0,
 	}[p.kind] ?? 0), 0);
 	const tUnit = tris(unit), tNode = tris(node);
 	const RING = 12 * 2, CYL = 8 * 2 + 2 * 8;
-	check('swarmUnit : ~300 triangles (< 500)', tUnit > 150 && tUnit < 500, `${tUnit}`);
-	// Le nœud est l'unité MOINS ses quatre carènes, PLUS les trois étages du
-	// dôme et une seconde antenne. À l'unité près : si une pièce apparaît ou
-	// disparaît d'un côté sans l'autre, cette égalité tombe.
-	check('swarmNode : exactement unité − 4 carènes + 3 étages de dôme + 1 antenne',
+	check('swarmUnit: ~300 triangles (< 500)', tUnit > 150 && tUnit < 500, `${tUnit}`);
+	// The node is the unit MINUS its four ducts, PLUS the three dome stages and a
+	// second antenna. To the triangle: if a part appears or disappears on one
+	// side and not the other, this equality falls.
+	check('swarmNode: exactly unit - 4 ducts + 3 dome stages + 1 antenna',
 		tNode === tUnit - 4 * RING + 3 * CYL + CYL, `${tNode} vs ${tUnit - 4 * RING + 4 * CYL}`);
 }
 

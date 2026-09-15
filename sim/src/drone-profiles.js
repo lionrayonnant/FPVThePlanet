@@ -290,30 +290,83 @@ export const PROFILES = {
 	},
 
 	// -------------------------------------------------------------------------
-	// A 7" long-range cruiser: 2806.5/1300KV on 6S, 7x4x3, a 3000 mAh pack.
-	// Heavy (~0.92 kg) with long arms, so every inertia is roughly 2.4x the
-	// freestyle value. Big slow props: low maxOmega, long motor lag, and a large
-	// disc that both drags sideways more and loses more thrust to axial inflow.
-	// Efficient in cruise (low horizontal body drag) but a big flat plate when
-	// falling.
+	// A 7" long-range cruiser, from the catalogue: frame `KL_7` (7" Kayouloin,
+	// 420 g — the catalogue's own long-range 7"), four `1300-2807` (2806.5 at
+	// 1300 KV, 47 g each), four `7037` props (7x3.6, 8 g), a `6s-3000` pack
+	// (403 g). 1043 g of parts, and the 1.05 kg below is that plus the few grams
+	// of wiring and straps the other catalogue families round in.
+	//
+	// THIS FAMILY WAS THE LAST ONE EXTRAPOLATED FROM freestyle5, and it was the
+	// one nobody wanted to touch, because fixing it moves `mass` and forces the
+	// inertia with it. Three things were wrong at once:
+	//
+	//   - 2450 rad/s against 1300 KV on 6S is a droop of 0.750, the only family
+	//     left outside the spec's band. Rule 1 gives
+	//       maxOmega = 0.765 * 1300 * 6 * 4.0 V = 23 868 rpm = 2499 rad/s.
+	//   - the 7x4x3 it flew is in no catalogue: the 7" entries are `7037`
+	//     (7x3.6), `7050` (7x5.0) and `7055` (7x5.5). The low-pitch 7037 is the
+	//     endurance choice, the same trade heavy5 and swarmNode make.
+	//   - 0.92 kg is not what those parts weigh.
+	//
+	// TWO BLADES, not three. Blade count is not a catalogue field, so it is a
+	// choice, and rule 2 prices it: the 7037 as a tri-blade makes 14.5 N a
+	// corner, which on any honest 7" BOM is 5.4:1 — a punchy 7", not a cruiser.
+	// A long-range build flies bi-blades because they are the efficient ones,
+	// and that is what puts this family back in its own class:
+	//   T = 0.1460*(3.6/7)*(2/3)^0.75 * 1.225 * (23868/60)^2 * 0.1778^4 = 10.73 N
+	// 10.73 N a corner on 1.05 kg is 4.17:1, the long-range class — the lowest
+	// thrust-to-weight of the six, which is exactly what a 7" endurance machine
+	// is. `propInertia` follows the blade count: two of the same blades instead
+	// of three, and the hub is a small share of a 7" prop's second moment
+	// because the mass is out at the tip, so 1.1e-5 * 2/3 = 7.3e-6.
+	//
+	// INERTIA. Moving the mass forces it, and "scale freestyle5 by mass and by
+	// arm^2" is not good enough here: the extra mass is not spread the way the
+	// reference's is — 55 g of motor+prop sits at each corner against the
+	// reference's 38 g, and a 403 g pack sits in the middle. So the airframe is
+	// modelled as four corner point masses (motor + prop, catalogue masses) at
+	// (+-armX, 0, +-armZ) plus ONE equivalent box for everything else, and the
+	// box is calibrated on freestyle5 rather than guessed: solving
+	// I_ref - I_corners for a box of 0.498 kg gives 0.213 x 0.069 x 0.224 m,
+	// i.e. 2.73 x 0.89 x 2.87 in units of the arm. Scaling that box with THIS
+	// family's arm (0.105/0.078) and filling it with this family's central mass
+	// (1.05 - 4*0.055 = 0.830 kg) gives
+	//   x = 0.830*(b^2+c^2)*k^2/12 + 4*0.055*armX^2 = 0.0093
+	//   y = 0.830*(a^2+c^2)*k^2/12 + 8*0.055*armX^2 = 0.0168
+	//   z = 0.830*(a^2+b^2)*k^2/12 + 4*0.055*armZ^2 = 0.0087
+	// The same model reproduces freestyle5 exactly (it is its calibration) and
+	// lands within 7-14% of race5, heavy5, cinewhoop and swarmNode, and within
+	// 7% of what longrange itself used to carry at 0.92 kg — so this is the old
+	// number continued honestly, not a new one. (It is NOT valid at micro scale:
+	// on the toothpick an arm-scaled 5" plate is the wrong body and the model
+	// runs 50-85% high. That family keeps its measured values.)
+	//
+	// Big slow props: low maxOmega, long motor lag, and a large disc that both
+	// drags sideways more and loses more thrust to axial inflow. Efficient in
+	// cruise (low horizontal body drag) but a big flat plate when falling.
+	// inflowGain/buffetGain/lateralGain are untouched: they are a residual on a
+	// disc-area formula and the disc has not moved. torqueRatio is untouched
+	// too — no rule in this file derives it, the catalogue does not carry it,
+	// and blade-element.js uses it as its second anchor.
 	longrange: {
 		family: 'longrange',
 		label: 'LONG RANGE',
 		rates: 'longrange',
-		mass: 0.92,
+		mass: 1.05,
 		radius: 0.15,
 		armX: 0.105,
 		armZ: 0.105,
-		inertia: { x: 0.0078, y: 0.0140, z: 0.0072 },
+		inertia: { x: 0.0093, y: 0.0168, z: 0.0087 },
 		propRadius: 0.0889,
-		propInertia: 1.1e-5,
-		bladeCount: 3,
-		// Geometric pitch in metres (7x4x3). src/blade-element.js turns it
+		propInertia: 7.3e-6,
+		bladeCount: 2,
+		// Geometric pitch in metres (catalogue `7037`, 7x3.6x2: 3.6 * 0.0254).
+		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
 		// real hardware, not a coefficient.
-		propPitch: 0.1016,
-		maxThrustPerMotor: 10.5,   // 2806.5 on 6S pulls well over 1 kgf a corner
-		maxOmega: 2450,
+		propPitch: 0.09144,
+		maxThrustPerMotor: 10.73,
+		maxOmega: 2499,
 		// The motor itself (src/motor.js). KV is the one this family's own
 		// comment already names; noLoadCurrent is a 2806.5 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
@@ -325,7 +378,11 @@ export const PROFILES = {
 		buffetGain: 0.997672,
 		lateralGain: 0.917682,
 		bodyDrag: { x: 0.012, y: 0.040, z: 0.012 },
-		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.010, maxCurrent: 90, dischargeCurve: 'lipo' },
+		// Catalogue `6s-3000` (403 g, 120C). internalOhm is rule 4,
+		// 6 * 2.5 mOhm * 1300/3000 = 6.5 mOhm — the 10 mOhm it used to carry was
+		// the reference 4S 1300's figure, left behind by the extrapolation.
+		// maxCurrent is rule 3 above, 63 A, far inside the pack's own 360 A.
+		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.0065, maxCurrent: 63, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -334,10 +391,10 @@ export const PROFILES = {
 		gyroNoise: 0,
 		loopDelay: 0,
 		pid: {
-			roll:  { p: 0.084, d: 1.90e-3 },
-			pitch: { p: 0.084, d: 1.90e-3 },
+			roll:  { p: 0.098, d: 1.90e-3 },
+			pitch: { p: 0.072, d: 1.40e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 4.199, pitch: 4.199, yaw: 0.840 },
+			torquePerMix: { roll: 4.449, pitch: 4.449, yaw: 0.890 },
 		},
 	},
 
