@@ -520,9 +520,9 @@ const opRoutes = [
 		json(res, 200, { session: { ...session, hasTrack: trackIdsFor(id).has(sid) } });
 	}],
 
-	// The index the enriched map consumes (issue #24): for every retained
-	// track, a decimated polyline (~100 points), the start, the end and the
-	// geolocated photos. NEVER the sample arrays — 200 complete tracks would be
+	// The index the flight history overlay consumes (issue #24): for every
+	// retained track, a decimated polyline (~100 points), the start, the end and
+	// the geolocated photos. NEVER the sample arrays — 200 complete tracks would be
 	// 3 MB to draw one-pixel lines.
 	//
 	// `?bbox=south,west,north,east` filters: the world view does not have to

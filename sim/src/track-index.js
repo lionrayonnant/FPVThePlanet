@@ -1,7 +1,8 @@
 // The one place that knows where flight tracks come from (issue #24).
 //
-// #26 (the DATA tab) reads tracks and #25 (the enriched map) will too, but
-// neither owns them: the recording, the encoding and the routes belong to #24.
+// #26 (the DATA tab) reads tracks and so does the map's flight history overlay,
+// but neither owns them: the recording, the encoding and the routes belong
+// to #24.
 // This accessor exists so that both consumers speak to ONE function each, and
 // so that a build where the routes are not deployed yet degrades to `NO TRACK`
 // instead of throwing.
