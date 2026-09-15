@@ -81,34 +81,38 @@ export function maxFrameTime(
 // THE DECISION, and the numbers behind it. `node tools/loop-rate-bench.mjs`
 // reproduces all of them.
 //
-//   * notches buildable, one axis, out of 9 (4 motors x 2 harmonics + the
-//     dynamic notch), freestyle5 at a hover with gyroNoise 0.08:
-//         250 Hz -> 0     500 Hz -> 0     1000 Hz -> 4     2000 Hz -> 8
-//     and the motor ripple they remove: 0.0 %, 0.1 %, 11.3 %, 15.5 %.
-//     At 250 and 500 Hz the notch is not weak, it is ABSENT: every centre
-//     frequency it is asked for is above the ceiling and every notch refuses.
+//   * where the tones are. In flight — hover stick and above — the six
+//     families' fundamentals span 157 Hz (longrange at a hover) to 816 Hz
+//     (toothpick at full song). A notch can be built only below 0.45 * Nyquist,
+//     so the ceiling is 56 Hz at 250 Hz, 113 at 500, 225 at 1000, 450 at 2000
+//     and 900 Hz at 4000. Only the last one covers every fundamental. At 250
+//     and 500 Hz the notch is not weak, it is ABSENT: every centre frequency it
+//     is asked for is above the ceiling and every notch refuses.
+//   * the SECOND harmonics are NOT covered and this file does not pretend
+//     otherwise: 2 * 816 Hz needs a 7253 Hz loop. They stay out of reach of the
+//     DYNAMIC notch, which has to find its peak in a band that does not contain
+//     it. The RPM filter still removes them, because it is told the rpm rather
+//     than having to measure it — its second-harmonic notches are buildable
+//     wherever 2 * f sits under 900 Hz, which is every family below about
+//     three-quarter stick. Above that the second harmonic is simply unfiltered,
+//     the way it is on a real 8 kHz machine above its own ceiling.
 //   * a 500 Hz tone read back through the SDFT: 109 Hz at a 250 Hz loop,
-//     126 Hz at 500, 249 Hz at 1000, and only at 2000 Hz does it come back as
-//     500 Hz. The three wrong answers are not noise, they are a tone the loop
-//     believes in and chases.
+//     126 Hz at 500, 249 Hz at 1000, 500 Hz at 2000 and at 4000. The wrong
+//     answers are not noise, they are a tone the loop believes in and chases.
+//   * what the chain removes, freestyle5 at a hover, measured as the RMS motion
+//     of the motor command with nothing asking for any: 0.0 % at 250 Hz, 0.1 %
+//     at 500, 11.3 % at 1000, 15.5 % at 2000, 19.2 % at 4000.
 //   * CPU, measured and not assumed (the repo has been wrong about this
-//     before): +0.65 ms per simulated second at 1000 Hz with the notches on,
-//     against the 250 Hz loop's own 0.32 ms — 0.065 % of one core, 0.065 % of
-//     a 60 fps frame. At 2000 Hz, +1.56 ms/s (0.16 %). It is scalar work on
-//     three axes; the cost is real and it is nothing.
+//     before): the 250 Hz loop as shipped costs 0.31 ms per simulated second;
+//     4000 Hz with the notches on costs 3.69 ms, i.e. +3.38 ms/s — 0.34 % of
+//     one core, 0.34 % of a 60 fps frame. Per controller update it is CHEAPER
+//     than the 250 Hz row (0.92 us against 1.26): the fixed per-update work is
+//     amortised and only the filters scale. Cost is not what decided this.
 //
-// So: 1000 Hz is the floor at which a notch exists at all, 2000 Hz is where
-// the second harmonics arrive, and neither costs anything worth naming. The
-// rate to switch to when gyroNoise stops being 0 is 1000 Hz, with 2000 Hz
-// available for the two fast families (cinewhoop, toothpick) whose
-// fundamentals sit at 311-816 Hz.
-//
-// CONTROL_SUBSTEPS stays 1 for now, and that is not a hedge: with gyroNoise 0
-// on every family there is no noise for a notch to remove, and a substepped
-// loop would only re-discretise a filter chain that tools/tune-pid.mjs swept
-// at 250 Hz. The rate and the noise go on TOGETHER, with a re-sweep, and
-// `?loop=` exists so that the day can be measured before it is committed to.
-export const CONTROL_SUBSTEPS = 1;
+// So: 4000 Hz, sixteen controller substeps per physics step. It is the first
+// rate at which the filter chain filters the machine's own vibration rather
+// than an alias of it, and it costs a third of a percent of a core.
+export const CONTROL_SUBSTEPS = 16;
 
 // The rates `?loop=` will accept. Every one is a whole number of substeps of
 // the 250 Hz grid — a control rate that did not divide the physics step would

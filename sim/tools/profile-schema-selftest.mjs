@@ -119,9 +119,23 @@ t('the spec-schema defaults are the ones that change nothing', () => {
 		assert.equal(p.minThrottle, 0, family);
 		assert.equal(p.dragScale, 1, family);
 		assert.equal(p.escCurrentLimit, null, family);
-		assert.equal(p.gyroNoise, 0, family);
-		assert.equal(p.loopDelay, 0, family);
 	}
+});
+
+t('gyroNoise and loopDelay are measured, and in the band they were derived in', () => {
+	// These two left the "default that changes nothing" list when the gyro was
+	// turned on. The derivation lives in src/drone-profiles.js under "WHERE
+	// gyroNoise COMES FROM"; the bounds here are what that derivation can
+	// produce, so a value typed in by hand has to argue with this bench.
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		assert.ok(p.gyroNoise >= 0.05 && p.gyroNoise <= 0.5, `${family}.gyroNoise = ${p.gyroNoise}`);
+		assert.ok(p.loopDelay >= 0.0005 && p.loopDelay <= 0.002, `${family}.loopDelay = ${p.loopDelay}`);
+	}
+	// loopDelay is uniform on purpose: it stands for the sensor, the scheduler
+	// and the ESC input, which are the same silicon on every build.
+	const delays = new Set(ALL.map((f) => PROFILES[f].loopDelay));
+	assert.equal(delays.size, 1, `loopDelay differs across families: ${[...delays]}`);
 });
 
 t('every pid block is complete on all three axes', () => {

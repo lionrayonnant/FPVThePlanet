@@ -17,6 +17,8 @@
 //   node tools/loop-rate-bench.mjs --dmax
 //   node tools/loop-rate-bench.mjs --ramp       # the noise/latency ramp
 //   node tools/loop-rate-bench.mjs --margin     # how much latency each tune survives
+//   node tools/loop-rate-bench.mjs --noise      # what noise level each family carries
+//   node tools/loop-rate-bench.mjs --shipped    # the chain on the machine as flown
 //
 // Nothing here writes into src/. Every setting it prices is a constructor
 // option on FlightController, never an edit to a profile.
@@ -26,19 +28,29 @@ import { Propulsion } from '../src/quad.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { FlightController } from '../src/flightController.js';
 import { DynamicNotch } from '../src/gyro.js';
-import { CONTROL_RATES } from '../src/frame-pacing.js';
+import { CONTROL_RATES, CONTROL_SUBSTEPS, FIXED_STEP } from '../src/frame-pacing.js';
 
 const DEG = Math.PI / 180;
 const ZERO = { x: 0, y: 0, z: 0 };
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
 const PHYS_DT = 1 / 250;
 
-// The noise level the ramp settles on, and the one every comparison below is
-// made at. rad/s RMS at 1 kHz (src/gyro.js NOISE_REFERENCE_RATE). 0.08 rad/s is
-// ~4.6 deg/s, which is a clean-but-real 5" build: a blackbox log off a quad
-// with balanced props and soft mounts sits around there, and a quad with a
-// chipped prop is several times worse.
+// The rate the game actually runs its controller at, read from the shipped
+// constant rather than typed here: a bench that prices a rate nobody flies is a
+// bench that lies politely. `?loop=` can still ask for any of CONTROL_RATES.
+const SHIPPED_RATE = Math.round(CONTROL_SUBSTEPS / FIXED_STEP);
+
+// The noise level every comparison below is made at when a family has none of
+// its own. rad/s RMS at 1 kHz (src/gyro.js NOISE_REFERENCE_RATE). 0.08 rad/s is
+// ~4.6 deg/s: it was this bench's working figure before src/drone-profiles.js
+// carried a measured `gyroNoise` per family, and the rows that compare RATES
+// against each other still use it so that they compare one thing at a time.
+// Sections that compare FAMILIES read each family's own level — see noiseOf().
 const NOISE = 0.08;
+
+// A family's shipped gyro noise, or the bench default while it has none.
+const noiseOf = (profile) => (profile.gyroNoise > 0 ? profile.gyroNoise : NOISE);
+const delayOf = (profile) => profile.loopDelay ?? 0;
 
 // ---------------------------------------------------------------------------
 // The plant. Rigid-body rotation against the real mixer and the real motor lag,
@@ -317,32 +329,52 @@ function antigravity(family = DEFAULT_FAMILY) {
 	// 5 mm: a pack strapped a little back, a GoPro on the front plate. Every
 	// real quad has one and nobody flies with it at zero.
 	const CG = 0.005;
-	console.log(`\nE. Anti-gravity — ${family}, CoG ${CG * 1000} mm off centre, throttle punched 0.25 -> 0.95 at t = 0.6 s`);
+	console.log(`\nE. Anti-gravity — ${family} at ${SHIPPED_RATE} Hz, CoG ${CG * 1000} mm off centre`);
 	console.log('   The sticks ask for level flight throughout. What is measured is the');
 	console.log('   pitch the machine gives away anyway. The trim torque a CoG offset');
-	console.log('   needs is thrust * offset, so it grows with the punch while the I term');
-	console.log('   is still holding the hover value and TPA has just cut P and D. A real');
-	console.log('   quad drops its nose here; with the offset in, so does this one.\n');
-	const punch = (t) => (t < 0.6 ? 0.25 : 0.95);
-	console.log(`   ${'gain'.padStart(6)}  ${'peak pitch rate'.padStart(16)}  ${'pitch given away'.padStart(17)}`);
-	let ref = null;
-	for (const gain of [0, 1.5, 3.5, 6.0]) {
-		// 0.6 s of steady flight first: without a loaded I term there is nothing
-		// for the punch to disturb.
+	console.log('   needs is thrust * offset, so it grows with the throttle while the I');
+	console.log('   term is still holding the old value and TPA has just cut P and D. A');
+	console.log('   real quad drops its nose on a punch-out; with the offset in, so does');
+	console.log('   this one.');
+	console.log('');
+	console.log('   PUNCH is 0.25 -> 0.95 at t = 0.6 s, CHOP is 0.95 -> 0.25. The chop is');
+	console.log('   the half that prices the gain: boosting I is a positive thing to do');
+	console.log('   while the trim is growing and an over-correction while it shrinks.');
+	console.log('   "reversal" is the largest excursion of the OPPOSITE sign after the');
+	console.log('   event — the kick a pilot feels as "anti-gravity set too high". A gain');
+	console.log('   is worth taking only while the reversal is not paying for the gain.\n');
+	const shape = (lo, hi) => (t) => (t < 0.6 ? lo : hi);
+	const measure = (gain, thr) => {
 		const tr = fly({
-			profile, seconds: 1.8, rate: 1000, axis: 'pitch', throttle: punch,
+			profile, seconds: 1.8, rate: SHIPPED_RATE, axis: 'pitch', throttle: thr,
 			stick: () => 0, antiGravity: gain, cgOffset: CG,
+			gyroNoise: noiseOf(profile), loopDelay: delayOf(profile), filters: true,
 		});
 		const from = tr.t.findIndex((t) => t >= 0.6);
 		const base = tr.w[from].x;
-		const peak = Math.max(...tr.w.slice(from).map((w) => Math.abs(w.x - base))) / DEG;
-		// The angle actually given away: the excess rate integrated over the punch.
-		let angle = 0;
-		for (let i = from; i < tr.w.length; i++) angle += Math.abs(tr.w[i].x - base) / 1000;
-		angle /= DEG;
-		if (ref === null) ref = { peak, angle };
-		const d = gain === 0 ? '' : `   ${(100 * (1 - angle / ref.angle)).toFixed(0)} % less than gain 0`;
-		console.log(`   ${gain.toFixed(1).padStart(6)}  ${peak.toFixed(1).padStart(13)} d/s  ${angle.toFixed(2).padStart(13)} deg${d}`);
+		const after = tr.w.slice(from).map((w) => w.x - base);
+		// The sign the CoG offset pushes the machine in, taken from the first
+		// tenth of a second rather than assumed: a chop pushes the other way.
+		const early = after.slice(0, Math.round(0.1 * SHIPPED_RATE));
+		const sign = Math.sign(early.reduce((a, v) => a + v, 0)) || 1;
+		let angle = 0, peak = 0, reversal = 0;
+		for (const v of after) {
+			angle += Math.abs(v) / SHIPPED_RATE;
+			peak = Math.max(peak, sign * v);
+			reversal = Math.max(reversal, -sign * v);
+		}
+		return { peak: peak / DEG, angle: angle / DEG, reversal: reversal / DEG };
+	};
+	console.log(`   ${'gain'.padStart(5)}  ${'PUNCH given'.padStart(12)}  ${'peak'.padStart(9)}  ${'reversal'.padStart(9)}  ${'CHOP given'.padStart(11)}  ${'reversal'.padStart(9)}`);
+	let ref = null;
+	for (const gain of [0, 1.5, 3.5, 6.0, 9.0, 12.0, 16.0]) {
+		const up = measure(gain, shape(0.25, 0.95));
+		const down = measure(gain, shape(0.95, 0.25));
+		if (ref === null) ref = { up: up.angle, down: down.angle };
+		const du = gain === 0 ? '' : ` (${(100 * (1 - up.angle / ref.up)).toFixed(0).padStart(3)} %)`;
+		const dd = gain === 0 ? '' : ` (${(100 * (1 - down.angle / ref.down)).toFixed(0).padStart(3)} %)`;
+		console.log(`   ${gain.toFixed(1).padStart(5)}  ${up.angle.toFixed(2).padStart(7)} deg${du}  ${`${up.peak.toFixed(1)} d/s`.padStart(9)}  ${`${up.reversal.toFixed(1)} d/s`.padStart(9)}  ` +
+			`${down.angle.toFixed(2).padStart(6)} deg${dd}  ${`${down.reversal.toFixed(1)} d/s`.padStart(9)}`);
 	}
 }
 
@@ -351,16 +383,16 @@ function antigravity(family = DEFAULT_FAMILY) {
 
 function dmax(family = DEFAULT_FAMILY) {
 	const profile = PROFILES[family];
-	console.log(`\nF. D-max — ${family}, full-stick roll flick, gyroNoise ${NOISE}`);
+	console.log(`\nF. D-max — ${family} at ${SHIPPED_RATE} Hz, full-stick roll flick, gyroNoise ${noiseOf(profile)}`);
 	console.log('   D is the term that amplifies gyro noise, so a tune picks a D that is');
 	console.log('   quiet at rest — and is then short of D in the flick. D-max lets it');
 	console.log('   rise while the stick is moving. "ripple" is the resting cost,');
 	console.log('   "bounce" the flick benefit.\n');
 	console.log(`   ${'ratio'.padStart(6)}  ${'rise'.padStart(6)}  ${'over'.padStart(6)}  ${'bounce'.padStart(7)}  ${'ripple'.padStart(9)}`);
 	for (const ratio of [1.0, 1.3, 1.6, 2.0]) {
-		const opts = { gyroNoise: NOISE, filters: true, dMax: ratio };
-		const s = stepOf(profile, 1000, opts);
-		const r = motorRipple(fly({ profile, seconds: 2.0, rate: 1000, ...opts }));
+		const opts = { gyroNoise: noiseOf(profile), loopDelay: delayOf(profile), filters: true, dMax: ratio };
+		const s = stepOf(profile, SHIPPED_RATE, opts);
+		const r = motorRipple(fly({ profile, seconds: 2.0, rate: SHIPPED_RATE, ...opts }));
 		console.log(`   ${ratio.toFixed(1).padStart(6)}  ${s.join('  ')}  ${r.toExponential(2).padStart(9)}`);
 	}
 }
@@ -370,23 +402,24 @@ function dmax(family = DEFAULT_FAMILY) {
 
 function ramp(family = DEFAULT_FAMILY) {
 	const profile = PROFILES[family];
-	console.log(`\nG. The ramp — ${family} at 1000 Hz, one setting at a time`);
+	const N = noiseOf(profile);
+	console.log(`\nG. The ramp — ${family} at ${SHIPPED_RATE} Hz, one setting at a time`);
 	console.log('   Every row is a full-stick roll flick. The tune in');
 	console.log('   src/drone-profiles.js was swept against row 1; the further a row is');
 	console.log('   from it, the more of a re-sweep the setting owes.\n');
 	const rows = [
-		['0. as shipped, 250 Hz', 250, {}],
-		['1. 1000 Hz, no noise', 1000, {}],
-		['2. + gyroNoise 0.04', 1000, { gyroNoise: 0.04, filters: true }],
-		['3. + gyroNoise 0.08', 1000, { gyroNoise: NOISE, filters: true }],
-		['4. + notches off', 1000, { gyroNoise: NOISE, filters: false }],
-		['5. 0.08 + delay 1 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.001 }],
-		['6. 0.08 + delay 2 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.002 }],
-		['7. 0.08 + delay 3 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.003 }],
-		['8. 0.08 + delay 4 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.004 }],
-		['9. 0.08 + delay 6 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.006 }],
-		['10. 0.08 + delay 8 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.008 }],
-		['11. 0.08 + delay 12 ms', 1000, { gyroNoise: NOISE, filters: true, loopDelay: 0.012 }],
+		['0. 250 Hz, perfect gyro', 250, {}],
+		[`1. ${SHIPPED_RATE} Hz, perfect gyro`, SHIPPED_RATE, {}],
+		[`2. + gyroNoise ${(N / 2).toFixed(3)}`, SHIPPED_RATE, { gyroNoise: N / 2, filters: true }],
+		[`3. + gyroNoise ${N.toFixed(3)}`, SHIPPED_RATE, { gyroNoise: N, filters: true }],
+		['4. + notches off', SHIPPED_RATE, { gyroNoise: N, filters: false }],
+		['5. + delay 0.5 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.0005 }],
+		['6. + delay 1 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.001 }],
+		['7. + delay 1.5 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.0015 }],
+		['8. + delay 2 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.002 }],
+		['9. + delay 3 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.003 }],
+		['10. + delay 4 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.004 }],
+		['11. + delay 8 ms', SHIPPED_RATE, { gyroNoise: N, filters: true, loopDelay: 0.008 }],
 	];
 	console.log(`   ${''.padEnd(24)} ${'rise'.padStart(6)}  ${'over'.padStart(6)}  ${'bounce'.padStart(7)}  ${'ripple'.padStart(9)}`);
 	for (const [label, rate, opts] of rows) {
@@ -411,14 +444,16 @@ const OVERSHOOT_LIMIT = 10;
 function margin() {
 	console.log('\nH. How much loop latency each family\'s tune survives');
 	console.log(`   The stop criterion is tools/tune-pid.mjs's: overshoot past ${OVERSHOOT_LIMIT} % on a`);
-	console.log('   full-stick roll flick. At 1000 Hz, noise on, notches on.\n');
+	console.log(`   full-stick roll flick. At ${SHIPPED_RATE} Hz, each family at its OWN gyroNoise,`);
+	console.log('   notches on. The delay swept is the TOTAL loop latency, so the column');
+	console.log('   is what the tune survives and the shipped 0.8 ms is a point inside it.\n');
 	console.log(`   ${'family'.padEnd(11)}  ${'last good delay'.padStart(15)}  ${'overshoot there'.padStart(15)}  ${'first bad'.padStart(9)}`);
 	for (const f of FAMILIES) {
 		const profile = PROFILES[f];
 		let last = null, lastOver = 0, bad = null, badOver = 0;
 		for (const ms of [0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32]) {
-			const over = Number(stepOf(profile, 1000, {
-				gyroNoise: NOISE, filters: true, loopDelay: ms / 1000,
+			const over = Number(stepOf(profile, SHIPPED_RATE, {
+				gyroNoise: noiseOf(profile), filters: true, loopDelay: ms / 1000,
 			})[1].replace('%', ''));
 			if (!Number.isFinite(over) || over > OVERSHOOT_LIMIT) { bad = ms; badOver = over; break; }
 			last = ms; lastOver = over;
@@ -440,6 +475,73 @@ function margin() {
 }
 
 // ---------------------------------------------------------------------------
+// I. What each family can carry.
+//
+// `gyroNoise` is a property of an AIRFRAME, not of the simulator, and the six
+// families are not alike: what a gyro reads is the rotor's unbalance force
+// through the arm, divided by the inertia it is trying to turn. A toothpick has
+// a fiftieth of a freestyle5's roll inertia and a third of its arm, so the same
+// prop defect reads far larger on it. This section prices the levels that are
+// actually shipped, and the neighbouring ones, so that a level is chosen
+// against a number rather than against a feeling.
+//
+// It is run at the SHIPPED rate with the notches on and each family's own
+// `loopDelay`, i.e. the machine as flown.
+
+function noiseSweep() {
+	const LEVELS = [0, 0.05, 0.1, 0.2, 0.35, 0.5];
+	console.log(`\nI. Gyro noise, family by family, at ${SHIPPED_RATE} Hz with the notches on`);
+	console.log('   "ripple" is the RMS motion of the motor command at a hover with');
+	console.log('   nothing asking for any — the noise that survived the filters, on its');
+	console.log('   way to becoming heat. "over" is the overshoot of a full-stick roll');
+	console.log('   flick; tools/tune-pid.mjs refuses a tune past 12 %, and 10 % is the');
+	console.log('   figure this bench calls unflyable. A row marked < is the level the');
+	console.log('   family ships at.\n');
+	console.log(`   ${'family'.padEnd(11)} ${'rad/s'.padStart(6)} ${'deg/s'.padStart(6)}  ${'ripple'.padStart(9)}  ${'rise'.padStart(6)}  ${'over'.padStart(6)}  ${'bounce'.padStart(7)}`);
+	for (const f of FAMILIES) {
+		const profile = PROFILES[f];
+		const shipped = profile.gyroNoise ?? 0;
+		for (const level of LEVELS) {
+			const opts = { gyroNoise: level, loopDelay: delayOf(profile), filters: level > 0 };
+			const s = stepOf(profile, SHIPPED_RATE, opts);
+			const r = motorRipple(fly({ profile, seconds: 2.0, rate: SHIPPED_RATE, ...opts }));
+			const mark = Math.abs(level - shipped) < 1e-9 ? ' <' : '';
+			console.log(`   ${f.padEnd(11)} ${level.toFixed(3).padStart(6)} ${(level * 180 / Math.PI).toFixed(1).padStart(6)}  ${r.toExponential(2).padStart(9)}  ${s.join('  ')}${mark}`);
+		}
+		console.log('');
+	}
+}
+
+// ---------------------------------------------------------------------------
+// J. What the notches are worth, on the machine as shipped.
+//
+// Section C answers "which RATE should the loop run at" and holds the noise
+// fixed at NOISE to do it. This one answers a different question: on each
+// family, at its own shipped noise and delay and at the shipped rate, how much
+// of the motor ripple does the conditioning chain actually remove? That is the
+// number that says whether src/gyro.js's filters earn their phase.
+
+function shipped() {
+	console.log(`\nJ. The conditioning chain on the machine as shipped, ${SHIPPED_RATE} Hz`);
+	console.log('   Each family at its own gyroNoise and loopDelay. "removed" is the drop');
+	console.log('   in resting motor ripple from turning the RPM notches and the dynamic');
+	console.log('   notch on. "active" is how many of the 9 notches one axis carries');
+	console.log('   (4 motors x 2 harmonics, plus the dynamic notch) could be built at a');
+	console.log('   hover — a second harmonic above 900 Hz is refused rather than');
+	console.log('   degenerated, which is the limit frame-pacing.js states.\n');
+	console.log(`   ${'family'.padEnd(11)} ${'noise'.padStart(6)} ${'delay'.padStart(7)}  ${'off'.padStart(9)}  ${'on'.padStart(9)}  ${'removed'.padStart(8)}  ${'active'.padStart(6)}`);
+	for (const f of FAMILIES) {
+		const profile = PROFILES[f];
+		const base = { gyroNoise: noiseOf(profile), loopDelay: delayOf(profile), seconds: 2.0, rate: SHIPPED_RATE, profile };
+		const off = motorRipple(fly({ ...base, filters: false }));
+		const trOn = fly({ ...base, filters: true });
+		const on = motorRipple(trOn);
+		console.log(`   ${f.padEnd(11)} ${noiseOf(profile).toFixed(3).padStart(6)} ${`${(delayOf(profile) * 1000).toFixed(2)}ms`.padStart(7)}  ` +
+			`${off.toExponential(2).padStart(9)}  ${on.toExponential(2).padStart(9)}  ${`${(100 * (1 - on / off)).toFixed(1)}%`.padStart(8)}  ${String(activeNotches(trOn.fc)).padStart(6)}`);
+	}
+}
+
+// ---------------------------------------------------------------------------
 
 const argv = process.argv.slice(2);
 const family = argv.find((a) => FAMILIES.includes(a)) ?? DEFAULT_FAMILY;
@@ -454,3 +556,5 @@ if (want('--antigravity')) antigravity(family);
 if (want('--dmax')) dmax(family);
 if (want('--ramp')) ramp(family);
 if (want('--margin')) margin();
+if (want('--noise')) noiseSweep();
+if (want('--shipped')) shipped();

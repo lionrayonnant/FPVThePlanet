@@ -17,11 +17,12 @@ CI on it.
 ## The one number that says where the model stands
 
 ```
-npm run tune          # 0 of 18 axis/family combinations outside target
+npm run tune          # 1 of 18 axis/family combinations outside target
 ```
 
-It was 4 when this work started, and the two that closed last were not closed by
-tuning. **Twice now, a tune that resisted turned out to be a machine that did not
+It was 4 when this work started and 0 before the gyro was turned on; the one
+that is open is the toothpick's yaw, and the two that closed before it were not
+closed by tuning. **Twice now, a tune that resisted turned out to be a machine that did not
 exist**: on both the toothpick and longrange, a full P/D sweep on the old
 airframe reached the target at NO point on the grid. Correct the hardware and the
 tuner walks straight in. If an axis will not tune, suspect the profile before the
@@ -45,26 +46,26 @@ gains.
 
 ## What is NOT done, ranked
 
-1. **Gyro noise and the loop rate.** Everything is written and ships inert:
-   `src/gyro.js`, the dynamic notch, the RPM filter, the delay line,
-   anti-gravity, D-max. Turning them on is one decision and one consequence.
-   - The decision: a notch degenerates above 0.45 of Nyquist. At 250 Hz that
-     ceiling is 56 Hz and rotor fundamentals run **155–816 Hz in flight** — not
-     one is notchable, so the notch is not weak, it is absent. 1000 Hz reaches
-     225 Hz (the slowest only); **4000 Hz reaches 900 Hz and covers every
-     fundamental**. Second harmonics would need 7253 Hz and stay out of reach of
-     the dynamic notch — the RPM filter still gets them, it knows the rpm.
-     Cost is not the deciding factor: 0.065% of a core at 1 kHz, 0.317% at 4 kHz.
-     `?loop=250|500|1000|2000|4000` is already wired.
-   - The consequence: **a full PID re-sweep**, because all six tunes were
-     measured against a silent gyro. Expect to leave 0 of 18 and have to earn it
-     back. **Watch the toothpick** — it is already at 10.1% overshoot from the
-     noise alone, before any latency, and it is the family that will break first.
-   - D-max is at 1.0 and that is correct today: measured, it is a LOSS, because
-     it buys a lower resting D and the resting D here was chosen without noise.
-     It pays only after the re-sweep.
-   - Anti-gravity is the one pure win already measured: −19% of the pitch given
-     away on a punch-out, nothing at a steady stick.
+1. ~~**Gyro noise and the loop rate.**~~ **DONE** (branch `spec/gyro-on`). The
+   loop runs at 4000 Hz, every family carries a measured `gyroNoise` and a
+   0.8 ms `loopDelay`, anti-gravity is at 8.5 and the six tunes were re-swept
+   against that plant by a `tune-pid.mjs` that now substeps and sees the rotor
+   speeds. `npm run tune` reports **1 of 18** outside target, not 0, and the one
+   is the toothpick's yaw — read its note in `src/drone-profiles.js` before
+   touching it, because two of the three causes found there are not gains.
+   What this left behind, ranked:
+   - **The toothpick's `filterScale: 2` chain wants re-deriving at 4 kHz.** Its
+     cutoffs were chosen against a 250 Hz discretisation where a PT1 at 110 Hz
+     is barely resolved and lags far more than it is asked to; resolve it
+     properly and the damping that lag was quietly providing is gone. The rate
+     alone costs that family 5.6 points of yaw overshoot, before any noise.
+   - **The toothpick's inertia breaks the perpendicular-axis bound.**
+     `I_yaw / (I_pitch + I_roll)` is 0.93 on all five other families and 1.15
+     there; a flat body cannot exceed 1. This is the third time an axis that
+     would not tune pointed at a machine that does not exist.
+   - **D-max would have to change mechanism, not ratio**, to pay. See
+     `D_MAX_RATIO`'s comment.
+
 2. **`blade-element.js` is still not wired into `quad.js`.** The axial model is
    validated on 187 propellers with no directional bias at any advance ratio;
    **everything edgewise is unverified** and the UIUC tunnel cannot see it.

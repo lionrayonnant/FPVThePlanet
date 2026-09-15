@@ -26,6 +26,41 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **Le gyroscope est allumé, et la boucle de contrôle tourne à 4000 Hz.** Les six
+  familles portent un `gyroNoise` mesuré — dérivé de l'unbalance ISO 1940 d'un
+  rotor, `m_helice * bras / I_roulis`, ancré à 0,20 rad/s sur la freestyle5 — et
+  un `loopDelay` de 0,8 ms (capteur, ordonnanceur, ESC : ce que ni `motor.js` ni
+  la chaîne PT1 ne modélise déjà). Le contrôleur sous-échantillonne seize fois
+  dans le pas physique, qui reste à 250 Hz : c'est la première cadence où le
+  plafond du notch (0,45 de Nyquist, 900 Hz) couvre **toutes** les fondamentales
+  rotor, 157 à 816 Hz. Les secondes harmoniques restent hors de portée du notch
+  dynamique — il faudrait 7253 Hz — et c'est le filtre RPM qui les prend, parce
+  qu'on lui donne le régime au lieu de le lui faire chercher. Coût mesuré, à
+  chaud : 3,71 ms par seconde simulée, soit +0,35 % d'un cœur. La chaîne de
+  conditionnement retire 15 à 36 % de l'ondulation moteur au repos selon la
+  famille. Anti-gravity à 8,5, ancré sur le rapport de poussée d'une remise de
+  gaz (−21 % d'assiette concédée). D-max reste à 1,0, et la raison a changé :
+  rebalayé à quatre rapports, il ne fait pas bouger l'ondulation au repos d'un
+  chiffre, parce qu'il est piloté par la vitesse de consigne, nulle en
+  stationnaire — il ne peut donc pas acheter le D bas qui justifie le mécanisme.
+- **`tools/tune-pid.mjs` balaye la machine qu'on vole.** Il sous-échantillonne à
+  la cadence de `frame-pacing.js` et reçoit les régimes rotor, donc les notches
+  et le bruit existent pendant le balayage. Sa porte de sélection est désormais
+  celle du rapport : elle tolérait 5 % de dépassement sur le temps de montée et
+  15 % sur la stabilisation, ce qui est une machine à choisir des réglages que le
+  rapport signale ensuite. Les six réglages sont rebalayés ; il reste **1
+  combinaison sur 18** hors cible, le lacet de la toothpick, et c'est un résultat
+  documenté dans `src/drone-profiles.js`, pas un réglage inachevé.
+
+### Corrigé
+
+- **La boucle GPS perdait son terme dérivé à 4000 Hz.** Elle lit une *position*,
+  qui ne bouge que sur la grille physique : sous-échantillonnée, on lui présentait
+  seize fois les mêmes trois nombres et sa dérivée valait zéro sur celui dont la
+  sortie compte. Elle tourne maintenant à sa propre cadence de navigation, comme
+  une vraie boucle de nav tourne au rythme des fixes. Retour de 20 m sur la
+  freestyle5 : 5,2 % de dépassement au lieu de 28,2 %.
+
 - **Modes Acro3D et GPS.** Gaz bidirectionnel — poussée inversée, mixeur signé,
   `stepMotor` bidirectionnel — et maintien de position qui produit une *assiette*
   confiée à l'auto-nivellement existant, sur le précédent du mode angle : pas de

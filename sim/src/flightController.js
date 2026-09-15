@@ -164,36 +164,44 @@ const FF_CUTOFF = 30;           // Hz, PT1 on the feedforward
 const RC_SMOOTHING = 40;        // Hz
 
 // ---------------------------------------------------------------------------
-// The three Betaflight mechanisms this loop was missing, and why all three
-// ship INERT.
+// The three Betaflight mechanisms this loop was missing, and what turned them
+// on.
 //
-// gyroNoise and loopDelay are profile fields and both are 0 on every family
-// (src/drone-profiles.js). The two constants below are the same decision for
-// two things that have no profile field and must not grow one: a lot does not
-// get to invent profile schema on its way past. They are written here at the
-// value that changes nothing, with the value the bench measured beside them,
-// so turning them on is one edit and not one search.
+// gyroNoise and loopDelay are profile fields and both are now measured per
+// family (src/drone-profiles.js, "WHERE gyroNoise COMES FROM"). The two
+// constants below have no profile field and must not grow one: a lot does not
+// get to invent profile schema on its way past. Both are measured by
+// `node tools/loop-rate-bench.mjs`.
 //
-// The reason they are off is not caution about the code, it is caution about
-// the tune: src/drone-profiles.js's PID blocks were swept by
-// tools/tune-pid.mjs against a loop with no noise, no latency, no anti-gravity
-// and a fixed D. Every one of these four moves the plant that sweep was run
-// against. They go on together with a re-sweep, not one at a time on a whim.
+// All four moved the plant tools/tune-pid.mjs sweeps against, so all four went
+// on TOGETHER with a full re-sweep — and tools/tune-pid.mjs now substeps the
+// controller at src/frame-pacing.js's CONTROL_SUBSTEPS and feeds it the rotor
+// speeds, so what it sweeps against is the loop the game actually runs.
 
 // Anti-gravity. Punch the throttle and a quad drops its nose: the motors take
 // milliseconds to reach the new rpm and the I term, which was holding the
 // trim, is suddenly holding the wrong one. Betaflight answers by boosting I
 // (and a fraction of P) for exactly as long as the throttle is moving, which
 // is what the high-pass below measures.
-//   0    = off, the loop as tuned, and what ships.
-//   3.5  = measured by `node tools/loop-rate-bench.mjs --antigravity`: on a
-//          freestyle5 with a 5 mm CoG offset, punching the throttle from 0.25
-//          to 0.95 gives away 10.13 deg of pitch at gain 0, 8.95 deg at 3.5
-//          (-12 %) and 8.24 deg at 6.0 (-19 %). It costs nothing at a steady
-//          stick: the high-pass below reads zero and agBoost is exactly 1.
-//          This is the one of the four that is a pure win, and it is off only
-//          because it moves the plant tools/tune-pid.mjs swept against.
-export const ANTI_GRAVITY_GAIN = 0;
+//
+// 8.5, and the number is an ANCHOR rather than a bench maximum. What the I
+// term has to catch up with is the trim torque, which is thrust * CoG offset
+// and therefore scales with the thrust — so the boost that lets it arrive is
+// the thrust RATIO across the punch. Measured off src/quad.js, a 0.25 -> 0.95
+// punch multiplies thrust by 5.9 (toothpick) to 7.8 (longrange), mean 6.9. The
+// high-pass peaks at the full 0.70 of stick travel the instant the stick moves,
+// so a gain g gives a peak boost of 1 + 0.70 g, and 1 + 0.70 * 8.5 = 6.95 is
+// exactly that mean ratio. Anything beyond it is boosting I past the trim it is
+// chasing.
+//
+// What it buys, `node tools/loop-rate-bench.mjs --antigravity`, freestyle5 with
+// a 5 mm CoG offset: the pitch given away on a punch-out falls from 12.05 deg
+// at gain 0 to 9.58 deg at gain 9 (-21 %), and the peak rate from 48.4 to
+// 35.2 deg/s. It costs nothing at a steady stick — the high-pass reads zero and
+// agBoost is exactly 1 — and the bench finds no reversal at any gain it tried,
+// on the punch or on the chop. That absence of a turning point is why the
+// number is anchored on the physics instead of read off the last row.
+export const ANTI_GRAVITY_GAIN = 8.5;
 const ANTI_GRAVITY_P_FRACTION = 0.35;   // how much of the I boost P also takes
 const ANTI_GRAVITY_CUTOFF = 5;          // Hz, the "slow average" of the throttle
 
@@ -201,18 +209,37 @@ const ANTI_GRAVITY_CUTOFF = 5;          // Hz, the "slow average" of the throttl
 // quiet at rest and is then short of D exactly where D is wanted — in a fast
 // flick. Betaflight lets D rise toward a maximum when the gyro or the setpoint
 // is actually moving, and fall back when it is not.
-//   1.0  = off, D is the swept value at all times. This is what ships, and
-//          unlike the other three it is what the bench RECOMMENDS.
 //
-// `node tools/loop-rate-bench.mjs --dmax` measured it and the answer was no:
-// on freestyle5 at 1 kHz with gyroNoise 0.08, going from 1.0 to 1.6 slows the
-// flick from 70 to 98 ms, leaves 7.3 % of rate 100 ms after the stick centres
-// instead of 5.1 %, and does not move the resting motor ripple at all
-// (1.03e-2 either way). That is not a surprise once stated plainly: D-max
-// buys a LOWER resting D, and the resting D here is already the value
-// tools/tune-pid.mjs chose against a silent gyro. The mechanism only pays
-// once that sweep is re-run with the noise on and comes back with a smaller
-// D. Until then raising this is a pure loss, measured.
+// 1.0 = off, D is the swept value at all times. It stayed off through the
+// re-sweep, and the reason it stayed off is NOT the reason it was off before.
+//
+// Before, the argument was that D-max buys a lower resting D and the resting D
+// had been chosen against a silent gyro, so the mechanism could only pay once
+// the sweep was re-run with the noise on. The sweep has now been re-run with
+// the noise on, at four ratios, each with a full `--write all` + `--write
+// freestyle5` behind it, and `node tools/loop-rate-bench.mjs --dmax` says:
+//
+//   ratio   out of target   resting ripple, freestyle5
+//    1.0        2 / 18                2.75e-2
+//    1.3        2 / 18                2.75e-2
+//    1.6        3 / 18                2.75e-2
+//    2.0        2 / 18                2.75e-2
+//
+// The ripple column is the answer and it is the same number four times, on
+// every family. D-max here is driven by the SETPOINT SLEW — deliberately, see
+// the comment at its use site: a boost driven by the D term it multiplies is a
+// positive loop, and with noise in the signal it is a positive loop on noise.
+// But a setpoint slew is exactly zero at a hover, so this D-max never engages
+// at rest, so it cannot buy a lower resting D, so the premise the whole
+// mechanism rests on does not apply to this implementation at all. What is left
+// is a flick-time D boost, and a flick-time D boost makes the flick slower:
+// summed over the twelve roll/pitch axes, rise is 672 ms at 1.0 and 680 at 1.3,
+// against an overshoot total of 37.0 and 34.1 — a trade inside the sweep's own
+// repeatability, which is not a trade.
+//
+// Turning it into something that pays means driving it from the gyro as well as
+// the setpoint and solving the positive-loop problem that was avoided by not
+// doing so. That is a mechanism change, not a ratio.
 export const D_MAX_RATIO = 1.0;
 const D_MAX_SLEW_FULL = 900 * DEG;   // rad/s/s of setpoint slew that reaches D_MAX
 const D_MAX_CUTOFF = 12;             // Hz, PT1 on the boost so D does not chatter
@@ -228,6 +255,28 @@ const MOTOR_IDLE = 0.055;       // Betaflight dynamic idle: props never stop, or
 export const ANGLE_MAX_TILT = 42 * DEG;
 export const ANGLE_STRENGTH = 9.0;   // rad/s of rate demand per rad of angle error
 const ALT_KP = 3.2, ALT_KD = 3.6;
+
+// The navigation cadence, and why the GPS loop does not run at the loop rate.
+//
+// The rate loop reads a gyro, and a gyro genuinely has something new to say
+// every 250 us: that is the whole reason CONTROL_SUBSTEPS is 16. The GPS loop
+// reads a POSITION, and the position only moves when Rapier steps, on the
+// 250 Hz grid. Run at 4 kHz it is handed the same three numbers sixteen times
+// and its derivative term — (error - prevError) / dt, no filter — is exactly
+// zero on fifteen of them, including the sixteenth, which is the one whose
+// output the mixer keeps. So substepping did not make the position loop finer,
+// it silently deleted its D term: measured on freestyle5 returning from 20 m,
+// the overshoot went from 5.2 % to 28.2 % and the settle from 9.0 s to 4.2 s,
+// identically with the gyro noise on and off.
+//
+// A real machine is built the same way round. The navigation loop runs at the
+// rate the position estimate arrives at — single-digit to tens of hertz — never
+// at the gyro rate, and holds its attitude demand between fixes. So does this
+// one, at the rate its own position estimate arrives at: the physics grid.
+//
+// At CONTROL_SUBSTEPS == 1 the accumulator fills in exactly one step and the
+// arithmetic is the one this loop has always run, to the bit.
+const NAV_STEP = 1 / 250;    // s
 
 // ---------------------------------------------------------------------------
 // GPS position hold (§9.6).
@@ -505,6 +554,10 @@ export class FlightController {
 			yaw: new AxisPid(this.gains.yaw, 1, conditioned, dMax),
 		};
 		this.agLpf = new PT1(ANTI_GRAVITY_CUTOFF);
+		// The navigation cadence: how much loop time has gone by since the GPS
+		// loop last ran, and the attitude demand it is holding until it does.
+		this.navAccum = 0;
+		this.navOut = null;
 		this._mix = mixOf(this.profile);
 		this.motors = [0, 0, 0, 0];
 		this.axes = { roll: 0, pitch: 0, yaw: 0 };
@@ -547,6 +600,8 @@ export class FlightController {
 		this.gyro.reset();
 		this.loopDelay.reset();
 		this.agLpf.reset();
+		this.navAccum = 0;
+		this.navOut = null;
 		this.holdAltitude = null;
 		// §9.6: "La réinitialisation du mode remet tous les PID à zéro et recale
 		// point de maintien et cap." Nulling the two re-arms them on the next
@@ -595,7 +650,17 @@ export class FlightController {
 			const upB = unrotate(q, 0, 1, 0);
 			let wantPitch, wantRoll;
 			if (this.mode === 'gps') {
-				const g = this.stabGps(sticks, state, upB, dt);
+				// NAV_STEP, not dt. See its comment: the position only moves on
+				// the physics grid, so the loop that reads it runs there and
+				// holds its demand in between. The epsilon is for the binary
+				// representation of 1/250, which sixteen additions of 1/4000 do
+				// not land on exactly.
+				this.navAccum += dt;
+				if (this.navOut === null || this.navAccum >= NAV_STEP - 1e-9) {
+					this.navOut = this.stabGps(sticks, state, upB, this.navAccum);
+					this.navAccum = 0;
+				}
+				const g = this.navOut;
 				wantPitch = g.pitch;
 				wantRoll = g.roll;
 				sp.y = clamp(g.yawRate, -maxRateDeg(rates.yaw) * DEG, maxRateDeg(rates.yaw) * DEG);
