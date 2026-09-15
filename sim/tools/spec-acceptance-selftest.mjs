@@ -35,7 +35,7 @@ import { gravityTrimFactor, Propulsion, GRAVITY } from '../src/quad.js';
 import {
 	FlightController, RATE_PRESETS, actualRate, hoverThrottle, unrotateVec,
 } from '../src/flightController.js';
-import { FIXED_STEP, catchUpStep } from '../src/frame-pacing.js';
+import { FIXED_STEP, catchUpStep, CONTROL_SUBSTEPS } from '../src/frame-pacing.js';
 
 await initPhysics();
 
@@ -47,6 +47,17 @@ function check(label, ok, detail) {
 const note = (s) => console.log(`  NOTE  ${s}`);
 
 const DT = 1 / 250;
+// The controller substeps inside the physics step, at the ratio src/main.js
+// uses. Benching it once per physics step would be benching a loop the game
+// does not fly: the gyro noise, the notches and the delay line live at the
+// control rate, and the acceptance criteria below are about the machine as
+// flown. The physics takes the LAST substep's command, as an ESC does.
+const SUB = Math.max(1, CONTROL_SUBSTEPS);
+function control(c, sticks, p, h = DT) {
+	let out;
+	for (let i = 0; i < SUB; i++) out = c.update(sticks, p, h / SUB);
+	return out;
+}
 const EMPTY = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
 const RPM = 60 / (2 * Math.PI);       // rad/s -> rpm
@@ -298,12 +309,31 @@ console.log('\nCRITERION 5 (§9.1, §9.2) — a half turn at constant setpoint t
 			sticks[axis] = stick;
 			// Body axis the command turns about: roll = body Z, yaw = body Y.
 			const key = axis === 'roll' ? 'z' : 'y';
-			// Settled = within 1% of setpoint for a continuous 0.1 s.
+			// Settled = the SMOOTHED rate within 1% of setpoint for a continuous
+			// 0.1 s. The band and the window are the ones this bench has always
+			// used; what changed is that the rate is smoothed over 0.1 s first.
+			//
+			// It used to test the raw sample, and that was the right test against
+			// a perfect gyro: there was nothing in the signal but the machine.
+			// With a real gyro there is, and the raw test asks a family to hold
+			// its rate inside a band narrower than its own sensor noise — 1 % of
+			// the toothpick's half-stick 154 deg/s is 1.5 deg/s against 11.5
+			// deg/s RMS, so it could never settle however it were tuned.
+			//
+			// Smoothing, and NOT simply taking the window mean: a mean is
+			// satisfied halfway up an overshoot, because the mean of a ramp
+			// crossing the setpoint IS the setpoint. That started the half-turn
+			// clock while the machine was still accelerating and read every
+			// family's turn as 4-7 % early — exactly the failure the comment
+			// below the table warns about. Requiring the smoothed rate to STAY
+			// inside the band for a continuous window keeps the "it has arrived
+			// and stopped moving" meaning the raw test had.
 			const HOLD = Math.round(0.1 / DT);
+			const window = [];
 			let t = 0, run = 0, settleAt = null, peak = 0;
 			let turned = 0, tHalf = null, tFromRest = null, restTurn = 0;
 			for (let i = 0; i < 250 * 12; i++) {
-				const { motors } = c.update(sticks, p, DT);
+				const { motors } = control(c, sticks, p);
 				p.step(motors, DT);
 				const w = p.body.angvel();
 				const q = p.body.rotation();
@@ -313,7 +343,10 @@ console.log('\nCRITERION 5 (§9.1, §9.2) — a half turn at constant setpoint t
 				restTurn += rate * DT;
 				if (tFromRest === null && restTurn >= 180) tFromRest = t;
 				if (settleAt === null) {
-					run = Math.abs(rate / want - 1) < 0.01 ? run + 1 : 0;
+					window.push(rate);
+					if (window.length > HOLD) window.shift();
+					const smooth = window.reduce((a, v) => a + v, 0) / window.length;
+					run = window.length === HOLD && Math.abs(smooth / want - 1) < 0.01 ? run + 1 : 0;
 					if (run >= HOLD) settleAt = t;
 				} else {
 					turned += rate * DT;
@@ -362,7 +395,7 @@ console.log('\nCRITERION 5 (§9.1, §9.2) — a half turn at constant setpoint t
 	const bouncy = rows.filter((r) => r.over > 0.10);
 	if (bouncy.length) {
 		note(`overshoot above 10%: ${bouncy.map((r) => `${r.fam}/${r.axis}@${r.stick} `
-			+ `${(r.over * 100).toFixed(0)}% (settles at ${r.settleAt.toFixed(2)} s)`).join(', ')}`);
+			+ `${(r.over * 100).toFixed(0)}% (settles at ${r.settleAt === null ? 'never' : `${r.settleAt.toFixed(2)} s`})`).join(', ')}`);
 	}
 }
 
@@ -583,7 +616,7 @@ console.log('\nCRITERION 8 (§9.3), closed loop — the same command at 30, 60 a
 			while (acc >= FIXED_STEP) {
 				const h = catchUpStep(acc);
 				acc -= h;
-				const { motors } = c.update(sticks, p, h);
+				const { motors } = control(c, sticks, p, h);
 				p.step(motors, h);
 				const w = p.body.angvel();
 				const q = p.body.rotation();

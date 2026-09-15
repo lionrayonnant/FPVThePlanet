@@ -25,11 +25,24 @@ import assert from 'node:assert/strict';
 import { initPhysics, Physics } from '../src/physics.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { FlightController, GPS_DEFAULTS, normaliseHeading } from '../src/flightController.js';
+import { CONTROL_SUBSTEPS } from '../src/frame-pacing.js';
 
 let n = 0;
 function t(label, fn) { fn(); n++; console.log(`  ok  ${label}`); }
 
 const DT = 1 / 250;
+// The controller substeps inside the physics step, as src/main.js does. Running
+// it once per 250 Hz step would be benching a loop the game does not fly: the
+// gyro noise, the notches and the delay line all live at the control rate.
+const SUB = Math.max(1, CONTROL_SUBSTEPS);
+const DTC = DT / SUB;
+// One physics step's worth of controller, returning the motor command the ESC
+// would be holding — the LAST substep's.
+function control(c, sticks, p) {
+	let out;
+	for (let i = 0; i < SUB; i++) out = c.update(sticks, p, DTC);
+	return out;
+}
 const DEG = Math.PI / 180;
 const STILL = { speed: 0, gust: 0, turbulence: 0 };
 const EMPTY = { vertices: new Float32Array(0), indices: new Uint32Array(0) };
@@ -53,7 +66,7 @@ function rig(family = DEFAULT_FAMILY, gps = {}) {
 
 function fly(p, c, seconds, sticks = CENTRE) {
 	const steps = Math.round(seconds / DT);
-	for (let i = 0; i < steps; i++) p.step(c.update(sticks, p, DT).motors, DT);
+	for (let i = 0; i < steps; i++) p.step(control(c, sticks, p).motors, DT);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,13 +97,13 @@ t('the yaw target integrates the stick at GpsYawSpeedFactor, and wraps', () => {
 	// has had time to follow it.
 	const one = { ...CENTRE, yaw: 1 };
 	const steps = Math.round(1 / DT);
-	for (let i = 0; i < steps; i++) c.update(one, p, DT);
+	for (let i = 0; i < steps; i++) control(c, one, p);
 	const moved = normaliseHeading(c.gpsHeading - start);
 	assert.ok(Math.abs(moved - GPS_DEFAULTS.yawSpeedFactor) < 1,
 		`moved ${moved.toFixed(2)} deg, expected ${GPS_DEFAULTS.yawSpeedFactor}`);
 	// Ten seconds of it is two and a half turns, and the target is still in
 	// range rather than at 900.
-	for (let i = 0; i < steps * 10; i++) c.update(one, p, DT);
+	for (let i = 0; i < steps * 10; i++) control(c, one, p);
 	assert.ok(c.gpsHeading >= -180 && c.gpsHeading < 180, `${c.gpsHeading}`);
 });
 
@@ -198,7 +211,7 @@ t('resetting the mode clears the PIDs and re-arms the hold point and the heading
 	assert.equal(c.gpsPid.z.integral, 0);
 	// One step re-arms it where the machine actually is, not where the mode
 	// was first entered.
-	c.update(CENTRE, p, DT);
+	control(c, CENTRE, p);
 	assert.ok(Math.abs(c.gpsHold.x - p.position.x) < 1e-6);
 	assert.ok(Math.abs(c.gpsHold.z - p.position.z) < 1e-6);
 });
@@ -237,7 +250,7 @@ for (const family of FAMILIES) {
 		let settle = null, overshoot = 0, reversals = 0, prev = 1;
 		const steps = Math.round(40 / DT);
 		for (let i = 0; i < steps; i++) {
-			p.step(c.update(CENTRE, p, DT).motors, DT);
+			p.step(control(c, CENTRE, p).motors, DT);
 			const ex = p.position.x - hold.x;
 			const d = Math.hypot(ex, p.position.z - hold.z);
 			// A reversal only counts while the machine is still meaningfully off

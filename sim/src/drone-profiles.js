@@ -51,10 +51,12 @@
 //                    (default), 'liion', or 'legacy' for the analytic curve
 //                    src/battery.js used before the spec curves landed. Lives on
 //                    `battery`, beside the cells and the capacity.
-//   gyroNoise        gyro noise injected into the rate loop, rad/s RMS. 0 is a
-//                    perfect gyro, which is what the loop reads today.
+//   gyroNoise        gyro noise injected into the rate loop, rad/s RMS at
+//                    1 kHz (src/gyro.js NOISE_REFERENCE_RATE). 0 is a perfect
+//                    gyro; see WHERE gyroNoise COMES FROM below.
 //   loopDelay        extra control-loop latency in seconds, on top of the fixed
-//                    step. 0 is today's zero-latency loop.
+//                    step and on top of everything src/motor.js and the PT1
+//                    chain already model. See the same block.
 //
 // These defaults are NOT a tune: a lot that starts using a field replaces the
 // default with a measured value for that family, and says so in a comment.
@@ -108,6 +110,89 @@
 //    ~1 Ah — see the toothpick, where a 420 mAh cell measures four times what
 //    that extrapolation would claim.
 // ---------------------------------------------------------------------------
+// WHERE gyroNoise COMES FROM
+//
+// `gyroNoise` is a property of an AIRFRAME, not of the simulator, so it is
+// derived per family rather than set to one number six times.
+//
+// What a gyro reads is not sensor noise. An ICM-42688 is quoted at
+// 0.0028 dps/sqrt(Hz), which over a kilohertz of band is 0.0015 rad/s — three
+// orders below anything that matters. What it reads is the airframe shaking:
+// four rotors, each with a residual unbalance, driving the frame the FC is
+// bolted to.
+//
+// ISO 1940 is the standard that says how much unbalance a rotor has. It quotes
+// a balance GRADE G as a specific eccentricity times speed, e * omega, held
+// constant — so a rotor of mass m has an unbalance mass-moment m*e = m*G/omega
+// and an unbalance FORCE
+//       F = m * e * omega^2 = m * G * omega.
+// That force acts at the motor, i.e. on the arm, so the moment is F * arm, and
+// the angular RATE it produces on a body of inertia I at frequency omega is
+// F * arm / (I * omega). The omega cancels:
+//
+//       gyroNoise  ~  m_prop * arm / I_roll
+//
+// which is the whole derivation, and it is why the rotor speed does not appear
+// in the answer: a faster rotor shakes harder and shakes for a shorter time,
+// and a rate gyro integrates the two against each other.
+//
+// Anchored on freestyle5 at 0.20 rad/s = 11.5 deg/s RMS. That is the raw,
+// pre-filter figure — the noise is injected at the sensor, ahead of the RPM
+// notches, the dynamic notch and the PT1 chain — and 11.5 deg/s RMS is about
+// 46 deg/s peak to peak, which is a blackbox trace off a clean 5" with balanced
+// props and a soft-mounted stack. A chipped prop is several times worse.
+//
+// The index, with prop masses from the catalogue (src/spec-data/propellers.js):
+//
+//   family      m_prop   arm     I_roll    index   rel    gyroNoise
+//   freestyle5   4 g    0.078   3.0e-3    0.1040   1.00     0.20
+//   race5        4 g    0.074   2.5e-3    0.1184   1.14     0.23
+//   cinewhoop    2 g    0.060   2.1e-3    0.0571   0.55     0.11
+//   longrange    8 g    0.105   8.7e-3    0.0966   0.93     0.19
+//   heavy5       4 g    0.080   4.7e-3    0.0681   0.65     0.13
+//   swarmNode    7 g    0.090   6.7e-3    0.0940   0.90     0.18
+//   toothpick    1 g    0.038   5.6e-5    0.6786   6.53     0.20  <- CAPPED
+//
+// THE TOOTHPICK IS CAPPED AND THAT IS NOT TIDYING. The index says 1.31 rad/s,
+// 75 deg/s RMS, a fifth of the rate the machine can actually roll at — because
+// its roll inertia is 54 times smaller than the reference's while its rotor is
+// only 4 times lighter. That is the index telling the truth about its own
+// assumption and then walking off the end of it: dividing by the WHOLE
+// airframe's inertia assumes the gyro is rigidly coupled to the motors, which
+// holds only below the frame's first bending mode. Above that mode the FC reads
+// the local motion of its own mounting — a board on standoffs on a 2 mm plate —
+// whose effective inertia does NOT shrink with the airframe, so the index stops
+// rising and flattens. A 2.5" toothpick's tones run 327-816 Hz, well above any
+// mode a plate that size has, so the flat asymptote is where it belongs, and
+// the asymptote is the reference level: 0.20.
+//
+// That is the weakest claim the data supports — a micro reads no worse than a
+// 5" — and it is STILL enough to break this family's yaw tune. See the note
+// under `toothpick` below; the failure is reported, not tuned away.
+//
+// WHERE loopDelay COMES FROM
+//
+// 0.0008 s on every family, and uniform on purpose: what it stands for is the
+// same silicon on every build.
+//
+// It is NOT the end-to-end latency of a real machine. A 5" running Betaflight
+// sits at 2-4 ms sensor-to-thrust, and most of that is already here — the PT1
+// chain's group delay is modelled by the PT1 chain, and the motor's electrical
+// and mechanical lag is modelled by src/motor.js's torque balance. Adding the
+// whole 2-4 ms would count those twice. `loopDelay` is the REMAINDER, the parts
+// nothing else in this simulator represents:
+//
+//   gyro sensor DLPF group delay + sample-to-read      ~0.3 ms
+//   scheduler offset between the gyro task and the PID ~0.2 ms
+//   DSHOT frame + the ESC's own input update interval  ~0.3 ms
+//                                                      -------
+//                                                       0.8 ms
+//
+// At the shipped 4000 Hz loop that quantises to 3 whole steps, 0.75 ms, which
+// is what a sampled system actually does with it (src/gyro.js LoopDelay).
+// `node tools/loop-rate-bench.mjs --margin` prices what each family's tune has
+// left above it.
+// ---------------------------------------------------------------------------
 
 export const PROFILES = {
 	// -------------------------------------------------------------------------
@@ -153,13 +238,13 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.20,          // the anchor: 11.5 deg/s RMS, a clean 5" blackbox trace
+		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.062, d: 0.0014 },
-			pitch: { p: 0.066, d: 0.0015 },
-			yaw:   { p: 0.220, d: 0.0005 },
-			torquePerMix: { roll: 2.60, pitch: 2.60, yaw: 0.60 },
+			roll:  { p: 0.084, d: 1.40e-3 },
+			pitch: { p: 0.084, d: 1.40e-3 },
+			yaw:   { p: 0.22, d: 0 },
+			torquePerMix: { roll: 2.683, pitch: 2.683, yaw: 0.654 },
 		},
 	},
 
@@ -218,12 +303,12 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.23,          // 1.14 x the reference: same 4 g prop, less roll inertia
+		loopDelay: 0.0008,
 		pid: {
 			roll:  { p: 0.03, d: 5.00e-4 },
-			pitch: { p: 0.03, d: 5.00e-4 },
-			yaw:   { p: 0.34, d: 0 },
+			pitch: { p: 0.038, d: 5.00e-4 },
+			yaw:   { p: 0.28, d: 5.00e-4 },
 			torquePerMix: { roll: 3.064, pitch: 3.064, yaw: 0.745 },
 		},
 	},
@@ -279,11 +364,11 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.11,          // 0.55 x: a 2 g 3" prop on a short arm
+		loopDelay: 0.0008,
 		pid: {
 			roll:  { p: 0.098, d: 1.90e-3 },
-			pitch: { p: 0.098, d: 1.90e-3 },
+			pitch: { p: 0.098, d: 1.40e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 1.038, pitch: 1.038, yaw: 0.415 },
 		},
@@ -388,11 +473,11 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.19,          // 0.93 x: an 8 g 7" prop, but 2.9 x the inertia to turn
+		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.098, d: 1.90e-3 },
-			pitch: { p: 0.072, d: 1.40e-3 },
+			roll:  { p: 0.084, d: 1.40e-3 },
+			pitch: { p: 0.098, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 4.449, pitch: 4.449, yaw: 0.890 },
 		},
@@ -453,11 +538,11 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.13,          // 0.65 x: the reference rotor on a 1.6 x heavier body
+		loopDelay: 0.0008,
 		pid: {
 			roll:  { p: 0.054, d: 1.00e-3 },
-			pitch: { p: 0.054, d: 1.00e-3 },
+			pitch: { p: 0.062, d: 1.00e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 3.276, pitch: 3.276, yaw: 0.778 },
 		},
@@ -508,7 +593,19 @@ export const PROFILES = {
 		// x within ~2% of z: a wider pitch/roll split would make pitch the
 		// intermediate axis, and a held high rate about the intermediate axis is
 		// unstable on its own (tennis-racket theorem).
-		inertia: { x: 5.7e-5, y: 1.3e-4, z: 5.6e-5 },
+		// Derived from the parts, not scaled, because the scaled numbers were
+		// impossible: `I_yaw/(I_pitch+I_roll)` read 1.150, and no flat body can
+		// exceed 1 (perpendicular-axis). The five other families sit at 0.93.
+		//
+		// Four corner point masses (1103 at 5 g + 2521 at 1 g) at (+-armX, 0,
+		// +-armZ) give a ratio of exactly 1.000 on their own -- they ARE the
+		// boundary case -- so everything below 1 comes from the central mass. The
+		// rest is the 44 g Kayoumini frame and its 22 g 2S pack as one equivalent
+		// box, square in plan (which is what holds I_pitch == I_roll, and with it
+		// the tennis-racket constraint below) at 55 mm a side, 26.5 mm tall. The
+		// height is solved for the 0.93 the other five measure rather than guessed.
+		// Catalogue BOM closes exactly: 4x5 + 4x1 + 22 + 44 = 90 g.
+		inertia: { x: 5.52e-5, y: 1.026e-4, z: 5.52e-5 },
 		propRadius: 0.03175,
 		propInertia: 3.0e-7,
 		bladeCount: 2,
@@ -541,12 +638,45 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		// CAPPED. The index says 1.31; see "WHERE gyroNoise COMES FROM" at the top.
+		//
+		// AND THIS FAMILY'S YAW DOES NOT TUNE AT THIS LEVEL. `npm run tune` reports
+		// it, and it is a result rather than an unfinished job. Isolated with
+		// tools/tune-pid.mjs, one ingredient at a time, re-sweeping at each step:
+		//
+		//   250 Hz, perfect gyro     yaw  14 ms   2.4 %   settle  14 ms   (the old tune)
+		//   4000 Hz, perfect gyro    yaw  14 ms   8.0 %   settle  22 ms
+		//   4000 Hz, gyroNoise 0.20  yaw  14 ms   8.2 %   settle 530 ms !
+		//   + loopDelay 0.0008       yaw  10 ms  17.5 % ! settle 110 ms
+		//
+		// Two separate things, and neither is a gain that was not tried — the full
+		// P/D grid was swept and `node tools/tune-pid.mjs --sweep yaw toothpick`
+		// shows every candidate on it either overshooting past 10 % or ringing for
+		// 366 ms or more.
+		//
+		// 1. The RATE alone costs this family 5.6 points of yaw overshoot, before
+		//    any noise. Its filter chain is the only one with `filterScale: 2`, and
+		//    those cutoffs were chosen against a 250 Hz discretisation where a PT1
+		//    at 110 Hz is barely resolved (alpha 0.67 a step) and lags far more
+		//    than it is asked to. Resolve it properly at 4 kHz and the damping that
+		//    lag was quietly providing is gone. The micro chain wants re-deriving
+		//    at the rate it now runs at; that is its own lot, not this one.
+		// 2. The NOISE takes settle from 22 ms to 530 ms. Yaw is the axis with the
+		//    least torque and the most inertia, so it is the one that cannot push
+		//    the noise back out of the body rate.
+		//
+		// A third thing was found while looking and is NOT touched here: this is
+		// the only family whose inertia breaks the perpendicular-axis bound.
+		// I_yaw / (I_pitch + I_roll) is 0.93 on all five others and 1.15 here — a
+		// flat body cannot exceed 1. The PICKUP note says twice now an axis that
+		// would not tune turned out to be a machine that did not exist. This is
+		// where to look first, and it needs the geometry lot, not the gain sweep.
+		gyroNoise: 0.20,
+		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.08, d: 1.00e-3 },
-			pitch: { p: 0.08, d: 1.00e-3 },
-			yaw:   { p: 0.24, d: 5.00e-4 },
+			roll:  { p: 0.08, d: 7.00e-4 },
+			pitch: { p: 0.08, d: 7.00e-4 },
+			yaw:   { p: 0.16, d: 0 },
 			torquePerMix: { roll: 0.162, pitch: 0.162, yaw: 0.060 },
 		},
 	},
@@ -616,8 +746,8 @@ export const PROFILES = {
 		minThrottle: 0,
 		dragScale: 1,
 		escCurrentLimit: null,
-		gyroNoise: 0,
-		loopDelay: 0,
+		gyroNoise: 0.18,          // 0.90 x: a 7 g 6" prop between heavy5 and longrange
+		loopDelay: 0.0008,
 		// Measured by `node tools/tune-pid.mjs --write swarmNode` off this
 		// family's own inertia and motor lag. See CLAUDE.md — never hand-edited.
 		pid: {
