@@ -536,6 +536,13 @@ const targets = [
 	},
 	check({ family, dt, steps }) {
 		const prop = new Propulsion({ profile: PROFILES[family] });
+		// `iLimit` is Infinity when a family has opted out of the ESC current
+		// ceiling (src/motor.js), which every family does today. It is a sentinel
+		// in a constants object, not state, and step() returns the instance those
+		// constants hang off — so the walker reaches it. Swapped for a finite
+		// stand-in here rather than exempted by path, so a NEW infinity anywhere
+		// under `_motor` still fails.
+		if (prop._motor && prop._motor.iLimit === Infinity) prop._motor = { ...prop._motor, iLimit: 1e9 };
 		for (const [i, s] of steps.entries()) {
 			const out = prop.step(s.motors, s.air, dt);
 			const bad = firstNonFinite(out);

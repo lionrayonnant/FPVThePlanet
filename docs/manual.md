@@ -842,6 +842,51 @@ propwash, a battery that sags under load and drains);
 i-term relax, TPA, feedforward, RC smoothing, airmode mixer) and outputs only
 four motor commands.
 
+### The gyro, and why the loop rate is a real question
+
+`src/gyro.js` sits between Rapier and the PID. Without it the rate loop reads
+the exact angular velocity of the rigid body, which no machine has and which
+makes the whole Betaflight filter chain a handicap rather than a tool. With it
+the loop reads broadband noise (quoted as a density, so the amount does not
+change when the loop rate does) plus one tone per motor at its shaft frequency
+and its second harmonic. The RPM filter and the dynamic notch answer those
+tones; a loop delay line and Betaflight's anti-gravity and D-max sit beside
+them.
+
+All of it ships **inert**: `gyroNoise` and `loopDelay` are 0 on every family,
+`ANTI_GRAVITY_GAIN` is 0, `D_MAX_RATIO` is 1, `CONTROL_SUBSTEPS` is 1. The
+motor commands are bit-identical to the loop that predates the file, which
+`tools/loop-realism-selftest.mjs` asserts and which
+`tools/flight-replay.mjs --diff` confirms trace by trace. The reason is the
+tune: the `pid` blocks in `src/drone-profiles.js` were swept by
+`tools/tune-pid.mjs` against a silent gyro and a loop with no latency, and
+every one of these settings moves that plant. They go on together, with a
+re-sweep.
+
+The loop rate is the question underneath. Rotor fundamentals run from 155 Hz
+(longrange at a hover) to 816 Hz (toothpick at full stick), and the control
+loop runs on the physics grid at 250 Hz, whose Nyquist is 125 Hz. Measured by
+`node tools/loop-rate-bench.mjs`:
+
+| control rate | notches buildable (of 9 per axis) | motor ripple removed | CPU vs 250 Hz |
+|---|---|---|---|
+| 250 Hz  | 0 | 0.0 %  | — |
+| 500 Hz  | 0 | 0.1 %  | +0.02 % of a core |
+| 1000 Hz | 4 | 11.3 % | +0.07 % of a core |
+| 2000 Hz | 8 | 15.5 % | +0.16 % of a core |
+
+At 250 and 500 Hz the notch is not weak, it is absent: every centre frequency
+asked for is above 0.45 × Nyquist and `Notch.setFrequency()` refuses rather
+than degenerate. A 500 Hz tone read back through the SDFT comes out as 109 Hz
+at a 250 Hz loop — a tone that is not there and that the PID chases. So the
+day `gyroNoise` stops being 0, the loop rate goes to 1000 Hz with it (2000 Hz
+for cinewhoop and toothpick, whose fundamentals sit at 311–816 Hz). The
+physics grid does not move: the controller substeps inside it on a zero-order
+hold of the body state, which is what the hardware does too — the airframe does
+not rotate at the frequencies the gyro reports.
+
+Dev hook: `?loop=<hz>`, one of 250/500/1000/2000/4000, refused otherwise.
+
 ### Translational flight (#91)
 
 Three mechanisms separate the moving aircraft from the hovering one.

@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setFog, setDim, setNight, setDistantGround, releaseTileMaterials } from './loader.js';
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics, rotateVec } from './physics.js';
-import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep } from './frame-pacing.js';
-import { crashThreshold, idleThrottle } from './quad.js';
+import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep, parseControlRate } from './frame-pacing.js';
+import { PACK_DRAINS, crashThreshold, idleThrottle } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
@@ -154,7 +154,18 @@ export const OPTS = {
 	// an optional known doctrine name, refused otherwise) lives in
 	// tools/dev-flags.mjs, where a selftest can reach it.
 	swarm: params.get('swarm'),
+	// Dev-only: ?loop=1000 runs the CONTROL loop at that rate inside the
+	// unchanged 250 Hz physics grid. It exists because a gyro that reports
+	// rotor vibration reports it at the shaft frequency, 155-816 Hz across the
+	// six families, and a 250 Hz loop cannot represent any of it — see
+	// src/frame-pacing.js and tools/loop-rate-bench.mjs. The RULE (one of
+	// 250/500/1000/2000/4000, refused otherwise) lives in frame-pacing.js,
+	// beside the accumulator it substeps.
+	loop: params.get('loop'),
 };
+// Substeps of the physics step the controller runs, 1 unless ?loop= says
+// otherwise. Throws on a rate the accumulator could not honour exactly.
+const CONTROL_SUBSTEPS = parseControlRate(OPTS.loop);
 // The swarm a dev scan carries, or null. Throws on anything the game itself
 // could not draw — see tools/dev-flags.mjs for why it refuses instead of
 // clamping.
@@ -474,7 +485,7 @@ function applyBenchConfig() {
 	// rebuilds the Propulsion — hence the pack. Setting the flag again HERE,
 	// after the airframe change rather than once at boot, is what stops an
 	// in-flight airframe change from quietly handing the charge back.
-	physics?.battery?.setDrain(c.battery !== 'HELD');
+	physics?.battery?.setDrain(PACK_DRAINS && c.battery !== 'HELD');
 }
 
 // The bench panel, opened over the flight (B key). The SAME screen as the
@@ -2116,8 +2127,22 @@ function frame() {
 		// step stretch, and only as far as MAX_CATCHUP_STEP — see its comment.
 		const h = catchUpStep(accumulator);
 		let steps = 0;
+		// The controller substep: `hc` is h at CONTROL_SUBSTEPS == 1, exactly,
+		// so the default loop divides nothing and runs the arithmetic it always
+		// ran.
+		const hc = CONTROL_SUBSTEPS === 1 ? h : h / CONTROL_SUBSTEPS;
 		while (accumulator >= h && steps < MAX_STEPS_PER_FRAME) {
-			const { motors } = controller.update(sticks, physics, h);
+			// Several controller iterations per physics step, on a zero-order
+			// hold of the body state — which is what the hardware does too: the
+			// ESC holds the last DSHOT frame for the whole interval, and the
+			// airframe does not actually rotate at the frequencies the gyro
+			// reports. The LAST substep's motor command is the one the physics
+			// integrates; the earlier ones exist so the filters, the notches and
+			// the noise live at the loop's own rate.
+			let motors;
+			for (let c = 0; c < CONTROL_SUBSTEPS; c++) {
+				({ motors } = controller.update(sticks, physics, hc));
+			}
 			// Assisted turtle mode (#105). It reads the PREVIOUS frame's `stuck`
 			// — flightEnd.update() runs after this loop — and that is harmless:
 			// stillness is measured over four seconds, and one frame of lag does
@@ -2782,8 +2807,17 @@ if (!frozen) {
 		// NO COVERAGE comes before RXLOSS: inside the warning corridor the fence
 		// IS the cause of the RXLOSS, and showing the effect rather than the
 		// cause would tell the pilot to come back towards... nothing.
+		// Capacity first, voltage as the backstop -- which is the way round every
+		// real OSD does it, and for the reason the discharge curve makes obvious:
+		// a LiPo sits between 4.2 and 3.65 V for ninety percent of its charge and
+		// then moves fast. Voltage therefore CANNOT warn early; measured on a
+		// freestyle5 hover it fires 18 s before the pack can no longer hold the
+		// machine up, and 8 s on a cinewhoop. The same flights give 49 s and 14 s
+		// of notice off the capacity gauge. The pilot is not being asked to fly
+		// better, only to be told in time.
 		warning: bat.voltage / PROFILE.battery.cells < 3.4 ? 'LOW VOLTAGE'
 			: fence.out.warning ? fence.out.warning
+			: bat.soc <= 0.15 ? `BATT ${Math.max(0, Math.round(bat.soc * 100))}%`
 			: link.out.quality < 0.25 ? 'RXLOSS' : '',
 	});
 

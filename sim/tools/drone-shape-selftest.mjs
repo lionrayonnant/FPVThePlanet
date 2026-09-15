@@ -85,7 +85,13 @@ for (const family of FAMILIES) {
 // restée celle de la recette. Rien d'autre n'a bougé, et les ambiants ne sont
 // pas rendus autrement pour autant : src/drone-mesh.js traite la part `camera`
 // comme toutes les autres, c'est une boîte de 19×19×10 mm qui a changé de
-// hauteur. Toute autre dérive de ces empreintes est une régression.
+// hauteur.
+//
+// L'empreinte du toothpick a été recalculée une troisième fois quand les quatre
+// familles extrapolées de freestyle5 ont repris des pièces de catalogue : son
+// hélice est passée de 0,0318 à 0,03175 m, qui est exactement 2,5 pouces. Le
+// maillage a bougé de 0,05 mm, et le nombre est désormais un fait plutôt qu'un
+// arrondi. Toute autre dérive de ces empreintes est une régression.
 {
 	const GOLDEN = {
 		freestyle5: '7060140541d230dd',
@@ -93,7 +99,7 @@ for (const family of FAMILIES) {
 		cinewhoop: 'e8adbcc42d131eb3',
 		longrange: 'afdf242d80843cd8',
 		heavy5: '962cbf465e9905b9',
-		toothpick: '0fd72cf210f35616',
+		toothpick: 'c69c69ba7694ef60',
 	};
 	for (const family of FAMILIES) {
 		const rows = make(family).parts

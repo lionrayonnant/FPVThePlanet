@@ -1,125 +1,86 @@
-# Picking up `claude/drone-gravity-fix-ofdhrh`
+# Picking up `spec/integration` (PR #158)
 
-Written for whoever resumes this — a person or an agent. Nine commits, not
-merged, no pull request. Start with `npm run resume` from `sim/`.
+Written for whoever resumes this. Fifteen commits, CI green, not merged.
 
-## The one thing that matters most
+## What this branch is
 
-**Nothing on this branch has been flown in a browser.** Every number in every
-commit message is bench measurement on the pure model. The session that
-produced it had no browser and no network access to the reference data, and
-those two gaps are what block almost every open item below.
+The owner wrote a flight-physics specification — `~/Documents/dev/SPEC_SIMULATEUR_FPV/`,
+800 normative lines plus a parts catalogue — and asked for the sim's physics to
+be traced onto it. Nine lots, integrated and flown.
 
-So: fly it first, before writing any more physics.
+**The previous PICKUP.md is obsolete and its open items are closed.** For the
+record, because two of them were wrong rather than merely done:
+
+- "Fly it" — flown, in `?live=`. The feel changes are measured, not guessed.
+- "Run the propeller validation" — run, and it found a defect in `blade-element.js`
+  that the file's own header misattributed. See below.
+- "A hover sits at 0.342, right on TPA_BREAK, unexamined" — examined and closed.
+  It is what a 6.3:1 machine does; `race5` at 9.27:1 hovers at 0.227. Not a symptom.
+- "race5 and toothpick carry data that is not theirs" — true, and it was four
+  families, not two. Fixed.
+
+## Start here
 
 ```bash
-npm run dev        # then ?scene=<slug> to skip the terminal
+npm run dev            # then ?live=48.8584,2.2945&family=toothpick
+npm run replay         # the new one: fly a fixed stick sequence, diff two versions
+npm run tune           # report only, never --write by hand
 ```
 
-and in the console, during the flight that feels wrong:
+`npm run replay -- --all --family all --quiet --out a.json`, then the same on
+another version, then `--diff a.json b.json`. That answers "what did this commit
+do to the flight", which nothing here could answer before.
 
-```js
-__sim.budget()        // start
-// ... 30 s ...
-__sim.budget(true)    // read back
-```
+## What is NOT done, ranked
 
-Everything it prints is a fraction of the airframe's weight along world +Y.
-`__sim.ruler()` measures between two points of a flight (call it twice) and
-exists to settle whether the rendered world is at true scale — fly level with
-the foot of a landmark, call it, climb level with its top, call it again.
+1. **`blade-element.js` is still not wired into `quad.js`**, and should not be
+   yet. The axial model is validated on 187 measured propellers with no
+   directional bias at any advance ratio. **Everything edgewise is unverified** —
+   the UIUC tunnel blows along the shaft and cannot see it. Wiring it replaces
+   the thrust model and invalidates six PID tunes on the strength of a term no
+   bench here can check. What is needed first: an edgewise data source, or a
+   measured hover-to-cruise thrust curve from the reference build.
+2. **The gyro noise is 0 and the notch is not built.** Turning them on means
+   raising the control loop rate, and the two go together with a re-sweep. The
+   measurement is already done: a notch degenerates above 0.45 of Nyquist (56 Hz
+   at 250 Hz) and rotor fundamentals run 155–816 Hz in flight, so at this rate
+   the notch is not weak, it is absent. `?loop=<hz>` accepts 250/500/1000/2000/4000.
+   Cost measured at 0.065% of a core for 1 kHz. **Watch the toothpick**: it has
+   no delay margin left, already 10.1% overshoot from the noise alone.
+3. **`longrange` is the last family carrying data that is not its own.** It is
+   the only one still outside the rpm band, its 7x4x3 propeller does not exist
+   in the catalogue, and a catalogue bill of materials comes to 1.04 kg against
+   the profile's 0.92. Its two tune misses are a consequence, not a cause —
+   the same shape as the toothpick before it was fixed. Fixing it moves `mass`,
+   so `inertia` has to be recomputed.
+4. **D-max is off (1.0) and that is deliberate.** Measured, it is a loss on the
+   tune as it stands: it buys a lower resting D, and the resting D here was
+   chosen against a silent gyro. It pays only after item 2.
+5. **`propInertia` is inconsistent across families** — normalised as `k·m·R²` it
+   implies k from 0.17 to 0.62. Applying the reference's k would change the
+   cinewhoop by 2.5×, which moves spool-up and yaw. Its own lot.
+6. **Translational rotor moments (#91, reverted by #103)** remain out. Same
+   physical mechanism as the blade-element edgewise term — do not do both at
+   once, or two corrections of one phenomenon will fight.
+7. **`battery.maxCurrent` has no consistent convention.** The reference states
+   100 A on a pack rated 195 A. Either reading makes some value in the file wrong.
 
-## How this branch came about
+## Twenty-one defects found in the specification
 
-Reported as "the drone's gravity is wrong", then "it floats, it is too light,
-everywhere". Five measured defects were found and fixed. The pilot's verdict
-after the first four was "better, but not striking", which is itself the most
-useful datum on this branch: each fix was deliberately calibrated to preserve
-the reference airframe's feel, so by construction none of them could move it
-much — and all four were in the DESCENT branch, while the report said
-everywhere.
-
-A force budget was then built to stop guessing. Flown for 83 s it returned
-`thrustUp 0.983`, ground effect 0, vortex ring −0.0005, **wind 0** — which
-killed the leading suspect (terrain updraft) outright and said no anomalous
-force is holding the machine up. That points away from the flight model and
-toward the rendered world's scale, which is what `__sim.ruler()` is for.
-
-## What is on it
-
-| commit | what |
-|---|---|
-| Gravity stopped whenever the render slowed down | `Physics.step()` ignored its own `dt` for Rapier; the frame loop discarded elapsed time below ~21 fps |
-| The drone refused to fall | The axial inflow term was an unbounded first-order slope: 1.23× weight of braking at 25 m/s of descent |
-| The vortex ring state never let go | Absolute m/s thresholds shared by every family, and it saturated for ever instead of ending at the windmill brake boundary |
-| Motors are a torque balance now | `src/motor.js` — back-EMF, winding current, `J·dω/dt = Q_motor − Q_prop`. Replaced three fitted constants per family |
-| Measure where the weight actually goes | `Physics.beginForceBudget()` / `forceBudget()`, `__sim.budget()` |
-| The force budget exonerates the flight model | The 83 s flight above, plus `__sim.ruler()` |
-| A propeller as a blade | `src/blade-element.js` — BEMT. **Not wired in** |
-| Validate against measured propellers | `tools/uiuc-prop-validate.mjs` |
-
-## Open items, ranked
-
-1. **Fly it.** Everything else is downstream of this.
-
-2. **Run the propeller validation.** `npm run resume` fetches the UIUC database
-   and runs it. The blade-element model is currently *calibrated* on two
-   anchors per family and *validated* against nothing. This is the test that
-   says whether it is right: calibrate on one static point, predict the whole
-   advance-ratio sweep, compare to the tunnel. BEMT with a generic aerofoil is
-   usually quoted at 10–20 % on CT for props this small. Well over that means
-   the model is wrong, and the shape of the error against J says where.
-
-3. **Two known defects in `blade-element.js`**, both in its header:
-   - the joint chord/section-drag solve settles into a limit cycle on
-     `freestyle5` — the *reference* family — leaving it ~4 % off both anchors.
-     Pinned by a selftest so it cannot quietly get worse.
-   - edgewise flight past an advance ratio of ~0.1 makes thrust fall where a
-     real rotor's would flatten, because the blade elements never see the
-     edgewise flow. Fixing it properly means integrating over azimuth.
-
-4. **Do not wire `blade-element.js` into `quad.js` until 2 and 3 are settled.**
-   It replaces the core of the model, invalidates all six PID tunes (re-run
-   `node tools/tune-pid.mjs --write all`, never hand-edit), and obsoletes four
-   `aero-selftest` guards.
-
-5. **`race5` and `toothpick` carry data that is not theirs.** The motor model
-   exposed it: both come out at 48–51 % of no-load rpm, and the toothpick
-   implies ~11 A a motor where a real 1102 pulls 5–7. Their numbers were scaled
-   from `freestyle5`, never measured. The visible cost today: the tuner reports
-   4 axis/family combinations outside target where it reported 2 before, and
-   both new ones are the toothpick's roll and pitch. Needs real bench numbers
-   for a 2.5" micro. Worth an issue.
-
-6. **A hover now sits at 0.342 stick, right on `TPA_BREAK` (0.35)**, where
-   throttle-dependent gain attenuation starts. Unexamined.
-
-7. **Still missing from the flight model**, in rough order of what a pilot
-   would notice: the blade flapping moment (issue #91, reverted by #103); gyro
-   noise, the Betaflight filter chain and loop latency, so the controller still
-   reads perfect body rates; anti-gravity, I-term relax and D-max; ESC current
-   limits.
-
-## Tools that would move this fastest
-
-- **Betaflight itself** (`github.com/betaflight/betaflight`) is GPL-3.0, which
-  is licence-compatible with this repository's AGPL-3.0 — so its algorithms can
-  be *ported* with attribution and notices, not just imitated. That is not true
-  of the Nexus mod that prompted the blade-element work, which is why that was
-  implemented from published theory (Glauert, Leishman) instead.
-- **A Betaflight blackbox log from a real quad.** Gyro, rpm, throttle,
-  accelerometer. Replay the same sticks through the sim and compare. It is the
-  only thing that turns "asserts invariants" into "measures an error".
-- **A flight-replay regression harness.** The selftests here assert invariants,
-  and invariants could not tell anyone that four correct fixes would barely
-  change the feel. Fly a fixed stick sequence, record the trajectory, diff it
-  between versions.
+All pinned by tests that fail when the spec is corrected, rather than silently
+adopting the new value. Report them upstream; the serious one is **§6.4, which
+is inverted against its own opening sentence** — applied literally, a drone
+loses nothing climbing and everything falling.
 
 ## House rules that bit during this work
 
-- `npm run selftest:ci` runs ONCE, at the end. Per-module benches
-  (`node tools/<module>-selftest.mjs`) are what you run while working.
+- `npm run selftest:ci` ONCE, at the end, before pushing. It caught three guards
+  pinning the old airframes and a Windows-only ESM path defect that passes on
+  Linux. Per-module benches do not see those.
 - PID values are written by `tools/tune-pid.mjs --write`, never by hand.
+  `--write all` deliberately excludes `freestyle5`, the reference tune.
+- `tune-pid.mjs` rewrites the `pid:` blocks of `drone-profiles.js` by REGEX that
+  depends on tab indentation. `tools/profile-schema-selftest.mjs` guards it.
 - A file touched for any reason leaves in English.
-- A selftest that needs data the repo does not carry must SKIP loudly, not
-  fail. `tools/uiuc-prop-validate.mjs` follows that.
+- One worktree per lot, and never two agents in one file. The parallelism here
+  was limited by file ownership, not by logic.

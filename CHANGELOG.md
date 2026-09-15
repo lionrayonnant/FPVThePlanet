@@ -24,6 +24,86 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Modes Acro3D et GPS.** Gaz bidirectionnel — poussée inversée, mixeur signé,
+  `stepMotor` bidirectionnel — et maintien de position qui produit une *assiette*
+  confiée à l'auto-nivellement existant, sur le précédent du mode angle : pas de
+  second contrôleur, un seul réglage. Retour au point depuis 2, 20 et 60 m sur
+  les six familles en 9 à 17 s, un seul dépassement, moins d'1 cm de dérive
+  d'altitude.
+- **Un gyroscope, et la mesure qui dit quand l'allumer** (`src/gyro.js`). Bruit
+  large bande exprimé en densité, tons synchrones du rotor, notch dynamique,
+  filtre RPM, ligne à retard, anti-gravity, D-max. **Tout est livré inerte** et
+  c'est prouvé : 36 traces de rejeu identiques à l'octet, rapport du tuner
+  inchangé. Le chiffre qui décide : un notch dégénère au-delà de 0,45 de
+  Nyquist, soit 56 Hz à 250 Hz, alors que les fondamentales rotor vont de 155 à
+  816 Hz en vol — à cette cadence le notch n'est pas faible, il est absent.
+  `?loop=<hz>` existe pour mesurer le jour où le bruit s'allumera.
+- **Harnais de rejeu de vol** (`npm run replay`). Six séquences de manches fixées
+  volées à travers le vrai contrôleur et le vrai Rapier, puis différenciées sur
+  des grandeurs qu'un pilote reconnaît. Déterminisme prouvé en processus, en
+  ordre inverse et en processus neuf.
+
+- **Modèle de vol calqué sur la spécification de vol.** Cinq familles de rates
+  des firmwares du commerce au lieu d'une seule (`src/rates.js`), pondération de
+  la course de gaz en trois bandes (`src/throttle.js`), courbes de réponse à
+  clés (`src/curves.js`), densité de l'air prise par altitude (`src/air.js`),
+  catalogue de pièces en données (`src/spec-data/`). Tout est inerte par défaut :
+  les rates restent ACTUAL, les bandes à 1/1/1, et un banc le prouve à l'égalité
+  flottante exacte sur un balayage de 4001 points.
+- **Les neuf critères d'acceptation en banc** (`tools/spec-acceptance-selftest.mjs`),
+  avec des cibles re-dérivées par famille plutôt que recopiées. Le critère 4
+  passe et retrouve le chiffre de la spécification par un autre chemin : à 8:1
+  le stationnaire demande 27,6 % de manche, la spec annonce « ≈30 % ».
+- **Limite de courant ESC par moteur** et les deux courbes de décharge, lipo et
+  li-ion (`src/battery.js`, sorti de `quad.js`).
+
+### Modifié
+
+- **Quatre familles de drones portaient les chiffres du 5" freestyle.** Le
+  fichier l'admettait en commentaire. Une famille sur six seulement était dans la
+  bande de régime attendue, et un micro 2,5" sortait à 3,08:1 de rapport
+  poussée/poids là où un vrai est à 4-6. Chaque nombre dérive désormais de trois
+  règles ancrées sur la machine de référence, et les pièces viennent d'un
+  catalogue. Cinq familles sur six dans la bande, rapports poussée/poids en
+  classe partout. Conséquence : le toothpick était **impossible à régler**, aucun
+  point de la grille P/D n'atteignait la cible ; sur la machine corrigée le
+  tuner y va directement, et les combinaisons hors cible passent de 4 à 2.
+- **La courbe de poussée se courbe.** Les pertes d'hélice atteignent le modèle :
+  manche de stationnaire −10,7 % sur le 5" freestyle, −14,1 % sur le race,
+  **plein gaz inchangé** (vitesse de pointe 142,4 → 142,3 km/h).
+- **Le modèle d'hélice par éléments de pale, réparé.** L'en-tête accusait
+  l'écoulement de travers ; la soufflerie UIUC souffle le long de l'arbre, le
+  défaut était purement axial. La vraie cause était une ligne de portance
+  symétrique — une vraie pale est cambrée. Erreur moyenne sur 187 hélices
+  82,7 % → 31,1 %, et le biais signé qui atteignait −222 % revient à quelques
+  pourcents partout. Le cycle limite est résolu : le résidu de vitesse induite
+  avait trois racines, ce qu'un commentaire affirmant l'inverse cachait.
+- **Le drone a du poids au stationnaire.** Le poids est majoré de 7 à 15 % à
+  vitesse verticale nulle et revient à 1,0 en descente rapide — une force
+  explicite avec son poste au budget, jamais le `g` de Rapier. C'est la réponse
+  au rapport « ça flotte, c'est trop léger, partout » que le budget de forces
+  n'avait pas su expliquer. `hoverThrottle()` en tient compte, sinon le maintien
+  d'altitude coulait de 2 m/s.
+- **La batterie ne borne plus la sortie** (`PACK_DRAINS`, `src/battery.js`). Le
+  pack ne se vide pas : une exploration ne s'arrête pas sur une panne sèche. Rien
+  d'autre ne change, parce que tout ce qui fait qu'un pack se sent est du sag —
+  tire 90 A et la tension tombe encore de 0,225 V/cellule, le régime fléchit, le
+  punch-out coûte ce qu'il coûte. Seule l'horloge disparaît. Le compteur de
+  coulombs, les deux courbes de décharge et l'interrupteur BATTERY du banc
+  restent en place et testés.
+- **L'alerte batterie est passée de la tension à la capacité**, pour le jour où
+  cet interrupteur rebascule : un LiPo reste entre 4,2 et 3,65 V pendant 90 % de
+  sa charge, donc la tension ne peut pas prévenir tôt — elle laissait 18 s avant
+  la panne sur un 5", 8 s sur un cinewhoop, contre 49 et 14 pour la capacité. Le
+  coude de la courbe de décharge est adouci pour la même raison.
+- **Les pertes d'hélice s'appliquent à la pale, pas au KV.** Les deux courbes de
+  perte corrigent `kThrust`, pas le régime : un KV est une propriété du
+  bobinage, il ignore quelle hélice y est boulonnée.
+- **Effet de sol** : la force échelonne désormais avec la taille d'hélice et la
+  tension par cellule, la décroissance mesurée reste exponentielle.
+
 ### Modifié
 
 - **README : en-tête de présentation et soutien remonté en haut.** Bannière,

@@ -33,10 +33,16 @@ const GRAVITY = 9.81;
 // 1000 m rather than something enormous: Rapier keeps translations as f32, and
 // at 1e6 m one step's v*dt falls below the ulp, so the drone reads as never
 // moving at all.
+// The §8.1 gravity trim is off here for the same reason the rotors are stopped:
+// these tests are about the integrator honouring its dt, and the trim adds a
+// deliberate 7-15% to the weight. Left on, every free-fall assertion reads
+// g*trim*dt and the bench measures the force model instead of the pacing.
+// src/tools/force-budget-selftest.mjs is where the trim itself is asserted.
 function deadStick(profile = PROFILES.freestyle5) {
 	const p = new Physics(EMPTY, { x: 0, y: 1000, z: 0 }, { profile, weather: { wind: 0 } });
 	p.propulsion.omega.fill(0);
 	p.propulsion.thrust.fill(0);
+	p.propulsion.setGravityTrim(false);
 	return p;
 }
 

@@ -14,37 +14,82 @@ let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 const GEOM = Object.fromEntries(FAMILIES.map((f) => [f, geometryOf(PROFILES[f])]));
 
-// KNOWN DEFECT, pinned rather than hidden. The joint chord/section-drag solve
-// converges exactly for five families and settles into a limit cycle on
-// freestyle5, leaving it ~4% high on thrust and ~4% low on the torque ratio.
-// That is the REFERENCE family, so this is not a comfortable thing to ship; it
-// is recorded here with a tolerance tight enough that it cannot quietly get
-// worse, and it is why the module is not yet wired into quad.js.
-const OFF = { freestyle5: 0.05 };
+// A GRID of blades the solver has never seen, spanning the pitch/diameter
+// ratios, diameters, blade counts and section drags a small multirotor prop
+// comes in. The families above are six points; a solver that converges only on
+// the six it ships with is not a solver, and this is the check that says so. It
+// is also what catches a family whose hardware numbers are corrected later: the
+// geometry moves, and the solve has to hold anyway.
+//
+// The anchors are taken FROM the model rather than invented, which is what
+// makes this a round trip and not a guess: build a blade with a known chord
+// scale and section drag, read the static thrust and torque ratio it makes, and
+// require the solver handed those two numbers to come back to the same blade.
+// Inventing a thrust instead only tests whether the number was reachable.
+const GRID = [];
+for (const R of [0.03175, 0.0381, 0.0635, 0.0762]) {
+	for (const pd of [0.3, 0.5, 0.7, 0.9, 1.1]) {
+		for (const blades of [2, 3]) {
+			for (const [chordScale, cd0] of [[0.12, 0.05], [0.25, 0.3], [0.45, 0.8]]) {
+				const spec = {
+					propRadius: R, propPitch: pd * 2 * R, bladeCount: blades,
+					maxOmega: 340 / R / 4,          // a tip speed around Mach 0.25
+					maxThrustPerMotor: 1, torqueRatio: 1,
+				};
+				const truth = { ...geometryOf(spec), chordScale, cd0 };
+				const f = rotorForces(truth, spec.maxOmega, 0);
+				if (!(f.thrust > 0) || !(f.torque > 0)) continue;
+				spec.maxThrustPerMotor = f.thrust;
+				spec.torqueRatio = f.torque / f.thrust;
+				GRID.push({ spec, chordScale, cd0,
+					label: `${(R * 2 / 0.0254).toFixed(1)}" p/D=${pd} ${blades}b cs=${chordScale} cd0=${cd0}` });
+			}
+		}
+	}
+}
 
-t('both anchors are reproduced, every family', () => {
+t('both anchors are reproduced to machine precision, every family', () => {
+	// This used to carry a tolerance. The joint chord/section-drag solve settled
+	// into a limit cycle on freestyle5 — the REFERENCE family — and sat 4% off
+	// both anchors, pinned here rather than fixed. It had two causes and both
+	// are gone: the solve is nested rather than alternating, and the induced
+	// velocity it reads is single-valued rather than whichever of three roots a
+	// doubling bracket happened to straddle. There is no tolerance now because
+	// there is nothing left to tolerate.
 	for (const f of FAMILIES) {
 		const p = PROFILES[f];
-		const tol = OFF[f] ?? 1e-6;
 		const r = rotorForces(GEOM[f], p.maxOmega, 0);
-		assert.ok(Math.abs(r.thrust / p.maxThrustPerMotor - 1) < tol,
+		assert.ok(Math.abs(r.thrust / p.maxThrustPerMotor - 1) < 1e-9,
 			`${f}: static thrust ${r.thrust} vs ${p.maxThrustPerMotor}`);
-		assert.ok(Math.abs(r.torque / r.thrust / p.torqueRatio - 1) < tol,
+		assert.ok(Math.abs(r.torque / r.thrust / p.torqueRatio - 1) < 1e-9,
 			`${f}: Q/T ${r.torque / r.thrust} vs ${p.torqueRatio}`);
 	}
 });
 
-t('five of the six converge exactly, and the sixth is the known one', () => {
-	// So that "it converges" cannot rot into "it is within 5% everywhere".
-	const exact = FAMILIES.filter((f) => {
-		const p = PROFILES[f];
-		const r = rotorForces(GEOM[f], p.maxOmega, 0);
-		return Math.abs(r.thrust / p.maxThrustPerMotor - 1) < 1e-6
-			&& Math.abs(r.torque / r.thrust / p.torqueRatio - 1) < 1e-6;
-	});
-	assert.equal(exact.length, FAMILIES.length - Object.keys(OFF).length,
-		`exact: ${exact.join(', ')}`);
-	for (const f of Object.keys(OFF)) assert.ok(!exact.includes(f), `${f} now converges — drop it from OFF`);
+t('and on every blade in the grid, not just the six that ship', () => {
+	// 1e-8 rather than the families' 1e-9: the outer bisection reads a quantity
+	// the inner one has already solved, so the nesting's own floor is what is
+	// being measured here, not a model error.
+	for (const { spec, label } of GRID) {
+		const g = geometryOf(spec);
+		const r = rotorForces(g, spec.maxOmega, 0);
+		assert.ok(Math.abs(r.thrust / spec.maxThrustPerMotor - 1) < 1e-8,
+			`${label}: thrust ${r.thrust} vs ${spec.maxThrustPerMotor}`);
+		assert.ok(Math.abs(r.torque / r.thrust / spec.torqueRatio - 1) < 1e-8,
+			`${label}: Q/T ${r.torque / r.thrust} vs ${spec.torqueRatio}`);
+	}
+});
+
+t('and it recovers the blade itself, not merely a blade that fits', () => {
+	// Two anchors, two unknowns: the solution should be unique, so the solver
+	// has to land back on the chord scale and section drag the anchors were
+	// generated from. Matching the anchors while sitting somewhere else in the
+	// plane would mean the two are degenerate and one of them is decoration.
+	for (const { spec, chordScale, cd0, label } of GRID) {
+		const g = geometryOf(spec);
+		assert.ok(Math.abs(g.chordScale / chordScale - 1) < 1e-4, `${label}: chordScale ${g.chordScale}`);
+		assert.ok(Math.abs(g.cd0 / cd0 - 1) < 1e-4, `${label}: cd0 ${g.cd0}`);
+	}
 });
 
 t('the thrust surface is smooth in blade chord', () => {
@@ -59,6 +104,86 @@ t('the thrust surface is smooth in blade chord', () => {
 			const th = rotorForces(g, PROFILES[f].maxOmega, 0).thrust;
 			assert.ok(th > prev, `${f}: chord ${c.toFixed(3)} gave ${th}, below ${prev}`);
 			prev = th;
+		}
+	}
+});
+
+t('and it is smooth, which monotone alone does not mean', () => {
+	// The test above passed all the way through the defect it was written for.
+	// A step UP is still monotone, and the induced-velocity solve had one: at
+	// the reference family's own calibration point a 0.1% change in blade chord
+	// jumped the thrust by 9%, because the residual has three roots and a
+	// doubling bracket picked whichever one it happened to straddle. That is
+	// what the calibration was cycling on, so this asserts the property that was
+	// actually violated — a bounded response to a bounded change — rather than
+	// the one that survived it.
+	for (const f of FAMILIES) {
+		const g = { ...GEOM[f] };
+		const step = 1.002;                  // 0.2% of chord
+		let prev = null;
+		for (let c = 0.05; c <= 1.5; c *= step) {
+			g.chordScale = c;
+			const th = rotorForces(g, PROFILES[f].maxOmega, 0).thrust;
+			if (prev !== null) {
+				// Thrust is very nearly linear in chord, so 0.2% in must not give
+				// more than 1% out. A discontinuity is orders past this.
+				assert.ok(th - prev < Math.max(prev, 1e-3) * 0.01,
+					`${f}: chord ${c.toFixed(4)} stepped thrust ${prev} -> ${th}`);
+			}
+			prev = th;
+		}
+	}
+});
+
+t('and smooth in rpm and in airspeed too, which is where a pilot would feel it', () => {
+	// The same property along the two axes flight actually moves on, measured
+	// against the ROTOR's own scale — its static thrust — rather than against
+	// the local value, which goes to zero at the windmilling knee and makes any
+	// relative measure meaningless exactly where it is least interesting.
+	//
+	// KNOWN LIMIT, and the reason the bound is 6% rather than a fraction of a
+	// percent. Two folds survive, both of them on the boundary where momentum
+	// theory stops having a solution at all: the vortex-ring state in a descent
+	// near Vc/vh = -2, and the windmill transition in a fast climb at low rpm.
+	// There the blade-element residual's first root merges with its second and
+	// vanishes, and the induced velocity steps to the next one — worst measured
+	// is 5% of static thrust across a 0.25 m/s change. Leishman's empirical
+	// induced-velocity fit through the turbulent-wake state is the published
+	// answer and it is a uniform-inflow model, so it is a restructuring, not a
+	// patch. What this bound does hold against is the defect that WAS fixed: a
+	// 9% step, at the calibration point, in the middle of the working envelope.
+	for (const f of FAMILIES) {
+		const p = PROFILES[f];
+		for (const vEdge of [0, 10, 30]) {
+			for (const frac of [0.3, 0.5, 0.8, 1]) {
+				const w = p.maxOmega * frac;
+				const scale = rotorForces(GEOM[f], w, 0).thrust;
+				let prev = null;
+				for (let v = -40; v <= 40; v += 0.25) {
+					const th = rotorForces(GEOM[f], w, v, 1.225, vEdge).thrust;
+					// Only where the rotor is still doing something: past the
+					// windmilling knee the sign is the interesting property, not the
+					// slope, and the checks below are what assert it.
+					if (prev !== null && th > 0.25 * scale && prev > 0.25 * scale) {
+						assert.ok(Math.abs(th - prev) < 0.06 * scale,
+							`${f} w=${w.toFixed(0)} vEdge=${vEdge}: vAxial ${v} stepped thrust ${prev} -> ${th}`);
+					}
+					prev = th;
+				}
+			}
+		}
+		// And along rpm, at a fixed point of the envelope.
+		for (const vEdge of [0, 10, 30]) {
+			const scale = rotorForces(GEOM[f], p.maxOmega, 0).thrust;
+			let prev = null;
+			for (let w = 200; w <= p.maxOmega; w *= 1.01) {
+				const th = rotorForces(GEOM[f], w, 0, 1.225, vEdge).thrust;
+				if (prev !== null) {
+					assert.ok(Math.abs(th - prev) < 0.06 * scale,
+						`${f} vEdge=${vEdge}: omega ${w.toFixed(0)} stepped thrust ${prev} -> ${th}`);
+				}
+				prev = th;
+			}
 		}
 	}
 });
@@ -98,12 +223,66 @@ t('twist comes from the prop\'s pitch, and falls off with radius', () => {
 t('the aerofoil polar is finite and bounded through a full turn', () => {
 	// This is what lets the model have regimes at all: a polar that only covers
 	// +-15 degrees is what forces a thrust clamp.
-	for (let d = -180; d <= 180; d += 1) {
+	for (let d = -180; d <= 180; d += 0.25) {
 		const { cl, cd } = airfoil((d * Math.PI) / 180, 0.3);
 		assert.ok(Number.isFinite(cl) && Number.isFinite(cd), `alpha ${d}`);
 		assert.ok(Math.abs(cl) < 2.5, `alpha ${d}: cl ${cl}`);
 		assert.ok(cd > 0 && cd < 2, `alpha ${d}: cd ${cd}`);
 	}
+});
+
+t('and it is continuous through a full turn, joins included', () => {
+	// Viterna's extension meets the linear branch AT the stall angle by
+	// construction, and the reversed half is the same curve mirrored about
+	// broadside. Both joins are places a 360-degree polar is usually spliced by
+	// hand and usually has a step. A step in cl is a step in torque, and a
+	// blade in edgewise flight crosses these angles once per revolution.
+	for (const cd0 of [0.02, 0.3, 1.0]) {
+		let prev = null;
+		for (let d = -180; d <= 180; d += 0.25) {
+			const r = airfoil((d * Math.PI) / 180, cd0);
+			if (prev) {
+				assert.ok(Math.abs(r.cl - prev.cl) < 0.05, `cd0 ${cd0}, alpha ${d}: cl ${prev.cl} -> ${r.cl}`);
+				assert.ok(Math.abs(r.cd - prev.cd) < 0.05, `cd0 ${cd0}, alpha ${d}: cd ${prev.cd} -> ${r.cd}`);
+			}
+			prev = r;
+		}
+	}
+});
+
+t('the section is CAMBERED, which is what a propeller blade is', () => {
+	// The single term that was missing, checked as the identity it is rather
+	// than by a number. A symmetric section makes no lift at zero incidence and
+	// therefore stops pulling exactly where the blade stops slipping, J = p/D;
+	// the tunnel says real props pull well past that, and this is why.
+	const zero = airfoil(0, 0.3).cl;
+	assert.ok(zero > 0, `a cambered section lifts at zero incidence: cl ${zero}`);
+	// It lifts nothing at ITS own zero-lift angle, which is negative.
+	let a0 = 0;
+	for (let d = -0.5; d > -15; d -= 0.001) {
+		if (airfoil((d * Math.PI) / 180, 0.3).cl <= 0) { a0 = d; break; }
+	}
+	assert.ok(a0 < -0.5 && a0 > -10, `zero-lift angle ${a0} degrees is not a propeller section's`);
+	assert.ok(Math.abs(airfoil((a0 * Math.PI) / 180, 0.3).cl) < 1e-3, 'cl is zero at the zero-lift angle');
+	// And the polar is that same curve shifted, not a new one: stall is a fixed
+	// angle from the zero-lift line, so the positive stall peak sits nearer zero
+	// incidence than the negative one.
+	let peakPos = 0, peakNeg = 0;
+	for (let d = 0; d < 90; d += 0.1) if (airfoil((d * Math.PI) / 180, 0.3).cl > airfoil((peakPos * Math.PI) / 180, 0.3).cl) peakPos = d;
+	for (let d = 0; d > -90; d -= 0.1) if (airfoil((d * Math.PI) / 180, 0.3).cl < airfoil((peakNeg * Math.PI) / 180, 0.3).cl) peakNeg = d;
+	assert.ok(peakPos < Math.abs(peakNeg), `stall peaks ${peakPos} / ${peakNeg} are not shifted by camber`);
+});
+
+t('lift runs out broadside and reverses behind it', () => {
+	// The reversed half of the polar is not decoration: an inboard station on
+	// the retreating side of a rotor in fast forward flight really does sit
+	// there, once per revolution. Getting its SIGN wrong — which a flat-plate
+	// continuation of cos^2/sin quietly does — puts lift where there is drag.
+	assert.ok(Math.abs(airfoil(Math.PI / 2, 0.3).cl) < 0.1, 'a section broadside on makes no lift');
+	assert.ok(airfoil((120 * Math.PI) / 180, 0.3).cl < 0, 'past broadside, lift reverses');
+	assert.ok(airfoil((-120 * Math.PI) / 180, 0.3).cl > 0, 'and reverses the other way round too');
+	assert.ok(airfoil(Math.PI, 0.3).cd < airfoil(Math.PI / 2, 0.3).cd,
+		'edge-on to a reversed flow is low drag; broadside is not');
 });
 
 t('climbing unloads the prop', () => {
@@ -170,14 +349,80 @@ t('nothing returns NaN anywhere in the envelope', () => {
 	}
 });
 
-t('edgewise flow raises thrust where the axial model is still honest', () => {
-	// Translational lift, up to the advance ratio past which this model's own
-	// header says it stops being trustworthy (~0.1).
-	const p = PROFILES.freestyle5;
-	const hover = Math.sqrt((p.mass * 9.81) / 4 / (p.maxThrustPerMotor / p.maxOmega ** 2));
-	const still = rotorForces(GEOM.freestyle5, hover, 0, 1.225, 0).thrust;
-	const moving = rotorForces(GEOM.freestyle5, hover, 0, 1.225, 10).thrust;
-	assert.ok(moving > still * 1.01, `${moving} vs ${still}`);
+t('the blade elements SEE the edgewise flow, not just the momentum balance', () => {
+	// The defect the azimuthal integration exists for, asserted as the regime it
+	// unlocks rather than as a number. Fly fast enough and the inboard stations
+	// on the retreating side go BACKWARDS through the air — omega*r is smaller
+	// than vEdge there — and a model that only feeds edgewise flow to the
+	// momentum balance cannot represent that at all: every element sees the same
+	// tangential speed all the way round, so nothing on the disc ever reverses.
+	for (const f of FAMILIES) {
+		const p = PROFILES[f];
+		const hover = Math.sqrt((p.mass * 9.81) / 4 / (p.maxThrustPerMotor / p.maxOmega ** 2));
+		// The innermost station sits at 0.15 + half a step of the radius.
+		const rInner = p.propRadius * (0.15 + (0.85 / 8) * 0.5);
+		const vEdge = hover * rInner * 1.5;      // comfortably past reversal
+		const r = rotorForces(GEOM[f], hover, 0, 1.225, vEdge);
+		assert.ok(Number.isFinite(r.thrust) && Number.isFinite(r.torque),
+			`${f}: reversed flow at vEdge ${vEdge} gave ${JSON.stringify(r)}`);
+	}
+});
+
+t('and thrust is continuous in edgewise speed, station count included', () => {
+	// The azimuthal quadrature uses one station in near-axial flight, four at
+	// moderate advance ratio and eight above it, because a midpoint rule on a
+	// smooth periodic integrand converges fast and hover should not pay for
+	// forward flight. That is only legitimate if the switches are invisible: a
+	// step at mu = 0.01 or mu = 0.1 would be an optimisation the pilot can feel.
+	for (const f of FAMILIES) {
+		const p = PROFILES[f];
+		for (const frac of [0.3, 0.6, 1]) {
+			const w = p.maxOmega * frac;
+			const scale = rotorForces(GEOM[f], w, 0).thrust;
+			let prev = null;
+			for (let e = 0; e <= 60; e += 0.2) {
+				const th = rotorForces(GEOM[f], w, 0, 1.225, e).thrust;
+				if (prev !== null) {
+					assert.ok(Math.abs(th - prev) < 0.02 * scale,
+						`${f} w=${w.toFixed(0)}: vEdge ${e} stepped thrust ${prev} -> ${th}`);
+				}
+				prev = th;
+			}
+		}
+	}
+});
+
+t('and in the limit of no edgewise flow it is the axial answer', () => {
+	// One station and eight have to agree as mu goes to zero, or the switch
+	// above is hiding a discontinuity rather than straddling one.
+	for (const f of FAMILIES) {
+		const p = PROFILES[f];
+		const axial = rotorForces(GEOM[f], p.maxOmega, 0, 1.225, 0).thrust;
+		const crawling = rotorForces(GEOM[f], p.maxOmega, 0, 1.225, 1e-4).thrust;
+		assert.ok(Math.abs(crawling / axial - 1) < 1e-6, `${f}: ${crawling} vs ${axial}`);
+	}
+});
+
+t('a rotor in fast edgewise flight gains thrust — translational lift', () => {
+	// The property a real rotor has and the axial-only model did not: it lost
+	// 44% of its thrust by 40 m/s of edgewise flight, because the momentum
+	// balance took the induced velocity away and the sections, meeting their own
+	// twist head on, stalled.
+	//
+	// Asserted at high advance ratio, which is where the effect is unambiguous.
+	// Between rest and roughly 15 m/s the model shows a shallow DIP of a few
+	// percent first, and that is not asserted either way: it is the coarse
+	// inboard sections of a small prop, already past stall in still air, being
+	// pushed further past it as the induced velocity falls. It is plausible and
+	// it is unverified — the tunnel database this model is checked against is
+	// axial-flow only and has nothing to say about edgewise rotors.
+	for (const f of FAMILIES) {
+		const p = PROFILES[f];
+		const hover = Math.sqrt((p.mass * 9.81) / 4 / (p.maxThrustPerMotor / p.maxOmega ** 2));
+		const still = rotorForces(GEOM[f], hover, 0, 1.225, 0).thrust;
+		const fast = rotorForces(GEOM[f], hover, 0, 1.225, 40).thrust;
+		assert.ok(fast > still * 1.05, `${f}: ${fast} at 40 m/s edgewise vs ${still} at rest`);
+	}
 });
 
 console.log(`blade-element-selftest : ${n} tests ok`);
