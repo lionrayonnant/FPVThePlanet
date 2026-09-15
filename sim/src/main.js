@@ -38,6 +38,7 @@ import { edgeFadeForRadius, createRocktreeMaterial, createLiveEdgeUniforms } fro
 import { worldWeather, applyWeather, applySimParams, headline, CALM } from './weather.js';
 import { selectOperationMode, runBench, loadLastMode } from './bench.js';
 import { benchSimParams, benchEntryRequest, benchDate } from '../tools/bench-model.mjs';
+import { resolveBenchAirframe } from '../tools/bench-airframe.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
@@ -439,6 +440,18 @@ const MODE = { bench: false, live: false, config: null };
 // builds its own controller. null in FIELD and for ?live=: the controller then
 // falls back to RATE_PRESETS[preset], as before.
 let benchRates = null;
+// The throttle chain the bench's build asks for (min throttle, the three
+// bands), or null for the controller's own inert DEFAULT_THROTTLE. Same rule as
+// benchRates: it has to be set BEFORE any FlightController is constructed.
+let benchThrottle = null;
+// The identity of the machine currently flying — the hash of base, parts and
+// overrides (tools/bench-airframe.mjs). The in-flight panel swaps the airframe
+// when this changes. It used to compare `profile.family`, which meant a new
+// seed, and now any of forty parameters, changed nothing at all in flight.
+let benchIdentity = null;
+// The identity of the PLANT alone, so a rate change does not rebuild the
+// Propulsion — and with it the pack — for nothing.
+let benchProfileIdentity = null;
 // The instant the bench gives the sun. Recomputed when the time changes and not
 // every frame: sun.update() runs at 60 Hz and does not need a Date manufactured
 // for it sixty times a second.
@@ -461,19 +474,39 @@ function applyBenchConfig() {
 	// Rapier body's mass properties without reloading the scene; that is already
 	// what tools/selftest.mjs does to walk the six families. The controller
 	// follows: its PIDs are the profile's, not constants.
-	const build = c.airframe.seed ? targetBuild({ seed: c.airframe.seed, family: c.airframe.family }) : null;
-	const profile = build ? build.profile : PROFILES[c.airframe.family];
-	if (physics && profile && physics.profile?.family !== profile.family) {
-		physics.setProfile(profile);
-		PROFILE = physics.profile;
-		audio.setProfile(physics.profile);
-		controller = new FlightController({ profile: PROFILE, rates: build?.rates });
-		console.log(`[bench] airframe -> ${PROFILE.family} (${PROFILE.label})`);
+	//
+	// Keyed on the build's IDENTITY and no longer on its family: base, bill of
+	// materials and every override are in that hash (#159), so setting a gain
+	// from the in-flight panel reaches the loop the same way changing family
+	// does — which is the whole promise of "the same screen before and during".
+	const resolved = resolveBenchAirframe(c.airframe);
+	if (physics && resolved.identity !== benchIdentity) {
+		const plantChanged = resolved.profileIdentity !== benchProfileIdentity;
+		benchIdentity = resolved.identity;
+		benchProfileIdentity = resolved.profileIdentity;
+		const build = resolved.build;
+		// setProfile() rebuilds the Propulsion, and a fresh Propulsion is a
+		// fresh pack. So it runs only when the PLANT moved: setting a rate or a
+		// throttle band must not quietly hand the charge back.
+		if (plantChanged) {
+			physics.setProfile(resolved.profile);
+			PROFILE = physics.profile;
+			audio.setProfile(physics.profile);
+		}
+		benchRates = resolved.rates;
+		benchThrottle = resolved.throttle;
+		flightBuild = build;
+		controller = new FlightController({
+			profile: PROFILE,
+			rates: resolved.rates ?? undefined,
+			throttle: resolved.throttle ?? undefined,
+		});
+		console.log(`[bench] airframe -> ${PROFILE.family} (${PROFILE.label}) ${resolved.identity}`);
 		// The player's drone follows the airframe (#286): its props, its livery
 		// and its frame are those of the individual actually flying, not of the
 		// old one — without this, the old machine's props stayed in frame (noted
 		// in HANDOFF since #264).
-		if (playerDrone && camSpec) {
+		if (plantChanged && playerDrone && camSpec) {
 			lens.setOnboard(null);
 			playerDrone.dispose();
 			playerDrone = new PlayerDrone({ scene, profile: physics.profile, build, camera: camSpec });
@@ -1606,7 +1639,11 @@ async function bootLive([lat, lon], { arm = true } = {}) {
 	// bootLive() builds its own controller, so in both cases they have to be set
 	// BEFORE the call. With no individual (bare ?live=), `opts.rates` is optional
 	// in flightController.js and falls back to RATE_PRESETS[this.preset].
-	controller = new FlightController({ profile: PROFILE, rates: benchRates ?? undefined });
+	controller = new FlightController({
+		profile: PROFILE,
+		rates: benchRates ?? undefined,
+		throttle: benchThrottle ?? undefined,
+	});
 
 	// LEGAL, not polish. Google requires the copyright of the imagery it serves
 	// to be displayed wherever that imagery is rendered, and the live terrain IS
@@ -3431,30 +3468,36 @@ async function benchLoop(ui) {
 
 	MODE.bench = true;
 	MODE.config = config;
-	const family = config.airframe.family;
 
-	// Hidden terrain: we yield EXACTLY the shape the ?family= override already
-	// yields, and the startup() chain builds PROFILE and the controller as
-	// usual. Nothing is duplicated here — a build (buildSeed) goes through
-	// targetBuild() like a real target, NOMINAL flies the reference profile,
-	// the one of the tune-pid bench.
+	// The machine, resolved ONCE and for both terrains (#159). It used to be
+	// handed to the startup() chain as a `{family, buildSeed}` pair and rebuilt
+	// there — a shape that can say NOMINAL and INDIVIDUAL and nothing else, so a
+	// catalogue build or a single typed gain would have been silently dropped on
+	// the way to a baked scene.
+	const resolved = resolveBenchAirframe(config.airframe);
+	PROFILE = resolved.profile;
+	flightBuild = resolved.build;
+	// D12: NOMINAL and CUSTOM have no drawn build, but they do have a machine —
+	// the family's nominal seed gives them a portrait without touching the flown
+	// profile, which stays the reference of tools/tune-pid.mjs.
+	flightBuildSeed = resolved.build ? config.airframe.seed : nominalBuildSeed(PROFILE.family);
+	benchRates = resolved.rates;
+	benchThrottle = resolved.throttle;
+	benchIdentity = resolved.identity;
+	benchProfileIdentity = resolved.profileIdentity;
+	if (resolved.build) logBuild(resolved.build);
+	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (${config.airframe.base} ${resolved.identity})`);
+
+	// Hidden terrain: the startup() chain takes it from here, boots the baked
+	// scene and builds the controller off the PROFILE just set. No family and no
+	// buildSeed go back with it — there is nothing left for it to re-derive.
 	if (config.terrain.kind === 'cached') {
-		return { slug: config.terrain.slug, target: undefined, family, buildSeed: config.airframe.seed ?? undefined };
+		return { slug: config.terrain.slug, target: undefined };
 	}
 
 	// Free flight: bootLive() builds its own physics and its own controller, so
 	// PROFILE and the rates have to be set BEFORE the call — which is what ?live=
 	// already does through the ?family= override.
-	const build = config.airframe.seed ? targetBuild({ seed: config.airframe.seed, family }) : null;
-	PROFILE = build ? build.profile : PROFILES[family];
-	flightBuild = build;
-	// D12: NOMINAL has no drawn build, but it does have a machine — its
-	// family's nominal seed gives it a portrait without touching the flown
-	// profile, which stays the reference of tools/tune-pid.mjs.
-	flightBuildSeed = build ? config.airframe.seed : nominalBuildSeed(PROFILE.family);
-	benchRates = build?.rates ?? null;
-	if (build) logBuild(build);
-	else console.log(`[bench] ${PROFILE.family} — ${PROFILE.label} (nominal)`);
 	audio.start();
 	await bootLive([config.terrain.lat, config.terrain.lon]);
 	return { prepared: true };
@@ -3572,21 +3615,31 @@ startup()
 		const { slug, target, family, buildSeed } = choice;
 		flyArea = slug;
 		flyTarget = target || null;
-		// Keeps the ?family= override when the scan gave no family. With a
-		// buildSeed we fly the build; without one (dev override) it is the
-		// family's nominal profile.
-		const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
-		PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
-		flightBuild = build;
-		// D12: same rule as at the bench. `?family=` without `?build=`,
-		// `?scene=` without a TARGET SCAN and the bench's hidden terrain all
-		// fly a nominal profile — they now keep a portrait all the same.
-		flightBuildSeed = build ? buildSeed : nominalBuildSeed(PROFILE?.family);
-		controller = new FlightController(
-			{ ...(PROFILE ? { profile: PROFILE, rates: build?.rates } : {}) },
-		);
-		if (build) logBuild(build);
-		else if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label} (nominal)`);
+		// The bench has already resolved its machine in benchLoop(), base and
+		// bill of materials and overrides together (#159), and sends back no
+		// family and no buildSeed: this path can express neither, and rebuilding
+		// from them would quietly fly a different quad.
+		if (!MODE.bench) {
+			// Keeps the ?family= override when the scan gave no family. With a
+			// buildSeed we fly the build; without one (dev override) it is the
+			// family's nominal profile.
+			const build = family && buildSeed ? targetBuild({ seed: buildSeed, family }) : null;
+			PROFILE = build ? build.profile : family ? PROFILES[family] : PROFILE;
+			flightBuild = build;
+			// D12: same rule as at the bench. `?family=` without `?build=` and
+			// `?scene=` without a TARGET SCAN fly a nominal profile — they now
+			// keep a portrait all the same.
+			flightBuildSeed = build ? buildSeed : nominalBuildSeed(PROFILE?.family);
+			if (build) logBuild(build);
+			else if (PROFILE) console.log(`[target] family ${PROFILE.family} — ${PROFILE.label} (nominal)`);
+		}
+		controller = new FlightController({
+			...(PROFILE ? {
+				profile: PROFILE,
+				rates: benchRates ?? flightBuild?.rates,
+				throttle: benchThrottle ?? undefined,
+			} : {}),
+		});
 		return boot(slug);
 	})
 	.then(openFlightSession)
