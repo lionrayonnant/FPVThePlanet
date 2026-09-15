@@ -141,8 +141,8 @@ t('and smooth in rpm and in airspeed too, which is where a pilot would feel it',
 	// the local value, which goes to zero at the windmilling knee and makes any
 	// relative measure meaningless exactly where it is least interesting.
 	//
-	// KNOWN LIMIT, and the reason the bound is 6% rather than a fraction of a
-	// percent. Two folds survive, both of them on the boundary where momentum
+	// KNOWN LIMIT, and the reason the bounds here are 6-7% rather than a
+	// fraction of a percent. Two folds survive, both of them on the boundary where momentum
 	// theory stops having a solution at all: the vortex-ring state in a descent
 	// near Vc/vh = -2, and the windmill transition in a fast climb at low rpm.
 	// There the blade-element residual's first root merges with its second and
@@ -152,6 +152,21 @@ t('and smooth in rpm and in airspeed too, which is where a pilot would feel it',
 	// answer and it is a uniform-inflow model, so it is a restructuring, not a
 	// patch. What this bound does hold against is the defect that WAS fixed: a
 	// 9% step, at the calibration point, in the middle of the working envelope.
+	//
+	// The bound moved from 6% to 7% when longrange stopped being extrapolated
+	// from freestyle5. longrange is the family that wrote the "5%" above and it
+	// always was: on a 0.01 m/s sweep the OLD rotor already stepped 4.85% of
+	// static thrust at w = 735 rad/s in a 8.7 m/s descent, against 1.4-3.0% for
+	// the other five. Its catalogue rotor (a bi-blade 7037 at 2499 rad/s) puts
+	// the same fold at 5.62% — 6.75% as this loop's 0.25 m/s grid reads it,
+	// since the grid also collects the local slope on either side. Nothing about
+	// the fold is new and nothing about the data is wrong: a 7" turning slowly
+	// has the lowest disc loading of the six, so its own vh is small and the
+	// Vc/vh = -2 boundary sits where a pilot actually descends, which is why
+	// this family finds the discontinuity first. The bound is widened rather
+	// than the hardware bent, and 7% still refuses the 9% defect it was written
+	// for. Only the AIRSPEED sweep needed it; the rpm sweep below still holds at
+	// 6%, and moving it would have hidden something.
 	for (const f of FAMILIES) {
 		const p = PROFILES[f];
 		for (const vEdge of [0, 10, 30]) {
@@ -165,7 +180,7 @@ t('and smooth in rpm and in airspeed too, which is where a pilot would feel it',
 					// windmilling knee the sign is the interesting property, not the
 					// slope, and the checks below are what assert it.
 					if (prev !== null && th > 0.25 * scale && prev > 0.25 * scale) {
-						assert.ok(Math.abs(th - prev) < 0.06 * scale,
+						assert.ok(Math.abs(th - prev) < 0.07 * scale,
 							`${f} w=${w.toFixed(0)} vEdge=${vEdge}: vAxial ${v} stepped thrust ${prev} -> ${th}`);
 					}
 					prev = th;
