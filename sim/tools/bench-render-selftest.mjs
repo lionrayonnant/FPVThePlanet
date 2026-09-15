@@ -1,20 +1,22 @@
-// Selftest des ÉCRANS du banc (PHASE 26), monté sur le faux DOM de
-// tools/lib/fake-dom.mjs. Même intention que ui-audio-render-selftest.mjs :
-// ce qu'on vérifie est l'ARBRE et le CÂBLAGE — quels contrôles existent, ce
-// qu'ils portent, et ce qui se passe quand on les actionne. L'apparence se
-// juge à l'œil, pas ici.
+// Selftest of the bench SCREENS (PHASE 26), mounted on the fake DOM of
+// tools/lib/fake-dom.mjs. Same intent as ui-audio-render-selftest.mjs: what is
+// checked is the TREE and the WIRING — which controls exist, what they carry,
+// and what happens when they are operated. Appearance is judged by eye, not
+// here.
 //
-// Lancer : node tools/bench-render-selftest.mjs
+// Run: node tools/bench-render-selftest.mjs
 
 import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
-// Le faux DOM doit exister AVANT l'import des modules d'écran : menu-nav.js
-// s'abonne à window au chargement, et terminal.js touche document.
+// The fake DOM has to exist BEFORE the screen modules are imported: menu-nav.js
+// subscribes to window on load, and terminal.js touches document.
 const dom = installFakeDom();
 const { selectOperationMode, runBench, loadBenchConfig, loadLastMode } = await import('../src/bench.js');
 const { MODE_SELECT, BENCH_SEAL, BENCH_STORAGE_KEY, normalizeBenchConfig } = await import('./bench-model.mjs');
 const { FAMILIES, PROFILES } = await import('../src/drone-profiles.js');
+const { PARAM_GROUPS, PARAMS } = await import('./bench-airframe.mjs');
+const { radio } = await import('../src/radio.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -22,10 +24,10 @@ const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); 
 
 const reset = () => { dom.storage.clear(); dom.root.replaceChildren(); dom.setActive(null); };
 
-// Combien de minuteurs sont encore armés. Le flux RTC de la racine (issue #243)
-// en pose un par tick, et un écran qui part sans appeler son stop() les laisse
-// battre sur un nœud détaché. On compte en RELATIF (avant/après) : d'autres
-// modules arment aussi des minuteurs, et ce n'est pas eux qu'on surveille.
+// How many timers are still armed. The root's RTC stream (issue #243) sets one
+// per tick, and a screen that leaves without calling its stop() lets them beat
+// on a detached node. The count is RELATIVE (before/after): other modules arm
+// timers too, and they are not the ones being watched.
 const _live = new Set();
 const _setTimeout = globalThis.setTimeout;
 const _clearTimeout = globalThis.clearTimeout;
@@ -37,33 +39,33 @@ globalThis.setTimeout = (fn, ms, ...rest) => {
 globalThis.clearTimeout = (id) => { _live.delete(id); return _clearTimeout(id); };
 const timersAlive = () => _live.size;
 
-// Le bouton dont le libellé contient `label`. Les CTA sont rendus « [ X ] ».
+// The button whose label contains `label`. CTAs render as "[ X ]".
 const btn = (label) => dom.root.querySelectorAll('button').find((b) => b.textContent.includes(label));
 const rowOf = (key) => dom.root.querySelector(`[data-bench-key="${key}"]`);
-// La ligne complète (étiquette + contrôle + valeur) qui contient ce contrôle.
+// The whole row (label + control + value) that holds this control.
 const lineOf = (key) => { let e = rowOf(key); while (e && !e.classList.contains('bench-row')) e = e.parent; return e; };
 
 // ---------------------------------------------------------------------------
 // SELECT OPERATION MODE
 
-await ta('mode select : les quatre voies, avec ce que chacune coûte', async () => {
+await ta('mode select: the five ways, with what each of them costs', async () => {
 	reset();
 	const p = selectOperationMode(dom.root, { last: 'field' });
 	const text = dom.root.textContent;
-	assert.ok(text.includes(MODE_SELECT.title), 'le titre');
-	// D3/D6 : l'ORDRE est le message — voler, puis le banc, puis ce qui est
-	// froid, puis ce qui s'écoute, puis les réglages. DATA, JUKEBOX et SETTINGS
-	// ne sont plus des liens enterrés dans un onglet de FIELD.
+	assert.ok(text.includes(MODE_SELECT.title), 'the title');
+	// D3/D6: the ORDER is the message — fly, then the bench, then what is cold,
+	// then what is listened to, then the settings. DATA, JUKEBOX and SETTINGS
+	// are no longer links buried in a FIELD tab.
 	const ctas = dom.root.querySelectorAll('.bench-mode').map((w) => w.querySelector('button').textContent);
 	assert.deepEqual(ctas, ['[ FIELD ]', '[ BENCH ]', '[ DATA ]', '[ JUKEBOX ]', '[ SETTINGS ]']);
 	for (const m of ['field', 'bench', 'data', 'jukebox', 'settings']) {
-		for (const l of MODE_SELECT[m].lines) assert.ok(text.includes(l), `« ${l} » est affichée`);
+		for (const l of MODE_SELECT[m].lines) assert.ok(text.includes(l), `"${l}" is shown`);
 	}
 	btn('FIELD').click();
 	assert.equal(await p, 'field');
 });
 
-await ta('mode select : DATA et SETTINGS se rendent comme les deux autres', async () => {
+await ta('mode select: DATA and SETTINGS render like the other two', async () => {
 	reset();
 	let p = selectOperationMode(dom.root, { last: 'field' });
 	btn('DATA').click();
@@ -75,42 +77,42 @@ await ta('mode select : DATA et SETTINGS se rendent comme les deux autres', asyn
 	assert.equal(await p, 'settings');
 });
 
-await ta('mode select : le curseur se pose sur le dernier mode utilisé', async () => {
+await ta('mode select: the cursor lands on the last mode used', async () => {
 	reset();
-	// Un joueur FIELD ne doit payer qu'une touche par lancement, pas un choix.
+	// A FIELD player must pay one keystroke per launch, not one choice.
 	let p = selectOperationMode(dom.root, { last: 'field' });
-	assert.ok(dom.active?.textContent.includes('FIELD'), `curseur sur FIELD, pas « ${dom.active?.textContent} »`);
+	assert.ok(dom.active?.textContent.includes('FIELD'), `cursor on FIELD, not "${dom.active?.textContent}"`);
 	btn('FIELD').click();
 	await p;
 
 	reset();
 	p = selectOperationMode(dom.root, { last: 'bench' });
-	assert.ok(dom.active?.textContent.includes('BENCH'), `curseur sur BENCH, pas « ${dom.active?.textContent} »`);
+	assert.ok(dom.active?.textContent.includes('BENCH'), `cursor on BENCH, not "${dom.active?.textContent}"`);
 	btn('BENCH').click();
 	assert.equal(await p, 'bench');
 
-	// `fpvtp.mode` retient les QUATRE voies (D3) : revenir consulter ses
-	// journaux ne doit pas coûter plus cher que revenir voler.
+	// `fpvtp.mode` remembers ALL the ways (D3): coming back to read a log must
+	// cost no more than coming back to fly.
 	reset();
 	p = selectOperationMode(dom.root, { last: 'data' });
-	assert.ok(dom.active?.textContent.includes('DATA'), `curseur sur DATA, pas « ${dom.active?.textContent} »`);
+	assert.ok(dom.active?.textContent.includes('DATA'), `cursor on DATA, not "${dom.active?.textContent}"`);
 	btn('DATA').click();
 	await p;
-	assert.equal(loadLastMode(), 'data', 'et la voie retenue est bien DATA');
+	assert.equal(loadLastMode(), 'data', 'and the way remembered is indeed DATA');
 });
 
-// Issue #26 : ARCHIVE est devenu DATA. Un opérateur qui avait quitté le jeu sur
-// ARCHIVE retrouve son curseur sur DATA — c'est le même onglet sous son vrai
-// nom, pas une voie disparue qui renverrait sur FIELD.
-t('mode select : un `fpvtp.mode` resté sur ARCHIVE retombe sur DATA', () => {
+// Issue #26: ARCHIVE became DATA. An operator who left the game on ARCHIVE
+// finds their cursor on DATA — it is the same tab under its real name, not a
+// vanished way that would drop them back on FIELD.
+t('mode select: an `fpvtp.mode` left on ARCHIVE falls back to DATA', () => {
 	reset();
 	dom.storage.set('fpvtp.mode', 'archive');
 	assert.equal(loadLastMode(), 'data');
-	dom.storage.set('fpvtp.mode', 'n\'importe quoi');
-	assert.equal(loadLastMode(), 'field', 'et une valeur inconnue retombe toujours sur FIELD');
+	dom.storage.set('fpvtp.mode', 'anything at all');
+	assert.equal(loadLastMode(), 'field', 'and an unknown value still falls back to FIELD');
 });
 
-await ta('mode select : le choix est retenu pour le lancement suivant', async () => {
+await ta('mode select: the choice is remembered for the next launch', async () => {
 	reset();
 	const p = selectOperationMode(dom.root, { last: 'field' });
 	btn('BENCH').click();
@@ -118,203 +120,437 @@ await ta('mode select : le choix est retenu pour le lancement suivant', async ()
 	assert.equal(loadLastMode(), 'bench');
 });
 
-await ta('mode select : l\'écran est démonté derrière lui', async () => {
+await ta('mode select: the screen is taken down behind it', async () => {
 	reset();
 	const p = selectOperationMode(dom.root, { last: 'field' });
 	btn('FIELD').click();
 	await p;
-	assert.equal(dom.root.children.length, 0, 'rien ne reste dans #ui');
+	assert.equal(dom.root.children.length, 0, 'nothing is left in #ui');
 });
 
-await ta('mode select : l\'identité est écrite au-dessus du choix', async () => {
+await ta('mode select: identity is written above the choice', async () => {
 	reset();
-	// Bible §48 : « OPERATOR // NEO » puis SELECT OPERATION MODE. La racine dit
-	// d'abord qui tu es. Elle reste montable sans opérateur (?scene= n'en charge
-	// pas toujours un) : la ligne disparaît, l'écran ne casse pas.
+	// Bible §48: "OPERATOR // NEO" then SELECT OPERATION MODE. The root says
+	// first who you are. It stays mountable with no operator (?scene= does not
+	// always load one): the line disappears, the screen does not break.
 	const p = selectOperationMode(dom.root, { last: 'field', operatorName: 'neo' });
 	const who = dom.root.querySelector('.bench-operator');
-	assert.ok(who, 'la ligne opérateur');
-	assert.equal(who.textContent, 'OPERATOR // NEO', 'en capitales, comme la Home');
+	assert.ok(who, 'the operator line');
+	assert.equal(who.textContent, 'OPERATOR // NEO', 'in capitals, like the Home');
 	btn('FIELD').click();
 	await p;
 
 	reset();
 	const p2 = selectOperationMode(dom.root, { last: 'field' });
-	assert.equal(dom.root.querySelector('.bench-operator'), null, 'pas de ligne vide sans opérateur');
+	assert.equal(dom.root.querySelector('.bench-operator'), null, 'no empty line without an operator');
 	btn('FIELD').click();
 	await p2;
 });
 
-await ta('mode select : deux colonnes, le RTC à droite des voies', async () => {
+await ta('mode select: two columns, the RTC to the right of the ways', async () => {
 	reset();
-	// Issue #243 : la racine est le SEUL écran qui porte encore un bloc RTC.
-	// Le vérifier ici et pas seulement à l'œil, parce que le premier tick du
-	// flux est différé de plusieurs secondes : un RTC qui n'aurait jamais été
-	// monté passerait inaperçu au banc comme à l'écran pendant tout ce temps.
+	// Issue #243: the root is the ONLY screen still carrying an RTC block.
+	// Checked here and not by eye alone, because the stream's first tick is
+	// several seconds out: an RTC that had never been mounted would go unnoticed
+	// on the bench and on screen for all that time.
 	const p = selectOperationMode(dom.root, { last: 'field' });
 	const left = dom.root.querySelector('.terminal-left');
 	const right = dom.root.querySelector('.terminal-right');
-	assert.ok(left, 'la colonne des voies');
-	assert.ok(right, 'la colonne du RTC');
-	// Les voies sont à GAUCHE, le RTC à DROITE : c'est tout le propos de #243.
-	assert.ok(left.querySelector('.bench-mode'), 'les voies sont dans la colonne gauche');
-	assert.equal(right.querySelector('.bench-mode'), null, 'et pas dans celle de droite');
-	assert.ok(right.querySelector('.sc-rtc'), 'le RTC est dans la colonne droite');
+	assert.ok(left, 'the column of ways');
+	assert.ok(right, 'the RTC column');
+	// The ways are on the LEFT, the RTC on the RIGHT: that is the whole of #243.
+	assert.ok(left.querySelector('.bench-mode'), 'the ways are in the left column');
+	assert.equal(right.querySelector('.bench-mode'), null, 'and not in the right one');
+	assert.ok(right.querySelector('.sc-rtc'), 'the RTC is in the right column');
 	btn('FIELD').click();
 	assert.equal(await p, 'field');
 });
 
-await ta('mode select : le flux RTC est arrêté quand on choisit', async () => {
+await ta('mode select: the RTC stream is stopped when a choice is made', async () => {
 	reset();
-	// Un minuteur qui survit à son écran rejoue un tick sur un nœud détaché à
-	// chaque lancement suivant. `mount()` rend un stop() POUR ça, et pick() doit
-	// l'appeler comme il appelle nav.detach().
+	// A timer that outlives its screen replays a tick on a detached node at every
+	// subsequent launch. `mount()` returns a stop() FOR that, and pick() has to
+	// call it the way it calls nav.detach().
 	const before = timersAlive();
 	const p = selectOperationMode(dom.root, { last: 'field' });
-	assert.ok(timersAlive() > before, 'le flux a bien armé un minuteur');
+	assert.ok(timersAlive() > before, 'the stream did arm a timer');
 	btn('FIELD').click();
 	await p;
-	assert.equal(timersAlive(), before, 'et il ne reste rien après le choix');
+	assert.equal(timersAlive(), before, 'and nothing is left after the choice');
 });
 
 // ---------------------------------------------------------------------------
-// L'écran du banc
+// The bench screen
 
 const SCENES = [{ slug: 'paristest', name: 'paristest' }, { slug: 'tour-eiffel', name: 'Tour Eiffel' }];
 
-await ta('banc : toutes les lignes sont montées et lisibles', async () => {
+await ta('bench: every row is mounted and readable', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
-	for (const key of ['family', 'seed', 'terrain', 'entry', 'fence', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']) {
-		assert.ok(rowOf(key), `la ligne ${key} existe`);
+	for (const key of ['family', 'base', 'detail', 'terrain', 'entry', 'fence', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']) {
+		assert.ok(rowOf(key), `the ${key} row exists`);
 	}
 	const text = dom.root.textContent;
-	assert.ok(text.includes(BENCH_SEAL), 'le sceau est affiché');
-	assert.ok(!/undefined|NaN|\[object/.test(text), `aucune fuite technique à l'écran :\n${text}`);
+	assert.ok(text.includes(BENCH_SEAL), 'the seal is shown');
+	assert.ok(!/undefined|NaN|\[object/.test(text), `no technical leak on screen:\n${text}`);
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : chaque ligne a sa conduite et sa colonne de valeur', async () => {
+await ta('bench: every row has its leader and its value column', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	const rows = dom.root.querySelectorAll('.bench-row');
-	assert.ok(rows.length >= 14, `au moins 14 lignes, vu ${rows.length}`);
+	assert.ok(rows.length >= 14, `at least 14 rows, saw ${rows.length}`);
 	for (const r of rows) {
 		const label = r.querySelectorAll('.bench-label');
 		const lead = r.querySelectorAll('.bench-leader');
 		const val = r.querySelectorAll('.bench-value');
-		// Les quatre colonnes sont toujours là, même vides : c'est ce qui aligne
-		// les valeurs d'un bout à l'autre. Une ligne qui saute sa valeur laisse
-		// un trou, et l'œil perd la colonne.
-		assert.equal(label.length, 1, `une étiquette sur « ${r.textContent} »`);
-		assert.equal(lead.length, 1, `une conduite sur « ${r.textContent} »`);
-		assert.equal(val.length, 1, `une valeur sur « ${r.textContent} »`);
+		// The four columns are always there, even empty: that is what aligns the
+		// values from one end to the other. A row that skips its value leaves a
+		// hole, and the eye loses the column.
+		assert.equal(label.length, 1, `one label on "${r.textContent}"`);
+		assert.equal(lead.length, 1, `one leader on "${r.textContent}"`);
+		assert.equal(val.length, 1, `one value on "${r.textContent}"`);
 	}
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : les trois curseurs de vent disent chacun ce qu\'ils règlent', async () => {
+await ta('bench: each of the three wind sliders says what it sets', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
-	// Le mock de la Bible §48 résume le vent sur une ligne, mais il y a trois
-	// curseurs : chacun doit porter sa lecture, sinon on règle à l'aveugle.
+	// Bible §48's mock sums the wind up on one line, but there are three
+	// sliders: each has to carry its reading, or it is set blind.
 	for (const key of ['wind', 'gust', 'dir']) {
 		const v = lineOf(key).querySelector('.bench-value');
-		assert.ok(v.textContent.trim().length, `la ligne ${key} affiche sa valeur`);
+		assert.ok(v.textContent.trim().length, `the ${key} row shows its value`);
 	}
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : le titre et le credo sont deux blocs distincts', async () => {
+await ta('bench: the title and the creed are two distinct blocks', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	const title = dom.root.querySelector('.bench-title');
 	const creed = dom.root.querySelector('.bench-creed');
-	assert.ok(title && title.textContent.includes('BENCH'), 'le titre');
-	// Séparés parce qu'ils ne parlent pas du même niveau : le credo n'est pas
-	// une seconde ligne de titre, c'est ce que le banc dit de lui-même.
-	assert.ok(creed, 'le credo a son propre bloc');
+	assert.ok(title && title.textContent.includes('BENCH'), 'the title');
+	// Apart because they do not speak at the same level: the creed is not a
+	// second title line, it is what the bench says about itself.
+	assert.ok(creed, 'the creed has its own block');
 	for (const term of ['NO TARGET', 'NO LINK', 'NO HACK', 'NO LOSS']) {
-		assert.ok(creed.textContent.includes(term), `le credo porte « ${term} »`);
+		assert.ok(creed.textContent.includes(term), `the creed carries "${term}"`);
 	}
-	assert.ok(!title.textContent.includes('NO TARGET'), 'le credo n\'est pas dans le titre');
+	assert.ok(!title.textContent.includes('NO TARGET'), 'the creed is not in the title');
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : le curseur se pose sur SPIN UP', async () => {
+await ta('bench: the cursor lands on SPIN UP', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
-	// C'est ce qu'on vient chercher en rouvrant le banc sans rien changer.
+	// That is what you come for when you reopen the bench without changing
+	// anything.
 	assert.equal(dom.active?.dataset.benchKey, 'spin');
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : changer une cellule met à jour l\'écran ET la config rendue', async () => {
+await ta('bench: changing the airframe updates the screen AND the config returned', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	const sel = rowOf('family');
 	sel.value = 'race5';
 	sel.onchange();
-	assert.ok(lineOf('family').textContent.includes(PROFILES.race5.label), 'le libellé suit');
+	assert.ok(lineOf('family').textContent.includes(PROFILES.race5.label), 'the label follows');
 	btn('SPIN UP').click();
 	const cfg = await p;
 	assert.equal(cfg.airframe.family, 'race5');
 });
 
-await ta('banc : un curseur écrit une valeur, et la valeur se relit', async () => {
+await ta('bench: a slider writes a value, and the value reads back', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	const wind = rowOf('wind');
 	wind.value = '12';
 	wind.oninput();
-	assert.ok(lineOf('wind').textContent.includes('12.0 m/s'), `la ligne dit le vent — « ${lineOf('wind').textContent} »`);
+	assert.ok(lineOf('wind').textContent.includes('12.0 m/s'), `the row says the wind — "${lineOf('wind').textContent}"`);
 	const time = rowOf('time');
 	time.value = String(6 * 60 + 30);
 	time.oninput();
-	assert.ok(lineOf('time').textContent.includes('06:30'), `la ligne dit l'heure — « ${lineOf('time').textContent} »`);
+	assert.ok(lineOf('time').textContent.includes('06:30'), `the row says the time — "${lineOf('time').textContent}"`);
 	btn('SPIN UP').click();
 	const cfg = await p;
 	assert.equal(cfg.weather.windSpeed, 12);
 	assert.equal(cfg.timeMin, 390);
 });
 
-await ta('banc : le curseur survit au re-rendu déclenché par le réglage', async () => {
+await ta('bench: the cursor survives the re-render the setting triggers', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	rowOf('rain').focus();
 	const before = dom.active.dataset.benchKey;
 	rowOf('rain').value = '9';
 	rowOf('rain').oninput();
-	// Sans ce report, régler la pluie renverrait le curseur en haut de l'écran
-	// à chaque cran — le banc deviendrait inutilisable au clavier.
-	assert.equal(dom.active?.dataset.benchKey, before, 'le curseur est resté sur RAIN');
+	// Without carrying it over, setting the rain would throw the cursor back to
+	// the top of the screen at every notch — the bench would become unusable
+	// from the keyboard.
+	assert.equal(dom.active?.dataset.benchKey, before, 'the cursor stayed on RAIN');
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : INDIVIDUAL tire une graine, ROLL en tire une autre', async () => {
+await ta('bench: INDIVIDUAL draws a seed, ROLL draws another', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
-	assert.equal(loadBenchConfig().airframe.seed, null, 'NOMINAL au départ');
-	assert.ok(!rowOf('roll'), 'pas de ROLL tant qu\'on est en NOMINAL');
-	const sel = rowOf('seed');
-	sel.value = 'seeded';
+	assert.equal(loadBenchConfig().airframe.seed, null, 'NOMINAL to start with');
+	assert.ok(!rowOf('roll'), 'no ROLL while it is NOMINAL');
+	const sel = rowOf('base');
+	sel.value = 'INDIVIDUAL';
 	sel.onchange();
 	const first = loadBenchConfig().airframe.seed;
-	assert.ok(first, 'une graine a été tirée');
-	assert.ok(rowOf('roll'), 'ROLL est apparu');
+	assert.ok(first, 'a seed was drawn');
+	assert.ok(rowOf('roll'), 'ROLL has appeared');
 	rowOf('roll').click();
-	assert.notEqual(loadBenchConfig().airframe.seed, first, 'ROLL en tire une autre');
+	assert.notEqual(loadBenchConfig().airframe.seed, first, 'ROLL draws another');
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : la config persiste d\'une ouverture à l\'autre', async () => {
+// ---------------------------------------------------------------------------
+// The airframe screen (issue #159)
+
+// The airframe screen is mounted OVER the bench, which stays in the tree
+// hidden: both carry `data-bench-key`, so the airframe's controls have to be
+// looked up inside its own screen or the bench's `family` row answers first.
+const air = () => dom.root.querySelector('.bench-airframe');
+const airRow = (key) => air().querySelector(`[data-bench-key="${key}"]`);
+const airLine = (key) => { let e = airRow(key); while (e && !e.classList.contains('bench-row')) e = e.parent; return e; };
+// Same reason for the buttons: the bench underneath has a BACK of its own, and
+// it is the one that would answer first.
+const airBtn = (label) => air().querySelectorAll('button').find((b) => b.textContent.includes(label));
+const openAir = async () => { btn('PARAMETERS').click(); await Promise.resolve(); };
+const closeAir = async () => { airBtn('BACK').click(); await Promise.resolve(); };
+
+await ta('airframe: the whole parameter table is mounted, and reads', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	await openAir();
+	assert.ok(air(), 'the airframe screen is mounted');
+	// One row per parameter of the catalogue that is not hidden by the rate
+	// parameterisation: the bench exists to be exact, so nothing is left out.
+	for (const p2 of PARAM_GROUPS.flatMap((g) => g.params)) {
+		if (p2.shape === 'spec') continue;   // ACTUAL is the default shape
+		assert.ok(airRow(p2.key), `the ${p2.key} row exists`);
+	}
+	const text = air().textContent;
+	assert.ok(!/undefined|NaN|\[object/.test(text), 'no technical leak on screen');
+	await closeAir();
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('airframe: a typed parameter reaches the config, and clears again', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	await openAir();
+	const mass = airRow('mass');
+	assert.equal(Number(mass.value), 0.65, 'the field opens on the base value');
+	mass.value = '0.82';
+	mass.onchange();
+	assert.equal(loadBenchConfig().airframe.overrides.mass, 0.82);
+	// The marker is what tells a typed value from one the base produced.
+	assert.ok(airLine('mass').textContent.includes('·'), 'the row is marked');
+	assert.ok(airRow('reset.mass'), 'and it can be reset alone');
+	airRow('reset.mass').click();
+	assert.equal(loadBenchConfig().airframe.overrides.mass, undefined, 'RESET clears it');
+	// Emptying the field is the same gesture, and it is the one that makes the
+	// screen reversible from the keyboard alone.
+	airRow('mass').value = '0.9';
+	airRow('mass').onchange();
+	airRow('mass').value = '';
+	airRow('mass').onchange();
+	assert.equal(loadBenchConfig().airframe.overrides.mass, undefined);
+	await closeAir();
+	btn('SPIN UP').click();
+	const cfg = await p;
+	assert.deepEqual(cfg.airframe.overrides, {});
+});
+
+await ta('airframe: the cursor stays on the screen being typed into', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	await openAir();
+	airRow('gyroNoise').focus();
+	airRow('gyroNoise').value = '0.3';
+	airRow('gyroNoise').onchange();
+	// Each change re-renders the bench UNDERNEATH as well (it holds the config).
+	// Its own cursor restore must not reach up and take focus back mid-typing.
+	assert.equal(dom.active?.dataset.benchKey, 'gyroNoise');
+	assert.ok(air().querySelector('[data-bench-key="gyroNoise"]') === dom.active, 'and on the airframe screen, not the bench');
+	await closeAir();
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('airframe: an absurd value is brought back, never refused', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	await openAir();
+	for (const [key, typed] of [['mass', '999'], ['motor.kv', '-40'], ['battery.cells', '3.7']]) {
+		airRow(key).value = typed;
+		airRow(key).onchange();
+	}
+	const o = loadBenchConfig().airframe.overrides;
+	assert.equal(o.mass, PARAMS.get('mass').max, 'clamped to the ceiling');
+	assert.equal(o['motor.kv'], PARAMS.get('motor.kv').min, 'clamped to the floor');
+	assert.equal(o['battery.cells'], 4, 'an integer parameter is rounded');
+	await closeAir();
+	btn('SPIN UP').click();
+	await p;
+});
+
+await ta('airframe: CUSTOM shows the bill of materials and what it adds up to', async () => {
+	reset();
+	const p = runBench(dom.root, { scenes: SCENES });
+	await openAir();
+	assert.ok(!airRow('part.frame'), 'no parts while the base is NOMINAL');
+	const base = airRow('base');
+	base.value = 'CUSTOM';
+	base.onchange();
+	for (const key of ['frame', 'motor', 'prop', 'blades', 'battery', 'camera']) {
+		assert.ok(airRow(`part.${key}`), `the ${key} row exists`);
+	}
+	// The consequence, while the parts are being chosen — not two screens away.
+	const readout = air().querySelector('.bench-readout');
+	assert.ok(readout && /T:W|: 1/.test(readout.textContent.replace('THRUST', '')), 'thrust to weight is displayed');
+	// A part number that does not fit says so, and forbids nothing.
+	const prop = airRow('part.prop');
+	prop.value = '7055';
+	prop.onchange();
+	assert.match(air().textContent, /RATED/, 'the fitment window is reported');
+	await closeAir();
+	btn('SPIN UP').click();
+	const cfg = await p;
+	assert.equal(cfg.airframe.base, 'CUSTOM');
+	assert.equal(cfg.airframe.parts.prop, '7055');
+});
+
+await ta('airframe: the in-flight panel applies a parameter without waiting', async () => {
+	reset();
+	const seen = [];
+	const p = runBench(dom.root, { scenes: SCENES, live: true, onChange: (c) => seen.push(c) });
+	await openAir();
+	airRow('gyroNoise').value = '0.4';
+	airRow('gyroNoise').onchange();
+	// A setting has to behave the same before and during the flight, otherwise
+	// the bench lies about what it sets.
+	assert.equal(seen.at(-1).airframe.overrides.gyroNoise, 0.4);
+	await closeAir();
+	btn('RESUME').click();
+	await p;
+});
+
+// ---------------------------------------------------------------------------
+// The radio over a flight (issue #159, second half)
+
+// A library, and a radio that answers without Web Audio. The screen is a VIEW
+// onto src/radio.js and owns no playback, so what is checked is exactly that:
+// which gesture reaches which call, and with what programme.
+const LIBRARY = [
+	{ id: 'menu-1aec9db0', pool: 'menu', durS: 84, bpm: 120 },
+	{ id: 'race5-22ffaa01', pool: 'race5', durS: 131, bpm: 174 },
+	{ id: 'race5-33bbcc02', pool: 'race5', durS: 97, bpm: 168 },
+];
+const stubRadio = () => {
+	const calls = [];
+	radio.library = LIBRARY;
+	radio.index = -1;
+	radio.owns = false;
+	radio._ready = Promise.resolve(LIBRARY);
+	radio.playAt = async (i, list = null) => {
+		if (list) radio.library = list;
+		radio.index = i;
+		radio.owns = true;
+		calls.push(['playAt', i, radio.library.map((t) => t.id)]);
+	};
+	radio.next = async () => { calls.push(['next']); };
+	radio.prev = async () => { calls.push(['prev']); };
+	radio.toggle = async () => { calls.push(['toggle']); };
+	Object.defineProperty(radio, 'playing', { configurable: true, get: () => radio.owns });
+	return calls;
+};
+
+await ta('in-flight panel: the radio is there, and only in flight', async () => {
+	reset();
+	// Before take-off there is a JUKEBOX one screen up; in flight there is
+	// nothing, and that is the gap this fills.
+	let p = runBench(dom.root, { scenes: SCENES });
+	assert.ok(!rowOf('play'), 'no transport on the pre-flight bench');
+	btn('SPIN UP').click();
+	await p;
+
+	reset();
+	radio.library = [];
+	radio._ready = Promise.resolve([]);
+	p = runBench(dom.root, { scenes: SCENES, live: true });
+	// With no library the row says so rather than offering dead buttons.
+	assert.match(dom.root.textContent, /NO MUSIC LIBRARY/);
+	assert.ok(!rowOf('play'), 'and no transport either');
+	btn('RESUME').click();
+	await p;
+});
+
+await ta('in-flight panel: the track can be changed without landing', async () => {
+	reset();
+	const calls = stubRadio();
+	const p = runBench(dom.root, { scenes: SCENES, live: true });
+	for (const key of ['pool', 'track', 'prev', 'play', 'next']) {
+		assert.ok(rowOf(key), `the ${key} control exists`);
+	}
+	// Picking a track takes the antenna on the DISPLAYED list, which becomes
+	// the programme — the jukebox's own rule.
+	const track = rowOf('track');
+	track.value = '1';
+	track.onchange();
+	await Promise.resolve();
+	assert.deepEqual(calls.at(-1), ['playAt', 1, LIBRARY.map((t) => t.id)]);
+	// Filtering narrows the programme to that pool.
+	const pool = rowOf('pool');
+	pool.value = 'race5';
+	pool.onchange();
+	rowOf('track').value = '0';
+	rowOf('track').onchange();
+	await Promise.resolve();
+	assert.deepEqual(calls.at(-1), ['playAt', 0, ['race5-22ffaa01', 'race5-33bbcc02']],
+		'the race5 pool became the programme');
+	rowOf('next').click();
+	rowOf('prev').click();
+	await Promise.resolve();
+	assert.deepEqual(calls.slice(-2), [['next'], ['prev']]);
+	btn('RESUME').click();
+	await p;
+});
+
+await ta('in-flight panel: the first PLAY starts the programme, it resumes nothing', async () => {
+	reset();
+	const calls = stubRadio();
+	radio.owns = false;
+	const p = runBench(dom.root, { scenes: SCENES, live: true });
+	// toggle() on a radio that never took the antenna has nothing to resume.
+	rowOf('play').click();
+	await Promise.resolve();
+	assert.equal(calls.at(-1)[0], 'playAt', 'the first press starts the programme');
+	// Once it owns the antenna, the same button is a real toggle.
+	rowOf('play').click();
+	await Promise.resolve();
+	assert.deepEqual(calls.at(-1), ['toggle']);
+	btn('RESUME').click();
+	await p;
+});
+
+await ta('bench: the config persists from one opening to the next', async () => {
 	reset();
 	let p = runBench(dom.root, { scenes: SCENES });
 	rowOf('cloud').value = '80';
@@ -325,8 +561,8 @@ await ta('banc : la config persiste d\'une ouverture à l\'autre', async () => {
 	btn('SPIN UP').click();
 	await p;
 
-	// Rouvert : on retrouve ce qu'on avait posé. Reposer douze réglages à
-	// chaque lancement serait exactement la frustration que le banc supprime.
+	// Reopened: what was set is still there. Setting a dozen controls again on
+	// every launch would be exactly the frustration the bench removes.
 	p = runBench(dom.root, { scenes: SCENES });
 	assert.equal(rowOf('cloud').value, '80');
 	assert.equal(rowOf('entry').value, 'HOLY_SHIT');
@@ -336,31 +572,31 @@ await ta('banc : la config persiste d\'une ouverture à l\'autre', async () => {
 	assert.equal(cfg.entry, 'HOLY_SHIT');
 });
 
-await ta('banc : rien de ce qui est écrit ne dit qu\'un vol a eu lieu', async () => {
+await ta('bench: nothing written says a flight took place', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	rowOf('wind').value = '7';
 	rowOf('wind').oninput();
 	btn('SPIN UP').click();
 	await p;
-	// L'invariant d'étanchéité, au niveau de ce qui touche réellement le disque.
+	// The watertightness invariant, at the level of what actually touches disk.
 	assert.deepEqual([...dom.storage.keys()].sort(), [BENCH_STORAGE_KEY].sort(),
-		`le banc n'écrit que sa config — trouvé ${[...dom.storage.keys()]}`);
+		`the bench writes only its config — found ${[...dom.storage.keys()]}`);
 	const raw = dom.storage.get(BENCH_STORAGE_KEY);
 	for (const forbidden of ['session', 'photo', 'randomart', 'result', 'landed', 'crashed']) {
-		assert.ok(!raw.toLowerCase().includes(forbidden), `« ${forbidden} » n'a rien à faire là`);
+		assert.ok(!raw.toLowerCase().includes(forbidden), `"${forbidden}" has no business there`);
 	}
 });
 
-await ta('banc : BACK remonte sans rien voler', async () => {
+await ta('bench: BACK goes back up without flying anything', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	btn('BACK').click();
 	assert.equal(await p, null);
-	assert.equal(dom.root.children.length, 0, 'l\'écran est démonté');
+	assert.equal(dom.root.children.length, 0, 'the screen is taken down');
 });
 
-await ta('banc : Échap remonte aussi', async () => {
+await ta('bench: Escape goes back up too', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	dom.key('Escape');
@@ -368,72 +604,72 @@ await ta('banc : Échap remonte aussi', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Sans terrain, et avec un terrain disparu
+// With no terrain, and with a terrain that has gone
 
-await ta('banc : cache vide → bascule sur le vol libre plutôt qu\'un refus', async () => {
+await ta('bench: an empty cache falls back to free flight rather than a refusal', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: [] });
-	// Le banc ne doit jamais s'ouvrir sur un mur : sans terrain sur disque, il
-	// propose ce qui marche quand même.
+	// The bench must never open on a wall: with no terrain on disk it offers
+	// what works anyway.
 	assert.equal(rowOf('terrain').value, 'live');
-	assert.ok(rowOf('lat') && rowOf('lon'), 'les coordonnées sont éditables');
-	assert.ok(!btn('SPIN UP').disabled, 'et on peut décoller');
+	assert.ok(rowOf('lat') && rowOf('lon'), 'the coordinates are editable');
+	assert.ok(!btn('SPIN UP').disabled, 'and it can take off');
 	btn('SPIN UP').click();
 	const cfg = await p;
 	assert.equal(cfg.terrain.kind, 'live');
 });
 
-await ta('banc : un terrain disparu du disque est signalé, pas subi', async () => {
+await ta('bench: a terrain gone from disk is reported, not suffered', async () => {
 	reset();
 	dom.storage.set(BENCH_STORAGE_KEY, JSON.stringify(normalizeBenchConfig({
 		terrain: { kind: 'cached', slug: 'disparue' },
 	})));
 	const p = runBench(dom.root, { scenes: SCENES });
-	// Le slug absent est remplacé par la première scène présente : on informe
-	// sans bloquer, et surtout on n'ouvre pas sur un bouton mort.
+	// The missing slug is replaced by the first scene present: inform without
+	// blocking, and above all do not open on a dead button.
 	assert.equal(rowOf('terrain').value, `cached:${SCENES[0].slug}`);
 	assert.ok(!btn('SPIN UP').disabled);
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : en vol libre, un ENTRY sans effet est annoncé à l\'écran', async () => {
+await ta('bench: in free flight, an ENTRY with no effect is announced on screen', async () => {
 	reset();
-	const p = runBench(dom.root, { scenes: [] });   // cache vide → vol libre
+	const p = runBench(dom.root, { scenes: [] });   // empty cache -> free flight
 	assert.equal(rowOf('terrain').value, 'live');
 	const sel = rowOf('entry');
 	sel.value = 'HOLY_SHIT';
 	sel.onchange();
-	// Sans cet avertissement, l'opérateur croirait tomber en HOLY SHIT et
-	// partirait du sol sans jamais comprendre pourquoi.
+	// Without this warning the operator would believe they were dropping in on
+	// HOLY SHIT and would leave from the ground never understanding why.
 	assert.match(dom.root.textContent, /IGNORED IN LIVE FLIGHT/);
-	// Mais ça reste un avertissement : on décolle quand même.
+	// But it stays a warning: it takes off all the same.
 	assert.ok(!btn('SPIN UP').disabled);
 	sel.value = 'IDLE';
 	sel.onchange();
-	assert.ok(!/IGNORED IN LIVE FLIGHT/.test(dom.root.textContent), 'IDLE n\'a rien à annoncer');
+	assert.ok(!/IGNORED IN LIVE FLIGHT/.test(dom.root.textContent), 'IDLE has nothing to announce');
 	btn('SPIN UP').click();
 	await p;
 });
 
-await ta('banc : FENCE OFF prévient que le terrain s\'arrête au bord', async () => {
+await ta('bench: FENCE OFF warns that the terrain stops at the edge', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES });
 	const sel = rowOf('fence');
 	sel.value = 'off';
 	sel.onchange();
 	assert.match(dom.root.textContent, /TERRAIN ENDS AT THE EDGE/,
-		'la conséquence se lit AVANT le décollage, pas dans le vide');
-	// Mais ça n'interdit rien : le banc informe, il ne verrouille pas.
+		'the consequence reads BEFORE take-off, not out in the void');
+	// But it forbids nothing: the bench informs, it does not lock.
 	assert.ok(!btn('SPIN UP').disabled);
 	btn('SPIN UP').click();
 	await p;
 });
 
 // ---------------------------------------------------------------------------
-// Le panneau en vol
+// The in-flight panel
 
-await ta('panneau en vol : chaque changement part tout de suite', async () => {
+await ta('in-flight panel: every change leaves at once', async () => {
 	reset();
 	const seen = [];
 	const p = runBench(dom.root, { scenes: SCENES, live: true, onChange: (c) => seen.push(c) });
@@ -441,61 +677,61 @@ await ta('panneau en vol : chaque changement part tout de suite', async () => {
 	rowOf('wind').oninput();
 	rowOf('cloud').value = '50';
 	rowOf('cloud').oninput();
-	assert.equal(seen.length, 2, 'deux changements, deux applications');
+	assert.equal(seen.length, 2, 'two changes, two applications');
 	assert.equal(seen[1].weather.windSpeed, 15);
 	assert.equal(seen[1].weather.cloudPct, 50);
 	btn('RESUME').click();
 	await p;
 });
 
-await ta('panneau en vol : pas de terrain, et RESUME au lieu de SPIN UP', async () => {
+await ta('in-flight panel: no terrain, and RESUME instead of SPIN UP', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES, live: true });
-	// Changer de terrain voudrait dire recharger la scène, donc quitter le vol.
-	// Le montrer grisé serait pire que ne pas le montrer.
-	assert.ok(!rowOf('terrain'), 'la ligne TERRAIN est absente');
-	assert.ok(!btn('BACK'), 'et BACK aussi : on ne « remonte » pas depuis un vol');
-	assert.ok(btn('RESUME'), 'le CTA reprend le vol');
-	// La cellule, elle, reste réglable à chaud.
-	assert.ok(rowOf('family'), 'la cellule reste réglable');
+	// Changing terrain would mean reloading the scene, so leaving the flight.
+	// Showing it greyed out would be worse than not showing it.
+	assert.ok(!rowOf('terrain'), 'the TERRAIN row is absent');
+	assert.ok(!btn('BACK'), 'and BACK too: there is no going back up from a flight');
+	assert.ok(btn('RESUME'), 'the CTA resumes the flight');
+	// The airframe, though, stays settable hot.
+	assert.ok(rowOf('family'), 'the airframe stays settable');
 	btn('RESUME').click();
 	await p;
 });
 
-await ta('panneau en vol : Échap reprend le vol, il n\'annule rien', async () => {
+await ta('in-flight panel: Escape resumes the flight, it cancels nothing', async () => {
 	reset();
 	const p = runBench(dom.root, { scenes: SCENES, live: true });
 	rowOf('rain').value = '4';
 	rowOf('rain').oninput();
 	dom.key('Escape');
 	const cfg = await p;
-	// Tout a déjà été appliqué au fil de l'eau : Échap ne peut pas « annuler »,
-	// et rendre null ferait perdre la config à l'appelant.
-	assert.ok(cfg, 'une config est rendue');
+	// Everything has already been applied as it went: Escape cannot "cancel",
+	// and returning null would lose the caller's config.
+	assert.ok(cfg, 'a config is returned');
 	assert.equal(cfg.weather.rateMmH, 4);
 });
 
-await ta('panneau en vol : RESET BENCH repart des défauts et l\'applique', async () => {
+await ta('in-flight panel: RESET BENCH starts again from the defaults and applies it', async () => {
 	reset();
 	const seen = [];
 	let p = runBench(dom.root, { scenes: SCENES, live: true, onChange: (c) => seen.push(c) });
 	rowOf('wind').value = '20';
 	rowOf('wind').oninput();
 	btn('RESET BENCH').click();
-	assert.equal(seen.at(-1).weather.windSpeed, 0, 'le reset est appliqué, pas seulement affiché');
+	assert.equal(seen.at(-1).weather.windSpeed, 0, 'the reset is applied, not merely displayed');
 	btn('RESUME').click();
 	await p;
 });
 
 // ---------------------------------------------------------------------------
-// Robustesse
+// Robustness
 
-await ta('banc : une config corrompue sur disque n\'empêche pas d\'ouvrir', async () => {
+await ta('bench: a corrupt config on disk does not stop it opening', async () => {
 	reset();
-	dom.storage.set(BENCH_STORAGE_KEY, '{ ceci n\'est pas du json');
+	dom.storage.set(BENCH_STORAGE_KEY, '{ this is not json');
 	const p = runBench(dom.root, { scenes: SCENES });
-	assert.ok(rowOf('spin'), 'l\'écran est monté quand même');
-	assert.ok(!btn('SPIN UP').disabled, 'et il décolle');
+	assert.ok(rowOf('spin'), 'the screen is mounted all the same');
+	assert.ok(!btn('SPIN UP').disabled, 'and it takes off');
 	btn('SPIN UP').click();
 	const cfg = await p;
 	assert.ok(FAMILIES.includes(cfg.airframe.family));

@@ -37,6 +37,20 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   d'entrées est épinglé, et y ajouter une ligne serait exactement ce que cette
   vérification existe pour attraper. Rien ne bouge en vol : `freestyle5` reste
   la référence au bit près.
+- **BENCH : la machine exacte** (#159). L'aéronef du banc n'est plus un menu
+  déroulant sur six familles, c'est un montage. Une BASE — `NOMINAL`, un
+  exemplaire tiré (`INDIVIDUAL`), ou `CUSTOM`, assemblé depuis le catalogue de
+  la spec (21 moteurs, 20 hélices, 13 châssis, 17 packs, 3 caméras) — et,
+  par-dessus, 45 paramètres réglables au chiffre près : masse, inerties, bras,
+  hélice, moteur, pack, traînée, PID, rates, courbe de gaz, bruit gyro, latence
+  de boucle. La dérivation CUSTOM n'invente rien : elle applique les quatre
+  règles déjà écrites en tête de `drone-profiles.js`. `NOMINAL` sans réglage
+  reste **exactement** le profil de référence — la fonctionnalité est inerte
+  tant qu'on n'y touche pas.
+- **La radio se règle en vol, au banc** (#159). `ON AIR`, le pool, le morceau et
+  le transport dans le panneau de vol du banc : le jukebox continuait de jouer
+  après qu'on en sortait, mais plus rien n'y donnait accès une fois en l'air.
+  Au banc seulement — en FIELD la musique est l'arc de la Bible §34.
 
 ### Modifié
 

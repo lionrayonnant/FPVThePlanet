@@ -2018,6 +2018,48 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .bench-slider:focus::-moz-range-thumb { background: var(--warm-white); }
 .bench-inline button.terminal-link { flex: none; }
 
+/* ===== THE AIRFRAME SCREEN (issue #159) ====================================
+   Forty-odd parameters is a long screen, and that is the point: the bench is
+   where you know the part numbers. It is wider than the bench and it scrolls,
+   which is the only thing the bench grammar needed to gain — every row is the
+   same `.bench-row` as one floor up. */
+.bench-airframe .terminal-box {
+	width: min(1000px, 96vw);
+	max-height: 86vh; overflow-y: auto;
+}
+/* A group heading. Not a title: a rule with a word on it, so forty rows read as
+   seven blocks and the eye knows where the pack ends and the loop begins. */
+.bootstrap-box pre.bench-group {
+	color: var(--light-grey);
+	font-family: var(--font-ui); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui);
+	border-top: var(--rule-w) solid var(--rule-strong);
+	margin: var(--space-3) 0 var(--space-1); padding-top: var(--space-1);
+}
+/* What the parts add up to. Faint, because it is not a control — nothing here
+   can be set, it is only what the settings above have produced. */
+.bootstrap-box pre.bench-readout {
+	color: var(--faint);
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	margin: var(--space-2) 0 0; text-align: left; white-space: pre-wrap;
+}
+/* Same reason as `.bench-coord`: `.bootstrap input` would win on specificity
+   and force --fs-ui-l into the column. */
+.bench-row input.bench-number {
+	width: 9em;
+	background: var(--dark-grey); color: var(--ink);
+	border: var(--rule-w) solid var(--rule-strong); border-radius: 0;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	padding: 2px var(--space-2);
+}
+.bench-row input.bench-number:focus { outline: none; border-color: var(--warm-white); }
+/* A value somebody typed, as opposed to one the base happened to produce. The
+   label carries a `·` for the same fact — colour alone is never the whole
+   signal. */
+.bench-value.bench-set { color: var(--warm-white); }
+
 /* A warning says what is going to happen; it forbids nothing (Bible §2,
    "Information, not assistance"). Hence the orange — this is happening now —
    and never the red, which means lost. */

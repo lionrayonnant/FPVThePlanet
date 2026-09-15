@@ -34,8 +34,16 @@
 // legitimate request, and it has to arrive.
 
 import { simParamsOf } from './lib/weather.mjs';
+import {
+	normalizeAirframe, airframeSummary, resolveBenchAirframe, airframeDefaults,
+} from './bench-airframe.mjs';
 
-export const BENCH_VERSION = 1;
+// 2 (issue #159): the airframe stopped being `{family, seed}` and became a
+// build — a base, a bill of materials, and an override map. Nothing migrates by
+// hand: normalizeAirframe() reads the old shape, where the presence of a seed
+// WAS the base, and brings it forward. That is the normalisation rule doing its
+// job, which is why there is no migration table anywhere in this file.
+export const BENCH_VERSION = 2;
 
 // The five ways in. FIELD is the Bible's loop, BENCH is the sandbox, DATA is
 // everything that is cold, JUKEBOX is the library you can finally hear, and
@@ -121,7 +129,7 @@ export const LIMITS = {
 
 export const BENCH_DEFAULTS = Object.freeze({
 	version: BENCH_VERSION,
-	airframe: { family: 'freestyle5', seed: null },
+	airframe: airframeDefaults('freestyle5'),
 	terrain: { kind: 'cached', slug: null, lat: 48.8584, lon: 2.2945 },
 	entry: 'IDLE',
 	fence: true,
@@ -164,25 +172,17 @@ export function normalizeBenchConfig(raw, { families = null } = {}) {
 	const d = BENCH_DEFAULTS;
 	const r = (raw && typeof raw === 'object') ? raw : {};
 	const w = (r.weather && typeof r.weather === 'object') ? r.weather : {};
-	const a = (r.airframe && typeof r.airframe === 'object') ? r.airframe : {};
 	const t = (r.terrain && typeof r.terrain === 'object') ? r.terrain : {};
-
-	// `families` is the real list imported from drone-profiles.js when the
-	// caller has it to hand. The model does not import it itself: all that would
-	// be left is knowing that a family is a string, and the selftest could then
-	// lie about a family that has been removed.
-	const family = families
-		? oneOf(a.family, families, families.includes(d.airframe.family) ? d.airframe.family : families[0])
-		: (typeof a.family === 'string' && a.family ? a.family : d.airframe.family);
 
 	return {
 		version: BENCH_VERSION,
-		airframe: {
-			family,
-			// null = the family's NOMINAL profile (the tune-pid bench's own).
-			// A string = a drawn individual, like a real target.
-			seed: typeof a.seed === 'string' && a.seed ? a.seed : null,
-		},
+		// The build lives in ./bench-airframe.mjs, which owns the bases, the
+		// catalogue and the parameter table. `families` is passed straight
+		// through: it is still the caller's real list from drone-profiles.js
+		// when the caller has it, and still absent here, for the same reason as
+		// before — a model that imported the families itself could let the
+		// selftest lie about one that has been removed.
+		airframe: normalizeAirframe(r.airframe, { families }),
 		terrain: {
 			kind: oneOf(t.kind, TERRAIN_KINDS, d.terrain.kind),
 			slug: typeof t.slug === 'string' && t.slug ? t.slug : null,
@@ -261,6 +261,12 @@ function formatVis(m) {
 	return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+// Mass and thrust-to-weight of the resolved build, as one line.
+export function machineLine(airframe) {
+	const { profile, derived } = resolveBenchAirframe(airframe);
+	return `${Math.round(derived.massG)} g · T:W ${derived.twr.toFixed(1)} · ${profile.battery.cells}S`;
+}
+
 // The bench's rows, in display order. `value` is what reads on the right;
 // `key` is what the UI uses to know what to edit.
 export function benchRows(config, { familyLabel = (f) => f } = {}) {
@@ -268,7 +274,13 @@ export function benchRows(config, { familyLabel = (f) => f } = {}) {
 	const w = c.weather;
 	return [
 		{ key: 'family',  label: 'AIRFRAME', value: familyLabel(c.airframe.family) },
-		{ key: 'seed',    label: 'BUILD',    value: c.airframe.seed ? `SEED ${c.airframe.seed}` : 'NOMINAL' },
+		{ key: 'seed',    label: 'BUILD',    value: airframeSummary(c.airframe) },
+		// What the build WEIGHS and whether it will leave the ground, on the
+		// bench's own screen rather than two screens in. Assembling parts is
+		// only worth doing if the consequence is visible while you do it, and
+		// thrust-to-weight is the one number that says whether there is a
+		// machine here at all.
+		{ key: 'detail',  label: 'MACHINE',  value: machineLine(c.airframe) },
 		{ key: 'terrain', label: 'TERRAIN',
 			value: c.terrain.kind === 'live'
 				? `LIVE ${c.terrain.lat.toFixed(4)}, ${c.terrain.lon.toFixed(4)}`

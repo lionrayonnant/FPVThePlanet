@@ -49,6 +49,9 @@ const { Propulsion, Battery, crashThreshold, idleThrottle } = await import('../s
 const { PROFILES, FAMILIES } = await import('../src/drone-profiles.js');
 const { Geofence, NOMINAL, CAUTION, HOLD, LOST, horizontalMargin, verticalMargin } = await import('../src/geofence.js');
 const bench = await import('./bench-model.mjs');
+const airframe = await import('./bench-airframe.mjs');
+const { rateFor } = await import('../src/rates.js');
+const { throttleChain } = await import('../src/throttle.js');
 const track = await import('./track-model.mjs');
 const session = await import('./session-model.mjs');
 const log = await import('./session-log-model.mjs');
@@ -639,6 +642,70 @@ const targets = [
 			const mag = Math.hypot(out.push.x, out.push.y, out.push.z);
 			if (mag > 100) return `step ${i}: recall acceleration ${mag.toFixed(1)} m/s² (over 10 g)`;
 		}
+		return null;
+	},
+},
+
+{
+	name: 'bench-airframe',
+	note: 'the bench build (#159) — a base, a bill of materials and 45 typed parameters, documented as "brings back, never rejects"',
+	gen(r, i) {
+		// Three sources, because the three failure modes are different: junk
+		// from disk, a plausible config with one field mutated, and an override
+		// map full of values nobody should be able to type.
+		if (i % 3 === 0) return anyValue(r, 3);
+		if (i % 3 === 1) return mutate(r, bench.BENCH_DEFAULTS.airframe, 3);
+		const overrides = {};
+		for (const key of [...airframe.PARAMS.keys()]) {
+			if (r() < 0.75) continue;
+			overrides[key] = anyValue(r, 2);
+		}
+		return { family: FAMILIES[Math.floor(r() * FAMILIES.length)], base: ['NOMINAL', 'INDIVIDUAL', 'CUSTOM', 'MAGIC'][Math.floor(r() * 4)], overrides };
+	},
+	check(raw) {
+		const a = airframe.normalizeAirframe(raw, { families: FAMILIES });
+		if (!FAMILIES.includes(a.family)) return `unknown family ${pretty(a.family)}`;
+		if (!airframe.BUILD_BASES.includes(a.base)) return `unknown base ${pretty(a.base)}`;
+		// Idempotence: the normalizer runs again on its own output at every read.
+		// A fixed point is what keeps a stored build from drifting.
+		const again = airframe.normalizeAirframe(a, { families: FAMILIES });
+		if (JSON.stringify(again) !== JSON.stringify(a)) return 'normalizeAirframe is not idempotent';
+
+		// A resolvable build, always: the screen has no error state.
+		const res = airframe.resolveBenchAirframe(a);
+		const bad = firstNonFinite(res.profile);
+		if (bad) return `resolved profile holds ${bad}`;
+		if (!(res.profile.mass > 0)) return `mass ${pretty(res.profile.mass)}`;
+		if (!(res.profile.inertia.x > 0 && res.profile.inertia.y > 0 && res.profile.inertia.z > 0)) {
+			return 'an inertia reached zero — a body Rapier cannot rotate';
+		}
+		if (res.rates) {
+			for (const axis of ['roll', 'pitch', 'yaw']) {
+				for (const stick of [-1, 0, 1]) {
+					const deg = rateFor(stick, res.rates[axis]);
+					if (!Number.isFinite(deg)) return `rateFor(${stick}, ${axis}) = ${pretty(deg)}`;
+				}
+			}
+		}
+		if (res.throttle) {
+			for (const u of [0, 0.5, 1]) {
+				const out = throttleChain(u, res.throttle);
+				if (!Number.isFinite(out)) return `throttleChain(${u}) = ${pretty(out)}`;
+			}
+		}
+		const derivedBad = firstNonFinite(res.derived);
+		if (derivedBad) return `the readout holds ${derivedBad}`;
+		// What the two screens print, in full.
+		const leak = textLeak([
+			airframe.airframeSummary(a),
+			...airframe.buildWarnings(a.parts ?? airframe.defaultParts(a.family), a.family),
+			...[...airframe.PARAMS.values()].map((param) => airframe.formatParam(param.key, airframe.paramValue(param.key, {
+				profile: res.profile, rates: res.ratesView, rateFamily: res.rateFamily,
+			}))),
+		]);
+		if (leak) return `airframe screen ${leak}`;
+		// And the identity is a hash, not an accident: same build, same hash.
+		if (airframe.airframeIdentity(a) !== res.identity) return 'identity is not stable';
 		return null;
 	},
 },
