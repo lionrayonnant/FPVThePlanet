@@ -37,6 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { Propulsion, cruiseSpeedOf } from '../src/quad.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { FlightController, RATE_PRESETS, setGains, hoverThrottle } from '../src/flightController.js';
+import { CONTROL_SUBSTEPS } from '../src/frame-pacing.js';
 
 const IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -60,6 +61,15 @@ const BENCH_OMEGA = process.env.BENCH_OMEGA !== '0';
 let CRUISE = false;
 
 const DT = 1 / 250;
+// The controller substeps inside the physics step, exactly as src/main.js does
+// and at the same ratio (src/frame-pacing.js). This is not a refinement: the
+// gyro noise, the notches and the delay line all live at the CONTROL rate, and
+// a tune swept against a 250 Hz loop is a tune for a machine nobody flies. The
+// airframe is still integrated on the 250 Hz grid — it does not rotate at
+// 4 kHz, the gyro merely says it does — and the physics takes the LAST
+// substep's motor command, the way an ESC holds its last DSHOT frame.
+const SUB = Math.max(1, CONTROL_SUBSTEPS);
+const DT_CONTROL = DT / SUB;
 const DEG = Math.PI / 180;
 
 const AXIS_RATE = { roll: 'z', pitch: 'x', yaw: 'y' };
@@ -97,8 +107,12 @@ function run({ profile, axis, seconds = 1.2, stick, throttle = 0.35, override, c
 		// for the reference tune but diverges for a faster (micro) loop holding a
 		// high rate. This bench only ever tests the acro rate loop; nothing here
 		// reads orientation.
-		const state = { rotation: IDENTITY, angularVelocity: w, position: ZERO, velocity: ZERO };
-		const { motors } = fc.update(s, state, DT);
+		// `rotorOmega` is what the RPM notches follow. Without it the conditioning
+		// chain is handed no telemetry and falls back to the dynamic notch alone,
+		// which is a configuration the game never flies.
+		const state = { rotation: IDENTITY, angularVelocity: w, position: ZERO, velocity: ZERO, rotorOmega: prop.omega };
+		let motors;
+		for (let c = 0; c < SUB; c++) ({ motors } = fc.update(s, state, DT_CONTROL));
 		const { torque } = prop.step(motors, { v: air, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
 
 		// I*wdot = tau - w x (I*w)
@@ -246,8 +260,10 @@ function kickTest(profile) {
 		const q = { x: 0, y: 0, z: 0, w: 1 };
 		let stopped = null;
 		for (let i = 0; i < 250; i++) {
-			const state = { rotation: q, angularVelocity: w, position: ZERO, velocity: ZERO };
-			const { motors } = fc.update({ throttle: 0.35, roll: 0, pitch: 0, yaw: 0 }, state, DT);
+			const state = { rotation: q, angularVelocity: w, position: ZERO, velocity: ZERO, rotorOmega: prop.omega };
+			const sticks = { throttle: 0.35, roll: 0, pitch: 0, yaw: 0 };
+			let motors;
+			for (let c = 0; c < SUB; c++) ({ motors } = fc.update(sticks, state, DT_CONTROL));
 			const { torque } = prop.step(motors, { v: ZERO, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
 			w = { x: w.x + (torque.x / I.x) * DT, y: w.y + (torque.y / I.y) * DT, z: w.z + (torque.z / I.z) * DT };
 			if (stopped === null && Math.abs(w[comp]) < 10 * DEG) stopped = i * DT;
@@ -314,13 +330,22 @@ function sweepAxis(profile, axis) {
 		}
 	}
 	results.sort((a, b) => a.cost - b.cost);
-	// The bench cannot see gyro noise, so prefer the lower P — but only among
+	// Prefer the lower P — but only among
 	// tunes that are genuinely well-behaved (bounded overshoot and settle) and
 	// within a hair of the best cost. Without the quality gate the low-P
 	// preference will happily pick a fragile corner that "won" a flat cost
 	// landscape by a rounding error.
 	const minCost = results[0].cost;
-	const wellBehaved = (r) => r.overshoot <= 10 && r.settle <= lim.settle * 1.15 && r.rise <= lim.rise * 1.05;
+	// The gate that PREFERS a candidate is the same gate report() JUDGES it by.
+	// It used to be looser — overshoot 10, settle 1.15 * the limit, rise 1.05 —
+	// and a looser preference gate is a machine for choosing tunes the report
+	// then flags. Measured on cinewhoop roll: the grid held P=0.098 D=0.0019 at
+	// rise 78 / settle 138 / overshoot 5.2, inside every limit, and the sweep
+	// preferred P=0.054 at rise 86 against an 83 ms limit because it cost 1.7
+	// units less and the 5 % slack let it through. The tiered fallback below is
+	// what handles a grid that holds nothing strictly inside.
+	const wellBehaved = (r) => r.overshoot <= lim.overshoot && r.settle <= lim.settle && r.rise <= lim.rise
+		&& r.bounce <= lim.bounce;
 	const clean = results.filter((r) => r.cost <= minCost + 0.5 && wellBehaved(r));
 	// When nothing is both cheapest AND well-behaved, take the cheapest that is
 	// at least well-behaved, and only fall back to the raw winner when the grid

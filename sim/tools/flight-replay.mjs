@@ -36,6 +36,7 @@ import path from 'node:path';
 import { initPhysics, Physics, unrotateVec } from '../src/physics.js';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
 import { FlightController, hoverThrottle } from '../src/flightController.js';
+import { CONTROL_SUBSTEPS, FIXED_STEP } from '../src/frame-pacing.js';
 
 export const TRACE_FORMAT = 2;
 
@@ -307,6 +308,9 @@ function tiltDeg(q) {
  *   gravityTrim   override the model's own default, for making a deliberately
  *                 different trace to test the diff with
  *   preset        rate preset override
+ *   gyroNoise     override the family's own sensor noise, rad/s RMS. 0 silences
+ *                 the gyro and the notches with it — for benches whose question
+ *                 is about the integrator rather than about the sensor.
  */
 export function replay(name, opts = {}) {
 	const seq = SEQUENCES[name];
@@ -315,6 +319,13 @@ export function replay(name, opts = {}) {
 	const profile = PROFILES[family];
 	if (!profile) throw new Error(`unknown family "${family}"`);
 	const dt = opts.dt ?? DT;
+	// The CONTROL RATE is pinned, not the substep ratio. src/main.js divides a
+	// fixed 250 Hz step sixteen ways; here `dt` is a knob, and dividing it by a
+	// fixed sixteen would mean --dt 1/500 quietly ran the loop at 8 kHz — a
+	// different machine, with a different noise density and different notches,
+	// which is precisely what the step-independence bench must NOT be handed.
+	const CONTROL_RATE = CONTROL_SUBSTEPS / FIXED_STEP;
+	const SUB = Math.max(1, Math.round(dt * CONTROL_RATE));
 	const sampleHz = opts.sampleHz ?? 0;
 
 	const p = new Physics(
@@ -329,7 +340,16 @@ export function replay(name, opts = {}) {
 	// attitude has to fly angle mode: in acro the pitch stick is a rate command,
 	// so "nose down 15 degrees" is really "keep pitching forever" and the run
 	// measures a tumble instead of a cruise. Both modes are the real controller.
-	const c = new FlightController({ profile, preset: opts.preset, mode: seq.mode });
+	// `gyroNoise` is an override, not a new knob for its own sake: the
+	// step-independence benches need the sensor silenced to ask their question.
+	// A hover under a real gyro is a random walk — 20 s of it drifts metres, and
+	// the drift is a property of the noise, not of the integrator — so a bench
+	// that halves the step and compares trajectories has to silence the sensor
+	// or it is measuring the wrong thing. Left alone it is the family's own.
+	const c = new FlightController({
+		profile, preset: opts.preset, mode: seq.mode,
+		...(opts.gyroNoise === undefined ? {} : { gyroNoise: opts.gyroNoise, filters: opts.gyroNoise > 0 }),
+	});
 	c.armed = true;
 
 	const steps = Math.round(seq.seconds / dt);
@@ -374,7 +394,16 @@ export function replay(name, opts = {}) {
 		const q = p.body.rotation();
 		const hoverValue = hoverThrottle(profile, q, p.propulsion.battery.voltage);
 		const sticks = sticksAt(seq, t, hoverValue);
-		const { motors, throttle } = c.update(sticks, p, dt);
+		// The controller substeps inside the physics step, at the ratio
+		// src/main.js uses (src/frame-pacing.js). A replay that ran the loop at
+		// the physics rate would be replaying a machine the game does not fly:
+		// the gyro noise, the notches and the delay line all live at the control
+		// rate. The body state is a zero-order hold across the substeps and the
+		// physics takes the LAST motor command, the way an ESC holds its last
+		// DSHOT frame.
+		const dtc = dt / SUB;
+		let motors, throttle;
+		for (let c2 = 0; c2 < SUB; c2++) ({ motors, throttle } = c.update(sticks, p, dtc));
 		const impact = p.step(motors, dt);
 
 		const pos = p.body.translation();
@@ -464,6 +493,7 @@ export function replay(name, opts = {}) {
 		seconds: seq.seconds,
 		steps,
 		seed: SEED,
+		gyroNoise: opts.gyroNoise ?? profile.gyroNoise ?? 0,
 		gravityTrim,
 		spawn: { ...seq.spawn },
 		ground: !!seq.ground,
@@ -576,6 +606,7 @@ export function diff(a, b) {
 	if (a.family !== b.family) warnings.push(`different families: ${a.family} vs ${b.family}`);
 	if (a.dt !== b.dt) warnings.push(`different steps: ${a.dt} vs ${b.dt}`);
 	if (a.seed !== b.seed) warnings.push(`different seeds: ${a.seed} vs ${b.seed}`);
+	if (a.gyroNoise !== b.gyroNoise) warnings.push(`different gyro noise: ${a.gyroNoise} vs ${b.gyroNoise}`);
 
 	const identical = a.checksum === b.checksum;
 	const rows = [];

@@ -10,9 +10,8 @@ specification (`~/Documents/dev/SPEC_SIMULATEUR_FPV/`), with the structural
 choices of its §0.4 deliberately NOT adopted — the rigid body stays, torques
 come from `quad.js`, units are metres.
 
-**On `spec/longrange`, pushed, no PR yet:** the last family whose numbers were
-extrapolated. `npm run selftest:ci` green, exit 0. Opening a PR is what starts
-CI on it.
+**On `main`:** PR #161 too — the last family whose numbers were extrapolated.
+Six of six families now sit in the specification's rpm band.
 
 ## The one number that says where the model stands
 
@@ -45,26 +44,20 @@ gains.
 
 ## What is NOT done, ranked
 
-1. **Gyro noise and the loop rate.** Everything is written and ships inert:
-   `src/gyro.js`, the dynamic notch, the RPM filter, the delay line,
-   anti-gravity, D-max. Turning them on is one decision and one consequence.
-   - The decision: a notch degenerates above 0.45 of Nyquist. At 250 Hz that
-     ceiling is 56 Hz and rotor fundamentals run **155–816 Hz in flight** — not
-     one is notchable, so the notch is not weak, it is absent. 1000 Hz reaches
-     225 Hz (the slowest only); **4000 Hz reaches 900 Hz and covers every
-     fundamental**. Second harmonics would need 7253 Hz and stay out of reach of
-     the dynamic notch — the RPM filter still gets them, it knows the rpm.
-     Cost is not the deciding factor: 0.065% of a core at 1 kHz, 0.317% at 4 kHz.
-     `?loop=250|500|1000|2000|4000` is already wired.
-   - The consequence: **a full PID re-sweep**, because all six tunes were
-     measured against a silent gyro. Expect to leave 0 of 18 and have to earn it
-     back. **Watch the toothpick** — it is already at 10.1% overshoot from the
-     noise alone, before any latency, and it is the family that will break first.
-   - D-max is at 1.0 and that is correct today: measured, it is a LOSS, because
-     it buys a lower resting D and the resting D here was chosen without noise.
-     It pays only after the re-sweep.
-   - Anti-gravity is the one pure win already measured: −19% of the pitch given
-     away on a punch-out, nothing at a steady stick.
+1. **The toothpick's yaw, and the one line of policy behind it.** It is the
+   single axis/family combination outside target, and two separate problems were
+   found on it. Its inertia claimed `I_yaw/(I_pitch+I_roll)` of 1.150, which no
+   flat body can do — corrected, derived from the parts, and now pinned for every
+   family by `profile-schema-selftest`. **That did not fix the yaw**: retuned, it
+   is worse, because a yaw 21% lighter is 21% quicker past its target.
+   The remaining cause is characterised: a full sweep is overshoot at every point
+   with no D (23–33%) and 450–578 ms of ringing with any D, against a 107 ms
+   limit. That is a D term that cannot be used, and the reason is that
+   `filterScale` deliberately does NOT touch yaw ("opening its filters just lets
+   the loop outrun the motors and hunt"), so yaw keeps the 5"'s 90 Hz gyro and
+   55 Hz D-term cutoffs on a micro whose yaw is an order faster. That policy was
+   written before the gyro had noise in it. It is a design decision, not a sweep.
+
 2. **`blade-element.js` is still not wired into `quad.js`.** The axial model is
    validated on 187 propellers with no directional bias at any advance ratio;
    **everything edgewise is unverified** and the UIUC tunnel cannot see it.

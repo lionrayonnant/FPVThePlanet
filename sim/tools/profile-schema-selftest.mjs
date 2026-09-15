@@ -119,9 +119,23 @@ t('the spec-schema defaults are the ones that change nothing', () => {
 		assert.equal(p.minThrottle, 0, family);
 		assert.equal(p.dragScale, 1, family);
 		assert.equal(p.escCurrentLimit, null, family);
-		assert.equal(p.gyroNoise, 0, family);
-		assert.equal(p.loopDelay, 0, family);
 	}
+});
+
+t('gyroNoise and loopDelay are measured, and in the band they were derived in', () => {
+	// These two left the "default that changes nothing" list when the gyro was
+	// turned on. The derivation lives in src/drone-profiles.js under "WHERE
+	// gyroNoise COMES FROM"; the bounds here are what that derivation can
+	// produce, so a value typed in by hand has to argue with this bench.
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		assert.ok(p.gyroNoise >= 0.05 && p.gyroNoise <= 0.5, `${family}.gyroNoise = ${p.gyroNoise}`);
+		assert.ok(p.loopDelay >= 0.0005 && p.loopDelay <= 0.002, `${family}.loopDelay = ${p.loopDelay}`);
+	}
+	// loopDelay is uniform on purpose: it stands for the sensor, the scheduler
+	// and the ESC input, which are the same silicon on every build.
+	const delays = new Set(ALL.map((f) => PROFILES[f].loopDelay));
+	assert.equal(delays.size, 1, `loopDelay differs across families: ${[...delays]}`);
 });
 
 t('every pid block is complete on all three axes', () => {
@@ -133,6 +147,22 @@ t('every pid block is complete on all three axes', () => {
 			assert.ok(num(pid.torquePerMix[axis]) && pid.torquePerMix[axis] > 0,
 				`${family}.pid.torquePerMix.${axis}`);
 		}
+	}
+});
+
+t('no family claims an inertia a flat body cannot have', () => {
+	// Perpendicular-axis: for a planar body I_yaw <= I_pitch + I_roll, and a
+	// quad is planar enough that the five measured families all sit at
+	// 0.93 +- 0.01. The toothpick read 1.150 for two profiles' worth of work --
+	// impossible, and the reason its yaw would not tune was looked for in the
+	// gains for that whole time. Asserted as the bound, and reported as the
+	// spread, so a family drifting away from the others is visible before it
+	// becomes impossible.
+	for (const f of FAMILIES) {
+		const i = PROFILES[f].inertia;
+		const r = i.y / (i.x + i.z);
+		assert.ok(r < 1, `${f}: I_yaw/(I_pitch+I_roll) = ${r.toFixed(3)}, which no flat body can do`);
+		assert.ok(r > 0.85, `${f}: ${r.toFixed(3)} is far from the 0.93 the others measure`);
 	}
 });
 

@@ -1,20 +1,25 @@
 // The loop-realism lot, asserted where it meets the flight controller.
 //
 // The lot added a gyro that lies, a loop that is late, notches that answer the
-// lies, anti-gravity and D-max — and it added all of them INERT. That is not
-// modesty: the PID blocks in src/drone-profiles.js were swept by
-// tools/tune-pid.mjs against a loop with none of these, and every one of them
-// moves the plant that sweep was run against. They go on together with a
-// re-sweep.
+// lies, anti-gravity and D-max, and it shipped all of them INERT because the
+// PID blocks in src/drone-profiles.js had been swept against a loop with none
+// of them. They are now ON: every family carries a measured `gyroNoise` and
+// `loopDelay`, the controller runs at 4000 Hz (src/frame-pacing.js), and
+// tools/tune-pid.mjs sweeps at that rate with the rotor speeds in hand, so the
+// tune and the plant are the same machine again.
 //
-// So the first half of this file is one claim, made five ways: with the
-// profiles as they ship, the controller produces the same motor commands it
-// produced before any of this existed. The second half is the machinery
-// itself, exercised at settings nothing ships with.
+// So the first half of this file no longer says "none of this does anything".
+// It says the opposite, family by family: the settings are live, they are in
+// the range they were derived for, and forcing them off changes the answer.
+// The second half is the machinery itself.
+//
+// D-max is the one that is still at its no-op value, and that is a measured
+// refusal rather than an unfinished job — see D_MAX_RATIO's comment in
+// src/flightController.js. It is asserted here at 1.0 so that raising it has to
+// go through this file.
 //
 // tools/loop-rate-bench.mjs is where the case for each setting is measured;
-// this file only says that the settings do what they say and that the defaults
-// do nothing.
+// this file only says that the settings do what they say.
 import assert from 'node:assert/strict';
 import { FlightController, ANTI_GRAVITY_GAIN, D_MAX_RATIO } from '../src/flightController.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
@@ -63,53 +68,73 @@ function flight(profile, opts = {}, steps = 400) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. The defaults are inert
+// 1. The defaults are LIVE
 
-t('every family ships with a perfect gyro and a loop with no latency', () => {
+t('every family carries a measured gyro noise and a measured loop latency', () => {
 	for (const f of FAMILIES) {
-		assert.equal(PROFILES[f].gyroNoise, 0, `${f}.gyroNoise`);
-		assert.equal(PROFILES[f].loopDelay, 0, `${f}.loopDelay`);
+		const p = PROFILES[f];
+		// The band the derivation in src/drone-profiles.js can produce. The floor
+		// is not 0: a family at 0 would be a perfect gyro and would silently turn
+		// its own notches off (FlightController reads `filters ?? noise > 0`).
+		assert.ok(p.gyroNoise >= 0.05 && p.gyroNoise <= 0.5, `${f}.gyroNoise = ${p.gyroNoise}`);
+		// 0.8 ms on every family, uniform on purpose: what it stands for is the
+		// same silicon on every build. A tenth of a millisecond either way would
+		// be a different claim about the hardware, so the bound is tight.
+		assert.ok(p.loopDelay >= 0.0005 && p.loopDelay <= 0.002, `${f}.loopDelay = ${p.loopDelay}`);
 	}
 });
 
-t('the two settings with no profile field ship at the value that does nothing', () => {
-	assert.equal(ANTI_GRAVITY_GAIN, 0);
+t('the two settings with no profile field are where the bench left them', () => {
+	// Anti-gravity is anchored on the thrust ratio across a punch: 1 + 0.70 * g
+	// must land on the 5.9-7.8 the six families measure.
+	assert.ok(ANTI_GRAVITY_GAIN > 0, 'anti-gravity is off');
+	const peakBoost = 1 + 0.70 * ANTI_GRAVITY_GAIN;
+	assert.ok(peakBoost >= 5.9 && peakBoost <= 7.8, `peak boost ${peakBoost} is off the thrust ratio`);
+	// D-max stays at its no-op value, measured. See its comment.
 	assert.equal(D_MAX_RATIO, 1.0);
 });
 
-t('the control loop ships on the physics grid, one substep', () => {
-	assert.equal(CONTROL_SUBSTEPS, 1);
-	assert.equal(parseControlRate(null), 1);
-	assert.equal(parseControlRate(undefined), 1);
-	assert.equal(parseControlRate(''), 1);
+t('the control loop runs at 4000 Hz, sixteen substeps of the physics grid', () => {
+	assert.equal(CONTROL_SUBSTEPS, 16);
+	assert.equal(Math.round(CONTROL_SUBSTEPS / FIXED_STEP), 4000);
+	for (const raw of [null, undefined, '']) assert.equal(parseControlRate(raw), CONTROL_SUBSTEPS);
 });
 
-t('no notch is even CONSTRUCTED on a default airframe', () => {
+t('every family builds the conditioning chain, and none builds the D-max filter', () => {
 	for (const f of FAMILIES) {
 		const fc = new FlightController({ profile: PROFILES[f] });
 		for (const axis of ['roll', 'pitch', 'yaw']) {
-			assert.equal(fc.pid[axis].notches, null, `${f}.${axis}`);
+			assert.ok(fc.pid[axis].notches, `${f}.${axis} has no notches`);
 			assert.equal(fc.pid[axis].dMaxLpf, null, `${f}.${axis} D-max`);
 		}
 	}
 });
 
-t('the motor commands are bit-identical with the new path explicitly zeroed', () => {
-	// If the defaults were anything but inert, forcing them to zero would change
-	// the answer. Run for run, motor for motor, bit for bit — on every family,
-	// because filterScale and the per-family tunes take different branches.
+t('turning the whole path off changes the motor commands, on every family', () => {
+	// The inverse of the assertion this file used to make. If the path were
+	// still inert, forcing it to zero would change nothing.
 	for (const f of FAMILIES) {
 		const a = flight(PROFILES[f]);
 		const b = flight(PROFILES[f], { gyroNoise: 0, loopDelay: 0, antiGravity: 0, dMax: 1, filters: false });
-		assert.deepEqual(a, b, f);
+		assert.notDeepEqual(a, b, f);
 	}
 });
 
-t('the gyro hands the loop the true body rates, object and all', () => {
+t('the gyro no longer hands the loop the true body rates', () => {
 	const fc = new FlightController({ profile: PROFILES.freestyle5 });
 	const w = { x: 0.7, y: -0.2, z: 1.3 };
-	assert.equal(fc.gyro.sample(w, [2000, 2000, 2000, 2000], DT).x, w.x);
-	assert.equal(fc.loopDelay.step(w, DT), w);
+	const read = fc.gyro.sample(w, [2000, 2000, 2000, 2000], DT);
+	assert.notEqual(read.x, w.x, 'the sensor is still a pass-through');
+	// A pass-through returns the caller's own object; a sensor returns its own.
+	assert.notEqual(read, w);
+	// And the delay line is a delay line: the first read is what came before.
+	assert.notEqual(fc.loopDelay.step(w, 1 / 4000), w);
+});
+
+t('the noise is deterministic per family, run for run', () => {
+	// Every bench in tools/ leans on this, and tools/flight-replay.mjs proves it
+	// in a fresh child process. Here it is asserted on the shipped settings.
+	for (const f of FAMILIES) assert.deepEqual(flight(PROFILES[f]), flight(PROFILES[f]), f);
 });
 
 // ---------------------------------------------------------------------------
@@ -147,19 +172,28 @@ t('at 250 Hz not one rotor notch can be built — the lot\'s central finding', (
 	const rpm = fc.pid.roll.notches.rpm.notches;
 	assert.ok(rpm.every((e) => e.n.bypass), 'a rotor notch was built at 250 Hz');
 
-	// And at 1 kHz the fundamentals are there.
+	// And at the rate that ships, every one of the eight is there: four
+	// fundamentals and four second harmonics, all under the 900 Hz ceiling at
+	// this throttle. That is the whole reason CONTROL_SUBSTEPS is 16.
+	const rate = Math.round(CONTROL_SUBSTEPS / FIXED_STEP);
 	const fast = new FlightController({ profile: PROFILES.freestyle5, gyroNoise: 0.08 });
 	for (let i = 0; i < 200; i++) {
 		fast.update({ throttle: 0.4, roll: 0, pitch: 0, yaw: 0 },
 			{ rotation: IDENTITY, angularVelocity: ZERO, position: ZERO, velocity: ZERO, rotorOmega: prop.omega },
-			1 / 1000);
+			1 / rate);
 	}
-	assert.ok(fast.pid.roll.notches.rpm.notches.some((e) => !e.n.bypass), 'no notch at 1 kHz either');
+	const built = fast.pid.roll.notches.rpm.notches.filter((e) => !e.n.bypass);
+	assert.equal(built.length, 8, `only ${built.length} of 8 rotor notches at ${rate} Hz`);
 });
 
 t('loop latency is what delays the loop, and nothing else does', () => {
-	const none = flight(PROFILES.freestyle5, {});
-	const late = flight(PROFILES.freestyle5, { loopDelay: 4 * DT });
+	// The delay is isolated with the noise explicitly off. With the shipped
+	// noise on, the delay line's first outputs are zeros against a sensor that
+	// is already lying, and the two paths differ from the first sample for a
+	// reason that is the sensor's rather than the delay's.
+	const quiet = { gyroNoise: 0, filters: false };
+	const none = flight(PROFILES.freestyle5, quiet);
+	const late = flight(PROFILES.freestyle5, { ...quiet, loopDelay: 4 * DT });
 	assert.notDeepEqual(none, late);
 	// Four steps of delay, so the first four commands are issued against a gyro
 	// that has not reported anything yet: the loop sees zero rate, which at
@@ -200,6 +234,9 @@ t('D-max raises D only while the stick is moving', () => {
 	const profile = PROFILES.freestyle5;
 	const a = flight(profile, { dMax: 1.0 });
 	const b = flight(profile, { dMax: 1.8 });
+	// (both at the shipped noise: D-max multiplies D, and D is what the noise
+	// arrives through, so the difference is larger with the sensor live, not
+	// smaller.)
 	assert.notDeepEqual(a, b, 'D-max changed nothing at all');
 	// Held still for long enough, the boost decays and the two agree again.
 	const hold = (dMax) => {
