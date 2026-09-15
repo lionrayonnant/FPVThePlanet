@@ -15,7 +15,7 @@
 // Nothing here pins a flight number. Every tolerance is about the HARNESS.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { initPhysics } from '../src/physics.js';
 import {
@@ -126,9 +126,12 @@ t('a fresh process reproduces the same checksums', () => {
 	// The in-process check cannot see a dependence on something that is fixed
 	// for the life of a process — a hash seed, a lazily built table, the order
 	// a module happened to initialise in. This one can.
+	// pathToFileURL, not the bare path: on Windows an absolute path starts with a
+	// drive letter, and Node's ESM loader reads `D:\...` as the protocol `d:` and
+	// refuses it. Passes on Linux either way, which is exactly how it reached CI.
 	const script = `
-		import { initPhysics } from '${path.join(HERE, '../src/physics.js')}';
-		import { replay, SEQUENCE_NAMES } from '${path.join(HERE, 'flight-replay.mjs')}';
+		import { initPhysics } from '${pathToFileURL(path.join(HERE, '../src/physics.js')).href}';
+		import { replay, SEQUENCE_NAMES } from '${pathToFileURL(path.join(HERE, 'flight-replay.mjs')).href}';
 		await initPhysics();
 		console.log(JSON.stringify(SEQUENCE_NAMES.map((s) => [s, replay(s).checksum])));
 	`;
