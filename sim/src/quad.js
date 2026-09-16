@@ -53,6 +53,7 @@ import { propLossFactor, motorConstants, stepMotor, steadyOmega, dutyForOmega } 
 import { Battery, PACK_DRAINS } from './battery.js';
 import { airDensity } from './air.js';
 import { dragScaleByDiameter } from './curves.js';
+import { geometryOf, rotorForces } from './blade-element.js';
 
 // Sea level, and the density the ROTOR coefficients are non-dimensionalised
 // against (kInflow, kBuffet, vhPerOmega). Those are built once per airframe, so
@@ -391,6 +392,27 @@ export function gravityTrimFactor(profile = QUAD, worldVerticalSpeed = 0) {
 	return map(worldVerticalSpeed, 0, b, a, 1.0);
 }
 
+// `?aero=` — which rotor model the thrust comes out of.
+//
+//   classic  kThrust*w^2 with a first-order inflow correction. The DEFAULT,
+//            the model every PID gain in drone-profiles.js was tuned against,
+//            and bit-identical to what shipped before this flag existed.
+//   bem      src/blade-element.js, integrated over the blade. NOT TUNED: it
+//            moves thrust, torque and the in-plane force at once, and the six
+//            tunes belong to `classic`. A dev switch, nothing more, until an
+//            edgewise data source exists to check its one unverified term.
+//
+// The rule lives here rather than in tools/dev-flags.mjs because it belongs
+// beside the model it selects — the same reason `?loop=`'s rule lives in
+// frame-pacing.js beside the accumulator it substeps. Unlike `?swarm=` it
+// FALLS BACK rather than throwing: an unknown value cannot produce a machine
+// the game could not otherwise fly, it just gets the default one.
+export const AERO_MODELS = ['classic', 'bem'];
+export const AERO_DEFAULT = 'classic';
+export function parseAeroFlag(raw) {
+	return AERO_MODELS.includes(raw) ? raw : AERO_DEFAULT;
+}
+
 // Default for new Propulsion instances. One switch, because turning this off
 // is how you answer "is the machine heavy or is the model wrong?".
 export const GRAVITY_TRIM_DEFAULT = true;
@@ -412,8 +434,14 @@ export class Propulsion {
 	// nondeterminism in the flight model, and without a seed two runs of
 	// tools/selftest.mjs differ from each other, which makes a regression
 	// indistinguishable from noise.
-	constructor({ profile = QUAD, seed = 0x5eed } = {}) {
+	constructor({ profile = QUAD, seed = 0x5eed, aero = AERO_DEFAULT } = {}) {
 		this.profile = profile;
+		// Which rotor model step() asks for a thrust (see parseAeroFlag above).
+		this.aero = parseAeroFlag(aero);
+		// The blade, resolved once per airframe — geometryOf() runs a nested
+		// bisection and has no business in a 250 Hz loop. Null on the default
+		// path, where it is never read and never built.
+		this._blade = this.aero === 'bem' ? geometryOf(profile) : null;
 		this._motors = motorsOf(profile);
 		this._mix = mixOf(profile);
 		this._kThrust = kThrustOf(profile);
@@ -443,6 +471,10 @@ export class Propulsion {
 		// Where force.y came from, mechanism by mechanism. Diagnostics only —
 		// nothing in the flight model reads it. See Physics.forceBudget().
 		this.diag = {
+			// Which rotor model wrote the split below. On 'bem' the blade has no
+			// static/inflow halves to report and `staticThrust` carries the whole
+			// magnitude — see the call site in step().
+			model: this.aero,
 			staticThrust: 0, inflow: 0, groundEffect: 0, vortexRing: 0, thrust: 0,
 			bodyDrag: { x: 0, y: 0, z: 0 }, rotorDrag: { x: 0, z: 0 },
 		};
@@ -489,7 +521,13 @@ export class Propulsion {
 	// the very next step() call folds them in anyway.
 	primeFor(cmd) {
 		const w = steadyOmega(this._motor, clamp01(cmd), this.battery.voltage);
-		const t = Math.max(0, this._kThrust * propLossFactor(this.profile, w) * w * w);
+		// Through the same rotor model step() will use, or the priming thrust
+		// would be the other model's answer for one frame. Still air, no inflow:
+		// that is what this function is for, and it is exactly the operating
+		// point rotorForces() is calibrated on.
+		const t = this._blade
+			? rotorForces(this._blade, w, 0, AIR_DENSITY, 0).thrust
+			: Math.max(0, this._kThrust * propLossFactor(this.profile, w) * w * w);
 		for (let i = 0; i < 4; i++) {
 			this.omega[i] = w;
 			this.thrust[i] = t;
@@ -637,6 +675,12 @@ export class Propulsion {
 			: 1 + groundEffectStrength(P, bat.voltage / bat.cells)
 				* Math.exp(-Math.max(0, agl - P.propRadius) / groundReach);
 
+		// The live air density, hoisted out of the drag block below so the rotor
+		// model can be handed the same air the airframe flies through. Flat
+		// today (src/air.js), so `0.5 * rho` below is the same double that
+		// `0.5 * airDensity(...)` was.
+		const rho = airDensity(air.altitude ?? 0);
+
 		let current = 0, thrustTotal = 0;
 		let staticTotal = 0, inflowTotal = 0, groundExtra = 0, vrsLoss = 0;
 		let tx = 0, ty = 0, tz = 0;
@@ -720,51 +764,124 @@ export class Propulsion {
 			// 32% while the inflow that pays for it did not, and the analytic hover
 			// stick came out 6% light. The momentum theory and the blade share one
 			// disc; they have to be scaled together or not at all.
-			const vh = aw * this._vhPerOmega * Math.sqrt(propLossFactor(P, aw));
 			const vEdge2 = vx * vx + vz * vz;
-			// The axial part of `dw` is a FIRST-ORDER slope — the comment above
-			// derives it as such, from the Vc/2 excess that momentum theory gives
-			// "to first order". Unbounded, it was being evaluated at Vc/vh as far
-			// out as -3.5 in a fast descent, several times past anything a linear
-			// expansion can claim. The consequence was backwards: at a held hover
-			// throttle the quad produced 0.92x its weight at 8 m/s of descent but
-			// 1.23x at 25 m/s, so the faster it fell the harder it pushed back.
-			// It refused to fall, which is the "it floats, it has no weight"
-			// the pilot reports — and `propwash` could not answer for it, being
-			// saturated from 8 m/s onwards.
-			//
-			// The bound is the windmill-brake boundary Vc = -2*vh, not a chosen
-			// number: it is where momentum theory has a valid solution again
-			// (between it and zero lies the vortex ring state, which has none and
-			// which this file models empirically as `propwash`). Past it, the
-			// linear term stops growing instead of running away.
-			//
-			// ONLY the descent side of the axial term is clamped. Hover (vy = 0),
-			// climb, and the edgewise term — translational lift, the whole point
-			// of inducedVelocity() — come through untouched and bit-identical.
 			// The disc's own axial direction, not the body's: a rotor turning
 			// backwards blows the other way and a climb is a descent for it.
 			// `s` is 1 on the whole forward path, so this is `vy` there.
 			const vyDisc = s > 0 ? vy : -vy;
-			const vyAxial = Math.max(vyDisc, -AXIAL_INFLOW_LIMIT * vh);
-			const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
-			// Prop losses (src/motor.js): a blade tip approaching Mach and a pitch
-			// away from its design point stop making lift. Normalised at maxOmega,
-			// so full-throttle thrust — and with it maxThrustPerMotor, the
-			// thrust-to-weight and the top speed — is unchanged, and only the SHAPE
-			// of the curve below it moves. It moves the right way: a real propeller
-			// sits above the square law at part throttle and flattens at the top.
-			// Everything from here to `t` is the rotor's own frame: a MAGNITUDE
-			// of thrust along its own axis, which `s` then puts back on the
-			// body. That is the whole of §3.2's `si (Throttle < 0) Poussee =
-			// -Poussee` — not a second thrust law, the same one read the other
-			// way up. With s = 1 and aw = w these are the original expressions,
-			// operation for operation.
-			const tStatic = this._kThrust * propLossFactor(P, aw) * aw * aw;
-			const tInflow = -this._kInflow * aw * dw;
-			let t = tStatic + tInflow;
-			const tBare = Math.max(0, t);
-			t = s * (tBare * ground * (1 - 0.22 * this.propwash));
+
+			// THE ROTOR MODEL'S ONE CALL SITE (?aero=).
+			//
+			// Both branches produce the same three quantities and nothing else:
+			// `tBare`, a thrust MAGNITUDE along the rotor's own axis; `hx`/`hz`,
+			// the in-plane force in the body frame; and the two diagnostic
+			// halves. Everything that is not the rotor model — ground effect,
+			// propwash, the spin sign `s`, the lever arms, the yaw reaction —
+			// stays outside and applies to whichever magnitude came back. That
+			// is what makes this a switch between models rather than two
+			// physics.
+			let tBare, hx, hz, staticDiag, inflowDiag;
+			if (this._blade) {
+				// BLADE ELEMENT (?aero=bem). NOT TUNED — see parseAeroFlag.
+				//
+				// Signed, and deliberately NOT clamped at zero: a blade the air
+				// drives really does pull backwards, and refusing to say so is
+				// the first of the three defects blade-element.js exists for.
+				// Nothing downstream needs it positive — ground effect and the
+				// propwash band are multipliers, and the lever arms do not care.
+				//
+				// The axial velocity goes in RAW. `AXIAL_INFLOW_LIMIT` bounds a
+				// first-order slope evaluated far outside where a linear
+				// expansion can claim anything; there is no slope here to bound,
+				// the annulus solves its own momentum balance. What the blade
+				// does NOT model is the vortex-ring state, which has no momentum
+				// solution at all — `propwash` still answers for that, below,
+				// exactly as it does for the classic model.
+				const vEdge = Math.sqrt(vEdge2);
+				const f = rotorForces(this._blade, aw, vyDisc, rho, vEdge);
+				tBare = f.thrust;
+				// The in-plane force comes out of the SAME integral as the
+				// thrust — the advancing blade meets more flow than the
+				// retreating one — so `kLateral` is not applied on top of it.
+				// That would be the dissymmetry of lift counted twice, which is
+				// the mistake `kAxial` already made once (issue #71), and it is
+				// also why the translational rotor MOMENTS are not added back
+				// here: the same mechanism, and the one that made the airframe
+				// unusable in flight (#103).
+				//
+				// Resolved along the edgewise flow, which is undefined when
+				// there is none — hence the guard, not a special case: at
+				// vEdge = 0 the azimuthal sum is zero by symmetry anyway.
+				if (vEdge > 0) {
+					hx = (f.hForce * vx) / vEdge;
+					hz = (f.hForce * vz) / vEdge;
+				} else {
+					hx = 0;
+					hz = 0;
+				}
+				// The blade does not HAVE a static term and an inflow
+				// correction: it has one integral, and the flow through the disc
+				// is inside it. Rather than invent a split — a second
+				// rotorForces() call at zero inflow, per rotor per step, to
+				// produce a number nothing in the model uses — the whole
+				// magnitude is reported as the static half and the inflow half
+				// reads zero. The budget's invariant (the split sums back to the
+				// force) holds either way; `diag.model` below says which model
+				// wrote it, so nobody reads `staticThrust` here as meaning what
+				// it means on the default path.
+				staticDiag = tBare;
+				inflowDiag = 0;
+			} else {
+				const vh = aw * this._vhPerOmega * Math.sqrt(propLossFactor(P, aw));
+				// The axial part of `dw` is a FIRST-ORDER slope — the comment above
+				// derives it as such, from the Vc/2 excess that momentum theory gives
+				// "to first order". Unbounded, it was being evaluated at Vc/vh as far
+				// out as -3.5 in a fast descent, several times past anything a linear
+				// expansion can claim. The consequence was backwards: at a held hover
+				// throttle the quad produced 0.92x its weight at 8 m/s of descent but
+				// 1.23x at 25 m/s, so the faster it fell the harder it pushed back.
+				// It refused to fall, which is the "it floats, it has no weight"
+				// the pilot reports — and `propwash` could not answer for it, being
+				// saturated from 8 m/s onwards.
+				//
+				// The bound is the windmill-brake boundary Vc = -2*vh, not a chosen
+				// number: it is where momentum theory has a valid solution again
+				// (between it and zero lies the vortex ring state, which has none and
+				// which this file models empirically as `propwash`). Past it, the
+				// linear term stops growing instead of running away.
+				//
+				// ONLY the descent side of the axial term is clamped. Hover (vy = 0),
+				// climb, and the edgewise term — translational lift, the whole point
+				// of inducedVelocity() — come through untouched and bit-identical.
+				const vyAxial = Math.max(vyDisc, -AXIAL_INFLOW_LIMIT * vh);
+				const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
+				// Prop losses (src/motor.js): a blade tip approaching Mach and a pitch
+				// away from its design point stop making lift. Normalised at maxOmega,
+				// so full-throttle thrust — and with it maxThrustPerMotor, the
+				// thrust-to-weight and the top speed — is unchanged, and only the SHAPE
+				// of the curve below it moves. It moves the right way: a real propeller
+				// sits above the square law at part throttle and flattens at the top.
+				// Everything from here to `t` is the rotor's own frame: a MAGNITUDE
+				// of thrust along its own axis, which `s` then puts back on the
+				// body. That is the whole of §3.2's `si (Throttle < 0) Poussee =
+				// -Poussee` — not a second thrust law, the same one read the other
+				// way up. With s = 1 and aw = w these are the original expressions,
+				// operation for operation.
+				const tStatic = this._kThrust * propLossFactor(P, aw) * aw * aw;
+				const tInflow = -this._kInflow * aw * dw;
+				const t0 = tStatic + tInflow;
+				tBare = Math.max(0, t0);
+				staticDiag = tStatic;
+				inflowDiag = tBare - Math.max(0, tStatic);
+				// Rotor drag: the disc resists translation in proportion to rpm,
+				// fitted to the observed in-plane force and carrying the flapback
+				// with it (see the block above cruiseSpeedOf). A disc resists
+				// translation the same however it is turning, so this is the
+				// magnitude. `aw` is `w` on the forward path.
+				hx = -this._kLateral * aw * vx;
+				hz = -this._kLateral * aw * vz;
+			}
+			let t = s * (tBare * ground * (1 - 0.22 * this.propwash));
 			this.thrust[i] = t;
 			thrustTotal += t;
 			// Diagnostics, not physics: the same thrust split into where it came
@@ -773,8 +890,8 @@ export class Propulsion {
 			// two square roots — see Physics.forceBudget().
 			// Signed with the rotor, like `t` itself, so the split still sums
 			// back to the force when a rotor is pushing the other way.
-			staticTotal += s * tStatic;
-			inflowTotal += s * (tBare - Math.max(0, tStatic));
+			staticTotal += s * staticDiag;
+			inflowTotal += s * inflowDiag;
 			groundExtra += s * (tBare * (ground - 1) * (1 - 0.22 * this.propwash));
 			vrsLoss += s * (tBare * ground * 0.22 * this.propwash);
 
@@ -795,10 +912,9 @@ export class Propulsion {
 			// moment: tau_y = r_z*F_x - r_x*F_z. Under yaw rate it comes out
 			// opposing the rotation, which is the aerodynamic yaw damping a real
 			// quad has and this model did not.
-			// A disc resists translation the same however it is turning, so this
-			// is the magnitude. `aw` is `w` on the forward path.
-			const dx = -this._kLateral * aw * vx;
-			const dz = -this._kLateral * aw * vz;
+			// Whichever model produced it, above.
+			const dx = hx;
+			const dz = hz;
 			dragX += dx;
 			dragZ += dz;
 			ty += m.z * dx - m.x * dz;
@@ -864,7 +980,7 @@ export class Propulsion {
 		// quad does when it is dropped. 0.93 is the divergence L5 refuses: a
 		// ratio measured per family beats a constant, and the spec offers no
 		// measurement behind it.
-		const q = 0.5 * airDensity(air.altitude ?? 0);
+		const q = 0.5 * rho;
 		const ds = P.dragScale ?? 1;
 		const bx = -q * P.bodyDrag.x * ds * Math.abs(vBody.x) * vBody.x;
 		const by = -q * P.bodyDrag.y * ds * Math.abs(vBody.y) * vBody.y;
@@ -878,6 +994,7 @@ export class Propulsion {
 		// construction staticThrust + inflow + groundEffect - vortexRing is
 		// thrustTotal exactly, which Physics asserts rather than assumes.
 		const d = this.diag;
+		d.model = this.aero;
 		d.staticThrust = staticTotal;
 		d.inflow = inflowTotal;
 		d.groundEffect = groundExtra;

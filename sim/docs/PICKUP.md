@@ -14,16 +14,18 @@ come from `quad.js`, units are metres.
 Six of six families now sit in the specification's rpm band. And PR #163: the
 gyro is on, the control loop runs at 4000 Hz.
 
-**On `spec/profiles-coherence`:** the bill of materials made checkable. Every
-family names its motor, propeller and pack by catalogue id; `propInertia` is
-derived by one rule instead of chosen family by family; swarmNode's inertia is
-rebuilt from its parts rather than interpolated toward a longrange that moved.
+**On `spec/profiles-coherence`,** two lots that closed together:
+
+*The bill of materials, made checkable.* Every family names its motor,
+propeller and pack by catalogue id; `propInertia` is derived by one rule
+instead of chosen family by family; swarmNode's inertia is rebuilt from its
+parts rather than interpolated toward a longrange that moved.
 `profile-schema-selftest` now refuses a part number that does not resolve, a KV
 that disagrees with its catalogue entry, a `maxCurrent` off rule 3 and a
 `propInertia` off rule 5. It cost two families their rise/settle target — see
 item 3, which is the finding that lot produced.
 
-**On `spec/blade-element`:** `blade-element.js` wired into `quad.js` behind
+*The blade, wired and left off.* `blade-element.js` goes into `quad.js` behind
 `?aero=bem`, off by default and byte-identical when off, with
 `tools/aero-model-compare.mjs` putting the two models side by side. Nothing is
 switched over; items 1 and 2 stay open because what blocks them is data.
@@ -70,14 +72,39 @@ that does not know rotors exist.
 
 ## What is NOT done, ranked
 
-1. **`blade-element.js` is still not wired into `quad.js`.** The axial model is
-   validated on 187 propellers with no directional bias at any advance ratio;
-   **everything edgewise is unverified** and the UIUC tunnel cannot see it.
-   Wiring it replaces the thrust model and invalidates six tunes on the strength
-   of a term no bench here can check. What is needed first: an edgewise data
-   source, or a measured hover-to-cruise thrust curve from the reference build.
-2. **Translational rotor moments (#91, reverted by #103).** Same physical
-   mechanism as the blade-element edgewise term — do not do both at once.
+1. **`blade-element.js` is wired into `quad.js`, but only behind `?aero=bem`.**
+   The default path is unchanged and BYTE-identical (proved by `cmp` on the 36
+   replay traces, and by a selftest that compares 400 steps element by element),
+   so the six tunes still describe the machine they were measured on. What the
+   flag buys is that the edgewise term is now MEASURABLE where it could not be
+   verified: `tools/aero-model-compare.mjs` puts the two models side by side.
+   What it says, and what has to be settled before the default could move:
+   - the blade gives **14-30% less thrust at hover** than `classic`, and every
+     bit of that is `propLossFactor`, which has no equivalent in blade-element
+     theory (its cd0 is fixed, it cannot see Reynolds). Either that factor
+     describes something real the blade should learn, or it is standing in for
+     something else. Until that is answered `hoverThrottle()` — derived from the
+     classic model — and `bem` cannot coexist: at the stick the controller
+     computes, the machine descends.
+   - the blade's H-force is **13-30% of what `kLateral` applies**. `kLateral`'s
+     own comment says it carries flapback lumped in, so the gap is expected;
+     which of the two is right is not established.
+   - an edgewise data source, or a measured hover-to-cruise thrust curve from
+     the reference build. Still the real blocker. The UIUC tunnel is axial.
+   - a full PID re-sweep, and roughly 2x the flight-model CPU (measured as
+     replay wall time, not profiled per step).
+2. **Translational rotor moments (#91, reverted by #103): handled, by not being
+   added.** The edgewise term of blade-element theory IS this mechanism, so
+   adding the moments separately would count the lift dissymmetry twice. What
+   #103 reverted is now understood and measured: held full roll at 26-36 m/s
+   took the worst off-axis rate from 1-2 deg/s to 115-222 deg/s, and removing
+   the four contributions one at a time showed the two IN-PLANE MOMENTS were
+   the whole of it (hub moment alone 76, rotor-plane lever arm alone 48-71;
+   translational lift 2, precession 3). `bem` does not bring them back, and not
+   by luck: blade-element returns a FORCE and no moment, and `quad.js` applies
+   it at the hub, exactly where `kLateral` already acted. The #103 guard is now
+   run against BOTH models by `tools/aero-model-compare.mjs`, and `bem` is equal
+   or better than the default on every family, both axes.
 3. **Heavy rotors cannot meet the tuner's rise/settle targets, and the targets
    are the reason.** New, and it is the cost of correcting `propInertia`.
    `tools/tune-pid.mjs:limitsFor()` derives its budget from the BODY's inertia
