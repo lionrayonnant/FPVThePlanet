@@ -27,6 +27,7 @@
 //   node tools/flight-replay.mjs --diff before.json after.json
 //   node tools/flight-replay.mjs punch-out --family toothpick --samples --out t.json
 //   node tools/flight-replay.mjs --all --family all --quiet --out reference.json
+//   node tools/flight-replay.mjs --all --aero bem --out bem.json
 //
 // Nothing here writes into src/. It is a reader of the flight stack, never a
 // participant in it.
@@ -311,6 +312,9 @@ function tiltDeg(q) {
  *   gyroNoise     override the family's own sensor noise, rad/s RMS. 0 silences
  *                 the gyro and the notches with it — for benches whose question
  *                 is about the integrator rather than about the sensor.
+ *   aero          rotor model, 'classic' (default) or 'bem' — the ?aero= flag,
+ *                 so that a diff can put the two models side by side on the
+ *                 same six sequences. See src/quad.js:parseAeroFlag.
  */
 export function replay(name, opts = {}) {
 	const seq = SEQUENCES[name];
@@ -331,7 +335,7 @@ export function replay(name, opts = {}) {
 	const p = new Physics(
 		seq.ground ? GROUND : EMPTY,
 		seq.spawn,
-		{ profile, weather: STILL, seed: SEED, windSeed: WIND_SEED },
+		{ profile, weather: STILL, seed: SEED, windSeed: WIND_SEED, aero: opts.aero },
 	);
 	if (opts.gravityTrim !== undefined) p.propulsion.setGravityTrim(opts.gravityTrim);
 	const gravityTrim = p.propulsion.gravityTrimEnabled;
@@ -798,6 +802,7 @@ async function main(argv) {
 	const dt = parseDt(value('--dt', String(DT)));
 	const sampleHz = flag('--samples') ? Number(value('--samples-hz', '25')) : 0;
 	const opts = { dt, sampleHz };
+	if (args.includes('--aero')) opts.aero = value('--aero', undefined);
 	if (flag('--no-gravity-trim')) opts.gravityTrim = false;
 	if (flag('--gravity-trim')) opts.gravityTrim = true;
 

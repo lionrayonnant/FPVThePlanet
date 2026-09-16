@@ -138,7 +138,12 @@ export class Physics {
 		this.events = new RAPIER.EventQueue(true);
 
 		this._seed = options.seed;
-		this.propulsion = new Propulsion({ profile: this.profile, seed: options.seed });
+		// Which rotor model quad.js takes its thrust from (`?aero=`, see
+		// parseAeroFlag in src/quad.js). Passed explicitly, like every other
+		// dev flag: there is no mutable global here, and two Physics instances
+		// in one page must be able to disagree about it.
+		this._aero = options.aero;
+		this.propulsion = new Propulsion({ profile: this.profile, seed: options.seed, aero: this._aero });
 		this.wind = new WindField(options.windSeed);
 		if (options.weather) this.wind.setParams(options.weather);
 		// Reused, so the per-step call into quad.js does not allocate.
@@ -186,7 +191,7 @@ export class Physics {
 	// checks across every family. The collider stays a 0.15 m sphere.
 	setProfile(profile) {
 		this.profile = profile;
-		this.propulsion = new Propulsion({ profile, seed: this._seed });
+		this.propulsion = new Propulsion({ profile, seed: this._seed, aero: this._aero });
 		this.body.setAdditionalMassProperties(
 			profile.mass, ZERO,
 			{ x: profile.inertia.x, y: profile.inertia.y, z: profile.inertia.z },

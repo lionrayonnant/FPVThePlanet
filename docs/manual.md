@@ -887,6 +887,48 @@ not rotate at the frequencies the gyro reports.
 
 Dev hook: `?loop=<hz>`, one of 250/500/1000/2000/4000, refused otherwise.
 
+### The rotor model: `?aero=`
+
+Two rotor models ship. `classic`, the default, is `kThrust * omega^2` with a
+first-order inflow correction — it is what every PID gain in
+`src/drone-profiles.js` was tuned against, and it is bit-identical to what the
+simulator has always flown. `bem` puts `src/blade-element.js` in the force
+path instead: thrust, torque and the in-plane force all come out of the blade,
+integrated element by element and over azimuth.
+
+`bem` is **NOT TUNED and not a candidate for the default**. The rule falls back
+silently rather than refusing, unlike `?swarm=`, because an unknown value here
+cannot produce a machine the game could not otherwise fly — it just gets the
+default one. The rule itself lives in `src/quad.js` (`parseAeroFlag`), beside
+the model it selects, and it is passed explicitly to `Physics` and `Propulsion`:
+there is no mutable global.
+
+`tools/aero-model-compare.mjs` is what makes the difference observable. For
+each of the six families it sweeps hover to cruise and prints thrust, torque
+and in-plane force for BOTH models with the signed gap; it runs the `#103`
+off-axis gate against both; and it puts the six replay sequences side by side.
+What it shows today, and why the default does not move:
+
+- In still air the blade returns a clean square law, while `classic` carries
+  `propLossFactor`, which lifts part-throttle thrust. The two are pinned
+  together at `maxOmega` by the calibration and diverge below it: **-14 % to
+  -30 % of rotor thrust at hover rpm**, across the families. `hoverThrottle()`
+  is derived from the classic curve, so under `?aero=bem` the hover stick is
+  simply wrong and the machine descends.
+- The in-plane force the blade predicts is **13 % to 30 % of what `kLateral`
+  applies** — `kLateral` was fitted to observed behaviour and carries the
+  flapback lumped inside it, the blade resolves only the dissymmetry of lift.
+- The blade does **not** bring back the defect `#103` removed: off-axis rates
+  under a held roll or yaw at twice cruise are equal to or lower than the
+  default's, everywhere. The mechanism is the same one, but `bem` returns a
+  FORCE and no moment, applied at the hub where `kLateral` already acted.
+
+What would have to exist before the default could move: an edgewise data
+source, or a measured hover-to-cruise thrust curve from the reference build —
+the axial model is validated on 187 wind-tunnel propellers, everything edgewise
+is unverified — and then a full re-tune, since all six tunes belong to
+`classic`.
+
 ### Translational flight (#91)
 
 Three mechanisms separate the moving aircraft from the hovering one.
