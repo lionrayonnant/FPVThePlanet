@@ -1,12 +1,12 @@
-// Enriched map model selftest (issue #25). No scene data, no network, no
-// browser: plain numbers through tools/enriched-map-model.mjs, which is why it
-// runs in selftest:ci. Run: node tools/enriched-map-selftest.mjs
+// Flight history model selftest (issue #160, was the enriched map of #25). No
+// scene data, no network, no browser: plain numbers through
+// tools/flight-history-model.mjs, which is why it runs in selftest:ci.
+// Run: node tools/flight-history-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	CLUSTER_PX, THUMB_ZOOM, PHOTO_PX, THUMB_PX, HIT_PX,
+	CLUSTER_PX, CROSS_PX,
 	boxesIntersect, pointInBox, tracksInView, clusterMarks,
-	photoMarkStyle, hitMark, lossLabel,
-} from './enriched-map-model.mjs';
+} from './flight-history-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -15,8 +15,7 @@ const entry = (line, extra = {}) => ({ line, start: null, end: null, photos: [],
 
 t('constants match the spec verbatim', () => {
 	assert.equal(CLUSTER_PX, 20);
-	assert.equal(THUMB_ZOOM, 16);
-	assert.ok(PHOTO_PX < THUMB_PX, 'a thumbnail is bigger than the square it replaces');
+	assert.ok(CROSS_PX < CLUSTER_PX, 'a cross is smaller than the distance that collapses two of them');
 });
 
 t('boxesIntersect: touching boxes count, disjoint ones do not', () => {
@@ -108,34 +107,6 @@ t('clusterMarks: non-finite marks are dropped rather than poisoning a cluster', 
 	const c = clusterMarks([{ x: NaN, y: 1 }, null, { x: 5, y: 5 }]);
 	assert.equal(c.length, 1);
 	assert.equal(c[0].x, 5);
-});
-
-t('photoMarkStyle: squares below THUMB_ZOOM, thumbnails at and above it', () => {
-	assert.deepEqual(photoMarkStyle(15), { thumb: false, side: PHOTO_PX });
-	assert.deepEqual(photoMarkStyle(THUMB_ZOOM), { thumb: true, side: THUMB_PX });
-	assert.deepEqual(photoMarkStyle(19), { thumb: true, side: THUMB_PX });
-	assert.equal(photoMarkStyle(undefined).thumb, false);
-});
-
-t('hitMark: nearest within the radius, null outside it', () => {
-	const marks = [{ x: 100, y: 100, id: 'a' }, { x: 106, y: 100, id: 'b' }];
-	assert.equal(hitMark(marks, 105, 100).id, 'b');
-	assert.equal(hitMark(marks, 101, 100).id, 'a');
-	assert.equal(hitMark(marks, 100 + HIT_PX + 20, 100), null);
-	assert.equal(hitMark([], 0, 0), null);
-});
-
-t('hitMark: a thumbnail claims its own size', () => {
-	const marks = [{ x: 100, y: 100, r: THUMB_PX / 2, id: 'thumb' }];
-	assert.equal(hitMark(marks, 116, 100)?.id, 'thumb');
-	assert.equal(hitMark(marks, 130, 100), null);
-});
-
-t('lossLabel: a count when collapsed, a date when alone', () => {
-	assert.equal(lossLabel({ count: 3, items: [{}, {}, {}] }), '3 LOSSES');
-	assert.equal(lossLabel({ count: 1, items: [{ sessionId: 'x' }] }, () => '2026-09-08'), '2026-09-08');
-	assert.equal(lossLabel({ count: 1, items: [{}] }, () => null), 'LOSS');
-	assert.equal(lossLabel(null), '');
 });
 
 console.log(`\n${n} ok`);

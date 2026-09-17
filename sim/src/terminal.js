@@ -730,10 +730,7 @@ function buildNotesScreen(root, operator) {
 // Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
 // FIELD) or null.
 //
-// `openMap` is the single call site of the ENRICHED map (#25): the scanner does
-// not carry that toggle yet, so the caller passes nothing today and GEOGRAPHY
-// renders no link. Wiring it later is one argument at one call site.
-export function dataScreen(root, { api = operatorApi, scenes = null, openMap = null } = {}) {
+export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 	const operator = api.getOperator();
 	const model = terminalModel({ operator, scenes });
 	const s = screen(root, 'terminal-data');
@@ -928,14 +925,6 @@ export function dataScreen(root, { api = operatorApi, scenes = null, openMap = n
 			geo.appendChild(pre(`COUNTRIES  ${data.geography.countries.length
 				? data.geography.countries.map((c) => `${c.code} ${c.count}`).join(' · ')
 				: '—'}`, 'terminal-foot'));
-			// The way back to the one map with the traces drawn on it (#25). The
-			// ENRICHED toggle does not exist yet: until the caller passes
-			// `openMap`, this link is simply not there. THIS is the call site.
-			if (openMap) {
-				const row = linkRow();
-				link(row, 'OPEN MAP — ENRICHED', () => behind(async () => openMap({ enriched: true })));
-				geo.appendChild(row);
-			}
 
 			// 8. PROFILE — altitude against time for one flight, photos marked.
 			// Opens on the last flight that HAS a track, not simply the last one.

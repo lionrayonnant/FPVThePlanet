@@ -1,12 +1,17 @@
-// The enriched map, geometry half (issue #25, spec
-// 2026-09-08-flight-track-enriched-map-data-design.md §2).
+// The flight history overlay, geometry half (issue #160, was the ENRICHED map
+// of issue #25 / spec 2026-09-08-flight-track-enriched-map-data-design.md §2).
+//
+// The overlay draws two things and only two: the tracks left on the ground and
+// the crosses where a link was lost. The photo marks, the hover labels and the
+// click-through to a session sheet went with the ENRICHED mode — nobody read
+// them, and a toggle nobody can read costs more than it gives (Bible §3).
 //
 // Pure and Node-importable: no DOM, no Leaflet. Everything that decides WHAT
 // goes on the map — which tracks the current view still needs, which loss
-// crosses have collapsed into one another, how big a photo mark is at a given
-// zoom — lives here and is covered by tools/enriched-map-selftest.mjs in
-// selftest:ci. src/map-tracks.js is then only a canvas and a layer lifecycle,
-// the same split as coverage.js / map-coverage.js.
+// crosses have collapsed into one another — lives here and is covered by
+// tools/flight-history-selftest.mjs in selftest:ci. src/map-tracks.js is then
+// only a canvas and a layer lifecycle, the same split as coverage.js /
+// map-coverage.js.
 
 import { trackBounds } from './track-model.mjs';
 
@@ -15,18 +20,8 @@ import { trackBounds } from './track-model.mjs';
 // stay readable at world zoom (spec §2, "Losses").
 export const CLUSTER_PX = 20;
 
-// Below this zoom a photo is a small square; at and above it, a thumbnail.
-export const THUMB_ZOOM = 16;
-
-// Mark sizes, in CSS pixels. The square is deliberately small — a photo is a
-// trace left on the map, not a widget.
-export const PHOTO_PX = 5;
-export const THUMB_PX = 36;
+// Mark size, in CSS pixels.
 export const CROSS_PX = 7;
-
-// How close a pointer must be to a mark for it to count as a hit. Larger than
-// the marks themselves: a 5 px square is impossible to click otherwise.
-export const HIT_PX = 10;
 
 // --- view filtering --------------------------------------------------------
 
@@ -79,39 +74,4 @@ export function clusterMarks(marks, px = CLUSTER_PX) {
 		else out.push({ x: m.x, y: m.y, count: 1, items: [m] });
 	}
 	return out;
-}
-
-// --- marks -----------------------------------------------------------------
-
-// A photo is a square below THUMB_ZOOM and a thumbnail at or above it. Returned
-// as a shape plus a side so the drawer never repeats the threshold.
-export function photoMarkStyle(zoom) {
-	const thumb = Number.isFinite(zoom) && zoom >= THUMB_ZOOM;
-	return { thumb, side: thumb ? THUMB_PX : PHOTO_PX };
-}
-
-// Nearest mark to a pointer, or null. Marks are { x, y, r? }: `r` lets a
-// thumbnail claim its own size instead of the default radius, so a 36 px
-// thumbnail is clickable across its whole face.
-export function hitMark(marks, x, y, radius = HIT_PX) {
-	let best = null, bestD2 = Infinity;
-	for (const m of Array.isArray(marks) ? marks : []) {
-		if (!m || !Number.isFinite(m.x) || !Number.isFinite(m.y)) continue;
-		const r = Math.max(radius, m.r ?? 0);
-		const dx = m.x - x, dy = m.y - y;
-		const d2 = dx * dx + dy * dy;
-		if (d2 <= r * r && d2 < bestD2) { best = m; bestD2 = d2; }
-	}
-	return best;
-}
-
-// The label a loss mark carries on hover: the date of the flight that ended
-// there, or the count when several have collapsed. Dates come from the session
-// id's timestamp when the caller has one — the index itself carries no date, so
-// the caller passes what it knows and this only formats.
-export function lossLabel(cluster, dateOf) {
-	if (!cluster) return '';
-	if (cluster.count > 1) return `${cluster.count} LOSSES`;
-	const d = dateOf?.(cluster.items[0]);
-	return d ? String(d).toUpperCase() : 'LOSS';
 }
