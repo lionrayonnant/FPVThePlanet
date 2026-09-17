@@ -78,12 +78,21 @@ The game is 100% free. If you appreciate my work, please consider helping me cov
 | roll, pitch | the arrows, or the mouse |
 | `M` | flight mode: acro, angle, altitude |
 | `C` · `T` · `Tab` | free camera · flip the machine back over · settings |
+| `B` | the bench panel, in flight — BENCH only |
 
 Acro is the default, on a keyboard as much as on a radio — the keyboard axes
 ramp rather than snapping to full deflection, which is what makes that
 survivable without a stick. `M` cycles to angle and altitude if you want them.
 There is no respawn in FIELD: crash and the machine is gone, and you start a
 new one. BENCH is the mode where nothing is lost.
+
+It is also the mode where you know the part numbers. The bench builds a machine
+rather than picking one: a frame, four motors, four props, a pack and a camera
+out of the spec's own catalogue, and then every parameter the flight stack
+reads — mass and inertias, prop pitch, KV, pack resistance, drag, PID gains,
+rates, throttle curve, gyro noise, loop latency — typed to the digit. `B` opens
+the same screen over the flight, so a gain can be set and felt without landing,
+and the jukebox can be re-tuned from the air.
 
 ## How it works
 

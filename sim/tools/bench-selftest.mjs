@@ -29,7 +29,7 @@ t('normalize: nothing at all -> the defaults', () => {
 	}
 });
 
-t('normalize : une config corrompue redevient jouable, sans lever', () => {
+t('normalize: a corrupt config becomes playable again, without throwing', () => {
 	const c = normalizeBenchConfig({
 		version: 'lol', airframe: 'not-an-object', terrain: 42,
 		entry: 'SUPER_HOLY_SHIT', fence: 'yes', timeMin: -900,
@@ -102,11 +102,24 @@ t('normalize: the family is validated against the real list when it is given', (
 	}
 });
 
-t('normalize : NOMINAL et exemplaire', () => {
+t('normalize: NOMINAL and the drawn individual', () => {
 	assert.equal(normalizeBenchConfig({}).airframe.seed, null);
 	assert.equal(normalizeBenchConfig({ airframe: { seed: '' } }).airframe.seed, null);
 	assert.equal(normalizeBenchConfig({ airframe: { seed: 42 } }).airframe.seed, null);
 	assert.equal(normalizeBenchConfig({ airframe: { seed: '4f2a91' } }).airframe.seed, '4f2a91');
+});
+
+t('normalize: a pre-#159 config keeps its build', () => {
+	// The airframe used to be `{family, seed}`, where the PRESENCE of a seed was
+	// the base. Nothing migrates by hand — the normalisation reads the old shape
+	// and brings it forward, which is the whole reason there is no migration
+	// table in tools/bench-model.mjs.
+	const old = normalizeBenchConfig({ version: 1, airframe: { family: 'race5', seed: '4f2a91' } }, { families: FAMILIES });
+	assert.equal(old.airframe.base, 'INDIVIDUAL');
+	assert.equal(old.airframe.seed, '4f2a91');
+	assert.deepEqual(old.airframe.overrides, {});
+	const nominal = normalizeBenchConfig({ version: 1, airframe: { family: 'race5' } }, { families: FAMILIES });
+	assert.equal(nominal.airframe.base, 'NOMINAL');
 });
 
 // ---------------------------------------------------------------------------
@@ -200,7 +213,7 @@ t('benchDate: midnight and 23:59 both hold', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Écran
+// The screen
 
 t('benchRows: one row per setting, all of them readable', () => {
 	const rows = benchRows(BENCH_DEFAULTS);
@@ -208,7 +221,7 @@ t('benchRows: one row per setting, all of them readable', () => {
 	// gust and dir get their own row: three wind sliders, three readouts. A
 	// slider with no displayed value leaves a hole in the right-hand column and
 	// cannot be set to a number.
-	assert.deepEqual(keys, ['family', 'seed', 'terrain', 'entry', 'fence', 'hud', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']);
+	assert.deepEqual(keys, ['family', 'seed', 'detail', 'terrain', 'entry', 'fence', 'hud', 'time', 'wind', 'gust', 'dir', 'rain', 'fog', 'cloud', 'link', 'battery']);
 	for (const r of rows) {
 		assert.ok(r.label && typeof r.label === 'string', 'a label');
 		assert.ok(r.value !== undefined && r.value !== null && String(r.value).length, `a value for ${r.key}`);
@@ -315,7 +328,7 @@ t('MODE_SELECT: five ways, named, in English', () => {
 	// shipped sets), so the old wording sent a first-time player looking for a
 	// button that does not exist. The line names the live terrain instead.
 	assert.deepEqual(MODE_SELECT.field.lines, ['live terrain · find a signal', 'take a machine that is not yours']);
-	assert.ok(!/acquire/i.test(MODE_SELECT.field.lines.join(' ')), 'FIELD ne promet pas une acquisition fermee');
+	assert.ok(!/acquire/i.test(MODE_SELECT.field.lines.join(' ')), 'FIELD does not promise an acquisition that is gated shut');
 	assert.equal(MODE_SELECT.bench.label, 'BENCH');
 	// Issue #26: ARCHIVE became DATA, and the copy says what you read there —
 	// flight records, not a promise of progression.

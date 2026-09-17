@@ -1826,6 +1826,82 @@ elle est inchangée.
   aujourd'hui — l'issue est périmée, elle peut être fermée.
 
 
+## BENCH — the exact machine, and the radio in flight (issue #159)
+
+2026-09-15. The bench's airframe was a dropdown over six families; it is now a
+build. Two levels that compose:
+
+```
+BASE       NOMINAL            the family's reference profile
+           INDIVIDUAL seed    the drawn exemplar (PHASE 07, unchanged)
+           CUSTOM parts       assembled from the src/spec-data/ catalogue
+OVERRIDES  any of 45 parameters of the resolved profile, typed by hand
+```
+
+`tools/bench-airframe.mjs` owns all of it (pure, no DOM). `src/bench.js` gained
+a second screen, `runAirframe()`, reachable from the bench and from the
+in-flight panel; `tools/bench-model.mjs` carries `airframe.{base, parts,
+overrides}` at `BENCH_VERSION = 2`.
+
+**The CUSTOM derivation invents nothing.** It applies the four rules already
+written at the head of `src/drone-profiles.js` ("WHERE THE HARDWARE NUMBERS COME
+FROM") to a chosen frame + 4 motors + 4 props + pack + camera, plus two more
+anchored on the same reference build: the arm follows the prop
+(`armX / propRadius = 1.228`) and the rotor inertia is `0.248 * m * r²`. What a
+bill of materials does **not** decide stays the family's — the measured `pid`
+block, `bodyDrag`, `torqueRatio`, the three disc gains — because the family is
+the identity (#44).
+
+### Vérifié — sans navigateur
+
+- `node tools/bench-airframe-selftest.mjs`: **28/28**. The two that matter:
+  - **NOMINAL with no override IS `PROFILES[family]`** — the same object, not an
+    equal copy. Forty-five parameters were added and no number moved.
+  - **Every parameter key names something that exists**, on every family, and
+    reads back what was written. A typo in a path would have produced a control
+    that displays `undefined` and writes where nothing reads.
+- The derivation is checked against `race5`, the one family whose bill of
+  materials its own comment names part for part: maxOmega to 1 rad/s, thrust to
+  0.1 N, pack draw to 1 A, resistance to 0.1 mΩ. Five of the six families land
+  back on their own nominal mass; `longrange` does not, and cannot — its nearest
+  catalogue bill already outweighs it by 53 g. That is stated, not smoothed.
+- `node tools/bench-selftest.mjs`: **35/35** (was 34). `node
+  tools/bench-render-selftest.mjs`: **40/40** (was 31). `npm run fuzz` carries a
+  `bench-airframe` target: the build is fuzzed for idempotent normalisation, a
+  finite plant, evaluable rates, and no `undefined`/`NaN` reaching either
+  screen.
+- The pre-#159 stored shape (`{family, seed}`, where the presence of a seed was
+  the base) comes forward on its own through `normalizeAirframe()`. There is no
+  migration table anywhere.
+
+### Two things that were wrong before and are fixed here
+
+- **The in-flight panel keyed its hot swap on `profile.family`.** Changing the
+  seed in flight therefore did nothing at all, silently. It is keyed on a hash
+  of the whole build now. A second hash covers the PLANT alone, because
+  `physics.setProfile()` rebuilds the Propulsion and with it the pack: setting a
+  rate must not hand the charge back.
+- **`benchLoop()` handed the startup chain a `{family, buildSeed}` pair** for
+  baked terrain, which can express NOMINAL and INDIVIDUAL and nothing else. It
+  resolves the machine itself now, for both terrains, and sends neither back.
+
+### The radio, over a flight
+
+The jukebox keeps playing when you walk out of it (#120), but there was no way
+back in once a flight had started. The bench panel gained ON AIR / POOL / TRACK
+/ PREV · PLAY · NEXT — a VIEW onto `src/radio.js` exactly like `src/jukebox.js`,
+owning no playback. **Only at the bench and only in flight**: FIELD's music is
+Bible §34's arc (the muffled hack, the ritual duck, the drop), and a transport
+control over it would be a second author on the same scene.
+
+### NON vérifié — rien de tout ça n'a été VU
+
+No browser has rendered `runAirframe()`. The tree and the wiring are checked on
+`tools/lib/fake-dom.mjs`; the appearance of a 45-row scrolling screen, and
+whether the `.bench-row` grammar still reads as a table at that length, is a
+judgement nobody has made yet. Same for the radio rows: `radio` is stubbed in
+the selftest, so no track has actually been heard changing in flight.
+
 ## PHASE 27 — FIELD est un seul écran (issues #209, #211)
 
 Bible §4, première ligne : « Le `GLOBAL SCANNER` est le menu principal après
