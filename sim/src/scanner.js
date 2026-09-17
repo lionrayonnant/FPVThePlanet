@@ -531,10 +531,6 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		});
 	}
 	map.on('click', (e) => {
-		// A mark on the enriched map takes the click before the pin does: clicking
-		// a capture must open its flight, not drop a drop point on top of it.
-		const hit = enrichedHit(e);
-		if (hit) { openSession(hit.sessionId); return; }
 		if (state.mode !== 'live') return;
 		setPin(e.latlng.lat, e.latlng.lng);
 	});
@@ -780,151 +776,87 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	}]));
 	setLayer('MONO');
 
-	// ------------------------------------------------------------ ENRICHED
+	// ------------------------------------------------------- FLIGHT HISTORY
 	//
-	// The one map shows what the operator left in the world (issue #25, spec
-	// §2), behind one toggle, top right — the corner the layer and detail
-	// switches left free. OFF is byte-for-byte today's map, coverage stain
-	// included, and issues no /tracks request at all: the quiet default costs
-	// nothing (Bible §3).
-	const enrichedSwitch = document.createElement('div');
-	enrichedSwitch.className = 'sc-switch sc-enriched-switch';
-	const enrichedBtn = document.createElement('button');
-	enrichedBtn.type = 'button';
-	enrichedSwitch.appendChild(enrichedBtn);
-	const enrichedCtl = L.control({ position: 'topright' });
-	enrichedCtl.onAdd = () => {
-		const box = L.DomUtil.create('div', 'sc-map-controls sc-enriched-controls');
-		box.appendChild(enrichedSwitch);
+	// The one map shows what the operator has already flown (issue #160, was the
+	// ENRICHED map of #25): the tracks left on the ground and the crosses where
+	// a link was lost. Nothing else, nothing clickable — the mode that also put
+	// captures on the map, labelled losses and opened session sheets read as
+	// noise and was removed. One toggle, top right, in the corner the layer and
+	// detail switches left free. OFF is byte-for-byte today's map, coverage
+	// stain included, and issues no /tracks request at all: the quiet default
+	// costs nothing (Bible §3).
+	const historySwitch = document.createElement('div');
+	historySwitch.className = 'sc-switch sc-history-switch';
+	const historyBtn = document.createElement('button');
+	historyBtn.type = 'button';
+	historySwitch.appendChild(historyBtn);
+	const historyCtl = L.control({ position: 'topright' });
+	historyCtl.onAdd = () => {
+		const box = L.DomUtil.create('div', 'sc-map-controls sc-history-controls');
+		box.appendChild(historySwitch);
 		L.DomEvent.disableClickPropagation(box);
 		L.DomEvent.disableScrollPropagation(box);
 		return box;
 	};
-	enrichedCtl.addTo(map);
+	historyCtl.addTo(map);
 
 	// The index is fetched ONCE, on first activation, and kept for the life of
 	// the screen; every move only refilters it (spec §2, "Data flow").
-	const enriched = { on: false, tracks: null, loading: false };
-	// Captures, fetched one session at a time and only when a thumbnail is
-	// actually on screen: the index carries positions, never images.
-	const thumbs = new Map();
-
-	function getThumb(sid, i) {
-		let entry = thumbs.get(sid);
-		if (entry === undefined) {
-			entry = null;
-			thumbs.set(sid, entry);
-			operatorApi.getSession(sid)
-				.then((s) => {
-					const imgs = (s.photos ?? []).map((p) => {
-						if (!p?.dataUrl) return null;
-						const img = new Image();
-						img.src = p.dataUrl;
-						// One redraw per capture that lands. Cheap, and it means a
-						// thumbnail appears as soon as it can rather than on the next pan.
-						img.onload = () => tracksLayer.refresh();
-						return img;
-					});
-					thumbs.set(sid, imgs);
-					tracksLayer.refresh();
-				})
-				// A session whose images cannot be read keeps its empty square. It is
-				// a mark on a map: it must not become an error.
-				.catch(() => { thumbs.set(sid, []); });
-		}
-		return entry?.[i] ?? null;
-	}
+	const history = { on: false, tracks: null, loading: false };
 
 	const tracksLayer = createTracksLayer(L, {
-		getTracks: () => enriched.tracks,
-		getThumb,
+		getTracks: () => history.tracks,
 		ink: token('--warm-white') || '#ece7dd',
 	});
 
-	// The date a loss carries on hover comes from the session, not from the
-	// index: the index is geometry only.
-	const sessionDate = (mark) => {
-		const s = operatorApi.getOperator()?.sessions?.find((x) => x.id === mark?.sessionId);
-		return s?.start ? s.start.slice(0, 10) : null;
-	};
-
-	function renderEnrichedSwitch() {
-		enrichedBtn.textContent = `ENRICHED: ${enriched.on ? 'ON' : 'OFF'}`;
-		enrichedBtn.dataset.on = String(enriched.on);
+	function renderHistorySwitch() {
+		historyBtn.textContent = `FLIGHT HISTORY: ${history.on ? 'ON' : 'OFF'}`;
+		historyBtn.dataset.on = String(history.on);
 	}
 
-	async function setEnriched(on, { persist = true } = {}) {
-		enriched.on = Boolean(on);
-		renderEnrichedSwitch();
+	async function setHistory(on, { persist = true } = {}) {
+		history.on = Boolean(on);
+		renderHistorySwitch();
 		if (persist) {
 			// `settings` is already in OP_WRITABLE_KEYS; merged rather than replaced,
 			// the key does not belong to the scanner alone.
 			try {
 				const op = operatorApi.getOperator();
-				if (op) operatorApi.patch('settings', { ...(op.settings ?? {}), enrichedMap: enriched.on });
+				if (op) operatorApi.patch('settings', { ...(op.settings ?? {}), flightHistoryMap: history.on });
 			} catch { /* no operator loaded: the toggle still works for this screen */ }
 		}
-		if (!enriched.on) {
+		if (!history.on) {
 			map.removeLayer(tracksLayer);
 			return;
 		}
 		tracksLayer.addTo(map);
-		if (enriched.tracks || enriched.loading) return;
-		enriched.loading = true;
+		if (history.tracks || history.loading) return;
+		history.loading = true;
 		try {
 			// No bbox: the whole index once, then refiltered on move. It is a
 			// decimated polyline per flight, capped at 200 flights — a few hundred
 			// kB at worst, against one request per pan otherwise.
-			enriched.tracks = await operatorApi.listTracks();
+			history.tracks = await operatorApi.listTracks();
 		} catch {
 			// No link, no operator, no tracks yet: the toggle stays on and the map
 			// simply has nothing extra to draw. Left null so a later toggle retries.
-			enriched.tracks = null;
+			history.tracks = null;
 		} finally {
-			enriched.loading = false;
+			history.loading = false;
 			tracksLayer.refresh();
 		}
 	}
 
-	enrichedBtn.onclick = () => setEnriched(!enriched.on);
-	renderEnrichedSwitch();
+	historyBtn.onclick = () => setHistory(!history.on);
+	renderHistorySwitch();
 	// Restore the operator's choice. Silent: no fetch happens unless it was ON.
-	if (operatorApi.getOperator()?.settings?.enrichedMap) setEnriched(true, { persist: false });
-
-	// Everything on the enriched map is click-through to the existing session
-	// sheet (spec §2): no new detail UI. `runSessionDetail` is imported on
-	// demand — a static import would close the cycle scanner → session-log →
-	// terminal → scanner.
-	async function openSession(sessionId) {
-		const root = mapHost.closest('.terminal')?.parentElement ?? document.body;
-		const { runSessionDetail } = await import('./session-log.js');
-		const r = await runSessionDetail(root, sessionId, { scenes: state.scenes });
-		// A deleted session leaves the index straight away rather than waiting for
-		// the next screen: its cross is gone the moment its sheet closes.
-		if (r?.deleted && enriched.tracks) {
-			enriched.tracks = enriched.tracks.filter((t) => t.sessionId !== r.deleted);
-			tracksLayer.refresh();
-		}
-		if (r?.revisit) onPickArea?.(r.revisit);
-	}
-
-	// Called from the map's own handlers rather than from the canvas: the
-	// canvas keeps `pointer-events: none` so a drag that starts over a track
-	// still pans the map.
-	function enrichedHit(e) {
-		if (!enriched.on || !map.hasLayer(tracksLayer)) return null;
-		return tracksLayer.hitAt(e.containerPoint);
-	}
-
-	map.on('mousemove', (e) => {
-		if (!enriched.on || !map.hasLayer(tracksLayer)) return;
-		const hit = tracksLayer.hover(e.containerPoint, sessionDate);
-		mapHost.style.cursor = hit ? 'pointer' : '';
-	});
-	map.on('mouseout', () => {
-		if (enriched.on && map.hasLayer(tracksLayer)) tracksLayer.hover(null);
-		mapHost.style.cursor = '';
-	});
+	// `enrichedMap` is the key this toggle carried before #160: the overlay it
+	// switched on is a superset of this one, so an operator who had it ON keeps
+	// their tracks rather than finding the map bare. The new key is written on
+	// the first deliberate toggle.
+	const settings = operatorApi.getOperator()?.settings ?? {};
+	if (settings.flightHistoryMap ?? settings.enrichedMap) setHistory(true, { persist: false });
 
 	// ------------------------------------------------------------ acquisition
 	let resolveScanner;

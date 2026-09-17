@@ -266,6 +266,19 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   de `src/pixel-icons.js` en SVG autonomes (`docs/brand/mark-*.svg`) pour le
   README, avec un mode `--check` contre la dérive.
 
+### Retiré
+
+- **Le mode ENRICHED de la carte du SCANNER** (#160). Les joueurs ne le
+  comprenaient pas : le mot ne dit rien, et ce qu'il ajoutait par-dessus les
+  traces — les captures posées sur la carte, l'étiquette au survol d'une perte,
+  le clic qui ouvrait la fiche de vol — passait inaperçu. Le calque garde les
+  traces laissées au sol et les croix de perte, rien d'autre : il est purement
+  visuel, plus rien n'y est cliquable. Le bouton devient
+  `FLIGHT HISTORY: ON/OFF`, afficher ou masquer l'historique de vol ; OFF reste
+  la carte d'aujourd'hui au bit près et ne déclenche aucune requête, et le choix
+  des opérateurs qui avaient ENRICHED activé est repris. Le lien mort
+  `OPEN MAP — ENRICHED` de l'onglet DATA part avec.
+
 ## [1.1.0] - 2026-09-13
 
 Ce que la première mise en ligne réelle a trouvé. La 1.0.0 a été taguée avant
