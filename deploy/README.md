@@ -333,17 +333,39 @@ Counting the traffic, rather than watching it go by:
 
 ```sh
 # the busiest paths today
-journalctl -u caddy --since today -o cat \
+journalctl -u caddy --since today -o cat | jq -R 'fromjson? // empty' \
   | jq -r 'select(.request?) | .request.uri' | sort | uniq -c | sort -rn | head
 
 # how many distinct /24 blocks reached the game this week
-journalctl -u caddy --since -7d -o cat \
+journalctl -u caddy --since -7d -o cat | jq -R 'fromjson? // empty' \
   | jq -r 'select(.request?) | .request.remote_ip' | sort -u | wc -l
 
 # players, which is a different question: one file per operator, one per flight
 ls /var/lib/fpvtp/operator-state/*.json | wc -l
 find /var/lib/fpvtp/operator-state/tracks -name '*.json' -mtime -7 | wc -l
 ```
+
+`fromjson? // empty` is not optional: the same unit carries systemd's own
+`Reloading…` lines and Caddy's first messages, which are not JSON, and `jq`
+stops on the first one with `parse error: Invalid numeric literal`.
+
+Checking the log works at all, after a reload — the running config first, then
+one request that cannot miss the origin:
+
+```sh
+curl -s localhost:2019/config/ | jq '.apps.http.servers | map_values(.logs)'
+curl -I --resolve fpvtheplanet.com:443:127.0.0.1 https://fpvtheplanet.com/ \
+  -o /dev/null -w 'code=%{http_code}\n'
+journalctl -u caddy --since -1min -o cat | jq -R 'fromjson? // empty' \
+  | jq -r 'select(.request?) | "\(.request.remote_ip)  \(.request.uri)  \(.status)"'
+```
+
+`"srv0": null` means the `log` block is not in the running config — the file
+that was edited is not the one Caddy loads. And `https://127.0.0.1/` with a
+`Host:` header does NOT work as a test: the SNI is then `127.0.0.1`, Caddy has
+no certificate for it and drops the handshake, which `curl -s` hides. `--resolve`
+keeps the real name and still reaches the loopback. A correct line reads
+`127.0.0.0`, the mask applied to the loopback.
 
 The addresses in that log are already masked, so the second command counts
 neighbourhoods and not people. That is the intended resolution: the project
