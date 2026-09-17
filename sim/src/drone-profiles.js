@@ -73,6 +73,16 @@
 // Every family below is a bill of materials taken from the spec catalogue
 // (src/spec-data/: motors.js, propellers.js, frames.js, batteries.js — part
 // number, KV, mass, diameter, pitch, cells, capacity, C rating, nothing else).
+// Two of those part numbers are DATA rather than prose: `motor.part` and
+// `propPart` name the catalogue entry, and profile-schema-selftest checks that
+// the entry exists and that the KV, the diameter and the pitch beside it are
+// the entry's own. The frame and the pack are still named in prose only.
+//
+// ONE part in this file is not in the catalogue: the reference build's 2207 at
+// 2450 KV, which predates the transcription and cannot be moved onto a
+// catalogue wind without moving the anchor every other family is derived from.
+// It lives in OFF_CATALOGUE_MOTORS with its provenance, NOT in SPEC_MOTORS,
+// whose entry count is pinned precisely so a transcription cannot grow a line.
 // The three numbers that are NOT in the catalogue — maxOmega, maxThrustPerMotor
 // and battery.maxCurrent — are derived from it by the three rules below, each
 // anchored on freestyle5, which stays byte-for-byte the reference build.
@@ -97,7 +107,15 @@
 //    shrouded rotor is worth — the ducts are the whole point of the airframe.
 //
 // 3. PACK CURRENT. `maxCurrent` is documented as "A at four motors flat out",
-//    so it is the build's own draw, not the pack's rating:
+//    so it is the build's own draw, not the pack's rating. Those two readings
+//    are what made this field look inconsistent: the reference build says
+//    100 A, and its own 4s-1300 is rated 150C, i.e. 195 A. Both are true and
+//    they are different quantities — the draw and the ceiling. The draw is
+//    this rule; the ceiling is `SPEC_BATTERIES[battery.part].dischargeC *
+//    capacityMah`, and profile-schema-selftest now pins each family against
+//    both. Worth knowing: NO physics reads `maxCurrent`. The pack sags on the
+//    real winding current out of motor.js's torque balance, so this is a
+//    datasheet number — which is exactly why it needs a test and not a reader.
 //        I = 0.67 * 4 * maxThrustPerMotor * torqueRatio * maxOmega
 //                / (cells * 4.0 V)
 //    where the 0.67 is the one constant that makes the formula reproduce the
@@ -109,6 +127,58 @@
 //    as 1/capacity within one chemistry and format. It is NOT applied below
 //    ~1 Ah — see the toothpick, where a 420 mAh cell measures four times what
 //    that extrapolation would claim.
+//
+// 5. PROPELLER INERTIA. `propInertia` is the second moment of one propeller
+//    about its shaft, and it drives spool-up (src/motor.js) and the yaw kick a
+//    snap gets out of accelerating the discs (src/quad.js). Normalised as
+//    k = I / (m * R^2) the seven families used to imply k from 0.115 to 0.620 —
+//    a factor of five across parts that are all the same moulded object at
+//    different sizes, which is not a spread, it is six numbers each chosen on
+//    its own day. Propellers ARE geometrically self-similar: tapered blades
+//    carrying most of their mass inboard, on a hub at almost no radius. A
+//    uniform rod gives k = 1/3; taper and hub pull it into 0.2-0.3; the
+//    reference build sits at
+//        k = 4.0e-6 / (0.004 kg * 0.0635 m^2) = 0.248
+//    which is inside that band and is the one number this rule takes:
+//        propInertia = 0.248 * massG/1000 * propRadius^2
+//    with the mass straight out of src/spec-data/propellers.js. No free
+//    parameter beyond the one anchor, and profile-schema-selftest pins it.
+//
+//    BLADE COUNT does not enter, and that is a result rather than an omission.
+//    The catalogue records a mass per part number and no blade count, so the
+//    question is whether its mass is the prop each family actually flies. Size
+//    by size it is: 4 g for a 5", 7 g for a 6" and 2 g for a 3" are tri-blade
+//    masses, and the three families flying those sizes fly tri-blades; 8 g for
+//    a 7" and 1 g for a 2.5" are BI-blade masses (a tri-blade 7" is 11-12 g),
+//    and the two families flying those sizes fly bi-blades. Every catalogue
+//    mass is already the mass of the prop on the aircraft, so nothing has to be
+//    scaled by a blade count the catalogue never recorded.
+//
+//    WHAT RULE 5 COST, stated because it is a finding and not an oversight.
+//    Correcting `propInertia` moved longrange by 2.1x and swarmNode by 1.5x,
+//    and both left their rise/settle targets and cannot be tuned back inside
+//    them. That is the machine, not the gains. A rotor's own spin-up time
+//    constant, measured through src/motor.js at hover, now reads
+//        cinewhoop 11 ms   heavy5 15   race5 16   freestyle5 19   toothpick 22
+//        swarmNode 40      longrange 49
+//    against a rise-time budget (tools/tune-pid.mjs:limitsFor) of 68 ms for
+//    swarmNode and 72 ms for longrange. An actuator that alone eats two thirds
+//    of the budget cannot be out-gained: a full sweep past the grid reaches the
+//    target on longrange's roll only at P = 0.600, which is a loop gain
+//    (P * torquePerMix / I) of 287 where every other 5-7" family sits between
+//    29 and 75. That is a 1 kg seven-inch tuned like a toothpick, and the grid
+//    ceiling refusing it is the grid ceiling working.
+//
+//    So the tunes below are the best IN-CLASS tunes for machines that are now
+//    right, and the report flags two families it used to pass. The spec's own
+//    acceptance criteria all pass (tools/spec-acceptance-selftest.mjs), which
+//    is the distinction that matters: nothing here is out of spec, two
+//    families are outside a rise/settle target whose derivation counts the
+//    body's inertia and not the rotor's. Widening that derivation, or giving
+//    heavy rotors their own grid the way micros have one, is a decision about
+//    the tuner and belongs to its own lot -- deliberately NOT taken here,
+//    because a ruler must not be adjusted in the same change that needs it.
+//
 // ---------------------------------------------------------------------------
 // WHERE gyroNoise COMES FROM
 //
@@ -209,20 +279,24 @@ export const PROFILES = {
 		armZ: 0.078,
 		inertia: { x: 0.0032, y: 0.0058, z: 0.0030 },
 		propRadius: 0.0635,
-		propInertia: 4.0e-6,
+		propInertia: 4.0e-6,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 3,
+		propPart: '5043',
 		// Geometric pitch in metres (5x4.3x3, the pitch is the 4.3). src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
 		// real hardware, not a coefficient.
 		propPitch: 0.1092,
 		maxThrustPerMotor: 10.0,
 		maxOmega: 3140,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 2207 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 2207 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 2450, noLoadCurrent: 1.0 },
+		motor: { part: '2450-2207', kv: 2450, noLoadCurrent: 1.0 },
 		torqueRatio: 0.019,
 		// inflowGain/buffetGain/lateralGain are corrections against
 		// quad.js's disk-area formula for kInflow/kBuffet/kLateral (see
@@ -232,7 +306,7 @@ export const PROFILES = {
 		buffetGain: 1.000535,
 		lateralGain: 0.999253,
 		bodyDrag: { x: 0.010, y: 0.028, z: 0.010 },
-		battery: { cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 100, dischargeCurve: 'lipo' },
+		battery: { part: '4s-1300', cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 100, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -274,8 +348,9 @@ export const PROFILES = {
 		armZ: 0.074,
 		inertia: { x: 0.0027, y: 0.0049, z: 0.0025 },
 		propRadius: 0.0635,
-		propInertia: 3.6e-6,
+		propInertia: 4.0e-6,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 3,
+		propPart: '5146',
 		// Geometric pitch in metres (catalogue `5146`, 5x4.6x3: 4.6 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -283,12 +358,15 @@ export const PROFILES = {
 		propPitch: 0.11684,
 		maxThrustPerMotor: 14.5,
 		maxOmega: 3653,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 2207 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 2207 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 1900, noLoadCurrent: 1.0 },
+		motor: { part: '1900-2207', kv: 1900, noLoadCurrent: 1.0 },
 		torqueRatio: 0.018,
 		inflowGain: 1.014607,
 		buffetGain: 1.014607,
@@ -297,7 +375,7 @@ export const PROFILES = {
 		// Catalogue `6s-1050` (170 g, 95C). internalOhm = 6 * 2.5 * 1300/1050
 		// mOhm; maxCurrent is rule 3 above, 106 A — a hair over the pack's own
 		// 100 A rating, which is what racing a pack at its rating means.
-		battery: { cells: 6, capacityMah: 1050, internalOhm: 0.0186, maxCurrent: 106, dischargeCurve: 'lipo' },
+		battery: { part: '6s-1050', cells: 6, capacityMah: 1050, internalOhm: 0.0186, maxCurrent: 106, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -306,9 +384,9 @@ export const PROFILES = {
 		gyroNoise: 0.23,          // 1.14 x the reference: same 4 g prop, less roll inertia
 		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.03, d: 5.00e-4 },
+			roll:  { p: 0.038, d: 5.00e-4 },
 			pitch: { p: 0.038, d: 5.00e-4 },
-			yaw:   { p: 0.28, d: 5.00e-4 },
+			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 3.064, pitch: 3.064, yaw: 0.745 },
 		},
 	},
@@ -336,8 +414,9 @@ export const PROFILES = {
 		armZ: 0.060,
 		inertia: { x: 0.0022, y: 0.0040, z: 0.0021 },
 		propRadius: 0.0381,
-		propInertia: 1.8e-6,
+		propInertia: 7.2e-7,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 3,
+		propPart: '3028',
 		// Geometric pitch in metres (catalogue `3028`, 3x2.8x3: 2.8 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -345,12 +424,15 @@ export const PROFILES = {
 		propPitch: 0.07112,
 		maxThrustPerMotor: 3.89,
 		maxOmega: 4871,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 1404 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 1404 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 3800, noLoadCurrent: 0.5 },
+		motor: { part: '3800-1404', kv: 3800, noLoadCurrent: 0.5 },
 		torqueRatio: 0.024,          // ducted props run at higher blade loading
 		inflowGain: 2.322297,        // small disk (3.8 cm prop) needs real correction
 		buffetGain: 2.322297,
@@ -358,7 +440,7 @@ export const PROFILES = {
 		bodyDrag: { x: 0.030, y: 0.045, z: 0.030 },
 		// Catalogue `4s-1300` (156 g, 150C) — the same pack as the reference
 		// build, so the same 0.010 ohm. maxCurrent is rule 3 above.
-		battery: { cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 76, dischargeCurve: 'lipo' },
+		battery: { part: '4s-1300', cells: 4, capacityMah: 1300, internalOhm: 0.010, maxCurrent: 76, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -367,8 +449,8 @@ export const PROFILES = {
 		gyroNoise: 0.11,          // 0.55 x: a 2 g 3" prop on a short arm
 		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.098, d: 1.90e-3 },
-			pitch: { p: 0.098, d: 1.40e-3 },
+			roll:  { p: 0.062, d: 3.00e-4 },
+			pitch: { p: 0.072, d: 3.00e-4 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 1.038, pitch: 1.038, yaw: 0.415 },
 		},
@@ -401,9 +483,14 @@ export const PROFILES = {
 	//   T = 0.1460*(3.6/7)*(2/3)^0.75 * 1.225 * (23868/60)^2 * 0.1778^4 = 10.73 N
 	// 10.73 N a corner on 1.05 kg is 4.17:1, the long-range class — the lowest
 	// thrust-to-weight of the six, which is exactly what a 7" endurance machine
-	// is. `propInertia` follows the blade count: two of the same blades instead
-	// of three, and the hub is a small share of a 7" prop's second moment
-	// because the mass is out at the tip, so 1.1e-5 * 2/3 = 7.3e-6.
+	// is. `propInertia` is rule 5 above and NOT what this comment used to say.
+	// It said "two of the same blades instead of three, so 1.1e-5 * 2/3 =
+	// 7.3e-6", which is wrong twice over: 1.1e-5 was a guess at a tri-blade 7"
+	// that nothing measured, and the catalogue's 8 g for a 7037 is ALREADY a
+	// bi-blade mass (a tri-blade 7" is 11-12 g), so the 2/3 counted the blade
+	// count a second time. Rule 5 on the catalogue mass gives 1.568e-5, which
+	// is 2.1x what the file carried — the largest single correction in this
+	// lot, and the one that most changes how this family spools up.
 	//
 	// INERTIA. Moving the mass forces it, and "scale freestyle5 by mass and by
 	// arm^2" is not good enough here: the extra mass is not spread the way the
@@ -443,8 +530,9 @@ export const PROFILES = {
 		armZ: 0.105,
 		inertia: { x: 0.0093, y: 0.0168, z: 0.0087 },
 		propRadius: 0.0889,
-		propInertia: 7.3e-6,
+		propInertia: 1.568e-5,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 2,
+		propPart: '7037',
 		// Geometric pitch in metres (catalogue `7037`, 7x3.6x2: 3.6 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -452,12 +540,15 @@ export const PROFILES = {
 		propPitch: 0.09144,
 		maxThrustPerMotor: 10.73,
 		maxOmega: 2499,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 2806.5 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 2806.5 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 1300, noLoadCurrent: 1.2 },
+		motor: { part: '1300-2807', kv: 1300, noLoadCurrent: 1.2 },
 		torqueRatio: 0.021,
 		inflowGain: 0.997672,
 		buffetGain: 0.997672,
@@ -467,7 +558,7 @@ export const PROFILES = {
 		// 6 * 2.5 mOhm * 1300/3000 = 6.5 mOhm — the 10 mOhm it used to carry was
 		// the reference 4S 1300's figure, left behind by the extrapolation.
 		// maxCurrent is rule 3 above, 63 A, far inside the pack's own 360 A.
-		battery: { cells: 6, capacityMah: 3000, internalOhm: 0.0065, maxCurrent: 63, dischargeCurve: 'lipo' },
+		battery: { part: '6s-3000', cells: 6, capacityMah: 3000, internalOhm: 0.0065, maxCurrent: 63, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -476,8 +567,8 @@ export const PROFILES = {
 		gyroNoise: 0.19,          // 0.93 x: an 8 g 7" prop, but 2.9 x the inertia to turn
 		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.084, d: 1.40e-3 },
-			pitch: { p: 0.098, d: 1.90e-3 },
+			roll:  { p: 0.072, d: 1.90e-3 },
+			pitch: { p: 0.084, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 4.449, pitch: 4.449, yaw: 0.890 },
 		},
@@ -510,8 +601,9 @@ export const PROFILES = {
 		armZ: 0.080,
 		inertia: { x: 0.0050, y: 0.0090, z: 0.0047 },
 		propRadius: 0.0635,
-		propInertia: 4.0e-6,
+		propInertia: 4.0e-6,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 3,
+		propPart: '5136',
 		// Geometric pitch in metres (catalogue `5136`, 5x3.6x3: 3.6 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -519,12 +611,15 @@ export const PROFILES = {
 		propPitch: 0.09144,
 		maxThrustPerMotor: 11.41,
 		maxOmega: 3665,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 2306 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 2306 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 1750, noLoadCurrent: 1.0 },
+		motor: { part: '1750-2306', kv: 1750, noLoadCurrent: 1.0 },
 		torqueRatio: 0.019,
 		inflowGain: 0.995080,
 		buffetGain: 0.995080,
@@ -532,7 +627,7 @@ export const PROFILES = {
 		bodyDrag: { x: 0.011, y: 0.032, z: 0.011 },
 		// Catalogue `6s-1700` (262 g, 100C). internalOhm = 6 * 2.5 * 1300/1700
 		// mOhm; maxCurrent is rule 3 above.
-		battery: { cells: 6, capacityMah: 1700, internalOhm: 0.0115, maxCurrent: 89, dischargeCurve: 'lipo' },
+		battery: { part: '6s-1700', cells: 6, capacityMah: 1700, internalOhm: 0.0115, maxCurrent: 89, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -607,8 +702,9 @@ export const PROFILES = {
 		// Catalogue BOM closes exactly: 4x5 + 4x1 + 22 + 44 = 90 g.
 		inertia: { x: 5.52e-5, y: 1.026e-4, z: 5.52e-5 },
 		propRadius: 0.03175,
-		propInertia: 3.0e-7,
+		propInertia: 2.5e-7,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 2,
+		propPart: '2521',
 		// Geometric pitch in metres (catalogue `2521`, 2.5x2.1x2: 2.1 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -616,12 +712,15 @@ export const PROFILES = {
 		propPitch: 0.05334,
 		maxThrustPerMotor: 1.20,
 		maxOmega: 5127,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 1103 at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 1103 at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 8000, noLoadCurrent: 0.2 },
+		motor: { part: '8000-1103', kv: 8000, noLoadCurrent: 0.2 },
 		torqueRatio: 0.014,        // bi-blade 2.5" props: modest prop-drag torque, loose yaw
 		inflowGain: 2.806033,      // small disk (3.2 cm prop) needs real correction
 		buffetGain: 2.806033,
@@ -632,7 +731,7 @@ export const PROFILES = {
 		// mOhm a cell, and a 2S micro pack measures four times that. The 45 mOhm
 		// here is the measurement that was already in this profile. maxCurrent is
 		// rule 3 above, 29 A, inside the pack's own 34 A rating.
-		battery: { cells: 2, capacityMah: 420, internalOhm: 0.045, maxCurrent: 29, dischargeCurve: 'lipo' },
+		battery: { part: '2s-420', cells: 2, capacityMah: 420, internalOhm: 0.045, maxCurrent: 29, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -699,14 +798,42 @@ export const PROFILES = {
 	//   maxOmega = 0.765 * 1500 * 6 * 4.0 V = 27 540 rpm = 2884 rad/s
 	//   T = 0.1460*(3.0/6) * 1.225 * (27540/60)^2 * 0.1524^4 = 10.2 N  (4.4:1)
 	//
-	// inertia and torqueRatio are still heavy5 scaled to this mass/arm/prop,
-	// linearly interpolated toward longrange where the prop is genuinely
-	// bigger; inflowGain/buffetGain/lateralGain are the same heavy5<->longrange
-	// interpolation, unmeasured. bodyDrag gets a small bump over that
-	// interpolation for the dome and antennas. All of it is a starting point to
-	// confirm at the bench, per the spec — `pid` alone is the exception: it is
-	// the real measured tune from `node tools/tune-pid.mjs --write swarmNode`,
-	// not a guess.
+	// INERTIA is no longer an interpolation. It used to be heavy5 scaled to this
+	// mass/arm/prop and pulled toward longrange — and then longrange moved out
+	// from under it: it left 0.92 kg and a 7x4x3 tri-blade for 1.05 kg and a
+	// catalogue 7037 bi-blade, and its inertia was rebuilt from the parts. An
+	// interpolation between two families is only as good as its endpoints, so
+	// this one is replaced by the model longrange itself documents: four corner
+	// point masses (motor + prop, catalogue masses) at (+-armX, 0, +-armZ) plus
+	// ONE equivalent box for everything else, the box calibrated on freestyle5.
+	// That model reproduces BOTH its calibration points to 0.3%, which is what
+	// makes it usable here rather than a third guess. With this family's parts
+	// — corner = 47 g motor + 7 g prop, central mass 0.95 - 4*0.054 = 0.734 kg,
+	// the freestyle5 box scaled by this arm (0.090/0.078) —
+	//   x = 0.734*(b^2+c^2)*k^2/12 + 4*0.054*armX^2 = 0.0062
+	//   y = 0.734*(a^2+c^2)*k^2/12 + 8*0.054*armX^2 = 0.0113
+	//   z = 0.734*(a^2+b^2)*k^2/12 + 4*0.054*armZ^2 = 0.0058
+	// 11-13% below the interpolated numbers it replaces, and at
+	// I_yaw/(I_pitch+I_roll) = 0.936 it now sits in the same 0.93 band as every
+	// other family instead of 0.920 on its own.
+	//
+	// The KNOWN departure, stated rather than discovered: ~170 g of mesh radio
+	// gear sits at the MAST, above the centre of mass, and the equivalent box
+	// spreads it through the airframe like any other central mass. Mass held
+	// high adds to roll and yaw inertia and not to pitch, so if this model is
+	// wrong here it is wrong low on x and z. It is the same approximation
+	// longrange makes for its 403 g pack, and nothing at the bench can separate
+	// them yet.
+	//
+	// torqueRatio and inflowGain/buffetGain/lateralGain DO stay the
+	// heavy5<->longrange interpolation: longrange's own were deliberately left
+	// alone when it moved (no rule in this file derives torqueRatio, and the
+	// disc gains are a residual on a disc that did not move), so both endpoints
+	// are where they were and the interpolation still holds. bodyDrag gets a
+	// small bump over it for the dome and antennas. All of that is a starting
+	// point to confirm at the bench, per the spec — `pid` alone is the
+	// exception: it is the real measured tune from `node tools/tune-pid.mjs
+	// --write swarmNode`, not a guess.
 	swarmNode: {
 		family: 'swarmNode',
 		label: 'SWARM NODE',
@@ -715,10 +842,11 @@ export const PROFILES = {
 		radius: 0.15,
 		armX: 0.090,
 		armZ: 0.090,
-		inertia: { x: 0.0071, y: 0.0127, z: 0.0067 },
+		inertia: { x: 0.0062, y: 0.0113, z: 0.0058 },
 		propRadius: 0.0762,
-		propInertia: 6.9e-6,
+		propInertia: 1.008e-5,   // rule 5: 0.248 * propMass * propRadius^2
 		bladeCount: 3,
+		propPart: '6030',
 		// Geometric pitch in metres (catalogue `6030`, 6x3.0x3: 3.0 * 0.0254).
 		// src/blade-element.js turns it
 		// into the blade's twist directly — atan(pitch / 2*pi*r) — so this is
@@ -726,12 +854,15 @@ export const PROFILES = {
 		propPitch: 0.0762,
 		maxThrustPerMotor: 10.2,   // TWR ~= 4.4 at this mass
 		maxOmega: 2884,
-		// The motor itself (src/motor.js). KV is the one this family's own
-		// comment already names; noLoadCurrent is a 2806-class at its nominal pack.
+		// The motor itself (src/motor.js). `part` is the catalogue id
+		// (src/spec-data/motors.js) and `kv` has to match what that entry says —
+		// profile-schema-selftest checks it, so no part number in this file can
+		// drift away from the catalogue or stop existing in it.
+		// noLoadCurrent is a 2806-class at its nominal pack.
 		// Winding resistance is NOT stored: motor.js derives it from maxOmega,
 		// so top-end rpm stays authoritative and this block adds no fitted
 		// constant.
-		motor: { kv: 1500, noLoadCurrent: 1.2 },
+		motor: { part: '1500-2807', kv: 1500, noLoadCurrent: 1.2 },
 		torqueRatio: 0.020,
 		inflowGain: 0.996376,
 		buffetGain: 0.996376,
@@ -740,7 +871,7 @@ export const PROFILES = {
 		// Catalogue `6s-1700` (262 g, 100C) — the catalogue has no 6S 2200, and a
 		// pack that is not in it is not a fact. internalOhm is rule 4,
 		// maxCurrent rule 3.
-		battery: { cells: 6, capacityMah: 1700, internalOhm: 0.0115, maxCurrent: 66, dischargeCurve: 'lipo' },
+		battery: { part: '6s-1700', cells: 6, capacityMah: 1700, internalOhm: 0.0115, maxCurrent: 66, dischargeCurve: 'lipo' },
 		rateFamily: 'actual',
 		throttleBands: { low: 1, med: 1, high: 1 },
 		minThrottle: 0,
@@ -751,10 +882,10 @@ export const PROFILES = {
 		// Measured by `node tools/tune-pid.mjs --write swarmNode` off this
 		// family's own inertia and motor lag. See CLAUDE.md — never hand-edited.
 		pid: {
-			roll:  { p: 0.062, d: 1.90e-3 },
-			pitch: { p: 0.062, d: 1.90e-3 },
+			roll:  { p: 0.084, d: 1.90e-3 },
+			pitch: { p: 0.072, d: 1.90e-3 },
 			yaw:   { p: 0.34, d: 0 },
-			torquePerMix: { roll: 3.407, pitch: 3.407, yaw: 0.757 },
+			torquePerMix: { roll: 3.548, pitch: 3.548, yaw: 0.789 },
 		},
 	},
 };

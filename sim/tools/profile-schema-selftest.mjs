@@ -15,6 +15,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PROFILES, FAMILIES, DEFAULT_FAMILY } from '../src/drone-profiles.js';
+import { SPEC_MOTORS, OFF_CATALOGUE_MOTORS, motorPart } from '../src/spec-data/motors.js';
+import { SPEC_PROPELLERS, INCH } from '../src/spec-data/propellers.js';
+import { SPEC_BATTERIES } from '../src/spec-data/batteries.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -150,6 +153,119 @@ t('every pid block is complete on all three axes', () => {
 	}
 });
 
+// ---------------------------------------------------------------------------
+// The bill of materials. Every family names a part number, and the part number
+// has to exist and to say what the profile says it says.
+
+t('every family names a motor and a propeller that exist', () => {
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		assert.ok(motorPart(p.motor.part), `${family}.motor.part = ${p.motor.part}, in no catalogue`);
+		assert.ok(SPEC_PROPELLERS[p.propPart], `${family}.propPart = ${p.propPart}, in no catalogue`);
+	}
+});
+
+t('the motor a family flies has the KV the family claims', () => {
+	// This is the check that closes the hole freestyle5's 2450 KV sat in: a
+	// part number nobody could resolve, next to a KV nobody could contradict.
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		assert.equal(motorPart(p.motor.part).kv, p.motor.kv,
+			`${family}: part ${p.motor.part} against kv ${p.motor.kv}`);
+	}
+});
+
+t('the propeller a family flies has the diameter and pitch the family flies', () => {
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		const prop = SPEC_PROPELLERS[p.propPart];
+		// The catalogue is in inches and the flight model is in metres. The
+		// catalogue's own numbers carry float noise (3.5999999046325684 is
+		// 3.6), hence a tolerance rather than equality.
+		assert.ok(Math.abs(prop.diameterIn * INCH - 2 * p.propRadius) < 1e-4,
+			`${family}: ${p.propPart} is ${prop.diameterIn}" against propRadius ${p.propRadius}`);
+		assert.ok(Math.abs(prop.pitchIn * INCH - p.propPitch) < 1e-4,
+			`${family}: ${p.propPart} pitch ${prop.pitchIn}" against propPitch ${p.propPitch}`);
+	}
+});
+
+t('the catalogue is not quietly grown to hold what the sim flies', () => {
+	// SPEC_MOTORS is a transcription with a pinned count. A part the sim needs
+	// and the spec does not list belongs in OFF_CATALOGUE_MOTORS, and has to
+	// say why it is allowed to be there.
+	for (const [id, m] of Object.entries(OFF_CATALOGUE_MOTORS)) {
+		assert.ok(!SPEC_MOTORS[id], `${id} is in both the catalogue and the exceptions`);
+		assert.equal(m.id, id, `${id}: id field disagrees with its key`);
+		assert.ok(typeof m.source === 'string' && m.source.length > 40,
+			`${id} has no stated provenance`);
+		assert.ok(num(m.kv) && num(m.massG), `${id} is not a hardware record`);
+	}
+	// And the exceptions stay exceptional: one part, the reference build's.
+	const used = new Set(ALL.map((f) => PROFILES[f].motor.part).filter((id) => OFF_CATALOGUE_MOTORS[id]));
+	assert.deepEqual([...used], ['2450-2207'], `off-catalogue parts in use: ${[...used]}`);
+});
+
+t('the pack a family flies is the pack the catalogue describes', () => {
+	for (const family of ALL) {
+		const b = PROFILES[family].battery;
+		const pack = SPEC_BATTERIES[b.part];
+		assert.ok(pack, `${family}.battery.part = ${b.part}, in no catalogue`);
+		assert.equal(pack.cells, b.cells, `${family}: ${b.part} is ${pack.cells}S`);
+		assert.equal(pack.capacityMah, b.capacityMah, `${family}: ${b.part} is ${pack.capacityMah} mAh`);
+	}
+});
+
+t('maxCurrent is the build\'s own draw, by rule 3, and not the pack\'s rating', () => {
+	// The ambiguity this pins: the reference build states 100 A on a 4s-1300,
+	// and that same pack is rated 150C = 195 A. Both numbers are real and they
+	// are not the same quantity. `maxCurrent` is documented "A at four motors
+	// flat out" -- the DRAW -- and rule 3 in src/drone-profiles.js derives it.
+	// Every family obeys that rule to better than 1%, so the field cannot drift
+	// onto the other reading without this failing.
+	//
+	// Worth knowing while reading this: no physics reads `maxCurrent` today.
+	// The pack sags on the real winding current from src/motor.js's torque
+	// balance (src/battery.js), so this field is a hardware fact on a datasheet
+	// -- which is precisely why it needs a test rather than a reader.
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		const rule3 = 0.67 * 4 * p.maxThrustPerMotor * p.torqueRatio * p.maxOmega / (p.battery.cells * 4.0);
+		const err = Math.abs(rule3 - p.battery.maxCurrent) / p.battery.maxCurrent;
+		assert.ok(err < 0.01,
+			`${family}: rule 3 gives ${rule3.toFixed(1)} A, the file says ${p.battery.maxCurrent} A (${(100 * err).toFixed(1)}%)`);
+	}
+});
+
+t('no build asks its pack for much more than the pack is rated to give', () => {
+	// capacity * C is the pack's own ceiling. This is NOT the same check as the
+	// one above and it is deliberately loose: race5 draws 106 A from a 6s-1050
+	// rated 95C = 99.8 A, which is a hair over and is a real thing a 6" race
+	// build does. A build asking for half again what its pack can give would be
+	// a bill of materials that does not fly, and that is what this catches.
+	for (const family of ALL) {
+		const b = PROFILES[family].battery;
+		const rated = SPEC_BATTERIES[b.part].dischargeC * b.capacityMah / 1000;
+		assert.ok(b.maxCurrent <= 1.1 * rated,
+			`${family}: draws ${b.maxCurrent} A from a pack rated ${rated.toFixed(0)} A`);
+	}
+});
+
+t('propInertia is derived from the propeller, not chosen', () => {
+	// Rule 5 in src/drone-profiles.js: one shape constant for every propeller,
+	// anchored on the reference build, times the catalogue mass and the radius.
+	// Before it, the same normalisation implied k from 0.115 to 0.620 across
+	// seven parts that are the same moulded object at different sizes.
+	const K = 0.248;
+	for (const family of ALL) {
+		const p = PROFILES[family];
+		const m = SPEC_PROPELLERS[p.propPart].massG / 1000;
+		const model = K * m * p.propRadius * p.propRadius;
+		const err = Math.abs(model - p.propInertia) / model;
+		assert.ok(err < 0.01,
+			`${family}: rule 5 gives ${model.toExponential(3)}, the file says ${p.propInertia.toExponential(3)}`);
+	}
+});
+
 t('no family claims an inertia a flat body cannot have', () => {
 	// Perpendicular-axis: for a planar body I_yaw <= I_pitch + I_roll, and a
 	// quad is planar enough that the five measured families all sit at
@@ -158,7 +274,9 @@ t('no family claims an inertia a flat body cannot have', () => {
 	// gains for that whole time. Asserted as the bound, and reported as the
 	// spread, so a family drifting away from the others is visible before it
 	// becomes impossible.
-	for (const f of FAMILIES) {
+	// Over ALL, not FAMILIES: swarmNode is outside the ordinary roster but it
+	// flies, so its inertia answers to the same geometry as everyone else's.
+	for (const f of ALL) {
 		const i = PROFILES[f].inertia;
 		const r = i.y / (i.x + i.z);
 		assert.ok(r < 1, `${f}: I_yaw/(I_pitch+I_roll) = ${r.toFixed(3)}, which no flat body can do`);

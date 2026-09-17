@@ -26,6 +26,96 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **La nomenclature devient vérifiable.** Chaque famille nomme désormais son
+  moteur, son hélice et son pack par leur identifiant de catalogue
+  (`motor.part`, `propPart`, `battery.part`), et `profile-schema-selftest`
+  refuse une référence qui ne résout pas, un KV qui contredit son entrée, une
+  diagonale d'hélice ou un pas qui ne sont pas ceux du catalogue. Le 2207 à
+  2450 KV de la référence — la dernière référence du fichier qui n'était pas un
+  fait — est déclaré dans `OFF_CATALOGUE_MOTORS` avec sa provenance, **pas**
+  dans `SPEC_MOTORS` : ce catalogue est une transcription dont le nombre
+  d'entrées est épinglé, et y ajouter une ligne serait exactement ce que cette
+  vérification existe pour attraper. Rien ne bouge en vol : `freestyle5` reste
+  la référence au bit près.
+
+### Modifié
+
+- **`propInertia` est dérivé au lieu d'être choisi.** Normalisé en
+  `k = I / (m * R^2)`, le fichier impliquait un k de 0,115 à 0,620 sur sept
+  pièces qui sont le même objet moulé à des tailles différentes. Une hélice est
+  géométriquement auto-similaire : pales effilées portant leur masse en dedans,
+  sur un moyeu à rayon quasi nul. La tige uniforme donne 1/3, l'effilement et
+  le moyeu ramènent dans 0,2–0,3, et la référence mesure 0,248 — c'est la
+  constante, et la masse vient du catalogue. Le nombre de pales n'entre pas, et
+  c'est un résultat : 4 g pour un 5", 7 g pour un 6" et 2 g pour un 3" sont des
+  masses de tripale et ces familles volent en tripale ; 8 g pour un 7" et 1 g
+  pour un 2,5" sont des masses de **bipale** (un 7" tripale pèse 11-12 g) et ces
+  familles volent en bipale. Chaque masse du catalogue est déjà celle de
+  l'hélice embarquée. Corrections : cinewhoop −60 %, toothpick −17 %, race5
+  +11 %, swarmNode +46 %, longrange **+115 %** — cette dernière parce que son
+  commentaire comptait le nombre de pales deux fois, en partant d'un 1,1e-5
+  deviné pour un 7" tripale puis en le multipliant par 2/3, alors que les 8 g du
+  catalogue sont déjà la bipale. `freestyle5` et `heavy5` ne bougent pas d'un
+  bit, les six séquences de `npm run replay` le confirment.
+- **L'inertie de `swarmNode` est reconstruite à partir de ses pièces.** Elle
+  était « heavy5 mise à l'échelle, interpolée vers longrange », et longrange a
+  bougé sous elle (0,92 → 1,05 kg, tripale → bipale de catalogue, inertie
+  refaite). Une interpolation ne vaut que ses extrémités : elle est remplacée
+  par le modèle que longrange documente — quatre masses ponctuelles aux coins
+  plus une boîte équivalente calibrée sur freestyle5 —, qui reproduit ses deux
+  points de calibration à 0,3 %. Résultat 11 à 13 % plus bas, et un rapport
+  `I_lacet/(I_tangage+I_roulis)` de 0,942 qui la remet dans la bande où sont les
+  six autres au lieu de 0,920 toute seule. Le départ connu est écrit : ~170 g de
+  radio maillée sont au mât, au-dessus du centre de masse, et la boîte les
+  répartit.
+- **Les six réglages PID sont rebalayés**, plus celui de swarmNode, contre les
+  nouvelles inerties. `freestyle5` et `heavy5` en ressortent identiques.
+
+### Corrigé
+
+- **La convention de `battery.maxCurrent` est tranchée et épinglée.** Le champ
+  est documenté « A aux quatre moteurs plein gaz », donc le **tirage** du build ;
+  la note du pack, elle, vaut `capacité * C` — pour le `4s-1300` de la
+  référence, 195 A contre les 100 A du tirage. Les deux nombres sont vrais et ne
+  sont pas la même grandeur, et c'est cette ambiguïté qui faisait passer le
+  champ pour incohérent. La règle 3 du fichier donne le tirage, les sept
+  familles la respectent à mieux que 1 %, et un test le vérifie — avec un second
+  qui compare au plafond du pack. À savoir en le lisant : **aucune physique ne
+  lit `maxCurrent`**, le pack s'affaisse sur le vrai courant de bobinage issu de
+  la balance de couple de `motor.js`. C'est un chiffre de fiche technique, ce
+  qui est précisément pourquoi il lui faut un test et pas un lecteur.
+
+### Ajouté
+- **`?aero=bem` : l'hélice en théorie de l'élément de pale, éteinte par
+  défaut.** `src/blade-element.js` existait, validé sur 187 hélices de
+  soufflerie, et n'était branché nulle part : le câbler remplace le modèle de
+  poussée et invalide six réglages sur la foi d'un terme edgewise qu'aucun banc
+  d'ici ne peut vérifier — la soufflerie UIUC souffle dans l'axe. Il est donc
+  câblé derrière un drapeau, plombé comme `?loop=`, et le chemin par défaut est
+  **identique au bit près** : `cmp` ne trouve pas un octet d'écart sur les 36
+  traces de `npm run replay`, et un selftest compare 400 pas élément par élément
+  entre le défaut, `aero:'classic'` explicite et un drapeau inconnu. Ce que le
+  drapeau achète, c'est que le terme edgewise devienne **mesurable** à défaut
+  d'être vérifiable : `tools/aero-model-compare.mjs` met les deux modèles côte à
+  côte — poussée, couple et force en plan, du stationnaire à la croisière, plus
+  la garde de #103 jouée contre les deux. Ce qu'il dit : la lame rend 14 à 30 %
+  de poussée en moins au stationnaire, et tout cet écart est `propLossFactor`,
+  qui n'a pas d'équivalent en théorie de l'élément de pale ; sa force en plan
+  vaut 13 à 30 % de ce qu'applique `kLateral`, dont le commentaire dit
+  justement qu'il contient le flapback groupé. Rien n'est basculé, et
+  `sim/docs/PICKUP.md` écrit ce qu'il faudrait pour pouvoir le faire.
+- **Les moments rotor translationnels (#91, révoqués par #103) sont traités en
+  n'étant pas ajoutés.** Le terme edgewise de la lame *est* ce mécanisme ; les
+  ajouter en plus aurait compté la dissymétrie de portance deux fois. Ce que
+  #103 avait révoqué est maintenant compris et chiffré — roulis plein tenu à
+  26-36 m/s faisait passer le pire taux hors axe de 1-2 deg/s à 115-222, et les
+  deux **moments** en plan en sont la totalité (moment de moyeu seul 76, bras de
+  levier du plan rotor seul 48-71 ; portance translationnelle 2, précession 3).
+  Le mode `bem` ne les réintroduit pas, et pas par chance : la lame renvoie une
+  **force** et aucun moment, appliquée au moyeu là où `kLateral` agissait déjà.
+  La garde est désormais jouée contre les deux modèles, et `bem` est partout
+  égal ou meilleur que le défaut.
+
 - **Le gyroscope est allumé, et la boucle de contrôle tourne à 4000 Hz.** Les six
   familles portent un `gyroNoise` mesuré — dérivé de l'unbalance ISO 1940 d'un
   rotor, `m_helice * bras / I_roulis`, ancré à 0,20 rad/s sur la freestyle5 — et

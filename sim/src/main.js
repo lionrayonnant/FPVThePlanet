@@ -3,7 +3,7 @@ import { loadManifest, loadChunks, loadCollision, loadSceneList, sceneBase, setF
 import { releaseTexturePixels } from './TileMaterial.js';
 import { initPhysics, Physics, rotateVec } from './physics.js';
 import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep, parseControlRate } from './frame-pacing.js';
-import { PACK_DRAINS, crashThreshold, idleThrottle } from './quad.js';
+import { PACK_DRAINS, crashThreshold, idleThrottle, parseAeroFlag } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
@@ -162,10 +162,18 @@ export const OPTS = {
 	// 250/500/1000/2000/4000, refused otherwise) lives in frame-pacing.js,
 	// beside the accumulator it substeps.
 	loop: params.get('loop'),
+	// Dev-only: ?aero=bem takes the thrust, the torque and the in-plane force
+	// out of src/blade-element.js instead of the classic kThrust*w^2 model.
+	// NOT TUNED — the six PID tunes belong to the default — and anything but
+	// `bem` is the default, silently. The RULE (and why it falls back instead
+	// of throwing) lives in src/quad.js, beside the model it selects.
+	aero: params.get('aero'),
 };
 // Substeps of the physics step the controller runs, 1 unless ?loop= says
 // otherwise. Throws on a rate the accumulator could not honour exactly.
 const CONTROL_SUBSTEPS = parseControlRate(OPTS.loop);
+// The rotor model every Physics built below is handed, explicitly.
+const AERO_MODEL = parseAeroFlag(OPTS.aero);
 // The swarm a dev scan carries, or null. Throws on anything the game itself
 // could not draw — see tools/dev-flags.mjs for why it refuses instead of
 // clamping.
@@ -1085,7 +1093,8 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	hud.progress('BUILDING COLLISION TREE…', 0.76);
 	hud.detail(`${(manifest.collision.indexCount / 3).toLocaleString()} triangles`);
 	await nextPaint();
-	physics = new Physics(collision, manifest.spawn, PROFILE ? { profile: PROFILE } : {});
+	physics = new Physics(collision, manifest.spawn,
+		{ aero: AERO_MODEL, ...(PROFILE ? { profile: PROFILE } : {}) });
 	// collision.bin has been copied into WASM memory: nothing here reads its JS
 	// arrays again. Give them back at once (issue #249) — otherwise the preload
 	// cache would hold the whole area until the next reload, and the Rapier
@@ -1401,7 +1410,8 @@ async function bootLive([lat, lon], { arm = true } = {}) {
 	// The real spawn point is set on the real ground further down, once the
 	// column's first collider arrives (#182) — this value only survives if no
 	// ground ever appears (a spawn at sea).
-	physics = new Physics(emptyCollision, { x: 0, y: 80, z: 0 }, PROFILE ? { profile: PROFILE } : {});
+	physics = new Physics(emptyCollision, { x: 0, y: 80, z: 0 },
+		{ aero: AERO_MODEL, ...(PROFILE ? { profile: PROFILE } : {}) });
 	PROFILE = physics.profile;
 	audio.setProfile(physics.profile);
 	// The scene path does this through applyEntryState() (finishBoot(), above) —

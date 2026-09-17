@@ -34,3 +34,36 @@ export const SPEC_MOTORS = {
 };
 
 export const SPEC_MOTOR_IDS = Object.keys(SPEC_MOTORS);
+
+// ---------------------------------------------------------------------------
+// OFF THE CATALOGUE.
+//
+// SPEC_MOTORS is a transcription and its count is pinned (SPEC_COUNTS, checked
+// by tools/spec-data-selftest.mjs): an entry added there is a transcription
+// that lost or gained a line, which is exactly what that check exists to catch.
+// So a part the sim flies and the spec does not list goes HERE, with the reason
+// it is allowed to exist, and never into SPEC_MOTORS.
+//
+// One entry, and it is the reference build's. `freestyle5` has flown a 2207 at
+// 2450 KV since before this catalogue was transcribed, and it is byte-for-byte
+// the reference every other family is derived from — so it cannot be moved onto
+// a catalogue wind without moving the anchor of the whole file. The catalogue
+// carries the same 2207 stator at 1900, 2000 and 2700 KV: the two 6S winds and
+// the race wind. 2450 KV is the ordinary 4S freestyle wind of that same stator,
+// it sits inside the range its siblings bracket, and it takes their mass and
+// their fitment window because it is the same stator wound differently.
+export const OFF_CATALOGUE_MOTORS = {
+	"2450-2207": {
+		id: "2450-2207", name: "2207 - 2450kv", massG: 34, kv: 2450,
+		propSizeMin: 4.400000095367432, propSizeMax: 8,
+		// Why this part is allowed to be outside the catalogue. Every entry
+		// here must carry one, and tools/profile-schema-selftest.mjs checks it.
+		source: "The reference build's own motor, predating this catalogue. The 4S wind of the catalogue's 2207 stator (1900/2000/2700 KV), taking its siblings' mass and fitment window.",
+	},
+};
+
+// Every part number a profile may name: the catalogue first, the exceptions
+// after. Returns null for an unknown id, so a caller has to deal with it.
+export function motorPart(id) {
+	return SPEC_MOTORS[id] ?? OFF_CATALOGUE_MOTORS[id] ?? null;
+}

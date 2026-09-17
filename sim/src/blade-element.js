@@ -420,13 +420,34 @@ function azimuthCount(w, R, vEdge) {
 // stopped rotor still returns the drag of four stalled blades sitting in the
 // flow. Neither was expressible before.
 //
-// What this still does NOT return is the 1/rev content that azimuthal
-// integration makes available: the in-plane H-force and the flapping moments
-// (the roll-pitch coupling of #91). Only the mean over a turn comes out here,
-// and quad.js's `kLateral` still carries the in-plane force.
+// `hForce` is the mean IN-PLANE force over a revolution, resolved along the
+// direction of `vEdge` itself, in newtons. It is what the azimuthal
+// integration already contained and did not report: the advancing blade meets
+// omega*r + vEdge and the retreating one omega*r - vEdge, so their tangential
+// loads do not cancel, and what survives is a force opposing the edgewise
+// motion — the rotor drag quad.js otherwise carries as `kLateral * omega * v`,
+// here PREDICTED by the blade instead of fitted to observed behaviour.
+//
+// The sign, derived rather than asserted. With the azimuth measured from the
+// edgewise direction so that the blade's tangential unit vector satisfies
+// t.e = sin(psi) — which is exactly what makes the code's
+// uT = omega*r + vEdge*sin(psi) true — the air's reaction on an element is
+// -dFt along t, so its component along e is -dFt*sin(psi), and the sum of that
+// over a revolution is the three lines added below. NEGATIVE therefore means
+// opposing the edgewise flow, which is the normal case; it is left signed
+// rather than made a magnitude because a windmilling disc is not obliged to
+// drag backwards. In hover dFt does not depend on psi and the sum is zero by
+// the same midpoint symmetry that makes the thrust exact there.
+//
+// What this still does NOT return is the rest of the 1/rev content: the
+// flapping and hub MOMENTS (the roll-pitch coupling of #91). Those were flown
+// once and made the airframe unusable (#103); adding the force without the
+// moments is deliberate, and quad.js applies this one at the hub, exactly
+// where it already applied `kLateral`.
 export function rotorForces(g, omega, vAxial, rho = 1.225, vEdge = 0) {
 	let thrust = 0;
 	let torque = 0;
+	let hForce = 0;
 	const w = Math.abs(omega);
 	const az = azimuthCount(w, g.R, vEdge);
 	// Midpoint rule over one revolution. The offset matters: with psi sampled at
@@ -450,7 +471,7 @@ export function rotorForces(g, omega, vAxial, rho = 1.225, vEdge = 0) {
 		// revolution, and it is the one transcendental in this loop.
 		const bladeLoad = (v, out) => {
 			const uP = vAxial + v;
-			let t = 0, q = 0;
+			let t = 0, q = 0, h = 0;
 			for (let j = 0; j < az; j++) {
 				const uT = uT0 + vEdge * SIN_PSI[j];
 				const u2 = uT * uT + uP * uP;
@@ -462,14 +483,21 @@ export function rotorForces(g, omega, vAxial, rho = 1.225, vEdge = 0) {
 				const { cl, cd } = airfoil(twist - Math.atan2(uP, uT), g.cd0);
 				const qq = k * u2;
 				t += qq * (cl * cosPhi - cd * sinPhi);
-				q += qq * (cl * sinPhi + cd * cosPhi);
+				// This station's tangential load, kept once for the torque (times the
+				// radius) and once for the in-plane force (times -sin psi). Its own
+				// name, and its own accumulator, so thrust and torque come back bit
+				// for bit what they were before the H-force existed.
+				const ft = qq * (cl * sinPhi + cd * cosPhi);
+				q += ft;
+				h -= ft * SIN_PSI[j];
 			}
 			out.thrust = t / az;
 			out.torque = (q / az) * r;
+			out.h = h / az;
 			out.F = tipLoss(g.blades, x, Math.atan2(uP, uT0));
 			return out;
 		};
-		const load = { thrust: 0, torque: 0, F: 1 };
+		const load = { thrust: 0, torque: 0, h: 0, F: 1 };
 		// Induced velocity, from the momentum balance on this annulus. Solved
 		// only where momentum theory HAS a solution: a rotor that is barely
 		// turning, or that the air is driving, is not an actuator disc, and
@@ -554,6 +582,7 @@ export function rotorForces(g, omega, vAxial, rho = 1.225, vEdge = 0) {
 		bladeLoad(vi, load);
 		thrust += load.thrust;
 		torque += load.torque;
+		hForce += load.h;
 	}
-	return { thrust, torque };
+	return { thrust, torque, hForce };
 }

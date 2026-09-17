@@ -11,20 +11,48 @@ choices of its §0.4 deliberately NOT adopted — the rigid body stays, torques
 come from `quad.js`, units are metres.
 
 **On `main`:** PR #161 too — the last family whose numbers were extrapolated.
-Six of six families now sit in the specification's rpm band.
+Six of six families now sit in the specification's rpm band. And PR #163: the
+gyro is on, the control loop runs at 4000 Hz.
+
+**On `spec/profiles-coherence`,** two lots that closed together:
+
+*The bill of materials, made checkable.* Every family names its motor,
+propeller and pack by catalogue id; `propInertia` is derived by one rule
+instead of chosen family by family; swarmNode's inertia is rebuilt from its
+parts rather than interpolated toward a longrange that moved.
+`profile-schema-selftest` now refuses a part number that does not resolve, a KV
+that disagrees with its catalogue entry, a `maxCurrent` off rule 3 and a
+`propInertia` off rule 5. It cost two families their rise/settle target — see
+item 3, which is the finding that lot produced.
+
+*The blade, wired and left off.* `blade-element.js` goes into `quad.js` behind
+`?aero=bem`, off by default and byte-identical when off, with
+`tools/aero-model-compare.mjs` putting the two models side by side. Nothing is
+switched over; items 1 and 2 stay open because what blocks them is data.
 
 ## The one number that says where the model stands
 
 ```
-npm run tune          # 0 of 18 axis/family combinations outside target
+npm run tune          # 3 of 18 axis/family combinations outside target
 ```
 
-It was 4 when this work started, and the two that closed last were not closed by
-tuning. **Twice now, a tune that resisted turned out to be a machine that did not
-exist**: on both the toothpick and longrange, a full P/D sweep on the old
-airframe reached the target at NO point on the grid. Correct the hardware and the
-tuner walks straight in. If an axis will not tune, suspect the profile before the
-gains.
+It was 4 when this work started and reached 0; it is 3 again, and the reason is
+written down rather than outstanding — one is the toothpick's yaw (item 4) and
+two are longrange's roll and pitch, which left the target when its rotor stopped
+being half its real weight (item 3). Every spec acceptance criterion passes.
+
+**Twice, a tune that resisted turned out to be a machine that did not exist**:
+on both the toothpick and longrange, a full P/D sweep on the old airframe
+reached the target at NO point on the grid. If an axis will not tune, suspect
+the profile before the gains.
+
+And once now, the reverse — which is the harder lesson. longrange's roll left
+the target the moment its rotor was given its real weight, and no gain in its
+class brings it back. **A target met is not evidence the machine is right, and a
+target missed is not evidence it is wrong.** Check which of the two is measured
+and which is derived before deciding who to believe: here `propInertia` comes
+from a catalogue mass and one rule, and the rise budget comes from a formula
+that does not know rotors exist.
 
 ## The three tools that make this measurable
 
@@ -44,38 +72,62 @@ gains.
 
 ## What is NOT done, ranked
 
-1. **The toothpick's yaw, and the one line of policy behind it.** It is the
-   single axis/family combination outside target, and two separate problems were
-   found on it. Its inertia claimed `I_yaw/(I_pitch+I_roll)` of 1.150, which no
-   flat body can do — corrected, derived from the parts, and now pinned for every
-   family by `profile-schema-selftest`. **That did not fix the yaw**: retuned, it
-   is worse, because a yaw 21% lighter is 21% quicker past its target.
-   The remaining cause is characterised: a full sweep is overshoot at every point
-   with no D (23–33%) and 450–578 ms of ringing with any D, against a 107 ms
-   limit. That is a D term that cannot be used, and the reason is that
-   `filterScale` deliberately does NOT touch yaw ("opening its filters just lets
-   the loop outrun the motors and hunt"), so yaw keeps the 5"'s 90 Hz gyro and
-   55 Hz D-term cutoffs on a micro whose yaw is an order faster. That policy was
-   written before the gyro had noise in it. It is a design decision, not a sweep.
-
-2. **`blade-element.js` is still not wired into `quad.js`.** The axial model is
-   validated on 187 propellers with no directional bias at any advance ratio;
-   **everything edgewise is unverified** and the UIUC tunnel cannot see it.
-   Wiring it replaces the thrust model and invalidates six tunes on the strength
-   of a term no bench here can check. What is needed first: an edgewise data
-   source, or a measured hover-to-cruise thrust curve from the reference build.
-3. **`propInertia` is inconsistent across families** — normalised as `k·m·R²` it
-   implies k from 0.17 to 0.62. Applying the reference's k moves the cinewhoop by
-   2.5×, which changes spool-up and yaw. Its own lot.
-4. **Translational rotor moments (#91, reverted by #103).** Same physical
-   mechanism as the blade-element edgewise term — do not do both at once.
-5. **`battery.maxCurrent` has no consistent convention.** The reference states
-   100 A on a pack rated 195 A. Either reading makes some value in the file wrong.
-6. **`freestyle5`'s 2450 KV 2207 is in no catalogue** (which has 2000 and 2700).
-   It is the byte-for-byte reference and protected as such, but it is the last
-   part number in the file that is not a fact.
-7. **`swarmNode`'s comment is stale**: it says its inertia is "heavy5 scaled,
-   interpolated toward longrange", and longrange has moved under it.
+1. **`blade-element.js` is wired into `quad.js`, but only behind `?aero=bem`.**
+   The default path is unchanged and BYTE-identical (proved by `cmp` on the 36
+   replay traces, and by a selftest that compares 400 steps element by element),
+   so the six tunes still describe the machine they were measured on. What the
+   flag buys is that the edgewise term is now MEASURABLE where it could not be
+   verified: `tools/aero-model-compare.mjs` puts the two models side by side.
+   What it says, and what has to be settled before the default could move:
+   - the blade gives **14-30% less thrust at hover** than `classic`, and every
+     bit of that is `propLossFactor`, which has no equivalent in blade-element
+     theory (its cd0 is fixed, it cannot see Reynolds). Either that factor
+     describes something real the blade should learn, or it is standing in for
+     something else. Until that is answered `hoverThrottle()` — derived from the
+     classic model — and `bem` cannot coexist: at the stick the controller
+     computes, the machine descends.
+   - the blade's H-force is **13-30% of what `kLateral` applies**. `kLateral`'s
+     own comment says it carries flapback lumped in, so the gap is expected;
+     which of the two is right is not established.
+   - an edgewise data source, or a measured hover-to-cruise thrust curve from
+     the reference build. Still the real blocker. The UIUC tunnel is axial.
+   - a full PID re-sweep, and roughly 2x the flight-model CPU (measured as
+     replay wall time, not profiled per step).
+2. **Translational rotor moments (#91, reverted by #103): handled, by not being
+   added.** The edgewise term of blade-element theory IS this mechanism, so
+   adding the moments separately would count the lift dissymmetry twice. What
+   #103 reverted is now understood and measured: held full roll at 26-36 m/s
+   took the worst off-axis rate from 1-2 deg/s to 115-222 deg/s, and removing
+   the four contributions one at a time showed the two IN-PLANE MOMENTS were
+   the whole of it (hub moment alone 76, rotor-plane lever arm alone 48-71;
+   translational lift 2, precession 3). `bem` does not bring them back, and not
+   by luck: blade-element returns a FORCE and no moment, and `quad.js` applies
+   it at the hub, exactly where `kLateral` already acted. The #103 guard is now
+   run against BOTH models by `tools/aero-model-compare.mjs`, and `bem` is equal
+   or better than the default on every family, both axes.
+3. **Heavy rotors cannot meet the tuner's rise/settle targets, and the targets
+   are the reason.** New, and it is the cost of correcting `propInertia`.
+   `tools/tune-pid.mjs:limitsFor()` derives its budget from the BODY's inertia
+   against sustained torque (`tPhys = rate_max / alpha`) and counts the rotor's
+   own spin-up nowhere — yet that spin-up now measures 11 ms on the cinewhoop
+   and **40 ms on swarmNode, 49 ms on longrange**, against rise budgets of 68
+   and 72 ms. An actuator eating two thirds of the budget cannot be out-gained
+   in class: longrange's roll reaches the target only at P = 0.600, a loop gain
+   (`P * torquePerMix / I`) of 287 where every 5-7" family sits between 29 and
+   75. Two of the eighteen combinations `npm run tune` reports are outside
+   for this reason (longrange, roll and pitch), and so are swarmNode's roll and
+   pitch, which that count never covered — it walks FAMILIES, and swarmNode is
+   deliberately outside the roster. **Every spec acceptance criterion passes** — which is the distinction: they are outside a
+   target, not out of spec. The decision is whether the budget gains a rotor
+   term, or heavy rotors gain their own grid the way micros have one. It was
+   deliberately NOT taken in the lot that created it: a ruler must not be
+   adjusted in the change that needs it.
+4. **The toothpick's yaw, and the one line of policy behind it.** Characterised
+   in full in `src/drone-profiles.js`: a full sweep is overshoot at every point
+   with no D (23-33%) and 450-578 ms of ringing with any D, against a 107 ms
+   limit, because `filterScale` deliberately does not touch yaw and the axis
+   keeps a 5"'s 90 Hz gyro and 55 Hz D-term cutoffs on a micro. That policy was
+   written before the gyro had noise in it. A design decision, not a sweep.
 
 ## Twenty-one defects found in the specification
 
