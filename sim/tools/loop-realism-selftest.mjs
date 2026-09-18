@@ -274,4 +274,71 @@ t('a substepped loop divides the step exactly, and 1 substep divides nothing', (
 	}
 });
 
+// ---------------------------------------------------------------------------
+// 4. filterScale, and the two chains it is allowed to touch (#167)
+//
+// `filterScale` scales the SENSOR cutoffs — gyro and D-term — and roll and
+// pitch also take it on the SETPOINT cutoffs, the feedforward and the RC
+// smoothing. Yaw takes neither: its sensor chain stays at the reference
+// airframe's, and its setpoint chain goes the OTHER WAY, 1 / filterScale,
+// because yaw torque is made by spinning rotors up and down and a rotor time
+// constant does not shrink with the airframe. The reasoning, and the sweep that
+// measured it, are in src/flightController.js.
+//
+// The toothpick is the only family with a filterScale, so it is the only family
+// any of this moves — which is the other half of what these assertions pin.
+const CUTOFFS = (fc, axis) => ({
+	gyro: fc.pid[axis].gyroLpf.hz,
+	d: fc.pid[axis].dLpf.hz,
+	ff: fc.pid[axis].ffLpf.hz,
+	rc: fc.pid[axis].rcLpf[0].hz,
+});
+
+t('yaw keeps the reference sensor chain on every family', () => {
+	const ref = CUTOFFS(new FlightController({ profile: PROFILES[FAMILIES[0]] }), 'yaw');
+	for (const family of Object.keys(PROFILES)) {
+		const c = CUTOFFS(new FlightController({ profile: PROFILES[family] }), 'yaw');
+		assert.equal(c.gyro, ref.gyro, `${family}: yaw gyro cutoff`);
+		assert.equal(c.d, ref.d, `${family}: yaw D-term cutoff`);
+	}
+});
+
+t('yaw shapes its setpoint by 1 / filterScale, the other way up', () => {
+	const ref = CUTOFFS(new FlightController({ profile: PROFILES.freestyle5 }), 'yaw');
+	for (const family of Object.keys(PROFILES)) {
+		const profile = PROFILES[family];
+		const fs = profile.filterScale ?? 1;
+		const c = CUTOFFS(new FlightController({ profile }), 'yaw');
+		assert.ok(Math.abs(c.ff - ref.ff / fs) < 1e-9, `${family}: yaw feedforward cutoff`);
+		assert.ok(Math.abs(c.rc - ref.rc / fs) < 1e-9, `${family}: yaw RC smoothing cutoff`);
+	}
+	// And the one family it is not 1 on is the one family with a filterScale.
+	assert.equal(PROFILES.toothpick.filterScale, 2);
+	const tp = CUTOFFS(new FlightController({ profile: PROFILES.toothpick }), 'yaw');
+	assert.ok(Math.abs(tp.rc - ref.rc / 2) < 1e-9, 'the toothpick smooths yaw twice as slowly');
+});
+
+t('roll and pitch take filterScale on both chains', () => {
+	const ref = CUTOFFS(new FlightController({ profile: PROFILES.freestyle5 }), 'roll');
+	for (const axis of ['roll', 'pitch']) {
+		const c = CUTOFFS(new FlightController({ profile: PROFILES.toothpick }), axis);
+		for (const k of ['gyro', 'd', 'ff', 'rc']) {
+			assert.ok(Math.abs(c[k] - ref[k] * 2) < 1e-9, `toothpick ${axis} ${k} cutoff`);
+		}
+	}
+});
+
+t('a family without a filterScale is untouched by any of it', () => {
+	// Every cutoff on every axis equals the reference chain, which is what makes
+	// the split above a no-op for five families out of six.
+	const ref = new FlightController({ profile: PROFILES.freestyle5 });
+	for (const family of Object.keys(PROFILES)) {
+		if ((PROFILES[family].filterScale ?? 1) !== 1) continue;
+		const fc = new FlightController({ profile: PROFILES[family] });
+		for (const axis of ['roll', 'pitch', 'yaw']) {
+			assert.deepEqual(CUTOFFS(fc, axis), CUTOFFS(ref, axis), `${family} ${axis}`);
+		}
+	}
+});
+
 console.log(`loop-realism-selftest : ${n} tests ok`);

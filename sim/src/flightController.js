@@ -386,16 +386,22 @@ class PT1 {
 }
 
 class AxisPid {
-	// filterScale raises every delay-adding cutoff (gyro, D-term, feedforward, RC
-	// smoothing) for airframes whose rotational dynamics are much faster than the
-	// 5" this chain was set for. A real FC does the same: micro builds run the
-	// filters two to four times higher. 1 == the reference 5" chain, untouched.
+	// filterScale raises the delay-adding SENSOR cutoffs (gyro, D-term) for
+	// airframes whose rotational dynamics are much faster than the 5" this chain
+	// was set for. A real FC does the same: micro builds run the filters two to
+	// four times higher. 1 == the reference 5" chain, untouched.
+	//
+	// `setpointScale` is the same treatment for the cutoffs that shape the
+	// COMMAND rather than the measurement — the feedforward and the RC smoothing.
+	// It follows filterScale unless a caller says otherwise, which is how this
+	// class behaved when it was one number, and the one caller that says
+	// otherwise is yaw (see the constructor of FlightController).
 	// `conditioned` turns on the gyro conditioning chain (RPM notches + dynamic
 	// notch, src/gyro.js). It is null unless the airframe has gyroNoise, and
 	// that is not an optimisation: a notch on a noiseless signal removes
 	// nothing and costs phase, so leaving it in would be a pure handicap. The
 	// filters exist because the noise does.
-	constructor(gains, filterScale = 1, conditioned = false, dMax = D_MAX_RATIO) {
+	constructor(gains, filterScale = 1, conditioned = false, dMax = D_MAX_RATIO, setpointScale = filterScale) {
 		this.g = gains;
 		this.i = 0;
 		this.prevGyro = 0;
@@ -403,8 +409,8 @@ class AxisPid {
 		this.setpoint = 0;
 		this.gyroLpf = new PT1(GYRO_CUTOFF * filterScale);
 		this.dLpf = new PT1(DTERM_CUTOFF * filterScale);
-		this.ffLpf = new PT1(FF_CUTOFF * filterScale);
-		const rc = RC_SMOOTHING * filterScale;
+		this.ffLpf = new PT1(FF_CUTOFF * setpointScale);
+		const rc = RC_SMOOTHING * setpointScale;
 		this.rcLpf = [new PT1(rc), new PT1(rc), new PT1(rc)];
 		this.relaxLpf = new PT1(RELAX_CUTOFF);
 		this.notches = conditioned ? new AxisFilter() : null;
@@ -521,11 +527,43 @@ export class FlightController {
 		// +1, or -1 while Acro3D has the props turning backwards.
 		this.direction = 1;
 		this.gains = buildGains(this.profile);
-		// filterScale only touches roll and pitch. Those loops are gyro-noise /
-		// filter-delay limited, and a fast micro airframe needs them opened up.
-		// Yaw is limited by how fast the motors can spin up and down to unbalance
-		// prop-drag torque — opening its filters just lets the loop outrun the
-		// motors and hunt, so yaw keeps the reference chain on every family.
+		// filterScale opens the SENSOR cutoffs on roll and pitch only. Those loops
+		// are gyro-noise / filter-delay limited, and a fast micro airframe needs
+		// them opened up. Yaw is limited instead by how fast the motors can spin
+		// up and down to unbalance prop-drag torque, so it keeps the reference
+		// chain on every family.
+		//
+		// THAT LINE USED TO BE AN ASSERTION. It said opening yaw's filters "just
+		// lets the loop outrun the motors and hunt", and it was written before the
+		// gyro had noise in it. Measured now, with the noise in the loop, on the
+		// toothpick (the only family with a filterScale), as the best cost a full
+		// P/D sweep of the axis can reach:
+		//
+		//   yaw sensor chain x1, setpoint chain x1   cost  79.6   (the reference)
+		//   yaw sensor chain x2, setpoint chain x1   cost 105.0
+		//   yaw sensor chain x2, setpoint chain x2   cost 139.0
+		//
+		// So the assertion holds and the answer is no: scaling yaw's cutoffs with
+		// the airframe makes every candidate worse, and more of them the more of
+		// the chain is scaled.
+		//
+		// WHAT THE MEASUREMENT FOUND INSTEAD is that yaw wanted the scale the
+		// OTHER WAY UP, and on the command rather than the measurement. filterScale
+		// says "this body is N times quicker than the 5-inch". Roll and pitch may
+		// take their whole chain N times sharper because their actuator scales with
+		// the body. Yaw's does not: yaw torque is made by spinning rotors up and
+		// down, and a rotor time constant does not shrink with the airframe — the
+		// toothpick's is 22 ms against the reference 5-inch's 19 ms, while its yaw
+		// inertia is a fiftieth (drone-profiles.js, rule 5). The body got N times
+		// quicker and the actuator did not, so the SETPOINT has to be shaped N
+		// times more gently, not N times more sharply. Hence 1 / fs, which is the
+		// same number the other way up and introduces no constant of its own —
+		// and is exactly 1, i.e. nothing at all, on every family but the toothpick.
+		//
+		// It is worth a fifth of the overshoot: the toothpick's yaw went from
+		// 21.7% past the commanded rate to 2.2%, at a rise time of 26 ms against
+		// a 47 ms budget. What it does NOT fix is that axis' `settle`, which is a
+		// gyro-noise floor and not a tune — see #171.
 		const fs = this.profile.filterScale ?? 1;
 		// The sensor, the latency and the conditioning chain. All three are
 		// driven by profile fields that are 0 on every family today, so all
@@ -551,7 +589,7 @@ export class FlightController {
 		this.pid = {
 			roll: new AxisPid(this.gains.roll, fs, conditioned, dMax),
 			pitch: new AxisPid(this.gains.pitch, fs, conditioned, dMax),
-			yaw: new AxisPid(this.gains.yaw, 1, conditioned, dMax),
+			yaw: new AxisPid(this.gains.yaw, 1, conditioned, dMax, 1 / fs),
 		};
 		this.agLpf = new PT1(ANTI_GRAVITY_CUTOFF);
 		// The navigation cadence: how much loop time has gone by since the GPS

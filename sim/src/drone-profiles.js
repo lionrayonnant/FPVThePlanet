@@ -174,10 +174,22 @@
 //    acceptance criteria all pass (tools/spec-acceptance-selftest.mjs), which
 //    is the distinction that matters: nothing here is out of spec, two
 //    families are outside a rise/settle target whose derivation counts the
-//    body's inertia and not the rotor's. Widening that derivation, or giving
-//    heavy rotors their own grid the way micros have one, is a decision about
-//    the tuner and belongs to its own lot -- deliberately NOT taken here,
-//    because a ruler must not be adjusted in the same change that needs it.
+//    body's inertia and not the rotor's.
+//
+//    THAT DECISION IS NOW TAKEN, in its own lot (#166), and it turned out to be
+//    both of the two options and not either: the ruler had to learn that rotors
+//    exist AND the search had to be allowed to damp them.
+//      - `tools/tune-pid.mjs:limitsFor()` no longer divides a rate by a
+//        sustained acceleration. It MEASURES the open-loop rise on the same
+//        plant the bench flies, so the rotor's spin-up is counted because it
+//        happens, not because a term was added for it.
+//      - the roll/pitch D grid stopped at 0.0019, which is where freestyle5's
+//        own tune sits. Both of longrange's axes picked that ceiling and still
+//        rang; three more points on the same progression put them inside.
+//    longrange was re-swept against the corrected ruler and is inside every
+//    limit. swarmNode needed no re-sweep at all — the ruler alone exonerated the
+//    tune it already had, which is the strongest evidence that the ruler was
+//    what was wrong.
 //
 // ---------------------------------------------------------------------------
 // WHERE gyroNoise COMES FROM
@@ -567,8 +579,8 @@ export const PROFILES = {
 		gyroNoise: 0.19,          // 0.93 x: an 8 g 7" prop, but 2.9 x the inertia to turn
 		loopDelay: 0.0008,
 		pid: {
-			roll:  { p: 0.072, d: 1.90e-3 },
-			pitch: { p: 0.084, d: 1.90e-3 },
+			roll:  { p: 0.084, d: 2.60e-3 },
+			pitch: { p: 0.098, d: 2.60e-3 },
 			yaw:   { p: 0.34, d: 0 },
 			torquePerMix: { roll: 4.449, pitch: 4.449, yaw: 0.890 },
 		},
@@ -752,6 +764,26 @@ export const PROFILES = {
 		// P/D grid was swept and `node tools/tune-pid.mjs --sweep yaw toothpick`
 		// shows every candidate on it either overshooting past 10 % or ringing for
 		// 366 ms or more.
+		//
+		// BOTH ARE NOW SETTLED (#167), and neither the way the note below expects.
+		// The first is fixed and the second turned out not to be about this family
+		// at all:
+		//
+		//   yaw, as characterised below              10 ms  21.7 % !  settle 110 ms !
+		//   yaw, setpoint chain at 1 / filterScale   26 ms   2.2 %    settle 142 ms !
+		//   the same, with the gyro noise off        26 ms   2.2 %    settle  26 ms
+		//
+		// 1 is below. What it needed was not re-deriving the micro cutoffs but
+		// noticing they were being applied to an axis whose actuator is not micro:
+		// yaw's SETPOINT is now shaped by 1 / filterScale rather than filterScale,
+		// and the overshoot is a tenth of what it was. src/flightController.js
+		// carries the reasoning and the sweep that measured it.
+		//
+		// 2 is not this family's, and it is not a tune: `settle` counts the last
+		// time the rate leaves a +-5 % band, this axis' noise band alone is 4.4 %,
+		// and the same tune settles in 26 ms with the noise off. The metric is
+		// measuring the sensor. See #171 — every family's yaw carries that band,
+		// the toothpick is only the one whose budget is tight enough to notice.
 		//
 		// 1. The RATE alone costs this family 5.6 points of yaw overshoot, before
 		//    any noise. Its filter chain is the only one with `filterScale: 2`, and

@@ -24,6 +24,41 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Le banc de réglage comptait la montée en régime du rotor nulle part
+  (#166).** `tools/tune-pid.mjs:limitsFor()` dérivait son budget de montée et de
+  stabilisation de l'inertie du *corps* contre un couple soutenu
+  (`tPhys = rate_max / alpha`) : une constante de temps rotor de 11 ms sur le
+  cinewhoop mais de 40 ms sur swarmNode et 49 ms sur longrange n'y entrait pas,
+  et un actionneur qui mange à lui seul les deux tiers du budget ne se rattrape
+  pas au gain. Le budget est maintenant *mesuré* sur le même modèle que celui
+  que le banc fait voler — mixeur à la butée depuis un vol stationnaire établi,
+  vitesse angulaire du corps réinjectée dans les rotors. La grille de D en roll
+  et pitch, qui s'arrêtait là où se trouve le réglage de freestyle5, gagne trois
+  points : les deux axes de longrange choisissaient ce plafond et résonnaient
+  encore. longrange a été re-balayé et rentre dans toutes les limites ; swarmNode
+  n'a eu besoin d'aucun re-balayage, la règle corrigée suffit à disculper le
+  réglage qu'il avait déjà. `npm run tune` : 3 combinaisons hors cible sur 18
+  avant, 1 après.
+- **Le lacet d'un micro gardait la mise en forme de consigne d'un 5 pouces
+  (#167).** `filterScale` ne touchait pas le lacet, au motif — jamais mesuré —
+  qu'ouvrir ses filtres laisserait la boucle distancer les moteurs. La mesure,
+  gyro bruité dans la boucle, confirme le refus : ouvrir la chaîne capteur du
+  lacet dégrade tous les candidats d'un balayage P/D complet. Elle montre en
+  revanche que le lacet voulait l'échelle *dans l'autre sens*, et sur la
+  consigne plutôt que sur la mesure : le couple de lacet se fabrique en faisant
+  varier le régime des rotors, et une constante de temps rotor ne rétrécit pas
+  avec la machine. La chaîne de consigne du lacet suit donc `1 / filterScale`,
+  ce qui vaut exactement 1 sur toutes les familles sauf le toothpick. Son
+  dépassement en lacet passe de 21,7 % à 2,2 %.
+- **Le banc de réglage peut enfin nommer swarmNode.** Il parcourait `FAMILIES`,
+  d'où swarmNode est volontairement absent : son réglage n'était donc jamais
+  rapporté ni balayé, et le décompte « N combinaisons hors cible » ne le
+  couvrait pas alors qu'il vole dans le jeu. `node tools/tune-pid.mjs swarmNode`
+  fonctionne ; le parcours par défaut et `--write all` prennent toujours le
+  roster.
+
 ### Ajouté
 
 - **La nomenclature devient vérifiable.** Chaque famille nomme désormais son

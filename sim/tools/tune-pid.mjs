@@ -22,12 +22,12 @@
 // that fails "bounce" is the one that wobbles at the end of every flick.
 //
 // The rise and settle thresholds are not flat numbers: they are derived from
-// how long the airframe physically needs to reach the commanded rate at its own
-// peak angular acceleration, which sustainedAccel() measures off the profile.
-// Otherwise a 1100 deg/s race preset would "fail" for being asked to do more
-// work than a 380 deg/s cinematic one, and yaw — which has an eighth of roll's
-// torque and twice its inertia — would fail permanently no matter how it were
-// tuned.
+// how long the airframe physically needs to reach the commanded rate with the
+// mixer at the stop, which openLoopRise() MEASURES on the same plant the bench
+// flies. Otherwise a 1100 deg/s race preset would "fail" for being asked to do
+// more work than a 380 deg/s cinematic one, and yaw — which has an eighth of
+// roll's torque and twice its inertia — would fail permanently no matter how it
+// were tuned.
 //
 // CLAUDE.md: PID values are measured, not hand-edited. `--write` is how a
 // family's `pid` block is produced; do not type gains into drone-profiles.js.
@@ -205,34 +205,117 @@ function measureTorquePerMix(profile) {
 	return out;
 }
 
+// The open-loop minimum: how long the airframe physically takes to reach 90% of
+// the commanded rate when the mixer is slammed hard over from a settled hover,
+// with no controller in the way. This is a MEASUREMENT of the same plant the
+// bench flies — the real motor torque balance, the real prop load, the real
+// inertia tensor — and no tune can beat it, because no tune can ask the mixer
+// for more than the stop.
+//
+// It replaces `rate_max / sustainedAccel`, which was the same idea done as
+// arithmetic and which counted the rotor's own spin-up NOWHERE. That mattered
+// from the moment `propInertia` answered to one shape rule (drone-profiles.js,
+// rule 5): a rotor time constant is 11 ms on the cinewhoop but 40 ms on
+// swarmNode and 49 ms on longrange, and an actuator eating two thirds of a rise
+// budget cannot be out-gained in class. The formula called that a tuning
+// failure; it was a ruler that did not know rotors exist.
+//
+// The transient the old note warned about is counted here, and counted
+// correctly, which is the whole reason this is an integration and not a
+// division: the one-off reaction torque that accelerating the discs throws into
+// yaw contributes exactly the rate it is worth over exactly the time it lasts,
+// instead of being either extrapolated to a sustained value it cannot hold or
+// thrown away entirely.
+//
+// The body rate is fed back into the rotors, the way `run()` has always fed it
+// back, because a ruler measured on a different plant from the thing it judges
+// is not a ruler. It is worth stating what that is and is not worth, so nobody
+// re-derives it: holding `omega: ZERO` instead — which sustainedAccel()
+// legitimately does, since it only wants the settled torque — costs 4-8 ms on
+// yaw and nothing measurable on roll or pitch. Small, and free.
+//
+// What the measurement DOES say loudly is that these times are not one family
+// scaled: roll ranges 20 ms (toothpick) to 64 ms (longrange), and yaw 8 ms to
+// 128 ms. The toothpick's yaw really does reach 216 deg/s in 8 ms — a fiftieth
+// of the reference yaw inertia — so it gets the tightest budget here by a
+// factor of three. That is the machine. What it still fails is `settle`, and
+// that one is the metric counting gyro noise rather than convergence (#171).
+function openLoopRise(profile, axis) {
+	const comp = AXIS_RATE[axis];
+	const I = profile.inertia;
+	const target = 0.9 * RATE_PRESETS[profile.rates][axis].max * DEG;
+	const prop = new Propulsion({ profile });
+	// Settle the rotors at a hover first. A step is measured FROM somewhere, and
+	// a bench that starts the props at rest charges the airframe for a spin-up
+	// no flick ever pays.
+	const hover = hoverThrottle(profile, IDENTITY_Q);
+	const hold = [hover, hover, hover, hover];
+	for (let i = 0; i < 500; i++) prop.step(hold, { v: ZERO, omega: ZERO, agl: null, shake: 0 }, DT);
+	const motors = FULL_MIX[axis].map((m) => Math.max(0.055, Math.min(1, 0.5 + m * 0.5)));
+	let w = { x: 0, y: 0, z: 0 };
+	const steps = Math.round(2 / DT);
+	for (let i = 0; i < steps; i++) {
+		const { torque } = prop.step(motors, { v: ZERO, omega: BENCH_OMEGA ? w : ZERO, agl: null, shake: 0 }, DT);
+		// I*wdot = tau - w x (I*w), the same Euler step run() integrates.
+		const Iw = { x: I.x * w.x, y: I.y * w.y, z: I.z * w.z };
+		w = {
+			x: w.x + ((torque.x - (w.y * Iw.z - w.z * Iw.y)) / I.x) * DT,
+			y: w.y + ((torque.y - (w.z * Iw.x - w.x * Iw.z)) / I.y) * DT,
+			z: w.z + ((torque.z - (w.x * Iw.y - w.y * Iw.x)) / I.z) * DT,
+		};
+		if (Math.abs(w[comp]) >= target) return (i + 1) * DT;       // s
+	}
+	// The mixer at the stop never gets there: the axis cannot reach its own
+	// commanded rate, which is a rate preset the airframe does not have, not a
+	// budget. Infinity makes every limit infinite and the report says nothing —
+	// so say it here.
+	console.warn(`  ! ${profile.family} ${axis}: the mixer at the stop never reaches ${(RATE_PRESETS[profile.rates][axis].max)} deg/s`);
+	return Infinity;
+}
+
 // 35 ms covers the RC link and the filter chain; the rest is the airframe. The
 // multipliers are the slack a closed loop needs over the open-loop minimum.
-function limitsFor(profile, axis, alpha) {
-	const tPhys = (RATE_PRESETS[profile.rates][axis].max * DEG) / alpha[axis];   // s
+//
+// `bounce` keeps `tPhys`, and deliberately: it asks how much rate is LEFT 100 ms
+// after the stick centres, and its 0.1 s constant was calibrated against the
+// sustained-torque time scale. Swapping the quantity underneath it without
+// re-deriving the constant would move three yaw axes that pass today. Which
+// time scale bounce should be written against is its own question (#170).
+function limitsFor(profile, axis, budget) {
+	const { tOpen, tPhys } = budget[axis];
 	return {
-		rise: 35 + 1500 * tPhys,
+		rise: 35 + 1500 * tOpen,
 		overshoot: 12,
-		settle: 60 + 3000 * tPhys,
+		settle: 60 + 3000 * tOpen,
 		bounce: Math.max(8, 100 * Math.max(0, 1 - 0.1 / tPhys) + 6),
 	};
 }
 
-function alphaFor(profile) {
-	return {
-		roll: sustainedAccel(profile, 'roll'),
-		pitch: sustainedAccel(profile, 'pitch'),
-		yaw: sustainedAccel(profile, 'yaw'),
-	};
+// Both time scales, per axis. Memoised on the profile: `--write` asks for them
+// once per sweep candidate and each one costs a settled hover.
+const BUDGETS = new WeakMap();
+function budgetFor(profile) {
+	const hit = BUDGETS.get(profile);
+	if (hit) return hit;
+	const out = {};
+	for (const axis of AXES) {
+		out[axis] = {
+			tOpen: openLoopRise(profile, axis),
+			tPhys: (RATE_PRESETS[profile.rates][axis].max * DEG) / sustainedAccel(profile, axis),
+		};
+	}
+	BUDGETS.set(profile, out);
+	return out;
 }
 
 function report(profile) {
-	const alpha = alphaFor(profile);
+	const budget = budgetFor(profile);
 	console.log(`\n${profile.family}  —  preset "${profile.rates}" (${RATE_PRESETS[profile.rates].roll.max} deg/s roll)`);
 	console.log('  axis    rise    overshoot   settle   bounce   motor sat   (limit: rise/settle)');
 	let bad = 0;
 	for (const axis of AXES) {
 		const m = metrics(profile, axis);
-		const lim = limitsFor(profile, axis, alpha);
+		const lim = limitsFor(profile, axis, budget);
 		const flag = (k) => (m[k] > lim[k] ? '!' : ' ');
 		if (['rise', 'overshoot', 'settle', 'bounce'].some((k) => m[k] > lim[k])) bad++;
 		console.log(
@@ -291,16 +374,25 @@ function airmodeTest(profile) {
 // drag on rate is large next to their thrust, so P has to hold most of the
 // setpoint on its own — so they get a grid shifted up, the way a real micro
 // tune is.
+//
+// The roll/pitch D range used to stop at 0.0019, which is where freestyle5's
+// own tune sits — a grid whose ceiling is the reference family's answer can
+// only ever confirm it. It refused longrange: with a rise budget that finally
+// counts its rotor (limitsFor), BOTH its axes picked the top of the D range and
+// still rang past the settle limit, which is a grid ceiling and not a machine.
+// Three more points on the same 1.35x progression put both inside every limit.
+// This is the second half of what the heavy-rotor finding needed: the ruler had
+// to learn rotors exist, and the search had to be allowed to damp them.
 function sweepAxis(profile, axis) {
-	const alpha = alphaFor(profile);
-	const lim = limitsFor(profile, axis, alpha);
+	const budget = budgetFor(profile);
+	const lim = limitsFor(profile, axis, budget);
 	const micro = (profile.filterScale ?? 1) > 1.5;
 	const pRange = axis === 'yaw'
 		? (micro ? [0.04, 0.07, 0.11, 0.16, 0.24, 0.32] : [0.10, 0.14, 0.18, 0.22, 0.28, 0.34])
 		: (micro ? [0.08, 0.11, 0.15, 0.20, 0.26, 0.32] : [0.030, 0.038, 0.046, 0.054, 0.062, 0.072, 0.084, 0.098]);
 	const dRange = axis === 'yaw'
 		? (micro ? [0, 0.0005, 0.0010, 0.0020, 0.0035, 0.0055, 0.0080] : [0, 0.0005, 0.0010, 0.0020])
-		: [0.0003, 0.0005, 0.0007, 0.0010, 0.0014, 0.0019];
+		: [0.0003, 0.0005, 0.0007, 0.0010, 0.0014, 0.0019, 0.0026, 0.0035, 0.0047];
 
 	// One regime or two. A tune that is excellent in a hover and rings at speed
 	// is not a better tune, it is a tune measured in one place — so under
@@ -406,7 +498,7 @@ function writeFamily(family) {
 	}
 	for (const axis of AXES) {
 		const b = last[axis];
-		const l = limitsFor(profile, axis, alphaFor(profile));
+		const l = limitsFor(profile, axis, budgetFor(profile));
 		console.log(
 			`  ${axis.padEnd(6)} P=${b.p.toFixed(3)} D=${b.d.toFixed(4)}` +
 			`  rise ${b.rise.toFixed(0)}ms  over ${b.overshoot.toFixed(1)}%` +
@@ -423,6 +515,14 @@ function writeFamily(family) {
 }
 
 // ---------------------------------------------------------------------------
+
+// Which names the CLI will answer to for ONE profile. `FAMILIES` is the roster
+// the menu offers and the default report walks; `PROFILES` also holds swarmNode,
+// which flies in the game and which the tuner could not name at all — so its
+// tune was never reported and never swept, and the "N combinations outside"
+// count silently did not cover it. Naming it explicitly is allowed; the default
+// walk and `--write all` still take the roster, because that is the roster.
+const TUNABLE = Object.keys(PROFILES);
 
 const argv = process.argv.slice(2);
 CRUISE = argv.includes('--cruise');
@@ -442,7 +542,7 @@ if (argv.includes('--write')) {
 } else if (argv.includes('--sweep')) {
 	const rest = argv.filter((a) => a !== '--sweep' && a !== '--cruise');
 	const axis = AXES.includes(rest[0]) ? rest[0] : 'roll';
-	const family = rest.find((a) => FAMILIES.includes(a)) ?? DEFAULT_FAMILY;
+	const family = rest.find((a) => TUNABLE.includes(a)) ?? DEFAULT_FAMILY;
 	const profile = PROFILES[family];
 	const { results } = sweepAxis(profile, axis);
 	console.log(`\nsweep "${axis}" on ${family} — current is P=${profile.pid[axis].p} D=${profile.pid[axis].d}`);
@@ -453,7 +553,7 @@ if (argv.includes('--write')) {
 	}
 	console.log(`\nrun \`node tools/tune-pid.mjs --write ${family}\` to sweep every axis and write the block.`);
 } else {
-	const only = argv.find((a) => FAMILIES.includes(a));
+	const only = argv.find((a) => TUNABLE.includes(a));
 	const fams = only ? [only] : FAMILIES;
 	let bad = 0;
 	for (const f of fams) bad += report(PROFILES[f]);

@@ -1,6 +1,6 @@
 # Picking up FPVThePlanet's flight model
 
-State as of 2026-09-15. Read this before touching `quad.js`, `motor.js`,
+State as of 2026-09-18. Read this before touching `quad.js`, `motor.js`,
 `flightController.js` or `drone-profiles.js`.
 
 ## Where things are
@@ -14,7 +14,14 @@ come from `quad.js`, units are metres.
 Six of six families now sit in the specification's rpm band. And PR #163: the
 gyro is on, the control loop runs at 4000 Hz.
 
-**On `spec/profiles-coherence`,** two lots that closed together:
+**On `main`:** #164 and #163 are merged, and so is the lot that answers what
+they cost — #166 corrected the tuner's rise/settle ruler and its D grid, #167
+corrected yaw's setpoint shaping on micro airframes. Both were spun out of items
+3 and 4 below, both are closed, and both left one metric question behind them
+(#170, #171).
+
+Below, for the record, the two lots that closed together on
+`spec/profiles-coherence`:
 
 *The bill of materials, made checkable.* Every family names its motor,
 propeller and pack by catalogue id; `propInertia` is derived by one rule
@@ -33,13 +40,15 @@ switched over; items 1 and 2 stay open because what blocks them is data.
 ## The one number that says where the model stands
 
 ```
-npm run tune          # 3 of 18 axis/family combinations outside target
+npm run tune          # 1 of 18 axis/family combinations outside target
 ```
 
-It was 4 when this work started and reached 0; it is 3 again, and the reason is
-written down rather than outstanding — one is the toothpick's yaw (item 4) and
-two are longrange's roll and pitch, which left the target when its rotor stopped
-being half its real weight (item 3). Every spec acceptance criterion passes.
+It was 4 when this work started, reached 0, went back to 3, and is 1. The three
+were longrange's roll and pitch, which left the target when its rotor stopped
+being half its real weight, and the toothpick's yaw. Items 3 and 4 closed both,
+and what is left of the third is not a tune at all: the toothpick's yaw `settle`
+counts gyro noise, not convergence — the same tune settles in 26 ms with the
+noise off and 142 ms with it on (#171). Every spec acceptance criterion passes.
 
 **Twice, a tune that resisted turned out to be a machine that did not exist**:
 on both the toothpick and longrange, a full P/D sweep on the old airframe
@@ -71,6 +80,9 @@ that does not know rotors exist.
   only grows because CT goes to zero.
 
 ## What is NOT done, ranked
+
+Entries marked DONE are kept rather than deleted: each is a finding, and the
+reasoning is what stops the next lot re-opening it.
 
 1. **`blade-element.js` is wired into `quad.js`, but only behind `?aero=bem`.**
    The default path is unchanged and BYTE-identical (proved by `cmp` on the 36
@@ -105,29 +117,77 @@ that does not know rotors exist.
    it at the hub, exactly where `kLateral` already acted. The #103 guard is now
    run against BOTH models by `tools/aero-model-compare.mjs`, and `bem` is equal
    or better than the default on every family, both axes.
-3. **Heavy rotors cannot meet the tuner's rise/settle targets, and the targets
-   are the reason.** New, and it is the cost of correcting `propInertia`.
-   `tools/tune-pid.mjs:limitsFor()` derives its budget from the BODY's inertia
-   against sustained torque (`tPhys = rate_max / alpha`) and counts the rotor's
-   own spin-up nowhere — yet that spin-up now measures 11 ms on the cinewhoop
-   and **40 ms on swarmNode, 49 ms on longrange**, against rise budgets of 68
-   and 72 ms. An actuator eating two thirds of the budget cannot be out-gained
-   in class: longrange's roll reaches the target only at P = 0.600, a loop gain
-   (`P * torquePerMix / I`) of 287 where every 5-7" family sits between 29 and
-   75. Two of the eighteen combinations `npm run tune` reports are outside
-   for this reason (longrange, roll and pitch), and so are swarmNode's roll and
-   pitch, which that count never covered — it walks FAMILIES, and swarmNode is
-   deliberately outside the roster. **Every spec acceptance criterion passes** — which is the distinction: they are outside a
-   target, not out of spec. The decision is whether the budget gains a rotor
-   term, or heavy rotors gain their own grid the way micros have one. It was
-   deliberately NOT taken in the lot that created it: a ruler must not be
-   adjusted in the change that needs it.
-4. **The toothpick's yaw, and the one line of policy behind it.** Characterised
-   in full in `src/drone-profiles.js`: a full sweep is overshoot at every point
-   with no D (23-33%) and 450-578 ms of ringing with any D, against a 107 ms
-   limit, because `filterScale` deliberately does not touch yaw and the axis
-   keeps a 5"'s 90 Hz gyro and 55 Hz D-term cutoffs on a micro. That policy was
-   written before the gyro had noise in it. A design decision, not a sweep.
+3. **DONE (#166). Heavy rotors could not meet the tuner's rise/settle targets,
+   and the targets were the reason.** It was the cost of correcting
+   `propInertia`, and it took both of the two options the issue offered rather
+   than either.
+   - `tools/tune-pid.mjs:limitsFor()` derived its budget from the BODY's
+     inertia against sustained torque (`tPhys = rate_max / alpha`) and counted
+     the rotor's own spin-up nowhere — yet that spin-up measures 11 ms on the
+     cinewhoop and **40 ms on swarmNode, 49 ms on longrange**. It now MEASURES
+     the open-loop rise instead, on the same plant the bench flies: mixer at the
+     stop from a settled hover, with the body rate fed back into the rotors. The
+     rotor is counted because it happens, not because a term was added for it.
+     The body rate is fed back into the rotors, as the closed-loop bench has
+     always done; it is worth 4-8 ms on yaw and nothing on roll or pitch, and it
+     is there so the ruler and the thing it judges are the same plant.
+   - the roll/pitch D grid stopped at 0.0019, which is where freestyle5's own
+     tune sits. **A grid whose ceiling is the reference family's answer can only
+     ever confirm it**: both of longrange's axes picked that ceiling and still
+     rang past the settle limit. Three more points on the same 1.35x
+     progression put them inside.
+
+   longrange was re-swept and is inside every limit. **swarmNode needed no
+   re-sweep**: the corrected ruler alone exonerated the tune it already had,
+   which is the strongest evidence available that the ruler was what was wrong.
+   It is also nameable by the tuner now (`node tools/tune-pid.mjs swarmNode`) —
+   it flies in the game and the CLI walked FAMILIES, so its tune had never been
+   reported or swept and the "N outside" count silently did not cover it.
+
+   No other family was re-swept. Their tunes all sit inside the corrected
+   limits, and rewriting four families' gains because the ruler moved would be a
+   change of feel nobody asked for.
+
+4. **DONE (#167). The toothpick's yaw, and the one line of policy behind it.**
+   The policy said `filterScale` must not touch yaw, because *"opening its
+   filters just lets the loop outrun the motors and hunt"*. That was an
+   assertion written before the gyro had noise in it. Measured now, with the
+   noise in the loop, as the best cost a full P/D sweep reaches:
+
+   ```
+   yaw sensor chain x1, setpoint chain x1    79.6      (the reference)
+   yaw sensor chain x2, setpoint chain x1   105.0
+   yaw sensor chain x2, setpoint chain x2   139.0
+   ```
+
+   So the answer is **no**, and the policy stands — measured rather than
+   asserted. What the measurement found instead is that yaw wanted the scale the
+   OTHER WAY UP, and on the command rather than the measurement. `filterScale`
+   says "this body is N times quicker than the 5-inch"; roll and pitch may take
+   their whole chain N times sharper because their actuator scales with the
+   body, and **yaw's does not** — yaw torque is made by spinning rotors up and
+   down, and a rotor time constant does not shrink with the airframe (the
+   toothpick's is 22 ms against the reference 19 ms, while its yaw inertia is a
+   fiftieth). So yaw's SETPOINT chain is shaped by `1 / filterScale`: the same
+   number the other way up, no constant of its own, and exactly 1 on every
+   family but the toothpick. Overshoot **21.7 % -> 2.2 %** at a 26 ms rise
+   against a 47 ms budget.
+
+   What is left is #171 and is not a tune: that axis' `settle` counts gyro
+   noise. Its noise band alone is 4.4 % against a 5 % settle band, and the same
+   tune settles in 26 ms with the noise off. Every family's yaw carries that
+   band; the toothpick is the one whose budget is tight enough to notice.
+
+   And the third thing found while looking is still untouched and still the
+   thing to look at: this is the only family whose inertia breaks the
+   perpendicular-axis bound, `I_yaw / (I_pitch + I_roll)` = 1.15 where a flat
+   body cannot exceed 1. It needs the geometry lot, not the gain sweep.
+
+5. **`bounce` is the last limit written against the old time scale (#170).**
+   `limitsFor()` now derives `rise` and `settle` from a measurement and
+   `bounce` from `tPhys`, the approximation of the same thing. Moving it needs
+   its 0.1 s constant re-derived, which moves three yaw axes that pass today —
+   so it was deliberately not moved in the change that needed it.
 
 ## Twenty-one defects found in the specification
 

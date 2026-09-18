@@ -77,34 +77,31 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 "Adding a map", for the options and for sizing `--radius`.
 
 
-### In flight right now: `claude/drone-gravity-fix-ofdhrh` (2026-09-14)
+### Landed: `claude/drone-gravity-fix-ofdhrh` (closed 2026-09-18)
 
-> **Resuming this? Read [`docs/PICKUP.md`](docs/PICKUP.md) and run `npm run
-> resume` from `sim/`.** That file is the current brief for this branch — what
-> is on it, what is open and in what order — and the script fetches the
-> propeller database, runs the validation that needs it, and runs the physics
-> benches. The block below is the older summary and PICKUP.md supersedes it
-> where they disagree.
+> **This branch is history.** Everything on it reached `main` through the lots
+> that reworked it — the motor torque balance, the rotor defects that made the
+> drone float, frame pacing, the force budget, blade-element — and `main` is far
+> ahead of it. `git cherry origin/main origin/claude/drone-gravity-fix-ofdhrh`
+> still lists eleven commits because the rework landed under different hashes,
+> not because anything is missing: every file the branch added exists on `main`
+> in a later form. Do not resume it; branch from `main`.
+>
+> The same goes for `claude/laughing-hawking-mw7q5a` (#168),
+> `claude/loving-lamport-r1riq2` (#169) and `claude/v1-release-prep-r3gevo`,
+> whose every commit is on `main` by patch-id.
 
-Six commits, not merged, no pull request. Started from "the drone's gravity is
-wrong", then "it floats, it is too light, everywhere". Five of the six are
-flight-model or scheduling fixes, each measured and each with its own guard in
-the selftest chain; the sixth is the instrument that should decide what comes
-next.
+**Read [`docs/PICKUP.md`](docs/PICKUP.md) instead.** It is the current brief for
+the flight model — what is on `main`, what is open and in what order — and
+`npm run resume` from `sim/` fetches the propeller database, runs the validation
+that needs it, and runs the physics benches.
 
-**NOTHING ON THIS BRANCH HAS BEEN FLOWN IN A BROWSER.** Every number in it is
-bench measurement on the pure model. That is the single most important thing to
-change, and it is why the branch is waiting.
+**NOTHING IN THE FLIGHT MODEL HAS BEEN FLOWN IN A BROWSER.** Every number in it
+is bench measurement on the pure model. That is still the single most important
+thing to change.
 
-First thing to do locally, before any more code:
-
-```bash
-git fetch origin claude/drone-gravity-fix-ofdhrh
-git checkout claude/drone-gravity-fix-ofdhrh
-cd sim && npm install && npm run dev
-```
-
-then fly the way that felt wrong, and in the browser console:
+First thing to do locally, before any more code: fly the way that felt wrong,
+and in the browser console:
 
 ```js
 __sim.budget()        // start measuring
@@ -124,18 +121,19 @@ is not the problem and the rendered world scale is the next place to look.
 
 Open items, in the order they matter:
 
-1. The toothpick is measurably worse off (see the motor-model entry below):
-   the tuner reports 4 axis/family combinations outside target where it
-   reported 2. Needs real bench numbers for a 2.5" micro, not an invented
-   value. Worth an issue.
-2. A hover now sits at 0.342 stick, which is right on `TPA_BREAK` (0.35).
+1. A hover sits at 0.342 stick, which is right on `TPA_BREAK` (0.35).
    Unexamined, and the first thing to check if the tune feels odd near hover.
-3. The remaining ranked gaps, none started: blade flapping moment (#91), gyro
-   noise / Betaflight filter chain / loop latency, CT/CQ against advance
-   ratio, thrust clamped at zero.
-4. `race5` shares the toothpick's data problem (48-51% of no-load rpm) but is
-   not yet failing anything.
+2. The remaining ranked gaps: blade-element is wired but off by default and
+   what blocks it is data, not code (PICKUP item 1); CT/CQ against advance
+   ratio; thrust clamped at zero.
+3. `race5` and the `toothpick` share a data problem — 48-51% of no-load rpm
+   where a loaded prop sits at 65-75% — and neither is failing anything now.
+   It needs real bench numbers for a 2.5" micro, not an invented value.
 
+The toothpick entry that used to head this list is closed: the tuner reports
+**1** of 18 axis/family combinations outside target, down from 4, and the one
+that is left is a metric counting gyro noise rather than a tune (#171). See
+PICKUP items 3 and 4 for #166 and #167.
 
 ## Vérifié
 
