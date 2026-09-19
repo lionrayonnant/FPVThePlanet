@@ -77,30 +77,35 @@ pair): `tour-eiffel` and `ile-de-la-cite-et-ile-saint-louis`. To add another:
 "Adding a map", for the options and for sizing `--radius`.
 
 
-### In flight right now: `claude/drone-gravity-fix-ofdhrh` (2026-09-14)
+### The gravity work: on `main` (updated 2026-09-19)
 
-> **Resuming this? Read [`docs/PICKUP.md`](docs/PICKUP.md) and run `npm run
-> resume` from `sim/`.** That file is the current brief for this branch — what
-> is on it, what is open and in what order — and the script fetches the
-> propeller database, runs the validation that needs it, and runs the physics
-> benches. The block below is the older summary and PICKUP.md supersedes it
-> where they disagree.
+> **Picking the flight model back up? Read [`docs/PICKUP.md`](docs/PICKUP.md)
+> and run `npm run resume` from `sim/`.** That file is the current brief — what
+> landed, what is open and in what order — and the script fetches the propeller
+> database, runs the validation that needs it, and runs the physics benches.
+> The block below is the older summary and PICKUP.md supersedes it where they
+> disagree.
 
-Six commits, not merged, no pull request. Started from "the drone's gravity is
-wrong", then "it floats, it is too light, everywhere". Five of the six are
-flight-model or scheduling fixes, each measured and each with its own guard in
-the selftest chain; the sixth is the instrument that should decide what comes
-next.
+This started life as `claude/drone-gravity-fix-ofdhrh`, six commits described
+here as unmerged and waiting. **They are merged**: the lot landed as "Five
+measured gravity defects, a torque-balance motor model, and the bench that
+found them", and the flight-model work that followed it is on `main` too — the
+model traced onto the specification, the last extrapolated family, the gyro and
+the 4 kHz loop, the bill of materials made checkable, the blade wired behind
+`?aero=bem`. What is left open is ranked in PICKUP.md, not here.
 
-**NOTHING ON THIS BRANCH HAS BEEN FLOWN IN A BROWSER.** Every number in it is
-bench measurement on the pure model. That is the single most important thing to
-change, and it is why the branch is waiting.
+It started from "the drone's gravity is wrong", then "it floats, it is too
+light, everywhere". Five of the six commits are flight-model or scheduling
+fixes, each measured and each with its own guard in the selftest chain; the
+sixth is the instrument that decides what comes next.
 
-First thing to do locally, before any more code:
+**NONE OF IT HAS BEEN FLOWN IN A BROWSER, as far as this file records.** Every
+number is bench measurement on the pure model. That is still the single most
+important thing to change.
+
+To do that locally:
 
 ```bash
-git fetch origin claude/drone-gravity-fix-ofdhrh
-git checkout claude/drone-gravity-fix-ofdhrh
 cd sim && npm install && npm run dev
 ```
 
@@ -122,7 +127,8 @@ stick — and the weather is the zone's real forecast. If instead `thrustUp` is
 1.00 and everything else is zero while it still feels light, the flight model
 is not the problem and the rendered world scale is the next place to look.
 
-Open items, in the order they matter:
+Open items as this block was written. Items 1 and 4 are the same data problem
+PICKUP.md now ranks; read that file first, it is newer.
 
 1. The toothpick is measurably worse off (see the motor-model entry below):
    the tuner reports 4 axis/family combinations outside target where it

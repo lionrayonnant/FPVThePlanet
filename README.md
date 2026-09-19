@@ -142,7 +142,7 @@ ground effect, propwash, battery sag) and the controller in
 | `npm run dev` | development: Vite, hot reload |
 | `npm run build` then `node server/index.mjs --dist dist --open` | the game served without Vite, which is also what runs on a server |
 | `npm run build` then `npx electron-builder` | the desktop app (`.exe`, `.AppImage`), with auto-update. The build step is not optional: electron-builder packages `dist/` as it finds it, and `dist/` is gitignored, so skipping it ships whatever bundle was last built |
-| `npm run selftest:ci` | the full chain: 2,700+ checks, no browser, no network, no terrain |
+| `npm run selftest:ci` | the full check chain, about two minutes: no browser, no network, no terrain |
 
 ## Read on
 

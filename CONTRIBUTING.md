@@ -39,8 +39,9 @@ out on purpose:
 ## The rules that actually bite
 
 **Run the selftests once, at the end.** `npm run selftest:ci` from `sim/` is the
-same chain CI runs: roughly 1,200 checks, no browser, no network, no installed
-scene, a couple of minutes. Run it right before you push, not between two edits
+same chain CI runs: no browser, no network, no installed scene, a couple of
+minutes. `docs/manual.md` carries the check count — one place, so it can be
+wrong in only one place. Run it right before you push, not between two edits
 of the same change. While you work, run the selftest of the module you touched
 instead — `node tools/<module>-selftest.mjs` costs seconds.
 
