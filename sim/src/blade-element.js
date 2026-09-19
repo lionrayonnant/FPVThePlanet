@@ -557,7 +557,12 @@ export function rotorForces(g, omega, vAxial, rho = 1.225, vEdge = 0) {
 					Math.abs(vAxial),
 					0.5,
 				);
-				const ceiling = Math.min(3 * vRef, Math.max(uT0, 3 * vRef));
+				// Written `Math.min(3 * vRef, Math.max(uT0, 3 * vRef))`, which is
+				// identically `3 * vRef` whatever the tip speed does: the inner
+				// max is never below its own second argument. The tip speed plays
+				// no part in the bound and never did — what handles a ceiling that
+				// turns out too low is the doubling loop below, not a clamp.
+				const ceiling = 3 * vRef;
 				let lo = 0, hi = 0, found = false;
 				for (let k = 1; k <= SCAN; k++) {
 					const v = (ceiling * k) / SCAN;

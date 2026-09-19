@@ -17,6 +17,22 @@ export const WEIGHTS = [60, 25, 12, 3];
 
 // FNV-1a hash of a string -> 32-bit seed, then xorshift (the same idiom as
 // tools/target-model.mjs and src/link.js: small, deterministic, replayable).
+//
+// The middle shift is a SIGNED `>>`, which a textbook xorshift32 writes `>>>`.
+// It is kept: the generator is still deterministic and still well distributed,
+// but it is not the canonical map, and every seeded thing in the game — entry
+// states, target scans, the dialogue draw, the liveries — would come out
+// different if it were corrected. Nine files carry a copy of this function,
+// and tools/target-selftest.mjs freezes witness scans recorded before the
+// swarm existed, which is a non-regression that re-recording would destroy.
+// Correcting it is therefore one deliberate change to all of them at once, not
+// a fix to be slipped into a file someone happens to be editing.
+//
+// What it costs, measured over the whole state space: the period from a
+// typical seed is 536 870 911 rather than 2^32-1, and one state (0xFC001FFF)
+// maps to 0, which is absorbing. That state has no preimage, so it is only
+// reachable by being hashed into directly — about one seed string in four
+// billion, and then rand() returns 0 for ever.
 export function rngFrom(seed) {
 	let h = 0x811c9dc5;
 	const s = String(seed);
@@ -77,12 +93,15 @@ export const RANGES = {
 // instance.
 //
 // The margin is STRICT, and by construction rather than by luck: a draw is
-// x = x0 + (i + rand()) * dx with 0 <= i <= cols-1, and rngFrom() is an
-// xorshift32 whose state can never reach 0 from a non-zero state — so rand()
-// lives in ]0, 1[, bounds excluded. x is therefore strictly inside ]x0, x1[,
-// never sitting on it. And zoneOf() switches to CAUTION as soon as the margin
-// is <= caution: that exclusion is what guarantees the property, not the 10,000
-// draws in tools/selftest.mjs, which only watch over it.
+// x = x0 + (i + rand()) * dx with 0 <= i <= cols-1, so x lies in ]x0, x1[ as
+// long as rand() stays inside ]0, 1[. The upper bound holds for any 32-bit
+// state (x / 2^32 < 1). The lower one holds for every state this generator
+// actually visits, but NOT by the argument this comment used to make: see
+// rngFrom() above — a state of 0 is unreachable from a non-zero one, yet the
+// signed shift leaves exactly one seed that lands on 0 directly, and rand()
+// then returns 0. A draw on x0 is what that would produce, and zoneOf()
+// switching to CAUTION as soon as the margin is <= caution is what keeps it
+// safe even then. The 10,000 draws in tools/selftest.mjs watch over it.
 function edgeMarginOf(manifest) {
 	return new Geofence(manifest.bbox).effectiveCorridor.caution;
 }
