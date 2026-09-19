@@ -892,7 +892,15 @@ export class Propulsion {
 			// back to the force when a rotor is pushing the other way.
 			staticTotal += s * staticDiag;
 			inflowTotal += s * inflowDiag;
-			groundExtra += s * (tBare * (ground - 1) * (1 - 0.22 * this.propwash));
+			// Read in the order the force is built: ground effect is what the
+			// surface ADDS to the bare thrust, and the vortex-ring loss is the
+			// share propwash then takes off that ground-augmented total. Carrying
+			// the propwash factor here as well as in vrsLoss counted it twice on
+			// the way down, leaving 0.22 * propwash * tBare * (1 - ground) in
+			// Physics.forceBudget()'s residual — a split that said it disagreed
+			// with its own force on exactly the flight that matters, the last half
+			// second of a fast descent onto the ground.
+			groundExtra += s * (tBare * (ground - 1));
 			vrsLoss += s * (tBare * ground * 0.22 * this.propwash);
 
 			// Roll and pitch torque come out of where the motors are, not out of

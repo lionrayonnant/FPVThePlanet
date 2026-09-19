@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { initPhysics, Physics } from '../src/physics.js';
 import { PROFILES, FAMILIES } from '../src/drone-profiles.js';
 import { FlightController, hoverThrottle } from '../src/flightController.js';
-import { GRAVITY, gravityTrimFactor } from '../src/quad.js';
+import { GRAVITY, gravityTrimFactor, Propulsion } from '../src/quad.js';
 
 await initPhysics();
 let n = 0;
@@ -46,6 +46,36 @@ t('the thrust split accounts for the thrust exactly, every family', () => {
 				`${fam} ${JSON.stringify(flight)}: residual ${b.residual}`,
 			);
 		}
+	}
+});
+
+// The Physics-level sweep above flies over an EMPTY collider, so `agl` is null
+// and ground effect never switches on. That is how the split could be wrong
+// near the ground for as long as it was: the invariant was only ever measured
+// where one of its four terms was zero. This one drives the rotor model
+// directly, at the one state where both corrections are live at once.
+t('the split still accounts for the thrust with ground effect AND propwash on', () => {
+	for (const fam of FAMILIES) {
+		const profile = PROFILES[fam];
+		const prop = new Propulsion({ profile });
+		const motors = [0.5, 0.5, 0.5, 0.5];
+		let worst = 0;
+		// Settle the motors, then drop it onto the ground: descending fast enough
+		// to be in the vortex-ring band, close enough for the surface to push back.
+		for (let i = 0; i < 400; i++) {
+			const settled = i > 200;
+			prop.step(motors, {
+				v: { x: 0, y: settled ? -4 : 0, z: 0 },
+				agl: settled ? 0.05 : null,
+			}, DT);
+			if (!settled) continue;
+			const d = prop.diag;
+			worst = Math.max(worst, Math.abs(d.staticThrust + d.inflow + d.groundEffect - d.vortexRing - d.thrust));
+		}
+		// The state has to be the one being tested, or the check passes vacuously.
+		assert.ok(prop.propwash > 0, `${fam}: no propwash, nothing was tested`);
+		assert.ok(prop.diag.groundEffect > 0, `${fam}: no ground effect, nothing was tested`);
+		assert.ok(worst < 1e-9, `${fam}: residual ${worst} N`);
 	}
 });
 
