@@ -5,6 +5,7 @@ import { initPhysics, Physics, rotateVec } from './physics.js';
 import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep, parseControlRate } from './frame-pacing.js';
 import { PACK_DRAINS, crashThreshold, idleThrottle, parseAeroFlag } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
+import { headingOf, bearingTo, windFromBearing, relativeBearing } from './bearing.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
@@ -1989,15 +1990,9 @@ function droneYaw(q) {
 // Physics does not advance when the sim is paused or the settings panel is up —
 // so the motor speeds freeze and a held drone note would be worse than silence.
 // CHASE view is not in that list: the simulation keeps running behind it (D11).
-// Heading of the nose about +Y, for the HUD's relative wind arrow. Only the yaw
-// matters here: the arrow answers "which side is it pushing me from", and that
-// question does not change when the quad is banked.
-function yawOf(q) {
-	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
-}
-
-// Roll and pitch, for the drone OSD's artificial horizon. The same quaternion
-// convention as yawOf just above.
+// Roll and pitch, for the drone OSD's artificial horizon. The heading that goes
+// with them comes from src/bearing.js: every bearing this file publishes is
+// built there, in one convention, rather than re-derived per readout.
 function rollOf(q) {
 	return Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.z * q.z + q.x * q.x));
 }
@@ -2797,7 +2792,7 @@ if (!frozen) {
 			// The track (issue #24): the only two values the aggregated telemetry
 			// did not use, already computed here for the OSD and the sound.
 			throttle: sticks.throttle,
-			headingDeg: yawOf(physics.rotation) * 180 / Math.PI,
+			headingDeg: headingOf(physics.rotation) * 180 / Math.PI,
 			// Coverage (issue #245): a function, called by session.js only when a
 			// sample is due — nothing in between.
 			geo: () => droneGeo(p),
@@ -2840,8 +2835,8 @@ if (!frozen) {
 		lat: here.lat,
 		lon: here.lon,
 		homeDistM: Math.hypot(p.x - spawnX, p.z - spawnZ),
-		homeBearingRad: Math.atan2(spawnX - p.x, spawnZ - p.z),
-		headingRad: yawOf(physics.rotation),
+		homeBearingRad: bearingTo(spawnX - p.x, spawnZ - p.z),
+		headingRad: headingOf(physics.rotation),
 		rollRad: rollOf(physics.rotation),
 		pitchRad: pitchOf(physics.rotation),
 		flightSeconds: (Date.now() - sessionStartedAt) / 1000,
@@ -2873,7 +2868,7 @@ if (!frozen) {
 		rates: RATE_PRESETS[controller.preset].label,
 		usingGamepad: input.usingGamepad,
 		windMs: Math.hypot(physics.wind.out.x, physics.wind.out.z),
-		windRelRad: Math.atan2(physics.wind.out.x, physics.wind.out.z) - yawOf(physics.rotation),
+		windRelRad: relativeBearing(windFromBearing(physics.wind.out.x, physics.wind.out.z), headingOf(physics.rotation)),
 		// The visibility actually seen, fog AND rain: the exact same expression
 		// already used above, so the two can never say different things.
 		visibilityM: fogRange(fog.density + rain.extinction),
