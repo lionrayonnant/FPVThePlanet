@@ -505,11 +505,23 @@ function applyBenchConfig() {
 		benchRates = resolved.rates;
 		benchThrottle = resolved.throttle;
 		flightBuild = build;
+		// The same argument as the pack above, applied to the pilot: a fresh
+		// FlightController starts in `acro` and `armed = true`, so nudging one
+		// rate band from the in-flight panel used to drop an ANGLE flight back
+		// into acro, and quietly re-arm a machine that had been disarmed. Both
+		// are flight state, not configuration: they cross the rebuild.
+		// holdAltitude and the GPS hold point cannot — they are lazily re-armed
+		// on the first step spent in the mode, which re-acquires them where the
+		// machine is now.
+		const wasMode = controller?.mode;
+		const wasArmed = controller?.armed;
 		controller = new FlightController({
 			profile: PROFILE,
 			rates: resolved.rates ?? undefined,
 			throttle: resolved.throttle ?? undefined,
+			mode: wasMode,
 		});
+		if (wasArmed === false) controller.disarm();
 		console.log(`[bench] airframe -> ${PROFILE.family} (${PROFILE.label}) ${resolved.identity}`);
 		// The player's drone follows the airframe (#286): its props, its livery
 		// and its frame are those of the individual actually flying, not of the
@@ -2125,19 +2137,22 @@ function frame() {
 		// the conversion build-node.mjs does the other way.
 		const dronePos = physics.position;
 		const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
-		const droneGeo = ecefToGeodetic(...droneEcef);
+		// Not `droneGeo`: that name is a module-level FUNCTION (the coverage
+		// sampler), and shadowing it here would make any later call to it inside
+		// this block throw a TDZ ReferenceError instead of calling it.
+		const hereGeo = ecefToGeodetic(...droneEcef);
 		// A guard (#182): a degenerate position (the drone gone under the
 		// terrain during a fall, measured at y=-2465 m at Versailles) makes
 		// ecefToGeodetic return NaN — and update({lat:NaN}) then aborts the
 		// WHOLE window in silence (a NaN zone -> 0 desired nodes -> everything
 		// released), a permanent freeze of the streaming. Better to freeze the
 		// WINDOW on its last sane position than to empty it.
-		if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+		if (Number.isFinite(hereGeo.lat) && Number.isFinite(hereGeo.lon)) {
 			// Nothing awaits this promise (that is the point: the frame does not
 			// block on it) — without .catch(), a network failure or a traverse
 			// that throws becomes a silent unhandled promise rejection.
 			// Observability only: no retry here (follow-up ticket).
-			liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+			liveWindow.update({ lat: hereGeo.lat, lon: hereGeo.lon })
 				.catch((err) => console.warn('[rocktree] streaming window: recompute failed', err));
 		}
 	}

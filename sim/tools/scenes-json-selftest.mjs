@@ -1,15 +1,17 @@
-// Vérifie que scenes.json ne liste que des scènes physiquement présentes.
-// C'est le garde-fou côté CI : un clone fresh ne doit jamais présenter de
-// fantômes au joueur.
+// Checks that scenes.json lists only scenes that are physically there. This is
+// the guard on the CI side: a fresh clone must never offer the player a ghost.
+//
+// Local by nature — it reads the scenes installed on THIS machine — so it is
+// `npm run selftest:scenes` and not part of `selftest:ci`.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { SCENES_DIR, SCENES_JSON } from './lib/paths.mjs';
 
-const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const SCENES_DIR = path.join(SIM_ROOT, 'public/scenes');
-const SCENES_JSON = path.join(SIM_ROOT, 'public/scenes.json');
-
+// SCENES_DIR/SCENES_JSON rather than a second spelling of `public/scenes`:
+// under FPVTP_DATA_DIR (what deploy/fpvtp.service sets) the scenes live
+// somewhere else entirely, and a check that reads the repository's copy would
+// pass while the served catalogue is full of ghosts.
 const scenes = fs.existsSync(SCENES_JSON) ? JSON.parse(fs.readFileSync(SCENES_JSON, 'utf8')) : [];
 const ghosts = [];
 
@@ -21,9 +23,9 @@ for (const s of scenes) {
 }
 
 if (ghosts.length) {
-	console.error(`FAIL : ${ghosts.length} scène(s) fantôme(s) dans scenes.json : ${ghosts.join(', ')}`);
-	console.error('       Lancez : node tools/sync-scenes.mjs');
+	console.error(`FAIL: ${ghosts.length} ghost scene(s) in scenes.json: ${ghosts.join(', ')}`);
+	console.error('      Run: node tools/sync-scenes.mjs');
 	process.exit(1);
 }
 
-console.log(`PASS : ${scenes.length} scène(s), toutes présentes sur le disque.`);
+console.log(`PASS  scenes-json-selftest (${scenes.length} scene(s), all present on disk)`);

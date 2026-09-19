@@ -59,8 +59,14 @@ SERVICE="fpvtp"
 SERVICE_USER="fpvtp"
 SERVICE_GROUP="fpvtp"
 UPDATES_DIR="/srv/fpvtp-updates"
-# Must match FPVTP_HOST/FPVTP_PORT in deploy/fpvtp.service.
-HEALTH_URL="http://127.0.0.1:8080/__map-api/scenes"
+# The health check's address is READ from the unit below rather than repeated
+# here — these two are only the fallback, and they are the server's own
+# defaults (server/index.mjs: FPVTP_HOST 127.0.0.1, FPVTP_PORT 8080), used when
+# the unit sets neither. Repeating the port is how a unit edited on the machine
+# ends up deployed green while the script checked a port nobody listens on.
+HEALTH_HOST_FALLBACK="127.0.0.1"
+HEALTH_PORT_FALLBACK="8080"
+HEALTH_PATH="/__map-api/scenes"
 HEALTH_TRIES=30
 
 # --- Small helpers ----------------------------------------------------------
@@ -126,6 +132,18 @@ fi
 [ -d "$RELEASES_DIR" ] || die "$RELEASES_DIR does not exist — the machine has not been prepared (deploy/README.md)."
 systemctl list-unit-files "${SERVICE}.service" --no-legend | grep -q . \
 	|| die "unit ${SERVICE}.service unknown to systemd — install deploy/fpvtp.service (deploy/README.md)."
+
+# What systemd actually loaded, not what this file remembers. `Environment` is
+# printed as one space-separated line of KEY=VALUE.
+# `|| true` because `set -o pipefail` is on: a systemctl that fails here must
+# fall back to the defaults, not end the deploy.
+unit_env() {
+	{ systemctl show -p Environment --value "${SERVICE}.service" 2>/dev/null || true; } \
+		| tr ' ' '\n' | sed -n "s/^$1=//p" | tail -n 1
+}
+HEALTH_HOST="$(unit_env FPVTP_HOST)"
+HEALTH_PORT="$(unit_env FPVTP_PORT)"
+HEALTH_URL="http://${HEALTH_HOST:-$HEALTH_HOST_FALLBACK}:${HEALTH_PORT:-$HEALTH_PORT_FALLBACK}${HEALTH_PATH}"
 
 STAGING="$(mktemp -d /tmp/fpvtp-deploy.XXXXXXXX)"
 
