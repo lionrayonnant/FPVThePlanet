@@ -179,7 +179,10 @@ export function occupancyOf(physics, manifest) {
 	// keeps its fallback.
 	const grid = cells.length
 		? { x0, z0, dx, dz, cols, rows, cells, cellSize: Math.min(dx, dz), full: cells.length === cols * rows }
-		: { x0, z0, dx: x1 - x0, dz: z1 - z0, cols: 1, rows: 1, cells: [0], cellSize: Math.min(dx, dz), full: true };
+		// One cell covering the whole footprint: its size is that footprint, not
+		// the dx/dz of the grid that found nothing — those are still the
+		// per-cell values computed above.
+		: { x0, z0, dx: x1 - x0, dz: z1 - z0, cols: 1, rows: 1, cells: [0], cellSize: Math.min(x1 - x0, z1 - z0), full: true };
 
 	occupancyCache.set(physics, grid);
 	return grid;
