@@ -101,6 +101,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Corrigé
 
+- **Les réglages audio ne prenaient effet qu'au hack suivant.** Les trois
+  curseurs (Volume, Tone, Music) n'étaient branchés sur le son qu'au démarrage
+  d'une scène (`finishBoot`) : ouverts depuis le terminal, ils écrivaient le
+  `localStorage` et leur libellé, et rien d'autre. Le branchement se fait
+  désormais une seule fois, au chargement du module. Et il ne suffisait pas :
+  `audio-bus.js` ignorait un volume demandé avant l'existence du contexte audio
+  — il le mémorise maintenant et construit son graphe à cette valeur.
+
 - **Trois indications du HUD pointaient à l'envers.** Après `prep`, les
   coordonnées sont en mètres ENU locaux avec **Z = sud** : le nord est `-Z`, et
   chaque relèvement porte un signe moins facile à perdre. Trois lectures
