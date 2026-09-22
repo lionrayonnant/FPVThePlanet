@@ -24,6 +24,19 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Modifié
+
+- **Rapier passe de 0.14 à 0.20.** `World.queryPipeline` n'existe plus : le BVH
+  que lisent les requêtes de scène est le broad-phase, et rien d'autre que
+  `step()` ne le remet à jour. `flushNodeColliders()` demande donc le refit par
+  un pas de `dt = 0` — 0,29 ms pour une vague de 400 nœuds, contre les 164 ms
+  de l'ancien refit (#187), le nouveau broad-phase étant incrémental. Un pas de
+  durée nulle n'avance rien **sauf une chose** : il annule la vitesse
+  angulaire, ce qui en vol tuerait la rotation de la machine à chaque vague de
+  streaming. L'état du corps est donc repris après le pas, et
+  `physics-collider-selftest` le verrouille — « le flush n'avance rien ». Aucun
+  seuil de vol ne bouge : `spec-acceptance` passe à l'identique.
+
 ### Ajouté
 
 - **La nomenclature devient vérifiable.** Chaque famille nomme désormais son

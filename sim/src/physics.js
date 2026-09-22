@@ -267,10 +267,37 @@ export class Physics {
 	// over a wave of 400 nodes, #187): add/remove raise a flag instead, and the
 	// caller (processLiveNodeWork, bootLive's wait-for-ground loop) pays for ONE
 	// refit per batch, here.
+	//
+	// Rapier 0.20 removed World.queryPipeline: the BVH the scene queries read is
+	// the broad-phase, and nothing but step() refits it — there is no public
+	// update() left to call. So the refit is asked for with a step of dt = 0,
+	// which costs 0.29 ms for a wave of 400 nodes against the 164 ms above (the
+	// new broad-phase is incremental). The batching stays anyway: it is what
+	// keeps this to one refit per frame rather than one per node.
+	//
+	// A dt = 0 step advances almost nothing — position, orientation and linear
+	// velocity come back bit-identical, and forces added beforehand are still
+	// waiting for the real step. Almost: it ZEROES the angular velocity, which
+	// in flight would kill the machine's rotation on every frame a streaming
+	// wave lands. So the machine's state is taken before and put back after.
+	// physics-collider-selftest holds this to "the flush advances nothing".
 	flushNodeColliders() {
 		if (!this._queryDirty) return;
 		this._queryDirty = false;
-		this.world.queryPipeline.update(this.world.colliders);
+		const t = this.body.translation();
+		const r = this.body.rotation();
+		const lv = this.body.linvel();
+		const av = this.body.angvel();
+		const dt = this.world.integrationParameters.dt;
+		this.world.integrationParameters.dt = 0;
+		// No event queue: a zero-length step reports no contact force, and a
+		// contact that IS there is still there for the real step that follows.
+		this.world.step();
+		this.world.integrationParameters.dt = dt;
+		this.body.setTranslation(t, false);
+		this.body.setRotation(r, false);
+		this.body.setLinvel(lv, false);
+		this.body.setAngvel(av, false);
 	}
 
 	reset() {
