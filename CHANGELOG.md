@@ -24,6 +24,13 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Modifié
+
+- **Vite passe de 6 à 8, Electron à 44.4.3.** Vite 8 bundle avec Rolldown, qui
+  ne lit que la forme FONCTION de `manualChunks` — la forme objet devenait un
+  avertissement puis une exception, et le build tombait. Le découpage (#21) est
+  le même, écrit comme le nouveau bundler le lit : `three` garde son chunk.
+
 ### Ajouté
 
 - **La nomenclature devient vérifiable.** Chaque famille nomme désormais son
