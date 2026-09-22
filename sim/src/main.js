@@ -313,6 +313,17 @@ installClickFlash();
 let controller;
 // Inert until start(): no AudioContext exists before the user's first gesture.
 const audio = new EngineAudio();
+// The three audio sliders, wired ONCE and here rather than in finishBoot(): the
+// panel is reachable from the terminal, long before any scene boots, and a
+// callback wired at boot meant a setting only took effect at the NEXT hack.
+// Calling it before the first gesture is harmless — audio.js keeps the
+// brightness until start(), and audio-bus.js remembers both volumes and builds
+// its graph at them when the context finally exists.
+settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
+	audio.setVolume(volume);
+	audio.setBrightness(brightness);
+	music.setVolume(musicVolume);
+});
 // The hysteresis state of the link's callouts, kept between frames.
 const linkVoice = newLinkState();
 // Everything the render pipeline does beyond renderer.render(). Falls back to a
@@ -1323,12 +1334,6 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	lastSkyHex = NaN;
 	lastDim = NaN;
 	lastNight = NaN;
-
-	settings.setAudio(loadVolume(), loadBrightness(), loadMusicVolume(), (volume, brightness, musicVolume) => {
-		audio.setVolume(volume);
-		audio.setBrightness(brightness);
-		music.setVolume(musicVolume);
-	});
 
 	applyLensAndLink();
 
@@ -3570,10 +3575,6 @@ async function startMenuMusic() {
 	if (radio.owns) return;
 	if (menuMusicStarted) return;
 	menuMusicStarted = true;
-	// The player's music volume is only applied at the scene's boot
-	// (settings.setAudio), long after the menu: without this the terminal's music
-	// would come in at full while the stored setting says otherwise.
-	music.setVolume(loadMusicVolume());
 	const ready = await prepareMenuMusic();
 	// The terminal may already be gone: only start if it is still there,
 	// otherwise the menu music would invite itself over the hack.

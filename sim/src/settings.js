@@ -254,9 +254,11 @@ export class Settings {
 		this._axisRows = [];
 		this.selectTab(activeTab);
 		// Populate every control from storage now, with inert callbacks, so the
-		// panel reads correctly when opened from the terminal before boot(). boot()
-		// calls the same setters again with live callbacks — every setter re-reads
-		// and re-emits, so the second pass is idempotent.
+		// panel reads correctly even if nothing wires it. main.js re-arms the same
+		// setters with live callbacks — every setter re-reads and re-emits, so the
+		// second pass is idempotent. The audio ones are re-armed at module scope,
+		// NOT at boot: the panel is reachable from the terminal, and a slider
+		// wired at boot only took effect at the next hack.
 		this.hydrate();
 	}
 
