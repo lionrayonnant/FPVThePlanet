@@ -54,6 +54,20 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Modifié
 
+- **Le nombre de vérifications n'est plus annoncé à trois endroits
+  différents.** `README.md` disait « 2 700+ », `docs/manual.md` « ~1 430 »,
+  `CONTRIBUTING.md` « environ 1 200 » : trois chiffres pour une seule chaîne.
+  Le manuel le porte seul, mesuré (~3 200), avec la commande qui le recompte.
+  Le manuel gagne au passage la liste complète des scripts de
+  `sim/package.json` — `electron`, `sync-scenes`, `resume`, `replay`,
+  `validate:props` et les autres n'y figuraient nulle part.
+- **`package-lock.json` est réindenté en tabulations**, celles que npm réécrit
+  en lisant `package.json` : chaque `npm install` laissait sinon un diff de
+  5 983 lignes dans l'arbre de travail. Aucune dépendance ne change.
+- **`CLAUDE.md`, `HANDOFF.md` et `docs/PICKUP.md` cessent de décrire un dépôt
+  privé et une branche non fusionnée.** Le passage au public est fait des deux
+  côtés qu'il annonçait (`provider: github`, jeton de déploiement facultatif),
+  et le lot « gravité » est sur `main`.
 - **`propInertia` est dérivé au lieu d'être choisi.** Normalisé en
   `k = I / (m * R^2)`, le fichier impliquait un k de 0,115 à 0,620 sur sept
   pièces qui sont le même objet moulé à des tailles différentes. Une hélice est
@@ -87,6 +101,40 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Corrigé
 
+- **Trois indications du HUD pointaient à l'envers.** Après `prep`, les
+  coordonnées sont en mètres ENU locaux avec **Z = sud** : le nord est `-Z`, et
+  chaque relèvement porte un signe moins facile à perdre. Trois lectures
+  l'avaient perdu, chacune à sa façon. La flèche HOME calculait
+  `atan2(dx, dz)` : le point de départ droit devant était dessiné droit
+  derrière — gauche et droite sortant justes, personne ne l'avait vu. Le ruban
+  de cap publiait le lacet du quaternion, qui est l'**opposé** du cap : nez à
+  l'est, il affichait 270 ; le `headingDeg` de la piste, donc le cap stocké avec
+  chaque photo, portait la même inversion. La flèche de vent du HUD, elle,
+  inversait gauche et droite : un vent de travers venant de gauche était dessiné
+  comme poussant vers la gauche. Les trois sites faisaient chacun leur propre
+  trigonométrie ; `src/bearing.js` la tient désormais seul, et
+  `tools/bearing-selftest.mjs` épingle les cas tels que le pilote les voit.
+- **Le compteur DECODING de l'écran de chargement pouvait passer sous zéro.**
+  Incrémenté sur le seul message `stage: 'decoding'`, il était décrémenté sur
+  **tout** message terminal — y compris l'échec qu'un worker renvoie quand son
+  téléchargement a échoué avant tout décodage. Une planche en 404 et l'écran
+  affichait « DECODING -1 SHEET(S) ».
+- **Un chunk en échec abandonnait ses voisins.** Le chargement entier était
+  rejeté, mais les deux autres workers continuaient de décoder (~135 Mo chacun)
+  vers une scène que personne ne monterait, et les matières déjà poussées dans
+  `tileMaterials` n'étaient jamais rendues : `dispose()` libère le GPU, pas le
+  tampon de pixels JS. Un chargement qui échoue arrête maintenant ses voisins et
+  rend ce qu'il a construit.
+- **Quitter une acquisition laissait fuir son minuteur de silence.** `LEAVE`
+  arrêtait l'horloge, la RTC et le flux SSE, mais pas le minuteur que `finish()`
+  nettoie — et celui-ci écrit dans `.sc-job-note`, résolu contre le panneau
+  monté au moment où il se déclenche. Partir dans les dix secondes puis lancer
+  une autre acquisition faisait écrire « LINK INTERRUPTED » par-dessus le
+  nouveau travail, en bonne santé.
+- **Le pied d'une colonne nulle passait sous l'axe** dans l'onglet DATA
+  (`Math.max(..., v > 0 ? 1 : 1)` contre un sommet planché à 0), et la grille de
+  repli d'`entry-state.js` annonçait un `cellSize` lu sur les cellules de la
+  grille au lieu de son propre pavé.
 - **La convention de `battery.maxCurrent` est tranchée et épinglée.** Le champ
   est documenté « A aux quatre moteurs plein gaz », donc le **tirage** du build ;
   la note du pack, elle, vaut `capacité * C` — pour le `4s-1300` de la

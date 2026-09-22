@@ -123,8 +123,11 @@ export function bars(canvas, { items = [], height = 96, format = round, everyLab
 		const x = p.x + i * step + (step - bw) / 2;
 		ctx.fillStyle = b.selected ? accent() : ink(b.current ? 0.9 : 0.62);
 		// A zero column still gets a one-pixel foot: a week without a flight is
-		// information, and an empty slot is not.
-		ctx.fillRect(Math.round(x), Math.round(p.y + p.h - Math.max(h, v > 0 ? 1 : 0)), bw, Math.max(Math.round(h), v > 0 ? 1 : 1));
+		// information, and an empty slot is not. Both the top and the height take
+		// the same floor of 1 — with the top floored at 0 instead, the foot of a
+		// zero column started AT the baseline and was drawn one pixel under the
+		// axis rule rather than on it.
+		ctx.fillRect(Math.round(x), Math.round(p.y + p.h - Math.max(h, 1)), bw, Math.max(Math.round(h), 1));
 		if (b.label && i % everyLabel === 0) {
 			label(ctx, b.label, x + bw / 2, p.y + p.h + FONT_PX + 4, { align: 'center', alpha: 0.38 });
 		}

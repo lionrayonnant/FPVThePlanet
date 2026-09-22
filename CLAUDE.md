@@ -76,7 +76,7 @@ Documentation
 Sources of truth:
 
 docs/manual.md: commands, maps, prep pipeline.
-docs/brand.md: the mark — geometry, lockups, clear space, what is forbidden. The files live in sim/public/brand/; copy from there rather than re-exporting.
+docs/brand.md: the mark — geometry, lockups, clear space, what is forbidden. The files live in sim/public/brand/ (what the game serves: the mark, the icon, the OG card) and docs/brand/ (what only the repository shows: the banners and the tip marks). Copy from there rather than re-exporting.
 sim/HANDOFF.md: current verified/unverified state only. Detailed per-subsystem session narratives are split into sim/docs/handoff-archive/*.md — read one only when touching that subsystem.
 sim/docs/FPVThePlanet! — Art Direction & Experience Bible.md: the art direction and the target experience. Validated; do not re-litigate it, implement it.
 sim/docs/FPVThePlanet! — DA-UX Implementation Roadmap.md: the 27 phases turning the sim into that experience (PHASE 26 = BENCH, the sandbox mode).
@@ -87,20 +87,19 @@ Prefer updating these docs rather than duplicating information here.
 
 GitHub workflow
 
-Repo: lionrayonnant/FPVThePlanet, being prepared to go public. It carries a
-rewritten history and is NOT the repo the older docs were written against: the
-original, `lionrayonnant/FPVTP`, stays private forever because its
-`refs/pull/*` permanently pin commits that carried a personal email address.
-Issue numbers quoted throughout this repo's history refer to that older repo
-and do not resolve here until the issues are migrated. Push here, never there.
+Repo: lionrayonnant/FPVThePlanet, public. It carries a rewritten history and is
+NOT the repo the older docs were written against: the original,
+`lionrayonnant/FPVTP`, stays private forever because its `refs/pull/*`
+permanently pin commits that carried a personal email address. Issue numbers
+quoted throughout this repo's history refer to that older repo and do not
+resolve here until the issues are migrated. Push here, never there.
 
-Licensed AGPL-3.0-only
-(`LICENSE` at the root, `README.md` is the public front door — `docs/manual.md`
-stays the technical one). Two things change the day the switch is flipped:
-`sim/electron-builder.yml` can move from `provider: generic` to
-`provider: github` (the generic HTTP feed only exists because a private repo
-demands a token for every download), and `deploy/deploy.sh` no longer needs the
-read-only token in `/etc/fpvtp/token`.
+Licensed AGPL-3.0-only (`LICENSE` at the root, `README.md` is the public front
+door — `docs/manual.md` stays the technical one). The two things the switch to
+public was going to change have both been made: `sim/electron-builder.yml`
+publishes through `provider: github`, and the read-only token in
+`/etc/fpvtp/token` is optional to `deploy/deploy.sh` — it now only raises the
+GitHub API rate limit.
 
 At the start of substantive work:
 

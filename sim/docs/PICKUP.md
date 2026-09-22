@@ -1,7 +1,7 @@
 # Picking up FPVThePlanet's flight model
 
-State as of 2026-09-15. Read this before touching `quad.js`, `motor.js`,
-`flightController.js` or `drone-profiles.js`.
+State as of 2026-09-15, branch names refreshed 2026-09-19. Read this before
+touching `quad.js`, `motor.js`, `flightController.js` or `drone-profiles.js`.
 
 ## Where things are
 
@@ -14,7 +14,9 @@ come from `quad.js`, units are metres.
 Six of six families now sit in the specification's rpm band. And PR #163: the
 gyro is on, the control loop runs at 4000 Hz.
 
-**On `spec/profiles-coherence`,** two lots that closed together:
+**On `main`,** two more lots that closed together (merged since this file was
+written, as "Every part number resolves, one propeller was half its weight, and
+the blade is wired with its switch left off"):
 
 *The bill of materials, made checkable.* Every family names its motor,
 propeller and pack by catalogue id; `propInertia` is derived by one rule

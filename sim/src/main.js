@@ -5,6 +5,7 @@ import { initPhysics, Physics, rotateVec } from './physics.js';
 import { FIXED_STEP, MAX_STEPS_PER_FRAME, catchUpStep, parseControlRate } from './frame-pacing.js';
 import { PACK_DRAINS, crashThreshold, idleThrottle, parseAeroFlag } from './quad.js';
 import { CHASE, chaseTarget, chaseStep } from './chase-camera.js';
+import { headingOf, bearingTo, windFromBearing, relativeBearing } from './bearing.js';
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
@@ -504,11 +505,23 @@ function applyBenchConfig() {
 		benchRates = resolved.rates;
 		benchThrottle = resolved.throttle;
 		flightBuild = build;
+		// The same argument as the pack above, applied to the pilot: a fresh
+		// FlightController starts in `acro` and `armed = true`, so nudging one
+		// rate band from the in-flight panel used to drop an ANGLE flight back
+		// into acro, and quietly re-arm a machine that had been disarmed. Both
+		// are flight state, not configuration: they cross the rebuild.
+		// holdAltitude and the GPS hold point cannot — they are lazily re-armed
+		// on the first step spent in the mode, which re-acquires them where the
+		// machine is now.
+		const wasMode = controller?.mode;
+		const wasArmed = controller?.armed;
 		controller = new FlightController({
 			profile: PROFILE,
 			rates: resolved.rates ?? undefined,
 			throttle: resolved.throttle ?? undefined,
+			mode: wasMode,
 		});
+		if (wasArmed === false) controller.disarm();
 		console.log(`[bench] airframe -> ${PROFILE.family} (${PROFILE.label}) ${resolved.identity}`);
 		// The player's drone follows the airframe (#286): its props, its livery
 		// and its frame are those of the individual actually flying, not of the
@@ -1989,15 +2002,9 @@ function droneYaw(q) {
 // Physics does not advance when the sim is paused or the settings panel is up —
 // so the motor speeds freeze and a held drone note would be worse than silence.
 // CHASE view is not in that list: the simulation keeps running behind it (D11).
-// Heading of the nose about +Y, for the HUD's relative wind arrow. Only the yaw
-// matters here: the arrow answers "which side is it pushing me from", and that
-// question does not change when the quad is banked.
-function yawOf(q) {
-	return Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
-}
-
-// Roll and pitch, for the drone OSD's artificial horizon. The same quaternion
-// convention as yawOf just above.
+// Roll and pitch, for the drone OSD's artificial horizon. The heading that goes
+// with them comes from src/bearing.js: every bearing this file publishes is
+// built there, in one convention, rather than re-derived per readout.
 function rollOf(q) {
 	return Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.z * q.z + q.x * q.x));
 }
@@ -2130,19 +2137,22 @@ function frame() {
 		// the conversion build-node.mjs does the other way.
 		const dronePos = physics.position;
 		const droneEcef = localEnuToEcef(dronePos, liveWindow.originEcef, liveWindow.originBasis);
-		const droneGeo = ecefToGeodetic(...droneEcef);
+		// Not `droneGeo`: that name is a module-level FUNCTION (the coverage
+		// sampler), and shadowing it here would make any later call to it inside
+		// this block throw a TDZ ReferenceError instead of calling it.
+		const hereGeo = ecefToGeodetic(...droneEcef);
 		// A guard (#182): a degenerate position (the drone gone under the
 		// terrain during a fall, measured at y=-2465 m at Versailles) makes
 		// ecefToGeodetic return NaN — and update({lat:NaN}) then aborts the
 		// WHOLE window in silence (a NaN zone -> 0 desired nodes -> everything
 		// released), a permanent freeze of the streaming. Better to freeze the
 		// WINDOW on its last sane position than to empty it.
-		if (Number.isFinite(droneGeo.lat) && Number.isFinite(droneGeo.lon)) {
+		if (Number.isFinite(hereGeo.lat) && Number.isFinite(hereGeo.lon)) {
 			// Nothing awaits this promise (that is the point: the frame does not
 			// block on it) — without .catch(), a network failure or a traverse
 			// that throws becomes a silent unhandled promise rejection.
 			// Observability only: no retry here (follow-up ticket).
-			liveWindow.update({ lat: droneGeo.lat, lon: droneGeo.lon })
+			liveWindow.update({ lat: hereGeo.lat, lon: hereGeo.lon })
 				.catch((err) => console.warn('[rocktree] streaming window: recompute failed', err));
 		}
 	}
@@ -2797,7 +2807,7 @@ if (!frozen) {
 			// The track (issue #24): the only two values the aggregated telemetry
 			// did not use, already computed here for the OSD and the sound.
 			throttle: sticks.throttle,
-			headingDeg: yawOf(physics.rotation) * 180 / Math.PI,
+			headingDeg: headingOf(physics.rotation) * 180 / Math.PI,
 			// Coverage (issue #245): a function, called by session.js only when a
 			// sample is due — nothing in between.
 			geo: () => droneGeo(p),
@@ -2840,8 +2850,8 @@ if (!frozen) {
 		lat: here.lat,
 		lon: here.lon,
 		homeDistM: Math.hypot(p.x - spawnX, p.z - spawnZ),
-		homeBearingRad: Math.atan2(spawnX - p.x, spawnZ - p.z),
-		headingRad: yawOf(physics.rotation),
+		homeBearingRad: bearingTo(spawnX - p.x, spawnZ - p.z),
+		headingRad: headingOf(physics.rotation),
 		rollRad: rollOf(physics.rotation),
 		pitchRad: pitchOf(physics.rotation),
 		flightSeconds: (Date.now() - sessionStartedAt) / 1000,
@@ -2873,7 +2883,7 @@ if (!frozen) {
 		rates: RATE_PRESETS[controller.preset].label,
 		usingGamepad: input.usingGamepad,
 		windMs: Math.hypot(physics.wind.out.x, physics.wind.out.z),
-		windRelRad: Math.atan2(physics.wind.out.x, physics.wind.out.z) - yawOf(physics.rotation),
+		windRelRad: relativeBearing(windFromBearing(physics.wind.out.x, physics.wind.out.z), headingOf(physics.rotation)),
 		// The visibility actually seen, fog AND rain: the exact same expression
 		// already used above, so the two can never say different things.
 		visibilityM: fogRange(fog.density + rain.extinction),

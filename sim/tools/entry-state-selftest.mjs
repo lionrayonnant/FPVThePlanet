@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { SCENES_DIR } from './lib/paths.mjs';
 import {
 	CATEGORIES, WEIGHTS, rngFrom, pickCategory, occupancyOf, sampleCandidate,
 	resolveCategory, capCategory, fallbackCandidate, generateEntryState, insetRect, RANGES,
@@ -344,8 +344,10 @@ const zoneAt = (bbox, p) => new Geofence(bbox).update(p).zone;
 {
 	// And on the manifests ACTUALLY installed: that is the issue's measurement.
 	// What follows depends on no particular scene — it checks what is there.
-	const SIM_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-	const scenesDir = path.join(SIM_ROOT, 'public/scenes');
+	// SCENES_DIR, not a second spelling of `public/scenes`: on a machine where
+	// FPVTP_DATA_DIR points the scenes elsewhere, re-deriving the path here
+	// means measuring a directory the game does not read.
+	const scenesDir = SCENES_DIR;
 	const slugs = fs.existsSync(scenesDir)
 		? fs.readdirSync(scenesDir).filter((d) => fs.existsSync(path.join(scenesDir, d, 'manifest.json')))
 		: [];

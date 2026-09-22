@@ -1110,6 +1110,12 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		// THIS view's timers and SSE connection stop.
 		panel.querySelector('.sc-leave').onclick = () => {
 			clearInterval(tick);
+			// The silence timer too, which finish() clears and this did not: it
+			// writes into `.sc-job-note`, and that selector resolves against
+			// whatever panel is mounted when it fires. Leaving within the ten
+			// seconds and starting another acquisition had the abandoned view's
+			// timer print LINK INTERRUPTED over the new, healthy job.
+			clearTimeout(silence);
 			stopRtc();
 			es.close();
 			done(undefined);

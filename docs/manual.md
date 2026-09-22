@@ -18,10 +18,42 @@ npm run selftest:operator  # operator state, terminal, scanner, world weather
 > They are kept because the repository's own history quotes them; read them as
 > provenance, not as links.
 
+## Every command
+
+The full list of `sim/package.json` scripts, so that a script that exists can
+be found here rather than only in the JSON. The sections below detail the ones
+that need more than a line.
+
+| command | what it does |
+|---|---|
+| `npm run dev` | Vite, hot reload. This *is* the game (D1) |
+| `npm run build` | Vite build, then `tools/precompress.mjs` |
+| `npm run electron` | runs the desktop shell against the current `dist/` |
+| `npm run electron:dir` · `npm run electron:build` | the unpacked desktop build · the installers (electron-builder) |
+| `npm run add-map -- "Name" <lat> <lon>` | acquire and prepare a map — *Adding a map* |
+| `npm run remove-map -- <slug>` | remove one — *Removing a map* |
+| `npm run sync-scenes [-- --adopt]` | put `scenes.json` back in agreement with what is on disk |
+| `npm run export-glb` | export a prepared scene to `.glb` — *Exporting a scene* |
+| `npm run selftest [sceneDir]` | the checks that need an installed scene (Eiffel Tower by default) |
+| `npm run selftest:ci` | what CI runs: `selftest:operator`, `selftest:api`, `fuzz` |
+| `npm run selftest:operator` | the pure models: operator state, terminal, scanner, flight model, world weather |
+| `npm run selftest:api` | the server, the session API, the Vite adapter, map polygons |
+| `npm run selftest:scenes` | `scenes.json` against the scenes installed on *this* machine |
+| `npm run selftest:release` | the versioning model and the real `CHANGELOG.md` |
+| `npm run fuzz` · `npm run fuzz:api` | the fuzzing pass · its HTTP target alone — *Continuous integration* |
+| `npm run tune` | re-measure the PID gains — *Tuning the PID*. Never hand-edit them |
+| `npm run replay` | fly fixed stick sequences through the real controller and Rapier, and diff two recordings |
+| `npm run validate:props` | the blade-element model against the UIUC wind-tunnel propellers (`--selftest` needs no data) |
+| `npm run resume` | fetch what a fresh machine is missing, then run the physics benches — see `sim/docs/PICKUP.md` |
+| `npm run release -- patch\|minor\|major\|X.Y.Z` | bump, date, commit and tag — *Cutting a version* |
+| `npm run dialogue:gen` · `dialogue:inspect` · `dialogue:check` | the crew RTC lines — *The dialogue pipeline* |
+| `npm run add-music` · `music-gate` · `music-loop` · `music-review` | the soundtrack pipeline — *Music* |
+
 ## Contents
 
 `grep -n '^#' docs/manual.md` for the exact line of a section.
 
+- Every command
 - Controls
 - Adding a map — from the game (GLOBAL SCANNER) · the legacy GUI ·
   from the command line · prerequisites · options · sizing `--radius` ·
@@ -546,7 +578,15 @@ request, in a single job:
   on a runner rather than by a player.
 
 ```bash
-npm run selftest:ci   # ~1,430 checks, ~2 min — to be run before pushing
+npm run selftest:ci   # ~3,200 checks, ~2 min — to be run before pushing
+```
+
+That figure is the number of check lines the chain prints, and it is the only
+place in the repository that states it — README.md and CONTRIBUTING.md used to
+carry their own, and all three disagreed. To re-measure it rather than trust it:
+
+```bash
+npm run selftest:ci 2>&1 | grep -cE '^[[:space:]]+(ok|PASS)[[:space:]]'
 ```
 
 `selftest:ci` is the chain that needs **no installed scene, no network and no
@@ -563,7 +603,7 @@ against the scenes installed on *this* machine).
 deterministic like the rest of the chain:
 
 ```bash
-npm run fuzz                    # tools/fuzz.mjs then tools/fuzz-api.mjs
+npm run fuzz                    # fuzz.mjs, then fuzz-rocktree.mjs, then fuzz-api.mjs
 node tools/fuzz.mjs --list      # the targets and their threat model
 node tools/fuzz.mjs --only flight --cases 20000 --seed 7
 node tools/fuzz-api.mjs --cases 2000     # real server, malformed requests
