@@ -24,6 +24,8 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+## [1.2.0] - 2026-09-23
+
 ### Ajouté
 
 - **La nomenclature devient vérifiable.** Chaque famille nomme désormais son
@@ -2056,7 +2058,8 @@ Le détail, rubrique par rubrique.
   selftest borne famille par famille — ce qui est garanti pour les six, c'est
   que la moitié haute du cadre reste libre.
 
-[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.1.0...HEAD
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0-beta...v0.3.0
