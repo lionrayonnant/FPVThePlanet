@@ -68,6 +68,9 @@ t('overpassQuery: timeout, output cap, wikidata filter, the bbox in s,w,n,e orde
 	assert.match(q, /^\[out:json\]\[timeout:25\]\[maxsize:\d+\];/);
 	assert.match(q, /\(1,2,3,4\)/);
 	assert.match(q, /out tags center \d+;$/);
+	assert.match(q, /out tags center 2000;$/);
+	assert.doesNotMatch(q, /\["bridge"\]/);
+	assert.match(q, /\["man_made"="bridge"\]/);
 	// every clause requires a wikidata tag: the notability filter
 	const clauses = q.match(/nwr\[[^;]*;|way\[[^;]*;/g);
 	assert.ok(clauses.length >= 5);
@@ -140,7 +143,8 @@ t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak,
 	assert.equal(tier({ man_made: 'lighthouse' }), 2);
 	assert.equal(tier({ natural: 'peak' }), 3);
 	assert.equal(tier({ man_made: 'dam' }), 3);
-	assert.equal(tier({ bridge: 'yes' }), 3);
+	assert.equal(tier({ man_made: 'bridge' }), 3);
+	assert.equal(tier({ bridge: 'yes', railway: 'rail' }), 1, 'a railway on a viaduct is not a bridge landmark');
 });
 
 t('status: UNESCO only for heritage:operator=whc, PROTECTED for other heritage, absent otherwise', () => {
@@ -227,6 +231,19 @@ t('real Reims tile: the monuments outrank the statue and the stone, the cathedra
 	assert.equal(cathedral.kind, 'CATHEDRAL');
 	assert.equal(cathedral.name, 'CATHÉDRALE NOTRE-DAME');
 	for (const s of out.slice(3)) assert.equal(s.kind, 'MEMORIAL');
+});
+
+t('a tier III bridge does not outrank a cathedral: tier is difficulty, not notability', () => {
+	const cathedral = { type: 'way', id: 1, center: { lat: 49.25, lon: 4.03 }, tags: {
+		name: 'Cathedral', wikidata: 'Q1', building: 'cathedral', tourism: 'attraction', heritage: '1',
+		wikipedia: 'fr:x',
+	} };
+	const bridge = { type: 'way', id: 2, center: { lat: 49.25, lon: 4.03 }, tags: {
+		name: 'Bridge', wikidata: 'Q2', man_made: 'bridge', wikipedia: 'fr:y',
+	} };
+	const out = parseOverpass({ elements: [bridge, cathedral] });
+	assert.equal(out[0].id, 'wd:Q1');
+	assert.equal(signalFromElement(bridge).tier, 3);
 });
 
 t('signalsInView: bbox filter, antimeridian-aware', () => {

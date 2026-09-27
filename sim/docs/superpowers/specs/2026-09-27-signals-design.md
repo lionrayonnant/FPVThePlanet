@@ -97,7 +97,11 @@ Each signal gets a **tier**, computed from its tags:
 |---|---|---|
 | I | church, castle, low monument | get close |
 | II | tower, spire, lighthouse (`height` > 50 m) | climb, hold a frame at altitude |
-| III | peak (`natural=peak` + wikidata), dam, bridge | go far: long range, wind, relief |
+| III | peak (`natural=peak` + wikidata), dam, bridge (`man_made=bridge` — not every way on a viaduct) | go far: long range, wind, relief |
+
+The tier is difficulty, not notability: the density cap ranks by kind of
+place, heritage, Wikipedia, tourism=attraction and building-vs-point (ranking
+by tier filled Paris with metro viaducts).
 
 **CLEARANCE 0 → 2**, derived from resolved signals (weighted by tier). **Never
 stored**: always recomputed from `signals.resolved`, so a rule change never

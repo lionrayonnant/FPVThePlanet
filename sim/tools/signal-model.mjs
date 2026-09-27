@@ -54,7 +54,9 @@ export function tilesForView({ s, w, n, e }, zoom) {
 // `wikidata` on every clause is the notability filter (spec §1): it keeps the
 // cathedral and drops the bench. `out tags center` gives nodes their position
 // and ways/relations a centre, with no geometry to download.
-const OUT_CAP = 200;
+// Safety net, not a filter: at 200 the Paris tile was truncated (Notre-Dame
+// and the Louvre never received). Paris returns ~400 elements (~240 kB).
+const OUT_CAP = 2000;
 const MAXSIZE = 4 * 1024 * 1024;
 
 export function overpassQuery({ s, w, n, e }) {
@@ -65,7 +67,7 @@ export function overpassQuery({ s, w, n, e }) {
 		+ `nwr["wikidata"]["man_made"~"^(tower|lighthouse|dam)$"]${bb};`
 		+ `nwr["wikidata"]["building"~"^(cathedral|church|castle)$"]${bb};`
 		+ `nwr["wikidata"]["natural"="peak"]${bb};`
-		+ `way["wikidata"]["bridge"]["name"]${bb};`
+		+ `nwr["wikidata"]["man_made"="bridge"]${bb};`
 		+ `);out tags center ${OUT_CAP};`;
 }
 
@@ -93,7 +95,7 @@ export function parseHeightM(raw) {
 function kindOf(tags) {
 	if (tags.natural === 'peak') return 'PEAK';
 	if (tags.man_made === 'dam') return 'DAM';
-	if (tags.bridge) return 'BRIDGE';
+	if (tags.man_made === 'bridge') return 'BRIDGE';
 	if (tags.man_made === 'lighthouse') return 'LIGHTHOUSE';
 	if (tags.man_made === 'tower') return 'TOWER';
 	if (tags.building && tags.building !== 'yes') return clean(tags.building.replace(/_/g, ' '));
@@ -104,7 +106,7 @@ function kindOf(tags) {
 
 // Spec §2: I get close, II climb and hold at altitude, III go far.
 function tierOf(tags, heightM) {
-	if (tags.natural === 'peak' || tags.man_made === 'dam' || tags.bridge) return 3;
+	if (tags.natural === 'peak' || tags.man_made === 'dam' || tags.man_made === 'bridge') return 3;
 	if (tags.man_made === 'tower' || tags.man_made === 'lighthouse' || (heightM !== null && heightM > 50)) return 2;
 	return 1;
 }
@@ -159,7 +161,7 @@ export function signalFromElement(el) {
 		lat, lon,
 		tile: tileKey(tileOf(lat, lon)),
 		tier,
-		rank: rankOf(el, tags, tier, heightM),
+		rank: rankOf(el, tags, heightM),
 		name, kind, fields,
 		wikipedia: typeof tags.wikipedia === 'string' && tags.wikipedia.length > 0,
 		heightM,
@@ -170,20 +172,24 @@ export function signalFromElement(el) {
 // ---------------------------------------------------------------- density
 // Paris must not become hundreds of dots (spec §1). Measured on the real Reims
 // tile (86 elements, 2026-09-27): nearly everything is tier I, so the tier
-// alone ranks nothing. What separates the cathedral from a plaque is the kind
-// of place, its heritage level, a Wikipedia article, tourism=attraction, and
-// whether OSM draws it as a building (way/relation) or a point (node).
+// alone ranks nothing. Worse, on the real Paris tile the tier promoted every
+// metro/RER viaduct — every way that merely crosses a bridge carries the
+// `bridge` tag — above every monument. The tier is difficulty, not notability:
+// it must not enter the rank. What separates the cathedral from a plaque is
+// the kind of place, its heritage level, a Wikipedia article,
+// tourism=attraction, whether OSM draws it as a building (way/relation) or a
+// point (node), and height.
 export const PER_TILE_CAP = 12;
 
 const MAJOR = new Set(['cathedral', 'castle', 'palace', 'fort', 'tower', 'lighthouse', 'monastery', 'basilica', 'dam']);
 const MINOR = new Set(['church', 'chapel', 'city_gate', 'museum', 'ruins', 'abbey', 'bridge', 'peak']);
 
-export function rankOf(el, tags, tier, heightM) {
-	const kinds = [tags.building, tags.historic, tags.man_made, tags.natural, tags.tourism, tags.bridge ? 'bridge' : null];
+export function rankOf(el, tags, heightM) {
+	const kinds = [tags.building, tags.historic, tags.man_made, tags.natural, tags.tourism, tags.man_made === 'bridge' ? 'bridge' : null];
 	const kind = kinds.some((k) => MAJOR.has(k)) ? 300 : kinds.some((k) => MINOR.has(k)) ? 150 : 0;
 	const h = tags['heritage:operator'] === 'whc' || tags.heritage === '1' ? 200
 		: tags.heritage === '2' ? 100 : tags.heritage ? 50 : 0;
-	return tier * 1000 + kind + h
+	return kind + h
 		+ (typeof tags.wikipedia === 'string' && tags.wikipedia ? 100 : 0)
 		+ (tags.tourism === 'attraction' ? 80 : 0)
 		+ (el.type === 'node' ? 0 : 100)
