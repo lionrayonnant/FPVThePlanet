@@ -2,13 +2,22 @@
 // operator's `signals` key. Bounded here, on the client side — the server does
 // not validate writable keys (server/api.mjs, OP_WRITABLE_KEYS). No image
 // bytes: the frame lives in the session's photos, an entry only points at it.
-export const MAX_RESOLVED = 5000;
+//
+// The whole value travels in one PATCH, and the server reads at most 1e6
+// bytes of body (server/api.mjs readBody): MAX_RESOLVED is sized so a
+// worst-case store (4-byte names at TEXT_MAX) stays under 85 % of that
+// (tools/signal-store-selftest.mjs measures it).
+export const MAX_RESOLVED = 1500;
 const TEXT_MAX = 60;
-const ID_RE = /^wd:Q\d+$/;
+// family and sessionId are machine ids (a profile slug, a UUID): ASCII tokens.
+const TOKEN_MAX = 40;
+const TOKEN_RE = /^[A-Za-z0-9_.:-]+$/;
+const ID_RE = /^wd:Q\d{1,12}$/;
 
 const text = (v) => (typeof v === 'string'
 	? Array.from(v.replace(/[\u0000-\u001f\u007f]/g, '')).slice(0, TEXT_MAX).join('')
 	: null);
+const token = (v) => (typeof v === 'string' && TOKEN_RE.test(v) ? v.slice(0, TOKEN_MAX) : null);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 function entryOf(e) {
@@ -19,8 +28,8 @@ function entryOf(e) {
 	const photo = e.photo === null || e.photo === undefined ? null : (Number.isInteger(e.photo) && e.photo >= 0 ? e.photo : null);
 	return {
 		at, name: text(e.name) ?? '', lat, lon, tier: e.tier,
-		family: text(e.family), holdS, distM,
-		sessionId: text(e.sessionId), photo,
+		family: token(e.family), holdS, distM,
+		sessionId: token(e.sessionId), photo,
 	};
 }
 
@@ -50,4 +59,22 @@ export function withResolved(store, id, entry) {
 	return base;
 }
 
-export const resolvedIds = (store) => new Set(Object.keys(fromStored(store).resolved));
+// Sets the frame of an entry written before its photo landed (the resolution
+// is written at once, the upload follows). Never overwrites a photo.
+export function withPhoto(store, id, index) {
+	const base = fromStored(store);
+	const e = base.resolved[id];
+	if (e && e.photo === null && Number.isInteger(index) && index >= 0) e.photo = index;
+	return base;
+}
+
+// Called per flight refresh with the same operator value: the last parse is
+// kept per stored object (operator.patch() replaces the object, never mutates it).
+const _ids = new WeakMap();
+export function resolvedIds(store) {
+	const key = store && typeof store === 'object' ? store : null;
+	if (key && _ids.has(key)) return _ids.get(key);
+	const set = new Set(Object.keys(fromStored(store).resolved));
+	if (key) _ids.set(key, set);
+	return set;
+}
