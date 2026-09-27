@@ -356,8 +356,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal[data-tone="green"] .hd span:first-child { color: var(--green); }
 #fo-signal[data-tone="green"] .gauge i.on { background: var(--green); }
 #fo-signal[data-tone="green"] .fo-signal-lead line, #fo-signal[data-tone="green"] .fo-signal-lead rect { stroke: var(--green); }
-.fo-signal-chev { position: absolute; pointer-events: none; font: 500 var(--fs-micro) var(--font-ui); letter-spacing: .12em; color: var(--dim); white-space: nowrap; }
+.fo-signal-chev { position: absolute; pointer-events: none; font: 500 var(--fs-micro) var(--font-ui); letter-spacing: .12em; color: var(--dim); white-space: nowrap; display: flex; align-items: center; gap: .2em; }
+.fo-signal-chev .arrow { display: inline-block; transform-origin: center; }
 .fo-signal-chev[data-tone="orange"] { color: var(--orange); }
+.fo-signal-chev[data-tone="green"] { color: var(--green); }
 
 /* End of flight (PHASE 14): not a death screen, a link going out. */
 #flight-end {

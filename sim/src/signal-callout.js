@@ -32,9 +32,12 @@ export class SignalCallout {
 		const chev = document.createElement('div');
 		chev.className = 'fo-signal-chev';
 		chev.hidden = true;
+		const chevArrow = document.createElement('span'); chevArrow.className = 'arrow';
+		const chevTxt = document.createElement('span'); chevTxt.className = 'txt';
+		chev.append(chevArrow, chevTxt);
 		el.append(svg, box);
 		root.append(el, chev);
-		Object.assign(this, { el, svg, line, dot, box, word, dist, gauge, cells, rows, chev, _rowsFor: null });
+		Object.assign(this, { el, svg, line, dot, box, word, dist, gauge, cells, rows, chev, chevArrow, chevTxt, _rowsFor: null });
 	}
 
 	render(view) {
@@ -45,10 +48,22 @@ export class SignalCallout {
 			this.el.hidden = true;
 			this.chev.hidden = false;
 			this.chev.dataset.tone = tone;
-			this.chev.textContent = `SIGNAL ${Math.round(row.dist)} M ▶`;
+			const dist = Math.round(row.dist);
+			this.chevTxt.textContent = `SIGNAL ${dist} M`;
+			this.chevArrow.textContent = '▶';
+			this.chevArrow.style.transform = `rotate(${placed.edge.angleDeg}deg)`;
+			// Arrow placement: on the side the chevron points to
+			const vpCenter = this.chev.parentElement.clientWidth / 2;
+			if (placed.edge.x > vpCenter) {
+				// Right half: arrow after text
+				this.chev.replaceChildren(this.chevTxt, this.chevArrow);
+			} else {
+				// Left half: arrow before text
+				this.chev.replaceChildren(this.chevArrow, this.chevTxt);
+			}
 			this.chev.style.left = `${placed.edge.x}px`;
 			this.chev.style.top = `${placed.edge.y}px`;
-			this.chev.style.transform = `translate(-50%, -50%) rotate(${placed.edge.angleDeg}deg)`;
+			this.chev.style.transform = `translate(-50%, -50%)`;
 			return;
 		}
 		this.chev.hidden = true;
