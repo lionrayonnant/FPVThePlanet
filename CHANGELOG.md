@@ -45,6 +45,20 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   mappage par défaut ne change pas pour les nouvelles familles : en mapping
   « standard » elles exposent la même disposition d'axes qu'une DualShock.
 
+### Modifié
+
+- **three passe de 0.170 à 0.186.** Depuis 0.186, le constructeur
+  d'`OrbitControls` appelle `connect()`, qui commence par `disconnect()` et lit
+  `domElement.ownerDocument` pour retirer ses écouteurs de pointeur. Notre faux
+  DOM ne portait pas `ownerDocument` : monter un viseur hors navigateur levait.
+  Les éléments nés de `fakeDom()` connaissent désormais leur document. Rien ne
+  change dans le jeu.
+
+- **Vite passe de 6 à 8, Electron à 44.4.3.** Vite 8 bundle avec Rolldown, qui
+  ne lit que la forme FONCTION de `manualChunks` — la forme objet devenait un
+  avertissement puis une exception, et le build tombait. Le découpage (#21) est
+  le même, écrit comme le nouveau bundler le lit : `three` garde son chunk.
+
 ### Corrigé
 
 - **Les menus obéissaient à la mauvaise manette.** La navigation lisait la
