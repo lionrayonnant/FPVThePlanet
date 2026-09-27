@@ -44,8 +44,9 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   photo du lieu (Wikidata, Wikimedia Commons, auteur et licence crédités), une
   description courte et ses repères en pictogrammes. En fin de vol, l'écran
   récapitule les lieux transmis par la machine. Plus de lieux aussi (60 par
-  tuile, 3 km autour du décollage) et une capture plus tolérante (cône de 20°,
-  5 s).
+  tuile, 3 km autour du décollage), partout dans le monde (temples,
+  sanctuaires, mosquées, cascades, volcans, falaises ; Tokyo compris), et une
+  capture plus tolérante (cône de 20°, 5 s).
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
   quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :
