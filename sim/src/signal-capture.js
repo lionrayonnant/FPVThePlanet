@@ -4,13 +4,14 @@
 // (tools/signal-capture-selftest.mjs). main.js feeds it the camera pose and a
 // line-of-sight probe, and drains `out.uplinked` like FlightEnd.out.closes.
 //
-// The numbers are the spec's starting points, kept here and nowhere else.
-export const CONE_DEG = 12;
-export const HOLD_S = 6;
+// The spec's starting points, widened after the author's first flights
+// (2026-09-27: "a bit hard to capture"). Kept here and nowhere else.
+export const CONE_DEG = 20;
+export const HOLD_S = 5;
 // Out of frame the gauge drains at a third of the rate it fills: a bad pass
 // costs seconds, not the capture.
 export const DRAIN_RATE = 1 / 3;
-export const RANGE_M = { 1: [30, 250], 2: [30, 250], 3: [30, 450] };
+export const RANGE_M = { 1: [30, 300], 2: [30, 300], 3: [30, 450] };
 // The callout appears inside this distance (it is inside the fog range).
 export const SHOW_M = 400;
 // Another candidate must be strictly nearer the axis this long to take the

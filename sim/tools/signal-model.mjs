@@ -20,7 +20,7 @@ export const MIN_QUERY_ZOOM = 10;
 export const MAX_TILES_PER_VIEW = 16;
 // Bump whenever parsing, ranking, tiers or fields change: cached tiles are
 // parsed signals, not raw Overpass answers, so a stale cache entry must miss.
-export const MODEL_VERSION = 1;
+export const MODEL_VERSION = 2;
 
 const N = 2 ** TILE_Z;
 const D = Math.PI / 180;
@@ -231,7 +231,12 @@ export function signalFromElement(el) {
 // the kind of place, its heritage level, a Wikipedia article,
 // tourism=attraction, whether OSM draws it as a building (way/relation) or a
 // point (node), and height.
-export const PER_TILE_CAP = 12;
+//
+// The cap is a safety net, not the density control: the scanner map already
+// shows one point per screen cell. At 12 the whole of central Paris — one z12
+// tile, 354 landmarks — kept 12, and the Panthéon (45th) was cut; the author
+// wants many places to hunt.
+export const PER_TILE_CAP = 60;
 
 const MAJOR = new Set(['cathedral', 'castle', 'palace', 'fort', 'tower', 'lighthouse', 'monastery', 'basilica', 'dam']);
 const MINOR = new Set(['church', 'chapel', 'city_gate', 'museum', 'ruins', 'abbey', 'bridge', 'peak']);
@@ -243,7 +248,7 @@ export function rankOf(el, tags, heightM) {
 		: tags.heritage === '2' ? 100 : tags.heritage ? 50 : 0;
 	return kind + h
 		+ (typeof tags.wikipedia === 'string' && tags.wikipedia ? 100 : 0)
-		+ (tags.tourism === 'attraction' ? 80 : 0)
+		+ (tags.tourism === 'attraction' ? 200 : 0)
 		+ (el.type === 'node' ? 0 : 100)
 		+ Math.min(heightM ?? 0, 300) / 3;
 }

@@ -21,14 +21,14 @@ const run = (sc, seconds, args, step = 0.05) => {
 const row = (sc, id) => sc.out.rows.find((r) => r.id === id);
 
 t('constants from the spec', () => {
-	assert.equal(CONE_DEG, 12);
-	assert.equal(HOLD_S, 6);
+	assert.equal(CONE_DEG, 20);
+	assert.equal(HOLD_S, 5);
 	assert.equal(DRAIN_RATE, 1 / 3);
-	assert.deepEqual(RANGE_M[1], [30, 250]);
+	assert.deepEqual(RANGE_M[1], [30, 300]);
 	assert.equal(SHOW_M, 400);
 });
 
-t('held dead ahead for 6 s in FPV with a clear line: UPLINKED once, then resolved', () => {
+t('held dead ahead for HOLD_S in FPV with a clear line: UPLINKED once, then resolved', () => {
 	const sc = new SignalCapture();
 	sc.setTargets([target('a', { x: 0, y: 0, z: -100 })]);
 	const args = { cam: camAt(), fpv: true, los: () => true };
@@ -44,17 +44,18 @@ t('held dead ahead for 6 s in FPV with a clear line: UPLINKED once, then resolve
 t('outside the cone, too close, too far, or hidden: never captured', () => {
 	const args = { cam: camAt(), fpv: true, los: () => true };
 	const off = new SignalCapture();
-	// 13° to the east at 100 m
-	off.setTargets([target('a', { x: Math.tan(13 * Math.PI / 180) * 100, y: 0, z: -100 })]);
+	// one degree outside the cone, at 100 m
+	off.setTargets([target('a', { x: Math.tan((CONE_DEG + 1) * Math.PI / 180) * 100, y: 0, z: -100 })]);
 	assert.equal(run(off, 10, args), null);
 	assert.equal(row(off, 'a').state, 'near');
 	const close = new SignalCapture();
 	close.setTargets([target('a', { x: 0, y: 0, z: -20 })]);
 	assert.equal(run(close, 10, args), null);
 	const far = new SignalCapture();
-	far.setTargets([target('a', { x: 0, y: 0, z: -300 })]);
+	const beyond = RANGE_M[1][1] + 50; // still inside SHOW_M
+	far.setTargets([target('a', { x: 0, y: 0, z: -beyond })]);
 	assert.equal(run(far, 10, args), null);
-	assert.equal(row(far, 'a').state, 'near', 'shown at 300 m, not capturable');
+	assert.equal(row(far, 'a').state, 'near', `shown at ${beyond} m, not capturable`);
 	const hidden = new SignalCapture();
 	hidden.setTargets([target('a', { x: 0, y: 0, z: -500 })]);
 	sc_update(hidden, args);
@@ -71,14 +72,15 @@ t('tier III reaches farther', () => {
 t('chase view or a blocked line: the gauge does not rise, and drains slowly', () => {
 	const sc = new SignalCapture();
 	sc.setTargets([target('a', { x: 0, y: 0, z: -100 })]);
-	run(sc, 3, { cam: camAt(), fpv: true, los: () => true });
+	run(sc, HOLD_S / 2, { cam: camAt(), fpv: true, los: () => true });
 	const g = row(sc, 'a').gauge;
 	assert.ok(Math.abs(g - 0.5) < 0.02, String(g));
 	run(sc, 3, { cam: camAt(), fpv: false, los: () => true });
 	assert.equal(row(sc, 'a').state, 'held');
 	assert.ok(Math.abs(row(sc, 'a').gauge - (0.5 - 3 * DRAIN_RATE / HOLD_S)) < 0.02);
+	const before = row(sc, 'a').gauge;
 	run(sc, 1, { cam: camAt(), fpv: true, los: () => false });
-	assert.ok(row(sc, 'a').gauge < 0.34);
+	assert.ok(row(sc, 'a').gauge < before, 'a blocked line drains too');
 });
 
 t('a bad pass costs seconds, not the capture (cumulative hold)', () => {
@@ -86,11 +88,14 @@ t('a bad pass costs seconds, not the capture (cumulative hold)', () => {
 	sc.setTargets([target('a', { x: 0, y: 0, z: -100 })]);
 	const on = { cam: camAt(), fpv: true, los: () => true };
 	const away = { cam: camAt(0, 0, 0, 1, 0, 0), fpv: true, los: () => true };
-	run(sc, 4, on);
-	run(sc, 1.5, away);
-	// 4 s held, 0.5 s lost: 2.5 s more is not enough, 2.6 s... is.
-	assert.equal(run(sc, 2.4, on), null);
-	assert.equal(run(sc, 0.3, on), 'a');
+	const held = HOLD_S - 2, awayS = 1.5;
+	run(sc, held, on);
+	run(sc, awayS, away);
+	// Out of frame for awayS drains awayS * DRAIN_RATE of hold time: the rest
+	// is 2 s + that, not HOLD_S again.
+	const rest = HOLD_S - held + awayS * DRAIN_RATE;
+	assert.equal(run(sc, rest - 0.1, on), null);
+	assert.equal(run(sc, 0.2, on), 'a');
 });
 
 t('frozen (dt 0): nothing moves, uplinked still drains', () => {

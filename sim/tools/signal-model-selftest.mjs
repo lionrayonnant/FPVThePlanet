@@ -17,7 +17,7 @@ t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
 	assert.equal(MIN_QUERY_ZOOM, 10);
 	assert.equal(MAX_TILES_PER_VIEW, 16);
-	assert.equal(MODEL_VERSION, 1);
+	assert.equal(MODEL_VERSION, 2);
 });
 
 t('tileOf: the z12 tile of the Eiffel Tower, computed independently', () => {
@@ -239,7 +239,7 @@ t('capPerTile: keeps the best-ranked per tile, id breaks ties', () => {
 	const kept = capPerTile(list, 2);
 	assert.deepEqual(kept.filter((s) => s.tile === 'T1').map((s) => s.id), ['c', 'b']);
 	assert.deepEqual(kept.filter((s) => s.tile === 'T2').map((s) => s.id), ['e']);
-	assert.equal(PER_TILE_CAP, 12);
+	assert.equal(PER_TILE_CAP, 60);
 });
 
 t('parseOverpass: one signal per Wikidata id, drops junk, survives a malformed body', () => {

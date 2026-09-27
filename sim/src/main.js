@@ -702,7 +702,7 @@ const flightEnd = new FlightEnd();
 
 // Signals in flight (#185): the landmarks within FLIGHT_RADIUS_M of the
 // take-off point, anchored, captured by holding them in the FPV frame.
-const FLIGHT_RADIUS_M = 1500;
+const FLIGHT_RADIUS_M = 3000;
 const signalCapture = new SignalCapture();
 const signalAnchors = new SignalAnchors({
 	toLocal: (lat, lon) => localOfGeo(lat, lon),
