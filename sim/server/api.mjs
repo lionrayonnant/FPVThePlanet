@@ -177,7 +177,11 @@ function operatorSummary(s) {
 // src/coverage.js, and fromStored() there returns a blank coverage for
 // anything that is not the expected shape. An operator without this key reads
 // back as a blank map.
-const OP_WRITABLE_KEYS = new Set(['settings', 'dialogueMemory', 'coverage']);
+// `signals` (issue #185): the landmarks the operator has resolved. Same
+// contract as coverage — bounded client-side (MAX_RESOLVED in
+// tools/signal-store-model.mjs, whose fromStored() drops anything malformed),
+// no image bytes (the frame is a session photo, the entry only points at it).
+const OP_WRITABLE_KEYS = new Set(['settings', 'dialogueMemory', 'coverage', 'signals']);
 
 // Turns an operator read error into an HTTP code: malformed id → 400, file
 // from a too recent schema → 409, everything else (corrupt JSON, I/O) → 500.

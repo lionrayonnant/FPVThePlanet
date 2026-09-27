@@ -29,6 +29,7 @@ import { createTracksLayer } from './map-tracks.js';
 import { createSignalsLayer } from './map-signals.js';
 import { sharedSignalSource } from './signal-source.js';
 import { tilesForView } from '../tools/signal-model.mjs';
+import { resolvedIds } from '../tools/signal-store-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
@@ -881,7 +882,9 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 
 	const signalsLayer = createSignalsLayer(L, {
 		getSignals: () => signalSource.signals(),
+		getResolved: () => resolvedIds(operatorApi.getOperator()?.signals),
 		ink: token('--yellow') || '#d4b155',
+		resolvedInk: token('--green') || '#7aa96b',
 		white: token('--warm-white') || '#ece7dd',
 	});
 	signalsLayer.addTo(map);
@@ -889,10 +892,14 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	let signalsTooWide = false;
 	function renderSignalsStatus() {
 		const st = signalSource.status();
+		const resolved = resolvedIds(operatorApi.getOperator()?.signals);
+		const count = signalSource.signals().length;
+		const done = signalSource.signals().reduce((n, s) => n + (resolved.has(s.id) ? 1 : 0), 0);
+		const suffix = done > 0 ? ` · ${done} RESOLVED` : '';
 		signalsStatus.textContent = signalsTooWide ? 'SIGNALS: ZOOM IN TO SCAN'
 			: st === 'unavailable' ? 'SIGNAL SCAN UNAVAILABLE'
 			: st === 'loading' || st === 'waiting' ? 'SIGNALS: SCANNING…'
-			: `SIGNALS: ${signalSource.signals().length}`;
+			: `SIGNALS: ${count}${suffix}`;
 		signalsStatus.dataset.state = signalsTooWide ? 'wide' : st;
 	}
 

@@ -23,7 +23,7 @@ const LABEL_DX = 11;
 // otherwise be a single blinding blob.
 const CELL_PX = 26;
 
-export function createSignalsLayer(L, { getSignals, ink = '#d4b155', white = '#ece7dd' } = {}) {
+export function createSignalsLayer(L, { getSignals, getResolved = () => null, ink = '#d4b155', resolvedInk = '#7aa96b', white = '#ece7dd' } = {}) {
 	const Layer = L.Layer.extend({
 		onAdd(map) {
 			this._map = map;
@@ -79,21 +79,23 @@ export function createSignalsLayer(L, { getSignals, ink = '#d4b155', white = '#e
 				const p = map.latLngToContainerPoint([sig.lat, sig.lon]);
 				return { s: sig, x: p.x, y: p.y };
 			}), CELL_PX);
+			const done = getResolved?.() ?? null;
 			ctx.globalCompositeOperation = 'lighter';
 			for (const { s, x, y } of pts) {
+				const c = done && done.has(s.id) ? resolvedInk : ink;
 				const r = HALO[s.tier] ?? HALO[1];
 				const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-				g.addColorStop(0, withAlpha(ink, 0.75));
-				g.addColorStop(0.3, withAlpha(ink, 0.35));
-				g.addColorStop(1, withAlpha(ink, 0));
+				g.addColorStop(0, withAlpha(c, 0.75));
+				g.addColorStop(0.3, withAlpha(c, 0.35));
+				g.addColorStop(1, withAlpha(c, 0));
 				ctx.fillStyle = g;
 				ctx.beginPath();
 				ctx.arc(x, y, r, 0, Math.PI * 2);
 				ctx.fill();
 			}
 			ctx.globalCompositeOperation = 'source-over';
-			ctx.fillStyle = ink;
-			for (const { x, y } of pts) {
+			for (const { s, x, y } of pts) {
+				ctx.fillStyle = done && done.has(s.id) ? resolvedInk : ink;
 				ctx.beginPath();
 				ctx.arc(x, y, CORE, 0, Math.PI * 2);
 				ctx.fill();
