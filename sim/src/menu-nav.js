@@ -110,10 +110,52 @@ const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), '
 const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
 // Standard gamepad buttons: 0 = A/south (activate), 1 = B/east (go back up) —
-// the same as everywhere else on the Standard Gamepad.
+// the same as everywhere else on the Standard Gamepad. They stay the FALLBACK:
+// on a radio those two indices are switch positions, so the wizard measures the
+// two gestures instead (src/calibration.js) and Input hands the result over.
 const PAD_CONFIRM = 0;
 const PAD_BACK = 1;
 const PAD_POLL_MS = 80; // the same cadence as bootstrap.js
+
+// ---------- the Input the menus read ----------
+//
+// menuNav() is called from some thirty places, none of which holds a reference
+// to Input; threading a parameter through all of them would have been a bigger
+// change than the bug. So ONE injection at module level, made once by main.js
+// when the Input is built.
+//
+// Until something injects, everything below keeps EXACTLY the old behaviour —
+// the first enumerated pad, axes 0 and 1, buttons 0 and 1. That is what leaves
+// the selftests, and the intro's own gate (src/intro.js, which has its own
+// probe), untouched.
+let menuInput = null;
+
+export function setMenuInput(input) { menuInput = input ?? null; }
+
+// The pad the menus must obey: the one Input is reading when it is there (the
+// SETTINGS > CONTROLS list exists precisely to choose it), the first enumerated
+// one otherwise.
+function navPad() {
+	const pads = (navigator.getGamepads?.() ?? []).filter(Boolean);
+	if (!menuInput) return pads.find(Boolean) ?? null;
+	return pads.find((p) => p.index === menuInput.gamepadIndex) ?? null;
+}
+
+// The two self-centring channels, calibrated, off the active device — or the raw
+// axes 0/1 of the first pad while nothing is injected.
+function navAxes(pad) {
+	if (menuInput) return menuInput.menuAxes?.() ?? null;
+	return pad ? { x: pad.axes[0] ?? 0, y: pad.axes[1] ?? 0 } : null;
+}
+
+function navButtons(pad) {
+	if (menuInput) return menuInput.menuButtons?.() ?? null;
+	if (!pad) return null;
+	return {
+		confirm: !!pad.buttons[PAD_CONFIRM]?.pressed,
+		back: !!pad.buttons[PAD_BACK]?.pressed,
+	};
+}
 
 // `container`: the screen's root element (usually s.el). Options:
 // - back    : Escape / Backspace / B button — go back up one screen.
@@ -242,27 +284,29 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		// Enter is not handled here: a focused button receives it natively.
 	};
 
-	// Pad: the same directions as the keyboard (readGamepadDir), plus A to
-	// activate the focused element and B to go back up. Rising edge only, and
-	// the initial state is "held": the button that validated the previous screen
-	// must not carry through to this one.
+	// Pad: the same directions as the keyboard (readGamepadDir), plus confirm to
+	// activate the focused element and back to go back up — A/B on a standard pad,
+	// the two signals the wizard measured on a radio. Rising edge only, and the
+	// initial state is "held": the gesture that validated the previous screen must
+	// not carry through to this one.
 	let padPrev = null;
-	const padHeld = { [PAD_CONFIRM]: true, [PAD_BACK]: true };
+	const padHeld = { confirm: true, back: true };
 	const padPoll = !gamepad ? 0 : setInterval(() => {
 		if (topNav() !== nav) { padPrev = null; return; }
-		const d = readGamepadDir(padPrev);
+		const pad = navPad();
+		const d = readGamepadDir(padPrev, navAxes(pad), pad?.buttons);
 		if (d && d !== '__hold') { padPrev = d; handleDir(d); }
 		else if (!d) padPrev = null;
 
-		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
-		for (const b of [PAD_CONFIRM, PAD_BACK]) {
-			const down = !!pad?.buttons[b]?.pressed;
+		const state = navButtons(pad);
+		for (const b of ['confirm', 'back']) {
+			const down = !!state?.[b];
 			if (down && !padHeld[b]) {
-				if (b === PAD_BACK) back?.();
+				if (b === 'back') back?.();
 				else {
 					const el = focused();
 					if (el) el.click?.();
-					else focusAt(0); // cursor lost: A puts it back first
+					else focusAt(0); // cursor lost: confirm puts it back first
 				}
 			}
 			padHeld[b] = down;

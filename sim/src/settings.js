@@ -1,5 +1,5 @@
-import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY } from './input.js';
-import { beginCalibration, feedSample, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel } from './calibration.js';
+import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY, PAD_CALIBRATE_HINT } from './input.js';
+import { beginCalibration, feedSample, skipMenuStep, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel, CAL_MENU_STEPS } from './calibration.js';
 import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
@@ -235,6 +235,9 @@ export class Settings {
 			calMessage: el.querySelector('[id="cal-message"]'),
 			calBar: el.querySelector('[id="cal-bar"]'),
 			calDrone: el.querySelector('[id="cal-drone"]'),
+			calMeasured: el.querySelector('[id="cal-measured"]'),
+			calSkipRow: el.querySelector('[id="cal-skip-row"]'),
+			padHint: el.querySelector('[id="pad-hint"]'),
 			calCancelRow: el.querySelector('[id="cal-cancel-row"]'),
 			calSummary: el.querySelector('[id="cal-summary"]'),
 			keyRows: el.querySelector('[id="key-rows"]'),
@@ -248,6 +251,7 @@ export class Settings {
 		this._calRaf = null;
 		this.el.calButton.onclick = () => this.startCalibration();
 		el.querySelector('[id="cal-cancel"]').onclick = () => this.cancelCalibration();
+		el.querySelector('[id="cal-skip"]').onclick = () => this.skipCalibrationStep();
 		// Set true by main.js when a flight starts: the panel opened in flight
 		// does not listen to the gamepad (the sticks fly the drone — issue #123).
 		this.flightActive = false;
@@ -275,6 +279,11 @@ export class Settings {
 		// #162). Without this list a misclassified radio — or one simply absent
 		// from the enumeration — left the pilot with no recourse at all.
 		box.appendChild(h('div', { id: 'pad-list', class: 'spec' }));
+		// An unrecognised device gets the gamepad profile, which is a GUESS — and
+		// the pilot has no way of knowing that the wizard is the way out of it. The
+		// sentence lives in input.js next to PAD_LIST_EMPTY so that every screen
+		// that has to say it says the same thing.
+		box.appendChild(h('p', { id: 'pad-hint', class: 'spec', hidden: true, text: PAD_CALIBRATE_HINT }));
 		// Measured calibration (issue #277). The button is always there; the
 		// note beside it only ever speaks of a device that was NEVER calibrated.
 		box.appendChild(h('div', { id: 'cal-row' }, [
@@ -289,7 +298,16 @@ export class Settings {
 			h('p', { id: 'cal-prompt' }),
 			h('p', { id: 'cal-hint', class: 'spec' }),
 			h('p', { id: 'cal-message', class: 'spec' }),
+			// What the two menu steps have MEASURED, shown as it is measured: a
+			// wizard that only says "ok" is unverifiable (same rule as the closing
+			// summary).
+			h('p', { id: 'cal-measured', class: 'spec' }),
 			h('div', { class: 'axisbar' }, [h('i', { id: 'cal-bar' })]),
+		]));
+		// The two menu gestures are skippable: a standard pad's buttons 0 and 1 are
+		// momentary and already work. The row only shows during those two steps.
+		box.appendChild(h('div', { id: 'cal-skip-row', hidden: true }, [
+			h('button', { id: 'cal-skip', type: 'button', class: 'terminal-cta', text: '[ SKIP ]' }),
 		]));
 		// The machine that answers the sticks (#281). Outside #cal-screen on
 		// purpose: it stays once the measurement is over and follows the four
@@ -766,24 +784,38 @@ export class Settings {
 		this._calLast = now;
 
 		this._cal = feedSample(this._cal, padSignals(pad), dt);
-
-		const result = calibrationResult(this._cal);
-		if (result) {
-			this.input.setCalibration(this._calPadId, result);
-			// stopCalibration() efface _calPadId : la persistance passe AVANT.
-			this.el.calSummary.textContent = '';
-			for (const line of calSummaryLines(result)) {
-				const div = document.createElement('div');
-				div.textContent = line;
-				this.el.calSummary.appendChild(div);
-			}
-			this.el.calSummary.hidden = false;
-			this.stopCalibration();
-			// The mapping has just changed under the axis rows: they are rebuilt,
-			// they are not refreshed.
-			this._axisRows = [];
-		}
+		this.persistCalibration();
 		this.renderCalibration(pad);
+	}
+
+	// The two menu steps are the only skippable ones, and skipping the last of
+	// them ends the wizard — so the same persistence has to run here as on a
+	// measured frame.
+	skipCalibrationStep() {
+		if (!this._cal) return;
+		this._cal = skipMenuStep(this._cal);
+		this.persistCalibration();
+		this.renderCalibration(this.input.getGamepad());
+	}
+
+	// Nothing is written until the machine says it is done. Called from both the
+	// measurement frame and the skip, because both can be the last gesture.
+	persistCalibration() {
+		const result = calibrationResult(this._cal);
+		if (!result) return;
+		this.input.setCalibration(this._calPadId, result);
+		// stopCalibration() clears _calPadId: persistence goes FIRST.
+		this.el.calSummary.textContent = '';
+		for (const line of calSummaryLines(result)) {
+			const div = document.createElement('div');
+			div.textContent = line;
+			this.el.calSummary.appendChild(div);
+		}
+		this.el.calSummary.hidden = false;
+		this.stopCalibration();
+		// The mapping has just changed under the axis rows: they are rebuilt,
+		// they are not refreshed.
+		this._axisRows = [];
 	}
 
 	renderCalibration(pad) {
@@ -791,9 +823,13 @@ export class Settings {
 		this.syncCalDrone();
 		this.el.calScreen.hidden = !running;
 		this.el.calCancelRow.hidden = !running;
+		// The skip only exists during the two menu steps: offering it on a stick
+		// would offer a calibration with no stick in it.
+		this.el.calSkipRow.hidden = !(running && String(this._cal.phase).startsWith('menu-'));
 		this.el.calRow.hidden = running;
 		this.el.padMap.hidden = running;
 		this.el.padList.hidden = running;
+		if (running) this.el.padHint.hidden = true;
 
 		if (!running) {
 			// The instruction must not survive the measurement: otherwise
@@ -803,6 +839,7 @@ export class Settings {
 			this.el.calPrompt.textContent = '';
 			this.el.calHint.textContent = '';
 			this.el.calMessage.textContent = '';
+			this.el.calMeasured.textContent = '';
 			const calibrated = this.input.isCalibrated();
 			this.el.calButton.disabled = this.input.gamepadIndex === null;
 			this.el.calNote.textContent = this.el.calButton.disabled ? ''
@@ -816,6 +853,12 @@ export class Settings {
 		this.el.calPrompt.textContent = this._cal.prompt;
 		this.el.calHint.textContent = this._cal.hint;
 		this.el.calMessage.textContent = this._cal.message ?? '';
+		// What the menu steps have already measured, named the way the browser
+		// names it (signalLabel): "measured: btn 4", not "ok".
+		this.el.calMeasured.textContent = CAL_MENU_STEPS
+			.filter((k) => this._cal.menu?.[k])
+			.map((k) => `${k}: ${signalLabel(this._cal.menu[k].signal, this._cal.axisCount)}`)
+			.join('   ');
 
 		// The bar follows the axis furthest from its neutral: during an
 		// instruction that is the one the pilot is pushing. For as long as the
@@ -872,6 +915,10 @@ export class Settings {
 		this.buildPadList();
 		const pad = this.input.getGamepad();
 		this.el.padName.textContent = pad ? `${pad.id} — ${padKind(pad.id)}` : 'NO CONTROLLER DETECTED';
+		// 'generic' means "the profile below is a guess". Saying where the way out
+		// is costs one line and is the difference between a pilot who calibrates
+		// and one who concludes the sim does not support their hardware.
+		this.el.padHint.hidden = !pad || padKind(pad.id) !== 'generic';
 		this.renderCalibration(pad);
 		if (!pad) { this.el.padMap.replaceChildren(); this._axisRows = []; return; }
 

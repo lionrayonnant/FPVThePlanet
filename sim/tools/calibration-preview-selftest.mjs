@@ -1,13 +1,13 @@
-// node tools/calibration-preview-selftest.mjs — la pose de la machine pendant
-// le calibrage (issue #281). Module PUR : aucun DOM, aucune horloge, donc ce
-// que le pilote VOIT se vérifie sans navigateur, comme la mesure elle-même.
+// node tools/calibration-preview-selftest.mjs — the machine's pose during the
+// calibration (issue #281). A PURE module: no DOM, no clock, so what the pilot
+// SEES is checked without a browser, like the measurement itself.
 //
-// Ce selftest ne lit aucun angle : les degrés appartiennent à la vue. Ici on
-// vérifie des propriétés — pendant une consigne, SEUL le canal demandé bouge ;
-// pendant « ne touche à rien », rien ne bouge ; le rejeu revient exactement à
-// zéro ; et l'échelle s'adapte à la course de la radio du pilote.
+// This selftest reads no angle: degrees belong to the view. What is checked here
+// are properties — during a prompt, ONLY the channel asked for moves; during
+// "hands off", nothing moves; the replay comes back to exactly zero; and the
+// scale follows this pilot's radio travel.
 import assert from 'node:assert/strict';
-import { beginCalibration, feedSample, CAL_TIMING } from '../src/calibration.js';
+import { beginCalibration, feedSample, skipMenuStep, CAL_TIMING } from '../src/calibration.js';
 import { calibrationPose, replayPose, completedChannels, REPLAY_MS } from '../src/calibration-preview.js';
 
 let n = 0;
@@ -20,18 +20,18 @@ const feed = (state, signals, ms, dt = 16) => {
 const AXES = 4;
 const zero = [0, 0, 0, 0];
 
-// Un état arrêté sur la consigne `channel`, sur une radio à quatre axes centrés.
-// On traverse les consignes précédentes en poussant l'axe prévu pour chacune.
+// A state stopped on the `channel` prompt, on a radio with four centred axes. The
+// previous prompts are crossed by pushing the axis each one expects.
 const ORDER = [['throttle', 2], ['yaw', 3], ['pitch', 1], ['roll', 0]];
-function upTo(channel, { course = 1 } = {}) {
+function upTo(channel, { travel = 1 } = {}) {
 	let s = feed(beginCalibration(AXES), zero, CAL_TIMING.restMs + 200);
 	for (const [ch, axis] of ORDER) {
 		if (ch === channel) return s;
-		const push = [...zero]; push[axis] = course;
+		const push = [...zero]; push[axis] = travel;
 		s = feed(s, push, CAL_TIMING.holdMs + 200);
 		if (ch === 'throttle') {
-			// Manche auto-centré : lâché, il revient — demi-course, pas de
-			// consigne THROTTLE — FULL DOWN à traverser.
+			// A self-centring stick: let go, it comes back — half travel, so no
+			// THROTTLE — FULL DOWN prompt to cross.
 			s = feed(s, zero, CAL_TIMING.releaseMinMs + CAL_TIMING.holdMs + 200);
 		} else {
 			s = feed(s, zero, 200);
@@ -40,112 +40,115 @@ function upTo(channel, { course = 1 } = {}) {
 	return s;
 }
 
-const bouge = (pose) => Object.entries(pose).filter(([, v]) => Math.abs(v) > 1e-6).map(([k]) => k).sort();
+const moves = (pose) => Object.entries(pose).filter(([, v]) => Math.abs(v) > 1e-6).map(([k]) => k).sort();
 
-t('HANDS OFF : la machine ne bouge pas, même si un signal est très écarté', () => {
-	// C'est la consigne affichée. Une machine qui s'agite pendant « ne touche à
-	// rien » dirait au pilote le contraire de ce qu'on lui demande.
+t('HANDS OFF: the machine does not move, even with a signal far off centre', () => {
+	// That is the prompt on screen. A machine flailing during "do not touch
+	// anything" would tell the pilot the opposite of what is being asked.
 	const s = beginCalibration(AXES);
 	assert.equal(s.phase, 'rest');
-	assert.deepEqual(bouge(calibrationPose({ state: s, signals: [0.9, 0, 0, 0] })), []);
+	assert.deepEqual(moves(calibrationPose({ state: s, signals: [0.9, 0, 0, 0] })), []);
 });
 
-t('pendant une consigne, SEUL le canal demandé bouge', () => {
+t('during a prompt, ONLY the channel asked for moves', () => {
 	for (const [channel, axis] of [['yaw', 3], ['pitch', 1], ['roll', 0]]) {
 		const s = upTo(channel);
 		const push = [...zero]; push[axis] = 1;
-		assert.deepEqual(bouge(calibrationPose({ state: s, signals: push })), [channel],
-			`${channel} : un autre canal a bougé`);
+		assert.deepEqual(moves(calibrationPose({ state: s, signals: push })), [channel],
+			`${channel}: another channel moved`);
 	}
 });
 
-t('THROTTLE : la machine monte, et rien d\'autre ne bouge', () => {
+t('THROTTLE: the machine climbs, and nothing else moves', () => {
 	const s = upTo('throttle');
-	assert.deepEqual(bouge(calibrationPose({ state: s, signals: [0, 0, 1, 0] })), ['throttle']);
+	assert.deepEqual(moves(calibrationPose({ state: s, signals: [0, 0, 1, 0] })), ['throttle']);
 	assert.equal(calibrationPose({ state: s, signals: zero }).throttle, 0);
 });
 
-t('un gaz INVERSÉ fait quand même monter la machine', () => {
-	// Le geste demandé est « gaz en haut ». Si la radio rend un axe négatif, la
-	// machine doit monter quand même : à ce stade, le sens n'est pas encore
-	// mesuré, et une machine qui descend accuserait le pilote à tort.
+t('an INVERTED throttle still makes the machine climb', () => {
+	// The gesture asked for is "throttle up". If the radio reports a negative axis,
+	// the machine must climb anyway: at this point the direction is not measured
+	// yet, and a machine going down would accuse the pilot wrongly.
 	const s = upTo('throttle');
 	assert.ok(calibrationPose({ state: s, signals: [0, 0, -1, 0] }).throttle > 0.9);
 });
 
-t('l\'échelle suit la course de CETTE radio, pas une course supposée', () => {
-	// Une radio dont les endpoints ne sont pas réglés ne sort que 0.6. Le pilote
-	// est pourtant à sa butée : la machine doit être à pleine inclinaison.
-	const court = upTo('yaw', { course: 0.6 });
-	const pose = calibrationPose({ state: court, signals: [0, 0, 0, 0.6] });
-	assert.ok(pose.yaw > 0.95, `course réduite : lacet ${pose.yaw}`);
+t('the scale follows THIS radio\'s travel, not an assumed one', () => {
+	// A radio whose endpoints are not set only puts out 0.6. The pilot is at their
+	// stop all the same: the machine must be at full deflection.
+	const short = upTo('yaw', { travel: 0.6 });
+	const pose = calibrationPose({ state: short, signals: [0, 0, 0, 0.6] });
+	assert.ok(pose.yaw > 0.95, `short travel: yaw ${pose.yaw}`);
 });
 
-t('rien ne sort jamais des bornes', () => {
+t('nothing ever leaves the bounds', () => {
 	const s = upTo('roll');
 	for (const v of [-3, -1, 0, 1, 3]) {
 		const pose = calibrationPose({ state: s, signals: [v, 0, 0, 0] });
 		for (const [k, x] of Object.entries(pose)) {
-			assert.ok(Number.isFinite(x), `${k} n'est pas fini`);
+			assert.ok(Number.isFinite(x), `${k} is not finite`);
 			assert.ok(x >= (k === 'throttle' ? 0 : -1) && x <= 1, `${k} = ${x}`);
 		}
 	}
 });
 
-t('le rejeu part de zéro, culmine, et revient EXACTEMENT à zéro', () => {
-	// S'il ne revenait pas à zéro, la machine resterait de travers après la
-	// confirmation et le pilote lirait une inclinaison qu'il n'a pas demandée.
-	assert.deepEqual(bouge(replayPose('roll', 0)), []);
+t('the replay starts from zero, peaks, and comes back to EXACTLY zero', () => {
+	// If it did not come back to zero, the machine would stay tilted after the
+	// confirmation and the pilot would read a deflection they did not ask for.
+	assert.deepEqual(moves(replayPose('roll', 0)), []);
 	assert.ok(replayPose('roll', REPLAY_MS / 2).roll > 0.9);
-	assert.deepEqual(bouge(replayPose('roll', REPLAY_MS)), []);
-	assert.deepEqual(bouge(replayPose('roll', REPLAY_MS * 3)), []);
+	assert.deepEqual(moves(replayPose('roll', REPLAY_MS)), []);
+	assert.deepEqual(moves(replayPose('roll', REPLAY_MS * 3)), []);
 });
 
-t('un rejeu en cours prend la main sur les manches', () => {
-	// Le pilote tient encore son manche quand la confirmation démarre : c'est le
-	// geste REJOUÉ qu'il doit voir, pas le sien.
+t('a replay in progress takes priority over the sticks', () => {
+	// The pilot is still holding their stick when the confirmation starts: it is the
+	// REPLAYED gesture they must see, not their own.
 	const s = upTo('yaw');
 	const pose = calibrationPose({ state: s, signals: [0, 0, 0, 1], replay: { channel: 'roll', elapsedMs: REPLAY_MS / 2 } });
-	assert.deepEqual(bouge(pose), ['roll']);
+	assert.deepEqual(moves(pose), ['roll']);
 });
 
-t('CALIBRATED : les quatre manches pilotent la machine', () => {
-	// Le banc d'essai, gratuit : une fois la mesure finie, la machine suit le
-	// calibrage qu'on vient d'écrire.
+t('CALIBRATED: the four sticks fly the machine', () => {
+	// The test bench, for free: once the measurement is over, the machine follows
+	// the calibration just written.
 	let s = upTo('roll');
 	s = feed(s, [1, 0, 0, 0], CAL_TIMING.holdMs + 200);
-	assert.equal(s.phase, 'done', 'le scénario doit aboutir');
+	// The four sticks lead into the two menu gestures; a four-axis device with no
+	// button has nothing to measure there, and the pilot skips them.
+	s = skipMenuStep(skipMenuStep(s));
+	assert.equal(s.phase, 'done', 'the scenario must complete');
 	assert.ok(calibrationPose({ state: s, signals: [1, 0, 0, 0] }).roll > 0.9);
 	assert.ok(calibrationPose({ state: s, signals: [0, 0, 1, 0] }).throttle > 0.9);
-	assert.deepEqual(bouge(calibrationPose({ state: s, signals: zero })), []);
+	assert.deepEqual(moves(calibrationPose({ state: s, signals: zero })), []);
 });
 
-t('sans état, la pose est neutre plutôt qu\'une exception', () => {
-	// Le panneau peint avant que l\'assistant ne démarre.
-	assert.deepEqual(bouge(calibrationPose()), []);
-	assert.deepEqual(bouge(calibrationPose({ state: null, signals: [1, 1, 1, 1] })), []);
+t('with no state, the pose is neutral rather than an exception', () => {
+	// The panel paints before the wizard starts.
+	assert.deepEqual(moves(calibrationPose()), []);
+	assert.deepEqual(moves(calibrationPose({ state: null, signals: [1, 1, 1, 1] })), []);
 });
 
-t('un canal ne rejoue son geste qu\'une fois sa mesure TERMINÉE', () => {
-	// Le gaz entre dans `channels` dès que son plafond est mesuré, mais il reste
-	// en cours tant que son mode de course n'est pas décidé. Le rejouer à ce
-	// moment ferait bouger la machine pendant qu'on demande au pilote de LÂCHER.
+t('a channel only replays its gesture once its measurement is FINISHED', () => {
+	// The throttle enters `channels` as soon as its ceiling is measured, but it is
+	// still under way until its travel mode is decided. Replaying it then would move
+	// the machine while the pilot is being asked to LET GO.
 	let s = feed(beginCalibration(AXES), zero, CAL_TIMING.restMs + 200);
 	assert.deepEqual(completedChannels(s), []);
 
 	s = feed(s, [0, 0, 1, 0], CAL_TIMING.holdMs + 200);
 	assert.equal(s.phase, 'throttle-release');
-	assert.ok(s.channels.throttle, 'le plafond est mesuré');
-	assert.deepEqual(completedChannels(s), [], 'mais le gaz n\'est pas fini');
+	assert.ok(s.channels.throttle, 'the ceiling is measured');
+	assert.deepEqual(completedChannels(s), [], 'but the throttle is not finished');
 
 	s = feed(s, zero, CAL_TIMING.releaseMinMs + CAL_TIMING.holdMs + 200);
-	assert.deepEqual(completedChannels(s), ['throttle'], 'le mode de course décidé : fini');
+	assert.deepEqual(completedChannels(s), ['throttle'], 'travel mode decided: finished');
 
 	s = feed(s, [0, 0, 0, 1], CAL_TIMING.holdMs + 200);
 	assert.deepEqual(completedChannels(s), ['throttle', 'yaw']);
 });
 
-t('completedChannels ne jette pas sur un état vide', () => {
+t('completedChannels does not throw on an empty state', () => {
 	assert.deepEqual(completedChannels(), []);
 	assert.deepEqual(completedChannels(beginCalibration(AXES)), []);
 });

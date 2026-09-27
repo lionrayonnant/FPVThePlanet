@@ -10,6 +10,7 @@ import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
 import { Input } from './input.js';
+import { setMenuInput } from './menu-nav.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
 import * as operator from './operator.js';
@@ -22,6 +23,8 @@ import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { runBriefing } from './briefing.js';
 import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint, keyOf } from '../tools/briefing-model.mjs';
+import { runReadiness } from './readiness.js';
+import { shouldShowReadiness } from '../tools/readiness-model.mjs';
 import { keyMapRows, actionForKey } from './key-map.js';
 import { FlightExit } from './flight-exit.js';
 import { newLinkState, linkEvent } from '../tools/ui-audio-model.mjs';
@@ -235,10 +238,17 @@ renderer.toneMapping = THREE.NoToneMapping;
 document.body.appendChild(renderer.domElement);
 
 const input = new Input();
+// The menus read the SAME device, through the SAME calibration, as the flight
+// does: menu-nav.js otherwise took the first gamepad the browser enumerated and
+// its raw axes 0/1 — which on a radio is a throttle that never re-centres.
+setMenuInput(input);
 // The HUD's two layers (PHASE 12). The station's exists from the start and
 // depends on no target; the drone's belongs to the machine being flown, so it
 // is born when the session opens, along with its camera spec.
 const fpvtpOsd = new FpvtpOsd(document.getElementById('ui'));
+// A controller that dies mid-flight used to fall back to the keyboard in total
+// silence. input.js owns no DOM, so it hands the line over and the OSD paints it.
+input.onDeviceLost = (line) => fpvtpOsd.setInputLost(line);
 let droneOsd = null;
 let camSpec = null;
 // The last night gain pushed to lens.setSensor() — so that only changes are
@@ -3124,6 +3134,17 @@ async function chooseScene() {
 		const previewHack = normalizeHackType(OPTS.hack);
 		if (previewHack) await runHack(ui, { hackType: previewHack, family: OPTS.family || undefined });
 		return { slug: OPTS.scene, target: undefined, family: OPTS.family || undefined };
+	}
+
+	// RECOMMENDED SETUP. Hardware, not identity: it runs BEFORE the operator is
+	// resolved, so an operator registered months ago meets it too, and it never
+	// runs on the ?scene= / ?live= paths above — those are development
+	// entrances. Its dependencies are handed over rather than imported by it,
+	// the way bootstrap() is handed its briefing. A failure here must not be
+	// what stops someone from flying.
+	if (shouldShowReadiness(localStorage)) {
+		try { await runReadiness(ui, { nav: navigator, store: localStorage }); }
+		catch (e) { console.warn('[readiness]', e); }
 	}
 
 	// The bootstrap, unchanged (issue #60): the key returned by the creation goes

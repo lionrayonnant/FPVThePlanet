@@ -20,8 +20,12 @@ const {
 	PAD_LIST_EMPTY,
 	calStoreGet,
 	calStoreSet,
+	isValidCalibration,
 	sticksFromCalibration,
 	remapChannel,
+	menuButtonDown,
+	deviceLostLine,
+	PAD_CALIBRATE_HINT,
 	Input,
 } = await import('../src/input.js');
 const { padSignals } = await import('../src/calibration.js');
@@ -84,6 +88,68 @@ t('padKind: unknown / empty -> generic', () => {
 	assert.equal(padKind(undefined), 'generic');
 });
 
+t('padKind: the radios added by name, brand and model alike', () => {
+	// Names only — no USB id was invented here. A radio that falls to 'generic'
+	// gets GAMEPAD_MAP, whose four axes are in a different order and whose throttle
+	// is half travel: the pilot experiences that as "it does not work".
+	for (const id of [
+		'Jumper T-Pro Joystick', 'Jumper T-Lite', 'Jumper T20 Joystick',
+		'RadioMaster TX12 MKII Joystick', 'RadioMaster TX16S', 'RadioMaster MT12',
+		'RadioMaster Zorro Joystick', 'RadioMaster Boxer', 'Radiomaster Pocket',
+		'iFlight Commando 8', 'RadioKing TX18S', 'TBS MAMBO Joystick',
+		'FlySky Noble NB4', 'NB4 Joystick', 'FlySky Paladin PL18', 'PL18 Joystick',
+		'BetaFPV LiteRadio 3 Pro', 'LiteRadio 2 SE',
+	]) {
+		assert.equal(padKind(id), 'radio', id);
+	}
+});
+
+t('padKind: the new model words do not claim a game controller', () => {
+	// The reason `t20`, `noble` and `pocket` are NOT in the list: a short or
+	// ordinary word is how a brand list starts catching pads. Those radios are
+	// reached by their brand instead, and these ids must stay generic.
+	for (const id of [
+		'Some No-Name Pad', 'Thrustmaster T.16000M FCS', 'Logitech F310 Gamepad',
+		'Nacon Revolution Pro', 'Generic USB Joystick', 'Hori Fighting Stick',
+		'Saitek X52 Pro Flight Control System', 'T20 Racing Wheel',
+		'Noble Collection Pad', 'Pocket Gamepad',
+	]) {
+		assert.equal(padKind(id), 'generic', id);
+	}
+});
+
+t('padKind: Nintendo and 8BitDo get a label of their own', () => {
+	// The point is the LABEL, not a new profile: `generic` reads as
+	// "unrecognised" and sends the pilot hunting for a fix they do not need.
+	assert.equal(padKind('Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)'), 'nintendo');
+	assert.equal(padKind('057e-2009-Pro Controller'), 'nintendo');
+	assert.equal(padKind('Joy-Con (L)'), 'nintendo');
+	assert.equal(padKind('Nintendo Switch Pro Controller'), 'nintendo');
+	assert.equal(padKind('8BitDo Ultimate Controller (Vendor: 2dc8 Product: 3106)'), 'nintendo');
+});
+
+t('padKind: Steam Deck and Valve get one too', () => {
+	assert.equal(padKind('Steam Deck Controller (Vendor: 28de Product: 1205)'), 'steam');
+	assert.equal(padKind('Valve Software Steam Controller'), 'steam');
+	assert.equal(padKind('28de-1102-Steam Controller'), 'steam');
+});
+
+t('padKind: the ORDER of the tests, which is the whole difficulty', () => {
+	// Radio first: a radio can announce itself as "... Controller", and a radio
+	// misclassed is a radio that does not fly.
+	assert.equal(padKind('RadioMaster TX16S Wireless Controller'), 'radio');
+	assert.equal(padKind('EdgeTX Pro Controller'), 'radio');
+	// Xbox before PlayStation, because of the bare "Wireless Controller" Firefox
+	// gives the DS4.
+	assert.equal(padKind('Xbox Wireless Controller'), 'xbox');
+	assert.equal(padKind('Wireless Controller'), 'playstation');
+	// Nintendo and Steam LAST of the name tests: an 8BitDo in XInput mode
+	// enumerates under 045e and a Steam Deck under Steam Input looks like an Xbox
+	// pad — in that mode the earlier class is the truer one.
+	assert.equal(padKind('8BitDo Ultimate (XInput STANDARD GAMEPAD Vendor: 045e)'), 'xbox');
+	assert.equal(padKind('Steam Virtual Gamepad (Vendor: 045e Product: 028e)'), 'xbox');
+});
+
 // --- profiles ---------------------------------------------------------------
 
 t('defaultMapForKind: Xbox, PlayStation and generic share one profile', () => {
@@ -125,6 +191,25 @@ t('throttleModeForKind: half travel except on a radio', () => {
 	assert.equal(throttleModeForKind('xbox'), THROTTLE_MODE.gamepad);
 	assert.equal(throttleModeForKind('playstation'), THROTTLE_MODE.gamepad);
 	assert.equal(throttleModeForKind('generic'), THROTTLE_MODE.gamepad);
+});
+
+t('the new families change NO mapping, only the label', () => {
+	// In standard mapping a Switch Pro, an 8BitDo and a Steam Deck expose exactly
+	// the PlayStation/Xbox axis layout. Documented here so that nobody reads the
+	// absence of a profile as an oversight.
+	for (const kind of ['nintendo', 'steam']) {
+		assert.deepEqual(defaultMapForKind(kind), defaultMapForKind('playstation'), kind);
+		assert.equal(throttleModeForKind(kind), THROTTLE_MODE.gamepad, kind);
+	}
+	// Full travel is a statement about the HARDWARE — a friction gimbal holding its
+	// position — so it stays the radio's alone.
+	assert.equal(throttleModeForKind('radio'), THROTTLE_MODE.radio);
+});
+
+t('padListEntries: a new family reads as itself in the device list', () => {
+	const rows = padListEntries([{ index: 0, id: 'Pro Controller (057e)', axes: 4, buttons: 16 }], 0);
+	assert.equal(rows[0].kind, 'nintendo');
+	assert.match(rows[0].label, /nintendo/);
 });
 
 t('throttleFromAxis half: a self-centring stick at rest = 0 % throttle', () => {
@@ -555,6 +640,248 @@ t('B4: the mouse takes over once the keys have finished releasing', () => {
 	input.update(0.01);
 	assert.ok(Math.abs(input.sticks.roll - aim) < 1e-12, 'the stick IS the aim');
 	assert.ok(input.mouse.x < aim, 'and the aim keeps falling back to centre');
+});
+
+// --- calibrations written by an OLDER version (backward compatibility) -------
+//
+// isValidCalibration() is the gate between localStorage and the motors. It must
+// keep accepting everything already stored out there, which is the whole reason
+// the `menu` field is optional.
+
+t('isValidCalibration: a calibration with no `menu` field is still accepted', () => {
+	// Every calibration written before the two menu steps existed looks like this.
+	// Refusing it would silently take the measurement back off a pilot who has
+	// already calibrated, and put the guessed profile back on their radio.
+	assert.equal('menu' in RADIO_CAL, false, 'the fixture really is an old one');
+	assert.equal(isValidCalibration(RADIO_CAL), true);
+	assert.equal(isValidCalibration(DS4_CAL), true);
+	// And it flies: the four sticks are read, nothing divides by anything missing.
+	assert.deepEqual(sticksFromCalibration([0, 0, -1, 0], RADIO_CAL), {
+		throttle: 0, yaw: 0, pitch: 0, roll: 0,
+	});
+});
+
+t('isValidCalibration: a `menu` field does not make it refuse the flight', () => {
+	const withMenu = {
+		...DS4_CAL,
+		menu: { confirm: { signal: 8, center: -1, on: 1 }, back: { signal: 9, center: -1, on: 1 } },
+	};
+	assert.equal(isValidCalibration(withMenu), true);
+	// A malformed `menu` is not fatal either: it is the READER that validates each
+	// entry, and a menu convenience must never ground a flight.
+	assert.equal(isValidCalibration({ ...DS4_CAL, menu: {} }), true);
+	assert.equal(isValidCalibration({ ...DS4_CAL, menu: { confirm: 'nonsense' } }), true);
+	// But a `menu` that is not an object at all is a corrupt entry.
+	assert.equal(isValidCalibration({ ...DS4_CAL, menu: 3 }), false);
+});
+
+t('isValidCalibration: the deadband gate that stands in front of the motors', () => {
+	// A stored `deadband: 1` divides by zero in normalizeChannel and the stick
+	// reads NaN at full stop — a dead flight from one bad key.
+	assert.equal(isValidCalibration({ ...DS4_CAL, deadband: 1 }), false);
+	assert.equal(isValidCalibration({ ...DS4_CAL, deadband: -0.1 }), false);
+	assert.equal(isValidCalibration({ ...DS4_CAL, throttleMode: 'quarter' }), false);
+	assert.equal(isValidCalibration(null), false);
+});
+
+t('menuButtonDown: with nothing measured, buttons 0 and 1, exactly as before', () => {
+	// A standard pad needs no measurement. `undefined` spec -> the fallback index.
+	const signals = [0, 0, 0, 0, 1, -1];      // 4 axes, then button 0 down, button 1 up
+	assert.equal(menuButtonDown(signals, undefined, 4), true);
+	assert.equal(menuButtonDown(signals, undefined, 5), false);
+	assert.equal(menuButtonDown(signals, undefined, 99), false, 'a missing signal is not pressed');
+});
+
+t('menuButtonDown: a measurement too small to trust falls back to nothing', () => {
+	// If rest and pressed are almost the same value, noise alone would cross the
+	// threshold — better no button than one that fires by itself.
+	const signals = [0.1, 0, 0, 0];
+	assert.equal(menuButtonDown(signals, { signal: 0, center: 0, on: 0.2 }, 99), false);
+});
+
+t('menuButtonDown: a switch measured on an AXIS reads with the same formula', () => {
+	// A radio in standard mapping can file a switch on an axis, and a switch left
+	// on one side reads as permanently pressed — which is exactly why buttons 0 and
+	// 1 were unusable there. Measured ends make the threshold explicit.
+	const spec = { signal: 3, center: -1, on: 1 };
+	assert.equal(menuButtonDown([0, 0, 0, 1], spec, 99), true);
+	assert.equal(menuButtonDown([0, 0, 0, -1], spec, 99), false);
+	assert.equal(menuButtonDown([0, 0, 0, 0.1], spec, 99), true, 'past halfway is pressed');
+	assert.equal(menuButtonDown([0, 0, 0, -0.1], spec, 99), false);
+});
+
+// --- the signals the MENUS read (issue #123 follow-up) -----------------------
+//
+// The menus used to read axes 0 and 1 raw off the first enumerated pad. On a
+// radio, axis 1 can be the throttle stick — it does not come back to centre, so
+// the cursor left in one direction and stayed there. Roll and pitch, read through
+// the calibrated path, are the only two channels that self-centre everywhere.
+
+// A Gamepad as the browser reports it, plus the enumeration around it.
+const mountPad = (id, axes, buttons = 4) => {
+	const pad = {
+		index: 0,
+		id,
+		axes,
+		buttons: Array.from({ length: buttons }, () => ({ pressed: false, value: 0 })),
+	};
+	navigator.getGamepads = () => [pad];
+	return pad;
+};
+
+const unmountPads = () => { navigator.getGamepads = () => []; };
+
+t('menuAxes: a stick pushed FORWARD gives a negative y — which is "up"', () => {
+	// The sign that decides everything: GAMEPAD_MAP pitch is axis 3, not inverted,
+	// and the axis reads -1 forward. src/gamepad-dir.js turns y < -0.5 into 'up'.
+	mountPad('Some No-Name Pad', [0, 0, 0, -1]);
+	const input = freshInput();
+	const axes = input.menuAxes();
+	assert.ok(axes.y < -0.9, `forward = ${axes.y}, must be negative (up)`);
+	assert.equal(axes.x, 0, 'and pushing pitch does not move the cursor sideways');
+	unmountPads();
+});
+
+t('menuAxes: the four directions of a self-centring pad', () => {
+	const pad = mountPad('Some No-Name Pad', [0, 0, 0, 0]);
+	const input = freshInput();
+	const read = (roll, pitch) => { pad.axes = [0, 0, roll, pitch]; return input.menuAxes(); };
+	assert.ok(read(0, -1).y < -0.9, 'stick forward -> up');
+	assert.ok(read(0, 1).y > 0.9, 'stick back -> down');
+	assert.ok(read(-1, 0).x < -0.9, 'stick left -> left');
+	assert.ok(read(1, 0).x > 0.9, 'stick right -> right');
+	assert.deepEqual(read(0, 0), { x: 0, y: 0 }, 'at rest, nothing');
+	unmountPads();
+});
+
+t('menuAxes: the OTHER sign convention — a radio, whose pitch is inverted', () => {
+	// EDGETX_MAP puts pitch on axis 1 WITH inversion: the axis reads +1 with the
+	// stick pushed forward. The menu direction must come out the same way round as
+	// on the pad — forward is up on both, or half the hardware navigates backwards.
+	const pad = mountPad('RadioMaster TX16S Joystick', [0, 1, -1, 0]);
+	const input = freshInput();
+	assert.ok(input.menuAxes().y < -0.9, 'forward (axis +1, inverted) -> up');
+	pad.axes = [0, -1, -1, 0];
+	assert.ok(input.menuAxes().y > 0.9, 'pulled back -> down');
+	unmountPads();
+});
+
+t('menuAxes: a throttle parked at one end of its travel moves NOTHING', () => {
+	// The bug in one assertion: on this radio axis 2 is the throttle, held at -1 for
+	// the whole session. Reading axes 0/1 raw walked the cursor away for ever.
+	const pad = mountPad('RadioMaster TX16S Joystick', [0, 0, -1, 0]);
+	const input = freshInput();
+	assert.deepEqual(input.menuAxes(), { x: 0, y: 0 });
+	pad.axes = [0, 0, 1, 0];                  // throttle wide open
+	assert.deepEqual(input.menuAxes(), { x: 0, y: 0 }, 'throttle is not a direction');
+	unmountPads();
+});
+
+t('menuAxes / menuButtons: null when there is no device at all', () => {
+	unmountPads();
+	const input = freshInput();
+	assert.equal(input.menuAxes(), null);
+	assert.equal(input.menuButtons(), null);
+});
+
+t('menuButtons: buttons 0 and 1 until a calibration says otherwise', () => {
+	const pad = mountPad('Some No-Name Pad', [0, 0, 0, 0], 8);
+	const input = freshInput();
+	assert.deepEqual(input.menuButtons(), { confirm: false, back: false });
+	pad.buttons[0].value = 1;
+	assert.deepEqual(input.menuButtons(), { confirm: true, back: false });
+	pad.buttons[0].value = 0;
+	pad.buttons[1].value = 1;
+	assert.deepEqual(input.menuButtons(), { confirm: false, back: true });
+	unmountPads();
+});
+
+t('menuButtons: a MEASURED pair wins over buttons 0 and 1', () => {
+	// On a radio, buttons 0 and 1 are switch positions — here one of them is held
+	// down for ever, and it must not confirm anything. What confirms is what the
+	// wizard measured: button 4, signal 4 + 4 = 8.
+	const pad = mountPad('RadioMaster TX16S Joystick', [0, 0, -1, 0], 8);
+	pad.buttons[0].value = 1;                 // a switch left on one side
+	const input = freshInput();
+	// One read first, so the device is adopted: adopting it re-applies the STORED
+	// calibration (there is none here), which would undo the one set by hand.
+	input.menuButtons();
+	input.applyCalibration({
+		...RADIO_CAL,
+		menu: { confirm: { signal: 8, center: -1, on: 1 }, back: { signal: 9, center: -1, on: 1 } },
+	});
+	assert.deepEqual(input.menuButtons(), { confirm: false, back: false },
+		'the switch held down confirms nothing any more');
+	pad.buttons[4].value = 1;
+	assert.deepEqual(input.menuButtons(), { confirm: true, back: false });
+	unmountPads();
+});
+
+// --- losing the controller in flight ----------------------------------------
+//
+// A flat Bluetooth battery mid-flight used to hand the keyboard back in silence:
+// the commands simply disappeared with no explanation. input.js paints nothing —
+// it names the event, and the caller (main.js -> fpvtpOsd.setInputLost) paints it.
+
+t('deviceLostLine: names the device, and says who is flying now', () => {
+	const line = deviceLostLine('Xbox Wireless Controller');
+	assert.match(line, /CONTROLLER LOST/);
+	assert.match(line, /XBOX WIRELESS CONTROLLER/, 'the device that went away is named');
+	assert.match(line, /KEYBOARD/, 'and the fact that the keyboard has taken over');
+	// A Gamepad id can be a paragraph; the HUD line cannot.
+	assert.ok(deviceLostLine('x'.repeat(200)).length < 80);
+	assert.match(deviceLostLine(null), /CONTROLLER LOST/, 'no id: still a warning');
+});
+
+t('a device that disappears mid-flight is announced ONCE', () => {
+	mountPad('Some No-Name Pad', [0, 0, 0, 0], 8);
+	const input = freshInput();
+	const seen = [];
+	input.onDeviceLost = (line, id) => seen.push([line, id]);
+
+	input.update(0.016);
+	assert.equal(input.usingGamepad, true, 'the pad is flying');
+
+	unmountPads();
+	input.update(0.016);
+	assert.equal(input.usingGamepad, false, 'the keyboard has taken over');
+	assert.equal(seen.length, 1, 'and it was said');
+	assert.match(seen[0][0], /CONTROLLER LOST/);
+	assert.equal(seen[0][1], 'Some No-Name Pad', 'the raw id comes along for whoever logs it');
+	assert.equal(input.lostDevice, 'Some No-Name Pad', 'and the state is there for a poller');
+
+	for (let i = 0; i < 10; i++) input.update(0.016);
+	assert.equal(seen.length, 1, 'a loss is announced once, not sixty times a second');
+});
+
+t('a device that never flew is not announced when nothing is plugged in', () => {
+	unmountPads();
+	const input = freshInput();
+	let calls = 0;
+	input.onDeviceLost = () => { calls++; };
+	for (let i = 0; i < 10; i++) input.update(0.016);
+	assert.equal(calls, 0, 'a keyboard pilot is told nothing');
+	assert.equal(input.lostDevice, null);
+});
+
+t('a device that comes back clears the warning state', () => {
+	mountPad('Some No-Name Pad', [0, 0, 0, 0], 8);
+	const input = freshInput();
+	input.update(0.016);
+	unmountPads();
+	input.update(0.016);
+	assert.ok(input.lostDevice);
+	mountPad('Some No-Name Pad', [0, 0, 0, 0], 8);
+	input.update(0.016);
+	assert.equal(input.lostDevice, null, 'plugged back in: nothing is lost any more');
+	unmountPads();
+});
+
+t('PAD_CALIBRATE_HINT points an unrecognised device at the wizard', () => {
+	// Said once, in input.js, next to PAD_LIST_EMPTY, so that every screen that has
+	// to say it says the same thing.
+	assert.match(PAD_CALIBRATE_HINT, /CALIBRATE/);
+	assert.match(PAD_CALIBRATE_HINT, /guess/i, 'and it says what the default profile IS');
 });
 
 console.log(`input-selftest: ${n} tests ok`);

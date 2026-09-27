@@ -24,6 +24,47 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Un écran de recommandations au lancement.** `RECOMMENDED SETUP` dit, avant
+  le menu, ce avec quoi ce simulateur se pilote : une radio FPV sous EdgeTX ou
+  une manette DualShock/Xbox, et un navigateur de la famille Chromium. Il
+  s'efface tout seul au bout de deux secondes quand les deux conditions sont
+  réunies, et attend un `[ CONTINUE ]` sinon ; `[ DON'T SHOW AGAIN ]` le retire
+  définitivement. Il ne dit jamais « pas de manette » : l'API Gamepad ne révèle
+  un périphérique qu'après une action dessus, et l'opérateur vient justement de
+  passer l'intro au clavier — l'écran sonde donc pendant qu'il est affiché, et
+  bouger un manche fait disparaître l'avertissement tout seul.
+- **Le calibrage mesure aussi les boutons de menu.** Deux consignes de plus à la
+  fin de l'assistant — `CONFIRM` et `GO BACK` — sautables, mémorisées avec le
+  calibrage du périphérique. C'est ce qui rend une radio utilisable dans les
+  menus : ses interrupteurs ne sont pas des boutons momentanés, et les boutons
+  0 et 1 sur lesquels la navigation était figée n'y existent pas.
+- **Deux classes de périphériques de plus** à l'affichage, `nintendo` et
+  `steam`, et une dizaine de radios de plus reconnues du premier coup. Le
+  mappage par défaut ne change pas pour les nouvelles familles : en mapping
+  « standard » elles exposent la même disposition d'axes qu'une DualShock.
+
+### Corrigé
+
+- **Les menus obéissaient à la mauvaise manette.** La navigation lisait la
+  première manette énumérée par le navigateur et ses axes bruts 0 et 1, en
+  ignorant à la fois le périphérique choisi dans SETTINGS > CONTROLLER et le
+  calibrage mesuré. Sur une radio, Firefox range le manche des gaz sur l'un de
+  ces deux axes — un axe qui ne revient pas au centre : le curseur partait dans
+  une direction et n'en revenait plus. La direction vient maintenant des canaux
+  roll et pitch, les deux seuls auto-centrés sur tous les matériels, lus par le
+  même chemin calibré que le vol et sur le périphérique actif.
+- **Une manette perdue en vol ne disait rien.** Une batterie Bluetooth vide
+  repassait le pilote au clavier en silence complet. Le HUD l'annonce désormais,
+  en nommant le périphérique perdu, et la détection est doublée : l'évènement
+  `gamepaddisconnected` plus la boucle de frame, parce que Firefox ne tire pas
+  toujours le premier.
+- **Une radio non reconnue tombait sur un mappage de manette**, aux axes dans un
+  autre ordre et au gaz en demi-course. Le pilote ne voyait pas « mal mappé », il
+  voyait « ça ne marche pas ». Et quand le périphérique reste inconnu, l'écran de
+  lancement nomme désormais l'endroit où ça se règle.
+
 ## [1.2.0] - 2026-09-23
 
 ### Ajouté

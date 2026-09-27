@@ -15,6 +15,7 @@ const dom = installFakeDom({ raf: true });
 const { Settings } = await import('../src/settings.js');
 const { KEY_ACTIONS, DEFAULT_KEY_MAP, KEY_MAP_STORAGE, loadKeyMap, keyLabel } = await import('../src/key-map.js');
 const { versionLine } = await import('../src/version.js');
+const { PAD_CALIBRATE_HINT } = await import('../src/input.js');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -254,15 +255,22 @@ t('RESET KEYS restores the defaults, and needs two presses to do it', () => {
 t('CONTROLLER keeps the calibration wizard wired', () => {
 	const p = mount();
 	p.settings.open('controller');
-	for (const id of ['pad-name', 'pad-list', 'pad-map', 'cal-row', 'calibrate', 'cal-note',
-		'cal-screen', 'cal-step', 'cal-prompt', 'cal-hint', 'cal-message', 'cal-bar',
-		'cal-drone', 'cal-cancel-row', 'cal-cancel', 'cal-summary']) {
+	for (const id of ['pad-name', 'pad-list', 'pad-hint', 'pad-map', 'cal-row', 'calibrate', 'cal-note',
+		'cal-screen', 'cal-step', 'cal-prompt', 'cal-hint', 'cal-message', 'cal-measured', 'cal-bar',
+		'cal-drone', 'cal-cancel-row', 'cal-cancel', 'cal-skip-row', 'cal-skip', 'cal-summary']) {
 		assert.ok(p.el.querySelector(`[id="${id}"]`), `#${id} is still there`);
 	}
 	const controller = p.sections().find((s) => s.dataset.tab === 'controller');
 	assert.ok(controller.querySelector('[id="cal-row"]'), 'the wizard lives under CONTROLLER');
 	// No gamepad: CALIBRATE is offered but inert, and nothing throws.
 	assert.equal(p.el.querySelector('[id="calibrate"]').disabled, true);
+	// The two menu steps are skippable, and their row only shows during them: with
+	// no wizard running it must be hidden, not offering a skip over a stick.
+	assert.equal(p.el.querySelector('[id="cal-skip-row"]').hidden, true);
+	// Same for the unrecognised-device line: there is no device at all here.
+	assert.equal(p.el.querySelector('[id="pad-hint"]').hidden, true);
+	// And it carries the sentence input.js owns, not a copy written here.
+	assert.equal(p.el.querySelector('[id="pad-hint"]').textContent, PAD_CALIBRATE_HINT);
 });
 
 t('AUDIO holds the three sliders', () => {

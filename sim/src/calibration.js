@@ -1,44 +1,48 @@
-// Calibrage guidé d'une radio ou d'une manette (issue #277).
+// Guided calibration of a radio or a gamepad (issue #277).
 //
-// Ce module MESURE le périphérique là où input.js le DEVINE : padKind() lit une
-// chaîne USB et en déduit un profil figé, ce qui laisse une radio absente de la
-// liste des marques tomber sur un ordre d'axes faux ET un gaz en demi-course.
-// Ici rien n'est déduit d'un nom : on demande un geste à la fois et on regarde
-// ce qui a bougé.
+// This module MEASURES the device where input.js GUESSES it: padKind() reads a
+// USB string and deduces a fixed profile, which leaves a radio missing from the
+// brand list on a wrong axis order AND a half-travel throttle. Nothing here is
+// deduced from a name: one gesture is asked for at a time, and what moved is
+// what gets written down.
 //
-// Machine à états PURE : pas de DOM, pas de localStorage, pas de temps réel —
-// elle reçoit un instantané `pad.axes` et un `dt` en millisecondes, et rend
-// l'état suivant. C'est ce qui la rend rejouable dans
-// tools/calibration-selftest.mjs, où les séquences de vrai matériel (EdgeTX,
-// DualShock 4) sont vérifiées sans manette branchée.
+// A PURE state machine: no DOM, no localStorage, no real time — it is handed a
+// `pad.axes` snapshot and a `dt` in milliseconds, and returns the next state.
+// That is what makes it replayable in tools/calibration-selftest.mjs, where real
+// hardware sequences (EdgeTX, DualShock 4) are checked with nothing plugged in.
 //
-// Les consignes sont en ANGLAIS : c'est la langue de l'interface du jeu (D5,
-// issue #120). Les commentaires restent en français, comme partout ici.
+// The prompts are in English: that is the language of the game's interface (D5,
+// issue #120).
 
-// Ordre des consignes. Le gaz d'abord : c'est lui qui décide du mode de course
-// (phase 'throttle-release'), et le mode de course change la façon de lire
-// l'axe pour tout le reste de la session.
+// Order of the prompts. The throttle first: it is the one that decides the
+// travel mode (phase 'throttle-release'), and the travel mode changes how the
+// axis is read for the whole rest of the session.
 export const CAL_CHANNELS = ['throttle', 'yaw', 'pitch', 'roll'];
 
+// The two menu gestures, measured after the sticks. Same philosophy as above:
+// on a radio, "button 0" is a switch POSITION — an inter left on one side reads
+// as permanently pressed, and no momentary button that confirms anything is
+// reachable. So the pilot is asked for the gesture and the machine watches.
+export const CAL_MENU_STEPS = ['confirm', 'back'];
+
 // -----------------------------------------------------------------------------
-// CE QU'ON MESURE : TOUT CE QUE LE PÉRIPHÉRIQUE RAPPORTE (issue #279)
+// WHAT IS MEASURED: EVERYTHING THE DEVICE REPORTS (issue #279)
 //
-// Un manche n'est pas forcément sur un axe. Firefox applique
-// `mapping: "standard"` à une radio EdgeTX et range son manche des gaz dans
-// l'emplacement de la gâchette L2 : le gaz sort alors sur `buttons[6].value`,
-// analogique, et le quatrième axe reste mort. Mesuré sur une Radiomaster
-// Pocket — `btn 6` y lit 0.997, valeur qu'un bouton NUMÉRIQUE ne peut pas
-// rendre.
+// A stick is not necessarily on an axis. Firefox applies `mapping: "standard"`
+// to an EdgeTX radio and files its throttle stick in the L2 trigger slot: the
+// throttle then comes out on `buttons[6].value`, analogue, and the fourth axis
+// stays dead. Measured on a Radiomaster Pocket — `btn 6` reads 0.997 there, a
+// value a DIGITAL button cannot produce.
 //
-// #277 refusait déjà de déduire quoi que ce soit du nom USB, mais gardait
-// cette supposition-là sans l'avoir mesurée. Ici, axes et boutons entrent dans
-// un vecteur unique et sont traités pareil.
+// #277 already refused to deduce anything from the USB name, but kept that one
+// assumption without measuring it. Here axes and buttons enter one vector and
+// are treated alike.
 //
-// Les boutons y sont ramenés sur la course des axes — repos à -1, pleine
-// pression à +1 — pour deux raisons : tous les seuils du module (PUSH_MIN,
-// HOLD_TOL, REST_MAX_SPREAD…) sont calibrés sur une course de 2 et gardent
-// ainsi le sens qu'on leur a mesuré ; et une gâchette au repos se lit alors
-// exactement comme un manche des gaz à friction parqué en bas, ce qu'elle est.
+// Buttons are brought onto the axis travel — rest at -1, full press at +1 — for
+// two reasons: every threshold in the module (PUSH_MIN, HOLD_TOL,
+// REST_MAX_SPREAD…) is calibrated on a travel of 2 and so keeps the meaning it
+// was measured with; and a trigger at rest then reads exactly like a friction
+// throttle stick parked at the bottom, which is what it is.
 // -----------------------------------------------------------------------------
 
 export function padSignals(pad) {
@@ -47,22 +51,21 @@ export function padSignals(pad) {
 	return [...axes, ...buttons.map((b) => (b?.value ?? 0) * 2 - 1)];
 }
 
-// Un pilote qui lit « axis 14 » sur un périphérique qui annonce 8 axes croit à
-// un bug. Le récapitulatif doit nommer l'entrée telle que le navigateur la
-// nomme.
+// A pilot reading "axis 14" on a device that announces 8 axes believes it is a
+// bug. The summary must name the entry the way the browser names it.
 export function signalLabel(i, axisCount) {
 	return i < axisCount ? `axis ${i}` : `btn ${i - axisCount}`;
 }
 
-// Le geste demandé désigne toujours la direction POSITIVE du canal, telle que
-// flightController l'attend : gaz en haut, lacet à droite, roulis à droite, et
-// tangage POSITIF = cabrer (input.js : « stick poussé vers l'avant = nez qui
-// pique », donc tiré vers soi = cabrer). Demander « tire vers toi » plutôt que
-// « pousse en avant » évite d'avoir à expliquer une inversion au pilote.
+// The gesture asked for always designates the channel's POSITIVE direction, as
+// flightController expects it: throttle up, yaw right, roll right, and POSITIVE
+// pitch = nose up (input.js: "stick pushed forward = nose drops", so pulled
+// towards you = nose up). Asking for "pull towards you" rather than "push
+// forward" avoids having to explain an inversion to the pilot.
 //
-// La consigne est COURTE — elle est affichée en 22 px dans un panneau étroit,
-// et une consigne qui se coupe en deux au milieu d'une phrase se lit deux fois.
-// Ce qui l'explique va dans CAL_HINTS, à la taille du texte courant.
+// The prompt is SHORT — it is shown at 22 px in a narrow panel, and a prompt
+// that breaks in the middle of a sentence is read twice. What explains it goes
+// into CAL_HINTS, at body text size.
 export const CAL_PROMPTS = {
 	rest: 'HANDS OFF',
 	throttle: 'THROTTLE — FULL UP',
@@ -71,6 +74,8 @@ export const CAL_PROMPTS = {
 	roll: 'ROLL — FULL RIGHT',
 	throttleRelease: 'THROTTLE — LET GO',
 	throttleMin: 'THROTTLE — FULL DOWN',
+	menuConfirm: 'MENU — CONFIRM',
+	menuBack: 'MENU — GO BACK',
 	done: 'CALIBRATED',
 };
 
@@ -82,57 +87,59 @@ export const CAL_HINTS = {
 	roll: 'push it there and hold',
 	throttleRelease: 'let go and wait — full or half travel?',
 	throttleMin: 'hold it at the bottom',
+	menuConfirm: 'press the button you use to CONFIRM — or skip it',
+	menuBack: 'press the button you use to GO BACK — or skip it',
 	done: '',
 };
 
 export const CAL_TIMING = {
-	// Fenêtre de repos : assez longue pour voir le bruit d'un gimbal Hall,
-	// assez courte pour ne pas donner l'impression que rien ne se passe.
+	// Rest window: long enough to see the noise of a Hall gimbal, short enough
+	// not to feel like nothing is happening.
 	restMs: 1000,
-	// Combien de temps le manche doit rester à sa butée pour qu'on la retienne.
-	// Sans maintien, un passage rapide donne une butée sous-estimée — et une
-	// butée sous-estimée fait saturer la commande avant la fin de la course.
+	// How long the stick has to stay at its stop for it to be written down.
+	// Without the hold, a quick sweep gives an underestimated stop — and an
+	// underestimated stop saturates the command before the end of the travel.
 	holdMs: 400,
-	// Le pilote a le temps de lâcher avant qu'on lise sa position de repos.
-	// Sans ce délai, on lirait le manche encore tenu à fond et on conclurait
-	// « à friction » sur une manette parfaitement auto-centrée.
+	// The pilot has time to let go before their rest position is read. Without
+	// this delay we would read the stick still held wide open and conclude
+	// "friction gimbal" on a perfectly self-centring pad.
 	releaseMinMs: 800,
-	// Au bout de ce temps sans le moindre geste, la consigne le dit. Assez long
-	// pour qu'un pilote qui cherche son manche ne soit pas accusé de rien faire,
-	// assez court pour ne pas laisser quelqu'un devant un écran mort.
+	// After this long with no gesture at all, the prompt says so. Long enough
+	// that a pilot hunting for their stick is not accused of doing nothing, short
+	// enough not to leave anyone in front of a dead screen.
 	idleWarnMs: 6000,
 };
 
-// Ce qu'on affiche quand plus rien ne bouge. Un périphérique muet — mauvais
-// pad sélectionné, radio pas en mode Joystick, manche sur une entrée que le
-// navigateur ne rapporte pas — passe l'étape du repos MIEUX qu'un vrai : bruit
-// nul, donc aucun rejet. Sans ce message, il ne reste qu'une consigne qui ne
-// bouge jamais et rien pour dire pourquoi (issue #279).
+// What is shown when nothing moves any more. A mute device — wrong pad selected,
+// radio not in Joystick mode, stick on an input the browser does not report —
+// passes the rest step BETTER than a real one: zero noise, so no rejection.
+// Without this message all that is left is a prompt that never changes and
+// nothing to say why (issue #279).
 const IDLE_MESSAGE = 'no movement seen — wrong device, or this stick is not reported';
 
-// Au-delà de cette amplitude pendant la fenêtre de repos, ce n'est plus du
-// bruit : quelqu'un tient un manche. On recommence la mesure.
+// Past this amplitude during the rest window it is not noise any more: somebody
+// is holding a stick. The measurement starts again.
 const REST_MAX_SPREAD = 0.15;
 
-// Le deadband mesuré couvre le bruit avec de la marge, borné des deux côtés :
-// un plancher pour ne pas croire un périphérique parfait, un plafond pour ne
-// pas manger la course si l'utilisateur a bougé pendant le repos.
+// The measured deadband covers the noise with margin, bounded on both sides: a
+// floor so a device is not believed perfect, a ceiling so the travel is not
+// eaten if the user moved during the rest window.
 const NOISE_MARGIN = 1.5;
 const DEADBAND_MIN = 0.02;
 const DEADBAND_MAX = 0.25;
 
-// Écart au neutre en dessous duquel on considère qu'aucun geste n'a été fait.
-// En unités d'axe brutes, où la course pleine vaut 2.
+// Deviation from neutral below which no gesture is considered made. In raw axis
+// units, where full travel is 2.
 const PUSH_MIN = 0.5;
 
-// Tolérance de « le manche ne bouge plus » et de « le manche est revenu au
-// neutre ».
+// Tolerance for "the stick has stopped moving" and "the stick is back at
+// neutral".
 const HOLD_TOL = 0.1;
 const RETURN_TOL = 0.2;
 
-// L'axe retenu doit dominer nettement le deuxième. Un pilote qui pousse en
-// diagonale produit deux déviations comparables : mieux vaut redemander que
-// d'attribuer au hasard un mappage qu'il croira ensuite calibré.
+// The chosen axis has to clearly dominate the runner-up. A pilot pushing
+// diagonally produces two comparable deviations: better to ask again than to
+// assign at random a mapping they will then believe calibrated.
 const AMBIGUITY_RATIO = 2;
 
 function restState(signalCount, axisCount, message = null) {
@@ -144,7 +151,7 @@ function restState(signalCount, axisCount, message = null) {
 		message,
 		done: false,
 		signalCount,
-		// Sert UNIQUEMENT à nommer : au-delà, c'est un bouton (signalLabel).
+		// ONLY used for naming: past it, a signal is a button (signalLabel).
 		axisCount,
 		centers: null,
 		deadband: 0,
@@ -158,20 +165,20 @@ function restState(signalCount, axisCount, message = null) {
 	};
 }
 
-// `signalCount` est la longueur du vecteur rendu par padSignals(), `axisCount`
-// le nombre d'axes réels du périphérique — la frontière au-delà de laquelle un
-// signal est un bouton. Par défaut les deux coïncident : un appelant qui ne
-// passe que des axes garde le comportement d'avant #279.
+// `signalCount` is the length of the vector padSignals() returns, `axisCount`
+// the device's real axis count — the border past which a signal is a button. By
+// default the two coincide: a caller passing only axes keeps the pre-#279
+// behaviour.
 export function beginCalibration(signalCount, axisCount = signalCount) {
 	return restState(signalCount, axisCount);
 }
 
 // -----------------------------------------------------------------------------
-// CE QUE LE PILOTE EST EN TRAIN DE POUSSER
+// WHAT THE PILOT IS PUSHING
 //
-// La barre du panneau appliquait déjà cette règle en la recopiant. L'assistant
-// dessine maintenant une machine qui suit le même geste (issue #281) : les deux
-// doivent regarder le MÊME signal, sinon la barre et le drone se contredisent.
+// The panel's bar already applied this rule by copying it. The wizard now draws
+// a machine that follows the same gesture (issue #281): both must watch the SAME
+// signal, otherwise the bar and the drone contradict each other.
 // -----------------------------------------------------------------------------
 
 export function strongestSignal(state, signals) {
@@ -184,16 +191,16 @@ export function strongestSignal(state, signals) {
 		if (Math.abs(d) > Math.abs(dev)) { index = i; dev = d; }
 	}
 
-	// La référence de pleine course est la CRÊTE que ce pilote a lui-même
-	// atteinte sur ce signal, avec PUSH_MIN pour plancher. La machine arrive donc
-	// à pleine inclinaison quand il arrive à SA butée — une radio dont les
-	// endpoints ne sont pas réglés ne donne pas une machine molle.
+	// The full-travel reference is the PEAK this pilot reached themselves on this
+	// signal, with PUSH_MIN as a floor. So the machine reaches full deflection
+	// when they reach THEIR stop — a radio whose endpoints are not set does not
+	// give a sluggish machine.
 	const span = Math.max(PUSH_MIN, Math.abs(state._peaks?.[index] ?? 0), Math.abs(dev));
 	return { index, dev, span, at: dev / span };
 }
 
 // -----------------------------------------------------------------------------
-// REPOS
+// REST
 // -----------------------------------------------------------------------------
 
 function feedRest(state, axes, dt) {
@@ -210,8 +217,9 @@ function feedRest(state, axes, dt) {
 		spread = Math.max(spread, s._max[i] - s._min[i]);
 	}
 
-	// Un manche tenu pendant la mesure décale le neutre, et avec lui TOUT le
-	// reste du calibrage : chaque déviation se mesure par rapport à ce neutre.
+	// A stick held during the measurement offsets the neutral, and with it
+	// EVERYTHING else in the calibration: every deviation is measured against
+	// that neutral.
 	if (spread > REST_MAX_SPREAD) {
 		return restState(s.signalCount, s.axisCount, 'stick moved — measuring neutral again');
 	}
@@ -219,8 +227,8 @@ function feedRest(state, axes, dt) {
 	if (s._elapsed < CAL_TIMING.restMs) return s;
 
 	const centers = s._sum.map((sum) => sum / s._n);
-	// Le bruit retenu est la demi-amplitude de l'axe le plus agité : le deadband
-	// est commun aux quatre canaux, comme l'était la constante qu'il remplace.
+	// The noise kept is the half-amplitude of the busiest axis: the deadband is
+	// common to the four channels, as the constant it replaces was.
 	const noise = Math.max(...s._min.map((lo, i) => (s._max[i] - lo) / 2));
 	const deadband = Math.min(DEADBAND_MAX, Math.max(DEADBAND_MIN, noise * NOISE_MARGIN));
 
@@ -228,7 +236,7 @@ function feedRest(state, axes, dt) {
 }
 
 // -----------------------------------------------------------------------------
-// UN CANAL À LA FOIS
+// ONE CHANNEL AT A TIME
 // -----------------------------------------------------------------------------
 
 function beginChannel(state, i, message = null) {
@@ -243,14 +251,14 @@ function beginChannel(state, i, message = null) {
 		_peaks: new Array(state.signalCount).fill(0),
 		_holdMs: 0,
 		_idleMs: 0,
-		// Tant que les manches n'ont pas été vus au neutre, on n'accepte aucun
-		// geste : après un refus, ils sont encore poussés, et sans ce verrou on
-		// refuserait la même chose en boucle sans que le pilote ait rien fait.
+		// Until the sticks have been seen at neutral, no gesture is accepted:
+		// after a rejection they are still pushed, and without this latch we
+		// would reject the same thing in a loop without the pilot doing anything.
 		_armed: false,
 	};
 }
 
-// Redemande la consigne courante en disant pourquoi.
+// Asks the current prompt again, saying why.
 function retryChannel(state, message) {
 	return { ...beginChannel(state, state._channelIndex), message };
 }
@@ -263,9 +271,9 @@ function feedChannel(state, axes, dt) {
 		return centered ? { ...state, _armed: true } : state;
 	}
 
-	// Rien vu passer depuis assez longtemps : ce n'est plus « le pilote vise »,
-	// c'est un périphérique dont ce manche ne sort nulle part. On le dit sans
-	// renoncer — il lui reste peut-être un autre manche à essayer.
+	// Nothing seen for long enough: this is no longer "the pilot is aiming", it
+	// is a device whose stick comes out nowhere. Say it without giving up — they
+	// may still have another stick to try.
 	const quiet = dev.every((d) => Math.abs(d) < PUSH_MIN / 2);
 	const idleMs = quiet ? state._idleMs + dt : 0;
 	if (quiet && idleMs >= CAL_TIMING.idleWarnMs) {
@@ -274,8 +282,8 @@ function feedChannel(state, axes, dt) {
 
 	const peaks = state._peaks.map((p, i) => (Math.abs(dev[i]) > Math.abs(p) ? dev[i] : p));
 
-	// L'axe candidat est celui dont la déviation crête est la plus grande, et le
-	// geste ne compte que quand il est TENU à cette crête.
+	// The candidate axis is the one with the largest peak deviation, and the
+	// gesture only counts once it is HELD at that peak.
 	let win = 0;
 	for (let i = 1; i < peaks.length; i++) if (Math.abs(peaks[i]) > Math.abs(peaks[win])) win = i;
 
@@ -303,9 +311,10 @@ function feedChannel(state, axes, dt) {
 function assignChannel(state, axis, peak) {
 	const center = state.centers[axis];
 
-	// Le gaz ne se décrit pas comme les trois autres : il n'a pas de neutre au
-	// milieu, il a un plancher et un plafond. Le plafond vient d'être mesuré ;
-	// le plancher dépend de la mécanique du manche, qu'on va observer.
+	// The throttle is not described like the other three: it has no neutral in
+	// the middle, it has a floor and a ceiling. The ceiling has just been
+	// measured; the floor depends on the stick's mechanics, which is what gets
+	// observed next.
 	if (state.channel === 'throttle') {
 		return {
 			...state,
@@ -327,23 +336,21 @@ function assignChannel(state, axis, peak) {
 	const next = state._channelIndex + 1;
 	if (next < CAL_CHANNELS.length) return beginChannel({ ...state, channels }, next);
 
-	return {
-		...state, channels, phase: 'done', channel: null,
-		prompt: CAL_PROMPTS.done, hint: CAL_HINTS.done, message: null, done: true,
-	};
+	// The sticks are done; the two menu gestures follow.
+	return beginMenuStep({ ...state, channels }, 0);
 }
 
 // -----------------------------------------------------------------------------
-// MODE DE COURSE DU GAZ — la mesure qui remplace la marque
+// THROTTLE TRAVEL MODE — the measurement that replaces the brand
 // -----------------------------------------------------------------------------
 
-// Une seule question, posée au matériel plutôt qu'à une table de vendeurs :
-// quand on lâche le manche, revient-il au neutre ?
-//   oui  -> stick auto-centré : demi-course, plancher = neutre. Sinon lâcher la
-//           manette laisserait 50 % de gaz et rendrait le geste de désarmement
-//           injoignable au repos.
-//   non  -> gimbal à friction : pleine course, et il faut aller chercher le
-//           plancher, qui n'est PAS le neutre.
+// One question, asked of the hardware rather than of a vendor table: when the
+// stick is let go, does it come back to neutral?
+//   yes -> self-centring stick: half travel, floor = neutral. Otherwise letting
+//          go of the pad would leave 50 % throttle and put the disarm gesture
+//          out of reach at rest.
+//   no  -> friction gimbal: full travel, and the floor has to be hunted down,
+//          because it is NOT the neutral.
 function feedThrottleRelease(state, axes, dt) {
 	const v = axes[state.channels.throttle.axis] ?? 0;
 	const moved = Math.abs(v - state._lastVal) > HOLD_TOL;
@@ -382,11 +389,124 @@ function feedThrottleMin(state, axes, dt) {
 		_lastVal: moved ? v : state._lastVal,
 	};
 
-	// Tenu, et assez loin du plafond pour être l'autre bout de la course.
+	// Held, and far enough from the ceiling to be the other end of the travel.
 	if (s._holdMs < CAL_TIMING.holdMs || Math.abs(s._lastVal - hi) < PUSH_MIN) return s;
 
 	const channels = { ...s.channels, throttle: { axis, lo: s._lastVal, hi } };
 	return beginChannel({ ...s, channels }, 1);
+}
+
+// -----------------------------------------------------------------------------
+// THE TWO MENU GESTURES
+//
+// Same machine as a stick channel, minus the direction: what is kept is the
+// SIGNAL and its two measured ends (rest and pressed), so that "pressed" is a
+// threshold halfway between them. That one formula reads a digital button
+// (-1 -> +1) and a radio switch filed on an axis alike — and a switch is exactly
+// what buttons 0 and 1 are on a radio, which is why nothing usable was reachable
+// before.
+//
+// The index space is the module's own: axes THEN buttons (#279). A confirm
+// "button" can therefore be any signal in that vector, an analogue trigger
+// included.
+//
+// BOTH STEPS ARE SKIPPABLE (skipMenuStep): a standard pad has no need of them,
+// its buttons 0 and 1 are momentary and menu-nav.js falls back to those.
+// -----------------------------------------------------------------------------
+
+function beginMenuStep(state, i, message = null) {
+	const which = CAL_MENU_STEPS[i];
+	return {
+		...state,
+		phase: `menu-${which}`,
+		channel: null,
+		prompt: which === 'confirm' ? CAL_PROMPTS.menuConfirm : CAL_PROMPTS.menuBack,
+		hint: which === 'confirm' ? CAL_HINTS.menuConfirm : CAL_HINTS.menuBack,
+		message,
+		menu: state.menu ?? {},
+		_menuIndex: i,
+		_peaks: new Array(state.signalCount).fill(0),
+		_holdMs: 0,
+		_idleMs: 0,
+		_armed: false,
+	};
+}
+
+function retryMenuStep(state, message) {
+	return { ...beginMenuStep(state, state._menuIndex), message };
+}
+
+function finishCalibration(state) {
+	return {
+		...state,
+		phase: 'done',
+		channel: null,
+		prompt: CAL_PROMPTS.done,
+		hint: CAL_HINTS.done,
+		message: null,
+		done: true,
+	};
+}
+
+// Explicit skip, from a button or a key in the panel. Anywhere else it is a
+// no-op: the state machine decides nothing on its own here.
+export function skipMenuStep(state) {
+	if (!state || !String(state.phase).startsWith('menu-')) return state;
+	const next = state._menuIndex + 1;
+	return next < CAL_MENU_STEPS.length
+		? beginMenuStep(state, next)
+		: finishCalibration(state);
+}
+
+function feedMenuStep(state, signals, dt) {
+	const dev = state.centers.map((c, i) => (signals[i] ?? 0) - c);
+
+	if (!state._armed) {
+		// The gesture that validated the previous step is probably still held: the
+		// step only arms once everything is back at rest.
+		const centered = dev.every((d) => Math.abs(d) < PUSH_MIN / 2);
+		return centered ? { ...state, _armed: true } : state;
+	}
+
+	const quiet = dev.every((d) => Math.abs(d) < PUSH_MIN / 2);
+	const idleMs = quiet ? state._idleMs + dt : 0;
+	if (quiet && idleMs >= CAL_TIMING.idleWarnMs) {
+		return { ...state, _idleMs: idleMs, message: IDLE_MESSAGE };
+	}
+
+	const peaks = state._peaks.map((p, i) => (Math.abs(dev[i]) > Math.abs(p) ? dev[i] : p));
+	let win = 0;
+	for (let i = 1; i < peaks.length; i++) if (Math.abs(peaks[i]) > Math.abs(peaks[win])) win = i;
+
+	const held =
+		Math.abs(peaks[win]) >= PUSH_MIN &&
+		Math.abs(dev[win] - peaks[win]) <= HOLD_TOL;
+
+	const holdMs = held ? state._holdMs + dt : 0;
+	const s = { ...state, _peaks: peaks, _holdMs: holdMs, _idleMs: idleMs };
+	if (holdMs < CAL_TIMING.holdMs) return s;
+
+	// A stick is not a menu button: taking one would make every cursor move
+	// validate the screen. Same rule as a channel already taken — say it, ask
+	// again.
+	const stick = CAL_CHANNELS.find((ch) => s.channels[ch]?.axis === win);
+	if (stick) {
+		return retryMenuStep(s, `that signal is ${stick} — use a button or a switch`);
+	}
+	const other = CAL_MENU_STEPS.find((k) => k !== CAL_MENU_STEPS[s._menuIndex] && s.menu?.[k]?.signal === win);
+	if (other) {
+		return retryMenuStep(s, `that one is already ${other} — use another`);
+	}
+
+	const center = s.centers[win];
+	const menu = {
+		...s.menu,
+		[CAL_MENU_STEPS[s._menuIndex]]: { signal: win, center, on: center + peaks[win] },
+	};
+	const next = s._menuIndex + 1;
+	return next < CAL_MENU_STEPS.length
+		? beginMenuStep({ ...s, menu }, next)
+		: finishCalibration({ ...s, menu });
 }
 
 // -----------------------------------------------------------------------------
@@ -397,14 +517,15 @@ export function feedSample(state, axes, dt) {
 		case 'channel': return feedChannel(state, axes, dt);
 		case 'throttle-release': return feedThrottleRelease(state, axes, dt);
 		case 'throttle-min': return feedThrottleMin(state, axes, dt);
+		case 'menu-confirm':
+		case 'menu-back': return feedMenuStep(state, axes, dt);
 		default: return state;
 	}
 }
 
-// Le mappage {axis, invert} attendu par input.js et par le tableau de remap du
-// panneau Tab. Le calibrage en sait plus que ça (neutre, course, deadband),
-// mais il doit rester lisible et modifiable par les commandes qui existaient
-// avant lui.
+// The {axis, invert} mapping input.js and the panel's remap table expect. The
+// calibration knows more than that (neutral, travel, deadband), but it has to
+// stay readable and editable by the controls that existed before it.
 export function calibrationToMap(state) {
 	const map = {};
 	for (const ch of CAL_CHANNELS) {
@@ -418,22 +539,22 @@ export function calibrationToMap(state) {
 }
 
 // -----------------------------------------------------------------------------
-// LECTURE D'UN AXE CALIBRÉ
+// READING A CALIBRATED AXIS
 //
-// C'est ici que le calibrage cesse d'être un écran et devient du vol. Deux
-// suppositions de input.js disparaissent :
-//   - « le neutre est à 0 » — faux dès qu'un gimbal a une dérive ou qu'un
-//     manche à friction est parqué ailleurs ;
-//   - « la course vaut ±1 » — faux sur toute radio dont les endpoints ne sont
-//     pas réglés, et le pilote n'a alors jamais son plein débattement.
+// This is where the calibration stops being a screen and becomes flight. Two of
+// input.js's assumptions disappear:
+//   - "the neutral is at 0" — false the moment a gimbal drifts or a friction
+//     stick is parked elsewhere;
+//   - "the travel is +/-1" — false on any radio whose endpoints are not set, and
+//     the pilot then never gets their full deflection.
 // -----------------------------------------------------------------------------
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// Axe brut -> -1..1, autour du neutre MESURÉ et sur la course MESURÉE.
-// Le deadband est retranché puis la course restante remise à l'échelle : un
-// deadband qui retranche sans remettre à l'échelle fait sauter la commande au
-// franchissement du seuil, et coûte le même pourcentage de butée.
+// Raw axis -> -1..1, around the MEASURED neutral and over the MEASURED travel.
+// The deadband is subtracted and the remaining travel rescaled: a deadband that
+// subtracts without rescaling makes the command jump as the threshold is
+// crossed, and costs the same percentage of the stop.
 export function normalizeChannel(v, cal, deadband) {
 	if (!cal || !(cal.span > 0)) return 0;
 	const signed = (cal.invert ? -1 : 1) * (v - cal.center);
@@ -442,53 +563,63 @@ export function normalizeChannel(v, cal, deadband) {
 	return Math.sign(n) * ((Math.abs(n) - deadband) / (1 - deadband));
 }
 
-// Axe brut -> gaz 0..1, entre le plancher et le plafond MESURÉS. Une seule
-// formule pour les deux mécaniques de manche : sur un stick auto-centré le
-// plancher EST le neutre, donc lâcher rend 0 — et le geste de désarmement
-// (throttle < 0,08) reste joignable au repos.
+// Raw axis -> throttle 0..1, between the MEASURED floor and ceiling. One formula
+// for both stick mechanics: on a self-centring stick the floor IS the neutral,
+// so letting go gives 0 — and the disarm gesture (throttle < 0.08) stays
+// reachable at rest.
 export function throttleFromCalibrated(v, cal) {
 	if (!cal || cal.hi === cal.lo) return 0;
 	return clamp((v - cal.lo) / (cal.hi - cal.lo), 0, 1);
 }
 
 // -----------------------------------------------------------------------------
-// CE QU'ON PERSISTE, CE QU'ON MONTRE
+// WHAT IS PERSISTED, WHAT IS SHOWN
 // -----------------------------------------------------------------------------
 
-// L'état de la machine traîne ses accumulateurs (fenêtres, crêtes, minuteries).
-// Ce qui va dans localStorage est la MESURE seule : trois champs, sérialisables,
-// et rien qui ne survivrait pas à un aller-retour JSON.
+// The machine's state drags its accumulators around (windows, peaks, timers).
+// What goes into localStorage is the MEASUREMENT alone: serialisable fields, and
+// nothing that would not survive a JSON round trip.
+//
+// `menu` is only there when at least one of the two gestures was measured: a
+// pilot who skipped both writes nothing, and every calibration written before
+// these two steps existed has no such field either. input.js:isValidCalibration
+// therefore treats it as optional, for ever.
 export function calibrationResult(state) {
 	if (!state.done) return null;
-	const { channels, deadband, throttleMode, axisCount } = state;
-	return { channels, deadband, throttleMode, axisCount };
+	const { channels, deadband, throttleMode, axisCount, menu } = state;
+	const out = { channels, deadband, throttleMode, axisCount };
+	if (menu && Object.keys(menu).length) out.menu = menu;
+	return out;
 }
 
-// L'ordre des écrans, pour dire au pilote où il en est. Le lâcher du gaz est une
-// étape à part entière : c'est elle qui décide du mode de course, et elle
-// demande un geste (lâcher) que les autres ne demandent pas.
-const STEP_ORDER = ['rest', 'throttle', 'throttle-release', 'yaw', 'pitch', 'roll'];
+// The order of the screens, to tell the pilot where they are. The throttle
+// release is a step in its own right: it is the one that decides the travel
+// mode, and it asks for a gesture (letting go) the others do not.
+const STEP_ORDER = [
+	'rest', 'throttle', 'throttle-release', 'yaw', 'pitch', 'roll',
+	'menu-confirm', 'menu-back',
+];
 
 export function calProgress(state) {
 	const total = STEP_ORDER.length;
 	if (state.phase === 'done') return { step: total, total };
-	// 'throttle-min' n'est pas une étape de plus : c'est la suite de la même
-	// question — où est le plancher de ce gaz ?
+	// 'throttle-min' is not one more step: it is the rest of the same question —
+	// where is this throttle's floor?
 	const key = state.phase === 'channel' ? state.channel
 		: state.phase === 'throttle-min' ? 'throttle-release'
 			: state.phase;
 	return { step: STEP_ORDER.indexOf(key) + 1, total };
 }
 
-// Le récapitulatif de fin, décidé sans DOM — même rôle que padListEntries()
-// pour la liste des périphériques (issue #162) : ce qu'on relit quand « ça ne
-// marche toujours pas ». Un calibrage qui annonce seulement sa réussite est
-// invérifiable ; celui-ci montre ses chiffres, y compris quand ils sont mauvais
-// (une course de 0.80 est un problème de radio, et il doit se voir).
+// The closing summary, decided with no DOM — same role as padListEntries() for
+// the device list (issue #162): this is what gets re-read when "it still does not
+// work". A calibration that only announces its success is unverifiable; this one
+// shows its numbers, including when they are bad (a travel of 0.80 is a radio
+// problem, and it has to be visible).
 export function calSummaryLines(cal) {
 	const pad = (s) => s.padEnd(9, ' ');
-	// Un calibrage d'avant #279 n'a pas d'axisCount : tous ses signaux sont des
-	// axes, et l'étiquette retombe dessus.
+	// A pre-#279 calibration has no axisCount: all its signals are axes, and the
+	// label falls back to that.
 	const where = (i) => signalLabel(i, cal.axisCount ?? Infinity);
 	const lines = CAL_CHANNELS.map((name) => {
 		const c = cal.channels[name];
@@ -499,5 +630,11 @@ export function calSummaryLines(cal) {
 		return `${pad(name)} ${where(c.axis)}  ±${c.span.toFixed(2)}${c.invert ? '  inverted' : ''}`;
 	});
 	lines.push(`${pad('deadband')} ${cal.deadband.toFixed(3)}`);
+	// Only when something was measured: a skipped step must not read as a
+	// measurement, and menu-nav then uses buttons 0 and 1.
+	const menu = CAL_MENU_STEPS
+		.filter((k) => cal.menu?.[k])
+		.map((k) => `${k} ${where(cal.menu[k].signal)}`);
+	if (menu.length) lines.push(`${pad('menu')} ${menu.join('  ·  ')}`);
 	return lines;
 }
