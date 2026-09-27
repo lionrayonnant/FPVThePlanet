@@ -1,7 +1,7 @@
 {
 	"name": "fpvtp-sim",
 	"productName": "FPVTP",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"private": true,
 	"description": "FPVThePlanet! — FPV drone flight over real cities, in the browser",
 	"author": "lionrayonnant",
@@ -53,12 +53,12 @@
 		"electron-updater": "^6.8.9",
 		"leaflet": "^1.9.4",
 		"sharp": "^0.35.0",
-		"three": "^0.170.0"
+		"three": "^0.186.0"
 	},
 	"devDependencies": {
-		"electron": "^44.2.0",
+		"electron": "^44.4.3",
 		"electron-builder": "^26.15.3",
-		"vite": "^6.4.3"
+		"vite": "^8.3.0"
 	},
 	"allowScripts": {
 		"esbuild@0.21.5": true,

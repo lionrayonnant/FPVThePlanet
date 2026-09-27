@@ -1,14 +1,14 @@
-// Un faux DOM, juste assez pour monter les écrans du terminal hors navigateur.
+// A fake DOM, just enough to mount the terminal screens outside a browser.
 //
-// Même intention que tools/lib/fake-audio-ctx.mjs : ce qu'on vérifie est
-// l'ARBRE et le CÂBLAGE — quels éléments existent, ce qu'ils portent, ce qui
-// se passe quand on les actionne — pas le rendu, qui se juge à l'œil.
+// Same intent as tools/lib/fake-audio-ctx.mjs: what is checked is the TREE and
+// the WIRING — which elements exist, what they carry, what happens when they
+// are actuated — not the rendering, which is judged by eye.
 //
-// Volontairement minimal, et volontairement STRICT : ce qui n'est pas
-// implémenté lève au lieu de rendre undefined. Un faux DOM permissif fait
-// passer des tests sur du code qui ne marcherait pas dans un navigateur, ce
-// qui est pire que pas de test du tout. En particulier innerHTML n'existe pas
-// ici : les écrans construisent leur arbre avec createElement.
+// Deliberately minimal, and deliberately STRICT: whatever is not implemented
+// throws instead of returning undefined. A permissive fake DOM passes tests on
+// code that would not work in a browser, which is worse than no test at all.
+// innerHTML in particular does not exist here: the screens build their tree
+// with createElement.
 
 class FakeClassList {
 	constructor(el) { this.el = el; }
@@ -41,7 +41,7 @@ class FakeElement {
 		this.options = [];
 	}
 
-	// --- arbre
+	// --- tree
 
 	appendChild(child) {
 		if (child.parent) child.parent.removeChild(child);
@@ -76,8 +76,8 @@ class FakeElement {
 		return n._isRoot === true;
 	}
 
-	// La racine de l'arbre, comme dans un vrai DOM. OrbitControls s'en sert
-	// pour poser ses écouteurs de pointeur au-dessus du canvas.
+	// The root of the tree, as in a real DOM. OrbitControls uses it to put its
+	// pointer listeners above the canvas.
 	getRootNode() { let n = this; while (n.parent) n = n.parent; return n; }
 
 	contains(el) {
@@ -85,11 +85,11 @@ class FakeElement {
 		return false;
 	}
 
-	// --- contenu
+	// --- content
 
-	// textContent d'un conteneur = la concaténation de ses descendants, comme
-	// dans un vrai DOM : les assertions « la ligne dit X » doivent pouvoir
-	// interroger une sous-arborescence, pas seulement une feuille.
+	// A container's textContent is its descendants concatenated, as in a real
+	// DOM: a "the line says X" assertion must be able to query a subtree, not
+	// only a leaf.
 	get textContent() {
 		return this.children.length
 			? this.children.map((c) => c.textContent).join('')
@@ -103,14 +103,14 @@ class FakeElement {
 
 	set innerHTML(v) {
 		if (v === '') { this.replaceChildren(); this._text = ''; return; }
-		throw new Error('fake-dom: innerHTML non vide non supporté — construis l\'arbre avec createElement');
+		throw new Error('fake-dom: non-empty innerHTML is not supported — build the tree with createElement');
 	}
 
-	// Sérialisation minimale, pour les rares tests qui inspectent le BALISAGE
-	// plutôt que l'arbre — le portrait SVG (#264) doit prouver qu'aucune
-	// couleur littérale n'y est écrite, et ça ne se lit que sur le texte rendu.
-	// Ce n'est pas un moteur de rendu : pas d'échappement, pas de balises
-	// auto-fermantes, pas d'ordre canonique des attributs.
+	// Minimal serialisation, for the few tests that inspect the MARKUP rather
+	// than the tree — the SVG portrait (#264) must prove no literal colour is
+	// written into it, and that only reads off the rendered text. This is not a
+	// renderer: no escaping, no self-closing tags, no canonical attribute
+	// order.
 	get outerHTML() {
 		const tag = this.tagName.toLowerCase();
 		const attrs = { ...this.attributes };
@@ -125,18 +125,18 @@ class FakeElement {
 	setAttribute(k, v) { this.attributes[k] = String(v); }
 	getAttribute(k) { return this.attributes[k] ?? null; }
 
-	// --- sélection
+	// --- selection
 	//
-	// Sélecteurs supportés : `.classe`, `tag`, `[attr]`, `[attr="v"]`, et une
-	// liste séparée par des virgules. Assez pour FOCUSABLE et pour les
-	// data-bench-key ; tout le reste lève plutôt que de mentir.
+	// Supported selectors: `.class`, `tag`, `[attr]`, `[attr="v"]`, and a
+	// comma-separated list. Enough for FOCUSABLE and for the data-bench-key
+	// ones; everything else throws rather than lie.
 
 	matches(sel) {
 		return sel.split(',').map((s) => s.trim()).filter(Boolean).some((s) => this._matchOne(s));
 	}
 
 	_matchOne(sel) {
-		// `button:not(:disabled)` et `input:not(:disabled)`
+		// `button:not(:disabled)` and `input:not(:disabled)`
 		const not = sel.match(/^([a-z]+):not\(:disabled\)$/i);
 		if (not) return this.tagName === not[1].toUpperCase() && !this.disabled;
 		if (sel.startsWith('.')) return this.classList.contains(sel.slice(1));
@@ -153,7 +153,7 @@ class FakeElement {
 			return this._attrValue(attr) !== null;
 		}
 		if (/^[a-z]+$/i.test(sel)) return this.tagName === sel.toUpperCase();
-		throw new Error(`fake-dom: sélecteur non supporté « ${sel} »`);
+		throw new Error(`fake-dom: unsupported selector "${sel}"`);
 	}
 
 	_attrValue(attr) {
@@ -184,14 +184,14 @@ class FakeElement {
 	}
 
 	click() {
-		if (this.disabled) return;   // comme un vrai bouton désactivé
+		if (this.disabled) return;   // like a real disabled button
 		this.dispatchEvent({ type: 'click', preventDefault() {} });
 	}
 
-	// Un élément accepte les DEUX conventions : la propriété `onclick`, que le
-	// gros du code utilise, et addEventListener, dont se sert tout ce qui doit
-	// cohabiter avec un gestionnaire déjà posé (src/confirm-button.js, #213).
-	// Sans ça, un module écrit en DOM idiomatique n'était pas testable ici.
+	// An element accepts BOTH conventions: the `onclick` property, which most
+	// of the code uses, and addEventListener, used by anything that must live
+	// alongside a handler already in place (src/confirm-button.js, #213).
+	// Without it, a module written in idiomatic DOM was not testable here.
 	addEventListener(type, fn) {
 		(this._listeners ??= new Map()).set(type, [...(this._listeners.get(type) ?? []), fn]);
 	}
@@ -208,7 +208,7 @@ class FakeElement {
 		return true;
 	}
 
-	// checkVisibility : menu-nav.js s'en sert pour ignorer un écran masqué.
+	// checkVisibility: menu-nav.js uses it to skip a hidden screen.
 	checkVisibility() {
 		for (let n = this; n; n = n.parent) if (n.hidden) return false;
 		return true;
@@ -230,11 +230,11 @@ export function fakeDom() {
 	const listeners = new Map();
 
 	const document_ = {
-		createElement: (tag) => new FakeElement(tag),
-		// Le SVG en ligne passe par createElementNS ; ici l'espace de noms n'est
-		// que retenu, rien n'en dépend — tagName suffit à la sélection.
+		createElement: (tag) => own(new FakeElement(tag)),
+		// Inline SVG goes through createElementNS; here the namespace is only
+		// remembered, nothing depends on it — tagName is enough to select.
 		createElementNS: (ns, tag) => {
-			const el = new FakeElement(tag);
+			const el = own(new FakeElement(tag));
 			el.namespaceURI = String(ns);
 			return el;
 		},
@@ -243,12 +243,19 @@ export function fakeDom() {
 		body: root,
 		getElementById: (id) => root.querySelector(`[id="${id}"]`),
 		exitPointerLock: () => {},
-		// src/input.js s'abonne sur `document` (clavier, souris, pointer lock) :
-		// sans ces deux-là, instancier Input() lève et rien de ce qui en dépend
-		// n'est testable sans navigateur.
+		// src/input.js subscribes on `document` (keyboard, mouse, pointer
+		// lock): without these two, instantiating Input() throws and nothing
+		// that depends on it is testable without a browser.
 		addEventListener: () => {},
 		removeEventListener: () => {},
 	};
+
+	// OrbitControls (three >= 0.186) connects from its constructor, and
+	// connect() starts by disconnecting: it reads domElement.ownerDocument to
+	// drop the pointer listeners it puts there. An element born from this
+	// document must know that document, or building a viewer throws.
+	const own = (el) => { el.ownerDocument = document_; return el; };
+	own(root);
 
 	const window_ = {
 		addEventListener: (type, fn) => {
@@ -256,15 +263,15 @@ export function fakeDom() {
 			listeners.get(type).add(fn);
 		},
 		removeEventListener: (type, fn) => { listeners.get(type)?.delete(fn); },
-		// Nombre de rappels d'animation RÉELLEMENT rejoués. C'est la mesure qui
-		// permet à un test d'affirmer qu'un écran démonté a bien cessé de
-		// tourner : après stop(), tick() ne doit plus rien faire monter.
+		// How many animation callbacks were ACTUALLY replayed. This is the
+		// measure that lets a test claim an unmounted screen really stopped
+		// running: after stop(), tick() must raise it no further.
 		__rafCount: 0,
 	};
 
-	// L'horloge d'animation. La file est tenue ici, mais les globals ne sont
-	// installés que sur demande (installFakeDom({ raf: true })) — voir là-bas
-	// pourquoi ce n'est pas le défaut.
+	// The animation clock. The queue lives here, but the globals are installed
+	// only on demand (installFakeDom({ raf: true })) — see there why that is
+	// not the default.
 	let rafSeq = 0;
 	let rafNow = 0;
 	const rafPending = new Map();
@@ -283,7 +290,7 @@ export function fakeDom() {
 		window: window_,
 		localStorage: localStorage_,
 		storage,
-		// Rejoue un keydown vers les abonnés de menu-nav.js.
+		// Replays a keydown towards menu-nav.js' subscribers.
 		key(k, target = null) {
 			const ev = {
 				key: k, target: target ?? ACTIVE ?? root,
@@ -297,9 +304,9 @@ export function fakeDom() {
 		get active() { return ACTIVE; },
 		requestAnimationFrame(fn) { const id = ++rafSeq; rafPending.set(id, fn); return id; },
 		cancelAnimationFrame(id) { rafPending.delete(id); },
-		// Avance l'horloge de `ms` et rejoue les rappels EN ATTENTE, une seule
-		// fois : un rappel qui se réinscrit repart au tick suivant, jamais dans
-		// celui-ci — sinon une boucle d'animation ferait tourner Node à l'infini.
+		// Advances the clock by `ms` and replays the PENDING callbacks, once: a
+		// callback that re-registers leaves for the next tick, never this one —
+		// otherwise an animation loop would spin Node forever.
 		tick(ms = 16) {
 			rafNow += ms;
 			const due = [...rafPending.values()];
@@ -310,15 +317,15 @@ export function fakeDom() {
 	};
 }
 
-// Installe le faux DOM sur les globals que lisent les modules d'écran, et rend
-// la fonction qui remet tout en place.
-// `raf` installe requestAnimationFrame/cancelAnimationFrame, pilotés par
-// fake.tick(). Ce n'est PAS le défaut, et c'est délibéré : src/motion.js teste
-// `typeof requestAnimationFrame === 'function'` pour décider s'il anime, et
-// countUp() commence par écrire ses compteurs à zéro. Sur un DOM où rien ne
-// pousse les frames, les compteurs resteraient à zéro pour toujours — les
-// écrans se testeraient sur un texte qu'aucun navigateur n'affiche. Seul un
-// test qui rejoue lui-même les frames demande cette horloge.
+// Installs the fake DOM on the globals the screen modules read, and returns
+// the function that puts everything back.
+// `raf` installs requestAnimationFrame/cancelAnimationFrame, driven by
+// fake.tick(). That is NOT the default, deliberately: src/motion.js tests
+// `typeof requestAnimationFrame === 'function'` to decide whether it animates,
+// and countUp() starts by writing its counters to zero. On a DOM where nothing
+// pushes frames, the counters would stay at zero forever — the screens would
+// be tested on text no browser ever shows. Only a test that replays the frames
+// itself asks for this clock.
 export function installFakeDom({ raf = false } = {}) {
 	const fake = fakeDom();
 	const saved = {};
@@ -330,7 +337,7 @@ export function installFakeDom({ raf = false } = {}) {
 	Object.defineProperty(g, 'document', { value: fake.document, configurable: true, writable: true });
 	Object.defineProperty(g, 'window', { value: fake.window, configurable: true, writable: true });
 	Object.defineProperty(g, 'localStorage', { value: fake.localStorage, configurable: true, writable: true });
-	// menu-nav.js interroge la manette à chaque tick ; aucune ici.
+	// menu-nav.js polls the gamepad on every tick; there is none here.
 	Object.defineProperty(g, 'navigator', { value: { getGamepads: () => [] }, configurable: true, writable: true });
 	// src/palette.js reads the CSS custom properties off the document. There is
 	// no stylesheet here, so every token resolves to '' and palette.js falls
