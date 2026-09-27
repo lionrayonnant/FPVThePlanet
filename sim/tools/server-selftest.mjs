@@ -360,14 +360,18 @@ try {
 		// source, and getting one wrong is what breaks the game on launch day.
 		check('… whose script-src allows WASM (Rapier) and the inline WebGL2 probe',
 			/script-src [^;]*'wasm-unsafe-eval'/.test(csp) && /script-src [^;]*'unsafe-inline'/.test(csp));
-		check('… whose connect-src allows the terrain, the search and the landmark signals',
+		check('… whose connect-src allows the terrain, the search, the landmark signals and their Wikidata/Commons facts',
 			/connect-src [^;]*https:\/\/kh\.google\.com/.test(csp)
 			&& /connect-src [^;]*https:\/\/nominatim\.openstreetmap\.org/.test(csp)
-			&& /connect-src [^;]*https:\/\/overpass-api\.de/.test(csp));
-		check('… whose img-src allows the three basemaps of src/map-layers.js',
+			&& /connect-src [^;]*https:\/\/overpass-api\.de/.test(csp)
+			&& /connect-src [^;]*https:\/\/www\.wikidata\.org/.test(csp)
+			&& /connect-src [^;]*https:\/\/commons\.wikimedia\.org/.test(csp));
+		check('… whose img-src allows the three basemaps of src/map-layers.js and the Commons photo hosts',
 			/img-src [^;]*tile\.openstreetmap\.org/.test(csp)
 			&& /img-src [^;]*tile\.opentopomap\.org/.test(csp)
-			&& /img-src [^;]*server\.arcgisonline\.com/.test(csp));
+			&& /img-src [^;]*server\.arcgisonline\.com/.test(csp)
+			&& /img-src [^;]*thumb\.wikimedia\.org/.test(csp)
+			&& /img-src [^;]*upload\.wikimedia\.org/.test(csp));
 		check('… whose worker-src allows the module workers',
 			/worker-src 'self' blob:/.test(csp));
 		check('… and which forbids framing, base rewriting and plugins',

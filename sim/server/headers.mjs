@@ -66,11 +66,16 @@ export const BASELINE = {
 //   img-src      the three basemaps of src/map-layers.js, plus data: and blob:
 //                (canvas captures, src/main.js createObjectURL).
 //   connect-src  kh.google.com (the terrain, tools/lib/rocktree/url.mjs),
-//                Nominatim (search, src/scanner.js) and Overpass (the
-//                landmark signals, src/signal-source.js). Open-Meteo is NOT
-//                here: the client asks /__operator/:id/weather and the server
-//                does that call. VITE_ROCKTREE_BASE can point the terrain at a
-//                local relay, which is dev-only and not served by this server.
+//                Nominatim (search, src/scanner.js), Overpass (the landmark
+//                signals, src/signal-source.js) and wikidata.org +
+//                commons.wikimedia.org (a landmark's facts and photo,
+//                src/place-info.js). Open-Meteo is NOT here: the client asks
+//                /__operator/:id/weather and the server does that call.
+//                VITE_ROCKTREE_BASE can point the terrain at a local relay,
+//                which is dev-only and not served by this server.
+//   img-src      also thumb.wikimedia.org (the Commons thumbnail itself,
+//                measured) and upload.wikimedia.org (the original, which some
+//                thumb URLs resolve to), both from src/place-info.js.
 //   worker-src   the three module workers (loader.js, rocktree-*.js).
 //
 // SHIPPED AS Content-Security-Policy-Report-Only, deliberately. A CSP can only
@@ -89,9 +94,9 @@ const CSP = [
 	"default-src 'self'",
 	"script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'",
 	"style-src 'self' 'unsafe-inline'",
-	"img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com",
+	"img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://thumb.wikimedia.org https://upload.wikimedia.org",
 	"font-src 'self'",
-	"connect-src 'self' https://kh.google.com https://nominatim.openstreetmap.org https://overpass-api.de",
+	"connect-src 'self' https://kh.google.com https://nominatim.openstreetmap.org https://overpass-api.de https://www.wikidata.org https://commons.wikimedia.org",
 	"worker-src 'self' blob:",
 	"media-src 'self' blob:",
 	"frame-ancestors 'none'",
