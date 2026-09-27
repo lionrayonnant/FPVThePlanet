@@ -237,7 +237,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		zone: null,         // { bbox } or { poly } — the drawn area, raw
 		describe: null,     // last /describe answer
 		plan: null,         // last /plan answer
-		probe: null,        // dernier verdict de sonde
+		probe: null,        // last probe verdict
 		place: null,        // { class, type } Nominatim, for the signal density
 		mode: 'local',      // 'local' | 'live' — the Home's tab (#222)
 		pin: null,          // { lat, lon } — the LIVE pin
@@ -877,6 +877,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		const box = L.DomUtil.create('div', 'sc-map-controls sc-signals-controls');
 		box.appendChild(signalsStatus);
 		L.DomEvent.disableClickPropagation(box);
+		L.DomEvent.disableScrollPropagation(box);
 		return box;
 	};
 	signalsCtl.addTo(map);
@@ -904,6 +905,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	// The source outlives this mount; its onChange is this mount's.
 	const onSignals = () => { signalsLayer.refresh(); renderSignalsStatus(); };
 	signalSource.onChange = onSignals;
+	renderSignalsStatus();
 
 	let signalsTimer = null;
 	const SIGNALS_DEBOUNCE_MS = 600;
