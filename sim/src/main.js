@@ -9,7 +9,7 @@ import { headingOf, bearingTo, windFromBearing, relativeBearing } from './bearin
 import { generateEntryState } from './entry-state.js';
 import { FlightController, RATE_PRESETS } from './flightController.js';
 import { PROFILES, FAMILIES, nominalBuildSeed } from './drone-profiles.js';
-import { Input } from './input.js';
+import { Input, padCycleMode, anyPadButtonDown } from './input.js';
 import { setMenuInput } from './menu-nav.js';
 import { Hud } from './hud.js';
 import { Settings, loadVolume, loadBrightness, loadMusicVolume, loadLens, loadLink, loadViewRange } from './settings.js';
@@ -270,8 +270,10 @@ const settings = new Settings(document.getElementById('ui'), input);
 //
 // A pad gets null — the draw is untouched, weight for weight. See
 // entry-state.js:capCategory(). This is deliberately the ONLY concession the
-// keyboard gets on entry: the flight mode itself stays acro for everyone, by
-// decision, and the keyboard's own ramp in input.js is what makes that flyable.
+// keyboard gets on entry: its flight mode stays acro, by decision, and the
+// keyboard's own ramp in input.js is what makes that flyable. (A pad other than
+// a radio starts in ANGLE — see input.js:startFlightMode — because it now has a
+// button that leads back to ACRO.)
 function entryCategoryCap() {
 	const pad = input.usingGamepad || input.getGamepad?.();
 	return pad ? null : 'ACTIVE';
@@ -287,7 +289,13 @@ function briefingArgs() {
 	// silent is still the device this player is about to fly with.
 	const pad = input.getGamepad?.() ?? null;
 	return {
-		input: { kind: input.usingGamepad || pad ? 'gamepad' : 'keyboard', name: pad?.id ?? '' },
+		input: {
+			kind: input.usingGamepad || pad ? 'gamepad' : 'keyboard',
+			name: pad?.id ?? '',
+			// The control that changes flight mode, as the pad prints it — or null
+			// (uncalibrated radio: the briefing names the key instead).
+			modeControl: input.flightModeControl(),
+		},
 		keyRows: keyMapRows(input.getKeyMap()),
 		// Opens the panel on the named tab and resolves when it closes: the
 		// briefing screen waits underneath rather than being torn down.
@@ -906,7 +914,7 @@ function exposeDebugGlobal() {
 		// make the gesture inert.
 		endState() {
 			const map = input.getKeyMap();
-			const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+			const pads = [...(navigator.getGamepads?.() ?? [])].filter(Boolean);
 			return {
 				phase: flightEnd.phase,
 				exitArmed: flightEnd.out.exitArmed,
@@ -927,8 +935,9 @@ function exposeDebugGlobal() {
 				keyMap: map,
 				// A button held since the flight blocks the pad's rising edge.
 				padHeld: exitPadHeld,
-				padDown: !!pad?.buttons.some((b) => b.pressed),
-				padButtonsDown: pad ? pad.buttons.map((b, i) => (b.pressed ? i : -1)).filter((i) => i >= 0) : null,
+				padDown: anyPadButtonDown(pads),
+				// Per pad: with a keyboard receiver enumerated first, the radio is not pad 0.
+				padButtonsDown: pads.map((p) => ({ id: p.id, down: p.buttons.map((b, i) => (b.pressed ? i : -1)).filter((i) => i >= 0) })),
 				activeElement: document.activeElement?.tagName ?? null,
 				pointerLock: !!document.pointerLockElement,
 			};
@@ -2108,6 +2117,17 @@ function endOfFirstFlight() {
 	markFirstFlight(localStorage);
 }
 
+// The flight-mode control, from input.js:flightModeCommand(). A SWITCH is a
+// position: applied only when it disagrees with the controller, because
+// setMode() clears the PID integrators — calling it every frame would be a
+// flight bug. It is also authoritative, as on a real radio: an M pressed while a
+// switch is calibrated is taken back on the next frame. A BUTTON toggles ACRO /
+// ANGLE (padCycleMode), on its rising edge only; the M key keeps its full cycle.
+function applyModeCommand(cmd) {
+	if (cmd === 'cycle') controller.setMode(padCycleMode(controller.mode));
+	else if ((cmd === 'acro' || cmd === 'angle') && cmd !== controller.mode) controller.setMode(cmd);
+}
+
 function frame() {
 	const now = performance.now();
 	const dt = Math.min((now - lastTime) / 1000, 0.25);
@@ -2130,6 +2150,12 @@ function frame() {
 	if (introFrozen) sessionStartedAt = Date.now();
 
 	const sticks = window.__simInput ?? input.update(dt, { frozen });
+	// Read EVERY frame, so the button's edge memory stays current — a press made
+	// during a pause must not fire when it ends. Applied only while the sticks
+	// fly the machine: not frozen (pause, SETTINGS, intro, bench panel), in
+	// flight, and never on injected input.
+	const modeCmd = window.__simInput ? null : input.flightModeCommand();
+	if (!frozen && flightEnd.phase === FLYING && controller) applyModeCommand(modeCmd);
 	audio.setMuted(frozen);
 
 	// STREAMING is not simulation: it carries on while paused, with the settings
@@ -2934,6 +2960,7 @@ if (!frozen) {
 			bench: MODE.bench,
 			firstFlight: true,
 			keyRows: keyMapRows(input.getKeyMap()),
+			modeControl: input.flightModeControl(),
 		}));
 	}
 	fpvtpOsd.setPhotoReady(photoReady);
@@ -2944,8 +2971,9 @@ if (!frozen) {
 	// the radio down. Rising edge only: a switch held since the flight, or the
 	// disarm gesture, does not count.
 	if (flightEnd.out.exitArmed && !flightExit.busy) {
-		const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
-		const down = !!pad?.buttons.some((b) => b.pressed);
+		// Any pad, not the first: Chrome on Linux can list a keyboard receiver
+		// ahead of the radio, whose buttons then disconnected nothing.
+		const down = anyPadButtonDown(navigator.getGamepads?.());
 		if (down && !exitPadHeld) finishSession();
 		exitPadHeld = down;
 	} else {
@@ -3136,7 +3164,7 @@ async function chooseScene() {
 		return { slug: OPTS.scene, target: undefined, family: OPTS.family || undefined };
 	}
 
-	// RECOMMENDED SETUP. Hardware, not identity: it runs BEFORE the operator is
+	// RECOMMENDED. Hardware, not identity: it runs BEFORE the operator is
 	// resolved, so an operator registered months ago meets it too, and it never
 	// runs on the ?scene= / ?live= paths above — those are development
 	// entrances. Its dependencies are handed over rather than imported by it,
@@ -3926,6 +3954,10 @@ async function armFlightOnce() {
 	// Unplugged in CHASE view — the same rule of exclusivity. Every flight
 	// starts in FPV (D11): setView() plugs both passes back in.
 	setView('fpv');
+	// The mode it starts in (input.js:startFlightMode): a pad in ANGLE, a radio
+	// in ACRO unless its measured switch says otherwise, the keyboard in ACRO.
+	// Decided here, as the flight arms, because that is when the device is known.
+	controller.setMode(input.startFlightMode());
 
 	droneOsd?.dispose();
 	// The NO_OSD failure (see drone-osd-model.mjs) returns null: some targets

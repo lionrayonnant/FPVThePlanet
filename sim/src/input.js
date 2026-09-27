@@ -197,6 +197,39 @@ export function padKind(id) {
 	return 'generic';
 }
 
+// The first enumerated pad is NOT the pilot's. Chrome on Linux lists every
+// device the system tags ID_INPUT_JOYSTICK as soon as ANY of them has had an
+// input, and keyboard/mouse receivers can be one: a Keychron Link declares 6
+// axes and 16 buttons and enumerates as js0, ahead of the RadioMaster Pocket
+// (reported 2026-09-27). Firefox only exposes a device after an input on IT, so
+// the radio was alone there and the bug never showed. Nothing measurable tells
+// such a receiver from a real unknown pad, so it is not filtered out by name —
+// it is merely ranked last.
+//
+// For code that has no Input to ask — the screens before the operator exists,
+// the intro gate. In flight, Input.getGamepad() is the authority: it adopts the
+// pad that MOVES, which a keyboard receiver never does.
+const PAD_RANK = (pad) => {
+	const kind = padKind(pad.id);
+	return kind === 'radio' ? 0 : kind === 'generic' ? 2 : 1;
+};
+
+// The most relevant enumerated pad: a radio, else a recognised pad, else an
+// unknown device; enumeration order breaks ties. null when there is none.
+export function bestPad(pads) {
+	let best = null;
+	for (const p of pads ?? []) {
+		if (p && (!best || PAD_RANK(p) < PAD_RANK(best))) best = p;
+	}
+	return best;
+}
+
+// Whether any button of any enumerated pad is down — for a gesture that must
+// answer whichever device the player is holding.
+export function anyPadButtonDown(pads) {
+	return (pads ?? []).some((p) => !!p?.buttons?.some((b) => b?.pressed));
+}
+
 // What the devices screen must SHOW, decided with no DOM (issue #162).
 //
 // `pads`: the output of listGamepads(). `activeIndex`: the index of the device
@@ -293,6 +326,9 @@ export function isValidCalibration(cal) {
 	// is the READER (menuButtonDown) that validates each entry and falls back to
 	// buttons 0 and 1.
 	if (cal.menu !== undefined && (cal.menu === null || typeof cal.menu !== 'object')) return false;
+	// `mode` (the measured flight-mode control) is not even looked at here: the
+	// reader (flightModeSpec) validates it and falls back, so no shape of it can
+	// cost the pilot their sticks.
 	const ch = cal.channels;
 	if (!ch || typeof ch !== 'object') return false;
 	return CAL_CHANNELS.every((name) => {
@@ -362,6 +398,85 @@ export function menuButtonDown(signals, spec, fallbackIndex) {
 	// 1 of the standard gamepad, exactly as before.
 	const v = signals[fallbackIndex];
 	return isNum(v) && v > 0;
+}
+
+// -----------------------------------------------------------------------------
+// FLIGHT-MODE CONTROL
+//
+// Until now only the M key changed flight mode: a pad started in ANGLE would
+// have had no way back to ACRO. The wizard measures the control (calibration.js,
+// THE FLIGHT-MODE CONTROL): a radio SWITCH, whose position is a mode, or a pad
+// BUTTON, which cycles. Without a measurement, every class but 'radio' gets
+// standard button 8 as its cycle button — Share / Create, View, −, Select, the
+// one button every standard pad has and no menu uses. A radio gets no default:
+// its buttons are switch positions (see MENU BUTTONS), and it starts in ACRO
+// anyway, so nobody is stuck.
+// -----------------------------------------------------------------------------
+
+export const MODE_BUTTON_DEFAULT = 8;
+
+// Button 8 as each family prints it. Anything else — 'generic' and any class
+// added later — says SELECT, the name the standard mapping gives it.
+const MODE_BUTTON_NAMES = { playstation: 'SHARE', xbox: 'VIEW', steam: 'VIEW', nintendo: '−' };
+
+// The control to read, validated, or null. `mode` is the stored measurement (any
+// shape: it is data from localStorage), `kind` the padKind() class or null for
+// the keyboard. A malformed measurement is treated as absent, never as fatal.
+export function flightModeSpec(mode, kind, axisCount) {
+	if (mode && typeof mode === 'object' && isNum(mode.signal)) {
+		if (mode.type === 'switch' && isNum(mode.acro) && isNum(mode.angle)
+			&& Math.abs(mode.acro - mode.angle) >= MENU_MIN_TRAVEL) {
+			return { type: 'switch', signal: mode.signal, acro: mode.acro, angle: mode.angle, measured: true };
+		}
+		if (mode.type === 'cycle' && isNum(mode.center) && isNum(mode.on)
+			&& Math.abs(mode.on - mode.center) >= MENU_MIN_TRAVEL) {
+			return { type: 'cycle', signal: mode.signal, center: mode.center, on: mode.on, measured: true };
+		}
+	}
+	if (!kind || kind === 'radio' || !isNum(axisCount)) return null;
+	// In the axes-then-buttons index space, a digital button rests at -1.
+	return { type: 'cycle', signal: axisCount + MODE_BUTTON_DEFAULT, center: -1, on: 1, measured: false };
+}
+
+// One frame of the control: 'acro' | 'angle' for a switch (the nearer of its
+// two measured positions), a boolean "held" for a cycle button, null when there
+// is nothing to read.
+export function readFlightMode(signals, spec) {
+	if (!spec) return null;
+	if (spec.type === 'switch') {
+		const v = signals[spec.signal];
+		if (!isNum(v)) return null;
+		return Math.abs(v - spec.acro) <= Math.abs(v - spec.angle) ? 'acro' : 'angle';
+	}
+	return menuButtonDown(signals, spec, -1);
+}
+
+// The name the briefing and the first-flight hint print for the control, or
+// null when the pad has none (an uncalibrated radio — the pilot keeps the M key).
+// ONE function, so the two screens can never name different things.
+export function flightModeControlName(kind, mode) {
+	const spec = flightModeSpec(mode, kind, 0);
+	if (!spec) return null;
+	if (spec.measured) return spec.type === 'switch' ? 'MODE SWITCH' : 'MODE BUTTON';
+	return MODE_BUTTON_NAMES[kind] ?? 'SELECT';
+}
+
+// The mode a flight starts in. A measured switch decides, as on a real radio.
+// Otherwise a radio starts in ACRO (its pilot has proportional sticks and no
+// default mode control), the keyboard (kind null) keeps ACRO by decision (see
+// main.js entryCategoryCap), and every other pad starts in ANGLE — with a mode
+// button it can always leave it by.
+export function startFlightMode(kind, switchPosition = null) {
+	if (switchPosition === 'acro' || switchPosition === 'angle') return switchPosition;
+	return !kind || kind === 'radio' ? 'acro' : 'angle';
+}
+
+// What one press of a cycle BUTTON does. Not the M key's five-mode cycle: from
+// ANGLE that would go through ALTITUDE and ACRO3D (props reversed, in flight)
+// before reaching ACRO. The button promises ACRO / ANGLE, and from any other
+// mode (reached with M) it goes back to ACRO.
+export function padCycleMode(current) {
+	return current === 'acro' ? 'angle' : 'acro';
 }
 
 // An "assumed" calibration built from a hand-written profile: this is what a
@@ -475,6 +590,10 @@ export class Input {
 		// state for whoever polls. `lostDevice` is the id, or null.
 		this.lostDevice = null;
 		this.onDeviceLost = () => {};
+
+		// Last state of the flight-mode cycle button, for the rising edge. null =
+		// not seen yet: a button already held when reading starts fires nothing.
+		this._modeHeld = null;
 
 		this._baseline = new Map();
 
@@ -808,6 +927,46 @@ export class Input {
 			confirm: menuButtonDown(signals, menu?.confirm, axes + 0),
 			back: menuButtonDown(signals, menu?.back, axes + 1),
 		};
+	}
+
+	// ---------------------------------------------------------------------------
+	// FLIGHT MODE
+	// ---------------------------------------------------------------------------
+
+	_modeSpec(pad) {
+		return flightModeSpec(this.calibration?.mode, padKind(pad.id), pad.axes.length);
+	}
+
+	// 'acro' | 'angle' from a switch, every frame; 'cycle' from a button, on the
+	// RISING EDGE only; null otherwise. Call it once per frame even when the
+	// result is not used (paused, panel open): that is what keeps a press made
+	// during a pause from firing when it ends.
+	flightModeCommand() {
+		const pad = this.getGamepad();
+		const spec = pad ? this._modeSpec(pad) : null;
+		const read = spec ? readFlightMode(padSignals(pad), spec) : null;
+		if (spec?.type === 'switch') { this._modeHeld = null; return read; }
+		const held = read === true;
+		const edge = held && this._modeHeld === false;
+		this._modeHeld = spec ? held : null;
+		return edge ? 'cycle' : null;
+	}
+
+	// The mode the flight should start in, for the device plugged in now. Reads
+	// the switch without touching the button's edge memory.
+	startFlightMode() {
+		const pad = this.getGamepad();
+		if (!pad) return startFlightMode(null);
+		const spec = this._modeSpec(pad);
+		const pos = spec?.type === 'switch' ? readFlightMode(padSignals(pad), spec) : null;
+		return startFlightMode(padKind(pad.id), pos);
+	}
+
+	// flightModeControlName() for the active device, or null (keyboard, or a
+	// radio with no measured control).
+	flightModeControl() {
+		const pad = this.getGamepad();
+		return pad ? flightModeControlName(padKind(pad.id), this.calibration?.mode) : null;
 	}
 
 	// The active device's id — the storage key for a calibration.

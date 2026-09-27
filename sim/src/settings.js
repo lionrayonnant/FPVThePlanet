@@ -1,5 +1,5 @@
 import { CHANNELS, padKind, padListEntries, PAD_LIST_EMPTY, PAD_CALIBRATE_HINT } from './input.js';
-import { beginCalibration, feedSample, skipMenuStep, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel, CAL_MENU_STEPS } from './calibration.js';
+import { beginCalibration, feedSample, skipStep, isSkippableStep, calibrationResult, calProgress, calSummaryLines, padSignals, signalLabel, CAL_MENU_STEPS } from './calibration.js';
 import { calibrationDrone } from './calibration-drone.js';
 import { armConfirm } from './confirm-button.js';
 import { menuNav } from './menu-nav.js';
@@ -788,12 +788,12 @@ export class Settings {
 		this.renderCalibration(pad);
 	}
 
-	// The two menu steps are the only skippable ones, and skipping the last of
-	// them ends the wizard — so the same persistence has to run here as on a
-	// measured frame.
+	// The two menu steps and the flight-mode step are the only skippable ones,
+	// and skipping the last of them ends the wizard — so the same persistence has
+	// to run here as on a measured frame.
 	skipCalibrationStep() {
 		if (!this._cal) return;
-		this._cal = skipMenuStep(this._cal);
+		this._cal = skipStep(this._cal);
 		this.persistCalibration();
 		this.renderCalibration(this.input.getGamepad());
 	}
@@ -823,9 +823,9 @@ export class Settings {
 		this.syncCalDrone();
 		this.el.calScreen.hidden = !running;
 		this.el.calCancelRow.hidden = !running;
-		// The skip only exists during the two menu steps: offering it on a stick
-		// would offer a calibration with no stick in it.
-		this.el.calSkipRow.hidden = !(running && String(this._cal.phase).startsWith('menu-'));
+		// The skip only exists during the menu and flight-mode steps: offering it
+		// on a stick would offer a calibration with no stick in it.
+		this.el.calSkipRow.hidden = !(running && isSkippableStep(this._cal));
 		this.el.calRow.hidden = running;
 		this.el.padMap.hidden = running;
 		this.el.padList.hidden = running;
@@ -853,12 +853,19 @@ export class Settings {
 		this.el.calPrompt.textContent = this._cal.prompt;
 		this.el.calHint.textContent = this._cal.hint;
 		this.el.calMessage.textContent = this._cal.message ?? '';
-		// What the menu steps have already measured, named the way the browser
-		// names it (signalLabel): "measured: btn 4", not "ok".
-		this.el.calMeasured.textContent = CAL_MENU_STEPS
+		// What the menu and mode steps have already measured, named the way the
+		// browser names it (signalLabel): "measured: btn 4", not "ok". The mode's
+		// signal shows as soon as it is found, with its ACRO position once the
+		// switch is known to be one.
+		const where = (i) => signalLabel(i, this._cal.axisCount);
+		const measured = CAL_MENU_STEPS
 			.filter((k) => this._cal.menu?.[k])
-			.map((k) => `${k}: ${signalLabel(this._cal.menu[k].signal, this._cal.axisCount)}`)
-			.join('   ');
+			.map((k) => `${k}: ${where(this._cal.menu[k].signal)}`);
+		if (this._cal.phase === 'mode-release') measured.push(`mode: ${where(this._cal._modeSignal)}`);
+		if (this._cal.phase === 'mode-angle') {
+			measured.push(`mode: switch ${where(this._cal._modeSignal)}  acro ${this._cal._modeAcro.toFixed(2)}`);
+		}
+		this.el.calMeasured.textContent = measured.join('   ');
 
 		// The bar follows the axis furthest from its neutral: during an
 		// instruction that is the one the pilot is pushing. For as long as the

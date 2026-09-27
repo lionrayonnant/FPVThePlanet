@@ -1,10 +1,10 @@
-// node tools/readiness-render-selftest.mjs — the RECOMMENDED SETUP screen, on
-// the fake DOM of tools/lib/fake-dom.mjs.
+// node tools/readiness-render-selftest.mjs — the RECOMMENDED screen, on the
+// fake DOM of tools/lib/fake-dom.mjs.
 //
 // Same intention as briefing-render-selftest.mjs: what is checked is the TREE
-// and the WIRING — what is mounted, what the two buttons do, that the all-clear
-// readout takes itself away, that a live gamepad rewrites the INPUT row — never
-// the look, which is judged by eye.
+// and the WIRING — which pictograms are lit, the two lines of text, what the two
+// buttons do, that the all-clear readout takes itself away, that a live gamepad
+// lights its pictogram — never the look, which is judged by eye.
 import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
@@ -34,8 +34,8 @@ const ta = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); 
 
 console.log('readiness render');
 
-// The reveal is a chain of awaited timeouts, one per line. At interval 0 they
-// are still macrotasks, so a test has to let the loop breathe before it looks.
+// The screen mounts in one go, but the reveal watcher and the close() animation
+// are macrotasks: a test lets the loop breathe before it looks.
 const settle = async (turns = 80) => {
 	for (let i = 0; i < turns; i++) await new Promise((r) => setTimeout(r, 0));
 };
@@ -74,7 +74,7 @@ function mount({ ua = UA_FIREFOX, pads = [], autoMs = 300, pollMs = 1, st = stor
 	dom.root.appendChild(root);
 	const { nav, plug } = fakeNav(ua, pads);
 	let done = false;
-	const promise = runReadiness(root, { nav, store: st, interval: 0, autoMs, pollMs })
+	const promise = runReadiness(root, { nav, store: st, autoMs, pollMs })
 		.then(() => { done = true; });
 	return {
 		root, promise, plug, store: st,
@@ -83,19 +83,35 @@ function mount({ ua = UA_FIREFOX, pads = [], autoMs = 300, pollMs = 1, st = stor
 		text: () => root.textContent,
 		buttons: () => root.querySelectorAll('button'),
 		btn: (label) => root.querySelectorAll('button').find((b) => b.textContent === `[ ${label} ]`),
+		icons: () => root.querySelectorAll('.readiness-item').map((f) => f.dataset.icon),
+		lit: () => root.querySelectorAll('[data-lit="true"]').map((f) => f.dataset.icon),
+		hint: () => {
+			const h = root.querySelector('.readiness-hint');
+			return h && !h.hidden ? h.textContent : '';
+		},
 	};
 }
 
-await ta('a warned setup mounts one screen, its two rows and its two buttons', async () => {
+await ta('nothing detected: three dim pictograms, one hint, two buttons', async () => {
 	const m = mount();   // Firefox, nothing enumerated
 	await settle();
 	assert.equal(m.screens().length, 1, 'exactly one screen');
-	assert.match(m.text(), /RECOMMENDED SETUP/);
-	assert.match(m.text(), /BROWSER/);
-	assert.match(m.text(), /FIREFOX/);
-	assert.match(m.text(), /NOT DETECTED YET/);
-	// The honest line, which is the reason the screen exists.
-	assert.match(m.text(), /MOVE A STICK/);
+	assert.match(m.text(), /RECOMMENDED/);
+	assert.deepEqual(m.icons(), ['radio', 'gamepad', 'chrome']);
+	assert.match(m.text(), /FPV RADIO/);
+	assert.match(m.text(), /DUALSHOCK/);
+	assert.match(m.text(), /CHROME/);
+	assert.ok(m.root.querySelector('.readiness-or'), 'an OR between radio and pad');
+	assert.deepEqual(m.lit(), [], 'Firefox and no pad: everything dim');
+	// Each pictogram is an inline SVG, so its colour comes from the page.
+	for (const f of m.root.querySelectorAll('.readiness-item')) {
+		assert.ok(f.querySelector('svg'), `${f.dataset.icon}: an svg`);
+		assert.ok(f.querySelector('path').attributes.d.length > 0, `${f.dataset.icon}: a drawing`);
+	}
+	// The honest line, which is the reason the screen exists — and the only one.
+	assert.equal(m.hint(), 'MOVE A STICK TO DETECT IT');
+	assert.doesNotMatch(m.text(), /\/\/ [a-z]+:/, 'no crew remarks');
+	assert.doesNotMatch(m.text(), /\.\.\.\./, 'no dotted rows');
 	assert.ok(m.btn('CONTINUE'), 'a CONTINUE button');
 	assert.ok(m.btn("DON'T SHOW AGAIN"), "a DON'T SHOW AGAIN button");
 	assert.equal(m.buttons().length, 2, 'and no third answer');
@@ -103,6 +119,16 @@ await ta('a warned setup mounts one screen, its two rows and its two buttons', a
 	await settle(20);
 	assert.equal(m.isDone(), false);
 	assert.equal(m.screens().length, 1);
+	m.btn('CONTINUE').click();
+	await m.promise;
+});
+
+await ta('Chromium and no pad: CHROME lit, the pad dim, still waiting', async () => {
+	const m = mount({ ua: UA_CHROME });
+	await settle();
+	assert.deepEqual(m.lit(), ['chrome']);
+	assert.equal(m.hint(), 'MOVE A STICK TO DETECT IT');
+	assert.equal(m.buttons().length, 2);
 	m.btn('CONTINUE').click();
 	await m.promise;
 });
@@ -135,15 +161,30 @@ await ta('a store that throws does not stop the screen from closing', async () =
 	assert.equal(m.isDone(), true);
 });
 
-await ta('an all-clear setup gets no button and takes itself away', async () => {
+await ta('an all-clear setup: pad and CHROME lit, no text, no button, gone on its own', async () => {
 	const m = mount({ ua: UA_CHROME, pads: [pad('Xbox Wireless Controller')], autoMs: 300 });
 	await settle();
 	assert.equal(m.screens().length, 1);
-	assert.match(m.text(), /XBOX/);
+	assert.deepEqual(m.lit(), ['gamepad', 'chrome']);
+	assert.equal(m.hint(), '', 'nothing to say');
 	assert.equal(m.buttons().length, 0, 'a readout asks nothing');
 	await m.promise;
 	assert.equal(m.screens().length, 0, 'it unmounted on its own');
 	assert.equal(m.isDone(), true);
+});
+
+await ta('a keyboard receiver enumerated first does not hide the radio (Chrome, 2026-09-27)', async () => {
+	// Chrome on Linux: js0 is a Keychron Link receiver (a joystick interface, 6
+	// axes, 16 buttons), js1 the RadioMaster Pocket. Reading the first pad lit
+	// DUALSHOCK and said UNKNOWN DEVICE; Firefox showed the radio alone.
+	const keychron = { ...pad('Keychron  Keychron Link  (Vendor: 3434 Product: d030)'), index: 0 };
+	const pocket = { ...pad('EdgeTX Radiomaster Pocket Joystick (Vendor: 1209 Product: 4f54)'), index: 1 };
+	const m = mount({ ua: UA_CHROME, pads: [keychron, pocket], autoMs: 60_000 });
+	await settle();
+	assert.deepEqual(m.lit(), ['radio', 'chrome']);
+	assert.doesNotMatch(m.text(), /UNKNOWN DEVICE/);
+	dom.key('Escape');
+	await m.promise;
 });
 
 await ta('a key clears the all-clear readout before its delay is up', async () => {
@@ -151,7 +192,7 @@ await ta('a key clears the all-clear readout before its delay is up', async () =
 	const m = mount({ ua: UA_CHROME, pads: [pad('FrSky Taranis X9D')], autoMs: 60_000 });
 	await settle();
 	assert.equal(m.screens().length, 1);
-	assert.match(m.text(), /RADIO/);
+	assert.deepEqual(m.lit(), ['radio', 'chrome'], 'a radio lights the radio, not the pad');
 	assert.equal(m.isDone(), false);
 	dom.key('Escape');
 	await m.promise;
@@ -173,52 +214,63 @@ await ta('a gamepad button clears it too', async () => {
 	assert.equal(m.screens().length, 0);
 });
 
-await ta('an unrecognised device waits, with CALIBRATE named', async () => {
-	// A device IS there, so nothing is recommended — but its mapping is a guess,
-	// and the one line that says where that is settled has to be readable. So
-	// the screen waits on CONTINUE instead of taking itself away.
+await ta('an unrecognised device lights the pad but waits, with CALIBRATE named', async () => {
+	// A device IS there — but its mapping is a guess, and the one line that
+	// says where that is settled has to be readable. So the screen waits on
+	// CONTINUE instead of taking itself away.
 	const m = mount({ ua: UA_CHROME, pads: [pad('Unknown HID 0f0d:00c1')], autoMs: 300 });
 	await settle();
-	assert.match(m.text(), /UNRECOGNISED/);
-	assert.match(m.text(), /CALIBRATE/);
-	assert.doesNotMatch(m.text(), /DUALSHOCK/, 'no shopping list for someone holding a pad');
+	assert.deepEqual(m.lit(), ['gamepad', 'chrome']);
+	assert.equal(m.hint(), 'UNKNOWN DEVICE · SETTINGS > CONTROLLER > CALIBRATE');
+	assert.doesNotMatch(m.text(), /MOVE A STICK/);
 	assert.equal(m.buttons().length, 2);
 	m.buttons()[0].click();
 	await m.promise;
 	assert.equal(m.screens().length, 0);
 });
 
-await ta('a pad that appears WHILE the screen is up rewrites the INPUT row', async () => {
+await ta('a pad that appears WHILE the screen is up lights and the hint goes', async () => {
 	// The false negative the screen is built around: the browser reveals a
-	// device only after an input on it, so the warning has to be able to
-	// withdraw itself.
-	const m = mount({ ua: UA_CHROME, pads: [], autoMs: 300, pollMs: 1 });
+	// device only after an input on it, so the dim pad has to be able to light.
+	const m = mount({ ua: UA_CHROME, pads: [], autoMs: 60_000, pollMs: 1 });
 	await settle();
-	assert.match(m.text(), /NOT DETECTED YET/);
+	assert.deepEqual(m.lit(), ['chrome']);
+	assert.equal(m.hint(), 'MOVE A STICK TO DETECT IT');
 	assert.equal(m.buttons().length, 2, 'it was waiting');
 	m.plug(pad('FrSky Taranis X9D'));
-	// One poll tick, then the reveal's own settling.
 	await new Promise((r) => setTimeout(r, 10));
 	await settle(20);
-	assert.doesNotMatch(m.text(), /NOT DETECTED YET/, 'the warning withdrew itself');
-	assert.match(m.text(), /FRSKY TARANIS X9D/);
-	assert.match(m.text(), /RADIO/);
-	// Nothing left to answer: the buttons go and the readout takes itself away.
+	assert.deepEqual(m.lit(), ['radio', 'chrome'], 'the radio lit');
+	assert.equal(m.hint(), '', 'MOVE A STICK went away');
+	assert.doesNotMatch(m.text(), /MOVE A STICK/);
+	// Nothing left to answer: the buttons go, and the readout behaves like any
+	// all-clear one — a key takes it away before its delay.
+	assert.equal(m.buttons().length, 0);
+	assert.equal(m.isDone(), false);
+	dom.key('a');
+	await m.promise;
+	assert.equal(m.screens().length, 0);
+});
+
+await ta('a live all-clear still takes itself away after its delay', async () => {
+	const m = mount({ ua: UA_CHROME, pads: [], autoMs: 300, pollMs: 1 });
+	await settle();
+	m.plug(pad('Xbox Wireless Controller'));
 	await m.promise;
 	assert.equal(m.screens().length, 0);
 	assert.equal(m.isDone(), true);
 });
 
 await ta('a pad appearing on a warned BROWSER leaves the buttons in place', async () => {
-	// Firefox is still Firefox: one verdict withdrawing does not make the screen
+	// Firefox is still Firefox: one pictogram lighting does not make the screen
 	// an all-clear readout.
 	const m = mount({ ua: UA_FIREFOX, pads: [], autoMs: 300, pollMs: 1 });
 	await settle();
 	m.plug(pad('Xbox Wireless Controller'));
 	await new Promise((r) => setTimeout(r, 10));
 	await settle(20);
-	assert.match(m.text(), /XBOX/);
-	assert.match(m.text(), /CHROMIUM/);
+	assert.deepEqual(m.lit(), ['gamepad']);
+	assert.equal(m.hint(), '');
 	assert.equal(m.buttons().length, 2, 'it still waits on an answer');
 	assert.equal(m.isDone(), false);
 	m.btn('CONTINUE').click();

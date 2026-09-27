@@ -25,6 +25,11 @@ export const CAL_CHANNELS = ['throttle', 'yaw', 'pitch', 'roll'];
 // reachable. So the pilot is asked for the gesture and the machine watches.
 export const CAL_MENU_STEPS = ['confirm', 'back'];
 
+// The flight-mode control, measured last (see THE FLIGHT-MODE CONTROL below).
+// Its phases: 'mode' (the first gesture), 'mode-release' (does it spring back?),
+// 'mode-angle' (a switch's second position).
+export const CAL_MODE_PHASES = ['mode', 'mode-release', 'mode-angle'];
+
 // -----------------------------------------------------------------------------
 // WHAT IS MEASURED: EVERYTHING THE DEVICE REPORTS (issue #279)
 //
@@ -76,6 +81,9 @@ export const CAL_PROMPTS = {
 	throttleMin: 'THROTTLE — FULL DOWN',
 	menuConfirm: 'MENU — CONFIRM',
 	menuBack: 'MENU — GO BACK',
+	modeAcro: 'FLIGHT MODE — ACRO',
+	modeRelease: 'FLIGHT MODE — LET GO',
+	modeAngle: 'FLIGHT MODE — ANGLE',
 	done: 'CALIBRATED',
 };
 
@@ -89,6 +97,9 @@ export const CAL_HINTS = {
 	throttleMin: 'hold it at the bottom',
 	menuConfirm: 'press the button you use to CONFIRM — or skip it',
 	menuBack: 'press the button you use to GO BACK — or skip it',
+	modeAcro: 'set your FLIGHT MODE switch to ACRO — or press the button you want for it',
+	modeRelease: 'let go — a button springs back, a switch stays where it is',
+	modeAngle: 'now set it to ANGLE',
 	done: '',
 };
 
@@ -116,6 +127,12 @@ export const CAL_TIMING = {
 // Without this message all that is left is a prompt that never changes and
 // nothing to say why (issue #279).
 const IDLE_MESSAGE = 'no movement seen — wrong device, or this stick is not reported';
+
+// The flight-mode step has one more reason to see nothing: a switch that already
+// sits on ACRO cannot be moved TO ACRO. Flipping it away and back would be read
+// as a button (it came back), so the honest way out is to skip and start over
+// from the other position.
+const MODE_IDLE_MESSAGE = 'nothing moved — switch already on ACRO? skip, set it to ANGLE, calibrate again';
 
 // Past this amplitude during the rest window it is not noise any more: somebody
 // is holding a stick. The measurement starts again.
@@ -410,7 +427,7 @@ function feedThrottleMin(state, axes, dt) {
 // "button" can therefore be any signal in that vector, an analogue trigger
 // included.
 //
-// BOTH STEPS ARE SKIPPABLE (skipMenuStep): a standard pad has no need of them,
+// BOTH STEPS ARE SKIPPABLE (skipStep): a standard pad has no need of them,
 // its buttons 0 and 1 are momentary and menu-nav.js falls back to those.
 // -----------------------------------------------------------------------------
 
@@ -448,14 +465,27 @@ function finishCalibration(state) {
 	};
 }
 
+// The steps a pilot may skip: the two menu gestures and the flight-mode control.
+// Never a stick — skipping one would offer a calibration with no stick in it.
+export function isSkippableStep(state) {
+	const phase = String(state?.phase);
+	return phase.startsWith('menu-') || CAL_MODE_PHASES.includes(phase);
+}
+
 // Explicit skip, from a button or a key in the panel. Anywhere else it is a
-// no-op: the state machine decides nothing on its own here.
-export function skipMenuStep(state) {
-	if (!state || !String(state.phase).startsWith('menu-')) return state;
+// no-op: the state machine decides nothing on its own here. Skipping the mode
+// step half way (after the first gesture) keeps nothing of it: half a switch is
+// not a measurement.
+export function skipStep(state) {
+	if (!state || !isSkippableStep(state)) return state;
+	if (CAL_MODE_PHASES.includes(state.phase)) {
+		const { mode: _dropped, ...rest } = state;
+		return finishCalibration(rest);
+	}
 	const next = state._menuIndex + 1;
 	return next < CAL_MENU_STEPS.length
 		? beginMenuStep(state, next)
-		: finishCalibration(state);
+		: beginModeStep(state);
 }
 
 function feedMenuStep(state, signals, dt) {
@@ -506,7 +536,149 @@ function feedMenuStep(state, signals, dt) {
 	const next = s._menuIndex + 1;
 	return next < CAL_MENU_STEPS.length
 		? beginMenuStep({ ...s, menu }, next)
-		: finishCalibration({ ...s, menu });
+		: beginModeStep({ ...s, menu });
+}
+
+// -----------------------------------------------------------------------------
+// THE FLIGHT-MODE CONTROL
+//
+// Same philosophy again: the pilot is asked for a gesture and the machine
+// watches. What it watches for is not only WHICH signal moved but HOW, because
+// that is what tells the two kinds of control apart without asking:
+//   - a radio switch (Betaflight's AUX channel) STAYS where it is put. Each
+//     position is a mode: the pilot is asked for ACRO, then for ANGLE, and both
+//     values are written down. In flight the nearest of the two wins.
+//   - a pad button SPRINGS BACK when released. It can only cycle: stored like a
+//     menu button, read as a rising edge.
+//
+// THE DECISION WINDOW is the throttle-release one, reused on purpose: at least
+// CAL_TIMING.releaseMinMs (800 ms) since the gesture was accepted, and the
+// signal still for CAL_TIMING.holdMs (400 ms, within HOLD_TOL). 800 ms is what
+// the module already measured as "the time a pilot needs to let go" once the
+// prompt changes; the extra stillness keeps a button caught mid-release from
+// being read where it happens to be. Back within RETURN_TOL of its rest value it
+// is a button, anywhere else it is a switch. A pilot who keeps a button pressed
+// past that is read as a switch — the LET GO prompt is there to prevent it, and
+// the ANGLE prompt that follows says at once that something is off.
+//
+// Skippable, like the menu steps: an uncalibrated pad has a default cycle
+// button (input.js), and a radio without a mode switch starts in ACRO.
+// -----------------------------------------------------------------------------
+
+function beginModeStep(state, message = null) {
+	return {
+		...state,
+		phase: 'mode',
+		channel: null,
+		prompt: CAL_PROMPTS.modeAcro,
+		hint: CAL_HINTS.modeAcro,
+		message,
+		_peaks: new Array(state.signalCount).fill(0),
+		_holdMs: 0,
+		_idleMs: 0,
+		_armed: false,
+	};
+}
+
+function feedModeStep(state, signals, dt) {
+	const dev = state.centers.map((c, i) => (signals[i] ?? 0) - c);
+	const quiet = dev.every((d) => Math.abs(d) < PUSH_MIN / 2);
+
+	if (!state._armed) return quiet ? { ...state, _armed: true } : state;
+
+	const idleMs = quiet ? state._idleMs + dt : 0;
+	if (quiet && idleMs >= CAL_TIMING.idleWarnMs) {
+		return { ...state, _idleMs: idleMs, message: MODE_IDLE_MESSAGE };
+	}
+
+	const peaks = state._peaks.map((p, i) => (Math.abs(dev[i]) > Math.abs(p) ? dev[i] : p));
+	let win = 0;
+	for (let i = 1; i < peaks.length; i++) if (Math.abs(peaks[i]) > Math.abs(peaks[win])) win = i;
+
+	const held =
+		Math.abs(peaks[win]) >= PUSH_MIN &&
+		Math.abs(dev[win] - peaks[win]) <= HOLD_TOL;
+
+	const holdMs = held ? state._holdMs + dt : 0;
+	const s = { ...state, _peaks: peaks, _holdMs: holdMs, _idleMs: idleMs };
+	if (holdMs < CAL_TIMING.holdMs) return s;
+
+	// A stick would change mode on every manoeuvre; a menu gesture would change
+	// it on every confirm. Same refusals as the menu steps.
+	const stick = CAL_CHANNELS.find((ch) => s.channels[ch]?.axis === win);
+	if (stick) return beginModeStep(s, `that signal is ${stick} — use a switch or a button`);
+	const menu = CAL_MENU_STEPS.find((k) => s.menu?.[k]?.signal === win);
+	if (menu) return beginModeStep(s, `that one is already ${menu} — use another`);
+
+	const on = s.centers[win] + peaks[win];
+	return {
+		...s,
+		phase: 'mode-release',
+		prompt: CAL_PROMPTS.modeRelease,
+		hint: CAL_HINTS.modeRelease,
+		message: null,
+		_modeSignal: win,
+		_modeOn: on,
+		_phaseMs: 0,
+		_holdMs: 0,
+		_lastVal: on,
+	};
+}
+
+function feedModeRelease(state, signals, dt) {
+	const v = signals[state._modeSignal] ?? 0;
+	const moved = Math.abs(v - state._lastVal) > HOLD_TOL;
+	const s = {
+		...state,
+		_phaseMs: state._phaseMs + dt,
+		_holdMs: moved ? 0 : state._holdMs + dt,
+		_lastVal: moved ? v : state._lastVal,
+	};
+	if (s._phaseMs < CAL_TIMING.releaseMinMs || s._holdMs < CAL_TIMING.holdMs) return s;
+
+	const center = s.centers[s._modeSignal];
+	if (Math.abs(s._lastVal - center) <= RETURN_TOL) {
+		return finishCalibration({
+			...s,
+			mode: { signal: s._modeSignal, type: 'cycle', center, on: s._modeOn },
+		});
+	}
+
+	// It stayed: a switch. Its ACRO value is where it settled, not the peak — a
+	// switch filed on an axis can overshoot on the way.
+	return {
+		...s,
+		phase: 'mode-angle',
+		prompt: CAL_PROMPTS.modeAngle,
+		hint: CAL_HINTS.modeAngle,
+		message: null,
+		_modeAcro: s._lastVal,
+		_holdMs: 0,
+		_idleMs: 0,
+	};
+}
+
+// Only the switch found above is watched: the pilot is moving THAT control, and
+// anything else moving is noise here, not an answer.
+function feedModeAngle(state, signals, dt) {
+	const v = signals[state._modeSignal] ?? 0;
+	const moved = Math.abs(v - state._lastVal) > HOLD_TOL;
+	const far = Math.abs(v - state._modeAcro) >= PUSH_MIN;
+	const s = {
+		...state,
+		_holdMs: moved || !far ? 0 : state._holdMs + dt,
+		_idleMs: far ? 0 : state._idleMs + dt,
+		_lastVal: moved ? v : state._lastVal,
+	};
+	if (!far && s._idleMs >= CAL_TIMING.idleWarnMs) {
+		return { ...s, message: 'still on ACRO — move the same switch to ANGLE' };
+	}
+	if (s._holdMs < CAL_TIMING.holdMs) return s;
+
+	return finishCalibration({
+		...s,
+		mode: { signal: s._modeSignal, type: 'switch', acro: s._modeAcro, angle: s._lastVal },
+	});
 }
 
 // -----------------------------------------------------------------------------
@@ -519,6 +691,9 @@ export function feedSample(state, axes, dt) {
 		case 'throttle-min': return feedThrottleMin(state, axes, dt);
 		case 'menu-confirm':
 		case 'menu-back': return feedMenuStep(state, axes, dt);
+		case 'mode': return feedModeStep(state, axes, dt);
+		case 'mode-release': return feedModeRelease(state, axes, dt);
+		case 'mode-angle': return feedModeAngle(state, axes, dt);
 		default: return state;
 	}
 }
@@ -583,12 +758,14 @@ export function throttleFromCalibrated(v, cal) {
 // `menu` is only there when at least one of the two gestures was measured: a
 // pilot who skipped both writes nothing, and every calibration written before
 // these two steps existed has no such field either. input.js:isValidCalibration
-// therefore treats it as optional, for ever.
+// therefore treats it as optional, for ever. `mode` follows the same rule: only
+// when measured, and optional to every reader.
 export function calibrationResult(state) {
 	if (!state.done) return null;
-	const { channels, deadband, throttleMode, axisCount, menu } = state;
+	const { channels, deadband, throttleMode, axisCount, menu, mode } = state;
 	const out = { channels, deadband, throttleMode, axisCount };
 	if (menu && Object.keys(menu).length) out.menu = menu;
+	if (mode) out.mode = mode;
 	return out;
 }
 
@@ -597,17 +774,19 @@ export function calibrationResult(state) {
 // mode, and it asks for a gesture (letting go) the others do not.
 const STEP_ORDER = [
 	'rest', 'throttle', 'throttle-release', 'yaw', 'pitch', 'roll',
-	'menu-confirm', 'menu-back',
+	'menu-confirm', 'menu-back', 'mode',
 ];
 
 export function calProgress(state) {
 	const total = STEP_ORDER.length;
 	if (state.phase === 'done') return { step: total, total };
 	// 'throttle-min' is not one more step: it is the rest of the same question —
-	// where is this throttle's floor?
+	// where is this throttle's floor? Likewise the mode's release and second
+	// position are the rest of the mode question.
 	const key = state.phase === 'channel' ? state.channel
 		: state.phase === 'throttle-min' ? 'throttle-release'
-			: state.phase;
+			: CAL_MODE_PHASES.includes(state.phase) ? 'mode'
+				: state.phase;
 	return { step: STEP_ORDER.indexOf(key) + 1, total };
 }
 
@@ -636,5 +815,11 @@ export function calSummaryLines(cal) {
 		.filter((k) => cal.menu?.[k])
 		.map((k) => `${k} ${where(cal.menu[k].signal)}`);
 	if (menu.length) lines.push(`${pad('menu')} ${menu.join('  ·  ')}`);
+	const m = cal.mode;
+	if (m?.type === 'switch') {
+		lines.push(`${pad('mode')} switch ${where(m.signal)}  acro ${m.acro.toFixed(2)} · angle ${m.angle.toFixed(2)}`);
+	} else if (m?.type === 'cycle') {
+		lines.push(`${pad('mode')} button ${where(m.signal)}`);
+	}
 	return lines;
 }

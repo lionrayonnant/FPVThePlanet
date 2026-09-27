@@ -59,6 +59,13 @@ export function keyOf(keyRows, id, fallback) {
 	return row?.keys?.[0] || fallback;
 }
 
+function modeControlLabel(input, keyRows) {
+	const control = up(input?.modeControl).trim();
+	return control
+		? `${control} — ACRO / ANGLE`
+		: `KEY ${up(keyOf(keyRows, 'cycleMode', 'M'))}`;
+}
+
 function inputScreen(input, keyRows) {
 	const gamepad = input?.kind === 'gamepad';
 	if (gamepad) {
@@ -74,6 +81,10 @@ function inputScreen(input, keyRows) {
 				['THROTTLE / YAW', 'LEFT STICK'],
 				['PITCH / ROLL', 'RIGHT STICK'],
 				['STICK FORWARD', 'NOSE DOWN'],
+				// The control that leaves ANGLE, named as the pad prints it
+				// (input.js:flightModeControlName). A radio with no measured
+				// switch has none: its pilot keeps the key.
+				['FLIGHT MODE', modeControlLabel(input, keyRows)],
 			],
 			actions: ['calibrate', 'continue'],
 		};
@@ -138,7 +149,9 @@ function completeScreen() {
 	};
 }
 
-// `input` = { kind: 'gamepad' | 'keyboard', name }, `keyRows` = keyMapRows() of
+// `input` = { kind: 'gamepad' | 'keyboard', name, modeControl }, where
+// `modeControl` is input.js:flightModeControlName() for the pad (SHARE, VIEW,
+// MODE SWITCH…) or null when it has none. `keyRows` = keyMapRows() of
 // the LIVE map (src/key-map.js) — never a copy, so a rebound key is right here
 // the moment it is rebound.
 export function briefingScreens({ input = null, keyRows = [] } = {}) {
@@ -157,6 +170,8 @@ export function briefingScreens({ input = null, keyRows = [] } = {}) {
 // How long each transient hint stays up, and when the link one is due.
 export const HINT_HOLD_S = 6;
 export const CUT_HINT_AT_S = 30;
+// The flight-mode line follows the TAB one, in the next window.
+export const MODE_HINT_AT_S = HINT_HOLD_S;
 
 // One line, or nothing. Called every frame by main.js and painted by the OSD
 // like #fo-cut, so it must be cheap and it must be stable: the same inputs
@@ -169,9 +184,13 @@ export const CUT_HINT_AT_S = 30;
 // and stays written as it is. Bench flights are not a first flight, and a
 // disarmed machine is not told anything — a link that just died is not the
 // moment for advice.
+//
+// `modeControl` is the same name the briefing prints (flightModeControlName):
+// a pad that starts in ANGLE is told which button leads to ACRO. Null (keyboard,
+// uncalibrated radio — both start in ACRO) says nothing.
 export function flightHint({
 	armed = false, airborneOnce = false, tSinceTakeoff = 0,
-	bench = false, firstFlight = false, keyRows = [],
+	bench = false, firstFlight = false, keyRows = [], modeControl = null,
 } = {}) {
 	if (bench || !firstFlight) return null;
 	// Before the first take-off the only thing worth saying is where the
@@ -183,5 +202,7 @@ export function flightHint({
 		return `[HOLD ${up(keyOf(keyRows, 'cutLink', 'K'))}] CUT LINK`;
 	}
 	if (tSinceTakeoff <= HINT_HOLD_S) return '[TAB] SETTINGS';
+	const control = up(modeControl).trim();
+	if (control && tSinceTakeoff <= MODE_HINT_AT_S + HINT_HOLD_S) return `[${control}] ACRO / ANGLE`;
 	return null;
 }

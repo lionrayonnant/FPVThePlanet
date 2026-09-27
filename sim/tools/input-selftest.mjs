@@ -11,6 +11,8 @@ const dom = installFakeDom();
 
 const {
 	padKind,
+	bestPad,
+	anyPadButtonDown,
 	defaultMapForKind,
 	throttleModeForKind,
 	throttleFromAxis,
@@ -26,6 +28,12 @@ const {
 	menuButtonDown,
 	deviceLostLine,
 	PAD_CALIBRATE_HINT,
+	flightModeSpec,
+	readFlightMode,
+	flightModeControlName,
+	startFlightMode,
+	padCycleMode,
+	MODE_BUTTON_DEFAULT,
 	Input,
 } = await import('../src/input.js');
 const { padSignals } = await import('../src/calibration.js');
@@ -877,11 +885,207 @@ t('a device that comes back clears the warning state', () => {
 	unmountPads();
 });
 
+// --- the flight-mode control ------------------------------------------------
+//
+// Only the M key changed mode before: a pad started in ANGLE had no way back to
+// ACRO. A measured switch gives the mode by its POSITION, a measured or default
+// button CYCLES on its rising edge.
+
+const SWITCH = { signal: 4, type: 'switch', acro: 1, angle: -1 };
+const CYCLE = { signal: 12, type: 'cycle', center: -1, on: 1 };
+
+t('flightModeSpec / readFlightMode: a switch reads as its nearer position', () => {
+	const spec = flightModeSpec(SWITCH, 'radio', 4);
+	assert.equal(spec.type, 'switch');
+	assert.equal(readFlightMode([0, 0, -1, 0, 1], spec), 'acro');
+	assert.equal(readFlightMode([0, 0, -1, 0, -1], spec), 'angle');
+	assert.equal(readFlightMode([0, 0, -1, 0, 0.2], spec), 'acro', 'the nearer of the two wins');
+	assert.equal(readFlightMode([0, 0, -1, 0], spec), null, 'a missing signal reads nothing');
+});
+
+t('flightModeSpec / readFlightMode: a measured button reads as held or not', () => {
+	const spec = flightModeSpec(CYCLE, 'playstation', 4);
+	assert.equal(spec.type, 'cycle');
+	const sig = (v) => { const a = new Array(20).fill(-1); a[12] = v; return a; };
+	assert.equal(readFlightMode(sig(1), spec), true);
+	assert.equal(readFlightMode(sig(-1), spec), false);
+});
+
+t('default: button 8 is the mode button on every class but radio', () => {
+	for (const kind of ['playstation', 'xbox', 'nintendo', 'steam', 'generic', 'some-new-family']) {
+		const spec = flightModeSpec(undefined, kind, 4);
+		assert.deepEqual(
+			{ type: spec.type, signal: spec.signal },
+			{ type: 'cycle', signal: 4 + MODE_BUTTON_DEFAULT },
+			kind,
+		);
+	}
+	assert.equal(flightModeSpec(undefined, 'radio', 4), null, 'a radio has no default: its buttons are switch positions');
+	assert.equal(flightModeSpec(undefined, null, 4), null, 'nor has the keyboard');
+});
+
+t('a malformed measurement is treated as absent, never as fatal', () => {
+	for (const bad of [null, 3, 'x', {}, { signal: 4 }, { signal: 4, type: 'switch', acro: 1 },
+		{ signal: 4, type: 'switch', acro: 0.1, angle: 0.2 }, { signal: 'a', type: 'cycle', center: -1, on: 1 },
+		{ signal: 4, type: 'cycle', center: -1, on: -0.9 }, { signal: 4, type: 'warp' }]) {
+		// A pad falls back to its default button, a radio to nothing.
+		assert.equal(flightModeSpec(bad, 'xbox', 4)?.signal, 12, JSON.stringify(bad));
+		assert.equal(flightModeSpec(bad, 'radio', 4), null, JSON.stringify(bad));
+		// And the calibration that carries it still flies.
+		assert.equal(isValidCalibration({ ...DS4_CAL, mode: bad }), true, JSON.stringify(bad));
+	}
+});
+
+t('isValidCalibration: a calibration with no `mode` field is still accepted', () => {
+	assert.equal('mode' in DS4_CAL, false);
+	assert.equal(isValidCalibration(DS4_CAL), true);
+	assert.equal(isValidCalibration({ ...RADIO_CAL, mode: SWITCH }), true);
+});
+
+t('flightModeControlName: button 8 as each family prints it', () => {
+	assert.equal(flightModeControlName('playstation'), 'SHARE');
+	assert.equal(flightModeControlName('xbox'), 'VIEW');
+	assert.equal(flightModeControlName('steam'), 'VIEW');
+	assert.equal(flightModeControlName('nintendo'), '−');
+	assert.equal(flightModeControlName('generic'), 'SELECT');
+	assert.equal(flightModeControlName('some-new-family'), 'SELECT');
+});
+
+t('flightModeControlName: a measured control, and none for an uncalibrated radio', () => {
+	assert.equal(flightModeControlName('radio', SWITCH), 'MODE SWITCH');
+	assert.equal(flightModeControlName('radio', CYCLE), 'MODE BUTTON');
+	assert.equal(flightModeControlName('playstation', CYCLE), 'MODE BUTTON');
+	assert.equal(flightModeControlName('radio'), null);
+	assert.equal(flightModeControlName('radio', { type: 'switch' }), null, 'malformed = absent');
+	assert.equal(flightModeControlName(null), null, 'the keyboard');
+});
+
+t('startFlightMode: pad -> ANGLE, radio -> ACRO, a measured switch decides', () => {
+	for (const kind of ['playstation', 'xbox', 'nintendo', 'steam', 'generic']) {
+		assert.equal(startFlightMode(kind), 'angle', kind);
+	}
+	assert.equal(startFlightMode('radio'), 'acro');
+	assert.equal(startFlightMode('radio', 'angle'), 'angle');
+	assert.equal(startFlightMode('radio', 'acro'), 'acro');
+	assert.equal(startFlightMode(null), 'acro', 'the keyboard is unchanged');
+});
+
+t('padCycleMode: the button toggles ACRO / ANGLE, and always leads back to ACRO', () => {
+	assert.equal(padCycleMode('acro'), 'angle');
+	assert.equal(padCycleMode('angle'), 'acro');
+	// Not the M key's five-mode cycle: from ANGLE it would pass through ACRO3D.
+	for (const m of ['altitude', 'acro3d', 'gps']) assert.equal(padCycleMode(m), 'acro', m);
+});
+
+t('Input.flightModeCommand: default button 8 fires on the RISING EDGE only', () => {
+	const pad = mountPad('Xbox Wireless Controller', [0, 0, 0, 0], 17);
+	const input = freshInput();
+	assert.equal(input.flightModeCommand(), null);
+	pad.buttons[8].value = 1;
+	assert.equal(input.flightModeCommand(), 'cycle', 'pressed: one cycle');
+	assert.equal(input.flightModeCommand(), null, 'held: nothing more');
+	assert.equal(input.flightModeCommand(), null);
+	pad.buttons[8].value = 0;
+	assert.equal(input.flightModeCommand(), null, 'released: nothing');
+	pad.buttons[8].value = 1;
+	assert.equal(input.flightModeCommand(), 'cycle', 'pressed again: one more');
+	assert.equal(input.flightModeControl(), 'VIEW');
+	assert.equal(input.startFlightMode(), 'angle');
+	unmountPads();
+});
+
+t('Input.flightModeCommand: a button already held when reading starts fires nothing', () => {
+	const pad = mountPad('DualSense Wireless Controller', [0, 0, 0, 0], 17);
+	pad.buttons[8].value = 1;
+	const input = freshInput();
+	assert.equal(input.flightModeCommand(), null);
+	pad.buttons[8].value = 0;
+	input.flightModeCommand();
+	pad.buttons[8].value = 1;
+	assert.equal(input.flightModeCommand(), 'cycle');
+	unmountPads();
+});
+
+t('Input.flightModeCommand: an uncalibrated radio has no mode control', () => {
+	const pad = mountPad('RadioMaster TX16S Joystick', [0, 0, -1, 0], 17);
+	pad.buttons[8].value = 1;               // a switch position, not a button
+	const input = freshInput();
+	assert.equal(input.flightModeCommand(), null);
+	pad.buttons[8].value = 0;
+	input.flightModeCommand();
+	pad.buttons[8].value = 1;
+	assert.equal(input.flightModeCommand(), null, 'never a cycle');
+	assert.equal(input.flightModeControl(), null);
+	assert.equal(input.startFlightMode(), 'acro');
+	unmountPads();
+});
+
+t('Input.flightModeCommand: a measured switch gives its position every frame', () => {
+	const pad = mountPad('RadioMaster TX16S Joystick', [0, 0, -1, 0, -1], 8);
+	const input = freshInput();
+	input.flightModeCommand();              // adopt the device first (see menuButtons)
+	input.applyCalibration({ ...RADIO_CAL, mode: SWITCH });
+	assert.equal(input.flightModeCommand(), 'angle');
+	assert.equal(input.flightModeCommand(), 'angle', 'a position, not an edge: said every frame');
+	assert.equal(input.startFlightMode(), 'angle', 'the radio starts where its switch is');
+	pad.axes[4] = 1;
+	assert.equal(input.flightModeCommand(), 'acro');
+	assert.equal(input.startFlightMode(), 'acro');
+	assert.equal(input.flightModeControl(), 'MODE SWITCH');
+	unmountPads();
+});
+
+t('Input.flightModeCommand: the keyboard alone commands nothing', () => {
+	unmountPads();
+	const input = freshInput();
+	assert.equal(input.flightModeCommand(), null);
+	assert.equal(input.flightModeControl(), null);
+	assert.equal(input.startFlightMode(), 'acro');
+});
+
 t('PAD_CALIBRATE_HINT points an unrecognised device at the wizard', () => {
 	// Said once, in input.js, next to PAD_LIST_EMPTY, so that every screen that has
 	// to say it says the same thing.
 	assert.match(PAD_CALIBRATE_HINT, /CALIBRATE/);
 	assert.match(PAD_CALIBRATE_HINT, /guess/i, 'and it says what the default profile IS');
+});
+
+// The first enumerated pad is not the pilot's (reported 2026-09-27). Chrome on
+// Linux lists every device tagged ID_INPUT_JOYSTICK once ANY of them has had an
+// input, and a Keychron Link keyboard receiver is one: 6 axes, 16 buttons,
+// enumerated as js0 ahead of a RadioMaster Pocket. Firefox exposes a device only
+// after an input on IT, so there the radio was alone and everything looked right.
+const gp = (index, id, pressed = []) => ({
+	index, id, axes: [0, 0, 0, 0, 0, 0],
+	buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: !!pressed[i] })),
+});
+const KEYCHRON = 'Keychron  Keychron Link  (Vendor: 3434 Product: d030)';
+const POCKET = 'EdgeTX Radiomaster Pocket Joystick (Vendor: 1209 Product: 4f54)';
+
+t('bestPad: a radio wins over a keyboard receiver enumerated before it', () => {
+	assert.equal(bestPad([gp(0, KEYCHRON), gp(1, POCKET)])?.id, POCKET);
+	// Holes in the list are what getGamepads() really returns.
+	assert.equal(bestPad([gp(0, KEYCHRON), null, gp(2, POCKET), null])?.id, POCKET);
+});
+
+t('bestPad: a recognised pad wins over an unknown device, a radio over both', () => {
+	const ds4 = gp(1, 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)');
+	assert.equal(bestPad([gp(0, KEYCHRON), ds4])?.id, ds4.id);
+	assert.equal(bestPad([ds4, gp(2, POCKET)])?.id, POCKET);
+});
+
+t('bestPad: equal rank keeps the enumeration order, and nothing gives null', () => {
+	assert.equal(bestPad([gp(0, KEYCHRON), gp(1, 'Unknown HID 0f0d:00c1')])?.index, 0);
+	assert.equal(bestPad([]), null);
+	assert.equal(bestPad([null, null]), null);
+	assert.equal(bestPad(undefined), null);
+});
+
+t('anyPadButtonDown: a press on the SECOND pad counts', () => {
+	assert.equal(anyPadButtonDown([gp(0, KEYCHRON), gp(1, POCKET, [true])]), true);
+	assert.equal(anyPadButtonDown([gp(0, KEYCHRON), null, gp(2, POCKET)]), false);
+	assert.equal(anyPadButtonDown([]), false);
+	assert.equal(anyPadButtonDown(undefined), false);
 });
 
 console.log(`input-selftest: ${n} tests ok`);

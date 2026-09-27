@@ -7,7 +7,7 @@
 // "hands off", nothing moves; the replay comes back to exactly zero; and the
 // scale follows this pilot's radio travel.
 import assert from 'node:assert/strict';
-import { beginCalibration, feedSample, skipMenuStep, CAL_TIMING } from '../src/calibration.js';
+import { beginCalibration, feedSample, skipStep, CAL_TIMING } from '../src/calibration.js';
 import { calibrationPose, replayPose, completedChannels, REPLAY_MS } from '../src/calibration-preview.js';
 
 let n = 0;
@@ -114,9 +114,10 @@ t('CALIBRATED: the four sticks fly the machine', () => {
 	// the calibration just written.
 	let s = upTo('roll');
 	s = feed(s, [1, 0, 0, 0], CAL_TIMING.holdMs + 200);
-	// The four sticks lead into the two menu gestures; a four-axis device with no
-	// button has nothing to measure there, and the pilot skips them.
-	s = skipMenuStep(skipMenuStep(s));
+	// The four sticks lead into the two menu gestures and the flight-mode control;
+	// a four-axis device with no button has nothing to measure there, and the
+	// pilot skips all three.
+	s = skipStep(skipStep(skipStep(s)));
 	assert.equal(s.phase, 'done', 'the scenario must complete');
 	assert.ok(calibrationPose({ state: s, signals: [1, 0, 0, 0] }).roll > 0.9);
 	assert.ok(calibrationPose({ state: s, signals: [0, 0, 1, 0] }).throttle > 0.9);

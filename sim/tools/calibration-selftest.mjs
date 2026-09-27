@@ -12,7 +12,8 @@ import assert from 'node:assert/strict';
 import {
 	beginCalibration,
 	feedSample,
-	skipMenuStep,
+	skipStep,
+	isSkippableStep,
 	calibrationToMap,
 	normalizeChannel,
 	throttleFromCalibrated,
@@ -23,7 +24,7 @@ import {
 	CAL_TIMING,
 	padSignals,
 } from '../src/calibration.js';
-import { defaultMapForKind, isValidCalibration, menuButtonDown } from '../src/input.js';
+import { defaultMapForKind, isValidCalibration, menuButtonDown, flightModeSpec, readFlightMode } from '../src/input.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -45,9 +46,10 @@ function play(state, steps) {
 	return state;
 }
 
-// The two menu steps skipped, which is what a standard-pad owner does: buttons 0
-// and 1 are momentary there and menu-nav.js already handles them.
-const skipMenu = (s) => skipMenuStep(skipMenuStep(s));
+// The two menu steps and the flight-mode step skipped, which is what a
+// standard-pad owner may do: buttons 0 and 1 are momentary there and menu-nav.js
+// already handles them, and button 8 is the default mode button.
+const skipMenu = (s) => skipStep(skipStep(skipStep(s)));
 
 // A DualShock 4 in "standard" mapping: axis 0/1 = left stick X/Y, axis 2/3 =
 // right stick X/Y. All self-centring. The Y axis reads -1 UPWARDS.
@@ -204,7 +206,7 @@ t('the four sticks lead into the menu steps, not straight to done', () => {
 	assert.equal(s.phase, 'menu-confirm');
 	assert.equal(s.done, false, 'nothing is persisted yet');
 	assert.match(s.hint, /CONFIRM/);
-	const back = skipMenuStep(s);
+	const back = skipStep(s);
 	assert.equal(back.phase, 'menu-back');
 	assert.match(back.hint, /GO BACK/);
 });
@@ -306,12 +308,14 @@ t('calibrationResult: nothing to persist until it is finished', () => {
 
 t('calProgress: the pilot sees where they are, and the end is the end', () => {
 	let s = beginCalibration(4);
-	assert.deepEqual(calProgress(s), { step: 1, total: 8 });
+	assert.deepEqual(calProgress(s), { step: 1, total: 9 });
 	s = play(s, DS4.slice(0, 2));
-	assert.deepEqual(calProgress(s), { step: 3, total: 8 }, 'letting the throttle go is a step of its own');
+	assert.deepEqual(calProgress(s), { step: 3, total: 9 }, 'letting the throttle go is a step of its own');
 	s = play(s, DS4);
-	assert.deepEqual(calProgress(s), { step: 7, total: 8 }, 'the sticks done, the menu steps remain');
-	assert.deepEqual(calProgress(skipMenu(s)), { step: 8, total: 8 });
+	assert.deepEqual(calProgress(s), { step: 7, total: 9 }, 'the sticks done, the menu steps remain');
+	assert.deepEqual(calProgress(skipStep(s)), { step: 8, total: 9 });
+	assert.deepEqual(calProgress(skipStep(skipStep(s))), { step: 9, total: 9 }, 'then the flight-mode step, last');
+	assert.deepEqual(calProgress(skipMenu(s)), { step: 9, total: 9 });
 });
 
 t('calSummaryLines: the summary says what was MEASURED, not "ok"', () => {
@@ -479,6 +483,8 @@ t('menu: the two gestures are MEASURED, in the axes-then-buttons index space', (
 	assert.equal(s.menu.confirm.signal, 4 + 4, 'button 4 is signal 8');
 
 	s = play(s, pressMenu(5));
+	assert.equal(s.phase, 'mode', 'the two menu gestures lead into the flight-mode step');
+	s = skipStep(s);
 	assert.equal(s.phase, 'done');
 	const cal = calibrationResult(s);
 	assert.equal(cal.menu.confirm.signal, 8);
@@ -531,7 +537,9 @@ t('menu: BOTH steps are skippable, and skipping writes nothing', () => {
 
 t('menu: the confirm measured alone is kept, the back skipped stays absent', () => {
 	let s = play(beginCalibration(4 + 16, 4), DS4_STICKS);
-	s = skipMenuStep(play(s, pressMenu(4)));
+	s = skipStep(play(s, pressMenu(4)));
+	assert.equal(s.phase, 'mode', 'the back skipped, the flight-mode step follows');
+	s = skipStep(s);
 	assert.equal(s.phase, 'done');
 	const cal = calibrationResult(s);
 	assert.equal(cal.menu.confirm.signal, 8);
@@ -539,20 +547,20 @@ t('menu: the confirm measured alone is kept, the back skipped stays absent', () 
 	assert.match(calSummaryLines(cal).at(-1), /menu.*confirm btn 4/);
 });
 
-t('menu: skipMenuStep does nothing outside the two menu steps', () => {
+t('skipStep does nothing outside the skippable steps', () => {
 	// It is called by a button in the panel; anywhere else it must be inert rather
 	// than jump over a stick.
 	const rest = beginCalibration(4);
-	assert.equal(skipMenuStep(rest), rest);
+	assert.equal(skipStep(rest), rest);
 	const sticks = play(beginCalibration(4), DS4.slice(0, 2));
-	assert.equal(skipMenuStep(sticks), sticks);
+	assert.equal(skipStep(sticks), sticks);
 });
 
 t('menu: what is measured is readable by menuButtonDown, pressed and released', () => {
 	// The whole point of the two steps: what came out of the wizard is what
 	// menu-nav.js reads back.
 	let s = play(beginCalibration(4 + 16, 4), DS4_STICKS);
-	s = play(play(s, pressMenu(4)), pressMenu(5));
+	s = skipStep(play(play(s, pressMenu(4)), pressMenu(5)));
 	const cal = calibrationResult(s);
 
 	assert.equal(menuButtonDown(ds4(zero, 4), cal.menu.confirm, 99), true);
@@ -566,10 +574,138 @@ t('menu: a calibration out of the wizard is accepted by isValidCalibration', () 
 	// The gate that stands between stored data and the motors. A `menu` field must
 	// not make it refuse the flight part of the calibration.
 	let s = play(beginCalibration(4 + 16, 4), DS4_STICKS);
-	s = play(play(s, pressMenu(4)), pressMenu(5));
+	s = skipStep(play(play(s, pressMenu(4)), pressMenu(5)));
 	assert.equal(isValidCalibration(calibrationResult(s)), true, 'with the two gestures measured');
 	assert.equal(isValidCalibration(calibrationResult(skipMenu(play(beginCalibration(4), DS4)))), true,
 		'and with both skipped');
+});
+
+// --- the flight-mode control -------------------------------------------------
+//
+// The same gesture-and-watch, plus one question the hardware answers by itself:
+// does the control come BACK when let go? A pad button does (a cycle button), a
+// radio switch stays (each position is a mode, Betaflight's AUX range).
+
+// A DS4 up to the flight-mode step: sticks measured, both menu gestures skipped.
+const toModeStep = () => skipStep(skipStep(play(beginCalibration(4 + 16, 4), DS4_STICKS)));
+
+// Press button `b`, keep it `holdMs`, let go, stay at rest `restMs`.
+const pressMode = (b, holdMs = 600, restMs = 1400) =>
+	[[ds4(zero), 300], [ds4(zero, b), holdMs], [ds4(zero), restMs]];
+
+// An EdgeTX radio with a fifth axis: the flight-mode switch, parked at -1.
+const edgeSw = (axes, sw) => [...axes, sw];
+const EDGETX_SW = EDGETX.map(([axes, ms]) => [edgeSw(axes, -1), ms]);
+const toRadioModeStep = () => skipStep(skipStep(play(beginCalibration(5), EDGETX_SW)));
+const radioRest = [0, 0, -1, 0];
+
+t('mode: the step follows the two menu gestures', () => {
+	const s = toModeStep();
+	assert.equal(s.phase, 'mode');
+	assert.match(s.hint, /FLIGHT MODE switch to ACRO/);
+	assert.ok(isSkippableStep(s));
+});
+
+t('mode: a button that SPRINGS BACK is a cycle button', () => {
+	const s = play(toModeStep(), pressMode(8));
+	assert.equal(s.phase, 'done');
+	const cal = calibrationResult(s);
+	assert.deepEqual(cal.mode, { signal: 4 + 8, type: 'cycle', center: -1, on: 1 });
+	assert.match(calSummaryLines(cal).at(-1), /mode\s+button btn 8/);
+	assert.equal(isValidCalibration(cal), true);
+});
+
+t('mode: a quick press is still a button — the window waits for the release', () => {
+	// Accepted after holdMs (400 ms) of pressure, let go 100 ms later: the
+	// release window starts at acceptance and is at least releaseMinMs long.
+	const s = play(toModeStep(), pressMode(8, CAL_TIMING.holdMs + 100));
+	assert.equal(calibrationResult(s)?.mode?.type, 'cycle');
+});
+
+t('mode: a button let go late, but inside the window, is still a button', () => {
+	// Released 700 ms after acceptance: within releaseMinMs (800 ms).
+	const s = play(toModeStep(), pressMode(8, CAL_TIMING.holdMs + 700));
+	assert.equal(calibrationResult(s)?.mode?.type, 'cycle');
+});
+
+t('mode: a button held PAST the window reads as a switch — the known limit', () => {
+	// Nothing in the signal tells a held button from a switch: past the window
+	// the machine says ANGLE, which is the pilot's cue that it misread them.
+	const s = play(toModeStep(), [[ds4(zero), 300], [ds4(zero, 8), CAL_TIMING.holdMs + CAL_TIMING.releaseMinMs + 600]]);
+	assert.equal(s.phase, 'mode-angle');
+	assert.ok(isSkippableStep(s), 'and the way out is the skip');
+});
+
+t('mode: a switch that STAYS asks for ANGLE, and keeps both positions', () => {
+	let s = play(toRadioModeStep(), [[edgeSw(radioRest, -1), 300], [edgeSw(radioRest, 1), 1800]]);
+	assert.equal(s.phase, 'mode-angle', 'it stayed: a switch, the second position is asked for');
+	assert.match(s.hint, /ANGLE/);
+	assert.ok(isSkippableStep(s));
+	s = play(s, [[edgeSw(radioRest, -1), 700]]);
+	assert.equal(s.phase, 'done');
+	const cal = calibrationResult(s);
+	assert.deepEqual(cal.mode, { signal: 4, type: 'switch', acro: 1, angle: -1 });
+	assert.match(calSummaryLines(cal).at(-1), /mode\s+switch axis 4\s+acro 1\.00 · angle -1\.00/);
+	assert.equal(isValidCalibration(cal), true);
+	assert.deepEqual(JSON.parse(JSON.stringify(cal)), cal);
+});
+
+t('mode: a three-position switch — ACRO in the middle, ANGLE at the far end', () => {
+	let s = play(toRadioModeStep(), [[edgeSw(radioRest, -1), 300], [edgeSw(radioRest, 0), 1800]]);
+	assert.equal(s.phase, 'mode-angle');
+	s = play(s, [[edgeSw(radioRest, 1), 700]]);
+	const m = calibrationResult(s).mode;
+	assert.equal(m.type, 'switch');
+	assert.ok(Math.abs(m.acro) < 1e-9 && m.angle === 1);
+	// And the reader picks the nearer position, whatever the third one does.
+	const spec = flightModeSpec(m, 'radio', 4);
+	assert.equal(readFlightMode(edgeSw(radioRest, 0.05), spec), 'acro');
+	assert.equal(readFlightMode(edgeSw(radioRest, 0.95), spec), 'angle');
+});
+
+t('mode: ANGLE on the same position as ACRO is not an answer', () => {
+	let s = play(toRadioModeStep(), [[edgeSw(radioRest, -1), 300], [edgeSw(radioRest, 1), 1800]]);
+	s = play(s, [[edgeSw(radioRest, 1), CAL_TIMING.idleWarnMs + 200]]);
+	assert.equal(s.phase, 'mode-angle', 'still waiting for a second position');
+	assert.match(s.message ?? '', /ANGLE/);
+});
+
+t('mode: a stick is refused, with a reason', () => {
+	const s = play(toModeStep(), [[ds4(zero), 300], [ds4([1, 0, 0, 0]), 900], [ds4(zero), 500]]);
+	assert.equal(s.phase, 'mode', 'we stay on the same prompt');
+	assert.equal(s.mode, undefined);
+	assert.match(s.message, /yaw|roll|pitch|throttle/);
+});
+
+t('mode: a menu gesture is refused, with a reason', () => {
+	let s = play(beginCalibration(4 + 16, 4), DS4_STICKS);
+	s = skipStep(play(s, pressMenu(4)));
+	assert.equal(s.phase, 'mode');
+	s = play(s, pressMode(4));
+	assert.equal(s.phase, 'mode');
+	assert.match(s.message, /confirm/);
+});
+
+t('mode: skippable at each of its phases, and a skip keeps nothing of it', () => {
+	const skipped = skipStep(toModeStep());
+	assert.equal(skipped.phase, 'done');
+	assert.equal(calibrationResult(skipped).mode, undefined);
+
+	const half = play(toRadioModeStep(), [[edgeSw(radioRest, -1), 300], [edgeSw(radioRest, 1), 1800]]);
+	assert.equal(half.phase, 'mode-angle');
+	const out = calibrationResult(skipStep(half));
+	assert.equal(out.mode, undefined, 'half a switch is not a measurement');
+	assert.equal(isValidCalibration(out), true);
+});
+
+t('mode: a device that never moves ends up saying why, switch included', () => {
+	const s = play(toModeStep(), [[ds4(zero), CAL_TIMING.idleWarnMs + 300]]);
+	assert.equal(s.phase, 'mode');
+	assert.match(s.message ?? '', /already on ACRO/);
+});
+
+t('mode: the prompts of the step fit the panel', () => {
+	for (const k of ['modeAcro', 'modeRelease', 'modeAngle']) assert.ok(CAL_PROMPTS[k].length <= 22, k);
 });
 
 console.log(`\n  ${n} tests OK`);

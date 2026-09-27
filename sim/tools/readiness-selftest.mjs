@@ -1,7 +1,7 @@
-// Selftest for the pure RECOMMENDED SETUP model (tools/readiness-model.mjs). No
-// DOM, no storage of its own: the browser families, the three gamepad states,
-// the all-clear switch and the storage rules are all decided there, so they can
-// be checked without a browser.
+// Selftest for the pure RECOMMENDED model (tools/readiness-model.mjs). No DOM,
+// no storage of its own: the browser families, which pictogram lights, the two
+// text lines, the all-clear switch and the storage rules are all decided there,
+// so they can be checked without a browser.
 // Run: node tools/readiness-selftest.mjs
 import assert from 'node:assert/strict';
 import {
@@ -12,10 +12,10 @@ import {
 	browserFamily,
 	browserBrand,
 	readinessReport,
-	readinessLines,
-	wrap,
-	WRAP_COLS,
+	HINT_MOVE_STICK,
+	HINT_CALIBRATE,
 } from './readiness-model.mjs';
+import * as model from './readiness-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -122,80 +122,136 @@ t('browserBrand prints what the HARDWARE DISCOVERY row printed', () => {
 	assert.equal(browserBrand(undefined, undefined), 'UNKNOWN');
 });
 
-// --- the three input states -------------------------------------------------
+// --- which pictogram lights -------------------------------------------------
 
 const report = (o) => readinessReport(o);
+const lit = (r) => r.icons.filter((i) => i.lit).map((i) => i.id);
 
-t('a recognised device is a verdict, and it is named', () => {
-	const r = report({ browserFamily: 'chromium', padId: 'FrSky Taranis X9D', padKind: 'radio' });
-	assert.equal(r.input.state, 'recognised');
-	assert.equal(r.input.verdict, 'ok');
-	assert.match(r.input.value, /FRSKY TARANIS X9D/);
-	assert.match(r.input.value, /RADIO/);
-	assert.equal(r.allClear, true);
-});
-
-t('a class padKind has not learnt yet still counts as recognised', () => {
-	// padKind() will grow classes (nintendo, steam). Anything but 'generic' is a
-	// class the defaults fit, and nothing here enumerates them.
-	for (const kind of ['radio', 'xbox', 'playstation', 'nintendo', 'steam']) {
-		const r = report({ browserFamily: 'chromium', padId: 'Some Pad', padKind: kind });
-		assert.equal(r.input.state, 'recognised', kind);
-		assert.equal(r.input.verdict, 'ok', kind);
-		assert.match(r.input.value, new RegExp(kind.toUpperCase()));
+t('three pictograms, always, in the order of the mock-up', () => {
+	for (const o of [{}, { browserFamily: 'chromium', padId: 'p', padKind: 'radio' }]) {
+		const r = report(o);
+		assert.equal(r.title, 'RECOMMENDED');
+		assert.deepEqual(r.icons.map((i) => i.id), ['radio', 'gamepad', 'chrome']);
+		assert.deepEqual(r.icons.map((i) => i.label), ['FPV RADIO', 'DUALSHOCK', 'CHROME']);
+		assert.equal(r.or, 'OR');
 	}
 });
 
-t('an unrecognised device warns, and is told where its channels are set', () => {
-	const r = report({ browserFamily: 'chromium', padId: 'Unknown HID 0f0d:00c1', padKind: 'generic' });
-	assert.equal(r.input.state, 'unrecognised');
-	// A device IS there, but its axis order and its throttle travel are a guess:
-	// this operator is the only one who needs the CALIBRATE line, so the screen
-	// has to WAIT rather than flash for two seconds.
-	assert.equal(r.input.verdict, 'warn');
-	assert.equal(r.allClear, false);
-	assert.match(r.input.value, /UNRECOGNISED/);
-	assert.match(r.hints.join(' '), /CALIBRATE/);
-	// No hardware is recommended to someone already holding some: their line is
-	// the hint, not the shopping list.
-	assert.deepEqual(r.recommendation, []);
-	// And it does not also claim the setup is good.
-	assert.equal(r.status, '');
+t('a radio lights the radio, and only it', () => {
+	const r = report({ browserFamily: 'firefox', padId: 'FrSky Taranis X9D', padKind: 'radio' });
+	assert.deepEqual(lit(r), ['radio']);
+	assert.equal(r.input.state, 'recognised');
+	assert.equal(r.input.verdict, 'ok');
 });
 
-t('an empty list is NEVER "no controller"', () => {
+t('every other recognised class lights the pad', () => {
+	// padKind() grows classes; anything but 'radio' and 'generic' is a pad the
+	// defaults fit, and nothing here enumerates them.
+	for (const kind of ['xbox', 'playstation', 'nintendo', 'steam', 'some-future-class']) {
+		const r = report({ browserFamily: 'firefox', padId: 'Some Pad', padKind: kind });
+		assert.deepEqual(lit(r), ['gamepad'], kind);
+		assert.equal(r.input.verdict, 'ok', kind);
+	}
+});
+
+t('a Chromium-family browser lights CHROME, whatever its brand', () => {
+	assert.deepEqual(lit(report({ browserFamily: 'chromium' })), ['chrome']);
+	// Edge and Brave are the family, not Chrome — they light it all the same.
+	for (const ua of [UA.edge, UA.opera, UA.samsung]) {
+		assert.deepEqual(lit(report({ browserFamily: browserFamily(null, ua) })), ['chrome']);
+	}
+	for (const fam of ['firefox', 'safari', 'unknown', 'nonsense', undefined]) {
+		assert.deepEqual(lit(report({ browserFamily: fam })), [], String(fam));
+	}
+});
+
+t('an unknown family is treated as unknown, not passed through', () => {
+	assert.equal(report({ browserFamily: 'nonsense' }).browser.family, 'unknown');
+	assert.equal(report({}).browser.family, 'unknown');
+});
+
+t('an unrecognised device lights the pad, but warns and names CALIBRATE', () => {
+	const r = report({ browserFamily: 'chromium', padId: 'Unknown HID 0f0d:00c1', padKind: 'generic' });
+	assert.deepEqual(lit(r), ['gamepad', 'chrome']);
+	assert.equal(r.input.state, 'unrecognised');
+	// A device IS there, but its mapping is a guess: this operator is the one
+	// who needs the CALIBRATE line, so the screen waits rather than flashing.
+	assert.equal(r.input.verdict, 'warn');
+	assert.equal(r.allClear, false);
+	assert.equal(r.hint, HINT_CALIBRATE);
+});
+
+t('an empty list lights no pad and says how to light one', () => {
 	// The trap the screen exists for: the Gamepad API reveals a device only
 	// after an input on it, and the operator has just cleared the intro on the
-	// keyboard.
+	// keyboard. Dim is "not yet", and the hint says so.
 	const r = report({ browserFamily: 'chromium', padId: '', padKind: 'generic' });
+	assert.deepEqual(lit(r), ['chrome']);
 	assert.equal(r.input.state, 'absent');
-	assert.equal(r.input.verdict, 'warn');
-	assert.equal(r.input.value, 'NOT DETECTED YET');
-	const all = [r.input.value, ...r.hints, ...r.recommendation, ...r.notes].join(' ');
-	assert.doesNotMatch(all, /NO (CONTROLLER|GAMEPAD|PAD)\b/i);
-	assert.doesNotMatch(all, /NOT (CONNECTED|PRESENT|FOUND)/i);
-	assert.match(r.hints.join(' '), /MOVE A STICK/);
+	assert.equal(r.hint, HINT_MOVE_STICK);
 	assert.equal(r.allClear, false);
 });
 
 t('a padId with nothing but spaces counts as absent', () => {
 	assert.equal(report({ padId: '   ', padKind: 'radio' }).input.state, 'absent');
 	assert.equal(report({}).input.state, 'absent');
+	assert.deepEqual(lit(report({ padId: '   ', padKind: 'radio' })), []);
 });
 
-// --- the verdicts and allClear ----------------------------------------------
+// --- the only two lines of text ---------------------------------------------
 
-t('allClear is true only when both subjects are ok', () => {
+t('the two hints are the only sentences, and they say what they must', () => {
+	assert.equal(HINT_MOVE_STICK, 'MOVE A STICK TO DETECT IT');
+	assert.match(HINT_CALIBRATE, /SETTINGS > CONTROLLER > CALIBRATE/);
+	// The tab really is called CONTROLLER (src/settings.js).
+	const seen = new Set();
+	for (const fam of ['chromium', 'firefox', 'safari', 'unknown']) {
+		for (const [id, kind] of [['', 'generic'], ['Pad', 'generic'], ['Pad', 'xbox'], ['Radio', 'radio']]) {
+			const r = report({ browserFamily: fam, padId: id, padKind: kind });
+			seen.add(r.hint);
+			// A browser gets no sentence: the dim CHROME is the whole message.
+			assert.doesNotMatch(r.hint, /CHROM|BROWSER/);
+		}
+	}
+	assert.deepEqual([...seen].sort(), ['', HINT_CALIBRATE, HINT_MOVE_STICK].sort());
+});
+
+t('a recognised device gets no line at all', () => {
+	assert.equal(report({ browserFamily: 'firefox', padId: 'p', padKind: 'xbox' }).hint, '');
+	assert.equal(report({ browserFamily: 'chromium', padId: 'p', padKind: 'radio' }).hint, '');
+});
+
+t('nothing displayed ever says "no controller"', () => {
+	for (const fam of ['chromium', 'firefox']) {
+		const r = report({ browserFamily: fam, padId: '', padKind: 'generic' });
+		const all = [r.title, r.hint, r.or, ...r.icons.map((i) => i.label)].join(' ');
+		assert.doesNotMatch(all, /NO (CONTROLLER|GAMEPAD|PAD)\b/i);
+		assert.doesNotMatch(all, /NOT (CONNECTED|PRESENT|FOUND)/i);
+	}
+});
+
+t('everything displayed is upper case', () => {
+	for (const fam of ['chromium', 'firefox', 'safari', 'unknown']) {
+		for (const [id, kind] of [['', 'generic'], ['Pad', 'generic'], ['Pad', 'xbox']]) {
+			const r = report({ browserFamily: fam, padId: id, padKind: kind });
+			for (const s of [r.title, r.hint, r.or, ...r.icons.map((i) => i.label)]) {
+				assert.equal(s, s.toUpperCase(), `${fam}/${kind}: ${s}`);
+			}
+		}
+	}
+});
+
+// --- allClear ---------------------------------------------------------------
+
+t('allClear is true only with a recognised device AND a Chromium browser', () => {
 	const ok = { padId: 'Xbox Wireless Controller', padKind: 'xbox' };
 	assert.equal(report({ browserFamily: 'chromium', ...ok }).allClear, true);
+	assert.equal(report({ browserFamily: 'chromium', padId: 'X9D', padKind: 'radio' }).allClear, true);
 	assert.equal(report({ browserFamily: 'firefox', ...ok }).allClear, false);
 	assert.equal(report({ browserFamily: 'safari', ...ok }).allClear, false);
 	assert.equal(report({ browserFamily: 'unknown', ...ok }).allClear, false);
 	assert.equal(report({ browserFamily: 'chromium', padId: '', padKind: 'generic' }).allClear, false);
-	// An enumerated but unrecognised device warns: its mapping is a guess, and
-	// the screen has to stay up long enough to say where that is settled.
 	assert.equal(report({ browserFamily: 'chromium', padId: 'x', padKind: 'generic' }).allClear, false);
-	assert.equal(report({ browserFamily: 'firefox', padId: '', padKind: 'generic' }).allClear, false);
 });
 
 t('allClear carries the auto-dismiss delay, and only then', () => {
@@ -203,117 +259,10 @@ t('allClear carries the auto-dismiss delay, and only then', () => {
 	assert.equal(report({ browserFamily: 'firefox', padId: 'p', padKind: 'radio' }).autoMs, 0);
 });
 
-t('an unknown family is treated as unknown, not passed through', () => {
-	const r = report({ browserFamily: 'nonsense', padId: 'p', padKind: 'radio' });
-	assert.equal(r.browser.family, 'unknown');
-	assert.equal(r.browser.verdict, 'warn');
-	assert.equal(r.browser.value, 'UNKNOWN');
-	assert.equal(report({}).browser.family, 'unknown');
-});
-
-t('a warned browser is argued for qualitatively, with no numbers', () => {
-	const r = report({ browserFamily: 'firefox', padId: 'p', padKind: 'radio' });
-	assert.equal(r.browser.verdict, 'warn');
-	const text = r.recommendation.join(' ');
-	assert.match(text, /CHROMIUM/);
-	assert.doesNotMatch(text, /\d/, 'no figures on this screen');
-	// A good browser says nothing about browsers.
-	const good = report({ browserFamily: 'chromium', padId: '', padKind: 'generic' });
-	assert.doesNotMatch(good.recommendation.join(' '), /CHROMIUM/);
-});
-
-t('a missing controller is argued for with the radio and the pads', () => {
-	const r = report({ browserFamily: 'chromium', padId: '', padKind: 'generic' });
-	const text = r.recommendation.join(' ');
-	assert.match(text, /EDGETX/);
-	assert.match(text, /DUALSHOCK/);
-	assert.match(text, /XBOX/);
-});
-
-t('both warnings produce both arguments, separated', () => {
-	const r = report({ browserFamily: 'safari', padId: '', padKind: 'generic' });
-	const text = r.recommendation.join(' ');
-	assert.match(text, /EDGETX/);
-	assert.match(text, /CHROMIUM/);
-	assert.ok(r.recommendation.includes(''), 'a blank line between the two');
-});
-
-t('the browser row prints the brand when one is given, the family otherwise', () => {
-	assert.equal(report({ browserFamily: 'firefox', browserName: 'Firefox' }).browser.value, 'FIREFOX');
-	assert.equal(report({ browserFamily: 'chromium' }).browser.value, 'CHROMIUM FAMILY');
-	assert.equal(report({ browserFamily: 'chromium', browserName: 'Brave' }).browser.value, 'BRAVE');
-});
-
-// --- what the screen is made of ---------------------------------------------
-
-t('two rows, always, labelled BROWSER and INPUT', () => {
-	for (const o of [{}, { browserFamily: 'chromium', padId: 'p', padKind: 'radio' }]) {
-		const r = report(o);
-		assert.deepEqual(r.rows.map((x) => x[0]), ['BROWSER', 'INPUT']);
-		assert.equal(r.rows.length, 2);
-	}
-});
-
-t('everything displayed is upper case English', () => {
-	for (const fam of ['chromium', 'firefox', 'safari', 'unknown']) {
-		for (const pad of [['', 'generic'], ['Pad', 'generic'], ['Pad', 'xbox']]) {
-			const r = report({ browserFamily: fam, padId: pad[0], padKind: pad[1] });
-			const shown = [...r.rows.flat(), ...r.recommendation, ...r.hints, r.status, r.title];
-			for (const s of shown) assert.equal(s, s.toUpperCase(), `${fam}/${pad[1]}: ${s}`);
-			// The crew remarks are the one lower-case voice, exactly as on
-			// HARDWARE DISCOVERY.
-			for (const note of r.notes) assert.match(note, /^\/\/ [a-z]+: /);
-			assert.equal(r.notes.length, 2);
-		}
-	}
-});
-
-t('the all-clear readout still says one thing', () => {
-	const r = report({ browserFamily: 'chromium', padId: 'Xbox Wireless Controller', padKind: 'xbox' });
-	assert.match(r.status, /GOOD/);
-	assert.deepEqual(r.recommendation, []);
-	assert.deepEqual(r.hints, []);
-	assert.equal(report({ browserFamily: 'firefox' }).status, '');
-});
-
-t('no line is wider than the wrap column', () => {
-	for (const fam of ['chromium', 'firefox', 'safari', 'unknown']) {
-		const r = report({ browserFamily: fam, padId: '', padKind: 'generic' });
-		for (const line of [...r.recommendation, ...r.hints]) {
-			assert.ok(line.length <= WRAP_COLS, `${line.length}: ${line}`);
-		}
-	}
-});
-
-t('wrap breaks on words and never loses one', () => {
-	assert.deepEqual(wrap('', 10), []);
-	assert.deepEqual(wrap('ONE TWO THREE', 100), ['ONE TWO THREE']);
-	const lines = wrap('AAAA BBBB CCCC DDDD', 9);
-	assert.deepEqual(lines, ['AAAA BBBB', 'CCCC DDDD']);
-	assert.equal(wrap('  A   B  ', 40).join(' '), 'A B');
-});
-
-t('readinessLines lays the screen out, title first, dots injected', () => {
-	const r = report({ browserFamily: 'firefox', padId: '', padKind: 'generic' });
-	const lines = readinessLines(r, (l, v) => `${l}=${v}`);
-	assert.equal(lines[0], 'RECOMMENDED SETUP');
-	assert.equal(lines[1], '');
-	assert.equal(lines[2], 'BROWSER=FIREFOX');
-	assert.equal(lines[3], 'INPUT=NOT DETECTED YET');
-	assert.ok(lines.includes('// root: nothing on the bus'));
-	assert.match(lines.join('\n'), /EDGETX/);
-	assert.match(lines.join('\n'), /MOVE A STICK/);
-	// A default dot function keeps it usable with no renderer at all.
-	assert.ok(readinessLines(r)[2].startsWith('BROWSER '));
-});
-
-t('readinessLines on the all-clear report is short and buttonless by nature', () => {
-	const r = report({ browserFamily: 'chromium', padId: 'FrSky Taranis', padKind: 'radio', browserName: 'Chrome' });
-	const lines = readinessLines(r, (l, v) => `${l}=${v}`);
-	assert.equal(lines[2], 'BROWSER=CHROME');
-	assert.match(lines.join('\n'), /RADIO/);
-	assert.match(lines.join('\n'), /GOOD/);
-	assert.doesNotMatch(lines.join('\n'), /CHROMIUM-BASED/);
+t('the old readout is gone from the model', () => {
+	for (const k of ['readinessLines', 'wrap', 'WRAP_COLS']) assert.equal(model[k], undefined, k);
+	const r = report({ browserFamily: 'firefox' });
+	for (const k of ['rows', 'notes', 'recommendation', 'hints', 'status']) assert.equal(r[k], undefined, k);
 });
 
 console.log(`\n${n} checks passed`);
