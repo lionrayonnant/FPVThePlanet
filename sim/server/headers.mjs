@@ -65,10 +65,11 @@ export const BASELINE = {
 //                the same reason) and for the inline styles the UI sets.
 //   img-src      the three basemaps of src/map-layers.js, plus data: and blob:
 //                (canvas captures, src/main.js createObjectURL).
-//   connect-src  kh.google.com (the terrain, tools/lib/rocktree/url.mjs) and
-//                Nominatim (search, src/scanner.js). Open-Meteo is NOT here:
-//                the client asks /__operator/:id/weather and the server does
-//                that call. VITE_ROCKTREE_BASE can point the terrain at a
+//   connect-src  kh.google.com (the terrain, tools/lib/rocktree/url.mjs),
+//                Nominatim (search, src/scanner.js) and Overpass (the
+//                landmark signals, src/signal-source.js). Open-Meteo is NOT
+//                here: the client asks /__operator/:id/weather and the server
+//                does that call. VITE_ROCKTREE_BASE can point the terrain at a
 //                local relay, which is dev-only and not served by this server.
 //   worker-src   the three module workers (loader.js, rocktree-*.js).
 //
@@ -90,7 +91,7 @@ const CSP = [
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com",
 	"font-src 'self'",
-	"connect-src 'self' https://kh.google.com https://nominatim.openstreetmap.org",
+	"connect-src 'self' https://kh.google.com https://nominatim.openstreetmap.org https://overpass-api.de",
 	"worker-src 'self' blob:",
 	"media-src 'self' blob:",
 	"frame-ancestors 'none'",

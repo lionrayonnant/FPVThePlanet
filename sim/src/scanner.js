@@ -26,6 +26,9 @@ import { previewBounds } from '../tools/map-preview-model.mjs';
 import { Coverage, planDraw } from './coverage.js';
 import { createCoverageLayer } from './map-coverage.js';
 import { createTracksLayer } from './map-tracks.js';
+import { createSignalsLayer } from './map-signals.js';
+import { createSignalSource, idbCache } from './signal-source.js';
+import { tilesForView } from '../tools/signal-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
@@ -42,6 +45,10 @@ const RE_COORDS = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/;
 
 // The scanner's last view, to reopen where it was left within the session.
 let lastView = { center: [48.8582, 2.297], zoom: 13 };
+// One source for the page's life, like lastView: its memory and its queue
+// survive the scanner being unmounted and remounted, and the IndexedDB cache
+// survives the page. Created lazily — Node imports this module in selftests.
+let signalSource = null;
 
 // The search lives outside the rail: all it does is move the map, and it
 // serves both FIELD tabs (#222). The Home gives it its own host, above the
@@ -230,9 +237,9 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		zone: null,         // { bbox } or { poly } — the drawn area, raw
 		describe: null,     // last /describe answer
 		plan: null,         // last /plan answer
-		probe: null,        // dernier verdict de sonde
+		probe: null,        // last probe verdict
 		place: null,        // { class, type } Nominatim, for the signal density
-		mode: 'local',      // 'local' | 'live' — l'onglet de la Home (#222)
+		mode: 'local',      // 'local' | 'live' — the Home's tab (#222)
 		pin: null,          // { lat, lon } — the LIVE pin
 		zoom: 20,
 		source: null,       // id of the provider DESIGNATED by the operator, never guessed
@@ -858,6 +865,66 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	const settings = operatorApi.getOperator()?.settings ?? {};
 	if (settings.flightHistoryMap ?? settings.enrichedMap) setHistory(true, { persist: false });
 
+	// ------------------------------------------------------------ signals
+	// Landmarks to capture (issue #185). Always on: they are the reason to
+	// pick a zone. Asked tile by tile after the map settles; a status line
+	// says when the view is too wide or Overpass is away. Nothing here ever
+	// blocks drawing a zone or taking off.
+	const signalsStatus = document.createElement('div');
+	signalsStatus.className = 'sc-signals-status';
+	const signalsCtl = L.control({ position: 'topright' });
+	signalsCtl.onAdd = () => {
+		const box = L.DomUtil.create('div', 'sc-map-controls sc-signals-controls');
+		box.appendChild(signalsStatus);
+		L.DomEvent.disableClickPropagation(box);
+		L.DomEvent.disableScrollPropagation(box);
+		return box;
+	};
+	signalsCtl.addTo(map);
+
+	const signalsLayer = createSignalsLayer(L, {
+		getSignals: () => signalSource?.signals() ?? [],
+		ink: token('--yellow') || '#d4b155',
+		white: token('--warm-white') || '#ece7dd',
+	});
+	signalsLayer.addTo(map);
+
+	let signalsTooWide = false;
+	function renderSignalsStatus() {
+		const st = signalSource?.status() ?? 'idle';
+		signalsStatus.textContent = signalsTooWide ? 'SIGNALS: ZOOM IN TO SCAN'
+			: st === 'unavailable' ? 'SIGNAL SCAN UNAVAILABLE'
+			: st === 'loading' || st === 'waiting' ? 'SIGNALS: SCANNING…'
+			: `SIGNALS: ${signalSource?.signals().length ?? 0}`;
+		signalsStatus.dataset.state = signalsTooWide ? 'wide' : st;
+	}
+
+	signalSource ??= createSignalSource({
+		// A stuck Overpass request must not stay in flight forever: the timeout
+		// aborts, which lands in the source's catch → UNAVAILABLE + cooldown.
+		fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(40_000) }),
+		cache: idbCache(),
+	});
+	// The source outlives this mount; its onChange is this mount's.
+	const onSignals = () => { signalsLayer.refresh(); renderSignalsStatus(); };
+	signalSource.onChange = onSignals;
+	renderSignalsStatus();
+
+	let signalsTimer = null;
+	const SIGNALS_DEBOUNCE_MS = 600;
+	function askSignals() {
+		clearTimeout(signalsTimer);
+		signalsTimer = setTimeout(() => {
+			const b = map.getBounds();
+			const keys = tilesForView({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() }, map.getZoom());
+			signalsTooWide = keys === null;
+			if (keys) signalSource.request(keys);
+			renderSignalsStatus();
+		}, SIGNALS_DEBOUNCE_MS);
+	}
+	map.on('moveend zoomend', askSignals);
+	askSignals();
+
 	// ------------------------------------------------------------ acquisition
 	let resolveScanner;
 	let finished = false;
@@ -879,6 +946,8 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		// it is still running (BACK/Escape from the search, before any job).
 		// stopSearch() is idempotent.
 		stopSearch?.();
+		clearTimeout(signalsTimer);
+		if (signalSource && signalSource.onChange === onSignals) signalSource.onChange = () => {};
 		for (const h of hosts) h.replaceChildren();
 	}
 

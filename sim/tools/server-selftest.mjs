@@ -360,9 +360,10 @@ try {
 		// source, and getting one wrong is what breaks the game on launch day.
 		check('… whose script-src allows WASM (Rapier) and the inline WebGL2 probe',
 			/script-src [^;]*'wasm-unsafe-eval'/.test(csp) && /script-src [^;]*'unsafe-inline'/.test(csp));
-		check('… whose connect-src allows the terrain and the search',
+		check('… whose connect-src allows the terrain, the search and the landmark signals',
 			/connect-src [^;]*https:\/\/kh\.google\.com/.test(csp)
-			&& /connect-src [^;]*https:\/\/nominatim\.openstreetmap\.org/.test(csp));
+			&& /connect-src [^;]*https:\/\/nominatim\.openstreetmap\.org/.test(csp)
+			&& /connect-src [^;]*https:\/\/overpass-api\.de/.test(csp));
 		check('… whose img-src allows the three basemaps of src/map-layers.js',
 			/img-src [^;]*tile\.openstreetmap\.org/.test(csp)
 			&& /img-src [^;]*tile\.opentopomap\.org/.test(csp)
