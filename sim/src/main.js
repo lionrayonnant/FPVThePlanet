@@ -2167,7 +2167,7 @@ function updateSignals(dt, frozen) {
 			return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
 		},
 	});
-	if (out.uplinked) onSignalUplinked(out.uplinked);
+	if (out.uplinked) onSignalUplinked(out.uplinked).catch((e) => console.warn('[signals] uplink failed', e));
 	renderSignalCallout(out);
 }
 
@@ -2208,13 +2208,28 @@ async function onSignalUplinked(id) {
 	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
 	let photo = null;
 	const live = session.current();
+	// The frame is best-effort: whatever happens to it, the resolution below is
+	// still written. capturePhoto() returns the unchanged count when nothing was
+	// stored, so only a count that grew points at this uplink's photo.
 	if (live) {
-		const cap = await lens.capture();
-		if (cap) {
-			const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(cap.blob); });
-			const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
-			if (count > 0) photo = count - 1;
-			fpvtpOsd.flashCaptured(count);
+		try {
+			const before = session.photoCount();
+			const cap = await lens.capture();
+			if (cap) {
+				const dataUrl = await new Promise((res, rej) => {
+					const r = new FileReader();
+					r.onload = () => res(r.result);
+					r.onerror = () => rej(r.error);
+					r.readAsDataURL(cap.blob);
+				});
+				const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
+				if (count > before) {
+					photo = count - 1;
+					fpvtpOsd.flashCaptured(count);
+				}
+			}
+		} catch (e) {
+			console.warn('[signals] uplink frame failed', e);
 		}
 	}
 	const op = operator.getOperator();
