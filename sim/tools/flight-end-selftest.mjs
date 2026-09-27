@@ -1,10 +1,11 @@
-// Selftest de la machine de fin de vol (PHASE 14). Aucun DOM, aucun Rapier :
-// des frames synthétiques, une horloge qu'on avance à la main.
-// Lancer : node tools/flight-end-selftest.mjs
+// Selftest for the end-of-flight state machine (PHASE 14). No DOM, no
+// Rapier: synthetic frames, a clock advanced by hand.
+// Run: node tools/flight-end-selftest.mjs
 import assert from 'node:assert/strict';
 import {
 	FlightEnd, TIMELINE, FENCE_TIMELINE, CUT_TIMELINE,
 	CUT, FLYING, CRASHING, TERMINATED, PORTRAIT_LINE, RANDOMART_LINE,
+	SIGNALS_LINE,
 } from '../src/flight-end.js';
 // Namespace import: the removal of landing (D9, 2026-09-08) is asserted on the
 // module's surface itself, and a named import of a gone export would not even
@@ -393,6 +394,21 @@ t('#67 : l\'empreinte vient après le portrait sur les trois tables', () => {
 		const texts = table.lines.map(([, text]) => text);
 		assert.ok(texts.indexOf(RANDOMART_LINE) > texts.indexOf(PORTRAIT_LINE),
 			'l\'empreinte doit se poser sous l\'aperçu, donc après lui');
+	}
+});
+
+// ---------------------------------------------------------------------------
+// The signals recap (Signals Lot 2b, task 4).
+
+t('signals: the token sits once on each of the three tables, right after RANDOMART_LINE', () => {
+	for (const [name, table] of [['TIMELINE', TIMELINE], ['FENCE_TIMELINE', FENCE_TIMELINE], ['CUT_TIMELINE', CUT_TIMELINE]]) {
+		const found = table.lines.filter(([, text]) => text === SIGNALS_LINE);
+		assert.equal(found.length, 1, `${name} carries ${found.length} signals tokens`);
+		const texts = table.lines.map(([, text]) => text);
+		assert.equal(texts.indexOf(SIGNALS_LINE), texts.indexOf(RANDOMART_LINE) + 1,
+			`${name}: the signals token must immediately follow RANDOMART_LINE`);
+		const art = table.lines.find(([, text]) => text === RANDOMART_LINE);
+		assert.equal(found[0][0], art[0], `${name}: the signals token must share RANDOMART_LINE's timestamp`);
 	}
 });
 

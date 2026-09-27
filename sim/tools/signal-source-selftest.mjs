@@ -186,10 +186,11 @@ await t('a 200 whose JSON carries an Overpass error remark is a failure: not cac
 	assert.equal(f.calls.length, 1);
 });
 
-await t('onChange fires when signals or status change', async () => {
+await t('subscribe fires when signals or status change', async () => {
 	let changes = 0;
 	const f = fakeFetch(() => okBody([REIMS]));
-	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), onChange: () => changes++ });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.subscribe(() => changes++);
 	src.request(['z12/2074/1409']);
 	await src.idle();
 	assert.ok(changes >= 2, `changes=${changes}`); // loading, then loaded
@@ -254,6 +255,41 @@ await t('a tile fails, then another tile is a cache hit → status is idle and s
 	await src.idle();
 	assert.equal(src.status(), 'idle');
 	assert.equal(src.signals().length, 1);
+});
+
+await t('subscribe: every listener hears every change; unsubscribe stops it', async () => {
+	const f = fakeFetch(() => okBody([REIMS]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	let a = 0, b = 0;
+	const offA = src.subscribe(() => a++);
+	src.subscribe(() => b++);
+	src.request(['z12/2074/1409']);
+	await src.idle();
+	assert.ok(a >= 1 && b >= 1 && a === b, `a=${a} b=${b}`);
+	offA();
+	const before = a;
+	src.request(['z12/2075/1409']);
+	await src.idle();
+	assert.equal(a, before);
+	assert.ok(b > before);
+});
+
+await t('a listener that throws does not stop the others', async () => {
+	const f = fakeFetch(() => okBody([REIMS]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	let heard = 0;
+	src.subscribe(() => { throw new Error('boom'); });
+	src.subscribe(() => heard++);
+	// The source warns about the throwing listener; keep the test output clean.
+	const warn = console.warn;
+	let warned = 0;
+	console.warn = () => { warned++; };
+	try {
+		src.request(['z12/2074/1409']);
+		await src.idle();
+	} finally { console.warn = warn; }
+	assert.ok(heard >= 1);
+	assert.ok(warned >= 1);
 });
 
 console.log(`signal-source: ${n} ok`);

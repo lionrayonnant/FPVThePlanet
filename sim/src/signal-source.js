@@ -58,7 +58,6 @@ export function createSignalSource({
 	cache = memoryCache(),
 	now = Date.now,
 	schedule = setTimeout,
-	onChange = () => {},
 } = {}) {
 	const loaded = new Map();     // tileKey -> Signal[]
 	const queue = [];             // tileKeys waiting
@@ -69,10 +68,14 @@ export function createSignalSource({
 	let state = 'idle';
 	let idleWaiters = [];
 
-	// Reassignable: the source outlives a scanner mount, each mount plugs its
-	// own listener in (src/scanner.js).
-	const api = { onChange };
-	const setState = (s) => { if (s !== state) { state = s; api.onChange(); } };
+	const listeners = new Set();
+	const emit = () => {
+		for (const fn of listeners) {
+			try { fn(); } catch (e) { console.warn('[signals] listener failed', e); }
+		}
+	};
+	const api = {};
+	const setState = (s) => { if (s !== state) { state = s; emit(); } };
 	const settle = () => {
 		if (busy || queue.length) return;
 		const w = idleWaiters; idleWaiters = [];
@@ -98,7 +101,7 @@ export function createSignalSource({
 			if (cached) {
 				loaded.set(key, cached);
 				setState('idle');
-				api.onChange();
+				emit();
 			} else {
 				setState('loading');
 				const res = await fetchFn(ENDPOINT, {
@@ -126,7 +129,7 @@ export function createSignalSource({
 				loaded.set(key, signals);
 				try { await cache.set(key, { v: MODEL_VERSION, at: now(), signals }); } catch { /* see fromCache */ }
 				setState('idle');
-				api.onChange();
+				emit();
 			}
 		} catch {
 			// Not cached, not marked loaded: a later request() retries it, once its
@@ -166,5 +169,21 @@ export function createSignalSource({
 		},
 		status: () => state,
 		idle: () => new Promise((r) => { idleWaiters.push(r); settle(); }),
+		// Several consumers now: the scanner map and the flight. Each keeps the
+		// unsubscribe it was given and calls it when it goes away.
+		subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+	});
+}
+
+// One source per page: the scanner and the flight share its memory, its
+// queue and its IndexedDB cache. Created on first use — Node imports this
+// module in selftests and must not touch indexedDB or AbortSignal.timeout.
+let shared = null;
+export function sharedSignalSource() {
+	return shared ??= createSignalSource({
+		// A stuck Overpass request must not stay in flight forever: the timeout
+		// aborts, which lands in the source's catch → UNAVAILABLE + cooldown.
+		fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(40_000) }),
+		cache: idbCache(),
 	});
 }

@@ -20,7 +20,7 @@ export const MIN_QUERY_ZOOM = 10;
 export const MAX_TILES_PER_VIEW = 16;
 // Bump whenever parsing, ranking, tiers or fields change: cached tiles are
 // parsed signals, not raw Overpass answers, so a stale cache entry must miss.
-export const MODEL_VERSION = 1;
+export const MODEL_VERSION = 4;
 
 const N = 2 ** TILE_Z;
 const D = Math.PI / 180;
@@ -41,6 +41,40 @@ export function tileBounds({ x, y }) {
 		s: latOfY(y + 1), n: latOfY(y),
 		w: (x / N) * 360 - 180, e: ((x + 1) / N) * 360 - 180,
 	};
+}
+
+const R_EARTH = 6371008.8;
+
+export function distanceM(a, b) {
+	const dLat = (b.lat - a.lat) * D, dLon = (b.lon - a.lon) * D;
+	const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * D) * Math.cos(b.lat * D) * Math.sin(dLon / 2) ** 2;
+	return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// The tiles a flight needs: every z12 tile that comes within `radiusM` of the
+// take-off point, its own tile first, then by distance. The flight asks for
+// these once at spawn (spec §1: only the zone's signals are live in flight).
+export function tilesAround(lat, lon, radiusM) {
+	const c = tileOf(lat, lon);
+	const own = tileKey(c);
+	const out = [{ key: own, d: 0 }];
+	const R = 3; // z12 tiles are >= ~4 km wide below 60° N: 3 rings cover any radius we use
+	for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+		if (!dx && !dy) continue;
+		const x = (((c.x + dx) % N) + N) % N, y = c.y + dy;
+		if (y < 0 || y >= N) continue;
+		const b = tileBounds({ x, y });
+		// Shift the tile's longitude span to the copy nearest `lon` before
+		// clamping: a bare clamp at the date line picks the far side of the
+		// world (~40 000 km away instead of a few hundred metres).
+		let w = b.w, e = b.e;
+		if (w - lon > 180) { w -= 360; e -= 360; }
+		else if (lon - e > 180) { w += 360; e += 360; }
+		const near = { lat: Math.max(b.s, Math.min(b.n, lat)), lon: Math.max(w, Math.min(e, lon)) };
+		const d = distanceM({ lat, lon }, near);
+		if (d <= radiusM) out.push({ key: tileKey({ x, y }), d });
+	}
+	return out.sort((p, q) => p.d - q.d || (p.key < q.key ? -1 : 1)).map((t) => t.key);
 }
 
 export function tilesForView({ s, w, n, e }, zoom) {
@@ -72,7 +106,14 @@ export function tilesForView({ s, w, n, e }, zoom) {
 // Safety net, not a filter: at 200 the Paris tile was truncated (Notre-Dame
 // and the Louvre never received). Paris returns ~400 elements (~240 kB).
 const OUT_CAP = 2000;
-const MAXSIZE = 4 * 1024 * 1024;
+// maxsize is Overpass's RAM budget for the query, not a cap on the output: at
+// 4 MiB Tokyo's tile failed forever ("out of memory … needs at least 32 MB").
+// 64 MiB is the ceiling most public instances allow.
+const MAXSIZE = 64 * 1024 * 1024;
+
+// The natural values the query asks for; kindOf() names only these, so an
+// element matched by another clause keeps that clause's kind.
+const NATURAL = ['peak', 'volcano', 'arch', 'cave_entrance', 'rock', 'stone', 'cliff', 'geyser', 'hot_spring'];
 
 export function overpassQuery({ s, w, n, e }) {
 	const bb = `(${s},${w},${n},${e})`;
@@ -80,8 +121,11 @@ export function overpassQuery({ s, w, n, e }) {
 		+ `nwr["wikidata"]["historic"]${bb};`
 		+ `nwr["wikidata"]["tourism"~"^(attraction|viewpoint)$"]${bb};`
 		+ `nwr["wikidata"]["man_made"~"^(tower|lighthouse|dam)$"]${bb};`
-		+ `nwr["wikidata"]["building"~"^(cathedral|church|castle)$"]${bb};`
-		+ `nwr["wikidata"]["natural"="peak"]${bb};`
+		+ `nwr["wikidata"]["building"~"^(cathedral|church|castle|temple|shrine|mosque|synagogue|pagoda|monastery)$"]${bb};`
+		// Point-like only: a lake, a reserve or a national park is a polygon
+		// whose centre is not a place you can frame from 300 m — excluded.
+		+ `nwr["wikidata"]["natural"~"^(${NATURAL.join('|')})$"]${bb};`
+		+ `nwr["wikidata"]["waterway"="waterfall"]${bb};`
 		+ `nwr["wikidata"]["man_made"="bridge"]${bb};`
 		+ `);out tags center ${OUT_CAP};`;
 }
@@ -108,7 +152,8 @@ export function parseHeightM(raw) {
 
 // The TYPE line, in precedence order: the most specific tag wins.
 function kindOf(tags) {
-	if (tags.natural === 'peak') return 'PEAK';
+	if (tags.waterway === 'waterfall') return 'WATERFALL';
+	if (NATURAL.includes(tags.natural)) return clean(tags.natural.replace(/_/g, ' '));
 	if (tags.man_made === 'dam') return 'DAM';
 	if (tags.man_made === 'bridge') return 'BRIDGE';
 	if (tags.man_made === 'lighthouse') return 'LIGHTHOUSE';
@@ -121,8 +166,9 @@ function kindOf(tags) {
 
 // Spec §2: I get close, II climb and hold at altitude, III go far.
 function tierOf(tags, heightM) {
-	if (tags.natural === 'peak' || tags.man_made === 'dam' || tags.man_made === 'bridge') return 3;
-	if (tags.man_made === 'tower' || tags.man_made === 'lighthouse' || (heightM !== null && heightM > 50)) return 2;
+	if (tags.natural === 'peak' || tags.natural === 'volcano' || tags.man_made === 'dam' || tags.man_made === 'bridge') return 3;
+	if (tags.waterway === 'waterfall' || tags.natural === 'cliff' || tags.natural === 'arch'
+		|| tags.man_made === 'tower' || tags.man_made === 'lighthouse' || (heightM !== null && heightM > 50)) return 2;
 	return 1;
 }
 
@@ -197,19 +243,27 @@ export function signalFromElement(el) {
 // the kind of place, its heritage level, a Wikipedia article,
 // tourism=attraction, whether OSM draws it as a building (way/relation) or a
 // point (node), and height.
-export const PER_TILE_CAP = 12;
+//
+// The cap is a safety net, not the density control: the scanner map already
+// shows one point per screen cell. At 12 the whole of central Paris — one z12
+// tile, 354 landmarks — kept 12, and the Panthéon (45th) was cut; the author
+// wants many places to hunt. Worldwide, the same weights rank a Kyoto temple
+// or a Yosemite waterfall against everything else in its tile.
+export const PER_TILE_CAP = 60;
 
-const MAJOR = new Set(['cathedral', 'castle', 'palace', 'fort', 'tower', 'lighthouse', 'monastery', 'basilica', 'dam']);
-const MINOR = new Set(['church', 'chapel', 'city_gate', 'museum', 'ruins', 'abbey', 'bridge', 'peak']);
+const MAJOR = new Set(['cathedral', 'castle', 'palace', 'fort', 'tower', 'lighthouse', 'monastery', 'basilica', 'dam',
+	'volcano', 'waterfall', 'temple', 'shrine', 'mosque', 'pagoda']);
+const MINOR = new Set(['church', 'chapel', 'city_gate', 'museum', 'ruins', 'abbey', 'bridge', 'peak',
+	'arch', 'geyser', 'cave_entrance', 'rock', 'cliff', 'synagogue']);
 
 export function rankOf(el, tags, heightM) {
-	const kinds = [tags.building, tags.historic, tags.man_made, tags.natural, tags.tourism, tags.man_made === 'bridge' ? 'bridge' : null];
+	const kinds = [tags.building, tags.historic, tags.man_made, tags.natural, tags.tourism, tags.waterway, tags.man_made === 'bridge' ? 'bridge' : null];
 	const kind = kinds.some((k) => MAJOR.has(k)) ? 300 : kinds.some((k) => MINOR.has(k)) ? 150 : 0;
 	const h = tags['heritage:operator'] === 'whc' || tags.heritage === '1' ? 200
 		: tags.heritage === '2' ? 100 : tags.heritage ? 50 : 0;
 	return kind + h
 		+ (typeof tags.wikipedia === 'string' && tags.wikipedia ? 100 : 0)
-		+ (tags.tourism === 'attraction' ? 80 : 0)
+		+ (tags.tourism === 'attraction' ? 200 : 0)
 		+ (el.type === 'node' ? 0 : 100)
 		+ Math.min(heightM ?? 0, 300) / 3;
 }

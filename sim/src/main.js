@@ -66,7 +66,17 @@ import { FlightEnd, FLYING } from './flight-end.js';
 import { Turtle, maxRollTorque } from './turtle.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
-import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
+import { localEnuToEcef, ecefToGeodetic, geodeticToEcef, ecefToLocalEnu } from '../tools/lib/rocktree/geodesy.mjs';
+import { sharedSignalSource } from './signal-source.js';
+import { tilesAround, distanceM } from '../tools/signal-model.mjs';
+import { SignalCapture, HOLD_S } from './signal-capture.js';
+import { SignalAnchors } from './signal-anchor.js';
+import { SignalCallout } from './signal-callout.js';
+import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
+import { withResolved, withPhoto, resolvedIds } from '../tools/signal-store-model.mjs';
+import { SignalCard, recapNode } from './signal-card.js';
+import { CardQueue } from '../tools/signal-card-model.mjs';
+import { sharedPlaceInfo } from './place-info.js';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 import { LiveNodeQueue } from './live-node-queue.js';
@@ -692,6 +702,49 @@ let exitPadHeld = true;
 let pendingCapture = false;
 
 const flightEnd = new FlightEnd();
+
+// Signals in flight (#185): the landmarks within FLIGHT_RADIUS_M of the
+// take-off point, anchored, captured by holding them in the FPV frame.
+const FLIGHT_RADIUS_M = 3000;
+const signalCapture = new SignalCapture();
+const signalAnchors = new SignalAnchors({
+	toLocal: (lat, lon) => localOfGeo(lat, lon),
+	// The live boot's ground probe window (bootLive(), groundBelow(0, 3000, 0,
+	// 6000)): the anchor's own 600 m window misses landmarks far from origin height.
+	ground: (x, z) => physics?.groundBelow(x, 3000, z, 6000) ?? null,
+});
+const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
+let flightSignals = [];          // Signal[] live in this flight
+let signalTargets = [];          // SignalCapture targets, rebuilt when the list changes
+let offFlightSignals = null;     // unsubscribe from the shared source
+// The frame of an uplink, taken like pendingCapture: right after lens.render().
+let pendingUplink = null;        // { id, signal, distM, index, gen }
+// Without a focus, a resolved signal takes the callout only this close...
+const RESOLVED_CALLOUT_M = 150;
+// ...except the one just uplinked, which keeps it this long (UPLINKED, green).
+const UPLINKED_SHOW_S = 3;
+let lastUplink = null;           // { id, until } in performance.now() seconds
+// The UPLINKED card (#185 lot 2b): one per uplink, queued, CARD_S each. The
+// flight's uplinks outlive disarmSignals(): the end screen's recap reads them,
+// and armSignals() clears them at the next take-off.
+// Mounted in the top-right OSD corner, under its last line: it follows that
+// corner at every screen height instead of guessing a percentage.
+const signalCard = new SignalCard(document.querySelector('#fpvtp-osd .corner.tr'));
+let cardQueue = new CardQueue();
+let flightUplinks = [];          // { signal, info, frameSrc, distM, holdS, index, total }
+let prefetched = new Set();      // ids whose place info this flight already warmed
+let uplinkSeq = 0;               // this flight's uplinks so far (the card's SIGNAL n)
+// Cards leave in uplink order: a card ready early waits here for the ones
+// before it. Every uplink fills its slot exactly once (a card, or null).
+let cardSlots = new Map();       // index -> card | null
+let nextSlot = 1;
+let priorResolved = new Set();   // ids resolved before this flight (not in the card's /total)
+// The prefetch starts once the hold is this far along, not at first glance.
+const PREFETCH_GAUGE = 0.2;
+let flightGen = 0;               // bumped per flight: a late card never lands in the next one
+// Bound on the wait for the place info before the card shows without it.
+const CARD_INFO_WAIT_MS = 2500;
+fpvtpOsd.setSignalRecap(() => recapNode(flightUplinks));
 
 // Assisted turtle mode (#105). Fed INSIDE the fixed-step loop, like the area
 // fence: its torque has to leave in the same step as the thrust, and its damping
@@ -1382,6 +1435,7 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	settings.flightActive = true;
 	lastTime = performance.now();
 	flightStartTime = lastTime;
+	armSignals();
 	renderer.setAnimationLoop(frame);
 	uiAudio.play('TERRAIN_READY');
 }
@@ -1742,6 +1796,7 @@ async function bootLive([lat, lon], { arm = true } = {}) {
 	settings.flightActive = true;
 	lastTime = performance.now();
 	flightStartTime = lastTime;
+	armSignals();
 	renderer.setAnimationLoop(frame);
 }
 
@@ -1820,6 +1875,7 @@ function finishSession({ redeploy = false } = {}) {
 	// stop saying it. The reload clears it anyway, but Settings reads it in the
 	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
 	settings.flightActive = false;
+	disarmSignals();
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
@@ -1988,6 +2044,8 @@ function setView(mode) {
 }
 
 const _fwd = new THREE.Vector3();
+const _sigFwd = new THREE.Vector3();
+const _sigNdc = new THREE.Vector3();
 const _camQ = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -2068,6 +2126,274 @@ function droneGeo(p) {
 		return { lat: g.lat, lon: g.lon };
 	}
 	return latLonOf(p);
+}
+
+// lat/lon -> local ENU {x, z}: the inverse of droneGeo(), for signals (#185).
+// Live: through ECEF, like the streaming window. Baked: the inverse of the
+// flat latLonOf(). null when the scene has no origin.
+function localOfGeo(lat, lon) {
+	if (liveWindow) {
+		const p = ecefToLocalEnu(geodeticToEcef(lat, lon, 0), liveWindow.originEcef, liveWindow.originBasis);
+		return { x: p.x, z: p.z };
+	}
+	const o = sceneManifest?.origin;
+	if (!o || !Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) return null;
+	return { x: (lon - o.longitude) * 111320 * Math.cos(lat * Math.PI / 180), z: -(lat - o.latitude) * 111320 };
+}
+
+// Arms the signals around the take-off point (#185). Called once the drone is
+// placed and the ENU origin fixed, on the baked and live boots alike.
+function armSignals() {
+	disarmSignals();
+	flightUplinks = [];
+	cardQueue = new CardQueue();
+	uplinkSeq = 0;
+	cardSlots = new Map();
+	nextSlot = 1;
+	prefetched = new Set();
+	priorResolved = new Set(resolvedIds(operator.getOperator()?.signals));
+	flightGen++;
+	if (MODE.bench) return;
+	const home = droneGeo(physics.position);
+	if (!Number.isFinite(home.lat) || !Number.isFinite(home.lon)) return;
+	const src = sharedSignalSource();
+	const refresh = () => {
+		const done = resolvedIds(operator.getOperator()?.signals);
+		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M);
+		signalAnchors.set(flightSignals);
+		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id) }));
+		signalCapture.setTargets(signalTargets);
+		if (!flightSignals.length) signalCallout.render(null);
+	};
+	offFlightSignals = src.subscribe(refresh);
+	src.request(tilesAround(home.lat, home.lon, FLIGHT_RADIUS_M));
+	refresh();
+}
+function disarmSignals() {
+	offFlightSignals?.();
+	offFlightSignals = null;
+	flightSignals = [];
+	signalTargets = [];
+	signalAnchors.set([]);
+	signalCapture.setTargets([]);
+	signalCallout.render(null);
+	// A frame never taken still frees its slot, or the cards after it would wait forever.
+	if (pendingUplink) fillSlot(pendingUplink.index, null, pendingUplink.gen);
+	pendingUplink = null;
+	lastUplink = null;
+}
+// Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
+if (import.meta.env?.DEV) {
+	window.__signals = {
+		list: () => flightSignals.map((s) => ({ id: s.id, name: s.name, tier: s.tier, lat: s.lat, lon: s.lon, pos: signalAnchors.pos(s.id) })),
+		out: () => signalCapture.out,
+		uplinks: () => flightUplinks.map((c) => ({ id: c.signal.id, index: c.index, info: !!c.info, photo: !!c.info?.photo, frame: !!c.frameSrc })),
+		geo: (p) => droneGeo(p),
+		local: (lat, lon) => localOfGeo(lat, lon),
+	};
+}
+
+// Per frame: anchors, capture, callout. The target objects are the ones
+// setTargets() holds, so updating their pos in place is enough.
+function updateSignals(dt, frozen) {
+	signalAnchors.update(frozen ? 0 : dt, { x: camera.position.x, z: camera.position.z });
+	for (const t of signalTargets) t.pos = signalAnchors.pos(t.id);
+	_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+	const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
+	const flying = flightEnd.phase === FLYING;
+	const out = signalCapture.update({
+		// Disarmed, nothing is transmitting: the same gate as the manual photo.
+		dt: frozen || !flying || !controller.armed ? 0 : dt,
+		cam,
+		fpv: viewMode === 'fpv',
+		// Stop the line 6 m short of the anchor: the anchor sits on the
+		// building's own surface, which would otherwise always "block" it.
+		los: (t) => {
+			const dx = t.pos.x - cam.x, dy = t.pos.y - cam.y, dz = t.pos.z - cam.z;
+			const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - 6) / d) : 0;
+			return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
+		},
+	});
+	if (out.uplinked) onSignalUplinked(out.uplinked);
+	// Warm the place info while the operator holds the landmark, so the card
+	// rarely waits for it after UPLINKED: once per id per flight, and only once
+	// the hold is real (a glance across a skyline is not a request).
+	if (out.focus && !prefetched.has(out.focus)) {
+		const row = out.rows.find((r) => r.id === out.focus);
+		if (row?.state === 'capturing' && row.gauge >= PREFETCH_GAUGE) {
+			prefetched.add(out.focus);
+			sharedPlaceInfo().info(out.focus).catch(() => null);
+		}
+	}
+	// Nothing over the end-of-flight screen.
+	if (flying) renderSignalCallout(out);
+	else signalCallout.render(null);
+}
+
+function renderSignalCallout(out) {
+	// The callout follows the focus; without one, the signal just uplinked for
+	// UPLINKED_SHOW_S, else the nearest open signal, else a resolved one close by.
+	const rows = out.rows.filter((r) => r.state !== 'hidden').sort((a, b) => a.dist - b.dist);
+	const now = performance.now() / 1000;
+	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
+	const row = rows.find((r) => r.id === out.focus)
+		?? rows.find((r) => r.id === recent)
+		?? rows.find((r) => r.state !== 'resolved')
+		?? rows.find((r) => r.state === 'resolved' && r.dist <= RESOLVED_CALLOUT_M);
+	if (!row) { signalCallout.render(null); return; }
+	const signal = flightSignals.find((s) => s.id === row.id);
+	const pos = signalAnchors.pos(row.id);
+	if (!signal || !pos) { signalCallout.render(null); return; }
+	// placeCamera() moved the camera this frame; its matrices follow only at render.
+	camera.updateMatrixWorld();
+	_sigNdc.set(pos.x, pos.y, pos.z).project(camera);
+	const behind = _sigNdc.z > 1;
+	// The picture is the sensor's aspect fitted into the canvas, with black
+	// bands (lens.js _applySize()): place the callout on the picture, not the bands.
+	const vp = renderer.domElement.getBoundingClientRect();
+	const fitW = vp.width / vp.height > camera.aspect ? vp.height * camera.aspect : vp.width;
+	const fitH = vp.width / vp.height > camera.aspect ? vp.height : vp.width / camera.aspect;
+	// The lens bends the picture (barrel): follow it, or the anchor drifts off
+	// the landmark away from the centre. Its terms live on the lens's uniforms.
+	const u = lens._u;
+	const at = !behind && lens.enabled
+		? lensWarp(_sigNdc.x, _sigNdc.y, { aspect: camera.aspect, k1: u.uK1.value, k2: u.uK2.value, ca: u.uCA.value })
+		: { x: _sigNdc.x, y: _sigNdc.y };
+	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
+		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
+		{ boxW: signalCallout.box.offsetWidth || 230, boxH: signalCallout.box.offsetHeight || 110 });
+	// The edge chevron points at something to capture, never at a done one.
+	if (!placed.onScreen && row.state === 'resolved') { signalCallout.render(null); return; }
+	signalCallout.render({ signal, row, placed, now });
+}
+
+// The resolution is written at once (spec §3); the frame follows. It is taken
+// right after this frame's lens.render() (pendingUplink, consumed in the frame
+// loop like pendingCapture), then uploaded; withPhoto() points the entry at it.
+function onSignalUplinked(id) {
+	const s = flightSignals.find((x) => x.id === id);
+	if (!s) return;
+	uiAudio.play('TARGET_FOUND');
+	lastUplink = { id, until: performance.now() / 1000 + UPLINKED_SHOW_S };
+	const pos = signalAnchors.pos(id);
+	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
+	const live = session.current();
+	const op = operator.getOperator();
+	if (op) {
+		operator.patch('signals', withResolved(op.signals, id, {
+			at: Date.now(), name: s.name, lat: s.lat, lon: s.lon, tier: s.tier,
+			family: PROFILE?.family ?? null, holdS: HOLD_S, distM: Math.round(dist),
+			sessionId: live?.id ?? null, photo: null,
+		}));
+	}
+	// The frame is taken even without a live session: the card shows it. index
+	// and total are frozen now: SIGNAL n / the ones still open at this moment.
+	const total = flightSignals.filter((x) => !priorResolved.has(x.id)).length;
+	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen };
+	if (import.meta.env?.DEV) console.debug('[signals] uplinked', id, `${pendingUplink.index}/${total}`);
+}
+
+// The place info, or null after CARD_INFO_WAIT_MS: the card never waits longer.
+// info() takes the signal id itself (null for a non-Wikidata signal).
+function placeInfoFor(id) {
+	return Promise.race([
+		sharedPlaceInfo().info(id).catch(() => null),
+		new Promise((res) => setTimeout(() => res(null), CARD_INFO_WAIT_MS)),
+	]);
+}
+
+// Releases the cards in uplink order: slot `index` is filled (a card, or null
+// for an uplink that has none), then every consecutive filled slot is queued.
+function fillSlot(index, card, gen) {
+	if (gen !== flightGen) return;
+	cardSlots.set(index, card);
+	while (cardSlots.has(nextSlot)) {
+		const c = cardSlots.get(nextSlot);
+		cardSlots.delete(nextSlot);
+		nextSlot++;
+		if (!c) continue;
+		flightUplinks.push(c);
+		cardQueue.push(c);
+		// The end screen may already be up (a crash right after UPLINKED).
+		fpvtpOsd.refreshSignalRecap();
+		if (import.meta.env?.DEV) console.debug('[signals] card', c.signal.id, `${c.index}/${c.total}`, { info: !!c.info, frame: !!c.frameSrc });
+	}
+}
+
+// Builds the card once its thumbnail and info are known (SignalCard refreshes
+// images only when the signal changes). A failed capture still shows the card.
+async function pushUplinkCard({ id, signal, distM, index, total, gen }, frameSrc) {
+	const info = await placeInfoFor(id);
+	fillSlot(index, { signal, info, frameSrc, distM, holdS: HOLD_S, index, total }, gen);
+}
+
+function blobToDataUrl(blob) {
+	return new Promise((res, rej) => {
+		const r = new FileReader();
+		r.onload = () => res(r.result);
+		r.onerror = () => rej(r.error);
+		r.readAsDataURL(blob);
+	});
+}
+
+// The card's and the recap's copy of the frame: one small JPEG, built once.
+// A full-size PNG data URL per card would weigh megabytes in the DOM.
+async function thumbnailOf(blob, width = 480) {
+	const bmp = await createImageBitmap(blob, { resizeWidth: width, resizeQuality: 'medium' });
+	try {
+		let jpeg;
+		if (typeof OffscreenCanvas === 'function') {
+			const c = new OffscreenCanvas(bmp.width, bmp.height);
+			c.getContext('2d').drawImage(bmp, 0, 0);
+			jpeg = await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+		} else {
+			const c = document.createElement('canvas');
+			c.width = bmp.width; c.height = bmp.height;
+			c.getContext('2d').drawImage(bmp, 0, 0);
+			jpeg = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.8));
+		}
+		if (!jpeg) throw new Error('thumbnail encode failed');
+		return await blobToDataUrl(jpeg);
+	} finally {
+		bmp.close();
+	}
+}
+
+// Best-effort: the resolution is already written. The card goes out as soon
+// as its thumbnail is ready (or at once, frameless, if the capture failed);
+// the session upload runs on its own afterwards and never delays it.
+// lens.capture() must be CALLED in the post-render window (it redraws the
+// composer synchronously before reading the canvas).
+async function uplinkFrame(up) {
+	const before = session.photoCount();
+	let cap = null;
+	let frameSrc = null;
+	let pushed = false;
+	try {
+		cap = await lens.capture();
+		if (cap) frameSrc = await thumbnailOf(cap.blob);
+	} catch (e) {
+		console.warn('[signals] uplink frame failed', e);
+	} finally {
+		if (!pushed) { pushed = true; pushUplinkCard(up, frameSrc); }
+	}
+	if (cap && session.current()) uploadUplinkFrame(up.id, cap, before);
+}
+
+// The full-size frame to the session. capturePhoto() returns the unchanged
+// count when nothing was stored, so only a count that grew points at this
+// uplink's photo.
+async function uploadUplinkFrame(id, cap, before) {
+	try {
+		const dataUrl = await blobToDataUrl(cap.blob);
+		const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
+		if (count <= before) return;
+		fpvtpOsd.flashCaptured(count);
+		const op = operator.getOperator();
+		if (op) operator.patch('signals', withPhoto(op.signals, id, count - 1));
+	} catch (e) {
+		console.warn('[signals] uplink upload failed', e);
+	}
 }
 
 // The view mode is NOT in here: chase view keeps the simulation running (D11).
@@ -2461,6 +2787,15 @@ function frame() {
 		});
 	}
 
+	// Signals (#185): anchors, capture, callout.
+	if (flightSignals.length) updateSignals(dt, frozen);
+	else signalCallout.render(null);
+	// The UPLINKED card, in flight only: the end screen's recap takes over.
+	if (flightEnd.phase === FLYING) {
+		const q = cardQueue.update(frozen ? 0 : dt);
+		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01 } : null);
+	} else signalCard.render(null);
+
 	// The end of flight decides on its own: what is shown, when the picture dies,
 	// when the session closes. main.js only feeds it and obeys.
 	//
@@ -2825,6 +3160,11 @@ if (!frozen) {
 	if (pendingCapture) {
 		pendingCapture = false;
 		if (photoReady) capturePhoto();
+	}
+	if (pendingUplink) {
+		const up = pendingUplink;
+		pendingUplink = null;
+		uplinkFrame(up);
 	}
 
 	const v = physics.velocity;

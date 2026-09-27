@@ -1,13 +1,13 @@
-// La fin d'un vol (PHASE 14). Machine à états pure : ni DOM, ni Three, ni
-// Rapier. main.js l'alimente une fois par frame et obéit à ce qu'elle sort.
+// The end of a flight (PHASE 14). Pure state machine: no DOM, no Three, no
+// Rapier. main.js feeds it once per frame and obeys what it outputs.
 //
-// Il n'y a pas de GAME OVER. Un crash n'est pas une défaite : c'est une machine
-// distante qui cesse d'émettre. L'image meurt d'abord, le texte vient après, et
-// c'est le joueur qui sort du contrôle — rien ne l'en sort à sa place.
+// There is no GAME OVER. A crash is not a defeat: it is a remote machine that
+// stops transmitting. The image dies first, the text comes after, and it is
+// the player who steps out of control — nothing steps them out in their place.
 //
-// Révision 2026-09-08 (D9) : l'atterrissage a disparu. Un vol se termine par un
-// crash, une sortie de zone ou la coupure volontaire du lien (K tenue) — il n'y
-// a plus de pose reconnue, plus de désarmement, plus de verdict LANDED.
+// Revision 2026-09-08 (D9): landing is gone. A flight ends by crashing, exiting
+// the zone, or a deliberate link cut (K held) — there is no longer a
+// recognised pose, no disarm, no LANDED verdict.
 
 export const FLYING = 'FLYING';
 export const CRASHING = 'CRASHING';             // l'écran est en train de mourir
@@ -24,6 +24,13 @@ export const PORTRAIT_LINE = '[PORTRAIT]';
 // l'art de la machine perdue. Il tombe TOUJOURS avec le portrait — une machine
 // perdue est perdue de la même façon, quelle que soit la fin.
 export const RANDOMART_LINE = '[RANDOMART]';
+
+// The token for the signals recap (Signals Lot 2b, task 4). Same mechanics as
+// PORTRAIT_LINE and RANDOMART_LINE: this module only knows text, it is
+// src/fpvtp-osd.js that replaces the token with the recap of the landmarks the
+// flight UPLINKED. It always falls right after RANDOMART_LINE, same timestamp
+// — the recap belongs with the rest of what remains of the machine.
+export const SIGNALS_LINE = '[SIGNALS]';
 
 // Mise en scène, pas mesure : ces durées sont un choix, et elles se relisent
 // d'un coup d'œil. Secondes depuis l'impact.
@@ -58,6 +65,7 @@ export const TIMELINE = {
 		// reste pur, il ne connaît que des lignes.
 		[4.0, PORTRAIT_LINE],
 		[4.0, RANDOMART_LINE],
+		[4.0, SIGNALS_LINE],
 		[4.6, ''],
 		[4.6, '[ENTER] DISCONNECT'],
 		// #253 : REDEPLOY partage l'horodatage de DISCONNECT — les deux gestes
@@ -88,6 +96,7 @@ export const FENCE_TIMELINE = {
 		// aucune raison de ne la montrer qu'après un impact.
 		[2.4, PORTRAIT_LINE],
 		[2.4, RANDOMART_LINE],
+		[2.4, SIGNALS_LINE],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],
@@ -119,6 +128,7 @@ export const CUT_TIMELINE = {
 		// seule fin qu'on choisit, donc la seule où l'on prend le temps.
 		[2.4, PORTRAIT_LINE],
 		[2.4, RANDOMART_LINE],
+		[2.4, SIGNALS_LINE],
 		[3.0, ''],
 		[3.0, '[ENTER] DISCONNECT'],
 		[3.0, '[R] REDEPLOY'],

@@ -27,8 +27,9 @@ import { Coverage, planDraw } from './coverage.js';
 import { createCoverageLayer } from './map-coverage.js';
 import { createTracksLayer } from './map-tracks.js';
 import { createSignalsLayer } from './map-signals.js';
-import { createSignalSource, idbCache } from './signal-source.js';
+import { sharedSignalSource } from './signal-source.js';
 import { tilesForView } from '../tools/signal-model.mjs';
+import { resolvedIds } from '../tools/signal-store-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
@@ -45,11 +46,6 @@ const RE_COORDS = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/;
 
 // The scanner's last view, to reopen where it was left within the session.
 let lastView = { center: [48.8582, 2.297], zoom: 13 };
-// One source for the page's life, like lastView: its memory and its queue
-// survive the scanner being unmounted and remounted, and the IndexedDB cache
-// survives the page. Created lazily — Node imports this module in selftests.
-let signalSource = null;
-
 // The search lives outside the rail: all it does is move the map, and it
 // serves both FIELD tabs (#222). The Home gives it its own host, above the
 // tabs, so that it survives the rail being replaced by JOB_PANEL.
@@ -882,32 +878,32 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	};
 	signalsCtl.addTo(map);
 
+	const signalSource = sharedSignalSource();
+
 	const signalsLayer = createSignalsLayer(L, {
-		getSignals: () => signalSource?.signals() ?? [],
+		getSignals: () => signalSource.signals(),
+		getResolved: () => resolvedIds(operatorApi.getOperator()?.signals),
 		ink: token('--yellow') || '#d4b155',
+		resolvedInk: token('--green') || '#7aa96b',
 		white: token('--warm-white') || '#ece7dd',
 	});
 	signalsLayer.addTo(map);
 
 	let signalsTooWide = false;
 	function renderSignalsStatus() {
-		const st = signalSource?.status() ?? 'idle';
+		const st = signalSource.status();
+		const resolved = resolvedIds(operatorApi.getOperator()?.signals);
+		const count = signalSource.signals().length;
+		const done = signalSource.signals().reduce((n, s) => n + (resolved.has(s.id) ? 1 : 0), 0);
+		const suffix = done > 0 ? ` · ${done} RESOLVED` : '';
 		signalsStatus.textContent = signalsTooWide ? 'SIGNALS: ZOOM IN TO SCAN'
 			: st === 'unavailable' ? 'SIGNAL SCAN UNAVAILABLE'
 			: st === 'loading' || st === 'waiting' ? 'SIGNALS: SCANNING…'
-			: `SIGNALS: ${signalSource?.signals().length ?? 0}`;
+			: `SIGNALS: ${count}${suffix}`;
 		signalsStatus.dataset.state = signalsTooWide ? 'wide' : st;
 	}
 
-	signalSource ??= createSignalSource({
-		// A stuck Overpass request must not stay in flight forever: the timeout
-		// aborts, which lands in the source's catch → UNAVAILABLE + cooldown.
-		fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(40_000) }),
-		cache: idbCache(),
-	});
-	// The source outlives this mount; its onChange is this mount's.
-	const onSignals = () => { signalsLayer.refresh(); renderSignalsStatus(); };
-	signalSource.onChange = onSignals;
+	const offSignals = signalSource.subscribe(() => { signalsLayer.refresh(); renderSignalsStatus(); });
 	renderSignalsStatus();
 
 	let signalsTimer = null;
@@ -947,7 +943,7 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		// stopSearch() is idempotent.
 		stopSearch?.();
 		clearTimeout(signalsTimer);
-		if (signalSource && signalSource.onChange === onSignals) signalSource.onChange = () => {};
+		offSignals();
 		for (const h of hosts) h.replaceChildren();
 	}
 

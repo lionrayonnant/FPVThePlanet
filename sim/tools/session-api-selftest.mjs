@@ -193,6 +193,16 @@ try {
 	check('coverage fait l\'aller-retour sur disque',
 		JSON.stringify(covReread.body.operator.coverage) === JSON.stringify(coverage));
 
+	// `signals` (issue #185): same contract as coverage — accepted, persisted,
+	// bounded client-side only (tools/signal-store-model.mjs).
+	const signals = { resolved: {} };
+	const sigPatched = await call('PATCH', `/__operator/${id}`, { key: 'signals', value: signals });
+	check('PATCH signals : accepté et persisté',
+		sigPatched.status === 200 && sigPatched.body.operator.signals !== undefined);
+	const sigReread = await call('GET', `/__operator/${id}`);
+	check('signals fait l\'aller-retour sur disque',
+		JSON.stringify(sigReread.body.operator.signals) === JSON.stringify(signals));
+
 	const rejected = await call('PATCH', `/__operator/${id}`, { key: 'notAKey', value: 1 });
 	check('PATCH clé inconnue → 400', rejected.status === 400
 		&& /key is not writable/.test(rejected.body.error ?? ''));

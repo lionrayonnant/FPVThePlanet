@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW, MODEL_VERSION,
-	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
+	tileOf, tileKey, tileBounds, tilesForView, distanceM, tilesAround, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
 	signalsInView, LABEL_ZOOM, declutter,
 } from './signal-model.mjs';
@@ -17,7 +17,7 @@ t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
 	assert.equal(MIN_QUERY_ZOOM, 10);
 	assert.equal(MAX_TILES_PER_VIEW, 16);
-	assert.equal(MODEL_VERSION, 1);
+	assert.equal(MODEL_VERSION, 4);
 });
 
 t('tileOf: the z12 tile of the Eiffel Tower, computed independently', () => {
@@ -98,6 +98,22 @@ t('overpassQuery: timeout, output cap, wikidata filter, the bbox in s,w,n,e orde
 	for (const c of clauses) assert.match(c, /\["wikidata"\]/, c);
 });
 
+t('overpassQuery: maxsize is a 64 MiB RAM budget, not an output cap (Tokyo ran out of memory at 4 MiB)', () => {
+	const q = overpassQuery({ s: 1, w: 2, n: 3, e: 4 });
+	assert.match(q, /\[maxsize:67108864\]/);
+});
+
+t('overpassQuery: worldwide clauses — temples/shrines, point-like natural features, waterfalls; no polygon natural areas', () => {
+	const q = overpassQuery({ s: 1, w: 2, n: 3, e: 4 });
+	assert.match(q, /\["building"~"\^\(cathedral\|church\|castle\|temple\|shrine\|mosque\|synagogue\|pagoda\|monastery\)\$"\]/);
+	assert.match(q, /\["natural"~"\^\(peak\|volcano\|arch\|cave_entrance\|rock\|stone\|cliff\|geyser\|hot_spring\)\$"\]/);
+	assert.match(q, /\["waterway"="waterfall"\]/);
+	assert.doesNotMatch(q, /"natural"="water"/);
+	assert.doesNotMatch(q, /nature_reserve/);
+	assert.doesNotMatch(q, /national_park/);
+	for (const c of q.match(/nwr\[[^;]*;/g)) assert.match(c, /\["wikidata"\]/, c);
+});
+
 const REIMS = {
 	type: 'way', id: 43263447,
 	center: { lat: 49.2536, lon: 4.0340 },
@@ -155,6 +171,13 @@ t('signalFromElement: a node uses lat/lon, name:en wins over name', () => {
 	assert.equal(s.tier, 3);
 });
 
+t('kindOf: the natural branch only for the queried natural values', () => {
+	const kind = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).kind;
+	assert.equal(kind({ natural: 'water', tourism: 'attraction' }), 'ATTRACTION');
+	assert.equal(kind({ natural: 'wood', historic: 'castle' }), 'CASTLE');
+	assert.equal(kind({ natural: 'hot_spring', tourism: 'attraction' }), 'HOT SPRING');
+});
+
 t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak, dam, bridge', () => {
 	const tier = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).tier;
 	assert.equal(tier({ historic: 'castle' }), 1);
@@ -166,6 +189,38 @@ t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak,
 	assert.equal(tier({ man_made: 'dam' }), 3);
 	assert.equal(tier({ man_made: 'bridge' }), 3);
 	assert.equal(tier({ bridge: 'yes', railway: 'rail' }), 1, 'a railway on a viaduct is not a bridge landmark');
+	assert.equal(tier({ natural: 'volcano' }), 3);
+	assert.equal(tier({ waterway: 'waterfall' }), 2);
+	assert.equal(tier({ natural: 'cliff' }), 2);
+	assert.equal(tier({ natural: 'arch' }), 2);
+});
+
+t('kindOf: waterfalls and natural point features get their own TYPE', () => {
+	const kind = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).kind;
+	assert.equal(kind({ waterway: 'waterfall' }), 'WATERFALL');
+	assert.equal(kind({ natural: 'cave_entrance' }), 'CAVE ENTRANCE');
+	assert.equal(kind({ natural: 'hot_spring' }), 'HOT SPRING');
+	assert.equal(kind({ natural: 'volcano' }), 'VOLCANO');
+});
+
+t('a Skógafoss-like waterfall node: kind WATERFALL, tier II', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 63.53, lon: -19.51, tags: { name: 'Skógafoss', wikidata: 'Q1533657', waterway: 'waterfall' } });
+	assert.equal(s.kind, 'WATERFALL');
+	assert.equal(s.tier, 2);
+});
+
+t('a Kyoto-like temple way outranks a plain historic=memorial node', () => {
+	const temple = { type: 'way', id: 1, center: { lat: 34.98, lon: 135.78 }, tags: {
+		name: 'Kiyomizu-dera', wikidata: 'Q1067252', building: 'temple', tourism: 'attraction', wikipedia: 'en:x',
+	} };
+	const memorial = { type: 'node', id: 2, lat: 34.98, lon: 135.78, tags: { name: 'Plaque', wikidata: 'Q2', historic: 'memorial' } };
+	const out = parseOverpass({ elements: [memorial, temple] });
+	assert.equal(out[0].id, 'wd:Q1067252');
+});
+
+t('CJK name survives clean() intact: uppercasing a script with no case leaves it unchanged', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: '阿弥陀ヶ峰', wikidata: 'Q1', natural: 'peak' } });
+	assert.equal(s.name, '阿弥陀ヶ峰');
 });
 
 t('status: UNESCO only for heritage:operator=whc, PROTECTED for other heritage, absent otherwise', () => {
@@ -239,7 +294,7 @@ t('capPerTile: keeps the best-ranked per tile, id breaks ties', () => {
 	const kept = capPerTile(list, 2);
 	assert.deepEqual(kept.filter((s) => s.tile === 'T1').map((s) => s.id), ['c', 'b']);
 	assert.deepEqual(kept.filter((s) => s.tile === 'T2').map((s) => s.id), ['e']);
-	assert.equal(PER_TILE_CAP, 12);
+	assert.equal(PER_TILE_CAP, 60);
 });
 
 t('parseOverpass: one signal per Wikidata id, drops junk, survives a malformed body', () => {
@@ -303,6 +358,48 @@ t('signalsInView: bbox filter, antimeridian-aware', () => {
 	assert.deepEqual(signalsInView(list, { minLat: 48, maxLat: 49, minLon: 2, maxLon: 3 }).map((x) => x.id), ['a']);
 	assert.deepEqual(signalsInView(list, { minLat: -18, maxLat: -16, minLon: 179.9, maxLon: -179.9 }).map((x) => x.id), ['c', 'd']);
 	assert.equal(LABEL_ZOOM, 15);
+});
+
+t('distanceM: Eiffel Tower to Notre-Dame is ~4.1 km', () => {
+	const d = distanceM({ lat: 48.8584, lon: 2.2945 }, { lat: 48.8530, lon: 2.3499 });
+	assert.ok(Math.abs(d - 4090) < 60, String(d));
+});
+
+// The nearest point of a tile to p, antimeridian-aware: the tile's longitude
+// span is shifted to its copy nearest p before clamping (mirrors the fix in
+// tilesAround itself — a bare clamp picks the far side of the date line).
+function nearestPointOf(b, p) {
+	let w = b.w, e = b.e;
+	if (w - p.lon > 180) { w -= 360; e -= 360; }
+	else if (p.lon - e > 180) { w += 360; e += 360; }
+	return { lat: Math.max(b.s, Math.min(b.n, p.lat)), lon: Math.max(w, Math.min(e, p.lon)) };
+}
+
+t('tilesAround: own tile first, every tile within the radius, none farther', () => {
+	const p = { lat: 48.8584, lon: 2.2945 };
+	const keys = tilesAround(p.lat, p.lon, 1500);
+	assert.equal(keys[0], tileKey(tileOf(p.lat, p.lon)));
+	assert.equal(new Set(keys).size, keys.length);
+	assert.ok(keys.length >= 1 && keys.length <= 9, String(keys.length));
+	for (const k of keys) {
+		const [, x, y] = k.split('/').map(Number);
+		const b = tileBounds({ x, y });
+		const near = nearestPointOf(b, p);
+		assert.ok(distanceM(p, near) <= 1500 + 1, k);
+	}
+	assert.deepEqual(tilesAround(p.lat, p.lon, 0), [tileKey(tileOf(p.lat, p.lon))]);
+});
+
+t('tilesAround: sees across the antimeridian', () => {
+	const p = { lat: -17, lon: 179.99 };
+	const keys = tilesAround(p.lat, p.lon, 1500);
+	assert.ok(keys.some((k) => k.startsWith('z12/0/')), String(keys));
+	for (const k of keys) {
+		const [, x, y] = k.split('/').map(Number);
+		const b = tileBounds({ x, y });
+		const near = nearestPointOf(b, p);
+		assert.ok(distanceM(p, near) <= 1500 + 1, k);
+	}
 });
 
 console.log(`signal-model: ${n} ok`);
