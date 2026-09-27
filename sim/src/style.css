@@ -2122,6 +2122,14 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .map-mono .sc-history-controls { align-items: flex-end; }
 .map-mono .sc-map-controls .sc-history-switch { display: flex; white-space: nowrap; }
 
+.sc-signals-status {
+	font: var(--fs-micro) var(--font-ui);
+	letter-spacing: var(--track-ui);
+	color: var(--dim);
+	padding: var(--space-1) var(--space-2);
+}
+.sc-signals-status[data-state="unavailable"] { color: var(--yellow); }
+
 /* The overlay canvas never takes the pointer: nothing on it is a target, so a
    drag started over a track still pans the map. */
 .map-mono canvas.map-tracks { pointer-events: none; }
