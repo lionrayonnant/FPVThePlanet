@@ -445,7 +445,14 @@ export class FpvtpOsd {
 					if (node) return node;
 				}
 				if (text === SIGNALS_LINE) {
-					const node = this._signalRecap?.();
+					// External provider: a throw must not take the whole end screen
+					// down with it (replaceChildren would never run).
+					let node = null;
+					try {
+						node = this._signalRecap?.();
+					} catch (err) {
+						console.warn('signal recap provider threw', err);
+					}
 					if (node) return node;
 				}
 				const d = document.createElement('div');
