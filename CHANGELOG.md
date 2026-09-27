@@ -33,6 +33,12 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   Les lieux sont demandés à Overpass tuile par tuile, une seule requête à la
   fois, et gardés 30 jours en cache. Si Overpass ne répond pas, le scanner l'affiche et le jeu reste
   jouable. C'est le premier lot de #185 : la capture en vol vient ensuite.
+- **Capturer un signal en vol.** Autour du point de décollage, chaque lieu
+  notable porte un cartouche ancré sur le bâtiment réel. Le garder dans le
+  cadre en FPV remplit une jauge et déchiffre ses champs OpenStreetMap un à un ;
+  à 100 %, `UPLINKED` : l'image interceptée rejoint les photos de la session,
+  et le lieu passe au vert sur le scanner. Un crash ne perd que ce qui n'était
+  pas encore transmis. Deuxième lot de #185.
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
   quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :

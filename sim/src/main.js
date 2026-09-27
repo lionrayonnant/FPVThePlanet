@@ -66,7 +66,14 @@ import { FlightEnd, FLYING } from './flight-end.js';
 import { Turtle, maxRollTorque } from './turtle.js';
 import { Geofence, NOMINAL as FENCE_OK } from './geofence.js';
 import { DistantGround } from './ground.js';
-import { localEnuToEcef, ecefToGeodetic } from '../tools/lib/rocktree/geodesy.mjs';
+import { localEnuToEcef, ecefToGeodetic, geodeticToEcef, ecefToLocalEnu } from '../tools/lib/rocktree/geodesy.mjs';
+import { sharedSignalSource } from './signal-source.js';
+import { tilesAround, distanceM } from '../tools/signal-model.mjs';
+import { SignalCapture, HOLD_S } from './signal-capture.js';
+import { SignalAnchors } from './signal-anchor.js';
+import { SignalCallout } from './signal-callout.js';
+import { placeCallout } from '../tools/signal-callout-model.mjs';
+import { withResolved, resolvedIds } from '../tools/signal-store-model.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 import { LiveNodeQueue } from './live-node-queue.js';
@@ -692,6 +699,21 @@ let exitPadHeld = true;
 let pendingCapture = false;
 
 const flightEnd = new FlightEnd();
+
+// Signals in flight (#185): the landmarks within FLIGHT_RADIUS_M of the
+// take-off point, anchored, captured by holding them in the FPV frame.
+const FLIGHT_RADIUS_M = 1500;
+const signalCapture = new SignalCapture();
+const signalAnchors = new SignalAnchors({
+	toLocal: (lat, lon) => localOfGeo(lat, lon),
+	// The live boot's ground probe window (bootLive(), groundBelow(0, 3000, 0,
+	// 6000)): the anchor's own 600 m window misses landmarks far from origin height.
+	ground: (x, z) => physics?.groundBelow(x, 3000, z, 6000) ?? null,
+});
+const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
+let flightSignals = [];          // Signal[] live in this flight
+let signalTargets = [];          // SignalCapture targets, rebuilt when the list changes
+let offFlightSignals = null;     // unsubscribe from the shared source
 
 // Assisted turtle mode (#105). Fed INSIDE the fixed-step loop, like the area
 // fence: its torque has to leave in the same step as the thrust, and its damping
@@ -1382,6 +1404,7 @@ async function finishBoot(preloading, { arm = true } = {}) {
 	settings.flightActive = true;
 	lastTime = performance.now();
 	flightStartTime = lastTime;
+	armSignals();
 	renderer.setAnimationLoop(frame);
 	uiAudio.play('TERRAIN_READY');
 }
@@ -1742,6 +1765,7 @@ async function bootLive([lat, lon], { arm = true } = {}) {
 	settings.flightActive = true;
 	lastTime = performance.now();
 	flightStartTime = lastTime;
+	armSignals();
 	renderer.setAnimationLoop(frame);
 }
 
@@ -1820,6 +1844,7 @@ function finishSession({ redeploy = false } = {}) {
 	// stop saying it. The reload clears it anyway, but Settings reads it in the
 	// meantime (gamepad nav, and the REPLAY BRIEFING button of F2).
 	settings.flightActive = false;
+	disarmSignals();
 	if (redeploy && lastZone) {
 		try { sessionStorage.setItem(QUICK_RESTART_KEY, JSON.stringify(lastZone)); } catch {}
 	}
@@ -1988,6 +2013,8 @@ function setView(mode) {
 }
 
 const _fwd = new THREE.Vector3();
+const _sigFwd = new THREE.Vector3();
+const _sigNdc = new THREE.Vector3();
 const _camQ = new THREE.Quaternion();
 const _tilt = new THREE.Quaternion();
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -2068,6 +2095,124 @@ function droneGeo(p) {
 		return { lat: g.lat, lon: g.lon };
 	}
 	return latLonOf(p);
+}
+
+// lat/lon -> local ENU {x, z}: the inverse of droneGeo(), for signals (#185).
+// Live: through ECEF, like the streaming window. Baked: the inverse of the
+// flat latLonOf(). null when the scene has no origin.
+function localOfGeo(lat, lon) {
+	if (liveWindow) {
+		const p = ecefToLocalEnu(geodeticToEcef(lat, lon, 0), liveWindow.originEcef, liveWindow.originBasis);
+		return { x: p.x, z: p.z };
+	}
+	const o = sceneManifest?.origin;
+	if (!o || !Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) return null;
+	return { x: (lon - o.longitude) * 111320 * Math.cos(lat * Math.PI / 180), z: -(lat - o.latitude) * 111320 };
+}
+
+// Arms the signals around the take-off point (#185). Called once the drone is
+// placed and the ENU origin fixed, on the baked and live boots alike.
+function armSignals() {
+	disarmSignals();
+	if (MODE.bench) return;
+	const home = droneGeo(physics.position);
+	if (!Number.isFinite(home.lat) || !Number.isFinite(home.lon)) return;
+	const src = sharedSignalSource();
+	const refresh = () => {
+		const done = resolvedIds(operator.getOperator()?.signals);
+		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M);
+		signalAnchors.set(flightSignals);
+		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id) }));
+		signalCapture.setTargets(signalTargets);
+	};
+	offFlightSignals = src.subscribe(refresh);
+	src.request(tilesAround(home.lat, home.lon, FLIGHT_RADIUS_M));
+	refresh();
+}
+function disarmSignals() {
+	offFlightSignals?.();
+	offFlightSignals = null;
+	flightSignals = [];
+	signalTargets = [];
+	signalAnchors.set([]);
+	signalCapture.setTargets([]);
+	signalCallout.render(null);
+}
+// Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
+if (import.meta.env?.DEV) {
+	window.__signals = {
+		list: () => flightSignals.map((s) => ({ id: s.id, name: s.name, tier: s.tier, lat: s.lat, lon: s.lon, pos: signalAnchors.pos(s.id) })),
+		out: () => signalCapture.out,
+		geo: (p) => droneGeo(p),
+		local: (lat, lon) => localOfGeo(lat, lon),
+	};
+}
+
+// Per frame: anchors, capture, callout. The target objects are the ones
+// setTargets() holds, so updating their pos in place is enough.
+function updateSignals(dt, frozen) {
+	signalAnchors.update(frozen ? 0 : dt);
+	for (const t of signalTargets) t.pos = signalAnchors.pos(t.id);
+	_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+	const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
+	const out = signalCapture.update({
+		dt: frozen || flightEnd.phase !== FLYING ? 0 : dt,
+		cam,
+		fpv: viewMode === 'fpv',
+		// Stop the line 6 m short of the anchor: the anchor sits on the
+		// building's own surface, which would otherwise always "block" it.
+		los: (t) => {
+			const dx = t.pos.x - cam.x, dy = t.pos.y - cam.y, dz = t.pos.z - cam.z;
+			const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - 6) / d) : 0;
+			return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
+		},
+	});
+	if (out.uplinked) onSignalUplinked(out.uplinked);
+	renderSignalCallout(out);
+}
+
+function renderSignalCallout(out) {
+	// The callout follows the focus; without one, the nearest shown signal.
+	const rows = out.rows.filter((r) => r.state !== 'hidden');
+	const row = rows.find((r) => r.id === out.focus) ?? rows.sort((a, b) => a.dist - b.dist)[0];
+	if (!row) { signalCallout.render(null); return; }
+	const signal = flightSignals.find((s) => s.id === row.id);
+	const pos = signalAnchors.pos(row.id);
+	if (!signal || !pos) { signalCallout.render(null); return; }
+	// placeCamera() moved the camera this frame; its matrices follow only at render.
+	camera.updateMatrixWorld();
+	_sigNdc.set(pos.x, pos.y, pos.z).project(camera);
+	const behind = _sigNdc.z > 1;
+	const vp = renderer.domElement.getBoundingClientRect();
+	const placed = placeCallout({ ndcX: _sigNdc.x, ndcY: _sigNdc.y, behind }, { w: vp.width, h: vp.height }, {});
+	signalCallout.render({ signal, row, placed, now: performance.now() / 1000 });
+}
+
+async function onSignalUplinked(id) {
+	const s = flightSignals.find((x) => x.id === id);
+	if (!s) return;
+	uiAudio.play('TARGET_FOUND');
+	const pos = signalAnchors.pos(id);
+	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
+	let photo = null;
+	const live = session.current();
+	if (live) {
+		const cap = await lens.capture();
+		if (cap) {
+			const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(cap.blob); });
+			const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
+			if (count > 0) photo = count - 1;
+			fpvtpOsd.flashCaptured(count);
+		}
+	}
+	const op = operator.getOperator();
+	if (op) {
+		operator.patch('signals', withResolved(op.signals, id, {
+			at: Date.now(), name: s.name, lat: s.lat, lon: s.lon, tier: s.tier,
+			family: PROFILE?.family ?? null, holdS: HOLD_S, distM: Math.round(dist),
+			sessionId: live?.id ?? null, photo,
+		}));
+	}
 }
 
 // The view mode is NOT in here: chase view keeps the simulation running (D11).
@@ -2469,6 +2614,8 @@ function frame() {
 	// right after, no unfrozen frame runs to read it. dt = 0 freezes the
 	// timeline (the decision "the end sequence freezes with the sim" still
 	// holds), but `closes` is drained whatever happens, on the next frame.
+	if (flightSignals.length) updateSignals(dt, frozen);
+
 	const fv = physics.velocity, fw = physics.angularVelocity;
 	flightEnd.update({
 		dt: frozen ? 0 : dt,
