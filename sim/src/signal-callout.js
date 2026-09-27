@@ -43,7 +43,7 @@ export class SignalCallout {
 	render(view) {
 		if (!view) { this.el.hidden = true; this.chev.hidden = true; return; }
 		const { signal, row, placed, now } = view;
-		const { word, tone } = headline(row.state);
+		const { word, tone } = headline(row.state, { need: signal.need });
 		if (!placed.onScreen) {
 			this.el.hidden = true;
 			this.chev.hidden = false;
@@ -73,7 +73,7 @@ export class SignalCallout {
 		this.word.textContent = word;
 		this.dist.textContent = `${Math.round(row.dist)} M`;
 		const lit = Math.round(row.gauge * CELLS);
-		this.gauge.hidden = row.state === 'near';
+		this.gauge.hidden = row.state === 'near' || row.state === 'encrypted';
 		this.cells.forEach((c, i) => { c.className = i < lit ? 'on' : ''; });
 		if (this._rowsFor !== signal.id) {
 			this.rows.replaceChildren(...signal.fields.map((f) => {

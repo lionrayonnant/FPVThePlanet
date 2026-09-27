@@ -147,6 +147,29 @@ t('markResolved: a signal resolved elsewhere stops at once', () => {
 	assert.equal(row(sc, 'a').state, 'resolved');
 });
 
+t('an encrypted target dead ahead in range for 10 s never uplinks, and reports encrypted', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'a', tier: 1, pos: { x: 0, y: 0, z: -100 }, encrypted: true }]);
+	assert.equal(run(sc, 10, { cam: camAt(), fpv: true, los: () => true }), null);
+	assert.equal(row(sc, 'a').state, 'encrypted');
+	assert.equal(row(sc, 'a').gauge, 0);
+	assert.notEqual(sc.out.focus, 'a');
+});
+
+t('an encrypted target beyond SHOW_M is hidden', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'a', tier: 1, pos: { x: 0, y: 0, z: -500 }, encrypted: true }]);
+	sc.update({ dt: 0.05, cam: camAt(), fpv: true, los: () => true });
+	assert.equal(row(sc, 'a').state, 'hidden');
+});
+
+t('a signal resolved earlier stays resolved even if its tier is above the current clearance', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'a', tier: 3, pos: { x: 0, y: 0, z: -100 }, encrypted: true, resolved: true }]);
+	sc.update({ dt: 0.05, cam: camAt(), fpv: true, los: () => true });
+	assert.equal(row(sc, 'a').state, 'resolved');
+});
+
 t('a resolved signal beyond SHOW_M is hidden; within it, resolved', () => {
 	const sc = new SignalCapture();
 	sc.setTargets([target('far', { x: 0, y: 0, z: -1200 }, 1, true), target('near', { x: 0, y: 0, z: -100 }, 1, true)]);

@@ -54,6 +54,7 @@ export function lensWarp(ndcX, ndcY, { aspect = 1, k1 = 0, k2 = 0, ca = 0 } = {}
 
 export function revealCount(nFields, gauge, state) {
 	if (state === 'resolved') return nFields;
+	if (state === 'encrypted') return 0;
 	if (state !== 'capturing' && state !== 'held') return 0;
 	return Math.min(nFields, Math.floor(gauge * (nFields + 1)));
 }
@@ -70,8 +71,9 @@ export function scramble(text, seed) {
 	return out;
 }
 
-export function headline(state) {
+export function headline(state, { need } = {}) {
 	if (state === 'capturing') return { word: 'CAPTURING', tone: 'orange' };
 	if (state === 'resolved') return { word: 'UPLINKED', tone: 'green' };
+	if (state === 'encrypted') return { word: `ENCRYPTED · CLEARANCE ${need}`, tone: 'dim' };
 	return { word: 'SIGNAL', tone: 'dim' };
 }
