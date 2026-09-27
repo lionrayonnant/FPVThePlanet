@@ -26,10 +26,19 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Modifié
 
+- **three passe de 0.170 à 0.186.** Depuis 0.186, le constructeur
+  d'`OrbitControls` appelle `connect()`, qui commence par `disconnect()` et lit
+  `domElement.ownerDocument` pour retirer ses écouteurs de pointeur. Notre faux
+  DOM ne portait pas `ownerDocument` : monter un viseur hors navigateur levait.
+  Les éléments nés de `fakeDom()` connaissent désormais leur document. Rien ne
+  change dans le jeu.
+
 - **Vite passe de 6 à 8, Electron à 44.4.3.** Vite 8 bundle avec Rolldown, qui
   ne lit que la forme FONCTION de `manualChunks` — la forme objet devenait un
   avertissement puis une exception, et le build tombait. Le découpage (#21) est
   le même, écrit comme le nouveau bundler le lit : `three` garde son chunk.
+
+## [1.2.0] - 2026-09-23
 
 ### Ajouté
 
@@ -2063,7 +2072,8 @@ Le détail, rubrique par rubrique.
   selftest borne famille par famille — ce qui est garanti pour les six, c'est
   que la moitié haute du cadre reste libre.
 
-[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.1.0...HEAD
+[Non publié]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/lionrayonnant/FPVThePlanet/compare/v0.1.0-beta...v0.3.0
