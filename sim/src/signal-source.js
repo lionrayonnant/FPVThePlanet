@@ -7,7 +7,7 @@
 // request per tile until the cache expires, Retry-After honoured on 429.
 // Failure never blocks anything: the scanner shows UNAVAILABLE and the game
 // plays without signals.
-import { tileBounds, overpassQuery, parseOverpass } from '../tools/signal-model.mjs';
+import { tileBounds, overpassQuery, parseOverpass, MODEL_VERSION } from '../tools/signal-model.mjs';
 
 export const ENDPOINT = 'https://overpass-api.de/api/interpreter';
 // Landmarks do not move.
@@ -62,8 +62,10 @@ export function createSignalSource({
 } = {}) {
 	const loaded = new Map();     // tileKey -> Signal[]
 	const queue = [];             // tileKeys waiting
+	const failedUntil = new Map(); // tileKey -> ms timestamp before which it must not be re-asked
 	let busy = false;             // a request (or a backoff) is running
 	let current = null;           // the tile key currently in flight (or being waited on after 429)
+	let backoff = false;          // true while `current` is a key waiting out a 429, not actively fetching
 	let state = 'idle';
 	let idleWaiters = [];
 
@@ -80,7 +82,7 @@ export function createSignalSource({
 	async function fromCache(key) {
 		try {
 			const hit = await cache.get(key);
-			if (hit && Array.isArray(hit.signals) && now() - hit.at < CACHE_TTL_MS) return hit.signals;
+			if (hit && hit.v === MODEL_VERSION && Array.isArray(hit.signals) && now() - hit.at < CACHE_TTL_MS) return hit.signals;
 		} catch { /* a broken cache is a missing cache */ }
 		return null;
 	}
@@ -108,21 +110,28 @@ export function createSignalSource({
 					const s = Number(res.headers?.get?.('retry-after'));
 					const waitMs = (Number.isFinite(s) && s > 0 ? s : DEFAULT_RETRY_S) * 1000;
 					queue.unshift(key);
+					backoff = true;
 					setState('waiting');
 					// `busy` stays true through the wait: nothing else may start. `current` stays
 					// set so request() won't re-queue it.
-					schedule(() => { busy = false; pump(); }, waitMs);
+					schedule(() => { busy = false; backoff = false; pump(); }, waitMs);
 					return;
 				}
 				if (!res.ok) throw new Error(`Overpass answered ${res.status}`);
-				const signals = parseOverpass(await res.json());
+				const raw = await res.json();
+				// A 200 can still carry an Overpass runtime error (timeout, maxsize):
+				// treat it exactly like a failed request, not a tile with 0 signals.
+				if (typeof raw?.remark === 'string' && /error/i.test(raw.remark)) throw new Error(`Overpass: ${raw.remark}`);
+				const signals = parseOverpass(raw);
 				loaded.set(key, signals);
-				try { await cache.set(key, { at: now(), signals }); } catch { /* see fromCache */ }
+				try { await cache.set(key, { v: MODEL_VERSION, at: now(), signals }); } catch { /* see fromCache */ }
 				setState('idle');
 				api.onChange();
 			}
 		} catch {
-			// Not cached, not marked loaded: a later request() retries it.
+			// Not cached, not marked loaded: a later request() retries it, once its
+			// cooldown has expired.
+			failedUntil.set(key, now() + DEFAULT_RETRY_S * 1000);
 			setState('unavailable');
 		}
 		busy = false;
@@ -131,11 +140,23 @@ export function createSignalSource({
 	}
 
 	return Object.assign(api, {
+		// Replaces the waiting queue with this view's missing tiles: what is no
+		// longer on screen is no longer worth asking for. The key actively in
+		// flight, or waiting out a 429, is untouched — and kept at the head if it
+		// was already there, so its retry is not lost.
 		request(keys) {
+			const t = now();
+			const head = backoff && queue[0] === current ? current : null;
+			const wanted = [];
 			for (const k of keys ?? []) {
-				if (typeof k !== 'string' || loaded.has(k) || queue.includes(k) || current === k) continue;
-				queue.push(k);
+				if (typeof k !== 'string' || loaded.has(k) || k === current || k === head) continue;
+				const cd = failedUntil.get(k);
+				if (cd !== undefined && t < cd) continue; // cooling down
+				if (!wanted.includes(k)) wanted.push(k);
 			}
+			queue.length = 0;
+			if (head) queue.push(head);
+			queue.push(...wanted);
 			pump();
 		},
 		signals() {

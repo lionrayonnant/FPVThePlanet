@@ -2,6 +2,7 @@
 // manual timer: no network, no browser. Run: node tools/signal-source-selftest.mjs
 import assert from 'node:assert/strict';
 import { createSignalSource, memoryCache, CACHE_TTL_MS, DEFAULT_RETRY_S, ENDPOINT } from '../src/signal-source.js';
+import { MODEL_VERSION } from '../tools/signal-model.mjs';
 
 let n = 0;
 const t = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); };
@@ -73,7 +74,7 @@ await t('signals() dedups the same landmark returned by two tiles', async () => 
 await t('a fresh cache entry answers without fetch; an expired one refetches', async () => {
 	const cache = memoryCache();
 	let now = 1_000_000;
-	await cache.set('z12/2074/1409', { at: now, signals: [{ id: 'osm:way/1', tile: 'z12/2074/1409' }] });
+	await cache.set('z12/2074/1409', { v: MODEL_VERSION, at: now, signals: [{ id: 'osm:way/1', tile: 'z12/2074/1409' }] });
 	const f = fakeFetch(() => okBody([REIMS]));
 	const src = createSignalSource({ fetch: f.fn, cache, now: () => now + CACHE_TTL_MS - 1 });
 	src.request(['z12/2074/1409']);
@@ -86,6 +87,18 @@ await t('a fresh cache entry answers without fetch; an expired one refetches', a
 	await src2.idle();
 	assert.equal(f.calls.length, 1);
 	assert.equal((await cache.get('z12/2074/1409')).signals[0].id, 'wd:Q191783');
+});
+
+await t('a cache entry with a stale MODEL_VERSION is a miss: refetched, and restored with the current version', async () => {
+	const cache = memoryCache();
+	await cache.set('z12/1/1', { v: 0, at: Date.now(), signals: [{ id: 'osm:way/1', tile: 'z12/1/1' }] });
+	const f = fakeFetch(() => okBody([REIMS]));
+	const src = createSignalSource({ fetch: f.fn, cache });
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(f.calls.length, 1);
+	assert.equal(src.signals()[0].id, 'wd:Q191783');
+	assert.equal((await cache.get('z12/1/1')).v, MODEL_VERSION);
 });
 
 await t('429: waits Retry-After seconds, then retries the same tile', async () => {
@@ -116,16 +129,18 @@ await t('429 without Retry-After uses DEFAULT_RETRY_S', async () => {
 	assert.equal(tm.pending[0].ms, DEFAULT_RETRY_S * 1000);
 });
 
-await t('a network error or a 5xx marks UNAVAILABLE, caches nothing, and a later request retries', async () => {
+await t('a network error or a 5xx marks UNAVAILABLE, caches nothing, and a later request (past the cooldown) retries', async () => {
 	const cache = memoryCache();
 	let fail = true;
+	let now = 1_000_000;
 	const f = fakeFetch(() => { if (fail) throw new Error('offline'); return okBody([REIMS]); });
-	const src = createSignalSource({ fetch: f.fn, cache });
+	const src = createSignalSource({ fetch: f.fn, cache, now: () => now });
 	src.request(['z12/2074/1409']);
 	await src.idle();
 	assert.equal(src.status(), 'unavailable');
 	assert.equal(await cache.get('z12/2074/1409'), null);
 	fail = false;
+	now += DEFAULT_RETRY_S * 1000 + 1;
 	src.request(['z12/2074/1409']);
 	await src.idle();
 	assert.equal(src.status(), 'idle');
@@ -136,6 +151,39 @@ await t('a network error or a 5xx marks UNAVAILABLE, caches nothing, and a later
 	s5.request(['z12/1/1']);
 	await s5.idle();
 	assert.equal(s5.status(), 'unavailable');
+});
+
+await t('a request inside the failure cooldown does not fetch', async () => {
+	let now = 1_000_000;
+	const f = fakeFetch(() => { throw new Error('offline'); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), now: () => now });
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(f.calls.length, 1);
+	now += DEFAULT_RETRY_S * 1000 - 1; // still cooling down
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(f.calls.length, 1, 'still cooling down: no new fetch');
+});
+
+await t('a 200 whose JSON carries an Overpass error remark is a failure: not cached, UNAVAILABLE, cools down', async () => {
+	const cache = memoryCache();
+	let now = 1_000_000;
+	const errorBody = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({
+		remark: 'runtime error: Query timed out in "query" at line 1 after 26 seconds.', elements: [],
+	}) };
+	const f = fakeFetch(() => errorBody);
+	const src = createSignalSource({ fetch: f.fn, cache, now: () => now });
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	assert.equal(await cache.get('z12/1/1'), null);
+	assert.equal(src.signals().length, 0);
+
+	// still cooling down: a re-request does not fetch again
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(f.calls.length, 1);
 });
 
 await t('onChange fires when signals or status change', async () => {
@@ -177,9 +225,22 @@ await t('request() during fetch does not re-queue the tile; with an unreliable c
 	assert.equal(src.signals().length, 1);
 });
 
+await t('request() replaces the waiting queue with the latest view: B and C never fetched once D supersedes them', async () => {
+	let resolveA = null;
+	const gate = new Promise((r) => { resolveA = r; });
+	const f = fakeFetch(async (i) => { if (i === 1) await gate; return okBody([REIMS]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.request(['A', 'B', 'C']);
+	await new Promise((r) => setImmediate(r)); // A is now in flight, B/C queued
+	src.request(['D']);
+	resolveA();
+	await src.idle();
+	assert.equal(f.calls.length, 2, 'only A then D — B and C were dropped from the superseded queue');
+});
+
 await t('a tile fails, then another tile is a cache hit → status is idle and signals are available', async () => {
 	const cache = memoryCache();
-	await cache.set('z12/1/2', { at: Date.now(), signals: [{ id: 'wd:Q191783', tile: 'z12/1/2' }] });
+	await cache.set('z12/1/2', { v: MODEL_VERSION, at: Date.now(), signals: [{ id: 'wd:Q191783', tile: 'z12/1/2' }] });
 
 	let fail = true;
 	const f = fakeFetch(() => { if (fail) throw new Error('offline'); return okBody([]); });

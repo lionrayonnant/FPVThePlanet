@@ -899,7 +899,9 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	}
 
 	signalSource ??= createSignalSource({
-		fetch: (...a) => fetch(...a),
+		// A stuck Overpass request must not stay in flight forever: the timeout
+		// aborts, which lands in the source's catch → UNAVAILABLE + cooldown.
+		fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(40_000) }),
 		cache: idbCache(),
 	});
 	// The source outlives this mount; its onChange is this mount's.

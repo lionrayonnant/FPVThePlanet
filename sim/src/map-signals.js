@@ -39,6 +39,10 @@ export function createSignalsLayer(L, { getSignals, ink = '#ece7dd' } = {}) {
 
 		refresh() { if (this._map) this._redraw(); },
 
+		// Leaflet's attribution control picks this up while the layer is on the
+		// map (ODbL requires credit wherever OSM data is shown, not just tiles).
+		getAttribution() { return 'Signals © OpenStreetMap contributors'; },
+
 		_redraw() {
 			const map = this._map, canvas = this._canvas, ctx = this._ctx;
 			if (!map || !canvas) return;
