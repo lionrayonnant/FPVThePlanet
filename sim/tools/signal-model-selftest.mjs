@@ -2,7 +2,7 @@
 // No DOM, no network. Run: node tools/signal-model-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW,
+	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW, MODEL_VERSION,
 	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
 	signalsInView, LABEL_ZOOM,
@@ -17,6 +17,7 @@ t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
 	assert.equal(MIN_QUERY_ZOOM, 11);
 	assert.equal(MAX_TILES_PER_VIEW, 12);
+	assert.equal(MODEL_VERSION, 1);
 });
 
 t('tileOf: the z12 tile of the Eiffel Tower, computed independently', () => {
@@ -188,6 +189,28 @@ t('commons: only a Commons file name is kept; image= is accepted only when it po
 	assert.equal(c({ image: 'https://commons.wikimedia.org/wiki/File:C_d.jpg' }), 'File:C d.jpg');
 	assert.equal(c({ image: 'https://example.com/x.jpg' }), null);
 	assert.equal(c({}), null);
+});
+
+t('clean caps by code points, not UTF-16 units: an astral character stays whole', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: {
+		name: 'A'.repeat(59) + '🏰' + 'B', wikidata: 'Q1', historic: 'x',
+	} });
+	assert.doesNotMatch(s.name, /[\ud800-\udbff](?![\udc00-\udfff])/, 'no lone surrogate');
+	assert.ok(s.name.includes('🏰'), 'the castle is kept whole');
+});
+
+t('commons: a malformed percent-encoding in image= does not throw, just returns null', () => {
+	const c = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', historic: 'x', ...tags } }).commons;
+	assert.equal(c({ image: 'https://commons.wikimedia.org/wiki/File:100%_x.jpg' }), null);
+});
+
+t('parseOverpass: an element that throws while being parsed is dropped, never the whole tile', () => {
+	const bad = new Proxy({ type: 'node', id: 9, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q9', historic: 'x' } }, {
+		get(t, k) { if (k === 'tags') throw new Error('boom'); return t[k]; },
+	});
+	const out = parseOverpass({ elements: [bad, REIMS] });
+	assert.equal(out.length, 1);
+	assert.equal(out[0].id, 'wd:Q191783');
 });
 
 t('capPerTile: keeps the best-ranked per tile, id breaks ties', () => {

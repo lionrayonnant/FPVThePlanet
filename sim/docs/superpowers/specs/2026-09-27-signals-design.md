@@ -58,7 +58,7 @@ higher tiers and the machines that reach them open
 carries a `wikidata` tag (the notability filter: it keeps the cathedral, drops
 the bench) **and** a landmark category: `historic=*`,
 `tourism=attraction|viewpoint`, `man_made=tower|lighthouse|dam`,
-`building=cathedral|church|castle`, `natural=peak`, `bridge` with a name. The
+`building=cathedral|church|castle`, `natural=peak`, `man_made=bridge`. The
 exact tag set lives in `signal-model.mjs` and is measured on real tiles, not
 guessed (how many signals does Paris, Reims, a Swiss valley produce).
 
@@ -77,9 +77,13 @@ About 10 000 queries/day/IP, 2 concurrent slots, 429 on abuse.
 
 - No query under a minimum map zoom (never a continent).
 - A fixed tile grid; **one query per tile, once**.
-- Persistent per-operator cache (IndexedDB), 30-day TTL — landmarks do not move.
+- Persistent per-operator cache (IndexedDB), 30-day TTL, keyed with the stored
+  `MODEL_VERSION` — landmarks do not move, but a re-parse of the same tile can.
 - One query in flight at a time, debounced after map moves, backoff on 429
   honouring `Retry-After`.
+- A failed tile (network, 5xx, an Overpass error remark in a 200) is not
+  cached and cools down `DEFAULT_RETRY_S` before it may be asked again; the
+  waiting queue is replaced by the latest view's missing tiles.
 - `[timeout:…]` and an output cap in the query itself.
 - **Density cap per tile**: keep the most notable (has `wikipedia`, then
   height). Paris must not become hundreds of dots.

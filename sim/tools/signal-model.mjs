@@ -14,6 +14,9 @@ export const TILE_Z = 12;
 export const MIN_QUERY_ZOOM = 11;
 // Hard cap per view: past it, nothing is queried and the scanner says ZOOM IN.
 export const MAX_TILES_PER_VIEW = 12;
+// Bump whenever parsing, ranking, tiers or fields change: cached tiles are
+// parsed signals, not raw Overpass answers, so a stale cache entry must miss.
+export const MODEL_VERSION = 1;
 
 const N = 2 ** TILE_Z;
 const D = Math.PI / 180;
@@ -80,7 +83,7 @@ const TEXT_MAX = 60;
 function clean(v) {
 	if (typeof v !== 'string') return null;
 	const s = v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim();
-	return s ? s.slice(0, TEXT_MAX).toUpperCase() : null;
+	return s ? Array.from(s).slice(0, TEXT_MAX).join('').toUpperCase() : null;
 }
 
 export function parseHeightM(raw) {
@@ -121,7 +124,10 @@ function commonsOf(tags) {
 	if (/^File:.+/.test(wc)) return wc;
 	const img = typeof tags.image === 'string' ? tags.image.trim() : '';
 	const m = img.match(/^https:\/\/commons\.wikimedia\.org\/wiki\/(File:.+)$/);
-	if (m) return decodeURIComponent(m[1]).replace(/_/g, ' ');
+	if (m) {
+		try { return decodeURIComponent(m[1]).replace(/_/g, ' '); }
+		catch { return null; }
+	}
 	return null;
 }
 
@@ -216,7 +222,8 @@ export function parseOverpass(json) {
 	const els = Array.isArray(json?.elements) ? json.elements : [];
 	const best = new Map();
 	for (const el of els) {
-		const s = signalFromElement(el);
+		let s;
+		try { s = signalFromElement(el); } catch { continue; } // one bad element is dropped, never the tile
 		if (!s) continue;
 		const cur = best.get(s.id);
 		if (!cur || byRank(s, cur) < 0) best.set(s.id, s);
