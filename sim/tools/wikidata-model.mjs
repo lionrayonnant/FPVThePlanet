@@ -21,7 +21,7 @@ export function qidOf(signalId) {
 }
 
 export function entityUrl(qid) {
-	const p = new URLSearchParams({ action: 'wbgetentities', ids: qid, props: 'claims|descriptions', languages: 'en', format: 'json', origin: '*' });
+	const p = new URLSearchParams({ action: 'wbgetentities', ids: qid, props: 'claims|descriptions', languages: 'en', languagefallback: '1', format: 'json', origin: '*' });
 	return `https://www.wikidata.org/w/api.php?${p}`;
 }
 

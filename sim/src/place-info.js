@@ -2,66 +2,94 @@
 // Parsing is pure (tools/wikidata-model.mjs); this module owns the fetch, the
 // in-flight dedup and the cache, following src/signal-source.js's pattern.
 //
-// Caching rule: an entity fetch failure is never cached — retry next time.
-// A Commons failure IS cached once the entity had no image to begin with
-// (photo: null is final), but NOT cached when the entity has a P18 image and
-// Commons still failed (the photo is worth retrying later).
+// The entity and its Commons photo are cached apart (`e:<qid>`, `p:<qid>`), so
+// retrying a photo never refetches the entity. A failure of either is never
+// cached as data: it goes in an in-memory negative cache instead (retry after
+// RETRY_MS, RETRY_429_MS when rate-limited), so a landmark held in frame for
+// seconds, or a server saying "slow down", does not become a request storm.
+// An entity without a P18 image has a final null photo: nothing to fetch.
 import { entityUrl, parseEntity, commonsUrl, parseCommons, qidOf } from '../tools/wikidata-model.mjs';
 import { memoryCache, idbCache } from './signal-source.js';
 
 export const PLACE_TTL_MS = 30 * 24 * 3600 * 1000;
-export const PLACE_VERSION = 1;
+export const PLACE_VERSION = 2;
+export const RETRY_MS = 5 * 60 * 1000;
+export const RETRY_429_MS = 30 * 60 * 1000;
 
 async function fetchJson(fetchFn, url) {
 	const res = await fetchFn(url);
-	if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+	if (!res.ok) {
+		const err = new Error(`${url} answered ${res.status}`);
+		err.status = res.status;
+		throw err;
+	}
 	return res.json();
 }
 
 export function createPlaceInfo({ fetch: fetchFn, cache = memoryCache(), now = Date.now } = {}) {
 	const inFlight = new Map(); // qid -> Promise<Info|null>
+	const retryAfter = new Map(); // cache key -> epoch ms before which it is not refetched
 
-	async function load(qid) {
-		let entity;
+	const backingOff = (key) => (retryAfter.get(key) ?? -Infinity) > now();
+	const backOff = (key, e) => retryAfter.set(key, now() + (e?.status === 429 ? RETRY_429_MS : RETRY_MS));
+
+	async function fromCache(key) {
 		try {
-			entity = parseEntity(await fetchJson(fetchFn, entityUrl(qid)), qid);
-		} catch {
-			// Not cached: a later call retries the whole entity.
+			const hit = await cache.get(key);
+			if (hit && hit.v === PLACE_VERSION && now() - hit.at < PLACE_TTL_MS) return hit;
+		} catch { /* a broken cache is a missing cache */ }
+		return null;
+	}
+	async function toCache(key, value) {
+		try { await cache.set(key, { v: PLACE_VERSION, at: now(), ...value }); } catch { /* see fromCache */ }
+	}
+
+	async function entityOf(qid) {
+		const key = `e:${qid}`;
+		const hit = await fromCache(key);
+		if (hit) return hit.entity;
+		if (backingOff(key)) return null;
+		try {
+			const entity = parseEntity(await fetchJson(fetchFn, entityUrl(qid)), qid);
+			await toCache(key, { entity });
+			return entity;
+		} catch (e) {
+			backOff(key, e);
 			return null;
 		}
+	}
 
-		let photo = null;
-		let photoFinal = true; // no image at all: null is the answer, cache it
-		if (entity.image) {
-			photoFinal = false; // an image exists: a failed fetch is not final
-			try {
-				photo = parseCommons(await fetchJson(fetchFn, commonsUrl(entity.image)));
-				photoFinal = true; // Commons answered (even with no usable image): final
-			} catch (e) {
-				console.warn('[place-info] Commons fetch failed', e);
-			}
+	async function photoOf(qid, image) {
+		if (!image) return null; // no P18: null is final
+		const key = `p:${qid}`;
+		const hit = await fromCache(key);
+		if (hit) return hit.photo;
+		if (backingOff(key)) return null;
+		try {
+			// Commons answered (even with no usable image): final, cached.
+			const photo = parseCommons(await fetchJson(fetchFn, commonsUrl(image)));
+			await toCache(key, { photo });
+			return photo;
+		} catch (e) {
+			console.warn('[place-info] Commons fetch failed', e);
+			backOff(key, e);
+			return null;
 		}
+	}
 
-		const info = { description: entity.description, year: entity.year, heightM: entity.heightM, photo };
-		if (photoFinal) {
-			try { await cache.set(qid, { v: PLACE_VERSION, at: now(), info }); } catch { /* a broken cache is a missing cache */ }
-		}
-		return info;
+	async function load(qid) {
+		const entity = await entityOf(qid);
+		if (!entity) return null;
+		const photo = await photoOf(qid, entity.image);
+		return { description: entity.description, year: entity.year, heightM: entity.heightM, photo };
 	}
 
 	return {
-		async info(signalId) {
+		info(signalId) {
 			const qid = qidOf(signalId);
-			if (!qid) return null;
-
-			try {
-				const hit = await cache.get(qid);
-				if (hit && hit.v === PLACE_VERSION && now() - hit.at < PLACE_TTL_MS) return hit.info;
-			} catch { /* a broken cache is a missing cache */ }
-
+			if (!qid) return Promise.resolve(null);
 			const running = inFlight.get(qid);
 			if (running) return running;
-
 			const p = load(qid).finally(() => inFlight.delete(qid));
 			inFlight.set(qid, p);
 			return p;

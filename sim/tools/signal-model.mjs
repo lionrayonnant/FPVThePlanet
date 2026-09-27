@@ -20,7 +20,7 @@ export const MIN_QUERY_ZOOM = 10;
 export const MAX_TILES_PER_VIEW = 16;
 // Bump whenever parsing, ranking, tiers or fields change: cached tiles are
 // parsed signals, not raw Overpass answers, so a stale cache entry must miss.
-export const MODEL_VERSION = 3;
+export const MODEL_VERSION = 4;
 
 const N = 2 ** TILE_Z;
 const D = Math.PI / 180;
@@ -111,6 +111,10 @@ const OUT_CAP = 2000;
 // 64 MiB is the ceiling most public instances allow.
 const MAXSIZE = 64 * 1024 * 1024;
 
+// The natural values the query asks for; kindOf() names only these, so an
+// element matched by another clause keeps that clause's kind.
+const NATURAL = ['peak', 'volcano', 'arch', 'cave_entrance', 'rock', 'stone', 'cliff', 'geyser', 'hot_spring'];
+
 export function overpassQuery({ s, w, n, e }) {
 	const bb = `(${s},${w},${n},${e})`;
 	return `[out:json][timeout:25][maxsize:${MAXSIZE}];(`
@@ -120,7 +124,7 @@ export function overpassQuery({ s, w, n, e }) {
 		+ `nwr["wikidata"]["building"~"^(cathedral|church|castle|temple|shrine|mosque|synagogue|pagoda|monastery)$"]${bb};`
 		// Point-like only: a lake, a reserve or a national park is a polygon
 		// whose centre is not a place you can frame from 300 m — excluded.
-		+ `nwr["wikidata"]["natural"~"^(peak|volcano|arch|cave_entrance|rock|stone|cliff|geyser|hot_spring)$"]${bb};`
+		+ `nwr["wikidata"]["natural"~"^(${NATURAL.join('|')})$"]${bb};`
 		+ `nwr["wikidata"]["waterway"="waterfall"]${bb};`
 		+ `nwr["wikidata"]["man_made"="bridge"]${bb};`
 		+ `);out tags center ${OUT_CAP};`;
@@ -149,7 +153,7 @@ export function parseHeightM(raw) {
 // The TYPE line, in precedence order: the most specific tag wins.
 function kindOf(tags) {
 	if (tags.waterway === 'waterfall') return 'WATERFALL';
-	if (tags.natural) return clean(tags.natural.replace(/_/g, ' '));
+	if (NATURAL.includes(tags.natural)) return clean(tags.natural.replace(/_/g, ' '));
 	if (tags.man_made === 'dam') return 'DAM';
 	if (tags.man_made === 'bridge') return 'BRIDGE';
 	if (tags.man_made === 'lighthouse') return 'LIGHTHOUSE';

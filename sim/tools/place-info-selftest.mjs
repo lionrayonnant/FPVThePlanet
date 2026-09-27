@@ -2,7 +2,7 @@
 // URL origin, memory cache: no network, no browser. Run:
 // node tools/place-info-selftest.mjs
 import assert from 'node:assert/strict';
-import { createPlaceInfo, PLACE_TTL_MS, PLACE_VERSION } from '../src/place-info.js';
+import { createPlaceInfo, PLACE_TTL_MS, PLACE_VERSION, RETRY_MS, RETRY_429_MS } from '../src/place-info.js';
 import { memoryCache } from '../src/signal-source.js';
 
 let n = 0;
@@ -58,10 +58,14 @@ function fakeFetch(respond) {
 
 const ok = (json) => ({ ok: true, status: 200, json: async () => json });
 const fail500 = { ok: false, status: 500, json: async () => ({}) };
+const fail429 = { ok: false, status: 429, json: async () => ({}) };
+const quiet = async (fn) => { const w = console.warn; console.warn = () => {}; try { return await fn(); } finally { console.warn = w; } };
 
 await t('constants', () => {
 	assert.equal(PLACE_TTL_MS, 30 * 24 * 3600 * 1000);
-	assert.equal(PLACE_VERSION, 1);
+	assert.equal(PLACE_VERSION, 2);
+	assert.equal(RETRY_MS, 5 * 60 * 1000);
+	assert.equal(RETRY_429_MS, 30 * 60 * 1000);
 });
 
 await t('two concurrent info() for the same qid: one entity fetch, one Commons fetch, same object', async () => {
@@ -97,48 +101,72 @@ await t('a second info() after resolution is a cache hit: no fetch', async () =>
 	});
 });
 
-await t('entity fetch fails: resolves null, caches nothing, a later call retries', async () => {
+await t('entity fetch fails: null, nothing cached, no retry before RETRY_MS, one after', async () => {
 	const cache = memoryCache();
+	let clock = 1_000_000;
 	let entityCalls = 0;
 	const f = fakeFetch({
 		'https://www.wikidata.org': () => { entityCalls++; return fail500; },
 		'https://commons.wikimedia.org': ok(COMMONS_OK),
 	});
-	const pi = createPlaceInfo({ fetch: f.fn, cache });
+	const pi = createPlaceInfo({ fetch: f.fn, cache, now: () => clock });
 	assert.equal(await pi.info('wd:Q188856'), null);
 	assert.equal(entityCalls, 1);
-	assert.equal(await cache.get('Q188856'), null);
+	assert.equal(await cache.get('e:Q188856'), null);
+	clock += RETRY_MS - 1;
 	assert.equal(await pi.info('wd:Q188856'), null);
-	assert.equal(entityCalls, 2, 'retried, not cached as a failure');
+	assert.equal(entityCalls, 1, 'negative cache: no refetch inside the window');
+	clock += 2;
+	assert.equal(await pi.info('wd:Q188856'), null);
+	assert.equal(entityCalls, 2, 'retried once the window is over');
 });
 
-await t('entity OK, Commons throws: photo null, not cached, a later call retries Commons', async () => {
+await t('HTTP 429 on the entity: the window is RETRY_429_MS', async () => {
+	let clock = 0;
+	let entityCalls = 0;
+	const f = fakeFetch({
+		'https://www.wikidata.org': () => { entityCalls++; return fail429; },
+		'https://commons.wikimedia.org': ok(COMMONS_OK),
+	});
+	const pi = createPlaceInfo({ fetch: f.fn, cache: memoryCache(), now: () => clock });
+	await pi.info('wd:Q188856');
+	clock += RETRY_MS + 1;
+	await pi.info('wd:Q188856');
+	assert.equal(entityCalls, 1, 'a 429 waits longer than the default window');
+	clock = RETRY_429_MS + 1;
+	await pi.info('wd:Q188856');
+	assert.equal(entityCalls, 2);
+});
+
+await t('entity OK, Commons throws: photo null, entity cached, Commons retried after RETRY_MS without refetching the entity', async () => {
 	const cache = memoryCache();
+	let clock = 1_000_000;
 	let commonsCalls = 0;
+	let commonsUp = false;
 	const f = fakeFetch({
 		'https://www.wikidata.org': ok(ENTITY_OK),
-		'https://commons.wikimedia.org': () => { commonsCalls++; throw new Error('offline'); },
+		'https://commons.wikimedia.org': () => { commonsCalls++; if (!commonsUp) throw new Error('offline'); return ok(COMMONS_OK); },
 	});
-	const warn = console.warn;
-	console.warn = () => {};
-	let pi, first, second;
-	try {
-		pi = createPlaceInfo({ fetch: f.fn, cache });
-		first = await pi.info('wd:Q188856');
-	} finally { console.warn = warn; }
+	const pi = createPlaceInfo({ fetch: f.fn, cache, now: () => clock });
+	const first = await quiet(() => pi.info('wd:Q188856'));
 	assert.deepEqual(first, {
 		description: 'mausoleum in Paris for the most distinguished French people',
 		year: 1758, heightM: 83, photo: null,
 	});
 	assert.equal(commonsCalls, 1);
-	assert.equal(await cache.get('Q188856'), null, 'the entity had an image: a null photo is not final, not cached');
+	assert.ok(await cache.get('e:Q188856'), 'the entity is cached on its own');
+	assert.equal(await cache.get('p:Q188856'), null, 'a failed photo is not cached');
 
-	// A later call (image known, Commons still failing) retries Commons, not the
-	// cache: the entity had an image, so a null photo is not final.
-	console.warn = () => {};
-	try { second = await pi.info('wd:Q188856'); } finally { console.warn = warn; }
+	const second = await quiet(() => pi.info('wd:Q188856'));
 	assert.deepEqual(second, first);
-	assert.equal(commonsCalls, 2, 'retried Commons — a P18 image with no photo yet is not final');
+	assert.equal(commonsCalls, 1, 'negative cache: Commons not retried inside the window');
+
+	clock += RETRY_MS + 1;
+	commonsUp = true;
+	const third = await quiet(() => pi.info('wd:Q188856'));
+	assert.equal(commonsCalls, 2, 'Commons retried after the window');
+	assert.deepEqual(third.photo, EXPECTED_PHOTO);
+	assert.equal(f.calls.filter((u) => u.startsWith('https://www.wikidata.org')).length, 1, 'the entity is never refetched');
 });
 
 await t('entity without P18: photo null, no Commons fetch, cached', async () => {
@@ -154,8 +182,7 @@ await t('entity without P18: photo null, no Commons fetch, cached', async () => 
 		year: null, heightM: null, photo: null,
 	});
 	assert.equal(f.calls.filter((u) => u.startsWith('https://commons.wikimedia.org')).length, 0);
-	const cached = await cache.get('Q188856');
-	assert.ok(cached);
+	assert.ok(await cache.get('e:Q188856'));
 
 	const before = f.calls.length;
 	const again = await pi.info('wd:Q188856');
@@ -165,7 +192,7 @@ await t('entity without P18: photo null, no Commons fetch, cached', async () => 
 
 await t('a stale v in the cache is a miss: refetched', async () => {
 	const cache = memoryCache();
-	await cache.set('Q188856', { v: 0, at: Date.now(), info: { description: 'old', year: null, heightM: null, photo: null } });
+	await cache.set('e:Q188856', { v: 1, at: Date.now(), entity: { description: 'old', image: null, year: null, heightM: null } });
 	const f = fakeFetch({
 		'https://www.wikidata.org': ok(ENTITY_NO_IMAGE),
 		'https://commons.wikimedia.org': () => { throw new Error('should not be called'); },
@@ -179,7 +206,7 @@ await t('a stale v in the cache is a miss: refetched', async () => {
 await t('an expired cache entry is a miss: refetched', async () => {
 	const cache = memoryCache();
 	let now = 1_000_000;
-	await cache.set('Q188856', { v: PLACE_VERSION, at: now, info: { description: 'old', year: null, heightM: null, photo: null } });
+	await cache.set('e:Q188856', { v: PLACE_VERSION, at: now, entity: { description: 'old', image: null, year: null, heightM: null } });
 	const f = fakeFetch({
 		'https://www.wikidata.org': ok(ENTITY_NO_IMAGE),
 		'https://commons.wikimedia.org': () => { throw new Error('should not be called'); },

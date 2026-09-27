@@ -17,7 +17,7 @@ t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
 	assert.equal(MIN_QUERY_ZOOM, 10);
 	assert.equal(MAX_TILES_PER_VIEW, 16);
-	assert.equal(MODEL_VERSION, 3);
+	assert.equal(MODEL_VERSION, 4);
 });
 
 t('tileOf: the z12 tile of the Eiffel Tower, computed independently', () => {
@@ -169,6 +169,13 @@ t('signalFromElement: a node uses lat/lon, name:en wins over name', () => {
 	assert.equal(s.lat, 45.83);
 	assert.equal(s.kind, 'PEAK');
 	assert.equal(s.tier, 3);
+});
+
+t('kindOf: the natural branch only for the queried natural values', () => {
+	const kind = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).kind;
+	assert.equal(kind({ natural: 'water', tourism: 'attraction' }), 'ATTRACTION');
+	assert.equal(kind({ natural: 'wood', historic: 'castle' }), 'CASTLE');
+	assert.equal(kind({ natural: 'hot_spring', tourism: 'attraction' }), 'HOT SPRING');
 });
 
 t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak, dam, bridge', () => {

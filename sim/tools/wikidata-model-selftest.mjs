@@ -38,6 +38,7 @@ t('entityUrl: CORS origin, the one id, claims + descriptions in English', () => 
 	assert.equal(u.searchParams.get('origin'), '*');
 	assert.equal(u.searchParams.get('props'), 'claims|descriptions');
 	assert.equal(u.searchParams.get('languages'), 'en');
+	assert.equal(u.searchParams.get('languagefallback'), '1');
 });
 
 t('parseEntity: the Panthéon', () => {
