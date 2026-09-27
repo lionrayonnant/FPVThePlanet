@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>CLEARANCE v4 — the hangar</title>
+<style>
+@font-face{font-family:'Departure Mono';src:url('/files/DepartureMono-Regular.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Regular.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Medium.woff2') format('woff2');font-weight:500}
+:root{--ink:#ece7dd;--dim:rgba(236,231,221,.62);--faint:rgba(236,231,221,.53);--rule:rgba(236,231,221,.14);--green:#7aa96b;--yellow:#d4b155}
+*{box-sizing:border-box}
+body{margin:0;background:#121110;color:var(--ink);font:13px/1.6 'IBM Plex Mono',monospace;letter-spacing:.02em}
+.note{max-width:1180px;margin:18px auto 0;padding:0 24px;color:var(--faint);font-size:11px}
+.col{max-width:1100px;margin:28px auto 60px;padding:0 24px}
+.t{font:18px 'Departure Mono',monospace;letter-spacing:.16em;color:var(--dim)}
+.sub{color:var(--faint);font-size:11px;letter-spacing:.08em;margin:4px 0 16px}
+.page-t{font:22px 'Departure Mono',monospace;letter-spacing:.16em}
+.page-f{color:var(--faint);font-size:11px;letter-spacing:.08em;margin:8px 0 22px}
+.sec{border-top:1px solid var(--rule);padding-top:16px;margin-top:4px}
+
+/* the hangar: one row, grouped by clearance, a shared floor line */
+.hangar{display:flex;align-items:flex-end;gap:0}
+.grp{display:flex;flex-direction:column;border-left:1px solid var(--rule);padding:0 10px}
+.grp:first-child{border-left:0;padding-left:0}
+.grp .lv{white-space:nowrap;font:11px 'Departure Mono',monospace;letter-spacing:.16em;color:var(--dim);margin-bottom:4px;display:flex;justify-content:space-between;gap:10px}
+.grp .lv .g{color:var(--green)}
+.grp .lv .p{color:var(--faint)}
+.bay{display:flex;gap:4px}
+.m{width:132px;display:flex;flex-direction:column;align-items:center}
+.m .stage{position:relative;width:132px;height:106px}
+.m img,.m .sil{position:absolute;inset:0;width:132px;height:106px}
+.m .n{font-size:10px;letter-spacing:.14em;margin-top:2px;height:14px;white-space:nowrap}
+.m.locked .n{color:var(--faint);font-family:'Departure Mono',monospace}
+.floor{height:1px;background:var(--rule);margin-top:6px}
+
+/* unlocked: a slow turntable feel — a gentle hover, never a spin that pulls the eye */
+.m.open img{animation:hover 4.8s ease-in-out infinite}
+.m.open:nth-child(2) img{animation-delay:-1.6s}.m.open:nth-child(3) img{animation-delay:-3.2s}
+@keyframes hover{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+/* locked: silhouette, still — with a rare, short tear (0.25 s every ~4 s), never a permanent glitch */
+.sil i{position:absolute;left:0;right:0;background-repeat:no-repeat;background-size:132px 106px}
+.m.locked .sil{animation:tear 4.2s steps(1) infinite}
+.m.locked:nth-child(2) .sil{animation-delay:-1.4s}.m.locked:nth-child(3) .sil{animation-delay:-2.8s}
+@keyframes tear{0%,93%{filter:none}94%{filter:brightness(1.8)}96%{filter:none}}
+.m.locked .sil i{animation:shift 4.2s steps(1) infinite}
+.m.locked:nth-child(2) .sil i{animation-delay:-1.4s}.m.locked:nth-child(3) .sil i{animation-delay:-2.8s}
+@keyframes shift{0%,93%{transform:none}94%{transform:translateX(var(--dx))}97%{transform:translateX(calc(var(--dx) * -.5))}98%{transform:none}}
+
+/* crossing a step: a warm-white scan line sweeps down; above it the model, below it the silhouette; the name decrypts behind it */
+.m.reveal .stage{overflow:hidden}
+.m.reveal img{clip-path:inset(0 0 100% 0);animation:revealImg 3.6s linear infinite}
+.m.reveal .sil{animation:revealSil 3.6s linear infinite}
+.m.reveal .scan{position:absolute;left:-6px;right:-6px;height:1px;background:var(--ink);box-shadow:0 0 6px 1px rgba(236,231,221,.6);top:0;animation:scan 3.6s linear infinite}
+@keyframes revealImg{0%,10%{clip-path:inset(0 0 100% 0)}60%,100%{clip-path:inset(0 0 0 0)}}
+@keyframes revealSil{0%,10%{clip-path:inset(0 0 0 0)}60%,100%{clip-path:inset(100% 0 0 0)}}
+@keyframes scan{0%,10%{top:0;opacity:1}60%{top:106px;opacity:1}61%,100%{opacity:0}}
+.m.reveal .n{animation:nameIn 3.6s steps(1) infinite}
+@keyframes nameIn{0%,45%{color:var(--faint)}46%,100%{color:var(--green)}}
+
+.bar{font-family:'Departure Mono',monospace;color:var(--yellow);letter-spacing:.05em}
+.kv{color:var(--dim);font-size:12px;margin-top:14px;white-space:pre}
+.kv b{color:var(--ink);font-weight:400}
+
+/* the hangar's backdrop: the same living cyan/magenta/electric mass as the fence dome, slow, behind the machines only */
+.hwrap{position:relative;padding:14px 16px 10px;overflow:hidden;isolation:isolate}
+.hwrap canvas.bg{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+.hwrap::after{content:'';position:absolute;inset:0;z-index:-1;background:repeating-linear-gradient(0deg,rgba(10,9,8,.25) 0 1px,transparent 1px 3px);pointer-events:none}
+.grp{border-left-color:rgba(236,231,221,.22)}
+.m.locked .sil{filter:none}
+</style></head><body>
+<p class="note">v3 — the machines in ONE row, like a hangar: grouped by clearance, one shared floor line, all at the same size and angle (the real 3D models). Open machines hover very gently. Locked ones are still silhouettes that tear for a quarter of a second every few seconds (never a permanent glitch). The backdrop is the fence dome's living cyan/magenta/electric mass, slow, only behind the machines. The one just unlocked shows the reveal played once when you cross the step: a scan line sweeps down, the model above it, the silhouette below, the name turns green. This sits at the top of DATA, and as the last briefing screen.</p>
+<div class="col">
+<div class="page-t">DATA</div>
+<div class="page-f">13 SESSIONS ON RECORD · 12 SIGNALS UPLINKED · CLEARANCE 1</div>
+<div class="sec">
+<div class="t">CLEARANCE</div>
+<div class="sub">1 POINT PER TIER OF EVERY SIGNAL UPLINKED · <span class="bar">▓▓▓▓▓░░░░░░░</span> 9/18 TO CLEARANCE 2</div>
+<div class="hwrap"><canvas class="bg" id="bg"></canvas><div class="hangar" id="hangar"></div><div class="floor"></div></div>
+<div class="kv">SIGNALS   <b>TIER I · TIER II</b>   <span style="color:var(--faint)">TIER III AT CLEARANCE 2</span></div>
+</div>
+</div>
+<script>
+const NAMES={freestyle5:'5" FREESTYLE',cinewhoop:'CINEWHOOP',toothpick:'TOOTHPICK',race5:'5" RACE',longrange:'LONG RANGE',heavy5:'HEAVY 5"',swarm:'SWARM'};
+const LADDER=[[0,'FROM THE START',['freestyle5'],'open'],[1,'6 PTS',['cinewhoop','toothpick'],'open'],[2,'18 PTS',['race5','longrange','heavy5'],'locked'],[3,'36 PTS',['swarm'],'locked']];
+const scr=(s)=>s.replace(/[^ "]/g,(c,i)=>'░▒▓█'[i%4]);
+const H=document.getElementById('hangar');
+for(const [lv,cost,fams,st] of LADDER){
+  const g=document.createElement('div');g.className='grp';
+  g.innerHTML=`<div class="lv"><span>CLEARANCE ${lv}</span><span class="${st==='open'?'g':'p'}">${st==='open'?'[+]':cost}</span></div><div class="bay"></div>`;
+  const bay=g.querySelector('.bay');
+  for(const f of fams){
+    const reveal=f==='toothpick';
+    const d=document.createElement('div');d.className='m '+(reveal?'reveal':st==='open'?'open':'locked');
+    let sil='<div class="sil">';for(let k=0;k<6;k++){const y=k*106/6;sil+=`<i style="top:${y}px;height:${106/6+1}px;background-image:url('/files/s-${f}.png');background-position:0 ${-y}px;--dx:${[0,7,-5,3,-8,4][k]}px"></i>`}sil+='</div>';
+    const img=(st==='open'||reveal)?`<img src="/files/m-${f}.png" alt="">`:'';
+    d.innerHTML=`<div class="stage">${(st==='locked'||reveal)?sil:''}${img}${reveal?'<div class="scan"></div>':''}</div><div class="n">${st==='locked'?scr(NAMES[f]):NAMES[f]}</div>`;
+    bay.appendChild(d);
+  }
+  H.appendChild(g);
+}
+
+// backdrop: soft blobs drifting in the demo palette, like the fence dome's organic mass; veins as slow noise lines
+(function(){const c=document.getElementById('bg'),x=c.getContext('2d');let W,H;function rs(){W=c.width=c.clientWidth;H=c.height=c.clientHeight}rs();addEventListener('resize',rs);
+const cols=['227,77,224','77,216,232','59,108,255','138,92,246'];const blobs=Array.from({length:7},(_,i)=>({c:cols[i%4],x:Math.random(),y:Math.random(),r:.25+Math.random()*.3,sx:(Math.random()-.5)*.00012,sy:(Math.random()-.5)*.0001,p:Math.random()*6}));
+function f(t){x.globalCompositeOperation='source-over';x.fillStyle='#0a0908';x.fillRect(0,0,W,H);x.globalCompositeOperation='lighter';
+for(const b of blobs){b.x=(b.x+b.sx*16+1)%1;b.y=(b.y+b.sy*16+1)%1;const px=b.x*W,py=b.y*H,R=b.r*Math.max(W,H)*(0.9+0.1*Math.sin(t/1400+b.p));const g=x.createRadialGradient(px,py,0,px,py,R);g.addColorStop(0,`rgba(${b.c},.28)`);g.addColorStop(1,`rgba(${b.c},0)`);x.fillStyle=g;x.fillRect(0,0,W,H)}
+x.globalCompositeOperation='lighter';x.lineWidth=1;for(let k=0;k<5;k++){x.strokeStyle=`rgba(${cols[k%4]},.10)`;x.beginPath();for(let i=0;i<=40;i++){const u=i/40;const yy=H*(0.2+0.15*k)+Math.sin(u*9+t/1800+k)*14+Math.sin(u*23-t/1100)*5;i?x.lineTo(u*W,yy):x.moveTo(0,yy)}x.stroke()}
+requestAnimationFrame(f)}requestAnimationFrame(f)})();
+</script>
+</body></html>
