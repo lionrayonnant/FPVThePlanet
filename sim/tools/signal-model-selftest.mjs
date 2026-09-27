@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW,
 	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
+	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
 } from './signal-model.mjs';
 
 let n = 0;
@@ -70,6 +71,161 @@ t('overpassQuery: timeout, output cap, wikidata filter, the bbox in s,w,n,e orde
 	const clauses = q.match(/nwr\[[^;]*;|way\[[^;]*;/g);
 	assert.ok(clauses.length >= 5);
 	for (const c of clauses) assert.match(c, /\["wikidata"\]/, c);
+});
+
+const REIMS = {
+	type: 'way', id: 43263447,
+	center: { lat: 49.2536, lon: 4.0340 },
+	tags: {
+		building: 'cathedral', name: 'Cathédrale Notre-Dame de Reims',
+		wikidata: 'Q191783', wikipedia: 'fr:Cathédrale Notre-Dame de Reims',
+		start_date: '1211', height: '81', heritage: '1', 'heritage:operator': 'whc',
+		wikimedia_commons: 'File:Reims Cathedral.jpg',
+	},
+};
+
+t('parseHeightM: metres, "m" suffix, feet, garbage', () => {
+	assert.equal(parseHeightM('81'), 81);
+	assert.equal(parseHeightM('81 m'), 81);
+	assert.equal(parseHeightM('81.5'), 81.5);
+	assert.equal(Math.round(parseHeightM("265'")), 81);
+	assert.equal(Math.round(parseHeightM('265 ft')), 81);
+	assert.equal(parseHeightM('tall'), null);
+	assert.equal(parseHeightM(undefined), null);
+	assert.equal(parseHeightM('-3'), null);
+});
+
+t('signalFromElement: Reims cathedral, every field in order', () => {
+	const s = signalFromElement(REIMS);
+	assert.equal(s.id, 'wd:Q191783');
+	assert.equal(s.osm, 'way/43263447');
+	assert.equal(s.lat, 49.2536);
+	assert.equal(s.lon, 4.0340);
+	assert.equal(s.tile, tileKey(tileOf(49.2536, 4.0340)));
+	assert.equal(s.name, 'CATHÉDRALE NOTRE-DAME DE REIMS');
+	assert.equal(s.kind, 'CATHEDRAL');
+	assert.equal(s.tier, 2, 'height 81 > 50 makes it tier II');
+	assert.equal(s.heightM, 81);
+	assert.equal(s.wikipedia, true);
+	assert.equal(s.commons, 'File:Reims Cathedral.jpg');
+	assert.deepEqual(s.fields.map((f) => [f.key, f.label, f.value]), [
+		['name', 'NAME', 'CATHÉDRALE NOTRE-DAME DE REIMS'],
+		['type', 'TYPE', 'CATHEDRAL'],
+		['built', 'BUILT', '1211'],
+		['height', 'HEIGHT', '81 M'],
+		['status', 'STATUS', 'UNESCO WORLD HERITAGE'],
+	]);
+	for (const f of s.fields) assert.equal(f.source, 'osm');
+});
+
+t('signalFromElement: a node uses lat/lon, name:en wins over name', () => {
+	const s = signalFromElement({
+		type: 'node', id: 7, lat: 45.83, lon: 6.86,
+		tags: { natural: 'peak', name: 'Mont Blanc', 'name:en': 'Mont Blanc', wikidata: 'Q583', ele: '4806' },
+	});
+	assert.equal(s.id, 'wd:Q583');
+	assert.equal(s.osm, 'node/7');
+	assert.equal(s.lat, 45.83);
+	assert.equal(s.kind, 'PEAK');
+	assert.equal(s.tier, 3);
+});
+
+t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak, dam, bridge', () => {
+	const tier = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).tier;
+	assert.equal(tier({ historic: 'castle' }), 1);
+	assert.equal(tier({ historic: 'castle', height: '50' }), 1, '50 is not > 50');
+	assert.equal(tier({ historic: 'castle', height: '51' }), 2);
+	assert.equal(tier({ man_made: 'tower' }), 2);
+	assert.equal(tier({ man_made: 'lighthouse' }), 2);
+	assert.equal(tier({ natural: 'peak' }), 3);
+	assert.equal(tier({ man_made: 'dam' }), 3);
+	assert.equal(tier({ bridge: 'yes' }), 3);
+});
+
+t('status: UNESCO only for heritage:operator=whc, PROTECTED for other heritage, absent otherwise', () => {
+	const st = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', historic: 'monument', ...tags } })
+		.fields.find((f) => f.key === 'status')?.value ?? null;
+	assert.equal(st({ heritage: '1', 'heritage:operator': 'whc' }), 'UNESCO WORLD HERITAGE');
+	assert.equal(st({ heritage: '2' }), 'PROTECTED');
+	assert.equal(st({}), null);
+});
+
+t('architect field appears when tagged, after height', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', man_made: 'tower', height: '300', architect: 'Gustave Eiffel' } });
+	assert.deepEqual(s.fields.map((f) => f.key), ['name', 'type', 'height', 'architect']);
+	assert.equal(s.fields[3].value, 'GUSTAVE EIFFEL');
+});
+
+t('signalFromElement rejects what cannot be a signal', () => {
+	assert.equal(signalFromElement(null), null);
+	assert.equal(signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { wikidata: 'Q1', historic: 'x' } }), null, 'no name');
+	assert.equal(signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', historic: 'x' } }), null, 'no wikidata');
+	assert.equal(signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1;Q2', historic: 'x' } }), null, 'not a single Q-id');
+	assert.equal(signalFromElement({ type: 'way', id: 1, tags: { name: 'X', wikidata: 'Q1', historic: 'x' } }), null, 'no position');
+	assert.equal(signalFromElement({ type: 'node', id: 1, lat: 'a', lon: 0, tags: { name: 'X', wikidata: 'Q1', historic: 'x' } }), null, 'NaN lat');
+	assert.equal(signalFromElement({ type: 'bogus', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', historic: 'x' } }), null, 'unknown type');
+});
+
+t('text is sanitised: control chars stripped, length capped, markup kept inert as text', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: {
+		name: '<img src=x onerror=alert(1)>\u0000\u001b' + 'A'.repeat(200), wikidata: 'Q1', historic: 'x',
+	} });
+	assert.ok(!/[\u0000-\u001f]/.test(s.name));
+	assert.ok(s.name.length <= 60, String(s.name.length));
+	// Not escaped here — it is rendered with textContent / fillText, never innerHTML.
+	assert.ok(s.name.startsWith('<IMG'));
+});
+
+t('commons: only a Commons file name is kept; image= is accepted only when it points at Commons', () => {
+	const c = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', historic: 'x', ...tags } }).commons;
+	assert.equal(c({ wikimedia_commons: 'File:A b.jpg' }), 'File:A b.jpg');
+	assert.equal(c({ wikimedia_commons: 'Category:Stuff' }), null);
+	assert.equal(c({ image: 'https://commons.wikimedia.org/wiki/File:C_d.jpg' }), 'File:C d.jpg');
+	assert.equal(c({ image: 'https://example.com/x.jpg' }), null);
+	assert.equal(c({}), null);
+});
+
+t('capPerTile: keeps the best-ranked per tile, id breaks ties', () => {
+	const mk = (id, tile, rank) => ({ id, tile, rank });
+	const list = [mk('a', 'T1', 1000), mk('b', 'T1', 1500), mk('c', 'T1', 3000), mk('d', 'T1', 1500), mk('e', 'T2', 1000)];
+	const kept = capPerTile(list, 2);
+	assert.deepEqual(kept.filter((s) => s.tile === 'T1').map((s) => s.id), ['c', 'b']);
+	assert.deepEqual(kept.filter((s) => s.tile === 'T2').map((s) => s.id), ['e']);
+	assert.equal(PER_TILE_CAP, 12);
+});
+
+t('parseOverpass: one signal per Wikidata id, drops junk, survives a malformed body', () => {
+	const json = { elements: [REIMS, REIMS, { type: 'node', id: 2 }, null, 'x'] };
+	const out = parseOverpass(json);
+	assert.equal(out.length, 1);
+	assert.equal(out[0].id, 'wd:Q191783');
+	assert.deepEqual(parseOverpass(null), []);
+	assert.deepEqual(parseOverpass({ elements: 'nope' }), []);
+});
+
+// Trimmed from the real Overpass answer for the Reims z12 tile (2026-09-27,
+// 86 elements). The cathedral is there twice — a node tagged
+// archaeological_site and the building way — and a statue and a boundary
+// stone sit next to the palace and the basilica. The ranking must put the
+// three monuments first and keep the cathedral's BUILDING.
+const REIMS_TILE = [
+	{ type: 'node', id: 1071213823, lat: 49.2570619, lon: 4.0341304, tags: { name: "Jeanne d'Arc", wikidata: 'Q2963048', wikipedia: 'fr:Chevauchée vers Reims', historic: 'memorial' } },
+	{ type: 'node', id: 4253229600, lat: 49.2512625, lon: 3.9849493, tags: { name: 'Borne Vauthier', wikidata: 'Q2495007', wikipedia: 'fr:Bornes Vauthier', historic: 'memorial' } },
+	{ type: 'node', id: 7388163831, lat: 49.2535616, lon: 4.033298, tags: { name: 'Cathédrale de Reims', wikidata: 'Q206823', wikipedia: 'fr:Cathédrale Notre-Dame de Reims', historic: 'archaeological_site' } },
+	{ type: 'way', id: 92294792, center: { lat: 49.2537686, lon: 4.033823 }, tags: { name: 'Cathédrale Notre-Dame', wikidata: 'Q206823', wikipedia: 'fr:Cathédrale Notre-Dame de Reims', building: 'cathedral', tourism: 'attraction', heritage: '2' } },
+	{ type: 'way', id: 92296301, center: { lat: 49.2532652, lon: 4.0343524 }, tags: { name: 'Palais du Tau', wikidata: 'Q578771', wikipedia: 'fr:Palais du Tau (Reims)', building: 'yes', historic: 'palace', tourism: 'museum' } },
+	{ type: 'way', id: 92309276, center: { lat: 49.243071, lon: 4.0418455 }, tags: { name: 'Basilique Saint-Remi', wikidata: 'Q334233', wikipedia: 'fr:Basilique Saint-Remi de Reims', building: 'church', tourism: 'attraction', heritage: '2' } },
+];
+
+t('real Reims tile: the monuments outrank the statue and the stone, the cathedral keeps its building', () => {
+	const out = parseOverpass({ elements: REIMS_TILE });
+	assert.equal(out.length, 5, 'the cathedral node and way are one signal');
+	assert.deepEqual(out.slice(0, 3).map((s) => s.id), ['wd:Q206823', 'wd:Q334233', 'wd:Q578771']);
+	const cathedral = out[0];
+	assert.equal(cathedral.osm, 'way/92294792');
+	assert.equal(cathedral.kind, 'CATHEDRAL');
+	assert.equal(cathedral.name, 'CATHÉDRALE NOTRE-DAME');
+	for (const s of out.slice(3)) assert.equal(s.kind, 'MEMORIAL');
 });
 
 console.log(`signal-model: ${n} ok`);
