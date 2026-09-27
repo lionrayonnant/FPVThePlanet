@@ -1,7 +1,7 @@
 // Selftest of the HUD callout's pure layout (issue #185, spec §4).
 // Run: node tools/signal-callout-selftest.mjs
 import assert from 'node:assert/strict';
-import { placeCallout, revealCount, scramble, headline } from './signal-callout-model.mjs';
+import { placeCallout, revealCount, scramble, headline, lensWarp } from './signal-callout-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -33,6 +33,32 @@ t('behind the camera: the chevron points the other way', () => {
 	const p = placeCallout({ ndcX: 0.5, ndcY: 0, behind: true }, VP, { margin: 24 });
 	assert.equal(p.onScreen, false);
 	assert.ok(p.edge.x < VP.w / 2, 'reversed: the left side');
+});
+
+t('the image rect: letterboxed at x0 = 200, 1200 x 900 — NDC (0,0) at its centre', () => {
+	const img = { w: 1200, h: 900, x0: 200, y0: 0 };
+	const p = placeCallout({ ndcX: 0, ndcY: 0, behind: false }, img, {});
+	assert.deepEqual([p.ax, p.ay], [800, 450]);
+	assert.ok(p.bx >= 200 && p.bx + 230 <= 1400, String(p.bx));
+});
+
+t('the image rect: an off-screen-right edge sits inside the image, not in the band', () => {
+	const img = { w: 1200, h: 900, x0: 200, y0: 0 };
+	const p = placeCallout({ ndcX: 3, ndcY: 0, behind: false }, img, { margin: 24 });
+	assert.ok(Math.abs(p.edge.x - (200 + 1200 - 24)) < 1, String(p.edge.x));
+	assert.ok(Math.abs(p.edge.nx - 1) < 1e-9 && Math.abs(p.edge.ny) < 1e-9);
+});
+
+t('lensWarp: identity without a lens; with one, the lens forward map returns the input', () => {
+	assert.deepEqual(lensWarp(0.4, -0.2, { aspect: 4 / 3 }), { x: 0.4, y: -0.2 });
+	const L = { aspect: 4 / 3, k1: 0.3, k2: 0.1, ca: 0.006 };
+	const q = lensWarp(0.1, 0.05, L);
+	const rMax = Math.hypot(L.aspect, 1);
+	const s = Math.hypot(q.x * L.aspect, q.y), r2 = (s / rMax) ** 2;
+	const f = (1 + L.k1 * r2 + L.k2 * r2 * r2) / (1 + L.k1 + L.k2 + L.ca);
+	assert.ok(Math.abs(q.x * f - 0.1) < 1e-9 && Math.abs(q.y * f - 0.05) < 1e-9);
+	assert.ok(q.x > 0.1, 'barrel: a point near the centre is pushed outward');
+	assert.ok(Math.abs(lensWarp(1, 1, L).x - 1) < 0.01, 'the corner stays (about) the corner');
 });
 
 t('revealCount: name first, all at 100 %, nothing when merely near, all when resolved', () => {

@@ -52,18 +52,14 @@ export class SignalCallout {
 			this.chevTxt.textContent = `SIGNAL ${dist} M`;
 			this.chevArrow.textContent = '▶';
 			this.chevArrow.style.transform = `rotate(${placed.edge.angleDeg}deg)`;
-			// Arrow placement: on the side the chevron points to
-			const vpCenter = this.chev.parentElement.clientWidth / 2;
-			if (placed.edge.x > vpCenter) {
-				// Right half: arrow after text
-				this.chev.replaceChildren(this.chevTxt, this.chevArrow);
-			} else {
-				// Left half: arrow before text
-				this.chev.replaceChildren(this.chevArrow, this.chevTxt);
-			}
+			// Arrow on the side the chevron points to.
+			if (placed.edge.nx > 0) this.chev.replaceChildren(this.chevTxt, this.chevArrow);
+			else this.chev.replaceChildren(this.chevArrow, this.chevTxt);
 			this.chev.style.left = `${placed.edge.x}px`;
 			this.chev.style.top = `${placed.edge.y}px`;
-			this.chev.style.transform = `translate(-50%, -50%)`;
+			// Pulled inward by its own size: centred on the edge point, half of it
+			// would hang off the image.
+			this.chev.style.transform = `translate(${-50 - 50 * placed.edge.nx}%, ${-50 - 50 * placed.edge.ny}%)`;
 			return;
 		}
 		this.chev.hidden = true;

@@ -32,6 +32,19 @@ t('the highest sample of the ring wins: the spire, not the courtyard', () => {
 	assert.ok(Math.abs(a.pos('a').y - (80 + ABOVE_M)) < 0.5);
 });
 
+t('set() again keeps a resolved anchor as it is; a new signal starts unresolved', () => {
+	const a = new SignalAnchors({ toLocal, ground: () => 30 });
+	a.set([sig('a', 0, 0)]);
+	settle(a, 2);
+	const before = a.pos('a');
+	assert.ok(before);
+	a.set([sig('a', 0, 0), sig('b', 0.001, 0)]);
+	assert.deepEqual(a.pos('a'), before);
+	assert.equal(a.pos('b'), null);
+	a.set([sig('b', 0.001, 0)]);
+	assert.equal(a.pos('a'), null, 'a dropped id is gone');
+});
+
 t('x and z come from toLocal', () => {
 	const a = new SignalAnchors({ toLocal, ground: () => 0 });
 	a.set([sig('a', 0.001, 0.002)]);

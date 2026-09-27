@@ -24,13 +24,20 @@ export class SignalAnchors {
 		this._cursor = 0;
 	}
 
+	// Keeps the anchor of every id still listed (its probed height included):
+	// a source refresh must not blank the callouts already standing.
 	set(signals) {
+		const prev = this._by;
 		this._list = [];
 		this._by = new Map();
 		for (const s of signals ?? []) {
-			const p = this._toLocal(s.lat, s.lon);
-			if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) continue;
-			const a = { id: s.id, x: p.x, z: p.z, y: null, target: null, wait: 0 };
+			if (this._by.has(s.id)) continue;
+			let a = prev.get(s.id);
+			if (!a) {
+				const p = this._toLocal(s.lat, s.lon);
+				if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) continue;
+				a = { id: s.id, x: p.x, z: p.z, y: null, target: null, wait: 0 };
+			}
 			this._list.push(a);
 			this._by.set(s.id, a);
 		}

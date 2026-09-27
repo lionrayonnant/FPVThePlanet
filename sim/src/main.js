@@ -72,7 +72,7 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
-import { placeCallout } from '../tools/signal-callout-model.mjs';
+import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
 import { withResolved, resolvedIds } from '../tools/signal-store-model.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
@@ -2183,8 +2183,20 @@ function renderSignalCallout(out) {
 	camera.updateMatrixWorld();
 	_sigNdc.set(pos.x, pos.y, pos.z).project(camera);
 	const behind = _sigNdc.z > 1;
+	// The picture is the sensor's aspect fitted into the canvas, with black
+	// bands (lens.js _applySize()): place the callout on the picture, not the bands.
 	const vp = renderer.domElement.getBoundingClientRect();
-	const placed = placeCallout({ ndcX: _sigNdc.x, ndcY: _sigNdc.y, behind }, { w: vp.width, h: vp.height }, {});
+	const fitW = vp.width / vp.height > camera.aspect ? vp.height * camera.aspect : vp.width;
+	const fitH = vp.width / vp.height > camera.aspect ? vp.height : vp.width / camera.aspect;
+	// The lens bends the picture (barrel): follow it, or the anchor drifts off
+	// the landmark away from the centre. Its terms live on the lens's uniforms.
+	const u = lens._u;
+	const at = !behind && lens.enabled
+		? lensWarp(_sigNdc.x, _sigNdc.y, { aspect: camera.aspect, k1: u.uK1.value, k2: u.uK2.value, ca: u.uCA.value })
+		: { x: _sigNdc.x, y: _sigNdc.y };
+	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
+		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
+		{ boxW: signalCallout.box.offsetWidth || 230, boxH: signalCallout.box.offsetHeight || 110 });
 	signalCallout.render({ signal, row, placed, now: performance.now() / 1000 });
 }
 

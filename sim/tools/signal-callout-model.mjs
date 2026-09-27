@@ -2,7 +2,11 @@
 // much of it is decrypted, what the headline says. No DOM — the DOM layer is
 // src/signal-callout.js.
 
-export function placeCallout({ ndcX, ndcY, behind }, { w, h }, { boxW = 230, boxH = 110, margin = 24 } = {}) {
+// `w`, `h` are the DISPLAYED IMAGE (the sensor's aspect, letterboxed in the
+// canvas); `x0`, `y0` its top-left in the OSD's coordinate space. Every px
+// result is in that space. edge.nx/ny in [-1, 1]: where on the border the
+// chevron sits, so the DOM can pull it inward rather than centre it on the edge.
+export function placeCallout({ ndcX, ndcY, behind }, { w, h, x0 = 0, y0 = 0 }, { boxW = 230, boxH = 110, margin = 24 } = {}) {
 	const ax = (ndcX + 1) / 2 * w;
 	const ay = (1 - ndcY) / 2 * h;
 	const onScreen = !behind && Math.abs(ndcX) <= 1 && Math.abs(ndcY) <= 1;
@@ -13,15 +17,39 @@ export function placeCallout({ ndcX, ndcY, behind }, { w, h }, { boxW = 230, box
 		const hw = w / 2 - margin, hh = h / 2 - margin;
 		const k = Math.min(hw / Math.abs(dx || 1e-9), hh / Math.abs(dy || 1e-9));
 		return {
-			onScreen: false, ax, ay, bx: 0, by: 0,
-			edge: { x: w / 2 + dx * k, y: h / 2 + dy * k, angleDeg: Math.atan2(dy, dx) * 180 / Math.PI },
+			onScreen: false, ax: x0 + ax, ay: y0 + ay, bx: 0, by: 0,
+			edge: {
+				x: x0 + w / 2 + dx * k, y: y0 + h / 2 + dy * k,
+				angleDeg: Math.atan2(dy, dx) * 180 / Math.PI,
+				nx: hw > 0 ? (dx * k) / hw : 0, ny: hh > 0 ? (dy * k) / hh : 0,
+			},
 		};
 	}
 	let bx = ax + 60;
 	if (bx + boxW > w - margin) bx = ax - 60 - boxW;
 	let by = ay - 70 - boxH / 2;
 	by = Math.max(margin, Math.min(h - margin - boxH, by));
-	return { onScreen: true, ax, ay, bx, by, edge: null };
+	return { onScreen: true, ax: x0 + ax, ay: y0 + ay, bx: x0 + bx, by: y0 + by, edge: null };
+}
+
+// Where a rectilinear NDC point lands on screen once the lens has bent the
+// picture (src/lens.js: the screen pixel q samples the render at
+// q * (1 + k1 r^2 + k2 r^4) / (1 + k1 + k2 + ca), r = |q| / |(aspect, 1)|, in
+// square-pixel space). Inverts that radial map by bisection: it is monotonic
+// for the barrel terms the lens uses. No lens (k1 = k2 = ca = 0): identity.
+export function lensWarp(ndcX, ndcY, { aspect = 1, k1 = 0, k2 = 0, ca = 0 } = {}) {
+	if (!k1 && !k2 && !ca) return { x: ndcX, y: ndcY };
+	const bx = ndcX * aspect, by = ndcY;
+	const b = Math.hypot(bx, by);
+	if (b < 1e-9) return { x: ndcX, y: ndcY };
+	const rMax = Math.hypot(aspect, 1);
+	const inv = 1 / (1 + k1 + k2 + ca);
+	const fwd = (s) => { const r2 = (s / rMax) ** 2; return s * (1 + k1 * r2 + k2 * r2 * r2) * inv; };
+	let lo = 0, hi = b;
+	while (fwd(hi) < b && hi < 1e6) hi *= 2;
+	for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (fwd(mid) < b) lo = mid; else hi = mid; }
+	const k = ((lo + hi) / 2) / b;
+	return { x: ndcX * k, y: ndcY * k };
 }
 
 export function revealCount(nFields, gauge, state) {
