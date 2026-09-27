@@ -162,15 +162,23 @@ await ta('a store that throws does not stop the screen from closing', async () =
 });
 
 await ta('an all-clear setup: pad and CHROME lit, no text, no button, gone on its own', async () => {
-	const m = mount({ ua: UA_CHROME, pads: [pad('Xbox Wireless Controller')], autoMs: 300 });
+	// What the readout SHOWS, with a delay no settle() can outlast: settle() is
+	// 80 turns of setTimeout(0), ~80 ms on Linux but ~1.25 s on Windows, whose
+	// timer ticks at ~15.6 ms — a 300 ms readout was already gone there (CI).
+	const m = mount({ ua: UA_CHROME, pads: [pad('Xbox Wireless Controller')], autoMs: 60_000 });
 	await settle();
 	assert.equal(m.screens().length, 1);
 	assert.deepEqual(m.lit(), ['gamepad', 'chrome']);
 	assert.equal(m.hint(), '', 'nothing to say');
 	assert.equal(m.buttons().length, 0, 'a readout asks nothing');
+	dom.key('Escape');
 	await m.promise;
-	assert.equal(m.screens().length, 0, 'it unmounted on its own');
-	assert.equal(m.isDone(), true);
+	// And that it leaves by itself: nothing is asserted after a wall-clock wait,
+	// the promise resolving IS the proof.
+	const auto = mount({ ua: UA_CHROME, pads: [pad('Xbox Wireless Controller')], autoMs: 1 });
+	await auto.promise;
+	assert.equal(auto.screens().length, 0, 'it unmounted on its own');
+	assert.equal(auto.isDone(), true);
 });
 
 await ta('a keyboard receiver enumerated first does not hide the radio (Chrome, 2026-09-27)', async () => {
