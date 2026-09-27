@@ -28,9 +28,10 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 - **Des signaux sur le scanner.** Les monuments et lieux notables
   d'OpenStreetMap (ceux qui portent un identifiant Wikidata) apparaissent sur
-  la carte comme des losanges, avec leur niveau en points. Ils sont demandés à
-  Overpass tuile par tuile, une seule requête à la fois, et gardés 30 jours en
-  cache. Si Overpass ne répond pas, le scanner l'affiche et le jeu reste
+  la carte comme des points lumineux jaunes, dont le halo grandit avec le
+  niveau. Le scan commence dès le zoom 10, en partant du centre de la vue.
+  Les lieux sont demandés à Overpass tuile par tuile, une seule requête à la
+  fois, et gardés 30 jours en cache. Si Overpass ne répond pas, le scanner l'affiche et le jeu reste
   jouable. C'est le premier lot de #185 : la capture en vol vient ensuite.
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés

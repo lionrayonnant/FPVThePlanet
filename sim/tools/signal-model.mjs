@@ -10,10 +10,14 @@
 // One Overpass query per z12 tile, ever (until the cache expires). z12 is
 // ~6.4 km at Paris: a city is a handful of tiles, and a query stays small.
 export const TILE_Z = 12;
-// Below this map zoom the view spans too many tiles to be worth querying.
-export const MIN_QUERY_ZOOM = 11;
-// Hard cap per view: past it, nothing is queried and the scanner says ZOOM IN.
-export const MAX_TILES_PER_VIEW = 12;
+// Below this map zoom the scanner does not scan at all: the view is a region,
+// not a place you would fly.
+export const MIN_QUERY_ZOOM = 10;
+// Tiles asked per view, nearest the centre first. A wide view is not refused
+// (the operator had to zoom to 14-15 on a large screen before anything came);
+// it scans its centre, and panning scans the rest. The queue keeps only the
+// latest view, so this bounds Overpass load, not what the operator can reach.
+export const MAX_TILES_PER_VIEW = 16;
 // Bump whenever parsing, ranking, tiers or fields change: cached tiles are
 // parsed signals, not raw Overpass answers, so a stale cache entry must miss.
 export const MODEL_VERSION = 1;
@@ -43,14 +47,22 @@ export function tilesForView({ s, w, n, e }, zoom) {
 	if (!(zoom >= MIN_QUERY_ZOOM)) return null;
 	const a = tileOf(n, w), b = tileOf(s, e);
 	// Across the antimeridian the east edge wraps below the west one.
-	const xs = [];
-	if (b.x >= a.x) for (let x = a.x; x <= b.x; x++) xs.push(x);
-	else { for (let x = a.x; x < N; x++) xs.push(x); for (let x = 0; x <= b.x; x++) xs.push(x); }
-	const count = xs.length * (b.y - a.y + 1);
-	if (count > MAX_TILES_PER_VIEW) return null;
-	const keys = [];
-	for (const x of xs) for (let y = a.y; y <= b.y; y++) keys.push(tileKey({ x, y }));
-	return [...new Set(keys)].sort();
+	const inX = b.x >= a.x ? (x) => x >= a.x && x <= b.x : (x) => x >= a.x || x <= b.x;
+	const c = tileOf((s + n) / 2, e >= w ? (w + e) / 2 : ((w + e + 360) / 2 + 180) % 360 - 180);
+	// Rings around the centre tile, far enough to hold MAX_TILES_PER_VIEW.
+	const R = Math.ceil(Math.sqrt(MAX_TILES_PER_VIEW) / 2) + 1;
+	const cand = [];
+	for (let dy = -R; dy <= R; dy++) {
+		const y = c.y + dy;
+		if (y < a.y || y > b.y) continue;
+		for (let dx = -R; dx <= R; dx++) {
+			const x = (((c.x + dx) % N) + N) % N;
+			if (!inX(x)) continue;
+			cand.push({ key: tileKey({ x, y }), d: dx * dx + dy * dy });
+		}
+	}
+	cand.sort((p, q) => p.d - q.d || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0));
+	return cand.slice(0, MAX_TILES_PER_VIEW).map((t) => t.key);
 }
 
 // ---------------------------------------------------------------- query
@@ -239,4 +251,17 @@ export function signalsInView(signals, { minLat, maxLat, minLon, maxLon }) {
 	const wraps = minLon > maxLon;
 	return signals.filter((s) => s.lat >= minLat && s.lat <= maxLat
 		&& (wraps ? (s.lon >= minLon || s.lon <= maxLon) : (s.lon >= minLon && s.lon <= maxLon)));
+}
+
+// One point per screen cell of `cellPx`, the best-ranked kept: at low zoom a
+// city's signals would otherwise pile into one blinding blob. Points are
+// { s: Signal, x, y } in screen pixels; ties go to the smaller id.
+export function declutter(points, cellPx) {
+	const best = new Map();
+	for (const p of points) {
+		const k = `${Math.floor(p.x / cellPx)},${Math.floor(p.y / cellPx)}`;
+		const cur = best.get(k);
+		if (!cur || p.s.rank > cur.s.rank || (p.s.rank === cur.s.rank && p.s.id < cur.s.id)) best.set(k, p);
+	}
+	return [...best.values()];
 }

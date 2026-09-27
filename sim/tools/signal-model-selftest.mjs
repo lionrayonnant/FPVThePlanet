@@ -5,7 +5,7 @@ import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW, MODEL_VERSION,
 	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
-	signalsInView, LABEL_ZOOM,
+	signalsInView, LABEL_ZOOM, declutter,
 } from './signal-model.mjs';
 
 let n = 0;
@@ -15,8 +15,8 @@ const EIFFEL = { lat: 48.8584, lon: 2.2945 };
 
 t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
-	assert.equal(MIN_QUERY_ZOOM, 11);
-	assert.equal(MAX_TILES_PER_VIEW, 12);
+	assert.equal(MIN_QUERY_ZOOM, 10);
+	assert.equal(MAX_TILES_PER_VIEW, 16);
 	assert.equal(MODEL_VERSION, 1);
 });
 
@@ -44,17 +44,37 @@ t('tilesForView: null below MIN_QUERY_ZOOM', () => {
 	assert.equal(tilesForView(v, MIN_QUERY_ZOOM - 1), null);
 });
 
-t('tilesForView: a small view over Paris is one or a few tiles, deduped and sorted', () => {
+t('tilesForView: a small view over Paris is one or a few tiles, deduped', () => {
 	const v = { s: 48.85, w: 2.28, n: 48.87, e: 2.31 };
 	const keys = tilesForView(v, 14);
 	assert.ok(Array.isArray(keys) && keys.length >= 1 && keys.length <= 4, String(keys));
-	assert.deepEqual(keys, [...new Set(keys)].sort());
+	assert.equal(new Set(keys).size, keys.length);
 	assert.ok(keys.includes('z12/2074/1409'));
 });
 
-t('tilesForView: a view too wide returns null rather than flooding Overpass', () => {
+t('tilesForView: a wide view asks for the tiles nearest its centre, centre first, capped', () => {
+	// Île-de-France at zoom 10: dozens of z12 tiles in view. The scanner must
+	// still scan — the centre of the view, never the whole of it.
 	const v = { s: 48.0, w: 1.0, n: 50.0, e: 4.0 };
-	assert.equal(tilesForView(v, 12), null);
+	const keys = tilesForView(v, 10);
+	assert.equal(keys.length, MAX_TILES_PER_VIEW);
+	assert.equal(new Set(keys).size, keys.length);
+	const c = tileOf(49.0, 2.5);
+	assert.equal(keys[0], tileKey(c), 'the centre tile comes first');
+	for (const k of keys) {
+		const [, x, y] = k.split('/').map(Number);
+		assert.ok(Math.abs(x - c.x) <= 2 && Math.abs(y - c.y) <= 2, k);
+	}
+});
+
+t('tilesForView: every returned tile lies in the view', () => {
+	// A thin horizontal strip: the nearest tiles must not spill above or below.
+	const v = { s: 48.85, w: 1.0, n: 48.86, e: 4.0 };
+	const lo = tileOf(48.86, 1.0).y, hi = tileOf(48.85, 4.0).y;
+	for (const k of tilesForView(v, 10)) {
+		const y = Number(k.split('/')[2]);
+		assert.ok(y >= lo && y <= hi, k);
+	}
 });
 
 t('tilesForView: a view across the antimeridian is handled, not inverted', () => {
@@ -267,6 +287,14 @@ t('a tier III bridge does not outrank a cathedral: tier is difficulty, not notab
 	const out = parseOverpass({ elements: [bridge, cathedral] });
 	assert.equal(out[0].id, 'wd:Q1');
 	assert.equal(signalFromElement(bridge).tier, 3);
+});
+
+t('declutter: one point per screen cell, the best-ranked wins, deterministic', () => {
+	const p = (id, x, y, rank) => ({ s: { id, rank }, x, y });
+	const pts = [p('a', 10, 10, 100), p('b', 12, 11, 500), p('c', 60, 10, 50), p('d', 11, 12, 500)];
+	const kept = declutter(pts, 24).map((q) => q.s.id).sort();
+	assert.deepEqual(kept, ['b', 'c'], 'b and d tie on rank: the smaller id wins');
+	assert.deepEqual(declutter([], 24), []);
 });
 
 t('signalsInView: bbox filter, antimeridian-aware', () => {

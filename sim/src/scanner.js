@@ -884,7 +884,8 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 
 	const signalsLayer = createSignalsLayer(L, {
 		getSignals: () => signalSource?.signals() ?? [],
-		ink: token('--warm-white') || '#ece7dd',
+		ink: token('--yellow') || '#d4b155',
+		white: token('--warm-white') || '#ece7dd',
 	});
 	signalsLayer.addTo(map);
 
