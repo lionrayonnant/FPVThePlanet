@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>SIGNALS notice — mockup</title>
+<style>
+@font-face{font-family:'Departure Mono';src:url('/files/DepartureMono-Regular.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Regular.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Medium.woff2') format('woff2');font-weight:500}
+:root{--ink:#ece7dd;--dim:rgba(236,231,221,.62);--faint:rgba(236,231,221,.53);--green:#7aa96b;--scrim:rgba(10,9,8,.6)}
+body{margin:0;background:#121110;color:var(--ink);font:12px/1.5 'IBM Plex Mono',monospace}
+.note{padding:14px 20px;color:var(--faint);font-size:11px}
+/* the real screenshot at its real size (2560×1265), scaled down as a whole so every size is true to the game */
+.stage{position:relative;width:2560px;height:1265px;background:url("/files/flight.png") 0 0/2560px 1265px;transform-origin:0 0}
+.wrap{overflow:hidden;margin:0 20px 20px}
+/* exactly #fo-hint / #fo-cut from src/style.css */
+.chip{position:absolute;left:50%;transform:translateX(-50%);text-align:center;font:500 9.5px/1.6 "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:6.5px 16px;background:var(--scrim);text-shadow:0 0 2px #000;white-space:nowrap}
+.chip .g{color:var(--green)}
+.fade{animation:fade 5s linear infinite}
+@keyframes fade{0%{opacity:0}6%{opacity:1}80%{opacity:1}100%{opacity:0}}
+</style></head><body>
+<p class="note">One short notice, the same face/size/colour/scrim as the OSD's existing centre lines ([HOLD K] CUT LINK, THROTTLE UP), shown when control is acquired, above them, then gone after ~4 s. Frames: while the scan finishes, then the result. (Animated fade in the second frame.) The screenshot is shown at the game's real size, scaled as a whole.</p>
+<div class="wrap" id="w1"><div class="stage" id="s1"><div class="chip" style="top:40%">[*] SIGNAL SCAN · 2/7</div></div></div>
+<div class="wrap" id="w2"><div class="stage" id="s2"><div class="chip fade" style="top:40%"><span class="g">[+]</span> 49 SIGNALS IN RANGE</div></div></div>
+<script>
+function fit(){for(const i of [1,2]){const w=document.getElementById('w'+i),s=document.getElementById('s'+i);const k=(w.clientWidth)/2560;s.style.transform=`scale(${k})`;w.style.height=1265*k+'px'}}
+addEventListener('resize',fit);fit();
+</script>
+</body></html>
