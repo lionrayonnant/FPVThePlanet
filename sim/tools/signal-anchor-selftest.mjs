@@ -2,7 +2,7 @@
 // flight"). The ground probe is a function of (x, z): no Rapier.
 // Run: node tools/signal-anchor-selftest.mjs
 import assert from 'node:assert/strict';
-import { SignalAnchors, RING_M, ABOVE_M, RETRY_S } from '../src/signal-anchor.js';
+import { SignalAnchors, RING_M, ABOVE_M, RETRY_S, PROBE_RANGE_M } from '../src/signal-anchor.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -84,6 +84,20 @@ t('set() replaces the list; unknown ids read null', () => {
 	a.set([sig('b', 0, 0)]);
 	assert.equal(a.pos('a'), null);
 	assert.equal(a.pos('nope'), null);
+});
+
+t('only anchors within PROBE_RANGE_M of the camera are probed', () => {
+	const probed = new Set();
+	// 'far' sits 2 km east (toLocal: x = lon * 1000).
+	const a = new SignalAnchors({ toLocal, ground: (x) => { probed.add(x > 1000 ? 'far' : 'near'); return 10; } });
+	a.set([sig('near', 0, 0), sig('far', 0, 2)]);
+	for (let i = 0; i < 40; i++) a.update(0.05, { x: 0, z: 0 });
+	assert.equal(PROBE_RANGE_M, 500);
+	assert.ok(a.pos('near'));
+	assert.equal(a.pos('far'), null);
+	assert.ok(!probed.has('far'), 'no probe out of range');
+	for (let i = 0; i < 40; i++) a.update(0.05, { x: 1700, z: 0 });
+	assert.ok(a.pos('far'), 'probed once the camera comes within range');
 });
 
 console.log(`signal-anchor: ${n} ok`);

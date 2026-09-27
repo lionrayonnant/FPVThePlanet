@@ -142,4 +142,12 @@ t('markResolved: a signal resolved elsewhere stops at once', () => {
 	assert.equal(row(sc, 'a').state, 'resolved');
 });
 
+t('a resolved signal beyond SHOW_M is hidden; within it, resolved', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([target('far', { x: 0, y: 0, z: -1200 }, 1, true), target('near', { x: 0, y: 0, z: -100 }, 1, true)]);
+	sc.update({ dt: 0.05, cam: camAt(), fpv: true, los: () => true });
+	assert.equal(row(sc, 'far').state, 'hidden');
+	assert.equal(row(sc, 'near').state, 'resolved');
+});
+
 console.log(`signal-capture: ${n} ok`);

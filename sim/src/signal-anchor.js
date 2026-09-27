@@ -12,6 +12,9 @@ export const ABOVE_M = 3;
 export const PROBE_FROM_M = 600;
 export const RETRY_S = 0.5;
 export const RISE_TAU_S = 0.4;
+// Only anchors this close to the camera (horizontally) are probed: farther
+// ones would cast rays into tiles not streamed yet; they wait.
+export const PROBE_RANGE_M = 500;
 const PROBE_BUDGET = 4;
 const REPROBE_S = 5;
 
@@ -44,7 +47,8 @@ export class SignalAnchors {
 		this._cursor = 0;
 	}
 
-	update(dt) {
+	// camXZ: the camera's {x, z}. Omitted, every anchor is in range.
+	update(dt, camXZ = null) {
 		for (const a of this._list) {
 			a.wait -= dt;
 			if (a.y !== null && a.target !== null) a.y += (a.target - a.y) * (1 - Math.exp(-dt / RISE_TAU_S));
@@ -53,6 +57,7 @@ export class SignalAnchors {
 		for (let i = 0; i < this._list.length && budget > 0; i++) {
 			const a = this._list[(this._cursor + i) % this._list.length];
 			if (a.wait > 0) continue;
+			if (camXZ && Math.hypot(a.x - camXZ.x, a.z - camXZ.z) > PROBE_RANGE_M) continue;
 			budget--;
 			const top = this._probe(a.x, a.z);
 			if (top === null) { a.wait = RETRY_S; continue; }

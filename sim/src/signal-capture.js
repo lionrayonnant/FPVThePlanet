@@ -58,7 +58,8 @@ export class SignalCapture {
 			r.dist = dist;
 			const cos = dist > 1e-6 ? (dx * cam.fx + dy * cam.fy + dz * cam.fz) / dist : 1;
 			r.angleDeg = Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
-			if (r.state === 'resolved') continue;
+			// Resolved: shown (green) only while near, so it never hogs the callout.
+			if (r.state === 'resolved') { if (dist > SHOW_M) r.state = 'hidden'; continue; }
 			if (dist > SHOW_M && !(t.tier === 3 && dist <= RANGE_M[3][1])) continue;
 			r.state = r.gauge > 0 ? 'held' : 'near';
 			const [lo, hi] = RANGE_M[t.tier] ?? RANGE_M[1];
