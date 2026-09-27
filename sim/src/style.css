@@ -650,6 +650,39 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	background: var(--warm-white); color: var(--black); border-color: var(--warm-white);
 }
 .bootstrap button:disabled { opacity: var(--op-disabled); cursor: default; }
+/* RECOMMENDED (src/readiness.js): three pictograms, LIT when the machine sees
+   the thing, DIM when it does not yet. The contrast is the message, so dim must
+   still read as a drawing — "not yet", not "absent". The icon box is a multiple
+   of the 12-pixel grid (96 = 8 screen pixels per icon pixel, and still whole at
+   device ratios 1.25, 1.5, 1.75 and 2); crispEdges keeps every edge hard.
+   Written out twice rather than as a local custom property: palette-selftest
+   allows exactly two of those, and this is one value in one block. */
+.readiness .bootstrap-box { align-items: center; text-align: center; gap: var(--space-5); }
+.readiness .bootstrap-box pre.readiness-title { font-size: var(--fs-display-m); }
+.readiness-row {
+	display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+	gap: var(--space-4) var(--space-5);
+}
+.readiness-item {
+	display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+	min-width: 10ch;
+	color: var(--faint);
+	font-family: var(--font-ui); font-size: var(--fs-ui); letter-spacing: var(--track-ui);
+}
+/* The browser is not a third alternative to the radio and the pad: set apart. */
+.readiness-item[data-icon="chrome"] { margin-left: var(--space-5); }
+.readiness-item svg { display: block; width: 96px; height: 96px; shape-rendering: crispEdges; }
+.readiness-item.is-lit { color: var(--ink); }
+.readiness-item.is-lit .readiness-label { color: var(--green); }
+.readiness-or {
+	/* Level with the pictograms, not with their labels. */
+	align-self: flex-start; line-height: 96px;
+	color: var(--dim);
+	font-family: var(--font-ui); font-size: var(--fs-ui); letter-spacing: var(--track-ui);
+}
+.readiness .bootstrap-box pre.readiness-hint { color: var(--dim); font-family: var(--font-ui); font-size: var(--fs-ui); letter-spacing: var(--track-ui); }
+.readiness-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
+.readiness-actions button { align-self: auto; }
 /* The terminal's framed control (see the comment further down): a rule of ink
    rather than the resting grey of the other CTAs, so that it stays the one
    button that catches the eye without leaving the palette. */

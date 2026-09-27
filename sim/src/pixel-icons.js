@@ -18,19 +18,24 @@ export const PIXEL_ICONS = {
 		'#.#......#.#',
 		'##........##',
 	],
+	// An EdgeTX radio as the one this project flies with draws it — a
+	// RadioMaster Pocket, seen from the front: the folded T antenna on top, the
+	// two round gimbal wells with their sticks, the screen between them. Those
+	// three are what tells it from the `gamepad` next to it on RECOMMENDED; the
+	// previous drawing (a handset with a keypad) read as a walkie-talkie.
 	radio: [
-		'.#..........',
-		'.#..........',
-		'.#..........',
-		'.########...',
-		'.#......#...',
-		'.#.####.#...',
-		'.#.#..#.#...',
-		'.#.####.#...',
-		'.#......#...',
-		'.#.#.#.##...',
-		'.#......#...',
-		'.########...',
+		'..########..',
+		'.....##.....',
+		'.#...##...#.',
+		'############',
+		'#####..#####',
+		'##..#..#..##',
+		'#.##.##.##.#',
+		'#.##.##.##.#',
+		'##..####..##',
+		'############',
+		'.##########.',
+		'..##....##..',
 	],
 	antenna: [
 		'..#..#..#...',
@@ -219,6 +224,44 @@ export const PIXEL_ICONS = {
 		'.##########.',
 		'............',
 	],
+	// A DualShock, as a filled silhouette read through its holes: the D-pad
+	// cross on the left, the four face buttons as a diamond on the right, the
+	// two sticks between them, the shoulder buttons on top and the two grips
+	// below. Holes rather than strokes, because at this size negative space
+	// survives where one-pixel lines turn to noise.
+	gamepad: [
+		'............',
+		'.###....###.',
+		'############',
+		'##.######.##',
+		'#...####.#.#',
+		'##.######.##',
+		'####.##.####',
+		'############',
+		'#####..#####',
+		'####....####',
+		'###......###',
+		'.##......##.',
+	],
+	// The Chrome mark in one colour, as its own monochrome version draws it: a
+	// disc cut into three segments by three lines tangent to the centre, and
+	// the centre circle held apart from them by an empty ring. The cuts turn
+	// the same way — right from the top, up-left from the lower left, down
+	// from the lower right — which is what makes it a pinwheel and not a "G".
+	chrome: [
+		'...######...',
+		'..########..',
+		'.##########.',
+		'..##........',
+		'#.#..##..###',
+		'##..####.###',
+		'###.####.###',
+		'###..##..###',
+		'####....####',
+		'.######.###.',
+		'..####.###..',
+		'...###.##...',
+	],
 };
 
 export const ICON_NAMES = Object.keys(PIXEL_ICONS);
@@ -235,6 +278,19 @@ export function iconSVG(name, { color = 'currentColor', size = 12 } = {}) {
 		}
 	});
 	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" width="${size}" height="${size}" shape-rendering="crispEdges" fill="${color}">${rects}</svg>`;
+}
+
+// The same icon as one SVG path — a rectangle per horizontal run of lit
+// pixels — for a caller that builds its SVG with createElementNS and so can let
+// `currentColor` come from the page (an <img> cannot: see terminal.js).
+export function iconPath(name) {
+	const rows = PIXEL_ICONS[name];
+	if (!rows) throw new Error(`unknown pixel icon: ${name}`);
+	let d = '';
+	rows.forEach((row, y) => {
+		for (const m of row.matchAll(/#+/g)) d += `M${m.index} ${y}h${m[0].length}v1h-${m[0].length}z`;
+	});
+	return d;
 }
 
 // The same icon as a data: URI, for an <img src>.

@@ -492,9 +492,11 @@ export class FlightController {
 	// otherwise. It exists because a keyboard has no proportional stick: a tap
 	// on an arrow key is an instant full-deflection command, which in acro is
 	// 820 deg/s of roll and an unrecoverable tumble for anyone who has never
-	// flown. main.js starts a keyboard-only pilot in angle for that reason, and
-	// only main.js knows what is plugged in — the controller must not learn what
-	// an input device is. An unknown value falls back to acro rather than
+	// flown. Which device starts in which mode is decided outside, by
+	// input.js:startFlightMode() — a pad other than a radio starts in angle, the
+	// keyboard and the radio in acro (main.js:entryCategoryCap says why the
+	// keyboard stays acro) — because only the caller knows what is plugged in:
+	// the controller must not learn what an input device is. An unknown value falls back to acro rather than
 	// throwing: a bad mode is a bug elsewhere, and it must not stop a flight.
 	constructor(opts = {}) {
 		if (typeof opts === 'string') opts = { preset: opts };

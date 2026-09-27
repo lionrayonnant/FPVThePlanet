@@ -173,6 +173,25 @@ t('briefingScreens survives being called with nothing', () => {
 
 // --- the three in-flight hints ----------------------------------------------
 
+t('the INPUT screen names the flight-mode control', () => {
+	const row = (input) => briefingScreens({ input, keyRows })[0].rows.find((r) => r[0] === 'FLIGHT MODE')?.[1];
+	assert.equal(row({ kind: 'gamepad', name: 'DualSense', modeControl: 'SHARE' }), 'SHARE — ACRO / ANGLE');
+	assert.equal(row({ kind: 'gamepad', name: 'Xbox', modeControl: 'VIEW' }), 'VIEW — ACRO / ANGLE');
+	assert.equal(row({ kind: 'gamepad', name: 'Pro Controller', modeControl: '−' }), '− — ACRO / ANGLE');
+	assert.equal(row({ kind: 'gamepad', name: 'Pad', modeControl: 'SELECT' }), 'SELECT — ACRO / ANGLE');
+	assert.equal(row({ kind: 'gamepad', name: 'TX16S', modeControl: 'MODE SWITCH' }), 'MODE SWITCH — ACRO / ANGLE');
+	assert.equal(row({ kind: 'gamepad', name: 'TX16S', modeControl: 'MODE BUTTON' }), 'MODE BUTTON — ACRO / ANGLE');
+	// An uncalibrated radio has no control: the pilot keeps the key, read live.
+	assert.equal(row({ kind: 'gamepad', name: 'TX16S', modeControl: null }), 'KEY M');
+	assert.equal(row({ kind: 'gamepad', name: 'TX16S' }), 'KEY M', 'an older caller without the field');
+	const rebound = keyMapRows({ ...DEFAULT_KEY_MAP, cycleMode: ['n'] });
+	assert.equal(briefingScreens({ input: { kind: 'gamepad' }, keyRows: rebound })[0]
+		.rows.find((r) => r[0] === 'FLIGHT MODE')[1], 'KEY N');
+	// The keyboard screen already lists the key among its own rows.
+	const kb = briefingScreens({ input: { kind: 'keyboard' }, keyRows })[0];
+	assert.equal(kb.rows.some((r) => r[0] === 'FLIGHT MODE'), false);
+});
+
 const hint = (o) => flightHint({ firstFlight: true, bench: false, armed: true, ...o });
 
 t('THROTTLE UP until the first take-off', () => {
@@ -203,6 +222,21 @@ t('the cut-link hint names the live key, not a hard-coded K', () => {
 	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 31, keyRows: rows }), '[HOLD J] CUT LINK');
 	// TAB is not remappable and stays written as it is.
 	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 1, keyRows: rows }), '[TAB] SETTINGS');
+});
+
+t('the flight-mode hint follows [TAB] SETTINGS, in its own window', () => {
+	const h = (t, modeControl) => hint({ airborneOnce: true, tSinceTakeoff: t, modeControl });
+	assert.equal(h(5.9, 'SHARE'), '[TAB] SETTINGS', 'the TAB window is untouched');
+	assert.equal(h(6.1, 'SHARE'), '[SHARE] ACRO / ANGLE');
+	assert.equal(h(11.9, 'VIEW'), '[VIEW] ACRO / ANGLE');
+	assert.equal(h(8, '−'), '[−] ACRO / ANGLE');
+	assert.equal(h(8, 'SELECT'), '[SELECT] ACRO / ANGLE');
+	assert.equal(h(8, 'MODE SWITCH'), '[MODE SWITCH] ACRO / ANGLE');
+	assert.equal(h(12.1, 'SHARE'), null, 'transient');
+	assert.equal(h(8, null), null, 'nothing to name: nothing said');
+	assert.equal(h(31, 'SHARE'), '[HOLD K] CUT LINK', 'the cut-link window is untouched');
+	assert.equal(hint({ airborneOnce: false, modeControl: 'SHARE' }), 'THROTTLE UP');
+	assert.equal(hint({ airborneOnce: true, tSinceTakeoff: 8, armed: false, modeControl: 'SHARE' }), null);
 });
 
 t('never at the bench, never after the first flight', () => {

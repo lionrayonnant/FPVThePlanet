@@ -25,6 +25,11 @@ import { iconSVG } from './pixel-icons.js';
 // about what they point at.
 const SOURCE_HOST = SOURCE_URL.replace(/^https?:\/\//, '');
 
+// How long the "controller lost" warning stays up. Long enough to be read while
+// the machine is still falling, short enough not to sit on top of the briefing
+// line for the rest of the flight.
+const INPUT_LOST_MS = 8000;
+
 // Where the wind pushes from, in the drone's frame: index 0 is straight ahead.
 const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
 
@@ -123,6 +128,12 @@ export class FpvtpOsd {
 		// D16: the first-flight line, same rule — what it says is decided
 		// elsewhere (tools/briefing-model.mjs); this layer only paints it.
 		this._hintText = '';
+		// The transient WARNING that shares that same line: a controller lost in
+		// flight. `_hintBase` is what the briefing asked for, `_lostText` what
+		// takes priority over it, `_lostUntil` when the warning expires.
+		this._hintBase = '';
+		this._lostText = '';
+		this._lostUntil = 0;
 		// #264: the machine in flight, and its drawing once the link is lost. The
 		// drawing is only built at the moment the line appears — a flight that
 		// ends well never builds one.
@@ -350,7 +361,32 @@ export class FpvtpOsd {
 	// Three lines, once in an operator's life: this is not permanent help, it
 	// is a briefing that ends.
 	setHint(text) {
-		const next = text || '';
+		this._hintBase = text || '';
+		this._paintHint();
+	}
+
+	// A controller lost IN FLIGHT (input.js:onDeviceLost). It goes through #fo-hint
+	// rather than through an overlay of its own: that element is already the
+	// channel for a transient line in this corner, and one line at a time is the
+	// point of it.
+	//
+	// It takes priority over the briefing hint for as long as it lasts — losing the
+	// sticks is never less urgent than a reminder — and it expires by itself, so
+	// nothing has to remember to clear it. `input.js` decides the WORDS
+	// (deviceLostLine), this layer only paints them, exactly like setCut().
+	setInputLost(text) {
+		this._lostText = text || '';
+		this._lostUntil = this._lostText ? performance.now() + INPUT_LOST_MS : 0;
+		this._paintHint();
+	}
+
+	// The DOM is touched only when the text changes: this runs sixty times a
+	// second. The expiry is re-evaluated from update() as well, because the
+	// briefing line is not painted on every flight and setHint() may never be
+	// called again.
+	_paintHint() {
+		const lost = performance.now() < this._lostUntil ? this._lostText : '';
+		const next = lost || this._hintBase;
 		if (next === this._hintText) return;
 		this._hintText = next;
 		this.el.hint.textContent = next;
@@ -410,6 +446,9 @@ export class FpvtpOsd {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
+		// The only frame-rate clock this layer has: it is what lets the lost-device
+		// warning take itself away.
+		this._paintHint();
 		this.el.operator.textContent = `OPERATOR // ${operator ?? '—'}`;
 		// At the bench there is no session: the line says what it is rather than
 		// counting the time of something that does not exist. It is the only

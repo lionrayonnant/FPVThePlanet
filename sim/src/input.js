@@ -121,8 +121,28 @@ export const THROTTLE_MODE = { radio: 'full', gamepad: 'half' };
 //
 // The names stay as a second line of defence, for radios that enumerate under a
 // proprietary id.
+//
+// EVERY TOKEN ADDED BELOW IS A NAME, NOT AN ID. `4f54` stays the only
+// identifier in this list because it is the only one that was seen on hardware
+// here; no vendor id has been added on top of it, because an invented id would
+// read as measured without being it.
+//
+// Brand words already cover most of the EdgeTX/OpenTX market model by model:
+// `radiomaster` catches the TX12, TX16S, MT12, Zorro, Boxer and Pocket,
+// `jumper` the T-Pro, T-Lite and T20, `flysky` the Noble and the Paladin,
+// `betafpv` the LiteRadio, `tbs` the Mambo and the Tango. What a brand cannot
+// catch is a radio whose USB string carries the MODEL alone, hence the model
+// words as well.
+//
+// Those are kept DISCRIMINATING on purpose: a short token is how a list like
+// this starts claiming game controllers. `t20` would match half the wheels and
+// flight sticks on the market, `noble` and `pocket` are ordinary English words —
+// none of the three is here, those radios are reached by their brand instead.
+// What is here is either a coined word (`radioking`, `iflight`, `literadio`,
+// `mambo`) or a model code fenced by word boundaries (`tx12`, `mt12`, `nb4`,
+// `pl18`, `t-pro`, `t-lite`), which no pad id carries by accident.
 const RADIO_RE =
-	/4f54|edgetx|opentx|freedomtx|radiomaster|frsky|jumper|tx16|taranis|betafpv|flysky|tbs|tango|horus|boxer|zorro|commando/i;
+	/4f54|edgetx|opentx|freedomtx|radiomaster|frsky|jumper|tx16|taranis|betafpv|flysky|tbs|tango|horus|boxer|zorro|commando|radioking|iflight|literadio|mambo|\btx12\b|\bmt12\b|\bnb4\b|\bpl18\b|\bt-?pro\b|\bt-?lite\b/i;
 
 // 045e = vendor Microsoft. "xinput" covers the 360/One pads as seen through
 // XInput on Windows.
@@ -135,15 +155,79 @@ const XBOX_RE =
 const PLAYSTATION_RE =
 	/dualshock|dualsense|wireless controller|054c|playstation|ps[45]/i;
 
-// Returns 'radio' | 'xbox' | 'playstation' | 'generic'. The order matters:
-// radio first (a radio can announce itself as "... Controller"), then Xbox
-// before PlayStation because of "Wireless Controller".
+// 057e = vendor Nintendo (Switch Pro Controller, both Joy-Cons), 2dc8 = 8BitDo,
+// whose pads speak the Switch protocol by default. NO NEW MAPPING PROFILE comes
+// with this class, and that is not an oversight: in `mapping: "standard"` these
+// devices expose exactly the same four axes as a DualShock and an Xbox pad, so
+// defaultMapForKind() hands them GAMEPAD_MAP like everything else. The whole
+// gain is a TRUE LABEL — in the SETTINGS device list and on the readiness
+// screen — instead of `generic`, which reads as "unrecognised" and sends the
+// pilot looking for a fix they do not need.
+const NINTENDO_RE =
+	/057e|2dc8|nintendo|joy-?con|switch pro|pro controller|8bitdo/i;
+
+// 28de = vendor Valve (Steam Deck's built-in controls, Steam Controller). Same
+// story as above: standard mapping, GAMEPAD_MAP, label only. A Steam Deck with
+// Steam Input turned on presents itself as an Xbox pad instead, and is then
+// classed 'xbox' — which is what it is behaving as, so nothing is lost.
+const STEAM_RE =
+	/28de|steam ?deck|steam controller|valve/i;
+
+// Returns 'radio' | 'xbox' | 'playstation' | 'nintendo' | 'steam' | 'generic'.
+// Consumers must treat this as an OPEN set: a new family is a new label, never a
+// new branch elsewhere (padListEntries, readiness-model.mjs and
+// throttleModeForKind all read it without enumerating it).
+//
+// The order matters. Radio first, because a radio can announce itself as
+// "... Controller". Then Xbox before PlayStation, because of the bare "Wireless
+// Controller" Firefox gives the DS4 against Chrome's "Xbox Wireless
+// Controller". Nintendo and Steam come LAST of the name tests: both families
+// have pads that speak another console's protocol — an 8BitDo in XInput mode
+// enumerates under 045e, a Steam Deck under Steam Input looks like an Xbox pad —
+// and in that mode the earlier class is the truer one. Nothing here clashes the
+// other way: neither "Pro Controller" nor "Steam Deck" contains "wireless
+// controller", so putting them last costs those devices nothing.
 export function padKind(id) {
 	const s = id || '';
 	if (RADIO_RE.test(s)) return 'radio';
 	if (XBOX_RE.test(s)) return 'xbox';
 	if (PLAYSTATION_RE.test(s)) return 'playstation';
+	if (NINTENDO_RE.test(s)) return 'nintendo';
+	if (STEAM_RE.test(s)) return 'steam';
 	return 'generic';
+}
+
+// The first enumerated pad is NOT the pilot's. Chrome on Linux lists every
+// device the system tags ID_INPUT_JOYSTICK as soon as ANY of them has had an
+// input, and keyboard/mouse receivers can be one: a Keychron Link declares 6
+// axes and 16 buttons and enumerates as js0, ahead of the RadioMaster Pocket
+// (reported 2026-09-27). Firefox only exposes a device after an input on IT, so
+// the radio was alone there and the bug never showed. Nothing measurable tells
+// such a receiver from a real unknown pad, so it is not filtered out by name —
+// it is merely ranked last.
+//
+// For code that has no Input to ask — the screens before the operator exists,
+// the intro gate. In flight, Input.getGamepad() is the authority: it adopts the
+// pad that MOVES, which a keyboard receiver never does.
+const PAD_RANK = (pad) => {
+	const kind = padKind(pad.id);
+	return kind === 'radio' ? 0 : kind === 'generic' ? 2 : 1;
+};
+
+// The most relevant enumerated pad: a radio, else a recognised pad, else an
+// unknown device; enumeration order breaks ties. null when there is none.
+export function bestPad(pads) {
+	let best = null;
+	for (const p of pads ?? []) {
+		if (p && (!best || PAD_RANK(p) < PAD_RANK(best))) best = p;
+	}
+	return best;
+}
+
+// Whether any button of any enumerated pad is down — for a gesture that must
+// answer whichever device the player is holding.
+export function anyPadButtonDown(pads) {
+	return (pads ?? []).some((p) => !!p?.buttons?.some((b) => b?.pressed));
 }
 
 // What the devices screen must SHOW, decided with no DOM (issue #162).
@@ -172,10 +256,31 @@ export function padListEntries(pads, activeIndex) {
 export const PAD_LIST_EMPTY = 'nothing enumerated — move a stick or press a button on the device, '
 	+ 'the browser only reveals it after an input on it';
 
+// Said once, here, so that every screen that has to say it says the same thing:
+// an unrecognised device gets the GAMEPAD profile, which is a GUESS, and the
+// wizard is the way out of a guess. Shown by the CONTROLLER tab whenever
+// padKind() lands on 'generic'.
+export const PAD_CALIBRATE_HINT = 'unrecognised device — the channel order below is a guess; '
+	+ '[ CALIBRATE ] above measures it instead';
+
+// A controller that vanishes mid-flight used to hand the keyboard back in
+// silence (a flat Bluetooth battery, a yanked cable), so the line names the
+// device and says who is flying now. The id is trimmed the way the readiness
+// screen trims it: a Gamepad id can be a paragraph.
+export function deviceLostLine(id) {
+	const name = String(id ?? '').trim().slice(0, 32).toUpperCase();
+	return `CONTROLLER LOST${name ? ` — ${name}` : ''} · KEYBOARD ACTIVE`;
+}
+
+// One profile for every self-centring pad. 'nintendo' and 'steam' are
+// deliberately not special-cased: in standard mapping their axis order is the
+// PlayStation/Xbox one (see NINTENDO_RE).
 export function defaultMapForKind(kind) {
 	return structuredClone(kind === 'radio' ? EDGETX_MAP : GAMEPAD_MAP);
 }
 
+// Full travel is a statement about the HARDWARE — a friction gimbal that holds
+// its position — so it stays the radio's alone, whatever families get added.
 export function throttleModeForKind(kind) {
 	return kind === 'radio' ? THROTTLE_MODE.radio : THROTTLE_MODE.gamepad;
 }
@@ -194,7 +299,7 @@ export const CHANNELS = [
 ];
 
 // -----------------------------------------------------------------------------
-// CALIBRAGE MESURÉ (issue #277)
+// MEASURED CALIBRATION (issue #277)
 //
 // The calibration produced by src/calibration.js describes the device as it
 // actually is: measured centre, travel and noise, observed throttle travel
@@ -214,6 +319,16 @@ export function isValidCalibration(cal) {
 	// a hand-edited or half-written entry can, and this gate is what stands
 	// between that entry and the motors.
 	if (!isNum(cal.deadband) || cal.deadband < 0 || cal.deadband >= 1) return false;
+	// `menu` (the measured confirm/back signals) is OPTIONAL and always will be:
+	// every calibration written before it existed has none, and the pilot can skip
+	// those two steps. A calibration is about flying — it must never be thrown
+	// away over a menu convenience, so a malformed `menu` is not fatal either: it
+	// is the READER (menuButtonDown) that validates each entry and falls back to
+	// buttons 0 and 1.
+	if (cal.menu !== undefined && (cal.menu === null || typeof cal.menu !== 'object')) return false;
+	// `mode` (the measured flight-mode control) is not even looked at here: the
+	// reader (flightModeSpec) validates it and falls back, so no shape of it can
+	// cost the pilot their sticks.
 	const ch = cal.channels;
 	if (!ch || typeof ch !== 'object') return false;
 	return CAL_CHANNELS.every((name) => {
@@ -251,6 +366,117 @@ export function sticksFromCalibration(signals, cal) {
 		pitch: normalizeChannel(at('pitch'), c.pitch, cal.deadband),
 		roll: normalizeChannel(at('roll'), c.roll, cal.deadband),
 	};
+}
+
+// -----------------------------------------------------------------------------
+// MENU BUTTONS (measured, issue #123 follow-up)
+//
+// On a radio, buttons 0 and 1 are SWITCH POSITIONS, not momentary buttons: an
+// inter left on one side reads as permanently pressed, and no button that
+// validates anything is reachable. So the wizard asks for the two gestures and
+// watches what moves — the same philosophy as the four sticks.
+//
+// The index space is the module's own: axes THEN buttons (#279), because a radio
+// in standard mapping can file a signal on an analogue trigger. What is stored
+// is therefore a SIGNAL index plus its two measured ends, and "pressed" means
+// past halfway between them — which reads a digital button (-1 -> +1) and a
+// switch on an axis with the same formula.
+// -----------------------------------------------------------------------------
+
+// Rest-to-pressed travel small enough that noise alone could cross it: the
+// measurement is not trusted, and the fallback takes over.
+const MENU_MIN_TRAVEL = 0.4;
+
+export function menuButtonDown(signals, spec, fallbackIndex) {
+	if (spec && typeof spec === 'object' && isNum(spec.signal) && isNum(spec.center) && isNum(spec.on)) {
+		const v = signals[spec.signal];
+		const travel = spec.on - spec.center;
+		if (!isNum(v) || Math.abs(travel) < MENU_MIN_TRAVEL) return false;
+		return (v - spec.center) / travel >= 0.5;
+	}
+	// Nothing measured (skipped, or a calibration older than this): buttons 0 and
+	// 1 of the standard gamepad, exactly as before.
+	const v = signals[fallbackIndex];
+	return isNum(v) && v > 0;
+}
+
+// -----------------------------------------------------------------------------
+// FLIGHT-MODE CONTROL
+//
+// Until now only the M key changed flight mode: a pad started in ANGLE would
+// have had no way back to ACRO. The wizard measures the control (calibration.js,
+// THE FLIGHT-MODE CONTROL): a radio SWITCH, whose position is a mode, or a pad
+// BUTTON, which cycles. Without a measurement, every class but 'radio' gets
+// standard button 8 as its cycle button — Share / Create, View, −, Select, the
+// one button every standard pad has and no menu uses. A radio gets no default:
+// its buttons are switch positions (see MENU BUTTONS), and it starts in ACRO
+// anyway, so nobody is stuck.
+// -----------------------------------------------------------------------------
+
+export const MODE_BUTTON_DEFAULT = 8;
+
+// Button 8 as each family prints it. Anything else — 'generic' and any class
+// added later — says SELECT, the name the standard mapping gives it.
+const MODE_BUTTON_NAMES = { playstation: 'SHARE', xbox: 'VIEW', steam: 'VIEW', nintendo: '−' };
+
+// The control to read, validated, or null. `mode` is the stored measurement (any
+// shape: it is data from localStorage), `kind` the padKind() class or null for
+// the keyboard. A malformed measurement is treated as absent, never as fatal.
+export function flightModeSpec(mode, kind, axisCount) {
+	if (mode && typeof mode === 'object' && isNum(mode.signal)) {
+		if (mode.type === 'switch' && isNum(mode.acro) && isNum(mode.angle)
+			&& Math.abs(mode.acro - mode.angle) >= MENU_MIN_TRAVEL) {
+			return { type: 'switch', signal: mode.signal, acro: mode.acro, angle: mode.angle, measured: true };
+		}
+		if (mode.type === 'cycle' && isNum(mode.center) && isNum(mode.on)
+			&& Math.abs(mode.on - mode.center) >= MENU_MIN_TRAVEL) {
+			return { type: 'cycle', signal: mode.signal, center: mode.center, on: mode.on, measured: true };
+		}
+	}
+	if (!kind || kind === 'radio' || !isNum(axisCount)) return null;
+	// In the axes-then-buttons index space, a digital button rests at -1.
+	return { type: 'cycle', signal: axisCount + MODE_BUTTON_DEFAULT, center: -1, on: 1, measured: false };
+}
+
+// One frame of the control: 'acro' | 'angle' for a switch (the nearer of its
+// two measured positions), a boolean "held" for a cycle button, null when there
+// is nothing to read.
+export function readFlightMode(signals, spec) {
+	if (!spec) return null;
+	if (spec.type === 'switch') {
+		const v = signals[spec.signal];
+		if (!isNum(v)) return null;
+		return Math.abs(v - spec.acro) <= Math.abs(v - spec.angle) ? 'acro' : 'angle';
+	}
+	return menuButtonDown(signals, spec, -1);
+}
+
+// The name the briefing and the first-flight hint print for the control, or
+// null when the pad has none (an uncalibrated radio — the pilot keeps the M key).
+// ONE function, so the two screens can never name different things.
+export function flightModeControlName(kind, mode) {
+	const spec = flightModeSpec(mode, kind, 0);
+	if (!spec) return null;
+	if (spec.measured) return spec.type === 'switch' ? 'MODE SWITCH' : 'MODE BUTTON';
+	return MODE_BUTTON_NAMES[kind] ?? 'SELECT';
+}
+
+// The mode a flight starts in. A measured switch decides, as on a real radio.
+// Otherwise a radio starts in ACRO (its pilot has proportional sticks and no
+// default mode control), the keyboard (kind null) keeps ACRO by decision (see
+// main.js entryCategoryCap), and every other pad starts in ANGLE — with a mode
+// button it can always leave it by.
+export function startFlightMode(kind, switchPosition = null) {
+	if (switchPosition === 'acro' || switchPosition === 'angle') return switchPosition;
+	return !kind || kind === 'radio' ? 'acro' : 'angle';
+}
+
+// What one press of a cycle BUTTON does. Not the M key's five-mode cycle: from
+// ANGLE that would go through ALTITUDE and ACRO3D (props reversed, in flight)
+// before reaching ACRO. The button promises ACRO / ANGLE, and from any other
+// mode (reached with M) it goes back to ACRO.
+export function padCycleMode(current) {
+	return current === 'acro' ? 'angle' : 'acro';
 }
 
 // An "assumed" calibration built from a hand-written profile: this is what a
@@ -353,6 +579,21 @@ export class Input {
 
 		this.gamepadIndex = null;
 		this.usingGamepad = false;
+
+		// The id of the device currently being read, kept so that its LOSS can be
+		// named: once the pad is gone, navigator.getGamepads() no longer has it.
+		this._activePadId = null;
+
+		// Losing the controller in flight was silent — the keyboard simply took
+		// over. This module paints nothing (no DOM here, ever): it exposes the
+		// event both ways, as a callback for whoever wants to react at once and as
+		// state for whoever polls. `lostDevice` is the id, or null.
+		this.lostDevice = null;
+		this.onDeviceLost = () => {};
+
+		// Last state of the flight-mode cycle button, for the rising edge. null =
+		// not seen yet: a button already held when reading starts fires nothing.
+		this._modeHeld = null;
 
 		this._baseline = new Map();
 
@@ -481,6 +722,8 @@ export class Input {
 						'[input] gamepad disconnected:',
 						e.gamepad.id
 					);
+
+					this._loseDevice(e.gamepad.id);
 				}
 			}
 		);
@@ -578,8 +821,25 @@ export class Input {
 		return null;
 	}
 
+	// Announced ONCE per loss: the event fires, and the same disappearance seen
+	// again through update() must not re-announce it. A device coming back clears
+	// the state (_activate).
+	_loseDevice(id) {
+		const lost = id ?? this._activePadId;
+		this._activePadId = null;
+		// The slot is released as well, as the disconnect event does: a device that
+		// comes back must be ADOPTED again — that is what re-reads its calibration
+		// and clears this warning.
+		this.gamepadIndex = null;
+		if (!lost || this.lostDevice === lost) return;
+		this.lostDevice = lost;
+		this.onDeviceLost(deviceLostLine(lost), lost);
+	}
+
 	_activate(p) {
 		this.gamepadIndex = p.index;
+		this._activePadId = p.id;
+		this.lostDevice = null;
 
 		const kind = padKind(p.id);
 
@@ -606,7 +866,7 @@ export class Input {
 	}
 
 	// ---------------------------------------------------------------------------
-	// CALIBRAGE
+	// CALIBRATION
 	// ---------------------------------------------------------------------------
 
 	// The active device's calibration, or null to fall back to the guessed
@@ -624,6 +884,89 @@ export class Input {
 		this._calStore = calStoreSet(this._calStore, padId, cal);
 		saveCalStore(this._calStore);
 		this.applyCalibration(cal);
+	}
+
+	// ---------------------------------------------------------------------------
+	// MENU NAVIGATION (issue #123 follow-up)
+	//
+	// The menus used to read `pad.axes[0]` and `pad.axes[1]` off the FIRST
+	// enumerated pad. Two bugs in one line: with a radio AND a gamepad plugged in
+	// the cursor obeyed the wrong device, and on a radio in standard mapping axis
+	// 1 can be the THROTTLE stick — which does not return to centre, so the cursor
+	// left in one direction and never came back.
+	//
+	// So the direction comes from the ROLL and PITCH channels of the ACTIVE
+	// device, read through the same calibrated path as the flight. Those two are
+	// the only channels that self-centre on every piece of hardware, a radio
+	// included (the throttle does not; yaw does, but has nothing to steer here).
+	// ---------------------------------------------------------------------------
+
+	// { x, y } in -1..1, or null when there is no device. `y` is PITCH, and its
+	// sign is the flight one: -1 with the stick pushed FORWARD. menu-nav.js turns
+	// that into "forward moves the cursor up".
+	menuAxes() {
+		const pad = this.getGamepad();
+		if (!pad) return null;
+		// The same two sources as readStandardGamepad(): the measurement when there
+		// is one, and the guessed profile turned into a calibration otherwise. This
+		// is deliberately NOT a second reading of the axes.
+		const cal = this.calibration ?? assumedCalibration(this.map, this.throttleMode);
+		const sticks = sticksFromCalibration(padSignals(pad), cal);
+		return { x: sticks.roll, y: sticks.pitch };
+	}
+
+	// { confirm, back } as booleans for the active device, or null when there is
+	// none. Measured indices when the wizard took them, buttons 0 and 1 otherwise.
+	menuButtons() {
+		const pad = this.getGamepad();
+		if (!pad) return null;
+		const signals = padSignals(pad);
+		const axes = pad.axes.length;
+		const menu = this.calibration?.menu;
+		return {
+			confirm: menuButtonDown(signals, menu?.confirm, axes + 0),
+			back: menuButtonDown(signals, menu?.back, axes + 1),
+		};
+	}
+
+	// ---------------------------------------------------------------------------
+	// FLIGHT MODE
+	// ---------------------------------------------------------------------------
+
+	_modeSpec(pad) {
+		return flightModeSpec(this.calibration?.mode, padKind(pad.id), pad.axes.length);
+	}
+
+	// 'acro' | 'angle' from a switch, every frame; 'cycle' from a button, on the
+	// RISING EDGE only; null otherwise. Call it once per frame even when the
+	// result is not used (paused, panel open): that is what keeps a press made
+	// during a pause from firing when it ends.
+	flightModeCommand() {
+		const pad = this.getGamepad();
+		const spec = pad ? this._modeSpec(pad) : null;
+		const read = spec ? readFlightMode(padSignals(pad), spec) : null;
+		if (spec?.type === 'switch') { this._modeHeld = null; return read; }
+		const held = read === true;
+		const edge = held && this._modeHeld === false;
+		this._modeHeld = spec ? held : null;
+		return edge ? 'cycle' : null;
+	}
+
+	// The mode the flight should start in, for the device plugged in now. Reads
+	// the switch without touching the button's edge memory.
+	startFlightMode() {
+		const pad = this.getGamepad();
+		if (!pad) return startFlightMode(null);
+		const spec = this._modeSpec(pad);
+		const pos = spec?.type === 'switch' ? readFlightMode(padSignals(pad), spec) : null;
+		return startFlightMode(padKind(pad.id), pos);
+	}
+
+	// flightModeControlName() for the active device, or null (keyboard, or a
+	// radio with no measured control).
+	flightModeControl() {
+		const pad = this.getGamepad();
+		return pad ? flightModeControlName(padKind(pad.id), this.calibration?.mode) : null;
 	}
 
 	// The active device's id — the storage key for a calibration.
@@ -667,6 +1010,8 @@ export class Input {
 		if (pad) {
 			const kind = padKind(pad.id);
 
+			this._activePadId = pad.id;
+			this.lostDevice = null;
 			this.map = defaultMapForKind(kind);
 			this.throttleMode = throttleModeForKind(kind);
 			this.applyCalibration(calStoreGet(this._calStore, pad.id));
@@ -739,6 +1084,11 @@ export class Input {
 		) {
 			this.usingGamepad = true;
 		} else {
+			// The device was flying a moment ago and is not enumerated any more:
+			// the keyboard is about to take over, and that has to be SAID. Firefox
+			// does not always fire gamepaddisconnected on a Bluetooth pad that has
+			// simply gone flat, which is why the frame loop is the second detector.
+			if (this.usingGamepad && !pad) this._loseDevice(null);
 			this.usingGamepad = false;
 			this.readKeyboard(frozen ? 0 : dt);
 		}

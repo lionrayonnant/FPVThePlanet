@@ -7,6 +7,8 @@ import { uiAudio } from './ui-audio.js';
 import { reducedMotion, STEP_MS } from './motion.js';
 import { mountScreen, screenButton } from './screen.js';
 import { versionLine } from './version.js';
+import { browserBrand } from '../tools/readiness-model.mjs';
+import { bestPad } from './input.js';
 
 
 // ---------- honest inventory (arch doc §4) ----------
@@ -69,12 +71,14 @@ async function terrainCacheString() {
 export async function probeHardware() {
 	const ua = navigator.userAgentData;
 	const platform = (ua?.platform || navigator.platform || 'UNKNOWN').toUpperCase();
-	const brand = ua?.brands?.find((b) => !/Not.?A.?Brand/i.test(b.brand))?.brand
-		|| (navigator.userAgent.match(/(Firefox|Edg|Chrome|Safari)/)?.[1])
-		|| 'UNKNOWN';
+	// Same extraction as the RECOMMENDED screen, which is where it now
+	// lives: two copies of it would drift the day a brand is added.
+	const brand = browserBrand(ua, navigator.userAgent);
 	const hz = await measureRefreshHz();
 	const { renderer, gpu } = gpuString();
-	const pad = (navigator.getGamepads?.() ?? []).find(Boolean);
+	// The best pad, not the first: a keyboard receiver listed ahead of the radio
+	// printed its own name here (see bestPad() in input.js).
+	const pad = bestPad(navigator.getGamepads?.());
 	return [
 		{ label: 'PLATFORM', value: platform },
 		{ label: 'BROWSER', value: String(brand).toUpperCase() },

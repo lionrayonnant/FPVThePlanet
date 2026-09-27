@@ -24,7 +24,42 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
+  menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
+  quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :
+  `MOVE A STICK TO DETECT IT` (l'API Gamepad ne révèle une manette qu'après une
+  action dessus ; l'écran sonde en direct et le picto s'allume) ou, pour un
+  périphérique inconnu, le chemin du calibrage. Manette reconnue et navigateur
+  Chromium, il s'efface seul en deux secondes ; sinon il attend
+  `[ CONTINUE ]` ou `[ DON'T SHOW AGAIN ]`.
+- **Le calibrage mesure aussi les boutons de menu.** Deux consignes de plus à la
+  fin de l'assistant — `CONFIRM` et `GO BACK` — sautables, mémorisées avec le
+  calibrage du périphérique. C'est ce qui rend une radio utilisable dans les
+  menus : ses interrupteurs ne sont pas des boutons momentanés, et les boutons
+  0 et 1 sur lesquels la navigation était figée n'y existent pas.
+- **Deux classes de périphériques de plus** à l'affichage, `nintendo` et
+  `steam`, et une dizaine de radios de plus reconnues du premier coup. Le
+  mappage par défaut ne change pas pour les nouvelles familles : en mapping
+  « standard » elles exposent la même disposition d'axes qu'une DualShock.
+- **Le mode de vol se change à la manette et à la radio.** Jusqu'ici seule la
+  touche `M` du clavier le faisait. Une étape de plus au calibrage, sautable,
+  reconnaît seule ce qu'on lui donne : un inter qui reste en place (radio), dont
+  la position choisit ACRO ou ANGLE comme une voie AUX sous Betaflight, ou un
+  bouton qui revient (manette), qui bascule entre les deux. Sans calibrage, le
+  bouton SHARE / VIEW d'une manette fait le même travail. La commande est
+  nommée dans le briefing (`FLIGHT MODE`) et au premier vol
+  (`[SHARE] ACRO / ANGLE`). Le bouton bascule ACRO ↔ ANGLE, sans parcourir les
+  cinq modes : depuis ANGLE, le défilé complet serait passé par ACRO3D, hélices
+  inversées, en plein vol. `M` garde le cycle complet.
+
 ### Modifié
+
+- **Une manette démarre en ANGLE.** L'acro à froid fait tomber un débutant en
+  trois secondes, et une manette a désormais un bouton pour en sortir. Le
+  clavier et la radio restent en ACRO — la radio, sauf si son inter de mode est
+  calibré : c'est alors sa position qui décide.
 
 - **three passe de 0.170 à 0.186.** Depuis 0.186, le constructeur
   d'`OrbitControls` appelle `connect()`, qui commence par `disconnect()` et lit
@@ -48,6 +83,38 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   streaming. L'état du corps est donc repris après le pas, et
   `physics-collider-selftest` le verrouille — « le flush n'avance rien ». Aucun
   seuil de vol ne bouge : `spec-acceptance` passe à l'identique.
+
+### Corrigé
+
+- **Sous Chrome, la radio passait après le récepteur du clavier.** Chrome sous
+  Linux liste tout périphérique que le système étiquette joystick dès que l'un
+  d'eux a servi, et un récepteur Keychron Link en est un (6 axes, 16 boutons),
+  énuméré avant la RadioMaster Pocket. Cinq endroits prenaient « la première
+  manette » pour celle du joueur : l'écran `RECOMMENDED` allumait DUALSHOCK,
+  l'intro n'entendait pas les boutons de la radio, un bouton de la radio ne
+  déconnectait plus après un crash, et `HARDWARE DISCOVERY` affichait le
+  récepteur. Firefox n'expose une manette qu'après une action sur elle : la
+  radio y était seule, et rien ne se voyait. Les écrans prennent désormais la
+  plus pertinente — radio, puis manette reconnue, puis inconnu — et les gestes
+  écoutent toutes les manettes.
+
+- **Les menus obéissaient à la mauvaise manette.** La navigation lisait la
+  première manette énumérée par le navigateur et ses axes bruts 0 et 1, en
+  ignorant à la fois le périphérique choisi dans SETTINGS > CONTROLLER et le
+  calibrage mesuré. Sur une radio, Firefox range le manche des gaz sur l'un de
+  ces deux axes — un axe qui ne revient pas au centre : le curseur partait dans
+  une direction et n'en revenait plus. La direction vient maintenant des canaux
+  roll et pitch, les deux seuls auto-centrés sur tous les matériels, lus par le
+  même chemin calibré que le vol et sur le périphérique actif.
+- **Une manette perdue en vol ne disait rien.** Une batterie Bluetooth vide
+  repassait le pilote au clavier en silence complet. Le HUD l'annonce désormais,
+  en nommant le périphérique perdu, et la détection est doublée : l'évènement
+  `gamepaddisconnected` plus la boucle de frame, parce que Firefox ne tire pas
+  toujours le premier.
+- **Une radio non reconnue tombait sur un mappage de manette**, aux axes dans un
+  autre ordre et au gaz en demi-course. Le pilote ne voyait pas « mal mappé », il
+  voyait « ça ne marche pas ». Et quand le périphérique reste inconnu, l'écran de
+  lancement nomme désormais l'endroit où ça se règle.
 
 ## [1.2.0] - 2026-09-23
 
