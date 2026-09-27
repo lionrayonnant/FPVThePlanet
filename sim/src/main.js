@@ -73,7 +73,7 @@ import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
-import { withResolved, resolvedIds } from '../tools/signal-store-model.mjs';
+import { withResolved, withPhoto, resolvedIds } from '../tools/signal-store-model.mjs';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
 import { LiveNodeQueue } from './live-node-queue.js';
@@ -714,6 +714,13 @@ const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
 let flightSignals = [];          // Signal[] live in this flight
 let signalTargets = [];          // SignalCapture targets, rebuilt when the list changes
 let offFlightSignals = null;     // unsubscribe from the shared source
+// The frame of an uplink, taken like pendingCapture: right after lens.render().
+let pendingUplink = null;        // signal id
+// Without a focus, a resolved signal takes the callout only this close...
+const RESOLVED_CALLOUT_M = 150;
+// ...except the one just uplinked, which keeps it this long (UPLINKED, green).
+const UPLINKED_SHOW_S = 3;
+let lastUplink = null;           // { id, until } in performance.now() seconds
 
 // Assisted turtle mode (#105). Fed INSIDE the fixed-step loop, like the area
 // fence: its torque has to leave in the same step as the thrust, and its damping
@@ -2124,6 +2131,7 @@ function armSignals() {
 		signalAnchors.set(flightSignals);
 		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id) }));
 		signalCapture.setTargets(signalTargets);
+		if (!flightSignals.length) signalCallout.render(null);
 	};
 	offFlightSignals = src.subscribe(refresh);
 	src.request(tilesAround(home.lat, home.lon, FLIGHT_RADIUS_M));
@@ -2137,6 +2145,8 @@ function disarmSignals() {
 	signalAnchors.set([]);
 	signalCapture.setTargets([]);
 	signalCallout.render(null);
+	pendingUplink = null;
+	lastUplink = null;
 }
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
 if (import.meta.env?.DEV) {
@@ -2151,12 +2161,14 @@ if (import.meta.env?.DEV) {
 // Per frame: anchors, capture, callout. The target objects are the ones
 // setTargets() holds, so updating their pos in place is enough.
 function updateSignals(dt, frozen) {
-	signalAnchors.update(frozen ? 0 : dt);
+	signalAnchors.update(frozen ? 0 : dt, { x: camera.position.x, z: camera.position.z });
 	for (const t of signalTargets) t.pos = signalAnchors.pos(t.id);
 	_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
 	const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
+	const flying = flightEnd.phase === FLYING;
 	const out = signalCapture.update({
-		dt: frozen || flightEnd.phase !== FLYING ? 0 : dt,
+		// Disarmed, nothing is transmitting: the same gate as the manual photo.
+		dt: frozen || !flying || !controller.armed ? 0 : dt,
 		cam,
 		fpv: viewMode === 'fpv',
 		// Stop the line 6 m short of the anchor: the anchor sits on the
@@ -2167,14 +2179,22 @@ function updateSignals(dt, frozen) {
 			return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
 		},
 	});
-	if (out.uplinked) onSignalUplinked(out.uplinked).catch((e) => console.warn('[signals] uplink failed', e));
-	renderSignalCallout(out);
+	if (out.uplinked) onSignalUplinked(out.uplinked);
+	// Nothing over the end-of-flight screen.
+	if (flying) renderSignalCallout(out);
+	else signalCallout.render(null);
 }
 
 function renderSignalCallout(out) {
-	// The callout follows the focus; without one, the nearest shown signal.
-	const rows = out.rows.filter((r) => r.state !== 'hidden');
-	const row = rows.find((r) => r.id === out.focus) ?? rows.sort((a, b) => a.dist - b.dist)[0];
+	// The callout follows the focus; without one, the signal just uplinked for
+	// UPLINKED_SHOW_S, else the nearest open signal, else a resolved one close by.
+	const rows = out.rows.filter((r) => r.state !== 'hidden').sort((a, b) => a.dist - b.dist);
+	const now = performance.now() / 1000;
+	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
+	const row = rows.find((r) => r.id === out.focus)
+		?? rows.find((r) => r.id === recent)
+		?? rows.find((r) => r.state !== 'resolved')
+		?? rows.find((r) => r.state === 'resolved' && r.dist <= RESOLVED_CALLOUT_M);
 	if (!row) { signalCallout.render(null); return; }
 	const signal = flightSignals.find((s) => s.id === row.id);
 	const pos = signalAnchors.pos(row.id);
@@ -2197,48 +2217,55 @@ function renderSignalCallout(out) {
 	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
 		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
 		{ boxW: signalCallout.box.offsetWidth || 230, boxH: signalCallout.box.offsetHeight || 110 });
-	signalCallout.render({ signal, row, placed, now: performance.now() / 1000 });
+	// The edge chevron points at something to capture, never at a done one.
+	if (!placed.onScreen && row.state === 'resolved') { signalCallout.render(null); return; }
+	signalCallout.render({ signal, row, placed, now });
 }
 
-async function onSignalUplinked(id) {
+// The resolution is written at once (spec §3); the frame follows. It is taken
+// right after this frame's lens.render() (pendingUplink, consumed in the frame
+// loop like pendingCapture), then uploaded; withPhoto() points the entry at it.
+function onSignalUplinked(id) {
 	const s = flightSignals.find((x) => x.id === id);
 	if (!s) return;
 	uiAudio.play('TARGET_FOUND');
+	lastUplink = { id, until: performance.now() / 1000 + UPLINKED_SHOW_S };
 	const pos = signalAnchors.pos(id);
 	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
-	let photo = null;
 	const live = session.current();
-	// The frame is best-effort: whatever happens to it, the resolution below is
-	// still written. capturePhoto() returns the unchanged count when nothing was
-	// stored, so only a count that grew points at this uplink's photo.
-	if (live) {
-		try {
-			const before = session.photoCount();
-			const cap = await lens.capture();
-			if (cap) {
-				const dataUrl = await new Promise((res, rej) => {
-					const r = new FileReader();
-					r.onload = () => res(r.result);
-					r.onerror = () => rej(r.error);
-					r.readAsDataURL(cap.blob);
-				});
-				const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
-				if (count > before) {
-					photo = count - 1;
-					fpvtpOsd.flashCaptured(count);
-				}
-			}
-		} catch (e) {
-			console.warn('[signals] uplink frame failed', e);
-		}
-	}
 	const op = operator.getOperator();
 	if (op) {
 		operator.patch('signals', withResolved(op.signals, id, {
 			at: Date.now(), name: s.name, lat: s.lat, lon: s.lon, tier: s.tier,
 			family: PROFILE?.family ?? null, holdS: HOLD_S, distM: Math.round(dist),
-			sessionId: live?.id ?? null, photo,
+			sessionId: live?.id ?? null, photo: null,
 		}));
+	}
+	if (live) pendingUplink = id;
+}
+
+// Best-effort: the resolution is already written. capturePhoto() returns the
+// unchanged count when nothing was stored, so only a count that grew points at
+// this uplink's photo. lens.capture() must be CALLED in the post-render window
+// (it redraws the composer synchronously before reading the canvas).
+async function uplinkFrame(id) {
+	try {
+		const before = session.photoCount();
+		const cap = await lens.capture();
+		if (!cap) return;
+		const dataUrl = await new Promise((res, rej) => {
+			const r = new FileReader();
+			r.onload = () => res(r.result);
+			r.onerror = () => rej(r.error);
+			r.readAsDataURL(cap.blob);
+		});
+		const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
+		if (count <= before) return;
+		fpvtpOsd.flashCaptured(count);
+		const op = operator.getOperator();
+		if (op) operator.patch('signals', withPhoto(op.signals, id, count - 1));
+	} catch (e) {
+		console.warn('[signals] uplink frame failed', e);
 	}
 }
 
@@ -2633,6 +2660,10 @@ function frame() {
 		});
 	}
 
+	// Signals (#185): anchors, capture, callout.
+	if (flightSignals.length) updateSignals(dt, frozen);
+	else signalCallout.render(null);
+
 	// The end of flight decides on its own: what is shown, when the picture dies,
 	// when the session closes. main.js only feeds it and obeys.
 	//
@@ -2641,8 +2672,6 @@ function frame() {
 	// right after, no unfrozen frame runs to read it. dt = 0 freezes the
 	// timeline (the decision "the end sequence freezes with the sim" still
 	// holds), but `closes` is drained whatever happens, on the next frame.
-	if (flightSignals.length) updateSignals(dt, frozen);
-
 	const fv = physics.velocity, fw = physics.angularVelocity;
 	flightEnd.update({
 		dt: frozen ? 0 : dt,
@@ -2999,6 +3028,11 @@ if (!frozen) {
 	if (pendingCapture) {
 		pendingCapture = false;
 		if (photoReady) capturePhoto();
+	}
+	if (pendingUplink) {
+		const id = pendingUplink;
+		pendingUplink = null;
+		uplinkFrame(id);
 	}
 
 	const v = physics.velocity;
