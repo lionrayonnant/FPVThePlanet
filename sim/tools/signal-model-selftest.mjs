@@ -17,7 +17,7 @@ t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
 	assert.equal(MIN_QUERY_ZOOM, 10);
 	assert.equal(MAX_TILES_PER_VIEW, 16);
-	assert.equal(MODEL_VERSION, 2);
+	assert.equal(MODEL_VERSION, 3);
 });
 
 t('tileOf: the z12 tile of the Eiffel Tower, computed independently', () => {
@@ -98,6 +98,22 @@ t('overpassQuery: timeout, output cap, wikidata filter, the bbox in s,w,n,e orde
 	for (const c of clauses) assert.match(c, /\["wikidata"\]/, c);
 });
 
+t('overpassQuery: maxsize is a 64 MiB RAM budget, not an output cap (Tokyo ran out of memory at 4 MiB)', () => {
+	const q = overpassQuery({ s: 1, w: 2, n: 3, e: 4 });
+	assert.match(q, /\[maxsize:67108864\]/);
+});
+
+t('overpassQuery: worldwide clauses — temples/shrines, point-like natural features, waterfalls; no polygon natural areas', () => {
+	const q = overpassQuery({ s: 1, w: 2, n: 3, e: 4 });
+	assert.match(q, /\["building"~"\^\(cathedral\|church\|castle\|temple\|shrine\|mosque\|synagogue\|pagoda\|monastery\)\$"\]/);
+	assert.match(q, /\["natural"~"\^\(peak\|volcano\|arch\|cave_entrance\|rock\|stone\|cliff\|geyser\|hot_spring\)\$"\]/);
+	assert.match(q, /\["waterway"="waterfall"\]/);
+	assert.doesNotMatch(q, /"natural"="water"/);
+	assert.doesNotMatch(q, /nature_reserve/);
+	assert.doesNotMatch(q, /national_park/);
+	for (const c of q.match(/nwr\[[^;]*;/g)) assert.match(c, /\["wikidata"\]/, c);
+});
+
 const REIMS = {
 	type: 'way', id: 43263447,
 	center: { lat: 49.2536, lon: 4.0340 },
@@ -166,6 +182,38 @@ t('tiers: I by default, II for towers / lighthouses / height > 50, III for peak,
 	assert.equal(tier({ man_made: 'dam' }), 3);
 	assert.equal(tier({ man_made: 'bridge' }), 3);
 	assert.equal(tier({ bridge: 'yes', railway: 'rail' }), 1, 'a railway on a viaduct is not a bridge landmark');
+	assert.equal(tier({ natural: 'volcano' }), 3);
+	assert.equal(tier({ waterway: 'waterfall' }), 2);
+	assert.equal(tier({ natural: 'cliff' }), 2);
+	assert.equal(tier({ natural: 'arch' }), 2);
+});
+
+t('kindOf: waterfalls and natural point features get their own TYPE', () => {
+	const kind = (tags) => signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'X', wikidata: 'Q1', ...tags } }).kind;
+	assert.equal(kind({ waterway: 'waterfall' }), 'WATERFALL');
+	assert.equal(kind({ natural: 'cave_entrance' }), 'CAVE ENTRANCE');
+	assert.equal(kind({ natural: 'hot_spring' }), 'HOT SPRING');
+	assert.equal(kind({ natural: 'volcano' }), 'VOLCANO');
+});
+
+t('a Skógafoss-like waterfall node: kind WATERFALL, tier II', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 63.53, lon: -19.51, tags: { name: 'Skógafoss', wikidata: 'Q1533657', waterway: 'waterfall' } });
+	assert.equal(s.kind, 'WATERFALL');
+	assert.equal(s.tier, 2);
+});
+
+t('a Kyoto-like temple way outranks a plain historic=memorial node', () => {
+	const temple = { type: 'way', id: 1, center: { lat: 34.98, lon: 135.78 }, tags: {
+		name: 'Kiyomizu-dera', wikidata: 'Q1067252', building: 'temple', tourism: 'attraction', wikipedia: 'en:x',
+	} };
+	const memorial = { type: 'node', id: 2, lat: 34.98, lon: 135.78, tags: { name: 'Plaque', wikidata: 'Q2', historic: 'memorial' } };
+	const out = parseOverpass({ elements: [memorial, temple] });
+	assert.equal(out[0].id, 'wd:Q1067252');
+});
+
+t('CJK name survives clean() intact: uppercasing a script with no case leaves it unchanged', () => {
+	const s = signalFromElement({ type: 'node', id: 1, lat: 0, lon: 0, tags: { name: '阿弥陀ヶ峰', wikidata: 'Q1', natural: 'peak' } });
+	assert.equal(s.name, '阿弥陀ヶ峰');
 });
 
 t('status: UNESCO only for heritage:operator=whc, PROTECTED for other heritage, absent otherwise', () => {
