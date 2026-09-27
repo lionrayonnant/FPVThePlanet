@@ -8,9 +8,9 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 t('ICON_NAMES: the Bible §41 set, the footer marks and the RECOMMENDED pair', () => {
 	assert.deepEqual([...ICON_NAMES].sort(), [
-		'antenna', 'battery', 'bitcoin', 'cake', 'camera', 'chrome', 'drone',
-		'gamepad', 'github', 'gps', 'link', 'map', 'monero', 'radio', 'source',
-		'terrain',
+		'antenna', 'battery', 'bitcoin', 'cake', 'calendar', 'camera', 'chrome',
+		'drone', 'gamepad', 'github', 'gps', 'height', 'heritage', 'landmark',
+		'link', 'map', 'monero', 'radio', 'source', 'terrain',
 	]);
 });
 
