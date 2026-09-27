@@ -5,7 +5,7 @@
 // Always metric, even when the target displays feet: this is OUR station. The
 // disagreement between the two systems is part of the point.
 
-import { PORTRAIT_LINE, RANDOMART_LINE } from './flight-end.js';
+import { PORTRAIT_LINE, RANDOMART_LINE, SIGNALS_LINE } from './flight-end.js';
 import { randomart } from '../tools/randomart.mjs';
 // The portrait of the lost machine (#264). Inline SVG: the local layer is DOM,
 // it opens no rendering context.
@@ -140,6 +140,10 @@ export class FpvtpOsd {
 		this._target = null;
 		this._portrait = null;
 		this._randomart = null;
+		// Signals Lot 2b, task 4: the recap of the landmarks this flight
+		// UPLINKED. A provider function, not a node — it is called only when the
+		// end sequence's DOM is (re)built, never once per frame.
+		this._signalRecap = null;
 		// D11: the current view, and the only clickable element of the layer —
 		// the OSD is pointer-events: none, this one takes them back.
 		this._view = 'fpv';
@@ -393,6 +397,14 @@ export class FpvtpOsd {
 		this.el.hint.hidden = !next;
 	}
 
+	// Signals Lot 2b, task 4: the provider for the SIGNALS_LINE token — the
+	// recap of the landmarks this flight UPLINKED. `fn` is `() => HTMLElement |
+	// null`; `null` means the flight uplinked nothing, and the line then falls
+	// back to an empty div like every other token with nothing to show.
+	setSignalRecap(fn) {
+		this._signalRecap = fn ?? null;
+	}
+
 	// The end-of-flight screen (PHASE 14). It does not announce a defeat: it
 	// shows a link going out. `blackout` is the opacity of the black covering the
 	// last image, `lines` what is written on it, one line at a time.
@@ -420,10 +432,10 @@ export class FpvtpOsd {
 		if (key !== this._endLines) {
 			this._endLines = key;
 			e.replaceChildren(...lines.map((text) => {
-				// Neither the portrait nor the fingerprint is text: they are two
-				// drawings of the machine. With no known machine, the line falls
-				// back to a blank — never to its token, which is not made to be
-				// read.
+				// Neither the portrait, the fingerprint nor the signals recap is
+				// text: they are drawings, or a recap element, of the machine and
+				// what it uplinked. With none available, the line falls back to a
+				// blank — never to its token, which is not made to be read.
 				if (text === PORTRAIT_LINE) {
 					const node = this._portraitNode();
 					if (node) return node;
@@ -432,8 +444,12 @@ export class FpvtpOsd {
 					const node = this._randomartNode();
 					if (node) return node;
 				}
+				if (text === SIGNALS_LINE) {
+					const node = this._signalRecap?.();
+					if (node) return node;
+				}
 				const d = document.createElement('div');
-				d.textContent = (text === PORTRAIT_LINE || text === RANDOMART_LINE) ? '' : text;
+				d.textContent = (text === PORTRAIT_LINE || text === RANDOMART_LINE || text === SIGNALS_LINE) ? '' : text;
 				return d;
 			}));
 		}
