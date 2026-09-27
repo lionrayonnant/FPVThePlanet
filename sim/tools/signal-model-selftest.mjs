@@ -310,6 +310,16 @@ t('distanceM: Eiffel Tower to Notre-Dame is ~4.1 km', () => {
 	assert.ok(Math.abs(d - 4090) < 60, String(d));
 });
 
+// The nearest point of a tile to p, antimeridian-aware: the tile's longitude
+// span is shifted to its copy nearest p before clamping (mirrors the fix in
+// tilesAround itself — a bare clamp picks the far side of the date line).
+function nearestPointOf(b, p) {
+	let w = b.w, e = b.e;
+	if (w - p.lon > 180) { w -= 360; e -= 360; }
+	else if (p.lon - e > 180) { w += 360; e += 360; }
+	return { lat: Math.max(b.s, Math.min(b.n, p.lat)), lon: Math.max(w, Math.min(e, p.lon)) };
+}
+
 t('tilesAround: own tile first, every tile within the radius, none farther', () => {
 	const p = { lat: 48.8584, lon: 2.2945 };
 	const keys = tilesAround(p.lat, p.lon, 1500);
@@ -319,11 +329,22 @@ t('tilesAround: own tile first, every tile within the radius, none farther', () 
 	for (const k of keys) {
 		const [, x, y] = k.split('/').map(Number);
 		const b = tileBounds({ x, y });
-		// nearest point of the tile to p
-		const near = { lat: Math.max(b.s, Math.min(b.n, p.lat)), lon: Math.max(b.w, Math.min(b.e, p.lon)) };
+		const near = nearestPointOf(b, p);
 		assert.ok(distanceM(p, near) <= 1500 + 1, k);
 	}
 	assert.deepEqual(tilesAround(p.lat, p.lon, 0), [tileKey(tileOf(p.lat, p.lon))]);
+});
+
+t('tilesAround: sees across the antimeridian', () => {
+	const p = { lat: -17, lon: 179.99 };
+	const keys = tilesAround(p.lat, p.lon, 1500);
+	assert.ok(keys.some((k) => k.startsWith('z12/0/')), String(keys));
+	for (const k of keys) {
+		const [, x, y] = k.split('/').map(Number);
+		const b = tileBounds({ x, y });
+		const near = nearestPointOf(b, p);
+		assert.ok(distanceM(p, near) <= 1500 + 1, k);
+	}
 });
 
 console.log(`signal-model: ${n} ok`);

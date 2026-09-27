@@ -64,7 +64,13 @@ export function tilesAround(lat, lon, radiusM) {
 		const x = (((c.x + dx) % N) + N) % N, y = c.y + dy;
 		if (y < 0 || y >= N) continue;
 		const b = tileBounds({ x, y });
-		const near = { lat: Math.max(b.s, Math.min(b.n, lat)), lon: Math.max(b.w, Math.min(b.e, lon)) };
+		// Shift the tile's longitude span to the copy nearest `lon` before
+		// clamping: a bare clamp at the date line picks the far side of the
+		// world (~40 000 km away instead of a few hundred metres).
+		let w = b.w, e = b.e;
+		if (w - lon > 180) { w -= 360; e -= 360; }
+		else if (lon - e > 180) { w += 360; e += 360; }
+		const near = { lat: Math.max(b.s, Math.min(b.n, lat)), lon: Math.max(w, Math.min(e, lon)) };
 		const d = distanceM({ lat, lon }, near);
 		if (d <= radiusM) out.push({ key: tileKey({ x, y }), d });
 	}
