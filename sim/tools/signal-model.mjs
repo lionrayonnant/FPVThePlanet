@@ -43,6 +43,34 @@ export function tileBounds({ x, y }) {
 	};
 }
 
+const R_EARTH = 6371008.8;
+
+export function distanceM(a, b) {
+	const dLat = (b.lat - a.lat) * D, dLon = (b.lon - a.lon) * D;
+	const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * D) * Math.cos(b.lat * D) * Math.sin(dLon / 2) ** 2;
+	return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// The tiles a flight needs: every z12 tile that comes within `radiusM` of the
+// take-off point, its own tile first, then by distance. The flight asks for
+// these once at spawn (spec §1: only the zone's signals are live in flight).
+export function tilesAround(lat, lon, radiusM) {
+	const c = tileOf(lat, lon);
+	const own = tileKey(c);
+	const out = [{ key: own, d: 0 }];
+	const R = 3; // z12 tiles are >= ~4 km wide below 60° N: 3 rings cover any radius we use
+	for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+		if (!dx && !dy) continue;
+		const x = (((c.x + dx) % N) + N) % N, y = c.y + dy;
+		if (y < 0 || y >= N) continue;
+		const b = tileBounds({ x, y });
+		const near = { lat: Math.max(b.s, Math.min(b.n, lat)), lon: Math.max(b.w, Math.min(b.e, lon)) };
+		const d = distanceM({ lat, lon }, near);
+		if (d <= radiusM) out.push({ key: tileKey({ x, y }), d });
+	}
+	return out.sort((p, q) => p.d - q.d || (p.key < q.key ? -1 : 1)).map((t) => t.key);
+}
+
 export function tilesForView({ s, w, n, e }, zoom) {
 	if (!(zoom >= MIN_QUERY_ZOOM)) return null;
 	const a = tileOf(n, w), b = tileOf(s, e);

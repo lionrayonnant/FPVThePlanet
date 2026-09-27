@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW, MODEL_VERSION,
-	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
+	tileOf, tileKey, tileBounds, tilesForView, distanceM, tilesAround, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
 	signalsInView, LABEL_ZOOM, declutter,
 } from './signal-model.mjs';
@@ -303,6 +303,27 @@ t('signalsInView: bbox filter, antimeridian-aware', () => {
 	assert.deepEqual(signalsInView(list, { minLat: 48, maxLat: 49, minLon: 2, maxLon: 3 }).map((x) => x.id), ['a']);
 	assert.deepEqual(signalsInView(list, { minLat: -18, maxLat: -16, minLon: 179.9, maxLon: -179.9 }).map((x) => x.id), ['c', 'd']);
 	assert.equal(LABEL_ZOOM, 15);
+});
+
+t('distanceM: Eiffel Tower to Notre-Dame is ~4.1 km', () => {
+	const d = distanceM({ lat: 48.8584, lon: 2.2945 }, { lat: 48.8530, lon: 2.3499 });
+	assert.ok(Math.abs(d - 4090) < 60, String(d));
+});
+
+t('tilesAround: own tile first, every tile within the radius, none farther', () => {
+	const p = { lat: 48.8584, lon: 2.2945 };
+	const keys = tilesAround(p.lat, p.lon, 1500);
+	assert.equal(keys[0], tileKey(tileOf(p.lat, p.lon)));
+	assert.equal(new Set(keys).size, keys.length);
+	assert.ok(keys.length >= 1 && keys.length <= 9, String(keys.length));
+	for (const k of keys) {
+		const [, x, y] = k.split('/').map(Number);
+		const b = tileBounds({ x, y });
+		// nearest point of the tile to p
+		const near = { lat: Math.max(b.s, Math.min(b.n, p.lat)), lon: Math.max(b.w, Math.min(b.e, p.lon)) };
+		assert.ok(distanceM(p, near) <= 1500 + 1, k);
+	}
+	assert.deepEqual(tilesAround(p.lat, p.lon, 0), [tileKey(tileOf(p.lat, p.lon))]);
 });
 
 console.log(`signal-model: ${n} ok`);
