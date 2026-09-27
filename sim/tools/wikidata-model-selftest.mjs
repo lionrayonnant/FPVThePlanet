@@ -101,4 +101,20 @@ t('safeImageUrl: only the two Wikimedia image hosts, https', () => {
 	assert.equal(parseCommons(bad), null, 'no usable image, no card photo');
 });
 
+t('parseCommons: malformed numeric entities do not throw', () => {
+	const bad = structuredClone(COMMONS);
+	bad.query.pages[38044545].imageinfo[0].extmetadata.Artist.value = 'weird &#99999999; artist &#65;';
+	const result = parseCommons(bad);
+	assert.ok(result);
+	assert.equal(result.artist, 'weird artist A');
+});
+
+t('parseCommons: hex entities are decoded', () => {
+	const bad = structuredClone(COMMONS);
+	bad.query.pages[38044545].imageinfo[0].extmetadata.Artist.value = 'test &#x41; hex';
+	const result = parseCommons(bad);
+	assert.ok(result);
+	assert.equal(result.artist, 'test A hex');
+});
+
 console.log(`wikidata-model: ${n} ok`);

@@ -69,7 +69,21 @@ export function safeImageUrl(u) {
 
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ', '&eacute;': 'é', '&egrave;': 'è', '&agrave;': 'à', '&ccedil;': 'ç' };
 const unhtml = (s) => (typeof s === 'string'
-	? s.replace(/<[^>]*>/g, '').replace(/&[a-z]+;|&#\d+;/gi, (m) => ENTITIES[m.toLowerCase()] ?? (m.startsWith('&#') ? String.fromCodePoint(Number(m.slice(2, -1))) : ''))
+	? s.replace(/<[^>]*>/g, '').replace(/&[a-z]+;|&#\d+;|&#x[0-9a-f]+;/gi, (m) => {
+		const lower = m.toLowerCase();
+		if (ENTITIES[lower]) return ENTITIES[lower];
+		if (m.startsWith('&#x')) {
+			const n = Number.parseInt(m.slice(3, -1), 16);
+			if (n > 0 && n <= 0x10FFFF && !(n >= 0xD800 && n <= 0xDFFF)) return String.fromCodePoint(n);
+			return '';
+		}
+		if (m.startsWith('&#')) {
+			const n = Number(m.slice(2, -1));
+			if (n > 0 && n <= 0x10FFFF && !(n >= 0xD800 && n <= 0xDFFF)) return String.fromCodePoint(n);
+			return '';
+		}
+		return '';
+	})
 	: null);
 
 export function parseCommons(json) {
