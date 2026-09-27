@@ -362,32 +362,35 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .fo-signal-chev[data-tone="green"] { color: var(--green); }
 
 /* The UPLINKED card (issue #185, spec 2026-09-27-signals-lot2b, layout B):
-   ~6s of the intercepted frame next to the real place, in the right column,
-   and the same shape recapped at the end of the flight — the model is
-   tools/signal-card-model.mjs, the DOM is src/signal-card.js. It never takes
-   the controls: the in-flight card ignores every pointer event. */
-#fo-signal-card, .signal-card-mini {
+   ~6s of the intercepted frame next to the real place, in the right column —
+   the model is tools/signal-card-model.mjs, the DOM is src/signal-card.js. A
+   flow child of the top-right corner, under its last line, so it follows that
+   corner at every screen height. It never takes the controls. */
+#fo-signal-card {
 	width: 250px;
+	margin: var(--space-2) 0 0 auto;
+	text-align: left;
+	pointer-events: none;
 	background: var(--scrim-soft);
 	border: 1px solid var(--green);
 	font: var(--fs-data) / 1.45 var(--font-ui);
 	letter-spacing: var(--track-data);
 	color: var(--ink);
 }
-#fo-signal-card { position: absolute; right: 1.2%; top: 8%; pointer-events: none; }
 .signal-card-top {
 	display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
 	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
 	text-transform: uppercase;
 	padding: var(--space-1) var(--space-2);
 	border-bottom: 1px solid var(--rule);
+	white-space: nowrap;
 }
-.signal-card-top .signal-card-n { color: var(--dim); }
+.signal-card-top .signal-card-n { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
 .signal-card-imgs { display: grid; grid-template-columns: 1fr; gap: var(--space-1); padding: var(--space-1); }
 .signal-card-imgs figure { margin: 0; position: relative; }
-.signal-card-imgs img, .signal-card-imgs .signal-card-placeholder { display: block; width: 100%; object-fit: cover; background: var(--grey); }
+.signal-card-imgs img { display: block; width: 100%; object-fit: cover; background: var(--grey); }
 .signal-card-imgs figure:first-child img { aspect-ratio: 16 / 7; }
-.signal-card-imgs figure:last-child img, .signal-card-imgs .signal-card-placeholder { aspect-ratio: 4 / 3; }
+.signal-card-imgs figure:last-child img { aspect-ratio: 4 / 3; }
 .signal-card-imgs figcaption {
 	position: absolute; left: var(--space-0); bottom: var(--space-0);
 	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui);
@@ -406,20 +409,32 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .signal-card-credit { color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-data); padding: 0 var(--space-2) var(--space-1); }
 .signal-card-timer { height: 2px; background: var(--rule); margin: 0 var(--space-2) var(--space-1); }
 .signal-card-timer i { display: block; height: 100%; background: var(--green); }
-.signal-card-mini { width: auto; }
 
-/* The end-of-flight recap (src/flight-end.js's [SIGNALS] line): a titled grid
-   of the same card, without its timer. */
-.signal-recap { border: 1px solid var(--rule); background: var(--dark-grey); padding: var(--space-4); }
-.signal-recap-hd {
-	font: var(--fs-display-s) var(--font-display); letter-spacing: var(--track-display); color: var(--green);
-	text-transform: uppercase; padding-bottom: var(--space-2); margin-bottom: var(--space-3);
-	border-bottom: 1px solid var(--rule);
+/* The end-of-flight recap (src/flight-end.js's [SIGNALS] line): one strip,
+   the title then a tile per uplink (frame + name), at most ~150px tall — the
+   end screen also holds the portrait and the fingerprint, and [ENTER]
+   DISCONNECT must stay on screen. */
+.signal-recap {
+	border: 1px solid var(--rule); background: var(--dark-grey);
+	padding: var(--space-2) var(--space-3);
+	max-width: 90vw;
 }
-/* Fixed-width cards, four to a row: 1fr columns let them span the whole
-   screen (2560px of recap for four uplinks, the end-screen lines pushed off). */
-.signal-recap-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); max-width: min(90vw, 860px); }
-.signal-recap-grid .signal-card-mini { width: 200px; }
+.signal-recap-hd {
+	font: var(--fs-data) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
+	text-transform: uppercase; margin-bottom: var(--space-2);
+}
+.signal-recap-row { display: flex; flex-wrap: nowrap; justify-content: center; gap: var(--space-2); overflow: hidden; }
+.signal-recap-tile {
+	flex: none; width: 120px;
+	font: var(--fs-micro) / 1.45 var(--font-ui); letter-spacing: var(--track-data);
+	color: var(--ink); text-transform: none; text-align: left;
+}
+.signal-recap-tile img { display: block; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; background: var(--grey); }
+.signal-recap-name { margin-top: var(--space-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.signal-recap-more {
+	width: auto; align-self: center; padding: 0 var(--space-2);
+	font: var(--fs-data) var(--font-ui); color: var(--dim);
+}
 
 /* End of flight (PHASE 14): not a death screen, a link going out. */
 #flight-end {

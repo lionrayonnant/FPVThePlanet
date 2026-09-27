@@ -144,6 +144,7 @@ export class FpvtpOsd {
 		// UPLINKED. A provider function, not a node — it is called only when the
 		// end sequence's DOM is (re)built, never once per frame.
 		this._signalRecap = null;
+		this._recapSlot = null; // the recap line on screen, for refreshSignalRecap()
 		// D11: the current view, and the only clickable element of the layer —
 		// the OSD is pointer-events: none, this one takes them back.
 		this._view = 'fpv';
@@ -405,6 +406,30 @@ export class FpvtpOsd {
 		this._signalRecap = fn ?? null;
 	}
 
+	// Rebuilds the recap in place when an uplink lands after the end screen was
+	// drawn (its card waits up to 2.5 s for the place info). Only that line is
+	// replaced: the portrait and the rest of the screen are left alone.
+	refreshSignalRecap() {
+		const old = this._recapSlot;
+		if (!old?.isConnected) return;
+		const node = this._signalRecapNode();
+		old.replaceWith(node);
+		this._recapSlot = node;
+	}
+
+	// The SIGNALS_LINE element: the provider's recap, or the blank line every
+	// token falls back to. An external provider: a throw must not take the
+	// whole end screen down with it.
+	_signalRecapNode() {
+		let node = null;
+		try {
+			node = this._signalRecap?.();
+		} catch (err) {
+			console.warn('signal recap provider threw', err);
+		}
+		return node ?? document.createElement('div');
+	}
+
 	// The end-of-flight screen (PHASE 14). It does not announce a defeat: it
 	// shows a link going out. `blackout` is the opacity of the black covering the
 	// last image, `lines` what is written on it, one line at a time.
@@ -445,15 +470,8 @@ export class FpvtpOsd {
 					if (node) return node;
 				}
 				if (text === SIGNALS_LINE) {
-					// External provider: a throw must not take the whole end screen
-					// down with it (replaceChildren would never run).
-					let node = null;
-					try {
-						node = this._signalRecap?.();
-					} catch (err) {
-						console.warn('signal recap provider threw', err);
-					}
-					if (node) return node;
+					this._recapSlot = this._signalRecapNode();
+					return this._recapSlot;
 				}
 				const d = document.createElement('div');
 				d.textContent = (text === PORTRAIT_LINE || text === RANDOMART_LINE || text === SIGNALS_LINE) ? '' : text;

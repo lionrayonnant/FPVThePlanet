@@ -727,11 +727,20 @@ let lastUplink = null;           // { id, until } in performance.now() seconds
 // The UPLINKED card (#185 lot 2b): one per uplink, queued, CARD_S each. The
 // flight's uplinks outlive disarmSignals(): the end screen's recap reads them,
 // and armSignals() clears them at the next take-off.
-const signalCard = new SignalCard(document.getElementById('fpvtp-osd'));
+// Mounted in the top-right OSD corner, under its last line: it follows that
+// corner at every screen height instead of guessing a percentage.
+const signalCard = new SignalCard(document.querySelector('#fpvtp-osd .corner.tr'));
 let cardQueue = new CardQueue();
-let flightUplinks = [];          // { signal, info, frameSrc, distM, holdS, index }
-let prefetchedFocus = null;      // last capture focus whose place info was requested
+let flightUplinks = [];          // { signal, info, frameSrc, distM, holdS, index, total }
+let prefetched = new Set();      // ids whose place info this flight already warmed
 let uplinkSeq = 0;               // this flight's uplinks so far (the card's SIGNAL n)
+// Cards leave in uplink order: a card ready early waits here for the ones
+// before it. Every uplink fills its slot exactly once (a card, or null).
+let cardSlots = new Map();       // index -> card | null
+let nextSlot = 1;
+let priorResolved = new Set();   // ids resolved before this flight (not in the card's /total)
+// The prefetch starts once the hold is this far along, not at first glance.
+const PREFETCH_GAUGE = 0.2;
 let flightGen = 0;               // bumped per flight: a late card never lands in the next one
 // Bound on the wait for the place info before the card shows without it.
 const CARD_INFO_WAIT_MS = 2500;
@@ -2139,6 +2148,10 @@ function armSignals() {
 	flightUplinks = [];
 	cardQueue = new CardQueue();
 	uplinkSeq = 0;
+	cardSlots = new Map();
+	nextSlot = 1;
+	prefetched = new Set();
+	priorResolved = new Set(resolvedIds(operator.getOperator()?.signals));
 	flightGen++;
 	if (MODE.bench) return;
 	const home = droneGeo(physics.position);
@@ -2164,9 +2177,10 @@ function disarmSignals() {
 	signalAnchors.set([]);
 	signalCapture.setTargets([]);
 	signalCallout.render(null);
+	// A frame never taken still frees its slot, or the cards after it would wait forever.
+	if (pendingUplink) fillSlot(pendingUplink.index, null, pendingUplink.gen);
 	pendingUplink = null;
 	lastUplink = null;
-	prefetchedFocus = null;
 }
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
 if (import.meta.env?.DEV) {
@@ -2202,9 +2216,15 @@ function updateSignals(dt, frozen) {
 	});
 	if (out.uplinked) onSignalUplinked(out.uplinked);
 	// Warm the place info while the operator holds the landmark, so the card
-	// rarely waits for it after UPLINKED.
-	if (out.focus && out.focus !== prefetchedFocus) sharedPlaceInfo().info(out.focus);
-	prefetchedFocus = out.focus ?? null;
+	// rarely waits for it after UPLINKED: once per id per flight, and only once
+	// the hold is real (a glance across a skyline is not a request).
+	if (out.focus && !prefetched.has(out.focus)) {
+		const row = out.rows.find((r) => r.id === out.focus);
+		if (row?.state === 'capturing' && row.gauge >= PREFETCH_GAUGE) {
+			prefetched.add(out.focus);
+			sharedPlaceInfo().info(out.focus).catch(() => null);
+		}
+	}
 	// Nothing over the end-of-flight screen.
 	if (flying) renderSignalCallout(out);
 	else signalCallout.render(null);
@@ -2266,8 +2286,11 @@ function onSignalUplinked(id) {
 			sessionId: live?.id ?? null, photo: null,
 		}));
 	}
-	// The frame is taken even without a live session: the card shows it.
-	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, gen: flightGen };
+	// The frame is taken even without a live session: the card shows it. index
+	// and total are frozen now: SIGNAL n / the ones still open at this moment.
+	const total = flightSignals.filter((x) => !priorResolved.has(x.id)).length;
+	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen };
+	if (import.meta.env?.DEV) console.debug('[signals] uplinked', id, `${pendingUplink.index}/${total}`);
 }
 
 // The place info, or null after CARD_INFO_WAIT_MS: the card never waits longer.
@@ -2279,43 +2302,97 @@ function placeInfoFor(id) {
 	]);
 }
 
-// Queues the card once its frame and info are known (SignalCard refreshes
-// images only when the signal changes). A failed capture still shows the card.
-async function pushUplinkCard({ id, signal, distM, index, gen }, frameSrc) {
-	const info = await placeInfoFor(id);
+// Releases the cards in uplink order: slot `index` is filled (a card, or null
+// for an uplink that has none), then every consecutive filled slot is queued.
+function fillSlot(index, card, gen) {
 	if (gen !== flightGen) return;
-	const card = { signal, info, frameSrc, distM, holdS: HOLD_S, index };
-	flightUplinks.push(card);
-	cardQueue.push(card);
+	cardSlots.set(index, card);
+	while (cardSlots.has(nextSlot)) {
+		const c = cardSlots.get(nextSlot);
+		cardSlots.delete(nextSlot);
+		nextSlot++;
+		if (!c) continue;
+		flightUplinks.push(c);
+		cardQueue.push(c);
+		// The end screen may already be up (a crash right after UPLINKED).
+		fpvtpOsd.refreshSignalRecap();
+		if (import.meta.env?.DEV) console.debug('[signals] card', c.signal.id, `${c.index}/${c.total}`, { info: !!c.info, frame: !!c.frameSrc });
+	}
 }
 
-// Best-effort: the resolution is already written. capturePhoto() returns the
-// unchanged count when nothing was stored, so only a count that grew points at
-// this uplink's photo. lens.capture() must be CALLED in the post-render window
-// (it redraws the composer synchronously before reading the canvas).
-async function uplinkFrame(up) {
-	const { id } = up;
-	let dataUrl = null;
+// Builds the card once its thumbnail and info are known (SignalCard refreshes
+// images only when the signal changes). A failed capture still shows the card.
+async function pushUplinkCard({ id, signal, distM, index, total, gen }, frameSrc) {
+	const info = await placeInfoFor(id);
+	fillSlot(index, { signal, info, frameSrc, distM, holdS: HOLD_S, index, total }, gen);
+}
+
+function blobToDataUrl(blob) {
+	return new Promise((res, rej) => {
+		const r = new FileReader();
+		r.onload = () => res(r.result);
+		r.onerror = () => rej(r.error);
+		r.readAsDataURL(blob);
+	});
+}
+
+// The card's and the recap's copy of the frame: one small JPEG, built once.
+// A full-size PNG data URL per card would weigh megabytes in the DOM.
+async function thumbnailOf(blob, width = 480) {
+	const bmp = await createImageBitmap(blob, { resizeWidth: width, resizeQuality: 'medium' });
 	try {
-		const before = session.photoCount();
-		const cap = await lens.capture();
-		if (!cap) return;
-		dataUrl = await new Promise((res, rej) => {
-			const r = new FileReader();
-			r.onload = () => res(r.result);
-			r.onerror = () => rej(r.error);
-			r.readAsDataURL(cap.blob);
-		});
-		if (!session.current()) return;
+		let jpeg;
+		if (typeof OffscreenCanvas === 'function') {
+			const c = new OffscreenCanvas(bmp.width, bmp.height);
+			c.getContext('2d').drawImage(bmp, 0, 0);
+			jpeg = await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+		} else {
+			const c = document.createElement('canvas');
+			c.width = bmp.width; c.height = bmp.height;
+			c.getContext('2d').drawImage(bmp, 0, 0);
+			jpeg = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.8));
+		}
+		if (!jpeg) throw new Error('thumbnail encode failed');
+		return await blobToDataUrl(jpeg);
+	} finally {
+		bmp.close();
+	}
+}
+
+// Best-effort: the resolution is already written. The card goes out as soon
+// as its thumbnail is ready (or at once, frameless, if the capture failed);
+// the session upload runs on its own afterwards and never delays it.
+// lens.capture() must be CALLED in the post-render window (it redraws the
+// composer synchronously before reading the canvas).
+async function uplinkFrame(up) {
+	const before = session.photoCount();
+	let cap = null;
+	let frameSrc = null;
+	let pushed = false;
+	try {
+		cap = await lens.capture();
+		if (cap) frameSrc = await thumbnailOf(cap.blob);
+	} catch (e) {
+		console.warn('[signals] uplink frame failed', e);
+	} finally {
+		if (!pushed) { pushed = true; pushUplinkCard(up, frameSrc); }
+	}
+	if (cap && session.current()) uploadUplinkFrame(up.id, cap, before);
+}
+
+// The full-size frame to the session. capturePhoto() returns the unchanged
+// count when nothing was stored, so only a count that grew points at this
+// uplink's photo.
+async function uploadUplinkFrame(id, cap, before) {
+	try {
+		const dataUrl = await blobToDataUrl(cap.blob);
 		const count = await session.capturePhoto({ dataUrl, w: cap.w, h: cap.h });
 		if (count <= before) return;
 		fpvtpOsd.flashCaptured(count);
 		const op = operator.getOperator();
 		if (op) operator.patch('signals', withPhoto(op.signals, id, count - 1));
 	} catch (e) {
-		console.warn('[signals] uplink frame failed', e);
-	} finally {
-		pushUplinkCard(up, dataUrl);
+		console.warn('[signals] uplink upload failed', e);
 	}
 }
 
@@ -2716,7 +2793,7 @@ function frame() {
 	// The UPLINKED card, in flight only: the end screen's recap takes over.
 	if (flightEnd.phase === FLYING) {
 		const q = cardQueue.update(frozen ? 0 : dt);
-		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01, total: flightSignals.length } : null);
+		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01 } : null);
 	} else signalCard.render(null);
 
 	// The end of flight decides on its own: what is shown, when the picture dies,

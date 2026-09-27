@@ -43,6 +43,13 @@ export function creditLine(info) {
 	return `PHOTO © ${artist} · ${license} · WIKIMEDIA COMMONS`;
 }
 
+// The end-of-flight recap strip: the first `max` uplinks as tiles, and how
+// many more a `+N` tile stands for. null when nothing was uplinked.
+export function recapTiles(entries, max = 6) {
+	if (!Array.isArray(entries) || entries.length === 0) return null;
+	return { tiles: entries.slice(0, max), more: Math.max(0, entries.length - max) };
+}
+
 // Shows each pushed card for CARD_S seconds, then the next. A card pushed
 // while one is showing waits its turn (FIFO): the operator sees every
 // UPLINKED, one at a time, never two overlapping.

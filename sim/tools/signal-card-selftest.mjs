@@ -2,7 +2,7 @@
 // 2026-09-27-signals-lot2b). No DOM, no network.
 // Run: node tools/signal-card-selftest.mjs
 import assert from 'node:assert/strict';
-import { CARD_S, MAX_FACTS, cardFacts, creditLine, CardQueue } from './signal-card-model.mjs';
+import { CARD_S, MAX_FACTS, cardFacts, creditLine, CardQueue, recapTiles } from './signal-card-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -110,6 +110,22 @@ t('CardQueue: dt <= 0 freezes', () => {
 	const before = q.update(0);
 	const frozen = q.update(-5);
 	assert.deepEqual(frozen, before);
+});
+
+t('recapTiles: 7 entries -> 6 tiles + 1 more, in order', () => {
+	const entries = Array.from({ length: 7 }, (_, i) => ({ signal: { id: `wd:Q${i}` } }));
+	const r = recapTiles(entries);
+	assert.equal(r.tiles.length, 6);
+	assert.equal(r.more, 1);
+	assert.deepEqual(r.tiles.map((e) => e.signal.id), entries.slice(0, 6).map((e) => e.signal.id));
+});
+
+t('recapTiles: 0 entries -> null; a custom max; exactly max -> more 0', () => {
+	assert.equal(recapTiles([]), null);
+	assert.equal(recapTiles(null), null);
+	const three = [{ a: 1 }, { a: 2 }, { a: 3 }];
+	assert.deepEqual(recapTiles(three, 2), { tiles: three.slice(0, 2), more: 1 });
+	assert.deepEqual(recapTiles(three, 3), { tiles: three, more: 0 });
 });
 
 console.log(`\n${n} signal-card tests OK`);
