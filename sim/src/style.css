@@ -416,7 +416,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-transform: uppercase; padding-bottom: var(--space-2); margin-bottom: var(--space-3);
 	border-bottom: 1px solid var(--rule);
 }
-.signal-recap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+/* Fixed-width cards, four to a row: 1fr columns let them span the whole
+   screen (2560px of recap for four uplinks, the end-screen lines pushed off). */
+.signal-recap-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); max-width: min(90vw, 860px); }
+.signal-recap-grid .signal-card-mini { width: 200px; }
 
 /* End of flight (PHASE 14): not a death screen, a link going out. */
 #flight-end {
