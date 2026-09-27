@@ -217,3 +217,13 @@ export function parseOverpass(json) {
 	}
 	return capPerTile([...best.values()]);
 }
+
+// ---------------------------------------------------------------- map
+// Names are drawn only from this zoom on: below it they overlap into noise.
+export const LABEL_ZOOM = 15;
+
+export function signalsInView(signals, { minLat, maxLat, minLon, maxLon }) {
+	const wraps = minLon > maxLon;
+	return signals.filter((s) => s.lat >= minLat && s.lat <= maxLat
+		&& (wraps ? (s.lon >= minLon || s.lon <= maxLon) : (s.lon >= minLon && s.lon <= maxLon)));
+}

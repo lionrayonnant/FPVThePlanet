@@ -5,6 +5,7 @@ import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW,
 	tileOf, tileKey, tileBounds, tilesForView, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
+	signalsInView, LABEL_ZOOM,
 } from './signal-model.mjs';
 
 let n = 0;
@@ -226,6 +227,14 @@ t('real Reims tile: the monuments outrank the statue and the stone, the cathedra
 	assert.equal(cathedral.kind, 'CATHEDRAL');
 	assert.equal(cathedral.name, 'CATHÉDRALE NOTRE-DAME');
 	for (const s of out.slice(3)) assert.equal(s.kind, 'MEMORIAL');
+});
+
+t('signalsInView: bbox filter, antimeridian-aware', () => {
+	const s = (id, lat, lon) => ({ id, lat, lon });
+	const list = [s('a', 48.86, 2.29), s('b', 10, 10), s('c', -17, 179.99), s('d', -17, -179.99)];
+	assert.deepEqual(signalsInView(list, { minLat: 48, maxLat: 49, minLon: 2, maxLon: 3 }).map((x) => x.id), ['a']);
+	assert.deepEqual(signalsInView(list, { minLat: -18, maxLat: -16, minLon: 179.9, maxLon: -179.9 }).map((x) => x.id), ['c', 'd']);
+	assert.equal(LABEL_ZOOM, 15);
 });
 
 console.log(`signal-model: ${n} ok`);
