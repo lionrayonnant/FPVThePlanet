@@ -199,7 +199,10 @@ like `src/flight-end.js`.
 ### New
 
 - **`tools/signal-model.mjs`** (pure, Node-safe) — OSM element → `Signal { id:
-  'osm:way/123', lat, lon, tier, name, fields[], commons? }`; tier rules; tile
+  'wd:Q206823', osm: 'way/92294792', lat, lon, tier, rank, name, fields[],
+  commons? }`. The id is the **Wikidata id**: one landmark is often several
+  OSM elements (Reims cathedral is a node and a building way), the
+  best-ranked one carries it; tier rules; tile
   grid keys; density cap and ranking; clearance from resolutions; the
   clearance → tiers + families table.
   - **`fields` is an ordered list of `{ key, label, value, source }`**, source
