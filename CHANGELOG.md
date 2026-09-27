@@ -33,6 +33,11 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   Les éléments nés de `fakeDom()` connaissent désormais leur document. Rien ne
   change dans le jeu.
 
+- **Vite passe de 6 à 8, Electron à 44.4.3.** Vite 8 bundle avec Rolldown, qui
+  ne lit que la forme FONCTION de `manualChunks` — la forme objet devenait un
+  avertissement puis une exception, et le build tombait. Le découpage (#21) est
+  le même, écrit comme le nouveau bundler le lit : `three` garde son chunk.
+
 ## [1.2.0] - 2026-09-23
 
 ### Ajouté
