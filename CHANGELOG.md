@@ -39,6 +39,13 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   à 100 %, `UPLINKED` : l'image interceptée rejoint les photos de la session,
   et le lieu passe au vert sur le scanner. Un crash ne perd que ce qui n'était
   pas encore transmis. Deuxième lot de #185.
+- **La fiche d'un lieu capturé.** Après `UPLINKED`, une fiche s'affiche
+  quelques secondes dans la colonne droite : l'image interceptée, la vraie
+  photo du lieu (Wikidata, Wikimedia Commons, auteur et licence crédités), une
+  description courte et ses repères en pictogrammes. En fin de vol, l'écran
+  récapitule les lieux transmis par la machine. Plus de lieux aussi (60 par
+  tuile, 3 km autour du décollage) et une capture plus tolérante (cône de 20°,
+  5 s).
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
   quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :
