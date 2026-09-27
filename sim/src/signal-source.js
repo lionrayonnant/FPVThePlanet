@@ -63,6 +63,7 @@ export function createSignalSource({
 	const loaded = new Map();     // tileKey -> Signal[]
 	const queue = [];             // tileKeys waiting
 	let busy = false;             // a request (or a backoff) is running
+	let current = null;           // the tile key currently in flight (or being waited on after 429)
 	let state = 'idle';
 	let idleWaiters = [];
 
@@ -89,10 +90,12 @@ export function createSignalSource({
 		const key = queue.shift();
 		if (key === undefined) { settle(); return; }
 		busy = true;
+		current = key;
 		try {
 			const cached = await fromCache(key);
 			if (cached) {
 				loaded.set(key, cached);
+				setState('idle');
 				api.onChange();
 			} else {
 				setState('loading');
@@ -106,7 +109,8 @@ export function createSignalSource({
 					const waitMs = (Number.isFinite(s) && s > 0 ? s : DEFAULT_RETRY_S) * 1000;
 					queue.unshift(key);
 					setState('waiting');
-					// `busy` stays true through the wait: nothing else may start.
+					// `busy` stays true through the wait: nothing else may start. `current` stays
+					// set so request() won't re-queue it.
 					schedule(() => { busy = false; pump(); }, waitMs);
 					return;
 				}
@@ -122,13 +126,14 @@ export function createSignalSource({
 			setState('unavailable');
 		}
 		busy = false;
+		current = null;
 		pump();
 	}
 
 	return Object.assign(api, {
 		request(keys) {
 			for (const k of keys ?? []) {
-				if (typeof k !== 'string' || loaded.has(k) || queue.includes(k)) continue;
+				if (typeof k !== 'string' || loaded.has(k) || queue.includes(k) || current === k) continue;
 				queue.push(k);
 			}
 			pump();

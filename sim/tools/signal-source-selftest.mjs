@@ -156,4 +156,43 @@ await t('a cache that throws does not break the source', async () => {
 	assert.equal(src.signals().length, 1);
 });
 
+await t('request() during fetch does not re-queue the tile; with an unreliable cache, exactly 1 fetch', async () => {
+	const cache = {
+		get: async () => { throw new Error('cache broken'); },
+		set: async () => { throw new Error('cache broken'); }
+	};
+	let resolveFirst = null;
+	const fetchPromise = new Promise(r => { resolveFirst = r; });
+	const f = fakeFetch(async (i) => {
+		if (i === 1) await fetchPromise;
+		return okBody([REIMS]);
+	});
+	const src = createSignalSource({ fetch: f.fn, cache });
+	src.request(['z12/2074/1409']);
+	await new Promise((r) => setImmediate(r));
+	src.request(['z12/2074/1409']);
+	resolveFirst();
+	await src.idle();
+	assert.equal(f.calls.length, 1);
+	assert.equal(src.signals().length, 1);
+});
+
+await t('a tile fails, then another tile is a cache hit → status is idle and signals are available', async () => {
+	const cache = memoryCache();
+	await cache.set('z12/1/2', { at: Date.now(), signals: [{ id: 'wd:Q191783', tile: 'z12/1/2' }] });
+
+	let fail = true;
+	const f = fakeFetch(() => { if (fail) throw new Error('offline'); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache });
+
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+
+	src.request(['z12/1/2']);
+	await src.idle();
+	assert.equal(src.status(), 'idle');
+	assert.equal(src.signals().length, 1);
+});
+
 console.log(`signal-source: ${n} ok`);
