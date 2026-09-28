@@ -266,6 +266,56 @@ console.log('\nambient: bubble, anchors, validation');
 	const hidden = { groundBelow: (x) => (inWindow(x) ? 30 : 0), obstructionBetween: () => ({ blocked: false, span: 0 }) };
 	check('building hidden between two coarse nodes: rejected',
 		!validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: hidden, heights, top: 250, span: 400 }));
+
+	// The floor is judged while the profile is cast (early exit). Reference:
+	// the whole profile first, then the floor, then the walls — the verdict
+	// must be identical on every family over bumpy, holed and walled ground,
+	// and a curve that fails on the floor must stop casting there.
+	const reference = (routine, anchor, rs, h) => {
+		if (!curveHeights(routine, anchor, (x, z) => rs.groundBelow(x, 250, z, 400), h)) return false;
+		const p = { x: 0, y: 0, z: 0 }, q = { x: 0, y: 0, z: 0 };
+		for (let i = 0; i < HEIGHT_SAMPLES; i++) {
+			curveAt(routine, anchor, h, routine.period * i / HEIGHT_SAMPLES, p);
+			const g = Math.max(h[i], h[(i + 1) % HEIGHT_SAMPLES]) - routine.agl;
+			if (p.y - g < routine.aglMin) return false;
+		}
+		for (let i = 0; i < SAMPLES; i++) {
+			curveAt(routine, anchor, h, routine.period * i / SAMPLES, p);
+			curveAt(routine, anchor, h, routine.period * (i + 1) / SAMPLES, q);
+			const o = rs.obstructionBetween(p.x, p.y, p.z, q.x, q.y, q.z);
+			if (o.blocked && o.span > 2) return false;
+		}
+		return true;
+	};
+	const rnd = rngFrom('early-exit');
+	let same = 0, total = 0, accepted = 0, rejected = 0;
+	for (const family of TARGET_FAMILIES) {
+		for (let n = 0; n < 60; n++) {
+			const rr = routineFor({ family, twr: 6, rand: rngFrom(`ee::${family}::${n}`) });
+			const bx = (rnd() - 0.5) * 200, bz = (rnd() - 0.5) * 200, bh = rnd() * 40, bw = 3 + rnd() * 30;
+			const kind = n % 4;   // 0 flat + block, 1 slope + block + hole, 2 slope + block, 3 slope + wall
+			const g = (x, z) => {
+				if (kind === 1 && x > 300) return null;
+				const inB = Math.abs(x - bx) < bw && Math.abs(z - bz) < bw;
+				return (kind === 0 ? 0 : 0.05 * x) + (inB && kind !== 3 ? bh : 0);
+			};
+			const rs = {
+				groundBelow: (x, _t, z) => g(x, z),
+				obstructionBetween: (ax, ay, az, bx2) => (kind === 3 && bx2 > bx ? { blocked: true, span: 5 } : { blocked: false, span: 0 }),
+			};
+			const anchor = { x: (rnd() - 0.5) * 60, y: 0, z: (rnd() - 0.5) * 60 };
+			const a = validateCurve({ routine: rr, anchor, rays: rs, heights: new Float64Array(HEIGHT_SAMPLES), top: 250, span: 400 });
+			const b = reference(rr, anchor, rs, new Float64Array(HEIGHT_SAMPLES));
+			total++; if (a === b) same++; if (b) accepted++; else rejected++;
+		}
+	}
+	check('early exit: same verdict as the full profile', same === total && accepted > 0 && rejected > 0,
+		`${same}/${total} (${accepted} accepted, ${rejected} rejected)`);
+	const stats = { raysCast: 0 };
+	const cliff = { groundBelow: () => (stats.raysCast > 2 ? 200 : 0), obstructionBetween: () => ({ blocked: false, span: 0 }) };
+	check('early exit: rejected on the floor',
+		!validateCurve({ routine: r, anchor: { x: 0, y: 0, z: 0 }, rays: cliff, heights, top: 250, span: 400, stats }));
+	check('early exit: the profile stops at the failing node', stats.raysCast < 8, `${stats.raysCast} rays of ${HEIGHT_SAMPLES}`);
 }
 
 console.log('\nambient: model');
