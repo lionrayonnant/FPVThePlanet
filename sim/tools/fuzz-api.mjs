@@ -76,6 +76,9 @@ const SID = (await post(`/__operator/${OP}/sessions`, {
 	area: 'tour-eiffel', weatherSnapshot: null, targetSeed: 'fuzz-seed', targetCount: 4, targetIndex: 1,
 })).session.id;
 
+// A capture at index 0, so that {i} = 0 reaches the bytes and not only the 404.
+await post(`/__operator/${OP}/sessions/${SID}/photos`, { dataUrl: 'data:image/jpeg;base64,/9j/AAA=', w: 480, h: 360 });
+
 const GOOD_TRACK = encodeTrack(
 	[{ t: 0, lat: 48.85, lon: 2.29, alt: 30, spd: 12, thr: 0.5, rate: 90 }],
 	{ start: { lat: 48.85, lon: 2.29 } },
@@ -101,6 +104,8 @@ const ROUTES = [
 	['POST', '/__operator/{op}/sessions/{sid}/photos', () => GOOD_PHOTO],
 	['PUT', '/__operator/{op}/sessions/{sid}/track', () => ({ track: GOOD_TRACK })],
 	['GET', '/__operator/{op}/sessions/{sid}/track'],
+	// One capture as bytes (issue #185): the only API answer that is not JSON.
+	['GET', '/__operator/{op}/sessions/{sid}/photos/{i}'],
 	['GET', '/__operator/{op}/tracks'],
 	['DELETE', '/__operator/{op}/sessions/{sid}'],
 	['GET', '/__map-api/scenes'],
@@ -156,6 +161,10 @@ function someHeaders(r, contentType) {
 	if (add[0] !== 'content-length') h[add[0]] = add[1];
 	return h;
 }
+
+// A photo index as it arrives in the URL: the real one, a negative, one past
+// every integer a Number holds exactly, and a traversal.
+const PHOTO_INDEXES = ['0', '-1', '99999999999999999999', '%2e%2e'];
 
 const METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'];
 
@@ -243,7 +252,12 @@ async function inspect({ method, path: p, query, body, contentType, headers }) {
 	}
 	const text = await res.text();
 	if (method !== 'HEAD' && text.length > 0) {
-		if (isApi(p)) {
+		// The photo route answers its bytes, not JSON: a success with an
+		// image type is the one API answer exempt from the JSON rule.
+		const image = res.ok && /^image\//.test(res.headers.get('content-type') ?? '');
+		if (isApi(p) && image) {
+			if (!/\/photos\/\d+$/.test(p)) return `answered ${res.status} with an image off the photo route`;
+		} else if (isApi(p)) {
 			let parsed;
 			try { parsed = JSON.parse(text); } catch {
 				return `answered ${res.status} with something that is not JSON: ${text.slice(0, 120)}`;
@@ -283,6 +297,7 @@ function someRequest(r) {
 		path: template
 			.replace('{op}', someId(r, OP))
 			.replace('{sid}', someId(r, SID))
+			.replace('{i}', pick(r, PHOTO_INDEXES))
 			.replace('{scene}', chance(r, 0.5) ? 'tour-eiffel' : encodeURIComponent(pick(r, TRAVERSALS)))
 			.replace('{stray}', chance(r, 0.5) ? pick(r, TRAVERSALS) : encodeURIComponent(pick(r, TRAVERSALS))),
 		query: chance(r, 0.75) ? '' : `?${pick(r, ['limit=-1', 'limit=1e9', 'lat=NaN&lon=NaN', 'day=../..', 'a'.repeat(2000), 'zoom=99'])}`,
