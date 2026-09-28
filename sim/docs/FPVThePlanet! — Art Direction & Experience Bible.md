@@ -23,7 +23,7 @@ le numéro de ligne de chaque titre, puis lire la plage voulue.
 38. Direction visuelle · 39. Typographie · 40. ASCII · 41. Pixel art · 42. CRT et image ·
 43. Le double système de rendu · 44. Principes anti-dérive · 45. La règle maîtresse ·
 46. État actuel / priorités · 47. La phrase qui résume FPVThePlanet! ·
-48. BENCH — le banc
+48. BENCH — le banc · 49. Signaux et habilitation
 
 ---
 
@@ -1871,3 +1871,79 @@ un rapport.
 ### La phrase du banc
 
 > **Your airframe. Your conditions. Nothing to lose, and nothing to show for it.**
+
+---
+
+# 49. Signaux et habilitation
+
+*(ajoutée le 2026-09-28, issue #185.)*
+
+### La règle assouplie
+
+Le 2026-09-27, l'auteur a assoupli l'interdit de progression. Une progression
+**diégétique** est permise : elle doit exister dans le monde, pas au-dessus de
+lui. Les scores, les classements et le partage restent dehors.
+
+Les traces (§28, §29) ne suffisaient pas : on revenait sans objectif et on ne
+cumulait rien. Les monuments réels, eux, valent le déplacement.
+
+### Pourquoi une habilitation existe dans cet univers
+
+Un signal est un lieu notable réel, relevé dans OpenStreetMap. Le garder dans le
+cadre le déchiffre ; `UPLINKED` l'envoie au réseau que l'opérateur alimente.
+
+Ce réseau ne confie pas ses machines à un inconnu. Chaque lieu transmis prouve
+le lien, et la `CLEARANCE` est ce que le réseau pense de toi : un point par
+niveau de chaque signal transmis, jamais dépensé. Elle ouvre des signaux plus
+lourds et des machines plus lourdes à intercepter.
+
+### L'échelle
+
+```text
+CLEARANCE 0      5" FREESTYLE                        TIER I
+CLEARANCE 1   6  + CINEWHOOP · TOOTHPICK             + TIER II
+CLEARANCE 2  18  + 5" RACE · LONG RANGE · HEAVY 5"   + TIER III
+CLEARANCE 3  36  + THE SWARM
+```
+
+Le 5" freestyle est là dès le départ : ce n'est pas la pire machine, c'est celle
+qui donne envie de continuer. L'essaim vient en dernier.
+
+Le tirage reste aléatoire (§21) ; c'est son réservoir qui s'élargit. Un signal
+au-dessus de l'habilitation reste visible, marqué, et ne se capture pas :
+`ENCRYPTED · CLEARANCE 2`. Il apprend que l'échelle existe.
+
+### Ce que ce n'est pas
+
+Pas de barre d'XP.
+
+Pas d'écran de récompense.
+
+Pas de fanfare de passage de niveau.
+
+Un palier franchi, c'est **une ligne dans le terminal** — la même que celle du
+décollage, `[+] CLEARANCE 1 · CINEWHOOP · TOOTHPICK · TIER II` — et **le
+hangar**, qui la montre. Le hangar apparaît au TARGET SCAN, en tête de `DATA`,
+dans le briefing, et à l'écran de fin du vol qui a franchi un palier.
+
+Ce n'est pas un garage : aucune machine n'y appartient à l'opérateur. Il montre
+ce que le réseau **pourrait** te confier. La machine tirée se perd toujours au
+crash — §47 tient.
+
+### L'exception au §19
+
+Le fond du hangar utilise la palette de la demo scene — cyan, magenta, violet,
+bleu électrique : la masse vivante du dôme de la clôture, **calme et lente**,
+derrière les machines seulement, avec des scanlines discrètes.
+
+C'est une exception, et elle est voulue : le hangar montre les machines que le
+réseau pourrait te confier, c'est-à-dire ce que le hack prend. Il n'y a ni
+glitch, ni flash, ni culmination. Le reste du hangar — les noms, les paliers,
+la jauge — reste dans les couleurs de base.
+
+Le §19 reste vrai partout ailleurs. `tools/palette-selftest.mjs` autorise
+`src/hangar.js` nommément, avec un commentaire qui renvoie ici.
+
+### La phrase de l'habilitation
+
+> **What you uplink is what the network trusts you with.**
