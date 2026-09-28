@@ -26,7 +26,7 @@ export const LINE_WIDTH_PX = 2;
 export const GATE_SIDE_M = 3;
 // The mockup's opacities: what is left reads clearly, what is flown steps back.
 export const REST_OPACITY = 0.9;
-export const FLOWN_OPACITY = 0.5;
+export const FLOWN_OPACITY = 0.85; // 0.5 read faint through the lens
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 

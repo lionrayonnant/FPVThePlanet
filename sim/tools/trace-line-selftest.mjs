@@ -50,6 +50,7 @@ t('flownOpacity: full at fade 0, gone at fade 1, linear, clamped', () => {
 	assert.equal(flownOpacity(-2), FLOWN_OPACITY);
 	assert.equal(flownOpacity(2), 0);
 	assert.ok(FLOWN_OPACITY < REST_OPACITY, 'the flown part steps back');
+	assert.ok(FLOWN_OPACITY >= 0.8, 'and still reads through the lens');
 });
 
 t('gateCorners: closed 3 m square centred on point 0, perpendicular to the path', () => {
