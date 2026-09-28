@@ -439,8 +439,16 @@ colliders; one trace at a time. The shape comes from the signal's kind:
 |---|---|---|---|
 | `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
 | `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
-| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | 60 m, from 40 m above the top down the steepest face | 160 m |
+| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | at least 60 m, from 40 m above the top down the steepest face; longer for a deep drop so the descent stays ≤ 45° (≤ 250 m) | at least 160 m, same rule |
 | `orbit` | everything else, and a bridge without a usable deck (< 6 m clearance) | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
+
+A bridge's deck is found on a 5 m grid of down rays around the signal (a
+raised band over lower ground on both sides), then verified with rays: an
+underside over a gap of at least 6 m, and an open pass under it. None found
+from afar (LIVE has not refined the deck yet): probed once more from 150 m,
+then an orbit. For a large place (the landmark still stands at the grid's
+80 m ring) the orbit's probe grid extends to 140 m, so a wide orbit does not
+fly blind into what stands beyond it.
 
 The spiral wraps the whole structure, from 15 m above the ground to 10 m above
 the top: its radius at each height is the landmark's radius there + 12 m

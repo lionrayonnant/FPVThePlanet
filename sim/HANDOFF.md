@@ -4106,12 +4106,13 @@ seeded to clearance 2, drone driven by `__signals.flyTrace`):**
   operator before `armSignals()`; unhide `#fpvtp-osd` to see the OSD.
 
 **NOT verified:**
-- The `under` shape live. Paris bridges read 6–9 m of gap in the mesh (the
-  minimum is now 6 m), but the deck axis is not found on wide decks, islands
-  and built banks (Pont Neuf, Grenelle, Rouelle, au Change): they get an orbit
-  or the hold. Bridge detection on real photogrammetry is open work.
+- The `under` shape, beyond these bridges: laid and flown on Pont Mirabeau,
+  Pont Neuf and Pont Rouelle (deck grid + ray checks, re-probed from 150 m);
+  Pont de Grenelle and Pont au Change fall back to an orbit — the mesh walls
+  the deck's sides down to the water, so no open pass is found.
 - A lift after a live collider flush (selftest only).
-- The line reads cream rather than yellow through the clean HD camera (yellow
-  through a low-res hacked one) — left for the author to judge.
+- The line's colour was the analog link's chroma blur, now fixed: the line
+  marks its pixels (target alpha) and the lens keeps their colour, the mark
+  read on the same taps as the colour. Judged by the author's eye only.
 - `?live=` without an operator has clearance 0: every tier II/III is
   encrypted there, so no trace (unchanged rule).
