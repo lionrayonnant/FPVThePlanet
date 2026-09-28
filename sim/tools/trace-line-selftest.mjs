@@ -1,4 +1,4 @@
-// Selftest of the trace hairline (issue #185): the pure split/fade/gate
+// Selftest of the trace line (issue #185): the pure split/fade/gate
 // helpers, then TraceLine itself against real THREE (no renderer needed).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import {
 	TraceLine, flownSegments, flownOpacity, gateCorners, lineWidthAt,
 	FLOWN_OPACITY, REST_OPACITY, GATE_SIDE_M, LINE_WIDTH_PX, LINE_WIDTH_FAR_PX,
-	WIDTH_NEAR_M, WIDTH_FAR_M, MIN_TARGET_PX,
+	WIDTH_NEAR_M, WIDTH_FAR_M, MIN_TARGET_PX, OUTLINE_PX, OUTLINE_MIN_TARGET_PX, UNDER_OPACITY, underlayTargetPx,
 } from '../src/trace-line.js';
 import { token } from '../src/palette.js';
 
@@ -99,7 +99,7 @@ t('TraceLine: show → all yellow, gate yellow; progress splits by instanceCount
 	const tr = straight();
 	line.show(tr);
 	assert.equal(line.group.visible, true);
-	assert.equal(line.group.children.length, 3);
+	assert.equal(line.group.children.length, 6, 'three lines, three underlays');
 	assert.equal(line.rest.geometry.instanceCount, 10);
 	assert.equal(line.flown.visible, false);
 	assert.equal(`#${line.gateMat.color.getHexString()}`, token('--yellow'));
@@ -151,7 +151,7 @@ t('TraceLine: setVisible (capture) and hide compose; show replaces', () => {
 	assert.equal(line.group.visible, false, 'hidden stays hidden through a capture');
 	line.show(straight(21));
 	assert.equal(line.group.visible, true);
-	assert.equal(line.group.children.length, 3, 'the old lines are gone');
+	assert.equal(line.group.children.length, 6, 'the old lines are gone');
 	assert.equal(line.rest.geometry.instanceCount, 20);
 	line.show({ points: new Float32Array(3), cum: new Float32Array(1), length: 0 });
 	assert.equal(line.group.visible, false, 'a one-point trace shows nothing');
@@ -175,7 +175,7 @@ t('TraceLine: setResolution reaches the three materials', () => {
 	line.dispose();
 });
 
-t('lineWidthAt: 2 px near, 3 px far, smooth and monotonic between', () => {
+t('lineWidthAt: 3 px near, 5 px far, smooth and monotonic between', () => {
 	assert.equal(lineWidthAt(0), LINE_WIDTH_PX);
 	assert.equal(lineWidthAt(WIDTH_NEAR_M), LINE_WIDTH_PX);
 	assert.equal(lineWidthAt(WIDTH_FAR_M), LINE_WIDTH_FAR_PX);
@@ -183,7 +183,8 @@ t('lineWidthAt: 2 px near, 3 px far, smooth and monotonic between', () => {
 	assert.ok(Math.abs(lineWidthAt((WIDTH_NEAR_M + WIDTH_FAR_M) / 2) - (LINE_WIDTH_PX + LINE_WIDTH_FAR_PX) / 2) < 1e-9);
 	let prev = 0;
 	for (let d = 0; d <= 400; d += 10) { const w = lineWidthAt(d); assert.ok(w >= prev); prev = w; }
-	assert.ok(LINE_WIDTH_FAR_PX <= 3, 'still a hairline far off');
+	assert.equal(LINE_WIDTH_PX, 3);
+	assert.equal(LINE_WIDTH_FAR_PX, 5, 'readable far off, still a line');
 });
 
 t('TraceLine: the width is patched into the shader, per vertex, in screen px', () => {
@@ -192,6 +193,9 @@ t('TraceLine: the width is patched into the shader, per vertex, in screen px', (
 		assert.doesNotMatch(m.vertexShader, /offset \*= linewidth;/, 'the stock width line is replaced');
 		assert.match(m.vertexShader, /smoothstep\( traceNearM, traceFarM, traceDepth \)/);
 		assert.ok(m.vertexShader.includes(`max( traceW * traceTargetPx, ${MIN_TARGET_PX.toFixed(2)} )`), 'a floor in target px');
+		assert.ok(m.vertexShader.includes('+ 2.0 * max( traceOutlinePx * traceTargetPx, traceOutlineMin )'), 'the outline, each side');
+		assert.equal(m.uniforms.traceOutlinePx.value, 0, 'the line itself has no outline');
+		assert.equal(m.uniforms.traceOutlineMin.value, 0);
 		assert.ok(MIN_TARGET_PX >= 1 && MIN_TARGET_PX <= 2);
 		assert.match(m.vertexShader, /^uniform float traceFarPx;/);
 		assert.equal(m.uniforms.traceFarPx.value, LINE_WIDTH_FAR_PX);
@@ -238,6 +242,46 @@ t('TraceLine: the line marks itself in the target\'s alpha for the lens', () => 
 	assert.match(lens, /float mark = markSum \/ float\(TAPS\);/);
 	assert.doesNotMatch(lens, /texture2D\(tDiffuse, uvHere\)\.a/, 'no mark read off the colour taps');
 	assert.match(lens, /mix\(ch - chLuma, c - dot\(c, LUMA\), mark\)/);
+});
+
+t('TraceLine: a dark underlay under each part, wider, drawn first, fading with it, no lens mark', () => {
+	const scene = new THREE.Scene();
+	const line = new TraceLine(scene);
+	line.show(straight());
+	const pairs = [[line.restUnder, line.rest], [line.flownUnder, line.flown], [line.gateUnder, line.gate]];
+	for (const [u, l] of pairs) {
+		assert.equal(u.geometry, l.geometry, 'the same geometry: the split follows');
+		assert.ok(u.id < l.id && u.renderOrder === l.renderOrder, 'three sorts it first (same renderOrder and position, lower id)');
+		const m = u.material;
+		assert.equal(`#${m.color.getHexString()}`, token('--black'));
+		assert.equal(m.opacity, UNDER_OPACITY);
+		assert.equal(m.uniforms.traceOutlinePx.value, OUTLINE_PX);
+		assert.equal(m.uniforms.traceOutlineMin.value, OUTLINE_MIN_TARGET_PX);
+		assert.equal(m.uniforms.traceTargetPx, line.restMat.uniforms.traceTargetPx, 'the shared ratio');
+		assert.equal(m.blending, THREE.CustomBlending);
+		assert.equal(m.blendSrc, THREE.SrcAlphaFactor);
+		assert.equal(m.blendDst, THREE.OneMinusSrcAlphaFactor);
+		assert.equal(m.blendSrcAlpha, THREE.ZeroFactor, 'alpha: dst × 1 — untouched, no mark');
+		assert.equal(m.blendDstAlpha, THREE.OneFactor);
+		assert.equal(m.depthTest, true);
+		assert.equal(m.depthWrite, false);
+	}
+	assert.ok(UNDER_OPACITY >= 0.5 && UNDER_OPACITY <= 0.7);
+	// ≈ 1 px each side in HD; a 0.35 sensor keeps a visible rim.
+	assert.equal(underlayTargetPx(3, 1), 5);
+	assert.equal(underlayTargetPx(5, 1), 7);
+	assert.ok(Math.abs(underlayTargetPx(3, 0.35) - (MIN_TARGET_PX + 2 * OUTLINE_MIN_TARGET_PX)) < 1e-9);
+	// Visibility and fade follow the part they sit under.
+	assert.equal(line.flownUnder.visible, false);
+	line.setProgress(0.5, 'on', 0.5);
+	assert.equal(line.flownUnder.visible, true);
+	assert.ok(Math.abs(line.flownUnderMat.opacity - UNDER_OPACITY / 2) < 1e-9);
+	line.setProgress(1, 'done', 0);
+	assert.equal(line.restUnder.visible, false);
+	line.setResolution(640, 400, 0.5);
+	assert.equal(line.gateUnderMat.resolution.x, 640);
+	line.dispose();
+	assert.equal(scene.children.length, 0);
 });
 
 t('trace-line.js uses no colour literal and no demo token', () => {

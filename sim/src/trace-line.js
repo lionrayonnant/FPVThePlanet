@@ -1,14 +1,18 @@
-// The trace in the world (issue #185, look A — a hairline): one thin line,
-// yellow for what is left to fly, green for what is flown, plus a small square
-// entry gate at point 0 (yellow, green once entered). Depth-tested, so a
-// building in front hides it; drawn into the scene, so it goes through the
-// lens like everything else. Fog-free, no glow.
+// The trace in the world (issue #185, look A — a thin line): yellow for what
+// is left to fly, green for what is flown, plus a small square entry gate at
+// point 0 (yellow, green once entered). Depth-tested, so a building in front
+// hides it; drawn into the scene, so it goes through the lens like everything
+// else. Fog-free, no glow.
 //
 // Readability through the lens:
-//   - width in screen (CSS) px, 2 px near → 3 px far (lineWidthAt(), the same
+//   - width in screen (CSS) px, 3 px near → 5 px far (lineWidthAt(), the same
 //     curve in the vertex shader, per vertex on its view depth), never under
-//     MIN_TARGET_PX of the target: a hacked low-res sensor keeps a hairline
+//     MIN_TARGET_PX of the target: a hacked low-res sensor keeps a thin line
 //     instead of a tube, a HiDPI screen does not halve it;
+//   - a dark underlay (--black at UNDER_OPACITY), OUTLINE_PX wider each side
+//     (never under OUTLINE_MIN_TARGET_PX of the target), drawn first: the
+//     line keeps its contrast on a bright sky and a busy city. It leaves the
+//     target's alpha alone, so it carries no lens mark (below);
 //   - the line clears the target's alpha by its own opacity (CustomBlending),
 //     and the lens's analog composite keeps the chroma of marked pixels. Without
 //     it the link's ~25 px chroma average left a 2 px line only its luma: the
@@ -31,16 +35,21 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { token } from './palette.js';
 
-// CHOSEN (mockup look A): a hairline, the width of the scanner's rules, a
-// little wider far off (Pont Neuf / Opéra at 150-300 m read faint at 2 px).
-// Screen px; the depths are view depth in metres.
-export const LINE_WIDTH_PX = 2;
-export const LINE_WIDTH_FAR_PX = 3;
+// Screen px; the depths are view depth in metres. 2 → 3 px (look A's
+// hairline) was tiring to follow in play: too thin to read at a glance.
+export const LINE_WIDTH_PX = 3;
+export const LINE_WIDTH_FAR_PX = 5;
 export const WIDTH_NEAR_M = 80;
 export const WIDTH_FAR_M = 300;
 // Floor in target px: 1 px of a hacked 0.35 sensor stair-stepped and went
-// faint over trees; 1.5 still reads as a hairline (~4 screen px).
+// faint over trees; 1.5 still reads as a thin line (~4 screen px).
 export const MIN_TARGET_PX = 1.5;
+// The dark underlay: this much wider each side, in screen px, and never under
+// OUTLINE_MIN_TARGET_PX target px (1 screen px of a 0.35 sensor is a third of
+// a pixel: it would vanish).
+export const OUTLINE_PX = 1;
+export const OUTLINE_MIN_TARGET_PX = 0.75;
+export const UNDER_OPACITY = 0.6;
 export const GATE_SIDE_M = 3;
 // What is left is opaque; what is flown steps back.
 export const REST_OPACITY = 1;
@@ -63,8 +72,10 @@ const WIDTH_GLSL = `
 				float traceDepth = ( position.y < 0.5 ) ? - start.z : - end.z;
 				float traceW = linewidth + ( traceFarPx - linewidth )
 					* smoothstep( traceNearM, traceFarM, traceDepth );
-				offset *= max( traceW * traceTargetPx, ${MIN_TARGET_PX.toFixed(2)} );`;
-const WIDTH_UNIFORMS = 'uniform float traceFarPx;\nuniform float traceNearM;\nuniform float traceFarM;\nuniform float traceTargetPx;\n';
+				offset *= max( traceW * traceTargetPx, ${MIN_TARGET_PX.toFixed(2)} )
+					+ 2.0 * max( traceOutlinePx * traceTargetPx, traceOutlineMin );`;
+const WIDTH_UNIFORMS = 'uniform float traceFarPx;\nuniform float traceNearM;\nuniform float traceFarM;\nuniform float traceTargetPx;\n'
+	+ 'uniform float traceOutlinePx;\nuniform float traceOutlineMin;\n';
 
 // Number of fully flown segments: segment i (point i → i+1) is flown when
 // cum[i+1] ≤ progress·length. Binary search, no allocation.
@@ -84,6 +95,12 @@ export function flownSegments(cum, length, progress01) {
 // The flown part cools to nothing over the follower's fade.
 export function flownOpacity(fade01) {
 	return FLOWN_OPACITY * (1 - clamp01(fade01));
+}
+
+// The underlay under the width in screen px `w` (target px per screen px
+// `targetPx`): the line's own width plus the outline, both in target px.
+export function underlayTargetPx(w, targetPx) {
+	return Math.max(w * targetPx, MIN_TARGET_PX) + 2 * Math.max(OUTLINE_PX * targetPx, OUTLINE_MIN_TARGET_PX);
 }
 
 // A closed square (5 points, 15 floats) centred on point 0, in the plane
@@ -112,7 +129,9 @@ export function gateCorners(points, side = GATE_SIDE_M, out = new Float32Array(1
 	return out;
 }
 
-function lineMaterial(color, opacity, targetPx) {
+// under: the dark underlay — wider, and its alpha factors leave the target's
+// alpha as it is (no lens mark: its own chroma is not the line's).
+function lineMaterial(color, opacity, targetPx, under = false) {
 	const m = new LineMaterial({
 		color,
 		linewidth: LINE_WIDTH_PX,
@@ -123,7 +142,7 @@ function lineMaterial(color, opacity, targetPx) {
 		depthWrite: false,
 		fog: false,
 		// The lens's composer target is MSAA already; blending + MSAA edges are
-		// enough for 2 px, alphaToCoverage would add nothing.
+		// enough for a few px, alphaToCoverage would add nothing.
 		alphaToCoverage: false,
 		// Colour: normal blending. Alpha: dst × (1 − opacity) — the lens's mark.
 		blending: THREE.CustomBlending,
@@ -131,7 +150,7 @@ function lineMaterial(color, opacity, targetPx) {
 		blendSrc: THREE.SrcAlphaFactor,
 		blendDst: THREE.OneMinusSrcAlphaFactor,
 		blendSrcAlpha: THREE.ZeroFactor,
-		blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+		blendDstAlpha: under ? THREE.OneFactor : THREE.OneMinusSrcAlphaFactor,
 	});
 	if (!m.vertexShader.includes(WIDTH_ANCHOR)) throw new Error('trace-line: LineMaterial shader changed, width patch anchor not found');
 	m.vertexShader = WIDTH_UNIFORMS + m.vertexShader.replace(WIDTH_ANCHOR, WIDTH_GLSL);
@@ -139,7 +158,9 @@ function lineMaterial(color, opacity, targetPx) {
 		traceFarPx: { value: LINE_WIDTH_FAR_PX },
 		traceNearM: { value: WIDTH_NEAR_M },
 		traceFarM: { value: WIDTH_FAR_M },
-		traceTargetPx: targetPx, // shared by the three materials
+		traceTargetPx: targetPx, // shared by all the materials
+		traceOutlinePx: { value: under ? OUTLINE_PX : 0 },
+		traceOutlineMin: { value: under ? OUTLINE_MIN_TARGET_PX : 0 },
 	});
 	return m;
 }
@@ -162,6 +183,11 @@ export class TraceLine {
 		this.restMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
 		this.flownMat = lineMaterial(this._green, FLOWN_OPACITY, this._targetPx);
 		this.gateMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
+		const black = new THREE.Color(token('--black'));
+		this.restUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
+		this.flownUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
+		this.gateUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
+		this._mats = [this.restMat, this.flownMat, this.gateMat, this.restUnderMat, this.flownUnderMat, this.gateUnderMat];
 		this.group = new THREE.Group();
 		this.group.name = 'trace-line';
 		this.group.visible = false;
@@ -170,6 +196,9 @@ export class TraceLine {
 		this.rest = null;
 		this.flown = null;
 		this.gate = null;
+		this.restUnder = null;
+		this.flownUnder = null;
+		this.gateUnder = null;
 		this._trace = null;
 		this._segments = 0;
 		this._shown = false;
@@ -200,10 +229,16 @@ export class TraceLine {
 		const gateGeom = new LineGeometry();
 		gateGeom.setPositions(gateCorners(pts));
 
+		// The underlays share their line's geometry (instanceCount included) and
+		// are added first: same renderOrder, same position, so three draws them
+		// first (its transparent sort falls back on the object id).
+		this.flownUnder = new Line2(flownGeom, this.flownUnderMat);
+		this.restUnder = new Line2(restGeom, this.restUnderMat);
+		this.gateUnder = new Line2(gateGeom, this.gateUnderMat);
 		this.flown = new Line2(flownGeom, this.flownMat);
 		this.rest = new Line2(restGeom, this.restMat);
 		this.gate = new Line2(gateGeom, this.gateMat);
-		for (const l of [this.flown, this.rest, this.gate]) {
+		for (const l of [this.flownUnder, this.restUnder, this.gateUnder, this.flown, this.rest, this.gate]) {
 			l.onBeforeRender = keepResolution;
 			this.group.add(l);
 		}
@@ -223,8 +258,11 @@ export class TraceLine {
 		this.flown.geometry.instanceCount = k;
 		this.flown.visible = k > 0 && op > 0;
 		this.flownMat.opacity = op;
+		this.flownUnder.visible = this.flown.visible;
+		this.flownUnderMat.opacity = UNDER_OPACITY * op / FLOWN_OPACITY;
 		this.rest.geometry.instanceCount = this._segments - k;
 		this.rest.visible = this._segments - k > 0;
+		this.restUnder.visible = this.rest.visible;
 		this.gateMat.color.copy(state === 'waiting' ? this._yellow : this._green);
 	}
 
@@ -248,15 +286,13 @@ export class TraceLine {
 		this._targetPx.value = targetPx > 0 && Number.isFinite(targetPx) ? targetPx : 1;
 		if (w === this._resW && h === this._resH) return;
 		this._resW = w; this._resH = h;
-		for (const m of [this.restMat, this.flownMat, this.gateMat]) m.resolution.set(w, h);
+		for (const m of this._mats) m.resolution.set(w, h);
 	}
 
 	dispose() {
 		this._clear();
 		this.scene.remove(this.group);
-		this.restMat.dispose();
-		this.flownMat.dispose();
-		this.gateMat.dispose();
+		for (const m of this._mats) m.dispose();
 	}
 
 	_apply() {
@@ -264,12 +300,14 @@ export class TraceLine {
 	}
 
 	_clear() {
+		for (const l of [this.flownUnder, this.restUnder, this.gateUnder]) if (l) this.group.remove(l);
 		for (const l of [this.flown, this.rest, this.gate]) {
 			if (!l) continue;
 			this.group.remove(l);
-			l.geometry.dispose();
+			l.geometry.dispose(); // shared with its underlay
 		}
 		this.flown = this.rest = this.gate = null;
+		this.flownUnder = this.restUnder = this.gateUnder = null;
 		this._trace = null;
 		this._segments = 0;
 	}
