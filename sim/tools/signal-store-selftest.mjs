@@ -1,11 +1,11 @@
 // Selftest of the operator's resolved-signals record (issue #185).
 // Run: node tools/signal-store-selftest.mjs
 import assert from 'node:assert/strict';
-import { MAX_RESOLVED, fromStored, withResolved, withPhoto, resolvedIds } from './signal-store-model.mjs';
+import { MAX_RESOLVED, fromStored, withResolved, withPhoto, withPlace, resolvedIds } from './signal-store-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
-const entry = (at, extra = {}) => ({ at, name: 'X', lat: 49.25, lon: 4.03, tier: 1, family: 'cinewhoop', holdS: 6.1, distM: 142, sessionId: 's1', photo: 0, ...extra });
+const entry = (at, extra = {}) => ({ at, name: 'X', lat: 49.25, lon: 4.03, tier: 1, family: 'cinewhoop', holdS: 6.1, distM: 142, sessionId: 's1', photo: 0, place: null, ...extra });
 
 t('garbage reads as empty', () => {
 	for (const v of [undefined, null, 3, 'x', [], { resolved: 'x' }]) assert.deepEqual(fromStored(v), { resolved: {} });
@@ -56,13 +56,15 @@ t('withPhoto sets the photo of an entry written without one, once, on a new obje
 });
 
 t('a worst-case store fits the server body (1 MB) with headroom', () => {
-	// 4-byte code points are the worst UTF-8 case for the capped names; the
-	// machine fields (family, sessionId) are ASCII tokens at their cap.
+	// 4-byte code points are the worst UTF-8 case for the capped names and the
+	// place; the machine fields (family, sessionId) are ASCII tokens at their
+	// cap.
 	const wide = '\u{1F600}'.repeat(60);
+	const widePlace = '\u{1F600}'.repeat(40);
 	let s = { resolved: {} };
 	for (let i = 0; i < MAX_RESOLVED; i++) {
 		s.resolved[`wd:Q${999999000000 - i}`] = entry(1790000000000 + i, {
-			name: wide, family: 'f'.repeat(200), sessionId: 's'.repeat(200),
+			name: wide, family: 'f'.repeat(200), sessionId: 's'.repeat(200), place: widePlace,
 			lat: -49.12345678901234, lon: -179.1234567890123, holdS: 6.000000000000001, distM: 123456.78901234, photo: 999999, tier: 3,
 		});
 	}
@@ -70,6 +72,23 @@ t('a worst-case store fits the server body (1 MB) with headroom', () => {
 	assert.equal(Object.keys(s.resolved).length, MAX_RESOLVED);
 	const bytes = Buffer.byteLength(JSON.stringify({ key: 'signals', value: s }));
 	assert.ok(bytes < 0.85e6, `${bytes} bytes`);
+});
+
+t('withPlace sets the place of an entry resolved without one, once, on a new object', () => {
+	const a = withResolved(fromStored(null), 'wd:Q1', entry(1, { place: null }));
+	const b = withPlace(a, 'wd:Q1', 'Reims');
+	assert.notEqual(b, a);
+	assert.equal(a.resolved['wd:Q1'].place, null, 'input untouched');
+	assert.equal(b.resolved['wd:Q1'].place, 'Reims');
+	assert.equal(withPlace(b, 'wd:Q1', 'Paris').resolved['wd:Q1'].place, 'Reims', 'never overwritten');
+	assert.deepEqual(withPlace(a, 'wd:Q2', 'Reims'), a, 'unknown id: unchanged');
+	assert.equal(withPlace(a, 'wd:Q1', null).resolved['wd:Q1'].place, null, 'a null name leaves it null');
+});
+
+t('place is capped at 40 code points and control characters stripped', () => {
+	const s = withResolved(fromStored(null), 'wd:Q1', entry(1, { place: '\u0000' + 'É'.repeat(200) }));
+	assert.equal(Array.from(s.resolved['wd:Q1'].place).length, 40);
+	assert.ok(!/\u0000/.test(s.resolved['wd:Q1'].place));
 });
 
 t('family and sessionId are ASCII tokens or null', () => {

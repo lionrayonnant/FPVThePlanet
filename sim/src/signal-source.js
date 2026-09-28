@@ -19,6 +19,7 @@ export function memoryCache() {
 	return {
 		get: async (k) => m.get(k) ?? null,
 		set: async (k, v) => { m.set(k, v); },
+		entries: async () => [...m.entries()],
 	};
 }
 
@@ -45,6 +46,16 @@ export function idbCache(name = 'fpvtp-signals') {
 	return {
 		get: (k) => tx('readonly', (s) => s.get(k)).catch(() => fallback.get(k)),
 		set: (k, v) => tx('readwrite', (s) => s.put(v, k)).then(() => {}).catch(() => fallback.set(k, v)),
+		entries: () => open().then((db) => new Promise((resolve, reject) => {
+			const out = [];
+			const req = db.transaction(STORE, 'readonly').objectStore(STORE).openCursor();
+			req.onsuccess = () => {
+				const cur = req.result;
+				if (cur) { out.push([cur.key, cur.value]); cur.continue(); }
+				else resolve(out);
+			};
+			req.onerror = () => reject(req.error);
+		})).catch(() => fallback.entries()),
 	};
 }
 
@@ -67,6 +78,7 @@ export function createSignalSource({
 	let backoff = false;          // true while `current` is a key waiting out a 429, not actively fetching
 	let state = 'idle';
 	let idleWaiters = [];
+	let batch = new Set();        // tileKeys of the latest request() call, for progress()
 
 	const listeners = new Set();
 	const emit = () => {
@@ -82,10 +94,11 @@ export function createSignalSource({
 		for (const r of w) r();
 	};
 
+	const validCache = (hit) => hit && hit.v === MODEL_VERSION && Array.isArray(hit.signals) && now() - hit.at < CACHE_TTL_MS;
 	async function fromCache(key) {
 		try {
 			const hit = await cache.get(key);
-			if (hit && hit.v === MODEL_VERSION && Array.isArray(hit.signals) && now() - hit.at < CACHE_TTL_MS) return hit.signals;
+			if (validCache(hit)) return hit.signals;
 		} catch { /* a broken cache is a missing cache */ }
 		return null;
 	}
@@ -151,8 +164,11 @@ export function createSignalSource({
 			const t = now();
 			const head = backoff && queue[0] === current ? current : null;
 			const wanted = [];
+			batch = new Set(); // a new batch starts: progress() reports on this view only
 			for (const k of keys ?? []) {
-				if (typeof k !== 'string' || loaded.has(k) || k === current || k === head) continue;
+				if (typeof k !== 'string') continue;
+				batch.add(k);
+				if (loaded.has(k) || k === current || k === head) continue;
 				const cd = failedUntil.get(k);
 				if (cd !== undefined && t < cd) continue; // cooling down
 				if (!wanted.includes(k)) wanted.push(k);
@@ -160,12 +176,43 @@ export function createSignalSource({
 			queue.length = 0;
 			if (head) queue.push(head);
 			queue.push(...wanted);
+			emit(); // the batch reset alone is a progress change
 			pump();
 		},
 		signals() {
 			const byId = new Map();
 			for (const list of loaded.values()) for (const s of list) if (!byId.has(s.id)) byId.set(s.id, s);
 			return [...byId.values()];
+		},
+		// Every fresh, current-version cached tile's signals — what the scanner
+		// can show before (or instead of) asking Overpass again. Not restricted
+		// to `loaded`: a tile cached by an earlier source (or an earlier batch)
+		// still counts.
+		async cachedSignals() {
+			let all = [];
+			try { all = await cache.entries(); } catch { /* a broken cache is a missing cache */ }
+			const byId = new Map();
+			for (const [, hit] of all) {
+				if (!validCache(hit)) continue;
+				for (const s of hit.signals) if (!byId.has(s.id)) byId.set(s.id, s);
+			}
+			return [...byId.values()];
+		},
+		// done = batch tiles already loaded; queued/in-flight fill in the rest of
+		// `total`, so a tile that failed and dropped into cooldown quietly leaves
+		// the total rather than stalling the bar.
+		progress() {
+			let done = 0, queued = 0, inFlight = 0;
+			for (const k of batch) {
+				if (loaded.has(k)) done++;
+				else if (queue.includes(k)) queued++;
+				else if (busy && k === current) inFlight++;
+			}
+			let retryAt = null;
+			if (state === 'unavailable') {
+				for (const v of failedUntil.values()) if (retryAt === null || v < retryAt) retryAt = v;
+			}
+			return { done, total: done + queued + inFlight, current: busy ? current : null, retryAt };
 		},
 		status: () => state,
 		idle: () => new Promise((r) => { idleWaiters.push(r); settle(); }),

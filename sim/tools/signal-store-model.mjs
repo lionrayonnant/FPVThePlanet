@@ -5,18 +5,23 @@
 //
 // The whole value travels in one PATCH, and the server reads at most 1e6
 // bytes of body (server/api.mjs readBody): MAX_RESOLVED is sized so a
-// worst-case store (4-byte names at TEXT_MAX) stays under 85 % of that
-// (tools/signal-store-selftest.mjs measures it).
-export const MAX_RESOLVED = 1500;
+// worst-case store (4-byte names at TEXT_MAX, a 4-byte place at its own cap)
+// stays under 85 % of that (tools/signal-store-selftest.mjs measures it).
+export const MAX_RESOLVED = 1200;
 const TEXT_MAX = 60;
 // family and sessionId are machine ids (a profile slug, a UUID): ASCII tokens.
 const TOKEN_MAX = 40;
 const TOKEN_RE = /^[A-Za-z0-9_.:-]+$/;
 const ID_RE = /^wd:Q\d{1,12}$/;
+// The place name (src/place-name.js), same 40-code-point cap as a token, but
+// free text: a Nominatim answer can carry any script.
+const PLACE_MAX = 40;
 
-const text = (v) => (typeof v === 'string'
-	? Array.from(v.replace(/[\u0000-\u001f\u007f]/g, '')).slice(0, TEXT_MAX).join('')
+const cleanText = (v, max) => (typeof v === 'string'
+	? Array.from(v.replace(/[\u0000-\u001f\u007f]/g, '')).slice(0, max).join('')
 	: null);
+const text = (v) => cleanText(v, TEXT_MAX);
+const place = (v) => (typeof v === 'string' ? cleanText(v, PLACE_MAX) || null : null);
 const token = (v) => (typeof v === 'string' && TOKEN_RE.test(v) ? v.slice(0, TOKEN_MAX) : null);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -30,6 +35,7 @@ function entryOf(e) {
 		at, name: text(e.name) ?? '', lat, lon, tier: e.tier,
 		family: token(e.family), holdS, distM,
 		sessionId: token(e.sessionId), photo,
+		place: place(e.place),
 	};
 }
 
@@ -65,6 +71,19 @@ export function withPhoto(store, id, index) {
 	const base = fromStored(store);
 	const e = base.resolved[id];
 	if (e && e.photo === null && Number.isInteger(index) && index >= 0) e.photo = index;
+	return base;
+}
+
+// Sets the place name of an entry resolved before src/place-name.js answered
+// (same timing as withPhoto: the resolution is written at once, the name
+// follows). Never overwrites a place.
+export function withPlace(store, id, name) {
+	const base = fromStored(store);
+	const e = base.resolved[id];
+	if (e && e.place === null) {
+		const p = place(name);
+		if (p !== null) e.place = p;
+	}
 	return base;
 }
 

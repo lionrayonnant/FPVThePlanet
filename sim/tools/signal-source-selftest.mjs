@@ -292,4 +292,78 @@ await t('a listener that throws does not stop the others', async () => {
 	assert.ok(warned >= 1);
 });
 
+await t('progress() across a 3-tile batch: total holds, done climbs, current tracks the fetch', async () => {
+	const gates = [null, null, null];
+	const f = fakeFetch(async (i) => { await new Promise((r) => { gates[i - 1] = r; }); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	assert.deepEqual(src.progress(), { done: 0, total: 0, current: null, retryAt: null });
+
+	src.request(['z12/1/1', 'z12/1/2', 'z12/1/3']);
+	for (let i = 0; i < 4 && !gates[0]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 0, total: 3, current: 'z12/1/1', retryAt: null });
+
+	gates[0]();
+	for (let i = 0; i < 6 && !gates[1]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 1, total: 3, current: 'z12/1/2', retryAt: null });
+
+	gates[1]();
+	for (let i = 0; i < 6 && !gates[2]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 2, total: 3, current: 'z12/1/3', retryAt: null });
+
+	gates[2]();
+	await src.idle();
+	assert.deepEqual(src.progress(), { done: 3, total: 3, current: null, retryAt: null });
+});
+
+await t('progress() resets when a new request() batch starts', async () => {
+	const f = fakeFetch(() => okBody([]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.request(['z12/1/1', 'z12/1/2']);
+	await src.idle();
+	assert.equal(src.progress().total, 2);
+	src.request(['z12/9/9']);
+	assert.deepEqual(src.progress(), { done: 0, total: 1, current: 'z12/9/9', retryAt: null });
+	await src.idle();
+	assert.deepEqual(src.progress(), { done: 1, total: 1, current: null, retryAt: null });
+});
+
+await t('progress().retryAt is the failed tile\'s cooldown end while state is unavailable', async () => {
+	let now = 1_000_000;
+	const f = fakeFetch(() => { throw new Error('offline'); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), now: () => now });
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const p = src.progress();
+	assert.equal(p.retryAt, now + DEFAULT_RETRY_S * 1000);
+	assert.equal(p.total, 0, 'the failed tile is neither loaded, queued nor in flight');
+
+	now += DEFAULT_RETRY_S * 1000 + 1;
+	assert.equal(src.progress().retryAt, now - 1, 'retryAt itself does not move on its own');
+});
+
+await t('entries(): memory cache lists every [key, value] pair it holds', async () => {
+	const cache = memoryCache();
+	await cache.set('a', 1);
+	await cache.set('b', 2);
+	assert.deepEqual((await cache.entries()).sort(), [['a', 1], ['b', 2]]);
+});
+
+await t('cachedSignals(): every fresh, current-version cached tile, deduped, stale/old-version skipped', async () => {
+	const cache = memoryCache();
+	const now = Date.now();
+	await cache.set('z12/1/1', { v: MODEL_VERSION, at: now, signals: [{ id: 'wd:Q1', tile: 'z12/1/1' }, { id: 'wd:Q2', tile: 'z12/1/1' }] });
+	await cache.set('z12/1/2', { v: MODEL_VERSION, at: now, signals: [{ id: 'wd:Q2', tile: 'z12/1/2' }] }); // dup id
+	await cache.set('z12/1/3', { v: MODEL_VERSION, at: now - CACHE_TTL_MS - 1, signals: [{ id: 'wd:Q3', tile: 'z12/1/3' }] }); // stale
+	await cache.set('z12/1/4', { v: 0, at: now, signals: [{ id: 'wd:Q4', tile: 'z12/1/4' }] }); // old version
+	const src = createSignalSource({ fetch: async () => okBody([]), cache });
+	const signals = await src.cachedSignals();
+	assert.deepEqual(signals.map((s) => s.id).sort(), ['wd:Q1', 'wd:Q2']);
+});
+
+await t('cachedSignals() with a cache that cannot list entries degrades to empty, not a throw', async () => {
+	const src = createSignalSource({ fetch: async () => okBody([]), cache: { get: async () => null, set: async () => {} } });
+	assert.deepEqual(await src.cachedSignals(), []);
+});
+
 console.log(`signal-source: ${n} ok`);
