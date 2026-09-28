@@ -23,7 +23,10 @@ export const MIN_DECK_POINTS = 3;
 export const AXIS_ELONGATION = 4;    // λ1 ≥ 4·λ2: a line, not a blob (a plain building)
 export const FLOOR_NEAR_M = 30;      // floor under the deck centre: grid points this close
 export const UNDER_START_M = 2;      // rayUp starts this far above that floor
-export const UNDER_MIN_CLEARANCE_M = 8;
+// Water (or road) to deck underside. Real city bridges measure 6–9 m in the
+// mesh (Mirabeau 6.0): 3 m either side of a line centred in the gap.
+// tools/trace-model.mjs reads it from here.
+export const UNDER_MIN_CLEARANCE_M = 6;
 export const PASS_HALF_M = 40;       // the under-pass reach, either side of the deck
 export const PASS_SHIFTS_M = [0, 8, -8]; // trace-model's per-attempt shifts along the deck
 // Validation / lift.

@@ -185,9 +185,14 @@ t('no axis on a plain building (a blob), nor on a long walled one', () => {
 	const { profile } = probe(w2, { x: 0, y: 33, z: 0 }, { axis: true });
 	assert.equal(profile.axis, undefined);
 	assert.equal(w2.calls.obs, 3, 'all three passes walled');
-	// A deck too low to fly under.
+	// A deck too low to fly under (under 6 m).
 	const w3 = new World({ boxes: [box(-150, 150, -5, 5, 5, 7)] });
 	assert.equal(probe(w3, { x: 0, y: 10, z: 0 }, { axis: true }).profile.axis, undefined);
+	// 6 m, Pont Mirabeau's gap in the mesh: an axis.
+	const w4 = new World({ boxes: [box(-150, 150, -5, 5, 6, 8)] });
+	const ax4 = probe(w4, { x: 0, y: 11, z: 0 }, { axis: true }).profile.axis;
+	assert.ok(ax4, 'no axis over a 6 m gap');
+	near(ax4.deckY - ax4.underY, 6, 1e-9, 'clearance');
 });
 
 t('window edge: misses read NaN; a few are fine, too many flag the profile partial', () => {

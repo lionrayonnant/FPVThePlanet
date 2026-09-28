@@ -8,6 +8,7 @@
 // the same convention as src/signal-anchor.js. Heights are absolute Y; a
 // non-finite height reads as `profile.ground`.
 import { ABOVE_M as ANCHOR_ABOVE_M, RING_M as ANCHOR_RING_M } from '../src/signal-anchor.js';
+import { UNDER_MIN_CLEARANCE_M } from '../src/trace-probe.js';
 
 export const SPACING_M = 2;
 export const TOLERANCE_M = { 2: 5, 3: 3.5 };
@@ -39,7 +40,6 @@ const SPIRAL_CLIMB_MAX = Math.tan(Math.PI / 6); // 30°
 const SPIRAL_SMOOTH_M = 15;   // radius steps spread over 15 m of height
 const HEIGHT_SLACK_M = 4;     // a ring wraps height y when it reaches y − 4 m
 // Under.
-const UNDER_MIN_CLEARANCE_M = 8;
 const UNDER_HALF_M = 40;
 const UNDER_OVER_DECK_M = 10;
 const DECK_THICKNESS_M = 3;   // when the axis carries no deck surface (topY)
@@ -443,7 +443,7 @@ function resample(raw) {
 
 // -> { id, shape, points, cum, length, tolerance } | null (tier I, no profile,
 // a non-finite anchor). A bridge/arch without a usable axis (none, or less
-// than 8 m of clearance) falls back to an orbit.
+// than UNDER_MIN_CLEARANCE_M of clearance) falls back to an orbit.
 export function buildTrace({ signal, anchor, profile, tier, approach, attempt = 0 }) {
 	const tol = TOLERANCE_M[tier];
 	if (!tol || !signal || !anchor || !validProfile(profile)) return null;
@@ -548,4 +548,26 @@ export class TraceFollower {
 export function photoScore({ angleDeg, los }) {
 	if (!los || !Number.isFinite(angleDeg) || angleDeg < 0 || angleDeg > PHOTO_CONE_DEG) return null;
 	return 1 - angleDeg / PHOTO_CONE_DEG;
+}
+
+// Where the photo aims: the landmark's mid-height over the anchor's point,
+// (profile ground + anchor.y) / 2 — the anchor sits on the top (the Eiffel
+// Tower's spire tip), so aiming there kept a photo of the tip alone. `r` is
+// the landmark's radius at that height: the line-of-sight test stops that far
+// (plus its margin) short of the point, which sits inside the landmark. No
+// usable profile: the anchor itself, r = 0.
+export function photoAim(anchor, profile) {
+	if (!anchor || ![anchor.x, anchor.y, anchor.z].every(Number.isFinite)) return null;
+	if (!validProfile(profile) || !(profile.ground < anchor.y)) return { x: anchor.x, y: anchor.y, z: anchor.z, r: 0 };
+	const y = (profile.ground + anchor.y) / 2;
+	return { x: anchor.x, y, z: anchor.z, r: radiusAtHeight(profile, anchor, y) };
+}
+
+// Angle (degrees) between the camera's forward {fx, fy, fz} and the direction to p.
+export function viewAngleDeg(cam, p) {
+	const dx = p.x - cam.x, dy = p.y - cam.y, dz = p.z - cam.z;
+	const d = Math.hypot(dx, dy, dz);
+	if (!(d > 1e-6)) return 0;
+	const cos = (dx * cam.fx + dy * cam.fy + dz * cam.fz) / d;
+	return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }
