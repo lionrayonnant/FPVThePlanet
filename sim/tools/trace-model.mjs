@@ -43,6 +43,7 @@ const HEIGHT_SLACK_M = 4;     // a ring wraps height y when it reaches y − 4 m
 // Under.
 const UNDER_HALF_M = 40;
 const UNDER_OVER_DECK_M = 10;
+const UNDER_OVER_CLEAR_M = 6; // over anything the pass back over the deck crosses
 const DECK_THICKNESS_M = 3;   // when the axis carries no deck surface (topY)
 const UNDER_DRIFT_M = 12;     // the return pass sits 12 m along the deck from the first
 const UNDER_SHIFT_M = [0, 8, -8]; // per attempt, along the deck (a pier in the way)
@@ -226,7 +227,11 @@ function buildRing({ anchor, R, theta0, dir, arc, y0, y1 }) {
 
 function buildOrbit(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
-	const R = outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
+	// Never past the probed grid: beyond it the altitude would be blind to
+	// what stands there (a bridge's riverbank). src/trace-probe.js adds outer
+	// rings when the landmark reaches the grid's edge.
+	const edge = profile.rings[profile.rings.length - 1].r;
+	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, edge);
 	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxAtRadius(profile, anchor, R) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
 	// Tier II (half a turn) stays level; tier III climbs so its turns never overlay.
 	const rise = tier >= 3 ? ORBIT_RISE_PER_TURN_M * ARC[tier] / TAU : 0;
@@ -311,7 +316,11 @@ function buildSpiral(ctx) {
 // never overlay.
 function buildUnder(ctx) {
 	const { anchor, profile, tier, attempt, approach } = ctx;
-	const ax = profile.axis;
+	// One verified site per attempt (src/trace-probe.js profile.axes); past
+	// them, the first one shifted along the deck.
+	const sites = Array.isArray(profile.axes) && profile.axes.length ? profile.axes : [profile.axis];
+	const own = attempt < sites.length;
+	const ax = own ? sites[attempt] : sites[0];
 	const len = Math.hypot(ax.dx, ax.dz);
 	const ux = ax.dx / len, uz = ax.dz / len;           // along the deck
 	let px = -uz, pz = ux;                               // across it
@@ -319,7 +328,7 @@ function buildUnder(ctx) {
 	const cz0 = Number.isFinite(ax.cz) ? ax.cz : anchor.z;
 	// Entry (at −40 m along p) on the drone's side.
 	if (approach && (approach.x - cx0) * px + (approach.z - cz0) * pz > 0) { px = -px; pz = -pz; }
-	const shift = UNDER_SHIFT_M[attempt] ?? 0;
+	const shift = own ? 0 : UNDER_SHIFT_M[attempt - sites.length + 1] ?? 0;
 	const cx = cx0 + ux * shift, cz = cz0 + uz * shift;
 	const passY = ax.underY + (ax.deckY - ax.underY) / 2;
 	const at = (s, q, y, out) => out.push(cx + px * s + ux * q, y, cz + pz * s + uz * q);
@@ -330,7 +339,10 @@ function buildUnder(ctx) {
 	};
 	straight(-UNDER_HALF_M, UNDER_HALF_M, 0, passY);
 	if (tier < 3) return raw;
-	const overY = (Number.isFinite(ax.topY) ? ax.topY : ax.deckY + DECK_THICKNESS_M) + UNDER_OVER_DECK_M;
+	// Over the deck, and over whatever stands by it along that pass (a tree on
+	// an island, a truss: axis.overTopY, from the probe's deck grid).
+	const overY = Math.max((Number.isFinite(ax.topY) ? ax.topY : ax.deckY + DECK_THICKNESS_M) + UNDER_OVER_DECK_M,
+		Number.isFinite(ax.overTopY) ? ax.overTopY + UNDER_OVER_CLEAR_M : -Infinity);
 	const rv = (overY - passY) / 2, mid = (passY + overY) / 2;
 	const loop = (sEdge, outward, q0, q1, up) => {
 		const steps = Math.max(12, Math.ceil(Math.PI * rv));

@@ -1,7 +1,10 @@
 // The trace's view of the world (issue #185, spec
 // docs/superpowers/specs/2026-09-28-signals-traces-design.md): budgeted polar
-// probing of the collision mesh around a signal, the bridge axis, incremental
-// validation of a built trace and the lift that clears a blocked stretch.
+// probing of the collision mesh around a signal (outer rings when the
+// landmark reaches the grid's edge), the bridge deck (a square grid scored
+// for a raised band over lower ground, then checked with rays: an underside,
+// a gap, an open pass — up to three sites), incremental validation of a built
+// trace and the lift that clears a blocked stretch.
 // The rays are injected (main.js passes physics.groundBelow / rayUp /
 // obstructionBetween), so tools/trace-probe-selftest.mjs runs it against a fake
 // world. No THREE, no Rapier. Local ENU metres: X east, Y up, Z south.
@@ -10,25 +13,51 @@
 // at (anchor.x + r·cos θ, anchor.z + r·sin θ), θ = 2πk/n; heights are absolute
 // Y, NaN where the ray missed (the model reads it as `ground`).
 //
-// Nothing is allocated per ray: the grid arrays are allocated once per start().
+// Nothing is allocated per ray: the grid arrays are allocated once per start()
+// (the deck grid and its candidates once per TraceProbe).
 
 export const RINGS_M = [0, 10, 20, 35, 55, 80];
 export const ANGLES = 16;
 export const PROBE_ABOVE_M = 300;    // down rays start this far above the anchor
 export const PROBE_DEPTH_M = 1000;   // and reach this far down
 export const PARTIAL_MISS_FRAC = 0.25; // more misses than this: the profile is `partial`
-// Bridge axis.
-export const DECK_ABOVE_M = 4;       // a deck point sits this far above its ring's floor
-export const MIN_DECK_POINTS = 3;
-export const AXIS_ELONGATION = 4;    // λ1 ≥ 4·λ2: a line, not a blob (a plain building)
-export const FLOOR_NEAR_M = 30;      // floor under the deck centre: grid points this close
-export const UNDER_START_M = 2;      // rayUp starts this far above that floor
+// Outer rings (orbit / under only): probed when the landmark still stands at
+// the 80 m ring — a bridge's deck, a long façade — so an orbit wider than the
+// grid does not fly blind into what stands beyond it (a bridge's riverbank).
+export const OUTER_RINGS_M = [110, 140];
+export const OUTER_ANGLES = 32;
+export const OUTER_REACH_M = 11;     // a height this close under the anchor (its top 3 m + the 8 m band) reaches
+// Bridge deck: a square grid of down rays, then for each grid point near the
+// anchor and each axis angle, is it a deck? Heights stay at its level along
+// the axis for ≥ 30 m, and both sides across it drop to a lower surface
+// (water, a road) within 35 m. Candidates are then checked with rays, best
+// first: a deck underside over a gap, and an open pass under it — which a long
+// building (a raised band too) and an island (no underside) fail.
+export const DECK_GRID_M = 5;
+export const DECK_HALF_M = 60;       // the grid spans ±60 m around the anchor
+export const DECK_CENTRE_M = 45;     // candidate centres this close to the anchor (an OSM point beside the deck)
+export const DECK_ANGLES = 24;       // axis angles, every 7.5°
+export const DECK_TOL_M = 2.5;       // along the axis: heights within this of the deck
+export const DECK_ALONG_M = 60;      // scanned this far each way (a longer run tells the right angle)
+export const DECK_MIN_RUN_M = 30;    // deck length seen, both ways together
+export const DECK_ACROSS_M = 35;     // the lower surface within this, each side
+export const DECK_LOW_M = 5;         // lower: this far under the deck
+export const DECK_WALL_M = 6;        // higher than this over the deck across it: a wall, not a deck edge
+export const DECK_SIDES_M = 4;       // both sides' lower surfaces agree within this (one water level)
+export const DECK_CANDIDATES = 8;    // verified with rays, best first
+export const DECK_SITES = 3;         // verified sites kept: one per trace attempt
+export const DECK_SAME_M = 12;       // two candidates closer than this, on an angle within DECK_SAME_DEG, are one
+export const DECK_SAME_DEG = 45;
+export const UNDER_START_M = 2;      // rayUp starts this far above the lower surface
 // Water (or road) to deck underside. Real city bridges measure 6–9 m in the
 // mesh (Mirabeau 6.0): 3 m either side of a line centred in the gap.
 // tools/trace-model.mjs reads it from here.
 export const UNDER_MIN_CLEARANCE_M = 6;
 export const PASS_HALF_M = 40;       // the under-pass reach, either side of the deck
 export const PASS_SHIFTS_M = [0, 8, -8]; // trace-model's per-attempt shifts along the deck
+export const OVER_ALONG_M = [-12, 24]; // tier III's pass back over the deck: its reach along it (shifts ±8, drift 12)
+export const OVERHEAD_ACROSS_M = 3;  // the deck overhead this far either side of the centre: a band, not a corner
+export const OVERHEAD_SLACK_M = 1.5; // a shifted pass: the deck underside within this of the centre's
 // Validation / lift.
 export const VALIDATE_CLEAR = -1;
 export const VALIDATE_PENDING = -2;
@@ -37,6 +66,8 @@ const MIN_BLEND_M = 1e-3;
 
 const TAU = 2 * Math.PI;
 const GRID_N = 1 + (RINGS_M.length - 1) * ANGLES; // ring 0 is a single point
+const OUTER_N = OUTER_RINGS_M.length * OUTER_ANGLES;
+const DECK_N = 2 * DECK_HALF_M / DECK_GRID_M + 1;   // grid points per side
 
 // Grid point j → ring index, angle index (ring 0 has one point).
 function ringOf(j) { return j === 0 ? 0 : 1 + Math.floor((j - 1) / ANGLES); }
@@ -48,29 +79,33 @@ export class TraceProbe {
 		this._up = rayUp;
 		this._obs = obstructionBetween;
 		this.raysPerFrame = raysPerFrame;
-		this._phase = 'idle';           // idle | grid | axis | done
+		this._phase = 'idle';           // idle | grid | outer | deck | axis | done
 		this._profile = null;
-		this._deck = new Uint8Array(GRID_N);
-		this._scratch = new Float64Array(ANGLES);
+		this._deckH = new Float32Array(DECK_N * DECK_N);
+		// Deck candidates, best first: preallocated, reused by every probe.
+		this._cands = Array.from({ length: DECK_CANDIDATES }, () => ({ i: 0, j: 0, k: 0, top: 0, low: 0, score: -Infinity }));
+		this._nCands = 0;
 		// Validation job.
 		this._vTrace = null;
 		this._vCursor = 0;
 	}
 
-	get busy() { return this._phase === 'grid' || this._phase === 'axis'; }
+	get busy() { return this._phase === 'grid' || this._phase === 'outer' || this._phase === 'deck' || this._phase === 'axis'; }
 	get profile() { return this._phase === 'done' ? this._profile : null; }
 
-	// axis: also look for a bridge deck (BRIDGE / ARCH kinds).
-	start(anchor, { axis = false } = {}) {
+	// axis: also look for a bridge deck (BRIDGE / ARCH kinds). outer: probe
+	// the outer rings when the landmark reaches the grid's edge (orbit, under).
+	start(anchor, { axis = false, outer = false } = {}) {
 		this._anchor = { x: anchor.x, y: anchor.y, z: anchor.z };
 		this._wantAxis = !!axis;
+		this._wantOuter = !!outer;
 		this._rings = RINGS_M.map((r) => ({ r, heights: new Float32Array(r === 0 ? 1 : ANGLES).fill(NaN) }));
 		this._j = 0;
 		this._misses = 0;
 		this._rays = 0;
 		this._profile = null;
 		this._ax = null;
-		this._axStep = 0;
+		this._nCands = 0;
 		this._phase = 'grid';
 	}
 
@@ -94,10 +129,31 @@ export class TraceProbe {
 			else ring.heights[k] = h;
 			if (++this._j >= GRID_N) this._endGrid();
 		}
+		while (budget > 0 && this._phase === 'outer') {
+			const j = this._j;
+			const ring = this._rings[RINGS_M.length + Math.floor(j / OUTER_ANGLES)];
+			const k = j % OUTER_ANGLES;
+			const th = (k / OUTER_ANGLES) * TAU;
+			const h = this._down(a.x + ring.r * Math.cos(th), y0, a.z + ring.r * Math.sin(th), PROBE_DEPTH_M);
+			budget--; this._rays++;
+			if (h !== null && Number.isFinite(h)) ring.heights[k] = h;
+			if (++this._j >= OUTER_N) this._next();
+		}
+		while (budget > 0 && this._phase === 'deck') {
+			const j = this._j;
+			const x = a.x - DECK_HALF_M + (j % DECK_N) * DECK_GRID_M;
+			const z = a.z - DECK_HALF_M + Math.floor(j / DECK_N) * DECK_GRID_M;
+			const h = this._down(x, y0, z, PROBE_DEPTH_M);
+			budget--; this._rays++;
+			this._deckH[j] = h === null || !Number.isFinite(h) ? NaN : h;
+			if (++this._j >= DECK_N * DECK_N) this._rankDecks();
+		}
 		while (budget > 0 && this._phase === 'axis') {
 			budget -= this._axisRay();
 		}
-		return this._phase === 'done' ? this._profile : null;
+		if (this._phase !== 'done') return null;
+		this._profile.rays = this._rays;
+		return this._profile;
 	}
 
 	_endGrid() {
@@ -118,102 +174,199 @@ export class TraceProbe {
 			misses: this._misses,
 			rays: this._rays,
 		};
-		if (this._wantAxis && !partial && this._deckCandidate()) this._phase = 'axis';
-		else this._phase = 'done';
+		this._j = 0;
+		if (partial) { this._phase = 'done'; return; }
+		if (this._wantOuter && this._reachesEdge()) {
+			for (const r of OUTER_RINGS_M) this._rings.push({ r, heights: new Float32Array(OUTER_ANGLES).fill(NaN) });
+			this._phase = 'outer';
+			return;
+		}
+		this._next();
 	}
 
-	// Deck points (≥ 4 m above their ring's floor, the median of its lower
-	// half), then their principal direction. False when they are too few or
-	// form a blob rather than a line.
-	_deckCandidate() {
-		const a = this._anchor, rings = this._rings, deck = this._deck, s = this._scratch;
-		const floors = this._floors ?? (this._floors = new Float64Array(rings.length));
-		for (let i = 0; i < rings.length; i++) {
-			const h = rings[i].heights;
-			let m = 0;
-			for (let k = 0; k < h.length; k++) if (Number.isFinite(h[k])) s[m++] = h[k];
-			if (m === 0) { floors[i] = NaN; continue; }
-			s.subarray(0, m).sort();
-			floors[i] = s[Math.floor((m - 1) / 4)];
+	// The landmark still stands at the last ring: a height there within
+	// OUTER_REACH_M under the anchor (and not over it).
+	_reachesEdge() {
+		const y = this._anchor.y;
+		for (const h of this._rings[RINGS_M.length - 1].heights) if (h >= y - OUTER_REACH_M && h <= y) return true;
+		return false;
+	}
+
+	_next() {
+		this._j = 0;
+		this._phase = this._wantAxis ? 'deck' : 'done';
+	}
+
+	// Bilinear height in the deck grid at (x, z) metres from the anchor; NaN
+	// outside it or next to a miss.
+	_deckAt(x, z) {
+		const fx = (x + DECK_HALF_M) / DECK_GRID_M, fz = (z + DECK_HALF_M) / DECK_GRID_M;
+		if (!(fx >= 0 && fz >= 0 && fx <= DECK_N - 1 && fz <= DECK_N - 1)) return NaN;
+		const i = Math.min(DECK_N - 2, Math.floor(fx)), j = Math.min(DECK_N - 2, Math.floor(fz));
+		const u = fx - i, v = fz - j, g = this._deckH, o = j * DECK_N + i;
+		return (g[o] * (1 - u) + g[o + 1] * u) * (1 - v) + (g[o + DECK_N] * (1 - u) + g[o + DECK_N + 1] * u) * v;
+	}
+
+	// Every grid point within DECK_CENTRE_M × every axis angle, scored as a
+	// deck; the best DECK_CANDIDATES kept (near duplicates merged). No rays.
+	_rankDecks() {
+		const g = this._deckH;
+		this._nCands = 0;
+		for (let j = 0; j < DECK_N; j++) {
+			for (let i = 0; i < DECK_N; i++) {
+				const cx = -DECK_HALF_M + i * DECK_GRID_M, cz = -DECK_HALF_M + j * DECK_GRID_M;
+				const dist = Math.hypot(cx, cz);
+				if (dist > DECK_CENTRE_M) continue;
+				const D = g[j * DECK_N + i];
+				if (!Number.isFinite(D)) continue;
+				for (let k = 0; k < DECK_ANGLES; k++) {
+					const th = (k / DECK_ANGLES) * Math.PI, ux = Math.cos(th), uz = Math.sin(th);
+					const run = this._deckRun(cx, cz, ux, uz, D) + this._deckRun(cx, cz, -ux, -uz, D);
+					if (run < DECK_MIN_RUN_M) continue;
+					const sa = this._deckEdge(cx, cz, -uz, ux, D);
+					if (sa === null) continue;
+					const sDist = this._edgeS, lowA = this._edgeLow;
+					const sb = this._deckEdge(cx, cz, uz, -ux, D);
+					if (sb === null) continue;
+					const lowB = this._edgeLow;
+					if (Math.abs(lowA - lowB) > DECK_SIDES_M) continue;
+					// Long, narrow, centred on the deck, near the anchor.
+					const score = Math.min(run, 2 * DECK_ALONG_M) - 0.5 * (sDist + this._edgeS) - 0.5 * Math.abs(sDist - this._edgeS) - 0.25 * dist;
+					this._keep(i, j, k, D, Math.min(lowA, lowB), score);
+				}
+			}
 		}
-		// Ring 0 is a single point: its floor is the next ring's.
-		if (rings.length > 1) floors[0] = floors[1];
-		let n = 0, sx = 0, sz = 0;
-		for (let j = 0; j < GRID_N; j++) {
-			const i = ringOf(j), ring = rings[i], k = angleOf(j);
-			const h = ring.heights[k];
-			deck[j] = Number.isFinite(h) && Number.isFinite(floors[i]) && h >= floors[i] + DECK_ABOVE_M ? 1 : 0;
-			if (!deck[j]) continue;
-			const th = (k / ring.heights.length) * TAU;
-			sx += ring.r * Math.cos(th); sz += ring.r * Math.sin(th); n++;
-		}
-		if (n < MIN_DECK_POINTS) return false;
-		const mx = sx / n, mz = sz / n;
-		let cxx = 0, czz = 0, cxz = 0;
-		for (let j = 0; j < GRID_N; j++) {
-			if (!deck[j]) continue;
-			const ring = rings[ringOf(j)], th = (angleOf(j) / ring.heights.length) * TAU;
-			const dx = ring.r * Math.cos(th) - mx, dz = ring.r * Math.sin(th) - mz;
-			cxx += dx * dx; czz += dz * dz; cxz += dx * dz;
-		}
-		const tr = (cxx + czz) / 2, d = Math.sqrt(((cxx - czz) / 2) ** 2 + cxz * cxz);
-		const l1 = tr + d, l2 = tr - d;
-		if (!(l1 > 0) || l1 < AXIS_ELONGATION * Math.max(l2, 0)) return false;
-		let dx, dz;
-		if (Math.abs(cxz) > 1e-9) { dx = l1 - czz; dz = cxz; } else if (cxx >= czz) { dx = 1; dz = 0; } else { dx = 0; dz = 1; }
-		const len = Math.hypot(dx, dz);
-		const cx = a.x + mx, cz = a.z + mz;
-		// The floor under the deck centre: the lowest non-deck grid point near it.
-		let floor = Infinity;
-		for (let j = 0; j < GRID_N; j++) {
-			if (deck[j]) continue;
-			const ring = rings[ringOf(j)], k = angleOf(j), h = ring.heights[k];
-			if (!Number.isFinite(h)) continue;
-			const th = (k / ring.heights.length) * TAU;
-			if (Math.hypot(a.x + ring.r * Math.cos(th) - cx, a.z + ring.r * Math.sin(th) - cz) <= FLOOR_NEAR_M && h < floor) floor = h;
-		}
-		if (floor === Infinity) floor = this._profile.ground;
-		this._ax = { dx: dx / len, dz: dz / len, cx, cz, floor, topY: NaN, deckY: NaN, underY: NaN };
+		this._cand = 0;
 		this._axStep = 0;
-		return true;
+		this._phase = this._nCands ? 'axis' : 'done';
 	}
 
-	// One ray of the axis sequence: deck surface, deck underside, floor under
-	// it, then the pass itself (at the three shifts trace-model may use) must
-	// be open — a long building is elongated too, but walled. -> rays spent.
+	// Metres of deck from (cx, cz) along (ux, uz): heights within DECK_TOL_M
+	// of D, one odd sample forgiven (a lamp post, a statue).
+	_deckRun(cx, cz, ux, uz, D) {
+		let last = 0, bad = 0;
+		for (let t = DECK_GRID_M; t <= DECK_ALONG_M; t += DECK_GRID_M) {
+			const h = this._deckAt(cx + ux * t, cz + uz * t);
+			if (!Number.isFinite(h)) break;
+			if (Math.abs(h - D) <= DECK_TOL_M) { last = t; bad = 0; } else if (++bad >= 2) break;
+		}
+		return last;
+	}
+
+	// Across the deck from (cx, cz) along (px, pz): the first sample DECK_LOW_M
+	// under D, confirmed by the next one (a surface, not a gutter), before any
+	// wall. -> 1 (and this._edgeS, this._edgeLow), or null.
+	_deckEdge(cx, cz, px, pz, D) {
+		for (let s = DECK_GRID_M; s <= DECK_ACROSS_M; s += DECK_GRID_M) {
+			const h = this._deckAt(cx + px * s, cz + pz * s);
+			if (!Number.isFinite(h) || h > D + DECK_WALL_M) return null;
+			if (h > D - DECK_LOW_M) continue;
+			const h2 = this._deckAt(cx + px * (s + DECK_GRID_M), cz + pz * (s + DECK_GRID_M));
+			if (!(h2 <= D - DECK_LOW_M)) return null;
+			this._edgeS = s;
+			this._edgeLow = Math.min(h, h2);
+			return 1;
+		}
+		return null;
+	}
+
+	// Insert into the sorted candidate list, merging near duplicates.
+	_keep(i, j, k, top, low, score) {
+		const C = this._cands;
+		let n = this._nCands;
+		for (let q = 0; q < n; q++) {
+			const c = C[q];
+			const dk = Math.abs(c.k - k), dAng = Math.min(dk, DECK_ANGLES - dk) * 180 / DECK_ANGLES;
+			if (dAng > DECK_SAME_DEG || Math.hypot(c.i - i, c.j - j) * DECK_GRID_M >= DECK_SAME_M) continue;
+			if (c.score >= score) return;
+			// The better one replaces it: remove it, then insert below.
+			for (let r = q; r < n - 1; r++) { const t = C[r]; C[r] = C[r + 1]; C[r + 1] = t; }
+			n--;
+			break;
+		}
+		if (n === C.length && C[n - 1].score >= score) { this._nCands = n; return; }
+		let p = Math.min(n, C.length - 1);
+		const slot = C[p];
+		while (p > 0 && C[p - 1].score < score) { C[p] = C[p - 1]; p--; }
+		C[p] = slot;
+		slot.i = i; slot.j = j; slot.k = k; slot.top = top; slot.low = low; slot.score = score;
+		this._nCands = Math.min(n + 1, C.length);
+	}
+
+	// One ray of the current candidate's check: the deck underside (rayUp from
+	// the lower surface), the floor under it (the gap ≥ UNDER_MIN_CLEARANCE_M),
+	// the deck overhead 3 m either side of the centre (a corner has none), then
+	// at each of the shifts trace-model may use, the deck overhead (off the
+	// centre) and the pass itself open — a long building is a raised band too,
+	// but walled. A failed
+	// candidate hands over to the next. -> rays spent (0: a skipped check).
 	_axisRay() {
-		const ax = this._ax, a = this._anchor;
-		const fail = () => { this._ax = null; this._phase = 'done'; };
+		const a = this._anchor, c = this._cands[this._cand];
+		const fail = () => {
+			this._axStep = 0;
+			if (++this._cand >= this._nCands) this._phase = 'done';
+		};
+		const cx = a.x - DECK_HALF_M + c.i * DECK_GRID_M, cz = a.z - DECK_HALF_M + c.j * DECK_GRID_M;
 		const s = this._axStep++;
 		if (s === 0) {
-			const top = this._down(ax.cx, a.y + PROBE_ABOVE_M, ax.cz, PROBE_DEPTH_M);
-			if (top === null || !(top > ax.floor + UNDER_START_M)) { fail(); return 1; }
-			ax.topY = top;
+			const from = c.low + UNDER_START_M;
+			const deck = this._up(cx, from, cz, c.top + 1 - from);
+			if (deck === null || !Number.isFinite(deck) || deck > c.top + 1) { fail(); return 1; }
+			c.deckY = deck;
 			return 1;
 		}
 		if (s === 1) {
-			const from = ax.floor + UNDER_START_M;
-			const deck = this._up(ax.cx, from, ax.cz, ax.topY + 1 - from);
-			if (deck === null || !Number.isFinite(deck)) { fail(); return 1; }
-			ax.deckY = deck;
+			const under = this._down(cx, c.deckY - 0.05, cz, c.deckY - c.low + 50);
+			if (under === null || !Number.isFinite(under) || c.deckY - under < UNDER_MIN_CLEARANCE_M) { fail(); return 1; }
+			c.underY = under;
 			return 1;
 		}
-		if (s === 2) {
-			const under = this._down(ax.cx, ax.deckY - 0.05, ax.cz, ax.deckY - ax.floor + 50);
-			if (under === null || ax.deckY - under < UNDER_MIN_CLEARANCE_M) { fail(); return 1; }
-			ax.underY = under;
+		const th = (c.k / DECK_ANGLES) * Math.PI, dx = Math.cos(th), dz = Math.sin(th);
+		const px = -dz, pz = dx;
+		const y = c.underY + (c.deckY - c.underY) / 2;
+		if (s < 4) {
+			const e = s === 2 ? OVERHEAD_ACROSS_M : -OVERHEAD_ACROSS_M;
+			const over = this._up(cx + px * e, y, cz + pz * e, c.deckY - y + OVERHEAD_SLACK_M);
+			if (over === null || !Number.isFinite(over)) fail();
 			return 1;
 		}
-		const shift = PASS_SHIFTS_M[s - 3];
-		const y = ax.underY + (ax.deckY - ax.underY) / 2;
-		const px = -ax.dz, pz = ax.dx;
-		const cx = ax.cx + ax.dx * shift, cz = ax.cz + ax.dz * shift;
-		const r = this._obs(cx - px * PASS_HALF_M, y, cz - pz * PASS_HALF_M, cx + px * PASS_HALF_M, y, cz + pz * PASS_HALF_M);
+		const q = s - 4, shift = PASS_SHIFTS_M[q >> 1];
+		const sx = cx + dx * shift, sz = cz + dz * shift;
+		const last = (q >> 1) >= PASS_SHIFTS_M.length - 1;
+		if ((q & 1) === 0) {
+			if (shift === 0) return 0;
+			const over = this._up(sx, y, sz, c.deckY - y + OVERHEAD_SLACK_M);
+			if (over === null || !Number.isFinite(over)) { if (last) fail(); else this._axStep++; }
+			return 1;
+		}
+		const r = this._obs(sx - px * PASS_HALF_M, y, sz - pz * PASS_HALF_M, sx + px * PASS_HALF_M, y, sz + pz * PASS_HALF_M);
 		if (!r || !r.blocked) {
-			this._profile.axis = { dx: ax.dx, dz: ax.dz, deckY: ax.deckY, underY: ax.underY, topY: ax.topY, cx: ax.cx, cz: ax.cz };
-			this._phase = 'done';
-		} else if (s - 3 >= PASS_SHIFTS_M.length - 1) fail();
+			// The open pass is where trace-model lays it. overTopY: the highest
+			// surface under tier III's pass back over the deck (trees on an
+			// island, a truss), from the deck grid — no ray. The next candidates
+			// are checked too, up to DECK_SITES: each attempt gets its own site
+			// (another span, clear of what blocked the last one).
+			const site = { dx, dz, deckY: c.deckY, underY: c.underY, topY: c.top, cx: sx, cz: sz, overTopY: this._overTop(sx - a.x, sz - a.z, dx, dz, c.top) };
+			const p = this._profile;
+			if (!p.axes) { p.axis = site; p.axes = [site]; } else p.axes.push(site);
+			if (p.axes.length >= DECK_SITES) this._phase = 'done';
+			else fail();
+		} else if (last) fail();
 		return 1;
+	}
+
+	// The highest deck-grid height over the rectangle tier III's over-deck
+	// pass may cross: PASS_HALF_M either side of the deck, OVER_ALONG_M along
+	// it (the model's shifts and drift). (x, z) from the anchor.
+	_overTop(x, z, dx, dz, top) {
+		let m = top;
+		for (let q = OVER_ALONG_M[0]; q <= OVER_ALONG_M[1]; q += DECK_GRID_M) {
+			for (let e = -PASS_HALF_M; e <= PASS_HALF_M; e += DECK_GRID_M) {
+				const h = this._deckAt(x + dx * q - dz * e, z + dz * q + dx * e);
+				if (h > m) m = h;
+			}
+		}
+		return m;
 	}
 
 	// One obstructionBetween per segment (i → i+1), from `fromIndex`, at most

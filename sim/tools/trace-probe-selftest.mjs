@@ -5,7 +5,7 @@
 // Run: node tools/trace-probe-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	TraceProbe, RINGS_M, ANGLES, VALIDATE_CLEAR, VALIDATE_PENDING, LIFT_BLEND_M,
+	TraceProbe, RINGS_M, ANGLES, OUTER_RINGS_M, OUTER_ANGLES, DECK_CANDIDATES, DECK_SITES, VALIDATE_CLEAR, VALIDATE_PENDING, LIFT_BLEND_M,
 	liftTrace, liftStart, liftBlend,
 } from '../src/trace-probe.js';
 import { buildTrace } from './trace-model.mjs';
@@ -84,11 +84,11 @@ const bridge = (extra = []) => new World({ boxes: [box(-150, 150, -5, 5, 12, 14)
 const peak = () => new World({ cones: [{ x: 0, z: 0, R: 150, base: 0, apex: 200 }] });
 
 // Runs a probe to completion; checks no call exceeds the budget.
-function probe(world, anchor, { axis = false, budget = 24 } = {}) {
+function probe(world, anchor, { axis = false, outer = false, budget = 24 } = {}) {
 	const p = new TraceProbe({ ...world, groundBelow: world.groundBelow, rayUp: world.rayUp, obstructionBetween: world.obstructionBetween, raysPerFrame: budget });
-	p.start(anchor, { axis });
+	p.start(anchor, { axis, outer });
 	let profile = null, frames = 0;
-	while (!profile && frames < 100) {
+	while (!profile && frames < 5000) {
 		const before = world.total();
 		profile = p.step();
 		assert.ok(world.total() - before <= budget, `frame ${frames}: ${world.total() - before} rays > ${budget}`);
@@ -148,7 +148,7 @@ t('the angle convention: θ = 2πk/n at (x + r·cos θ, z + r·sin θ)', () => {
 	assert.equal(profile.rings[3].heights[14], 0);
 });
 
-t('bridge: the deck gives an axis along it, underside, floor, surface, centre', () => {
+t('bridge: the deck gives an axis along it, underside, floor, surface, centre; three sites along it', () => {
 	const w = bridge();
 	const { profile } = probe(w, BR_ANCHOR, { axis: true });
 	const ax = profile.axis;
@@ -156,7 +156,18 @@ t('bridge: the deck gives an axis along it, underside, floor, surface, centre', 
 	near(Math.abs(ax.dx), 1, 1e-6, 'dx'); near(ax.dz, 0, 1e-6, 'dz');
 	near(ax.deckY, 12, 1e-9, 'deckY'); near(ax.underY, 0, 1e-9, 'underY'); near(ax.topY, 14, 1e-9, 'topY');
 	near(ax.cz, 0, 0.5, 'cz'); assert.ok(Math.abs(ax.cx) < 10, `cx ${ax.cx}`);
-	assert.ok(w.calls.up === 1, 'one rayUp');
+	// Each site: the underside, the deck 3 m either side, the pass (no
+	// ground ray counted here: the floor under the deck is a down ray).
+	assert.equal(profile.axes.length, DECK_SITES, 'one site per attempt');
+	assert.equal(profile.axes[0], ax);
+	assert.equal(w.calls.up, 3 * DECK_SITES);
+	assert.equal(w.calls.obs, DECK_SITES, 'every pass open');
+	for (let i = 0; i < DECK_SITES; i++) {
+		for (let j = i + 1; j < DECK_SITES; j++) {
+			const a = profile.axes[i], b = profile.axes[j];
+			assert.ok(Math.hypot(a.cx - b.cx, a.cz - b.cz) >= 12, `sites ${i} and ${j} are one`);
+		}
+	}
 });
 
 t('bridge: a diagonal deck gives a diagonal axis', () => {
@@ -170,21 +181,23 @@ t('bridge: a diagonal deck gives a diagonal axis', () => {
 	assert.ok(profile.axis.dx * profile.axis.dz > 0, 'along x = z');
 });
 
-t('bridge with a pier at the centre: the shifted pass is open, the axis stays', () => {
+t('bridge with a pier at the centre: the shifted pass is open, the axis moves there', () => {
 	const w = bridge([box(-2, 2, -6, 6, 0, 12)]);
 	const { profile } = probe(w, BR_ANCHOR, { axis: true });
 	assert.ok(profile.axis, 'no axis found');
-	assert.equal(w.calls.obs, 2, 'centre blocked, +8 m open');
+	assert.ok(Math.abs(profile.axis.cx) >= 6, `the pass clears the pier: cx ${profile.axis.cx}`);
 });
 
-t('no axis on a plain building (a blob), nor on a long walled one', () => {
+t('no axis on a plain building (a blob), nor on a long walled one, nor on a corner', () => {
 	const w1 = building();
 	assert.equal(probe(w1, B_ANCHOR, { axis: true }).profile.axis, undefined);
-	assert.equal(w1.calls.up, 0, 'a blob costs no axis rays');
+	// A long building reads as a raised band with lower ground both sides —
+	// a deck's signature from above; its walls block every pass.
 	const w2 = new World({ boxes: [box(-100, 100, -6, 6, 0, 30)] });
 	const { profile } = probe(w2, { x: 0, y: 33, z: 0 }, { axis: true });
 	assert.equal(profile.axis, undefined);
-	assert.equal(w2.calls.obs, 3, 'all three passes walled');
+	assert.ok(w2.calls.obs >= 3, 'passes were tried and walled');
+	assert.ok(w2.calls.up + w2.calls.obs <= DECK_CANDIDATES * 9, `${w2.calls.up + w2.calls.obs} check rays`);
 	// A deck too low to fly under (under 6 m).
 	const w3 = new World({ boxes: [box(-150, 150, -5, 5, 5, 7)] });
 	assert.equal(probe(w3, { x: 0, y: 10, z: 0 }, { axis: true }).profile.axis, undefined);
@@ -193,6 +206,48 @@ t('no axis on a plain building (a blob), nor on a long walled one', () => {
 	const ax4 = probe(w4, { x: 0, y: 11, z: 0 }, { axis: true }).profile.axis;
 	assert.ok(ax4, 'no axis over a 6 m gap');
 	near(ax4.deckY - ax4.underY, 6, 1e-9, 'clearance');
+	// Standing on a building's corner, a pass grazing it reads open: the deck
+	// must be overhead either side of the centre.
+	const w5 = new World({ boxes: [box(-45, -15, -45, -15, 0, 40)] });
+	assert.equal(probe(w5, { x: 0, y: 43, z: 0 }, { axis: true }).profile.axis, undefined);
+});
+
+t('bridge: an OSM point 35 m off the deck, over the water, still finds it', () => {
+	const w = new World({ boxes: [box(-150, 150, 30, 42, 10, 12)] });
+	const ax = probe(w, { x: 0, y: 5, z: 0 }, { axis: true }).profile.axis;
+	assert.ok(ax, 'no axis found');
+	near(Math.abs(ax.dx), 1, 1e-6, 'along x');
+	assert.ok(ax.cz >= 30 && ax.cz <= 42, `cz ${ax.cz}`);
+	near(ax.deckY, 10, 1e-9, 'deckY'); near(ax.underY, 0, 1e-9, 'underY');
+});
+
+t('bridge: an island at deck level (no underside) scores first, fails, the deck wins', () => {
+	// Pont de Grenelle: the Île aux Cygnes, a solid 10 m strip along the
+	// river, meets a 24 m wide deck across it. With the OSM point on the
+	// island, from above the island is the better "deck" (narrower, nearer);
+	// only the rays tell them apart: its passes are walled.
+	const island = box(-5, 5, -150, -12, 0, 14);
+	const w = new World({ boxes: [box(-150, 150, -12, 12, 12, 14), island] });
+	const ax = probe(w, { x: 0, y: 17, z: -40 }, { axis: true }).profile.axis;
+	assert.ok(ax, 'no axis found');
+	near(Math.abs(ax.dx), 1, 1e-6, 'along the deck (x), not the island (z)');
+	near(ax.deckY - ax.underY, 12, 1e-9, 'clearance');
+	assert.ok(Math.abs(ax.cx) > 5, `the pass clears the island: cx ${ax.cx}`);
+	assert.ok(w.calls.obs >= 4, `the island's three passes first (${w.calls.obs} passes)`);
+});
+
+t('outer rings: probed when the landmark reaches the 80 m ring (orbit, under), not otherwise', () => {
+	const deck = () => bridge();
+	const p1 = probe(deck(), BR_ANCHOR, { outer: true }).profile;
+	assert.deepEqual(p1.rings.map((r) => r.r), [...RINGS_M, ...OUTER_RINGS_M]);
+	for (const ring of p1.rings.slice(RINGS_M.length)) {
+		assert.equal(ring.heights.length, OUTER_ANGLES);
+		assert.equal(ring.heights[0], 14, 'the deck, east');
+		assert.equal(ring.heights[OUTER_ANGLES / 4], 0, 'the water, south');
+	}
+	assert.equal(p1.rays, GRID + OUTER_RINGS_M.length * OUTER_ANGLES);
+	assert.deepEqual(probe(deck(), BR_ANCHOR).profile.rings.map((r) => r.r), RINGS_M, 'not asked');
+	assert.deepEqual(probe(building(), B_ANCHOR, { outer: true }).profile.rings.map((r) => r.r), RINGS_M, 'a building ends inside');
 });
 
 t('window edge: misses read NaN; a few are fine, too many flag the profile partial', () => {

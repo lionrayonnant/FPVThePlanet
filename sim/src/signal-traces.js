@@ -17,6 +17,7 @@ import { TraceProbe, liftStart, VALIDATE_CLEAR, VALIDATE_PENDING } from './trace
 
 export const TRACE_RANGE_M = 300;     // horizontal, drone → anchor: a trace is laid
 export const DROP_RANGE_M = 450;      // a trace not entered yet is dropped past this
+export const UNDER_NEAR_M = 150;      // a bridge with no deck found from afar is probed again from here
 export const PROBE_RAYS = 24;
 export const VALIDATE_RAYS = 16;
 export const PICK_S = 0.5;            // how often a new trace is looked for
@@ -108,10 +109,20 @@ export class SignalTraces {
 				const profile = this.probe.step(PROBE_RAYS);
 				if (!profile) break;
 				if (profile.partial) { this._failAttempt(true); break; }
+				// A bridge seen from 300 m: LIVE has not refined the deck yet (its
+				// underside, the gap under it). Once, it is probed again from
+				// UNDER_NEAR_M before settling for an orbit.
+				if (a.shape === 'under' && !profile.axis && !a.nearProbed) {
+					a.nearProbed = true;
+					if (Math.hypot(pos.x - a.anchor.x, pos.z - a.anchor.z) > UNDER_NEAR_M) { a.phase = 'near'; break; }
+				}
 				a.profile = profile;
 				this._build(pos);
 				break;
 			}
+			case 'near':
+				if (Math.hypot(pos.x - a.anchor.x, pos.z - a.anchor.z) <= UNDER_NEAR_M) this._startProbe();
+				break;
 			case 'validate': {
 				const r = this.probe.validate(a.trace, 0, VALIDATE_RAYS);
 				if (r === VALIDATE_PENDING) break;
@@ -142,7 +153,7 @@ export class SignalTraces {
 		this.active = {
 			signal: best, anchor: { x: bestAt.x, y: bestAt.y, z: bestAt.z }, shape: shapeOf(best),
 			attempt: 0, phase: 'probe', waitS: 0, profile: null, trace: null, follower: null,
-			revalidate: false, lifts: 0,
+			revalidate: false, lifts: 0, nearProbed: false,
 		};
 		this._startProbe();
 	}
@@ -151,7 +162,8 @@ export class SignalTraces {
 		const a = this.active;
 		a.phase = 'probe';
 		a.profile = null;
-		this.probe.start(a.anchor, { axis: a.shape === 'under' });
+		// An orbit (a bridge's fallback too) may be wider than the 80 m grid.
+		this.probe.start(a.anchor, { axis: a.shape === 'under', outer: a.shape === 'under' || a.shape === 'orbit' });
 	}
 
 	_build(pos) {

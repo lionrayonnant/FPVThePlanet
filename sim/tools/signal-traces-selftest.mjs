@@ -5,7 +5,7 @@
 // (analytic rays), a fake line.
 // Run: node tools/signal-traces-selftest.mjs
 import assert from 'node:assert/strict';
-import { SignalTraces, TRACE_RANGE_M, DROP_RANGE_M, PROBE_RAYS, VALIDATE_RAYS, RETRY_S } from '../src/signal-traces.js';
+import { SignalTraces, TRACE_RANGE_M, DROP_RANGE_M, UNDER_NEAR_M, PROBE_RAYS, VALIDATE_RAYS, RETRY_S } from '../src/signal-traces.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -26,6 +26,7 @@ class World {
 		};
 		this.rayUp = (x, y, z, max = 500) => {
 			this.rays++;
+			if (this.coarse) return null; // LIVE far away: no underside yet
 			let best = Infinity;
 			for (const b of this.boxes) if (this.inBox(b, x, z) && b.y0 >= y) best = Math.min(best, b.y0);
 			return best === Infinity || best - y > max ? null : best;
@@ -61,7 +62,7 @@ class FakeLine {
 // A 100 m tower at the origin (20 × 20 m); its anchor sits 3 m over the top.
 const tower = () => ({ x0: -10, x1: 10, z0: -10, z1: 10, y0: 0, y1: 100 });
 const sig = (id, tier = 2, extra = {}) => ({ id, tier, kind: 'TOWER', heightM: 100, lat: 0, lon: 0, ...extra });
-const anchors = { 'wd:Q1': { x: 0, y: 103, z: 0 }, 'wd:Q2': { x: 600, y: 103, z: 0 }, 'wd:Q3': { x: 150, y: 20, z: 0 } };
+const anchors = { 'wd:Q1': { x: 0, y: 103, z: 0 }, 'wd:Q2': { x: 600, y: 103, z: 0 }, 'wd:Q3': { x: 150, y: 20, z: 0 }, 'wd:Q4': { x: 0, y: 17, z: 0 } };
 
 function setup({ world = new World({ boxes: [tower()] }), signals = [sig('wd:Q1')], open = () => true, at = anchors } = {}) {
 	const line = new FakeLine();
@@ -117,6 +118,30 @@ t('probe → build → validate: a spiral laid clear of the tower, ≤ 40 rays i
 	const P = ctx.tr.trace.points;
 	for (let i = 0; i < P.length / 3; i++) assert.ok(!ctx.world.solid(P[3 * i], P[3 * i + 1], P[3 * i + 2]), `point ${i} inside`);
 	assert.ok(pointOf(ctx.tr.trace, 0).x > 0, 'the entry faces the drone (east)');
+});
+
+t('a bridge with no deck seen from afar is probed again from 150 m, then laid under', () => {
+	// A deck along z; from 250 m, LIVE has no underside yet (coarse).
+	const world = new World({ boxes: [{ x0: -5, x1: 5, z0: -150, z1: 150, y0: 12, y1: 14 }] });
+	world.coarse = true;
+	const ctx = setup({ world, signals: [sig('wd:Q4', 3, { kind: 'BRIDGE', heightM: null })] });
+	settle(ctx, { x: 250, y: 30, z: 0 }, 120);
+	assert.equal(ctx.tr.trace, null, 'no orbit laid from afar');
+	assert.equal(ctx.tr.active.phase, 'near');
+	world.coarse = false; // refined on the way in
+	settle(ctx, { x: 200, y: 30, z: 0 }, 60);
+	assert.equal(ctx.tr.active.phase, 'near', 'still beyond 150 m');
+	const maxRays = settle(ctx, { x: UNDER_NEAR_M - 10, y: 30, z: 0 }, 400);
+	assert.ok(ctx.tr.trace, 'laid');
+	assert.equal(ctx.tr.shape, 'under');
+	assert.ok(maxRays <= 40, `max ${maxRays} rays/frame`);
+	// Once only: seen near and still no deck, it settles for the orbit.
+	const w2 = new World({ boxes: [{ x0: -5, x1: 5, z0: -150, z1: 150, y0: 12, y1: 14 }] });
+	w2.coarse = true;
+	const c2 = setup({ world: w2, signals: [sig('wd:Q4', 3, { kind: 'BRIDGE', heightM: null })] });
+	settle(c2, { x: 250, y: 30, z: 0 }, 120);
+	settle(c2, { x: 100, y: 30, z: 0 }, 400);
+	assert.equal(c2.tr.shape, 'orbit');
 });
 
 t('flown to the end: done with the shape and the seconds on it, the line gone', () => {
