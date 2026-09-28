@@ -85,6 +85,11 @@ sometimes wants a button press before the device shows up at all.
 **Keyboard**: `W`/`S` throttle · `A`/`D` yaw · arrows or mouse roll-pitch ·
 `R` respawn · `M` mode (acro/angle/altitude) · `C` free camera · `Tab` settings.
 
+**Flight modes**: `acro`, `angle`, `altitude`. Every device starts in ACRO. A
+gamepad's mode button (SHARE / VIEW by default, or the one measured by the
+calibration) toggles ACRO ↔ ANGLE; a radio's calibrated mode switch picks ACRO
+or ANGLE by its position, including at take-off.
+
 ## Adding a map
 
 A map = an area downloaded (Google Earth — see

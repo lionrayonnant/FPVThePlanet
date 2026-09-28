@@ -271,9 +271,8 @@ const settings = new Settings(document.getElementById('ui'), input);
 // A pad gets null — the draw is untouched, weight for weight. See
 // entry-state.js:capCategory(). This is deliberately the ONLY concession the
 // keyboard gets on entry: its flight mode stays acro, by decision, and the
-// keyboard's own ramp in input.js is what makes that flyable. (A pad other than
-// a radio starts in ANGLE — see input.js:startFlightMode — because it now has a
-// button that leads back to ACRO.)
+// keyboard's own ramp in input.js is what makes that flyable. (Every device
+// starts in ACRO — see input.js:startFlightMode.)
 function entryCategoryCap() {
 	const pad = input.usingGamepad || input.getGamepad?.();
 	return pad ? null : 'ACTIVE';
@@ -539,9 +538,8 @@ function applyBenchConfig() {
 		// rate band from the in-flight panel used to drop an ANGLE flight back
 		// into acro, and quietly re-arm a machine that had been disarmed. Both
 		// are flight state, not configuration: they cross the rebuild.
-		// holdAltitude and the GPS hold point cannot — they are lazily re-armed
-		// on the first step spent in the mode, which re-acquires them where the
-		// machine is now.
+		// holdAltitude cannot — it is lazily re-armed on the first step spent
+		// in the mode, which re-acquires it where the machine is now.
 		const wasMode = controller?.mode;
 		const wasArmed = controller?.armed;
 		controller = new FlightController({
@@ -3954,8 +3952,8 @@ async function armFlightOnce() {
 	// Unplugged in CHASE view — the same rule of exclusivity. Every flight
 	// starts in FPV (D11): setView() plugs both passes back in.
 	setView('fpv');
-	// The mode it starts in (input.js:startFlightMode): a pad in ANGLE, a radio
-	// in ACRO unless its measured switch says otherwise, the keyboard in ACRO.
+	// The mode it starts in (input.js:startFlightMode): ACRO, unless a radio's
+	// measured switch says otherwise.
 	// Decided here, as the flight arms, because that is when the device is known.
 	controller.setMode(input.startFlightMode());
 

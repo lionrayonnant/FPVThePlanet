@@ -284,9 +284,8 @@ delete globalThis.location;
 //
 // main.js decides which mode a flight starts in, as it arms, because only main.js
 // knows what is plugged in — the controller must stay ignorant of input devices.
-// The rule itself is input.js:startFlightMode(): a pad other than a radio starts
-// in ANGLE (it has a mode button back to ACRO), a radio in ACRO unless its
-// measured flight-mode switch says otherwise, the keyboard in ACRO by decision.
+// The rule itself is input.js:startFlightMode(): every device starts in ACRO,
+// unless a radio's measured flight-mode switch says otherwise.
 
 section('4. FlightController start mode');
 
@@ -309,32 +308,35 @@ t('a caller can start the machine in angle', () => {
 
 const { startFlightMode } = await import('../src/input.js');
 
-t('a gamepad starts in angle, whatever its family', () => {
-	for (const kind of ['playstation', 'xbox', 'nintendo', 'steam', 'generic']) {
-		const mode = startFlightMode(kind);
-		assert.equal(mode, 'angle', kind);
-		assert.equal(new FlightController({ mode }).mode, 'angle');
-	}
-});
-
-t('a radio starts in acro', () => {
-	assert.equal(startFlightMode('radio'), 'acro');
-	assert.equal(startFlightMode('radio', null), 'acro', 'no measured switch');
+t('every device starts in acro without a measured switch', () => {
+	const mode = startFlightMode();
+	assert.equal(mode, 'acro');
+	assert.equal(new FlightController({ mode }).mode, 'acro');
+	assert.equal(startFlightMode(null), 'acro', 'no measured switch');
 });
 
 t('a radio with a measured switch starts where the switch is', () => {
-	assert.equal(startFlightMode('radio', 'angle'), 'angle');
-	assert.equal(startFlightMode('radio', 'acro'), 'acro');
-	assert.equal(startFlightMode('radio', 'nonsense'), 'acro', 'an unreadable position is no position');
-});
-
-t('the keyboard is unchanged: acro', () => {
-	assert.equal(startFlightMode(null), 'acro');
+	assert.equal(startFlightMode('angle'), 'angle');
+	assert.equal(startFlightMode('acro'), 'acro');
+	assert.equal(startFlightMode('nonsense'), 'acro', 'an unreadable position is no position');
 });
 
 t('an unknown mode falls back to acro rather than throwing', () => {
 	assert.equal(new FlightController({ mode: 'sport' }).mode, 'acro');
 	assert.equal(new FlightController({ mode: null }).mode, 'acro');
+	// Removed modes: a stale value flies as acro, at construction and on setMode.
+	for (const gone of ['acro3d', 'gps']) {
+		assert.equal(new FlightController({ mode: gone }).mode, 'acro', gone);
+		const fc = new FlightController({ mode: 'angle' });
+		fc.setMode(gone);
+		assert.equal(fc.mode, 'acro', gone);
+	}
+});
+
+t('the M cycle only walks the remaining modes', () => {
+	assert.deepEqual(MODES, ['acro', 'angle', 'altitude']);
+	const fc = new FlightController();
+	assert.deepEqual([fc.cycleMode(), fc.cycleMode(), fc.cycleMode()], ['angle', 'altitude', 'acro']);
 });
 
 t('the mode option touches nothing else about the machine', () => {
