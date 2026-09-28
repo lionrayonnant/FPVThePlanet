@@ -94,11 +94,12 @@ export class TraceProbe {
 	get profile() { return this._phase === 'done' ? this._profile : null; }
 
 	// axis: also look for a bridge deck (BRIDGE / ARCH kinds). outer: probe
-	// the outer rings when the landmark reaches the grid's edge (orbit, under).
+	// the outer rings when the landmark reaches the grid's edge (orbit,
+	// under), or 'always' (a dive: its 45° descent needs the reach).
 	start(anchor, { axis = false, outer = false } = {}) {
 		this._anchor = { x: anchor.x, y: anchor.y, z: anchor.z };
 		this._wantAxis = !!axis;
-		this._wantOuter = !!outer;
+		this._wantOuter = outer === 'always' ? 'always' : !!outer;
 		this._rings = RINGS_M.map((r) => ({ r, heights: new Float32Array(r === 0 ? 1 : ANGLES).fill(NaN) }));
 		this._j = 0;
 		this._misses = 0;
@@ -176,7 +177,7 @@ export class TraceProbe {
 		};
 		this._j = 0;
 		if (partial) { this._phase = 'done'; return; }
-		if (this._wantOuter && this._reachesEdge()) {
+		if (this._wantOuter === 'always' || (this._wantOuter && this._reachesEdge())) {
 			for (const r of OUTER_RINGS_M) this._rings.push({ r, heights: new Float32Array(OUTER_ANGLES).fill(NaN) });
 			this._phase = 'outer';
 			return;

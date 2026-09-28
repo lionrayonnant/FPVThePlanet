@@ -236,7 +236,7 @@ t('bridge: an island at deck level (no underside) scores first, fails, the deck 
 	assert.ok(w.calls.obs >= 4, `the island's three passes first (${w.calls.obs} passes)`);
 });
 
-t('outer rings: probed when the landmark reaches the 80 m ring (orbit, under), not otherwise', () => {
+t('outer rings: probed when the landmark reaches the 80 m ring (orbit, under) or always (dive), not otherwise', () => {
 	const deck = () => bridge();
 	const p1 = probe(deck(), BR_ANCHOR, { outer: true }).profile;
 	assert.deepEqual(p1.rings.map((r) => r.r), [...RINGS_M, ...OUTER_RINGS_M]);
@@ -248,6 +248,7 @@ t('outer rings: probed when the landmark reaches the 80 m ring (orbit, under), n
 	assert.equal(p1.rays, GRID + OUTER_RINGS_M.length * OUTER_ANGLES);
 	assert.deepEqual(probe(deck(), BR_ANCHOR).profile.rings.map((r) => r.r), RINGS_M, 'not asked');
 	assert.deepEqual(probe(building(), B_ANCHOR, { outer: true }).profile.rings.map((r) => r.r), RINGS_M, 'a building ends inside');
+	assert.deepEqual(probe(peak(), PK_ANCHOR, { outer: 'always' }).profile.rings.map((r) => r.r), [...RINGS_M, ...OUTER_RINGS_M], 'a dive asks always');
 });
 
 t('window edge: misses read NaN; a few are fine, too many flag the profile partial', () => {
@@ -427,8 +428,8 @@ t('lift then validate: a blocked orbit clears once lifted over the block', () =>
 });
 
 // ------------------------------------------------------------- end to end
-function e2e(world, anchor, signal, tier, axis = false) {
-	const { profile } = probe(world, anchor, { axis });
+function e2e(world, anchor, signal, tier, axis = false, outer = false) {
+	const { profile } = probe(world, anchor, { axis, outer });
 	const trace = buildTrace({ signal, anchor, profile, tier, approach: APPROACH });
 	assert.ok(trace, `${signal.kind} tier ${tier}: no trace`);
 	const p = new TraceProbe({ ...world });
@@ -465,7 +466,7 @@ t('end to end: the under-pass of the bridge, validated clear, under the deck', (
 t('end to end: the dive down the peak, validated clear, 10 m above the slope', () => {
 	for (const tier of [2, 3]) {
 		const w = peak();
-		const { trace } = e2e(w, PK_ANCHOR, { id: 'wd:Q13', kind: 'PEAK' }, tier);
+		const { trace } = e2e(w, PK_ANCHOR, { id: 'wd:Q13', kind: 'PEAK' }, tier, false, 'always');
 		assert.equal(trace.shape, 'dive');
 		const P = trace.points;
 		assert.ok(P[1] >= 240 - 1e-3, 'starts 40 m above the summit');

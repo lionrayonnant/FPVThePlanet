@@ -52,7 +52,8 @@ const DIVE_ABOVE_TOP_M = 40;
 const DIVE_CLEAR_M = 10;
 const DIVE_CLEAR_STEP_M = 4;  // per attempt
 const DIVE_START_OFFSET_M = 10; // from the summit towards the approach
-const DIVE_LENGTH_M = { 2: 60, 3: 160 };
+const DIVE_LENGTH_M = { 2: 60, 3: 160 }; // at least
+const DIVE_MAX_LENGTH_M = 250;
 
 const TAU = 2 * Math.PI;
 
@@ -363,7 +364,8 @@ function buildUnder(ctx) {
 // Start 40 m above the landmark's top, 10 m from its summit towards the drone, then down
 // the steepest face (the angle whose outer ring drops most), never closer than
 // 10 m to the probed surface, ending 10 m above the lowest probed point when
-// the path length (60 m / 160 m) allows it.
+// the path allows it: 60 m / 160 m at least, longer for a deeper drop so the
+// descent stays ≤ 45°, 250 m at most.
 function buildDive(ctx) {
 	const { anchor, profile, tier, attempt, theta0 } = ctx;
 	const rings = profile.rings;
@@ -398,10 +400,13 @@ function buildDive(ctx) {
 	const H = Math.hypot(Ex - Sx, Ez - Sz);
 	const clr = DIVE_CLEAR_M + attempt * DIVE_CLEAR_STEP_M;
 	const yStart = Math.max(landmarkTop(anchor) + DIVE_ABOVE_TOP_M, surfaceAt(profile, anchor, Sx, Sz) + clr) + attempt * ALT_STEP_M;
-	const yEnd = profile.ground + clr;
-	const L = DIVE_LENGTH_M[tier];
-	const drop = yStart - yEnd;
-	const D = Math.min(H, Math.max(Math.sqrt(Math.max(L * L - drop * drop, 0)), Math.min(H, 10)));
+	// Never steeper than 45° (the face aside): the path grows with the drop,
+	// up to DIVE_MAX_LENGTH_M; a drop deeper than that, or than the grid
+	// reaches, ends the dive higher up the face.
+	const drop = Math.max(0, Math.min(yStart - (profile.ground + clr), H, DIVE_MAX_LENGTH_M / Math.SQRT2));
+	const yEnd = yStart - drop;
+	const L = Math.min(DIVE_MAX_LENGTH_M, Math.max(DIVE_LENGTH_M[tier], drop * Math.SQRT2));
+	const D = Math.min(H, Math.max(Math.sqrt(Math.max(L * L - drop * drop, 0)), drop, Math.min(H, 10)));
 	const raw = [];
 	let len = 0, px = Sx, py = yStart, pz = Sz;
 	const steps = Math.max(1, Math.ceil(H));

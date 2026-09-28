@@ -324,7 +324,10 @@ t('dive: from top + 40 m on the drone side, down the steepest face, 10 m above t
 		const tr = buildTrace({ signal: sig('PEAK'), anchor: peakAnchor, profile: peakProfile, tier, approach });
 		assert.equal(tr.shape, 'dive');
 		spacingOk(tr);
-		assert.ok(Math.abs(tr.length - (tier === 2 ? 60 : 160)) < 1.5, `length ${tr.length}`);
+		// 60 / 160 m at least — unless the grid's reach at 45° is shorter
+		// (80 m rings here; the probe adds 140 m rings for a dive): this drop
+		// (the 300 m peak) asks for more.
+		assert.ok(tr.length >= (tier === 2 ? 60 : 110) - 1.5 && tr.length <= 250 + 1, `length ${tr.length}`);
 		assert.ok(Math.abs(pt(tr, 0).y - (peakProfile.top + 40)) < 1e-3, 'start 40 m above the top');
 		const e0 = pt(tr, 0);
 		assert.ok((e0.x - 0) * approach.x + (e0.z - 0) * approach.z > 0, 'entry on the drone side');
@@ -361,6 +364,29 @@ t('dive: with enough path, it ends 10 m above the lowest probed point', () => {
 	const last = pt(tr, count(tr) - 1);
 	assert.ok(Math.abs(last.y - 10) < 0.6, `end ${last.y}`);
 	assert.ok(tr.length <= 160 + 1);
+});
+
+t('dive: a drop deeper than the path descends at 45° at most, the path longer, 250 m at most', () => {
+	// A 200 m cliff, its foot 15 m out: tier II's 60 m used to plunge 230 m
+	// over 10 m. The slope, point to point, stays ≤ 45° wherever the surface
+	// does not force it up.
+	const a = { x: 0, y: 203, z: 0 };
+	const p = profileOf(a, (x, z) => (Math.hypot(x, z) < 15 ? 200 : 0));
+	for (const tier of [2, 3]) {
+		const tr = buildTrace({ signal: sig('CLIFF'), anchor: a, profile: p, tier, approach: { x: -300, z: 0 } });
+		assert.equal(tr.shape, 'dive');
+		spacingOk(tr);
+		assert.ok(tr.length > (tier === 2 ? 60 : 160) + 1 || tier === 3, `tier ${tier}: longer than the minimum (${tr.length})`);
+		assert.ok(tr.length <= 250 + 1, `tier ${tier}: ${tr.length} m`);
+		for (let i = 1; i < count(tr); i++) {
+			const q0 = pt(tr, i - 1), q1 = pt(tr, i);
+			const floor = surfaceAt(p, a, q1.x, q1.z) + 10;
+			if (q1.y <= floor + 0.5) continue; // held up by the surface
+			assert.ok(q0.y - q1.y <= hdist(q0, q1) + 1e-3, `tier ${tier} segment ${i}: ${(q0.y - q1.y).toFixed(2)} down over ${hdist(q0, q1).toFixed(2)}`);
+		}
+		const last = pt(tr, count(tr) - 1);
+		assert.ok(pt(tr, 0).y - last.y > 60, `tier ${tier}: descended ${pt(tr, 0).y - last.y} m`);
+	}
 });
 
 t('buildTrace: tier I, no profile or a bad anchor gives null; deterministic', () => {
