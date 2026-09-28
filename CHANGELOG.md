@@ -165,6 +165,11 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Corrigé
 
+- **Les images prises en vol gardaient les bandes noires de la fenêtre.** La
+  capture de l'objectif copiait aussi le letterbox : les photos de session, et
+  donc l'image interceptée des signaux, avaient des bords noirs. Elles sont
+  désormais l'image du capteur seule. (#185)
+
 - **Sous Chrome, la radio passait après le récepteur du clavier.** Chrome sous
   Linux liste tout périphérique que le système étiquette joystick dès que l'un
   d'eux a servi, et un récepteur Keychron Link en est un (6 axes, 16 boutons),
