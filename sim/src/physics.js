@@ -181,6 +181,8 @@ export class Physics {
 		// And a third, for the same reason again: the wind rosette fires inside
 		// step() between the ground query and the world step.
 		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+		// rayUp()'s own: the trace probe casts it from the render loop.
+		this._upRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
 		this._obstruction = { blocked: false, span: 0 };
 		// Vertical force budget (diagnostics). Null until beginForceBudget().
 		this._budget = null;
@@ -659,6 +661,15 @@ export class Physics {
 		this._ray.origin.x = x; this._ray.origin.y = y; this._ray.origin.z = z;
 		const hit = this.world.castRay(this._ray, maxDistance, true, undefined, undefined, this.collider);
 		return hit ? y - hit.timeOfImpact : null;
+	}
+
+	// Height of the first surface straight above a point (a deck's underside,
+	// a ceiling), or null if nothing is there.
+	rayUp(x, y, z, maxDistance = 500) {
+		const ray = this._upRay;
+		ray.origin.x = x; ray.origin.y = y; ray.origin.z = z;
+		const hit = this.world.castRay(ray, maxDistance, true, undefined, undefined, this.collider);
+		return hit ? y + hit.timeOfImpact : null;
 	}
 
 	// What sits on the straight line between two points: whether anything does at
