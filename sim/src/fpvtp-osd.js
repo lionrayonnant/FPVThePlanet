@@ -31,7 +31,21 @@ const SOURCE_HOST = SOURCE_URL.replace(/^https?:\/\//, '');
 const INPUT_LOST_MS = 8000;
 
 // Where the wind pushes from, in the drone's frame: index 0 is straight ahead.
-const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+export const ARROWS = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+
+// The arrow index of a relative bearing (0 ahead, +pi/2 right), eight sectors.
+// The wind reads it as the side it pushes FROM, so its arrow points back at
+// the pilot; a target is the side to fly TOWARDS, half a turn round (+4).
+const arrowIndex = (relRad) => ((Math.round(((relRad ?? 0) / (Math.PI * 2)) * 8) % 8) + 8) % 8;
+
+// The NEXT SIGNAL distance: metres under a kilometre, then tenths of a km.
+export function nextSignalText(distM, relRad) {
+	const d = distM < 1000 ? `${Math.round(distM)} m` : `${(distM / 1000).toFixed(1)} km`;
+	return `${d} ${ARROWS[(arrowIndex(relRad) + 4) % 8]}`;
+}
+
+// The take-off notice fades over its last half second (opacity only).
+const NOTICE_FADE_MS = 500;
 
 const clock = (s) => {
 	const t = Math.max(0, Math.floor(s));
@@ -63,6 +77,7 @@ export class FpvtpOsd {
 					<div id="fo-source">${iconSVG('github', { size: 9 })} ${SOURCE_HOST}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
+					<div id="fo-next" hidden><span class="fo-next-k">NEXT SIGNAL</span> <span id="fo-next-v"></span></div>
 				</div>
 				<div class="corner tr">
 					<div id="fo-mode">ACRO</div>
@@ -83,6 +98,7 @@ export class FpvtpOsd {
 				<div id="fo-turtle" hidden></div>
 				<div id="fo-cut" hidden><span id="fo-cut-text"></span><i id="fo-cut-bar"></i></div>
 				<div id="fo-hint" hidden></div>
+				<div id="fo-notice" hidden><span class="fo-notice-mark"></span><span id="fo-notice-text"></span></div>
 				<div id="flight-end" hidden></div>
 			</div>`);
 
@@ -104,6 +120,11 @@ export class FpvtpOsd {
 			cut: q('#fo-cut'),
 			turtle: q('#fo-turtle'),
 			hint: q('#fo-hint'),
+			notice: q('#fo-notice'),
+			noticeMark: q('#fo-notice .fo-notice-mark'),
+			noticeText: q('#fo-notice-text'),
+			next: q('#fo-next'),
+			nextValue: q('#fo-next-v'),
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
 			flightEnd: q('#flight-end'),
@@ -134,6 +155,14 @@ export class FpvtpOsd {
 		this._hintBase = '';
 		this._lostText = '';
 		this._lostUntil = 0;
+		// Signals: the one-shot centre notice (take-off scan, a clearance step)
+		// and the NEXT SIGNAL line — both painted only when they change.
+		this._noticeText = '';
+		this._noticeUntil = 0;
+		this._noticePainted = '';
+		this._noticeOpacity = '';
+		this._nextText = '';
+		this._nextFor = null;   // the `next` object the text was built from
 		// #264: the machine in flight, and its drawing once the link is lost. The
 		// drawing is only built at the moment the line appears — a flight that
 		// ends well never builds one.
@@ -301,6 +330,7 @@ export class FpvtpOsd {
 		e.hidden = !this._status;
 		this._paintPause();
 		this.el.pause.hidden = !!this._status || !this._paused;
+		this._paintNotice();
 	}
 
 	// `[SPACE] RESUME`, in the same `[KEY] VERB` form as every other key hint in
@@ -398,8 +428,34 @@ export class FpvtpOsd {
 		this.el.hint.hidden = !next;
 	}
 
+	// A one-shot centre line (signals, #185): `[*] SIGNAL SCAN · 2/7` while the
+	// flight's tiles land, `[+] 49 SIGNALS IN RANGE`, `[+] CLEARANCE 1 · …`.
+	// Self-expiring like setInputLost(); `ms = Infinity` holds it until the
+	// next call, `null` clears it. A leading `[+]` is painted green.
+	setNotice(text, ms = 4000) {
+		this._noticeText = text || '';
+		this._noticeUntil = this._noticeText ? performance.now() + ms : 0;
+		this._paintNotice();
+	}
+
+	_paintNotice() {
+		const now = performance.now();
+		// Never over the pause or a verdict: they hold the same centre.
+		const text = now < this._noticeUntil && !this._paused && !this._status ? this._noticeText : '';
+		if (text !== this._noticePainted) {
+			this._noticePainted = text;
+			const green = text.startsWith('[+]');
+			this.el.noticeMark.textContent = green ? '[+]' : '';
+			this.el.noticeText.textContent = green ? text.slice(3) : text;
+			this.el.notice.hidden = !text;
+		}
+		const o = text ? String(Math.min(1, Math.round((this._noticeUntil - now) / NOTICE_FADE_MS * 100) / 100)) : '';
+		if (o !== this._noticeOpacity) { this._noticeOpacity = o; this.el.notice.style.opacity = o; }
+	}
+
 	// Signals Lot 2b, task 4: the provider for the SIGNALS_LINE token — the
-	// recap of the landmarks this flight UPLINKED. `fn` is `() => HTMLElement |
+	// recap of the landmarks this flight UPLINKED, or the hangar's reveal when
+	// the flight crossed a clearance step (lot 3). `fn` is `() => HTMLElement |
 	// null`; `null` means the flight uplinked nothing, and the line then falls
 	// back to an empty div like every other token with nothing to show.
 	setSignalRecap(fn) {
@@ -413,6 +469,9 @@ export class FpvtpOsd {
 		const old = this._recapSlot;
 		if (!old?.isConnected) return;
 		const node = this._signalRecapNode();
+		// The provider may hand back the node already there (the hangar is
+		// built once per flight): nothing to replace.
+		if (node === old) return;
 		old.replaceWith(node);
 		this._recapSlot = node;
 	}
@@ -483,13 +542,27 @@ export class FpvtpOsd {
 	get fps() { return this._fps; }
 
 	update({ mode, rates, usingGamepad, windMs, windRelRad, visibilityM,
-	         rssiDbm, operator, sessionSeconds, propwash, bench = false, live = false }) {
+	         rssiDbm, operator, sessionSeconds, propwash, bench = false, live = false, next = null }) {
 		this.el.mode.textContent = String(mode).toUpperCase();
 		if (rates) this.el.rates.textContent = rates;
 		this.el.input.textContent = usingGamepad ? 'GAMEPAD' : 'KEYBOARD';
 		// The only frame-rate clock this layer has: it is what lets the lost-device
 		// warning take itself away.
 		this._paintHint();
+		this._paintNotice();
+		// The nearest open signal ({ distM, relRad }), or null: hidden, and
+		// hidden under a verdict — there is nothing left to go for.
+		// `next` is rebuilt at 5 Hz: the text is only rebuilt when it changes.
+		const nextShown = this._status ? null : next;
+		if (nextShown !== this._nextFor) {
+			this._nextFor = nextShown;
+			const nextText = nextShown ? nextSignalText(nextShown.distM, nextShown.relRad) : '';
+			if (nextText !== this._nextText) {
+				this._nextText = nextText;
+				this.el.nextValue.textContent = nextText;
+				this.el.next.hidden = !nextText;
+			}
+		}
 		this.el.operator.textContent = `OPERATOR // ${operator ?? '—'}`;
 		// At the bench there is no session: the line says what it is rather than
 		// counting the time of something that does not exist. It is the only
@@ -505,8 +578,7 @@ export class FpvtpOsd {
 		// glance, not three blocks fighting over one corner.
 		const parts = [];
 		if (Number.isFinite(windMs) && windMs >= 0.5) {
-			const i = ((Math.round(((windRelRad ?? 0) / (Math.PI * 2)) * 8) % 8) + 8) % 8;
-			parts.push(`WIND ${windMs.toFixed(1)} m/s ${ARROWS[i]}`);
+			parts.push(`WIND ${windMs.toFixed(1)} m/s ${ARROWS[arrowIndex(windRelRad)]}`);
 		} else {
 			parts.push('WIND CALM');
 		}

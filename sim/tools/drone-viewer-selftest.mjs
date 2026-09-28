@@ -33,6 +33,7 @@ function fakeRenderer({ pixelRatio = 1 } = {}) {
 			r.positions.push([camera.position.x, camera.position.y, camera.position.z]);
 		},
 		dispose() { r.disposed++; },
+		forceContextLoss() { r.lost = (r.lost ?? 0) + 1; },
 	};
 	return r;
 }
@@ -166,8 +167,10 @@ t('stop() disposes the renderer, and twice is harmless', () => {
 	const v = droneViewer({ family: 'cinewhoop', buildSeed: 'seed::2', createRenderer: () => r });
 	v.stop();
 	assert.equal(r.disposed, 1, 'the GL context is leaked');
+	assert.equal(r.lost, 1, 'the context is released now, not at GC');
 	v.stop();
 	assert.equal(r.disposed, 1, 'stop() disposed twice');
+	assert.equal(r.lost, 1);
 });
 
 t('no WebGL: null, so the caller falls back to the SVG portrait', () => {

@@ -292,4 +292,149 @@ await t('a listener that throws does not stop the others', async () => {
 	assert.ok(warned >= 1);
 });
 
+await t('progress() across a 3-tile batch: total holds, done climbs, current tracks the fetch', async () => {
+	const gates = [null, null, null];
+	const f = fakeFetch(async (i) => { await new Promise((r) => { gates[i - 1] = r; }); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	assert.deepEqual(src.progress(), { done: 0, total: 0, current: null, retryAt: null });
+
+	src.request(['z12/1/1', 'z12/1/2', 'z12/1/3']);
+	for (let i = 0; i < 4 && !gates[0]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 0, total: 3, current: 'z12/1/1', retryAt: null });
+
+	gates[0]();
+	for (let i = 0; i < 6 && !gates[1]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 1, total: 3, current: 'z12/1/2', retryAt: null });
+
+	gates[1]();
+	for (let i = 0; i < 6 && !gates[2]; i++) await new Promise((r) => setImmediate(r));
+	assert.deepEqual(src.progress(), { done: 2, total: 3, current: 'z12/1/3', retryAt: null });
+
+	gates[2]();
+	await src.idle();
+	assert.deepEqual(src.progress(), { done: 3, total: 3, current: null, retryAt: null });
+});
+
+await t('progress() resets when a new request() batch starts', async () => {
+	const f = fakeFetch(() => okBody([]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.request(['z12/1/1', 'z12/1/2']);
+	await src.idle();
+	assert.equal(src.progress().total, 2);
+	src.request(['z12/9/9']);
+	assert.deepEqual(src.progress(), { done: 0, total: 1, current: 'z12/9/9', retryAt: null });
+	await src.idle();
+	assert.deepEqual(src.progress(), { done: 1, total: 1, current: null, retryAt: null });
+});
+
+await t('a cache hit is never reported as a tile in flight once it is loaded', async () => {
+	const cache = memoryCache();
+	await cache.set('z12/5/5', { v: MODEL_VERSION, at: Date.now(), signals: [{ id: 'osm:way/5', tile: 'z12/5/5' }] });
+	const src = createSignalSource({ fetch: () => { throw new Error('no fetch on a cache hit'); }, cache });
+	const seen = [];
+	src.subscribe(() => seen.push(src.progress()));
+	src.request(['z12/5/5']);
+	await src.idle();
+	assert.ok(!seen.some((p) => p.done === 1 && p.current !== null), 'loaded while still marked current');
+	assert.deepEqual(seen.at(-1), { done: 1, total: 1, current: null, retryAt: null });
+});
+
+await t('queued() lists the tiles still waiting, as a copy', async () => {
+	let gate = null;
+	const f = fakeFetch(async () => { await new Promise((r) => { gate = r; }); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.request(['z12/1/1', 'z12/1/2', 'z12/1/3']);
+	for (let i = 0; i < 4 && !gate; i++) await new Promise((r) => setImmediate(r));
+	const q = src.queued();
+	assert.deepEqual(q, ['z12/1/2', 'z12/1/3'], 'the tile in flight is not queued');
+	q.length = 0;
+	assert.equal(src.queued().length, 2);
+	src.request([]);
+	assert.deepEqual(src.queued(), []);
+	gate();
+	await src.idle();
+});
+
+await t('progress().retryAt is the failed tile\'s cooldown end while state is unavailable', async () => {
+	let now = 1_000_000;
+	const f = fakeFetch(() => { throw new Error('offline'); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), now: () => now });
+	src.request(['z12/1/1']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const p = src.progress();
+	assert.equal(p.retryAt, now + DEFAULT_RETRY_S * 1000);
+	assert.equal(p.total, 0, 'the failed tile is neither loaded, queued nor in flight');
+
+	now += DEFAULT_RETRY_S * 1000 + 1;
+	assert.equal(src.progress().retryAt, null, 'once its own cooldown has passed, a tile no longer counts as "still cooling"');
+});
+
+await t('retryAt reflects only still-cooling tiles: a stale cooldown from an earlier failure that later succeeded must not leak in', async () => {
+	let now = 1_000_000;
+	let fail = true;
+	const f = fakeFetch(() => { if (fail) throw new Error('offline'); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), now: () => now });
+
+	src.request(['A']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const t1 = now + DEFAULT_RETRY_S * 1000;
+	assert.equal(src.progress().retryAt, t1);
+
+	// A's cooldown passes and it now succeeds: its failedUntil entry must be cleared.
+	now += DEFAULT_RETRY_S * 1000 + 1;
+	fail = false;
+	src.request(['A']);
+	await src.idle();
+	assert.equal(src.status(), 'idle');
+
+	// B fails later: its cooldown T2 is later than A's old (and now-cleared) T1.
+	fail = true;
+	src.request(['B']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const t2 = now + DEFAULT_RETRY_S * 1000;
+	assert.ok(t2 > t1);
+	assert.equal(src.progress().retryAt, t2, 'not the stale A cooldown');
+});
+
+await t('subscribers see current return to null once the last tile of a batch settles (done === total)', async () => {
+	const f = fakeFetch(() => okBody([]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	const snapshots = [];
+	src.subscribe(() => snapshots.push(src.progress()));
+	src.request(['z12/1/1', 'z12/1/2']);
+	await src.idle();
+	assert.ok(snapshots.length > 0);
+	const last = snapshots[snapshots.length - 1];
+	assert.equal(last.current, null);
+	assert.equal(last.done, last.total);
+	assert.equal(last.total, 2);
+});
+
+await t('entries(): memory cache lists every [key, value] pair it holds', async () => {
+	const cache = memoryCache();
+	await cache.set('a', 1);
+	await cache.set('b', 2);
+	assert.deepEqual((await cache.entries()).sort(), [['a', 1], ['b', 2]]);
+});
+
+await t('cachedSignals(): every fresh, current-version cached tile, deduped, stale/old-version skipped', async () => {
+	const cache = memoryCache();
+	const now = Date.now();
+	await cache.set('z12/1/1', { v: MODEL_VERSION, at: now, signals: [{ id: 'wd:Q1', tile: 'z12/1/1' }, { id: 'wd:Q2', tile: 'z12/1/1' }] });
+	await cache.set('z12/1/2', { v: MODEL_VERSION, at: now, signals: [{ id: 'wd:Q2', tile: 'z12/1/2' }] }); // dup id
+	await cache.set('z12/1/3', { v: MODEL_VERSION, at: now - CACHE_TTL_MS - 1, signals: [{ id: 'wd:Q3', tile: 'z12/1/3' }] }); // stale
+	await cache.set('z12/1/4', { v: 0, at: now, signals: [{ id: 'wd:Q4', tile: 'z12/1/4' }] }); // old version
+	const src = createSignalSource({ fetch: async () => okBody([]), cache });
+	const signals = await src.cachedSignals();
+	assert.deepEqual(signals.map((s) => s.id).sort(), ['wd:Q1', 'wd:Q2']);
+});
+
+await t('cachedSignals() with a cache that cannot list entries degrades to empty, not a throw', async () => {
+	const src = createSignalSource({ fetch: async () => okBody([]), cache: { get: async () => null, set: async () => {} } });
+	assert.deepEqual(await src.cachedSignals(), []);
+});
+
 console.log(`signal-source: ${n} ok`);

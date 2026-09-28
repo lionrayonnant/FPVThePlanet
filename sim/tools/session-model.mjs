@@ -77,9 +77,9 @@ const DAY_NUM = [
 const text = (v) => (typeof v === 'string' ? v : null);
 export function sanitizeWeatherSnapshot(raw) {
 	if (raw == null) return null;
-	if (typeof raw !== 'object') throw new Error('weatherSnapshot invalide');
+	if (typeof raw !== 'object') throw new Error('invalid weatherSnapshot');
 	const src = raw.day0 ?? raw.days?.[0] ?? null;
-	if (!src || typeof src !== 'object') throw new Error('weatherSnapshot sans jour');
+	if (!src || typeof src !== 'object') throw new Error('weatherSnapshot has no day');
 	const num = (v) => (Number.isFinite(v) ? v : null);
 	const day0 = {};
 	for (const k of DAY_TEXT) day0[k] = text(src[k]);
@@ -98,30 +98,39 @@ export function sanitizeWeatherSnapshot(raw) {
 // one: it keeps its target but not its ambients.
 function sanitizeScan(raw) {
 	if (raw == null) return null;
-	if (typeof raw !== 'object') throw new Error('target.scan invalide');
-	if (typeof raw.seed !== 'string' || raw.seed.length === 0) throw new Error('target.scan.seed invalide');
-	if (!Number.isInteger(raw.count) || raw.count < 2 || raw.count > 5) throw new Error('target.scan.count invalide');
-	if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index >= raw.count) throw new Error('target.scan.index invalide');
+	if (typeof raw !== 'object') throw new Error('invalid target.scan');
+	if (typeof raw.seed !== 'string' || raw.seed.length === 0) throw new Error('invalid target.scan.seed');
+	if (!Number.isInteger(raw.count) || raw.count < 2 || raw.count > 5) throw new Error('invalid target.scan.count');
+	if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index >= raw.count) throw new Error('invalid target.scan.index');
 	// v3 (issue #29). Absent on a v2 scan, which predates swarms: it replays as
 	// `null` chance 0, i.e. swarmless, which is exactly what it was.
 	const at = raw.swarmAt ?? null;
 	if (at !== null && (!Number.isInteger(at) || at < 0 || at >= raw.count)) {
-		throw new Error('target.scan.swarmAt invalide');
+		throw new Error('invalid target.scan.swarmAt');
 	}
 	const chance = raw.swarmChance ?? 0;
-	if (!Number.isFinite(chance) || chance < 0 || chance > 1) throw new Error('target.scan.swarmChance invalide');
-	return { seed: raw.seed, count: raw.count, index: raw.index, swarmAt: at, swarmChance: chance };
+	if (!Number.isFinite(chance) || chance < 0 || chance > 1) throw new Error('invalid target.scan.swarmChance');
+	const out = { seed: raw.seed, count: raw.count, index: raw.index, swarmAt: at, swarmChance: chance };
+	// The clearance pool the scan drew from (issue #185): the ambient
+	// regeneration must draw from the same one. Kept only as a non-empty subset
+	// of TARGET_FAMILIES; anything else is omitted and the replay falls back to
+	// the full pool, the way a scan from before clearance did.
+	const fams = raw.families;
+	if (Array.isArray(fams) && fams.length > 0 && fams.every((f) => TARGET_FAMILIES.includes(f))) {
+		out.families = [...fams];
+	}
+	return out;
 }
 
 // The mesh the node commands (issue #29). `null` on any ordinary target.
 function sanitizeSwarm(raw) {
 	if (raw == null) return null;
-	if (typeof raw !== 'object') throw new Error('target.swarm invalide');
+	if (typeof raw !== 'object') throw new Error('invalid target.swarm');
 	if (!Number.isInteger(raw.size) || raw.size < SWARM_SIZE_MIN || raw.size > SWARM_SIZE_MAX) {
-		throw new Error('target.swarm.size invalide');
+		throw new Error('invalid target.swarm.size');
 	}
 	if (typeof raw.doctrineSeed !== 'string' || raw.doctrineSeed.length === 0) {
-		throw new Error('target.swarm.doctrineSeed invalide');
+		throw new Error('invalid target.swarm.doctrineSeed');
 	}
 	return { size: raw.size, doctrineSeed: raw.doctrineSeed };
 }
@@ -136,16 +145,16 @@ const STORED_FAMILIES = [...TARGET_FAMILIES, SWARM_FAMILY];
 // legal: a session can open with no target (the ?scene= dev path).
 export function sanitizeTarget(raw) {
 	if (raw == null) return null;
-	if (typeof raw !== 'object') throw new Error('target invalide');
-	if (!STORED_FAMILIES.includes(raw.family)) throw new Error(`famille de cible inconnue : ${asText(raw.family, nameOf(raw.family))}`);
+	if (typeof raw !== 'object') throw new Error('invalid target');
+	if (!STORED_FAMILIES.includes(raw.family)) throw new Error(`unknown target family: ${asText(raw.family, nameOf(raw.family))}`);
 	if (raw.hackType != null && !HACK_TYPES.includes(raw.hackType)) {
-		throw new Error(`hackType de cible inconnu : ${asText(raw.hackType, nameOf(raw.hackType))}`);
+		throw new Error(`unknown target hackType: ${asText(raw.hackType, nameOf(raw.hackType))}`);
 	}
 	const sig = raw.signal;
-	if (!sig || typeof sig !== 'object') throw new Error('target.signal manquant');
-	if (!Number.isFinite(sig.rssiDbm) || sig.rssiDbm >= 0) throw new Error('target.signal.rssiDbm invalide');
-	if (sig.mode !== 'ANALOG' && sig.mode !== 'DIGITAL') throw new Error('target.signal.mode invalide');
-	if (!raw.intel || typeof raw.intel !== 'object') throw new Error('target.intel manquant');
+	if (!sig || typeof sig !== 'object') throw new Error('target.signal missing');
+	if (!Number.isFinite(sig.rssiDbm) || sig.rssiDbm >= 0) throw new Error('invalid target.signal.rssiDbm');
+	if (sig.mode !== 'ANALOG' && sig.mode !== 'DIGITAL') throw new Error('invalid target.signal.mode');
+	if (!raw.intel || typeof raw.intel !== 'object') throw new Error('target.intel missing');
 	return {
 		family: raw.family,
 		classHint: raw.classHint ?? null,
@@ -162,25 +171,25 @@ export function sanitizeTarget(raw) {
 // server, never the one the client sends: a photo's timestamp must not depend
 // on the browser's clock.
 export function sanitizePhoto(raw) {
-	if (!raw || typeof raw !== 'object') throw new Error('photo invalide');
+	if (!raw || typeof raw !== 'object') throw new Error('invalid photo');
 	if (typeof raw.dataUrl !== 'string' || !raw.dataUrl.startsWith('data:image/')) {
-		throw new Error('photo.dataUrl invalide');
+		throw new Error('invalid photo.dataUrl');
 	}
-	if (!Number.isInteger(raw.w) || raw.w <= 0) throw new Error('photo.w invalide');
-	if (!Number.isInteger(raw.h) || raw.h <= 0) throw new Error('photo.h invalide');
+	if (!Number.isInteger(raw.w) || raw.w <= 0) throw new Error('invalid photo.w');
+	if (!Number.isInteger(raw.h) || raw.h <= 0) throw new Error('invalid photo.h');
 	return { dataUrl: raw.dataUrl, w: raw.w, h: raw.h, ts: new Date().toISOString() };
 }
 
 // Adds a capture without mutating the existing session: several captures per
 // session, each one more element in `photos[]`.
 export function addPhoto(session, raw) {
-	if (!session || typeof session !== 'object') throw new Error('session illisible');
+	if (!session || typeof session !== 'object') throw new Error('unreadable session');
 	const photo = sanitizePhoto(raw);
 	return { ...session, photos: [...(session.photos ?? []), photo] };
 }
 
 export function openSession({ operatorId, area, weatherSnapshot, target, seq, targetSeq }) {
-	if (!operatorId) throw new Error('operatorId requis');
+	if (!operatorId) throw new Error('operatorId required');
 	const areaSlug = slugify(area);
 	if (!areaSlug) throw new Error('AREA UNUSABLE');
 	const id = newSessionId(area);
@@ -235,8 +244,8 @@ export function mergeTelemetry(rawA = ZERO_TELEMETRY, rawB = ZERO_TELEMETRY) {
 }
 
 export function closeSession(session, { result, telemetry } = {}) {
-	if (!session || typeof session !== 'object') throw new Error('session illisible');
-	if (result !== 'CRASHED') throw new Error('verdict invalide');
+	if (!session || typeof session !== 'object') throw new Error('unreadable session');
+	if (result !== 'CRASHED') throw new Error('invalid verdict');
 	return {
 		...session,
 		end: new Date().toISOString(),
@@ -252,7 +261,7 @@ const COMMENT_MAX_LEN = 400;
 
 export function sanitizeComment(raw) {
 	if (raw == null) return null;
-	if (typeof raw !== 'string') throw new Error('comment invalide');
+	if (typeof raw !== 'string') throw new Error('invalid comment');
 	const trimmed = raw.trim();
 	if (!trimmed) return null;
 	if (trimmed.length > COMMENT_MAX_LEN) throw new Error(`COMMENT TOO LONG (max ${COMMENT_MAX_LEN})`);
@@ -260,7 +269,7 @@ export function sanitizeComment(raw) {
 }
 
 export function annotateSession(session, comment) {
-	if (!session || typeof session !== 'object') throw new Error('session illisible');
+	if (!session || typeof session !== 'object') throw new Error('unreadable session');
 	return { ...session, comment: sanitizeComment(comment) };
 }
 
@@ -296,14 +305,14 @@ export function deleteSession(state, sid) {
 	const sessions = state?.sessions ?? [];
 	const i = sessions.findIndex((s) => s.id === sid);
 	if (i < 0) {
-		const e = new Error(`aucune session "${sid}"`);
+		const e = new Error(`no session "${sid}"`);
 		e.status = 404;
 		throw e;
 	}
 	if (sessions[i].result === 'PENDING') {
 		// Possibly still in flight in another tab: we do not delete out from
 		// under an open session.
-		const e = new Error(`session "${sid}" encore en vol`);
+		const e = new Error(`session "${sid}" still in flight`);
 		e.status = 409;
 		throw e;
 	}
@@ -312,11 +321,11 @@ export function deleteSession(state, sid) {
 
 // Server guard: rejects anything that does not have the expected shape.
 export function validateSession(s) {
-	if (!s || typeof s !== 'object') throw new Error('session illisible');
-	if (!SESSION_ID_RE.test(asText(s.id))) throw new Error('id de session invalide');
-	if (!STORED_RESULTS.includes(s.result)) throw new Error(`result inconnu : ${asText(s.result, nameOf(s.result))}`);
-	if (!s.operatorId) throw new Error('operatorId requis');
-	if (!slugify(s.area)) throw new Error('area invalide');
+	if (!s || typeof s !== 'object') throw new Error('unreadable session');
+	if (!SESSION_ID_RE.test(asText(s.id))) throw new Error('invalid session id');
+	if (!STORED_RESULTS.includes(s.result)) throw new Error(`unknown result: ${asText(s.result, nameOf(s.result))}`);
+	if (!s.operatorId) throw new Error('operatorId required');
+	if (!slugify(s.area)) throw new Error('invalid area');
 	sanitizeWeatherSnapshot(s.weatherSnapshot); // throws if malformed
 	// sanitizeTarget holds ALL of the target's shape validation, the v3 swarm
 	// included: validating it a second time here would mean two rules to keep.
@@ -324,22 +333,22 @@ export function validateSession(s) {
 	// Display numbers (PHASE 17). Checked AFTER the target's shape: a malformed
 	// target is a more fundamental error than its numbering, and that is what
 	// the caller must see first.
-	if (!Number.isInteger(s.seq) || s.seq < 1) throw new Error('seq de session invalide');
+	if (!Number.isInteger(s.seq) || s.seq < 1) throw new Error('invalid session seq');
 	if (s.target != null) {
 		if (!Number.isInteger(s.targetSeq) || s.targetSeq < 1) {
-			throw new Error('targetSeq requis pour une session avec cible');
+			throw new Error('targetSeq required for a session with a target');
 		}
 	} else if (s.targetSeq != null) {
-		throw new Error('targetSeq sans cible');
+		throw new Error('targetSeq without a target');
 	}
 	const t = s.flightTelemetry ?? {};
 	for (const k of Object.keys(ZERO_TELEMETRY)) {
 		const v = t[k];
-		if (!Number.isFinite(v) || v < 0) throw new Error(`télémétrie.${k} invalide`);
-		if (v > TELEMETRY_MAX[k]) throw new Error(`télémétrie.${k} hors bornes (max ${TELEMETRY_MAX[k]})`);
+		if (!Number.isFinite(v) || v < 0) throw new Error(`invalid telemetry.${k}`);
+		if (v > TELEMETRY_MAX[k]) throw new Error(`telemetry.${k} out of bounds (max ${TELEMETRY_MAX[k]})`);
 	}
-	if (s.result !== 'PENDING' && !s.end) throw new Error('session fermée sans end');
-	if (!Array.isArray(s.photos)) throw new Error('photos invalide');
+	if (s.result !== 'PENDING' && !s.end) throw new Error('closed session without end');
+	if (!Array.isArray(s.photos)) throw new Error('invalid photos');
 	for (const p of s.photos) sanitizePhoto(p); // throws if a capture is malformed
 	return s;
 }

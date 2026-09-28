@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Flight card, next signal, captured shape — mockup</title>
+<style>
+@font-face{font-family:'Departure Mono';src:url('/files/DepartureMono-Regular.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Regular.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Medium.woff2') format('woff2');font-weight:500}
+:root{--ink:#ece7dd;--dim:rgba(236,231,221,.62);--faint:rgba(236,231,221,.53);--rule:rgba(236,231,221,.14);--rs:rgba(236,231,221,.4);--green:#7aa96b;--yellow:#d4b155;--scrim:rgba(10,9,8,.6)}
+body{margin:0;background:#121110;color:var(--ink);font:12px/1.5 'IBM Plex Mono',monospace}
+.note{padding:12px 20px 4px;color:var(--faint);font-size:11px;max-width:1500px}
+.lbl{padding:14px 20px 4px;color:var(--faint);font-size:10px;letter-spacing:.2em}
+.wrap{overflow:hidden;margin:0 20px 10px}
+.stage{position:relative;width:2560px;height:1265px;background:url('/files/flight.png') 0 0/2560px 1265px;transform-origin:0 0}
+/* all OSD text at the screenshot's scale (the game's 13px reads as ~9.5px in this capture) */
+.osd{font:500 9.5px/1.6 'IBM Plex Mono',monospace;letter-spacing:.02em;color:var(--ink);text-shadow:0 0 2px #000}
+/* the card, in the terminal's grammar: hairline frame, square corners, no fill but the OSD scrim, key/value lines */
+.card{position:absolute;right:112px;top:138px;width:250px;background:var(--scrim);border:1px solid var(--rs);padding:8px 10px 9px}
+.card .hd{display:flex;justify-content:space-between;letter-spacing:.1em}
+.card .hd .g{color:var(--green)}
+.card .hd .d{color:var(--dim)}
+.card .rule{height:1px;background:var(--green);margin:5px 0 7px;transform-origin:left;width:100%}
+.card .ref{display:block;width:100%;aspect-ratio:3/2;background:#000 url('/files/pantheon.jpg') center/cover}
+.card .nm{font:12px 'Departure Mono',monospace;letter-spacing:.12em;margin-top:7px}
+.card .ds{color:var(--dim);text-transform:uppercase;font-size:8.5px;letter-spacing:.04em;margin:1px 0 6px}
+.card pre{margin:0;font:inherit;color:var(--dim);white-space:pre}
+.card pre b{color:var(--ink);font-weight:500}
+.card .icpt{display:flex;gap:8px;align-items:flex-end;margin-top:7px;border-top:1px solid var(--rule);padding-top:6px}
+.card .icpt i{display:block;width:70px;aspect-ratio:16/9;background:#000 url('/files/flight.png') 55% 42%/260% auto;flex:none}
+.card .icpt span{color:var(--faint);font-size:8px;letter-spacing:.1em;line-height:1.4}
+.card .cr{color:var(--faint);font-size:7.5px;letter-spacing:.03em;margin-top:6px}
+/* next signal: one more line in the top-left corner block, same face as OPERATOR / LIVE lines */
+.tlx{position:absolute;left:25px;top:111px}
+.tlx .y{color:var(--yellow)}
+.maprow{display:flex;gap:18px;padding:0 20px 30px;flex-wrap:wrap}
+.map{position:relative;width:520px;aspect-ratio:1360/988;background:#000 url('/files/scanner.png') 100% 0/auto 100%;border:1px solid var(--rule)}
+.dot{position:absolute;width:10px;height:10px;margin:-5px;border-radius:50%}
+.open{background:var(--yellow);box-shadow:0 0 10px 4px rgba(212,177,85,.5)}
+.done{border:2px solid var(--green);box-shadow:0 0 8px 2px rgba(122,169,107,.35)}
+.done::after{content:'';position:absolute;left:3px;top:-1px;width:3px;height:6px;border:solid var(--green);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.leg{color:var(--faint);font-size:11px;align-self:center;line-height:2}
+.leg span{display:inline-block;position:relative;width:10px;height:10px;margin-right:8px;vertical-align:-1px;border-radius:50%}
+</style></head><body>
+<p class="note">Three pieces, at the screenshot's real scale. (1) The UPLINKED card redrawn in the terminal's grammar — hairline frame, square corners, the OSD's scrim, key/value lines, the real place first and large, your intercepted frame small underneath; the timer is a green rule that shortens (like the cut-link gauge: a rule, not a loading bar). (2) Next signal: one more line in the top-left OSD block, same face as OPERATOR / LIVE — distance and an arrow relative to your heading, yellow = "watch it"; it hides while a callout is on screen. (3) On the map, captured is a hollow green ring with a tick, open is a filled yellow light — the shape tells them apart without the colour.</p>
+<div class="lbl">1 + 2 · IN FLIGHT</div>
+<div class="wrap" id="w1"><div class="stage osd" id="s1">
+  <div class="tlx"><span class="y">NEXT SIGNAL</span> 1.2 km ↗</div>
+  <div class="card">
+    <div class="hd"><span class="g">[+] UPLINKED</span><span class="d">SIGNAL 3 · 212 m</span></div>
+    <div class="rule" style="transform:scaleX(.62)"></div>
+    <span class="ref"></span>
+    <div class="nm">PANTHÉON</div>
+    <div class="ds">Mausoleum in Paris for the most distinguished French people</div>
+<pre>TYPE    <b>MAUSOLEUM</b>
+BUILT   <b>1758</b>
+HEIGHT  <b>83 m</b>
+STATUS  <b>PROTECTED</b></pre>
+    <div class="icpt"><i></i><span>INTERCEPTED<br>CINEWHOOP · HOLD 5.0 s</span></div>
+    <div class="cr">© CAMILLE GÉVAUDAN · CC BY-SA 3.0 · COMMONS · OSM · WIKIDATA</div>
+  </div>
+</div></div>
+<div class="lbl">3 · ON THE SCANNER — SHAPE, NOT ONLY COLOUR</div>
+<div class="maprow">
+  <div class="map" id="map"></div>
+  <div class="leg"><span class="open"></span>TO CAPTURE — filled light<br><span class="done" style="position:relative"></span>UPLINKED — hollow ring + tick</div>
+</div>
+<script>
+function fit(){const w=document.getElementById('w1'),s=document.getElementById('s1');const k=w.clientWidth/2560;s.style.transform=`scale(${k})`;w.style.height=1265*k+'px'}
+addEventListener('resize',fit);fit();
+const m=document.getElementById('map');let x=5;for(let i=0;i<22;i++){x=(x*9301+49297)%233280;const l=8+(x/233280)*84;x=(x*9301+49297)%233280;const t=10+(x/233280)*80;const d=document.createElement('div');d.className='dot '+(i%4===0?'done':'open');d.style.left=l+'%';d.style.top=t+'%';m.appendChild(d)}
+</script>
+</body></html>

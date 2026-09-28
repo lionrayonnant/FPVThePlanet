@@ -4,6 +4,12 @@
 // (tools/signal-capture-selftest.mjs). main.js feeds it the camera pose and a
 // line-of-sight probe, and drains `out.uplinked` like FlightEnd.out.closes.
 //
+// A target above the operator's clearance carries `encrypted: true` (spec
+// author's decision 2026-09-28, tools/signal-clearance-model.mjs): it is
+// shown, within SHOW_M, so it teaches the ladder exists, but it is never a
+// candidate, never gauges, never takes focus. Row states:
+// hidden|near|capturing|held|resolved|encrypted.
+//
 // The spec's starting points, widened after the author's first flights
 // (2026-09-27: "a bit hard to capture"). Kept here and nowhere else.
 export const CONE_DEG = 20;
@@ -61,6 +67,9 @@ export class SignalCapture {
 			r.angleDeg = Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 			// Resolved: shown (green) only while near, so it never hogs the callout.
 			if (r.state === 'resolved') { if (dist > SHOW_M) r.state = 'hidden'; continue; }
+			// Encrypted: shown within SHOW_M, but never a candidate — checked
+			// before the range/cone gate, so it can never fall through to it.
+			if (t.encrypted) { r.state = dist <= SHOW_M ? 'encrypted' : 'hidden'; continue; }
 			if (dist > SHOW_M && !(t.tier === 3 && dist <= RANGE_M[3][1])) continue;
 			r.state = r.gauge > 0 ? 'held' : 'near';
 			const [lo, hi] = RANGE_M[t.tier] ?? RANGE_M[1];
@@ -89,7 +98,7 @@ export class SignalCapture {
 			const focusT = this._targets.find((t) => t.id === this._focus);
 			const rising = focusT && fpv && los(focusT);
 			for (const r of rows) {
-				if (r.state === 'resolved' || r.state === 'hidden') continue;
+				if (r.state === 'resolved' || r.state === 'hidden' || r.state === 'encrypted') continue;
 				let g = this._gauge.get(r.id) ?? 0;
 				if (r.id === this._focus && rising) {
 					g = Math.min(1, g + dt / HOLD_S);

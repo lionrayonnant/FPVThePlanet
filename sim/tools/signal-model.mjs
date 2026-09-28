@@ -319,3 +319,25 @@ export function declutter(points, cellPx) {
 	}
 	return [...best.values()];
 }
+
+// Names that never pile up: greedy by rank (ties to the smaller id), a label
+// is skipped when its box meets an already placed label or another point's
+// core. `measure(name)` → text width in px; the box is
+// [x + dx, y - h/2, width, h]. Returns the points whose label is drawn, in
+// placement order. Deterministic: the same view always gives the same names.
+export function placeLabels(points, measure, { dx = 11, h = 14, core = 4 } = {}) {
+	const order = [...points].sort((a, b) => (b.s.rank - a.s.rank) || (a.s.id < b.s.id ? -1 : a.s.id > b.s.id ? 1 : 0));
+	const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+	const pad = core + 2;
+	const cores = points.map((p) => ({ p, box: { x: p.x - pad, y: p.y - pad, w: pad * 2, h: pad * 2 } }));
+	const placed = [];
+	const out = [];
+	for (const p of order) {
+		const box = { x: p.x + dx, y: p.y - h / 2, w: measure(p.s.name), h };
+		if (placed.some((b) => hit(box, b))) continue;
+		if (cores.some((c) => c.p !== p && hit(box, c.box))) continue;
+		placed.push(box);
+		out.push(p);
+	}
+	return out;
+}

@@ -60,7 +60,8 @@ that need more than a line.
   reworking a map
 - Music — the generation pipeline · loops · normalisation · write-once
 - Removing a map — when an area returns nothing
-- The operator terminal
+- The operator terminal — the briefing
+- Signals and clearance — external services
 - Running the game without Vite — the standalone server
 - The dialogue pipeline (crew RTC) — `dialogue:gen` · `dialogue:inspect` ·
   `dialogue:check` · the two backends · the review policy
@@ -382,8 +383,8 @@ terrain read from a local relay (see `tools/lib/rocktree/url.mjs`).
 
 ### The briefing
 
-A freshly created operator goes through a four-screen briefing
-(`INPUT`, `THE TERMINAL`, `A SESSION`, `BRIEFING COMPLETE`), right after the
+A freshly created operator goes through a five-screen briefing
+(`INPUT`, `THE TERMINAL`, `A SESSION`, `CLEARANCE`, `BRIEFING COMPLETE`), right after the
 operator is registered (bootstrap: hardware, `OPERATOR NAME`, then the
 briefing — two screens before it since the CONTROL VECTOR was withdrawn). It
 states what a thing is and what a key does — never what to do — and Escape
@@ -400,6 +401,84 @@ flight displays three brief lines — `THROTTLE UP`, `[TAB] SETTINGS`,
 `[HOLD K] CUT LINK` — decided by `tools/briefing-model.mjs` and painted by the
 OSD. `[ RESET SETTINGS ]` erases the `fpvtp.*` keys: the briefing replays, which
 is exactly what a reset is supposed to mean.
+
+An operator briefed before the clearance existed sees the `CLEARANCE` screen
+once, at their first FIELD flight after the update (`fpvtp.clearanceBriefed`).
+
+## Signals and clearance
+
+**Signals** are real landmarks: OpenStreetMap features that carry a Wikidata
+id (monuments, temples, towers, waterfalls, volcanoes…). The GLOBAL SCANNER
+asks Overpass for them one z12 tile at a time, from zoom 10, starting at the
+centre of the view, one request at a time; each tile is kept 30 days in
+IndexedDB (`fpvtp-signals`). Only the tile being asked glitches while it is
+asked, and the progress is written as terminal lines in the map corner. On the
+map, a filled yellow light is a signal to capture, a hollow green ring with a
+tick one already uplinked, a small dim dot one above your clearance.
+
+**In flight**, the signals within 3 km of take-off carry a callout anchored on
+the real building. Hold one in the FPV frame (20° cone, 5 s; the gauge drains when it leaves the frame) and its
+OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
+frame joins the session's photos, and a crash loses only what was not yet
+uplinked. When control is acquired a one-shot notice gives the scan's state
+(`[+] 49 SIGNALS IN RANGE`), and the OSD's `NEXT SIGNAL 1.2 km ↗` line points
+to the nearest one left. The UPLINKED card shows the place's real photo and
+facts from Wikidata / Wikimedia Commons, credited, with a link to the Commons
+file page.
+
+**Clearance** is the operator's standing with the network: one point per tier
+of every signal uplinked (tier I = 1, II = 2, III = 3), never spent
+(`tools/signal-clearance-model.mjs`).
+
+| Clearance | Points | Machines added to the TARGET SCAN draw | Signal tiers |
+|---|---|---|---|
+| 0 | 0 | 5" FREESTYLE | I |
+| 1 | 6 | CINEWHOOP, TOOTHPICK | I, II |
+| 2 | 18 | 5" RACE, LONG RANGE, HEAVY 5" | I, II, III |
+| 3 | 36 | THE SWARM | I, II, III |
+
+The draw stays random; its pool widens. A signal above your clearance is
+visible, shown `ENCRYPTED · CLEARANCE n`, and cannot be captured. The client
+sends its clearance when it opens a session and the server draws from the same
+pool; the game is single-player and the server takes the value as given.
+
+**The hangar** draws the seven machines (their real 3D models) grouped by
+clearance, with the progress to the next step. It appears under the TARGET
+SCAN list, at the top of `DATA`, as the briefing's `CLEARANCE` screen, and on
+the end screen of a flight that crossed a step, where the unlocked machine is
+revealed. The step itself is announced in flight
+(`[+] CLEARANCE 1 · CINEWHOOP · TOOTHPICK · TIER II`).
+
+**The captures** live in `DATA`, under `SIGNALS`: the places (a city name per
+group, from Nominatim), then for the selected place the uplinked signals and
+the ones known from the scanner's cache but not yet uplinked. Opening an
+uplinked row shows the capture: the real photo, the facts, the Commons link,
+and `INTERCEPTED`, the operator's own frame, read through
+`GET /__operator/:id/sessions/:sid/photos/:i` (a capture made without a session
+has none). `[ FLY THERE ]` starts a LIVE flight at the landmark. No new image
+is stored: the reference photo comes live from Wikimedia, cached by the
+browser.
+
+### External services
+
+Signals depend on third-party services at runtime, called from the browser:
+
+| Service | For | Cache |
+|---|---|---|
+| Overpass (`overpass-api.de`) | the signals of a tile | IndexedDB, 30 days |
+| Wikidata, Wikimedia Commons | a place's description, facts and photo (`Api-User-Agent` set) | IndexedDB (`fpvtp-places`) and the HTTP cache |
+| Nominatim | the place name a capture is grouped under (reverse, zoom 10, English), at most one request per second | IndexedDB (`fpvtp-place-names`), 90 days |
+
+A failure degrades, it never blocks. Overpass down or rate-limiting: the
+scanner writes `SIGNAL SCAN UNAVAILABLE` / `RETRY IN … · THE MAP STILL WORKS` and the map, the scan and
+the flight all still work, with the signals already cached. No Wikidata or
+Commons answer: the card and the capture show what they have, without a photo.
+No Nominatim answer: the capture is grouped under `ELSEWHERE`, and `DATA`
+asks again for its name the next time it is open. The full list of what the browser contacts is in the README's
+`Privacy` section.
+
+In DEV builds, `window.__signals` (`src/main.js`) lists the flight's signals,
+reads the capture state and poses the drone, for checking in the browser.
 
 ## Running the game without Vite — the standalone server
 

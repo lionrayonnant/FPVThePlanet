@@ -208,6 +208,33 @@ await ta('the cursor comes back where it was when a click lands beside it', asyn
 	dom.root.replaceChildren();
 });
 
+await ta('keepScroll: the focus the nav places itself never scrolls; arrows still do', async () => {
+	// DATA (lot 3): its first control is at the bottom of a page that must
+	// open at the top. Every focus() records the options it was given.
+	const el = document.createElement('div');
+	dom.root.appendChild(el);
+	const calls = [];
+	const spy = (btn) => { const f = btn.focus.bind(btn); btn.focus = (o) => { calls.push([btn, o]); f(o); }; return btn; };
+	const a = spy(document.createElement('button'));
+	const b = spy(document.createElement('button'));
+	el.append(a, b);
+	const nav = menuNav(el, { keepScroll: true });
+	assert.deepEqual(calls.at(-1), [a, { preventScroll: true }], 'at mount');
+	b.blur();
+	el.dispatchEvent({ type: 'focusout', target: b });
+	await sleep(0);
+	assert.deepEqual(calls.at(-1)[1], { preventScroll: true }, 'the restore after a drop');
+	dom.key('ArrowDown');
+	assert.equal(calls.at(-1)[1], undefined, 'an arrow scrolls to the cursor');
+	nav.detach();
+	// The default is untouched: every other screen scrolls to its first control.
+	calls.length = 0;
+	const nav2 = menuNav(el);
+	assert.deepEqual(calls.at(-1), [a, undefined]);
+	nav2.detach();
+	dom.root.replaceChildren();
+});
+
 await ta('a click alone puts the cursor back, without a focusout to help', async () => {
 	// Chrome moves the focus once, on mousedown, so focusout is enough there.
 	// Firefox blurs on mousedown AND settles the focus again when the click

@@ -14,6 +14,11 @@ import { bars, histogram, scatter, steps } from './graph.js';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
+import { mountHangar, progressNode, tiersNode } from './hangar.js';
+import { signalsSection, runCapture, rowOf } from './signals-data.js';
+import { MACHINE_NAMES } from '../tools/signal-card-model.mjs';
+import { buildSignals } from '../tools/signals-data-model.mjs';
+import { clearanceOf } from '../tools/signal-clearance-model.mjs';
 import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
 import { versionLine, SOURCE_URL, SOURCE_CALL, LICENCE } from './version.js';
@@ -716,6 +721,10 @@ function buildNotesScreen(root, operator) {
 
 // ---------- DATA ----------
 
+// A target family as the rest of the game names the machine (SIGNALS, the
+// hangar, the notices: TOOTHPICK, THE SWARM), the profile label otherwise.
+const familyName = (f) => (Object.hasOwn(MACHINE_NAMES, f.family) ? MACHINE_NAMES[f.family] : f.label);
+
 // Everything COLD, and no longer a shelf of logs (issue #26). ARCHIVE listed
 // what had been stored; DATA is one scrolling page where the operator reads
 // their own flying back — nine sections, graphs first, raw records last.
@@ -728,20 +737,24 @@ function buildNotesScreen(root, operator) {
 // Nothing here is won: it is what happened, drawn.
 //
 // Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
-// FIELD) or null.
+// FIELD), { live, place } (a capture's FLY THERE, a LIVE flight) or null.
 //
-export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
+export function dataScreen(root, { api = operatorApi, scenes = null, placeNames = null } = {}) {
 	const operator = api.getOperator();
 	const model = terminalModel({ operator, scenes });
 	const s = screen(root, 'terminal-data');
 	return new Promise((resolve) => {
 		let nav = null;
 		let alive = true;
+		// Stops SIGNALS asking for place names once DATA is gone.
+		const closing = new AbortController();
 		// A bare slug (lastSessionScreen) and a { slug } (SESSION LOG) say the
 		// same thing: one shape goes back up, the one the root loop knows how to
 		// fly.
 		const done = (value) => {
 			alive = false;
+			closing.abort();
+			hangar?.destroy();
 			window.removeEventListener('resize', onResize);
 			nav?.detach();
 			s.remove();
@@ -750,12 +763,29 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 
 		// One full-frame screen hides another: this one is hidden meanwhile and
 		// given back on return. Same gesture as the Home with the scanner.
-		const behind = async (fn) => {
+		// `opener`: the control to hand the cursor back to (a SIGNALS row), or a
+		// function that finds it once the screen above has closed; used when it
+		// is still on the page, otherwise the first control, as before. A screen
+		// that fails to open or throws gives DATA back rather than leave it
+		// hidden under nothing.
+		const behind = async (fn, opener = null) => {
 			s.el.hidden = true;
-			const r = await fn();
-			if (r !== undefined && r !== null) return done(r);
-			s.el.hidden = false;
-			nav?.focusAt(0);
+			let r = null;
+			try {
+				r = await fn();
+			} catch (e) {
+				console.warn('[data] the screen over DATA failed', e);
+				r = null;
+			} finally {
+				if (r === undefined || r === null) {
+					s.el.hidden = false;
+					let target = null;
+					try { target = typeof opener === 'function' ? opener() : opener; } catch { target = null; }
+					if (target?.isConnected) target.focus();
+					else nav?.focusAt(0);
+				}
+			}
+			if (r !== undefined && r !== null) done(r);
 		};
 
 		// --- state ---------------------------------------------------------
@@ -826,11 +856,65 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 			return row;
 		};
 
+		// --- the top: what the signals opened -------------------------------
+
+		// CLEARANCE (issue #185, lot 3, mockup clearance-v4.html): the hangar at
+		// full size, the progress to the next step above it, the signal tiers
+		// under it. Built ONCE for the life of the screen and re-appended by
+		// every render(): the page is rebuilt on each step and track load, and a
+		// new hangar each time would open a new WebGL context and restart its
+		// turntables.
+		const store = operator?.signals ?? null;
+		const clearanceBox = document.createElement('div');
+		clearanceBox.className = 'data-section';
+		clearanceBox.appendChild(pre('CLEARANCE'));
+		clearanceBox.appendChild(progressNode(store, { prefix: '1 POINT PER TIER OF EVERY SIGNAL UPLINKED · ', cls: 'terminal-foot' }));
+		const hangar = mountHangar(clearanceBox, { store });
+		clearanceBox.appendChild(tiersNode(store, { cls: 'terminal-foot' }));
+
+		// SIGNALS (lot 3, task 9, mockup dossier-v3.html): the places, then the
+		// selected place's rows. The section reads the signal cache (async), so
+		// DATA paints first with a placeholder in its slot, swapped when the
+		// section answers. Like CLEARANCE it is built once and re-appended by
+		// every render(): a place chosen, or a row about to get the cursor back,
+		// survives the track loads that rebuild the page. Choosing a place
+		// redraws the section alone (signals-data.js).
+		let signalsBox = document.createElement('div');
+		signalsBox.className = 'data-section';
+		signalsBox.appendChild(pre('SIGNALS'));
+		signalsBox.appendChild(pre('LOADING…', 'terminal-foot'));
+		// An uplinked row opens its capture over DATA. FLY THERE's
+		// { live, place } goes up through done() unchanged (a LIVE flight in
+		// main.js's dataLoop); BACK gives DATA back, the cursor on the row of the
+		// capture last shown (PREVIOUS / NEXT walk away from the one opened).
+		const openCapture = (entries, index, known) => {
+			let last = index;
+			behind(async () => {
+				const r = await runCapture(root, { api, entries, index, known });
+				if (r && Number.isInteger(r.back)) { last = r.back; return null; }
+				return r;
+			}, () => rowOf(signalsBox, entries[last]?.id) ?? rowOf(signalsBox, entries[index]?.id))
+				.catch(() => {});
+		};
+		const swapSignals = (box) => {
+			if (!alive) return;
+			const placeholder = signalsBox;
+			signalsBox = box;
+			if (placeholder.parentNode) placeholder.replaceWith(box);
+		};
+		// A failure leaves no section rather than a LOADING… for ever.
+		signalsSection(api, { onOpen: openCapture, placeNames, signal: closing.signal })
+			.then(swapSignals, () => swapSignals(document.createTextNode('')));
+
 		// --- the nine sections ----------------------------------------------
 
 		const render = () => {
 			page.replaceChildren();
 			draws = [];
+
+			// CLEARANCE first, then SIGNALS, then the graphs.
+			page.appendChild(clearanceBox);
+			page.appendChild(signalsBox);
 
 			// 1. RHYTHM — the only graph about real time, and the one that makes
 			// coming back visible.
@@ -898,12 +982,12 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 				: 'NO TARGET MET YET');
 			if (data.families.total) {
 				graph(fam, 110, (c) => bars(c, {
-					items: data.families.families.map((f) => ({ label: f.label, value: f.meanS, selected: f.family === openFamily })),
+					items: data.families.families.map((f) => ({ label: familyName(f), value: f.meanS, selected: f.family === openFamily })),
 					height: 110, format: (v) => `${Math.round(v / 60)}m`,
 				}));
 				const row = linkRow();
 				for (const f of data.families.families) {
-					link(row, `${f.label} ${f.count}`, () => {
+					link(row, `${familyName(f)} ${f.count}`, () => {
 						openFamily = openFamily === f.family ? null : f.family;
 						render();
 					});
@@ -1001,13 +1085,20 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 		const title = document.createElement('pre');
 		title.textContent = 'DATA';
 		s.box.appendChild(title);
-		s.box.appendChild(pre(`${data.sessionCount} SESSIONS ON RECORD`, 'terminal-foot'));
+		const up = buildSignals({ store }).uplinked;
+		const s1 = (n) => (n === 1 ? '' : 'S');
+		s.box.appendChild(pre(`${data.sessionCount} SESSION${s1(data.sessionCount)} ON RECORD`
+			+ ` · ${up} SIGNAL${s1(up)} UPLINKED · CLEARANCE ${clearanceOf(store)}`, 'terminal-foot'));
 		s.box.appendChild(page);
 		render();
 
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
 		s.box.appendChild(ESC_ROOT());
-		nav = menuNav(s.el, { back: () => done() });
+		// The first control sits low on the page (a RECORDS link, or BACK):
+		// the focus menu-nav places itself — at mount, and again each time a
+		// re-render drops the focused link — must not scroll there. DATA opens
+		// at the top, where CLEARANCE is; the cursor stays where it landed.
+		nav = menuNav(s.el, { back: () => done(), keepScroll: true });
 		window.addEventListener('resize', onResize);
 
 		// The index, then the one track the profile needs. Both are allowed to

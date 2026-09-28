@@ -1,15 +1,15 @@
-// Selftest de rendu de l'écran TARGET SCAN (src/target-scan.js).
+// Render selftest for the TARGET SCAN screen (src/target-scan.js).
 //
-// Depuis l'issue #49 la fiche pré-hack n'existe plus : la liste est le seul
-// écran, et activer une ligne CHOISIT la cible. Les tests suivent ce
-// déplacement — le défaut de l'issue #73 n'est plus « deux fiches s'empilent »
-// mais « une frappe qui arrive deux fois résout deux fois », qui est le même
-// bug sous sa forme restante et reste couvert ici.
+// Since issue #49 the pre-hack sheet no longer exists: the list is the only
+// screen, and activating a row CHOOSES the target. The following tests follow
+// that shift — the issue #73 defect is no longer "two sheets stack up" but "a
+// keystroke that arrives twice resolves twice", the same bug in its
+// remaining form, still covered here.
 //
-// On vérifie l'ARBRE et le CÂBLAGE, pas l'apparence — même intention que
+// This checks the TREE and the WIRING, not the look — same intent as
 // data-render-selftest.mjs.
 //
-// Lancer : node tools/target-scan-render-selftest.mjs
+// Run: node tools/target-scan-render-selftest.mjs
 
 import assert from 'node:assert/strict';
 import { installFakeDom } from './lib/fake-dom.mjs';
@@ -25,7 +25,7 @@ const t = async (name, fn) => { await fn(); n++; console.log(`  ok  ${name}`); }
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const reset = () => { dom.root.replaceChildren(); dom.setActive(null); };
 
-// Un écran TARGET SCAN monté sur une graine fixe : la liste est reproductible.
+// A TARGET SCAN screen mounted on a fixed seed: the list is reproducible.
 const open = () => {
 	reset();
 	const p = runTargetScan(dom.root, { seed: 'selftest::73', count: 4 });
@@ -34,66 +34,66 @@ const open = () => {
 
 const rows = () => dom.root.querySelectorAll('.terminal-row');
 
-await t('la liste monte un bouton par signal détecté', async () => {
+await t('the list mounts one button per detected signal', async () => {
 	const p = open();
 	await tick();
-	assert.equal(rows().length, 4, 'quatre signaux, quatre boutons');
+	assert.equal(rows().length, 4, 'four signals, four buttons');
 	assert.match(dom.root.textContent, /TARGET SCAN/);
 	assert.match(dom.root.textContent, /SIGNALS DETECTED/);
 	dom.key('Escape');
 	await p;
 });
 
-await t('#49 : la ligne porte le signal, le mode vidéo ET le device', async () => {
-	// Ce qui remplace la fiche doit être RÉELLEMENT lisible sur la ligne, pas
-	// seulement présent dans l'objet que rend scanLines().
+await t('#49: the row carries the signal, the video mode AND the device', async () => {
+	// What replaces the sheet must be REALLY readable on the row, not merely
+	// present in the object scanLines() renders.
 	const p = open();
 	await tick();
 	for (const row of rows()) {
-		assert.match(row.textContent, /-\d+ dBm/, `signal absent de « ${row.textContent} »`);
-		assert.match(row.textContent, /ANALOG|DIGITAL|UNKNOWN/, `mode absent de « ${row.textContent} »`);
-		// Le device est le seul champ qui n'a pas de forme fixe ; ce qui se
-		// vérifie ici est qu'il RESTE quelque chose après les trois autres.
+		assert.match(row.textContent, /-\d+ dBm/, `signal missing from "${row.textContent}"`);
+		assert.match(row.textContent, /ANALOG|DIGITAL|UNKNOWN/, `mode missing from "${row.textContent}"`);
+		// The device is the only field with no fixed shape; what is checked
+		// here is that something REMAINS after the other three.
 		const rest = row.textContent.replace(/^\s*\d+\s+-\d+ dBm[^A-Z]*/, '')
 			.replace(/^(ANALOG|DIGITAL|UNKNOWN)\s*/, '');
-		assert.ok(rest.trim().length > 0, `device absent de « ${row.textContent} »`);
+		assert.ok(rest.trim().length > 0, `device missing from "${row.textContent}"`);
 	}
-	// Et plus aucun des champs constants que la fiche répétait.
+	// And none of the constant fields the sheet used to repeat survive.
 	const text = dom.root.textContent;
 	for (const gone of ['LOCATION', 'FLIGHT STATE', 'CONTROL', 'PARTIAL', 'CONFIRM']) {
-		assert.ok(!text.includes(gone), `« ${gone} » survit à la suppression de la fiche`);
+		assert.ok(!text.includes(gone), `"${gone}" survives the sheet's removal`);
 	}
 	dom.key('Escape');
 	await p;
 });
 
-await t('activer une ligne rend le signal choisi et démonte tout', async () => {
+await t('activating a row renders the chosen signal and tears everything down', async () => {
 	const p = open();
 	await tick();
 	rows()[2].click();
 	const choice = await p;
-	assert.equal(choice.index, 2, 'l\'index rendu est celui du signal activé');
-	assert.ok(choice.seed, 'la graine du scan revient avec le choix');
-	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'plus rien à l\'écran');
+	assert.equal(choice.index, 2, 'the rendered index is the activated signal\'s');
+	assert.ok(choice.seed, 'the scan\'s seed comes back with the choice');
+	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'nothing left on screen');
 });
 
-await t('#73 : une frappe qui arrive deux fois ne choisit qu\'UNE fois', async () => {
-	// L'héritier direct du défaut de l'issue #73. Sans fiche il n'y a plus rien
-	// à empiler, mais les deux chemins d'activation existent toujours : sans
-	// garde, l'écran se démonterait deux fois et le second démontage
-	// travaillerait sur un arbre déjà retiré.
+await t('#73: a keystroke arriving twice only chooses ONCE', async () => {
+	// The direct heir of the issue #73 defect. With no sheet there is nothing
+	// left to stack, but both activation paths still exist: without a guard
+	// the screen would be torn down twice, the second teardown working on a
+	// tree already removed.
 	const p = open();
 	await tick();
 	const row = rows()[0];
 	row.click();
-	row.click();            // la frappe qui arrivait deux fois
+	row.click();            // the keystroke that used to arrive twice
 	const choice = await p;
-	assert.equal(choice.index, 0, 'le premier choix est celui qui compte');
-	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'écran démonté une seule fois');
+	assert.equal(choice.index, 0, 'the first choice is the one that counts');
+	assert.equal(dom.root.querySelectorAll('.terminal-row').length, 0, 'screen torn down only once');
 });
 
-await t('#29 : la ligne d\'un cluster dit MESH, GROUP et COUNT — et rien de plus', async () => {
-	// swarmChance 1 : le cluster est le plus fort signal, donc la première ligne.
+await t('#29: a cluster\'s row says MESH, GROUP and COUNT — and nothing more', async () => {
+	// swarmChance 1: the cluster is the strongest signal, so the first row.
 	reset();
 	const p = runTargetScan(dom.root, { seed: 'render::swarm', count: 4, swarmChance: 1 });
 	await tick();
@@ -101,22 +101,95 @@ await t('#29 : la ligne d\'un cluster dit MESH, GROUP et COUNT — et rien de pl
 	assert.match(first, /-\d+ dBm \(STRONGEST OF GROUP\)/);
 	assert.match(first, /MESH — MULTIPLE EMITTERS/);
 	assert.match(first, /COUNT UNKNOWN/);
-	assert.ok(!first.includes('swarmNode'), 'la ligne ne nomme jamais la famille');
-	// Les cibles ordinaires du même scan ne parlent d'aucun groupe.
+	assert.ok(!first.includes('swarmNode'), 'the row never names the family');
+	// The ordinary targets of the same scan mention no group at all.
 	for (const row of rows().slice(1)) {
-		assert.ok(!row.textContent.includes('COUNT'), `COUNT sur une cible ordinaire : « ${row.textContent} »`);
-		assert.ok(!row.textContent.includes('GROUP'), `GROUP sur une cible ordinaire : « ${row.textContent} »`);
+		assert.ok(!row.textContent.includes('COUNT'), `COUNT on an ordinary target: "${row.textContent}"`);
+		assert.ok(!row.textContent.includes('GROUP'), `GROUP on an ordinary target: "${row.textContent}"`);
 	}
 	dom.key('Escape');
 	await p;
 });
 
-await t('Échap sur la liste annule sans choisir', async () => {
+await t('Escape on the list cancels without choosing', async () => {
 	const p = open();
 	await tick();
 	dom.key('Escape');
 	const out = await p;
 	assert.deepEqual(out, { cancelled: true });
+});
+
+// --- clearance (issue #185, Signals lot 3)
+
+await t('CLEARANCE line: absent with no clearance passed in', async () => {
+	const p = open();
+	await tick();
+	assert.ok(!dom.root.textContent.includes('CLEARANCE'), 'no clearance passed in -> no line');
+	dom.key('Escape');
+	await p;
+});
+
+await t('CLEARANCE line: shows the level and the pool size out of 7', async () => {
+	reset();
+	const families = ['freestyle5', 'cinewhoop', 'toothpick'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::1', count: 4, families, clearance: 1 });
+	await tick();
+	assert.match(dom.root.textContent, /CLEARANCE 1 · 3 OF 7 MACHINE CLASSES/,
+		dom.root.textContent);
+	dom.key('Escape');
+	await p;
+});
+
+await t('CLEARANCE line: at clearance 3 the swarm counts — 7 OF 7', async () => {
+	reset();
+	const families = ['freestyle5', 'cinewhoop', 'toothpick', 'race5', 'longrange', 'heavy5'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::3', count: 4, families, clearance: 3, swarmChance: 0 });
+	await tick();
+	assert.match(dom.root.textContent, /CLEARANCE 3 · 7 OF 7 MACHINE CLASSES/, dom.root.textContent);
+	dom.key('Escape');
+	await p;
+});
+
+await t('CLEARANCE line: at clearance 2 the swarm does not count yet — 6 OF 7', async () => {
+	reset();
+	const families = ['freestyle5', 'cinewhoop', 'toothpick', 'race5', 'longrange', 'heavy5'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::2', count: 4, families, clearance: 2 });
+	await tick();
+	assert.match(dom.root.textContent, /CLEARANCE 2 · 6 OF 7 MACHINE CLASSES/, dom.root.textContent);
+	dom.key('Escape');
+	await p;
+});
+
+await t('the hangar sits under the list when a store is passed, and leaves with the screen', async () => {
+	reset();
+	const p = runTargetScan(dom.root, { seed: 'hangar::0', count: 4, families: ['freestyle5'], clearance: 0, store: null });
+	await tick();
+	const hangar = dom.root.querySelector('.hangar');
+	assert.ok(hangar, 'a hangar is mounted');
+	assert.ok(hangar.classList.contains('hangar-compact'), 'compact on the TARGET SCAN');
+	assert.equal(dom.root.querySelectorAll('.hangar-m').length, 7);
+	rows()[0].click();
+	await p;
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 0, 'gone with the screen');
+});
+
+await t('no store, no hangar', async () => {
+	const p = open();
+	await tick();
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 0);
+	dom.key('Escape');
+	await p;
+});
+
+await t('the choice carries families and clearance back to the caller', async () => {
+	reset();
+	const families = ['freestyle5'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::0', count: 4, families, clearance: 0 });
+	await tick();
+	rows()[0].click();
+	const choice = await p;
+	assert.deepEqual(choice.families, families, 'the pool the scan actually drew from comes back');
+	assert.equal(choice.clearance, 0);
 });
 
 dom.restore();

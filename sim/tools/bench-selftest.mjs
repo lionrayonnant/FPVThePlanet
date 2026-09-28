@@ -333,7 +333,7 @@ t('MODE_SELECT: five ways, named, in English', () => {
 	// Issue #26: ARCHIVE became DATA, and the copy says what you read there —
 	// flight records, not a promise of progression.
 	assert.equal(MODE_SELECT.data.label, 'DATA');
-	assert.deepEqual(MODE_SELECT.data.lines, ['flight records · telemetry', 'where you have been']);
+	assert.deepEqual(MODE_SELECT.data.lines, ['flight records · the signals you uplinked', 'where you have been']);
 	assert.equal(MODE_SELECT.archive, undefined, 'the old entry does not survive the rename');
 	// Issue #120: the JUKEBOX's second line warns that the radio does not stop
 	// at the door. It is the only way to know before finding out.

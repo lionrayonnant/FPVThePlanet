@@ -38,6 +38,7 @@ import {
 } from '../tools/lib/estimates.mjs';
 import { resolveWeather } from '../tools/weather-source.mjs';
 import { generateTargetScan, resolveTarget } from '../tools/target-model.mjs';
+import { familiesFor, swarmAllowed, MAX_CLEARANCE } from '../tools/signal-clearance-model.mjs';
 import {
 	generateKey, hashKey, checkKey, acquireEnabled, invalidateKeyIndex, publicOperator,
 	operatorIdForKey, bearerOf, checkSignup, checkOperatorQuota,
@@ -368,12 +369,28 @@ const opRoutes = [
 				// The server needs it to regenerate the SAME scan: seed, count and
 				// chance fully determine the draw, so `swarmAt` never travels.
 				// Absent means 0, not the default chance: a client that says nothing
-				// showed no cluster, and the server must not invent one.
-				const swarmChance = b.swarmChance ?? 0;
-				if (!Number.isFinite(swarmChance) || swarmChance < 0 || swarmChance > 1) {
+				// showed no cluster, and the server must not invent one. Validated
+				// BEFORE the clearance gate below, so a malformed value still 400s
+				// regardless of what clearance does to it afterwards.
+				const swarmChanceIn = b.swarmChance ?? 0;
+				if (!Number.isFinite(swarmChanceIn) || swarmChanceIn < 0 || swarmChanceIn > 1) {
 					return json(res, 400, { error: `swarmChance outside [0,1]: ${b.swarmChance}` });
 				}
-				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance });
+				// Clearance (issue #185): the operator's draw pool and swarm
+				// eligibility. The server is the authority — it recomputes both from
+				// `clearance` with the SAME pure functions the client used, rather
+				// than trusting a client-supplied family list. Missing or out of
+				// range means a client that predates clearance: BOTH stay exactly
+				// what they always were — the full pool, and `swarmChance` passed
+				// through unchanged — so a stale client keeps resolving precisely
+				// what it displayed. Only a VALID clearance below CLEARANCE 3 forces
+				// the swarm to 0; a valid clearance never widens the pool or the
+				// swarm chance beyond what the client already sent.
+				const rawClearance = b.clearance;
+				const validClearance = Number.isInteger(rawClearance) && rawClearance >= 0 && rawClearance <= MAX_CLEARANCE;
+				const families = validClearance ? familiesFor(rawClearance) : undefined;
+				const swarmChance = validClearance ? (swarmAllowed(rawClearance) ? swarmChanceIn : 0) : swarmChanceIn;
+				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance, families });
 				if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
 					return json(res, 400, { error: `targetIndex out of range: ${b.targetIndex}` });
 				}
@@ -461,6 +478,41 @@ const opRoutes = [
 		state.sessions[i] = session;
 		_writeOperator(state);
 		json(res, 201, { session: stripPhotoData(session) });
+	}],
+
+	// One session photo, as bytes (issue #185, task 7): the terminal's SIGNALS /
+	// UPLINKED views want an <img src> or an object URL, not another base64
+	// round-trip through JSON. Same checkOrigin()+checkKey() gate as every other
+	// operator route (applied by the dispatcher before this handler runs);
+	// `sid` is checked against SESSION_ID_RE here because, unlike the JSON
+	// routes, a malformed one must not even reach `state.sessions.find`.
+	// `cache-control` is `immutable`: a stored photo never changes, only a
+	// whole new capture appends a new index.
+	['GET', /^\/([^/]+)\/sessions\/([^/]+)\/photos\/([^/]+)$/, async (req, res, [id, sid, rawIndex]) => {
+		if (!SESSION_ID_RE.test(sid)) return json(res, 404, { error: `no session "${sid}"` });
+		// Canonical digits only: one URL per photo (no `00`), and no index
+		// long enough to lose precision in Number().
+		if (!/^(0|[1-9]\d{0,5})$/.test(rawIndex)) return json(res, 404, { error: `invalid photo index "${rawIndex}"` });
+		const i = Number(rawIndex);
+
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `no operator "${id}"` });
+
+		const session = state.sessions.find((s) => s.id === sid);
+		if (!session) return json(res, 404, { error: `no session "${sid}"` });
+		const photo = (session.photos ?? [])[i];
+		if (!photo) return json(res, 404, { error: `no photo ${i} on session "${sid}"` });
+
+		const m = PHOTO_DATA_URL_RE.exec(photo.dataUrl ?? '');
+		if (!m) return json(res, 404, { error: 'unsupported photo encoding' });
+		if (res.headersSent || res.writableEnded) return;
+		res.writeHead(200, {
+			'content-type': `image/${m[1]}`,
+			'cache-control': 'private, max-age=31536000, immutable',
+		});
+		res.end(Buffer.from(m[2], 'base64'));
 	}],
 
 	// The flight track (issue #24). Written ONCE, at the closing (D4), after
@@ -636,6 +688,10 @@ function json(res, code, body) {
 // A base64-encoded capture quickly goes past the megabyte of an ordinary JSON
 // body (photo + ~33% base64 overhead): a dedicated cap for this route.
 const PHOTO_BODY_MAX = 8e6;
+
+// What sanitizePhoto() accepts on the way in (tools/session-model.mjs), read
+// back out: the three formats the capture pipeline can produce, nothing else.
+const PHOTO_DATA_URL_RE = /^data:image\/(jpeg|png|webp);base64,([a-zA-Z0-9+/]+=*)$/;
 
 // A cross-site request that skips the preflight can only carry a CORS-safelisted
 // content type — `text/plain`, a form encoding, or none at all — never

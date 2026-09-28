@@ -4029,3 +4029,39 @@ builds étalée sous budget.
   chiffré ni implémenté.
 - Rien n'a été piloté à la main : tous les vols sont simulés par
   `__sim.teleport()`.
+
+## Signals and clearance (issue #185, lots 1–3, 2026-09-28)
+
+OSM landmarks with a Wikidata id are signals on the GLOBAL SCANNER; holding one
+in the FPV frame uplinks it; uplinks earn CLEARANCE (0/6/18/36 points), which
+widens the TARGET SCAN pool and shows in the hangar (TARGET SCAN, DATA,
+briefing, end screen). Design: Bible §49; player docs: `docs/manual.md`,
+*Signals and clearance*. The implementation plan and mockups are in
+`docs/superpowers/`.
+
+### Verified — without a browser
+
+- Module selftests: signal-clearance, hangar, signals-data, place-name,
+  signal-source, signal-store, signal-card, signal-callout, signal-capture,
+  map-signals, target-scan-render, data-render, briefing(-render), session(-api)
+  incl. the photo route (401 in shared mode, canonical index), fuzz-api.
+
+### Verified by eye — Chromium through chrome-devtools MCP (dev operators)
+
+- Scanner: loading glitch bounded to the viewport (no freeze at z19), log
+  lines, the three shapes, label halo and colour, clearance header.
+- TARGET SCAN at clearance 0 (freestyle only, `1 OF 7`) and 3 (`7 OF 7`).
+- Briefing CLEARANCE screen, and the one-time screen for a briefed operator.
+- Flight: take-off count notice, NEXT SIGNAL, `ENCRYPTED · CLEARANCE n` never
+  captures, the UPLINKED card, the step notice, the end-screen reveal; no
+  callout over TARGET LOST / LINK LOST.
+- DATA: opens at the top, hangar, SIGNALS (places, rows), capture view, focus
+  back to the last viewed row, FLY THERE → LIVE flight.
+
+### NOT verified
+
+- The take-off scan phase (`[*] SIGNAL SCAN · n/m`) with cold tiles — only the
+  count was seen (tiles were cached).
+- The UPLINKED card drawn above an edge chevron (`d25f820`, stacking only).
+- Two steps crossed in one flight reveal only the last one (known, rare).
+- The server trusts the client's `clearance` (single-player ruling).

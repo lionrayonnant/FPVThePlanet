@@ -93,11 +93,16 @@ export function parseCommons(json) {
 	const url = safeImageUrl(info?.thumburl);
 	if (!url) return null;
 	const md = info.extmetadata ?? {};
+	const descUrl = info?.descriptionurl;
+	const page = (typeof descUrl === 'string' && descUrl.startsWith('https://commons.wikimedia.org/wiki/File:'))
+		? descUrl
+		: null;
 	return {
 		url,
 		w: Number.isFinite(info.thumbwidth) ? info.thumbwidth : null,
 		h: Number.isFinite(info.thumbheight) ? info.thumbheight : null,
 		artist: clean(unhtml(md.Artist?.value), ARTIST_MAX),
 		license: clean(md.LicenseShortName?.value, 30),
+		page,
 	};
 }

@@ -118,7 +118,8 @@ flowchart LR
 
 Tiles come from Google Earth's internal `rocktree` protocol, which needs no key
 and no account. In LIVE mode the player's own browser fetches them, so they
-never pass through a server and nothing is kept.
+never pass through a server. The browser keeps a bounded disk cache of them
+(Cache API), so a second flight over the same place loads faster.
 
 Acquisition is the other path: downloading an area and baking it to playable
 terrain on disk. It is off by default. It only turns on with `FPVTP_ACQUIRE=1`
@@ -126,6 +127,30 @@ in the environment, and never in `--mode shared`. CI doesn't set it and neither
 do the distributed builds. The imagery stays © Google and is never
 redistributed, so every install downloads its own and no baked terrain ships
 from here.
+
+## Privacy
+
+There are no analytics, no telemetry and no account with anyone. The player's
+browser talks to the game's own server — the one that served the page, which
+in the desktop app and from source runs on your machine — and to these third
+parties directly, each of which sees your IP address and what is asked:
+
+| | | |
+|---|---|---|
+| Google Earth | `kh.google.com` | the 3D terrain of a LIVE flight: the tiles around where you fly |
+| OpenStreetMap, Esri, OpenTopoMap | their tile servers | the scanner's three basemaps: the tiles you look at |
+| Nominatim | `nominatim.openstreetmap.org` | place search (what you type), a zone's name, and the city a captured signal belongs to (its coordinates) |
+| Overpass | `overpass-api.de` | the landmark signals: the map tiles being scanned |
+| Wikidata | `www.wikidata.org` | a captured place's description and facts: its Wikidata id |
+| Wikimedia Commons | `commons.wikimedia.org`, `thumb.wikimedia.org`, `upload.wikimedia.org` | the real photo of a captured place and its credit |
+
+Wikimedia requests carry an `Api-User-Agent` naming the game and its version,
+as Wikimedia asks. Answers are cached in the browser, so a place already seen
+is not asked again. Nothing else leaves the machine except to the game's own
+server, which keeps your operator record, sessions and photos. That server
+makes outside calls of its own: the weather from Open-Meteo for the zone's
+coordinates, and Google Earth when you probe or acquire an area. The desktop
+app also checks GitHub Releases for updates.
 
 ## Built with
 

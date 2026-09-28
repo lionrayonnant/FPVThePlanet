@@ -1,16 +1,16 @@
-// Drones ambiants (issue #250) — le modèle PUR. Ni Three, ni Rapier, ni DOM :
-// les rayons sont des fonctions injectées ({ groundBelow, obstructionBetween }
-// duck-typé comme src/entry-state.js), le rendu vit dans src/drone-mesh.js et
-// le son dans src/ambient-audio.js.
+// Ambient drones (issue #250) — the PURE model. No Three, no Rapier, no DOM:
+// rays are injected functions ({ groundBelow, obstructionBetween }, duck-typed
+// like src/entry-state.js), the rendering lives in src/drone-mesh.js and the
+// sound in src/ambient-audio.js.
 //
-// Ce fichier tient : l'ensemble (qui vole), les routines (comment chaque
-// famille vole), les courbes (où), la bulle (autour de qui), les ancres et
-// leur validation, l'attitude (comment le corps se tient). Tout est
-// déterministe sur la graine du scan, et update() n'alloue rien.
+// This file holds: the set (who flies), the routines (how each family flies),
+// the curves (where), the bubble (around whom), the anchors and their
+// validation, the attitude (how the body holds itself). Everything is
+// deterministic on the scan's seed, and update() allocates nothing.
 //
-// La validation travaille sur DEUX grilles, et c'est délibéré : le sol se
-// mesure fin (HEIGHT_SAMPLES), les murs se testent grossier (SAMPLES). Le
-// pourquoi est au-dessus des deux constantes.
+// Validation works on TWO grids, and that is deliberate: the ground is
+// measured fine (HEIGHT_SAMPLES), walls are tested coarse (SAMPLES). The why
+// is above the two constants.
 
 import { generateTargetScan } from '../tools/target-model.mjs';
 import {
@@ -30,21 +30,26 @@ export const SWARM_UNIT_FAMILY = 'swarmUnit';
 // absent from PROFILES (no PID, no tune, never flown), and targetBuild() needs
 // a real family to draw an instance's mass, drag and rates from.
 export const SWARM_UNIT_BUILD_FAMILY = 'toothpick';
-// v²/r ≤ TURN_MARGIN · a_max : un quad ne vire pas en butée de poussée.
+// v²/r ≤ TURN_MARGIN · a_max: a quad does not turn at the limit of its thrust.
 export const TURN_MARGIN = 0.6;
 
 const lerp = (rand, [a, b]) => a + rand() * (b - a);
 
-// Les candidats non pris, avec la graine d'exemplaire que resolveTarget()
-// leur aurait donnée. Pur et déterministe : le même scan rend le même ciel.
+// The candidates not taken, with the individual seed resolveTarget() would
+// have given them. Pure and deterministic: the same scan renders the same sky.
 export function ambientSet(scan) {
 	// The swarm keys travel with the scan (issue #29) so the regeneration is
 	// exact. Absent, they mean no cluster — a v2 session or a dev scan predates
 	// swarms, and a redraw on today's default chance would invent one.
+	// `families` (issue #185, clearance) does the same job for the draw pool:
+	// absent means the full pool — an older session or a dev scan predates
+	// clearance, and a redraw on today's operator clearance could draw a
+	// family the flight never had a chance to show.
 	const { candidates } = generateTargetScan({
 		seed: scan.seed, count: scan.count,
 		swarmChance: scan.swarmChance ?? 0,
 		swarmAt: scan.swarmAt ?? null,
+		families: scan.families,
 	});
 	const out = [];
 	for (let i = 0; i < candidates.length; i++) {
@@ -70,9 +75,9 @@ export function ambientSet(scan) {
 	return out;
 }
 
-// Une routine par famille. Plages choisies à l'oreille de pilote, comme
-// RANGES de l'entry state ; c'est le filet (validation) qui rend chaque
-// tirage juste, pas la plage. `radius` du long range = rayon du demi-tour.
+// One routine per family. Ranges chosen by pilot's ear, like the entry
+// state's RANGES; it is the net (validation) that makes every draw right,
+// not the range. Long range's `radius` = the half-turn's radius.
 export const ROUTINES = {
 	race5: { kind: 'loop', agl: [3, 10], speed: [15, 22], radius: [12, 20] },
 	freestyle5: { kind: 'eight', agl: [10, 40], speed: [12, 18], radius: [18, 28], vertical: 8 },
@@ -87,35 +92,35 @@ export const ROUTINES = {
 
 export function routineFor({ family, twr, rand }) {
 	const spec = ROUTINES[family];
-	if (!spec) throw new Error(`famille sans routine : ${family}`);
+	if (!spec) throw new Error(`family with no routine: ${family}`);
 	const radius = lerp(rand, spec.radius);
 	const agl = lerp(rand, spec.agl);
 	let speed = lerp(rand, spec.speed);
-	// Le TWR borne le virage, et g·tan(TILT_MAX) le borne encore : ce second
-	// plafond ne GARANTIT pas l'inclinaison (c'est attitudeFrom qui l'impose,
-	// verticale comprise), il garde les vitesses tirées dans le domaine d'un
-	// quad — un rayon de 20 m ne se prend pas à 40 m/s.
+	// The TWR bounds the turn, and g·tan(TILT_MAX) bounds it again: this second
+	// ceiling does not GUARANTEE the tilt (attitudeFrom is what imposes it,
+	// vertical included), it keeps the drawn speeds within a quad's domain —
+	// a 20 m radius is not taken at 40 m/s.
 	const vMax = Math.sqrt(Math.min(TURN_MARGIN * lateralAccelMax(twr), G * Math.tan(TILT_MAX_DEG * Math.PI / 180)) * radius);
 	if (speed > vMax) speed = vMax;
 	const dir = rand() < 0.5 ? -1 : 1;
 	const phase = rand() * Math.PI * 2;
-	// Plan de la boucle du race : incliné de 10 à 35° pour que la boucle ne
-	// soit pas un cercle plat — un race prend de la hauteur en sortie de virage.
+	// The race's loop plane: tilted 10 to 35° so the loop is not a flat
+	// circle — a race gains height coming out of the turn.
 	const tiltPlane = spec.kind === 'loop' ? (10 + rand() * 25) * Math.PI / 180 : 0;
-	// Lemniscate de Gerono (huit) : pas à vitesse constante en w — on reparamètre
-	// par abscisse curviligne. 64 segments, longueurs cumulées dans arc[1..64],
-	// arc[0] = 0 ; la période est la vraie longueur du parcours / speed (et non
-	// l'approximation "deux tours de cercle") pour que |v| ≈ speed tienne.
-	// arcSlope[k] = dw/ds au nœud k (1/|dp/dw|) : l'inversion s → w se fait en
-	// Hermite cubique (C1) sur chaque segment, pas en linéaire (C0 seulement),
-	// sinon chaque nœud casse la dérivée de w(t) et l'accélération y pique.
-	// arc[] s'intègre par Simpson (pas par corde) : une corde sous-estime la
-	// vraie longueur d'arc là où la courbure est là plus forte, ce qui la rend
-	// incohérente avec la pente ANALYTIQUE d'arcSlope — Hermite doit alors
-	// « rattraper » l'écart en milieu de segment et la vitesse y dépasse la
-	// cible de 25+ % (mesuré) quel que soit le pas de dérivation. Simpson (1
-	// point milieu par segment, même fonction speedW que pour arcSlope) rend
-	// arc[] fidèle à la vraie longueur : voir le rapport pour les chiffres.
+	// Lemniscate of Gerono (the eight): not at constant speed in w — it is
+	// reparametrised by arc length. 64 segments, cumulative lengths in
+	// arc[1..64], arc[0] = 0; the period is the path's TRUE length / speed
+	// (not the "two circle turns" approximation) so that |v| ≈ speed holds.
+	// arcSlope[k] = dw/ds at node k (1/|dp/dw|): the s → w inversion is done
+	// in cubic Hermite (C1) on each segment, not linear (C0 only), otherwise
+	// every node breaks w(t)'s derivative and the acceleration spikes there.
+	// arc[] is integrated by Simpson (not by chord): a chord underestimates
+	// the true arc length where curvature is strongest, which makes it
+	// inconsistent with arcSlope's ANALYTICAL slope — Hermite then has to
+	// "catch up" the gap mid-segment and the speed there overshoots the
+	// target by 25+% (measured) whatever the derivation step. Simpson (one
+	// midpoint per segment, the same speedW function as arcSlope) renders
+	// arc[] faithful to the true length: see the report for the numbers.
 	let arc = null, arcSlope = null;
 	if (spec.kind === 'eight') {
 		arc = new Float64Array(65);
@@ -139,15 +144,15 @@ export function routineFor({ family, twr, rand }) {
 	if (spec.kind === 'cruise') period = (2 * spec.leg + Math.PI * radius) / speed;
 	else if (spec.kind === 'eight') period = arc[64] / speed;
 	else period = (2 * Math.PI * radius) / speed;
-	// Jitter du micro : les fréquences nominales (Hz) sont arrondies au nombre
-	// entier d'harmoniques le plus proche sur la période de la routine, sinon
-	// curveLocal(0) ≠ curveLocal(period) (le jitter ne boucle pas avec le reste).
-	// amp à 0,3, la valeur de spec (#262) : dérivée au pas de simulation
-	// (1/60 s), la dérivée du jitter (jusqu'à 2,1 Hz) dominerait la vitesse
-	// dérivée — c'est pour ça qu'il était resté à 0,15. derive() lisse
-	// maintenant sa fenêtre de dérivation pour toute routine jittée
-	// (VEL_SMOOTH_H) : la position, elle, reste exacte, seule vel/acc voit le
-	// jitter atténué.
+	// The micro's jitter: the nominal frequencies (Hz) are rounded to the
+	// nearest whole number of harmonics over the routine's period, otherwise
+	// curveLocal(0) ≠ curveLocal(period) (the jitter would not loop with the
+	// rest). amp at 0.3, the spec value (#262): differentiated at the
+	// simulation step (1/60 s), the jitter's derivative (up to 2.1 Hz) would
+	// dominate the differentiated speed — which is why it had stayed at 0.15.
+	// derive() now widens its differentiation window for any jittered routine
+	// (VEL_SMOOTH_H): position itself stays exact, only vel/acc see the
+	// jitter attenuated.
 	const jitter = spec.jitter
 		? [0.7, 1.3, 2.1].map((hz) => ({
 			amp: 0.3,
@@ -163,39 +168,40 @@ export function routineFor({ family, twr, rand }) {
 	};
 }
 
-// Deux grilles, deux métiers.
+// Two grids, two jobs.
 //
-// SAMPLES : le nombre de SEGMENTS sur lesquels on teste l'obstruction. Un
-// segment est une corde, `obstructionBetween` la traverse d'un rayon : la
-// densifier ne révèle rien de neuf, elle rejoue le même mur.
+// SAMPLES: the number of SEGMENTS obstruction is tested on. A segment is a
+// chord, `obstructionBetween` crosses it with a ray: densifying it reveals
+// nothing new, it replays the same wall.
 //
-// HEIGHT_SAMPLES : le nombre de RAYONS DE SOL du profil de hauteur. Le sol,
-// lui, n'est pas une corde : c'est une nappe continue sous la courbe, et
-// entre deux nœuds elle peut monter sans jamais couper le segment. À 16
-// nœuds, deux rayons voisins sont distants de 22 m sur un huit et de 74 m
-// sur un cruise (leg 400 m) — mesuré sur `havre` (tools/selftest.mjs) : un
-// immeuble de +37 m se cachait entre deux nœuds sous un long range (AGL réel
-// 45,8 m pour un plancher de 60), et un heavy5 passait à 1,06 m d'un quai
-// pour un plancher de 10. La règle du mur ne pouvait rien y voir — la courbe
-// passe AU-DESSUS du toit, aucun segment ne le coupe. 64 rayons ramènent le
-// pas à 5,5 m (huit) / 18 m (cruise), sous la taille d'un bâtiment.
+// HEIGHT_SAMPLES: the number of GROUND RAYS in the height profile. The
+// ground, unlike a wall, is not a chord: it is a continuous sheet under the
+// curve, and between two nodes it can rise without ever crossing the
+// segment. At 16 nodes, two neighbouring rays are 22 m apart on an eight and
+// 74 m apart on a cruise (400 m leg) — measured on `havre`
+// (tools/selftest.mjs): a +37 m building was hiding between two nodes under
+// a long range (real AGL 45.8 m for a 60 m floor), and a heavy5 passed 1.06 m
+// from a quay for a 10 m floor. The wall rule could see none of it — the
+// curve passes ABOVE the roof, no segment crosses it. 64 rays bring the
+// step down to 5.5 m (eight) / 18 m (cruise), under a building's size.
 export const SAMPLES = 16;
 export const HEIGHT_SAMPLES = 64;
 const TWO_PI = Math.PI * 2;
 
-// Offset par rapport à l'ancre, à l'instant t, dans le plan de la routine.
-// `y` est l'offset VERTICAL de la figure seule (plan incliné du race, sinus
-// du huit, jitter du micro) — l'AGL et le relief sont ajoutés par curveAt().
-// Non négatif pour le loop et le huit : la figure grimpe hors du virage,
-// elle ne plonge jamais sous l'AGL tiré pour la routine.
+// Offset relative to the anchor, at instant t, in the routine's plane. `y` is
+// the VERTICAL offset of the figure alone (the race's tilted plane, the
+// eight's sine, the micro's jitter) — AGL and terrain are added by
+// curveAt(). Non-negative for the loop and the eight: the figure climbs out
+// of the turn, it never dives under the AGL drawn for the routine.
 export function curveLocal(r, t, out) {
 	const u = (t / r.period) * TWO_PI * r.dir + r.phase;
 	switch (r.kind) {
 		case 'loop': {
 			out.x = r.radius * Math.cos(u);
 			out.z = r.radius * Math.sin(u);
-			// Plan incliné : la hauteur suit une des deux composantes, jamais négative —
-			// le race grimpe hors du virage, il ne plonge pas sous son AGL.
+			// Tilted plane: height follows one of the two components, never
+			// negative — the race climbs out of the turn, it does not dive
+			// under its AGL.
 			out.y = Math.sin(r.tiltPlane) * r.radius * (1 + Math.sin(u));
 			break;
 		}
@@ -206,14 +212,14 @@ export function curveLocal(r, t, out) {
 			break;
 		}
 		case 'eight': {
-			// Lemniscate de Gerono, deux lobes de rayon ~r, reparamétrée par
-			// abscisse curviligne (r.arc, précalculée dans routineFor) pour une
-			// vitesse constante : w n'avance pas linéairement avec t, mais avec
-			// la longueur déjà parcourue, retrouvée par interpolation dans arc[].
-			// Inversion s → w en Hermite cubique (C1, valeur ET pente dw/ds
-			// raccordées à chaque nœud) — une interpolation linéaire de w serait
-			// C0 seulement et ferait piquer l'accélération à chaque nœud (64
-			// pics par tour), voir r.arcSlope dans routineFor.
+			// Lemniscate of Gerono, two lobes of radius ~r, reparametrised by
+			// arc length (r.arc, precomputed in routineFor) for a constant
+			// speed: w does not advance linearly with t, but with the length
+			// already travelled, recovered by interpolation in arc[].
+			// s → w inversion in cubic Hermite (C1, value AND slope dw/ds
+			// matched at every node) — a linear interpolation of w would be C0
+			// only and would spike the acceleration at every node (64 spikes
+			// per lap), see r.arcSlope in routineFor.
 			const frac = (((t / r.period) * r.dir + r.phase / (Math.PI * 2)) % 1 + 1) % 1;
 			const target = frac * r.arc[64];
 			let k = 0;
@@ -232,20 +238,20 @@ export function curveLocal(r, t, out) {
 			const w = h00 * w0 + h10 * m0 + h01 * w1 + h11 * m1;
 			out.x = 2 * r.radius * Math.cos(w);
 			out.z = r.radius * Math.sin(2 * w);
-			// Jamais négatif, même raison que le loop.
+			// Never negative, same reason as the loop.
 			out.y = r.vertical * (1 + Math.sin(w * 2 + 1));
 			break;
 		}
 		case 'cruise': {
-			// Stade : deux segments de `leg`, deux demi-tours de rayon `radius`.
+			// Stadium shape: two `leg` segments, two half-turns of radius `radius`.
 			const L = r.leg, R = r.radius;
 			const total = 2 * L + Math.PI * R;
 			let s = ((t * r.speed * r.dir) % total + total) % total;
 			out.y = 0;
 			if (s < L) { out.x = -L / 2 + s; out.z = -R / 2; }
 			else if (s < L + Math.PI * R / 2) {
-				// Demi-tour de rayon R/2 : a va de 0 à π sur tout le budget d'arc
-				// (piR/2), donc da/ds = 2/R, pas 1/R.
+				// Half-turn of radius R/2: a goes from 0 to π over the whole arc
+				// budget (piR/2), so da/ds = 2/R, not 1/R.
 				const a = 2 * (s - L) / R;
 				out.x = L / 2 + R / 2 * Math.sin(a); out.z = -R / 2 + R / 2 * (1 - Math.cos(a));
 			} else if (s < 2 * L + Math.PI * R / 2) { s -= L + Math.PI * R / 2; out.x = L / 2 - s; out.z = R / 2; }
@@ -255,12 +261,12 @@ export function curveLocal(r, t, out) {
 			}
 			break;
 		}
-		default: throw new Error(`routine inconnue : ${r.kind}`);
+		default: throw new Error(`unknown routine: ${r.kind}`);
 	}
 	for (let k = 0; k < r.jitter.length; k++) {
 		const j = r.jitter[k];
-		// Harmoniques entières de la période (j.nx, j.nz précalculées dans
-		// routineFor) : le jitter boucle exactement avec le reste de la figure.
+		// Whole-number harmonics of the period (j.nx, j.nz precomputed in
+		// routineFor): the jitter loops exactly with the rest of the figure.
 		const ux = (t / r.period) * TWO_PI * j.nx + j.phase;
 		const uz = (t / r.period) * TWO_PI * j.nz + j.phase;
 		const s = Math.sin(ux);
@@ -271,9 +277,9 @@ export function curveLocal(r, t, out) {
 
 const _c = { x: 0, y: 0, z: 0 };
 
-// Hauteur absolue de la courbe à chacun des HEIGHT_SAMPLES échantillons :
-// sol + agl. `groundBelow(x, z)` rend la hauteur du sol ou null (pas de
-// terrain). `heights` fait HEIGHT_SAMPLES de long.
+// Absolute height of the curve at each of the HEIGHT_SAMPLES samples: ground
+// + agl. `groundBelow(x, z)` renders the ground's height or null (no
+// terrain). `heights` is HEIGHT_SAMPLES long.
 export function curveHeights(r, anchor, groundBelow, heights) {
 	for (let i = 0; i < HEIGHT_SAMPLES; i++) {
 		curveLocal(r, r.period * i / HEIGHT_SAMPLES, _c);
@@ -284,8 +290,8 @@ export function curveHeights(r, anchor, groundBelow, heights) {
 	return true;
 }
 
-// Position absolue : XZ de la courbe, Y interpolé entre les hauteurs
-// échantillonnées (le micro épouse le relief) plus l'offset de la figure.
+// Absolute position: the curve's XZ, Y interpolated between the sampled
+// heights (the micro hugs the terrain) plus the figure's offset.
 export function curveAt(r, anchor, heights, t, out) {
 	curveLocal(r, t, out);
 	const f = ((t / r.period) % 1 + 1) % 1 * HEIGHT_SAMPLES;
@@ -297,18 +303,18 @@ export function curveAt(r, anchor, heights, t, out) {
 
 const _pm = { x: 0, y: 0, z: 0 }, _pp = { x: 0, y: 0, z: 0 };
 
-// #262 : fenêtre de dérivation élargie pour vel/acc d'une routine jittée
-// (jamais pour pos, qui reste échantillonnée exactement à `t`). Une
-// différence centrée au pas de simulation (1/60 s) suit la dérivée du
-// jitter (jusqu'à 2,1 Hz) presque sans l'atténuer : sin(wh)/h ≈ w. À
-// VEL_SMOOTH_H, sin(wh)/(wh) ≈ 0,5 pour l'harmonique la plus haute — la même
-// atténuation qui compense exactement le doublement de l'amplitude de 0,15 à
-// 0,3 (spec). Les routines sans jitter (période bien plus lente que le
-// jitter) ne voient quasi aucune différence à cette fenêtre.
+// #262: widened differentiation window for vel/acc of a jittered routine
+// (never for pos, which stays sampled exactly at `t`). A centred difference
+// at the simulation step (1/60 s) follows the jitter's derivative (up to
+// 2.1 Hz) almost without attenuating it: sin(wh)/h ≈ w. At VEL_SMOOTH_H,
+// sin(wh)/(wh) ≈ 0.5 for the highest harmonic — the same attenuation that
+// exactly compensates the amplitude's doubling from 0.15 to 0.3 (spec).
+// Routines with no jitter (period much slower than the jitter) see almost no
+// difference at this window.
 const VEL_SMOOTH_H = 0.15;
 
-// Position, vitesse et accélération par différences centrées de pas h (vel/acc
-// élargissent ce pas à VEL_SMOOTH_H sur une routine jittée — voir ci-dessus).
+// Position, velocity and acceleration by centred differences of step h
+// (vel/acc widen this step to VEL_SMOOTH_H on a jittered routine — see above).
 export function derive(r, anchor, heights, t, h, pos, vel, acc) {
 	curveAt(r, anchor, heights, t, pos);
 	const hv = r.jitter.length > 0 ? Math.max(h, VEL_SMOOTH_H) : h;
@@ -322,28 +328,29 @@ export function derive(r, anchor, heights, t, h, pos, vel, acc) {
 
 export const R_SPAWN = [120, 250];
 export const R_LEAVE = 320;
-export const R_LEAVE_GAP = 70;      // rLeave = rMax + gap quand la couronne se resserre
-export const IN_VIEW_MIN_M = 220;   // dans le champ, on ne naît qu'au-delà
+export const R_LEAVE_GAP = 70;      // rLeave = rMax + gap when the ring tightens
+export const IN_VIEW_MIN_M = 220;   // in the field of view, only spawns beyond this
 export const VIEW_MARGIN_DEG = 15;
-export const BLOCK_SPAN_M = 2;      // règle de geometrySafe : un mur, pas un toit frôlé
-export const FLOOR_MARGIN_M = 5;    // au-dessus de FLOOR_HOLD de la clôture
+export const BLOCK_SPAN_M = 2;      // geometrySafe's rule: a wall, not a grazed roof
+export const FLOOR_MARGIN_M = 5;    // above the fence's FLOOR_HOLD
 const SPAWN_TRIES_PER_FRAME = 3;
-// Un slot qui échoue en boucle se met en veille : après SPAWN_FAILS_BEFORE_BACKOFF
-// essais consécutifs ratés, on ne le retente plus pendant SPAWN_BACKOFF_S. Le
-// ciel est une ambiance, pas une urgence — une seconde de retard sur une
-// naissance ne se voit pas, trois rayons par frame se paient.
+// A slot that fails in a loop goes to sleep: after SPAWN_FAILS_BEFORE_BACKOFF
+// consecutive failed tries, it is not retried for SPAWN_BACKOFF_S. The sky is
+// an ambience, not an emergency — a one-second delay on a spawn is not seen,
+// three rays a frame are paid for.
 const SPAWN_FAILS_BEFORE_BACKOFF = 10;
 const SPAWN_BACKOFF_S = 1;
-// Pas de dérivation fixe : l'attitude ne doit pas dépendre du taux de rafraîchissement.
+// Fixed differentiation step: attitude must not depend on the refresh rate.
 const DERIVE_H = 1 / 60;
-// Attitude initiale au spawn : sans vent (voir spawnOne).
+// Initial attitude at spawn: no wind (see spawnOne).
 const NO_WIND = { x: 0, y: 0, z: 0 };
 
-// La couronne, bornée par la clôture. Rect : `halfMin - hold` ; direct : le
-// rayon de confiance (180 m par défaut, sous les 250 nominaux). Une carte qui
-// ne loge pas la couronne minimale garde ses drones pour toujours.
-// `out`, si fourni, est muté et rendu (update() y passe son scratch : zéro
-// allocation par frame). Sans `out`, alloue un littéral (chemin des tests).
+// The ring, bounded by the fence. Rect: `halfMin - hold`; direct: the trusted
+// radius (180 m by default, under the nominal 250). A map that cannot hold
+// the minimal ring keeps its drones forever.
+// `out`, if given, is mutated and rendered (update() passes it its scratch:
+// zero allocation per frame). With no `out`, allocates a literal (the tests'
+// path).
 export function bubbleFor(bounds, player, out) {
 	const o = out || { rMin: 0, rMax: 0, rLeave: 0 };
 	let rMax = R_SPAWN[1];
@@ -361,7 +368,7 @@ export function bubbleFor(bounds, player, out) {
 	return o;
 }
 
-// Un point tient-il dans la clôture, avec `margin` (rayon de routine) en plus ?
+// Does a point hold inside the fence, with `margin` (the routine's radius) added?
 export function insideBounds(bounds, x, z, y, margin) {
 	if (bounds.bbox) {
 		const b = bounds.bbox;
@@ -374,7 +381,7 @@ export function insideBounds(bounds, x, z, y, margin) {
 	return Math.hypot(x - bounds.center.x, z - bounds.center.z) + margin <= bounds.trusted;
 }
 
-// Hors du cône caméra (FOV + marge) ?
+// Outside the camera cone (FOV + margin)?
 export function outOfView(dx, dz, dy, cam, fovDeg) {
 	const d = Math.hypot(dx, dy, dz);
 	if (d === 0) return false;
@@ -382,31 +389,32 @@ export function outOfView(dx, dz, dy, cam, fovDeg) {
 	return cosA < Math.cos((fovDeg / 2 + VIEW_MARGIN_DEG) * Math.PI / 180);
 }
 
-// Une ancre dans la couronne, hors champ, dans la clôture, sur du sol. Un
-// rayon AU PLUS. `top`/`span` : d'où et sur quelle longueur lancer vers le bas
-// (haut de bbox + 50 et hauteur + 100, comme groundAt de l'entry state).
-// Le plancher se vérifie à la hauteur de VOL (sol + agl) : l'ancre elle-même
-// reste au sol (`y = g`), seule la clôture est testée à `g + agl`.
+// An anchor in the ring, out of view, inside the fence, on the ground. ONE
+// ray at most. `top`/`span`: from where and over what length to cast
+// downward (bbox top + 50 and height + 100, like the entry state's
+// groundAt). The floor is checked at FLIGHT height (ground + agl): the
+// anchor itself stays on the ground (`y = g`), only the fence is tested at
+// `g + agl`.
 //
-// L'ORDRE des tests est la moitié du travail. La clôture HORIZONTALE ne
-// dépend d'aucune hauteur : elle se tranche avant le rayon, gratuitement. Un
-// slot qui ne peut PAS naître ici (un long range demande 320 m de marge sur
-// une carte qui en offre 80) est donc rejeté sans lancer un seul rayon, au
-// lieu de trois par frame pour toujours.
+// The ORDER of the tests is half the work. The HORIZONTAL fence depends on
+// no height: it is sliced before the ray, for free. A slot that CANNOT spawn
+// here (a long range needs 320 m of margin on a map that offers 80) is thus
+// rejected without casting a single ray, instead of three a frame forever.
 //
-// Le cône de vue, lui, vient APRÈS le rayon : il se mesure à la hauteur de
-// VOL (g + agl), pas à celle de l'ancre au sol — un long range à 90 m d'AGL
-// jugé « caché » parce que son ancre est basse naîtrait en plein champ.
-// Ce test-là coûte donc son rayon ; c'est le prix d'une réponse juste.
+// The view cone, on the other hand, comes AFTER the ray: it is measured at
+// FLIGHT height (g + agl), not the anchor's height on the ground — a long
+// range at 90 m AGL judged "hidden" because its anchor is low would spawn in
+// plain view. That test therefore costs its ray; it is the price of a
+// correct answer.
 //
-// `bubble`, si fourni, évite de recalculer la couronne à chaque essai (et
-// l'objet littéral qui allait avec).
+// `bubble`, if given, avoids recomputing the ring on every try (and the
+// literal object that came with it).
 export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, top, span, agl, stats, bubble }) {
 	const { rMin, rMax } = bubble || bubbleFor(bounds, player);
 	const d = rMin + rand() * (rMax - rMin);
 	const a = rand() * TWO_PI;
 	const x = player.x + d * Math.cos(a), z = player.z + d * Math.sin(a);
-	// Clôture horizontale seule : y = +∞ passe toujours la règle du plancher.
+	// Horizontal fence alone: y = +∞ always passes the floor rule.
 	if (!insideBounds(bounds, x, z, Infinity, radius)) return null;
 	if (stats) stats.raysCast++;
 	const g = rays.groundBelow(x, top, z, span);
@@ -419,29 +427,30 @@ export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, to
 
 const _a = { x: 0, y: 0, z: 0 }, _b = { x: 0, y: 0, z: 0 };
 
-// 64 rayons vers le bas (le profil de sol, et le plancher testé dessus), puis
-// 16 obstructions entre segments voisins. Les deux grilles sont volontairement
-// différentes — voir SAMPLES / HEIGHT_SAMPLES plus haut.
+// 64 rays downward (the ground profile, and the floor tested on it), then 16
+// obstructions between neighbouring segments. The two grids are deliberately
+// different — see SAMPLES / HEIGHT_SAMPLES above.
 export function validateCurve({ routine, anchor, rays, heights, top, span, stats }) {
 	const ground = (x, z) => { if (stats) stats.raysCast++; return rays.groundBelow(x, top, z, span); };
 	if (!curveHeights(routine, anchor, ground, heights)) return false;
-	// Le plancher, sur la grille FINE : c'est là que se cachait le relief.
+	// The floor, on the FINE grid: this is where the terrain used to hide.
 	for (let i = 0; i < HEIGHT_SAMPLES; i++) {
-		// La figure peut descendre sous l'AGL tiré (sinus, plan incliné) :
-		// c'est l'AGL MINIMAL de la famille qui compte, au point le plus bas.
+		// The figure can dip under the drawn AGL (sine, tilted plane): it is
+		// the family's MINIMUM AGL that matters, at the lowest point.
 		curveAt(routine, anchor, heights, routine.period * i / HEIGHT_SAMPLES, _a);
-		// À l'échantillon i pile, heights[i] EST le sol sous _a (curveHeights l'y a
-		// mis) : `_a.y - (heights[i] - agl)` retombe donc toujours exactement sur
-		// `curveLocal.y + agl`, quel que soit le relief — une tautologie qui ne
-		// verrait jamais un point sous le relief. On compare plutôt au pire des
-		// deux sols voisins (i et i+1) : si le relief grimpe fort entre les deux,
-		// c'est entre eux (où la courbe interpole linéairement) que ça râcle.
+		// At sample i exactly, heights[i] IS the ground under _a (curveHeights
+		// put it there): `_a.y - (heights[i] - agl)` therefore always lands
+		// exactly on `curveLocal.y + agl`, whatever the terrain — a tautology
+		// that would never see a point under the terrain. It is instead
+		// compared to the worse of the two neighbouring grounds (i and i+1):
+		// if the terrain rises sharply between the two, that is where it
+		// (where the curve interpolates linearly) grazes.
 		const j = (i + 1) % HEIGHT_SAMPLES;
 		const g = Math.max(heights[i], heights[j]) - routine.agl;
 		if (_a.y - g < routine.aglMin) return false;
 	}
-	// Les murs, sur la grille GROSSIÈRE : un segment est une corde, la
-	// densifier rejouerait le même rayon sur la même géométrie.
+	// The walls, on the COARSE grid: a segment is a chord, densifying it
+	// would replay the same ray on the same geometry.
 	for (let i = 0; i < SAMPLES; i++) {
 		curveAt(routine, anchor, heights, routine.period * i / SAMPLES, _a);
 		curveAt(routine, anchor, heights, routine.period * (i + 1) / SAMPLES, _b);
@@ -454,14 +463,14 @@ export function validateCurve({ routine, anchor, rays, heights, top, span, stats
 
 export class AmbientModel {
 	constructor({ set, builds, bounds, seed }) {
-		if (set.length > MAX_DRONES) throw new Error('trop d\'ambiants');
+		if (set.length > MAX_DRONES) throw new Error('too many ambients');
 		this.set = set;
 		this.builds = builds;
 		this.bounds = bounds;
 		this.seed = seed;
 		this.families = set.map((d) => d.family);
 		this.n = set.length;
-		// Un slot par ambiant possible ; `alive[k]` dit s'il vole.
+		// One slot per possible ambient; `alive[k]` says whether it flies.
 		this.alive = new Uint8Array(MAX_DRONES);
 		this.pos = new Float64Array(3 * MAX_DRONES);
 		this.vel = new Float64Array(3 * MAX_DRONES);
@@ -478,12 +487,13 @@ export class AmbientModel {
 		this._q = new Float64Array(4);
 		this._bubble = { rMin: 0, rMax: 0, rLeave: 0 };
 		this._spawnArgs = { player: null, cam: null, fovDeg: 0, rays: null, top: 0, span: 0, bubble: this._bubble };
-		// Veille des slots qui échouent : compteur d'échecs consécutifs et date
-		// (horloge du modèle, cumulée depuis dt) avant laquelle on ne retente pas.
+		// Sleep for slots that fail: a count of consecutive failures and a
+		// date (the model's clock, accumulated from dt) before which it is
+		// not retried.
 		this._clock = 0;
 		this._fails = new Uint8Array(MAX_DRONES);
 		this._retryAt = new Float64Array(MAX_DRONES);
-		// Le slot par lequel spawnOne() commence son balayage. Il TOURNE — voir
+		// The slot spawnOne() starts its sweep from. It ROTATES — see
 		// spawnOne().
 		this._spawnCursor = 0;
 		this.reset();
@@ -508,19 +518,19 @@ export class AmbientModel {
 		}
 	}
 
-	// Fait naître UN slot mort — un seul par frame, réussi ou non. Le balayage
-	// commence à `_spawnCursor`, qui avance après chaque slot TENTÉ : sans
-	// cette rotation, le premier slot mort était toujours le même, et un slot
-	// impossible gelait tout le ciel derrière lui. C'est exactement ce qui
-	// arrivait à un long range (rayon leg/2 + radius = 320 m) sur une carte
-	// qui ne peut pas le loger : 0 naissance sur 4, pour toujours.
-	// Rend true si un drone est né.
+	// Spawns ONE dead slot — one only per frame, whether it succeeds or not.
+	// The sweep starts at `_spawnCursor`, which advances after every slot
+	// TRIED: without this rotation, the first dead slot was always the same
+	// one, and an impossible slot froze the whole sky behind it. That is
+	// exactly what used to happen to a long range (radius leg/2 + radius =
+	// 320 m) on a map that cannot hold it: 0 spawns out of 4, forever.
+	// Renders true if a drone was born.
 	spawnOne({ player, cam, fovDeg, rays, top, span, bubble }) {
 		const bb = bubble || bubbleFor(this.bounds, player, this._bubble);
 		for (let j = 0; j < this.n; j++) {
 			const k = (this._spawnCursor + j) % this.n;
 			if (this.alive[k]) continue;
-			// En veille : on passe au suivant sans consommer l'essai de la frame.
+			// Asleep: move to the next one without spending the frame's try.
 			if (this._retryAt[k] > this._clock) continue;
 			this._spawnCursor = (k + 1) % this.n;
 			const r = this.routines[k];
@@ -539,7 +549,7 @@ export class AmbientModel {
 				this._attitude(k, 10, NO_WIND);
 				return true;
 			}
-			return false;   // un slot par frame, réussi ou non
+			return false;   // one slot per frame, whether it succeeds or not
 		}
 		return false;
 	}
@@ -566,18 +576,19 @@ export class AmbientModel {
 		this._clock += dt;
 		bubbleFor(this.bounds, player, this._bubble);
 		const rLeave = this._bubble.rLeave;
-		// Départs : l'ancre a quitté la bulle.
+		// Departures: the anchor has left the bubble.
 		for (let k = 0; k < this.n; k++) {
 			if (!this.alive[k]) continue;
 			const d = Math.hypot(this.anchors[3 * k] - player.x, this.anchors[3 * k + 2] - player.z);
 			if (d > rLeave) { this.alive[k] = 0; this.stats.relocations++; }
 		}
-		// Une naissance au plus par frame. Args dans un scratch réutilisé : pas
-		// de littéral alloué ici, même quand tous les slots volent déjà.
+		// One spawn at most per frame. Args in a reused scratch: no literal
+		// allocated here, even when every slot is already flying.
 		const sa = this._spawnArgs;
 		sa.player = player; sa.cam = cam; sa.fovDeg = fovDeg; sa.rays = rays; sa.top = top; sa.span = span;
 		this.spawnOne(sa);
-		// Avance et pose. Pas fixe (DERIVE_H) : l'attitude ne dépend pas du dt réel.
+		// Advance and place. Fixed step (DERIVE_H): attitude does not depend
+		// on the real dt.
 		for (let k = 0; k < this.n; k++) {
 			if (!this.alive[k]) continue;
 			this.t[k] += dt;
@@ -597,7 +608,7 @@ export class AmbientModel {
 		this._att.wind = wind; this._att.drag = b.bodyDrag; this._att.mass = b.mass;
 		this._att.yawX = yawX; this._att.yawZ = yawZ;
 		attitudeFrom(this._att, this._q, 0);
-		// Lissage exponentiel (nlerp) : les changements de segment ne sautent pas.
+		// Exponential smoothing (nlerp): segment changes do not jump.
 		const o = 4 * k, a = 1 - Math.exp(-dt / ATTITUDE_TAU);
 		let d = this.quat[o] * this._q[0] + this.quat[o + 1] * this._q[1] + this.quat[o + 2] * this._q[2] + this.quat[o + 3] * this._q[3];
 		const sgn = d < 0 ? -1 : 1;
@@ -607,9 +618,9 @@ export class AmbientModel {
 		let nw = this.quat[o + 3] + a * (sgn * this._q[3] - this.quat[o + 3]);
 		const n = Math.hypot(nx, ny, nz, nw) || 1;
 		this.quat[o] = nx / n; this.quat[o + 1] = ny / n; this.quat[o + 2] = nz / n; this.quat[o + 3] = nw / n;
-		// Le nlerp peut sortir du cône même entre deux cibles qui y sont : voir
-		// clampTilt(). C'est ce quaternion-ci qui est rendu, c'est donc lui qui
-		// doit tenir l'invariant.
+		// The nlerp can leave the cone even between two targets that are
+		// inside it: see clampTilt(). This is the quaternion that is
+		// rendered, so it is the one that must hold the invariant.
 		clampTilt(this.quat, o);
 	}
 }

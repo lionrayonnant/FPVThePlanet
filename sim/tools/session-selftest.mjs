@@ -1,6 +1,6 @@
-// Selftest du modèle de session (PHASE 06). Aucun réseau, aucun disque : le
-// fetch de src/operator.js est stubbé comme dans src/operator.selftest.mjs.
-// Lancer : node tools/session-selftest.mjs
+// Selftest of the session model (PHASE 06). No network, no disk: src/operator.js's
+// fetch is stubbed like in src/operator.selftest.mjs.
+// Run: node tools/session-selftest.mjs
 import assert from 'node:assert/strict';
 import {
 	openSession, closeSession, mergeTelemetry, SESSION_RESULTS,
@@ -17,6 +17,7 @@ import {
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
 } from './target-model.mjs';
 import { decodeTrack, MAX_SAMPLES } from './track-model.mjs';
+import { familiesFor } from './signal-clearance-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -31,15 +32,18 @@ const WEATHER = {
 
 // ---------------------------------------------------------------------------
 // session-model
+//
+// NOTE: the regexes passed to assert.throws() below match the error strings
+// tools/session-model.mjs actually throws.
 
-t('newSessionId : slug de zone + 4 hex, conforme à la regex', () => {
+t('newSessionId: area slug + 4 hex, matches the regex', () => {
 	const id = newSessionId('Tokyo Shibuya');
 	assert.match(id, SESSION_ID_RE);
 	assert.match(id, /^tokyo-shibuya-[0-9a-f]{4}$/);
 	assert.throws(() => newSessionId('!!!'), /AREA UNUSABLE/);
 });
 
-t('openSession : forme PENDING complète, télémétrie à zéro', () => {
+t('openSession: full PENDING shape, telemetry at zero', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'tokyo-shibuya', weatherSnapshot: WEATHER });
 	assert.equal(s.result, 'PENDING');
 	assert.equal(s.operatorId, 'neo-3f9c');
@@ -54,15 +58,15 @@ t('openSession : forme PENDING complète, télémétrie à zéro', () => {
 	assert.doesNotThrow(() => validateSession(s));
 });
 
-t('sanitizeWeatherSnapshot : ne garde que la forme connue, null licite', () => {
+t('sanitizeWeatherSnapshot: keeps only the known shape, null is legitimate', () => {
 	assert.equal(sanitizeWeatherSnapshot(null), null);
 	const clean = sanitizeWeatherSnapshot({ ...WEATHER, secret: 42 });
 	assert.deepEqual(Object.keys(clean).sort(), ['confidence', 'day', 'day0', 'regime', 'source', 'zone']);
 	assert.equal(clean.confidence, 0.94);
-	assert.throws(() => sanitizeWeatherSnapshot({ zone: 'x' }), /sans jour/);
+	assert.throws(() => sanitizeWeatherSnapshot({ zone: 'x' }), /has no day/);
 });
 
-t('mergeTelemetry : max sur les pics, somme sur les cumuls, associatif', () => {
+t('mergeTelemetry: max on the peaks, sum on the cumulatives, associative', () => {
 	const a = { durationS: 100, distanceM: 500, maxSpeedMs: 20, maxRateDps: 400, maxAltitudeM: 30 };
 	const b = { durationS: 60, distanceM: 300, maxSpeedMs: 27, maxRateDps: 380, maxAltitudeM: 55 };
 	const c = { durationS: 12, distanceM: 40, maxSpeedMs: 15, maxRateDps: 900, maxAltitudeM: 10 };
@@ -76,16 +80,16 @@ t('mergeTelemetry : max sur les pics, somme sur les cumuls, associatif', () => {
 	assert.equal(ab_c.maxAltitudeM, 55);
 });
 
-t('télémétrie : chaque champ est borné, et une session bornée reste fermable (#83)', () => {
+t('telemetry: every field is bounded, and a bounded session still closes (#83)', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris' });
 	for (const [k, max] of Object.entries(TELEMETRY_MAX)) {
 		const at = { ...freshTelemetry(), [k]: max };
 		assert.equal(validateSession({ ...s, flightTelemetry: at }).flightTelemetry[k], max, k);
 		const over = { ...freshTelemetry(), [k]: max * 1.0001 };
-		assert.throws(() => validateSession({ ...s, flightTelemetry: over }), /hors bornes/, k);
+		assert.throws(() => validateSession({ ...s, flightTelemetry: over }), /out of bounds/, k);
 	}
-	// Le défaut d'origine : 1e308 stocké, puis fusionné avec lui-même, donnait
-	// Infinity — et la session restait PENDING pour toujours.
+	// The original bug: 1e308 stored, then merged with itself, gave Infinity —
+	// and the session stayed PENDING forever.
 	const huge = { durationS: 1e308, distanceM: 1e308, maxSpeedMs: 1e308, maxRateDps: 1e308, maxAltitudeM: 1e308 };
 	const merged = mergeTelemetry(huge, huge);
 	for (const [k, max] of Object.entries(TELEMETRY_MAX)) assert.equal(merged[k], max, k);
@@ -93,7 +97,7 @@ t('télémétrie : chaque champ est borné, et une session bornée reste fermabl
 	assert.doesNotThrow(() => validateSession(closed));
 });
 
-t('closeSession : pose end + result, fusionne la télémétrie', () => {
+t('closeSession: sets end + result, merges telemetry', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	s.flightTelemetry = { durationS: 40, distanceM: 100, maxSpeedMs: 12, maxRateDps: 200, maxAltitudeM: 8 };
 	const done = closeSession(s, {
@@ -105,32 +109,32 @@ t('closeSession : pose end + result, fusionne la télémétrie', () => {
 	assert.equal(done.flightTelemetry.durationS, 50);
 	assert.equal(done.flightTelemetry.maxSpeedMs, 30);
 	assert.equal(done.flightTelemetry.maxAltitudeM, 40);
-	assert.throws(() => closeSession(s, { result: 'PENDING' }), /verdict invalide/);
+	assert.throws(() => closeSession(s, { result: 'PENDING' }), /invalid verdict/);
 });
 
-// L'atterrissage a disparu (D9, 2026-09-08) : un vol ne produit plus que
-// CRASHED, et une session close ne se rouvre pas. Les fichiers écrits avant
-// portent LANDED — ils doivent continuer à passer la validation, s'annoter et
-// se relire, sans migration ni bump de SESSION_SCHEMA_VERSION.
-t('SESSION_RESULTS : plus de LANDED produit, mais un LANDED stocké reste valide', () => {
+// Landing disappeared (D9, 2026-09-08): a flight now only ever produces
+// CRASHED, and a closed session does not reopen. Files written before that
+// carry LANDED — they must keep passing validation, accepting an annotation
+// and reading back, with no migration and no SESSION_SCHEMA_VERSION bump.
+t('SESSION_RESULTS: LANDED is no longer produced, but a stored LANDED stays valid', () => {
 	assert.deepEqual(SESSION_RESULTS, ['PENDING', 'CRASHED']);
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
-	assert.throws(() => closeSession(s, { result: 'LANDED' }), /verdict invalide/);
+	assert.throws(() => closeSession(s, { result: 'LANDED' }), /invalid verdict/);
 	const legacy = { ...s, result: 'LANDED', end: new Date().toISOString() };
 	assert.doesNotThrow(() => validateSession(legacy));
-	assert.equal(annotateSession(legacy, 'vieux vol').result, 'LANDED');
+	assert.equal(annotateSession(legacy, 'old flight').result, 'LANDED');
 });
 
-t('validateSession : rejette id, result, weatherSnapshot, télémétrie non valides', () => {
+t('validateSession: rejects an invalid id, result, weatherSnapshot, telemetry', () => {
 	const good = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
-	assert.throws(() => validateSession({ ...good, id: 'PAS BON' }), /id de session invalide/);
-	assert.throws(() => validateSession({ ...good, result: 'MEH' }), /result inconnu/);
-	assert.throws(() => validateSession({ ...good, weatherSnapshot: { zone: 'x' } }), /sans jour/);
-	assert.throws(() => validateSession({ ...good, flightTelemetry: { ...good.flightTelemetry, maxSpeedMs: -1 } }), /invalide/);
-	assert.throws(() => validateSession({ ...good, result: 'LANDED', end: null }), /sans end/);
+	assert.throws(() => validateSession({ ...good, id: 'PAS BON' }), /invalid session id/);
+	assert.throws(() => validateSession({ ...good, result: 'MEH' }), /unknown result/);
+	assert.throws(() => validateSession({ ...good, weatherSnapshot: { zone: 'x' } }), /has no day/);
+	assert.throws(() => validateSession({ ...good, flightTelemetry: { ...good.flightTelemetry, maxSpeedMs: -1 } }), /invalid/);
+	assert.throws(() => validateSession({ ...good, result: 'LANDED', end: null }), /without end/);
 });
 
-t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => {
+t('reconcileStaleSessions: an old PENDING -> CRASHED, a terminal one untouched', () => {
 	const old = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	old.start = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 	const fresh = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
@@ -142,7 +146,7 @@ t('reconcileStaleSessions : PENDING ancien → CRASHED, terminal intact', () => 
 	assert.equal(changed, true);
 	assert.equal(state.sessions[0].result, 'CRASHED');
 	assert.ok(state.sessions[0].end);
-	assert.equal(state.sessions[1].result, 'PENDING'); // trop récente
+	assert.equal(state.sessions[1].result, 'PENDING'); // too recent
 	assert.ok(state.sessions[2].end);
 
 	const stable = reconcileStaleSessions({ sessions: [fresh, closed] });
@@ -158,7 +162,7 @@ const GOOD_TARGET = {
 	intel: { location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL', video: 'KNOWN', control: 'UNKNOWN', flightState: 'UNKNOWN' },
 };
 
-t('openSession : porte une cible validée, gardée à la clôture, null si absente', () => {
+t('openSession: carries a validated target, kept at close, null if absent', () => {
 	const s = openSession({ seq: 1, targetSeq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null, target: GOOD_TARGET });
 	assert.equal(s.target.family, GOOD_TARGET.family);
 	assert.equal(s.target.hackType, HACK_TYPES[0]);
@@ -170,19 +174,19 @@ t('openSession : porte une cible validée, gardée à la clôture, null si absen
 	assert.equal(noTarget.target, null);
 });
 
-t('sanitizeTarget : rejette famille inconnue et rssi positif ; validateSession re-vérifie', () => {
+t('sanitizeTarget: rejects an unknown family and a positive rssi; validateSession re-checks', () => {
 	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { family: 'not-a-family', signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} },
-	}), /famille de cible inconnue/);
+	}), /unknown target family/);
 	const bad = {
 		...openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null }),
 		target: { family: TARGET_FAMILIES[0], signal: { rssiDbm: 5, mode: 'ANALOG' }, intel: {} },
 	};
-	assert.throws(() => validateSession(bad), /rssiDbm invalide/);
+	assert.throws(() => validateSession(bad), /invalid target\.signal\.rssiDbm/);
 });
 
-t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent toléré', () => {
+t('sanitizeTarget: hackType — a valid one is kept, an unknown one rejected, an absent one tolerated', () => {
 	const base = { family: TARGET_FAMILIES[0], signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} };
 
 	const withHack = openSession({ seq: 1, targetSeq: 1,
@@ -200,18 +204,18 @@ t('sanitizeTarget : hackType — valide conservé, inconnu rejeté, absent tolé
 	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'NOPE' },
-	}), /hackType de cible inconnu/);
+	}), /unknown target hackType/);
 });
 
-t('sanitizeTarget : garde scan {seed,count,index} et rejette une forme fausse', () => {
+t('sanitizeTarget: keeps scan {seed,count,index} and rejects a wrong shape', () => {
 	const scan = generateTargetScan({ seed: 'keep-me', count: 3, swarmChance: 0 });
 	const kept = sanitizeTarget(resolveTarget(scan, 1));
-	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1, swarmAt: null, swarmChance: 0 });
-	// Session v1 : pas de scan → null, pas d'erreur.
+	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1, swarmAt: null, swarmChance: 0, families: TARGET_FAMILIES });
+	// A v1 session: no scan -> null, no error.
 	const v1 = { ...resolveTarget(scan, 1) };
 	delete v1.scan;
 	assert.equal(sanitizeTarget(v1).scan, null);
-	// Formes fausses.
+	// Wrong shapes.
 	for (const bad of [
 		{ seed: '', count: 3, index: 1 },
 		{ seed: 'x', count: 1, index: 0 },
@@ -224,34 +228,50 @@ t('sanitizeTarget : garde scan {seed,count,index} et rejette une forme fausse', 
 	}
 });
 
-t('schéma de session : version 3', () => {
+t('sanitizeTarget: keeps the clearance pool of the scan (scan.families), drops a bad one', () => {
+	for (const level of [1, 2, 3]) {
+		const families = familiesFor(level);
+		const scan = generateTargetScan({ seed: `pool-${level}`, count: 3, swarmChance: 0, families });
+		const s = openSession({ seq: 1, targetSeq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil',
+			weatherSnapshot: null, target: resolveTarget(scan, 0) });
+		assert.deepEqual(s.target.scan.families, familiesFor(level), `level ${level}`);
+		assert.deepEqual(validateSession(s).target.scan.families, familiesFor(level));
+	}
+	const base = resolveTarget(generateTargetScan({ seed: 'pool-bad', count: 3, swarmChance: 0 }), 0);
+	for (const bad of [[], ['nope'], [TARGET_FAMILIES[0], SWARM_FAMILY], 'freestyle5', 42, null]) {
+		const kept = sanitizeTarget({ ...base, scan: { ...base.scan, families: bad } });
+		assert.equal('families' in kept.scan, false, JSON.stringify(bad));
+	}
+});
+
+t('session schema: version 3', () => {
 	assert.equal(SESSION_SCHEMA_VERSION, 3);
 });
 
-// --- l'essaim (issue #29)
+// --- the swarm (issue #29)
 
-t('sanitizeTarget : garde swarm et scan.swarmAt/swarmChance en v3', () => {
+t('sanitizeTarget: keeps swarm and scan.swarmAt/swarmChance in v3', () => {
 	const scan = generateTargetScan({ seed: 'swarm-keep', count: 4, swarmChance: 1 });
 	const kept = sanitizeTarget(resolveTarget(scan, 0));
-	assert.equal(kept.family, SWARM_FAMILY, 'swarmNode est autorisée hors TARGET_FAMILIES');
+	assert.equal(kept.family, SWARM_FAMILY, 'swarmNode is allowed outside TARGET_FAMILIES');
 	assert.equal(kept.swarm.size, scan.candidates[0]._swarm.size);
 	assert.equal(kept.swarm.doctrineSeed, scan.candidates[0]._swarm.doctrineSeed);
-	assert.deepEqual(kept.scan, { seed: 'swarm-keep', count: 4, index: 0, swarmAt: 0, swarmChance: 1 });
-	// Et le scan se rejoue à l'identique depuis ce qui a été gardé.
+	assert.deepEqual(kept.scan, { seed: 'swarm-keep', count: 4, index: 0, swarmAt: 0, swarmChance: 1, families: TARGET_FAMILIES });
+	// And the scan replays identically from what was kept.
 	const replay = generateTargetScan({
 		seed: kept.scan.seed, count: kept.scan.count,
 		swarmChance: kept.scan.swarmChance, swarmAt: kept.scan.swarmAt,
 	});
 	assert.deepEqual(replay.candidates, scan.candidates);
-	// Aller-retour : ce que sanitizeTarget rend se relit sans perte.
+	// Round trip: what sanitizeTarget renders reads back with no loss.
 	assert.deepEqual(sanitizeTarget(kept), kept);
 });
 
-t('sanitizeTarget : swarmNode reste hors du tirage ordinaire', () => {
+t('sanitizeTarget: swarmNode stays outside the ordinary draw', () => {
 	assert.equal(TARGET_FAMILIES.includes(SWARM_FAMILY), false);
 });
 
-t('sanitizeTarget : formes fausses de swarm et des clés v3', () => {
+t('sanitizeTarget: wrong shapes of swarm and of the v3 keys', () => {
 	const scan = generateTargetScan({ seed: 'swarm-bad', count: 4, swarmChance: 1 });
 	const good = resolveTarget(scan, 0);
 	for (const bad of [
@@ -274,9 +294,9 @@ t('sanitizeTarget : formes fausses de swarm et des clés v3', () => {
 	}
 });
 
-t('une session v2 reprise n\'a pas d\'essaim et se relit sans erreur', () => {
-	// Ce qu'un fichier écrit avant l'essaim contient : ni `swarm`, ni les deux
-	// clés du scan. Pas de migration — comme une session v1 sans ambiants.
+t('a resumed v2 session carries no swarm and reads back with no error', () => {
+	// What a file written before the swarm existed contains: neither `swarm`,
+	// nor the scan's two keys. No migration — like a v1 session with no ambients.
 	const scan = generateTargetScan({ seed: 'v2-target', count: 3, swarmChance: 0 });
 	const v2 = resolveTarget(scan, 1);
 	delete v2.swarm;
@@ -285,7 +305,7 @@ t('une session v2 reprise n\'a pas d\'essaim et se relit sans erreur', () => {
 	const kept = sanitizeTarget(v2);
 	assert.equal(kept.swarm, null);
 	assert.equal(kept.scan.swarmAt, null);
-	assert.equal(kept.scan.swarmChance, 0, 'un scan v2 se rejoue sans essaim');
+	assert.equal(kept.scan.swarmChance, 0, 'a v2 scan replays with no swarm');
 	const s = validateSession(openSession({
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: v2, seq: 1, targetSeq: 1,
@@ -293,7 +313,7 @@ t('une session v2 reprise n\'a pas d\'essaim et se relit sans erreur', () => {
 	assert.equal(s.target.swarm, null);
 });
 
-t('validateSession : rejette un essaim malformé sur une session par ailleurs valide', () => {
+t('validateSession: rejects a malformed swarm on an otherwise valid session', () => {
 	const scan = generateTargetScan({ seed: 'v3-validate', count: 4, swarmChance: 1 });
 	const s = openSession({
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
@@ -303,30 +323,30 @@ t('validateSession : rejette un essaim malformé sur une session par ailleurs va
 	assert.throws(() => validateSession({ ...s, target: { ...s.target, swarm: { size: 99, doctrineSeed: 'd' } } }),
 		/target\.swarm\.size/);
 	assert.throws(() => validateSession({ ...s, target: { ...s.target, family: 'nope' } }),
-		/famille de cible inconnue/);
+		/unknown target family/);
 });
 
-t('sanitizeComment : vide/blanc -> null, coupe les espaces, plafonne la longueur', () => {
+t('sanitizeComment: empty/blank -> null, trims spaces, caps the length', () => {
 	assert.equal(sanitizeComment(null), null);
 	assert.equal(sanitizeComment(''), null);
 	assert.equal(sanitizeComment('   '), null);
 	assert.equal(sanitizeComment('  ras, cible calme  '), 'ras, cible calme');
 	assert.throws(() => sanitizeComment('x'.repeat(401)), /COMMENT TOO LONG/);
-	assert.throws(() => sanitizeComment(42), /comment invalide/);
+	assert.throws(() => sanitizeComment(42), /invalid comment/);
 });
 
-t('annotateSession : peut annoter une session déjà close (pas de restriction PENDING)', () => {
+t('annotateSession: can annotate an already-closed session (no PENDING restriction)', () => {
 	const opened = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null });
 	const closed = closeSession(opened, { result: 'CRASHED', telemetry: freshTelemetry() });
-	const noted = annotateSession(closed, 'perdue contre une façade');
-	assert.equal(noted.comment, 'perdue contre une façade');
-	assert.equal(noted.result, 'CRASHED'); // pas touché
+	const noted = annotateSession(closed, 'lost against a facade');
+	assert.equal(noted.comment, 'lost against a facade');
+	assert.equal(noted.result, 'CRASHED'); // untouched
 	assert.doesNotThrow(() => validateSession(noted));
 });
 
 const GOOD_PHOTO = { dataUrl: 'data:image/jpeg;base64,/9j/AAA=', w: 480, h: 360 };
 
-t('sanitizePhoto : forme connue gardée, ts posé par le serveur (ignore celui du client)', () => {
+t('sanitizePhoto: known shape kept, ts set by the server (ignores the client\'s)', () => {
 	const p = sanitizePhoto({ ...GOOD_PHOTO, ts: '2000-01-01T00:00:00.000Z', extra: 'x' });
 	assert.equal(p.dataUrl, GOOD_PHOTO.dataUrl);
 	assert.equal(p.w, 480);
@@ -335,18 +355,18 @@ t('sanitizePhoto : forme connue gardée, ts posé par le serveur (ignore celui d
 	assert.ok(new Date(p.ts).toISOString() === p.ts);
 });
 
-t('sanitizePhoto : rejette dataUrl absente/non-image, w/h non entiers ou <= 0', () => {
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: undefined }), /dataUrl invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: 'not-a-data-url' }), /dataUrl invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 0 }), /w invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 4.5 }), /w invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, h: -1 }), /h invalide/);
+t('sanitizePhoto: rejects a missing/non-image dataUrl, a non-integer or <= 0 w/h', () => {
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: undefined }), /invalid photo\.dataUrl/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: 'not-a-data-url' }), /invalid photo\.dataUrl/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 0 }), /invalid photo\.w/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 4.5 }), /invalid photo\.w/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, h: -1 }), /invalid photo\.h/);
 });
 
-t('addPhoto : ajoute au tableau existant sans le muter, plusieurs captures par session', () => {
+t('addPhoto: appends to the existing array without mutating it, several captures per session', () => {
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	const s1 = addPhoto(s, GOOD_PHOTO);
-	assert.deepEqual(s.photos, []); // pas de mutation de l'original
+	assert.deepEqual(s.photos, []); // no mutation of the original
 	assert.equal(s1.photos.length, 1);
 	const s2 = addPhoto(s1, { ...GOOD_PHOTO, w: 640, h: 480 });
 	assert.equal(s2.photos.length, 2);
@@ -355,7 +375,7 @@ t('addPhoto : ajoute au tableau existant sans le muter, plusieurs captures par s
 	assert.doesNotThrow(() => validateSession(s2));
 });
 
-t('validateSession : rejette une session dont un élément de photos[] est malformé', () => {
+t('validateSession: rejects a session whose photos[] has a malformed element', () => {
 	const good = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
 	assert.throws(
 		() => validateSession({ ...good, photos: [{ w: 480, h: 360 }] }),
@@ -367,9 +387,9 @@ t('validateSession : rejette une session dont un élément de photos[] est malfo
 	);
 });
 
-// --- PHASE 17 : numéros d'affichage, élision des captures, suppression ------
+// --- PHASE 17: display numbers, capture elision, deletion ------
 
-t('openSession : pose seq et targetSeq tels que le serveur les attribue', () => {
+t('openSession: sets seq and targetSeq exactly as the server assigns them', () => {
 	const s = openSession({
 		operatorId: 'neo-3f9c', area: 'tokyo', weatherSnapshot: null,
 		target: null, seq: 421, targetSeq: null,
@@ -379,14 +399,14 @@ t('openSession : pose seq et targetSeq tels que le serveur les attribue', () => 
 	validateSession(s);
 });
 
-t('validateSession : exige un seq entier >= 1', () => {
+t('validateSession: requires an integer seq >= 1', () => {
 	const good = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
 	assert.throws(() => validateSession({ ...good, seq: 0 }), /seq/);
 	assert.throws(() => validateSession({ ...good, seq: 1.5 }), /seq/);
 	assert.throws(() => validateSession({ ...good, seq: undefined }), /seq/);
 });
 
-t('validateSession : targetSeq obligatoire avec une cible, absent sans', () => {
+t('validateSession: targetSeq is mandatory with a target, absent without one', () => {
 	const scan = generateTargetScan({ seed: 'seq-seed', count: 3 });
 	const target = resolveTarget(scan, 1);
 	const withT = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, target, seq: 2, targetSeq: 7 });
@@ -397,7 +417,7 @@ t('validateSession : targetSeq obligatoire avec une cible, absent sans', () => {
 	assert.throws(() => validateSession({ ...noT, targetSeq: 4 }), /targetSeq/);
 });
 
-t('stripPhotoData : retire dataUrl, garde w/h/ts, ne mute pas l original', () => {
+t('stripPhotoData: removes dataUrl, keeps w/h/ts, does not mutate the original', () => {
 	const s = addPhoto(
 		openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 }),
 		{ dataUrl: 'data:image/jpeg;base64,AAA=', w: 480, h: 360 },
@@ -408,15 +428,15 @@ t('stripPhotoData : retire dataUrl, garde w/h/ts, ne mute pas l original', () =>
 	assert.equal(light.photos[0].h, 360);
 	assert.equal(typeof light.photos[0].ts, 'string');
 	assert.equal(s.photos[0].dataUrl, 'data:image/jpeg;base64,AAA=');
-	// Une session elidee est un FORMAT DE FIL, pas un etat persistable : elle ne
-	// repasse jamais par validateSession, qui exige a raison une dataUrl sur
-	// chaque capture. L'elision n'a lieu que dans les `json(res, ...)`, apres
-	// `_writeOperator` — jamais avant une ecriture disque. On asserte donc
-	// l'echec, pour que ce sens de lecture reste ecrit quelque part.
+	// An elided session is a WIRE FORMAT, not persistable state: it never goes
+	// back through validateSession, which rightly requires a dataUrl on every
+	// capture. Elision only happens in the `json(res, ...)` calls, AFTER
+	// `_writeOperator` — never before a disk write. The failure is therefore
+	// asserted, so this direction stays written down somewhere.
 	assert.throws(() => validateSession(light), /dataUrl/);
 });
 
-t('stripOperatorPhotoData : elide toutes les sessions d un etat', () => {
+t('stripOperatorPhotoData: elides every session of a state', () => {
 	const s = addPhoto(
 		openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 }),
 		{ dataUrl: 'data:image/png;base64,BBB=', w: 8, h: 8 },
@@ -426,7 +446,7 @@ t('stripOperatorPhotoData : elide toutes les sessions d un etat', () => {
 	assert.equal(s.photos[0].dataUrl, 'data:image/png;base64,BBB=');
 });
 
-t('deleteSession : retire l entree, ne touche a rien d autre', () => {
+t('deleteSession: removes the entry, touches nothing else', () => {
 	const a = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
 	const b = openSession({ operatorId: 'op', area: 'lviv', weatherSnapshot: null, seq: 2 });
 	const state = {
@@ -436,12 +456,12 @@ t('deleteSession : retire l entree, ne touche a rien d autre', () => {
 	const out = deleteSession(state, state.sessions[0].id);
 	assert.equal(out.sessions.length, 1);
 	assert.equal(out.sessions[0].area, 'lviv');
-	// Les compteurs ne reculent pas : un numero ne se recycle pas (spec D2).
+	// Counters never move back: a number is never recycled (spec D2).
 	assert.equal(out.sessionSeq, 2);
-	assert.equal(state.sessions.length, 2); // pas de mutation
+	assert.equal(state.sessions.length, 2); // no mutation
 });
 
-t('deleteSession : 404 sur inconnue, 409 sur une session encore PENDING', () => {
+t('deleteSession: 404 on unknown, 409 on a session still PENDING', () => {
 	const p = openSession({ operatorId: 'op', area: 'kyiv', weatherSnapshot: null, seq: 1 });
 	const state = { id: 'op', sessions: [p] };
 	assert.throws(() => deleteSession(state, 'nexiste-pas-0000'), (e) => e.status === 404);
@@ -450,19 +470,19 @@ t('deleteSession : 404 sur inconnue, 409 sur une session encore PENDING', () => 
 
 // --- migration v1 -> v2 -> v3 -----------------------------------------------
 
-t('SCHEMA_VERSION vaut 3', () => {
-	// v3 : le CONTROL VECTOR est retiré du jeu et sa clé part à la migration (#33).
+t('SCHEMA_VERSION is 3', () => {
+	// v3: the CONTROL VECTOR is removed from the game and its key leaves at migration (#33).
 	assert.equal(SCHEMA_VERSION, 3);
 });
 
-t('freshState : deux compteurs a zero, plus de cle targetLog', () => {
+t('freshState: two counters at zero, no more targetLog key', () => {
 	const s = freshState({ id: 'neo-0000', name: 'neo' });
 	assert.equal(s.sessionSeq, 0);
 	assert.equal(s.targetSeq, 0);
 	assert.equal('targetLog' in s, false);
 });
 
-t('migrate v1 -> v3 : backfill des numeros dans l ordre, targetLog retire', () => {
+t('migrate v1 -> v3: backfills the numbers in order, targetLog removed', () => {
 	const scan = generateTargetScan({ seed: 'mig-seed', count: 3 });
 	const withTarget = resolveTarget(scan, 0);
 	const v1 = {
@@ -479,7 +499,7 @@ t('migrate v1 -> v3 : backfill des numeros dans l ordre, targetLog retire', () =
 	assert.equal(m.schemaVersion, 3);
 	assert.equal('targetLog' in m, false);
 	assert.deepEqual(m.sessions.map((s) => s.seq), [1, 2, 3]);
-	// Seules les sessions avec cible consomment un numero de cible.
+	// Only sessions with a target consume a target number.
 	assert.equal(m.sessions[0].targetSeq, undefined);
 	assert.equal(m.sessions[1].targetSeq, 1);
 	assert.equal(m.sessions[2].targetSeq, 2);
@@ -487,7 +507,7 @@ t('migrate v1 -> v3 : backfill des numeros dans l ordre, targetLog retire', () =
 	assert.equal(m.targetSeq, 2);
 });
 
-t('migrate : idempotent — repasser un etat v2 ne renumerote rien', () => {
+t('migrate: idempotent — running a v2 state through again renumbers nothing', () => {
 	const scan = generateTargetScan({ seed: 'mig-seed-2', count: 3 });
 	const v1 = {
 		schemaVersion: 1, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
@@ -505,9 +525,9 @@ t('migrate : idempotent — repasser un etat v2 ne renumerote rien', () => {
 	assert.equal(twice.targetSeq, once.targetSeq);
 });
 
-t('migrate : un trou de numerotation survit a la relecture', () => {
-	// Ce que devient un fichier v2 apres DELETE de la session 2 : les numeros
-	// restants ne bougent pas, et les compteurs ne reculent pas.
+t('migrate: a numbering gap survives a reread', () => {
+	// What a v2 file becomes after DELETing session 2: the remaining numbers do
+	// not move, and the counters never move back.
 	const v2 = {
 		schemaVersion: 2, id: 'neo-0000', name: 'neo', createdAt: '2026-01-01T00:00:00.000Z',
 		settings: {}, terrainCache: [], worldState: {},
@@ -523,10 +543,10 @@ t('migrate : un trou de numerotation survit a la relecture', () => {
 });
 
 // ---------------------------------------------------------------------------
-// src/session.js — agrégateur client, fetch stubbé
+// src/session.js — client-side aggregator, fetch stubbed
 
-// `trackFails` : la piste (issue #24) est la seule écriture dont l'échec doit
-// être avalé — les tests s'en servent pour vérifier que la session survit.
+// `trackFails`: the track (issue #24) is the only write whose failure must be
+// swallowed — the tests use it to check the session survives.
 function stubOperator(calls, { trackFails = false } = {}) {
 	op._setStore({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 	op._setFetch(async (url, init = {}) => {
@@ -539,9 +559,9 @@ function stubOperator(calls, { trackFails = false } = {}) {
 		if (method === 'POST' && /\/sessions$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: 'PENDING' } });
 		}
-		// La piste (issue #24) : un PUT dédié, jamais une clé opérateur.
+		// The track (issue #24): a dedicated PUT, never an operator key.
 		if (/\/sessions\/[^/]+\/track$/.test(url)) {
-			if (trackFails) return { ok: false, status: 500, json: async () => ({ error: 'disque plein' }) };
+			if (trackFails) return { ok: false, status: 500, json: async () => ({ error: 'disk full' }) };
 			return json({ sessionId: 'paris-0000', n: body.n, truncated: body.truncated });
 		}
 		if (/\/sessions\/[^/]+\/photos$/.test(url)) {
@@ -551,26 +571,26 @@ function stubOperator(calls, { trackFails = false } = {}) {
 		if (/\/sessions\/[^/]+$/.test(url)) {
 			return json({ session: { id: 'paris-0000', result: body.result, flightTelemetry: body.telemetry } });
 		}
-		// La couverture (issue #245) : PATCH de la clé opérateur à la clôture.
+		// Coverage (issue #245): a PATCH of the operator key at close.
 		if (method === 'PATCH' && /\/__operator\/[^/]+$/.test(url)) {
 			calls._operator = { ...(calls._operator ?? {}), [body.key]: body.value };
 			return json({ operator: { id: 'neo-0000', ...calls._operator } });
 		}
-		throw new Error(`fetch non stubbé : ${method} ${url}`);
+		throw new Error(`unstubbed fetch: ${method} ${url}`);
 	});
 }
 const json = (obj) => ({ ok: true, status: 200, json: async () => obj });
 
-await ta('feed n\'accumule durée/distance que si armed ; open+end = 1 POST + 1 PATCH', async () => {
+await ta('feed only accumulates duration/distance if armed; open+end = 1 POST + 1 PATCH', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
-	// désarmé : rien ne compte, pas même les pics (rebond au sol de la sphère)
+	// disarmed: nothing counts, not even the peaks (the sphere bouncing on the ground)
 	session.feed({ speed: 999, horizontalSpeed: 999, rateDps: 9999, altitudeAboveSpawn: 999, dt: 1, armed: false });
-	// armé : tout compte
+	// armed: everything counts
 	session.feed({ speed: 20, horizontalSpeed: 15, rateDps: 300, altitudeAboveSpawn: 40, dt: 2, armed: true });
 	session.feed({ speed: 12, horizontalSpeed: 10, rateDps: 250, altitudeAboveSpawn: 18, dt: 1, armed: true });
 
@@ -582,113 +602,113 @@ await ta('feed n\'accumule durée/distance que si armed ; open+end = 1 POST + 1 
 	assert.equal(patches.length, 1);
 	const tel = patches[0].body.telemetry;
 	assert.equal(patches[0].body.result, 'CRASHED');
-	assert.equal(tel.durationS, 3);           // 2 + 1, pas le pas désarmé
+	assert.equal(tel.durationS, 3);           // 2 + 1, not the disarmed step
 	assert.equal(tel.distanceM, 40);          // 15*2 + 10*1
 	assert.equal(tel.maxSpeedMs, 20);
 	assert.equal(tel.maxRateDps, 300);
 	assert.equal(tel.maxAltitudeM, 40);
 
-	// end est idempotent : un second verdict ne repart pas sur le réseau
+	// end is idempotent: a second verdict does not go back over the network
 	await session.end('CRASHED');
 	assert.equal(calls.filter((c) => /\/sessions\//.test(c.url)).length, 1);
 });
 
 // ---------------------------------------------------------------------------
-// La couverture (issue #245) : accumulée à 5 Hz en mémoire, écrite UNE fois.
+// Coverage (issue #245): accumulated at 5 Hz in memory, written ONCE.
 
 const EIFFEL = { lat: 48.8584, lon: 2.2945 };
 
-await ta('couverture : rien n\'est écrit pendant le vol, une seule écriture à la clôture', async () => {
+await ta('coverage: nothing is written during the flight, one single write at close', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 
-	// Une seconde de vol armé à 60 Hz, position fixe : 5 échantillons attendus.
+	// One second of armed flight at 60 Hz, fixed position: 5 samples expected.
 	let geoCalls = 0;
 	const geo = () => { geoCalls++; return EIFFEL; };
 	for (let i = 0; i < 60; i++) {
 		session.feed({ speed: 1, horizontalSpeed: 1, rateDps: 0, altitudeAboveSpawn: 5, dt: 1 / 60, armed: true, geo });
 	}
-	assert.equal(geoCalls, 5, 'geo() n\'est appelée qu\'aux échantillons, pas à chaque frame');
-	assert.ok(session.coverage().size >= 4, 'la couverture de la session a des cellules');
+	assert.equal(geoCalls, 5, 'geo() is only called at samples, not every frame');
+	assert.ok(session.coverage().size >= 4, 'the session\'s coverage has cells');
 	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
-		'aucune écriture opérateur pendant le vol');
+		'no operator write during the flight');
 
 	await session.end('CRASHED');
 	await op.flush();
 	const patches = calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
-	assert.equal(patches.length, 1, 'une seule écriture, à la clôture');
+	assert.equal(patches.length, 1, 'a single write, at close');
 	assert.equal(patches[0].body.key, 'coverage');
 	const stored = patches[0].body.value;
 	assert.equal(stored.v, 1);
 	assert.equal(stored.z, 20);
 	assert.ok(stored.cells.length >= 4);
-	// Le poids : 5 échantillons au même endroit → 5 sur la cellule du point.
+	// The weight: 5 samples at the same spot -> 5 on that point's cell.
 	const centre = stored.cells.find(([x, y]) => x === 530971 && y === 360731);
-	assert.ok(centre, 'la cellule de la Tour Eiffel est écrite');
+	assert.ok(centre, 'the Eiffel Tower\'s cell is written');
 	assert.equal(centre[2], 5);
 });
 
-await ta('couverture : désarmé ou gelé, on n\'échantillonne pas ; geo non fini ignoré', async () => {
+await ta('coverage: disarmed or frozen, no sampling; a non-finite geo is ignored', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 60; i++) {
-		session.feed({ dt: 1 / 60, armed: false, geo: () => EIFFEL });   // posé
-		session.feed({ dt: 0, armed: true, geo: () => EIFFEL });          // gelé
+		session.feed({ dt: 1 / 60, armed: false, geo: () => EIFFEL });   // parked
+		session.feed({ dt: 0, armed: true, geo: () => EIFFEL });          // frozen
 	}
 	assert.equal(session.coverage().size, 0);
 	for (let i = 0; i < 60; i++) {
 		session.feed({ dt: 1 / 60, armed: true, geo: () => ({ lat: NaN, lon: 2 }) });
 	}
-	assert.equal(session.coverage().size, 0, 'une position dégénérée ne marque rien');
+	assert.equal(session.coverage().size, 0, 'a degenerate position marks nothing');
 	await session.end('CRASHED');
 	await op.flush();
 	assert.equal(calls.filter((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url)).length, 0,
-		'une session qui n\'a rien marqué n\'écrit pas la clé');
+		'a session that marked nothing does not write the key');
 });
 
-await ta('couverture : la clôture FUSIONNE avec ce que l\'opérateur avait déjà, puis borne', async () => {
+await ta('coverage: close MERGES with what the operator already had, then bounds it', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
-	// L'opérateur arrive avec une couverture antérieure : la Tour Eiffel à w=3.
+	// The operator arrives with prior coverage: the Eiffel Tower at w=3.
 	op.getOperator().coverage = { v: 1, z: 20, cells: [[530971, 360731, 3]] };
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 12; i++) {
-		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });   // 12 frames = 1 échantillon
+		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });   // 12 frames = 1 sample
 	}
 	await session.end('CRASHED');
 	await op.flush();
 	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
 	const centre = patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731);
-	assert.equal(centre[2], 4, '3 (avant) + 1 (cette session)');
-	// Et la clé est aussi à jour dans le cache client, sans attendre le réseau.
+	assert.equal(centre[2], 4, '3 (before) + 1 (this session)');
+	// And the key is also up to date in the client cache, with no need to wait for the network.
 	assert.equal(op.getOperator().coverage.cells.find(([x, y]) => x === 530971 && y === 360731)[2], 4);
 });
 
-await ta('couverture : une couverture opérateur corrompue n\'empêche pas la clôture', async () => {
+await ta('coverage: a corrupt operator coverage does not block the close', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
-	op.getOperator().coverage = 'n\'importe quoi';
+	op.getOperator().coverage = 'whatever';
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
 	const s = await session.end('CRASHED');
-	assert.ok(s, 'la session se ferme');
+	assert.ok(s, 'the session closes');
 	await op.flush();
 	const patch = calls.find((c) => c.method === 'PATCH' && /\/__operator\/[^/]+$/.test(c.url));
-	assert.ok(patch, 'et la couverture repart de la session seule');
+	assert.ok(patch, 'and coverage restarts from the session alone');
 	assert.equal(patch.body.value.cells.find(([x, y]) => x === 530971 && y === 360731)[2], 1);
 });
 
-await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex', async () => {
+await ta('open({ area, target }) sends targetSeed/targetCount/targetIndex', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -699,12 +719,12 @@ await ta('open({ area, target }) envoie targetSeed/targetCount/targetIndex', asy
 	assert.equal(post.body.targetSeed, 's');
 	assert.equal(post.body.targetCount, 4);
 	assert.equal(post.body.targetIndex, 1);
-	// #29 : la chance d'essaim voyage avec la cible — seul le client peut la
-	// calculer, et sans elle le serveur ne régénère pas le même scan.
-	assert.equal(post.body.swarmChance, undefined, 'absente quand l\'appelant n\'en donne pas');
+	// #29: the swarm chance travels with the target — only the client can
+	// compute it, and without it the server does not regenerate the same scan.
+	assert.equal(post.body.swarmChance, undefined, 'absent when the caller gives none');
 });
 
-await ta('open({ target: { swarmChance } }) transmet swarmChance au serveur', async () => {
+await ta('open({ target: { swarmChance } }) sends swarmChance to the server', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -714,7 +734,30 @@ await ta('open({ target: { swarmChance } }) transmet swarmChance au serveur', as
 	assert.equal(post.body.swarmChance, 1);
 });
 
-await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur local', async () => {
+await ta('open({ target: { clearance } }) sends clearance to the server (issue #185)', async () => {
+	// The server is the authority on the draw pool and the swarm gate: it
+	// recomputes both from `clearance` rather than trusting a client-supplied
+	// family list.
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 0, clearance: 2 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.clearance, 2);
+});
+
+await ta('open({ target }) with no clearance sends undefined (older/dev callers)', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 0 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.clearance, undefined);
+});
+
+await ta('capturePhoto: POST .../sessions/:sid/photos, increments the local counter', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -734,7 +777,7 @@ await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur 
 	assert.equal(n2, 2);
 });
 
-await ta('capturePhoto : sans session ouverte, ne fait rien et rend 0', async () => {
+await ta('capturePhoto: with no open session, does nothing and renders 0', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -747,19 +790,19 @@ await ta('capturePhoto : sans session ouverte, ne fait rien et rend 0', async ()
 console.log(`\n${n} tests session OK`);
 
 // ---------------------------------------------------------------------------
-// La piste de vol (issue #24) : accumulée à 5 Hz avec la couverture, écrite
-// UNE fois, après le PATCH de la session.
+// The flight track (issue #24): accumulated at 5 Hz alongside coverage,
+// written ONCE, after the session's PATCH.
 
 const trackPuts = (calls) => calls.filter((c) => c.method === 'PUT' && /\/track$/.test(c.url));
 
-await ta('piste : rien pendant le vol, un seul PUT à la clôture, APRÈS le PATCH', async () => {
+await ta('track: nothing during the flight, one single PUT at close, AFTER the PATCH', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 
-	// Deux secondes armées à 60 Hz : 10 échantillons attendus, comme la couverture.
+	// Two seconds armed at 60 Hz: 10 samples expected, same as coverage.
 	for (let i = 0; i < 120; i++) {
 		session.feed({
 			speed: 14, horizontalSpeed: 13, rateDps: 210, altitudeAboveSpawn: 32,
@@ -767,29 +810,29 @@ await ta('piste : rien pendant le vol, un seul PUT à la clôture, APRÈS le PAT
 		});
 	}
 	assert.equal(session.track().samples.length, 10);
-	assert.equal(trackPuts(calls).length, 0, 'aucune écriture de piste pendant le vol');
+	assert.equal(trackPuts(calls).length, 0, 'no track write during the flight');
 
 	await session.end('CRASHED');
 	const puts = trackPuts(calls);
-	assert.equal(puts.length, 1, 'une seule écriture');
-	// L'ordre compte : la piste a besoin d'une session existante côté serveur.
+	assert.equal(puts.length, 1, 'a single write');
+	// Order matters: the track needs an existing session server-side.
 	const patchAt = calls.findIndex((c) => c.method === 'PATCH' && /\/sessions\//.test(c.url));
-	assert.ok(patchAt >= 0 && calls.indexOf(puts[0]) > patchAt, 'la piste part après le PATCH');
+	assert.ok(patchAt >= 0 && calls.indexOf(puts[0]) > patchAt, 'the track leaves after the PATCH');
 
 	const back = decodeTrack(puts[0].body);
 	assert.equal(back.samples.length, 10);
 	assert.ok(Math.abs(back.samples[0].lat - EIFFEL.lat) < 1e-5);
-	assert.ok(Math.abs(back.samples[0].thr - 0.62) < 0.005, 'le throttle est enregistré');
+	assert.ok(Math.abs(back.samples[0].thr - 0.62) < 0.005, 'the throttle is recorded');
 	assert.ok(Math.abs(back.samples[0].rate - 210) < 0.5);
 	assert.ok(Math.abs(back.samples[0].alt - 32) < 0.05);
-	assert.ok(Math.abs(back.samples[9].t - 2) < 0.05, 'le temps court sur la frontière 5 Hz');
-	assert.ok(Math.abs(back.start.lat - EIFFEL.lat) < 1e-5, 'le point de JACK IN');
+	assert.ok(Math.abs(back.samples[9].t - 2) < 0.05, 'time runs across the 5 Hz boundary');
+	assert.ok(Math.abs(back.start.lat - EIFFEL.lat) < 1e-5, 'the JACK IN point');
 	assert.equal(back.end.result, 'CRASHED');
-	assert.ok(Math.abs(back.end.spd - 14) < 0.05, 'l\'état au moment où la liaison meurt');
+	assert.ok(Math.abs(back.end.spd - 14) < 0.05, 'the state at the moment the link dies');
 	assert.equal(back.truncated, false);
 });
 
-await ta('piste : désarmé ou gelé on n\'échantillonne pas ; sans échantillon, pas de PUT', async () => {
+await ta('track: disarmed or frozen, no sampling; with no sample, no PUT', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -801,16 +844,16 @@ await ta('piste : désarmé ou gelé on n\'échantillonne pas ; sans échantillo
 	}
 	assert.equal(session.track().samples.length, 0);
 	await session.end('CRASHED');
-	assert.equal(trackPuts(calls).length, 0, 'un vol qui n\'a rien enregistré n\'écrit pas de fichier');
+	assert.equal(trackPuts(calls).length, 0, 'a flight that recorded nothing writes no file');
 });
 
-await ta('piste : les captures sont géolocalisées à la prise, indexées sur photos[]', async () => {
+await ta('track: captures are geotagged when taken, indexed on photos[]', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
-	// Une capture AVANT le premier échantillon : elle existe, mais sans position.
+	// A capture BEFORE the first sample: it exists, but with no position.
 	await session.capturePhoto({ dataUrl: 'data:image/jpeg;base64,AA==', w: 4, h: 3 });
 	for (let i = 0; i < 12; i++) {
 		session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL, throttle: 0.5, headingDeg: 91.4 });
@@ -820,13 +863,13 @@ await ta('piste : les captures sont géolocalisées à la prise, indexées sur p
 	await session.end('CRASHED');
 
 	const back = decodeTrack(trackPuts(calls)[0].body);
-	assert.equal(back.photos.length, 1, 'seule la capture prise après un échantillon a une position');
-	assert.equal(back.photos[0].i, 1, 'l\'index pointe dans photos[]');
+	assert.equal(back.photos.length, 1, 'only the capture taken after a sample has a position');
+	assert.equal(back.photos[0].i, 1, 'the index points into photos[]');
 	assert.ok(Math.abs(back.photos[0].lat - EIFFEL.lat) < 1e-5);
 	assert.equal(back.photos[0].heading, 91);
 });
 
-await ta('piste : un échec d\'écriture est avalé, la session reste close', async () => {
+await ta('track: a write failure is swallowed, the session stays closed', async () => {
 	const calls = [];
 	stubOperator(calls, { trackFails: true });
 	await op.createOperator('neo');
@@ -834,12 +877,12 @@ await ta('piste : un échec d\'écriture est avalé, la session reste close', as
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
 	const s = await session.end('CRASHED');
-	assert.ok(s, 'perdre la piste ne coûte pas la session');
+	assert.ok(s, 'losing the track does not cost the session');
 	assert.equal(s.result, 'CRASHED');
-	assert.equal(trackPuts(calls).length, 1, 'tentée une fois, pas rejouée');
+	assert.equal(trackPuts(calls).length, 1, 'tried once, not replayed');
 });
 
-await ta('piste : la balise de secours reste sans piste (D4)', async () => {
+await ta('track: the fallback beacon carries no track (D4)', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
@@ -847,7 +890,7 @@ await ta('piste : la balise de secours reste sans piste (D4)', async () => {
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
 	for (let i = 0; i < 12; i++) session.feed({ dt: 1 / 60, armed: true, geo: () => EIFFEL });
 	const beacons = [];
-	// `navigator` n'est qu'un getter sous Node : on le redéfinit, et on le remet.
+	// `navigator` is only a getter under Node: it is redefined here, and put back.
 	const hadNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 	Object.defineProperty(globalThis, 'navigator', {
 		configurable: true,
@@ -859,7 +902,7 @@ await ta('piste : la balise de secours reste sans piste (D4)', async () => {
 		session.beacon('CRASHED');
 		assert.equal(beacons.length, 1);
 		assert.ok(!/track/.test(beacons[0].url));
-		assert.ok(!/"lat"/.test(beacons[0].blob.parts[0]), 'la balise ne porte que les agrégats');
+		assert.ok(!/"lat"/.test(beacons[0].blob.parts[0]), 'the beacon only carries the aggregates');
 		assert.equal(trackPuts(calls).length, 0);
 	} finally {
 		if (hadNav) Object.defineProperty(globalThis, 'navigator', hadNav);
@@ -868,13 +911,13 @@ await ta('piste : la balise de secours reste sans piste (D4)', async () => {
 	}
 });
 
-await ta('piste : le plafond MAX_SAMPLES borne la mémoire de l\'onglet et se déclare', async () => {
+await ta('track: the MAX_SAMPLES cap bounds the tab\'s memory and reports itself', async () => {
 	const calls = [];
 	stubOperator(calls);
 	await op.createOperator('neo');
 	session._reset();
 	await session.open({ area: 'paris', weatherSnapshot: WEATHER });
-	// Un pas de 0,2 s par appel : un échantillon par appel, sans tourner 60 Hz.
+	// A 0.2 s step per call: one sample per call, without spinning at 60 Hz.
 	for (let i = 0; i < MAX_SAMPLES + 20; i++) {
 		session.feed({ dt: 0.2, armed: true, geo: () => EIFFEL, throttle: 0.5 });
 	}

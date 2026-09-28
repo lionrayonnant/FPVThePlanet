@@ -36,7 +36,7 @@ html, body {
 
 canvas { display: block; }
 
-/* ---------- curseur de menu (issue #123) ---------- */
+/* ---------- menu cursor (issue #123) ---------- */
 /* Native focus IS the game's cursor (src/menu-nav.js): one truth for Tab,
    mouse, keyboard and gamepad. The system ring — blue, off-palette, different
    on every machine — disappears everywhere in favour of the ▌ marker (U+258C),
@@ -87,7 +87,7 @@ button:focus::before {
 	animation: cursor-blink var(--dur-blink) step-end infinite;
 }
 
-/* ---------- mouvement des menus (issue #224) ---------- */
+/* ---------- menu motion (issue #224) ---------- */
 /* Quiet by default (Bible §45): menus move like a terminal, not like a web
    page. A screen prints from top to bottom (src/motion.js stamps each block's
    delay), the cursor blinks, a pressed key inverts for a moment, a counter
@@ -329,6 +329,30 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	background: var(--scrim-soft);
 }
 
+/* Signals (#185): the one-shot centre notice at take-off and at a clearance
+   step — exactly #fo-hint's face, above the other centre lines. It fades over
+   its last half second (fpvtp-osd.js, opacity only). */
+#fo-notice {
+	position: absolute;
+	left: 50%;
+	top: 40%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+	white-space: nowrap;
+}
+#fo-notice .fo-notice-mark { color: var(--green); }
+/* The nearest open signal, one more line in the top-left block; yellow is
+   "watch it" (Bible §38). */
+#fo-next .fo-next-k { color: var(--yellow); }
+
 /* The HUD callout (issue #185, spec §4): anchored to landmarks, decrypting as
    the signal reveals. The callout never crosses the link — it is pure local OSD
    and does not degrade with video loss. */
@@ -346,7 +370,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal .hd .dist { color: var(--dim); }
 #fo-signal .gauge { display: flex; gap: var(--space-0); margin-block: var(--space-1); }
 #fo-signal .gauge i { flex: 1; height: 6px; background: var(--grey); }
-#fo-signal .rows .k { display: inline-block; width: 7.5em; color: var(--faint); }
+/* A long value (a scrambled name, a long landmark) wraps in its own column,
+   never back under the key. */
+#fo-signal .rows > div { display: flex; }
+#fo-signal .rows .k { flex: none; width: 7.5em; color: var(--faint); }
+#fo-signal .rows .v { min-width: 0; overflow-wrap: anywhere; }
 #fo-signal .rows .v[data-clear="false"] { color: var(--faint); font-family: var(--font-ascii); }
 #fo-signal[data-tone="orange"] .fo-signal-box { border-color: var(--orange); }
 #fo-signal[data-tone="orange"] .hd span:first-child { color: var(--orange); }
@@ -361,80 +389,91 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .fo-signal-chev[data-tone="orange"] { color: var(--orange); }
 .fo-signal-chev[data-tone="green"] { color: var(--green); }
 
-/* The UPLINKED card (issue #185, spec 2026-09-27-signals-lot2b, layout B):
-   ~6s of the intercepted frame next to the real place, in the right column —
-   the model is tools/signal-card-model.mjs, the DOM is src/signal-card.js. A
-   flow child of the top-right corner, under its last line, so it follows that
+/* The UPLINKED card (issue #185, mockup flight-da.html), in the terminal's
+   grammar: a hairline frame, square corners, the OSD's scrim and nothing else
+   filled; key/value lines in a <pre>; the timer is a green rule that shortens.
+   The model is tools/signal-card-model.mjs, the DOM src/signal-card.js. A flow
+   child of the top-right corner, under its last line, so it follows that
    corner at every screen height. It never takes the controls. */
 #fo-signal-card {
-	width: 250px;
+	/* Above the callout layer: an edge chevron or a callout pinned at the
+	   picture's right edge otherwise prints across the card. */
+	position: relative; z-index: 1;
+	width: 330px;
 	margin: var(--space-2) 0 0 auto;
+	padding: var(--space-2) var(--space-2) var(--space-2);
 	text-align: left;
 	pointer-events: none;
 	background: var(--scrim-soft);
-	border: 1px solid var(--green);
-	font: var(--fs-data) / 1.45 var(--font-ui);
+	border: 1px solid var(--rule-strong);
+	font: 500 var(--fs-data) / 1.6 var(--font-ui);
 	letter-spacing: var(--track-data);
 	color: var(--ink);
 }
-.signal-card-top {
-	display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
-	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
+.signal-card-hd {
+	display: flex; justify-content: space-between; gap: var(--space-2);
+	letter-spacing: var(--track-ui-tight); white-space: nowrap;
+}
+.signal-card-word { color: var(--green); }
+.signal-card-n { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+.signal-card-rule { height: 1px; background: var(--green); margin: var(--space-1) 0 var(--space-2); transform-origin: left; }
+.signal-card-ref { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.signal-card-name {
+	margin-top: var(--space-2);
+	/* The mockup's 12 px, snapped to the micro level: Departure Mono's 11 px grid. */
+	font: 400 var(--fs-micro) / 1.2 var(--font-display); letter-spacing: var(--track-display);
 	text-transform: uppercase;
-	padding: var(--space-1) var(--space-2);
-	border-bottom: 1px solid var(--rule);
-	white-space: nowrap;
 }
-.signal-card-top .signal-card-n { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
-.signal-card-imgs { display: grid; grid-template-columns: 1fr; gap: var(--space-1); padding: var(--space-1); }
-.signal-card-imgs figure { margin: 0; position: relative; }
-.signal-card-imgs img { display: block; width: 100%; object-fit: cover; background: var(--grey); }
-.signal-card-imgs figure:first-child img { aspect-ratio: 16 / 7; }
-.signal-card-imgs figure:last-child img { aspect-ratio: 4 / 3; }
-.signal-card-imgs figcaption {
-	position: absolute; left: var(--space-0); bottom: var(--space-0);
-	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui);
-	background: var(--scrim-soft); padding: 0 var(--space-1); color: var(--dim);
-}
-.signal-card-body { padding: var(--space-0) var(--space-2) var(--space-1); }
-.signal-card-name { font: 500 var(--fs-data) var(--font-ui); letter-spacing: var(--track-data); }
 .signal-card-desc {
-	color: var(--dim); font-size: var(--fs-micro);
-	margin: var(--space-0) 0 var(--space-1);
-	text-transform: uppercase; letter-spacing: var(--track-ui-tight);
+	margin: var(--space-0) 0 var(--space-2);
+	color: var(--dim); font-size: var(--fs-micro); line-height: 1.45;
+	text-transform: uppercase; letter-spacing: var(--track-data);
 }
-.signal-card-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
-.signal-card-facts span { display: flex; align-items: center; gap: var(--space-1); color: var(--ink); }
-.signal-card-pi { width: 13px; height: 13px; flex: none; color: var(--dim); image-rendering: pixelated; }
-.signal-card-credit { color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-data); padding: 0 var(--space-2) var(--space-1); }
-.signal-card-timer { height: 2px; background: var(--rule); margin: 0 var(--space-2) var(--space-1); }
-.signal-card-timer i { display: block; height: 100%; background: var(--green); }
+.signal-card-rows { margin: 0; font: inherit; color: var(--dim); white-space: pre; }
+.signal-card-rows b { color: var(--ink); font-weight: 500; }
+.signal-card-icpt {
+	display: flex; gap: var(--space-2); align-items: flex-end;
+	margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule);
+	color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-ui-tight); line-height: 1.4;
+}
+.signal-card-icpt img { display: block; width: 70px; aspect-ratio: 16 / 9; object-fit: cover; flex: none; }
+.signal-card-credit {
+	margin-top: var(--space-2);
+	color: var(--faint); font-size: var(--fs-micro); line-height: 1.4;
+	letter-spacing: var(--track-data); text-transform: uppercase;
+}
 
 /* The end-of-flight recap (src/flight-end.js's [SIGNALS] line): one strip,
    the title then a tile per uplink (frame + name), at most ~150px tall — the
    end screen also holds the portrait and the fingerprint, and [ENTER]
-   DISCONNECT must stay on screen. */
+   DISCONNECT must stay on screen. A hairline, square, unfilled. */
 .signal-recap {
-	border: 1px solid var(--rule); background: var(--dark-grey);
+	border: 1px solid var(--rule);
 	padding: var(--space-2) var(--space-3);
 	max-width: 90vw;
 }
 .signal-recap-hd {
-	font: var(--fs-data) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
+	font: var(--fs-data) var(--font-ui); letter-spacing: var(--track-ui); color: var(--ink);
 	text-transform: uppercase; margin-bottom: var(--space-2);
 }
+.signal-recap-mark { color: var(--green); }
 .signal-recap-row { display: flex; flex-wrap: nowrap; justify-content: center; gap: var(--space-2); overflow: hidden; }
 .signal-recap-tile {
 	flex: none; width: 120px;
 	font: var(--fs-micro) / 1.45 var(--font-ui); letter-spacing: var(--track-data);
 	color: var(--ink); text-transform: none; text-align: left;
 }
-.signal-recap-tile img { display: block; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; background: var(--grey); }
+.signal-recap-tile img { display: block; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; }
 .signal-recap-name { margin-top: var(--space-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .signal-recap-more {
 	width: auto; align-self: center; padding: 0 var(--space-2);
 	font: var(--fs-data) var(--font-ui); color: var(--dim);
 }
+
+/* The same line when the flight crossed a clearance step: the notice as its
+   title, then the hangar (compact) playing its reveal. */
+.signal-hangar { display: flex; flex-direction: column; align-items: center; max-width: 90vw; }
+.signal-hangar .hangar-compact { align-self: center; }
 
 /* End of flight (PHASE 14): not a death screen, a link going out. */
 #flight-end {
@@ -447,6 +486,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	pointer-events: none;
 }
 #flight-end div:empty { height: .6em; }
+/* `#flight-end div:empty` (the blank lines' height) would catch the hangar's
+   empty slots, floor and scan line: the same specificity, later, wins. */
+#flight-end div.hangar-stage { height: 64px; }
+#flight-end div.hangar-floor, #flight-end div.hangar-scan { height: 1px; }
 
 /* #57 — the lost machine's fingerprint, IN the flow, just under the 3D
    preview (#67): it is the same machine seen two ways, and reading it beside
@@ -473,6 +516,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    it is the column that overflows, never the width (19 columns, 250px). */
 @media (max-height: 820px) {
 	#flight-end .flight-end-art { font-size: var(--fs-micro); }
+	/* The hangar (a crossed clearance step) is ~50px taller than the recap
+	   strip it replaces: at 800px the title and [R] REDEPLOY left the screen. */
+	#flight-end:has(.signal-hangar) { gap: .2em; }
 }
 
 /* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
@@ -1283,6 +1329,16 @@ button.terminal-row:hover { background: var(--warm-white); color: var(--black); 
    it would be clipped by the overflow. */
 button.terminal-row:focus::before { left: 0; }
 
+/* The TARGET SCAN's clearance line (issue #185): information, not an
+   instruction — same DATA level and same faint tone as a footnote, one step
+   under the list it sits beneath. */
+.bootstrap-box pre.terminal-clearance-line {
+	margin: var(--space-2) 0 0;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	color: var(--faint);
+}
+
 /* ---------- session log (PHASE 17) ---------- */
 /* Thumbnails of a session's captures. A soft grid: a session's record must
    never force a horizontal scroll. Same restraint as the Home — no rounded
@@ -1316,6 +1372,145 @@ button.terminal-row:focus::before { left: 0; }
 /* The canvas takes the column and nothing else: its height is set in script,
    because that is where the graph decides how much room its axes need. */
 canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
+
+/* signals in DATA (issue #185, lot 3): the SIGNALS section and the capture
+   view (src/signals-data.js, mockup dossier-v3.html). The DATA grammar: mono
+   rows, underlined caps links, hairlines, no boxes. Green is "uplinked" and
+   nothing else. */
+.signals-places button.terminal-link { color: var(--dim); border-bottom-color: var(--rule); }
+.signals-places button.terminal-link.on { color: var(--ink); border-bottom-color: var(--ink); }
+.signals-list { display: flex; flex-direction: column; align-items: flex-start; }
+.signals-list > * { flex: none; }
+.bootstrap-box pre.signals-line {
+	/* The [+] rows' button padding: one row pitch down the whole list. */
+	padding: var(--space-0) 0 var(--space-0) 1.2em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	line-height: 1.6; letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre;
+}
+.bootstrap-box pre.signals-locked, .bootstrap-box pre.signals-more { color: var(--faint); }
+/* The scrambled name draws in Departure Mono (the block glyphs), whose advance
+   is 7/11 em against IBM Plex Mono's 0.6 em: tightened by the difference, its
+   28 columns end where a [+] row's do, and the right column lines up. */
+.signals-scrambled {
+	font-family: var(--font-ascii); color: var(--faint);
+	letter-spacing: calc(var(--track-data) - 0.0364em);
+}
+.signals-mark-up { color: var(--green); }
+button.signals-row:hover .signals-mark-up { color: inherit; }
+.bootstrap-box pre.signals-hint { color: var(--faint); margin-top: 0; }
+
+.terminal-capture .bootstrap-box { width: min(640px, 88vw); gap: var(--space-2); }
+/* FLY THERE · PREVIOUS · NEXT · BACK: one row at the column's width, down to
+   a 720 px window — tighter frames and gap than the screen default. */
+.terminal-capture .terminal-acts { flex-wrap: nowrap; gap: var(--space-2); }
+.terminal-capture .terminal-acts button { padding-inline: var(--space-3); white-space: nowrap; }
+.bootstrap-box pre.capture-title { white-space: pre-wrap; }
+.bootstrap-box pre.capture-foot { white-space: pre-wrap; margin: 0 0 var(--space-2); }
+/* The real place: the column's full width, 3:2, bare. */
+img.capture-ref {
+	display: block; width: 100%; aspect-ratio: 3 / 2;
+	object-fit: cover; background: var(--black);
+}
+.capture-credit {
+	font-family: var(--font-data); font-size: var(--fs-micro);
+	letter-spacing: var(--track-data); color: var(--faint);
+}
+a.capture-source {
+	color: var(--dim); text-decoration: none; white-space: nowrap;
+	border-bottom: var(--rule-w) solid var(--rule-strong);
+}
+a.capture-source:hover, a.capture-source:focus { background: var(--warm-white); color: var(--black); }
+.capture-sec {
+	border-top: var(--rule-w) solid var(--rule);
+	padding-top: var(--space-3); margin-top: var(--space-2);
+	display: flex; flex-direction: column; gap: var(--space-2);
+}
+.bootstrap-box pre.capture-kv {
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data); font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre;
+}
+.capture-v { color: var(--ink); }
+.bootstrap-box pre.capture-head { color: var(--dim); }
+/* What the machine saw: small, after the place. */
+img.capture-shot { display: block; width: 46%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--black); }
+.bootstrap-box pre.capture-cap {
+	margin-top: var(--space-1);
+	font-family: var(--font-data); font-size: var(--fs-micro);
+	letter-spacing: var(--track-data); color: var(--faint); white-space: pre-wrap;
+}
+
+/* ---------- the hangar (issue #185, lot 3, mockup clearance-v4.html) ---------- */
+/* The seven machine classes in one row, grouped by clearance, thin separators,
+   one floor line (src/hangar.js). The machines are drawn by ONE WebGL canvas
+   laid over the row, into the `.hangar-stage` slots; the backdrop is a 2D
+   canvas behind them. Everything readable is DOM text and never wraps. */
+.hangar { display: flex; flex-direction: column; align-self: stretch; }
+.hangar-wrap {
+	position: relative; isolation: isolate; overflow: hidden;
+	padding: var(--space-3) var(--space-3) var(--space-2);
+}
+.hangar-bg, .hangar-gl {
+	position: absolute; inset: 0; width: 100%; height: 100%;
+	pointer-events: none;
+}
+.hangar-bg { z-index: -1; }
+.hangar-gl { z-index: 1; }
+.hangar-row { display: flex; align-items: flex-end; }
+.hangar-grp {
+	display: flex; flex-direction: column; min-width: 0;
+	padding: 0 var(--space-2);
+	border-left: var(--rule-w) solid var(--rule-strong);
+}
+.hangar-grp:first-child { border-left: 0; padding-left: 0; }
+.hangar-grp:last-child { padding-right: 0; }
+.hangar-lv {
+	display: flex; justify-content: space-between; gap: var(--space-2);
+	margin-bottom: var(--space-1);
+	white-space: nowrap;
+	font-family: var(--font-display); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui); color: var(--dim);
+}
+.hangar-mark-open { color: var(--green); }
+.hangar-mark-cost { color: var(--faint); }
+.hangar-bay { display: flex; gap: var(--space-1); }
+/* The slots share the row's width; their HEIGHT is fixed, and the machine
+   fills a share of it: every machine reads at the same size whatever the
+   width its group leaves it. */
+.hangar-m {
+	flex: 1 1 0; min-width: 0;
+	display: flex; flex-direction: column; align-items: center;
+}
+.hangar-stage { position: relative; width: 100%; height: 96px; }
+.hangar-compact { align-self: flex-start; }
+.hangar-compact .hangar-m { flex: none; width: 84px; }
+.hangar-compact .hangar-stage { height: 64px; }
+/* The reveal's line: warm white, one pixel, above the canvas. */
+.hangar-scan {
+	position: absolute; left: 0; right: 0; z-index: 2; height: 1px;
+	background: var(--ink); pointer-events: none;
+}
+.hangar-n {
+	margin-top: var(--space-0);
+	white-space: nowrap; text-transform: none;
+	font-family: var(--font-data); font-size: var(--fs-micro); line-height: 1.3;
+	letter-spacing: var(--track-data); color: var(--ink);
+}
+.hangar-m[data-state="locked"] .hangar-n { font-family: var(--font-ascii); color: var(--faint); }
+.hangar-m[data-state="reveal"] .hangar-n { color: var(--faint); }
+.hangar-m .hangar-n.is-new { color: var(--green); }
+.hangar-floor { height: 1px; margin-top: var(--space-1); background: var(--rule-strong); }
+.hangar-line, .bootstrap-box pre.hangar-line {
+	margin: 0;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data); font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre; text-transform: none;
+}
+.hangar-bar { font-family: var(--font-ascii); color: var(--yellow); }
+.hangar-tier-open { color: var(--ink); }
+.hangar-tier-locked { color: var(--faint); }
 
 /* ---------- global scanner (PHASE 03) ---------- */
 /* Same grammar as the terminal: monospace, one-pixel rules, right angles, no
@@ -2229,13 +2424,24 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .map-mono .sc-history-controls { align-items: flex-end; }
 .map-mono .sc-map-controls .sc-history-switch { display: flex; white-space: nowrap; }
 
-.sc-signals-status {
-	font: var(--fs-micro) var(--font-ui);
-	letter-spacing: var(--track-ui);
-	color: var(--dim);
-	padding: var(--space-1) var(--space-2);
+/* The signal scan speaks in terminal lines in the map's corner
+   (scanning-v3.html): no box, no bar widget — a black band behind each line
+   only. Under the layer switches, same face. */
+.map-mono .leaflet-control.sc-signals-ctl { margin-left: var(--space-3); pointer-events: none; }
+.sc-signals-log {
+	display: flex; flex-direction: column; align-items: flex-start;
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data);
+	line-height: 1.55; letter-spacing: var(--track-ui-tight);
+	color: var(--ink); white-space: pre;
 }
-.sc-signals-status[data-state="unavailable"] { color: var(--yellow); }
+.sc-signals-log .sc-band { background: var(--black); padding: 0 var(--space-1); }
+.sc-signals-log .sc-f { color: var(--faint); }
+/* The GLOBAL SCANNER header's clearance line keeps the header's own face
+   (`.bootstrap-box pre`); only its bar is coloured. */
+.sc-signals-log .sc-y, .sc-clearance .sc-y { color: var(--yellow); }
+.sc-signals-log .sc-g { color: var(--green); }
+.sc-signals-log .sc-blink { animation: sc-blink var(--dur-blink) steps(1) infinite; }
+@keyframes sc-blink { 50% { opacity: 0; } }
 
 /* The overlay canvas never takes the pointer: nothing on it is a target, so a
    drag started over a track still pans the map. */

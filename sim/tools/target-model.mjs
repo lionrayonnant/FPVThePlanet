@@ -1,14 +1,14 @@
-// Signaux candidats d'un TARGET SCAN (PHASE 08). Logique pure, AUCUNE
-// dépendance : importée par le plugin de dev, le selftest et (via un bundle
-// Vite) le client. Le serveur régénère la même sortie depuis la même graine,
-// c'est ce qui rend le choix du joueur non falsifiable.
+// Candidate signals for a TARGET SCAN (PHASE 08). Pure logic, NO dependency:
+// imported by the dev plugin, the selftest and (via a Vite bundle) the
+// client. The server regenerates the same output from the same seed, which is
+// what makes the player's choice non-falsifiable.
 //
-//   terrain persistent, flights ephemeral — une cible appartient à une session.
+//   terrain persistent, flights ephemeral — a target belongs to a session.
 
-// FAMILY_CLASS : donnée stable, dupliquée ici pour garder le modèle sans
-// dépendance. Le selftest vérifie que ses clés collent à src/drone-profiles.js.
-// La valeur est le bucket grossier montré en EST. avant le hack — jamais la
-// famille exacte.
+// FAMILY_CLASS: stable data, duplicated here to keep the model dependency-
+// free. The selftest checks that its keys match src/drone-profiles.js. The
+// value is the coarse bucket shown as EST. before the hack — never the exact
+// family.
 export const FAMILY_CLASS = {
 	freestyle5: '5"',
 	race5: '5"',
@@ -19,11 +19,11 @@ export const FAMILY_CLASS = {
 };
 export const TARGET_FAMILIES = Object.keys(FAMILY_CLASS);
 
-// HACK_TYPES : les six familles de hacking (PHASE 09, Bible §17). Ordre stable.
-// Le type de hack est une propriété de la cible, tirée à la génération ; il ne
-// détermine PAS la difficulté du vol (entry state indépendant, PHASE 11).
-// Concepts documentés et crédibles ; l'interaction est une abstraction (spec
-// PHASE 09, règle de sécurité).
+// HACK_TYPES: the six hacking families (PHASE 09, Bible §17). Stable order.
+// The hack type is a property of the target, drawn at generation; it does NOT
+// determine flight difficulty (entry state is independent, PHASE 11).
+// Concepts are documented and credible; the interaction itself is an
+// abstraction (spec PHASE 09, safety rule).
 export const HACK_TYPES = [
 	'COMMAND INJECTION',
 	'LINK HIJACK',
@@ -58,8 +58,8 @@ const clampCount = (n) => {
 	return r < 2 ? 2 : r > 5 ? 5 : r;
 };
 
-// Hash FNV-1a d'une chaîne → graine 32 bits, puis xorshift (même géné que
-// src/link.js : petit, déterministe, rejouable).
+// FNV-1a hash of a string → a 32-bit seed, then xorshift (same generator as
+// src/link.js: small, deterministic, replayable).
 function rngFrom(seed) {
 	let h = 0x811c9dc5;
 	const s = String(seed);
@@ -92,25 +92,40 @@ const normalizeSwarmAt = (at, n) => {
 	return at;
 };
 
+// The draw pool for the ordinary family loop (issue #185, clearance). `families`
+// must be a non-empty subset of TARGET_FAMILIES; anything else (absent, empty,
+// containing an unknown key) falls back to the full pool. A client and a
+// server that both validate this way never diverge on a malformed value —
+// they diverge only on a genuinely different clearance, which is the point.
+const validFamilies = (families) => (
+	Array.isArray(families) && families.length > 0 && families.every((f) => TARGET_FAMILIES.includes(f))
+		? families
+		: TARGET_FAMILIES
+);
+
 // `swarmChance` is the probability that this scan carries a cluster; `swarmAt`
 // short-circuits the draw entirely (an index, or `null` for "no cluster"). A
 // session persists both, which is what makes the ambient regeneration exact.
-export function generateTargetScan({ seed, count, swarmChance = SWARM_CHANCE, swarmAt } = {}) {
-	if (!seed) throw new Error('seed requis');
+// `families` (issue #185) is the operator's clearance pool: same seed + same
+// families → same scan, so client and server must agree on the SAME pool for
+// a given flight.
+export function generateTargetScan({ seed, count, swarmChance = SWARM_CHANCE, swarmAt, families } = {}) {
+	if (!seed) throw new Error('seed required');
 	const n = clampCount(count);
 	const rand = rngFrom(`${seed}::scan`);
+	const pool = validFamilies(families);
 
 	const raw = [];
 	for (let i = 0; i < n; i++) {
-		const family = pick(rand, TARGET_FAMILIES);
+		const family = pick(rand, pool);
 		const videoHint = pick(rand, MODES);
-		// -52..-72 dBm : un signal exploitable, jamais parfait (§6). Le tri se
-		// fait après, l'ordre de génération n'a pas d'importance.
+		// -52..-72 dBm: an exploitable signal, never perfect (§6). Sorting
+		// happens afterwards, the draw order does not matter.
 		const rssiDbm = -52 - Math.round(rand() * 20);
-		// ~50 % des signaux révèlent leur mode, le reste reste UNKNOWN.
+		// ~50% of signals reveal their mode, the rest stay UNKNOWN.
 		const mode = rand() < 0.5 ? videoHint : 'UNKNOWN';
-		// Tirage dédié, après `mode`, pour ne pas décaler les tirages RSSI/mode
-		// d'une graine déjà utilisée. Indépendant de la famille et du signal.
+		// A dedicated draw, after `mode`, so as not to shift the RSSI/mode
+		// draws of a seed already in use. Independent of family and signal.
 		const hackType = pick(rand, HACK_TYPES);
 		raw.push({ rssiDbm, mode, _family: family, _classHint: FAMILY_CLASS[family], _videoHint: videoHint, _hackType: hackType });
 	}
@@ -136,7 +151,7 @@ export function generateTargetScan({ seed, count, swarmChance = SWARM_CHANCE, sw
 		c._swarm = { size, doctrineSeed };
 	}
 
-	return { seed, count: n, candidates, swarmAt: at, swarmChance: chance };
+	return { seed, count: n, candidates, swarmAt: at, swarmChance: chance, families: pool };
 }
 
 // The early guarantee: a player must meet a cluster reasonably soon, or the
@@ -150,20 +165,22 @@ export function swarmChanceFor(sessions) {
 	return scanned.some((s) => s.target.swarm) ? SWARM_CHANCE : 1;
 }
 
-// Fiche pré-hack (Bible §15/§22). NE CONTIENT JAMAIS _family : on n'affiche que
-// ce qui est réellement connu avant le vol.
+// Pre-hack sheet (Bible §15/§22). NEVER CONTAINS _family: only what is really
+// known before the flight is shown.
 //
-// Trois niveaux et rien d'autre (issue #45) : KNOWN réellement mesuré, EST.
-// déduction, UNKNOWN véritable inconnue. Un EST. n'est légitime que s'il DÉDUIT
-// sans donner la réponse — c'est le cas de deviceHint, un bucket grossier ('5"'
-// couvre trois familles) qui resserre le champ sans le fermer.
+// Three levels and nothing else (issue #45): KNOWN really measured, EST.
+// deduced, UNKNOWN a genuine unknown. An EST. is only legitimate if it DEDUCES
+// without giving away the answer — that is the case of deviceHint, a coarse
+// bucket ('5"' covers three families) that narrows the field without closing
+// it.
 //
-// Le mode vidéo n'a PAS d'EST. possible : il est binaire. Un « EST. DIGITAL »
-// toujours juste EST la valeur, quel que soit le mot devant — les trois niveaux
-// s'effondrent alors à deux et on révèle avant le vol ce qu'on est censé
-// découvrir à la première image. Quand il n'est pas mesuré il est donc UNKNOWN,
-// nu, comme dans l'exemple de fiche de la Bible. Le vrai mode arrive par
-// resolveTarget() et se découvre quand le retour vidéo s'allume.
+// The video mode has NO possible EST.: it is binary. An "EST. DIGITAL" is
+// always just the value, whatever word precedes it — the three levels would
+// then collapse to two and reveal, before the flight, what the player is
+// meant to discover at the first frame. When it is not measured it is
+// therefore UNKNOWN, bare, as in the Bible's example sheet. The real mode
+// arrives through resolveTarget() and is discovered when the video feed comes
+// up.
 //
 // A cluster (issue #29) cannot be invisible on the sheet, or the rarity only
 // exists after the fact and the player's choice is not one. It says GROUP, and
@@ -176,7 +193,7 @@ export function describeTarget(candidate) {
 		location: 'KNOWN',
 		signal: swarm ? `${candidate.rssiDbm} dBm (STRONGEST OF GROUP)` : `${candidate.rssiDbm} dBm`,
 		device: 'PARTIAL',
-		// EST. — le bucket, pas la famille. 'MESH — MULTIPLE EMITTERS' for a
+		// EST. — the bucket, not the family. 'MESH — MULTIPLE EMITTERS' for a
 		// cluster: it tightens the field without closing it, like any other bucket.
 		deviceHint: swarm ? `${SWARM_CLASS_HINT} — MULTIPLE EMITTERS` : candidate._classHint,
 		video: known ? candidate.mode : 'UNKNOWN',
@@ -186,21 +203,20 @@ export function describeTarget(candidate) {
 	};
 }
 
-// La ligne de la liste (issue #49). La fiche pré-hack était un écran ; sur ses
-// sept champs, quatre étaient les mêmes constantes pour toutes les cibles
-// (LOCATION KNOWN, DEVICE PARTIAL, CONTROL UNKNOWN, FLIGHT STATE UNKNOWN) et
-// n'ont donc jamais départagé deux signaux, et CONDITIONS est déjà en tête de
-// la liste. Ce qui informe le choix tient sur une ligne : id, signal, mode
-// vidéo, device.
+// The list row (issue #49). The pre-hack sheet used to be a whole screen; of
+// its seven fields, four were the same constants for every target (LOCATION
+// KNOWN, DEVICE PARTIAL, CONTROL UNKNOWN, FLIGHT STATE UNKNOWN) and so never
+// distinguished two signals, and CONDITIONS is already at the top of the
+// list. What informs the choice fits on one line: id, signal, video mode,
+// device.
 //
-// Construite depuis describeTarget() et non depuis le candidat brut : c'est ce
-// qui fait hériter la ligne de sa garantie — jamais _family, jamais _hackType,
-// jamais le vrai mode vidéo d'un signal non mesuré.
+// Built from describeTarget() and not from the raw candidate: that is what
+// makes the row inherit its guarantee — never _family, never _hackType, never
+// the real video mode of an unmeasured signal.
 //
-// Prend TOUS les candidats plutôt qu'un seul, parce que l'alignement des
-// colonnes est une propriété de l'ensemble : la ligne d'un cluster est bien
-// plus longue que les autres, et sans cette passe elle décalerait tout ce qui
-// la suit.
+// Takes ALL the candidates rather than one, because column alignment is a
+// property of the whole set: a cluster's row is much longer than the others,
+// and without this pass it would shift everything after it.
 const COL_GAP = '   ';
 
 export function scanLines(candidates) {
@@ -210,24 +226,25 @@ export function scanLines(candidates) {
 			c.id,
 			d.signal,
 			d.video,
-			// COUNT n'existe que sur un cluster — une cible ordinaire n'a pas de
-			// groupe à compter, et le mot seul suffirait à trahir qu'il y en a un.
+			// COUNT only exists on a cluster — an ordinary target has no group
+			// to count, and the word alone would be enough to give one away.
 			d.count ? `${d.deviceHint}, COUNT ${d.count}` : d.deviceHint,
 		];
 	});
-	// La dernière colonne ne se remplit pas : rien ne la suit, et la compléter
-	// laisserait une traîne d'espaces au bout de chaque ligne.
+	// The last column is never padded: nothing follows it, and padding it
+	// would leave a trail of spaces at the end of every row.
 	const widths = cells[0]?.slice(0, -1).map((_, i) => Math.max(...cells.map((r) => r[i].length))) ?? [];
 	return cells.map((row) => row
 		.map((cell, i) => (i < widths.length ? cell.padEnd(widths[i]) : cell))
 		.join(COL_GAP));
 }
 
-// Descripteur persisté sur la session. Le serveur l'obtient en régénérant le
-// scan puis en appelant ceci — le client n'envoie qu'un index.
+// The descriptor persisted on the session. The server obtains it by
+// regenerating the scan and then calling this — the client only ever sends
+// an index.
 export function resolveTarget(scan, index) {
 	const c = scan.candidates[index];
-	if (!c) throw new RangeError(`index de cible hors borne : ${index}`);
+	if (!c) throw new RangeError(`target index out of range: ${index}`);
 	return {
 		family: c._family,
 		classHint: c._classHint,
@@ -235,28 +252,34 @@ export function resolveTarget(scan, index) {
 		// The swarm the node commands (issue #29). `null` on every ordinary
 		// target — most of them.
 		swarm: c._swarm ? { size: c._swarm.size, doctrineSeed: c._swarm.doctrineSeed } : null,
-		// Graine de l'EXEMPLAIRE (PHASE 07, tools/target-build.mjs). Dérivée du
-		// scan et de l'index, donc reproductible par le serveur comme par le
-		// client, et relue telle quelle du disque : le drone détourné hier est
-		// le même aujourd'hui. Distincte de l'id de session, qui n'existe pas
-		// encore au moment où le FlightController doit être construit.
+		// The INDIVIDUAL's seed (PHASE 07, tools/target-build.mjs). Derived
+		// from the scan and the index, so it is reproducible by the server as
+		// well as the client, and read back as-is from disk: the drone
+		// hijacked yesterday is the same one today. Distinct from the session
+		// id, which does not exist yet when the FlightController has to be
+		// built.
 		buildSeed: `${scan.seed}::${index}`,
-		// Le scan lui-même (issue #250) : ce qu'il faut pour REGÉNÉRER les
-		// candidats non pris — les drones ambiants — et pour
-		// reconstruire buildSeed côté client sans le stocker deux fois.
+		// The scan itself (issue #250): what is needed to REGENERATE the
+		// candidates not taken — the ambient drones — and to rebuild
+		// buildSeed client-side without storing it twice.
 		// `swarmAt`/`swarmChance` travel with the scan (issue #29): they are what
 		// makes the ambient regeneration exact — without them a replay would
 		// redraw the cluster on today's default chance instead of the session's.
+		// `families` (issue #185) does the same job for the clearance pool: an
+		// ambient regeneration must draw from the SAME pool as the flight did,
+		// not from whatever clearance the operator holds today.
 		scan: {
 			seed: String(scan.seed), count: scan.candidates.length, index,
 			swarmAt: scan.swarmAt ?? null,
 			swarmChance: Number.isFinite(scan.swarmChance) ? scan.swarmChance : SWARM_CHANCE,
+			families: validFamilies(scan.families),
 		},
 		signal: { rssiDbm: c.rssiDbm, mode: c._videoHint },
 		scannedAt: new Date().toISOString(),
-		// Ce que le joueur savait AU MOMENT DE CHOISIR, pas ce qui est vrai :
-		// l'archive relit ce bloc pour dire ce que valait la fiche avant le vol.
-		// `video` suit donc la fiche — mesuré ou pas — au lieu d'être figé.
+		// What the player knew AT THE MOMENT OF CHOOSING, not what is true:
+		// the archive reads this block back to say what the sheet was worth
+		// before the flight. `video` therefore follows the sheet — measured or
+		// not — instead of being fixed.
 		intel: {
 			location: 'KNOWN', signal: 'KNOWN', device: 'PARTIAL',
 			video: c.mode === 'UNKNOWN' ? 'UNKNOWN' : 'KNOWN',

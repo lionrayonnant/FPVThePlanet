@@ -182,6 +182,9 @@ export function droneViewer({ family, buildSeed, cameraSeed, size = viewportSize
 		controls.dispose();
 		mesh.dispose();
 		renderer.dispose();
+		// dispose() leaves the context alive until GC; browsers cap live
+		// contexts (16 in Chrome) and drop the OLDEST — the game's own.
+		renderer.forceContextLoss?.();
 		renderer.domElement.remove?.();
 		el.remove?.();
 	};

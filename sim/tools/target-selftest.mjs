@@ -12,46 +12,46 @@ const check = (name, cond, detail = '') => {
 	else { fail++; console.log(`  FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
 };
 
-// --- déterminisme
+// --- determinism
 {
 	const a = generateTargetScan({ seed: 'kyiv-podil-9f2a', count: 4 });
 	const b = generateTargetScan({ seed: 'kyiv-podil-9f2a', count: 4 });
-	check('même graine → mêmes candidats', JSON.stringify(a) === JSON.stringify(b));
+	check('same seed -> same candidates', JSON.stringify(a) === JSON.stringify(b));
 	const c = generateTargetScan({ seed: 'kyiv-podil-0000', count: 4 });
-	check('graine différente → candidats différents', JSON.stringify(a) !== JSON.stringify(c));
+	check('different seed -> different candidates', JSON.stringify(a) !== JSON.stringify(c));
 }
 
-// --- count clampé et tri
+// --- count clamped and sorted
 {
-	check('count par défaut = 4', generateTargetScan({ seed: 'x' }).candidates.length === 4);
-	check('count clampé bas', generateTargetScan({ seed: 'x', count: 0 }).candidates.length === 2);
-	check('count clampé haut', generateTargetScan({ seed: 'x', count: 99 }).candidates.length === 5);
+	check('default count = 4', generateTargetScan({ seed: 'x' }).candidates.length === 4);
+	check('count clamped low', generateTargetScan({ seed: 'x', count: 0 }).candidates.length === 2);
+	check('count clamped high', generateTargetScan({ seed: 'x', count: 99 }).candidates.length === 5);
 	const s = generateTargetScan({ seed: 'sorted-check', count: 5 });
 	const sorted = s.candidates.every((c, i) => i === 0 || s.candidates[i - 1].rssiDbm >= c.rssiDbm);
-	check('candidats triés RSSI décroissant', sorted);
-	check('ids séquentiels', s.candidates.map((c) => c.id).join(',') === '01,02,03,04,05');
-	check('rssi dans une plage plausible',
+	check('candidates sorted RSSI descending', sorted);
+	check('sequential ids', s.candidates.map((c) => c.id).join(',') === '01,02,03,04,05');
+	check('rssi within a plausible range',
 		s.candidates.every((c) => c.rssiDbm <= -45 && c.rssiDbm >= -80));
 }
 
-// --- describeTarget ne fuit jamais la famille
+// --- describeTarget never leaks the family
 {
 	for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
 		const scan = generateTargetScan({ seed, count: 5 });
 		for (const cand of scan.candidates) {
 			const sheet = JSON.stringify(describeTarget(cand));
-			check(`describeTarget(${seed}/${cand.id}) sans _family`,
+			check(`describeTarget(${seed}/${cand.id}) without _family`,
 				!sheet.includes(cand._family), sheet.includes(cand._family) ? sheet : '');
-			// La fiche reprend le mode mesuré, et UNKNOWN reste UNKNOWN : plus
-			// d'état intermédiaire qui laisserait passer la réponse.
-			check(`describeTarget(${seed}/${cand.id}) video cohérent`,
+			// The sheet reflects the measured mode, and UNKNOWN stays UNKNOWN:
+			// no intermediate state that would let the answer through.
+			check(`describeTarget(${seed}/${cand.id}) coherent video`,
 				JSON.parse(sheet).video === cand.mode);
-			// Et surtout : quand le mode n'est pas mesuré, le VRAI mode ne doit
-			// apparaître nulle part sur la fiche. Un « EST. » toujours juste sur
-			// une valeur binaire est la valeur (issue #45 : UNKNOWN doit être une
-			// véritable inconnue).
+			// And above all: when the mode is not measured, the REAL mode must
+			// not appear anywhere on the sheet. An "EST." that is always just
+			// the value on a binary field IS the value (issue #45: UNKNOWN
+			// must be a genuine unknown).
 			if (cand.mode === 'UNKNOWN') {
-				check(`describeTarget(${seed}/${cand.id}) ne fuite pas le vrai mode vidéo`,
+				check(`describeTarget(${seed}/${cand.id}) does not leak the real video mode`,
 					!sheet.includes(cand._videoHint), sheet);
 			}
 		}
@@ -62,51 +62,51 @@ const check = (name, cond, detail = '') => {
 {
 	const scan = generateTargetScan({ seed: 'resolve', count: 4 });
 	const t = resolveTarget(scan, 1);
-	check('resolveTarget : famille connue', TARGET_FAMILIES.includes(t.family));
-	check('resolveTarget : mode réel', ['ANALOG', 'DIGITAL'].includes(t.signal.mode));
-	check('resolveTarget : rssi repris', t.signal.rssiDbm === scan.candidates[1].rssiDbm);
-	check('resolveTarget : intel figé', t.intel.control === 'UNKNOWN' && t.intel.location === 'KNOWN');
+	check('resolveTarget: known family', TARGET_FAMILIES.includes(t.family));
+	check('resolveTarget: real mode', ['ANALOG', 'DIGITAL'].includes(t.signal.mode));
+	check('resolveTarget: rssi carried over', t.signal.rssiDbm === scan.candidates[1].rssiDbm);
+	check('resolveTarget: intel frozen', t.intel.control === 'UNKNOWN' && t.intel.location === 'KNOWN');
 	let threw = false;
 	try { resolveTarget(scan, 9); } catch { threw = true; }
-	check('resolveTarget : index hors borne → throw', threw);
+	check('resolveTarget: index out of range -> throw', threw);
 }
 
 {
 	const scan = generateTargetScan({ seed: 'scan-kept', count: 4 });
 	const t = resolveTarget(scan, 2);
-	check('resolveTarget porte scan.seed', t.scan?.seed === 'scan-kept');
-	check('resolveTarget porte scan.count', t.scan?.count === 4);
-	check('resolveTarget porte scan.index', t.scan?.index === 2);
-	check('buildSeed dérive de scan', t.buildSeed === `${t.scan.seed}::${t.scan.index}`);
+	check('resolveTarget carries scan.seed', t.scan?.seed === 'scan-kept');
+	check('resolveTarget carries scan.count', t.scan?.count === 4);
+	check('resolveTarget carries scan.index', t.scan?.index === 2);
+	check('buildSeed derives from scan', t.buildSeed === `${t.scan.seed}::${t.scan.index}`);
 }
 
-// --- hackType : propriété de cible (PHASE 09)
+// --- hackType: a property of the target (PHASE 09)
 {
-	check('HACK_TYPES : 6 familles, ordre Bible §17',
+	check('HACK_TYPES: 6 families, Bible §17 order',
 		HACK_TYPES.join('|') === 'COMMAND INJECTION|LINK HIJACK|TELEMETRY SPOOF|GNSS SPOOF|NETWORK TAKEOVER|FIRMWARE OVERRIDE');
 
 	const a = generateTargetScan({ seed: 'hack-det', count: 5 });
 	const b = generateTargetScan({ seed: 'hack-det', count: 5 });
-	check('_hackType déterministe par graine',
+	check('_hackType deterministic by seed',
 		a.candidates.map((c) => c._hackType).join(',') === b.candidates.map((c) => c._hackType).join(','));
-	check('_hackType toujours dans HACK_TYPES',
+	check('_hackType always in HACK_TYPES',
 		a.candidates.every((c) => HACK_TYPES.includes(c._hackType)));
 
-	// describeTarget ne fuite jamais le hackType
+	// describeTarget never leaks the hackType
 	for (const cand of a.candidates) {
-		check(`describeTarget(${cand.id}) sans _hackType`,
+		check(`describeTarget(${cand.id}) without _hackType`,
 			!JSON.stringify(describeTarget(cand)).includes(cand._hackType));
 	}
 
-	// resolveTarget porte le hackType du candidat choisi
+	// resolveTarget carries the chosen candidate's hackType
 	const t = resolveTarget(a, 2);
-	check('resolveTarget : hackType repris du candidat',
+	check('resolveTarget: hackType carried from the candidate',
 		t.hackType === a.candidates[2]._hackType && HACK_TYPES.includes(t.hackType));
 
-	// indépendance famille × hackType : sur 250 graines, chaque hackType
-	// apparaît avec au moins 4 familles distinctes (pas de couplage fort)
+	// family x hackType independence: over 250 seeds, every hackType appears
+	// with at least 4 distinct families (no strong coupling)
 	const pairs = new Map(HACK_TYPES.map((h) => [h, new Set()]));
-	// distribution : chaque hackType entre 8 % et 25 % des tirages
+	// distribution: every hackType between 8% and 25% of the draws
 	const counts = new Map(HACK_TYPES.map((h) => [h, 0]));
 	let total = 0;
 	for (let i = 0; i < 250; i++) {
@@ -116,20 +116,20 @@ const check = (name, cond, detail = '') => {
 			total++;
 		}
 	}
-	check('hackType × famille : pas de couplage fort',
+	check('hackType x family: no strong coupling',
 		[...pairs.values()].every((set) => set.size >= 4),
 		[...pairs.entries()].map(([h, s]) => `${h}:${s.size}`).join(' '));
-	check('hackType : distribution ~uniforme (8–25 %)',
+	check('hackType: ~uniform distribution (8-25%)',
 		[...counts.values()].every((n) => n / total >= 0.08 && n / total <= 0.25),
 		[...counts.values()].map((n) => (100 * n / total).toFixed(0)).join(' '));
 }
 
-// --- l'essaim (issue #29)
+// --- the swarm (issue #29)
 
-// Graines témoin, figées AVANT que l'essaim existe : c'est la non-régression
-// qui compte le plus. Le tirage du cluster vit sur un flux séparé (`::swarm`)
-// et ne doit jamais consommer celui de la boucle des candidats — à
-// swarmChance = 0 la sortie doit rester identique, graine par graine.
+// Witness seeds, frozen BEFORE the swarm existed: this is the non-regression
+// that matters most. The cluster's draw lives on a separate stream (`::swarm`)
+// and must never consume the candidate loop's — at swarmChance = 0 the output
+// must stay identical, seed by seed.
 const WITNESS = [
 	["kyiv-podil-9f2a",4,"[{\"id\":\"01\",\"rssiDbm\":-57,\"mode\":\"ANALOG\",\"_family\":\"longrange\",\"_classHint\":\"LONG RANGE\",\"_videoHint\":\"ANALOG\",\"_hackType\":\"LINK HIJACK\"},{\"id\":\"02\",\"rssiDbm\":-62,\"mode\":\"UNKNOWN\",\"_family\":\"heavy5\",\"_classHint\":\"5\\\"\",\"_videoHint\":\"DIGITAL\",\"_hackType\":\"COMMAND INJECTION\"},{\"id\":\"03\",\"rssiDbm\":-64,\"mode\":\"UNKNOWN\",\"_family\":\"cinewhoop\",\"_classHint\":\"CINEWHOOP\",\"_videoHint\":\"DIGITAL\",\"_hackType\":\"COMMAND INJECTION\"},{\"id\":\"04\",\"rssiDbm\":-67,\"mode\":\"ANALOG\",\"_family\":\"toothpick\",\"_classHint\":\"MICRO\",\"_videoHint\":\"ANALOG\",\"_hackType\":\"NETWORK TAKEOVER\"}]"],
 	["witness-01",5,"[{\"id\":\"01\",\"rssiDbm\":-56,\"mode\":\"DIGITAL\",\"_family\":\"longrange\",\"_classHint\":\"LONG RANGE\",\"_videoHint\":\"DIGITAL\",\"_hackType\":\"GNSS SPOOF\"},{\"id\":\"02\",\"rssiDbm\":-62,\"mode\":\"DIGITAL\",\"_family\":\"cinewhoop\",\"_classHint\":\"CINEWHOOP\",\"_videoHint\":\"DIGITAL\",\"_hackType\":\"COMMAND INJECTION\"},{\"id\":\"03\",\"rssiDbm\":-65,\"mode\":\"DIGITAL\",\"_family\":\"cinewhoop\",\"_classHint\":\"CINEWHOOP\",\"_videoHint\":\"DIGITAL\",\"_hackType\":\"TELEMETRY SPOOF\"},{\"id\":\"04\",\"rssiDbm\":-68,\"mode\":\"UNKNOWN\",\"_family\":\"freestyle5\",\"_classHint\":\"5\\\"\",\"_videoHint\":\"ANALOG\",\"_hackType\":\"NETWORK TAKEOVER\"},{\"id\":\"05\",\"rssiDbm\":-72,\"mode\":\"UNKNOWN\",\"_family\":\"freestyle5\",\"_classHint\":\"5\\\"\",\"_videoHint\":\"ANALOG\",\"_hackType\":\"FIRMWARE OVERRIDE\"}]"],
@@ -141,217 +141,268 @@ const WITNESS = [
 {
 	for (const [seed, count, frozen] of WITNESS) {
 		const scan = generateTargetScan({ seed, count, swarmChance: 0 });
-		check(`swarmChance 0 : candidats inchangés (${seed})`,
+		check(`swarmChance 0: candidates unchanged (${seed})`,
 			JSON.stringify(scan.candidates) === frozen,
 			JSON.stringify(scan.candidates));
-		check(`swarmChance 0 : aucun cluster (${seed})`,
+		check(`swarmChance 0: no cluster (${seed})`,
 			scan.swarmAt === null && scan.candidates.every((c) => !c._swarm));
 	}
-	// Et sur 300 graines de plus, pas seulement les témoins.
+	// And over 300 more seeds, not only the witnesses.
 	let drift = 0;
 	for (let i = 0; i < 300; i++) {
 		const a = generateTargetScan({ seed: `nr-${i}`, count: 5, swarmChance: 0 });
 		if (a.swarmAt !== null) drift++;
 	}
-	check('swarmChance 0 : jamais de cluster sur 300 graines', drift === 0, `${drift}`);
+	check('swarmChance 0: never a cluster over 300 seeds', drift === 0, `${drift}`);
 }
 
 {
 	const scan = generateTargetScan({ seed: 'swarm-one', count: 4, swarmChance: 1 });
 	const c = scan.candidates[0];
-	check('swarmChance 1 : cluster présent', scan.swarmAt === 0);
-	check('cluster : index 0, donc le plus fort RSSI',
+	check('swarmChance 1: cluster present', scan.swarmAt === 0);
+	check('cluster: index 0, so the strongest RSSI',
 		scan.candidates.every((x, i) => i === 0 || x.rssiDbm <= c.rssiDbm));
-	check('cluster : famille swarmNode', c._family === SWARM_FAMILY);
-	check('cluster : classHint MESH écrit en dur', c._classHint === SWARM_CLASS_HINT);
-	check('cluster : hackType NETWORK TAKEOVER forcé', c._hackType === SWARM_HACK_TYPE);
-	check('cluster : size entier dans 6..12',
+	check('cluster: swarmNode family', c._family === SWARM_FAMILY);
+	check('cluster: classHint MESH hard-coded', c._classHint === SWARM_CLASS_HINT);
+	check('cluster: hackType NETWORK TAKEOVER forced', c._hackType === SWARM_HACK_TYPE);
+	check('cluster: integer size within 6..12',
 		Number.isInteger(c._swarm.size) && c._swarm.size >= SWARM_SIZE_MIN && c._swarm.size <= SWARM_SIZE_MAX,
 		`${c._swarm.size}`);
-	check('cluster : doctrineSeed déterministe et non vide',
+	check('cluster: deterministic and non-empty doctrineSeed',
 		typeof c._swarm.doctrineSeed === 'string' && c._swarm.doctrineSeed.length > 0
 		&& c._swarm.doctrineSeed === generateTargetScan({ seed: 'swarm-one', count: 4, swarmChance: 1 }).candidates[0]._swarm.doctrineSeed);
-	check('cluster : les AUTRES candidats sont ceux de swarmChance 0',
+	check('cluster: the OTHER candidates are those of swarmChance 0',
 		JSON.stringify(scan.candidates.slice(1))
 		=== JSON.stringify(generateTargetScan({ seed: 'swarm-one', count: 4, swarmChance: 0 }).candidates.slice(1)));
-	check('swarmChance : la valeur utilisée revient avec le scan', scan.swarmChance === 1);
-	// swarmNode n'entre PAS dans le bucket public : le scan ne doit jamais
-	// pouvoir la tirer par la boucle ordinaire.
-	check('swarmNode hors TARGET_FAMILIES/FAMILY_CLASS',
+	check('swarmChance: the value used comes back with the scan', scan.swarmChance === 1);
+	// swarmNode does NOT enter the public bucket: the ordinary loop must never
+	// be able to draw it.
+	check('swarmNode outside TARGET_FAMILIES/FAMILY_CLASS',
 		!TARGET_FAMILIES.includes(SWARM_FAMILY) && !(SWARM_FAMILY in FAMILY_CLASS));
 }
 
 {
-	// swarmAt court-circuite le tirage, dans les deux sens.
+	// swarmAt short-circuits the draw, both ways.
 	const forced = generateTargetScan({ seed: 'swarm-at', count: 4, swarmChance: 0, swarmAt: 2 });
-	check('swarmAt : impose un cluster malgré swarmChance 0',
+	check('swarmAt: forces a cluster despite swarmChance 0',
 		forced.swarmAt === 2 && forced.candidates[2]._family === SWARM_FAMILY);
 	const none = generateTargetScan({ seed: 'swarm-at', count: 4, swarmChance: 1, swarmAt: null });
-	check('swarmAt null : pas de cluster malgré swarmChance 1',
+	check('swarmAt null: no cluster despite swarmChance 1',
 		none.swarmAt === null && none.candidates.every((c) => !c._swarm));
-	// Le rejeu : même size et même doctrine que le tirage d'origine, sinon la
-	// régénération des ambiants et celle du serveur divergeraient.
+	// Replay: same size and same doctrine as the original draw, or the ambient
+	// and server regenerations would diverge.
 	const drawn = generateTargetScan({ seed: 'swarm-replay', count: 4, swarmChance: 1 });
 	const replay = generateTargetScan({ seed: 'swarm-replay', count: 4, swarmChance: 0, swarmAt: drawn.swarmAt });
-	check('swarmAt : le rejeu rend le MÊME essaim',
+	check('swarmAt: the replay renders the SAME swarm',
 		JSON.stringify(drawn.candidates) === JSON.stringify(replay.candidates));
 	let threw = 0;
 	for (const bad of [4, -1, 1.5, '0']) {
 		try { generateTargetScan({ seed: 'x', count: 4, swarmAt: bad }); } catch { threw++; }
 	}
-	check('swarmAt hors borne → throw', threw === 4, `${threw}/4`);
+	check('swarmAt out of range -> throw', threw === 4, `${threw}/4`);
 	let chanceThrew = 0;
 	for (const bad of [-0.1, 1.1, NaN, 'x']) {
 		try { generateTargetScan({ seed: 'x', count: 4, swarmChance: bad }); } catch { chanceThrew++; }
 	}
-	check('swarmChance hors [0,1] → throw', chanceThrew === 4, `${chanceThrew}/4`);
+	check('swarmChance outside [0,1] -> throw', chanceThrew === 4, `${chanceThrew}/4`);
 }
 
 {
-	// Fréquence : ~10 % sur un grand nombre de graines, avec la chance par
-	// défaut. C'est la rareté visée, pas une valeur arbitraire.
+	// Frequency: ~10% over a large number of seeds, at the default chance.
+	// That is the targeted rarity, not an arbitrary value.
 	let hits = 0;
 	const N = 2000;
 	for (let i = 0; i < N; i++) if (generateTargetScan({ seed: `freq-${i}`, count: 4 }).swarmAt !== null) hits++;
-	check('SWARM_CHANCE : ~10 % des scans portent un cluster',
+	check('SWARM_CHANCE: ~10% of scans carry a cluster',
 		Math.abs(hits / N - SWARM_CHANCE) < 0.03, `${(100 * hits / N).toFixed(1)} %`);
 }
 
 {
-	// La garantie précoce : le 3e scan est certain si les deux premiers n'ont
-	// rien donné.
+	// The early guarantee: the 3rd scan is certain if the first two gave nothing.
 	const plain = { target: { swarm: null } };
 	const cluster = { target: { swarm: { size: 8, doctrineSeed: 'd' } } };
-	check('garantie : 1er scan → chance nominale', swarmChanceFor([]) === SWARM_CHANCE);
-	check('garantie : 2e scan → chance nominale', swarmChanceFor([plain]) === SWARM_CHANCE);
-	check('garantie : 3e scan sans essaim → certain', swarmChanceFor([plain, plain]) === 1);
-	check('garantie : 3e scan après un essaim → chance nominale',
+	check('guarantee: 1st scan -> nominal chance', swarmChanceFor([]) === SWARM_CHANCE);
+	check('guarantee: 2nd scan -> nominal chance', swarmChanceFor([plain]) === SWARM_CHANCE);
+	check('guarantee: 3rd scan with no swarm -> certain', swarmChanceFor([plain, plain]) === 1);
+	check('guarantee: 3rd scan after a swarm -> nominal chance',
 		swarmChanceFor([cluster, plain]) === SWARM_CHANCE);
-	check('garantie : 4e scan → chance nominale',
+	check('guarantee: 4th scan -> nominal chance',
 		swarmChanceFor([plain, plain, plain]) === SWARM_CHANCE);
-	// Une session ouverte sans cible (chemin dev) n'est pas un scan.
-	check('garantie : une session sans cible ne compte pas',
+	// A session opened with no target (dev path) is not a scan.
+	check('guarantee: a session with no target does not count',
 		swarmChanceFor([plain, { target: null }, plain]) === 1);
-	check('garantie : état absent → chance nominale',
+	check('guarantee: absent state -> nominal chance',
 		swarmChanceFor(undefined) === SWARM_CHANCE && swarmChanceFor(null) === SWARM_CHANCE);
 }
 
 {
-	// La fiche d'un cluster : le joueur sait que c'est un groupe, et rien de plus.
+	// A cluster's sheet: the player knows it is a group, and nothing more.
 	const scan = generateTargetScan({ seed: 'swarm-sheet', count: 4, swarmChance: 1 });
 	const c = scan.candidates[0];
 	const sheet = describeTarget(c);
 	const flat = JSON.stringify(sheet);
-	check('fiche cluster : DEVICE dit MESH — MULTIPLE EMITTERS',
+	check('cluster sheet: DEVICE says MESH — MULTIPLE EMITTERS',
 		sheet.deviceHint === 'MESH — MULTIPLE EMITTERS', sheet.deviceHint);
-	check('fiche cluster : SIGNAL dit STRONGEST OF GROUP',
+	check('cluster sheet: SIGNAL says STRONGEST OF GROUP',
 		sheet.signal === `${c.rssiDbm} dBm (STRONGEST OF GROUP)`, sheet.signal);
-	check('fiche cluster : COUNT UNKNOWN', sheet.count === 'UNKNOWN');
-	check('fiche cluster : ne fuite pas la famille', !flat.includes(SWARM_FAMILY), flat);
-	// Le RSSI est le seul nombre légitime de la fiche : si aucun autre champ ne
-	// porte de chiffre, la taille de l'essaim ne peut se cacher nulle part.
+	check('cluster sheet: COUNT UNKNOWN', sheet.count === 'UNKNOWN');
+	check('cluster sheet: does not leak the family', !flat.includes(SWARM_FAMILY), flat);
+	// RSSI is the only legitimate number on the sheet: if no other field
+	// carries a digit, the swarm's size cannot hide anywhere.
 	const withoutSignal = { ...sheet };
 	delete withoutSignal.signal;
-	check('fiche cluster : aucun chiffre hors du RSSI',
+	check('cluster sheet: no digit outside the RSSI',
 		!/\d/.test(JSON.stringify(withoutSignal)), JSON.stringify(withoutSignal));
-	check('fiche cluster : ne fuite pas la doctrine', !flat.includes(c._swarm.doctrineSeed));
-	// Une cible ordinaire n'a PAS de ligne COUNT : il n'y a pas de groupe.
-	check('fiche ordinaire : pas de COUNT',
+	check('cluster sheet: does not leak the doctrine', !flat.includes(c._swarm.doctrineSeed));
+	// An ordinary target has NO COUNT line: there is no group.
+	check('ordinary sheet: no COUNT',
 		describeTarget(scan.candidates[1]).count === undefined);
 }
 
 {
-	// resolveTarget persiste l'essaim et de quoi rejouer le scan à l'identique.
+	// resolveTarget persists the swarm and what is needed to replay the scan
+	// identically.
 	const scan = generateTargetScan({ seed: 'swarm-resolve', count: 4, swarmChance: 1 });
 	const t = resolveTarget(scan, 0);
-	check('resolveTarget : swarm { size, doctrineSeed }',
+	check('resolveTarget: swarm { size, doctrineSeed }',
 		t.swarm?.size === scan.candidates[0]._swarm.size
 		&& t.swarm?.doctrineSeed === scan.candidates[0]._swarm.doctrineSeed);
-	check('resolveTarget : scan.swarmAt', t.scan.swarmAt === 0);
-	check('resolveTarget : scan.swarmChance', t.scan.swarmChance === 1);
-	check('resolveTarget : famille swarmNode', t.family === SWARM_FAMILY);
-	check('resolveTarget : classHint MESH', t.classHint === SWARM_CLASS_HINT);
+	check('resolveTarget: scan.swarmAt', t.scan.swarmAt === 0);
+	check('resolveTarget: scan.swarmChance', t.scan.swarmChance === 1);
+	check('resolveTarget: swarmNode family', t.family === SWARM_FAMILY);
+	check('resolveTarget: classHint MESH', t.classHint === SWARM_CLASS_HINT);
 	const plain = resolveTarget(generateTargetScan({ seed: 'swarm-resolve', count: 4, swarmChance: 0 }), 0);
-	check('resolveTarget : pas de cluster → swarm null', plain.swarm === null);
-	check('resolveTarget : pas de cluster → swarmAt null', plain.scan.swarmAt === null);
+	check('resolveTarget: no cluster -> swarm null', plain.swarm === null);
+	check('resolveTarget: no cluster -> swarmAt null', plain.scan.swarmAt === null);
 }
 
-// --- scanLines : la ligne de la liste (issue #49)
+// --- scanLines: the list row (issue #49)
 //
-// La fiche pré-hack a disparu ; ce que le joueur lit pour choisir tient
-// désormais sur la ligne. Ces cas sont donc l'héritier direct de ceux de
-// describeTarget : la garantie « ne fuite jamais » se vérifie ici sur la chaîne
-// RÉELLEMENT affichée, pas sur un objet intermédiaire que personne ne voit.
+// The pre-hack sheet is gone; what the player reads to choose now fits on the
+// row. These cases are therefore the direct heir of describeTarget's: the
+// "never leaks" guarantee is checked here on the string ACTUALLY shown, not
+// on an intermediate object nobody sees.
 {
 	const scan = generateTargetScan({ seed: 'line-plain', count: 5, swarmChance: 0 });
 	const lines = scanLines(scan.candidates);
-	check('scanLines : une ligne par candidat', lines.length === scan.candidates.length);
+	check('scanLines: one row per candidate', lines.length === scan.candidates.length);
 
-	// Les colonnes sont le seul intérêt d'une ligne unique : mal alignées, elle
-	// est moins lisible que la fiche qu'elle remplace. On vérifie la position,
-	// pas l'espacement — c'est ce que l'œil suit.
+	// Columns are the sole point of a single row: misaligned, it is less
+	// readable than the sheet it replaces. This checks position, not
+	// spacing — that is what the eye follows.
 	const at = (line, needle) => line.indexOf(needle);
 	const idCols = lines.map((l) => at(l, l.trim().slice(0, 2)));
-	check('scanLines : la colonne id est alignée', new Set(idCols).size === 1, String(idCols));
+	check('scanLines: the id column is aligned', new Set(idCols).size === 1, String(idCols));
 	const dbmCols = lines.map((l) => at(l, ' dBm'));
-	check('scanLines : la colonne signal est alignée', new Set(dbmCols).size === 1, String(dbmCols));
+	check('scanLines: the signal column is aligned', new Set(dbmCols).size === 1, String(dbmCols));
 	scan.candidates.forEach((c, i) => {
 		const d = describeTarget(c);
-		check(`scanLines(${c.id}) porte l'id`, lines[i].includes(c.id));
-		check(`scanLines(${c.id}) porte le signal`, lines[i].includes(`${c.rssiDbm} dBm`));
-		check(`scanLines(${c.id}) porte le mode vidéo`, lines[i].includes(d.video));
-		check(`scanLines(${c.id}) porte le device`, lines[i].includes(d.deviceHint), lines[i]);
+		check(`scanLines(${c.id}) carries the id`, lines[i].includes(c.id));
+		check(`scanLines(${c.id}) carries the signal`, lines[i].includes(`${c.rssiDbm} dBm`));
+		check(`scanLines(${c.id}) carries the video mode`, lines[i].includes(d.video));
+		check(`scanLines(${c.id}) carries the device`, lines[i].includes(d.deviceHint), lines[i]);
 	});
-	// Une ligne est une ligne : un saut la casserait en deux dans la liste.
-	check('scanLines : aucune ligne ne contient de saut', lines.every((l) => !l.includes('\n')));
+	// A row is a row: a line break would split it in two in the list.
+	check('scanLines: no row contains a line break', lines.every((l) => !l.includes('\n')));
 }
 
 {
-	// Ce que la ligne NE DIT PAS reste ce que la fiche ne disait pas.
+	// What the row DOES NOT SAY stays what the sheet did not say.
 	for (const seed of ['line-leak-a', 'line-leak-b', 'line-leak-c']) {
 		const scan = generateTargetScan({ seed, count: 5, swarmChance: 0 });
 		const flat = scanLines(scan.candidates).join('\n');
 		scan.candidates.forEach((c) => {
-			check(`scanLines(${seed}/${c.id}) sans famille`, !flat.includes(c._family), c._family);
-			check(`scanLines(${seed}/${c.id}) sans hackType`, !flat.includes(c._hackType), c._hackType);
-			// Un mode non mesuré reste UNKNOWN : la ligne ne doit pas laisser
-			// filtrer le vrai mode, qui se découvre à la première image.
+			check(`scanLines(${seed}/${c.id}) without family`, !flat.includes(c._family), c._family);
+			check(`scanLines(${seed}/${c.id}) without hackType`, !flat.includes(c._hackType), c._hackType);
+			// An unmeasured mode stays UNKNOWN: the row must not let the real
+			// mode through, which is discovered at the first frame.
 			if (c.mode === 'UNKNOWN') {
 				const other = c._videoHint;
 				const line = scanLines(scan.candidates)[scan.candidates.indexOf(c)];
-				check(`scanLines(${seed}/${c.id}) ne fuite pas le vrai mode`, !line.includes(other), line);
+				check(`scanLines(${seed}/${c.id}) does not leak the real mode`, !line.includes(other), line);
 			}
 		});
 	}
 }
 
 {
-	// La ligne d'un cluster porte les trois mentions de l'ancienne fiche, et
-	// toujours pas la machine ni la taille (issue #29).
+	// A cluster's row carries the three mentions of the old sheet, and still
+	// never the machine nor the size (issue #29).
 	const scan = generateTargetScan({ seed: 'line-swarm', count: 4, swarmChance: 1 });
 	const lines = scanLines(scan.candidates);
 	const c = scan.candidates[0];
-	check('ligne cluster : STRONGEST OF GROUP', lines[0].includes('(STRONGEST OF GROUP)'), lines[0]);
-	check('ligne cluster : MESH — MULTIPLE EMITTERS', lines[0].includes('MESH — MULTIPLE EMITTERS'));
-	check('ligne cluster : COUNT UNKNOWN', lines[0].includes('COUNT UNKNOWN'));
-	check('ligne cluster : ne nomme pas la famille', !lines[0].includes(SWARM_FAMILY), lines[0]);
-	check('ligne cluster : ne fuite pas la doctrine', !lines[0].includes(c._swarm.doctrineSeed));
-	// Le RSSI est le seul nombre légitime : ailleurs, un chiffre serait la
-	// taille du groupe. Le `-57` du signal est retiré avant de chercher.
+	check('cluster row: STRONGEST OF GROUP', lines[0].includes('(STRONGEST OF GROUP)'), lines[0]);
+	check('cluster row: MESH — MULTIPLE EMITTERS', lines[0].includes('MESH — MULTIPLE EMITTERS'));
+	check('cluster row: COUNT UNKNOWN', lines[0].includes('COUNT UNKNOWN'));
+	check('cluster row: does not name the family', !lines[0].includes(SWARM_FAMILY), lines[0]);
+	check('cluster row: does not leak the doctrine', !lines[0].includes(c._swarm.doctrineSeed));
+	// RSSI is the only legitimate number: elsewhere, a digit would be the
+	// group's size. The signal's `-57` is stripped before searching.
 	const withoutRssi = lines[0].replace(`${c.rssiDbm} dBm`, '').replace(c.id, '');
-	check('ligne cluster : aucun chiffre hors du RSSI', !/\d/.test(withoutRssi), withoutRssi);
-	// Les cibles ordinaires du MÊME scan ne parlent d'aucun groupe.
-	check('ligne ordinaire : pas de COUNT',
+	check('cluster row: no digit outside the RSSI', !/\d/.test(withoutRssi), withoutRssi);
+	// The ordinary targets of the SAME scan mention no group at all.
+	check('ordinary row: no COUNT',
 		lines.slice(1).every((l) => !l.includes('COUNT')), lines.slice(1).join(' | '));
-	check('ligne ordinaire : pas de GROUP',
+	check('ordinary row: no GROUP',
 		lines.slice(1).every((l) => !l.includes('GROUP')));
-	// Et la ligne longue du cluster ne désaligne pas celles d'en dessous.
+	// And the cluster's long row does not misalign the ones below it.
 	const dbmCols = lines.map((l) => l.indexOf(' dBm'));
-	check('ligne cluster : les colonnes tiennent quand même', new Set(dbmCols).size === 1, String(dbmCols));
+	check('cluster row: the columns still hold', new Set(dbmCols).size === 1, String(dbmCols));
 }
 
-// --- garde-fou de dérive
-check('FAMILY_CLASS couvre exactement FAMILIES',
+// --- families: the draw pool follows clearance (issue #185, Signals lot 3)
+{
+	const FREESTYLE_ONLY = ['freestyle5'];
+	// A restricted pool: every draw stays inside it, over many seeds — this
+	// is the guarantee that makes a clearance level actually gate anything.
+	// swarmChance: 0 throughout — the swarm draw is a SEPARATE mechanism
+	// (issue #29) that overwrites candidate 0's family regardless of pool;
+	// gating it is Task 2's other half, checked in ambient/session-api.
+	let outside = 0;
+	for (let i = 0; i < 200; i++) {
+		const scan = generateTargetScan({ seed: `pool-${i}`, count: 5, families: FREESTYLE_ONLY, swarmChance: 0 });
+		for (const c of scan.candidates) if (c._family !== 'freestyle5') outside++;
+	}
+	check('families: a restricted pool never draws outside it', outside === 0, `${outside}`);
+
+	const pool2 = ['freestyle5', 'cinewhoop', 'toothpick'];
+	let outside2 = 0;
+	for (let i = 0; i < 200; i++) {
+		const scan = generateTargetScan({ seed: `pool2-${i}`, count: 5, families: pool2, swarmChance: 0 });
+		for (const c of scan.candidates) if (!pool2.includes(c._family)) outside2++;
+	}
+	check('families: a wider pool still never draws outside it', outside2 === 0, `${outside2}`);
+
+	// Same seed, same families -> same scan (the client/server non-divergence
+	// this task depends on).
+	const a = generateTargetScan({ seed: 'pool-det', count: 5, families: pool2 });
+	const b = generateTargetScan({ seed: 'pool-det', count: 5, families: pool2 });
+	check('families: same seed + same families -> same scan', JSON.stringify(a) === JSON.stringify(b));
+
+	// Absent, empty or invalid -> the full pool, never a throw: an older
+	// caller that knows nothing of clearance must keep working.
+	check('families: absent -> full pool',
+		generateTargetScan({ seed: 'pool-full', count: 5 }).families.join() === TARGET_FAMILIES.join());
+	check('families: empty array -> full pool',
+		generateTargetScan({ seed: 'pool-full', count: 5, families: [] }).families.join() === TARGET_FAMILIES.join());
+	check('families: unknown key -> full pool',
+		generateTargetScan({ seed: 'pool-full', count: 5, families: ['not-a-family'] }).families.join() === TARGET_FAMILIES.join());
+	check('families: not an array -> full pool',
+		generateTargetScan({ seed: 'pool-full', count: 5, families: 'freestyle5' }).families.join() === TARGET_FAMILIES.join());
+
+	// The pool actually used travels with the scan and with resolveTarget's
+	// persisted descriptor — that is what lets an ambient regeneration draw
+	// from the SAME pool as the flight did.
+	check('families: the scan carries the pool it drew from',
+		generateTargetScan({ seed: 'pool-echo', count: 4, families: FREESTYLE_ONLY }).families.join() === FREESTYLE_ONLY.join());
+	const scan = generateTargetScan({ seed: 'pool-resolve', count: 4, families: pool2 });
+	const t = resolveTarget(scan, 0);
+	check('resolveTarget: scan.families carries the pool used',
+		t.scan.families.join() === pool2.join());
+}
+
+// --- drift guard
+check('FAMILY_CLASS covers exactly FAMILIES',
 	TARGET_FAMILIES.slice().sort().join(',') === FAMILIES.slice().sort().join(','),
 	`${TARGET_FAMILIES.join(' ')} vs ${FAMILIES.join(' ')}`);
 

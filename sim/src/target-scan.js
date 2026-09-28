@@ -1,78 +1,108 @@
-// TARGET SCAN (PHASE 08, Bible §15). Interaction courte : une liste de signaux,
-// le joueur en choisit un. On n'affiche QUE ce qui est réellement connu avant
-// le vol — jamais la famille, la caméra, les rates, la batterie.
+// TARGET SCAN (PHASE 08, Bible §15). A short interaction: a list of signals,
+// the player picks one. Only what is really known before the flight is
+// shown — never the family, the camera, the rates, the battery.
 //
-// Un seul écran depuis l'issue #49 : la fiche pré-hack a disparu et ce qu'elle
-// portait d'utile tient sur la ligne (tools/target-model.mjs:scanLines). Quatre
-// de ses sept champs étaient les mêmes constantes pour toutes les cibles et
-// n'ont jamais départagé deux signaux ; CONDITIONS est déjà en tête d'écran.
-// Activer une ligne CHOISIT donc la cible — une frappe, plus deux.
+// A single screen since issue #49: the pre-hack sheet is gone and what was
+// useful in it fits on the row (tools/target-model.mjs:scanLines). Four of
+// its seven fields were the same constants for every target and never
+// distinguished two signals; CONDITIONS is already at the top of the screen.
+// Activating a row therefore CHOOSES the target — one keystroke, not two.
 //
-// Écran client pur : rendu avec le look terminal (screen/button de terminal.js),
-// aucune dépendance Three/Rapier. La génération vient de tools/target-model.mjs,
-// bundlée par Vite. La grammaire ↑/↓ + Entrée vit dans menu-nav.js (issue
-// #123) : chaque signal est un vrai bouton, le curseur est le focus natif —
-// cliquable, tabulable, et pilotable à la manette.
+// A pure client screen: rendered with the terminal look (screen/button from
+// terminal.js), no Three/Rapier dependency. The generation comes from
+// tools/target-model.mjs, bundled by Vite. The Up/Down + Enter grammar lives
+// in menu-nav.js (issue #123): every signal is a real button, the cursor is
+// native focus — clickable, tabbable, and drivable from a gamepad.
 import { screen, button, keyHints } from './terminal.js';
 import { menuNav } from './menu-nav.js';
-import { generateTargetScan, scanLines } from '../tools/target-model.mjs';
+import { generateTargetScan, scanLines, TARGET_FAMILIES } from '../tools/target-model.mjs';
 import { conditionsBlock } from './weather.js';
 import { uiAudio } from './ui-audio.js';
+import { mountHangar } from './hangar.js';
+import { swarmAllowed } from '../tools/signal-clearance-model.mjs';
 
-// Plus de RTC sur TARGET SCAN depuis #243.
-// Le crew ne commente plus l'écran qu'on regarde — il parle sur la racine, et
-// en toast pendant le hack et l'acquisition. TARGET_SCAN, TARGET_SELECTED et
-// WEATHER restent dans le flux mêlé de la racine.
+// No more crew chatter on TARGET SCAN since #243.
+// The crew no longer comments on the screen you are looking at — it speaks on
+// the root, and as a toast during the hack and the acquisition. TARGET_SCAN,
+// TARGET_SELECTED and WEATHER stay in the root's mixed feed.
 
-// `weather` : le snapshot du monde pour cette zone (issue #76), résolu avant le
-// scan par main.js. `null` si la zone n'a pas de coordonnées — on n'invente
-// alors pas de météo, le bloc CONDITIONS est simplement absent.
+// `weather`: the world's weather snapshot for this area (issue #76), resolved
+// before the scan by main.js. `null` if the area has no coordinates — no
+// weather is then invented, the CONDITIONS block is simply absent.
 // `swarmChance` (issue #29): the caller computes it from the operator state
 // (the early guarantee) and it must be the SAME value it sends to the server,
 // so the screen hands it back with the choice rather than keeping it.
-export function runTargetScan(root, { seed, count, weather = null, swarmChance }) {
-	const scan = generateTargetScan({ seed, count, swarmChance });
+// `families`/`clearance` (issue #185): the caller computes the draw pool ONCE
+// per flight choice from the operator's clearance, and this screen must draw
+// from the SAME pool as main.js and the server, or the choice the player made
+// here would not be the target the server resolves. `clearance` itself is not
+// used to draw anything — it only feeds the CLEARANCE line and travels back
+// with the choice for the session POST.
+// `store` (the operator's uplinked signals) draws the hangar under the list:
+// every flight shows the machines this clearance can hack, and the ones it
+// will. Absent, there is no hangar.
+export function runTargetScan(root, { seed, count, weather = null, swarmChance, families, clearance, store }) {
+	const scan = generateTargetScan({ seed, count, swarmChance, families });
 	const condBlock = conditionsBlock(weather);
 	return new Promise((resolve) => {
 		const s = screen(root);
-		// createElement plutôt qu'innerHTML, comme screen() lui-même : c'est ce
-		// qui rend l'écran montable sur le faux DOM, donc testable sans
-		// navigateur (tools/target-scan-render-selftest.mjs, issue #73).
+		// createElement rather than innerHTML, like screen() itself: this is
+		// what makes the screen mountable on the fake DOM, so testable without
+		// a browser (tools/target-scan-render-selftest.mjs, issue #73).
 		const head = document.createElement('pre');
 		head.textContent = `TARGET SCAN\n\n${condBlock ? `${condBlock.join('\n')}\n\n` : ''}SIGNALS DETECTED`;
 		s.box.appendChild(head);
 
 		const wrap = document.createElement('div');
 		wrap.className = 'terminal-list';
-		// Les lignes sont calculées d'un bloc : l'alignement des colonnes est une
-		// propriété de l'ensemble, et la ligne d'un cluster est bien plus longue
-		// que les autres. L'écran affiche, il ne formate pas.
+		// The rows are computed as one block: column alignment is a property
+		// of the whole set, and a cluster's row is much longer than the
+		// others. The screen displays, it does not format.
 		scanLines(scan.candidates).forEach((line, i) => {
 			wrap.appendChild(button(line, () => choose(i), 'terminal-row'));
 		});
 		s.box.appendChild(wrap);
-		// D15 : Échap ressort, et il le dit. La liste n'a pas de bouton BACK —
-		// choisir un signal est le seul geste qu'elle propose — donc la touche
-		// est la SEULE sortie visible de l'écran.
+
+		// The hangar (issue #185), compact: the machines of every clearance,
+		// the open ones turning, the locked ones as silhouettes.
+		const hangar = store !== undefined ? mountHangar(s.box, { store, compact: true }) : null;
+
+		// The clearance line (issue #185, spec §2): under the list, faint —
+		// information, not an instruction, like keyHints() below it. 7 = the
+		// six ordinary families plus the swarm. The swarm is not in `families`
+		// (it is drawn by swarmChance, not from the pool), so it is counted
+		// here once the clearance allows it.
+		if (Number.isInteger(clearance)) {
+			const line = document.createElement('pre');
+			line.className = 'terminal-clearance-line';
+			const classes = scan.families.length + (swarmAllowed(clearance) ? 1 : 0);
+			line.textContent = `CLEARANCE ${clearance} · ${classes} OF ${TARGET_FAMILIES.length + 1} MACHINE CLASSES`;
+			s.box.appendChild(line);
+		}
+
+		// D15: Escape backs out, and it says so. The list has no BACK button —
+		// choosing a signal is the only gesture it offers — so the key hint is
+		// the SCREEN'S ONLY VISIBLE way out.
 		s.box.appendChild(keyHints([['ESC', 'BACK']]));
 
-		// La garde de l'issue #73, sous sa forme restante. Le défaut d'origine
-		// était que la même frappe atteignait à la fois le bouton focalisé et un
-		// second chemin d'activation : `sheet()` était appelée deux fois et deux
-		// fiches s'empilaient. Sans fiche il n'y a plus rien à empiler, mais les
-		// deux chemins existent toujours — sans ce drapeau on démonterait
-		// l'écran deux fois, le second démontage travaillant sur un arbre déjà
-		// retiré, et on jouerait le son du choix en double.
+		// The guard from issue #73, in its remaining form. The original bug was
+		// that the same keystroke reached both the focused button and a second
+		// activation path: `sheet()` was called twice and two sheets stacked
+		// up. With no sheet there is nothing left to stack, but both paths
+		// still exist — without this flag the screen would be torn down
+		// twice, the second teardown working on a tree already removed, and
+		// the choice sound would play twice.
 		let done = false;
 
-		// Échap / bouton B ressort vers le choix de zone. L'écran ne sait pas ce
-		// que ça coûte — à cet instant main.js a déjà lancé le préchargement de
-		// la carte — donc il se contente de le signaler et laisse l'appelant
-		// décider : les écrans restent des clients purs.
+		// Escape / the B button backs out to the zone choice. The screen does
+		// not know what that costs — by this point main.js has already
+		// started preloading the map — so it merely signals it and lets the
+		// caller decide: screens stay pure clients.
 		const cancel = () => {
 			if (done) return;
 			done = true;
 			listNav.detach();
+			hangar?.destroy();
 			s.remove();
 			resolve({ cancelled: true });
 		};
@@ -84,8 +114,13 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance }
 			done = true;
 			listNav.detach();
 			uiAudio.play('TARGET_FOUND');
+			hangar?.destroy();
 			s.remove();
-			resolve({ seed: scan.seed, count: scan.count, index, swarmChance: scan.swarmChance, swarmAt: scan.swarmAt });
+			resolve({
+				seed: scan.seed, count: scan.count, index,
+				swarmChance: scan.swarmChance, swarmAt: scan.swarmAt,
+				families: scan.families, clearance,
+			});
 		};
 	});
 }

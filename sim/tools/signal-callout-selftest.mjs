@@ -68,6 +68,7 @@ t('revealCount: name first, all at 100 %, nothing when merely near, all when res
 	assert.equal(revealCount(5, 0.5, 'held'), 3);
 	assert.equal(revealCount(5, 0, 'resolved'), 5);
 	assert.equal(revealCount(0, 1, 'capturing'), 0);
+	assert.equal(revealCount(5, 1, 'encrypted'), 0, 'never decrypted, whatever the gauge');
 });
 
 t('scramble: same length, spaces kept, deterministic per seed, changes with the seed', () => {
@@ -84,6 +85,7 @@ t('headline: words and functional tones', () => {
 	assert.deepEqual(headline('held'), { word: 'SIGNAL', tone: 'dim' });
 	assert.deepEqual(headline('capturing'), { word: 'CAPTURING', tone: 'orange' });
 	assert.deepEqual(headline('resolved'), { word: 'UPLINKED', tone: 'green' });
+	assert.deepEqual(headline('encrypted', { need: 2 }), { word: 'ENCRYPTED · CLEARANCE 2', tone: 'dim' });
 });
 
 console.log(`signal-callout: ${n} ok`);
