@@ -157,8 +157,9 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   jamais. Le tablier d'un pont est cherché dans le maillage lui-même (le
   passage doit laisser 6 m et être ouvert) : à Paris, Mirabeau, le Pont Neuf
   et le pont Rouelle se passent dessous ; un pont dont le maillage ferme les
-  côtés jusqu'à l'eau reçoit un tour — jamais plus de 50 m de rayon, même
-  autour d'un long pont, et assez haut pour passer tout ce qui l'entoure. Le
+  côtés jusqu'à l'eau reçoit un tour — jamais plus de 50 m de rayon (35 m
+  au niveau I, pour tourner autour de l'église et non du pâté de maisons),
+  même autour d'un long pont, et assez haut pour passer tout ce qui l'entoure. Le
   fil fait 3 px de près et 5 px au loin, bordé d'un liseré sombre qui le
   détache du ciel comme de la ville. Consigné dans la Bible, §49 « Le fil ». (#185)
 

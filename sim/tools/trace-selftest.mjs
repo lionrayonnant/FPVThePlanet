@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
 	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg,
-	SPACING_M, TOLERANCE_M, TURN_GAP_M, ORBIT_MAX_R_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
+	SPACING_M, TOLERANCE_M, TURN_GAP_M, ORBIT_MAX_R_M, ORBIT_MAX_R_TIER1_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
 let n = 0;
@@ -192,11 +192,13 @@ t('orbit: never wider than ORBIT_MAX_R_M (a long bridge); its altitude clears wh
 		for (const tier of [1, 2, 3]) {
 			const tr = buildTrace({ signal: sig('BRIDGE'), anchor: a, profile: p, tier, approach: { x: 0, z: 300 }, attempt });
 			assert.equal(tr.shape, 'orbit');
-			for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(hdist(pt(tr, i), a) - ORBIT_MAX_R_M) < 0.1, `radius ${hdist(pt(tr, i), a)}`);
+			const cap = tier === 1 ? ORBIT_MAX_R_TIER1_M : ORBIT_MAX_R_M;
+			for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(hdist(pt(tr, i), a) - cap) < 0.1, `tier ${tier} radius ${hdist(pt(tr, i), a)}`);
 			if (tier === 2) ys.push(pt(tr, 0).y);
 		}
 	}
 	assert.equal(ORBIT_MAX_R_M, 50);
+	assert.equal(ORBIT_MAX_R_TIER1_M, 35);
 	assert.ok(Math.abs(ys[0] - (48 + 6)) < 1e-3, `over the quay block within 60 m: ${ys[0]}`);
 	assert.ok(Math.abs(ys[1] - ys[0] - 6) < 1e-3 && Math.abs(ys[2] - ys[1] - 6) < 1e-3, 'capped: each retry 6 m higher');
 });

@@ -449,7 +449,8 @@ raised band over lower ground on both sides), then verified with rays: an
 underside over a gap of at least 6 m, and an open pass under it. None found
 from afar (LIVE has not refined the deck yet): probed once more from 150 m,
 then an orbit. An orbit is the landmark's outline + 12 m, never wider than
-50 m (a long bridge or quay would otherwise read as a huge outline): it may
+50 m, 35 m at tier I (a long bridge, a quay or a dense block would otherwise
+read as a huge outline): it may
 then cross a deck or a quay, and its altitude clears everything probed within
 its radius + 10 m by 6 m. A retry once capped is 6 m higher. A dive's probe
 grid extends to 140 m (outer rings), for the reach of its descent.

@@ -36,6 +36,9 @@ const ALT_STEP_M = 6;         // per attempt
 // An orbit is a ring to fly and read, not the outline of a 300 m bridge: never
 // wider than this, whatever the landmark (it may then cross a deck or a quay).
 export const ORBIT_MAX_R_M = 50;
+// Tier I is a small place in a dense block: a 50 m ring circles the block,
+// not the building.
+export const ORBIT_MAX_R_TIER1_M = 35;
 const ORBIT_CLEAR_PAD_M = 10; // its altitude clears everything probed within R + 10 m
 const ARC = { 1: Math.PI, 2: Math.PI, 3: 3 * Math.PI };
 // Tier III orbit: a helix, so its 1.5 turns never overlay. 8 m per turn keeps
@@ -250,7 +253,7 @@ function buildOrbit(ctx) {
 	// attempt's radius step is a no-op: retries then differ by altitude
 	// (ALT_STEP_M) alone.
 	const edge = profile.rings[profile.rings.length - 1].r;
-	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, ORBIT_MAX_R_M, edge);
+	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, tier === 1 ? ORBIT_MAX_R_TIER1_M : ORBIT_MAX_R_M, edge);
 	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxWithin(profile, anchor, R + ORBIT_CLEAR_PAD_M) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
 	// Tiers I/II (half a turn) stay level; tier III climbs so its turns never overlay.
 	const rise = tier >= 3 ? ORBIT_RISE_PER_TURN_M * ARC[tier] / TAU : 0;
