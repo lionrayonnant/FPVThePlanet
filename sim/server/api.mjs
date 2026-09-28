@@ -38,6 +38,7 @@ import {
 } from '../tools/lib/estimates.mjs';
 import { resolveWeather } from '../tools/weather-source.mjs';
 import { generateTargetScan, resolveTarget } from '../tools/target-model.mjs';
+import { familiesFor, swarmAllowed, MAX_CLEARANCE } from '../tools/signal-clearance-model.mjs';
 import {
 	generateKey, hashKey, checkKey, acquireEnabled, invalidateKeyIndex, publicOperator,
 	operatorIdForKey, bearerOf, checkSignup, checkOperatorQuota,
@@ -368,12 +369,25 @@ const opRoutes = [
 				// The server needs it to regenerate the SAME scan: seed, count and
 				// chance fully determine the draw, so `swarmAt` never travels.
 				// Absent means 0, not the default chance: a client that says nothing
-				// showed no cluster, and the server must not invent one.
-				const swarmChance = b.swarmChance ?? 0;
-				if (!Number.isFinite(swarmChance) || swarmChance < 0 || swarmChance > 1) {
+				// showed no cluster, and the server must not invent one. Validated
+				// BEFORE the clearance gate below, so a malformed value still 400s
+				// regardless of what clearance does to it afterwards.
+				const swarmChanceIn = b.swarmChance ?? 0;
+				if (!Number.isFinite(swarmChanceIn) || swarmChanceIn < 0 || swarmChanceIn > 1) {
 					return json(res, 400, { error: `swarmChance outside [0,1]: ${b.swarmChance}` });
 				}
-				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance });
+				// Clearance (issue #185): the operator's draw pool and swarm
+				// eligibility. The server is the authority — it recomputes both from
+				// `clearance` with the SAME pure functions the client used, rather
+				// than trusting a client-supplied family list. Missing or out of
+				// range: the full pool, for a client that predates clearance — but
+				// the swarm stays gated at 0 in that case, never inferred from a
+				// clearance the server could not validate.
+				const rawClearance = b.clearance;
+				const validClearance = Number.isInteger(rawClearance) && rawClearance >= 0 && rawClearance <= MAX_CLEARANCE;
+				const families = validClearance ? familiesFor(rawClearance) : undefined;
+				const swarmChance = (validClearance && swarmAllowed(rawClearance)) ? swarmChanceIn : 0;
+				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance, families });
 				if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
 					return json(res, 400, { error: `targetIndex out of range: ${b.targetIndex}` });
 				}

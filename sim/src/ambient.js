@@ -1,16 +1,16 @@
-// Drones ambiants (issue #250) — le modèle PUR. Ni Three, ni Rapier, ni DOM :
-// les rayons sont des fonctions injectées ({ groundBelow, obstructionBetween }
-// duck-typé comme src/entry-state.js), le rendu vit dans src/drone-mesh.js et
-// le son dans src/ambient-audio.js.
+// Ambient drones (issue #250) — the PURE model. No Three, no Rapier, no DOM:
+// rays are injected functions ({ groundBelow, obstructionBetween }, duck-typed
+// like src/entry-state.js), the rendering lives in src/drone-mesh.js and the
+// sound in src/ambient-audio.js.
 //
-// Ce fichier tient : l'ensemble (qui vole), les routines (comment chaque
-// famille vole), les courbes (où), la bulle (autour de qui), les ancres et
-// leur validation, l'attitude (comment le corps se tient). Tout est
-// déterministe sur la graine du scan, et update() n'alloue rien.
+// This file holds: the set (who flies), the routines (how each family flies),
+// the curves (where), the bubble (around whom), the anchors and their
+// validation, the attitude (how the body holds itself). Everything is
+// deterministic on the scan's seed, and update() allocates nothing.
 //
-// La validation travaille sur DEUX grilles, et c'est délibéré : le sol se
-// mesure fin (HEIGHT_SAMPLES), les murs se testent grossier (SAMPLES). Le
-// pourquoi est au-dessus des deux constantes.
+// Validation works on TWO grids, and that is deliberate: the ground is
+// measured fine (HEIGHT_SAMPLES), walls are tested coarse (SAMPLES). The why
+// is above the two constants.
 
 import { generateTargetScan } from '../tools/target-model.mjs';
 import {
@@ -35,16 +35,21 @@ export const TURN_MARGIN = 0.6;
 
 const lerp = (rand, [a, b]) => a + rand() * (b - a);
 
-// Les candidats non pris, avec la graine d'exemplaire que resolveTarget()
-// leur aurait donnée. Pur et déterministe : le même scan rend le même ciel.
+// The candidates not taken, with the individual seed resolveTarget() would
+// have given them. Pure and deterministic: the same scan renders the same sky.
 export function ambientSet(scan) {
 	// The swarm keys travel with the scan (issue #29) so the regeneration is
 	// exact. Absent, they mean no cluster — a v2 session or a dev scan predates
 	// swarms, and a redraw on today's default chance would invent one.
+	// `families` (issue #185, clearance) does the same job for the draw pool:
+	// absent means the full pool — an older session or a dev scan predates
+	// clearance, and a redraw on today's operator clearance could draw a
+	// family the flight never had a chance to show.
 	const { candidates } = generateTargetScan({
 		seed: scan.seed, count: scan.count,
 		swarmChance: scan.swarmChance ?? 0,
 		swarmAt: scan.swarmAt ?? null,
+		families: scan.families,
 	});
 	const out = [];
 	for (let i = 0; i < candidates.length; i++) {

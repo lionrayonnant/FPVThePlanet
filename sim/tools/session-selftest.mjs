@@ -714,6 +714,29 @@ await ta('open({ target: { swarmChance } }) transmet swarmChance au serveur', as
 	assert.equal(post.body.swarmChance, 1);
 });
 
+await ta('open({ target: { clearance } }) sends clearance to the server (issue #185)', async () => {
+	// The server is the authority on the draw pool and the swarm gate: it
+	// recomputes both from `clearance` rather than trusting a client-supplied
+	// family list.
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 0, clearance: 2 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.clearance, 2);
+});
+
+await ta('open({ target }) with no clearance sends undefined (older/dev callers)', async () => {
+	const calls = [];
+	stubOperator(calls);
+	await op.createOperator('neo');
+	session._reset();
+	await session.open({ area: 'kyiv', target: { seed: 's', count: 4, index: 0 } });
+	const post = calls.find((c) => c.method === 'POST' && /\/sessions$/.test(c.url));
+	assert.equal(post.body.clearance, undefined);
+});
+
 await ta('capturePhoto : POST .../sessions/:sid/photos, incrémente le compteur local', async () => {
 	const calls = [];
 	stubOperator(calls);

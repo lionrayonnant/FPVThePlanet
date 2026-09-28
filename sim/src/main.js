@@ -46,6 +46,7 @@ import { resolveBenchAirframe } from '../tools/bench-airframe.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
+import { clearanceOf, familiesFor, swarmAllowed } from '../tools/signal-clearance-model.mjs';
 import { parseSwarmFlag, parseSceneFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
@@ -3674,13 +3675,21 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 			const seed = Math.random().toString(16).slice(2, 12);
 			const count = signalCountFrom(flyChoice.density);
+			// Clearance (issue #185): computed ONCE per flight choice from the
+			// operator's uplinked signals, and threaded into every place that
+			// draws this scan (here, runTargetScan, and later the session POST) —
+			// client and server must agree on the SAME pool for the flight not to
+			// diverge from the target the player picked.
+			const clearance = clearanceOf(operator.getOperator()?.signals);
+			const families = familiesFor(clearance);
 			// The early guarantee (issue #29), read off the operator state the
 			// client already holds. It goes to the server with the hack request,
-			// because only that makes the server's regeneration identical.
-			const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
-			const scan = generateTargetScan({ seed, count, swarmChance });
+			// because only that makes the server's regeneration identical. Below
+			// CLEARANCE 3 the swarm never draws at all, whatever the guarantee says.
+			const swarmChance = swarmAllowed(clearance) ? swarmChanceFor(operator.getOperator()?.sessions) : 0;
+			const scan = generateTargetScan({ seed, count, swarmChance, families });
 			const scanWeather = await worldWeather({ lat, lon });
-			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance });
+			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance });
 
 			// Escape at the TARGET SCAN: back to the zone selection. Nothing has
 			// been mounted yet — unlike the baked path, bootLive() is only called
@@ -3779,14 +3788,19 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 
 		const seed = Math.random().toString(16).slice(2, 12);
 		const count = signalCountFor(slug);
-		const swarmChance = swarmChanceFor(operator.getOperator()?.sessions);
-		const scan = generateTargetScan({ seed, count, swarmChance });
+		// Clearance (issue #185): same computation as the live path above —
+		// once per flight choice, threaded into the scan, the screen and the
+		// session POST.
+		const clearance = clearanceOf(operator.getOperator()?.signals);
+		const families = familiesFor(clearance);
+		const swarmChance = swarmAllowed(clearance) ? swarmChanceFor(operator.getOperator()?.sessions) : 0;
+		const scan = generateTargetScan({ seed, count, swarmChance, families });
 		// The world's weather for this area, resolved before the scan so the
 		// conditions are salient at the target choice (issue #76). worldWeather is
 		// cached per zone: boot() reuses this result with no extra round trip.
 		const sc = (await loadSceneList()).find((s) => s.slug === slug);
 		const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
-		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance }); // { seed, count, index, swarmChance, swarmAt } | { cancelled }
+		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance }); // { seed, count, index, swarmChance, swarmAt, families, clearance } | { cancelled }
 
 		// Escape at the TARGET SCAN: back to the zone selection, breaking nothing.
 		// The preload started above CARRIES ON in the background: it does not touch

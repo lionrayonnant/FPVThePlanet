@@ -1,19 +1,19 @@
-// Cycle de vie d'une session, côté client (PHASE 06). Aucun DOM, aucun Three.
+// The lifecycle of a session, client side (PHASE 06). No DOM, no Three.
 //
-// La session est tenue en mémoire pendant tout le vol : deux appels réseau
-// seulement, un POST à l'ouverture (squelette PENDING sur disque, pour qu'un
-// onglet mort laisse quand même une trace) et un PATCH à la clôture avec la
-// télémétrie agrégée. Rien pendant le vol.
+// The session is held in memory for the whole flight: only two network
+// calls, a POST at the opening (a PENDING skeleton on disk, so a dead tab
+// still leaves a trace) and a PATCH at the closing with the aggregated
+// telemetry. Nothing during the flight.
 //
 //   terrain persistent, flights ephemeral
 import * as operator from './operator.js';
 import { Coverage } from './coverage.js';
 import { encodeTrack, MAX_SAMPLES } from '../tools/track-model.mjs';
 
-// La couverture (issue #245) s'échantillonne à 5 Hz, pas à la frame : à
-// 42,72 m/s — la pire vitesse mesurée du dépôt — deux échantillons sont à
-// 8,5 m, très en deçà des 30 m de l'empreinte. Aucun trou possible, et
-// rien à faire entre deux échantillons.
+// Coverage (issue #245) is sampled at 5 Hz, not per frame: at 42.72 m/s — the
+// worst speed measured in the repo — two samples are 8.5 m apart, well under
+// the footprint's 30 m. No gap is possible, and there is nothing to do
+// between two samples.
 export const SAMPLE_S = 0.2;
 
 let live = null; // { id, session, tel, closed, cov, sinceSample, track }
@@ -33,8 +33,8 @@ function freshTrack() {
 	};
 }
 
-// Forme minimale de l'instantané météo, sans dépendre du modèle serveur (qui
-// tire node:crypto). Le serveur re-filtre de toute façon.
+// The minimal shape of the weather snapshot, without depending on the server
+// model (which pulls node:crypto). The server re-filters it anyway.
 export function snapshotWeather(weather) {
 	if (!weather) return null;
 	const day0 = weather.days?.[0] ?? null;
@@ -56,15 +56,18 @@ function zeroTel() {
 export function current() { return live?.session ?? null; }
 
 export async function open({ area, weatherSnapshot, target } = {}) {
-	// `target = { seed, count, index }` : la cible choisie au TARGET SCAN. Le
-	// serveur régénère la fiche complète depuis ces trois clés (PHASE 08).
+	// `target = { seed, count, index }`: the target chosen at the TARGET SCAN.
+	// The server regenerates the full sheet from these three keys (PHASE 08).
 	// `swarmChance` (issue #29) travels with them because the server cannot
 	// recompute it: it depends on the early guarantee, which the client
 	// evaluates on the operator state it already holds.
+	// `clearance` (issue #185) travels too: the server recomputes the SAME
+	// family pool and the SAME swarm gate from it, rather than trusting a
+	// client-supplied family list — it is the authority on both.
 	const session = await operator.postSession({
 		area, weatherSnapshot,
 		targetSeed: target?.seed, targetCount: target?.count, targetIndex: target?.index,
-		swarmChance: target?.swarmChance,
+		swarmChance: target?.swarmChance, clearance: target?.clearance,
 	});
 	live = {
 		id: session.id, session, tel: zeroTel(), closed: false,
@@ -73,46 +76,46 @@ export async function open({ area, weatherSnapshot, target } = {}) {
 	return session;
 }
 
-// La couverture de la session en cours (issue #245), pour les bancs et le debug.
+// The current session's coverage (issue #245), for the benches and debug.
 export function coverage() { return live?.cov ?? null; }
 
-// La piste de la session en cours (issue #24), pour les selftests et le debug.
+// The current session's track (issue #24), for the selftests and debug.
 export function track() { return live?.track ?? null; }
 
-// Appelé une fois par frame. N'agrège durée et distance que quand le drone est
-// armé — une épave ne « vole » pas.
+// Called once per frame. Only aggregates duration and distance while the
+// drone is armed — a wreck does not "fly".
 //
-// `geo` (issue #245) : une FONCTION qui rend { lat, lon }, pas la valeur. Elle
-// n'est appelée qu'aux échantillons (5 Hz), pour que la conversion ENU → lat/lon
-// ne coûte rien entre deux. Un résultat non fini est ignoré : une position
-// dégénérée (drone passé sous le terrain pendant une chute, #182) ne doit pas
-// marquer une cellule au large de l'Afrique.
+// `geo` (issue #245): a FUNCTION that renders { lat, lon }, not the value. It
+// is only called at samples (5 Hz), so the ENU -> lat/lon conversion costs
+// nothing in between. A non-finite result is ignored: a degenerate position
+// (a drone gone under the terrain during a crash, #182) must not mark a cell
+// off the coast of Africa.
 //
-// `throttle` et `headingDeg` (issue #24) ne servent QU'à la piste : la
-// télémétrie agrégée les ignore. Ils arrivent du même site d'appel que le
-// reste, où ils sont déjà calculés.
+// `throttle` and `headingDeg` (issue #24) are ONLY used by the track: the
+// aggregated telemetry ignores them. They arrive from the same call site as
+// the rest, where they are already computed.
 export function feed({
 	speed = 0, horizontalSpeed = 0, rateDps = 0, altitudeAboveSpawn = 0,
 	dt = 0, armed = false, geo = null, throttle = 0, headingDeg = 0,
 } = {}) {
 	if (!live || live.closed) return;
 	const t = live.tel;
-	// Rien ne compte quand le drone est désarmé : ni la durée, ni la distance,
-	// ni les pics — un drone posé qui rebondit sur sa sphère de collision n'est
-	// pas en train de « voler à 2000 °/s ».
+	// Nothing counts while the drone is disarmed: not the duration, not the
+	// distance, not the peaks — a downed drone bouncing on its collision
+	// sphere is not "flying at 2000 deg/s".
 	if (!armed) return;
 	if (dt > 0) {
 		t.durationS += dt;
 		t.distanceM += Math.max(0, horizontalSpeed) * dt;
-		// dt = 0 quand la sim est gelée : on n'échantillonne pas en pause.
+		// dt = 0 when the sim is frozen: no sampling while paused.
 		live.sinceSample += dt;
-		// `- 1e-9` : douze additions de 1/60 tombent à 0,19999999999999998.
+		// `- 1e-9`: twelve additions of 1/60 land on 0.19999999999999998.
 		if (geo && live.sinceSample >= SAMPLE_S - 1e-9) {
 			live.sinceSample = 0;
 			const g = geo();
 			if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon)) {
 				live.cov.mark(g.lat, g.lon);
-				// La piste (issue #24) rides on the SAME boundary and the same
+				// The track (issue #24) rides on the SAME boundary and the same
 				// position: one array push per sample, no second timer, no second
 				// ENU → lat/lon conversion.
 				const tr = live.track;
@@ -121,9 +124,8 @@ export function feed({
 					t: tr.t, lat: g.lat, lon: g.lon,
 					alt: altitudeAboveSpawn, spd: speed, thr: throttle, rate: rateDps,
 				};
-				// Le plafond est tenu ICI aussi : encodeTrack() tronque de toute
-				// façon, mais la mémoire d'un onglet ne doit pas croître sans fin
-				// sur un vol d'une heure et demie.
+				// The cap is also held HERE: encodeTrack() truncates anyway, but a
+				// tab's memory must not grow unbounded over a ninety-minute flight.
 				if (tr.samples.length < MAX_SAMPLES) tr.samples.push(s); else tr.overflow = true;
 				tr.last = s;
 				tr.heading = headingDeg;
@@ -136,12 +138,12 @@ export function feed({
 	if (altitudeAboveSpawn > t.maxAltitudeM) t.maxAltitudeM = altitudeAboveSpawn;
 }
 
-// Nombre de captures prises pendant la session en cours (PHASE 16).
+// Number of captures taken during the current session (PHASE 16).
 export function photoCount() { return live?.session?.photos?.length ?? 0; }
 
-// Envoie une capture au serveur, qui fait autorité sur le compte final (rendu
-// via la session mise à jour). Rend 0 sans rien envoyer si aucune session
-// n'est ouverte ou déjà close — pas de photo orpheline.
+// Sends a capture to the server, which is authoritative on the final count
+// (rendered via the updated session). Returns 0 without sending anything if
+// no session is open or it is already closed — no orphan photo.
 export async function capturePhoto({ dataUrl, w, h }) {
 	if (!live || live.closed) return 0;
 	try {
@@ -149,7 +151,7 @@ export async function capturePhoto({ dataUrl, w, h }) {
 		markPhoto();
 		return photoCount();
 	} catch (e) {
-		console.warn('[session] capture échouée', e);
+		console.warn('[session] capture failed', e);
 		return photoCount();
 	}
 }
@@ -170,42 +172,43 @@ function markPhoto() {
 	});
 }
 
-// `CRASHED`, le seul verdict qu'un vol produise (D9, 2026-09-08 :
-// l'atterrissage a disparu). Idempotent : le premier verdict gagne.
+// `CRASHED`, the only verdict a flight produces (D9, 2026-09-08: landing
+// disappeared). Idempotent: the first verdict wins.
 export async function end(result) {
 	if (!live || live.closed) return null;
 	live.closed = true;
 	const { id, tel } = live;
-	// La couverture s'écrit ICI et une seule fois (issue #245). operator.patch()
-	// est débouncé mais réémet toute la valeur à chaque flush : patcher en vol
-	// enverrait le blob entier plusieurs fois par seconde. Et c'est ce qui a du
-	// sens : le monde retient ce qu'une session a FAIT, pas ce qu'elle fait.
+	// Coverage is written HERE, once (issue #245). operator.patch() is
+	// debounced but re-emits the whole value on every flush: patching in
+	// flight would send the entire blob several times a second. And that is
+	// the right shape anyway: the world remembers what a session DID, not
+	// what it is doing.
 	//
-	// Le banc n'arrive jamais ici : il n'ouvre aucune session, donc `live` est
-	// null et feed() ne marque rien. NOTHING LOGGED est acquis par construction,
-	// sans garde à maintenir.
+	// The bench never reaches here: it opens no session, so `live` is null
+	// and feed() marks nothing. NOTHING LOGGED holds by construction, with no
+	// guard to maintain.
 	//
-	// Avant le PATCH de la session : si celui-ci échoue, la couverture est
-	// quand même dans le cache client et partira au prochain flush — un vol
-	// dont on perd la fiche ne doit pas aussi perdre sa trace sur la carte.
+	// Before the session's PATCH: if that fails, the coverage is still in the
+	// client cache and will leave on the next flush — a flight that loses its
+	// record must not also lose its trace on the map.
 	flushCoverage();
 	try {
 		const session = await operator.patchSession(id, { result, telemetry: round(tel) });
 		live.session = session;
-		// La piste part APRÈS le PATCH et seulement s'il a réussi (issue #24) :
-		// elle a besoin d'une session existante côté serveur, et son échec à elle
-		// est avalé. Perdre la piste ne doit jamais coûter la session.
+		// The track leaves AFTER the PATCH and only if it succeeded (issue #24):
+		// it needs an existing session server-side, and its own failure is
+		// swallowed. Losing the track must never cost the session.
 		await flushTrack(id, result);
 		return session;
 	} catch (e) {
-		console.warn('[session] clôture échouée, réconciliation au prochain terminal', e);
+		console.warn('[session] close failed, reconciliation at the next terminal visit', e);
 		return null;
 	}
 }
 
-// Encode la piste accumulée et l'écrit d'un seul PUT (D4). Une session qui n'a
-// pas d'échantillon n'écrit rien : pas de fichier vide pour un vol qui n'a
-// jamais quitté le sol.
+// Encodes the accumulated track and writes it in a single PUT (D4). A session
+// with no sample writes nothing: no empty file for a flight that never left
+// the ground.
 async function flushTrack(id, result) {
 	const tr = live.track;
 	if (tr.samples.length === 0) return;
@@ -217,18 +220,18 @@ async function flushTrack(id, result) {
 			{ truncated: tr.overflow });
 		await operator.putTrack(id, stored);
 	} catch (e) {
-		console.warn('[session] piste non écrite (la session, elle, est close)', e);
+		console.warn('[session] track not written (the session itself is closed)', e);
 	}
 }
 
-// Fusionne la couverture de la session avec celle de l'opérateur, borne, et
-// pose la clé dans le cache client via patch() — écrite au prochain flush
-// (debounce, visibilitychange ou beforeunload). Une session qui n'a rien marqué
-// n'écrit rien : pas de clé posée pour rien sur un opérateur qui n'en avait pas.
+// Merges the session's coverage with the operator's, caps it, and sets the
+// key in the client cache via patch() — written on the next flush (debounce,
+// visibilitychange or beforeunload). A session that marked nothing writes
+// nothing: no key set for nothing on an operator that had none.
 //
-// La couverture opérateur est relue par fromStored(), qui rend une couverture
-// vierge pour tout ce qui n'est pas exactement la forme attendue : un fichier
-// corrompu repart de la session seule plutôt que de bloquer la clôture.
+// The operator's coverage is read back by fromStored(), which renders an
+// empty coverage for anything not exactly the expected shape: a corrupt file
+// restarts from the session alone rather than blocking the close.
 function flushCoverage() {
 	if (!live || live.cov.size === 0) return;
 	try {
@@ -236,23 +239,23 @@ function flushCoverage() {
 		const merged = before.merge(live.cov).cap();
 		operator.patch('coverage', merged.toStored());
 	} catch (e) {
-		console.warn('[session] couverture non écrite (cosmétique)', e);
+		console.warn('[session] coverage not written (cosmetic)', e);
 	}
 }
 
-// Best-effort quand l'onglet se ferme en plein vol : sendBeacon ne sait faire
-// que POST, la route de clôture l'accepte pour ça. Si ça rate, la
-// réconciliation serveur passe la session PENDING en CRASHED.
+// Best-effort when the tab closes mid-flight: sendBeacon can only do POST,
+// and the close route accepts one for that. If it fails, server-side
+// reconciliation turns the PENDING session into CRASHED.
 export function beacon(result = 'CRASHED') {
 	if (!live || live.closed) return;
 	live.closed = true;
-	// sendBeacon ne fait que des POST, et la couverture voyage par un PATCH de
-	// clé opérateur : la trace de CETTE session est perdue si l'onglet meurt.
-	// Assumé (spec #245) — la fiche de session, elle, part bien.
+	// sendBeacon only ever does POST, and coverage travels through a PATCH of
+	// an operator key: THIS session's track is lost if the tab dies. Accepted
+	// (spec #245) — the session's record itself does leave.
 	//
-	// Idem pour la piste (issue #24, D4) : la balise reste agrégats seulement.
-	// Quinze kilo-octets de plus ne valent pas le risque de perdre la clôture
-	// entière, qui est la seule chose que sendBeacon ait vraiment à sauver.
+	// Same for the track (issue #24, D4): the beacon stays aggregates only.
+	// Fifteen more kilobytes are not worth risking the whole close, which is
+	// the only thing sendBeacon really has to save.
 	try {
 		const op = operator.getOperator();
 		if (!op || !navigator.sendBeacon) return;
@@ -260,7 +263,7 @@ export function beacon(result = 'CRASHED') {
 		const blob = new Blob([JSON.stringify({ result, telemetry: round(live.tel) })],
 			{ type: 'application/json' });
 		navigator.sendBeacon(url, blob);
-	} catch { /* l'onglet meurt, la réconciliation couvre */ }
+	} catch { /* the tab dies, reconciliation covers it */ }
 }
 
 function round(t) {
@@ -273,5 +276,5 @@ function round(t) {
 	};
 }
 
-// Pour les tests.
+// For the tests.
 export function _reset() { live = null; }

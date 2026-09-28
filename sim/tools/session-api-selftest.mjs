@@ -72,9 +72,12 @@ try {
 		// elle il ne retrouverait pas le cluster que le joueur a vu.
 		const swarmOp = await call('POST', '/__operator', { name: 'apiswarm' });
 		const id = swarmOp.body.operator.id;
+		// clearance: 3 (issue #185, Signals lot 3) — the swarm only draws from
+		// CLEARANCE 3 now; without it swarmChance would be gated to 0 server-side
+		// and this witness would stop meaning anything.
 		const sSwarm = await call('POST', `/__operator/${id}/sessions`, {
 			area: 'kyiv', weatherSnapshot: null,
-			targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: 1,
+			targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: 1, clearance: 3,
 		});
 		check('POST sessions : swarmChance 1 → cible cluster persistée',
 			sSwarm.status === 201
@@ -105,6 +108,46 @@ try {
 				targetSeed: 'api-swarm', targetCount: 4, targetIndex: 0, swarmChance: bad,
 			});
 			check(`POST sessions : swarmChance ${bad} → 400`, r.status === 400, `${r.status}`);
+		}
+	}
+
+	{
+		// --- clearance drives the draw pool (issue #185, Signals lot 3) ----------
+		// On its OWN operator, like the swarm block above: `created`'s sessionSeq
+		// is checked exactly, further down, and must not move.
+		const clrOp = await call('POST', '/__operator', { name: 'apiclearance' });
+		const id = clrOp.body.operator.id;
+		const FREESTYLE_ONLY = ['freestyle5'];
+		// clearance: 0 -> every index of a scan resolves to a freestyle5, over
+		// several indices, not just the first candidate.
+		for (const targetIndex of [0, 1, 2]) {
+			const r = await call('POST', `/__operator/${id}/sessions`, {
+				area: 'kyiv', weatherSnapshot: null,
+				targetSeed: 'clr-0', targetCount: 4, targetIndex, clearance: 0,
+			});
+			check(`POST sessions : clearance 0, index ${targetIndex} -> family in level-0 pool`,
+				r.status === 201 && FREESTYLE_ONLY.includes(r.body.session.target.family),
+				r.body.session?.target?.family);
+		}
+
+		// A client and the server regenerating with the same body must resolve
+		// the SAME family for a candidate index the client picked off its own
+		// (identically-computed) scan.
+		const rParity = await call('POST', `/__operator/${id}/sessions`, {
+			area: 'kyiv', weatherSnapshot: null,
+			targetSeed: 'clr-parity', targetCount: 4, targetIndex: 1, clearance: 0,
+		});
+		check('POST sessions : server family within the same pool a client-side scan would use',
+			rParity.status === 201 && FREESTYLE_ONLY.includes(rParity.body.session.target.family),
+			rParity.body.session?.target?.family);
+
+		// Missing or invalid clearance: the full pool (an older client), and no
+		// 400 — this must keep working forever.
+		for (const bad of [undefined, -1, 99, 1.5]) {
+			const body = { area: 'kyiv', weatherSnapshot: null, targetSeed: 'clr-bad', targetCount: 4, targetIndex: 0 };
+			if (bad !== undefined) body.clearance = bad;
+			const r = await call('POST', `/__operator/${id}/sessions`, body);
+			check(`POST sessions : clearance ${bad} -> 201, full pool, no throw`, r.status === 201, `${r.status}`);
 		}
 	}
 

@@ -1283,6 +1283,16 @@ button.terminal-row:hover { background: var(--warm-white); color: var(--black); 
    it would be clipped by the overflow. */
 button.terminal-row:focus::before { left: 0; }
 
+/* The TARGET SCAN's clearance line (issue #185): information, not an
+   instruction — same DATA level and same faint tone as a footnote, one step
+   under the list it sits beneath. */
+.terminal-clearance-line {
+	margin: var(--space-2) 0 0;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data);
+	color: var(--faint);
+}
+
 /* ---------- session log (PHASE 17) ---------- */
 /* Thumbnails of a session's captures. A soft grid: a session's record must
    never force a horizontal scroll. Same restraint as the Home — no rounded

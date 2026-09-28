@@ -22,49 +22,69 @@ function check(label, ok, detail) {
 	if (!ok) failures++;
 }
 
-console.log('ambient: ensemble');
+console.log('ambient: the set');
 {
-	// swarmChance 0 des deux côtés : un descripteur de scan sans clé d'essaim
-	// (session v2, scan de dev) se rejoue sans essaim, c'est ce qu'on compare.
+	// swarmChance 0 on both sides: a scan descriptor with no swarm key (a v2
+	// session, a dev scan) replays with no swarm, which is what this compares.
 	const scan = { seed: 'set-a', count: 5, index: 2 };
 	const set = ambientSet(scan);
 	const full = generateTargetScan({ seed: 'set-a', count: 5, swarmChance: 0 }).candidates;
 	check('n = count - 1', set.length === 4, `${set.length}`);
-	check('le pris est absent', set.every((d) => d.i !== 2));
-	check('familles = celles des candidats non pris',
+	check('the taken one is absent', set.every((d) => d.i !== 2));
+	check('families = those of the candidates not taken',
 		set.every((d) => d.family === full[d.i]._family));
 	check('buildSeed = seed::i', set.every((d) => d.buildSeed === `set-a::${d.i}`));
-	check('mode = le vrai mode vidéo', set.every((d) => d.mode === full[d.i]._videoHint));
-	check('même scan → même ensemble',
+	check('mode = the real video mode', set.every((d) => d.mode === full[d.i]._videoHint));
+	check('same scan -> same set',
 		JSON.stringify(ambientSet(scan)) === JSON.stringify(set));
-	check('count 2 → 1 ambiant', ambientSet({ seed: 'z', count: 2, index: 0 }).length === 1);
-	check('jamais plus de MAX_DRONES', ambientSet({ seed: 'z', count: 5, index: 0 }).length <= MAX_DRONES);
+	check('count 2 -> 1 ambient', ambientSet({ seed: 'z', count: 2, index: 0 }).length === 1);
+	check('never more than MAX_DRONES', ambientSet({ seed: 'z', count: 5, index: 0 }).length <= MAX_DRONES);
 }
 
-console.log('\nambient: le cluster laissé de côté (issue #29)');
+console.log('\nambient: families follow clearance (issue #185)');
 {
-	// Le joueur a pris un autre signal : le cluster reste au ciel, mais comme
-	// UNE unité sur une routine ordinaire, pas comme une nuée de douze.
+	// `families` travels with the scan (issue #185), exactly like the swarm
+	// keys just above: the ambients not taken must be drawn from the SAME
+	// pool as the flight, not from whatever clearance the operator holds
+	// when the sky is regenerated (e.g. after uplinking a signal mid-flight).
+	const pool = ['freestyle5', 'cinewhoop', 'toothpick'];
+	const scan = { seed: 'set-pool', count: 5, index: 2, families: pool };
+	const set = ambientSet(scan);
+	check('ambients are drawn from the given pool',
+		set.every((d) => pool.includes(d.family) || d.family === SWARM_UNIT_FAMILY));
+	const full = generateTargetScan({ seed: 'set-pool', count: 5, swarmChance: 0, families: pool }).candidates;
+	check('the set matches a scan regenerated with the same pool',
+		set.every((d) => d.family === full[d.i]._family));
+	// Absent (older session, dev scan): the full pool, exactly like swarmChance
+	// falling back to 0 above — no family a pre-clearance scan never had.
+	check('no families key -> full pool, no throw',
+		ambientSet({ seed: 'set-nopool', count: 5, index: 2 }).length === 4);
+}
+
+console.log('\nambient: the cluster left behind (issue #29)');
+{
+	// The player took another signal: the cluster stays in the sky, but as A
+	// SINGLE unit on an ordinary routine, not as a flock of twelve.
 	const scan = { seed: 'swarm-amb', count: 4, index: 1, swarmAt: 0, swarmChance: 1 };
 	const set = ambientSet(scan);
 	const left = set.find((d) => d.i === 0);
-	check('le cluster non pris devient un swarmUnit', left?.family === SWARM_UNIT_FAMILY, left?.family);
-	check('il emprunte un airframe existant pour son BUILD (pas de PROFILES)',
+	check('the cluster not taken becomes a swarmUnit', left?.family === SWARM_UNIT_FAMILY, left?.family);
+	check('it borrows an existing airframe for its BUILD (no PROFILES entry)',
 		left?.buildFamily === SWARM_UNIT_BUILD_FAMILY, left?.buildFamily);
-	// Sa silhouette, elle, est la sienne depuis que la recette existe
-	// (src/drone-shape.js, RECIPE_PROFILES) : c'est le seul endroit où
-	// l'airframe du build et celui du maillage divergent.
-	check('mais il porte SA silhouette', left?.shapeFamily === SWARM_UNIT_FAMILY, left?.shapeFamily);
-	check('cet airframe se construit vraiment',
+	// Its silhouette, though, is its own now that the recipe exists
+	// (src/drone-shape.js, RECIPE_PROFILES): this is the only place where the
+	// build's airframe and the mesh's diverge.
+	check('but it carries ITS OWN silhouette', left?.shapeFamily === SWARM_UNIT_FAMILY, left?.shapeFamily);
+	check('that airframe really builds',
 		!!targetBuild({ seed: left.buildSeed, family: left.buildFamily }).profile);
-	check('les autres ambiants gardent leur famille',
+	check('the other ambients keep their family',
 		set.filter((d) => d.i !== 0).every((d) => d.family === d.buildFamily));
-	// Et quand c'est LUI qu'on a pris, il n'y a pas d'unité au ciel.
+	// And when IT is the one taken, no unit is left in the sky.
 	const taken = ambientSet({ ...scan, index: 0 });
-	check('cluster pris → aucun swarmUnit ambiant',
+	check('cluster taken -> no ambient swarmUnit',
 		taken.every((d) => d.family !== SWARM_UNIT_FAMILY));
-	// Sans les clés (session v2, scan de dev), aucun cluster n'est réinventé.
-	check('scan sans clé d\'essaim → aucun swarmUnit',
+	// Without the keys (v2 session, dev scan), no cluster is reinvented.
+	check('scan with no swarm key -> no swarmUnit',
 		ambientSet({ seed: 'swarm-amb', count: 4, index: 1 }).every((d) => d.family !== SWARM_UNIT_FAMILY));
 }
 

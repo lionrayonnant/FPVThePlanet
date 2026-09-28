@@ -39,6 +39,14 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   à 100 %, `UPLINKED` : l'image interceptée rejoint les photos de la session,
   et le lieu passe au vert sur le scanner. Un crash ne perd que ce qui n'était
   pas encore transmis. Deuxième lot de #185.
+- **Les machines qu'on peut hacker s'élargissent avec la CLEARANCE.** Le
+  TARGET SCAN ne tire plus dans les six familles dès le départ : au niveau 0
+  tout candidat est un 5" freestyle, et chaque palier de clearance ouvre les
+  familles suivantes, jusqu'à l'essaim, réservé à la CLEARANCE 3. Le serveur
+  applique exactement le même tirage — pas de famille au-dessus du niveau
+  atteint, côté client comme côté serveur. Une ligne discrète sous la liste du
+  TARGET SCAN indique le niveau et le nombre de classes accessibles.
+  Troisième lot de #185.
 - **La fiche d'un lieu capturé.** Après `UPLINKED`, une fiche s'affiche
   quelques secondes dans la colonne droite : l'image interceptée, la vraie
   photo du lieu (Wikidata, Wikimedia Commons, auteur et licence crédités), une
