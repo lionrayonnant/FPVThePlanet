@@ -28,7 +28,8 @@ import { createCoverageLayer } from './map-coverage.js';
 import { createTracksLayer } from './map-tracks.js';
 import { createSignalsLayer } from './map-signals.js';
 import { sharedSignalSource } from './signal-source.js';
-import { tilesForView } from '../tools/signal-model.mjs';
+import { tilesForView, signalsInView } from '../tools/signal-model.mjs';
+import { clearanceOf, nextStep, pointsOf, STEPS, MAX_CLEARANCE } from '../tools/signal-clearance-model.mjs';
 import { resolvedIds } from '../tools/signal-store-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
@@ -50,6 +51,7 @@ let lastView = { center: [48.8582, 2.297], zoom: 13 };
 // serves both FIELD tabs (#222). The Home gives it its own host, above the
 // tabs, so that it survives the rail being replaced by JOB_PANEL.
 const SEARCH_PANEL = `
+<pre class="sc-clearance"></pre>
 <div class="sc-row">
 	<input class="sc-search" type="search" autocomplete="off" spellcheck="false" placeholder="SEARCH — TOKYO, OR 48.85, 2.35">
 	<button type="button" class="sc-btn sc-find">FIND</button>
@@ -863,48 +865,121 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 
 	// ------------------------------------------------------------ signals
 	// Landmarks to capture (issue #185). Always on: they are the reason to
-	// pick a zone. Asked tile by tile after the map settles; a status line
-	// says when the view is too wide or Overpass is away. Nothing here ever
-	// blocks drawing a zone or taking off.
-	const signalsStatus = document.createElement('div');
-	signalsStatus.className = 'sc-signals-status';
-	const signalsCtl = L.control({ position: 'topright' });
+	// pick a zone. Asked tile by tile after the map settles. The scan speaks in
+	// terminal lines in the map's corner (scanning-v3.html): no box, a black
+	// band behind each line only. Nothing here ever blocks drawing a zone or
+	// taking off.
+	const signalsLog = document.createElement('div');
+	signalsLog.className = 'sc-signals-log';
+	signalsLog.setAttribute('aria-live', 'polite');
+	const signalsCtl = L.control({ position: 'topleft' });
 	signalsCtl.onAdd = () => {
-		const box = L.DomUtil.create('div', 'sc-map-controls sc-signals-controls');
-		box.appendChild(signalsStatus);
-		L.DomEvent.disableClickPropagation(box);
-		L.DomEvent.disableScrollPropagation(box);
+		const box = L.DomUtil.create('div', 'sc-signals-ctl');
+		box.appendChild(signalsLog);
 		return box;
 	};
 	signalsCtl.addTo(map);
 
 	const signalSource = sharedSignalSource();
+	const operatorSignals = () => operatorApi.getOperator()?.signals;
 
 	const signalsLayer = createSignalsLayer(L, {
 		getSignals: () => signalSource.signals(),
-		getResolved: () => resolvedIds(operatorApi.getOperator()?.signals),
+		getResolved: () => resolvedIds(operatorSignals()),
+		getClearance: () => clearanceOf(operatorSignals()),
+		getScan: () => ({ current: signalSource.progress().current, queued: signalSource.queued() }),
 		ink: token('--yellow') || '#d4b155',
 		resolvedInk: token('--green') || '#7aa96b',
 		white: token('--warm-white') || '#ece7dd',
 	});
 	signalsLayer.addTo(map);
 
+	// The header's clearance line: `CLEARANCE 1  ▓▓▓░░░░░░  9/18`.
+	const BAR_CELLS = 9;
+	function renderClearance() {
+		const el = $('.sc-clearance');
+		if (!el) return;
+		const store = operatorSignals();
+		const level = clearanceOf(store);
+		const next = nextStep(store);
+		const parts = [['CLEARANCE ' + level, '']];
+		if (!next || level >= MAX_CLEARANCE) parts.push([' · MAX', '']);
+		else {
+			const from = STEPS[level];
+			const cells = Math.max(0, Math.min(BAR_CELLS, Math.floor((pointsOf(store) - from) / (next.need - from) * BAR_CELLS)));
+			parts.push(['  ', ''], ['▓'.repeat(cells) + '░'.repeat(BAR_CELLS - cells), 'sc-y'], [`  ${next.points}/${next.need}`, '']);
+		}
+		el.replaceChildren(...parts.map(([text, cls]) => span(text, cls)));
+	}
+
+	function span(text, cls) {
+		const e = document.createElement('span');
+		if (cls) e.className = cls;
+		e.textContent = text;
+		return e;
+	}
+	// One terminal line: spans of text on a black band.
+	function logLine(parts, cls = '') {
+		const band = document.createElement('span');
+		band.className = `sc-band${cls ? ` ${cls}` : ''}`;
+		band.append(...parts.map((p) => (typeof p === 'string' ? span(p) : span(p[0], p[1]))));
+		return band;
+	}
+
+	const SCAN_CELLS = 12;
 	let signalsTooWide = false;
+	let retryTimer = null;
 	function renderSignalsStatus() {
 		const st = signalSource.status();
-		const resolved = resolvedIds(operatorApi.getOperator()?.signals);
-		const count = signalSource.signals().length;
-		const done = signalSource.signals().reduce((n, s) => n + (resolved.has(s.id) ? 1 : 0), 0);
-		const suffix = done > 0 ? ` · ${done} RESOLVED` : '';
-		signalsStatus.textContent = signalsTooWide ? 'SIGNALS: ZOOM IN TO SCAN'
-			: st === 'unavailable' ? 'SIGNAL SCAN UNAVAILABLE'
-			: st === 'loading' || st === 'waiting' ? 'SIGNALS: SCANNING…'
-			: `SIGNALS: ${count}${suffix}`;
-		signalsStatus.dataset.state = signalsTooWide ? 'wide' : st;
+		const pr = signalSource.progress();
+		const lines = [];
+		let state;
+		if (signalsTooWide) {
+			state = 'wide';
+			lines.push(logLine(['[*] ZOOM IN TO SCAN']));
+		} else if (st === 'unavailable' && pr.retryAt !== null) {
+			state = 'unavailable';
+			const s = Math.max(0, Math.ceil((pr.retryAt - Date.now()) / 1000));
+			const mss = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+			lines.push(logLine([['[!]', 'sc-y'], ' SIGNAL SCAN UNAVAILABLE']));
+			lines.push(logLine([`    RETRY IN ${mss} · THE MAP STILL WORKS`], 'sc-f'));
+		} else if (pr.current !== null && pr.total > pr.done) {
+			state = 'scanning';
+			const cells = Math.max(0, Math.min(SCAN_CELLS, Math.floor(pr.done / pr.total * SCAN_CELLS)));
+			lines.push(logLine([`[*] SIGNAL SCAN  ${pr.current}`]));
+			lines.push(logLine([`    ${'▓'.repeat(cells)}${'░'.repeat(SCAN_CELLS - cells)}  ${pr.done}/${pr.total}`, ['_', 'sc-blink']]));
+			lines.push(logLine([st === 'waiting' ? '    OVERPASS · ASKED TO WAIT' : '    OVERPASS · 1 REQUEST IN FLIGHT'], 'sc-f'));
+		} else {
+			state = 'done';
+			const b = map.getBounds();
+			const inView = signalsInView(signalSource.signals(), {
+				minLat: b.getSouth(), maxLat: b.getNorth(), minLon: b.getWest(), maxLon: b.getEast(),
+			});
+			const resolved = resolvedIds(operatorSignals());
+			const up = inView.reduce((n, s) => n + (resolved.has(s.id) ? 1 : 0), 0);
+			const parts = [['[+]', 'sc-g'], ` ${inView.length} SIGNAL${inView.length === 1 ? '' : 'S'} IN VIEW`];
+			if (up > 0) parts.push(` · ${up} UPLINKED`);
+			lines.push(logLine(parts));
+		}
+		signalsLog.replaceChildren(...lines);
+		signalsLog.dataset.state = state;
+		// The countdown ticks while it is shown; at 0:00 the view is asked again
+		// (a failed tile is only retried by a new request once it has cooled).
+		if (state === 'unavailable' && !retryTimer) {
+			retryTimer = setInterval(() => {
+				const at = signalSource.progress().retryAt;
+				if (at === null || at <= Date.now()) { clearInterval(retryTimer); retryTimer = null; askSignals(); }
+				else renderSignalsStatus();
+			}, 1000);
+		} else if (state !== 'unavailable' && retryTimer) {
+			clearInterval(retryTimer);
+			retryTimer = null;
+		}
 	}
 
 	const offSignals = signalSource.subscribe(() => { signalsLayer.refresh(); renderSignalsStatus(); });
 	renderSignalsStatus();
+	renderClearance();
 
 	let signalsTimer = null;
 	const SIGNALS_DEBOUNCE_MS = 600;
@@ -943,6 +1018,8 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		// stopSearch() is idempotent.
 		stopSearch?.();
 		clearTimeout(signalsTimer);
+		clearInterval(retryTimer);
+		retryTimer = null;
 		offSignals();
 		for (const h of hosts) h.replaceChildren();
 	}

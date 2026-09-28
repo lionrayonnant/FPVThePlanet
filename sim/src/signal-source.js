@@ -221,6 +221,9 @@ export function createSignalSource({
 			}
 			return { done, total: done + queued + inFlight, current: busy ? current : null, retryAt };
 		},
+		// The tiles still waiting their turn (the scanner outlines them). A copy:
+		// the caller cannot reorder the queue.
+		queued: () => [...queue],
 		status: () => state,
 		idle: () => new Promise((r) => { idleWaiters.push(r); settle(); }),
 		// Several consumers now: the scanner map and the flight. Each keeps the

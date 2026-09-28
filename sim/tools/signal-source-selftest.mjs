@@ -327,6 +327,22 @@ await t('progress() resets when a new request() batch starts', async () => {
 	assert.deepEqual(src.progress(), { done: 1, total: 1, current: null, retryAt: null });
 });
 
+await t('queued() lists the tiles still waiting, as a copy', async () => {
+	let gate = null;
+	const f = fakeFetch(async () => { await new Promise((r) => { gate = r; }); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	src.request(['z12/1/1', 'z12/1/2', 'z12/1/3']);
+	for (let i = 0; i < 4 && !gate; i++) await new Promise((r) => setImmediate(r));
+	const q = src.queued();
+	assert.deepEqual(q, ['z12/1/2', 'z12/1/3'], 'the tile in flight is not queued');
+	q.length = 0;
+	assert.equal(src.queued().length, 2);
+	src.request([]);
+	assert.deepEqual(src.queued(), []);
+	gate();
+	await src.idle();
+});
+
 await t('progress().retryAt is the failed tile\'s cooldown end while state is unavailable', async () => {
 	let now = 1_000_000;
 	const f = fakeFetch(() => { throw new Error('offline'); });

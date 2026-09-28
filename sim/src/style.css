@@ -2239,13 +2239,24 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .map-mono .sc-history-controls { align-items: flex-end; }
 .map-mono .sc-map-controls .sc-history-switch { display: flex; white-space: nowrap; }
 
-.sc-signals-status {
-	font: var(--fs-micro) var(--font-ui);
-	letter-spacing: var(--track-ui);
-	color: var(--dim);
-	padding: var(--space-1) var(--space-2);
+/* The signal scan speaks in terminal lines in the map's corner
+   (scanning-v3.html): no box, no bar widget — a black band behind each line
+   only. Under the layer switches, same face. */
+.map-mono .leaflet-control.sc-signals-ctl { margin-left: var(--space-3); pointer-events: none; }
+.sc-signals-log {
+	display: flex; flex-direction: column; align-items: flex-start;
+	font-family: var(--font-ui); font-weight: 500; font-size: var(--fs-data);
+	line-height: 1.55; letter-spacing: var(--track-ui-tight);
+	color: var(--ink); white-space: pre;
 }
-.sc-signals-status[data-state="unavailable"] { color: var(--yellow); }
+.sc-signals-log .sc-band { background: var(--black); padding: 0 var(--space-1); }
+.sc-signals-log .sc-f { color: var(--faint); }
+/* The GLOBAL SCANNER header's clearance line keeps the header's own face
+   (`.bootstrap-box pre`); only its bar is coloured. */
+.sc-signals-log .sc-y, .sc-clearance .sc-y { color: var(--yellow); }
+.sc-signals-log .sc-g { color: var(--green); }
+.sc-signals-log .sc-blink { animation: sc-blink var(--dur-blink) steps(1) infinite; }
+@keyframes sc-blink { 50% { opacity: 0; } }
 
 /* The overlay canvas never takes the pointer: nothing on it is a target, so a
    drag started over a track still pans the map. */
