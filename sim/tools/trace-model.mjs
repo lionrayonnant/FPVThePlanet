@@ -29,10 +29,15 @@ const ARC = { 2: Math.PI, 3: 3 * Math.PI };
 // Tier III orbit: a helix, so its 1.5 turns never overlay. 8 m per turn keeps
 // two passes over each other more than 2 × 3.5 m apart.
 const ORBIT_RISE_PER_TURN_M = 8;
-const SPIRAL_TURNS = { 2: 0.5, 3: 1.5 };
+const SPIRAL_TURNS = { 2: 0.5, 3: 1.5 }; // at least; more when the climb needs them
+const SPIRAL_TIER3_FACTOR = 1.5;  // tier III turns = 1.5 × tier II's
 const SPIRAL_FLOOR_M = 15;    // above the ground
-const SPIRAL_OVER_SURF_M = 6; // above the profile at the radius
+const SPIRAL_OVER_SURF_M = 6; // above the profile under every point
 const SPIRAL_OVER_TOP_M = 10;
+const SPIRAL_MAX_R_M = 80;
+const SPIRAL_CLIMB_MAX = Math.tan(Math.PI / 6); // 30°
+const SPIRAL_SMOOTH_M = 15;   // radius steps spread over 15 m of height
+const HEIGHT_SLACK_M = 4;     // a ring wraps height y when it reaches y − 4 m
 // Under.
 const UNDER_MIN_CLEARANCE_M = 8;
 const UNDER_HALF_M = 40;
@@ -151,6 +156,33 @@ function outlineRadius(profile, anchor) {
 	return r;
 }
 
+// The landmark's radius at height y: rings scanned outward while one of their
+// heights lies in [y − 4 m, top + 8 m] (a taller neighbour is not the
+// landmark), stopping at the first that does not once past the anchor's probe
+// ring — outlineRadius' contiguity rule. Past the anchor's ring, between a
+// ring that reaches and the next that does not, the edge is where their
+// highest points cross y − 4 m: a base spreading between two rings is still
+// the landmark (inside it, a wall between two rings is not assumed a slope).
+function radiusAtHeight(profile, anchor, y) {
+	const lo = y - HEIGHT_SLACK_M;
+	const hi = landmarkTop(anchor) + OUTLINE_BAND_M;
+	let r = 0, last = null, lastMax = 0, prev = null;
+	for (const ring of profile.rings) {
+		const before = prev; prev = ring;
+		let reaches = false, m = -Infinity;
+		for (const h0 of ring.heights) {
+			const h = Number.isFinite(h0) ? h0 : profile.ground;
+			if (h >= lo && h <= hi) { reaches = true; m = Math.max(m, h); }
+		}
+		if (reaches) { r = Math.max(r, ring.r); last = ring; lastMax = m; continue; }
+		if (ring.r < ANCHOR_RING_M) continue;
+		const out = ringMax(profile, ring);
+		if (last && last === before && last.r >= ANCHOR_RING_M && out < lo && lastMax > out) r = Math.max(r, last.r + (ring.r - last.r) * (lastMax - lo) / (lastMax - out));
+		break;
+	}
+	return r;
+}
+
 // Highest surface around the circle of radius R (sampled at the grid's angles).
 function maxAtRadius(profile, anchor, R) {
 	const n = profile.rings[profile.rings.length - 1].heights.length || 16;
@@ -200,13 +232,76 @@ function buildOrbit(ctx) {
 	return buildRing({ anchor, R, theta0, dir, arc: ARC[tier], y0: y, y1: y + rise });
 }
 
+// The spiral wraps the whole structure: from ground + 15 m to the top + 10 m,
+// its radius at each height the landmark's radius there + 12 m (capped at
+// 80 m), never widening with height and eased over 15 m of height at each
+// step. The angle advances as 1/R so the climb is constant and ≤ 30°; more
+// turns than the tier's minimum when the climb needs them. One turn never
+// rises less than 2 × tolerance + 1 m over the previous one (no overlay).
+function spiralRadii(profile, anchor, y0, n, pad) {
+	const raw = new Float64Array(n);
+	for (let j = 0; j < n; j++) raw[j] = Math.min(SPIRAL_MAX_R_M, radiusAtHeight(profile, anchor, y0 + j) + pad);
+	for (let j = n - 2; j >= 0; j--) raw[j] = Math.max(raw[j], raw[j + 1]); // non-increasing with height
+	// Trailing mean over the 15 m below: never under the requirement (it is non-increasing).
+	const R = new Float64Array(n);
+	let acc = 0;
+	for (let j = 0; j < n; j++) {
+		acc += raw[j];
+		if (j >= SPIRAL_SMOOTH_M) acc -= raw[j - SPIRAL_SMOOTH_M];
+		const k = Math.min(j + 1, SPIRAL_SMOOTH_M);
+		R[j] = (acc + raw[0] * (SPIRAL_SMOOTH_M - k)) / SPIRAL_SMOOTH_M;
+	}
+	return R;
+}
+
 function buildSpiral(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
-	const R = outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
+	const pad = RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
 	const lift = attempt * ALT_STEP_M;
-	const y0 = Math.max(profile.ground + SPIRAL_FLOOR_M, maxAtRadius(profile, anchor, R) + SPIRAL_OVER_SURF_M) + lift;
-	const y1 = Math.max(landmarkTop(anchor) + SPIRAL_OVER_TOP_M + lift, y0 + SPIRAL_OVER_TOP_M);
-	return buildRing({ anchor, R, theta0, dir, arc: SPIRAL_TURNS[tier] * TAU, y0, y1 });
+	const minRise = 2 * TOLERANCE_M[tier] + 1;
+	const maxRate = TAU / minRise; // radians per metre of height
+	const y0 = profile.ground + SPIRAL_FLOOR_M + lift;
+	let y1 = Math.max(landmarkTop(anchor) + SPIRAL_OVER_TOP_M + lift, y0 + SPIRAL_OVER_TOP_M);
+	let R, n, turns;
+	for (let pass = 0; pass < 2; pass++) {
+		n = Math.max(2, Math.ceil(y1 - y0) + 1);
+		const dy = (y1 - y0) / (n - 1);
+		R = spiralRadii(profile, anchor, y0, n, pad);
+		let W = 0; // ∫ dy / R
+		for (let j = 1; j < n; j++) W += dy * 2 / (R[j - 1] + R[j]);
+		const need = W / (SPIRAL_CLIMB_MAX * TAU);
+		const t2 = Math.max(SPIRAL_TURNS[2], need);
+		turns = tier >= 3 ? Math.max(SPIRAL_TURNS[3], SPIRAL_TIER3_FACTOR * t2) : t2;
+		// Too short a climb for these turns: climb higher.
+		if (y1 - y0 >= minRise * turns - 1e-9) break;
+		y1 = y0 + minRise * turns;
+	}
+	const dy = (y1 - y0) / (n - 1);
+	const Theta = turns * TAU;
+	// Angle per metre of height: min(1 / (t·R), maxRate); t (the climb's
+	// tangent) solved so the whole spiral makes `turns`.
+	const rate = (t, j) => Math.min(1 / (t * R[j]), maxRate);
+	const total = (t) => { let a = 0; for (let j = 1; j < n; j++) a += dy * (rate(t, j - 1) + rate(t, j)) / 2; return a; };
+	let lo = 1e-4, hi = SPIRAL_CLIMB_MAX;
+	for (let it = 0; it < 60; it++) { const m = (lo + hi) / 2; if (total(m) > Theta) lo = m; else hi = m; }
+	const t = hi;
+	const raw = [];
+	let th = 0;
+	const push = (a, rr, y) => {
+		const x = anchor.x + rr * Math.cos(theta0 + dir * a), z = anchor.z + rr * Math.sin(theta0 + dir * a);
+		raw.push(x, Math.max(y, surfaceAt(profile, anchor, x, z) + SPIRAL_OVER_SURF_M), z);
+	};
+	push(0, R[0], y0);
+	for (let j = 1; j < n; j++) {
+		const dth = dy * (rate(t, j - 1) + rate(t, j)) / 2;
+		const steps = Math.max(1, Math.ceil(Math.hypot(dth * R[j], dy, R[j] - R[j - 1])));
+		for (let s2 = 1; s2 <= steps; s2++) {
+			const f = s2 / steps;
+			push(th + dth * f, R[j - 1] + (R[j] - R[j - 1]) * f, y0 + dy * (j - 1 + f));
+		}
+		th += dth;
+	}
+	return raw;
 }
 
 // A pass perpendicular to the deck, 40 m either side of the axis. Tier III adds

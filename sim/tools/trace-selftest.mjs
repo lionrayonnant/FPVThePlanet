@@ -181,31 +181,81 @@ t('a partial profile builds no trace', () => {
 	assert.equal(buildTrace({ signal: sig('TOWER'), anchor: towerAnchor, profile: { ...towerProfile, partial: true }, tier: 2, approach: { x: 0, z: 0 } }), null);
 });
 
-t('spiral: rises from ground + 15 m to top + 10 m around the tower, entry facing the drone', () => {
+// Spiral invariants: climbs monotonically, never steeper than 30°, never
+// under 6 m above the probed surface, never widening with height.
+const spiralOk = (tr, a, p) => {
+	for (let i = 1; i < count(tr); i++) {
+		const q = pt(tr, i - 1), r = pt(tr, i);
+		const rise = r.y - q.y, run = Math.hypot(r.x - q.x, r.z - q.z);
+		assert.ok(rise >= -1e-3, `monotone climb at ${i}`);
+		assert.ok(rise <= Math.tan(Math.PI / 6) * run + 0.05, `climb ${(Math.atan2(rise, run) * 180 / Math.PI).toFixed(1)}° at ${i}`);
+		assert.ok(hdist(r, a) <= hdist(q, a) + 0.05, `radius grows at ${i}: ${hdist(q, a)} → ${hdist(r, a)}`);
+	}
+	for (let i = 0; i < count(tr); i++) {
+		const q = pt(tr, i);
+		assert.ok(q.y >= surfaceAt(p, a, q.x, q.z) + 6 - 0.05, `point ${i} ${q.y} under the surface + 6`);
+	}
+};
+const noOverlay = (tr) => {
+	const min = 2 * tr.tolerance;
+	for (let i = 0; i < count(tr); i++) {
+		for (let j = i + 1; j < count(tr); j++) {
+			if (tr.cum[j] - tr.cum[i] <= 20) continue;
+			assert.ok(dist(pt(tr, i), pt(tr, j)) > min, `points ${i} and ${j}: ${dist(pt(tr, i), pt(tr, j))} m`);
+		}
+	}
+};
+
+t('spiral: rises from ground + 15 m to top + 10 m, 12 m around a thin tower, 30° at most, entry facing the drone', () => {
 	const approach = { x: 100, z: -500 };
+	const lens = {};
 	for (const tier of [2, 3]) {
 		const tr = buildTrace({ signal: sig('TOWER'), anchor: towerAnchor, profile: towerProfile, tier, approach });
 		assert.equal(tr.shape, 'spiral');
 		spacingOk(tr);
+		spiralOk(tr, towerAnchor, towerProfile);
 		assert.ok(Math.abs(pt(tr, 0).y - 15) < 0.1, `start ${pt(tr, 0).y}`);
 		assert.ok(Math.abs(pt(tr, count(tr) - 1).y - 110) < 0.1, `end ${pt(tr, count(tr) - 1).y}`);
-		for (let i = 1; i < count(tr); i++) assert.ok(pt(tr, i).y >= pt(tr, i - 1).y - 1e-3, 'monotone climb');
-		const turns = tier === 2 ? 0.5 : 1.5;
-		const horiz = turns * 2 * Math.PI * 12;
-		assert.ok(Math.abs(tr.length - Math.hypot(horiz, 95)) < 1.5, `length ${tr.length}`);
+		for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(hdist(pt(tr, i), towerAnchor) - 12) < 0.1);
 		entryNearest(tr, approach);
+		lens[tier] = tr.length;
+		if (tier === 3) noOverlay(tr);
+	}
+	// 95 m of climb at 12 m: tier II needs 2.18 turns to stay at 30° (190 m), tier III makes 1.5 × as many.
+	assert.ok(Math.abs(lens[2] - 190) < 1.5, `II length ${lens[2]}`);
+	const horiz3 = 1.5 * 95 / Math.tan(Math.PI / 6);
+	assert.ok(Math.abs(lens[3] - Math.hypot(horiz3, 95)) < 1.5, `III length ${lens[3]}`);
+});
+
+t('spiral: a conical tower is wrapped from its foot to above its top, the radius shrinking with height', () => {
+	// A 150 m cone, 68 m across at the base; the anchor 3 m over its tip.
+	const a = { x: 0, y: 153, z: 0 };
+	const h = (x, z) => Math.max(0, 150 - 2.2 * Math.hypot(x, z));
+	const p = profileOf(a, h);
+	for (const tier of [2, 3]) {
+		for (const attempt of [0, 2]) {
+			const tr = buildTrace({ signal: sig('TOWER'), anchor: a, profile: p, tier, approach: { x: 300, z: 0 }, attempt });
+			spacingOk(tr);
+			spiralOk(tr, a, p);
+			const s = pt(tr, 0), e = pt(tr, count(tr) - 1);
+			assert.ok(s.y <= 15 + 6 * attempt + 12, `starts near the ground: ${s.y}`);
+			assert.ok(Math.abs(e.y - (160 + 6 * attempt)) < 0.1, `ends 10 m over the top: ${e.y}`);
+			const rs = hdist(s, a), re = hdist(e, a);
+			assert.ok(rs >= Math.min(80, 55 + 12 + 8 * attempt) - 0.1 && rs <= 80 + 0.1, `wraps the foot: ${rs}`);
+			assert.ok(Math.abs(re - (12 + 8 * attempt)) < 0.1, `hugs the tip: ${re}`);
+			if (tier === 3) noOverlay(tr);
+		}
 	}
 });
 
-t('spiral: starts 6 m above the surface at its radius when that is higher', () => {
+t('spiral: widens around a podium, never under 6 m above it', () => {
 	// A 40 m podium out to 15 m, a 120 m spire at the centre.
 	const a = { x: 0, y: 123, z: 0 };
 	const p = profileOf(a, (x, z) => { const r = Math.hypot(x, z); return r < 2 ? 120 : r <= 15 ? 40 : 0; });
 	const tr = buildTrace({ signal: sig('TOWER'), anchor: a, profile: p, tier: 2, approach: { x: 200, z: 0 } });
-	const R = hdist(pt(tr, 0), a);
-	const surf = Math.max(...Array.from({ length: 16 }, (_, k) => surfaceAt(p, a, R * Math.cos(k * Math.PI / 8), R * Math.sin(k * Math.PI / 8))));
-	assert.ok(Math.abs(pt(tr, 0).y - Math.max(15, surf + 6)) < 0.1);
-	assert.ok(surf + 6 > 15, 'the case under test');
+	spiralOk(tr, a, p);
+	assert.ok(Math.abs(hdist(pt(tr, 0), a) - 22) < 0.1, `the podium's 10 m ring + 12 m: ${hdist(pt(tr, 0), a)}`);
+	assert.ok(Math.abs(hdist(pt(tr, count(tr) - 1), a) - 12) < 0.1);
 });
 
 // A bridge: deck along X, underside at 30 m, surface at 33 m, water at 0.
