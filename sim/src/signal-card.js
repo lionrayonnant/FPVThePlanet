@@ -108,8 +108,9 @@ export class SignalCard {
 
 	render(view) {
 		const dom = this._dom;
-		if (!view) { dom.el.hidden = true; return; }
-		dom.el.hidden = false;
+		// Called every frame: `hidden` is written only when it flips.
+		if (!view) { if (!dom.el.hidden) dom.el.hidden = true; return; }
+		if (dom.el.hidden) dom.el.hidden = false;
 		fillCard(dom, view);
 		// The timer: the rule shortens towards its left end, like the cut-link gauge.
 		const k = (Math.round(Math.max(0, Math.min(1, view.remaining01)) * 200) / 200).toString();
