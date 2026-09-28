@@ -80,9 +80,11 @@ The game is 100% free. If you appreciate my work, please consider helping me cov
 | `C` · `T` · `Tab` | free camera · flip the machine back over · settings |
 | `B` | the bench panel, in flight — BENCH only |
 
-Acro is the default, on a keyboard as much as on a radio — the keyboard axes
-ramp rather than snapping to full deflection, which is what makes that
-survivable without a stick. `M` cycles to angle and altitude if you want them.
+Acro is the default on every device — keyboard, gamepad or radio; the keyboard
+axes ramp rather than snapping to full deflection, which is what makes that
+survivable without a stick. `M` cycles to angle and altitude if you want them;
+a gamepad's SHARE / VIEW button toggles acro / angle, and a radio whose mode
+switch is calibrated flies the mode its switch is on.
 There is no respawn in FIELD: crash and the machine is gone, and you start a
 new one. BENCH is the mode where nothing is lost.
 

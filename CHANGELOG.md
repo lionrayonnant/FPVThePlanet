@@ -50,16 +50,17 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   bouton qui revient (manette), qui bascule entre les deux. Sans calibrage, le
   bouton SHARE / VIEW d'une manette fait le même travail. La commande est
   nommée dans le briefing (`FLIGHT MODE`) et au premier vol
-  (`[SHARE] ACRO / ANGLE`). Le bouton bascule ACRO ↔ ANGLE, sans parcourir les
-  cinq modes : depuis ANGLE, le défilé complet serait passé par ACRO3D, hélices
-  inversées, en plein vol. `M` garde le cycle complet.
+  (`[SHARE] ACRO / ANGLE`). Le bouton bascule ACRO ↔ ANGLE ; `M` garde le
+  cycle complet.
+
+### Retiré
+
+- **Les modes ACRO 3D et GPS.** `M` ne parcourt plus que ACRO, ANGLE et
+  ALTITUDE. Le gaz bidirectionnel (hélices inversées, mixeur signé) et le
+  maintien de position GPS quittent le contrôleur de vol, la physique des
+  moteurs et leurs bancs.
 
 ### Modifié
-
-- **Une manette démarre en ANGLE.** L'acro à froid fait tomber un débutant en
-  trois secondes, et une manette a désormais un bouton pour en sortir. Le
-  clavier et la radio restent en ACRO — la radio, sauf si son inter de mode est
-  calibré : c'est alors sa position qui décide.
 
 - **three passe de 0.170 à 0.186.** Depuis 0.186, le constructeur
   d'`OrbitControls` appelle `connect()`, qui commence par `disconnect()` et lit

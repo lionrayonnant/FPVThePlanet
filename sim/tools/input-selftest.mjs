@@ -887,8 +887,8 @@ t('a device that comes back clears the warning state', () => {
 
 // --- the flight-mode control ------------------------------------------------
 //
-// Only the M key changed mode before: a pad started in ANGLE had no way back to
-// ACRO. A measured switch gives the mode by its POSITION, a measured or default
+// Without this only the M key changed mode. A measured switch gives the mode by
+// its POSITION, a measured or default
 // button CYCLES on its rising edge.
 
 const SWITCH = { signal: 4, type: 'switch', acro: 1, angle: -1 };
@@ -960,21 +960,19 @@ t('flightModeControlName: a measured control, and none for an uncalibrated radio
 	assert.equal(flightModeControlName(null), null, 'the keyboard');
 });
 
-t('startFlightMode: pad -> ANGLE, radio -> ACRO, a measured switch decides', () => {
-	for (const kind of ['playstation', 'xbox', 'nintendo', 'steam', 'generic']) {
-		assert.equal(startFlightMode(kind), 'angle', kind);
-	}
-	assert.equal(startFlightMode('radio'), 'acro');
-	assert.equal(startFlightMode('radio', 'angle'), 'angle');
-	assert.equal(startFlightMode('radio', 'acro'), 'acro');
-	assert.equal(startFlightMode(null), 'acro', 'the keyboard is unchanged');
+t('startFlightMode: ACRO on every device, a measured switch decides', () => {
+	assert.equal(startFlightMode(), 'acro');
+	assert.equal(startFlightMode(null), 'acro', 'no measured switch');
+	assert.equal(startFlightMode('angle'), 'angle');
+	assert.equal(startFlightMode('acro'), 'acro');
+	assert.equal(startFlightMode('nonsense'), 'acro', 'an unreadable position is no position');
 });
 
 t('padCycleMode: the button toggles ACRO / ANGLE, and always leads back to ACRO', () => {
 	assert.equal(padCycleMode('acro'), 'angle');
 	assert.equal(padCycleMode('angle'), 'acro');
-	// Not the M key's five-mode cycle: from ANGLE it would pass through ACRO3D.
-	for (const m of ['altitude', 'acro3d', 'gps']) assert.equal(padCycleMode(m), 'acro', m);
+	// ALTITUDE (reached with M) goes back to ACRO too.
+	assert.equal(padCycleMode('altitude'), 'acro');
 });
 
 t('Input.flightModeCommand: default button 8 fires on the RISING EDGE only', () => {
@@ -990,7 +988,7 @@ t('Input.flightModeCommand: default button 8 fires on the RISING EDGE only', () 
 	pad.buttons[8].value = 1;
 	assert.equal(input.flightModeCommand(), 'cycle', 'pressed again: one more');
 	assert.equal(input.flightModeControl(), 'VIEW');
-	assert.equal(input.startFlightMode(), 'angle');
+	assert.equal(input.startFlightMode(), 'acro', 'a pad starts in ACRO too');
 	unmountPads();
 });
 

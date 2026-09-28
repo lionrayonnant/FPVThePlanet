@@ -81,7 +81,7 @@ function inputScreen(input, keyRows) {
 				['THROTTLE / YAW', 'LEFT STICK'],
 				['PITCH / ROLL', 'RIGHT STICK'],
 				['STICK FORWARD', 'NOSE DOWN'],
-				// The control that leaves ANGLE, named as the pad prints it
+				// The ACRO / ANGLE control, named as the pad prints it
 				// (input.js:flightModeControlName). A radio with no measured
 				// switch has none: its pilot keeps the key.
 				['FLIGHT MODE', modeControlLabel(input, keyRows)],
@@ -186,8 +186,8 @@ export const MODE_HINT_AT_S = HINT_HOLD_S;
 // moment for advice.
 //
 // `modeControl` is the same name the briefing prints (flightModeControlName):
-// a pad that starts in ANGLE is told which button leads to ACRO. Null (keyboard,
-// uncalibrated radio — both start in ACRO) says nothing.
+// a pad is told which button toggles ACRO / ANGLE. Null (keyboard, uncalibrated
+// radio) says nothing.
 export function flightHint({
 	armed = false, airborneOnce = false, tSinceTakeoff = 0,
 	bench = false, firstFlight = false, keyRows = [], modeControl = null,

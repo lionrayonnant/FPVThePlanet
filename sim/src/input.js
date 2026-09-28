@@ -403,14 +403,14 @@ export function menuButtonDown(signals, spec, fallbackIndex) {
 // -----------------------------------------------------------------------------
 // FLIGHT-MODE CONTROL
 //
-// Until now only the M key changed flight mode: a pad started in ANGLE would
-// have had no way back to ACRO. The wizard measures the control (calibration.js,
+// Without this only the M key changed flight mode, which a pad or a radio cannot
+// reach. The wizard measures the control (calibration.js,
 // THE FLIGHT-MODE CONTROL): a radio SWITCH, whose position is a mode, or a pad
 // BUTTON, which cycles. Without a measurement, every class but 'radio' gets
 // standard button 8 as its cycle button — Share / Create, View, −, Select, the
 // one button every standard pad has and no menu uses. A radio gets no default:
-// its buttons are switch positions (see MENU BUTTONS), and it starts in ACRO
-// anyway, so nobody is stuck.
+// its buttons are switch positions (see MENU BUTTONS), and every device starts
+// in ACRO, so nobody is stuck.
 // -----------------------------------------------------------------------------
 
 export const MODE_BUTTON_DEFAULT = 8;
@@ -462,19 +462,16 @@ export function flightModeControlName(kind, mode) {
 }
 
 // The mode a flight starts in. A measured switch decides, as on a real radio.
-// Otherwise a radio starts in ACRO (its pilot has proportional sticks and no
-// default mode control), the keyboard (kind null) keeps ACRO by decision (see
-// main.js entryCategoryCap), and every other pad starts in ANGLE — with a mode
-// button it can always leave it by.
-export function startFlightMode(kind, switchPosition = null) {
+// Otherwise every device — keyboard, pad, radio — starts in ACRO; a pad's mode
+// button leads to ANGLE.
+export function startFlightMode(switchPosition = null) {
 	if (switchPosition === 'acro' || switchPosition === 'angle') return switchPosition;
-	return !kind || kind === 'radio' ? 'acro' : 'angle';
+	return 'acro';
 }
 
-// What one press of a cycle BUTTON does. Not the M key's five-mode cycle: from
-// ANGLE that would go through ALTITUDE and ACRO3D (props reversed, in flight)
-// before reaching ACRO. The button promises ACRO / ANGLE, and from any other
-// mode (reached with M) it goes back to ACRO.
+// What one press of a cycle BUTTON does. Not the M key's cycle: the button
+// promises ACRO / ANGLE, and from any other mode (ALTITUDE, reached with M) it
+// goes back to ACRO.
 export function padCycleMode(current) {
 	return current === 'acro' ? 'angle' : 'acro';
 }
@@ -956,10 +953,10 @@ export class Input {
 	// the switch without touching the button's edge memory.
 	startFlightMode() {
 		const pad = this.getGamepad();
-		if (!pad) return startFlightMode(null);
+		if (!pad) return startFlightMode();
 		const spec = this._modeSpec(pad);
 		const pos = spec?.type === 'switch' ? readFlightMode(padSignals(pad), spec) : null;
-		return startFlightMode(padKind(pad.id), pos);
+		return startFlightMode(pos);
 	}
 
 	// flightModeControlName() for the active device, or null (keyboard, or a

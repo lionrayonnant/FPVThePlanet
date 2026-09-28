@@ -610,12 +610,8 @@ export class Propulsion {
 		// is no downwash to descend into and no vh to divide by, hence the
 		// guard.
 		const lateral = Math.hypot(vBody.x, vBody.z);
-		// Descending into your own wake, read in the DISC's frame: with the
-		// rotors reversed (Acro3D) the wake is above and a climb is what falls
-		// into it. `discDir` is 1 whenever the rotors turn the normal way, which
-		// is every step of a forward flight, so `descent` is `-vBody.y` there.
-		const discDir = this.omega[0] + this.omega[1] + this.omega[2] + this.omega[3] < 0 ? -1 : 1;
-		const descent = discDir > 0 ? -vBody.y : vBody.y;
+		// Descending into your own wake.
+		const descent = -vBody.y;
 		// Same correction as the per-rotor vh below: the vortex-ring band is
 		// normalised in units of induced velocity, so it has to use the same
 		// induced velocity the thrust does or the band drifts against the flow it
@@ -710,24 +706,12 @@ export class Propulsion {
 			// droops for it. One step of lag on a 4 ms grid, and a coupling the
 			// old first-order lag could not express at all.
 			const prev = this.omega[i];
-			// Acro3D (§3.2): a reversible ESC is asked for a SIGNED command and
-			// the shaft is allowed through zero. Nothing is plumbed in to say so
-			// — the condition IS the command. A forward flight never produces a
-			// negative command and never leaves a negative shaft behind, so
-			// `bidir` is false on every step of it and both branches below
-			// collapse to the arithmetic that was here before.
-			const bidir = motors[i] < 0 || prev < 0;
 			const spun = stepMotor(
-				this._motor, prev, bidir ? clampPm1(motors[i]) : clamp01(motors[i]), bat.voltage,
-				P.torqueRatio * Math.abs(this.thrust[i]), dt, bidir,
+				this._motor, prev, clamp01(motors[i]), bat.voltage,
+				P.torqueRatio * Math.abs(this.thrust[i]), dt,
 			);
 			this.omega[i] = spun.omega;
 			const w = spun.omega;
-			// Which way this rotor turns, and its magnitude. `s` is 1 and `aw` is
-			// `w` for every forward step, so every `s *` and every `aw` below is
-			// the identity there.
-			const s = w < 0 ? -1 : 1;
-			const aw = s < 0 ? -w : w;
 			const dOmega = (w - prev) / dt;
 			current += spun.packCurrent;
 
@@ -765,10 +749,6 @@ export class Propulsion {
 			// stick came out 6% light. The momentum theory and the blade share one
 			// disc; they have to be scaled together or not at all.
 			const vEdge2 = vx * vx + vz * vz;
-			// The disc's own axial direction, not the body's: a rotor turning
-			// backwards blows the other way and a climb is a descent for it.
-			// `s` is 1 on the whole forward path, so this is `vy` there.
-			const vyDisc = s > 0 ? vy : -vy;
 
 			// THE ROTOR MODEL'S ONE CALL SITE (?aero=).
 			//
@@ -776,7 +756,7 @@ export class Propulsion {
 			// `tBare`, a thrust MAGNITUDE along the rotor's own axis; `hx`/`hz`,
 			// the in-plane force in the body frame; and the two diagnostic
 			// halves. Everything that is not the rotor model — ground effect,
-			// propwash, the spin sign `s`, the lever arms, the yaw reaction —
+			// propwash, the lever arms, the yaw reaction —
 			// stays outside and applies to whichever magnitude came back. That
 			// is what makes this a switch between models rather than two
 			// physics.
@@ -798,7 +778,7 @@ export class Propulsion {
 				// solution at all — `propwash` still answers for that, below,
 				// exactly as it does for the classic model.
 				const vEdge = Math.sqrt(vEdge2);
-				const f = rotorForces(this._blade, aw, vyDisc, rho, vEdge);
+				const f = rotorForces(this._blade, w, vy, rho, vEdge);
 				tBare = f.thrust;
 				// The in-plane force comes out of the SAME integral as the
 				// thrust — the advancing blade meets more flow than the
@@ -832,7 +812,7 @@ export class Propulsion {
 				staticDiag = tBare;
 				inflowDiag = 0;
 			} else {
-				const vh = aw * this._vhPerOmega * Math.sqrt(propLossFactor(P, aw));
+				const vh = w * this._vhPerOmega * Math.sqrt(propLossFactor(P, w));
 				// The axial part of `dw` is a FIRST-ORDER slope — the comment above
 				// derives it as such, from the Vc/2 excess that momentum theory gives
 				// "to first order". Unbounded, it was being evaluated at Vc/vh as far
@@ -853,7 +833,7 @@ export class Propulsion {
 				// ONLY the descent side of the axial term is clamped. Hover (vy = 0),
 				// climb, and the edgewise term — translational lift, the whole point
 				// of inducedVelocity() — come through untouched and bit-identical.
-				const vyAxial = Math.max(vyDisc, -AXIAL_INFLOW_LIMIT * vh);
+				const vyAxial = Math.max(vy, -AXIAL_INFLOW_LIMIT * vh);
 				const dw = vyAxial + 2 * (inducedVelocity(vh, vEdge2) - vh);
 				// Prop losses (src/motor.js): a blade tip approaching Mach and a pitch
 				// away from its design point stop making lift. Normalised at maxOmega,
@@ -861,37 +841,27 @@ export class Propulsion {
 				// thrust-to-weight and the top speed — is unchanged, and only the SHAPE
 				// of the curve below it moves. It moves the right way: a real propeller
 				// sits above the square law at part throttle and flattens at the top.
-				// Everything from here to `t` is the rotor's own frame: a MAGNITUDE
-				// of thrust along its own axis, which `s` then puts back on the
-				// body. That is the whole of §3.2's `si (Throttle < 0) Poussee =
-				// -Poussee` — not a second thrust law, the same one read the other
-				// way up. With s = 1 and aw = w these are the original expressions,
-				// operation for operation.
-				const tStatic = this._kThrust * propLossFactor(P, aw) * aw * aw;
-				const tInflow = -this._kInflow * aw * dw;
+				const tStatic = this._kThrust * propLossFactor(P, w) * w * w;
+				const tInflow = -this._kInflow * w * dw;
 				const t0 = tStatic + tInflow;
 				tBare = Math.max(0, t0);
 				staticDiag = tStatic;
 				inflowDiag = tBare - Math.max(0, tStatic);
 				// Rotor drag: the disc resists translation in proportion to rpm,
 				// fitted to the observed in-plane force and carrying the flapback
-				// with it (see the block above cruiseSpeedOf). A disc resists
-				// translation the same however it is turning, so this is the
-				// magnitude. `aw` is `w` on the forward path.
-				hx = -this._kLateral * aw * vx;
-				hz = -this._kLateral * aw * vz;
+				// with it (see the block above cruiseSpeedOf).
+				hx = -this._kLateral * w * vx;
+				hz = -this._kLateral * w * vz;
 			}
-			let t = s * (tBare * ground * (1 - 0.22 * this.propwash));
+			const t = tBare * ground * (1 - 0.22 * this.propwash);
 			this.thrust[i] = t;
 			thrustTotal += t;
 			// Diagnostics, not physics: the same thrust split into where it came
 			// from, so a force budget can say which mechanism is holding the
 			// machine up. Five adds per rotor against a loop that already does
 			// two square roots — see Physics.forceBudget().
-			// Signed with the rotor, like `t` itself, so the split still sums
-			// back to the force when a rotor is pushing the other way.
-			staticTotal += s * staticDiag;
-			inflowTotal += s * inflowDiag;
+			staticTotal += staticDiag;
+			inflowTotal += inflowDiag;
 			// Read in the order the force is built: ground effect is what the
 			// surface ADDS to the bare thrust, and the vortex-ring loss is the
 			// share propwash then takes off that ground-augmented total. Carrying
@@ -900,8 +870,8 @@ export class Propulsion {
 			// Physics.forceBudget()'s residual — a split that said it disagreed
 			// with its own force on exactly the flight that matters, the last half
 			// second of a fast descent onto the ground.
-			groundExtra += s * (tBare * (ground - 1));
-			vrsLoss += s * (tBare * ground * 0.22 * this.propwash);
+			groundExtra += tBare * (ground - 1);
+			vrsLoss += tBare * ground * 0.22 * this.propwash;
 
 			// Roll and pitch torque come out of where the motors are, not out of
 			// a coefficient: tau = sum(r x F) with F along body +Y.
@@ -1058,14 +1028,10 @@ export class Propulsion {
 }
 
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
-// The Acro3D command range. Never reached by a forward flight, whose mixer
-// cannot produce a negative number at all.
-function clampPm1(v) { return v < -1 ? -1 : v > 1 ? 1 : v; }
-// How fast the four rotors are turning, regardless of which way. Every shaft
-// speed is >= 0 on the forward path, so `Math.abs` hands back the same doubles
-// and this is the mean it always was.
+// How fast the four rotors are turning, on average. Shaft speeds are >= 0:
+// stepMotor() floors them at zero.
 function meanRotorSpeed(omega) {
-	return (Math.abs(omega[0]) + Math.abs(omega[1]) + Math.abs(omega[2]) + Math.abs(omega[3])) / 4;
+	return (omega[0] + omega[1] + omega[2] + omega[3]) / 4;
 }
 
 const ZERO_RATE = { x: 0, y: 0, z: 0 };
