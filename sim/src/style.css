@@ -329,6 +329,30 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	background: var(--scrim-soft);
 }
 
+/* Signals (#185): the one-shot centre notice at take-off and at a clearance
+   step — exactly #fo-hint's face, above the other centre lines. It fades over
+   its last half second (fpvtp-osd.js, opacity only). */
+#fo-notice {
+	position: absolute;
+	left: 50%;
+	top: 40%;
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: var(--font-ui);
+	font-weight: 500;
+	font-size: var(--fs-data);
+	letter-spacing: var(--track-ui-tight);
+	text-transform: uppercase;
+	color: var(--dim);
+	padding: var(--space-2) var(--space-4);
+	background: var(--scrim-soft);
+	white-space: nowrap;
+}
+#fo-notice .fo-notice-mark { color: var(--green); }
+/* The nearest open signal, one more line in the top-left block; yellow is
+   "watch it" (Bible §38). */
+#fo-next .fo-next-k { color: var(--yellow); }
+
 /* The HUD callout (issue #185, spec §4): anchored to landmarks, decrypting as
    the signal reveals. The callout never crosses the link — it is pure local OSD
    and does not degrade with video loss. */
@@ -361,75 +385,77 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .fo-signal-chev[data-tone="orange"] { color: var(--orange); }
 .fo-signal-chev[data-tone="green"] { color: var(--green); }
 
-/* The UPLINKED card (issue #185, spec 2026-09-27-signals-lot2b, layout B):
-   ~6s of the intercepted frame next to the real place, in the right column —
-   the model is tools/signal-card-model.mjs, the DOM is src/signal-card.js. A
-   flow child of the top-right corner, under its last line, so it follows that
+/* The UPLINKED card (issue #185, mockup flight-da.html), in the terminal's
+   grammar: a hairline frame, square corners, the OSD's scrim and nothing else
+   filled; key/value lines in a <pre>; the timer is a green rule that shortens.
+   The model is tools/signal-card-model.mjs, the DOM src/signal-card.js. A flow
+   child of the top-right corner, under its last line, so it follows that
    corner at every screen height. It never takes the controls. */
 #fo-signal-card {
-	width: 250px;
+	width: 330px;
 	margin: var(--space-2) 0 0 auto;
+	padding: var(--space-2) var(--space-2) var(--space-2);
 	text-align: left;
 	pointer-events: none;
 	background: var(--scrim-soft);
-	border: 1px solid var(--green);
-	font: var(--fs-data) / 1.45 var(--font-ui);
+	border: 1px solid var(--rule-strong);
+	font: 500 var(--fs-data) / 1.6 var(--font-ui);
 	letter-spacing: var(--track-data);
 	color: var(--ink);
 }
-.signal-card-top {
-	display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
-	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
+.signal-card-hd {
+	display: flex; justify-content: space-between; gap: var(--space-2);
+	letter-spacing: var(--track-ui-tight); white-space: nowrap;
+}
+.signal-card-word { color: var(--green); }
+.signal-card-n { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+.signal-card-rule { height: 1px; background: var(--green); margin: var(--space-1) 0 var(--space-2); transform-origin: left; }
+.signal-card-ref { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.signal-card-name {
+	margin-top: var(--space-2);
+	font: 400 var(--fs-display-s) / 1.2 var(--font-display); letter-spacing: var(--track-display);
 	text-transform: uppercase;
-	padding: var(--space-1) var(--space-2);
-	border-bottom: 1px solid var(--rule);
-	white-space: nowrap;
 }
-.signal-card-top .signal-card-n { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
-.signal-card-imgs { display: grid; grid-template-columns: 1fr; gap: var(--space-1); padding: var(--space-1); }
-.signal-card-imgs figure { margin: 0; position: relative; }
-.signal-card-imgs img { display: block; width: 100%; object-fit: cover; background: var(--grey); }
-.signal-card-imgs figure:first-child img { aspect-ratio: 16 / 7; }
-.signal-card-imgs figure:last-child img { aspect-ratio: 4 / 3; }
-.signal-card-imgs figcaption {
-	position: absolute; left: var(--space-0); bottom: var(--space-0);
-	font: 500 var(--fs-micro) var(--font-ui); letter-spacing: var(--track-ui);
-	background: var(--scrim-soft); padding: 0 var(--space-1); color: var(--dim);
-}
-.signal-card-body { padding: var(--space-0) var(--space-2) var(--space-1); }
-.signal-card-name { font: 500 var(--fs-data) var(--font-ui); letter-spacing: var(--track-data); }
 .signal-card-desc {
-	color: var(--dim); font-size: var(--fs-micro);
-	margin: var(--space-0) 0 var(--space-1);
-	text-transform: uppercase; letter-spacing: var(--track-ui-tight);
+	margin: var(--space-0) 0 var(--space-2);
+	color: var(--dim); font-size: var(--fs-micro); line-height: 1.45;
+	text-transform: uppercase; letter-spacing: var(--track-data);
 }
-.signal-card-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
-.signal-card-facts span { display: flex; align-items: center; gap: var(--space-1); color: var(--ink); }
-.signal-card-pi { width: 13px; height: 13px; flex: none; color: var(--dim); image-rendering: pixelated; }
-.signal-card-credit { color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-data); padding: 0 var(--space-2) var(--space-1); }
-.signal-card-timer { height: 2px; background: var(--rule); margin: 0 var(--space-2) var(--space-1); }
-.signal-card-timer i { display: block; height: 100%; background: var(--green); }
+.signal-card-rows { margin: 0; font: inherit; color: var(--dim); white-space: pre; }
+.signal-card-rows b { color: var(--ink); font-weight: 500; }
+.signal-card-icpt {
+	display: flex; gap: var(--space-2); align-items: flex-end;
+	margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule);
+	color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-ui-tight); line-height: 1.4;
+}
+.signal-card-icpt img { display: block; width: 70px; aspect-ratio: 16 / 9; object-fit: cover; flex: none; }
+.signal-card-credit {
+	margin-top: var(--space-2);
+	color: var(--faint); font-size: var(--fs-micro); line-height: 1.4;
+	letter-spacing: var(--track-data); text-transform: uppercase;
+}
 
 /* The end-of-flight recap (src/flight-end.js's [SIGNALS] line): one strip,
    the title then a tile per uplink (frame + name), at most ~150px tall — the
    end screen also holds the portrait and the fingerprint, and [ENTER]
-   DISCONNECT must stay on screen. */
+   DISCONNECT must stay on screen. A hairline, square, unfilled. */
 .signal-recap {
-	border: 1px solid var(--rule); background: var(--dark-grey);
+	border: 1px solid var(--rule);
 	padding: var(--space-2) var(--space-3);
 	max-width: 90vw;
 }
 .signal-recap-hd {
-	font: var(--fs-data) var(--font-ui); letter-spacing: var(--track-ui); color: var(--green);
+	font: var(--fs-data) var(--font-ui); letter-spacing: var(--track-ui); color: var(--ink);
 	text-transform: uppercase; margin-bottom: var(--space-2);
 }
+.signal-recap-mark { color: var(--green); }
 .signal-recap-row { display: flex; flex-wrap: nowrap; justify-content: center; gap: var(--space-2); overflow: hidden; }
 .signal-recap-tile {
 	flex: none; width: 120px;
 	font: var(--fs-micro) / 1.45 var(--font-ui); letter-spacing: var(--track-data);
 	color: var(--ink); text-transform: none; text-align: left;
 }
-.signal-recap-tile img { display: block; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; background: var(--grey); }
+.signal-recap-tile img { display: block; width: 100%; aspect-ratio: 16 / 7; object-fit: cover; }
 .signal-recap-name { margin-top: var(--space-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .signal-recap-more {
 	width: auto; align-self: center; padding: 0 var(--space-2);

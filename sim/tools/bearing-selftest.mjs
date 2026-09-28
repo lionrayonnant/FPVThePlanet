@@ -5,6 +5,7 @@
 // Run: node tools/bearing-selftest.mjs
 import assert from 'node:assert/strict';
 import { headingOf, bearingTo, windFromBearing, relativeBearing, bearingDeg } from '../src/bearing.js';
+import { nextSignalText } from '../src/fpvtp-osd.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -84,6 +85,16 @@ t('WIND arrow: the glyph points where the wind pushes', () => {
 	// Facing east: the same wind is now a tailwind, then a wind from the right.
 	assert.equal(arrow({ x: 5, z: 0 }, EAST), '^');
 	assert.equal(arrow({ x: 0, z: -5 }, EAST), '<');
+});
+
+t('NEXT SIGNAL: the arrow points where the signal is, not where it comes from', () => {
+	// Nose north; the signal 1.2 km north-east, then 212 m due west, then behind.
+	const at = (dx, dz, q) => nextSignalText(Math.hypot(dx, dz), relativeBearing(bearingTo(dx, dz), headingOf(q)));
+	assert.equal(at(850, -850, NORTH), '1.2 km ↗');
+	assert.equal(at(-212, 0, NORTH), '212 m ←');
+	assert.equal(at(0, 300, NORTH), '300 m ↓');
+	// Nose east: a signal due north is on the left.
+	assert.equal(at(0, -500, EAST), '500 m ←');
 });
 
 t('relativeBearing: wrapped to ]-pi, pi]', () => {

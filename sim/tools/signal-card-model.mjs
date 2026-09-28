@@ -1,36 +1,41 @@
 // The UPLINKED card's pure half (issue #185, spec 2026-09-27-signals-lot2b):
-// which facts show, the credit line, and how long a card stays up before the
+// which key/value rows show, the credit line, and how long a card stays up before the
 // next one takes its place. No DOM — the DOM layer is src/signal-card.js.
+
+import { LEVELS } from './signal-clearance-model.mjs';
 
 // Seconds a card stays up before the next one (in flight) takes its place.
 export const CARD_S = 6;
-// The card shows at most four pictogram facts (landmark, calendar, height,
-// heritage): more would not fit the ~250px column of layout B.
-export const MAX_FACTS = 4;
+// The card's key/value lines (TYPE / BUILT / HEIGHT / STATUS): four at most,
+// the terminal's <pre> has no room for more in a ~250px column.
+export const MAX_ROWS = 4;
 
 const fieldValue = (signal, key) => signal?.fields?.find((f) => f.key === key)?.value ?? null;
 
 // Wikidata gives a signed year (P571 precision >= day); OSM's BUILT field is
 // already a display string (signal-model.mjs uppercases it), used as-is.
 const yearText = (y) => (y < 0 ? `${-y} BC` : `${y}`);
+// Metres in lower case, like every distance on the OSD; OSM's field arrives
+// uppercased ("71 M").
+const metres = (v) => (typeof v === 'string' ? v.replace(/ M$/, ' m') : v);
 
-// The four possible facts, in a fixed order, Wikidata preferred over OSM for
-// year and height (spec: "the real photo... supersedes OSM for images and the
-// short description" — the same precedence applies to these two facts).
-export function cardFacts(signal, info) {
-	const facts = [];
-	if (signal?.kind) facts.push({ icon: 'landmark', text: signal.kind });
+// The rows, in a fixed order, only the known ones. Wikidata is preferred over
+// OSM for year and height (spec: "the real photo... supersedes OSM for images
+// and the short description" — the same precedence applies to these two).
+export function cardRows(signal, info) {
+	const rows = [];
+	if (signal?.kind) rows.push(['TYPE', signal.kind]);
 
 	const year = typeof info?.year === 'number' ? yearText(info.year) : fieldValue(signal, 'built');
-	if (year) facts.push({ icon: 'calendar', text: year });
+	if (year) rows.push(['BUILT', year]);
 
-	const height = typeof info?.heightM === 'number' ? `${Math.round(info.heightM)} M` : fieldValue(signal, 'height');
-	if (height) facts.push({ icon: 'height', text: height });
+	const height = typeof info?.heightM === 'number' ? `${Math.round(info.heightM)} m` : metres(fieldValue(signal, 'height'));
+	if (height) rows.push(['HEIGHT', height]);
 
 	const status = fieldValue(signal, 'status');
-	if (status) facts.push({ icon: 'heritage', text: status });
+	if (status) rows.push(['STATUS', status]);
 
-	return facts.slice(0, MAX_FACTS);
+	return rows.slice(0, MAX_ROWS);
 }
 
 // The photo's credit line. The data line ("DATA © OSM · WIKIDATA") is always
@@ -41,6 +46,33 @@ export function creditLine(info) {
 	const artist = photo.artist ?? 'UNKNOWN';
 	const license = photo.license ?? 'UNKNOWN';
 	return `PHOTO © ${artist} · ${license} · WIKIMEDIA COMMONS`;
+}
+
+// The one-shot notice when control is acquired (the OSD's #fo-notice): the
+// scan while the flight's tiles are still loading, then how many signals are
+// open to this operator. `count` excludes the resolved and the locked ones.
+export function takeoffNotice({ loading = false, done = 0, total = 0, count = 0 } = {}) {
+	if (loading) return `[*] SIGNAL SCAN · ${done}/${total}`;
+	if (count > 0) return `[+] ${count} SIGNAL${count === 1 ? '' : 'S'} IN RANGE`;
+	return 'NO SIGNAL IN RANGE';
+}
+
+// The machines as the clearance ladder names them (the hangar's names, not
+// the profiles' EST. classes: the toothpick is not "MICRO" here).
+export const MACHINE_NAMES = {
+	freestyle5: '5" FREESTYLE', cinewhoop: 'CINEWHOOP', toothpick: 'TOOTHPICK',
+	race5: '5" RACE', longrange: 'LONG RANGE', heavy5: 'HEAVY 5"', swarm: 'THE SWARM',
+};
+const ROMAN = { 1: 'I', 2: 'II', 3: 'III' };
+
+// The notice of an uplink that crosses a clearance step: what that step opens,
+// machines then the new signal tier. null for level 0 or an unknown level.
+export function clearanceNotice(level) {
+	const now = LEVELS[level], before = LEVELS[level - 1];
+	if (!now || !before) return null;
+	const parts = now.opens.map((f) => MACHINE_NAMES[f] ?? f.toUpperCase());
+	for (const t of now.tiers) if (!before.tiers.includes(t)) parts.push(`TIER ${ROMAN[t]}`);
+	return [`[+] CLEARANCE ${level}`, ...parts].join(' · ');
 }
 
 // The end-of-flight recap strip: the first `max` uplinks as tiles, and how

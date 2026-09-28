@@ -46,7 +46,7 @@ import { resolveBenchAirframe } from '../tools/bench-airframe.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
-import { clearanceOf, familiesFor, swarmAllowed } from '../tools/signal-clearance-model.mjs';
+import { clearanceOf, familiesFor, swarmAllowed, tierAllowed, pointsOf, crossed, LEVELS } from '../tools/signal-clearance-model.mjs';
 import { parseSwarmFlag, parseSceneFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
@@ -74,9 +74,10 @@ import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
-import { withResolved, withPhoto, resolvedIds } from '../tools/signal-store-model.mjs';
+import { withResolved, withPhoto, withPlace, resolvedIds } from '../tools/signal-store-model.mjs';
+import { sharedPlaceNames } from './place-name.js';
 import { SignalCard, recapNode } from './signal-card.js';
-import { CardQueue } from '../tools/signal-card-model.mjs';
+import { CardQueue, CARD_S, takeoffNotice, clearanceNotice } from '../tools/signal-card-model.mjs';
 import { sharedPlaceInfo } from './place-info.js';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
 import { RocktreeWindow } from './rocktree-window.js';
@@ -746,6 +747,23 @@ let flightGen = 0;               // bumped per flight: a late card never lands i
 // Bound on the wait for the place info before the card shows without it.
 const CARD_INFO_WAIT_MS = 2500;
 fpvtpOsd.setSignalRecap(() => recapNode(flightUplinks));
+// Clearance, read once per flight at arm time: signals of a tier above it are
+// encrypted (visible, marked, not capturable) for the whole flight, even if an
+// uplink crosses a step mid-flight.
+let flightClearance = 0;
+// The clearance step an uplink crossed during THIS flight, or null. Reset by
+// armSignals(); read by the end screen (Task 8) through flightCrossedStep().
+let flightCrossed = null;
+function flightCrossedStep() { return flightCrossed; }
+// The take-off notice (#fo-notice): 'scan' while the flight's tiles are still
+// loading (updated on each source change), null once the count was shown.
+let takeoffPhase = null;
+// NEXT SIGNAL: recomputed at 5 Hz, not every frame.
+const NEXT_SIGNAL_MS = 200;
+let nextSignal = null;           // { distM, relRad } | null
+let nextSignalAt = 0;
+// The level that first opens a tier: what an encrypted target's callout asks for.
+const needFor = (tier) => { const i = LEVELS.findIndex((l) => l.tiers.includes(tier)); return i < 0 ? null : i; };
 
 // Assisted turtle mode (#105). Fed INSIDE the fixed-step loop, like the area
 // fence: its torque has to leave in the same step as the thrust, and its damping
@@ -2153,6 +2171,9 @@ function armSignals() {
 	nextSlot = 1;
 	prefetched = new Set();
 	priorResolved = new Set(resolvedIds(operator.getOperator()?.signals));
+	flightClearance = clearanceOf(operator.getOperator()?.signals);
+	flightCrossed = null;
+	nextSignal = null;
 	flightGen++;
 	if (MODE.bench) return;
 	const home = droneGeo(physics.position);
@@ -2160,17 +2181,25 @@ function armSignals() {
 	const src = sharedSignalSource();
 	const refresh = () => {
 		const done = resolvedIds(operator.getOperator()?.signals);
-		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M);
+		// Above the operator's clearance, a signal is encrypted and carries the
+		// level that opens its tier (the callout's ENCRYPTED · CLEARANCE n). A
+		// copy: the shared source's objects stay untouched.
+		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M).map((s) => (
+			!done.has(s.id) && !tierAllowed(flightClearance, s.tier) ? { ...s, encrypted: true, need: needFor(s.tier) } : s));
 		signalAnchors.set(flightSignals);
-		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id) }));
+		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id), encrypted: !!s.encrypted }));
 		signalCapture.setTargets(signalTargets);
 		if (!flightSignals.length) signalCallout.render(null);
+		if (takeoffPhase === 'scan') paintTakeoffNotice();
 	};
 	offFlightSignals = src.subscribe(refresh);
 	src.request(tilesAround(home.lat, home.lon, FLIGHT_RADIUS_M));
 	refresh();
 }
 function disarmSignals() {
+	if (takeoffPhase === 'scan') fpvtpOsd.setNotice(null);
+	takeoffPhase = null;
+	nextSignal = null;
 	offFlightSignals?.();
 	offFlightSignals = null;
 	flightSignals = [];
@@ -2183,6 +2212,50 @@ function disarmSignals() {
 	pendingUplink = null;
 	lastUplink = null;
 }
+// The signals this operator can still uplink in this flight: not resolved,
+// not encrypted. The store is patched at the uplink, so it is the truth.
+function openFlightSignals() {
+	const done = resolvedIds(operator.getOperator()?.signals);
+	return flightSignals.filter((s) => !s.encrypted && !done.has(s.id));
+}
+
+// The take-off notice, when control is acquired (called at the handover): the
+// scan while the flight's tiles land, then the count for 4 s. Nothing on the
+// bench, nothing when the flight has no signals armed (no known position).
+function startTakeoffNotice() {
+	if (MODE.bench || !offFlightSignals) return;
+	takeoffPhase = 'scan';
+	paintTakeoffNotice();
+}
+function paintTakeoffNotice() {
+	const p = sharedSignalSource().progress();
+	if (p.done < p.total) {
+		fpvtpOsd.setNotice(takeoffNotice({ loading: true, done: p.done, total: p.total }), Infinity);
+		return;
+	}
+	takeoffPhase = null;
+	fpvtpOsd.setNotice(takeoffNotice({ count: openFlightSignals().length }), 4000);
+}
+
+// NEXT SIGNAL: the nearest open signal, horizontal distance and bearing
+// relative to the nose, on local ENU (the anchor when it exists, else the
+// signal's lat/lon brought into the scene). null while a callout or its edge
+// chevron is on screen, off the flight, or when nothing is left.
+function computeNextSignal(p) {
+	if (MODE.bench || flightEnd.phase !== FLYING) return null;
+	if (!signalCallout.el.hidden || !signalCallout.chev.hidden) return null;
+	let best = null;
+	for (const s of openFlightSignals()) {
+		const at = signalAnchors.pos(s.id) ?? localOfGeo(s.lat, s.lon);
+		if (!at) continue;
+		const dx = at.x - p.x, dz = at.z - p.z;
+		const d = Math.hypot(dx, dz);
+		if (!best || d < best.distM) best = { distM: d, dx, dz };
+	}
+	if (!best) return null;
+	return { distM: best.distM, relRad: relativeBearing(bearingTo(best.dx, best.dz), headingOf(physics.rotation)) };
+}
+
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
 if (import.meta.env?.DEV) {
 	window.__signals = {
@@ -2191,6 +2264,19 @@ if (import.meta.env?.DEV) {
 		uplinks: () => flightUplinks.map((c) => ({ id: c.signal.id, index: c.index, info: !!c.info, photo: !!c.info?.photo, frame: !!c.frameSrc })),
 		geo: (p) => droneGeo(p),
 		local: (lat, lon) => localOfGeo(lat, lon),
+		next: () => nextSignal,
+		clearance: () => flightClearance,
+		crossed: () => flightCrossedStep(),
+		notice: (text, ms) => fpvtpOsd.setNotice(text, ms),
+		// Place the drone at local (x, y, z), nose on a compass heading (radians,
+		// clockwise from north: a yaw of -heading about +Y, src/bearing.js),
+		// pitched `pitch` radians (positive = nose up) about the body's +X.
+		pose: (x, y, z, heading = 0, pitch = 0) => {
+			window.__sim.teleport(x, y, z);
+			const cy = Math.cos(-heading / 2), sy = Math.sin(-heading / 2);
+			const cp = Math.cos(pitch / 2), sp = Math.sin(pitch / 2);
+			physics.body.setRotation({ x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp }, true);
+		},
 	};
 }
 
@@ -2280,17 +2366,29 @@ function onSignalUplinked(id) {
 	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
 	const live = session.current();
 	const op = operator.getOperator();
+	let step = null;
 	if (op) {
-		operator.patch('signals', withResolved(op.signals, id, {
+		const next = withResolved(op.signals, id, {
 			at: Date.now(), name: s.name, lat: s.lat, lon: s.lon, tier: s.tier,
 			family: PROFILE?.family ?? null, holdS: HOLD_S, distM: Math.round(dist),
 			sessionId: live?.id ?? null, photo: null,
-		}));
+		});
+		// A clearance step crossed by this uplink: its notice follows the card's
+		// first second (the frame loop), and the end screen reveals it.
+		step = crossed(pointsOf(op.signals), pointsOf(next));
+		if (step !== null) flightCrossed = step;
+		operator.patch('signals', next);
+		// The place name follows (src/place-name.js, 1 req/s): patched in when
+		// it lands, never over one already there.
+		sharedPlaceNames().nameOf(s.lat, s.lon).then((place) => {
+			const cur = place && operator.getOperator();
+			if (cur) operator.patch('signals', withPlace(cur.signals, id, place));
+		}).catch(() => null);
 	}
 	// The frame is taken even without a live session: the card shows it. index
 	// and total are frozen now: SIGNAL n / the ones still open at this moment.
 	const total = flightSignals.filter((x) => !priorResolved.has(x.id)).length;
-	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen };
+	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen, crossed: step };
 	if (import.meta.env?.DEV) console.debug('[signals] uplinked', id, `${pendingUplink.index}/${total}`);
 }
 
@@ -2323,9 +2421,9 @@ function fillSlot(index, card, gen) {
 
 // Builds the card once its thumbnail and info are known (SignalCard refreshes
 // images only when the signal changes). A failed capture still shows the card.
-async function pushUplinkCard({ id, signal, distM, index, total, gen }, frameSrc) {
+async function pushUplinkCard({ id, signal, distM, index, total, gen, crossed: step }, frameSrc) {
 	const info = await placeInfoFor(id);
-	fillSlot(index, { signal, info, frameSrc, distM, holdS: HOLD_S, index, total }, gen);
+	fillSlot(index, { signal, info, frameSrc, distM, holdS: HOLD_S, index, total, family: PROFILE?.family ?? null, crossed: step ?? null }, gen);
 }
 
 function blobToDataUrl(blob) {
@@ -2795,6 +2893,14 @@ function frame() {
 	if (flightEnd.phase === FLYING) {
 		const q = cardQueue.update(frozen ? 0 : dt);
 		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01 } : null);
+		// The clearance step this card's uplink crossed: announced once, after
+		// the card's first second, for 5 s.
+		const c = q.current;
+		if (c?.crossed && !c.noticed && q.remaining01 <= 1 - 1 / CARD_S) {
+			c.noticed = true;
+			const text = clearanceNotice(c.crossed);
+			if (text) fpvtpOsd.setNotice(text, 5000);
+		}
 	} else signalCard.render(null);
 
 	// The end of flight decides on its own: what is shown, when the picture dies,
@@ -3260,6 +3366,9 @@ if (!frozen) {
 			: link.out.quality < 0.25 ? 'RXLOSS' : '',
 	});
 
+	// NEXT SIGNAL, at 5 Hz: a distance and an arrow do not need 60.
+	const tNext = performance.now();
+	if (tNext - nextSignalAt >= NEXT_SIGNAL_MS) { nextSignalAt = tNext; nextSignal = computeNextSignal(p); }
 	fpvtpOsd.update({
 		mode: controller.mode,
 		rates: RATE_PRESETS[controller.preset].label,
@@ -3275,6 +3384,7 @@ if (!frozen) {
 		propwash: physics.propulsion.propwash,
 		bench: MODE.bench,
 		live: MODE.live,
+		next: nextSignal,
 	});
 	fpvtpOsd.setFlightEnd(flightEnd.out);
 	// The two ways out of a stuck machine (#216, #105). The labels name the key
@@ -4133,6 +4243,8 @@ async function openFlightSession() {
 	hintFlight = !MODE.bench && firstFlightPending(localStorage);
 	hintAirborneAt = null;
 	fpvtpOsd.setHint(null);
+	// Signals (#185): one notice as control is acquired — the scan, then the count.
+	startTakeoffNotice();
 }
 
 // Everything the FIRST VISIBLE frame of a flight must already carry (#122): the
