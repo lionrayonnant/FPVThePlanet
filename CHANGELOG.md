@@ -62,10 +62,6 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Modifié
 
-- **ACRO par défaut pour tous les périphériques.** Clavier, manette et radio
-  démarrent en ACRO : la manette ne démarre plus en ANGLE. Une radio dont l'inter
-  de mode est calibré suit toujours sa position.
-
 - **three passe de 0.170 à 0.186.** Depuis 0.186, le constructeur
   d'`OrbitControls` appelle `connect()`, qui commence par `disconnect()` et lit
   `domElement.ownerDocument` pour retirer ses écouteurs de pointeur. Notre faux
