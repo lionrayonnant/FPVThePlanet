@@ -158,8 +158,16 @@ export async function signalsSection(api, { onOpen = () => {}, placeNames = null
 			const op = api.getOperator();
 			if (!op) return;
 			// The name is the tile's: every unnamed entry in it takes it.
+			const was = fromStored(op.signals).resolved;
 			let next = op.signals;
-			for (const [id, x] of unnamed) if (placeKey(x.lat, x.lon) === key) next = withPlace(next, id, name);
+			let changed = false;
+			for (const [id, x] of unnamed) {
+				if (placeKey(x.lat, x.lon) !== key) continue;
+				next = withPlace(next, id, name);
+				if (was[id]?.place === null && next.resolved[id]?.place != null) changed = true;
+			}
+			// Named meanwhile (by a flight, another tab): nothing to write.
+			if (!changed) continue;
 			api.patch('signals', next);
 			redraw();
 		}
@@ -274,7 +282,11 @@ export function runCapture(root, { api, entries, index = 0, known = null }) {
 
 			const acts = el('div', 'terminal-acts');
 			acts.appendChild(screenButton('FLY THERE',
-				() => done({ live: [entry.lat, entry.lon], place: entry.place ?? null }), 'terminal-cta'));
+				() => {
+					// The SIGNALS section may have named it since the list was read.
+					const cur = fromStored(api.getOperator()?.signals).resolved[entry.id];
+					done({ live: [entry.lat, entry.lon], place: cur?.place ?? entry.place ?? null });
+				}, 'terminal-cta'));
 			if (entries.length > 1) {
 				const prev = screenButton('PREVIOUS', () => { i--; show('PREVIOUS'); }, 'terminal-cta');
 				prev.disabled = i === 0;

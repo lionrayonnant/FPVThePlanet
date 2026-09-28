@@ -2245,6 +2245,7 @@ function disarmSignals() {
 	signalAnchors.set([]);
 	signalCapture.setTargets([]);
 	signalCallout.render(null);
+	calloutState = null;
 	// A frame never taken still frees its slot, or the cards after it would wait forever.
 	if (pendingUplink) fillSlot(pendingUplink.index, null, pendingUplink.gen);
 	pendingUplink = null;
@@ -2363,23 +2364,25 @@ function renderSignalCallout(out) {
 	// the picture, else a resolved one close by.
 	const rows = out.rows.filter((r) => r.state !== 'hidden').sort((a, b) => a.dist - b.dist);
 	const now = performance.now() / 1000;
+	// The box's size, read once: offsetWidth forces a layout.
+	const box = { w: signalCallout.box.offsetWidth || 230, h: signalCallout.box.offsetHeight || 110 };
 	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
 	const pick = rows.find((r) => r.id === out.focus)
 		?? rows.find((r) => r.id === recent)
 		?? rows.find((r) => r.state !== 'resolved' && r.state !== 'encrypted');
-	let view = pick ? calloutView(pick, now) : null;
+	let view = pick ? calloutView(pick, now, box) : null;
 	// An encrypted target is shown only where it stands in the picture: it
 	// never steals the edge chevron nor hides NEXT SIGNAL from off-screen.
 	if (!pick) {
 		for (const r of rows) {
 			if (r.state !== 'encrypted') continue;
-			const v = calloutView(r, now);
+			const v = calloutView(r, now, box);
 			if (v?.placed.onScreen) { view = v; break; }
 		}
 	}
 	if (!pick && !view) {
 		const r = rows.find((x) => x.state === 'resolved' && x.dist <= RESOLVED_CALLOUT_M);
-		if (r) view = calloutView(r, now);
+		if (r) view = calloutView(r, now, box);
 	}
 	// The edge chevron points at something to capture, never at a done or
 	// encrypted one.
@@ -2389,7 +2392,7 @@ function renderSignalCallout(out) {
 }
 
 // Where a row's callout goes on the picture: null when its signal or anchor is missing.
-function calloutView(row, now) {
+function calloutView(row, now, box) {
 	const signal = flightSignals.find((s) => s.id === row.id);
 	const pos = signalAnchors.pos(row.id);
 	if (!signal || !pos) return null;
@@ -2410,7 +2413,7 @@ function calloutView(row, now) {
 		: { x: _sigNdc.x, y: _sigNdc.y };
 	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
 		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
-		{ boxW: signalCallout.box.offsetWidth || 230, boxH: signalCallout.box.offsetHeight || 110 });
+		{ boxW: box.w, boxH: box.h });
 	return { signal, row, placed, now };
 }
 
