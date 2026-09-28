@@ -175,14 +175,14 @@ await ta('data: the foot line counts sessions, signals uplinked and the clearanc
 	let p = dataScreen(dom.root, { api: api(operator()), scenes: [] });
 	await tick();
 	assert.equal(dom.root.querySelector('.terminal-box').children[1].textContent,
-		'1 SESSIONS ON RECORD · 0 SIGNALS UPLINKED · CLEARANCE 0');
+		'1 SESSION ON RECORD · 0 SIGNALS UPLINKED · CLEARANCE 0');
 	await closeAll(p, 1);
 	reset();
 	p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
 	await tick();
 	// 3 tier-I signals = 3 points: still under the 6 of CLEARANCE 1.
 	assert.equal(dom.root.querySelector('.terminal-box').children[1].textContent,
-		'1 SESSIONS ON RECORD · 3 SIGNALS UPLINKED · CLEARANCE 0');
+		'1 SESSION ON RECORD · 3 SIGNALS UPLINKED · CLEARANCE 0');
 	await closeAll(p, 1);
 });
 

@@ -63,7 +63,7 @@ export async function signalsSection(api, { onOpen = () => {}, placeNames = null
 
 	const box = el('div', 'data-section signals-section');
 	box.appendChild(el('pre', '', 'SIGNALS'));
-	const footText = () => `${data.uplinked} UPLINKED · ${data.knownCount} KNOWN · ${data.places.length} PLACES`;
+	const footText = () => `${data.uplinked} UPLINKED · ${data.knownCount} KNOWN · ${data.places.length} PLACE${data.places.length === 1 ? '' : 'S'}`;
 	const foot = el('pre', 'terminal-foot', footText());
 	box.appendChild(foot);
 

@@ -1085,8 +1085,10 @@ export function dataScreen(root, { api = operatorApi, scenes = null, placeNames 
 		const title = document.createElement('pre');
 		title.textContent = 'DATA';
 		s.box.appendChild(title);
-		s.box.appendChild(pre(`${data.sessionCount} SESSIONS ON RECORD`
-			+ ` · ${buildSignals({ store }).uplinked} SIGNALS UPLINKED · CLEARANCE ${clearanceOf(store)}`, 'terminal-foot'));
+		const up = buildSignals({ store }).uplinked;
+		const s1 = (n) => (n === 1 ? '' : 'S');
+		s.box.appendChild(pre(`${data.sessionCount} SESSION${s1(data.sessionCount)} ON RECORD`
+			+ ` · ${up} SIGNAL${s1(up)} UPLINKED · CLEARANCE ${clearanceOf(store)}`, 'terminal-foot'));
 		s.box.appendChild(page);
 		render();
 
