@@ -392,6 +392,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    child of the top-right corner, under its last line, so it follows that
    corner at every screen height. It never takes the controls. */
 #fo-signal-card {
+	/* Above the callout layer: an edge chevron or a callout pinned at the
+	   picture's right edge otherwise prints across the card. */
+	position: relative; z-index: 1;
 	width: 330px;
 	margin: var(--space-2) 0 0 auto;
 	padding: var(--space-2) var(--space-2) var(--space-2);
@@ -509,6 +512,9 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    it is the column that overflows, never the width (19 columns, 250px). */
 @media (max-height: 820px) {
 	#flight-end .flight-end-art { font-size: var(--fs-micro); }
+	/* The hangar (a crossed clearance step) is ~50px taller than the recap
+	   strip it replaces: at 800px the title and [R] REDEPLOY left the screen. */
+	#flight-end:has(.signal-hangar) { gap: .2em; }
 }
 
 /* D12 — the 3D machine on the end screen (src/drone-viewer.js). The only
@@ -1372,7 +1378,8 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 .signals-list { display: flex; flex-direction: column; align-items: flex-start; }
 .signals-list > * { flex: none; }
 .bootstrap-box pre.signals-line {
-	padding-left: 1.2em;
+	/* The [+] rows' button padding: one row pitch down the whole list. */
+	padding: var(--space-0) 0 var(--space-0) 1.2em;
 	font-family: var(--font-data); font-size: var(--fs-data);
 	line-height: 1.6; letter-spacing: var(--track-data);
 	font-variant-numeric: tabular-nums;
