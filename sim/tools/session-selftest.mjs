@@ -17,6 +17,7 @@ import {
 	SWARM_FAMILY, SWARM_SIZE_MIN, SWARM_SIZE_MAX,
 } from './target-model.mjs';
 import { decodeTrack, MAX_SAMPLES } from './track-model.mjs';
+import { familiesFor } from './signal-clearance-model.mjs';
 import * as op from '../src/operator.js';
 import * as session from '../src/session.js';
 
@@ -32,10 +33,8 @@ const WEATHER = {
 // ---------------------------------------------------------------------------
 // session-model
 //
-// NOTE: the regexes passed to assert.throws() below match error strings
-// actually thrown by tools/session-model.mjs, a file this task does not
-// touch and which stays in French — they are left as-is, verbatim, because
-// they are data (what the source throws), not test prose.
+// NOTE: the regexes passed to assert.throws() below match the error strings
+// tools/session-model.mjs actually throws.
 
 t('newSessionId: area slug + 4 hex, matches the regex', () => {
 	const id = newSessionId('Tokyo Shibuya');
@@ -64,7 +63,7 @@ t('sanitizeWeatherSnapshot: keeps only the known shape, null is legitimate', () 
 	const clean = sanitizeWeatherSnapshot({ ...WEATHER, secret: 42 });
 	assert.deepEqual(Object.keys(clean).sort(), ['confidence', 'day', 'day0', 'regime', 'source', 'zone']);
 	assert.equal(clean.confidence, 0.94);
-	assert.throws(() => sanitizeWeatherSnapshot({ zone: 'x' }), /sans jour/);
+	assert.throws(() => sanitizeWeatherSnapshot({ zone: 'x' }), /has no day/);
 });
 
 t('mergeTelemetry: max on the peaks, sum on the cumulatives, associative', () => {
@@ -87,7 +86,7 @@ t('telemetry: every field is bounded, and a bounded session still closes (#83)',
 		const at = { ...freshTelemetry(), [k]: max };
 		assert.equal(validateSession({ ...s, flightTelemetry: at }).flightTelemetry[k], max, k);
 		const over = { ...freshTelemetry(), [k]: max * 1.0001 };
-		assert.throws(() => validateSession({ ...s, flightTelemetry: over }), /hors bornes/, k);
+		assert.throws(() => validateSession({ ...s, flightTelemetry: over }), /out of bounds/, k);
 	}
 	// The original bug: 1e308 stored, then merged with itself, gave Infinity —
 	// and the session stayed PENDING forever.
@@ -110,7 +109,7 @@ t('closeSession: sets end + result, merges telemetry', () => {
 	assert.equal(done.flightTelemetry.durationS, 50);
 	assert.equal(done.flightTelemetry.maxSpeedMs, 30);
 	assert.equal(done.flightTelemetry.maxAltitudeM, 40);
-	assert.throws(() => closeSession(s, { result: 'PENDING' }), /verdict invalide/);
+	assert.throws(() => closeSession(s, { result: 'PENDING' }), /invalid verdict/);
 });
 
 // Landing disappeared (D9, 2026-09-08): a flight now only ever produces
@@ -120,7 +119,7 @@ t('closeSession: sets end + result, merges telemetry', () => {
 t('SESSION_RESULTS: LANDED is no longer produced, but a stored LANDED stays valid', () => {
 	assert.deepEqual(SESSION_RESULTS, ['PENDING', 'CRASHED']);
 	const s = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
-	assert.throws(() => closeSession(s, { result: 'LANDED' }), /verdict invalide/);
+	assert.throws(() => closeSession(s, { result: 'LANDED' }), /invalid verdict/);
 	const legacy = { ...s, result: 'LANDED', end: new Date().toISOString() };
 	assert.doesNotThrow(() => validateSession(legacy));
 	assert.equal(annotateSession(legacy, 'old flight').result, 'LANDED');
@@ -128,11 +127,11 @@ t('SESSION_RESULTS: LANDED is no longer produced, but a stored LANDED stays vali
 
 t('validateSession: rejects an invalid id, result, weatherSnapshot, telemetry', () => {
 	const good = openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'paris', weatherSnapshot: WEATHER });
-	assert.throws(() => validateSession({ ...good, id: 'PAS BON' }), /id de session invalide/);
-	assert.throws(() => validateSession({ ...good, result: 'MEH' }), /result inconnu/);
-	assert.throws(() => validateSession({ ...good, weatherSnapshot: { zone: 'x' } }), /sans jour/);
-	assert.throws(() => validateSession({ ...good, flightTelemetry: { ...good.flightTelemetry, maxSpeedMs: -1 } }), /invalide/);
-	assert.throws(() => validateSession({ ...good, result: 'LANDED', end: null }), /sans end/);
+	assert.throws(() => validateSession({ ...good, id: 'PAS BON' }), /invalid session id/);
+	assert.throws(() => validateSession({ ...good, result: 'MEH' }), /unknown result/);
+	assert.throws(() => validateSession({ ...good, weatherSnapshot: { zone: 'x' } }), /has no day/);
+	assert.throws(() => validateSession({ ...good, flightTelemetry: { ...good.flightTelemetry, maxSpeedMs: -1 } }), /invalid/);
+	assert.throws(() => validateSession({ ...good, result: 'LANDED', end: null }), /without end/);
 });
 
 t('reconcileStaleSessions: an old PENDING -> CRASHED, a terminal one untouched', () => {
@@ -179,12 +178,12 @@ t('sanitizeTarget: rejects an unknown family and a positive rssi; validateSessio
 	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { family: 'not-a-family', signal: { rssiDbm: -59, mode: 'ANALOG' }, intel: {} },
-	}), /famille de cible inconnue/);
+	}), /unknown target family/);
 	const bad = {
 		...openSession({ seq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null }),
 		target: { family: TARGET_FAMILIES[0], signal: { rssiDbm: 5, mode: 'ANALOG' }, intel: {} },
 	};
-	assert.throws(() => validateSession(bad), /rssiDbm invalide/);
+	assert.throws(() => validateSession(bad), /invalid target\.signal\.rssiDbm/);
 });
 
 t('sanitizeTarget: hackType — a valid one is kept, an unknown one rejected, an absent one tolerated', () => {
@@ -205,13 +204,13 @@ t('sanitizeTarget: hackType — a valid one is kept, an unknown one rejected, an
 	assert.throws(() => openSession({ seq: 1, targetSeq: 1,
 		operatorId: 'neo-3f9c', area: 'kyiv-podil', weatherSnapshot: null,
 		target: { ...base, hackType: 'NOPE' },
-	}), /hackType de cible inconnu/);
+	}), /unknown target hackType/);
 });
 
 t('sanitizeTarget: keeps scan {seed,count,index} and rejects a wrong shape', () => {
 	const scan = generateTargetScan({ seed: 'keep-me', count: 3, swarmChance: 0 });
 	const kept = sanitizeTarget(resolveTarget(scan, 1));
-	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1, swarmAt: null, swarmChance: 0 });
+	assert.deepEqual(kept.scan, { seed: 'keep-me', count: 3, index: 1, swarmAt: null, swarmChance: 0, families: TARGET_FAMILIES });
 	// A v1 session: no scan -> null, no error.
 	const v1 = { ...resolveTarget(scan, 1) };
 	delete v1.scan;
@@ -229,6 +228,22 @@ t('sanitizeTarget: keeps scan {seed,count,index} and rejects a wrong shape', () 
 	}
 });
 
+t('sanitizeTarget: keeps the clearance pool of the scan (scan.families), drops a bad one', () => {
+	for (const level of [1, 2, 3]) {
+		const families = familiesFor(level);
+		const scan = generateTargetScan({ seed: `pool-${level}`, count: 3, swarmChance: 0, families });
+		const s = openSession({ seq: 1, targetSeq: 1, operatorId: 'neo-3f9c', area: 'kyiv-podil',
+			weatherSnapshot: null, target: resolveTarget(scan, 0) });
+		assert.deepEqual(s.target.scan.families, familiesFor(level), `level ${level}`);
+		assert.deepEqual(validateSession(s).target.scan.families, familiesFor(level));
+	}
+	const base = resolveTarget(generateTargetScan({ seed: 'pool-bad', count: 3, swarmChance: 0 }), 0);
+	for (const bad of [[], ['nope'], [TARGET_FAMILIES[0], SWARM_FAMILY], 'freestyle5', 42, null]) {
+		const kept = sanitizeTarget({ ...base, scan: { ...base.scan, families: bad } });
+		assert.equal('families' in kept.scan, false, JSON.stringify(bad));
+	}
+});
+
 t('session schema: version 3', () => {
 	assert.equal(SESSION_SCHEMA_VERSION, 3);
 });
@@ -241,7 +256,7 @@ t('sanitizeTarget: keeps swarm and scan.swarmAt/swarmChance in v3', () => {
 	assert.equal(kept.family, SWARM_FAMILY, 'swarmNode is allowed outside TARGET_FAMILIES');
 	assert.equal(kept.swarm.size, scan.candidates[0]._swarm.size);
 	assert.equal(kept.swarm.doctrineSeed, scan.candidates[0]._swarm.doctrineSeed);
-	assert.deepEqual(kept.scan, { seed: 'swarm-keep', count: 4, index: 0, swarmAt: 0, swarmChance: 1 });
+	assert.deepEqual(kept.scan, { seed: 'swarm-keep', count: 4, index: 0, swarmAt: 0, swarmChance: 1, families: TARGET_FAMILIES });
 	// And the scan replays identically from what was kept.
 	const replay = generateTargetScan({
 		seed: kept.scan.seed, count: kept.scan.count,
@@ -308,7 +323,7 @@ t('validateSession: rejects a malformed swarm on an otherwise valid session', ()
 	assert.throws(() => validateSession({ ...s, target: { ...s.target, swarm: { size: 99, doctrineSeed: 'd' } } }),
 		/target\.swarm\.size/);
 	assert.throws(() => validateSession({ ...s, target: { ...s.target, family: 'nope' } }),
-		/famille de cible inconnue/);
+		/unknown target family/);
 });
 
 t('sanitizeComment: empty/blank -> null, trims spaces, caps the length', () => {
@@ -317,7 +332,7 @@ t('sanitizeComment: empty/blank -> null, trims spaces, caps the length', () => {
 	assert.equal(sanitizeComment('   '), null);
 	assert.equal(sanitizeComment('  ras, cible calme  '), 'ras, cible calme');
 	assert.throws(() => sanitizeComment('x'.repeat(401)), /COMMENT TOO LONG/);
-	assert.throws(() => sanitizeComment(42), /comment invalide/);
+	assert.throws(() => sanitizeComment(42), /invalid comment/);
 });
 
 t('annotateSession: can annotate an already-closed session (no PENDING restriction)', () => {
@@ -341,11 +356,11 @@ t('sanitizePhoto: known shape kept, ts set by the server (ignores the client\'s)
 });
 
 t('sanitizePhoto: rejects a missing/non-image dataUrl, a non-integer or <= 0 w/h', () => {
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: undefined }), /dataUrl invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: 'not-a-data-url' }), /dataUrl invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 0 }), /w invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 4.5 }), /w invalide/);
-	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, h: -1 }), /h invalide/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: undefined }), /invalid photo\.dataUrl/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, dataUrl: 'not-a-data-url' }), /invalid photo\.dataUrl/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 0 }), /invalid photo\.w/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, w: 4.5 }), /invalid photo\.w/);
+	assert.throws(() => sanitizePhoto({ ...GOOD_PHOTO, h: -1 }), /invalid photo\.h/);
 });
 
 t('addPhoto: appends to the existing array without mutating it, several captures per session', () => {

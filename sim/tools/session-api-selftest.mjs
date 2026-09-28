@@ -19,6 +19,7 @@ delete process.env.FPV_OPERATOR_DIR;
 
 const { startServer } = await import('../server/index.mjs');
 const { encodeTrack, TRACK_KEEP } = await import('./track-model.mjs');
+const { familiesFor } = await import('./signal-clearance-model.mjs');
 
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, console.log(`  FAIL  ${n}`)); };
@@ -26,7 +27,7 @@ const check = (n, c) => { c ? (pass++, console.log(`  ok  ${n}`)) : (fail++, con
 // Port 0: any free port, so as not to collide with an already-open `npm run
 // dev`. The URL the server actually RESOLVED is read back rather than
 // reconstructed.
-const started = await startServer({ dataDir: DIR, distDir: path.join(DIR, 'dist'), port: '0' });
+let started = await startServer({ dataDir: DIR, distDir: path.join(DIR, 'dist'), port: '0' });
 const base = started.url.replace(/\/$/, '');
 
 const call = async (method, p, body) => {
@@ -166,6 +167,20 @@ try {
 				&& r.body.session.target.scan.swarmAt === 0
 				&& r.body.session.target.scan.swarmChance === 1,
 				JSON.stringify(r.body.session?.target));
+		}
+
+		// The clearance pool is STORED with the scan (issue #185): an ambient
+		// regeneration of this session draws from the pool the flight drew
+		// from, not from the operator's clearance on the day of the replay.
+		for (const level of [1, 2, 3]) {
+			const r = await call('POST', `/__operator/${id}/sessions`, {
+				area: 'kyiv', weatherSnapshot: null,
+				targetSeed: `api-pool-${level}`, targetCount: 4, targetIndex: 0, swarmChance: 0, clearance: level,
+			});
+			check(`POST sessions: clearance ${level} -> stored target.scan.families = familiesFor(${level})`,
+				r.status === 201
+				&& JSON.stringify(r.body.session.target.scan.families) === JSON.stringify(familiesFor(level)),
+				JSON.stringify(r.body.session?.target?.scan));
 		}
 	}
 
@@ -395,6 +410,20 @@ try {
 	});
 	await call('DELETE', `/__operator/${id}/sessions/${sid4}`);
 	check('DELETE session: its track leaves with it', !fs.existsSync(trackFile));
+
+	// --- shared mode: the photo route asks for the key ------------------------
+	// A SECOND server: api.mjs holds its mode as module state, one server per
+	// process (tools/server-selftest.mjs does the same).
+	const sPhoto = await call('POST', `/__operator/${id}/sessions`, { area: 'kyiv', weatherSnapshot: null });
+	await call('POST', `/__operator/${id}/sessions/${sPhoto.body.session.id}/photos`, PHOTO);
+	await started.close();
+	started = await startServer({ dataDir: DIR, distDir: path.join(DIR, 'dist'), port: '0', mode: 'shared' });
+	const sbase = started.url.replace(/\/$/, '');
+	const photoUrl = `${sbase}/__operator/${id}/sessions/${sPhoto.body.session.id}/photos/0`;
+	const noKey = await fetch(photoUrl);
+	check('shared: GET .../photos/:i without a key -> 401', noKey.status === 401, `${noKey.status}`);
+	const withKey = await fetch(photoUrl, { headers: { authorization: `Bearer ${created.body.key}` } });
+	check('shared: GET .../photos/:i with the key -> 200', withKey.status === 200, `${withKey.status}`);
 } finally {
 	await started.close();
 	fs.rmSync(DIR, { recursive: true, force: true });
