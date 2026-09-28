@@ -107,5 +107,20 @@ console.log('\ntrace-wiring: flight end and the uplink entry');
 		/trace: !!TOLERANCE_M\[s\.tier\] && !s\.encrypted/.test(src) && !/trace: s\.tier >= 2/.test(src));
 }
 
+console.log('\ntrace-wiring: the feel (sound, OSD line, ticks)');
+{
+	const frame = bodyAfter('function frame()') ?? '';
+	check('the thread sound follows the follower, only while signals are live, silent frozen or disarmed',
+		/threadAudio\.update\(signalsLive\(\) \? signalTraces\.follower\?\.out \?\? null : null, !frozen && controller\.armed\)/.test(frame));
+	check('and goes silent off the flight', /else \{\s*uiAudio\.linkSilent\(\);\s*threadAudio\.silence\(\);/.test(frame));
+	check('the trace cue takes the NEXT SIGNAL slot first', /nextSignal = computeTraceCue\(p\) \?\? computeNextSignal\(p\)/.test(frame));
+	check('rebuilt at once when the follower state changes', /cueState !== nextCueState/.test(frame));
+	const cue = bodyAfter('function computeTraceCue(') ?? '';
+	check('the cue is off at the bench and under a verdict', /MODE\.bench \|\| !signalsLive\(\)/.test(cue));
+	check('its arrow is relative to the nose', /relativeBearing\(bearingTo\(c\.dx, c\.dz\), headingOf\(physics\.rotation\)\)/.test(cue));
+	const ut = bodyAfter('function updateTrace(') ?? '';
+	check('the ticks face this frame\'s camera', /traceLine\.updateTicks\(camera\.position\)/.test(ut));
+}
+
 console.log(failures ? `\n${failures} failure(s).` : '\ntrace-wiring: all pass.');
 process.exit(failures ? 1 : 0);

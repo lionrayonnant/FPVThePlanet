@@ -507,24 +507,39 @@ export function buildTrace({ signal, anchor, profile, tier, approach, attempt = 
 }
 
 // ---------------------------------------------------------------- follower
-// Gate at point 0, progress along the polyline inside a 15 m forward window,
+// Gate at point 0, progress along the polyline inside a 25 m forward window,
 // pause when off, reset (after a 2 s fade) when off for 10 s. Allocates
 // nothing per update: `out` is reused.
+//
+// out.nearX/Y/Z, out.nearM: where the thread is for the drone — the gate
+// while waiting or cooling, else the nearest point of the window ahead of the
+// progress (the resume point when off), and the 3D distance to it.
 export class TraceFollower {
 	constructor({ trace, tolerance }) {
 		this.trace = trace;
 		this.tolerance = Number.isFinite(tolerance) ? tolerance : trace.tolerance;
 		// index: the segment the progress is on (its start point), for liftStart's minIndex.
-		this.out = { state: 'waiting', progress01: 0, offS: 0, flownM: 0, fade01: 0, elapsedS: 0, index: 0 };
+		this.out = {
+			state: 'waiting', progress01: 0, offS: 0, flownM: 0, fade01: 0, elapsedS: 0, index: 0,
+			nearX: 0, nearY: 0, nearZ: 0, nearM: Infinity,
+		};
 		this._s = 0;
 		this._seg = 0;
 		this._fading = false;
+		this._nearGate(null);
 	}
 
 	reset() {
 		const o = this.out;
 		o.state = 'waiting'; o.progress01 = 0; o.offS = 0; o.flownM = 0; o.fade01 = 0; o.elapsedS = 0; o.index = 0;
 		this._s = 0; this._seg = 0; this._fading = false;
+		this._nearGate(null);
+	}
+
+	_nearGate(pos) {
+		const o = this.out, P = this.trace.points;
+		o.nearX = P[0]; o.nearY = P[1]; o.nearZ = P[2];
+		o.nearM = pos ? Math.hypot(pos.x - P[0], pos.y - P[1], pos.z - P[2]) : Infinity;
 	}
 
 	update({ dt, pos }) {
@@ -534,7 +549,8 @@ export class TraceFollower {
 		const { points: P, cum, length } = this.trace;
 		const tol = this.tolerance;
 		if (o.state === 'waiting') {
-			if (Math.hypot(pos.x - P[0], pos.y - P[1], pos.z - P[2]) > tol) return o;
+			this._nearGate(pos);
+			if (o.nearM > tol) return o;
 			o.state = 'on'; o.offS = 0; o.fade01 = 0; o.elapsedS = 0;
 			this._s = 0; this._seg = 0;
 		} else {
@@ -545,12 +561,13 @@ export class TraceFollower {
 			o.offS += dt;
 			o.fade01 = Math.min(1, (o.offS - OFF_RESET_S) / FADE_S);
 			if (o.fade01 >= 1) this.reset();
+			this._nearGate(pos);
 			return o;
 		}
 		// Nearest point of the polyline ahead of the progress, within the window.
 		const s0 = this._s, sMax = s0 + WINDOW_M;
 		const last = cum.length - 1;
-		let bestD2 = Infinity, bestS = s0;
+		let bestD2 = Infinity, bestS = s0, bx = P[0], by = P[1], bz = P[2];
 		for (let j = this._seg; j < last && cum[j] <= sMax; j++) {
 			const i = 3 * j;
 			const ax = P[i], ay = P[i + 1], az = P[i + 2];
@@ -563,8 +580,9 @@ export class TraceFollower {
 			t = Math.min(tMax, Math.max(tMin, t));
 			const dx = ax + ex * t - pos.x, dy = ay + ey * t - pos.y, dz = az + ez * t - pos.z;
 			const d2 = dx * dx + dy * dy + dz * dz;
-			if (d2 < bestD2) { bestD2 = d2; bestS = cum[j] + segLen * t; }
+			if (d2 < bestD2) { bestD2 = d2; bestS = cum[j] + segLen * t; bx = pos.x + dx; by = pos.y + dy; bz = pos.z + dz; }
 		}
+		o.nearX = bx; o.nearY = by; o.nearZ = bz; o.nearM = Math.sqrt(bestD2);
 		if (bestD2 <= tol * tol) {
 			o.state = 'on'; o.offS = 0;
 			if (bestS > this._s) {
@@ -574,7 +592,10 @@ export class TraceFollower {
 		} else {
 			o.state = 'off';
 			o.offS += dt;
-			if (o.offS >= OFF_RESET_S) { this._fading = true; o.fade01 = Math.min(1, (o.offS - OFF_RESET_S) / FADE_S); }
+			if (o.offS >= OFF_RESET_S) {
+				this._fading = true; o.fade01 = Math.min(1, (o.offS - OFF_RESET_S) / FADE_S);
+				this._nearGate(pos);
+			}
 		}
 		o.flownM = this._s;
 		o.index = this._seg;
@@ -582,6 +603,29 @@ export class TraceFollower {
 		if (o.progress01 >= DONE_FRAC) { o.state = 'done'; o.progress01 = 1; o.flownM = length; o.offS = 0; }
 		return o;
 	}
+}
+
+// -------------------------------------------------------------------- cue
+// The OSD's line for the trace (src/fpvtp-osd.js cueText): where the thread
+// is, never how to fly it. Off the thread: THREAD, the resume point, and in
+// the last RESET_WARN_S before the reset its seconds left. Waiting (or
+// cooling, the reset committed): GATE, within CUE_RANGE_M horizontal. On it:
+// nothing. -> { key, dx, dy, dz, distM, hM, resetS } | null, the drone → the
+// point, local metres.
+export const CUE_RANGE_M = 300;
+export const RESET_WARN_S = 5;
+
+export function followCue(o, pos) {
+	if (!o || !pos || o.state === 'on' || o.state === 'done' || !Number.isFinite(o.nearX)) return null;
+	const gate = o.state === 'waiting' || o.fade01 > 0;
+	const dx = o.nearX - pos.x, dy = o.nearY - pos.y, dz = o.nearZ - pos.z;
+	const hM = Math.hypot(dx, dz);
+	if (gate && hM > CUE_RANGE_M) return null;
+	const left = OFF_RESET_S - o.offS;
+	return {
+		key: gate ? 'GATE' : 'THREAD', dx, dy, dz, distM: Math.hypot(dx, dy, dz), hM,
+		resetS: !gate && left <= RESET_WARN_S ? Math.max(1, Math.ceil(left)) : null,
+	};
 }
 
 // ------------------------------------------------------------------ photo

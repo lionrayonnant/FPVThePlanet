@@ -28,9 +28,19 @@
 //            segments k..n-2 (the tail of a reversed list is its head).
 // The split sits on a vertex (≈ 2 m spacing), which is finer than the
 // tolerance (≥ 3.5 m).
+//
+// Direction ticks: small chevrons in the line's yellow, every TICK_SPACING_M
+// of the trace, only on the TICK_AHEAD_M ahead of the gate (waiting, cooling)
+// or of the progress — the way the thread runs, where it matters. One
+// LineSegments2 (+ its underlay) made once for the TraceLine's life: 4
+// chevrons, 8 segments, rewritten in place each frame (updateTicks), each
+// turned to face the camera and sized on its distance so it stays a few px
+// wide. No allocation per frame.
 
 import * as THREE from 'three';
 import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { token } from './palette.js';
@@ -55,7 +65,82 @@ export const GATE_SIDE_M = 3;
 export const REST_OPACITY = 1;
 export const FLOWN_OPACITY = 0.85; // 0.5 read faint through the lens
 
+// Direction ticks.
+export const TICK_SPACING_M = 15;
+export const TICK_AHEAD_M = 60;
+export const TICK_MAX = Math.floor(TICK_AHEAD_M / TICK_SPACING_M);
+// Half-width of a chevron: its distance × TICK_ANGLE (≈ 8 px at 1280×800
+// through the FPV lens; 0.009 read as a 4 px nick on the line), within
+// [TICK_MIN_M, TICK_MAX_M]; its depth along the path is TICK_DEPTH × that.
+export const TICK_ANGLE = 0.022;
+export const TICK_MIN_M = 0.3;
+export const TICK_MAX_M = 4;
+export const TICK_DEPTH = 1;
+// A chevron seen along the path (|cos| of tangent and view past this) or this
+// close is a bar across the line, not a direction: it is skipped.
+export const TICK_EDGE_COS = 0.9;
+export const TICK_NEAR_M = 6;
+// Hairline: thinner than the thread.
+export const TICK_WIDTH_PX = 2;
+export const TICK_WIDTH_FAR_PX = 3;
+
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// The arcs (metres along the trace) of the ticks ahead of s0: multiples of
+// TICK_SPACING_M in (s0, s0 + TICK_AHEAD_M], short of the end. -> count,
+// written into `out`.
+export function tickArcs(s0, length, out) {
+	let n = 0;
+	const lim = Math.min(s0 + TICK_AHEAD_M, length - 1);
+	for (let s = (Math.floor(s0 / TICK_SPACING_M) + 1) * TICK_SPACING_M; s <= lim + 1e-9 && n < out.length; s += TICK_SPACING_M) out[n++] = s;
+	return n;
+}
+
+// The point and the unit tangent at arc s, into out[0..5]. Binary search.
+export function pointAt(points, cum, s, out) {
+	const last = cum.length - 1;
+	let lo = 0, hi = last - 1;
+	while (lo < hi) {
+		const mid = (lo + hi + 1) >> 1;
+		if (cum[mid] <= s) lo = mid; else hi = mid - 1;
+	}
+	const i = 3 * lo, seg = cum[lo + 1] - cum[lo];
+	const u = seg > 0 ? clamp01((s - cum[lo]) / seg) : 0;
+	let tx = points[i + 3] - points[i], ty = points[i + 4] - points[i + 1], tz = points[i + 5] - points[i + 2];
+	const l = Math.hypot(tx, ty, tz) || 1;
+	tx /= l; ty /= l; tz /= l;
+	out[0] = points[i] + (points[i + 3] - points[i]) * u;
+	out[1] = points[i + 1] + (points[i + 4] - points[i + 1]) * u;
+	out[2] = points[i + 2] + (points[i + 5] - points[i + 2]) * u;
+	out[3] = tx; out[4] = ty; out[5] = tz;
+	return out;
+}
+
+// A chevron at arc s pointing along the trace: two segments (12 floats at
+// out[o]) from the arms' ends to the tip, in the plane of the tangent and the
+// side seen from `cam` ({x, y, z}). tmp: a 6-float scratch. -> false (nothing
+// written) when seen end-on or from closer than TICK_NEAR_M.
+export function chevronAt(points, cum, s, cam, out, o, tmp) {
+	pointAt(points, cum, s, tmp);
+	const px = tmp[0], py = tmp[1], pz = tmp[2], tx = tmp[3], ty = tmp[4], tz = tmp[5];
+	const vx = cam.x - px, vy = cam.y - py, vz = cam.z - pz;
+	const d = Math.hypot(vx, vy, vz);
+	if (d < TICK_NEAR_M || Math.abs(tx * vx + ty * vy + tz * vz) > TICK_EDGE_COS * d) return false;
+	const w = Math.min(TICK_MAX_M, Math.max(TICK_MIN_M, d * TICK_ANGLE));
+	const h = w * TICK_DEPTH / 2;
+	// side = t × view: across the path as the camera sees it.
+	let ux = ty * vz - tz * vy, uy = tz * vx - tx * vz, uz = tx * vy - ty * vx;
+	let l = Math.hypot(ux, uy, uz);
+	if (l < 1e-6 * (d || 1)) { ux = -tz; uy = 0; uz = tx; l = Math.hypot(ux, uz); if (l < 1e-6) { ux = 1; uz = 0; l = 1; } }
+	ux /= l; uy /= l; uz /= l;
+	const ax = px - tx * h, ay = py - ty * h, az = pz - tz * h;   // the arms' base
+	const bx = px + tx * h, by = py + ty * h, bz = pz + tz * h;   // the tip
+	out[o] = ax + ux * w; out[o + 1] = ay + uy * w; out[o + 2] = az + uz * w;
+	out[o + 3] = bx; out[o + 4] = by; out[o + 5] = bz;
+	out[o + 6] = bx; out[o + 7] = by; out[o + 8] = bz;
+	out[o + 9] = ax - ux * w; out[o + 10] = ay - uy * w; out[o + 11] = az - uz * w;
+	return true;
+}
 
 // The line's width in screen px at a view depth: GLSL smoothstep, mirrored in
 // WIDTH_GLSL below.
@@ -131,10 +216,10 @@ export function gateCorners(points, side = GATE_SIDE_M, out = new Float32Array(1
 
 // under: the dark underlay — wider, and its alpha factors leave the target's
 // alpha as it is (no lens mark: its own chroma is not the line's).
-function lineMaterial(color, opacity, targetPx, under = false) {
+function lineMaterial(color, opacity, targetPx, under = false, widthPx = LINE_WIDTH_PX, farPx = LINE_WIDTH_FAR_PX) {
 	const m = new LineMaterial({
 		color,
-		linewidth: LINE_WIDTH_PX,
+		linewidth: widthPx,
 		worldUnits: false,
 		transparent: true,
 		opacity,
@@ -155,7 +240,7 @@ function lineMaterial(color, opacity, targetPx, under = false) {
 	if (!m.vertexShader.includes(WIDTH_ANCHOR)) throw new Error('trace-line: LineMaterial shader changed, width patch anchor not found');
 	m.vertexShader = WIDTH_UNIFORMS + m.vertexShader.replace(WIDTH_ANCHOR, WIDTH_GLSL);
 	Object.assign(m.uniforms, {
-		traceFarPx: { value: LINE_WIDTH_FAR_PX },
+		traceFarPx: { value: farPx },
 		traceNearM: { value: WIDTH_NEAR_M },
 		traceFarM: { value: WIDTH_FAR_M },
 		traceTargetPx: targetPx, // shared by all the materials
@@ -187,11 +272,34 @@ export class TraceLine {
 		this.restUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
 		this.flownUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
 		this.gateUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true);
-		this._mats = [this.restMat, this.flownMat, this.gateMat, this.restUnderMat, this.flownUnderMat, this.gateUnderMat];
+		this.tickMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx, false, TICK_WIDTH_PX, TICK_WIDTH_FAR_PX);
+		this.tickUnderMat = lineMaterial(black, UNDER_OPACITY, this._targetPx, true, TICK_WIDTH_PX, TICK_WIDTH_FAR_PX);
+		this._mats = [this.restMat, this.flownMat, this.gateMat, this.restUnderMat, this.flownUnderMat, this.gateUnderMat,
+			this.tickMat, this.tickUnderMat];
 		this.group = new THREE.Group();
 		this.group.name = 'trace-line';
 		this.group.visible = false;
 		scene.add(this.group);
+
+		// The ticks: made once, rewritten in place. Drawn after the thread
+		// (renderOrder 1), their underlay first (lower id); never culled (the
+		// positions move under a fixed bounding sphere).
+		this._tickPos = new Float32Array(TICK_MAX * 12);
+		this._tickArcs = new Float64Array(TICK_MAX);
+		this._tickTmp = new Float64Array(6);
+		this._tickS0 = 0;
+		this._tickDone = false;
+		const tickGeom = new LineSegmentsGeometry();
+		tickGeom.setPositions(this._tickPos);
+		this.tickUnder = new LineSegments2(tickGeom, this.tickUnderMat);
+		this.ticks = new LineSegments2(tickGeom, this.tickMat);
+		for (const l of [this.tickUnder, this.ticks]) {
+			l.onBeforeRender = keepResolution;
+			l.frustumCulled = false;
+			l.renderOrder = 1;
+			l.visible = false;
+			this.group.add(l);
+		}
 
 		this.rest = null;
 		this.flown = null;
@@ -264,6 +372,22 @@ export class TraceLine {
 		this.rest.visible = this._segments - k > 0;
 		this.restUnder.visible = this.rest.visible;
 		this.gateMat.color.copy(state === 'waiting' ? this._yellow : this._green);
+		// The ticks run from the gate until it is entered, and again once the
+		// reset is committed; else from the progress.
+		this._tickS0 = state === 'waiting' || fade01 > 0 ? 0 : clamp01(progress01) * this._trace.length;
+		this._tickDone = state === 'done';
+	}
+
+	// Each frame, after the camera is placed: the ticks ahead, facing it.
+	updateTicks(cam) {
+		const tr = this._trace;
+		const k = tr && !this._tickDone && cam ? tickArcs(this._tickS0, tr.length, this._tickArcs) : 0;
+		let n = 0;
+		for (let i = 0; i < k; i++) if (chevronAt(tr.points, tr.cum, this._tickArcs[i], cam, this._tickPos, n * 12, this._tickTmp)) n++;
+		const g = this.ticks.geometry;
+		g.instanceCount = n * 2;
+		if (n > 0) g.attributes.instanceStart.data.needsUpdate = true;
+		this.ticks.visible = this.tickUnder.visible = n > 0;
 	}
 
 	hide() {
@@ -291,6 +415,7 @@ export class TraceLine {
 
 	dispose() {
 		this._clear();
+		this.ticks.geometry.dispose();
 		this.scene.remove(this.group);
 		for (const m of this._mats) m.dispose();
 	}
@@ -310,5 +435,6 @@ export class TraceLine {
 		this.flownUnder = this.restUnder = this.gateUnder = null;
 		this._trace = null;
 		this._segments = 0;
+		if (this.ticks) this.ticks.visible = this.tickUnder.visible = false;
 	}
 }

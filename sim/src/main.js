@@ -73,7 +73,8 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalTraces } from './signal-traces.js';
 import { TraceLine } from './trace-line.js';
-import { photoScore, photoAim, photoInSight, viewAngleDeg, shapeOf, TOLERANCE_M } from '../tools/trace-model.mjs';
+import { photoScore, photoAim, photoInSight, viewAngleDeg, shapeOf, followCue, TOLERANCE_M } from '../tools/trace-model.mjs';
+import { ThreadAudio } from './thread-audio.js';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -734,6 +735,8 @@ const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
 // laid around it (src/signal-traces.js), one at a time. The physics methods go
 // in as closures: `physics` is set at boot, and they are methods.
 const traceLine = new TraceLine(scene);
+// Its sound (LINK family): a bed while on it, a tick at the gate.
+const threadAudio = new ThreadAudio();
 const signalTraces = new SignalTraces({
 	groundBelow: (x, y, z, max) => physics.groundBelow(x, y, z, max),
 	rayUp: (x, y, z, max) => physics.rayUp(x, y, z, max),
@@ -822,8 +825,9 @@ function endSignalsNode() {
 let takeoffPhase = null;
 // NEXT SIGNAL: recomputed at 5 Hz, not every frame.
 const NEXT_SIGNAL_MS = 200;
-let nextSignal = null;           // { distM, relRad } | null
+let nextSignal = null;           // { distM, relRad } | the trace's cue { key, … } | null
 let nextSignalAt = 0;
+let nextCueState = null;         // the follower's state the line was built on
 // The state of the row the callout box shows this frame (null: box hidden).
 let calloutState = null;
 
@@ -2333,6 +2337,19 @@ function computeNextSignal(p) {
 	return { distM: best.distM, relRad: relativeBearing(bearingTo(best.dx, best.dz), headingOf(physics.rotation)) };
 }
 
+// The trace's line in the NEXT SIGNAL slot (tools/trace-model.mjs followCue):
+// THREAD off it, GATE before it or once it cools, nothing on it. It takes
+// the slot over NEXT SIGNAL: the thread in reach is the next thing.
+function computeTraceCue(p) {
+	if (MODE.bench || !signalsLive()) return null;
+	const c = followCue(signalTraces.follower?.out, p);
+	if (!c) return null;
+	return {
+		key: c.key, distM: c.distM, hM: c.hM, dyM: c.dy, resetS: c.resetS,
+		relRad: relativeBearing(bearingTo(c.dx, c.dz), headingOf(physics.rotation)),
+	};
+}
+
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
 if (import.meta.env?.DEV) {
 	let flyTraceGen = 0;
@@ -2343,6 +2360,8 @@ if (import.meta.env?.DEV) {
 		geo: (p) => droneGeo(p),
 		local: (lat, lon) => localOfGeo(lat, lon),
 		next: () => nextSignal,
+		// The thread's sound: its graph (gain/frequency values) for inspection.
+		threadAudio: () => threadAudio,
 		clearance: () => flightClearance,
 		crossed: () => flightCrossedStep(),
 		notice: (text, ms) => fpvtpOsd.setNotice(text, ms),
@@ -2505,6 +2524,8 @@ function updateTrace(dt, followDt) {
 		const res = lens._u.uResolution.value;
 		const shownH = (lens._viewH ?? 1) * lens._u.uFrame.value.y;
 		traceLine.setResolution(res.x, res.y, shownH > 0 ? res.y / shownH : 1);
+		// placeCamera() ran this frame: the ticks face the camera now.
+		traceLine.updateTicks(camera.position);
 	}
 }
 
@@ -3654,7 +3675,15 @@ if (!frozen) {
 
 	// NEXT SIGNAL, at 5 Hz: a distance and an arrow do not need 60.
 	const tNext = performance.now();
-	if (tNext - nextSignalAt >= NEXT_SIGNAL_MS) { nextSignalAt = tNext; nextSignal = computeNextSignal(p); }
+	// Also at once when the trace's state changes: THREAD goes the moment the
+	// drone is back on it.
+	const fo = signalTraces.follower?.out;
+	const cueState = fo ? (fo.fade01 > 0 ? 'cool' : fo.state) : null;
+	if (tNext - nextSignalAt >= NEXT_SIGNAL_MS || cueState !== nextCueState) {
+		nextSignalAt = tNext;
+		nextCueState = cueState;
+		nextSignal = computeTraceCue(p) ?? computeNextSignal(p);
+	}
 	fpvtpOsd.update({
 		mode: controller.mode,
 		rates: RATE_PRESETS[controller.preset].label,
@@ -3738,8 +3767,13 @@ if (!frozen) {
 		const ev = linkEvent(link.out.quality, dt, linkVoice);
 		if (ev === 'LINK_LOST') uiAudio.play('LINK_LOST');
 		else if (ev === 'LINK_RESTORED') uiAudio.play('LINK_RESTORED');
+		// The thread's carrier: silent frozen (the interface bus is not muted
+		// by the freeze) or disarmed (nothing transmits); the uplink drops the
+		// follower, and TARGET_FOUND plays alone.
+		threadAudio.update(signalsLive() ? signalTraces.follower?.out ?? null : null, !frozen && controller.armed);
 	} else {
 		uiAudio.linkSilent();
+		threadAudio.silence();
 	}
 }
 

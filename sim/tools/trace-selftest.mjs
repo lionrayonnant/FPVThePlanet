@@ -4,7 +4,8 @@
 // Run: node tools/trace-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg,
+	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg, followCue,
+	CUE_RANGE_M, RESET_WARN_S,
 	SPACING_M, TOLERANCE_M, TURN_GAP_M, ORBIT_MAX_R_M, ORBIT_MAX_R_TIER1_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
@@ -570,6 +571,61 @@ t('follower on a built spiral: flying it point by point completes it', () => {
 	for (let i = 0; i < count(tr); i++) s = f.update({ dt: 0.1, pos: pt(tr, i) });
 	assert.equal(s.state, 'done');
 	assert.ok(s.elapsedS > 0);
+});
+
+t('follower: near is the gate while waiting, the resume point when off, the gate again once cooling', () => {
+	const f = new TraceFollower({ trace: line, tolerance: 5 });
+	assert.deepEqual([f.out.nearX, f.out.nearY, f.out.nearZ], [0, 10, 0], 'the gate before any update');
+	f.update({ dt: 0.05, pos: { x: -30, y: 10, z: 40 } });
+	assert.equal(f.out.state, 'waiting');
+	assert.ok(Math.abs(f.out.nearM - 50) < 1e-6, `gate distance ${f.out.nearM}`);
+	fly(f, 0, 30);
+	// 20 m to the side of x = 30: the resume point is straight across.
+	f.update({ dt: 0.05, pos: { x: 30, y: 10, z: 20 } });
+	assert.equal(f.out.state, 'off');
+	assert.ok(Math.abs(f.out.nearX - 30) < 0.6 && f.out.nearZ === 0, `near ${f.out.nearX},${f.out.nearZ}`);
+	assert.ok(Math.abs(f.out.nearM - 20) < 0.1);
+	// Behind the progress: the nearest point is the progress itself, never behind it.
+	f.update({ dt: 0.05, pos: { x: 0, y: 10, z: 20 } });
+	assert.ok(f.out.nearX >= 29.4, `never behind the progress: ${f.out.nearX}`);
+	// Far ahead: capped at the window.
+	f.update({ dt: 0.05, pos: { x: 90, y: 10, z: 20 } });
+	assert.ok(f.out.nearX <= f.out.flownM + WINDOW_M + 1e-3, `window: ${f.out.nearX}`);
+	for (let i = 0; i < OFF_RESET_S / 0.05 + 2; i++) f.update({ dt: 0.05, pos: { x: 30, y: 10, z: 20 } });
+	assert.ok(f.out.fade01 > 0);
+	assert.deepEqual([f.out.nearX, f.out.nearZ], [0, 0], 'cooling: the gate again');
+});
+
+t('followCue: GATE within 300 m, THREAD off with RESET in its last 5 s, nothing on the thread', () => {
+	const f = new TraceFollower({ trace: line, tolerance: 5 });
+	const far = { x: -CUE_RANGE_M - 10, y: 10, z: 0 };
+	f.update({ dt: 0.05, pos: far });
+	assert.equal(followCue(f.out, far), null, 'beyond range: nothing');
+	const near = { x: -80, y: 40, z: 0 };
+	f.update({ dt: 0.05, pos: near });
+	const g = followCue(f.out, near);
+	assert.equal(g.key, 'GATE');
+	assert.ok(Math.abs(g.hM - 80) < 1e-6 && Math.abs(g.dy + 30) < 1e-6 && Math.abs(g.distM - Math.hypot(80, 30)) < 1e-6);
+	assert.equal(g.resetS, null);
+	fly(f, 0, 30);
+	assert.equal(followCue(f.out, { x: 30, y: 10, z: 0 }), null, 'on the thread');
+	const off = { x: 30, y: 10, z: 14 };
+	f.update({ dt: 0.05, pos: off });
+	let c = followCue(f.out, off);
+	assert.equal(c.key, 'THREAD');
+	assert.ok(Math.abs(c.dz + 14) < 1e-6 && Math.abs(c.distM - 14) < 1e-3);
+	assert.equal(c.resetS, null, 'no countdown early on');
+	while (f.out.offS < OFF_RESET_S - RESET_WARN_S + 0.01) f.update({ dt: 0.05, pos: off });
+	c = followCue(f.out, off);
+	assert.equal(c.resetS, RESET_WARN_S, `countdown ${c.resetS}`);
+	while (f.out.offS < OFF_RESET_S - 0.2) f.update({ dt: 0.05, pos: off });
+	assert.equal(followCue(f.out, off).resetS, 1, 'never 0 while off');
+	while (f.out.fade01 === 0) f.update({ dt: 0.05, pos: off });
+	c = followCue(f.out, off);
+	assert.equal(c.key, 'GATE', 'the reset is committed: the gate');
+	assert.equal(c.resetS, null);
+	assert.equal(followCue(null, off), null);
+	assert.equal(followCue(f.out, null), null);
 });
 
 // ------------------------------------------------------------------ photo

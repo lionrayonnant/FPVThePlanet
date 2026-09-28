@@ -44,6 +44,16 @@ export function nextSignalText(distM, relRad) {
 	return `${d} ${ARROWS[(arrowIndex(relRad) + 4) % 8]}`;
 }
 
+// The trace's line in the same slot (tools/trace-model.mjs followCue): the
+// 3D distance to the gate or the resume point, the arrow on the horizontal,
+// ▲/▼ when the point is mostly above or below (VERTICAL_MIN_M at least), and
+// the reset's last seconds. Where the thread is, never how to fly it.
+export const VERTICAL_MIN_M = 5;
+export function cueText({ distM, relRad, dyM = 0, hM = Infinity, resetS = null }) {
+	const up = Math.abs(dyM) >= VERTICAL_MIN_M && Math.abs(dyM) > hM ? (dyM > 0 ? ' ▲' : ' ▼') : '';
+	return `${nextSignalText(distM, relRad)}${up}${resetS ? ` · RESET ${resetS} s` : ''}`;
+}
+
 // The take-off notice fades over its last half second (opacity only).
 const NOTICE_FADE_MS = 500;
 
@@ -77,7 +87,7 @@ export class FpvtpOsd {
 					<div id="fo-source">${iconSVG('github', { size: 9 })} ${SOURCE_HOST}</div>
 					<div id="fo-operator">OPERATOR // —</div>
 					<div id="fo-session">SESSION 00:00</div>
-					<div id="fo-next" hidden><span class="fo-next-k">NEXT SIGNAL</span> <span id="fo-next-v"></span></div>
+					<div id="fo-next" hidden><span class="fo-next-k" id="fo-next-k">NEXT SIGNAL</span> <span id="fo-next-v"></span></div>
 				</div>
 				<div class="corner tr">
 					<div id="fo-mode">ACRO</div>
@@ -124,6 +134,7 @@ export class FpvtpOsd {
 			noticeMark: q('#fo-notice .fo-notice-mark'),
 			noticeText: q('#fo-notice-text'),
 			next: q('#fo-next'),
+			nextKey: q('#fo-next-k'),
 			nextValue: q('#fo-next-v'),
 			cutText: q('#fo-cut-text'),
 			cutBar: q('#fo-cut-bar'),
@@ -162,6 +173,7 @@ export class FpvtpOsd {
 		this._noticePainted = '';
 		this._noticeOpacity = '';
 		this._nextText = '';
+		this._nextKey = 'NEXT SIGNAL';
 		this._nextFor = null;   // the `next` object the text was built from
 		// #264: the machine in flight, and its drawing once the link is lost. The
 		// drawing is only built at the moment the line appears — a flight that
@@ -550,15 +562,19 @@ export class FpvtpOsd {
 		// warning take itself away.
 		this._paintHint();
 		this._paintNotice();
-		// The nearest open signal ({ distM, relRad }), or null: hidden, and
+		// The nearest open signal ({ distM, relRad }), or the trace's line
+		// ({ key: 'GATE' | 'THREAD', … }, cueText), or null: hidden, and
 		// hidden under a verdict — there is nothing left to go for.
 		// `next` is rebuilt at 5 Hz: the text is only rebuilt when it changes.
 		const nextShown = this._status ? null : next;
 		if (nextShown !== this._nextFor) {
 			this._nextFor = nextShown;
-			const nextText = nextShown ? nextSignalText(nextShown.distM, nextShown.relRad) : '';
-			if (nextText !== this._nextText) {
+			const key = nextShown?.key ?? 'NEXT SIGNAL';
+			const nextText = !nextShown ? '' : nextShown.key ? cueText(nextShown) : nextSignalText(nextShown.distM, nextShown.relRad);
+			if (nextText !== this._nextText || key !== this._nextKey) {
 				this._nextText = nextText;
+				this._nextKey = key;
+				this.el.nextKey.textContent = key;
 				this.el.nextValue.textContent = nextText;
 				this.el.next.hidden = !nextText;
 			}

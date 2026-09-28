@@ -7,6 +7,7 @@ import {
 	TraceLine, flownSegments, flownOpacity, gateCorners, lineWidthAt,
 	FLOWN_OPACITY, REST_OPACITY, GATE_SIDE_M, LINE_WIDTH_PX, LINE_WIDTH_FAR_PX,
 	WIDTH_NEAR_M, WIDTH_FAR_M, MIN_TARGET_PX, OUTLINE_PX, OUTLINE_MIN_TARGET_PX, UNDER_OPACITY, underlayTargetPx,
+	tickArcs, pointAt, chevronAt, TICK_NEAR_M, TICK_SPACING_M, TICK_AHEAD_M, TICK_MAX, TICK_ANGLE, TICK_MIN_M, TICK_MAX_M, TICK_WIDTH_PX,
 } from '../src/trace-line.js';
 import { token } from '../src/palette.js';
 
@@ -99,7 +100,7 @@ t('TraceLine: show → all yellow, gate yellow; progress splits by instanceCount
 	const tr = straight();
 	line.show(tr);
 	assert.equal(line.group.visible, true);
-	assert.equal(line.group.children.length, 6, 'three lines, three underlays');
+	assert.equal(line.group.children.length, 8, 'three lines, three underlays, the ticks and theirs');
 	assert.equal(line.rest.geometry.instanceCount, 10);
 	assert.equal(line.flown.visible, false);
 	assert.equal(`#${line.gateMat.color.getHexString()}`, token('--yellow'));
@@ -151,7 +152,7 @@ t('TraceLine: setVisible (capture) and hide compose; show replaces', () => {
 	assert.equal(line.group.visible, false, 'hidden stays hidden through a capture');
 	line.show(straight(21));
 	assert.equal(line.group.visible, true);
-	assert.equal(line.group.children.length, 6, 'the old lines are gone');
+	assert.equal(line.group.children.length, 8, 'the old lines are gone');
 	assert.equal(line.rest.geometry.instanceCount, 20);
 	line.show({ points: new Float32Array(3), cum: new Float32Array(1), length: 0 });
 	assert.equal(line.group.visible, false, 'a one-point trace shows nothing');
@@ -280,6 +281,109 @@ t('TraceLine: a dark underlay under each part, wider, drawn first, fading with i
 	assert.equal(line.restUnder.visible, false);
 	line.setResolution(640, 400, 0.5);
 	assert.equal(line.gateUnderMat.resolution.x, 640);
+	line.dispose();
+	assert.equal(scene.children.length, 0);
+});
+
+t('tickArcs: every 15 m on the 60 m ahead, short of the end', () => {
+	const out = new Float64Array(TICK_MAX);
+	assert.equal(TICK_MAX, 4);
+	assert.equal(tickArcs(0, 500, out), 4);
+	assert.deepEqual([...out], [15, 30, 45, 60]);
+	// From the progress: the grid is fixed on the trace, nothing slides with it.
+	assert.equal(tickArcs(16, 500, out), 4);
+	assert.deepEqual([...out], [30, 45, 60, 75]);
+	assert.equal(tickArcs(30, 500, out), 4);
+	assert.equal(out[0], 45, 'strictly ahead');
+	// Near the end: fewer, never on the last metre.
+	assert.equal(tickArcs(80, 100, out), 1);
+	assert.equal(out[0], 90);
+	assert.equal(tickArcs(0, 15.5, out), 0);
+	assert.equal(tickArcs(95, 100, out), 0);
+	assert.equal(TICK_SPACING_M * TICK_MAX, TICK_AHEAD_M);
+});
+
+t('pointAt / chevronAt: a V pointing along the path, facing the camera, sized on its distance', () => {
+	const tr = straight(51); // 100 m along +X at y = 30
+	const tmp = new Float64Array(6);
+	pointAt(tr.points, tr.cum, 15, tmp);
+	assert.deepEqual([...tmp], [15, 30, 0, 1, 0, 0]);
+	pointAt(tr.points, tr.cum, 100, tmp);
+	assert.equal(tmp[0], 100, 'the end is reachable');
+	const out = new Float32Array(12);
+	// Camera 50 m above: the V lies flat, arms across the path (±Z).
+	chevronAt(tr.points, tr.cum, 15, { x: 15, y: 80, z: 0 }, out, 0, tmp);
+	const w = 50 * TICK_ANGLE;
+	const near = (a, b) => Math.abs(a - b) < 1e-4;
+	// Tip ahead of the point, arms behind it on either side.
+	assert.ok(near(out[3], 15 + w / 2) && near(out[6], out[3]), `tip ${out[3]}`);
+	assert.ok(out[0] < out[3] && out[9] < out[3], 'the arms trail the tip: it points +X');
+	assert.ok(near(Math.abs(out[2]), w) && near(out[2], -out[11]), 'symmetric across the path');
+	assert.ok(near(out[1], 30) && near(out[10], 30), 'in the plane the camera sees face on');
+	// Camera to the side (+Z): the arms go up and down instead.
+	chevronAt(tr.points, tr.cum, 15, { x: 15, y: 30, z: 50 }, out, 0, tmp);
+	assert.ok(near(Math.abs(out[1] - 30), w) && near(out[2], 0));
+	// Size clamps: a camera on top of it, one far away.
+	assert.ok(chevronAt(tr.points, tr.cum, 15, { x: 15, y: 37, z: 0 }, out, 0, tmp));
+	assert.ok(near(Math.abs(out[2]), TICK_MIN_M));
+	chevronAt(tr.points, tr.cum, 15, { x: 15, y: 5000, z: 0 }, out, 0, tmp);
+	assert.ok(near(Math.abs(out[2]), TICK_MAX_M));
+	// Seen end-on (down the path, or nearly) or from right on top of it: a bar,
+	// not a direction — skipped, nothing written.
+	out.fill(7);
+	assert.equal(chevronAt(tr.points, tr.cum, 15, { x: -50, y: 30, z: 0 }, out, 0, tmp), false);
+	assert.equal(chevronAt(tr.points, tr.cum, 15, { x: 80, y: 32, z: 1 }, out, 0, tmp), false);
+	assert.equal(chevronAt(tr.points, tr.cum, 15, { x: 15, y: 30 + TICK_NEAR_M - 0.1, z: 0 }, out, 0, tmp), false);
+	assert.ok(out.every((v) => v === 7));
+	// Obliquely (≈ 60° off the path) it still draws.
+	assert.ok(chevronAt(tr.points, tr.cum, 15, { x: -10, y: 30, z: 43 }, out, 0, tmp));
+	assert.ok(out.every(Number.isFinite));
+});
+
+t('TraceLine: ticks from the gate while waiting, from the progress on it, gone when done; no allocation', () => {
+	const scene = new THREE.Scene();
+	const line = new TraceLine(scene);
+	line.updateTicks({ x: 0, y: 0, z: 0 }); // no trace: nothing, no throw
+	assert.equal(line.ticks.visible, false);
+	line.show(straight(101)); // 200 m
+	assert.equal(line.tickMat.linewidth, TICK_WIDTH_PX);
+	assert.equal(`#${line.tickMat.color.getHexString()}`, token('--yellow'));
+	assert.equal(line.tickUnder.geometry, line.ticks.geometry);
+	assert.ok(line.tickUnder.id < line.ticks.id && line.ticks.renderOrder > line.rest.renderOrder, 'over the thread, underlay first');
+	const cam = { x: 0, y: 80, z: 0 };
+	const arr = line.ticks.geometry.attributes.instanceStart.data.array;
+	line.updateTicks(cam);
+	assert.equal(line.ticks.visible, true);
+	assert.equal(line.ticks.geometry.instanceCount, 8, '4 chevrons, 2 segments each');
+	assert.ok(Math.abs(arr[3] - (15 + Math.hypot(15, 50) * TICK_ANGLE / 2)) < 1e-3, `first tip ${arr[3]}`);
+	line.setProgress(0.5, 'on', 0);
+	const v = line.ticks.geometry.attributes.instanceStart.data.version;
+	const over = { x: 100, y: 80, z: 0 };
+	line.updateTicks(over);
+	assert.equal(line.ticks.geometry.attributes.instanceStart.data.array, arr, 'rewritten in place');
+	assert.ok(line.ticks.geometry.attributes.instanceStart.data.version > v, 'uploaded');
+	assert.ok(arr[3] > 105 && arr[3] < 105 + TICK_MAX_M, `ahead of the progress: ${arr[3]}`);
+	// A camera on the thread looking down it: the ticks it looks along are
+	// skipped, the list stays packed.
+	line.updateTicks({ x: 95, y: 30, z: 0 });
+	assert.equal(line.ticks.visible, false, 'end-on: none');
+	// Seen from abeam of the first, the far ones (end-on) go (135, 150 m), the list stays packed.
+	line.updateTicks({ x: 105, y: 30, z: 12 });
+	assert.equal(line.ticks.geometry.instanceCount, 2 * 2);
+	assert.ok(arr[3] > 105 && arr[3] < 105 + TICK_MAX_M, `packed: ${arr[3]}`);
+	line.setProgress(0.5, 'off', 0.3);
+	line.updateTicks(cam);
+	assert.ok(arr[3] < 20, 'cooling: back at the gate');
+	line.setProgress(0.9, 'on', 0);
+	line.updateTicks({ x: 180, y: 80, z: 0 });
+	assert.equal(line.ticks.geometry.instanceCount, 2 * 1, 'one left short of the end');
+	line.setProgress(1, 'done', 0);
+	line.updateTicks(over);
+	assert.equal(line.ticks.visible, false);
+	line.hide();
+	line.show(straight());
+	line.setVisible(false);
+	assert.equal(line.group.visible, false, 'the ticks are in the group a photo hides');
 	line.dispose();
 	assert.equal(scene.children.length, 0);
 });
