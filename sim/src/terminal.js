@@ -15,6 +15,9 @@ import { worldWeather, formatForecast, headline, severity as weatherSeverity, to
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
 import { mountHangar, progressNode, tiersNode } from './hangar.js';
+import { signalsSection, runCapture } from './signals-data.js';
+import { buildSignals } from '../tools/signals-data-model.mjs';
+import { clearanceOf } from '../tools/signal-clearance-model.mjs';
 import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
 import { versionLine, SOURCE_URL, SOURCE_CALL, LICENCE } from './version.js';
@@ -729,7 +732,7 @@ function buildNotesScreen(root, operator) {
 // Nothing here is won: it is what happened, drawn.
 //
 // Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
-// FIELD) or null.
+// FIELD), { live, place } (a capture's FLY THERE, a LIVE flight) or null.
 //
 export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 	const operator = api.getOperator();
@@ -752,12 +755,15 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 
 		// One full-frame screen hides another: this one is hidden meanwhile and
 		// given back on return. Same gesture as the Home with the scanner.
-		const behind = async (fn) => {
+		// `opener`: the control to hand the cursor back to (a SIGNALS row), when
+		// it is still on the page; otherwise the first control, as before.
+		const behind = async (fn, opener = null) => {
 			s.el.hidden = true;
 			const r = await fn();
 			if (r !== undefined && r !== null) return done(r);
 			s.el.hidden = false;
-			nav?.focusAt(0);
+			if (opener?.isConnected) opener.focus();
+			else nav?.focusAt(0);
 		};
 
 		// --- state ---------------------------------------------------------
@@ -844,14 +850,43 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 		const hangar = mountHangar(clearanceBox, { store });
 		clearanceBox.appendChild(tiersNode(store, { cls: 'terminal-foot' }));
 
+		// SIGNALS (lot 3, task 9, mockup dossier-v3.html): the places, then the
+		// selected place's rows. The section reads the signal cache (async), so
+		// DATA paints first with a placeholder in its slot, swapped when the
+		// section answers. Like CLEARANCE it is built once and re-appended by
+		// every render(): a place chosen, or a row about to get the cursor back,
+		// survives the track loads that rebuild the page. Choosing a place
+		// redraws the section alone (signals-data.js).
+		let signalsBox = document.createElement('div');
+		signalsBox.className = 'data-section';
+		signalsBox.appendChild(pre('SIGNALS'));
+		signalsBox.appendChild(pre('LOADING…', 'terminal-foot'));
+		// An uplinked row opens its capture over DATA. FLY THERE's
+		// { live, place } goes up through done() unchanged (a LIVE flight in
+		// main.js's dataLoop); BACK gives DATA back, the cursor on that row.
+		const openCapture = (entries, index) => {
+			const opener = signalsBox.querySelectorAll('.signals-row')[index] ?? null;
+			behind(() => runCapture(root, { api, entries, index }), opener);
+		};
+		const swapSignals = (box) => {
+			if (!alive) return;
+			const placeholder = signalsBox;
+			signalsBox = box;
+			if (placeholder.parentNode) placeholder.replaceWith(box);
+		};
+		// A failure leaves no section rather than a LOADING… for ever.
+		signalsSection(api, { onOpen: openCapture })
+			.then(swapSignals, () => swapSignals(document.createTextNode('')));
+
 		// --- the nine sections ----------------------------------------------
 
 		const render = () => {
 			page.replaceChildren();
 			draws = [];
 
-			// CLEARANCE first, then (lot 3, task 9b) SIGNALS, then the graphs.
+			// CLEARANCE first, then SIGNALS, then the graphs.
 			page.appendChild(clearanceBox);
+			page.appendChild(signalsBox);
 
 			// 1. RHYTHM — the only graph about real time, and the one that makes
 			// coming back visible.
@@ -1022,7 +1057,8 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 		const title = document.createElement('pre');
 		title.textContent = 'DATA';
 		s.box.appendChild(title);
-		s.box.appendChild(pre(`${data.sessionCount} SESSIONS ON RECORD`, 'terminal-foot'));
+		s.box.appendChild(pre(`${data.sessionCount} SESSIONS ON RECORD`
+			+ ` · ${buildSignals({ store }).uplinked} SIGNALS UPLINKED · CLEARANCE ${clearanceOf(store)}`, 'terminal-foot'));
 		s.box.appendChild(page);
 		render();
 

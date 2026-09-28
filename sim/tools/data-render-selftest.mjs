@@ -87,11 +87,11 @@ const closeAll = async (home, depth = SUBSCREEN_DEPTH) => {
 
 // --- the DATA page ---------------------------------------------------------
 
-// The spec's nine sections, in order, under CLEARANCE (issue #185, lot 3). It
-// is the only thing this test freezes about the screen: what it SHOWS and in
+// The spec's nine sections, in order, under CLEARANCE and SIGNALS (issue #185,
+// lot 3). It is the only thing this test freezes about the screen: what it SHOWS and in
 // what order — a graph is judged by eye, a vanished section is judged nowhere
 // but here.
-const SECTIONS = ['CLEARANCE', 'RHYTHM', 'LIFE', 'SPEED × ALTITUDE', 'HOW THEY DIED',
+const SECTIONS = ['CLEARANCE', 'SIGNALS', 'RHYTHM', 'LIFE', 'SPEED × ALTITUDE', 'HOW THEY DIED',
 	'STICKS', 'FAMILIES', 'GEOGRAPHY', 'PROFILE', 'RECORDS'];
 
 await ta('data: the nine sections, in order, with RECORDS at the end', async () => {
@@ -139,6 +139,141 @@ await ta('data: CLEARANCE at the top — the progress, the hangar, the tiers, ke
 	dom.key('Escape');
 	await p;
 	assert.equal(dom.root.querySelectorAll('.hangar').length, 0, 'gone with the screen');
+});
+
+// --- SIGNALS (issue #185, lot 3 task 9) --------------------------------------
+
+// What the operator uplinked, as the store keeps it (`signals.resolved`).
+const DAY = (d, h = 12) => new Date(2026, 8, d, h, 0).getTime();
+const uplink = (over) => ({
+	at: DAY(27), name: 'X', lat: 48.8462, lon: 2.3464, tier: 1, family: 'cinewhoop',
+	holdS: 5, distM: 212, sessionId: null, photo: null, place: 'PARIS', ...over,
+});
+const withSignals = () => operator({
+	signals: {
+		resolved: {
+			'wd:Q1': uplink({ name: 'PANTHEON', at: DAY(27) }),
+			'wd:Q2': uplink({ name: 'EIFFEL TOWER', at: DAY(26) }),
+			'wd:Q3': uplink({ name: 'KINKAKU-JI', place: 'KYOTO', lat: 35.0394, lon: 135.7292, at: DAY(20) }),
+		},
+	},
+});
+const waitFor = async (fn, what) => {
+	for (let i = 0; i < 50; i++) { if (fn()) return; await tick(); }
+	assert.fail(`timed out waiting for ${what}`);
+};
+// The Home and DATA stay MOUNTED behind (only `hidden`): their text is in
+// dom.root. So only the last opened screen's box is read.
+const topBox = () => { const b = dom.root.querySelectorAll('.terminal-box'); return b[b.length - 1]; };
+// DATA has its own BACK, hidden behind the capture: aim at the capture's.
+const topBtn = (label) => topBox().querySelectorAll('button').find((b) => b.textContent.includes(label));
+const signalsBox = () => dom.root.querySelector('.data-page').children[1];
+const signalsReady = () => waitFor(() => signalsBox()?.classList.contains('signals-section'), 'the SIGNALS section');
+
+await ta('data: the foot line counts sessions, signals uplinked and the clearance', async () => {
+	reset();
+	let p = dataScreen(dom.root, { api: api(operator()), scenes: [] });
+	await tick();
+	assert.equal(dom.root.querySelector('.terminal-box').children[1].textContent,
+		'1 SESSIONS ON RECORD · 0 SIGNALS UPLINKED · CLEARANCE 0');
+	await closeAll(p, 1);
+	reset();
+	p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await tick();
+	// 3 tier-I signals = 3 points: still under the 6 of CLEARANCE 1.
+	assert.equal(dom.root.querySelector('.terminal-box').children[1].textContent,
+		'1 SESSIONS ON RECORD · 3 SIGNALS UPLINKED · CLEARANCE 0');
+	await closeAll(p, 1);
+});
+
+await ta('data: SIGNALS paints a placeholder first, then the section in its slot', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(operator()), scenes: [] });
+	// Synchronously, before the signal cache has answered: DATA is up, and the
+	// slot says it is reading.
+	const slot = dom.root.querySelector('.data-page').children[1];
+	assert.equal(slot.children[0].textContent, 'SIGNALS');
+	assert.equal(slot.children[1].textContent, 'LOADING…');
+	await signalsReady();
+	assert.equal(dom.root.querySelectorAll('.data-section')
+		.filter((b) => b.children[0].textContent === 'SIGNALS').length, 1, 'swapped, not added');
+	await closeAll(p, 1);
+});
+
+await ta('data: SIGNALS, empty — NOTHING UPLINKED YET and where to find one', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(operator()), scenes: [] });
+	await signalsReady();
+	const box = signalsBox();
+	assert.equal(box.children[1].textContent, '0 UPLINKED · 0 KNOWN · 0 PLACES');
+	const empty = box.querySelectorAll('.terminal-empty').map((e) => e.textContent);
+	assert.deepEqual(empty, ['NOTHING UPLINKED YET', 'FIELD → A SIGNAL ON THE SCANNER']);
+	assert.equal(box.querySelectorAll('button').length, 0, 'nothing to open');
+	await closeAll(p, 1);
+});
+
+await ta('data: SIGNALS lists the places and the selected place\'s uplinked rows', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await signalsReady();
+	const box = signalsBox();
+	assert.equal(box.children[1].textContent, '3 UPLINKED · 0 KNOWN · 2 PLACES');
+	const places = box.querySelector('.signals-places').querySelectorAll('button');
+	assert.deepEqual(places.map((b) => b.textContent), ['PARIS 2/2', 'KYOTO 1/1']);
+	assert.ok(places[0].classList.contains('on'), 'the first place is selected');
+	const rows = () => signalsBox().querySelectorAll('.signals-row');
+	assert.equal(rows().length, 2);
+	assert.match(rows()[0].textContent, /\[\+\] PANTHEON/, 'newest first');
+	assert.match(rows()[1].textContent, /EIFFEL TOWER/);
+	// Choosing a place redraws the section alone: CLEARANCE and the graphs
+	// stay the very same nodes.
+	const rhythm = dom.root.querySelector('.data-page').children[2];
+	places[1].click();
+	await tick();
+	assert.equal(rows().length, 1);
+	assert.match(rows()[0].textContent, /KINKAKU-JI/);
+	assert.equal(dom.root.querySelector('.data-page').children[2], rhythm, 'the page was not rebuilt');
+	// A page re-render (a family opened) keeps the place chosen.
+	dom.root.querySelectorAll('.data-section').find((b) => b.children[0].textContent === 'FAMILIES')
+		.querySelectorAll('button')[0].click();
+	await tick();
+	assert.match(rows()[0].textContent, /KINKAKU-JI/, 'the selection survives a re-render');
+	signalsBox().querySelector('.signals-places').querySelectorAll('button')[0].click();   // back to PARIS for the next tests
+	await closeAll(p, 1);
+});
+
+await ta('data: an uplinked row opens its capture; BACK returns with the cursor on that row', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await signalsReady();
+	const row = signalsBox().querySelectorAll('.signals-row')[1];
+	row.click();
+	await tick();
+	const data = dom.root.querySelector('.terminal-data');
+	assert.ok(data.hidden, 'DATA hides behind the capture');
+	assert.equal(topBox().children[0].textContent, 'EIFFEL TOWER');
+	assert.equal(topBox().querySelector('.terminal-foot').textContent, 'PARIS');
+	// PREVIOUS walks the place's entries without leaving the capture.
+	topBtn('PREVIOUS').click();
+	await tick();
+	assert.equal(topBox().children[0].textContent, 'PANTHEON');
+	topBtn('BACK').click();
+	await tick(); await tick();
+	assert.ok(!data.hidden, 'DATA is back');
+	assert.equal(dom.root.querySelectorAll('.terminal-capture').length, 0, 'the capture is gone');
+	assert.equal(dom.document.activeElement, row, 'the cursor is on the row that was opened');
+	await closeAll(p, 1);
+});
+
+await ta('data: FLY THERE hands { live, place } up unchanged', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await signalsReady();
+	signalsBox().querySelectorAll('.signals-row')[0].click();
+	await tick();
+	topBtn('FLY THERE').click();
+	assert.deepEqual(await p, { live: [48.8462, 2.3464], place: 'PARIS' });
+	assert.equal(dom.root.children.length, 0, 'and nothing is left in #ui');
 });
 
 await ta('data: with no track, the sections that need one say NO TRACK', async () => {
@@ -235,10 +370,7 @@ await ta('operator: the target counter comes from the sessions, not a dead key',
 // The key (#60) is a TECHNICAL mechanism, shown here for the same reason the
 // Control Vector is shown on ITS screen: because you may want to read it back.
 // The two mix neither on screen nor in the code (Bible §33) — which is exactly
-// what these two tests pin down.
-// The Home and DATA stay MOUNTED behind (only `hidden`): their text is in
-// dom.root. So only the last opened screen's box is read.
-const topBox = () => { const b = dom.root.querySelectorAll('.terminal-box'); return b[b.length - 1]; };
+// what these two tests pin down (topBox() is defined with the SIGNALS tests).
 
 await ta('operator: with no key (local server), no SHOW KEY on screen', async () => {
 	storedKey = null;

@@ -70,6 +70,18 @@ class FakeElement {
 
 	remove() { this.parent?.removeChild(this); }
 
+	get parentNode() { return this.parent; }
+
+	replaceWith(node) {
+		const p = this.parent;
+		if (!p) return;
+		if (node.parent) node.parent.removeChild(node);
+		const i = p.children.indexOf(this);
+		p.children[i] = node;
+		node.parent = p;
+		this.parent = null;
+	}
+
 	get isConnected() {
 		let n = this;
 		while (n.parent) n = n.parent;
