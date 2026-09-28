@@ -45,7 +45,7 @@ const EDGE_BLINK_MS = 180;
 export function createSignalsLayer(L, {
 	getSignals, getResolved = () => null, getClearance = () => MAX_CLEARANCE,
 	getScan = () => null,
-	ink = '#d4b155', resolvedInk = '#7aa96b', white = '#ece7dd',
+	ink = '#d4b155', resolvedInk = '#7aa96b', white = '#ece7dd', black = '#0a0908',
 } = {}) {
 	const Layer = L.Layer.extend({
 		onAdd(map) {
@@ -93,16 +93,22 @@ export function createSignalsLayer(L, {
 
 		// The basemap inside the tile tears into displaced grey slices under
 		// ASCII noise; its hairline flickers. Drawing the tile images taints the
-		// canvas — fine, it is never read back.
-		_drawGlitch(ctx, r, white) {
+		// canvas — fine, it is never read back. A z12 tile is 4096 px wide at
+		// zoom 16 and 131072 px at 21: the slices and the noise cover only its
+		// part on screen (`v`), the full rect `r` sets the hairline and the
+		// slice displacement.
+		_drawGlitch(ctx, r, size) {
 			const map = this._map;
+			const x0 = Math.max(r.x, 0), y0 = Math.max(r.y, 0);
+			const v = { x: x0, y: y0, w: Math.min(r.x + r.w, size.x) - x0, h: Math.min(r.y + r.h, size.y) - y0 };
+			if (v.w <= 0 || v.h <= 0) return;
 			const origin = map.getContainer().getBoundingClientRect();
 			const imgs = [];
 			const pane = map.getPane('tilePane');
 			for (const img of pane?.querySelectorAll('img.leaflet-tile-loaded') ?? []) {
 				const b = img.getBoundingClientRect();
 				const x = b.left - origin.left, y = b.top - origin.top;
-				if (x > r.x + r.w || y > r.y + r.h || x + b.width < r.x || y + b.height < r.y) continue;
+				if (x > v.x + v.w || y > v.y + v.h || x + b.width < v.x || y + b.height < v.y) continue;
 				imgs.push({ img, x, y, w: b.width, h: b.height });
 			}
 			// The basemap's own CSS filter (MONO inverts a light tile), so the
@@ -114,18 +120,18 @@ export function createSignalsLayer(L, {
 			}
 			ctx.save();
 			ctx.beginPath();
-			ctx.rect(r.x, r.y, r.w, r.h);
+			ctx.rect(v.x, v.y, v.w, v.h);
 			ctx.clip();
-			ctx.fillStyle = '#0a0908';
-			ctx.fillRect(r.x, r.y, r.w, r.h);
+			ctx.fillStyle = black;
+			ctx.fillRect(v.x, v.y, v.w, v.h);
 			ctx.filter = `${css}grayscale(1) brightness(1.25) contrast(1.2)`;
-			let y = r.y;
-			for (let i = 0; i < GLITCH_SLICES && y < r.y + r.h; i++) {
-				const hh = i === GLITCH_SLICES - 1 ? r.y + r.h - y : Math.max(4, Math.random() * r.h / GLITCH_SLICES * 1.8);
+			let y = v.y;
+			for (let i = 0; i < GLITCH_SLICES && y < v.y + v.h; i++) {
+				const hh = i === GLITCH_SLICES - 1 ? v.y + v.h - y : Math.max(4, Math.random() * v.h / GLITCH_SLICES * 1.8);
 				const dx = Math.random() < 0.5 ? (Math.random() - 0.5) * r.w * GLITCH_SHIFT : 0;
 				ctx.save();
 				ctx.beginPath();
-				ctx.rect(r.x, y, r.w, hh);
+				ctx.rect(v.x, y, v.w, hh);
 				ctx.clip();
 				ctx.globalAlpha = Math.random() < 0.2 ? 0.35 : 1;
 				for (const t of imgs) {
@@ -140,8 +146,8 @@ export function createSignalsLayer(L, {
 			ctx.font = `${NOISE_LH}px "Departure Mono", monospace`;
 			ctx.textBaseline = 'top';
 			ctx.fillStyle = withAlpha(white, 0.55);
-			for (let yy = r.y; yy < r.y + r.h; yy += NOISE_LH) {
-				for (let xx = r.x; xx < r.x + r.w; xx += NOISE_CW) {
+			for (let yy = v.y; yy < v.y + v.h; yy += NOISE_LH) {
+				for (let xx = v.x; xx < v.x + v.w; xx += NOISE_CW) {
 					if (Math.random() < NOISE_DENSITY) ctx.fillText(NOISE[(Math.random() * NOISE.length) | 0], xx, yy);
 				}
 			}
@@ -190,7 +196,7 @@ export function createSignalsLayer(L, {
 				}
 				ctx.restore();
 			}
-			if (cur) this._drawGlitch(ctx, cur, white);
+			if (cur) this._drawGlitch(ctx, cur, size);
 
 			const all = getSignals?.() ?? [];
 			if (!all.length) return;
@@ -268,6 +274,11 @@ export function createSignalsLayer(L, {
 				ctx.font = '11px "IBM Plex Mono", monospace';
 				ctx.textBaseline = 'middle';
 				ctx.fillStyle = ink;
+				// A dark halo under each name: yellow text alone drowns in a
+				// bright satellite basemap.
+				ctx.strokeStyle = withAlpha(black, 0.85);
+				ctx.lineWidth = 3;
+				ctx.lineJoin = 'round';
 				ctx.globalAlpha = 0.95;
 				// Best-ranked names first; one that would cover another name or
 				// another light is dropped. fillText, never innerHTML: OSM text is
@@ -278,6 +289,7 @@ export function createSignalsLayer(L, {
 					return widths.get(name);
 				};
 				for (const { s, x, y } of placeLabels(pts, measure, { dx: LABEL_DX, h: LABEL_H, core: CORE })) {
+					ctx.strokeText(s.name, x + LABEL_DX, y);
 					ctx.fillText(s.name, x + LABEL_DX, y);
 				}
 				ctx.globalAlpha = 1;

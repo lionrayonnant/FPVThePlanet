@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
 	TIER_POINTS, STEPS, MAX_CLEARANCE, LEVELS,
 	swarmAllowed, tierAllowed, familiesFor, pointsOf, clearanceOf, nextStep, crossed,
+	levelForTier, ROMAN,
 } from './signal-clearance-model.mjs';
 import { TARGET_FAMILIES } from './target-model.mjs';
 import { withResolved, fromStored } from './signal-store-model.mjs';
@@ -87,6 +88,41 @@ t('tierAllowed and familiesFor follow LEVELS', () => {
 	assert.equal(tierAllowed(0, 2), false);
 	assert.equal(tierAllowed(2, 3), true);
 	assert.deepEqual(familiesFor(1), ['freestyle5', 'cinewhoop', 'toothpick']);
+});
+
+t('levelForTier: the level that opens a tier, null when unknown', () => {
+	assert.equal(levelForTier(1), 0);
+	assert.equal(levelForTier(2), 1);
+	assert.equal(levelForTier(3), 2);
+	assert.equal(levelForTier(4), null);
+	assert.equal(levelForTier(undefined), null);
+	for (const tier of [1, 2, 3]) {
+		const lv = levelForTier(tier);
+		assert.ok(tierAllowed(lv, tier) && (lv === 0 || !tierAllowed(lv - 1, tier)));
+	}
+	assert.deepEqual(ROMAN, ['', 'I', 'II', 'III']);
+});
+
+t('pointsOf/clearanceOf: memoized per store object, same results', () => {
+	const s = storeWith(9);
+	assert.equal(pointsOf(s), 9);
+	assert.equal(clearanceOf(s), 1);
+	// A different object with more points is not served the cached sum.
+	const s2 = storeWith(20);
+	assert.equal(pointsOf(s2), 20);
+	assert.equal(clearanceOf(s2), 2);
+	assert.equal(pointsOf(s), 9);
+	// The cache really serves: a mutation after the first read is not seen
+	// (the operator store is replaced, never mutated).
+	const s3 = storeWith(3);
+	assert.equal(pointsOf(s3), 3);
+	s3.resolved['wd:Q999'] = { ...s3.resolved['wd:Q1'], tier: 3 };
+	assert.equal(pointsOf(s3), 3);
+	assert.equal(pointsOf(fromStored(s3)), 6, 'a fresh object is parsed again');
+	// Primitives and null are not cached, and do not throw.
+	assert.equal(pointsOf(null), 0);
+	assert.equal(pointsOf(undefined), 0);
+	assert.equal(clearanceOf(null), 0);
 });
 
 console.log(`signal-clearance: ${n} ok`);

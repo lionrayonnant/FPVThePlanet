@@ -3,7 +3,7 @@
 // around each place, the rows of a place, and the key/value rows and credit
 // of one opened capture. No DOM — src/signals-data.js draws it.
 import { fromStored } from './signal-store-model.mjs';
-import { LEVELS } from './signal-clearance-model.mjs';
+import { MAX_CLEARANCE, ROMAN, levelForTier } from './signal-clearance-model.mjs';
 import { scramble } from './signal-callout-model.mjs';
 import { distanceM } from './signal-model.mjs';
 import { cardRows, MACHINE_NAMES } from './signal-card-model.mjs';
@@ -18,7 +18,9 @@ export const MAX_KNOWN_ROWS = 12;
 // Always shown, photo or not: the facts come from these two.
 export const DATA_CREDIT = 'DATA © OPENSTREETMAP · WIKIDATA';
 
-const ROMAN = { 1: 'I', 2: 'II', 3: 'III' };
+const DEG = 180 / Math.PI;
+// distanceM's sphere (tools/signal-model.mjs R_EARTH).
+const R_EARTH_M = 6371008.8;
 const COMMONS_FILE = 'https://commons.wikimedia.org/wiki/File:';
 
 const pad2 = (v) => String(v).padStart(2, '0');
@@ -28,10 +30,10 @@ const machineOf = (family) => (family ? MACHINE_NAMES[family] ?? family.toUpperC
 // Stable per landmark: the Wikidata number (ids are `wd:Q<digits>`).
 const seedOf = (id) => (Number(/\d+/.exec(id ?? '')?.[0] ?? 0) >>> 0);
 
-// The lowest clearance whose tiers include `tier`.
+// The lowest clearance whose tiers include `tier`; an unknown tier needs the
+// top one, so it is drawn locked rather than open.
 export function clearanceFor(tier) {
-	const i = LEVELS.findIndex((l) => l.tiers.includes(tier));
-	return i < 0 ? LEVELS.length - 1 : i;
+	return levelForTier(tier) ?? MAX_CLEARANCE;
 }
 
 export function sessionLabel(sessionId) {
@@ -53,17 +55,38 @@ export function buildSignals({ store, known = [] } = {}) {
 		byName.get(name).uplinked.push(e);
 	}
 
+	// Only an entry within KNOWN_RADIUS_M can claim a known signal, so each
+	// one looks at the entries in a lat/lon box of that radius: a binary
+	// search in a latitude-sorted copy, then a longitude bound, before any
+	// haversine. `i` keeps the original order for equal distances.
+	const byLat = entries.map((e, i) => ({ e, i })).sort((a, b) => a.e.lat - b.e.lat);
+	const firstAtOrAbove = (lat) => {
+		let lo = 0, hi = byLat.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >> 1;
+			if (byLat[mid].e.lat < lat) lo = mid + 1; else hi = mid;
+		}
+		return lo;
+	};
+	const k = KNOWN_RADIUS_M / R_EARTH_M;                 // the radius as an angle
+	const dLat = k * DEG * 1.001;                        // a hair of margin
 	let knownCount = 0;
 	for (const s of Array.isArray(known) ? known : []) {
 		if (!s || typeof s.id !== 'string' || resolved[s.id]) continue;
 		if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
-		let best = null, bestD = Infinity;
-		// A degree of latitude is ~111 km: an entry further than the best so far
-		// in latitude alone cannot be nearer.
-		for (const e of entries) {
-			if (Math.abs(e.lat - s.lat) * 111_000 > bestD) continue;
+		// Haversine: h >= cos(a)cos(b)sin²(dλ/2), so within the radius
+		// |dλ| <= 2 asin(sin(k/2) / cos(m)), m the largest |lat| in the band.
+		const m = Math.min(90, Math.abs(s.lat) + dLat) / DEG;
+		const q = Math.sin(k / 2) / Math.cos(m);
+		const dLon = q < 1 ? 2 * Math.asin(q) * DEG * 1.001 : Infinity;
+		let best = null, bestI = Infinity, bestD = Infinity;
+		for (let j = firstAtOrAbove(s.lat - dLat); j < byLat.length && byLat[j].e.lat <= s.lat + dLat; j++) {
+			const { e, i } = byLat[j];
+			let dl = Math.abs(e.lon - s.lon) % 360;
+			if (dl > 180) dl = 360 - dl;
+			if (dl > dLon) continue;
 			const d = distanceM(e, s);
-			if (d < bestD) { bestD = d; best = e; }
+			if (d < bestD || (d === bestD && i < bestI)) { bestD = d; best = e; bestI = i; }
 		}
 		if (best && bestD <= KNOWN_RADIUS_M) {
 			byName.get(placeOf(best)).known.push(s);
@@ -106,7 +129,7 @@ export function listRows(place, clearance = 0) {
 			kind: locked ? 'locked' : 'known',
 			id: s.id,
 			text: scramble((s.name || s.id).toUpperCase(), seedOf(s.id)),
-			right: locked ? `CLEARANCE ${need}` : `${distText(d)}  TIER ${ROMAN[s.tier] ?? '?'}`,
+			right: locked ? `CLEARANCE ${need}` : `${distText(d)}  TIER ${ROMAN[s.tier] || '?'}`,
 		});
 	}
 	if (known.length > MAX_KNOWN_ROWS) {

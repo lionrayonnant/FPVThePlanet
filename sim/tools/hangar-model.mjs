@@ -3,7 +3,7 @@
 // them, and the two text lines under it. Pure — no DOM, no THREE — so the
 // TARGET SCAN, DATA, the briefing and the end screen all read the same rows;
 // src/hangar.js only draws them.
-import { LEVELS, STEPS, MAX_CLEARANCE, clearanceOf, nextStep, tierAllowed } from './signal-clearance-model.mjs';
+import { STEPS, MAX_CLEARANCE, LEVELS, ROMAN, clearanceOf, nextStep, tierAllowed, levelForTier } from './signal-clearance-model.mjs';
 import { MACHINE_NAMES } from './signal-card-model.mjs';
 import { scramble } from './signal-callout-model.mjs';
 
@@ -12,8 +12,6 @@ export const HANGAR_LABELS = { ...MACHINE_NAMES, swarm: 'SWARM' };
 
 // Cells of the progress bar (`▓▓▓░░░…  9/18 TO CLEARANCE 2`).
 export const BAR_CELLS = 12;
-
-const ROMAN = { 1: 'I', 2: 'II', 3: 'III' };
 
 // A stable seed per machine id, so a locked name scrambles the same way on
 // every screen and every frame.
@@ -56,15 +54,16 @@ export function hangarRows(store, reveal = null) {
 }
 
 // `▓▓▓░░░░░░░░░  9/18 TO CLEARANCE 2`: the bar fills over the CURRENT step
-// (from the last step reached to the next), like the scanner header's.
-export function progressParts(store) {
+// (from the last step reached to the next). One formula for the hangar and
+// the scanner header, which asks for fewer `cells`.
+export function progressParts(store, { cells: n = BAR_CELLS } = {}) {
 	const next = nextStep(store);
 	const level = clearanceOf(store);
 	if (!next || level >= MAX_CLEARANCE) return { bar: null, text: `CLEARANCE ${MAX_CLEARANCE} · MAX` };
 	const from = STEPS[level];
-	const cells = Math.max(0, Math.min(BAR_CELLS, Math.floor((next.points - from) / (next.need - from) * BAR_CELLS)));
+	const cells = Math.max(0, Math.min(n, Math.floor((next.points - from) / (next.need - from) * n)));
 	return {
-		bar: '▓'.repeat(cells) + '░'.repeat(BAR_CELLS - cells),
+		bar: '▓'.repeat(cells) + '░'.repeat(n - cells),
 		text: `${next.points}/${next.need} TO CLEARANCE ${next.level}`,
 	};
 }
@@ -81,10 +80,9 @@ export function tiersParts(store) {
 	const tiers = [1, 2, 3];
 	const open = tiers.filter((t) => tierAllowed(level, t));
 	const shut = tiers.find((t) => !tierAllowed(level, t));
-	const at = shut ? LEVELS.findIndex((lv) => lv.tiers.includes(shut)) : -1;
 	return {
 		open: open.map((t) => `TIER ${ROMAN[t]}`).join(' · '),
-		locked: shut ? `TIER ${ROMAN[shut]} AT CLEARANCE ${at}` : '',
+		locked: shut ? `TIER ${ROMAN[shut]} AT CLEARANCE ${levelForTier(shut)}` : '',
 	};
 }
 

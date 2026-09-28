@@ -4,7 +4,7 @@
 // destroy() stops everything. Run: node tools/hangar-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	HANGAR_LABELS, BAR_CELLS, hangarRows, progressLine, tiersLine, scrambleLabel,
+	HANGAR_LABELS, BAR_CELLS, hangarRows, progressLine, progressParts, tiersLine, scrambleLabel,
 } from './hangar-model.mjs';
 import { STEPS } from './signal-clearance-model.mjs';
 import { withResolved, fromStored } from './signal-store-model.mjs';
@@ -82,6 +82,14 @@ await t('progress: a 12-cell bar over the current step, at its boundaries', asyn
 	assert.equal(progressLine(storeWith(36)), 'CLEARANCE 3 · MAX');
 	assert.equal(progressLine(storeWith(50)), 'CLEARANCE 3 · MAX');
 	assert.equal(progressLine(null), `${'░'.repeat(12)}  0/6 TO CLEARANCE 1`);
+});
+
+await t('progress: the scanner header\'s narrower bar, same formula', async () => {
+	assert.equal(progressParts(storeWith(9), { cells: 9 }).bar, `${'▓'.repeat(2)}${'░'.repeat(7)}`);
+	assert.equal(progressParts(storeWith(5), { cells: 9 }).bar, `${'▓'.repeat(7)}${'░'.repeat(2)}`);
+	assert.equal(progressParts(storeWith(0), { cells: 9 }).bar, '░'.repeat(9));
+	assert.equal(progressParts(storeWith(36), { cells: 9 }).bar, null);
+	assert.equal(progressParts(storeWith(9)).bar.length, BAR_CELLS);
 });
 
 await t('tiers: the open ones, then the first closed one and where it opens', async () => {

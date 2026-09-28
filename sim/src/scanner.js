@@ -29,7 +29,8 @@ import { createTracksLayer } from './map-tracks.js';
 import { createSignalsLayer } from './map-signals.js';
 import { sharedSignalSource } from './signal-source.js';
 import { tilesForView, signalsInView } from '../tools/signal-model.mjs';
-import { clearanceOf, nextStep, pointsOf, STEPS, MAX_CLEARANCE } from '../tools/signal-clearance-model.mjs';
+import { clearanceOf, nextStep } from '../tools/signal-clearance-model.mjs';
+import { progressParts } from '../tools/hangar-model.mjs';
 import { resolvedIds } from '../tools/signal-store-model.mjs';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
@@ -891,24 +892,23 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		ink: token('--yellow') || '#d4b155',
 		resolvedInk: token('--green') || '#7aa96b',
 		white: token('--warm-white') || '#ece7dd',
+		black: token('--black') || '#0a0908',
 	});
 	signalsLayer.addTo(map);
 
-	// The header's clearance line: `CLEARANCE 1  ▓▓▓░░░░░░  9/18`.
-	const BAR_CELLS = 9;
+	// The header's clearance line: `CLEARANCE 1  ▓▓░░░░░░░  9/18`. The bar is
+	// the hangar's (progressParts), narrower to fit the header.
+	const HEADER_BAR_CELLS = 9;
 	function renderClearance() {
 		const el = $('.sc-clearance');
 		if (!el) return;
 		const store = operatorSignals();
 		const level = clearanceOf(store);
 		const next = nextStep(store);
+		const { bar } = progressParts(store, { cells: HEADER_BAR_CELLS });
 		const parts = [['CLEARANCE ' + level, '']];
-		if (!next || level >= MAX_CLEARANCE) parts.push([' · MAX', '']);
-		else {
-			const from = STEPS[level];
-			const cells = Math.max(0, Math.min(BAR_CELLS, Math.floor((pointsOf(store) - from) / (next.need - from) * BAR_CELLS)));
-			parts.push(['  ', ''], ['▓'.repeat(cells) + '░'.repeat(BAR_CELLS - cells), 'sc-y'], [`  ${next.points}/${next.need}`, '']);
-		}
+		if (!next || !bar) parts.push([' · MAX', '']);
+		else parts.push(['  ', ''], [bar, 'sc-y'], [`  ${next.points}/${next.need}`, '']);
 		el.replaceChildren(...parts.map(([text, cls]) => span(text, cls)));
 	}
 

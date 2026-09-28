@@ -7,6 +7,7 @@ import {
 	buildSignals, listRows, detailRows, creditOf, sessionLabel, clearanceFor,
 } from './signals-data-model.mjs';
 import { scramble } from './signal-callout-model.mjs';
+import { distanceM } from './signal-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -207,6 +208,11 @@ t('detailRows: no session, no signal, no info — only what is known, no danglin
 	]);
 });
 
+t('detailRows: an uplink from the swarm flight names THE SWARM, not SWARMNODE', () => {
+	const e = { id: 'wd:Q2', ...entry({ at: at(2026, 1, 2, 3, 4), family: 'swarmNode', sessionId: null, holdS: 4, distM: 90 }) };
+	assert.deepEqual(detailRows(e, null, null)[1], ['MACHINE', 'THE SWARM']);
+});
+
 t('creditOf: author, licence, Commons, and the validated file page', () => {
 	const photo = { url: 'https://upload.wikimedia.org/a.jpg', artist: 'Camille Gévaudan', license: 'CC BY-SA 3.0', page: 'https://commons.wikimedia.org/wiki/File:Pantheon.jpg' };
 	assert.deepEqual(creditOf({ photo }), {
@@ -237,6 +243,49 @@ t('creditOf: a link that is not a Commons file page is dropped', () => {
 	for (const page of bad) {
 		assert.equal(creditOf({ photo: { artist: 'A', license: 'B', page } }).href, null, String(page));
 	}
+});
+
+// The pre-box version, verbatim in intent: nearest entry by haversine over
+// every entry, first in store order on a tie, kept within KNOWN_RADIUS_M.
+function bruteAssign(entries, known) {
+	const out = new Map();
+	for (const s of known) {
+		let best = null, bestD = Infinity;
+		for (const e of entries) {
+			const d = distanceM(e, s);
+			if (d < bestD) { bestD = d; best = e; }
+		}
+		if (best && bestD <= KNOWN_RADIUS_M) out.set(s.id, best.place);
+	}
+	return out;
+}
+
+t('buildSignals: the lat/lon box prefilter changes no assignment', () => {
+	let seed = 12345;
+	const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32);
+	// Clusters at the equator, mid-latitude, near a pole and across the
+	// antimeridian, where a naive longitude box would be wrong.
+	const centres = [{ lat: 0, lon: 10 }, PARIS, { lat: 89.97, lon: 40 }, { lat: -12, lon: 179.99 }, { lat: -12, lon: -179.99 }];
+	const entries = {}, list = [];
+	for (let i = 0; i < 300; i++) {
+		const c = centres[i % centres.length];
+		const id = `wd:Q${1000 + i}`;
+		const e = entry({ lat: Math.min(90, c.lat + (rnd() - 0.5) * 0.12), lon: c.lon + (rnd() - 0.5) * (c.lat > 89 ? 60 : 0.12), place: `P${i % 17}`, at: i });
+		entries[id] = e;
+		list.push({ id, ...e });
+	}
+	const known = [];
+	for (let i = 0; i < 600; i++) {
+		const c = centres[i % centres.length];
+		known.push({ id: `wd:Q${5000 + i}`, name: 'K', lat: Math.min(90, c.lat + (rnd() - 0.5) * 0.3), lon: c.lon + (rnd() - 0.5) * (c.lat > 89 ? 360 : 0.3), tier: 1, kind: null, fields: [] });
+	}
+	const r = buildSignals({ store: store(entries), known });
+	const got = new Map();
+	for (const p of r.places) for (const s of p.known) got.set(s.id, p.name);
+	const want = bruteAssign(list, known);
+	assert.ok(want.size > 100 && want.size < known.length, `a mix of claimed and unclaimed (${want.size})`);
+	assert.equal(r.knownCount, want.size);
+	assert.deepEqual([...got].sort(), [...want].sort());
 });
 
 console.log(`signals-data-selftest: ${n} ok`);

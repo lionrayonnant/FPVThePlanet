@@ -1,9 +1,10 @@
 // Clearance: the progression ladder over uplinked signals (issue #185, spec
 // author's decision 2026-09-28). Pure — no DOM, no THREE, no Rapier — so the
 // hangar, the OSD line, the take-off notice and the end-of-flight reveal all
-// read the same numbers. Points accrue per uplinked signal, never spent,
-// never lost: `pointsOf` only ever grows as `signals` grows
-// (tools/signal-store-model.mjs is append-only).
+// read the same numbers. Points accrue per uplinked signal and are never
+// spent. The store keeps the newest MAX_RESOLVED entries
+// (tools/signal-store-model.mjs withResolved evicts the oldest beyond it), so
+// past that cap `pointsOf` counts the retained entries only.
 import { fromStored } from './signal-store-model.mjs';
 
 // One point per tier, cumulative — the harder the tier, the more it counts.
@@ -37,6 +38,16 @@ export function tierAllowed(level, tier) {
 	return !!LEVELS[level]?.tiers.includes(tier);
 }
 
+// The clearance level that opens `tier` (the first LEVELS entry listing it);
+// null for a tier no level knows.
+export function levelForTier(tier) {
+	const i = LEVELS.findIndex((lv) => lv.tiers.includes(tier));
+	return i < 0 ? null : i;
+}
+
+// Tier numerals, indexed by tier (ROMAN[0] is unused).
+export const ROMAN = ['', 'I', 'II', 'III'];
+
 export function familiesFor(level) {
 	return LEVELS[level]?.families ?? [];
 }
@@ -50,10 +61,17 @@ function levelFor(points) {
 	return lvl;
 }
 
+// The scanner asks at ~11 Hz and a store holds up to MAX_RESOLVED entries:
+// the sum is kept per stored object (operator.patch() replaces the object,
+// never mutates it — the resolvedIds pattern in signal-store-model.mjs).
+const _points = new WeakMap();
 export function pointsOf(store) {
+	const key = store && typeof store === 'object' ? store : null;
+	if (key && _points.has(key)) return _points.get(key);
 	const { resolved } = fromStored(store);
 	let total = 0;
 	for (const e of Object.values(resolved)) total += TIER_POINTS[e.tier] ?? 0;
+	if (key) _points.set(key, total);
 	return total;
 }
 
