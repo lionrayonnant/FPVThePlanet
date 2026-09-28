@@ -339,7 +339,50 @@ await t('progress().retryAt is the failed tile\'s cooldown end while state is un
 	assert.equal(p.total, 0, 'the failed tile is neither loaded, queued nor in flight');
 
 	now += DEFAULT_RETRY_S * 1000 + 1;
-	assert.equal(src.progress().retryAt, now - 1, 'retryAt itself does not move on its own');
+	assert.equal(src.progress().retryAt, null, 'once its own cooldown has passed, a tile no longer counts as "still cooling"');
+});
+
+await t('retryAt reflects only still-cooling tiles: a stale cooldown from an earlier failure that later succeeded must not leak in', async () => {
+	let now = 1_000_000;
+	let fail = true;
+	const f = fakeFetch(() => { if (fail) throw new Error('offline'); return okBody([]); });
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache(), now: () => now });
+
+	src.request(['A']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const t1 = now + DEFAULT_RETRY_S * 1000;
+	assert.equal(src.progress().retryAt, t1);
+
+	// A's cooldown passes and it now succeeds: its failedUntil entry must be cleared.
+	now += DEFAULT_RETRY_S * 1000 + 1;
+	fail = false;
+	src.request(['A']);
+	await src.idle();
+	assert.equal(src.status(), 'idle');
+
+	// B fails later: its cooldown T2 is later than A's old (and now-cleared) T1.
+	fail = true;
+	src.request(['B']);
+	await src.idle();
+	assert.equal(src.status(), 'unavailable');
+	const t2 = now + DEFAULT_RETRY_S * 1000;
+	assert.ok(t2 > t1);
+	assert.equal(src.progress().retryAt, t2, 'not the stale A cooldown');
+});
+
+await t('subscribers see current return to null once the last tile of a batch settles (done === total)', async () => {
+	const f = fakeFetch(() => okBody([]));
+	const src = createSignalSource({ fetch: f.fn, cache: memoryCache() });
+	const snapshots = [];
+	src.subscribe(() => snapshots.push(src.progress()));
+	src.request(['z12/1/1', 'z12/1/2']);
+	await src.idle();
+	assert.ok(snapshots.length > 0);
+	const last = snapshots[snapshots.length - 1];
+	assert.equal(last.current, null);
+	assert.equal(last.done, last.total);
+	assert.equal(last.total, 2);
 });
 
 await t('entries(): memory cache lists every [key, value] pair it holds', async () => {

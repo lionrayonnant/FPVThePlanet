@@ -113,6 +113,7 @@ export function createSignalSource({
 			const cached = await fromCache(key);
 			if (cached) {
 				loaded.set(key, cached);
+				failedUntil.delete(key); // a stale cooldown from an earlier failure no longer applies
 				setState('idle');
 				emit();
 			} else {
@@ -141,6 +142,7 @@ export function createSignalSource({
 				const signals = parseOverpass(raw);
 				loaded.set(key, signals);
 				try { await cache.set(key, { v: MODEL_VERSION, at: now(), signals }); } catch { /* see fromCache */ }
+				failedUntil.delete(key); // a stale cooldown from an earlier failure no longer applies
 				setState('idle');
 				emit();
 			}
@@ -150,8 +152,12 @@ export function createSignalSource({
 			failedUntil.set(key, now() + DEFAULT_RETRY_S * 1000);
 			setState('unavailable');
 		}
+		const wasCurrent = current;
 		busy = false;
 		current = null;
+		// `current` returning to null is itself a progress change, even when the
+		// tile's outcome didn't flip `state` (e.g. it was already 'unavailable').
+		if (wasCurrent !== null) emit();
 		pump();
 	}
 
@@ -210,7 +216,8 @@ export function createSignalSource({
 			}
 			let retryAt = null;
 			if (state === 'unavailable') {
-				for (const v of failedUntil.values()) if (retryAt === null || v < retryAt) retryAt = v;
+				const t = now();
+				for (const v of failedUntil.values()) if (v > t && (retryAt === null || v < retryAt)) retryAt = v;
 			}
 			return { done, total: done + queued + inFlight, current: busy ? current : null, retryAt };
 		},
