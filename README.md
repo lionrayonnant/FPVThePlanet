@@ -118,7 +118,8 @@ flowchart LR
 
 Tiles come from Google Earth's internal `rocktree` protocol, which needs no key
 and no account. In LIVE mode the player's own browser fetches them, so they
-never pass through a server and nothing is kept.
+never pass through a server. The browser keeps a bounded disk cache of them
+(Cache API), so a second flight over the same place loads faster.
 
 Acquisition is the other path: downloading an area and baking it to playable
 terrain on disk. It is off by default. It only turns on with `FPVTP_ACQUIRE=1`

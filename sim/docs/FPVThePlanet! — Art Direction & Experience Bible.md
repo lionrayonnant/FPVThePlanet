@@ -1941,8 +1941,9 @@ réseau pourrait te confier, c'est-à-dire ce que le hack prend. Il n'y a ni
 glitch, ni flash, ni culmination. Le reste du hangar — les noms, les paliers,
 la jauge — reste dans les couleurs de base.
 
-Le §19 reste vrai partout ailleurs. `tools/palette-selftest.mjs` autorise
-`src/hangar.js` nommément, avec un commentaire qui renvoie ici.
+Hors de cette exception et des quelques autres que `tools/palette-selftest.mjs`
+recense déjà, le §19 reste vrai. Ce selftest autorise `src/hangar.js`
+nommément, avec un commentaire qui renvoie ici.
 
 ### La phrase de l'habilitation
 
