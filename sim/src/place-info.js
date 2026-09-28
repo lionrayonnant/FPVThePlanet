@@ -10,14 +10,15 @@
 // An entity without a P18 image has a final null photo: nothing to fetch.
 import { entityUrl, parseEntity, commonsUrl, parseCommons, qidOf } from '../tools/wikidata-model.mjs';
 import { memoryCache, idbCache } from './signal-source.js';
+import { APP_VERSION } from './version.js';
 
 export const PLACE_TTL_MS = 30 * 24 * 3600 * 1000;
-export const PLACE_VERSION = 2;
+export const PLACE_VERSION = 3;
 export const RETRY_MS = 5 * 60 * 1000;
 export const RETRY_429_MS = 30 * 60 * 1000;
 
-async function fetchJson(fetchFn, url) {
-	const res = await fetchFn(url);
+async function fetchJson(fetchFn, url, headers) {
+	const res = await fetchFn(url, { headers });
 	if (!res.ok) {
 		const err = new Error(`${url} answered ${res.status}`);
 		err.status = res.status;
@@ -29,6 +30,7 @@ async function fetchJson(fetchFn, url) {
 export function createPlaceInfo({ fetch: fetchFn, cache = memoryCache(), now = Date.now } = {}) {
 	const inFlight = new Map(); // qid -> Promise<Info|null>
 	const retryAfter = new Map(); // cache key -> epoch ms before which it is not refetched
+	const userAgentValue = `FPVThePlanet/${APP_VERSION} (+https://github.com/lionrayonnant/FPVThePlanet)`;
 
 	const backingOff = (key) => (retryAfter.get(key) ?? -Infinity) > now();
 	const backOff = (key, e) => retryAfter.set(key, now() + (e?.status === 429 ? RETRY_429_MS : RETRY_MS));
@@ -50,7 +52,7 @@ export function createPlaceInfo({ fetch: fetchFn, cache = memoryCache(), now = D
 		if (hit) return hit.entity;
 		if (backingOff(key)) return null;
 		try {
-			const entity = parseEntity(await fetchJson(fetchFn, entityUrl(qid)), qid);
+			const entity = parseEntity(await fetchJson(fetchFn, entityUrl(qid), { 'Api-User-Agent': userAgentValue }), qid);
 			await toCache(key, { entity });
 			return entity;
 		} catch (e) {
@@ -67,7 +69,7 @@ export function createPlaceInfo({ fetch: fetchFn, cache = memoryCache(), now = D
 		if (backingOff(key)) return null;
 		try {
 			// Commons answered (even with no usable image): final, cached.
-			const photo = parseCommons(await fetchJson(fetchFn, commonsUrl(image)));
+			const photo = parseCommons(await fetchJson(fetchFn, commonsUrl(image), { 'Api-User-Agent': userAgentValue }));
 			await toCache(key, { photo });
 			return photo;
 		} catch (e) {
@@ -103,7 +105,7 @@ export function createPlaceInfo({ fetch: fetchFn, cache = memoryCache(), now = D
 let shared = null;
 export function sharedPlaceInfo() {
 	return shared ??= createPlaceInfo({
-		fetch: (url) => fetch(url, { signal: AbortSignal.timeout(15_000) }),
+		fetch: (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(15_000) }),
 		cache: idbCache('fpvtp-places'),
 	});
 }

@@ -19,6 +19,7 @@ const ENTITY = { entities: { Q188856: {
 const COMMONS = { query: { pages: { 38044545: { imageinfo: [{
 	thumburl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/58/Panth%C3%A9on%2C_Paris_25_March_2012.jpg/500px-Panth%C3%A9on%2C_Paris_25_March_2012.jpg',
 	thumbwidth: 480, thumbheight: 326,
+	descriptionurl: 'https://commons.wikimedia.org/wiki/File:Panth%C3%A9on,_Paris_25_March_2012.jpg',
 	extmetadata: {
 		Artist: { value: '<a href="//commons.wikimedia.org/wiki/User:Trizek">Camille G&eacute;vaudan</a>' },
 		LicenseShortName: { value: 'CC BY-SA 3.0' },
@@ -79,12 +80,13 @@ t('commonsUrl: the file title, the width, the two metadata fields, CORS', () => 
 	assert.equal(u.searchParams.get('origin'), '*');
 });
 
-t('parseCommons: thumb URL, size, artist stripped of HTML, licence', () => {
+t('parseCommons: thumb URL, size, artist stripped of HTML, licence, Commons page link', () => {
 	assert.deepEqual(parseCommons(COMMONS), {
 		url: COMMONS.query.pages[38044545].imageinfo[0].thumburl,
 		w: 480, h: 326,
 		artist: 'Camille Gévaudan',
 		license: 'CC BY-SA 3.0',
+		page: 'https://commons.wikimedia.org/wiki/File:Panth%C3%A9on,_Paris_25_March_2012.jpg',
 	});
 	assert.equal(parseCommons(null), null);
 	assert.equal(parseCommons({ query: { pages: { '-1': { missing: '' } } } }), null);
@@ -116,6 +118,22 @@ t('parseCommons: hex entities are decoded', () => {
 	const result = parseCommons(bad);
 	assert.ok(result);
 	assert.equal(result.artist, 'test A hex');
+});
+
+t('parseCommons: page field is null if descriptionurl is missing', () => {
+	const noDesc = structuredClone(COMMONS);
+	delete noDesc.query.pages[38044545].imageinfo[0].descriptionurl;
+	const result = parseCommons(noDesc);
+	assert.ok(result);
+	assert.equal(result.page, null);
+});
+
+t('parseCommons: page field is null if descriptionurl does not start with the Commons URL', () => {
+	const badUrl = structuredClone(COMMONS);
+	badUrl.query.pages[38044545].imageinfo[0].descriptionurl = 'https://evil.example/wiki/File:test.jpg';
+	const result = parseCommons(badUrl);
+	assert.ok(result);
+	assert.equal(result.page, null);
 });
 
 console.log(`wikidata-model: ${n} ok`);

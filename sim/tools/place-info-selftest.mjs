@@ -26,6 +26,7 @@ const ENTITY_NO_IMAGE = { entities: { Q188856: {
 const COMMONS_OK = { query: { pages: { 38044545: { imageinfo: [{
 	thumburl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/58/Panth%C3%A9on%2C_Paris_25_March_2012.jpg/500px-Panth%C3%A9on%2C_Paris_25_March_2012.jpg',
 	thumbwidth: 480, thumbheight: 326,
+	descriptionurl: 'https://commons.wikimedia.org/wiki/File:Panth%C3%A9on,_Paris_25_March_2012.jpg',
 	extmetadata: {
 		Artist: { value: '<a href="//commons.wikimedia.org/wiki/User:Trizek">Camille G&eacute;vaudan</a>' },
 		LicenseShortName: { value: 'CC BY-SA 3.0' },
@@ -35,16 +36,18 @@ const COMMONS_OK = { query: { pages: { 38044545: { imageinfo: [{
 const EXPECTED_PHOTO = {
 	url: COMMONS_OK.query.pages[38044545].imageinfo[0].thumburl,
 	w: 480, h: 326, artist: 'Camille Gévaudan', license: 'CC BY-SA 3.0',
+	page: 'https://commons.wikimedia.org/wiki/File:Panth%C3%A9on,_Paris_25_March_2012.jpg',
 };
 
 // A fetch that answers by the URL's origin: wikidata.org for the entity,
 // commons.wikimedia.org for the photo. `respond` maps origin -> a response
-// (or a function of the call count for that origin), and records every call.
+// (or a function of the call count for that origin), and records every call
+// with its headers.
 function fakeFetch(respond) {
 	const calls = [];
 	const counts = new Map();
-	const fn = async (url) => {
-		calls.push(url);
+	const fn = async (url, opts) => {
+		calls.push({ url, headers: opts?.headers ?? {} });
 		const origin = new URL(url).origin;
 		const i = (counts.get(origin) ?? 0) + 1;
 		counts.set(origin, i);
@@ -63,12 +66,12 @@ const quiet = async (fn) => { const w = console.warn; console.warn = () => {}; t
 
 await t('constants', () => {
 	assert.equal(PLACE_TTL_MS, 30 * 24 * 3600 * 1000);
-	assert.equal(PLACE_VERSION, 2);
+	assert.equal(PLACE_VERSION, 3);
 	assert.equal(RETRY_MS, 5 * 60 * 1000);
 	assert.equal(RETRY_429_MS, 30 * 60 * 1000);
 });
 
-await t('two concurrent info() for the same qid: one entity fetch, one Commons fetch, same object', async () => {
+await t('two concurrent info() for the same qid: one entity fetch, one Commons fetch, same object, Api-User-Agent header', async () => {
 	const f = fakeFetch({
 		'https://www.wikidata.org': ok(ENTITY_OK),
 		'https://commons.wikimedia.org': ok(COMMONS_OK),
@@ -80,8 +83,12 @@ await t('two concurrent info() for the same qid: one entity fetch, one Commons f
 		description: 'mausoleum in Paris for the most distinguished French people',
 		year: 1758, heightM: 83, photo: EXPECTED_PHOTO,
 	});
-	assert.equal(f.calls.filter((u) => u.startsWith('https://www.wikidata.org')).length, 1);
-	assert.equal(f.calls.filter((u) => u.startsWith('https://commons.wikimedia.org')).length, 1);
+	assert.equal(f.calls.filter((c) => c.url.startsWith('https://www.wikidata.org')).length, 1);
+	assert.equal(f.calls.filter((c) => c.url.startsWith('https://commons.wikimedia.org')).length, 1);
+	const wdCall = f.calls.find((c) => c.url.startsWith('https://www.wikidata.org'));
+	const commonCall = f.calls.find((c) => c.url.startsWith('https://commons.wikimedia.org'));
+	assert.ok(wdCall.headers['Api-User-Agent']?.startsWith('FPVThePlanet/'));
+	assert.ok(commonCall.headers['Api-User-Agent']?.startsWith('FPVThePlanet/'));
 });
 
 await t('a second info() after resolution is a cache hit: no fetch', async () => {
@@ -94,7 +101,7 @@ await t('a second info() after resolution is a cache hit: no fetch', async () =>
 	await pi.info('wd:Q188856');
 	const before = f.calls.length;
 	const again = await pi.info('wd:Q188856');
-	assert.equal(f.calls.length, before);
+	assert.equal(f.calls.length, before, 'no new fetch');
 	assert.deepEqual(again, {
 		description: 'mausoleum in Paris for the most distinguished French people',
 		year: 1758, heightM: 83, photo: EXPECTED_PHOTO,
@@ -166,7 +173,7 @@ await t('entity OK, Commons throws: photo null, entity cached, Commons retried a
 	const third = await quiet(() => pi.info('wd:Q188856'));
 	assert.equal(commonsCalls, 2, 'Commons retried after the window');
 	assert.deepEqual(third.photo, EXPECTED_PHOTO);
-	assert.equal(f.calls.filter((u) => u.startsWith('https://www.wikidata.org')).length, 1, 'the entity is never refetched');
+	assert.equal(f.calls.filter((c) => c.url.startsWith('https://www.wikidata.org')).length, 1, 'the entity is never refetched');
 });
 
 await t('entity without P18: photo null, no Commons fetch, cached', async () => {
@@ -181,7 +188,7 @@ await t('entity without P18: photo null, no Commons fetch, cached', async () => 
 		description: 'mausoleum in Paris for the most distinguished French people',
 		year: null, heightM: null, photo: null,
 	});
-	assert.equal(f.calls.filter((u) => u.startsWith('https://commons.wikimedia.org')).length, 0);
+	assert.equal(f.calls.filter((c) => c.url.startsWith('https://commons.wikimedia.org')).length, 0);
 	assert.ok(await cache.get('e:Q188856'));
 
 	const before = f.calls.length;
@@ -200,7 +207,7 @@ await t('a stale v in the cache is a miss: refetched', async () => {
 	const pi = createPlaceInfo({ fetch: f.fn, cache });
 	const info = await pi.info('wd:Q188856');
 	assert.equal(info.description, 'mausoleum in Paris for the most distinguished French people');
-	assert.equal(f.calls.filter((u) => u.startsWith('https://www.wikidata.org')).length, 1);
+	assert.equal(f.calls.filter((c) => c.url.startsWith('https://www.wikidata.org')).length, 1);
 });
 
 await t('an expired cache entry is a miss: refetched', async () => {
