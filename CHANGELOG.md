@@ -133,11 +133,10 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   Le niveau II fait la forme courte (tolérance 5 m ; un demi-tour, un seul
   passage sous le pont, 60 m de plongée), le niveau III la forme complète
   (tolérance 3,5 m ; un tour et demi — l'orbite monte de 8 m par tour pour ne
-  jamais se recouvrir —, un aller sous le pont et un retour par-dessus, 160 m
-  de plongée). On entre par une petite porte
-  carrée au début ; le fil est jaune devant, vert derrière. Le quitter met la
-  progression en pause ; au-delà de 10 s, la partie volée refroidit et il faut
-  repasser la porte. La caméra regarde où elle veut. Pendant le vol, le jeu
+  jamais se recouvrir —, sous le pont, par-dessus, puis de nouveau dessous,
+  160 m de plongée). On entre par une petite porte carrée au début ; le fil
+  est jaune devant, vert derrière. Le quitter met la progression en pause ;
+  au-delà de 10 s, la partie volée refroidit et il faut repasser la porte. La caméra regarde où elle veut. Pendant le vol, le jeu
   garde la meilleure vue du lieu — la plus centrée, en ligne de vue — et c'est
   elle qui part au réseau, sans le fil. Le cartouche lit
   `TRACE · SPIRAL · 42 %` (avant la porte, `TRACE · SPIRAL · ENTER THE GATE`),
