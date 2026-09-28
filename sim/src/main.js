@@ -2282,7 +2282,7 @@ function paintTakeoffNotice() {
 // the edge chevron is on screen (an encrypted callout leaves it up), off the
 // flight, or when nothing is left.
 function computeNextSignal(p) {
-	if (MODE.bench || flightEnd.phase !== FLYING) return null;
+	if (MODE.bench || !signalsLive()) return null;
 	if (!signalCallout.chev.hidden) return null;
 	if (!signalCallout.el.hidden && calloutState !== 'encrypted') return null;
 	let best = null;
@@ -2321,6 +2321,13 @@ if (import.meta.env?.DEV) {
 	};
 }
 
+// The phase stays FLYING while a crashed drone tumbles or a dead link
+// glitches out: the verdict (TARGET LOST, LINK LOST) is on screen, and no
+// callout nor NEXT SIGNAL goes over it.
+function signalsLive() {
+	return flightEnd.phase === FLYING && !crashed && !flightEnd.out.linkDead;
+}
+
 // Per frame: anchors, capture, callout. The target objects are the ones
 // setTargets() holds, so updating their pos in place is enough.
 function updateSignals(dt, frozen) {
@@ -2328,7 +2335,7 @@ function updateSignals(dt, frozen) {
 	for (const t of signalTargets) t.pos = signalAnchors.pos(t.id);
 	_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
 	const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
-	const flying = flightEnd.phase === FLYING;
+	const flying = signalsLive();
 	const out = signalCapture.update({
 		// Disarmed, nothing is transmitting: the same gate as the manual photo.
 		dt: frozen || !flying || !controller.armed ? 0 : dt,
