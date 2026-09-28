@@ -486,7 +486,36 @@ over the obstruction (blended; the flown part never moves). If no trace can be
 laid in 3 attempts, or it needs more than 8 lifts or a lift over 60 m, that
 signal falls back to the hold-in-frame capture — a signal is never blocked.
 A trace not entered yet is dropped past 450 m. DEV: `__signals.trace()`,
-`__signals.flyTrace(speed)`, `__signals.stopFly()`.
+`__signals.flyTrace(speed)`, `__signals.stopFly()`, `__signals.threadAudio()`
+(the sound's graph: `_g.out.gain.value`, `_g.a.frequency.value`…).
+
+The feel of the thread (none of it a score or a timer to beat):
+- **Sound** (`tools/thread-audio-model.mjs`, `src/thread-audio.js`; LINK
+  family, on the interface bus, so the master volume and the limiter apply).
+  On the thread: a triangle and a sine 9 cents apart plus band-passed static,
+  level 0.05, through a lowpass; pitch 196 → 294 Hz and lowpass 500 → 2400 Hz
+  (both log) with the progress. Off it: a 40 ms cut to 0.018, lowpass 320 Hz.
+  The 2 s cool-down fades it to nothing and slides it an octave down. Entering
+  the gate: a 30 ms click of static (not on a resume). Silent while frozen
+  (pause, settings — the interface bus ignores the engine's freeze mute) or
+  disarmed; the uplink drops the follower, the tone cuts in 30 ms and
+  `TARGET_FOUND` plays alone. Built once per audio context; params move only
+  when a target changes.
+- **OSD line** (`followCue` in `tools/trace-model.mjs`, `cueText` in
+  `src/fpvtp-osd.js`), in the `NEXT SIGNAL` slot, which it takes over: off the
+  thread `THREAD 14 m ↗` — 3D distance to the nearest point of the follower's
+  25 m window (the resume point), arrow on the horizontal relative to the nose,
+  `▲`/`▼` when the vertical part is ≥ 5 m and larger than the horizontal one —
+  and `· RESET 4 s` in the last 5 s; before the gate (within 300 m horizontal)
+  or once the reset is committed, `GATE 86 m ↗`. Nothing while on the thread.
+  Rebuilt at 5 Hz, and at once when the follower's state changes.
+- **Direction ticks** (`src/trace-line.js`): up to 4 chevrons, one every 15 m
+  of the trace (a fixed grid, they don't slide) on the 60 m ahead of the gate
+  (waiting, cooling) or of the progress; the line's yellow, 2 → 3 px over the
+  same dark underlay, turned to face the camera and sized on its distance
+  (half-width = distance × 0.022, 0.3–4 m). A chevron seen end-on (within
+  ~26° of the path) or from closer than 6 m is skipped. One LineSegments2 for
+  the TraceLine's life, rewritten in place each frame.
 
 **Clearance** is the operator's standing with the network: one point per tier
 of every signal uplinked (tier I = 1, II = 2, III = 3), never spent

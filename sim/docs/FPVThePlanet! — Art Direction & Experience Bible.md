@@ -1967,8 +1967,17 @@ Quand le monde ne laisse pas la place de le poser, et seulement alors, le
 signal se garde dans le cadre.
 
 **Ce que ce n'est pas.** Pas de chrono à battre. Pas de score. Pas de fantôme.
-Pas de flèche vers la porte, pas de trajectoire conseillée, pas de voix qui
-corrige.
+Pas de flèche dans le monde vers la porte, pas de trajectoire conseillée, pas
+de voix qui corrige.
+
+**Ce qu'il dit.** L'OSD dit où est le fil, comme il dit où est le signal
+suivant : `GATE 86 m ↗` avant la porte, `THREAD 14 m ↗` hors du fil, et
+`· RESET 4 s` quand il va refroidir — une distance et un relèvement, rien sur
+la manière de voler. Le fil s'entend : c'est la famille `LINK` (§34), la
+porteuse du signal qu'on suit, discrète, qui s'ouvre avec la progression,
+retombe à un murmure hors du fil et s'éteint quand il refroidit ; un déclic
+marque la porte. Pas de mélodie, pas de fanfare : `TARGET_FOUND` reste le seul
+son de l'uplink.
 
 Le pilier 1 tient : le fil n'est pas un GPS. Il ne dit pas comment aller
 quelque part — il **est** ce qu'on intercepte, le chemin que le signal
@@ -1982,6 +1991,8 @@ en est l'unique exception, et elle est bornée :
 - jaune pour ce qui reste, vert pour ce qui est volé — les couleurs d'état,
   parce qu'elles transmettent une information (§38) ;
 - un trait fin, caché derrière ce qui le masque, vu à travers l'optique ;
+- de fins chevrons dans sa couleur, sur les 60 m qui viennent : le sens du fil,
+  pas une flèche vers lui ;
 - ni halo, ni lueur, ni brouillard ;
 - absent de toute photo : ce qui part au réseau est le lieu, pas le fil.
 

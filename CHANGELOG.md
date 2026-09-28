@@ -161,7 +161,18 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   au niveau I, pour tourner autour de l'église et non du pâté de maisons),
   même autour d'un long pont, et assez haut pour passer tout ce qui l'entoure. Le
   fil fait 3 px de près et 5 px au loin, bordé d'un liseré sombre qui le
-  détache du ciel comme de la ville. Consigné dans la Bible, §49 « Le fil ». (#185)
+  détache du ciel comme de la ville. Le fil s'entend : sur lui, une porteuse
+  discrète (un ton légèrement désaccordé et un souffle de statique) dont la
+  hauteur et le filtre s'ouvrent lentement avec la progression ; un petit
+  déclic à la porte ; hors du fil, elle retombe à un murmure, et quand il
+  refroidit elle s'éteint en descendant d'une octave. Rien en pause ni moteurs
+  coupés, et elle se tait à `UPLINKED`. Le fil se retrouve : hors de lui, la
+  ligne de `NEXT SIGNAL` devient `THREAD 14 m ↗` (le point où reprendre, flèche
+  relative au cap, ▲/▼ quand il est surtout au-dessus ou en dessous), avec
+  `· RESET 4 s` dans les cinq dernières secondes ; avant la porte, `GATE 86 m ↗`
+  dans les 300 m. Et il dit son sens : de fins chevrons jaunes tous les 15 m,
+  sur les 60 m qui suivent la porte ou la progression. Consigné dans la Bible,
+  §49 « Le fil ». (#185)
 
 ### Modifié
 

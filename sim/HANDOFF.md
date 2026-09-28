@@ -4130,3 +4130,19 @@ A 67 s sweep across the Latin Quarter at 12 m/s (dozens of tier I places)
 changed the active trace 3 times, no bounce; no probe failure; frame p50
 10 ms, p99 20 ms, worst 30 ms. Small churches in dense blocks get the 50 m
 capped orbit (their neighbours reach the landmark's height band).
+
+**The feel of the thread (sound, OSD line, direction ticks) — rules in
+`docs/manual.md`.** Selftests: thread-audio (targets, gate tick edge, graph on
+a fake context: built once, reaches the destination, silent frozen, no throw
+without / with a suspended context), trace (follower `near*`, `followCue`),
+bearing (`cueText`), trace-line (tick arcs, chevrons, skipped end-on, in-place
+rewrite), trace-wiring. Verified in Chromium (`?live=` Paris, dev operator
+LOT4): `GATE 80 m ↑` / `GATE 44 m ↑` before the gate, `THREAD 20 m ↖` off it,
+`· RESET 5 s` → `1 s`, then `GATE 52 m ←` once cooling; the chevrons read at
+the gate and ahead, pointing the way (`shots/feel-*.png` in the lot-4 ledger).
+Audio graph sampled every 100–500 ms: gain swells to 0.05, pitch 196 → 292 Hz
+and lowpass 500 → 2358 Hz at 99 %; off: 0.018 / 320 Hz; cool-down 0.018 → 0
+while the pitch slides to 146 Hz; paused 0, resumed 0.05; uplink 0 within
+0.1 s; crash 0; 10 nodes for a whole flight (7 + one tick).
+**NOT verified:** the sound by ear (level against the motors and the music,
+the timbre); a suspended AudioContext in the browser (selftest only).
