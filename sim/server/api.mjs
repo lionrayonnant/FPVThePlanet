@@ -490,7 +490,9 @@ const opRoutes = [
 	// whole new capture appends a new index.
 	['GET', /^\/([^/]+)\/sessions\/([^/]+)\/photos\/([^/]+)$/, async (req, res, [id, sid, rawIndex]) => {
 		if (!SESSION_ID_RE.test(sid)) return json(res, 404, { error: `no session "${sid}"` });
-		if (!/^\d+$/.test(rawIndex)) return json(res, 404, { error: `invalid photo index "${rawIndex}"` });
+		// Canonical digits only: one URL per photo (no `00`), and no index
+		// long enough to lose precision in Number().
+		if (!/^(0|[1-9]\d{0,5})$/.test(rawIndex)) return json(res, 404, { error: `invalid photo index "${rawIndex}"` });
 		const i = Number(rawIndex);
 
 		let state;

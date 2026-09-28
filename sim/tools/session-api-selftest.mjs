@@ -219,6 +219,10 @@ try {
 
 	const photoOutOfRange = await fetch(`${base}/__operator/${id}/sessions/${sid1}/photos/9`);
 	check('GET .../photos/:i: out-of-range index -> 404', photoOutOfRange.status === 404);
+	for (const bad of ['00', '01', '99999999999999999999']) {
+		const r = await fetch(`${base}/__operator/${id}/sessions/${sid1}/photos/${bad}`);
+		check(`GET .../photos/:i: non-canonical index "${bad}" -> 404`, r.status === 404, `${r.status}`);
+	}
 
 	const photoOp2 = await call('POST', '/__operator', { name: 'apiphoto2' });
 	const photoOtherId = photoOp2.body.operator.id;
