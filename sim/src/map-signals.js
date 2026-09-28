@@ -25,7 +25,7 @@ const LOCKED_R = 2.5;
 const HALO = [0, 14, 18, 23];   // by tier
 const LABEL_DX = 11;
 const LABEL_H = 14;     // 11 px text + a little air
-// One light per cell of this size at most: a city seen from zoom 10 would
+// One light per cell of this size at most: a city seen from zoom 13 would
 // otherwise be a single blinding blob.
 const CELL_PX = 26;
 

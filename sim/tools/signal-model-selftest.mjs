@@ -15,7 +15,7 @@ const EIFFEL = { lat: 48.8584, lon: 2.2945 };
 
 t('constants from the plan, verbatim', () => {
 	assert.equal(TILE_Z, 12);
-	assert.equal(MIN_QUERY_ZOOM, 10);
+	assert.equal(MIN_QUERY_ZOOM, 13);
 	assert.equal(MAX_TILES_PER_VIEW, 16);
 	assert.equal(MODEL_VERSION, 4);
 });
@@ -53,10 +53,10 @@ t('tilesForView: a small view over Paris is one or a few tiles, deduped', () => 
 });
 
 t('tilesForView: a wide view asks for the tiles nearest its centre, centre first, capped', () => {
-	// Île-de-France at zoom 10: dozens of z12 tiles in view. The scanner must
+	// Île-de-France at zoom 13: dozens of z12 tiles in view. The scanner must
 	// still scan — the centre of the view, never the whole of it.
 	const v = { s: 48.0, w: 1.0, n: 50.0, e: 4.0 };
-	const keys = tilesForView(v, 10);
+	const keys = tilesForView(v, 13);
 	assert.equal(keys.length, MAX_TILES_PER_VIEW);
 	assert.equal(new Set(keys).size, keys.length);
 	const c = tileOf(49.0, 2.5);
@@ -71,7 +71,7 @@ t('tilesForView: every returned tile lies in the view', () => {
 	// A thin horizontal strip: the nearest tiles must not spill above or below.
 	const v = { s: 48.85, w: 1.0, n: 48.86, e: 4.0 };
 	const lo = tileOf(48.86, 1.0).y, hi = tileOf(48.85, 4.0).y;
-	for (const k of tilesForView(v, 10)) {
+	for (const k of tilesForView(v, 13)) {
 		const y = Number(k.split('/')[2]);
 		assert.ok(y >= lo && y <= hi, k);
 	}
