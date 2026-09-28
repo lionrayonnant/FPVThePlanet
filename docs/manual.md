@@ -446,9 +446,11 @@ A bridge's deck is found on a 5 m grid of down rays around the signal (a
 raised band over lower ground on both sides), then verified with rays: an
 underside over a gap of at least 6 m, and an open pass under it. None found
 from afar (LIVE has not refined the deck yet): probed once more from 150 m,
-then an orbit. For a large place (the landmark still stands at the grid's
-80 m ring) the orbit's probe grid extends to 140 m, so a wide orbit does not
-fly blind into what stands beyond it.
+then an orbit. An orbit is the landmark's outline + 12 m, never wider than
+50 m (a long bridge or quay would otherwise read as a huge outline): it may
+then cross a deck or a quay, and its altitude clears everything probed within
+its radius + 10 m by 6 m. A retry once capped is 6 m higher. A dive's probe
+grid extends to 140 m (outer rings), for the reach of its descent.
 
 The spiral wraps the whole structure, from 15 m above the ground to 10 m above
 the top: its radius at each height is the landmark's radius there + 12 m
@@ -460,8 +462,9 @@ Tolerance: 12 m (tier II), 9 m (tier III). Enter through the small square
 gate at the start; progress then follows the drone along the line, never more
 than 25 m ahead. Off the line, progress pauses; after 10 s off, the flown part
 fades (2 s) and progress resets to the gate. The camera may look anywhere. The
-line is a ~2 px hairline seen through the lens, depth-tested, no fog, no glow:
-yellow ahead, green flown; hidden in every photo. The callout reads
+line is 3 px near → 5 px far (screen px, never under 1.5 sensor px) over a
+dark underlay 1 px wider each side (`--black` at 0.6), seen through the lens,
+depth-tested, no fog, no glow: yellow ahead, green flown; hidden in every photo. The callout reads
 `TRACE · SPIRAL · 42 %` (`ENTER THE GATE` before the gate, `TRACE · STANDBY`
 while it is not laid yet); at 100 % it is `UPLINKED`. With the landmark out of
 the frame, the edge chevron keeps that headline instead of `SIGNAL 35 M`. The stored entry carries
