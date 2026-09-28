@@ -54,6 +54,15 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   proche, flèche relative au cap, masquée pendant un cartouche. Un signal
   au-dessus de la clearance reste visible mais chiffré, `ENCRYPTED · CLEARANCE
   2`, et ne se capture pas. (#185)
+- **La fiche d'un lieu capturé.** Après `UPLINKED`, une fiche s'affiche
+  quelques secondes, dans la grammaire du terminal : cadre filaire à angles
+  droits, le voile de l'OSD, `[+] UPLINKED` et la distance, un filet vert qui
+  raccourcit (le minuteur), la vraie photo du lieu en grand (Wikidata,
+  Wikimedia Commons), le nom, la description, des lignes clé/valeur, l'image
+  interceptée en petit, puis le crédit — auteur, licence, et un lien vers la
+  page du fichier sur Commons. Les requêtes Wikimedia portent un
+  `Api-User-Agent` nommant le jeu et sa version. En fin de vol, l'écran
+  récapitule les lieux transmis par la machine. (#185)
 - **La CLEARANCE : ce qu'on transmet ouvre des machines.** Chaque signal
   transmis vaut un point par niveau (I = 1, II = 2, III = 3), jamais dépensé.
   Quatre marches : CLEARANCE 0 dès le départ (5" FREESTYLE, signaux de niveau
@@ -121,14 +130,6 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   le nombre de classes ouvertes (`CLEARANCE 0 · 1 OF 7 MACHINE CLASSES`). Le
   client envoie sa clearance à l'ouverture de la session et le serveur tire
   dans le même réservoir ; jeu solo, il la prend telle quelle. (#185)
-- **La fiche `UPLINKED` redessinée dans la grammaire du terminal.** Cadre
-  filaire à angles droits, le voile de l'OSD, `[+] UPLINKED` et la distance,
-  un filet vert qui raccourcit (le minuteur), la vraie photo en grand, le nom,
-  la description, des lignes clé/valeur à la place des pictogrammes, l'image
-  interceptée en petit, puis le crédit, qui renvoie désormais à la page du
-  fichier sur Commons. Les requêtes Wikimedia portent un `Api-User-Agent`
-  nommant le jeu et sa version. En fin de vol, l'écran récapitule les lieux
-  transmis. (#185)
 - **Le briefing a un cinquième écran, `CLEARANCE`** : le hangar, et ce qui le
   fait avancer. Un opérateur déjà briefé le voit une fois, à son premier vol
   FIELD après la mise à jour. La ligne de `DATA` au menu devient `flight
