@@ -48,6 +48,11 @@ export const DECK_CANDIDATES = 8;    // verified with rays, best first
 export const DECK_SITES = 3;         // verified sites kept: one per trace attempt
 export const DECK_SAME_M = 12;       // two candidates closer than this, on an angle within DECK_SAME_DEG, are one
 export const DECK_SAME_DEG = 45;
+// The ranking reads the deck grid (no rays) but is CPU work: spread over
+// frames, whole grid points per step() until this many grid samples are spent.
+// One point costs at most DECK_ANGLES × (2 edges + 2 runs) samples, so a step
+// stays under RANK_SAMPLES_PER_STEP + RANK_POINT_MAX_SAMPLES.
+export const RANK_SAMPLES_PER_STEP = 1000;
 export const UNDER_START_M = 2;      // rayUp starts this far above the lower surface
 // Water (or road) to deck underside. Real city bridges measure 6–9 m in the
 // mesh (Mirabeau 6.0): 3 m either side of a line centred in the gap.
@@ -68,6 +73,8 @@ const TAU = 2 * Math.PI;
 const GRID_N = 1 + (RINGS_M.length - 1) * ANGLES; // ring 0 is a single point
 const OUTER_N = OUTER_RINGS_M.length * OUTER_ANGLES;
 const DECK_N = 2 * DECK_HALF_M / DECK_GRID_M + 1;   // grid points per side
+export const RANK_POINT_MAX_SAMPLES = DECK_ANGLES
+	* (2 * (DECK_ACROSS_M / DECK_GRID_M + 1) + 2 * (DECK_ALONG_M / DECK_GRID_M));
 
 // Grid point j → ring index, angle index (ring 0 has one point).
 function ringOf(j) { return j === 0 ? 0 : 1 + Math.floor((j - 1) / ANGLES); }
@@ -79,18 +86,21 @@ export class TraceProbe {
 		this._up = rayUp;
 		this._obs = obstructionBetween;
 		this.raysPerFrame = raysPerFrame;
-		this._phase = 'idle';           // idle | grid | outer | deck | axis | done
+		this._phase = 'idle';           // idle | grid | outer | deck | rank | axis | done
 		this._profile = null;
 		this._deckH = new Float32Array(DECK_N * DECK_N);
 		// Deck candidates, best first: preallocated, reused by every probe.
 		this._cands = Array.from({ length: DECK_CANDIDATES }, () => ({ i: 0, j: 0, k: 0, top: 0, low: 0, score: -Infinity }));
 		this._nCands = 0;
+		this._rankJ = 0;                // next deck-grid point to rank
+		this._samples = 0;              // deck-grid samples read (_deckAt)
+		this.lastStepSamples = 0;       // of the last step(): the selftest's work bound
 		// Validation job.
 		this._vTrace = null;
 		this._vCursor = 0;
 	}
 
-	get busy() { return this._phase === 'grid' || this._phase === 'outer' || this._phase === 'deck' || this._phase === 'axis'; }
+	get busy() { const f = this._phase; return f === 'grid' || f === 'outer' || f === 'deck' || f === 'rank' || f === 'axis'; }
 	get profile() { return this._phase === 'done' ? this._profile : null; }
 
 	// axis: also look for a bridge deck (BRIDGE / ARCH kinds). outer: probe
@@ -118,6 +128,7 @@ export class TraceProbe {
 		if (this._phase === 'done') return this._profile;
 		if (!this.busy) return null;
 		const a = this._anchor;
+		const s0 = this._samples;
 		const y0 = a.y + PROBE_ABOVE_M;
 		while (budget > 0 && this._phase === 'grid') {
 			const j = this._j;
@@ -140,6 +151,9 @@ export class TraceProbe {
 			if (h !== null && Number.isFinite(h)) ring.heights[k] = h;
 			if (++this._j >= OUTER_N) this._next();
 		}
+		// Before the deck rays: the step that casts the last of them does not
+		// rank too. No rays spent.
+		if (this._phase === 'rank') this._rankSome(s0 + RANK_SAMPLES_PER_STEP);
 		while (budget > 0 && this._phase === 'deck') {
 			const j = this._j;
 			const x = a.x - DECK_HALF_M + (j % DECK_N) * DECK_GRID_M;
@@ -147,11 +161,12 @@ export class TraceProbe {
 			const h = this._down(x, y0, z, PROBE_DEPTH_M);
 			budget--; this._rays++;
 			this._deckH[j] = h === null || !Number.isFinite(h) ? NaN : h;
-			if (++this._j >= DECK_N * DECK_N) this._rankDecks();
+			if (++this._j >= DECK_N * DECK_N) { this._nCands = 0; this._rankJ = 0; this._phase = 'rank'; }
 		}
 		while (budget > 0 && this._phase === 'axis') {
 			budget -= this._axisRay();
 		}
+		this.lastStepSamples = this._samples - s0;
 		if (this._phase !== 'done') return null;
 		this._profile.rays = this._rays;
 		return this._profile;
@@ -202,6 +217,7 @@ export class TraceProbe {
 	// outside it or next to a miss.
 	_deckAt(x, z) {
 		const fx = (x + DECK_HALF_M) / DECK_GRID_M, fz = (z + DECK_HALF_M) / DECK_GRID_M;
+		this._samples++;
 		if (!(fx >= 0 && fz >= 0 && fx <= DECK_N - 1 && fz <= DECK_N - 1)) return NaN;
 		const i = Math.min(DECK_N - 2, Math.floor(fx)), j = Math.min(DECK_N - 2, Math.floor(fz));
 		const u = fx - i, v = fz - j, g = this._deckH, o = j * DECK_N + i;
@@ -210,33 +226,35 @@ export class TraceProbe {
 
 	// Every grid point within DECK_CENTRE_M × every axis angle, scored as a
 	// deck; the best DECK_CANDIDATES kept (near duplicates merged). No rays.
-	_rankDecks() {
+	// Whole points, from this._rankJ, until `until` samples are reached; the
+	// candidate list carries over to the next step.
+	_rankSome(until) {
 		const g = this._deckH;
-		this._nCands = 0;
-		for (let j = 0; j < DECK_N; j++) {
-			for (let i = 0; i < DECK_N; i++) {
-				const cx = -DECK_HALF_M + i * DECK_GRID_M, cz = -DECK_HALF_M + j * DECK_GRID_M;
-				const dist = Math.hypot(cx, cz);
-				if (dist > DECK_CENTRE_M) continue;
-				const D = g[j * DECK_N + i];
-				if (!Number.isFinite(D)) continue;
-				for (let k = 0; k < DECK_ANGLES; k++) {
-					const th = (k / DECK_ANGLES) * Math.PI, ux = Math.cos(th), uz = Math.sin(th);
-					const run = this._deckRun(cx, cz, ux, uz, D) + this._deckRun(cx, cz, -ux, -uz, D);
-					if (run < DECK_MIN_RUN_M) continue;
-					const sa = this._deckEdge(cx, cz, -uz, ux, D);
-					if (sa === null) continue;
-					const sDist = this._edgeS, lowA = this._edgeLow;
-					const sb = this._deckEdge(cx, cz, uz, -ux, D);
-					if (sb === null) continue;
-					const lowB = this._edgeLow;
-					if (Math.abs(lowA - lowB) > DECK_SIDES_M) continue;
-					// Long, narrow, centred on the deck, near the anchor.
-					const score = Math.min(run, 2 * DECK_ALONG_M) - 0.5 * (sDist + this._edgeS) - 0.5 * Math.abs(sDist - this._edgeS) - 0.25 * dist;
-					this._keep(i, j, k, D, Math.min(lowA, lowB), score);
-				}
+		while (this._rankJ < DECK_N * DECK_N && this._samples < until) {
+			const p = this._rankJ++;
+			const i = p % DECK_N, j = (p - i) / DECK_N;
+			const cx = -DECK_HALF_M + i * DECK_GRID_M, cz = -DECK_HALF_M + j * DECK_GRID_M;
+			const dist = Math.hypot(cx, cz);
+			if (dist > DECK_CENTRE_M) continue;
+			const D = g[p];
+			if (!Number.isFinite(D)) continue;
+			for (let k = 0; k < DECK_ANGLES; k++) {
+				const th = (k / DECK_ANGLES) * Math.PI, ux = Math.cos(th), uz = Math.sin(th);
+				// The edges first: off a deck (flat ground, a roof) one of them
+				// fails within a few samples, where the runs read up to 24.
+				if (this._deckEdge(cx, cz, -uz, ux, D) === null) continue;
+				const sDist = this._edgeS, lowA = this._edgeLow;
+				if (this._deckEdge(cx, cz, uz, -ux, D) === null) continue;
+				const sB = this._edgeS, lowB = this._edgeLow;
+				if (Math.abs(lowA - lowB) > DECK_SIDES_M) continue;
+				const run = this._deckRun(cx, cz, ux, uz, D) + this._deckRun(cx, cz, -ux, -uz, D);
+				if (run < DECK_MIN_RUN_M) continue;
+				// Long, narrow, centred on the deck, near the anchor.
+				const score = Math.min(run, 2 * DECK_ALONG_M) - 0.5 * (sDist + sB) - 0.5 * Math.abs(sDist - sB) - 0.25 * dist;
+				this._keep(i, j, k, D, Math.min(lowA, lowB), score);
 			}
 		}
+		if (this._rankJ < DECK_N * DECK_N) return;
 		this._cand = 0;
 		this._axStep = 0;
 		this._phase = this._nCands ? 'axis' : 'done';

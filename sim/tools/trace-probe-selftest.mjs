@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
 	TraceProbe, RINGS_M, ANGLES, OUTER_RINGS_M, OUTER_ANGLES, DECK_CANDIDATES, DECK_SITES, VALIDATE_CLEAR, VALIDATE_PENDING, LIFT_BLEND_M,
+	RANK_SAMPLES_PER_STEP, RANK_POINT_MAX_SAMPLES,
 	liftTrace, liftStart, liftBlend,
 } from '../src/trace-probe.js';
 import { buildTrace } from './trace-model.mjs';
@@ -83,19 +84,25 @@ const building = () => new World({ boxes: [box(-15, 15, -15, 15, 0, 40)] });
 const bridge = (extra = []) => new World({ boxes: [box(-150, 150, -5, 5, 12, 14), ...extra] });
 const peak = () => new World({ cones: [{ x: 0, z: 0, R: 150, base: 0, apex: 200 }] });
 
-// Runs a probe to completion; checks no call exceeds the budget.
+// Runs a probe to completion; checks no call exceeds the ray budget nor the
+// deck-ranking work bound (grid samples, not wall time).
 function probe(world, anchor, { axis = false, outer = false, budget = 24 } = {}) {
 	const p = new TraceProbe({ ...world, groundBelow: world.groundBelow, rayUp: world.rayUp, obstructionBetween: world.obstructionBetween, raysPerFrame: budget });
 	p.start(anchor, { axis, outer });
-	let profile = null, frames = 0;
+	let profile = null, frames = 0, rankSteps = 0, maxSamples = 0;
 	while (!profile && frames < 5000) {
 		const before = world.total();
+		const ranking = p._phase === 'rank';
 		profile = p.step();
 		assert.ok(world.total() - before <= budget, `frame ${frames}: ${world.total() - before} rays > ${budget}`);
+		assert.ok(p.lastStepSamples <= RANK_SAMPLES_PER_STEP + RANK_POINT_MAX_SAMPLES,
+			`frame ${frames}: ${p.lastStepSamples} grid samples`);
+		if (ranking) rankSteps++;
+		maxSamples = Math.max(maxSamples, p.lastStepSamples);
 		frames++;
 	}
 	assert.ok(profile, 'the probe never completed');
-	return { profile, frames, probe: p };
+	return { profile, frames, rankSteps, maxSamples, probe: p };
 }
 
 function firstBlocked(world, trace, from = 0) {
@@ -272,14 +279,34 @@ t('window edge: misses read NaN; a few are fine, too many flag the profile parti
 t('budget: every step() stays within raysPerFrame, the axis rays included', () => {
 	for (const budget of [1, 5, 10, 24, 40]) {
 		const w = bridge();
-		const { frames } = probe(w, BR_ANCHOR, { axis: true, budget });
-		assert.equal(frames, Math.ceil(w.total() / budget), `budget ${budget}: ${frames} frames for ${w.total()} rays`);
+		const { frames, rankSteps } = probe(w, BR_ANCHOR, { axis: true, budget });
+		// Rays packed into full frames, plus the ranking's own; its last step
+		// casts the first axis rays, and the deck grid's last step may end with
+		// budget left (the ranking starts on the next): ±1.
+		const min = Math.ceil(w.total() / budget) + rankSteps - 1;
+		assert.ok(frames >= min && frames <= min + 1, `budget ${budget}: ${frames} frames for ${w.total()} rays + ${rankSteps} ranking`);
 	}
 	const w = bridge();
 	const { probe: p } = probe(w, BR_ANCHOR, { axis: true });
 	const before = w.total();
 	p.step(); p.step();
 	assert.equal(w.total(), before, 'a finished probe casts nothing more');
+});
+
+t('deck ranking: spread over frames, no step reads more than the per-step sample bound (flat ground, the worst case)', () => {
+	// Flat ground scores nothing, but every point × angle is read: the most
+	// ranking work. Measured in node before the split: 5.3 ms in one frame.
+	const w = new World();
+	const { profile, rankSteps, maxSamples, probe: p } = probe(w, { x: 0, y: 3, z: 0 }, { axis: true });
+	assert.equal(profile.axis, undefined, 'no deck on flat ground');
+	assert.ok(rankSteps >= 5, `${rankSteps} ranking steps`);
+	assert.ok(maxSamples <= RANK_SAMPLES_PER_STEP + RANK_POINT_MAX_SAMPLES, `${maxSamples} samples in one step`);
+	// Off a deck the edge checks go first and fail within 8 samples, so the
+	// runs are never read: at most 2 × 8 per point × angle.
+	assert.ok(p._samples <= 25 * 25 * 24 * 16, `${p._samples} samples in all`);
+	// And a bridge ranked in steps finds the same axis.
+	const { profile: b, rankSteps: rb } = probe(bridge(), BR_ANCHOR, { axis: true });
+	assert.ok(rb >= 2 && b.axis, `bridge: ${rb} ranking steps, axis ${!!b.axis}`);
 });
 
 const orbitOn = (world) => {
