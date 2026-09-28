@@ -231,6 +231,8 @@ function buildOrbit(ctx) {
 	// Never past the probed grid: beyond it the altitude would be blind to
 	// what stands there (a bridge's riverbank). src/trace-probe.js adds outer
 	// rings when the landmark reaches the grid's edge.
+	// Once R is capped there, the attempt's radius step is a no-op: retries
+	// then differ by altitude (ALT_STEP_M) alone.
 	const edge = profile.rings[profile.rings.length - 1].r;
 	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, edge);
 	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxAtRadius(profile, anchor, R) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
@@ -406,7 +408,8 @@ function buildDive(ctx) {
 	const drop = Math.max(0, Math.min(yStart - (profile.ground + clr), H, DIVE_MAX_LENGTH_M / Math.SQRT2));
 	const yEnd = yStart - drop;
 	const L = Math.min(DIVE_MAX_LENGTH_M, Math.max(DIVE_LENGTH_M[tier], drop * Math.SQRT2));
-	const D = Math.min(H, Math.max(Math.sqrt(Math.max(L * L - drop * drop, 0)), drop, Math.min(H, 10)));
+	// L ≥ drop·√2, so the horizontal run is already ≥ drop: ≤ 45°.
+	const D = Math.min(H, Math.max(Math.sqrt(Math.max(L * L - drop * drop, 0)), Math.min(H, 10)));
 	const raw = [];
 	let len = 0, px = Sx, py = yStart, pz = Sz;
 	const steps = Math.max(1, Math.ceil(H));
