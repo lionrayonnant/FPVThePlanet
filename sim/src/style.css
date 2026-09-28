@@ -361,13 +361,15 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal .fo-signal-lead line { stroke: var(--dim); stroke-width: 1; }
 #fo-signal .fo-signal-lead rect { fill: none; stroke: var(--dim); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transform: rotate(45deg); }
 #fo-signal .fo-signal-box {
-	position: absolute; min-width: 230px; max-width: 320px;
+	position: absolute; min-width: 230px; max-width: 400px;
 	padding: var(--space-1) var(--space-2);
 	background: var(--scrim-soft); border: 1px solid var(--rule-strong);
 	font: var(--fs-data) / 1.5 var(--font-ui); letter-spacing: .06em; color: var(--ink);
 }
 #fo-signal .hd { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 500; letter-spacing: var(--track-ui); }
-#fo-signal .hd .dist { color: var(--dim); }
+/* The headline never wraps (TRACE · ORBIT · ENTER THE GATE fits in 400px); nor does the distance. */
+#fo-signal .hd > span:first-child { white-space: nowrap; }
+#fo-signal .hd .dist { color: var(--dim); flex: none; white-space: nowrap; }
 #fo-signal .gauge { display: flex; gap: var(--space-0); margin-block: var(--space-1); }
 #fo-signal .gauge i { flex: 1; height: 6px; background: var(--grey); }
 /* A long value (a scrambled name, a long landmark) wraps in its own column,
@@ -380,6 +382,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal[data-tone="orange"] .hd span:first-child { color: var(--orange); }
 #fo-signal[data-tone="orange"] .gauge i.on { background: var(--orange); }
 #fo-signal[data-tone="orange"] .fo-signal-lead line, #fo-signal[data-tone="orange"] .fo-signal-lead rect { stroke: var(--orange); }
+/* A trace in the world (lot 4): the callout takes the trace's yellow. */
+#fo-signal[data-tone="yellow"] .fo-signal-box { border-color: var(--yellow); }
+#fo-signal[data-tone="yellow"] .hd span:first-child { color: var(--yellow); }
+#fo-signal[data-tone="yellow"] .gauge i.on { background: var(--yellow); }
+#fo-signal[data-tone="yellow"] .fo-signal-lead line, #fo-signal[data-tone="yellow"] .fo-signal-lead rect { stroke: var(--yellow); }
 #fo-signal[data-tone="green"] .fo-signal-box { border-color: var(--green); }
 #fo-signal[data-tone="green"] .hd span:first-child { color: var(--green); }
 #fo-signal[data-tone="green"] .gauge i.on { background: var(--green); }
@@ -388,6 +395,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .fo-signal-chev .arrow { display: inline-block; transform-origin: center; }
 .fo-signal-chev[data-tone="orange"] { color: var(--orange); }
 .fo-signal-chev[data-tone="green"] { color: var(--green); }
+.fo-signal-chev[data-tone="yellow"] { color: var(--yellow); }
 
 /* The UPLINKED card (issue #185, mockup flight-da.html), in the terminal's
    grammar: a hairline frame, square corners, the OSD's scrim and nothing else
@@ -435,6 +443,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	display: flex; gap: var(--space-2); align-items: flex-end;
 	margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule);
 	color: var(--faint); font-size: var(--fs-micro); letter-spacing: var(--track-ui-tight); line-height: 1.4;
+	white-space: nowrap;
 }
 .signal-card-icpt img { display: block; width: 70px; aspect-ratio: 16 / 9; object-fit: cover; flex: none; }
 .signal-card-credit {

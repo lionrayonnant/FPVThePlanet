@@ -24,6 +24,9 @@ import { LensDrops, dropFootprint } from './rain.js';
 // link-related lands at the end of the chain, after the vignette — the RF snow
 // is not vignetted, because the vignette happened two boxes upstream of it.
 
+// grab(): a readback not done by then is given up (a lost context never signals).
+const GRAB_TIMEOUT_MS = 2000;
+
 // Slider (0..1) -> physical coefficients. The barrel pair is normalised at the
 // corner in the shader, so k1/k2 set how much the centre magnifies, not how much
 // field of view is lost.
@@ -409,6 +412,10 @@ const LensShader = {
 			#endif
 
 			vec3 sum = vec3(0.0);
+			// Trace mark (src/trace-line.js clears alpha on its pixels), averaged
+			// over the same taps as the colour so the mark smears, jitters and
+			// tears exactly like the line it marks. Rides the G tap: no extra fetch.
+			float markSum = 0.0;
 			for (int i = 0; i < TAPS; i++) {
 				#if TAPS > 1
 					float t = (float(i) + dither) / float(TAPS) - 0.5;
@@ -431,11 +438,14 @@ const LensShader = {
 				vec2 uvR = vec2((base.x * (1.0 - split)) / uAspect, base.y * (1.0 - split)) * 0.5 + 0.5 + off;
 				vec2 uvG = uvHere + off;
 				vec2 uvB = vec2((base.x * (1.0 + split)) / uAspect, base.y * (1.0 + split)) * 0.5 + 0.5 + off;
+				vec4 tg = texture2D(tDiffuse, WRAPX(uvG));
 				sum += vec3(texture2D(tDiffuse, WRAPX(uvR)).r,
-				            texture2D(tDiffuse, WRAPX(uvG)).g,
+				            tg.g,
 				            texture2D(tDiffuse, WRAPX(uvB)).b);
+				markSum += 1.0 - tg.a;
 			}
 			vec3 c = sum / float(TAPS);
+			float mark = markSum / float(TAPS);
 
 			// ---- veiling glare --------------------------------------------------
 			// Before the beads, because the fog is in the air and the water is on
@@ -686,7 +696,14 @@ const LensShader = {
 				// Luma keeps nearly all of its detail — only chroma is starved of
 				// bandwidth. Softening luma much at all reads as a lens that is out
 				// of focus rather than as a transmission that is band-limited.
-				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15)) + (ch - chLuma), 0.0, 1.0);
+				// Except on the trace (src/trace-line.js): a 2 px line keeps its
+				// luma, but a chroma average this wide leaves it none, so the
+				// yellow read cream. The line marks itself by clearing the
+				// target's alpha (everything else leaves it at 1); marked pixels
+				// keep their own chroma. A failing link below still eats it.
+				// \`mark\` comes from the tap loop, read where \`c\` was read.
+				vec3 chromaHere = mix(ch - chLuma, c - dot(c, LUMA), mark);
+				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15 * (1.0 - mark))) + chromaHere, 0.0, 1.0);
 				// Lifted blacks and less contrast. An analog feed is never as deep
 				// as the picture that went into the transmitter.
 				composite = composite * 0.90 + 0.045;
@@ -1212,24 +1229,34 @@ export class FpvLens {
 	// rectangle change — `_time`, the drops and the OSD are not advanced), then
 	// everything is restored. `updateStyle=false` keeps the canvas's CSS size
 	// intact during the brief buffer resize.
-	async capture() {
+	//
+	// `redraw`: without a hacked target the canvas is read as it is — unless
+	// the caller changed the scene since the render (the signal trace hides
+	// its line for the photo), then this frame is redrawn first.
+	// `after()`: called once the frame is read, to undo that change; the
+	// display is then repainted so the window never shows the photo's frame.
+	//
+	// `toBlob` copies the bitmap when it is CALLED: the display is restored
+	// (size, bands, the caller's scene) before the encode is awaited, so the
+	// frame on screen is never the stretched sensor one.
+	async capture({ redraw = false, after = null } = {}) {
 		const canvas = this.renderer.domElement;
+		const encode = () => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 		if (this._camAspect == null) {
 			// No hacked target (dev path `?scene=`): no camera to portray, the
 			// window is the only meaningful resolution.
-			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-			return blob ? { blob, w: canvas.width, h: canvas.height } : null;
+			if (redraw) this.composer.render(0);
+			const pending = encode();
+			const w = canvas.width, h = canvas.height;
+			if (after) { after(); if (redraw) this.composer.render(0); }
+			const blob = await pending;
+			return blob ? { blob, w, h } : null;
 		}
 
 		const ratio = this.renderer.getPixelRatio();
 		const viewW = this._viewW ?? 1;
 		const viewH = this._viewH ?? 1;
-		// Same maths as _applySize(), minus the "fits in the window" constraint:
-		// this is the real output, not a rectangle shown inside it.
-		const viewAspect = viewW / viewH;
-		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
-		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
-		const sensorW = Math.max(1, Math.round(sensorH * this._camAspect));
+		const { sensorW, sensorH } = this._sensorPx();
 
 		this.renderer.setSize(sensorW / ratio, sensorH / ratio, false);
 		this.composer.setSize(sensorW, sensorH);
@@ -1239,14 +1266,92 @@ export class FpvLens {
 		this._u.uFrame.value.set(1, 1);
 		this.composer.render(0);
 
-		const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+		const pending = encode();
 
-		// Restore display state for the next frame — _applySize() rereads
-		// _viewW/_viewH, untouched above, so it lands exactly where the next
-		// frame would have put it anyway.
+		// Restore display state at once — _applySize() rereads _viewW/_viewH,
+		// untouched above, so it lands exactly where the next frame would have
+		// put it anyway — then repaint it: the resize cleared the canvas.
 		this.renderer.setSize(viewW, viewH, false);
 		this._applySize();
+		after?.();
+		this.composer.render(0);
 
+		const blob = await pending;
 		return blob ? { blob, w: sensorW, h: sensorH } : null;
+	}
+
+	// The photo's size: the sensor at its resolution. Same maths as
+	// _applySize(), minus the "fits in the window" constraint: this is the real
+	// output, not a rectangle shown inside it.
+	_sensorPx() {
+		const viewW = this._viewW ?? 1;
+		const viewH = this._viewH ?? 1;
+		const viewAspect = viewW / viewH;
+		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
+		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
+		return { sensorW: Math.max(1, Math.round(sensorH * this._camAspect)), sensorH };
+	}
+
+	// A photo of the frame just drawn, without stalling it: call it right
+	// after render(), in the same task (the drawing buffer is gone after). The
+	// picture's rectangle (bands excluded) is copied into a GPU buffer, read
+	// back once a fence says the copy is done, then scaled to the sensor and
+	// encoded off the main thread. capture() reads the canvas synchronously:
+	// the CPU waits for the GPU, 15–30 ms per photo in LIVE Paris (#185), a
+	// visible hitch — fine for the manual photo, not for photos taken in flight.
+	// Nothing is redrawn: what must stay out of the photo (the signal trace's
+	// line) is hidden by the caller BEFORE the render.
+	grab() {
+		const gl = this.renderer.getContext();
+		if (typeof WebGL2RenderingContext === 'undefined' || !(gl instanceof WebGL2RenderingContext)
+			|| typeof OffscreenCanvas !== 'function' || typeof createImageBitmap !== 'function') {
+			return this.capture();
+		}
+		const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+		const f = this._u.uFrame.value;
+		const w = Math.max(1, Math.min(W, Math.round(W * f.x)));
+		const h = Math.max(1, Math.min(H, Math.round(H * f.y)));
+		const x = Math.floor((W - w) / 2), y = Math.floor((H - h) / 2);
+		const out = this._camAspect == null ? { sensorW: w, sensorH: h } : this._sensorPx();
+
+		const buf = gl.createBuffer();
+		const prevRead = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf);
+		gl.bufferData(gl.PIXEL_PACK_BUFFER, w * h * 4, gl.STREAM_READ);
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+		gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevRead);
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+		const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+		gl.flush();
+
+		const done = () => { gl.deleteSync(sync); gl.deleteBuffer(buf); };
+		const pixels = new Promise((resolve, reject) => {
+			const t0 = performance.now();
+			const poll = () => {
+				const st = gl.clientWaitSync(sync, 0, 0);
+				if (st === gl.TIMEOUT_EXPIRED && performance.now() - t0 < GRAB_TIMEOUT_MS) { setTimeout(poll, 4); return; }
+				if (st !== gl.ALREADY_SIGNALED && st !== gl.CONDITION_SATISFIED) { done(); reject(new Error('grab: readback failed')); return; }
+				const px = new Uint8ClampedArray(w * h * 4);
+				gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf);
+				gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, px);
+				gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+				done();
+				resolve(px);
+			};
+			setTimeout(poll, 0);
+		});
+		return pixels.then(async (px) => {
+			// GL rows run bottom-up: flipped, and scaled to the sensor, off-thread.
+			const bmp = await createImageBitmap(new ImageData(px, w, h), {
+				imageOrientation: 'flipY', resizeWidth: out.sensorW, resizeHeight: out.sensorH, resizeQuality: 'high',
+			});
+			// A CPU-backed canvas: the encode needs no GPU readback of its own.
+			const oc = new OffscreenCanvas(out.sensorW, out.sensorH);
+			oc.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0);
+			bmp.close();
+			const blob = await oc.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+			return blob ? { blob, w: out.sensorW, h: out.sensorH } : null;
+		});
 	}
 }

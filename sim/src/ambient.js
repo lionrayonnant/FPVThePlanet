@@ -427,28 +427,46 @@ export function pickAnchor({ rand, player, cam, fovDeg, bounds, radius, rays, to
 
 const _a = { x: 0, y: 0, z: 0 }, _b = { x: 0, y: 0, z: 0 };
 
+// The floor at fine sample i, on the FINE grid: this is where the terrain
+// used to hide. Reads heights[i-1..i+1] (curveAt may land a hair below node
+// i), all known once ray i+1 has been cast.
+function floorHolds(routine, anchor, heights, i) {
+	// The figure can dip under the drawn AGL (sine, tilted plane): it is
+	// the family's MINIMUM AGL that matters, at the lowest point.
+	curveAt(routine, anchor, heights, routine.period * i / HEIGHT_SAMPLES, _a);
+	// At sample i exactly, heights[i] IS the ground under _a (the profile
+	// put it there): `_a.y - (heights[i] - agl)` therefore always lands
+	// exactly on `curveLocal.y + agl`, whatever the terrain — a tautology
+	// that would never see a point under the terrain. It is instead
+	// compared to the worse of the two neighbouring grounds (i and i+1):
+	// if the terrain rises sharply between the two, that is where it
+	// (where the curve interpolates linearly) grazes.
+	const j = (i + 1) % HEIGHT_SAMPLES;
+	const g = Math.max(heights[i], heights[j]) - routine.agl;
+	return !(_a.y - g < routine.aglMin);
+}
+
 // 64 rays downward (the ground profile, and the floor tested on it), then 16
 // obstructions between neighbouring segments. The two grids are deliberately
 // different — see SAMPLES / HEIGHT_SAMPLES above.
+//
+// The floor is tested WHILE the profile is cast, not after it: sample i needs
+// the ground at i and i+1 only (curveAt interpolates between neighbours), so
+// it is judged as soon as ray i+1 lands, and a curve that fails at node 3
+// stops at 5 rays instead of 64. Same verdict, same rays in the same order up
+// to the failure — only the ones after it are no longer cast. That is the whole
+// cost in LIVE: a slot that cannot spawn (a long range over the city) fails on
+// the floor, near the first nodes, ~10 times a second before its backoff.
 export function validateCurve({ routine, anchor, rays, heights, top, span, stats }) {
-	const ground = (x, z) => { if (stats) stats.raysCast++; return rays.groundBelow(x, top, z, span); };
-	if (!curveHeights(routine, anchor, ground, heights)) return false;
-	// The floor, on the FINE grid: this is where the terrain used to hide.
 	for (let i = 0; i < HEIGHT_SAMPLES; i++) {
-		// The figure can dip under the drawn AGL (sine, tilted plane): it is
-		// the family's MINIMUM AGL that matters, at the lowest point.
-		curveAt(routine, anchor, heights, routine.period * i / HEIGHT_SAMPLES, _a);
-		// At sample i exactly, heights[i] IS the ground under _a (curveHeights
-		// put it there): `_a.y - (heights[i] - agl)` therefore always lands
-		// exactly on `curveLocal.y + agl`, whatever the terrain — a tautology
-		// that would never see a point under the terrain. It is instead
-		// compared to the worse of the two neighbouring grounds (i and i+1):
-		// if the terrain rises sharply between the two, that is where it
-		// (where the curve interpolates linearly) grazes.
-		const j = (i + 1) % HEIGHT_SAMPLES;
-		const g = Math.max(heights[i], heights[j]) - routine.agl;
-		if (_a.y - g < routine.aglMin) return false;
+		curveLocal(routine, routine.period * i / HEIGHT_SAMPLES, _c);
+		if (stats) stats.raysCast++;
+		const g = rays.groundBelow(anchor.x + _c.x, top, anchor.z + _c.z, span);
+		if (g == null) return false;
+		heights[i] = g + routine.agl;
+		if (i > 0 && !floorHolds(routine, anchor, heights, i - 1)) return false;
 	}
+	if (!floorHolds(routine, anchor, heights, HEIGHT_SAMPLES - 1)) return false;
 	// The walls, on the COARSE grid: a segment is a chord, densifying it
 	// would replay the same ray on the same geometry.
 	for (let i = 0; i < SAMPLES; i++) {

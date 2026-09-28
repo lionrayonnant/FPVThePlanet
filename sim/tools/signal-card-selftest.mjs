@@ -2,7 +2,7 @@
 // 2026-09-27-signals-lot2b). No DOM, no network.
 // Run: node tools/signal-card-selftest.mjs
 import assert from 'node:assert/strict';
-import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles, MACHINE_NAMES } from './signal-card-model.mjs';
+import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles, MACHINE_NAMES, captureLine, interceptLines } from './signal-card-model.mjs';
 import { creditOf, DATA_CREDIT } from './signals-data-model.mjs';
 
 let n = 0;
@@ -158,6 +158,23 @@ t('clearanceNotice: the machines and the tier each step opens', () => {
 	assert.equal(clearanceNotice(3), '[+] CLEARANCE 3 · THE SWARM');
 	assert.equal(clearanceNotice(0), null);
 	assert.equal(clearanceNotice(9), null);
+});
+
+t('interceptLines: the machine, then the capture, each on its own line', () => {
+	assert.deepEqual(interceptLines({ machine: '5" FREESTYLE', holdS: 61.24, trace: 'spiral' }), ['5" FREESTYLE', 'TRACE SPIRAL · 61.2 s']);
+	assert.deepEqual(interceptLines({ machine: 'LONG RANGE', holdS: 5 }), ['LONG RANGE', 'HOLD 5.0 s']);
+	assert.deepEqual(interceptLines({ machine: null, holdS: 18.5, trace: 'dive' }), ['TRACE DIVE · 18.5 s']);
+	// The longest line the card must hold without wrapping.
+	const longest = Math.max(...Object.values(MACHINE_NAMES).map((m) => m.length), 'TRACE SPIRAL · 999.9 s'.length);
+	assert.ok(longest <= 22, `longest ${longest}`);
+});
+
+t('captureLine: HOLD for a hold, TRACE <SHAPE> for a trace, one decimal', () => {
+	assert.equal(captureLine({ holdS: 5 }), 'HOLD 5.0 s');
+	assert.equal(captureLine({ holdS: 38.24, trace: 'spiral' }), 'TRACE SPIRAL · 38.2 s');
+	assert.equal(captureLine({ holdS: 12, trace: 'under' }), 'TRACE UNDER · 12.0 s');
+	assert.equal(captureLine({ holdS: 5, trace: 'loop' }), 'HOLD 5.0 s', 'an unknown shape reads as a hold');
+	assert.equal(captureLine({ holdS: 5, trace: null }), 'HOLD 5.0 s');
 });
 
 console.log(`\n${n} signal-card tests OK`);

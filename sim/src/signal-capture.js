@@ -10,6 +10,12 @@
 // candidate, never gauges, never takes focus. Row states:
 // hidden|near|capturing|held|resolved|encrypted.
 //
+// A target with `trace: true` (every tier, lot 4) is captured by flying its
+// trace, not by holding it: it still gets focus, near and the callout, but its
+// gauge never fills from the frame. main.js drives it with setTraceProgress()
+// and, at the end of the trace, resolveByTrace() — uplinked on the next
+// update() like a hold.
+//
 // The spec's starting points, widened after the author's first flights
 // (2026-09-27: "a bit hard to capture"). Kept here and nowhere else.
 export const CONE_DEG = 20;
@@ -34,6 +40,9 @@ export class SignalCapture {
 		this._focus = null;
 		this._challenger = null;
 		this._challengeS = 0;
+		// Trace targets: id -> { p, state } (the follower's progress01 and state).
+		this._trace = new Map();
+		this._traceUplinks = [];
 		this.out = { rows: [], focus: null, uplinked: null };
 	}
 
@@ -41,13 +50,39 @@ export class SignalCapture {
 		this._targets = Array.isArray(list) ? list.filter((t) => t && t.id) : [];
 		const ids = new Set(this._targets.map((t) => t.id));
 		for (const id of [...this._gauge.keys()]) if (!ids.has(id)) this._gauge.delete(id);
+		for (const id of [...this._trace.keys()]) if (!ids.has(id)) this._trace.delete(id);
+		// A queued trace uplink of a target no longer listed (new flight) never comes out.
+		this._traceUplinks = this._traceUplinks.filter((id) => ids.has(id));
 		for (const t of this._targets) if (t.resolved) this._resolved.add(t.id);
 		if (this._focus && !ids.has(this._focus)) this._focus = null;
 	}
 
+	isResolved(id) { return this._resolved.has(id); }
+
 	markResolved(id) {
 		this._resolved.add(id);
 		if (this._focus === id) this._focus = null;
+	}
+
+	// The trace's progress (0..1) and follower state ('waiting'|'on'|'off'|
+	// 'done'), or state null when the target has no trace in the world (yet).
+	setTraceProgress(id, p01, state = null) {
+		// Gone (fallback to the hold, or the trace dropped): the hold starts from 0.
+		if (state === null) { if (this._trace.delete(id)) this._gauge.delete(id); return; }
+		const cur = this._trace.get(id);
+		const p = Math.max(0, Math.min(1, Number.isFinite(p01) ? p01 : 0));
+		if (cur) { cur.p = p; cur.state = state; } else this._trace.set(id, { p, state });
+	}
+
+	// The trace is flown: resolved now, `out.uplinked` on the next update()
+	// (after a hold uplinked in that same frame, if any — one per frame).
+	resolveByTrace(id) {
+		if (this._resolved.has(id)) return;
+		this._resolved.add(id);
+		this._trace.delete(id);
+		this._gauge.set(id, 1);
+		if (this._focus === id) this._focus = null;
+		this._traceUplinks.push(id);
 	}
 
 	update({ dt, cam, fpv, los }) {
@@ -99,6 +134,7 @@ export class SignalCapture {
 			const rising = focusT && fpv && los(focusT);
 			for (const r of rows) {
 				if (r.state === 'resolved' || r.state === 'hidden' || r.state === 'encrypted') continue;
+				if (this._traceRow(r)) continue;
 				let g = this._gauge.get(r.id) ?? 0;
 				if (r.id === this._focus && rising) {
 					g = Math.min(1, g + dt / HOLD_S);
@@ -117,12 +153,31 @@ export class SignalCapture {
 					o.focus = null;
 				}
 			}
-		} else if (this._focus) {
-			const r = rows.find((x) => x.id === this._focus);
-			if (r && r.gauge > 0) r.state = 'held';
+		} else {
+			if (this._focus) {
+				const r = rows.find((x) => x.id === this._focus);
+				if (r && r.gauge > 0) r.state = 'held';
+			}
+			for (const r of rows) {
+				if (r.state !== 'resolved' && r.state !== 'hidden' && r.state !== 'encrypted') this._traceRow(r);
+			}
 		}
+		if (!o.uplinked && this._traceUplinks.length) o.uplinked = this._traceUplinks.shift();
 		o.rows = rows;
 		return o;
+	}
+
+	// A trace target's row: the gauge is the trace's progress, never the
+	// frame's. -> false for a hold target (the caller gauges it).
+	_traceRow(r) {
+		const t = this._targets.find((x) => x.id === r.id);
+		if (!t?.trace) return false;
+		const tr = this._trace.get(r.id);
+		const p = tr ? tr.p : 0;
+		r.gauge = p;
+		r.state = tr?.state === 'on' ? 'capturing' : p > 0 ? 'held' : 'near';
+		this._gauge.set(r.id, p);
+		return true;
 	}
 
 	_isCandidate(r) {

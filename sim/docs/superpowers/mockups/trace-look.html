@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>The trace — three looks</title>
+<style>
+@font-face{font-family:'Departure Mono';src:url('/files/DepartureMono-Regular.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Regular.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'IBM Plex Mono';src:url('/files/IBMPlexMono-Medium.woff2') format('woff2');font-weight:500}
+:root{--ink:#ece7dd;--dim:rgba(236,231,221,.62);--faint:rgba(236,231,221,.53);--rule:rgba(236,231,221,.14);--green:#7aa96b;--yellow:#d4b155;--scrim:rgba(10,9,8,.6)}
+body{margin:0;background:#121110;color:var(--ink);font:13px/1.6 'IBM Plex Mono',monospace}
+.note{max-width:1500px;padding:14px 20px 0;color:var(--faint);font-size:11px}
+.opt{padding:18px 20px 6px;cursor:pointer}
+.opt h3{margin:0 0 2px;font:15px 'Departure Mono',monospace;letter-spacing:.16em}
+.opt p{margin:0 0 8px;color:var(--dim);font-size:11px;max-width:1200px}
+.opt.selected h3{color:var(--green)}
+.wrap{overflow:hidden;border:1px solid var(--rule)}
+.stage{position:relative;width:2560px;height:1265px;background:url('/files/flight.png') 0 0/2560px 1265px;transform-origin:0 0}
+svg{position:absolute;inset:0;width:2560px;height:1265px}
+.osd{position:absolute;font:500 9.5px/1.6 'IBM Plex Mono',monospace;letter-spacing:.1em;color:var(--ink);text-shadow:0 0 2px #000}
+.chip{left:50%;top:40%;transform:translateX(-50%);padding:6px 14px;background:var(--scrim);color:var(--dim);white-space:nowrap}
+.y{color:var(--yellow)} .g{color:var(--green)}
+</style></head><body>
+<p class="note">What the pilot sees on a TIER III tower (rising spiral, 1.5 turns). Everywhere: yellow = still to fly, green = flown, and the flown part cools and fades after 10 s off the thread. The entry gate sits on the side you come from. The thread is drawn IN the world (depth-tested, behind buildings when they are in front, through the FPV lens noise) — here faked flat over a screenshot. Click the look you prefer.</p>
+
+<div class="opt" data-choice="line" onclick="toggleSelect(this)"><h3>A · A HAIRLINE</h3><p>One thin continuous line, like the scanner's rules. Discreet, reads as a signal trace. The entry is a small square gate. Risk: thin at 200 m.</p><div class="wrap"><div class="stage" data-v="line"><svg></svg></div></div></div>
+
+<div class="opt" data-choice="packets" onclick="toggleSelect(this)"><h3>B · PACKETS</h3><p>Short dashes that flow slowly along the path, in its direction — the data you are chasing. The sense of the trace is obvious; reads from far. Flown dashes stop and turn green.</p><div class="wrap"><div class="stage" data-v="packets"><svg></svg></div></div></div>
+
+<div class="opt" data-choice="gates" onclick="toggleSelect(this)"><h3>C · LINE + GATES</h3><p>The hairline plus a small square frame every ~25 m, facing the path — you fly through them. Closest to a race; each gate is a clear checkpoint.</p><div class="wrap"><div class="stage" data-v="gates"><svg></svg></div></div></div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+// tower in the screenshot ~ (1485,565) at its base, top ~ (1485,505)
+const cx=1485, base=640, top=470, turns=1.5, N=220;
+function pts(){const a=[];
+  // approach from the entry gate (front, lower, towards camera) then the spiral
+  for(let i=0;i<=30;i++){const u=i/30;a.push({x:1300+u*(cx+70-1300),y:760+u*(base-12-760),front:true,s:1.8-0.8*u})}
+  for(let i=0;i<=N;i++){const u=i/N,th=Math.PI/2+u*turns*2*Math.PI;const r=78-10*u;
+    a.push({x:cx+Math.cos(th)*r,y:base-12+Math.sin(th)*r*0.22-u*(base-top),front:Math.sin(th)>0,s:1})}
+  return a}
+function draw(stage){
+  const v=stage.dataset.v,svg=stage.querySelector('svg'),P=pts(),done=Math.floor(P.length*0.42);
+  const seg=(i,col,op,w,dash)=>{const l=document.createElementNS(NS,'line');const a=P[i],b=P[i+1];
+    l.setAttribute('x1',a.x);l.setAttribute('y1',a.y);l.setAttribute('x2',b.x);l.setAttribute('y2',b.y);
+    l.setAttribute('stroke',col);l.setAttribute('stroke-width',w*a.s);l.setAttribute('stroke-opacity',op*(a.front?1:.45));l.setAttribute('stroke-linecap','round');svg.appendChild(l)};
+  for(let i=0;i<P.length-1;i++){
+    const d=i<done,col=d?'#7aa96b':'#d4b155';
+    if(v==='packets'){if((i%6)<3)seg(i,col,d?.55:.95,3.2,0)}
+    else seg(i,col,d?.5:.9,v==='gates'?2:2.2,0)}
+  if(v==='gates'){for(let i=8;i<P.length;i+=26){const a=P[i],s=(a.front?14:9)*a.s,r=document.createElementNS(NS,'rect');
+    r.setAttribute('x',a.x-s);r.setAttribute('y',a.y-s);r.setAttribute('width',2*s);r.setAttribute('height',2*s);r.setAttribute('fill','none');
+    r.setAttribute('stroke',i<done?'#7aa96b':'#d4b155');r.setAttribute('stroke-width',1.6);r.setAttribute('stroke-opacity',a.front?.9:.4);svg.appendChild(r)}}
+  // entry gate (already passed: green)
+  const g=document.createElementNS(NS,'rect'),e=P[0];g.setAttribute('x',e.x-26);g.setAttribute('y',e.y-26);g.setAttribute('width',52);g.setAttribute('height',52);
+  g.setAttribute('fill','none');g.setAttribute('stroke','#7aa96b');g.setAttribute('stroke-width',2.4);svg.appendChild(g);
+  // the drone's own position hint: the next point, a small yellow tick ahead
+  const n=P[done],c=document.createElementNS(NS,'circle');c.setAttribute('cx',n.x);c.setAttribute('cy',n.y);c.setAttribute('r',5);c.setAttribute('fill','#d4b155');svg.appendChild(c);
+  const o=document.createElement('div');o.className='osd chip';o.innerHTML='<span class="y">[*]</span> TRACE · SPIRAL · 42 %';stage.appendChild(o);
+}
+document.querySelectorAll('.stage').forEach(draw);
+function fit(){document.querySelectorAll('.wrap').forEach(w=>{const s=w.querySelector('.stage'),k=w.clientWidth/2560;s.style.transform=`scale(${k})`;w.style.height=1265*k+'px'})}
+addEventListener('resize',fit);fit();
+</script>
+</body></html>

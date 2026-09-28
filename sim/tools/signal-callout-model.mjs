@@ -71,9 +71,29 @@ export function scramble(text, seed) {
 	return out;
 }
 
-export function headline(state, { need } = {}) {
+// 'trace' / 'trace-wait': a signal flown along its trace (lot 4),
+// in the trace's own yellow — `TRACE · SPIRAL · 42 %`, and before the gate
+// `TRACE · SPIRAL · ENTER THE GATE`. `standby`: a trace target with no trace
+// in the world yet (another one is flown, or it is too far to be laid) —
+// `TRACE · STANDBY`, dim, without the shape (the one laid later may differ):
+// no hold captures it, none is invited.
+export function headline(state, { need, shape, pct, standby } = {}) {
+	if (state === 'trace' || state === 'trace-wait') {
+		if (standby) return { word: 'TRACE · STANDBY', tone: 'dim' };
+		const kind = String(shape ?? 'orbit').toUpperCase();
+		const tail = state === 'trace-wait' ? 'ENTER THE GATE' : `${Math.max(0, Math.min(100, Math.floor(pct ?? 0)))} %`;
+		return { word: `TRACE · ${kind} · ${tail}`, tone: 'yellow' };
+	}
 	if (state === 'capturing') return { word: 'CAPTURING', tone: 'orange' };
 	if (state === 'resolved') return { word: 'UPLINKED', tone: 'green' };
 	if (state === 'encrypted') return { word: `ENCRYPTED · CLEARANCE ${need}`, tone: 'dim' };
 	return { word: 'SIGNAL', tone: 'dim' };
+}
+
+// The edge chevron's text. A trace being flown (on it or off it, not before
+// the gate) keeps its progress there: the camera is free, so the player often
+// looks along the path, away from the landmark. Otherwise the distance.
+export function chevronText(dist, trace) {
+	if (trace && !trace.wait && !trace.standby) return headline('trace', trace).word;
+	return `SIGNAL ${Math.round(dist)} M`;
 }

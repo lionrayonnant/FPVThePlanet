@@ -29,7 +29,7 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 - **Des signaux sur le scanner.** Les monuments et lieux notables
   d'OpenStreetMap (ceux qui portent un identifiant Wikidata) apparaissent sur
   la carte comme des points lumineux jaunes, dont le halo grandit avec le
-  niveau. Le scan commence dès le zoom 10, en partant du centre de la vue.
+  niveau. Le scan commence dès le zoom 13, en partant du centre de la vue.
   Les lieux sont demandés à Overpass tuile par tuile, une seule requête à la
   fois, et gardés 30 jours en cache. Pendant le scan, seule la tuile demandée
   se déchire sous un bruit ASCII, et des lignes de terminal dans le coin de la
@@ -41,8 +41,10 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   un petit point terne au-dessus de la clearance. L'en-tête du scanner affiche
   la clearance et sa jauge. (#185)
 - **Capturer un signal en vol.** Autour du point de décollage, chaque lieu
-  notable porte un cartouche ancré sur le bâtiment réel. Le garder dans le
-  cadre en FPV remplit une jauge et déchiffre ses champs OpenStreetMap un à un ;
+  notable porte un cartouche ancré sur le bâtiment réel. Il se capture en
+  volant son fil (ci-dessous) ; là où aucun fil ne peut être posé, il se garde
+  dans le cadre en FPV : la jauge se remplit et déchiffre ses champs
+  OpenStreetMap un à un ;
   à 100 %, `UPLINKED` : l'image interceptée rejoint les photos de la session,
   et le lieu passe au vert sur le scanner. Un crash ne perd que ce qui n'était
   pas encore transmis. Plus de lieux (60 par tuile, 3 km autour du décollage),
@@ -121,6 +123,56 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   (`[SHARE] ACRO / ANGLE`). Le bouton bascule ACRO ↔ ANGLE, sans parcourir les
   cinq modes : depuis ANGLE, le défilé complet serait passé par ACRO3D, hélices
   inversées, en plein vol. `M` garde le cycle complet.
+- **Le fil : chaque signal se capture en volant, niveau I compris.** Autour du
+  lieu, le jeu pose un fil fin dans l'air, dont la forme suit la nature du
+  lieu : une spirale qui enveloppe toute la structure pour une tour, un phare
+  ou un bâtiment de plus de 50 m (son rayon suit le monument hauteur par
+  hauteur, 30° de montée au plus) ; un passage sous le tablier pour un pont ou
+  une arche ; une plongée le long de la pente pour un sommet, un volcan, une
+  cascade, une falaise ou un barrage ; un tour autour du lieu pour le reste.
+  Le niveau I, celui de la plupart des lieux (églises, châteaux, monuments…),
+  fait la forme la plus légère (tolérance 15 m ; un demi-tour, un seul passage
+  sous le pont, au moins 40 m de plongée), le niveau II la forme courte
+  (tolérance 12 m ; un demi-tour, un seul
+  passage sous le pont, au moins 60 m de plongée), le niveau III la forme complète
+  (tolérance 9 m ; un tour et demi — l'orbite monte de 8 m par tour pour ne
+  jamais se recouvrir —, sous le pont, par-dessus, puis de nouveau dessous,
+  au moins 160 m de plongée ; une plongée s'allonge avec le dénivelé pour ne
+  jamais dépasser 45° de pente). On entre par une petite porte carrée au début ; le fil
+  est jaune devant, vert derrière, et garde sa couleur à travers la liaison
+  analogique. Le quitter met la progression en pause ;
+  au-delà de 10 s, la partie volée refroidit et il faut repasser la porte.
+  La caméra regarde où elle veut. Pendant le vol, le jeu garde la meilleure
+  vue du lieu — la plus centrée, en ligne de vue — et c'est elle qui part au
+  réseau, sans le fil. Le cartouche lit
+  `TRACE · SPIRAL · 42 %` (avant la porte, `TRACE · SPIRAL · ENTER THE GATE`),
+  la fiche et `DATA` `TRACE SPIRAL · 38.2 s` au lieu de `HOLD 5.0 s`. Un fil
+  n'existe que près d'un signal ouvert et disparaît une fois le lieu transmis ;
+  si le monde ne laisse pas la place de le poser, le lieu se garde dans le
+  cadre 5 s. Un seul fil à la fois, celui du lieu ouvert le plus proche ; un
+  fil pas encore entamé ne cède la place qu'à un lieu plus proche de 100 m
+  pendant 2 s, pour qu'une ville dense ne le fasse pas sauter d'un voisin à
+  l'autre. En LIVE, le fil se soulève au-dessus d'un
+  obstacle que le monde révèle en s'affinant ; la partie volée ne bouge
+  jamais. Le tablier d'un pont est cherché dans le maillage lui-même (le
+  passage doit laisser 6 m et être ouvert) : à Paris, Mirabeau, le Pont Neuf
+  et le pont Rouelle se passent dessous ; un pont dont le maillage ferme les
+  côtés jusqu'à l'eau reçoit un tour — jamais plus de 50 m de rayon (35 m
+  au niveau I, pour tourner autour de l'église et non du pâté de maisons),
+  même autour d'un long pont, et assez haut pour passer tout ce qui l'entoure. Le
+  fil fait 3 px de près et 5 px au loin, bordé d'un liseré sombre qui le
+  détache du ciel comme de la ville. Le fil s'entend : sur lui, une porteuse
+  discrète (un ton légèrement désaccordé et un souffle de statique) dont la
+  hauteur et le filtre s'ouvrent lentement avec la progression ; un petit
+  déclic à la porte ; hors du fil, elle retombe à un murmure, et quand il
+  refroidit elle s'éteint en descendant d'une octave. Rien en pause ni moteurs
+  coupés, et elle se tait à `UPLINKED`. Le fil se retrouve : hors de lui, la
+  ligne de `NEXT SIGNAL` devient `THREAD 14 m ↗` (le point où reprendre, flèche
+  relative au cap, ▲/▼ quand il est surtout au-dessus ou en dessous), avec
+  `· RESET 4 s` dans les cinq dernières secondes ; avant la porte, `GATE 86 m ↗`
+  dans les 300 m. Et il dit son sens : de fins chevrons jaunes tous les 15 m,
+  sur les 60 m qui suivent la porte ou la progression. Consigné dans la Bible,
+  §49 « Le fil ». (#185)
 
 ### Modifié
 
@@ -164,6 +216,17 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   seuil de vol ne bouge : `spec-acceptance` passe à l'identique.
 
 ### Corrigé
+
+- **Les drones d'ambiance coûtaient cher à ne pas apparaître.** Un drone qui
+  ne trouvait pas où naître en LIVE lançait ses 64 rayons de sol avant de
+  vérifier le plancher, sept à dix fois par seconde. La vérification s'arrête
+  désormais au premier point trop bas : environ dix fois moins de calcul, même
+  verdict. (#185)
+
+- **Prendre une photo déformait l'image affichée.** La capture rendait
+  l'image à la taille du capteur et ne rétablissait l'affichage qu'une fois
+  le JPEG encodé : entre-temps, l'écran montrait une image étirée. L'affichage
+  est rétabli et repeint avant l'encodage. (#185)
 
 - **Les images prises en vol gardaient les bandes noires de la fenêtre.** La
   capture de l'objectif copiait aussi le letterbox : les photos de session, et

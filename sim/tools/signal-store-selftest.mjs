@@ -108,4 +108,18 @@ t('resolvedIds is memoised per stored object', () => {
 	assert.equal(resolvedIds(null).size, 0);
 });
 
+t('trace: a known shape is kept, anything else dropped; a hold entry has no trace key', () => {
+	const s = fromStored({ resolved: {
+		'wd:Q1': entry(1, { trace: 'spiral' }),
+		'wd:Q2': entry(2, { trace: 'loop' }),
+		'wd:Q3': entry(3),
+	} });
+	assert.equal(s.resolved['wd:Q1'].trace, 'spiral');
+	assert.ok(!('trace' in s.resolved['wd:Q2']), 'an unknown shape is dropped, the entry kept');
+	assert.ok(!('trace' in s.resolved['wd:Q3']), 'an old entry reads back unchanged');
+	for (const shape of ['orbit', 'spiral', 'under', 'dive']) {
+		assert.equal(withResolved(null, 'wd:Q9', entry(9, { trace: shape })).resolved['wd:Q9'].trace, shape);
+	}
+});
+
 console.log(`signal-store: ${n} ok`);

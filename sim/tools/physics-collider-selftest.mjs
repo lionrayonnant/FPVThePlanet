@@ -46,9 +46,20 @@ t('an added collider is queryable by groundBelow() after flushNodeColliders()', 
 	assert.equal(phys.groundBelow(0, 0, 0), null, 'a removed collider must answer no more after the flush');
 });
 
-t('flushNodeColliders() with nothing pending is a safe no-op', () => {
+t('rayUp() finds the underside of what is above, null when nothing is', () => {
+	phys.addNodeCollider('up', vertices, indices);
+	assert.equal(phys.flushNodeColliders(), true, 'a change is reported');
+	const y = phys.rayUp(0, -110, 0, 50);
+	assert.ok(y !== null && Math.abs(y - -100) < 0.01, `rayUp=${y}`);
+	assert.equal(phys.rayUp(0, -110, 0, 5), null, 'out of range');
+	assert.equal(phys.rayUp(20, -110, 0, 50), null, 'nothing above');
+	phys.removeNodeCollider('up');
 	phys.flushNodeColliders();
+});
+
+t('flushNodeColliders() with nothing pending is a safe no-op, and says so', () => {
 	phys.flushNodeColliders();
+	assert.equal(phys.flushNodeColliders(), false);
 });
 
 // A rocktree node whose geometry truncates away entirely at layerBounds[3]

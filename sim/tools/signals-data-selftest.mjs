@@ -213,6 +213,16 @@ t('detailRows: an uplink from the swarm flight names THE SWARM, not SWARMNODE', 
 	assert.deepEqual(detailRows(e, null, null)[1], ['MACHINE', 'THE SWARM']);
 });
 
+t('detailRows: a trace flown reads TRACE SPIRAL · seconds instead of HOLD', () => {
+	const e = { id: 'wd:Q3', ...entry({ at: at(2026, 1, 2, 3, 4), family: null, holdS: 38.24, distM: 90, trace: 'spiral' }) };
+	assert.deepEqual(detailRows(e, null, null)[1], ['TRACE', 'SPIRAL · 38.2 s']);
+	// Through the store: the shape survives fromStored().
+	const s = buildSignals({ store: store({ 'wd:Q3': entry({ trace: 'dive', holdS: 12 }) }) });
+	const up = s.places[0].uplinked[0];
+	assert.equal(detailRows(up, null, null).find((r) => r?.[0] === 'HOLD'), undefined);
+	assert.deepEqual(detailRows(up, null, null).find((r) => r?.[0] === 'TRACE'), ['TRACE', 'DIVE · 12.0 s']);
+});
+
 t('creditOf: author, licence, Commons, and the validated file page', () => {
 	const photo = { url: 'https://upload.wikimedia.org/a.jpg', artist: 'Camille Gévaudan', license: 'CC BY-SA 3.0', page: 'https://commons.wikimedia.org/wiki/File:Pantheon.jpg' };
 	assert.deepEqual(creditOf({ photo }), {

@@ -409,7 +409,7 @@ once, at their first FIELD flight after the update (`fpvtp.clearanceBriefed`).
 
 **Signals** are real landmarks: OpenStreetMap features that carry a Wikidata
 id (monuments, temples, towers, waterfalls, volcanoes…). The GLOBAL SCANNER
-asks Overpass for them one z12 tile at a time, from zoom 10, starting at the
+asks Overpass for them one z12 tile at a time, from zoom 13, starting at the
 centre of the view, one request at a time; each tile is kept 30 days in
 IndexedDB (`fpvtp-signals`). Only the tile being asked glitches while it is
 asked, and the progress is written as terminal lines in the map corner. On the
@@ -417,14 +417,105 @@ map, a filled yellow light is a signal to capture, a hollow green ring with a
 tick one already uplinked, a small dim dot one above your clearance.
 
 **In flight**, the signals within 3 km of take-off carry a callout anchored on
-the real building. Hold one in the FPV frame (20° cone, 5 s; the gauge drains when it leaves the frame) and its
-OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
+the real building. Fly its thread (*The trace* below) — or, where no thread
+can be laid, hold it in the FPV frame (20° cone, 5 s; the gauge drains when it
+leaves the frame) — and its OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
 frame joins the session's photos, and a crash loses only what was not yet
 uplinked. When control is acquired a one-shot notice gives the scan's state
 (`[+] 49 SIGNALS IN RANGE`), and the OSD's `NEXT SIGNAL 1.2 km ↗` line points
 to the nearest one left. The UPLINKED card shows the place's real photo and
 facts from Wikidata / Wikimedia Commons, credited, with a link to the Commons
 file page.
+
+**The trace** (`tools/trace-model.mjs`, `src/trace-probe.js`,
+`src/signal-traces.js`, `src/trace-line.js`). Every signal, whatever its
+tier, is captured by flying a thread laid in the air around it. Within 300 m
+(horizontal) of the nearest open, non-encrypted signal, the game probes the
+collision world around it (budgeted rays per frame), builds the shape over the
+probed profile, and validates every segment against the colliders; one trace
+at a time. A laid trace not entered yet gives way to another signal only when
+that one stays 100 m nearer for 2 s, so a dense city does not bounce the
+thread between neighbours. The shape comes from the signal's kind:
+
+| Shape | Kinds | Tier I | Tier II | Tier III |
+|---|---|---|---|---|
+| `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
+| `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | same as tier I | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
+| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | at least 40 m, from 40 m above the top down the steepest face; longer for a deep drop so the descent stays ≤ 45° (≤ 250 m) | at least 60 m, same rule | at least 160 m, same rule |
+| `orbit` | everything else, and a bridge without a usable deck (< 6 m clearance) | half a turn, level | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
+
+A bridge's deck is found on a 5 m grid of down rays around the signal (a
+raised band over lower ground on both sides), then verified with rays: an
+underside over a gap of at least 6 m, and an open pass under it. None found
+from afar (LIVE has not refined the deck yet): probed once more from 150 m,
+then an orbit. An orbit is the landmark's outline + 12 m, never wider than
+50 m, 35 m at tier I (a long bridge, a quay or a dense block would otherwise
+read as a huge outline): it may
+then cross a deck or a quay, and its altitude clears everything probed within
+its radius + 10 m by 6 m. A retry once capped is 6 m higher. A dive's probe
+grid extends to 140 m (outer rings), for the reach of its descent.
+
+The spiral wraps the whole structure, from 15 m above the ground to 10 m above
+the top: its radius at each height is the landmark's radius there + 12 m
+(80 m at most), and it climbs at 30° at most — more turns than the minimum when
+the height needs them. The same place always gives the same trace (seeded by
+its Wikidata id), its entry turned towards the side the drone came from.
+
+Tolerance: 15 m (tier I), 12 m (tier II), 9 m (tier III). Enter through the small square
+gate at the start; progress then follows the drone along the line, never more
+than 25 m ahead. Off the line, progress pauses; after 10 s off, the flown part
+fades (2 s) and progress resets to the gate. The camera may look anywhere. The
+line is 3 px near → 5 px far (screen px, never under 1.5 sensor px) over a
+dark underlay 1 px wider each side (`--black` at 0.6), seen through the lens,
+depth-tested, no fog, no glow: yellow ahead, green flown; hidden in every photo. The callout reads
+`TRACE · SPIRAL · 42 %` (`ENTER THE GATE` before the gate, `TRACE · STANDBY`
+while it is not laid yet); at 100 % it is `UPLINKED`. With the landmark out of
+the frame, the edge chevron keeps that headline instead of `SIGNAL 35 M`. The stored entry carries
+`trace: '<shape>'` and `holdS`, the seconds spent on it; the card and `DATA`
+show `TRACE SPIRAL · 38.2 s` instead of `HOLD 5.0 s`.
+
+The photo: while on the trace, at most twice a second, a view with the landmark
+(its mid-height, not the anchor on its top) within 35° of the frame centre and
+in line of sight is scored (closer to centre
+is better); only a clearly better one replaces the kept frame. That frame is
+the intercepted photo; none seen, the uplink frame.
+
+In LIVE the colliders refine as the drone approaches: after each flush the
+unflown part is re-validated, and a blocked segment lifts the rest of the trace
+over the obstruction (blended; the flown part never moves). If no trace can be
+laid in 3 attempts, or it needs more than 8 lifts or a lift over 60 m, that
+signal falls back to the hold-in-frame capture — a signal is never blocked.
+A trace not entered yet is dropped past 450 m. DEV: `__signals.trace()`,
+`__signals.flyTrace(speed)`, `__signals.stopFly()`, `__signals.threadAudio()`
+(the sound's graph: `_g.out.gain.value`, `_g.a.frequency.value`…).
+
+The feel of the thread (none of it a score or a timer to beat):
+- **Sound** (`tools/thread-audio-model.mjs`, `src/thread-audio.js`; LINK
+  family, on the interface bus, so the master volume and the limiter apply).
+  On the thread: a triangle and a sine 9 cents apart plus band-passed static,
+  level 0.05, through a lowpass; pitch 196 → 294 Hz and lowpass 500 → 2400 Hz
+  (both log) with the progress. Off it: a 40 ms cut to 0.018, lowpass 320 Hz.
+  The 2 s cool-down fades it to nothing and slides it an octave down. Entering
+  the gate: a 30 ms click of static (not on a resume). Silent while frozen
+  (pause, settings — the interface bus ignores the engine's freeze mute) or
+  disarmed; the uplink drops the follower, the tone cuts in 30 ms and
+  `TARGET_FOUND` plays alone. Built once per audio context; params move only
+  when a target changes.
+- **OSD line** (`followCue` in `tools/trace-model.mjs`, `cueText` in
+  `src/fpvtp-osd.js`), in the `NEXT SIGNAL` slot, which it takes over: off the
+  thread `THREAD 14 m ↗` — 3D distance to the nearest point of the follower's
+  25 m window (the resume point), arrow on the horizontal relative to the nose,
+  `▲`/`▼` when the vertical part is ≥ 5 m and larger than the horizontal one —
+  and `· RESET 4 s` in the last 5 s; before the gate (within 300 m horizontal)
+  or once the reset is committed, `GATE 86 m ↗`. Nothing while on the thread.
+  Rebuilt at 5 Hz, and at once when the follower's state changes.
+- **Direction ticks** (`src/trace-line.js`): up to 4 chevrons, one every 15 m
+  of the trace (a fixed grid, they don't slide) on the 60 m ahead of the gate
+  (waiting, cooling) or of the progress; the line's yellow, 2 → 3 px over the
+  same dark underlay, turned to face the camera and sized on its distance
+  (half-width = distance × 0.022, 0.3–4 m). A chevron seen end-on (within
+  ~26° of the path) or from closer than 6 m is skipped. One LineSegments2 for
+  the TraceLine's life, rewritten in place each frame.
 
 **Clearance** is the operator's standing with the network: one point per tier
 of every signal uplinked (tier I = 1, II = 2, III = 3), never spent

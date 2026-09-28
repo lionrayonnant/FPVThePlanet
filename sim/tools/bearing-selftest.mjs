@@ -5,7 +5,7 @@
 // Run: node tools/bearing-selftest.mjs
 import assert from 'node:assert/strict';
 import { headingOf, bearingTo, windFromBearing, relativeBearing, bearingDeg } from '../src/bearing.js';
-import { nextSignalText } from '../src/fpvtp-osd.js';
+import { nextSignalText, cueText } from '../src/fpvtp-osd.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -95,6 +95,26 @@ t('NEXT SIGNAL: the arrow points where the signal is, not where it comes from', 
 	assert.equal(at(0, 300, NORTH), '300 m ↓');
 	// Nose east: a signal due north is on the left.
 	assert.equal(at(0, -500, EAST), '500 m ←');
+});
+
+t('THREAD / GATE: the same arrow, ▲/▼ when mostly above or below, the reset countdown', () => {
+	// The cue as followCue builds it: drone → point, local metres.
+	const cue = (dx, dy, dz, q, resetS = null) => cueText({
+		distM: Math.hypot(dx, dy, dz), hM: Math.hypot(dx, dz), dyM: dy, resetS,
+		relRad: relativeBearing(bearingTo(dx, dz), headingOf(q)),
+	});
+	assert.equal(cue(10, 0, -10, NORTH), '14 m ↗');
+	assert.equal(cue(10, 0, -10, NORTH, 4), '14 m ↗ · RESET 4 s');
+	// Nose east: the resume point north-east is ahead-left.
+	assert.equal(cue(10, 0, -10, EAST), '14 m ↖');
+	// Mostly above: ▲; a small step is not worth a mark; a far point with a
+	// small climb is not either.
+	assert.equal(cue(3, 12, 0, NORTH), '12 m → ▲');
+	assert.equal(cue(0, -30, -10, NORTH), '32 m ↑ ▼');
+	assert.equal(cue(1, 4, 0, NORTH), '4 m →');
+	assert.equal(cue(80, 30, 0, NORTH), '85 m →');
+	// Defaults: no vertical, no countdown.
+	assert.equal(cueText({ distM: 86, relRad: Math.PI / 4 }), '86 m ↗');
 });
 
 t('relativeBearing: wrapped to ]-pi, pi]', () => {

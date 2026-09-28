@@ -4065,3 +4065,84 @@ briefing, end screen). Design: Bible §49; player docs: `docs/manual.md`,
 - The UPLINKED card drawn above an edge chevron (`d25f820`, stacking only).
 - Two steps crossed in one flight reveal only the last one (known, rare).
 - The server trusts the client's `clearance` (single-player ruling).
+
+### Lot 4 — the trace (2026-09-28)
+
+Every signal, tier I included, is captured by flying a thread laid around
+the place (spiral / under / dive / orbit by kind; tier I is the lightest form —
+half a turn, 15 m tolerance, dive ≥ 40 m; tier III orbit is a helix rising 8 m
+per turn; the spiral wraps the whole structure, radius per height, ≤ 30°
+climb). The hold is only the fallback when no thread can be laid. One trace at
+a time; a trace not entered yet yields only to a place 100 m nearer for 2 s. Design: Bible §49 *Le fil*; rules and shapes:
+`docs/manual.md`, *Signals and clearance*; spec and plan in
+`docs/superpowers/`. The scanner now scans from zoom 13.
+
+**Verified — without a browser:** selftests trace (model: shapes, follower,
+photo score), trace-probe, trace-line (incl. the resolution fix: three's
+`LineSegments2.onBeforeRender` wrote the canvas size, not the lens target),
+signal-traces (controller against a fake world: pick, retries, fallback, lift
+after a collider flush, stop/reset), trace-wiring (main.js greps, one
+`lens.capture(` behind `captureClean()`), signal-capture, signal-callout,
+signal-store, signal-card, signals-data, palette.
+
+**Verified by eye — Chromium through chrome-devtools MCP (dev operator,
+seeded to clearance 2, drone driven by `__signals.flyTrace`):**
+- Eiffel Tower (tier II, spiral): laid on the first attempt, `ENTER THE GATE`,
+  gate and line through the lens, `TRACE · SPIRAL · 68 %` with fields revealed,
+  → `UPLINKED`; stored `{ holdS: 19.5, trace: 'spiral' }`; card and DATA
+  `TRACE SPIRAL · 19.5 s`; the uplinked frame is the mid-trace best view, no
+  line in it. (Seen before the spiral was widened to wrap the whole tower.)
+- Pont Rouelle (tier III): no usable deck → orbit; flown then left: progress
+  held (`9 %`), and after > 12 s off back to the gate, all yellow.
+- Fallback: a forced build failure → no line, hold capture, `HOLD 5.0 s`.
+- Final pass (after the fixes): Eiffel spiral 3.03 turns, radius 80 m at the
+  foot to 12 m at the spire, climb ≤ 30°, line hidden behind the top platform,
+  flown to `UPLINKED` in 61 s (`TRACE SPIRAL · 61.2 s`); no displayed-frame
+  change right after 12 captures (sampled); Puy de Dôme dive (tier III) above
+  the terrain; bridge orbits; 2 s fade then reset; hold fallback on Pont
+  Mirabeau; worst frame 23 ms while probing; no console error. The chevron
+  shows the trace headline, `TRACE · STANDBY` on one line, the card's capture
+  line doesn't wrap, the photo aims at the landmark's mid-height.
+- Faster route: `?live=<lat>,<lon>` with an init script
+  `import('/src/operator.js').then(m => m.ensureDevOperator())` loads the dev
+  operator before `armSignals()`; unhide `#fpvtp-osd` to see the OSD.
+
+**NOT verified:**
+- The `under` shape, beyond these bridges: laid and flown on Pont Mirabeau,
+  Pont Neuf and Pont Rouelle (deck grid + ray checks, re-probed from 150 m);
+  Pont de Grenelle and Pont au Change fall back to an orbit — the mesh walls
+  the deck's sides down to the water, so no open pass is found.
+- A lift after a live collider flush (selftest only).
+- The line's colour was the analog link's chroma blur, now fixed: the line
+  marks its pixels (target alpha) and the lens keeps their colour, the mark
+  read on the same taps as the colour. Seen on the Eiffel spiral with the
+  link pinned at 0.30 and 0.18: the colour fades, jitters and tears with the
+  line, no ghost. The motion smear of a fast pass is not checked by eye.
+- `?live=` without an operator has clearance 0: every tier II/III is
+  encrypted there, so no trace for them (unchanged rule).
+
+**Tier I threads — verified by eye (Chromium, `?live=` Paris, operator
+HANGAR, clearance 3):** Notre-Dame (tier I) gets a level half-turn orbit
+(R 32 m, 100 m long); the gate is entered at 14 m and not at 16.5 m (15 m
+tolerance); flown with `flyTrace` to `UPLINKED`, stored `trace: 'orbit'`.
+Memorial of the Deportation flown to `UPLINKED`, card `TRACE ORBIT · 11.2 s`.
+A 67 s sweep across the Latin Quarter at 12 m/s (dozens of tier I places)
+changed the active trace 3 times, no bounce; no probe failure; frame p50
+10 ms, p99 20 ms, worst 30 ms. Small churches in dense blocks get the 50 m
+capped orbit (their neighbours reach the landmark's height band).
+
+**The feel of the thread (sound, OSD line, direction ticks) — rules in
+`docs/manual.md`.** Selftests: thread-audio (targets, gate tick edge, graph on
+a fake context: built once, reaches the destination, silent frozen, no throw
+without / with a suspended context), trace (follower `near*`, `followCue`),
+bearing (`cueText`), trace-line (tick arcs, chevrons, skipped end-on, in-place
+rewrite), trace-wiring. Verified in Chromium (`?live=` Paris, dev operator
+LOT4): `GATE 80 m ↑` / `GATE 44 m ↑` before the gate, `THREAD 20 m ↖` off it,
+`· RESET 5 s` → `1 s`, then `GATE 52 m ←` once cooling; the chevrons read at
+the gate and ahead, pointing the way (`shots/feel-*.png` in the lot-4 ledger).
+Audio graph sampled every 100–500 ms: gain swells to 0.05, pitch 196 → 292 Hz
+and lowpass 500 → 2358 Hz at 99 %; off: 0.018 / 320 Hz; cool-down 0.018 → 0
+while the pitch slides to 146 Hz; paused 0, resumed 0.05; uplink 0 within
+0.1 s; crash 0; 10 nodes for a whole flight (7 + one tick).
+**NOT verified:** the sound by ear (level against the motors and the music,
+the timbre); a suspended AudioContext in the browser (selftest only).

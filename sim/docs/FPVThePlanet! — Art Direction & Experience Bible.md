@@ -1945,6 +1945,57 @@ Hors de cette exception et des quelques autres que `tools/palette-selftest.mjs`
 recense déjà, le §19 reste vrai. Ce selftest autorise `src/hangar.js`
 nommément, avec un commentaire qui renvoie ici.
 
+### Le fil
+
+*(ajouté le 2026-09-28, issue #185.)*
+
+Un signal ne se garde pas dans le cadre : il se **vole**. Un regard fixe sur
+un point ne vaut pas un vol — c'est vrai de la chapelle de quartier comme de
+la tour Eiffel. Le niveau ne change que la taille du fil : un demi-tour large
+et tolérant au niveau I, la forme complète et serrée au niveau III.
+
+Autour de lui, le jeu pose **un fil** : le chemin du signal dans l'air. Il
+monte en spirale autour d'une tour, passe sous un pont, plonge le long d'une
+pente, tourne autour du reste. Le même lieu donne toujours le même fil. On y
+entre par une porte ; on le suit ; au bout, `UPLINKED`. Qui le quitte le
+retrouve où il l'a laissé — au-delà de dix secondes, le fil refroidit et il
+faut repasser la porte.
+
+C'est **le seul objet que le jeu pose dans le monde**. Il n'existe que près
+d'un signal ouvert, un seul à la fois, et disparaît une fois le lieu transmis.
+Quand le monde ne laisse pas la place de le poser, et seulement alors, le
+signal se garde dans le cadre.
+
+**Ce que ce n'est pas.** Pas de chrono à battre. Pas de score. Pas de fantôme.
+Pas de flèche dans le monde vers la porte, pas de trajectoire conseillée, pas
+de voix qui corrige.
+
+**Ce qu'il dit.** L'OSD dit où est le fil, comme il dit où est le signal
+suivant : `GATE 86 m ↗` avant la porte, `THREAD 14 m ↗` hors du fil, et
+`· RESET 4 s` quand il va refroidir — une distance et un relèvement, rien sur
+la manière de voler. Le fil s'entend : c'est la famille `LINK` (§34), la
+porteuse du signal qu'on suit, discrète, qui s'ouvre avec la progression,
+retombe à un murmure hors du fil et s'éteint quand il refroidit ; un déclic
+marque la porte. Pas de mélodie, pas de fanfare : `TARGET_FOUND` reste le seul
+son de l'uplink.
+
+Le pilier 1 tient : le fil n'est pas un GPS. Il ne dit pas comment aller
+quelque part — il **est** ce qu'on intercepte, le chemin que le signal
+emprunte. Le suivre est un défi de pilotage ; le jeu ne dit ni par où
+l'aborder, ni à quelle vitesse, et ne regarde pas où pointe la caméra. La
+photo transmise est la meilleure vue du lieu prise pendant le vol.
+
+**L'exception au §42.** L'image FPV reste brute : rien ne s'y dessine. Le fil
+en est l'unique exception, et elle est bornée :
+
+- jaune pour ce qui reste, vert pour ce qui est volé — les couleurs d'état,
+  parce qu'elles transmettent une information (§38) ;
+- un trait fin, caché derrière ce qui le masque, vu à travers l'optique ;
+- de fins chevrons dans sa couleur, sur les 60 m qui viennent : le sens du fil,
+  pas une flèche vers lui ;
+- ni halo, ni lueur, ni brouillard ;
+- absent de toute photo : ce qui part au réseau est le lieu, pas le fil.
+
 ### La phrase de l'habilitation
 
 > **What you uplink is what the network trusts you with.**

@@ -3,10 +3,26 @@
 // link, so the callout never degrades with the video. Layout decisions are in
 // tools/signal-callout-model.mjs; here there is only DOM. OSM text is written
 // with textContent (PR #81).
-import { revealCount, scramble, headline } from '../tools/signal-callout-model.mjs';
+import { revealCount, scramble, headline, chevronText } from '../tools/signal-callout-model.mjs';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const CELLS = 12;
+
+// render() runs every frame, and a DOM write costs even when it writes the
+// same value: each one goes through a cache of the last value written and is
+// skipped when unchanged. Nothing else writes these nodes.
+const written = new WeakMap();
+function changed(el, key, v) {
+	let c = written.get(el);
+	if (!c) written.set(el, c = {});
+	if (c[key] === v) return false;
+	c[key] = v;
+	return true;
+}
+const prop = (el, k, v) => { if (changed(el, k, v)) el[k] = v; };
+const style = (el, k, v) => { if (changed(el, 's:' + k, v)) el.style[k] = v; };
+const attr = (el, k, v) => { if (changed(el, 'a:' + k, v)) el.setAttribute(k, v); };
+const data = (el, k, v) => { if (changed(el, 'd:' + k, v)) el.dataset[k] = v; };
 
 export class SignalCallout {
 	constructor(root) {
@@ -41,40 +57,45 @@ export class SignalCallout {
 	}
 
 	render(view) {
-		if (!view) { this.el.hidden = true; this.chev.hidden = true; return; }
-		const { signal, row, placed, now } = view;
-		const { word, tone } = headline(row.state, { need: signal.need });
+		if (!view) { prop(this.el, 'hidden', true); prop(this.chev, 'hidden', true); return; }
+		const { signal, row, placed, now, trace } = view;
+		// trace: { shape, pct, wait } while this signal's trace is in the world.
+		const { word, tone } = trace
+			? headline(trace.wait ? 'trace-wait' : 'trace', trace)
+			: headline(row.state, { need: signal.need });
 		if (!placed.onScreen) {
-			this.el.hidden = true;
-			this.chev.hidden = false;
-			this.chev.dataset.tone = tone;
-			const dist = Math.round(row.dist);
-			this.chevTxt.textContent = `SIGNAL ${dist} M`;
-			this.chevArrow.textContent = '▶';
-			this.chevArrow.style.transform = `rotate(${placed.edge.angleDeg}deg)`;
+			prop(this.el, 'hidden', true);
+			prop(this.chev, 'hidden', false);
+			data(this.chev, 'tone', tone);
+			prop(this.chevTxt, 'textContent', chevronText(row.dist, trace));
+			prop(this.chevArrow, 'textContent', '▶');
+			style(this.chevArrow, 'transform', `rotate(${placed.edge.angleDeg}deg)`);
 			// Arrow on the side the chevron points to.
-			if (placed.edge.nx > 0) this.chev.replaceChildren(this.chevTxt, this.chevArrow);
-			else this.chev.replaceChildren(this.chevArrow, this.chevTxt);
-			this.chev.style.left = `${placed.edge.x}px`;
-			this.chev.style.top = `${placed.edge.y}px`;
+			const right = placed.edge.nx > 0;
+			if (changed(this.chev, 'side', right)) {
+				if (right) this.chev.replaceChildren(this.chevTxt, this.chevArrow);
+				else this.chev.replaceChildren(this.chevArrow, this.chevTxt);
+			}
+			style(this.chev, 'left', `${placed.edge.x}px`);
+			style(this.chev, 'top', `${placed.edge.y}px`);
 			// Pulled inward by its own size: centred on the edge point, half of it
 			// would hang off the image.
-			this.chev.style.transform = `translate(${-50 - 50 * placed.edge.nx}%, ${-50 - 50 * placed.edge.ny}%)`;
+			style(this.chev, 'transform', `translate(${-50 - 50 * placed.edge.nx}%, ${-50 - 50 * placed.edge.ny}%)`);
 			return;
 		}
-		this.chev.hidden = true;
-		this.el.hidden = false;
-		this.el.dataset.tone = tone;
-		this.line.setAttribute('x1', placed.ax); this.line.setAttribute('y1', placed.ay);
-		this.line.setAttribute('x2', placed.bx); this.line.setAttribute('y2', placed.by + 10);
-		this.dot.setAttribute('x', placed.ax - 4); this.dot.setAttribute('y', placed.ay - 4);
-		this.box.style.left = `${placed.bx}px`;
-		this.box.style.top = `${placed.by}px`;
-		this.word.textContent = word;
-		this.dist.textContent = `${Math.round(row.dist)} M`;
+		prop(this.chev, 'hidden', true);
+		prop(this.el, 'hidden', false);
+		data(this.el, 'tone', tone);
+		attr(this.line, 'x1', placed.ax); attr(this.line, 'y1', placed.ay);
+		attr(this.line, 'x2', placed.bx); attr(this.line, 'y2', placed.by + 10);
+		attr(this.dot, 'x', placed.ax - 4); attr(this.dot, 'y', placed.ay - 4);
+		style(this.box, 'left', `${placed.bx}px`);
+		style(this.box, 'top', `${placed.by}px`);
+		prop(this.word, 'textContent', word);
+		prop(this.dist, 'textContent', `${Math.round(row.dist)} M`);
 		const lit = Math.round(row.gauge * CELLS);
-		this.gauge.hidden = row.state === 'near' || row.state === 'encrypted';
-		this.cells.forEach((c, i) => { c.className = i < lit ? 'on' : ''; });
+		prop(this.gauge, 'hidden', row.state === 'near' || row.state === 'encrypted');
+		for (let i = 0; i < CELLS; i++) prop(this.cells[i], 'className', i < lit ? 'on' : '');
 		if (this._rowsFor !== signal.id) {
 			this.rows.replaceChildren(...signal.fields.map((f) => {
 				const r = document.createElement('div');
@@ -87,11 +108,17 @@ export class SignalCallout {
 		}
 		const shown = revealCount(signal.fields.length, row.gauge, row.state);
 		const seed = Math.floor(now * 8);
-		signal.fields.forEach((f, i) => {
+		const fields = signal.fields;
+		for (let i = 0; i < fields.length; i++) {
 			const v = this.rows.children[i].lastChild;
 			const clear = i < shown;
-			v.textContent = clear ? f.value : scramble(f.value, seed + i);
-			v.dataset.clear = String(clear);
-		});
+			// The scramble only changes at 8 Hz (its seed): not recomputed in between.
+			const key = clear ? 'clear' : seed + i;
+			const keyNew = changed(v, 'key', key), valueNew = changed(v, 'value', fields[i].value);
+			if (keyNew || valueNew) {
+				v.textContent = clear ? fields[i].value : scramble(fields[i].value, seed + i);
+			}
+			data(v, 'clear', String(clear));
+		}
 	}
 }

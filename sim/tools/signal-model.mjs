@@ -12,7 +12,7 @@
 export const TILE_Z = 12;
 // Below this map zoom the scanner does not scan at all: the view is a region,
 // not a place you would fly.
-export const MIN_QUERY_ZOOM = 10;
+export const MIN_QUERY_ZOOM = 13;
 // Tiles asked per view, nearest the centre first. A wide view is not refused
 // (the operator had to zoom to 14-15 on a large screen before anything came);
 // it scans its centre, and panning scans the rest. The queue keeps only the
