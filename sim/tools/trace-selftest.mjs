@@ -82,20 +82,20 @@ const towerAnchor = { x: 500, y: 103, z: -200 };
 const towerH = (x, z) => (Math.hypot(x - 500, z + 200) < 2 ? 100 : 0);
 const towerProfile = profileOf(towerAnchor, towerH);
 
-t('orbit: ring at anchor + 6 m, radius outline + 12 m; half a level turn (II), a 1.5-turn helix rising 8 m a turn (III)', () => {
+t('orbit: ring at anchor + 6 m, radius outline + 12 m; half a level turn (I, II), a 1.5-turn helix rising 8 m a turn (III)', () => {
 	const approach = { x: 500, z: 100 }; // due south
-	for (const tier of [2, 3]) {
+	for (const tier of [1, 2, 3]) {
 		const tr = buildTrace({ signal: sig('CATHEDRAL'), anchor: towerAnchor, profile: towerProfile, tier, approach });
 		assert.equal(tr.shape, 'orbit');
 		assert.equal(tr.id, 'wd:Q42');
 		assert.equal(tr.tolerance, TOLERANCE_M[tier]);
 		spacingOk(tr);
-		const arc = tier === 2 ? Math.PI : 3 * Math.PI;
-		const rise = tier === 2 ? 0 : 12;
+		const arc = tier < 3 ? Math.PI : 3 * Math.PI;
+		const rise = tier < 3 ? 0 : 12;
 		assert.ok(Math.abs(tr.length - Math.hypot(arc * 12, rise)) < 1, `length ${tr.length}`);
 		for (let i = 0; i < count(tr); i++) {
 			const p = pt(tr, i);
-			if (tier === 2) assert.ok(Math.abs(p.y - 109) < 1e-3);
+			if (tier < 3) assert.ok(Math.abs(p.y - 109) < 1e-3);
 			else if (i > 0) assert.ok(p.y >= pt(tr, i - 1).y - 1e-4, 'monotonic climb');
 			assert.ok(Math.abs(hdist(p, towerAnchor) - 12) < 0.1);
 		}
@@ -189,7 +189,7 @@ t('orbit: never wider than ORBIT_MAX_R_M (a long bridge); its altitude clears wh
 	}
 	const ys = [];
 	for (const attempt of [0, 1, 2]) {
-		for (const tier of [2, 3]) {
+		for (const tier of [1, 2, 3]) {
 			const tr = buildTrace({ signal: sig('BRIDGE'), anchor: a, profile: p, tier, approach: { x: 0, z: 300 }, attempt });
 			assert.equal(tr.shape, 'orbit');
 			for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(hdist(pt(tr, i), a) - ORBIT_MAX_R_M) < 0.1, `radius ${hdist(pt(tr, i), a)}`);
@@ -234,7 +234,7 @@ const noOverlay = (tr) => {
 t('spiral: rises from ground + 15 m to top + 10 m, 12 m around a thin tower, 30° at most, entry facing the drone', () => {
 	const approach = { x: 100, z: -500 };
 	const lens = {};
-	for (const tier of [2, 3]) {
+	for (const tier of [1, 2, 3]) {
 		const tr = buildTrace({ signal: sig('TOWER'), anchor: towerAnchor, profile: towerProfile, tier, approach });
 		assert.equal(tr.shape, 'spiral');
 		spacingOk(tr);
@@ -248,6 +248,7 @@ t('spiral: rises from ground + 15 m to top + 10 m, 12 m around a thin tower, 30�
 	}
 	// 95 m of climb at 12 m: tier II needs 2.18 turns to stay at 30° (190 m), tier III makes 1.5 × as many.
 	assert.ok(Math.abs(lens[2] - 190) < 1.5, `II length ${lens[2]}`);
+	assert.equal(lens[1], lens[2], 'tier I: the same climb-bound spiral as tier II');
 	const horiz3 = 1.5 * 95 / Math.tan(Math.PI / 6);
 	assert.ok(Math.abs(lens[3] - Math.hypot(horiz3, 95)) < 1.5, `III length ${lens[3]}`);
 });
@@ -295,6 +296,10 @@ t('under: a pass across the deck at mid-clearance, 40 m each side, entry on the 
 	assert.equal(tr.shape, 'under');
 	spacingOk(tr);
 	assert.ok(Math.abs(tr.length - 80) < 0.5, `length ${tr.length}`);
+	// Tier I: the same single pass, with the wider tube.
+	const t1 = buildTrace({ signal: sig('BRIDGE'), anchor: bridgeAnchor, profile: p, tier: 1, approach });
+	assert.deepEqual(t1.points, tr.points);
+	assert.equal(t1.tolerance, 15);
 	for (let i = 0; i < count(tr); i++) {
 		assert.ok(Math.abs(pt(tr, i).y - 15) < 1e-3);
 		assert.ok(Math.abs(pt(tr, i).x) < 1e-3, 'perpendicular to the deck');
@@ -345,14 +350,14 @@ const peakProfile = profileOf(peakAnchor, peakH);
 
 t('dive: from top + 40 m on the drone side, down the steepest face, 10 m above the surface', () => {
 	const approach = { x: -50, z: -400 };
-	for (const tier of [2, 3]) {
+	for (const tier of [1, 2, 3]) {
 		const tr = buildTrace({ signal: sig('PEAK'), anchor: peakAnchor, profile: peakProfile, tier, approach });
 		assert.equal(tr.shape, 'dive');
 		spacingOk(tr);
 		// 60 / 160 m at least — unless the grid's reach at 45° is shorter
 		// (80 m rings here; the probe adds 140 m rings for a dive): this drop
 		// (the 300 m peak) asks for more.
-		assert.ok(tr.length >= (tier === 2 ? 60 : 110) - 1.5 && tr.length <= 250 + 1, `length ${tr.length}`);
+		assert.ok(tr.length >= ({ 1: 40, 2: 60, 3: 110 })[tier] - 1.5 && tr.length <= 250 + 1, `length ${tr.length}`);
 		assert.ok(Math.abs(pt(tr, 0).y - (peakProfile.top + 40)) < 1e-3, 'start 40 m above the top');
 		const e0 = pt(tr, 0);
 		assert.ok((e0.x - 0) * approach.x + (e0.z - 0) * approach.z > 0, 'entry on the drone side');
@@ -361,7 +366,7 @@ t('dive: from top + 40 m on the drone side, down the steepest face, 10 m above t
 			assert.ok(q.y >= surfaceAt(peakProfile, peakAnchor, q.x, q.z) + 10 - 0.5, `point ${i} too low`);
 		}
 		const last = pt(tr, count(tr) - 1);
-		assert.ok(last.x > pt(tr, 0).x + (tier === 2 ? 3 : 30), 'went east, the steepest face');
+		assert.ok(last.x > pt(tr, 0).x + (tier < 3 ? 3 : 30), 'went east, the steepest face');
 		assert.ok(last.y < pt(tr, 0).y - 40, 'descended');
 	}
 });
@@ -414,9 +419,11 @@ t('dive: a drop deeper than the path descends at 45° at most, the path longer, 
 	}
 });
 
-t('buildTrace: tier I, no profile or a bad anchor gives null; deterministic', () => {
+t('buildTrace: no tier, no profile or a bad anchor gives null; deterministic', () => {
 	const args = { signal: sig('TOWER'), anchor: towerAnchor, profile: towerProfile, tier: 2, approach: { x: 0, z: 0 } };
-	assert.equal(buildTrace({ ...args, tier: 1 }), null);
+	assert.equal(buildTrace({ ...args, tier: 0 }), null);
+	assert.equal(buildTrace({ ...args, tier: undefined }), null);
+	assert.equal(buildTrace({ ...args, tier: 1 }).tolerance, 15);
 	assert.equal(buildTrace({ ...args, profile: null }), null);
 	assert.equal(buildTrace({ ...args, anchor: { x: NaN, y: 0, z: 0 } }), null);
 	assert.deepEqual(buildTrace(args), buildTrace(args));

@@ -10,7 +10,7 @@
 // candidate, never gauges, never takes focus. Row states:
 // hidden|near|capturing|held|resolved|encrypted.
 //
-// A target with `trace: true` (tier II/III, lot 4) is captured by flying its
+// A target with `trace: true` (every tier, lot 4) is captured by flying its
 // trace, not by holding it: it still gets focus, near and the callout, but its
 // gauge never fills from the frame. main.js drives it with setTraceProgress()
 // and, at the end of the trace, resolveByTrace() — uplinked on the next

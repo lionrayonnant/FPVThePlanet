@@ -73,7 +73,7 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalTraces } from './signal-traces.js';
 import { TraceLine } from './trace-line.js';
-import { photoScore, photoAim, photoInSight, viewAngleDeg, shapeOf } from '../tools/trace-model.mjs';
+import { photoScore, photoAim, photoInSight, viewAngleDeg, shapeOf, TOLERANCE_M } from '../tools/trace-model.mjs';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -730,7 +730,7 @@ const signalAnchors = new SignalAnchors({
 	ground: (x, z) => physics?.groundBelow(x, 3000, z, 6000) ?? null,
 });
 const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
-// The trace (#185 lot 4): a tier II/III signal is captured by flying a thread
+// The trace (#185 lot 4): every signal (any tier) is captured by flying a thread
 // laid around it (src/signal-traces.js), one at a time. The physics methods go
 // in as closures: `physics` is set at boot, and they are methods.
 const traceLine = new TraceLine(scene);
@@ -2251,11 +2251,11 @@ function armSignals() {
 		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M).map((s) => (
 			!done.has(s.id) && !tierAllowed(flightClearance, s.tier) ? { ...s, encrypted: true, need: levelForTier(s.tier) } : s));
 		signalAnchors.set(flightSignals);
-		// Tier II/III is captured by its trace, unless its trace could not be laid
-		// this flight (then the hold, like tier I).
+		// Every tier is captured by its trace, unless its trace could not be laid
+		// this flight (then the hold).
 		signalTargets = flightSignals.map((s) => ({
 			id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id), encrypted: !!s.encrypted,
-			trace: s.tier >= 2 && !s.encrypted && !signalTraces.failed.has(s.id),
+			trace: !!TOLERANCE_M[s.tier] && !s.encrypted && !signalTraces.failed.has(s.id),
 		}));
 		signalCapture.setTargets(signalTargets);
 		if (!flightSignals.length) signalCallout.render(null);

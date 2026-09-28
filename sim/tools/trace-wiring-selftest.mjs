@@ -103,6 +103,8 @@ console.log('\ntrace-wiring: flight end and the uplink entry');
 	const up = bodyAfter('function onSignalUplinked(') ?? '';
 	check('the entry carries the shape of a trace flown', /trace:\s*tr\.shape/.test(up));
 	check('and its seconds on the trace as holdS', /const holdS = tr \? tr\.holdS : HOLD_S/.test(up));
+	check('every tier is a trace target (tier I included), not tier ≥ 2 only',
+		/trace: !!TOLERANCE_M\[s\.tier\] && !s\.encrypted/.test(src) && !/trace: s\.tier >= 2/.test(src));
 }
 
 console.log(failures ? `\n${failures} failure(s).` : '\ntrace-wiring: all pass.');

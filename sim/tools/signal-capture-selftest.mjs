@@ -202,6 +202,19 @@ t('a trace target never fills from the frame; its gauge is the trace progress', 
 	assert.equal(row(sc, 'a').state, 'near', 'reset: back to the gate');
 });
 
+t('a tier I trace target: no hold before its thread; back to the hold once its trace is gone', () => {
+	const sc = new SignalCapture();
+	const tgt = { id: 'c', tier: 1, pos: { x: 0, y: 0, z: -100 }, trace: true };
+	sc.setTargets([tgt]);
+	const args = { cam: camAt(), fpv: true, los: () => true };
+	assert.equal(run(sc, HOLD_S * 2, args), null, 'standby: never uplinked by the frame');
+	assert.equal(row(sc, 'c').gauge, 0);
+	// The trace could not be laid: main.js clears the flag and the progress.
+	tgt.trace = false;
+	sc.setTraceProgress('c', 0, null);
+	assert.equal(run(sc, HOLD_S + 0.5, args), 'c', 'the hold fallback');
+});
+
 t('resolveByTrace: uplinked on the next update, once; after a hold of the same frame', () => {
 	const sc = new SignalCapture();
 	sc.setTargets([{ id: 'tr', tier: 2, pos: { x: 50, y: 0, z: -100 }, trace: true }, target('h', { x: 0, y: 0, z: -100 })]);

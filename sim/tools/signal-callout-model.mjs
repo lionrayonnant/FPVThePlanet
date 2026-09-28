@@ -71,7 +71,7 @@ export function scramble(text, seed) {
 	return out;
 }
 
-// 'trace' / 'trace-wait': a tier II/III signal flown along its trace (lot 4),
+// 'trace' / 'trace-wait': a signal flown along its trace (lot 4),
 // in the trace's own yellow — `TRACE · SPIRAL · 42 %`, and before the gate
 // `TRACE · SPIRAL · ENTER THE GATE`. `standby`: a trace target with no trace
 // in the world yet (another one is flown, or it is too far to be laid) —

@@ -1,10 +1,14 @@
 // The traces controller (issue #185 lot 4, spec
 // docs/superpowers/specs/2026-09-28-signals-traces-design.md rules 1, 2, 4, 5):
-// one trace in the world at a time — the nearest open, non-encrypted tier II/III
-// signal within 300 m — probed, built, validated (3 attempts), then followed;
+// one trace in the world at a time — the nearest open, non-encrypted signal of
+// any tier within 300 m — probed, built, validated (3 attempts), then followed;
 // re-validated after each collider flush and lifted over what the refined
 // world puts in its way. A signal whose trace cannot be laid falls back to the
 // hold capture for the rest of the flight (`failed`).
+//
+// Switching: a laid trace not entered yet gives way to another signal only
+// when that one stays SWITCH_GAIN_M nearer for SWITCH_S — a dense city full
+// of tier I places must not bounce the thread between two neighbours.
 //
 // The rays and the line are injected (main.js passes physics methods as
 // closures and a TraceLine), so tools/signal-traces-selftest.mjs runs it
@@ -12,7 +16,7 @@
 //
 // Budget: one phase per frame — probing (PROBE_RAYS) or validating
 // (VALIDATE_RAYS + 2 lift rays) — never both: ≤ 40 rays per frame.
-import { buildTrace, shapeOf, TraceFollower, MAX_ATTEMPTS } from '../tools/trace-model.mjs';
+import { buildTrace, shapeOf, TraceFollower, MAX_ATTEMPTS, TOLERANCE_M } from '../tools/trace-model.mjs';
 import { TraceProbe, liftStart, VALIDATE_CLEAR, VALIDATE_PENDING } from './trace-probe.js';
 
 export const TRACE_RANGE_M = 300;     // horizontal, drone → anchor: a trace is laid
@@ -21,6 +25,8 @@ export const UNDER_NEAR_M = 150;      // a bridge with no deck found from afar i
 export const PROBE_RAYS = 24;
 export const VALIDATE_RAYS = 16;
 export const PICK_S = 0.5;            // how often a new trace is looked for
+export const SWITCH_GAIN_M = 100;     // a challenger must be this much nearer than the trace not entered…
+export const SWITCH_S = 2;            // …for this long, checked every PICK_S
 export const RETRY_S = 1;             // a partial profile: the window may stream meanwhile
 export const LIFT_CLEAR_M = 6;        // a lift clears the surface under the block by this
 export const MIN_LIFT_M = 2;
@@ -39,6 +45,8 @@ export class SignalTraces {
 		this.failed = new Set();       // ids back on the hold capture for this flight
 		this.active = null;
 		this._pickS = 0;
+		this._challenger = null;
+		this._challengeS = 0;
 		// Events of the last update(): the id whose trace was flown to the end
 		// (with its shape and seconds on it), gave up (-> hold), or was dropped.
 		this.out = { done: null, doneShape: null, doneS: 0, failed: null, dropped: null };
@@ -100,6 +108,18 @@ export class SignalTraces {
 		if (away && (a.phase !== 'ready' || a.follower.out.state === 'waiting')) {
 			this._drop(); o.dropped = id; return o;
 		}
+		if (this._switchable(a)) {
+			this._pickS -= dt;
+			if (this._pickS <= 0 && dt > 0) {
+				this._pickS = PICK_S;
+				const c = this._challenge(a, pos, signals, isOpen);
+				if (c) {
+					this._drop(); o.dropped = id;
+					this._take(c);
+					return o;
+				}
+			}
+		}
 		switch (a.phase) {
 			case 'wait':
 				a.waitS -= dt;
@@ -140,22 +160,51 @@ export class SignalTraces {
 		return o;
 	}
 
-	_pick(pos, signals, isOpen) {
-		let best = null, bestD = TRACE_RANGE_M, bestAt = null;
+	// The nearest candidate within TRACE_RANGE_M (horizontal), `skip` aside:
+	// -> { s, d, at } | null.
+	_nearest(pos, signals, isOpen, skip = null) {
+		let best = null;
 		for (const s of signals ?? []) {
-			if ((s.tier !== 2 && s.tier !== 3) || s.encrypted || this.failed.has(s.id) || !isOpen(s.id)) continue;
+			if (!TOLERANCE_M[s.tier] || s.encrypted || s.id === skip || this.failed.has(s.id) || !isOpen(s.id)) continue;
 			const at = this._anchorOf(s.id);
 			if (!at) continue;
 			const d = Math.hypot(pos.x - at.x, pos.z - at.z);
-			if (d <= bestD) { best = s; bestD = d; bestAt = at; }
+			if (d <= (best ? best.d : TRACE_RANGE_M)) best = { s, d, at };
 		}
-		if (!best) return;
+		return best;
+	}
+
+	_pick(pos, signals, isOpen) {
+		const c = this._nearest(pos, signals, isOpen);
+		if (c) this._take(c);
+	}
+
+	_take({ s, at }) {
 		this.active = {
-			signal: best, anchor: { x: bestAt.x, y: bestAt.y, z: bestAt.z }, shape: shapeOf(best),
+			signal: s, anchor: { x: at.x, y: at.y, z: at.z }, shape: shapeOf(s),
 			attempt: 0, phase: 'probe', waitS: 0, profile: null, trace: null, follower: null,
 			revalidate: false, lifts: 0, nearProbed: false,
 		};
+		this._challenger = null; this._challengeS = 0;
 		this._startProbe();
+	}
+
+	// Not entered yet, and not mid-probe or mid-validation (a few frames: let
+	// them finish rather than waste their rays).
+	_switchable(a) {
+		if (a.phase === 'ready') return a.follower.out.state === 'waiting';
+		return a.phase === 'near' || a.phase === 'wait';
+	}
+
+	// -> the candidate that has stayed SWITCH_GAIN_M nearer than the active
+	// trace for SWITCH_S, or null (still counting, or none).
+	_challenge(a, pos, signals, isOpen) {
+		const c = this._nearest(pos, signals, isOpen, a.signal.id);
+		const dA = Math.hypot(pos.x - a.anchor.x, pos.z - a.anchor.z);
+		if (!c || dA - c.d < SWITCH_GAIN_M) { this._challenger = null; this._challengeS = 0; return null; }
+		if (this._challenger === c.s.id) this._challengeS += PICK_S;
+		else { this._challenger = c.s.id; this._challengeS = 0; }
+		return this._challengeS >= SWITCH_S ? c : null;
 	}
 
 	_startProbe() {
@@ -240,5 +289,7 @@ export class SignalTraces {
 		this.line?.hide();
 		this.active = null;
 		this._pickS = 0;
+		this._challenger = null;
+		this._challengeS = 0;
 	}
 }

@@ -12,8 +12,9 @@ import { UNDER_MIN_CLEARANCE_M } from '../src/trace-probe.js';
 
 export const SPACING_M = 2;
 // Wide on purpose: the thread is a line to follow, not a needle to thread
-// (5 m / 3.5 m, the first values, were too hard to hold in play).
-export const TOLERANCE_M = { 2: 12, 3: 9 };
+// (5 m / 3.5 m, the first values, were too hard to hold in play). Tier I, the
+// most common places, gets the lightest form and the widest tube.
+export const TOLERANCE_M = { 1: 15, 2: 12, 3: 9 };
 // Vertical gap between two turns of a spiral: a readability floor, not the
 // tolerance (the forward search window already stops a jump between turns).
 export const TURN_GAP_M = 8;
@@ -36,11 +37,11 @@ const ALT_STEP_M = 6;         // per attempt
 // wider than this, whatever the landmark (it may then cross a deck or a quay).
 export const ORBIT_MAX_R_M = 50;
 const ORBIT_CLEAR_PAD_M = 10; // its altitude clears everything probed within R + 10 m
-const ARC = { 2: Math.PI, 3: 3 * Math.PI };
+const ARC = { 1: Math.PI, 2: Math.PI, 3: 3 * Math.PI };
 // Tier III orbit: a helix, so its 1.5 turns never overlay. 8 m per turn keeps
 // two passes over each other more than 2 × 3.5 m apart.
 const ORBIT_RISE_PER_TURN_M = 8;
-const SPIRAL_TURNS = { 2: 0.5, 3: 1.5 }; // at least; more when the climb needs them
+const SPIRAL_TURNS = { 1: 0.5, 2: 0.5, 3: 1.5 }; // at least; more when the climb needs them
 const SPIRAL_TIER3_FACTOR = 1.5;  // tier III turns = 1.5 × tier II's
 const SPIRAL_FLOOR_M = 15;    // above the ground
 const SPIRAL_OVER_SURF_M = 6; // above the profile under every point
@@ -61,7 +62,7 @@ const DIVE_ABOVE_TOP_M = 40;
 const DIVE_CLEAR_M = 10;
 const DIVE_CLEAR_STEP_M = 4;  // per attempt
 const DIVE_START_OFFSET_M = 10; // from the summit towards the approach
-const DIVE_LENGTH_M = { 2: 60, 3: 160 }; // at least
+const DIVE_LENGTH_M = { 1: 40, 2: 60, 3: 160 }; // at least
 const DIVE_MAX_LENGTH_M = 250;
 
 const TAU = 2 * Math.PI;
@@ -251,7 +252,7 @@ function buildOrbit(ctx) {
 	const edge = profile.rings[profile.rings.length - 1].r;
 	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, ORBIT_MAX_R_M, edge);
 	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxWithin(profile, anchor, R + ORBIT_CLEAR_PAD_M) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
-	// Tier II (half a turn) stays level; tier III climbs so its turns never overlay.
+	// Tiers I/II (half a turn) stay level; tier III climbs so its turns never overlay.
 	const rise = tier >= 3 ? ORBIT_RISE_PER_TURN_M * ARC[tier] / TAU : 0;
 	return buildRing({ anchor, R, theta0, dir, arc: ARC[tier], y0: y, y1: y + rise });
 }
@@ -294,7 +295,7 @@ function buildSpiral(ctx) {
 		let W = 0; // ∫ dy / R
 		for (let j = 1; j < n; j++) W += dy * 2 / (R[j - 1] + R[j]);
 		const need = W / (SPIRAL_CLIMB_MAX * TAU);
-		const t2 = Math.max(SPIRAL_TURNS[2], need);
+		const t2 = Math.max(SPIRAL_TURNS[tier >= 3 ? 2 : tier], need);
 		turns = tier >= 3 ? Math.max(SPIRAL_TURNS[3], SPIRAL_TIER3_FACTOR * t2) : t2;
 		// Too short a climb for these turns: climb higher.
 		if (y1 - y0 >= minRise * turns - 1e-9) break;
@@ -477,9 +478,11 @@ function resample(raw) {
 	return { points, cum, length: cum[segs] };
 }
 
-// -> { id, shape, points, cum, length, tolerance } | null (tier I, no profile,
-// a non-finite anchor). A bridge/arch without a usable axis (none, or less
-// than UNDER_MIN_CLEARANCE_M of clearance) falls back to an orbit.
+// -> { id, shape, points, cum, length, tolerance } | null (no tier, no profile,
+// a non-finite anchor). Tiers I and II share the short form (half a turn, a
+// single pass under); tier I's dive is 40 m and its tolerance 15 m. A
+// bridge/arch without a usable axis (none, or less than UNDER_MIN_CLEARANCE_M
+// of clearance) falls back to an orbit.
 export function buildTrace({ signal, anchor, profile, tier, approach, attempt = 0 }) {
 	const tol = TOLERANCE_M[tier];
 	if (!tol || !signal || !anchor || !validProfile(profile)) return null;

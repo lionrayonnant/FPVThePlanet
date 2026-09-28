@@ -5,7 +5,7 @@
 // (analytic rays), a fake line.
 // Run: node tools/signal-traces-selftest.mjs
 import assert from 'node:assert/strict';
-import { SignalTraces, TRACE_RANGE_M, DROP_RANGE_M, UNDER_NEAR_M, PROBE_RAYS, VALIDATE_RAYS, RETRY_S } from '../src/signal-traces.js';
+import { SignalTraces, TRACE_RANGE_M, DROP_RANGE_M, UNDER_NEAR_M, PROBE_RAYS, VALIDATE_RAYS, RETRY_S, SWITCH_GAIN_M, SWITCH_S, PICK_S } from '../src/signal-traces.js';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -87,10 +87,12 @@ function settle(ctx, pos, frames = 200) {
 
 const pointOf = (trace, i) => ({ x: trace.points[3 * i], y: trace.points[3 * i + 1], z: trace.points[3 * i + 2] });
 
-t('picks the nearest open tier II/III signal within 300 m, never tier I, encrypted, resolved or far', () => {
+t('picks the nearest open signal of any tier within 300 m, never encrypted, resolved or far', () => {
 	const pos = { x: 200, y: 30, z: 0 };
 	const cases = [
-		[[sig('wd:Q1', 1)], null],
+		[[sig('wd:Q1', 1)], 'wd:Q1'],
+		[[sig('wd:Q1', 0)], null],                    // no tier: no trace
+		[[sig('wd:Q1', 3), sig('wd:Q3', 1)], 'wd:Q3'], // tier I at 50 m beats tier III at 200 m
 		[[sig('wd:Q1', 2, { encrypted: true })], null],
 		[[sig('wd:Q2')], null],                        // 400 m away
 		[[sig('wd:Q1'), sig('wd:Q3', 3)], 'wd:Q3'],     // 50 m beats 200 m
@@ -299,6 +301,64 @@ t('a collider flush mid-validation restarts the validation', () => {
 	assert.equal(ctx.tr.active.phase, 'validate');
 	settle(ctx, pos);
 	assert.ok(ctx.tr.trace, 'laid after the restart');
+});
+
+t('tier I: a half-turn orbit laid with the 15 m tolerance', () => {
+	// A 20 m chapel (20 × 20 m): an orbit, level, half a turn.
+	const world = new World({ boxes: [{ x0: -10, x1: 10, z0: -10, z1: 10, y0: 0, y1: 20 }] });
+	const ctx = setup({ world, signals: [sig('wd:Q5', 1, { kind: 'CHAPEL', heightM: 20 })], at: { 'wd:Q5': { x: 0, y: 23, z: 0 } } });
+	const maxRays = settle(ctx, { x: 200, y: 30, z: 0 });
+	assert.ok(ctx.tr.trace, 'laid');
+	assert.equal(ctx.tr.shape, 'orbit');
+	assert.equal(ctx.tr.trace.tolerance, 15);
+	assert.equal(ctx.tr.follower.tolerance, 15);
+	const P = ctx.tr.trace.points, m = P.length / 3;
+	for (let i = 0; i < m; i++) assert.ok(Math.abs(P[3 * i + 1] - P[1]) < 1e-3, 'level');
+	const R = Math.hypot(P[0], P[2]);
+	assert.ok(Math.abs(ctx.tr.trace.length - Math.PI * R) < 3, `half a turn: ${ctx.tr.trace.length} vs π·${R.toFixed(1)}`);
+	assert.ok(maxRays <= 40, `max ${maxRays} rays/frame`);
+});
+
+t('switching: a trace not entered gives way only to a place 100 m nearer for 2 s', () => {
+	// Two chapels 250 m apart on the X axis; the drone starts near A.
+	const box = (cx) => ({ x0: cx - 10, x1: cx + 10, z0: -10, z1: 10, y0: 0, y1: 20 });
+	const world = new World({ boxes: [box(0), box(250)] });
+	const at = { A: { x: 0, y: 23, z: 0 }, B: { x: 250, y: 23, z: 0 } };
+	const signals = [sig('A', 1, { kind: 'CHAPEL', heightM: 20 }), sig('B', 1, { kind: 'CHAPEL', heightM: 20 })];
+	const ctx = setup({ world, signals, at });
+	settle(ctx, { x: 60, y: 30, z: 60 });
+	assert.equal(ctx.tr.id, 'A');
+	assert.ok(ctx.tr.trace);
+	const dropped = [];
+	const run = (pos, s) => {
+		const ids = new Set();
+		for (let i = 0; i < Math.round(s * 60); i++) {
+			ctx.tr.update({ dt: 1 / 60, followDt: 1 / 60, pos, signals, isOpen: () => true });
+			if (ctx.tr.out.dropped) dropped.push(ctx.tr.out.dropped);
+			ids.add(ctx.tr.id);
+		}
+		return ids;
+	};
+	// Midway (B only 40 m nearer): A stays, however long.
+	assert.deepEqual([...run({ x: 145, y: 30, z: 60 }, 10)], ['A']);
+	// B 150 m nearer: not before SWITCH_S…
+	assert.deepEqual([...run({ x: 200, y: 30, z: 60 }, SWITCH_S - 2 * PICK_S)], ['A']);
+	// …then B, and it keeps it while the drone wanders back to midway.
+	run({ x: 200, y: 30, z: 60 }, 2 * PICK_S + PICK_S + 0.1);
+	assert.equal(ctx.tr.id, 'B');
+	assert.deepEqual(dropped, ['A'], 'the capture is told A has no trace any more');
+	assert.ok(!ctx.tr.failed.has('A'), 'A is not failed: it may be laid again later');
+	settle(ctx, { x: 200, y: 30, z: 60 });
+	assert.ok(ctx.tr.trace, 'B laid');
+	const back = run({ x: 110, y: 30, z: 60 }, 10);
+	assert.deepEqual([...back], ['B'], 'no bounce back at midway');
+	assert.equal(SWITCH_GAIN_M, 100);
+	// Entered: never switched away, even with the other one right there.
+	const f = ctx.tr.follower;
+	const P = ctx.tr.trace.points;
+	f.update({ dt: 1 / 60, pos: { x: P[0], y: P[1], z: P[2] } });
+	assert.notEqual(f.out.state, 'waiting');
+	assert.deepEqual([...run({ x: 20, y: 30, z: 0 }, 5)], ['B']);
 });
 
 console.log(`signal-traces: ${n} ok`);
