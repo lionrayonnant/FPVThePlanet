@@ -1327,6 +1327,64 @@ button.terminal-row:focus::before { left: 0; }
    because that is where the graph decides how much room its axes need. */
 canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 
+/* signals in DATA (issue #185, lot 3): the SIGNALS section and the capture
+   view (src/signals-data.js, mockup dossier-v3.html). The DATA grammar: mono
+   rows, underlined caps links, hairlines, no boxes. Green is "uplinked" and
+   nothing else. */
+.signals-places button.terminal-link { color: var(--dim); border-bottom-color: var(--rule); }
+.signals-places button.terminal-link.on { color: var(--ink); border-bottom-color: var(--ink); }
+.signals-list { display: flex; flex-direction: column; align-items: flex-start; }
+.signals-list > * { flex: none; }
+.bootstrap-box pre.signals-line {
+	padding-left: 1.2em;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	line-height: 1.6; letter-spacing: var(--track-data);
+	font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre;
+}
+.bootstrap-box pre.signals-locked, .bootstrap-box pre.signals-more { color: var(--faint); }
+.signals-scrambled { font-family: var(--font-ascii); color: var(--faint); }
+.signals-mark-up { color: var(--green); }
+button.signals-row:hover .signals-mark-up { color: inherit; }
+.bootstrap-box pre.signals-hint { color: var(--faint); margin-top: 0; }
+
+.terminal-capture .bootstrap-box { width: min(640px, 88vw); gap: var(--space-2); }
+.bootstrap-box pre.capture-title { white-space: pre-wrap; }
+.bootstrap-box pre.capture-foot { white-space: pre-wrap; margin: 0 0 var(--space-2); }
+/* The real place: the column's full width, 3:2, bare. */
+img.capture-ref {
+	display: block; width: 100%; aspect-ratio: 3 / 2;
+	object-fit: cover; background: var(--black);
+}
+.capture-credit {
+	font-family: var(--font-data); font-size: var(--fs-micro);
+	letter-spacing: var(--track-data); color: var(--faint);
+}
+a.capture-source {
+	color: var(--dim); text-decoration: none;
+	border-bottom: var(--rule-w) solid var(--rule-strong);
+}
+a.capture-source:hover, a.capture-source:focus { background: var(--warm-white); color: var(--black); }
+.capture-sec {
+	border-top: var(--rule-w) solid var(--rule);
+	padding-top: var(--space-3); margin-top: var(--space-2);
+	display: flex; flex-direction: column; gap: var(--space-2);
+}
+.bootstrap-box pre.capture-kv {
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data); font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre;
+}
+.capture-v { color: var(--ink); }
+.bootstrap-box pre.capture-head { color: var(--dim); }
+/* What the machine saw: small, after the place. */
+img.capture-shot { display: block; width: 46%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--black); }
+.bootstrap-box pre.capture-cap {
+	margin-top: var(--space-1);
+	font-family: var(--font-data); font-size: var(--fs-micro);
+	letter-spacing: var(--track-data); color: var(--faint); white-space: pre-wrap;
+}
+
 /* ---------- global scanner (PHASE 03) ---------- */
 /* Same grammar as the terminal: monospace, one-pixel rules, right angles, no
    colour fills. The map is the only "photographic" element on the screen, and

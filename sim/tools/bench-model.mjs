@@ -79,7 +79,7 @@ export const MODE_SELECT = {
 	// not what it will do for you: no score, no progress, no promise (#26).
 	data: {
 		label: 'DATA',
-		lines: ['flight records · telemetry', 'where you have been'],
+		lines: ['flight records · the signals you uplinked', 'where you have been'],
 	},
 	// The second line is load-bearing, not flavour: a radio that keeps playing
 	// after you walk out is the one thing about this way that is invisible
