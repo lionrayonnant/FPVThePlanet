@@ -162,6 +162,7 @@ export class FpvtpOsd {
 		this._noticePainted = '';
 		this._noticeOpacity = '';
 		this._nextText = '';
+		this._nextFor = null;   // the `next` object the text was built from
 		// #264: the machine in flight, and its drawing once the link is lost. The
 		// drawing is only built at the moment the line appears — a flight that
 		// ends well never builds one.
@@ -551,11 +552,16 @@ export class FpvtpOsd {
 		this._paintNotice();
 		// The nearest open signal ({ distM, relRad }), or null: hidden, and
 		// hidden under a verdict — there is nothing left to go for.
-		const nextText = next && !this._status ? nextSignalText(next.distM, next.relRad) : '';
-		if (nextText !== this._nextText) {
-			this._nextText = nextText;
-			this.el.nextValue.textContent = nextText;
-			this.el.next.hidden = !nextText;
+		// `next` is rebuilt at 5 Hz: the text is only rebuilt when it changes.
+		const nextShown = this._status ? null : next;
+		if (nextShown !== this._nextFor) {
+			this._nextFor = nextShown;
+			const nextText = nextShown ? nextSignalText(nextShown.distM, nextShown.relRad) : '';
+			if (nextText !== this._nextText) {
+				this._nextText = nextText;
+				this.el.nextValue.textContent = nextText;
+				this.el.next.hidden = !nextText;
+			}
 		}
 		this.el.operator.textContent = `OPERATOR // ${operator ?? '—'}`;
 		// At the bench there is no session: the line says what it is rather than
