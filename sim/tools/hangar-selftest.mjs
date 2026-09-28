@@ -33,7 +33,7 @@ await t('rows: four groups, the seven machines in ladder order, one row', async 
 	assert.deepEqual(rows.flatMap((r) => r.machines.map((m) => m.id)),
 		['freestyle5', 'cinewhoop', 'toothpick', 'race5', 'longrange', 'heavy5', 'swarm']);
 	assert.deepEqual(rows.flatMap((r) => r.machines.map((m) => m.label)),
-		['5" FREESTYLE', 'CINEWHOOP', 'TOOTHPICK', '5" RACE', 'LONG RANGE', 'HEAVY 5"', 'SWARM']);
+		['5" FREESTYLE', 'CINEWHOOP', 'TOOTHPICK', '5" RACE', 'LONG RANGE', 'HEAVY 5"', 'THE SWARM']);
 	assert.deepEqual(rows.map((r) => r.cost), STEPS);
 });
 

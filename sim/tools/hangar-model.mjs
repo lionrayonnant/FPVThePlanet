@@ -7,8 +7,9 @@ import { STEPS, MAX_CLEARANCE, LEVELS, ROMAN, clearanceOf, nextStep, tierAllowed
 import { MACHINE_NAMES } from './signal-card-model.mjs';
 import { scramble } from './signal-callout-model.mjs';
 
-// The ladder's names; the hangar's slot is too narrow for THE SWARM.
-export const HANGAR_LABELS = { ...MACHINE_NAMES, swarm: 'SWARM' };
+// The ladder's names: the same as the card, DATA and the step notice. THE
+// SWARM fits: its group is as wide as its `CLEARANCE 3   36 PTS` header.
+export const HANGAR_LABELS = { ...MACHINE_NAMES };
 
 // Cells of the progress bar (`▓▓▓░░░…  9/18 TO CLEARANCE 2`).
 export const BAR_CELLS = 12;
