@@ -18,6 +18,8 @@ import { menuNav } from './menu-nav.js';
 import { generateTargetScan, scanLines, TARGET_FAMILIES } from '../tools/target-model.mjs';
 import { conditionsBlock } from './weather.js';
 import { uiAudio } from './ui-audio.js';
+import { mountHangar } from './hangar.js';
+import { swarmAllowed } from '../tools/signal-clearance-model.mjs';
 
 // No more crew chatter on TARGET SCAN since #243.
 // The crew no longer comments on the screen you are looking at — it speaks on
@@ -36,7 +38,10 @@ import { uiAudio } from './ui-audio.js';
 // here would not be the target the server resolves. `clearance` itself is not
 // used to draw anything — it only feeds the CLEARANCE line and travels back
 // with the choice for the session POST.
-export function runTargetScan(root, { seed, count, weather = null, swarmChance, families, clearance }) {
+// `store` (the operator's uplinked signals) draws the hangar under the list:
+// every flight shows the machines this clearance can hack, and the ones it
+// will. Absent, there is no hangar.
+export function runTargetScan(root, { seed, count, weather = null, swarmChance, families, clearance, store }) {
 	const scan = generateTargetScan({ seed, count, swarmChance, families });
 	const condBlock = conditionsBlock(weather);
 	return new Promise((resolve) => {
@@ -58,14 +63,20 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance, 
 		});
 		s.box.appendChild(wrap);
 
+		// The hangar (issue #185), compact: the machines of every clearance,
+		// the open ones turning, the locked ones as silhouettes.
+		const hangar = store !== undefined ? mountHangar(s.box, { store, compact: true }) : null;
+
 		// The clearance line (issue #185, spec §2): under the list, faint —
 		// information, not an instruction, like keyHints() below it. 7 = the
-		// six ordinary families plus the swarm, which is why MAX_FAMILY_SLOTS
-		// is TARGET_FAMILIES.length + 1 rather than a hard-coded constant.
+		// six ordinary families plus the swarm. The swarm is not in `families`
+		// (it is drawn by swarmChance, not from the pool), so it is counted
+		// here once the clearance allows it.
 		if (Number.isInteger(clearance)) {
 			const line = document.createElement('pre');
 			line.className = 'terminal-clearance-line';
-			line.textContent = `CLEARANCE ${clearance} · ${scan.families.length} OF ${TARGET_FAMILIES.length + 1} MACHINE CLASSES`;
+			const classes = scan.families.length + (swarmAllowed(clearance) ? 1 : 0);
+			line.textContent = `CLEARANCE ${clearance} · ${classes} OF ${TARGET_FAMILIES.length + 1} MACHINE CLASSES`;
 			s.box.appendChild(line);
 		}
 
@@ -91,6 +102,7 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance, 
 			if (done) return;
 			done = true;
 			listNav.detach();
+			hangar?.destroy();
 			s.remove();
 			resolve({ cancelled: true });
 		};
@@ -102,6 +114,7 @@ export function runTargetScan(root, { seed, count, weather = null, swarmChance, 
 			done = true;
 			listNav.detach();
 			uiAudio.play('TARGET_FOUND');
+			hangar?.destroy();
 			s.remove();
 			resolve({
 				seed: scan.seed, count: scan.count, index,

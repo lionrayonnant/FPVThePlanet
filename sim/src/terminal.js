@@ -14,6 +14,7 @@ import { bars, histogram, scatter, steps } from './graph.js';
 import { worldWeather, formatForecast, headline, severity as weatherSeverity, today as weatherToday } from './weather.js';
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
+import { mountHangar, progressNode, tiersNode } from './hangar.js';
 import { mountScreen, screenButton } from './screen.js';
 import { armConfirm } from './confirm-button.js';
 import { versionLine, SOURCE_URL, SOURCE_CALL, LICENCE } from './version.js';
@@ -742,6 +743,7 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 		// fly.
 		const done = (value) => {
 			alive = false;
+			hangar?.destroy();
 			window.removeEventListener('resize', onResize);
 			nav?.detach();
 			s.remove();
@@ -826,11 +828,30 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 			return row;
 		};
 
+		// --- the top: what the signals opened -------------------------------
+
+		// CLEARANCE (issue #185, lot 3, mockup clearance-v4.html): the hangar at
+		// full size, the progress to the next step above it, the signal tiers
+		// under it. Built ONCE for the life of the screen and re-appended by
+		// every render(): the page is rebuilt on each step and track load, and a
+		// new hangar each time would open a new WebGL context and restart its
+		// turntables.
+		const store = operator?.signals ?? null;
+		const clearanceBox = document.createElement('div');
+		clearanceBox.className = 'data-section';
+		clearanceBox.appendChild(pre('CLEARANCE'));
+		clearanceBox.appendChild(progressNode(store, { prefix: '1 POINT PER TIER OF EVERY SIGNAL UPLINKED · ', cls: 'terminal-foot' }));
+		const hangar = mountHangar(clearanceBox, { store });
+		clearanceBox.appendChild(tiersNode(store, { cls: 'terminal-foot' }));
+
 		// --- the nine sections ----------------------------------------------
 
 		const render = () => {
 			page.replaceChildren();
 			draws = [];
+
+			// CLEARANCE first, then (lot 3, task 9b) SIGNALS, then the graphs.
+			page.appendChild(clearanceBox);
 
 			// 1. RHYTHM — the only graph about real time, and the one that makes
 			// coming back visible.

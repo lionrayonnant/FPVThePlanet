@@ -1,15 +1,15 @@
-// Selftest du langage visuel (PHASE 19, issue #56). Aucune E/S DOM, aucun réseau.
-// Lancer : node tools/palette-selftest.mjs
+// Visual language selftest (PHASE 19, issue #56). No DOM I/O, no network.
+// Run: node tools/palette-selftest.mjs
 //
-// Ce test ne juge rien d'esthétique — ça, c'est l'œil de l'opérateur. Il vérifie
-// mécaniquement les deux critères d'acceptation de l'issue qui SONT vérifiables :
+// This test judges nothing aesthetic — that's the operator's eye. It mechanically
+// checks the two acceptance criteria of the issue that ARE checkable:
 //
-//   « src/style.css refondu autour de tokens »
-//   « Aucun écran quotidien n'utilise la palette demo »
+//   "src/style.css reworked around tokens"
+//   "No daily screen uses the demo palette"
 //
-// plus les contraintes matérielles que les polices imposent et qu'un humain ne
-// verra pas en relisant du CSS : la grille 11 px de Departure Mono, et le fait
-// que les deux familles ne partagent pas la même chasse.
+// plus the hardware constraints the fonts impose that a human won't catch by
+// rereading CSS: Departure Mono's 11 px grid, and the fact that the two
+// families don't share the same advance width.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -26,16 +26,15 @@ const TOKENS = read('src/tokens.css');
 const GAME = read('src/style.css');
 const MAPGUI = read('tools/map-gui/style.css');
 
-// Les couleurs demo (Bible §19), et les seuls endroits qui ont le droit d'y
-// toucher : la culmination du hack (#101) et l'intro. Le reste du hack, lui,
-// reste en monochrome — c'est la culmination qui explose, pas l'analyse qui la
-// précède.
+// The demo colours (Bible §19), and the only places allowed to touch them: the
+// hack's culmination (#101) and the intro. The rest of the hack stays
+// monochrome — it's the culmination that explodes, not the analysis leading to it.
 const DEMO_TOKENS = ['--cyan', '--magenta', '--violet', '--electric'];
 const EVENT_SELECTORS = ['.intro', '.culmination'];
 
-// Découpe grossière mais suffisante : une règle = ce qui précède `{`, une fois
-// les commentaires retirés. Les blocs @media/@keyframes laissent leur préambule
-// dans le sélecteur, d'où le `lastIndexOf('{')`.
+// Coarse but sufficient split: a rule is whatever precedes `{`, once comments
+// are stripped. @media/@keyframes blocks leave their preamble in the selector,
+// hence the `lastIndexOf('{')`.
 function rules(css) {
 	const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
 	const out = [];
@@ -47,12 +46,12 @@ function rules(css) {
 	return out;
 }
 
-// Les lignes annotées `/* palette-ok: … */` sont des exceptions déclarées : des
-// stops de masque alpha, un halo de lumière. Elles doivent dire pourquoi.
+// Lines annotated `/* palette-ok: … */` are declared exceptions: an alpha-mask
+// stop, a light halo. They must say why.
 function colourLiterals(css) {
-	// Les commentaires sont effacés en gardant leurs sauts de ligne, pour que le
-	// numéro rapporté soit celui du fichier — un commentaire peut parfaitement
-	// citer une ancienne valeur, et c'est même souhaitable.
+	// Comments are blanked out while keeping their line breaks, so the reported
+	// line number matches the file — a comment may perfectly well quote an old
+	// value, and that's even desirable.
 	const bare = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
 	const src = css.split('\n');
 	const hits = [];
@@ -65,11 +64,11 @@ function colourLiterals(css) {
 	return hits;
 }
 
-// Un JS sans ses commentaires, et les chaînes qu'il contient. Écrit à la main
-// plutôt qu'avec une expression régulière : une apostrophe française dans un
-// commentaire — il y en a partout dans ce dépôt — ouvre une fausse chaîne et
-// fait dérailler toute analyse naïve. Le parcours caractère par caractère est
-// la seule façon de distinguer les trois états (code, commentaire, chaîne).
+// A JS source stripped of its comments, and the strings it contains. Written
+// by hand rather than with a regex: a French apostrophe in a comment — and
+// there are plenty throughout this repo — opens a fake string and derails any
+// naive analysis. Walking character by character is the only way to tell the
+// three states apart (code, comment, string).
 function scanJs(src) {
 	const strings = [];
 	let code = '';
@@ -114,245 +113,248 @@ function scanJs(src) {
 const stripComments = (src) => scanJs(src).code;
 const stringLiterals = (src) => scanJs(src).strings;
 
-// ---------------------------------------------------------------- les jetons
+// -------------------------------------------------------------------- tokens
 
-t('tokens.css : les 5 gris, les 4 fonctionnelles et les 4 demo sont définis', () => {
+t('tokens.css: the 5 greys, the 4 functional and the 4 demo tokens are defined', () => {
 	for (const name of ['--black', '--dark-grey', '--grey', '--light-grey', '--warm-white',
 		'--green', '--yellow', '--orange', '--red', ...DEMO_TOKENS]) {
-		assert.match(TOKENS, new RegExp(`\\n\\t${name}:`), `${name} manque dans tokens.css`);
+		assert.match(TOKENS, new RegExp(`\\n\\t${name}:`), `${name} is missing from tokens.css`);
 	}
 });
 
-t('tokens.css : la rampe de gris est neutre chaude (R ≥ G ≥ B) et monotone', () => {
+t('tokens.css: the grey ramp is warm-neutral (R ≥ G ≥ B) and monotonic', () => {
 	const ramp = ['--black', '--dark-grey', '--grey', '--light-grey', '--warm-white'];
 	let prev = -1;
 	for (const name of ramp) {
 		const hex = TOKENS.match(new RegExp(`${name}: (#[0-9a-f]{6});`))[1];
 		const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-		assert.ok(r >= g && g >= b, `${name} (${hex}) n'est pas chaud : R ${r} G ${g} B ${b}`);
+		assert.ok(r >= g && g >= b, `${name} (${hex}) is not warm: R ${r} G ${g} B ${b}`);
 		const lum = r + g + b;
-		assert.ok(lum > prev, `${name} n'est pas plus clair que le jeton précédent`);
+		assert.ok(lum > prev, `${name} is not lighter than the previous token`);
 		prev = lum;
 	}
 });
 
-t('les deux feuilles ne contiennent aucun littéral de couleur hors tokens.css', () => {
+t('the two stylesheets contain no colour literal outside tokens.css', () => {
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
 		const hits = colourLiterals(css);
-		assert.deepEqual(hits, [], `${name} peint en dur :\n    ${hits.join('\n    ')}`);
+		assert.deepEqual(hits, [], `${name} paints in the raw:\n    ${hits.join('\n    ')}`);
 	}
 });
 
-t('map-gui importe bien le socle partagé plutôt que de redéclarer ses jetons', () => {
+t('map-gui does import the shared base rather than redeclaring its own tokens', () => {
 	assert.match(MAPGUI, /@import '\.\.\/\.\.\/src\/tokens\.css';/);
 	assert.match(GAME, /@import '\.\/tokens\.css';/);
-	// Un seul jeton lui appartient encore, et c'est une mesure, pas un pigment.
+	// Only one token still belongs to it, and it's a measurement, not a pigment.
 	const own = [...MAPGUI.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);
 	assert.deepEqual(own, ['--rail']);
-	// Côté jeu, un seul aussi (#73) : la taille de la marque sur le cracktro.
-	// Une mesure, pas un pigment — et elle DOIT être une variable, parce que le
-	// verrouillage empilé exprime tous ses écarts en modules de cette taille
-	// (docs/brand.md : l'écart au nom vaut 1 module, la zone de respect 4).
-	// Elle est locale et pas un jeton parce qu'elle ne vaut que là : rien
-	// d'autre dans le jeu ne se mesure en modules de marque.
+	// On the game side, one too (#73): the size of the brand mark on the cracktro.
+	// A measurement, not a pigment — and it MUST be a variable, because the
+	// stacked lockup expresses all its gaps in multiples of this size
+	// (docs/brand.md: the gap to the name is worth 1 module, the clear space 4).
+	// It's local and not a token because it's only meaningful there: nothing
+	// else in the game is measured in brand-mark modules.
 	const gameOwn = [...GAME.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]);
 	assert.deepEqual(gameOwn, ['--mark-size'],
-		'un jeton local s\'est ajouté à src/style.css : est-ce bien une mesure, et pas un pigment ?');
+		'a local token was added to src/style.css: is it really a measurement, and not a pigment?');
 });
 
-t('tout var(--…) référencé par les feuilles est défini dans tokens.css', () => {
+t('every var(--…) referenced by the stylesheets is defined in tokens.css', () => {
 	const defined = new Set([...TOKENS.matchAll(/^\t(--[a-z-]+):/gm)].map((m) => m[1]));
-	// Les deux mesures locales, déclarées par la feuille qui s'en sert et
-	// vérifiées juste au-dessus : ce sont les seules dispenses.
+	// The two local measurements, declared by the stylesheet that uses them and
+	// checked right above: these are the only exemptions.
 	defined.add('--rail');
 	defined.add('--mark-size');
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
 		for (const m of css.matchAll(/var\((--[a-z-]+)\)/g)) {
-			assert.ok(defined.has(m[1]), `${name} utilise ${m[1]}, que tokens.css ne définit pas`);
+			assert.ok(defined.has(m[1]), `${name} uses ${m[1]}, which tokens.css does not define`);
 		}
 	}
 });
 
-// ------------------------------------------------- la ségrégation de la demo
+// ------------------------------------------------------- demo segregation
 
-t('la palette demo ne sort que sur la culmination et l\'intro', () => {
+t('the demo palette surfaces only on the culmination and the intro', () => {
 	for (const { selector, body } of rules(GAME)) {
 		const used = DEMO_TOKENS.filter((tk) => body.includes(`var(${tk})`));
 		if (!used.length) continue;
 		assert.ok(EVENT_SELECTORS.some((s) => selector.includes(s)),
-			`« ${selector} » emploie ${used.join(', ')} hors d'un événement (Bible §19)`);
+			`"${selector}" uses ${used.join(', ')} outside an event (Bible §19)`);
 	}
 });
 
-t('la console de préparation n\'a aucun accès à la palette demo', () => {
+t('the prep console has no access at all to the demo palette', () => {
 	for (const tk of DEMO_TOKENS) {
-		assert.ok(!MAPGUI.includes(`var(${tk})`), `map-gui emploie ${tk} : ce n'est pas un événement`);
+		assert.ok(!MAPGUI.includes(`var(${tk})`), `map-gui uses ${tk}: this is not an event`);
 	}
 });
 
-t('aucun écran quotidien ne rappelle l\'ancien accent cyan', () => {
-	// --accent a disparu avec la PHASE 19 : l'accent de l'UI courante est le
-	// WARM WHITE, et le cyan est redevenu une couleur d'événement.
+t('no daily screen still calls back to the old cyan accent', () => {
+	// --accent disappeared with PHASE 19: the current UI's accent is WARM WHITE,
+	// and cyan is back to being an event colour.
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
-		assert.ok(!css.includes('var(--accent)'), `${name} utilise encore var(--accent)`);
+		assert.ok(!css.includes('var(--accent)'), `${name} still uses var(--accent)`);
 	}
-	assert.ok(!TOKENS.includes('--accent:'), 'tokens.css redéfinit --accent');
+	assert.ok(!TOKENS.includes('--accent:'), 'tokens.css redefines --accent');
 });
 
-// ------------------------------------------------------------ la typographie
+// ------------------------------------------------------------- typography
 
-t('les trois niveaux, et pas un de plus, sont déclarés', () => {
+t('exactly the three levels, and not one more, are declared', () => {
 	for (const cls of ['.t-display', '.t-ui', '.t-data']) {
-		assert.ok(TOKENS.includes(cls), `${cls} manque`);
+		assert.ok(TOKENS.includes(cls), `${cls} is missing`);
 	}
 	const families = [...TOKENS.matchAll(/^\t--font-[a-z]+: '([^']+)'/gm)].map((m) => m[1]);
 	assert.deepEqual([...new Set(families)].sort(), ['Departure Mono', 'IBM Plex Mono'],
-		'exactement deux familles embarquées');
+		'exactly two embedded font families');
 });
 
-t('les deux familles ne se mélangent jamais dans une même pile', () => {
-	// Leurs chasses diffèrent (0,6 em contre 0,6364) : un repli glyphe par glyphe
-	// désalignerait tous les cadres ┌─┐ de la Bible §38.
+t('the two families never mix within the same stack', () => {
+	// Their advance widths differ (0.6 em vs 0.6364): a glyph-by-glyph fallback
+	// would misalign every ┌─┐ frame from Bible §38.
 	for (const m of TOKENS.matchAll(/--font-[a-z]+:([^;]+);/g)) {
 		const stack = m[1];
 		assert.ok(!(stack.includes('Departure Mono') && stack.includes('IBM Plex Mono')),
-			`pile mixte interdite : ${stack.trim()}`);
+			`mixed stack forbidden: ${stack.trim()}`);
 	}
 });
 
-t('Departure Mono ne sert qu\'à des tailles multiples de 11 px', () => {
-	// La police est dessinée sur une grille de 50 unités pour 550 d'em : hors des
-	// multiples de 11 px, ses pixels tombent entre deux pixels d'écran et le
-	// « bitmap » devient un flou. Mesuré sur le woff2 embarqué.
+t('Departure Mono is only ever used at multiples of 11px', () => {
+	// The font is drawn on a 50-unit grid for 550 of em: outside multiples of
+	// 11 px, its pixels fall between two screen pixels and the "bitmap" blurs.
+	// Measured on the embedded woff2.
 	for (const m of TOKENS.matchAll(/--fs-display[a-z-]*: (\d+)px;/g)) {
-		assert.equal(Number(m[1]) % 11, 0, `--fs-display… = ${m[1]}px n'est pas sur la grille`);
+		assert.equal(Number(m[1]) % 11, 0, `--fs-display… = ${m[1]}px is off the grid`);
 	}
 	for (const { selector, body } of rules(GAME)) {
 		if (!/var\(--font-(display|ascii)\)/.test(body)) continue;
 		for (const c of body.matchAll(/font-size: clamp\((\d+)px,[^,]+, ?(\d+)px\)/g)) {
 			for (const px of [c[1], c[2]]) {
 				assert.equal(Number(px) % 11, 0,
-					`« ${selector} » : ${px}px hors de la grille 11 px de Departure Mono`);
+					`"${selector}": ${px}px is off Departure Mono's 11px grid`);
 			}
 		}
 	}
 });
 
-t('aucune graisse que les fichiers embarqués ne portent', () => {
-	// Seules 400 et 500 sont servies. Au-delà, le navigateur synthétise un faux
-	// gras — sur une chasse fixe, il déforme la couleur du bloc.
+t('no weight that the embedded files do not carry', () => {
+	// Only 400 and 500 are served. Beyond that the browser synthesizes a fake
+	// bold — on a fixed advance width, it distorts the block's colour.
 	for (const [name, css] of [['src/style.css', GAME], ['tools/map-gui/style.css', MAPGUI]]) {
 		for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/font-weight: ([^;]+);/g)) {
 			assert.ok(['400', '500'].includes(m[1].trim()),
-				`${name} demande font-weight ${m[1].trim()} : non embarqué`);
+				`${name} requests font-weight ${m[1].trim()}: not embedded`);
 		}
 	}
 });
 
-t('les deux polices et leurs licences sont bien dans le dépôt', () => {
+t('both fonts and their licenses are indeed in the repo', () => {
 	for (const f of ['DepartureMono-Regular.woff2', 'IBMPlexMono-Regular.woff2',
 		'IBMPlexMono-Medium.woff2', 'OFL-DepartureMono.txt', 'OFL-IBMPlexMono.txt']) {
-		assert.ok(readFileSync(join(sim, 'public/fonts', f)).length > 0, `${f} manque ou est vide`);
+		assert.ok(readFileSync(join(sim, 'public/fonts', f)).length > 0, `${f} is missing or empty`);
 	}
 	for (const f of ['OFL-DepartureMono.txt', 'OFL-IBMPlexMono.txt']) {
 		assert.match(read(join('public/fonts', f)), /SIL Open Font License, Version 1\.1/,
-			`${f} n'est pas une OFL 1.1`);
+			`${f} is not an OFL 1.1`);
 	}
-	// Servies depuis public/, jamais depuis un CDN : le jeu s'installe hors ligne.
+	// Served from public/, never from a CDN: the game installs offline.
 	for (const m of TOKENS.matchAll(/src: url\('([^']+)'\)/g)) {
-		assert.match(m[1], /^\/fonts\//, `police servie depuis ${m[1]}`);
+		assert.match(m[1], /^\/fonts\//, `font served from ${m[1]}`);
 	}
 });
 
-// -------------------------------------------------------- le pont vers le JS
+// --------------------------------------------------------- the bridge to JS
 
-t('les valeurs de repli de palette.js collent aux jetons', () => {
+t('palette.js fallback values match the tokens', () => {
 	const js = read('src/palette.js');
 	const fallbacks = [...js.matchAll(/'(--[a-z-]+)': '(#[0-9a-f]{6})'/g)];
-	assert.ok(fallbacks.length >= 6, 'la table de repli a disparu');
+	assert.ok(fallbacks.length >= 6, 'the fallback table has disappeared');
 	for (const [, name, value] of fallbacks) {
 		const m = TOKENS.match(new RegExp(`${name}: (#[0-9a-f]{6});`));
-		assert.ok(m, `${name} n'existe plus dans tokens.css`);
-		assert.equal(value, m[1], `repli de ${name} désynchronisé : ${value} vs ${m[1]}`);
+		assert.ok(m, `${name} no longer exists in tokens.css`);
+		assert.equal(value, m[1], `${name} fallback out of sync: ${value} vs ${m[1]}`);
 	}
 });
 
-t('plus aucune couleur en dur dans les couches vectorielles du scanner', () => {
+t('no more hardcoded colour in the scanner\'s vector layers', () => {
 	const js = read('src/scanner.js').replace(/\/\/.*$/gm, '');
 	const hits = [...js.matchAll(/(?:color|fillColor): '(#[0-9a-fA-F]{3,8})'/g)].map((m) => m[1]);
-	assert.deepEqual(hits, [], `scanner.js peint encore en dur : ${hits.join(', ')}`);
+	assert.deepEqual(hits, [], `scanner.js still paints in the raw: ${hits.join(', ')}`);
 });
 
-// --- le piège `pointer-events` de #ui ---------------------------------------
+// --- the `pointer-events` trap of #ui ---------------------------------------
 
-// `#ui` est en `pointer-events: none` et SEULS `button, input, select, label`
-// reprennent la main. Tout écran plein cadre qui contient un élément
-// interactif d'un autre genre — une carte Leaflet est un <div>, ses contrôles
-// de zoom sont des <a> — doit donc reprendre le pointeur lui-même.
+// `#ui` is `pointer-events: none` and ONLY `button, input, select, label` take
+// the pointer back. Any full-frame screen that contains an interactive element
+// of another kind — a Leaflet map is a <div>, its zoom controls are <a> —
+// must therefore reclaim the pointer itself.
 //
-// Ce test existe parce que la règle a été perdue une fois : `.scanner` la
-// portait, elle a disparu avec le plein cadre du scanner (#211), et FIELD s'est
-// retrouvé avec une carte VISIBLE MAIS SOURDE — on la voyait sans pouvoir la
-// déplacer. Aucun selftest de rendu ne peut l'attraper : le faux DOM ne calcule
-// pas de style, et l'arbre était parfaitement correct.
-t('pointer-events : tout écran portant une carte reprend la main sur le pointeur', () => {
+// This test exists because the rule was lost once: `.scanner` carried it, it
+// disappeared with the scanner's full-frame rework (#211), and FIELD ended up
+// with a map that was VISIBLE BUT DEAF — you could see it but not pan it. No
+// render selftest can catch this: the fake DOM computes no style, and the tree
+// was perfectly correct.
+t('pointer-events: any screen carrying a map reclaims the pointer', () => {
 	assert.match(GAME, /#ui\s*\{[^}]*pointer-events:\s*none/,
-		'la prémisse du test : #ui laisse passer les clics');
-	// `.terminal-field` est le plein cadre de FIELD, qui porte la carte du
-	// GLOBAL SCANNER dans sa colonne de droite.
+		'the test\'s premise: #ui lets clicks pass through');
+	// `.terminal-field` is FIELD's full frame, which carries the GLOBAL SCANNER
+	// map in its right-hand column.
 	const bloc = GAME.match(/\.terminal-field\s*\{[\s\S]*?\}/);
-	assert.ok(bloc, '.terminal-field existe');
+	assert.ok(bloc, '.terminal-field exists');
 	assert.match(bloc[0], /pointer-events:\s*auto/,
-		'sans quoi la carte est visible mais sourde');
+		'without which the map is visible but deaf');
 });
 
 // ====================================================================== #140
-// L'ANGLE MORT. Tout ce qui précède ne regarde que le CSS, et la dérive vit
-// ailleurs : dans le JS qui peint lui-même, dans les valeurs non-couleur, et
-// dans les chaînes qui s'affichent. Les trois blocs qui suivent le couvrent.
+// THE BLIND SPOT. Everything above only looks at CSS, and the drift lives
+// elsewhere: in the JS that paints on its own, in non-colour values, and in
+// the strings that reach the screen. The three blocks below cover that.
 
-// --- (a) la palette demo atteinte par le JS ---------------------------------
+// --- (a) the demo palette reached from JS ------------------------------------
 
-// `token('--cyan')` contourne exactement ce que la règle CSS plus haut
-// interdit. Deux écrans quotidiens y touchent, et ce sont des EXCEPTIONS
-// ASSUMÉES, pas des oublis : la tache de couverture perdrait sa lisibilité en
-// monochrome, et le point sélectionné de DATA est le seul repère d'une page de
-// graphes. Elles sont nommées ici pour qu'une troisième ne passe pas en
-// silence.
+// `token('--cyan')` bypasses exactly what the CSS rule above forbids. A few
+// daily screens touch it, and these are DELIBERATE EXCEPTIONS, not oversights:
+// the coverage blot would lose its legibility in monochrome, DATA's selected
+// point is the only landmark on a page of graphs, and the hangar's backdrop is
+// the fence dome itself. They're named here so another one doesn't slip
+// through silently.
 const DEMO_JS_ALLOWED = new Map([
-	['src/intro.js', 'le cracktro (Bible §19)'],
-	['src/culmination.js', 'la culmination du hack (#101)'],
-	['src/palette.js', 'la table de repli, qui déclare la même exception'],
-	['src/scanner.js', 'EXCEPTION ASSUMÉE : la tache de couverture de la carte'],
-	['src/map-coverage.js', 'EXCEPTION ASSUMÉE : la tache de couverture de la carte'],
-	['src/graph.js', 'EXCEPTION ASSUMÉE : l\'élément sélectionné d\'un graphe DATA'],
+	['src/intro.js', 'the cracktro (Bible §19)'],
+	['src/culmination.js', 'the hack\'s culmination (#101)'],
+	['src/palette.js', 'the fallback table, which declares the same exception'],
+	['src/scanner.js', 'DELIBERATE EXCEPTION: the map coverage blot'],
+	['src/map-coverage.js', 'DELIBERATE EXCEPTION: the map coverage blot'],
+	['src/graph.js', 'DELIBERATE EXCEPTION: a DATA graph\'s selected point'],
+	// The hangar's backdrop is the fence dome's living mass, behind the
+	// machines only (issue #185). The exception and its reason are recorded in
+	// the Bible, section "Signaux et habilitation".
+	['src/hangar.js', 'DELIBERATE EXCEPTION: the hangar backdrop (Bible, "Signaux et habilitation")'],
 ]);
 
-t('la palette demo ne s\'atteint pas non plus par token() depuis un écran quotidien', () => {
+t('the demo palette is also unreachable via token() from a daily screen', () => {
 	for (const f of readdirSync(join(sim, 'src')).filter((f) => f.endsWith('.js'))) {
 		const rel = `src/${f}`;
 		const js = stripComments(read(rel));
 		const used = DEMO_TOKENS.filter((tk) => js.includes(`token('${tk}')`) || js.includes(`'${tk}'`));
 		if (!used.length) continue;
 		assert.ok(DEMO_JS_ALLOWED.has(rel),
-			`${rel} atteint ${used.join(', ')} par le JS : la règle CSS ne le voit pas. `
-			+ 'Si c\'est voulu, l\'inscrire dans DEMO_JS_ALLOWED avec sa raison.');
+			`${rel} reaches ${used.join(', ')} via JS: the CSS rule cannot see it. `
+			+ 'If intentional, list it in DEMO_JS_ALLOWED with its reason.');
 	}
 });
 
-// --- (b) les échelles -------------------------------------------------------
+// --- (b) the scales ----------------------------------------------------------
 
-// Une taille, un interlettrage ou un espacement écrit en pixels est une échelle
-// de plus : c'est ainsi que le corps du jeu s'était retrouvé à 14px, hors des
-// deux échelles, et que trente paddings magiques cohabitaient. Les dimensions
-// d'un composant (la hauteur d'une barre, la taille d'une tuile Leaflet) ne
-// sont pas des espacements et ne passent pas ici — seuls padding, margin et gap
-// sont des décisions de rythme.
+// A size, letter-spacing or spacing value written in pixels is one more scale:
+// that's how the game's body text ended up at 14px, off both scales, and how
+// thirty magic paddings coexisted. A component's dimensions (a bar's height, a
+// Leaflet tile's size) are not spacings and don't get flagged here — only
+// padding, margin and gap are rhythm decisions.
 const SCALE_PROPS = /(?:^|[;{\s])(font-size|letter-spacing|padding|margin|gap|row-gap|column-gap)(-top|-right|-bottom|-left)?: *([^;]+)/g;
 
-// La console d'extraction (tools/map-gui/) est hors du jeu et garde pour
-// l'instant ses propres tailles : c'est l'objet de son issue, pas de celle-ci.
-t('aucune taille, aucun interlettrage, aucun espacement hors des jetons', () => {
+// The extraction console (tools/map-gui/) is outside the game and keeps its
+// own sizes for now: that's its own issue's concern, not this one's.
+t('no size, letter-spacing or spacing outside the tokens', () => {
 	for (const [name, css] of [['src/style.css', GAME]]) {
 		const src = css.split('\n');
 		const bare = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
@@ -361,11 +363,11 @@ t('aucune taille, aucun interlettrage, aucun espacement hors des jetons', () => 
 			if (src[i].includes('scale-ok:')) return;
 			for (const m of line.matchAll(SCALE_PROPS)) {
 				const value = m[3].trim();
-				// Ce qui est légitime : un jeton, un calcul de jetons, zéro, une
-				// mesure relative au texte (em, ch) ou à la fenêtre (vw, %).
+				// What's legitimate: a token, a token computation, zero, a measure
+				// relative to text (em, ch) or to the viewport (vw, %).
 				if (value.includes('var(--')) continue;
-				// Un clamp() de police display est déjà jugé, et plus durement, par
-				// le test de la grille 11 px de Departure Mono.
+				// A display-font clamp() is already judged, more strictly, by the
+				// Departure Mono 11px grid test.
 				if (value.includes('clamp(')) continue;
 				if (!/\d/.test(value)) continue;
 				if (!/\b\d*\.?\d+px\b/.test(value)) continue;
@@ -374,18 +376,18 @@ t('aucune taille, aucun interlettrage, aucun espacement hors des jetons', () => 
 		});
 		const uniq = [...new Set(hits)];
 		assert.deepEqual(uniq, [],
-			`${name} écrit une échelle en clair :\n    ${uniq.join('\n    ')}`);
+			`${name} writes a scale value in the raw:\n    ${uniq.join('\n    ')}`);
 	}
 });
 
-// --- (c) la langue de l'écran ----------------------------------------------
+// --- (c) the screen's language ----------------------------------------------
 
-// Bible §11 : le jeu est entièrement en anglais. Les COMMENTAIRES, eux, sont
-// français — c'est la langue de travail du dépôt (#88). Le test ne regarde donc
-// que les chaînes, commentaires retirés pour de bon (un apostrophe français
-// dans un commentaire ressemble sinon à une chaîne), et seulement dans les
-// modules qui écrivent à l'écran : ailleurs, un message de console en français
-// est à sa place.
+// Bible §11: the game is entirely in English. COMMENTS, though, may still be
+// French — the repo is moving its comments to English file by file (#88): a
+// file touched for other reasons leaves in English. So this test only looks at
+// strings, comments stripped for good (a French apostrophe in a comment would
+// otherwise look like a string), and only in the modules that write to the
+// screen: elsewhere, a French console message is right at home.
 const SCREEN_MODULES = [
 	'hud.js', 'loader.js', 'terminal.js', 'bench.js', 'settings.js', 'scanner.js',
 	'session-log.js', 'jukebox.js', 'briefing.js', 'bootstrap.js', 'intro.js',
@@ -393,18 +395,18 @@ const SCREEN_MODULES = [
 	'flightController.js', 'target-scan.js', 'calibration.js', 'confirm-button.js',
 ];
 const ACCENTED = /[À-ÖØ-öø-ÿŒœ«»]/;
-// Les accents ne suffisent pas : « chargement… » n'en porte aucun, et c'est
-// précisément la chaîne qui tenait l'écran le plus vu du jeu. D'où cette poignée
-// de mots outils français, pris entiers — aucun n'est un mot anglais.
+// Accents aren't enough: "chargement…" carries none, and it happened to be the
+// most-seen string in the game. Hence this handful of French function words,
+// matched whole — none of them is an English word.
 const FRENCH_WORDS = /\b(le|la|les|des|une|un|pour|avec|dans|sur|pas|est|sont|aucun|aucune|chargement|fermez|lancez|relancez|touche|écran)\b/i;
 
-t('aucun mot français dans une chaîne des modules qui écrivent à l\'écran', () => {
+t('no French word in a string from a module that writes to the screen', () => {
 	const hits = [];
 	for (const f of SCREEN_MODULES) {
 		const src = read(`src/${f}`);
 		const lines = src.split('\n');
 		for (const { line, text } of stringLiterals(src)) {
-			// Un commentaire HTML dans un gabarit n'est pas affiché non plus.
+			// An HTML comment inside a template isn't displayed either.
 			const shown = text.replace(/<!--[\s\S]*?-->/g, '');
 			if (!ACCENTED.test(shown) && !FRENCH_WORDS.test(shown)) continue;
 			if (/console\.(log|warn|error|info|debug)/.test(lines[line - 1] ?? '')) continue;
@@ -412,7 +414,7 @@ t('aucun mot français dans une chaîne des modules qui écrivent à l\'écran',
 		}
 	}
 	assert.deepEqual(hits, [],
-		`du français atteint l'écran :\n    ${hits.join('\n    ')}`);
+		`French reaches the screen:\n    ${hits.join('\n    ')}`);
 });
 
-console.log(`\n  ${n} tests OK — langage visuel (PHASE 19)`);
+console.log(`\n  ${n} tests OK — visual language (PHASE 19)`);

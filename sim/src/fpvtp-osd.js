@@ -453,7 +453,8 @@ export class FpvtpOsd {
 	}
 
 	// Signals Lot 2b, task 4: the provider for the SIGNALS_LINE token — the
-	// recap of the landmarks this flight UPLINKED. `fn` is `() => HTMLElement |
+	// recap of the landmarks this flight UPLINKED, or the hangar's reveal when
+	// the flight crossed a clearance step (lot 3). `fn` is `() => HTMLElement |
 	// null`; `null` means the flight uplinked nothing, and the line then falls
 	// back to an empty div like every other token with nothing to show.
 	setSignalRecap(fn) {
@@ -467,6 +468,9 @@ export class FpvtpOsd {
 		const old = this._recapSlot;
 		if (!old?.isConnected) return;
 		const node = this._signalRecapNode();
+		// The provider may hand back the node already there (the hangar is
+		// built once per flight): nothing to replace.
+		if (node === old) return;
 		old.replaceWith(node);
 		this._recapSlot = node;
 	}

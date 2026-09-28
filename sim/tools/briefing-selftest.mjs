@@ -1,16 +1,20 @@
 // Selftest for the pure briefing model (tools/briefing-model.mjs). No DOM, no
-// storage of its own: the four screens, the two storage rules and the in-flight
+// storage of its own: the five screens, the two storage rules and the in-flight
 // hint timing are all decided here, so they can be checked without a browser.
 // Run: node tools/briefing-selftest.mjs
 import assert from 'node:assert/strict';
 import {
 	BRIEFING_SEEN_KEY,
 	FIRST_FLIGHT_KEY,
+	CLEARANCE_BRIEFED_KEY,
 	shouldBrief,
 	markBriefed,
+	shouldBriefClearance,
+	markClearanceBriefed,
 	markFirstFlight,
 	firstFlightPending,
 	briefingScreens,
+	clearanceScreen,
 	flightHint,
 } from './briefing-model.mjs';
 import { DEFAULT_KEY_MAP, keyMapRows } from '../src/key-map.js';
@@ -35,9 +39,31 @@ const keyRows = keyMapRows(DEFAULT_KEY_MAP);
 
 // --- storage rules ----------------------------------------------------------
 
-t('the two storage keys are namespaced fpvtp.*', () => {
+t('the storage keys are namespaced fpvtp.*', () => {
 	assert.equal(BRIEFING_SEEN_KEY, 'fpvtp.briefingSeen');
 	assert.equal(FIRST_FLIGHT_KEY, 'fpvtp.firstFlightDone');
+	assert.equal(CLEARANCE_BRIEFED_KEY, 'fpvtp.clearanceBriefed');
+});
+
+t('shouldBriefClearance: only an operator briefed before the CLEARANCE screen', () => {
+	// A new operator: the full briefing covers it, never the single screen.
+	const fresh = store();
+	assert.equal(shouldBriefClearance(fresh), false);
+	markBriefed(fresh);
+	assert.equal(shouldBriefClearance(fresh), false, 'the full briefing marks both keys');
+	assert.equal(fresh.has(CLEARANCE_BRIEFED_KEY), true);
+	// Briefed before the update: seen once, then never again.
+	const old = store();
+	old.setItem(BRIEFING_SEEN_KEY, '1');
+	assert.equal(shouldBriefClearance(old), true);
+	markClearanceBriefed(old);
+	assert.equal(shouldBriefClearance(old), false);
+	assert.equal(shouldBrief(old), false, 'the single screen does not re-arm the full briefing');
+	// No store, a broken one: no.
+	assert.equal(shouldBriefClearance(null), false);
+	assert.equal(shouldBriefClearance(store({ broken: true })), false);
+	markClearanceBriefed(store({ broken: true }));
+	markClearanceBriefed(null);
 });
 
 t('shouldBrief is true while the key is absent, false once marked', () => {
@@ -75,14 +101,14 @@ t('firstFlightPending is true only between the briefing and the first flight', (
 	assert.equal(firstFlightPending(store({ broken: true })), false);
 });
 
-// --- the four screens -------------------------------------------------------
+// --- the five screens -------------------------------------------------------
 
-t('four screens, in order', () => {
+t('five screens, in order', () => {
 	const screens = briefingScreens({ input: { kind: 'keyboard' }, keyRows });
 	assert.deepEqual(screens.map((s) => s.title),
-		['INPUT', 'THE TERMINAL', 'A SESSION', 'BRIEFING COMPLETE']);
+		['INPUT', 'THE TERMINAL', 'A SESSION', 'CLEARANCE', 'BRIEFING COMPLETE']);
 	assert.deepEqual(screens.map((s) => s.id),
-		['input', 'terminal', 'session', 'complete']);
+		['input', 'terminal', 'session', 'clearance', 'complete']);
 	for (const s of screens) {
 		assert.ok(s.actions.includes('continue'), `${s.id} must be continuable`);
 		for (const [label, value] of s.rows) {
@@ -161,17 +187,29 @@ t('A SESSION spells the loop, with the keys read from the live map', () => {
 
 t('the screens hold together with no key rows at all', () => {
 	const screens = briefingScreens({ input: { kind: 'keyboard' }, keyRows: [] });
-	assert.equal(screens.length, 4);
+	assert.equal(screens.length, 5);
 	assert.equal(screens[2].rows.find((r) => r[0] === 'HOLD K')[1], 'CUT LINK');
 });
 
 t('briefingScreens survives being called with nothing', () => {
 	const screens = briefingScreens();
-	assert.equal(screens.length, 4);
+	assert.equal(screens.length, 5);
 	assert.deepEqual(screens[0].rows[0], ['DEVICE', 'KEYBOARD']);
 });
 
 // --- the three in-flight hints ----------------------------------------------
+
+t('CLEARANCE: the hangar as its body, the two fact rows', () => {
+	const c = briefingScreens().find((s) => s.id === 'clearance');
+	assert.equal(c.hangar, true);
+	assert.deepEqual(c.rows, [
+		['POINTS', '1 PER TIER OF EVERY SIGNAL UPLINKED'],
+		['ABOVE YOUR CLEARANCE', 'VISIBLE, ENCRYPTED, NOT CAPTURABLE'],
+	]);
+	assert.deepEqual(clearanceScreen(), c, 'the single screen is the same one');
+	// Only that screen carries a hangar.
+	assert.deepEqual(briefingScreens().filter((s) => s.hangar).map((s) => s.id), ['clearance']);
+});
 
 t('the INPUT screen names the flight-mode control', () => {
 	const row = (input) => briefingScreens({ input, keyRows })[0].rows.find((r) => r[0] === 'FLIGHT MODE')?.[1];

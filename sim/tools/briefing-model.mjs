@@ -14,6 +14,9 @@
 
 export const BRIEFING_SEEN_KEY = 'fpvtp.briefingSeen';
 export const FIRST_FLIGHT_KEY = 'fpvtp.firstFlightDone';
+// The CLEARANCE screen came after the briefing (issue #185): an operator
+// briefed before it existed sees that one screen once, on its own key.
+export const CLEARANCE_BRIEFED_KEY = 'fpvtp.clearanceBriefed';
 
 // A missing or unreadable store answers NO. An operator who has flown for
 // months and cleared their storage would rather not be briefed again; a new
@@ -25,8 +28,26 @@ export function shouldBrief(store) {
 	catch { return false; }
 }
 
+// The full briefing holds the CLEARANCE screen: it marks both.
 export function markBriefed(store) {
-	try { store?.setItem(BRIEFING_SEEN_KEY, '1'); } catch { /* private browsing: it replays, it does not crash */ }
+	try {
+		store?.setItem(BRIEFING_SEEN_KEY, '1');
+		store?.setItem(CLEARANCE_BRIEFED_KEY, '1');
+	} catch { /* private browsing: it replays, it does not crash */ }
+}
+
+// Briefed, but before the CLEARANCE screen existed. A new operator is not
+// asked this (the full briefing covers it); an unreadable store answers NO,
+// like shouldBrief().
+export function shouldBriefClearance(store) {
+	if (!store) return false;
+	try {
+		return store.getItem(BRIEFING_SEEN_KEY) === '1' && store.getItem(CLEARANCE_BRIEFED_KEY) !== '1';
+	} catch { return false; }
+}
+
+export function markClearanceBriefed(store) {
+	try { store?.setItem(CLEARANCE_BRIEFED_KEY, '1'); } catch { /* idem */ }
 }
 
 export function markFirstFlight(store) {
@@ -43,7 +64,7 @@ export function firstFlightPending(store) {
 }
 
 // ---------------------------------------------------------------------------
-// THE FOUR SCREENS
+// THE FIVE SCREENS
 // ---------------------------------------------------------------------------
 
 const up = (s) => String(s ?? '').toUpperCase();
@@ -138,6 +159,22 @@ function sessionScreen(keyRows) {
 	};
 }
 
+// The clearance ladder (issue #185): the hangar is the screen's body
+// (`hangar: true`, drawn by src/briefing.js from the operator's store), the
+// two rows say how it moves and what a locked signal is.
+export function clearanceScreen() {
+	return {
+		id: 'clearance',
+		title: 'CLEARANCE',
+		hangar: true,
+		rows: [
+			['POINTS', '1 PER TIER OF EVERY SIGNAL UPLINKED'],
+			['ABOVE YOUR CLEARANCE', 'VISIBLE, ENCRYPTED, NOT CAPTURABLE'],
+		],
+		actions: ['continue'],
+	};
+}
+
 function completeScreen() {
 	return {
 		id: 'complete',
@@ -159,6 +196,9 @@ export function briefingScreens({ input = null, keyRows = [] } = {}) {
 		inputScreen(input, keyRows),
 		terminalScreen(),
 		sessionScreen(keyRows),
+		// Before BRIEFING COMPLETE, which closes the briefing and says how to
+		// replay it: a screen after it would contradict its title.
+		clearanceScreen(),
 		completeScreen(),
 	];
 }

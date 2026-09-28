@@ -85,12 +85,13 @@ const closeAll = async (home, depth = SUBSCREEN_DEPTH) => {
 	await home;
 };
 
-// --- la page DATA -----------------------------------------------------------
+// --- the DATA page ---------------------------------------------------------
 
-// The spec's nine sections, in order. It is the only thing this test freezes
-// about the screen: what it SHOWS and in what order — a graph is judged by eye,
-// a vanished section is judged nowhere but here.
-const SECTIONS = ['RHYTHM', 'LIFE', 'SPEED × ALTITUDE', 'HOW THEY DIED',
+// The spec's nine sections, in order, under CLEARANCE (issue #185, lot 3). It
+// is the only thing this test freezes about the screen: what it SHOWS and in
+// what order — a graph is judged by eye, a vanished section is judged nowhere
+// but here.
+const SECTIONS = ['CLEARANCE', 'RHYTHM', 'LIFE', 'SPEED × ALTITUDE', 'HOW THEY DIED',
 	'STICKS', 'FAMILIES', 'GEOGRAPHY', 'PROFILE', 'RECORDS'];
 
 await ta('data: the nine sections, in order, with RECORDS at the end', async () => {
@@ -115,6 +116,29 @@ await ta('data: the nine sections, in order, with RECORDS at the end', async () 
 	assert.ok(keys, 'the key line');
 	assert.equal(keys.textContent, '[ESC] OPERATION MODE');
 	await closeAll(p, 1);
+});
+
+await ta('data: CLEARANCE at the top — the progress, the hangar, the tiers, kept across re-renders', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(operator()), scenes: [] });
+	await tick();
+	const first = dom.root.querySelector('.data-page').children[0];
+	assert.equal(first.children[0].textContent, 'CLEARANCE');
+	assert.match(first.textContent, /1 POINT PER TIER OF EVERY SIGNAL UPLINKED · ░{12}  0\/6 TO CLEARANCE 1/);
+	assert.match(first.textContent, /SIGNALS   TIER I   TIER II AT CLEARANCE 1/);
+	const hangar = first.querySelector('.hangar');
+	assert.ok(hangar, 'the hangar');
+	assert.ok(!hangar.classList.contains('hangar-compact'), 'full size in DATA');
+	// A re-render (a family opened) hands back the SAME hangar, not a new one.
+	const fam = dom.root.querySelectorAll('.data-section').find((b) => b.children[0].textContent === 'FAMILIES');
+	fam.querySelectorAll('button')[0].click();
+	await tick();
+	assert.match(dom.root.textContent, /TARGET 001/, 'the page did re-render');
+	assert.equal(dom.root.querySelector('.data-page').children[0].querySelector('.hangar'), hangar);
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 1);
+	dom.key('Escape');
+	await p;
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 0, 'gone with the screen');
 });
 
 await ta('data: with no track, the sections that need one say NO TRACK', async () => {

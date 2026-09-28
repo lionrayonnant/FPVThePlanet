@@ -36,7 +36,7 @@ html, body {
 
 canvas { display: block; }
 
-/* ---------- curseur de menu (issue #123) ---------- */
+/* ---------- menu cursor (issue #123) ---------- */
 /* Native focus IS the game's cursor (src/menu-nav.js): one truth for Tab,
    mouse, keyboard and gamepad. The system ring — blue, off-palette, different
    on every machine — disappears everywhere in favour of the ▌ marker (U+258C),
@@ -87,7 +87,7 @@ button:focus::before {
 	animation: cursor-blink var(--dur-blink) step-end infinite;
 }
 
-/* ---------- mouvement des menus (issue #224) ---------- */
+/* ---------- menu motion (issue #224) ---------- */
 /* Quiet by default (Bible §45): menus move like a terminal, not like a web
    page. A screen prints from top to bottom (src/motion.js stamps each block's
    delay), the cursor blinks, a pressed key inverts for a moment, a counter
@@ -462,6 +462,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font: var(--fs-data) var(--font-ui); color: var(--dim);
 }
 
+/* The same line when the flight crossed a clearance step: the notice as its
+   title, then the hangar (compact) playing its reveal. */
+.signal-hangar { display: flex; flex-direction: column; align-items: center; max-width: 90vw; }
+.signal-hangar .hangar-compact { align-self: center; }
+
 /* End of flight (PHASE 14): not a death screen, a link going out. */
 #flight-end {
 	position: absolute; inset: 0;
@@ -473,6 +478,10 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	pointer-events: none;
 }
 #flight-end div:empty { height: .6em; }
+/* `#flight-end div:empty` (the blank lines' height) would catch the hangar's
+   empty slots, floor and scan line: the same specificity, later, wins. */
+#flight-end div.hangar-stage { height: 64px; }
+#flight-end div.hangar-floor, #flight-end div.hangar-scan { height: 1px; }
 
 /* #57 — the lost machine's fingerprint, IN the flow, just under the 3D
    preview (#67): it is the same machine seen two ways, and reading it beside
@@ -1312,7 +1321,7 @@ button.terminal-row:focus::before { left: 0; }
 /* The TARGET SCAN's clearance line (issue #185): information, not an
    instruction — same DATA level and same faint tone as a footnote, one step
    under the list it sits beneath. */
-.terminal-clearance-line {
+.bootstrap-box pre.terminal-clearance-line {
 	margin: var(--space-2) 0 0;
 	font-family: var(--font-data); font-size: var(--fs-data);
 	letter-spacing: var(--track-data);
@@ -1410,6 +1419,76 @@ img.capture-shot { display: block; width: 46%; aspect-ratio: 4 / 3; object-fit: 
 	font-family: var(--font-data); font-size: var(--fs-micro);
 	letter-spacing: var(--track-data); color: var(--faint); white-space: pre-wrap;
 }
+
+/* ---------- the hangar (issue #185, lot 3, mockup clearance-v4.html) ---------- */
+/* The seven machine classes in one row, grouped by clearance, thin separators,
+   one floor line (src/hangar.js). The machines are drawn by ONE WebGL canvas
+   laid over the row, into the `.hangar-stage` slots; the backdrop is a 2D
+   canvas behind them. Everything readable is DOM text and never wraps. */
+.hangar { display: flex; flex-direction: column; align-self: stretch; }
+.hangar-wrap {
+	position: relative; isolation: isolate; overflow: hidden;
+	padding: var(--space-3) var(--space-3) var(--space-2);
+}
+.hangar-bg, .hangar-gl {
+	position: absolute; inset: 0; width: 100%; height: 100%;
+	pointer-events: none;
+}
+.hangar-bg { z-index: -1; }
+.hangar-gl { z-index: 1; }
+.hangar-row { display: flex; align-items: flex-end; }
+.hangar-grp {
+	display: flex; flex-direction: column; min-width: 0;
+	padding: 0 var(--space-2);
+	border-left: var(--rule-w) solid var(--rule-strong);
+}
+.hangar-grp:first-child { border-left: 0; padding-left: 0; }
+.hangar-grp:last-child { padding-right: 0; }
+.hangar-lv {
+	display: flex; justify-content: space-between; gap: var(--space-2);
+	margin-bottom: var(--space-1);
+	white-space: nowrap;
+	font-family: var(--font-display); font-size: var(--fs-micro);
+	letter-spacing: var(--track-ui); color: var(--dim);
+}
+.hangar-mark-open { color: var(--green); }
+.hangar-mark-cost { color: var(--faint); }
+.hangar-bay { display: flex; gap: var(--space-1); }
+/* The slots share the row's width; their HEIGHT is fixed, and the machine
+   fills a share of it: every machine reads at the same size whatever the
+   width its group leaves it. */
+.hangar-m {
+	flex: 1 1 0; min-width: 0;
+	display: flex; flex-direction: column; align-items: center;
+}
+.hangar-stage { position: relative; width: 100%; height: 96px; }
+.hangar-compact { align-self: flex-start; }
+.hangar-compact .hangar-m { flex: none; width: 84px; }
+.hangar-compact .hangar-stage { height: 64px; }
+/* The reveal's line: warm white, one pixel, above the canvas. */
+.hangar-scan {
+	position: absolute; left: 0; right: 0; z-index: 2; height: 1px;
+	background: var(--ink); pointer-events: none;
+}
+.hangar-n {
+	margin-top: var(--space-0);
+	white-space: nowrap; text-transform: none;
+	font-family: var(--font-data); font-size: var(--fs-micro); line-height: 1.3;
+	letter-spacing: var(--track-data); color: var(--ink);
+}
+.hangar-m[data-state="locked"] .hangar-n { font-family: var(--font-ascii); color: var(--faint); }
+.hangar-m[data-state="reveal"] .hangar-n { color: var(--faint); }
+.hangar-m .hangar-n.is-new { color: var(--green); }
+.hangar-floor { height: 1px; margin-top: var(--space-1); background: var(--rule-strong); }
+.hangar-line, .bootstrap-box pre.hangar-line {
+	margin: 0;
+	font-family: var(--font-data); font-size: var(--fs-data);
+	letter-spacing: var(--track-data); font-variant-numeric: tabular-nums;
+	color: var(--dim); white-space: pre; text-transform: none;
+}
+.hangar-bar { font-family: var(--font-ascii); color: var(--yellow); }
+.hangar-tier-open { color: var(--ink); }
+.hangar-tier-locked { color: var(--faint); }
 
 /* ---------- global scanner (PHASE 03) ---------- */
 /* Same grammar as the terminal: monospace, one-pixel rules, right angles, no

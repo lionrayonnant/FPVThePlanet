@@ -106,10 +106,10 @@ await ta('a pad gets CALIBRATE and the CONTROLLER tab', async () => {
 	await settle(10);
 });
 
-await ta('CONTINUE walks the four screens, then resolves and unmounts', async () => {
+await ta('CONTINUE walks the five screens, then resolves and unmounts', async () => {
 	const m = mount();
 	const titles = [];
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0; i < 5; i++) {
 		await settle();
 		titles.push(m.screens()[0]?.textContent ?? '');
 		m.btn('CONTINUE').click();
@@ -119,7 +119,9 @@ await ta('CONTINUE walks the four screens, then resolves and unmounts', async ()
 	assert.match(titles[0], /INPUT/);
 	assert.match(titles[1], /THE TERMINAL/);
 	assert.match(titles[2], /A SESSION/);
-	assert.match(titles[3], /BRIEFING COMPLETE/);
+	assert.match(titles[3], /CLEARANCE/);
+	assert.match(titles[3], /ABOVE YOUR CLEARANCE/);
+	assert.match(titles[4], /BRIEFING COMPLETE/);
 	assert.match(titles[1], /BACK, EVERYWHERE/);
 	assert.match(titles[2], /CUT LINK/);
 	assert.equal(m.screens().length, 0, 'nothing is left mounted');
@@ -175,14 +177,29 @@ await ta('Escape belongs to the panel while it is open, not to the briefing', as
 	assert.equal(m.isDone(), false, 'the briefing survives the panel closing');
 	assert.equal(m.screens().length, 1, 'its screen is still mounted');
 	// Cleanup: the panel is closed now, so Escape is the briefing's again.
-	m.btn('CONTINUE').click();
-	await settle();
-	m.btn('CONTINUE').click();
-	await settle();
-	m.btn('CONTINUE').click();
-	await settle();
-	m.btn('CONTINUE').click();
+	for (let i = 0; i < 5; i++) {
+		m.btn('CONTINUE').click();
+		await settle();
+	}
 	await m.promise;
+});
+
+await ta('only: clearance — the single CLEARANCE screen, its hangar, then done', async () => {
+	dom.root.replaceChildren();
+	const root = document.createElement('div');
+	dom.root.appendChild(root);
+	let done = false;
+	const p = runBriefing(root, { interval: 0, store: null, only: 'clearance' }).then(() => { done = true; });
+	await settle();
+	assert.equal(root.querySelectorAll('.briefing').length, 1);
+	assert.match(root.textContent, /CLEARANCE/);
+	assert.match(root.textContent, /POINTS \.+ 1 PER TIER OF EVERY SIGNAL UPLINKED/);
+	assert.equal(root.querySelectorAll('.hangar-m').length, 7, 'the hangar is the body');
+	root.querySelectorAll('button').find((b) => b.textContent === '[ CONTINUE ]').click();
+	await p;
+	assert.equal(done, true);
+	assert.equal(root.querySelectorAll('.briefing').length, 0);
+	assert.equal(root.querySelectorAll('.hangar').length, 0, 'the hangar leaves with it');
 });
 
 await ta('a run with no openSettings still walks through', async () => {

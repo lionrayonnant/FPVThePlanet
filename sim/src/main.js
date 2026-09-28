@@ -22,7 +22,7 @@ import { uiAudio } from './ui-audio.js';
 import { runIntro } from './intro.js';
 import { shouldPlayIntro, markIntroSeen } from '../tools/intro-model.mjs';
 import { runBriefing } from './briefing.js';
-import { shouldBrief, markBriefed, markFirstFlight, firstFlightPending, flightHint, keyOf } from '../tools/briefing-model.mjs';
+import { shouldBrief, markBriefed, shouldBriefClearance, markClearanceBriefed, markFirstFlight, firstFlightPending, flightHint, keyOf } from '../tools/briefing-model.mjs';
 import { runReadiness } from './readiness.js';
 import { shouldShowReadiness } from '../tools/readiness-model.mjs';
 import { keyMapRows, actionForKey } from './key-map.js';
@@ -77,6 +77,7 @@ import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
 import { withResolved, withPhoto, withPlace, resolvedIds } from '../tools/signal-store-model.mjs';
 import { sharedPlaceNames } from './place-name.js';
 import { SignalCard, recapNode } from './signal-card.js';
+import { mountHangar } from './hangar.js';
 import { CardQueue, CARD_S, takeoffNotice, clearanceNotice } from '../tools/signal-card-model.mjs';
 import { sharedPlaceInfo } from './place-info.js';
 import { push as rocktreeFencePush } from './rocktree-fence.js';
@@ -309,6 +310,8 @@ function briefingArgs() {
 			modeControl: input.flightModeControl(),
 		},
 		keyRows: keyMapRows(input.getKeyMap()),
+		// The CLEARANCE screen's hangar (issue #185).
+		store: operator.getOperator()?.signals ?? null,
 		// Opens the panel on the named tab and resolves when it closes: the
 		// briefing screen waits underneath rather than being torn down.
 		openSettings: async (tab) => { settings.open(tab); await settings.closed(); },
@@ -325,6 +328,13 @@ async function playBriefing({ force = false } = {}) {
 	// Marked whether it was read or skipped: a briefing you refused is a
 	// briefing you were offered.
 	markBriefed(localStorage);
+}
+// The CLEARANCE screen came after the briefing (issue #185): an operator
+// briefed before it sees that one screen, once, at their first FIELD open.
+async function playClearanceBriefing() {
+	if (!shouldBriefClearance(localStorage)) return;
+	await runBriefing(document.getElementById('ui'), { ...briefingArgs(), only: 'clearance' });
+	markClearanceBriefed(localStorage);
 }
 settings.onReplayBriefing = async () => {
 	// The panel closes first: the briefing is a full screen, not a layer over
@@ -746,7 +756,7 @@ const PREFETCH_GAUGE = 0.2;
 let flightGen = 0;               // bumped per flight: a late card never lands in the next one
 // Bound on the wait for the place info before the card shows without it.
 const CARD_INFO_WAIT_MS = 2500;
-fpvtpOsd.setSignalRecap(() => recapNode(flightUplinks));
+fpvtpOsd.setSignalRecap(() => endSignalsNode());
 // Clearance, read once per flight at arm time: signals of a tier above it are
 // encrypted (visible, marked, not capturable) for the whole flight, even if an
 // uplink crosses a step mid-flight.
@@ -755,6 +765,32 @@ let flightClearance = 0;
 // armSignals(); read by the end screen (Task 8) through flightCrossedStep().
 let flightCrossed = null;
 function flightCrossedStep() { return flightCrossed; }
+// The end screen's SIGNALS line: the hangar playing its reveal when this flight
+// crossed a clearance step, else the recap strip. The end screen rebuilds its
+// lines as they type out, so the hangar is built ONCE per flight and the same
+// node handed back each time — a new one per rebuild would replay the reveal
+// and open a WebGL context per line. It frees itself once the end screen drops
+// it (src/hangar.js: a detached hangar stops); armSignals() drops it too.
+let endHangar = null;            // { step, node, handle } | null
+function endSignalsNode() {
+	const step = flightCrossedStep();
+	if (!step) return recapNode(flightUplinks);
+	if (endHangar?.step === step && !endHangar.handle.destroyed) return endHangar.node;
+	endHangar?.handle.destroy();
+	const node = document.createElement('div');
+	node.className = 'signal-hangar';
+	const hd = document.createElement('div');
+	hd.className = 'signal-recap-hd';
+	const text = clearanceNotice(step) ?? `[+] CLEARANCE ${step}`;
+	const mark = document.createElement('span');
+	mark.className = 'signal-recap-mark';
+	mark.textContent = '[+]';
+	hd.append(mark, document.createTextNode(text.slice(3)));
+	node.appendChild(hd);
+	const handle = mountHangar(node, { store: operator.getOperator()?.signals ?? null, reveal: step, compact: true });
+	endHangar = { step, node, handle };
+	return node;
+}
 // The take-off notice (#fo-notice): 'scan' while the flight's tiles are still
 // loading (updated on each source change), null once the count was shown.
 let takeoffPhase = null;
@@ -2173,6 +2209,8 @@ function armSignals() {
 	priorResolved = new Set(resolvedIds(operator.getOperator()?.signals));
 	flightClearance = clearanceOf(operator.getOperator()?.signals);
 	flightCrossed = null;
+	endHangar?.handle.destroy();
+	endHangar = null;
 	nextSignal = null;
 	flightGen++;
 	if (MODE.bench) return;
@@ -2886,23 +2924,6 @@ function frame() {
 		});
 	}
 
-	// Signals (#185): anchors, capture, callout.
-	if (flightSignals.length) updateSignals(dt, frozen);
-	else signalCallout.render(null);
-	// The UPLINKED card, in flight only: the end screen's recap takes over.
-	if (flightEnd.phase === FLYING) {
-		const q = cardQueue.update(frozen ? 0 : dt);
-		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01 } : null);
-		// The clearance step this card's uplink crossed: announced once, after
-		// the card's first second, for 5 s.
-		const c = q.current;
-		if (c?.crossed && !c.noticed && q.remaining01 <= 1 - 1 / CARD_S) {
-			c.noticed = true;
-			const text = clearanceNotice(c.crossed);
-			if (text) fpvtpOsd.setNotice(text, 5000);
-		}
-	} else signalCard.render(null);
-
 	// The end of flight decides on its own: what is shown, when the picture dies,
 	// when the session closes. main.js only feeds it and obeys.
 	//
@@ -2987,6 +3008,25 @@ function frame() {
 		// answer any more anyway: there is nothing left to fly with the mouse.
 		document.exitPointerLock?.();
 	}
+
+	// Signals (#185): anchors, capture, callout. AFTER flightEnd.update(), so
+	// they read this frame's phase: before it, the crash frame still saw FLYING
+	// and drew the callout over TARGET LOST.
+	if (flightSignals.length) updateSignals(dt, frozen);
+	else signalCallout.render(null);
+	// The UPLINKED card, in flight only: the end screen's recap takes over.
+	if (flightEnd.phase === FLYING) {
+		const q = cardQueue.update(frozen ? 0 : dt);
+		signalCard.render(q.current ? { ...q.current, remaining01: q.remaining01 } : null);
+		// The clearance step this card's uplink crossed: announced once, after
+		// the card's first second, for 5 s.
+		const c = q.current;
+		if (c?.crossed && !c.noticed && q.remaining01 <= 1 - 1 / CARD_S) {
+			c.noticed = true;
+			const text = clearanceNotice(c.crossed);
+			if (text) fpvtpOsd.setNotice(text, 5000);
+		}
+	} else signalCard.render(null);
 
 	// The weather on the camera. Advanced on the frame clock rather than the
 	// physics step because nothing in it feeds back into the flight model — the
@@ -3744,6 +3784,7 @@ async function dataLoop(ui) {
 //
 // Returns the flight's shape, or null to go back up to the mode selection.
 async function fieldLoop(ui, { quickRestart = null } = {}) {
+	await playClearanceBriefing();
 	// The zone selection loop: Escape at the TARGET SCAN comes back here. Nothing
 	// is torn down and nothing is reloaded — that is what lets the terminal's
 	// ambience carry on without the slightest break, and the preload of the area
@@ -3799,7 +3840,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 			const swarmChance = swarmAllowed(clearance) ? swarmChanceFor(operator.getOperator()?.sessions) : 0;
 			const scan = generateTargetScan({ seed, count, swarmChance, families });
 			const scanWeather = await worldWeather({ lat, lon });
-			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance });
+			const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance, store: operator.getOperator()?.signals ?? null });
 
 			// Escape at the TARGET SCAN: back to the zone selection. Nothing has
 			// been mounted yet — unlike the baked path, bootLive() is only called
@@ -3910,7 +3951,7 @@ async function fieldLoop(ui, { quickRestart = null } = {}) {
 		// cached per zone: boot() reuses this result with no extra round trip.
 		const sc = (await loadSceneList()).find((s) => s.slug === slug);
 		const scanWeather = sc ? await worldWeather({ lat: sc.lat, lon: sc.lon }) : null;
-		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance }); // { seed, count, index, swarmChance, swarmAt, families, clearance } | { cancelled }
+		const choice = await runTargetScan(ui, { seed, count, weather: scanWeather, swarmChance, families, clearance, store: operator.getOperator()?.signals ?? null }); // { seed, count, index, swarmChance, swarmAt, families, clearance } | { cancelled }
 
 		// Escape at the TARGET SCAN: back to the zone selection, breaking nothing.
 		// The preload started above CARRIES ON in the background: it does not touch

@@ -1,5 +1,7 @@
-// The briefing (D16). Four terminal screens, once, right after the operator is
-// registered — and on demand from SETTINGS > SYSTEM.
+// The briefing (D16). Five terminal screens, once, right after the operator is
+// registered — and on demand from SETTINGS > SYSTEM. The CLEARANCE screen
+// (issue #185) also runs alone, once, for an operator briefed before it
+// existed (main.js, at the first FIELD open).
 //
 // It is NOT a tutorial: nothing here waits for the player to perform a gesture,
 // nothing gates the game behind it, and every row states a fact rather than
@@ -12,7 +14,8 @@
 import { screen, button, keyHints } from './terminal.js';
 import { revealLines, dotted } from './bootstrap.js';
 import { menuNav, blockNav } from './menu-nav.js';
-import { briefingScreens } from '../tools/briefing-model.mjs';
+import { briefingScreens, clearanceScreen } from '../tools/briefing-model.mjs';
+import { mountHangar } from './hangar.js';
 
 // Which Settings tab each action opens, and what the button says. The briefing
 // names a thing and offers the way to it — it never sends the player looking.
@@ -29,7 +32,7 @@ function rowWidth(rows) {
 
 // One screen. Resolves with 'next' when CONTINUE is pressed; the caller is what
 // unmounts it, so an [ ESC ] arriving mid-reveal can tear it down from outside.
-async function showScreen(root, spec, { openSettings, interval, onMounted }) {
+async function showScreen(root, spec, { openSettings, interval, onMounted, store }) {
 	const s = screen(root, 'briefing');
 	// A blocker from the FIRST frame, not from the end of the reveal. Two things
 	// hang on it: the screen underneath — on the replay path the root menu is
@@ -40,8 +43,18 @@ async function showScreen(root, spec, { openSettings, interval, onMounted }) {
 	s.dead = false;
 	onMounted(s);
 	const width = rowWidth(spec.rows);
-	const lines = [spec.title, '', ...spec.rows.map(([label, value]) => dotted(label, value, width))];
-	await revealLines(s.box, lines, interval === undefined ? {} : { interval });
+	const rows = spec.rows.map(([label, value]) => dotted(label, value, width));
+	const opts = interval === undefined ? {} : { interval };
+	if (spec.hangar) {
+		// The hangar is the screen's body: the title, the machines, then the
+		// rows that say how the ladder moves.
+		await revealLines(s.box, [spec.title, ''], opts);
+		if (s.dead) return 'skip';
+		s.hangar = mountHangar(s.box, { store });
+		await revealLines(s.box, rows, opts);
+	} else {
+		await revealLines(s.box, [spec.title, '', ...rows], opts);
+	}
 	// Escape won the race while the screen was printing: it is already gone.
 	// Building its buttons now would attach a nav — a window listener and an
 	// 80 ms poll — to a detached container, which nothing can ever reap.
@@ -73,15 +86,20 @@ async function showScreen(root, spec, { openSettings, interval, onMounted }) {
 // when it closes. `isSettingsOpen()` tells whether that panel is on screen: both
 // listeners sit on `window`, so without it a single Escape closes the panel AND
 // skips the briefing that opened it. `interval` is only for the selftest, which
-// has no patience.
-export async function runBriefing(root, { input = null, keyRows = [], openSettings = null, isSettingsOpen = () => false, interval } = {}) {
-	const screens = briefingScreens({ input, keyRows });
+// has no patience. `store` is the operator's uplinked signals, for the
+// CLEARANCE screen's hangar; `only: 'clearance'` runs that screen alone.
+export async function runBriefing(root, {
+	input = null, keyRows = [], openSettings = null, isSettingsOpen = () => false, interval,
+	store = null, only = null,
+} = {}) {
+	const screens = only === 'clearance' ? [clearanceScreen()] : briefingScreens({ input, keyRows });
 	let mounted = null;
 	const unmount = () => {
 		if (!mounted) return;
 		// Read by showScreen() when its reveal returns: whichever of the two
 		// finishes second must find the screen already marked dead.
 		mounted.dead = true;
+		mounted.hangar?.destroy();
 		mounted.blocker?.();
 		mounted.nav?.detach();
 		mounted.remove();
@@ -106,7 +124,7 @@ export async function runBriefing(root, { input = null, keyRows = [], openSettin
 	try {
 		for (const spec of screens) {
 			const skipped = await Promise.race([
-				showScreen(root, spec, { openSettings, interval, onMounted: (s) => { mounted = s; } }),
+				showScreen(root, spec, { openSettings, interval, store, onMounted: (s) => { mounted = s; } }),
 				new Promise((resolve) => { skip = () => resolve('skip'); }),
 			]);
 			unmount();

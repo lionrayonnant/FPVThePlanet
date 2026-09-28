@@ -140,6 +140,47 @@ await t('CLEARANCE line: shows the level and the pool size out of 7', async () =
 	await p;
 });
 
+await t('CLEARANCE line: at clearance 3 the swarm counts — 7 OF 7', async () => {
+	reset();
+	const families = ['freestyle5', 'cinewhoop', 'toothpick', 'race5', 'longrange', 'heavy5'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::3', count: 4, families, clearance: 3, swarmChance: 0 });
+	await tick();
+	assert.match(dom.root.textContent, /CLEARANCE 3 · 7 OF 7 MACHINE CLASSES/, dom.root.textContent);
+	dom.key('Escape');
+	await p;
+});
+
+await t('CLEARANCE line: at clearance 2 the swarm does not count yet — 6 OF 7', async () => {
+	reset();
+	const families = ['freestyle5', 'cinewhoop', 'toothpick', 'race5', 'longrange', 'heavy5'];
+	const p = runTargetScan(dom.root, { seed: 'clearance::2', count: 4, families, clearance: 2 });
+	await tick();
+	assert.match(dom.root.textContent, /CLEARANCE 2 · 6 OF 7 MACHINE CLASSES/, dom.root.textContent);
+	dom.key('Escape');
+	await p;
+});
+
+await t('the hangar sits under the list when a store is passed, and leaves with the screen', async () => {
+	reset();
+	const p = runTargetScan(dom.root, { seed: 'hangar::0', count: 4, families: ['freestyle5'], clearance: 0, store: null });
+	await tick();
+	const hangar = dom.root.querySelector('.hangar');
+	assert.ok(hangar, 'a hangar is mounted');
+	assert.ok(hangar.classList.contains('hangar-compact'), 'compact on the TARGET SCAN');
+	assert.equal(dom.root.querySelectorAll('.hangar-m').length, 7);
+	rows()[0].click();
+	await p;
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 0, 'gone with the screen');
+});
+
+await t('no store, no hangar', async () => {
+	const p = open();
+	await tick();
+	assert.equal(dom.root.querySelectorAll('.hangar').length, 0);
+	dom.key('Escape');
+	await p;
+});
+
 await t('the choice carries families and clearance back to the caller', async () => {
 	reset();
 	const families = ['freestyle5'];
