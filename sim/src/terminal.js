@@ -1028,7 +1028,11 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 
 		s.box.appendChild(button('BACK', () => done(), 'terminal-cta'));
 		s.box.appendChild(ESC_ROOT());
-		nav = menuNav(s.el, { back: () => done() });
+		// The first control sits low on the page (a RECORDS link, or BACK):
+		// the focus menu-nav places itself — at mount, and again each time a
+		// re-render drops the focused link — must not scroll there. DATA opens
+		// at the top, where CLEARANCE is; the cursor stays where it landed.
+		nav = menuNav(s.el, { back: () => done(), keepScroll: true });
 		window.addEventListener('resize', onResize);
 
 		// The index, then the one track the profile needs. Both are allowed to

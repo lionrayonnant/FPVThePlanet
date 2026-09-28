@@ -82,7 +82,7 @@ function defaultRenderer() {
 	return r;
 }
 
-const hexOf = (name) => new THREE.Color(token(name) || '#000000').getHex();
+const hexOf = (name) => new THREE.Color(token(name)).getHex();
 // A token's sRGB components, whether or not THREE.ColorManagement is on (the
 // game turns it off, main.js): the backdrop's rgba() and the silhouette
 // shader both want the values as written in tokens.css.
@@ -316,7 +316,7 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 			bgCtx = bg.getContext?.('2d') ?? null;
 			if (!bgCtx) { bgFailed = true; return; }
 			const cols = ['--magenta', '--cyan', '--electric', '--violet'].map((n) => {
-				const c = srgbOf(new THREE.Color(token(n) || '#808080'));
+				const c = srgbOf(new THREE.Color(token(n)));
 				return `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
 			});
 			// Seeded by index, not Math.random(): the same backdrop every time.
@@ -327,6 +327,8 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 				p: i * 0.9,
 			}));
 			blobs.cols = cols;
+			const k = srgbOf(new THREE.Color(token('--black')));
+			blobs.black = `${Math.round(k.r * 255)},${Math.round(k.g * 255)},${Math.round(k.b * 255)}`;
 		}
 		const W = wrap.clientWidth | 0, H = wrap.clientHeight | 0;
 		if (!W || !H) return;
@@ -334,7 +336,7 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 		const x = bgCtx;
 		const s = ms / 1000;
 		x.globalCompositeOperation = 'source-over';
-		x.fillStyle = token('--black') || '#000000';
+		x.fillStyle = `rgb(${blobs.black})`;
 		x.fillRect(0, 0, W, H);
 		x.globalCompositeOperation = 'lighter';
 		for (const b of blobs) {
@@ -360,7 +362,7 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 		}
 		// Faint horizontal scanlines on top: one dark pixel row in three.
 		x.globalCompositeOperation = 'source-over';
-		x.fillStyle = `rgba(0,0,0,.25)`;
+		x.fillStyle = `rgba(${blobs.black},.25)`;
 		for (let y = 0; y < H; y += 3) x.fillRect(0, y, W, 1);
 	}
 
@@ -382,8 +384,8 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 		// The drone viewer's three-quarter angle, from slightly above.
 		camera.position.setFromSphericalCoords(distance, (90 - VIEWER.pitchDeg) * DEG, VIEWER.startDeg * DEG);
 		camera.lookAt(0, 0, 0);
-		const silColor = new THREE.Color(token('--grey') || '#221f1c').lerp(new THREE.Color(token('--light-grey') || '#8a827a'), 0.23);
-		const silBright = srgbOf(silColor.clone().lerp(new THREE.Color(token('--light-grey') || '#8a827a'), 0.45));
+		const silColor = new THREE.Color(token('--grey')).lerp(new THREE.Color(token('--light-grey')), 0.23);
+		const silBright = srgbOf(silColor.clone().lerp(new THREE.Color(token('--light-grey')), 0.45));
 		const silFlat = srgbOf(silColor);
 		const uSil = { value: new THREE.Color() };
 		uSil.value.r = silFlat.r; uSil.value.g = silFlat.g; uSil.value.b = silFlat.b;
@@ -485,6 +487,9 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 		if (gl) {
 			for (const s of slots) s.gl?.dispose();
 			gl.renderer.dispose();
+			// dispose() leaves the context alive until GC; browsers cap live
+			// contexts (16 in Chrome) and drop the OLDEST — the game's own.
+			gl.renderer.forceContextLoss?.();
 			gl.renderer.domElement.remove?.();
 			gl = null;
 		}

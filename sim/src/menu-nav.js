@@ -168,7 +168,12 @@ function navButtons(pad) {
 //             already mean something else — the Settings panel opened IN
 //             FLIGHT, where they fly the drone and would move the cursor and
 //             the sliders on every gesture.
-export function menuNav(container, { back = null, onDir = null, focusFirst = true, gamepad = true } = {}) {
+// - keepScroll : the focus this nav places ON ITS OWN (at mount, focusAt(),
+//             after a re-render drops the focused control) does not scroll
+//             the screen. DATA, whose first control sits at the bottom of a
+//             page that must open at the top. Arrows and Tab still scroll to
+//             the cursor.
+export function menuNav(container, { back = null, onDir = null, focusFirst = true, gamepad = true, keepScroll = false } = {}) {
 	const nav = { container, seen: !!container.isConnected };
 
 	const focusables = () => [...container.querySelectorAll(FOCUSABLE)].filter(isShown);
@@ -178,7 +183,8 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		return el && container.contains(el) ? el : null;
 	};
 
-	const focusAt = (i) => { focusables()[i]?.focus(); };
+	const place = (el) => el?.focus(keepScroll ? { preventScroll: true } : undefined);
+	const focusAt = (i) => { place(focusables()[i]); };
 
 	const move = (delta) => {
 		const els = focusables();
@@ -260,9 +266,9 @@ export function menuNav(container, { back = null, onDir = null, focusFirst = tru
 		// the screen, so "go back to the top" would have put it right back. The
 		// cursor restarts from the first control you can press.
 		const el = hint ?? lastFocused;
-		if (el && !isTextEntry(el) && isShown(el) && container.contains(el)) { el.focus(); return; }
+		if (el && !isTextEntry(el) && isShown(el) && container.contains(el)) { place(el); return; }
 		const els = focusables();
-		(els.find((e) => !isTextEntry(e)) ?? els[0])?.focus();
+		place(els.find((e) => !isTextEntry(e)) ?? els[0]);
 	}, 0);
 
 	const onFocusOut = (e) => { if (topNav() === nav) restore(e.target); };

@@ -153,6 +153,35 @@ await t('destroy() stops the loop; a detached hangar stops itself', async () => 
 	assert.equal(dom.window.__rafCount, after);
 });
 
+await t('destroy() disposes the ONE renderer and releases its context at once', async () => {
+	// A renderer that records rather than draws — enough for the first frame
+	// to build every slot's mesh through it.
+	const made = [];
+	const fake = () => {
+		const r = {
+			domElement: document.createElement('canvas'),
+			disposed: 0, lost: 0, renders: 0,
+			setPixelRatio() {}, getPixelRatio: () => 1, setSize() {}, clear() {},
+			setScissorTest() {}, setViewport() {}, setScissor() {},
+			render() { r.renders++; },
+			dispose() { r.disposed++; },
+			forceContextLoss() { r.lost++; },
+		};
+		made.push(r);
+		return r;
+	};
+	const host = document.createElement('div');
+	dom.root.appendChild(host);
+	const h = mountHangar(host, { store: storeWith(9), createRenderer: fake });
+	dom.tick(16); dom.tick(16);
+	assert.equal(made.length, 1, 'one context for the whole row');
+	h.destroy();
+	assert.equal(made[0].disposed, 1);
+	assert.equal(made[0].lost, 1, 'dispose() alone leaves the context to the GC');
+	h.destroy();
+	assert.equal(made[0].lost, 1, 'twice is harmless');
+});
+
 await t('the two lines: the bar in its own span, the closed tier in its own span', async () => {
 	const p = progressNode(storeWith(9));
 	assert.match(p.textContent, /▓▓▓░{9}  9\/18 TO CLEARANCE 2/);
