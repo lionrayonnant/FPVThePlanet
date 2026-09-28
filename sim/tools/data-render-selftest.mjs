@@ -340,8 +340,9 @@ await ta('runCapture: nothing to show, or an entry it cannot draw, resolves null
 	assert.equal(await runCapture(dom.root, { api: api(operator()), entries: null }), null);
 	assert.equal(dom.root.children.length, 0, 'nothing mounted for nothing');
 	await quietly(async () => {
-		// A raw entry with no holdS: detailRows() throws on it.
-		const r = await runCapture(dom.root, { api: api(operator()), entries: [{ id: 'wd:Q9', name: 'X', at: DAY(27), lat: 1, lon: 1 }], known: [] });
+		// A hole in the list: detailRows() throws on it. (A missing holdS no
+		// longer does — captureLine() reads it as 0.)
+		const r = await runCapture(dom.root, { api: api(operator()), entries: [null], known: [] });
 		assert.equal(r, null);
 	});
 	assert.equal(dom.root.querySelectorAll('.terminal-capture').length, 0, 'the half-built screen is removed');
