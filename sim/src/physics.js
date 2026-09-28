@@ -283,8 +283,9 @@ export class Physics {
 	// in flight would kill the machine's rotation on every frame a streaming
 	// wave lands. So the machine's state is taken before and put back after.
 	// physics-collider-selftest holds this to "the flush advances nothing".
+	// -> true when colliders changed since the last flush (the trace re-validates).
 	flushNodeColliders() {
-		if (!this._queryDirty) return;
+		if (!this._queryDirty) return false;
 		this._queryDirty = false;
 		const t = this.body.translation();
 		const r = this.body.rotation();
@@ -300,6 +301,7 @@ export class Physics {
 		this.body.setRotation(r, false);
 		this.body.setLinvel(lv, false);
 		this.body.setAngvel(av, false);
+		return true;
 	}
 
 	reset() {

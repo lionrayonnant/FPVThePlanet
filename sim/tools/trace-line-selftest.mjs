@@ -164,6 +164,12 @@ t('TraceLine: setResolution reaches the three materials', () => {
 		assert.equal(m.resolution.x, 1920);
 		assert.equal(m.resolution.y, 1080);
 	}
+	// A draw must not put the canvas size back (LineSegments2.onBeforeRender
+	// writes the renderer's viewport, not the composer target's).
+	line.show(straight());
+	const renderer = { getViewport: (v) => v.set(0, 0, 1280, 800) };
+	for (const l of [line.rest, line.flown, line.gate]) l.onBeforeRender(renderer);
+	for (const m of [line.restMat, line.flownMat, line.gateMat]) assert.equal(m.resolution.x, 1920);
 	line.dispose();
 });
 

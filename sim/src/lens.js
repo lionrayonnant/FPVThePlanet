@@ -1212,11 +1212,16 @@ export class FpvLens {
 	// rectangle change — `_time`, the drops and the OSD are not advanced), then
 	// everything is restored. `updateStyle=false` keeps the canvas's CSS size
 	// intact during the brief buffer resize.
-	async capture() {
+	//
+	// `redraw`: without a hacked target the canvas is read as it is — unless
+	// the caller changed the scene since the render (the signal trace hides
+	// its line for the photo), then this frame is redrawn first.
+	async capture({ redraw = false } = {}) {
 		const canvas = this.renderer.domElement;
 		if (this._camAspect == null) {
 			// No hacked target (dev path `?scene=`): no camera to portray, the
 			// window is the only meaningful resolution.
+			if (redraw) this.composer.render(0);
 			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 			return blob ? { blob, w: canvas.width, h: canvas.height } : null;
 		}

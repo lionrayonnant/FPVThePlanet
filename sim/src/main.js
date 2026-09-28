@@ -71,6 +71,9 @@ import { localEnuToEcef, ecefToGeodetic, geodeticToEcef, ecefToLocalEnu } from '
 import { sharedSignalSource } from './signal-source.js';
 import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
+import { SignalTraces } from './signal-traces.js';
+import { TraceLine } from './trace-line.js';
+import { photoScore } from '../tools/trace-model.mjs';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -476,7 +479,8 @@ function processLiveNodeWork(budgetMs = liveQueue.budgetMs()) {
 	// ONE refit of the query BVH for the frame's whole batch (#187) — add/remove
 	// no longer pay for it each. Must stay AFTER the drain: groundBelow() (spawn,
 	// AGL) reads the pipeline by the next frame at the latest.
-	physics.flushNodeColliders();
+	// A change re-validates the unflown part of the signal trace (#185 lot 4).
+	if (physics.flushNodeColliders()) signalTraces.collidersChanged();
 }
 // This load's operation mode (PHASE 26, Bible §48).
 //
@@ -726,6 +730,26 @@ const signalAnchors = new SignalAnchors({
 	ground: (x, z) => physics?.groundBelow(x, 3000, z, 6000) ?? null,
 });
 const signalCallout = new SignalCallout(document.getElementById('fpvtp-osd'));
+// The trace (#185 lot 4): a tier II/III signal is captured by flying a thread
+// laid around it (src/signal-traces.js), one at a time. The physics methods go
+// in as closures: `physics` is set at boot, and they are methods.
+const traceLine = new TraceLine(scene);
+const signalTraces = new SignalTraces({
+	groundBelow: (x, y, z, max) => physics.groundBelow(x, y, z, max),
+	rayUp: (x, y, z, max) => physics.rayUp(x, y, z, max),
+	obstructionBetween: (ax, ay, az, bx, by, bz) => physics.obstructionBetween(ax, ay, az, bx, by, bz),
+	anchorOf: (id) => signalAnchors.pos(id),
+	line: traceLine,
+});
+const traceOpen = (id) => !signalCapture.isResolved(id);
+// The best view of the landmark along the trace (spec rule 7): scored at most
+// TRACE_PHOTO_HZ, captured (trace hidden) only when it beats the best so far.
+const TRACE_PHOTO_S = 0.5;
+let traceBest = null;            // { id, score, cap: Promise<{blob,w,h}|null> }
+let pendingTracePhoto = null;    // { id, score }, taken right after lens.render()
+let tracePhotoAt = 0;            // seconds of trace flight since the last scoring
+// The trace just flown, read by onSignalUplinked(): { id, shape, holdS }.
+let traceDone = null;
 let flightSignals = [];          // Signal[] live in this flight
 let signalTargets = [];          // SignalCapture targets, rebuilt when the list changes
 let offFlightSignals = null;     // unsubscribe from the shared source
@@ -2225,7 +2249,12 @@ function armSignals() {
 		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M).map((s) => (
 			!done.has(s.id) && !tierAllowed(flightClearance, s.tier) ? { ...s, encrypted: true, need: levelForTier(s.tier) } : s));
 		signalAnchors.set(flightSignals);
-		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id), encrypted: !!s.encrypted }));
+		// Tier II/III is captured by its trace, unless its trace could not be laid
+		// this flight (then the hold, like tier I).
+		signalTargets = flightSignals.map((s) => ({
+			id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id), encrypted: !!s.encrypted,
+			trace: s.tier >= 2 && !s.encrypted && !signalTraces.failed.has(s.id),
+		}));
 		signalCapture.setTargets(signalTargets);
 		if (!flightSignals.length) signalCallout.render(null);
 		if (takeoffPhase === 'scan') paintTakeoffNotice();
@@ -2246,6 +2275,11 @@ function disarmSignals() {
 	signalCapture.setTargets([]);
 	signalCallout.render(null);
 	calloutState = null;
+	signalTraces.reset();
+	traceBest = null;
+	pendingTracePhoto = null;
+	traceDone = null;
+	tracePhotoAt = 0;
 	// A frame never taken still frees its slot, or the cards after it would wait forever.
 	if (pendingUplink) fillSlot(pendingUplink.index, null, pendingUplink.gen);
 	pendingUplink = null;
@@ -2298,6 +2332,7 @@ function computeNextSignal(p) {
 }
 
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
+let flyTraceGen = 0;
 if (import.meta.env?.DEV) {
 	window.__signals = {
 		list: () => flightSignals.map((s) => ({ id: s.id, name: s.name, tier: s.tier, lat: s.lat, lon: s.lon, pos: signalAnchors.pos(s.id) })),
@@ -2318,6 +2353,60 @@ if (import.meta.env?.DEV) {
 			const cp = Math.cos(pitch / 2), sp = Math.sin(pitch / 2);
 			physics.body.setRotation({ x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp }, true);
 		},
+		// The trace in the world (lot 4): the active one, its phase and follower.
+		trace: () => {
+			const a = signalTraces.active;
+			const failed = [...signalTraces.failed];
+			if (!a) return { active: null, failed };
+			const P = a.trace?.points;
+			return {
+				id: a.signal.id, name: a.signal.name, tier: a.signal.tier, shape: a.shape, phase: a.phase,
+				attempt: a.attempt, lifts: a.lifts, anchor: a.anchor,
+				length: a.trace?.length ?? null, points: P ? P.length / 3 : 0,
+				gate: P ? { x: P[0], y: P[1], z: P[2] } : null,
+				follower: a.follower ? { ...a.follower.out } : null, failed,
+			};
+		},
+		// Flies the drone along the active trace at `speed` m/s (poses, not
+		// physics): through the gate, to the end. The nose on the landmark
+		// (look 'anchor') or along the path ('path'). Resolves once the trace
+		// leaves the world, or on stopFly() (the drone then stays where it is,
+		// off the thread). Arms the machine: a disarmed one transmits nothing.
+		flyTrace: (speed = 8, { look = 'anchor', from = 0 } = {}) => new Promise((resolve) => {
+			const gen = ++flyTraceGen;
+			const trace = signalTraces.trace;
+			if (!trace) { resolve(null); return; }
+			const id = signalTraces.id;
+			const anchor = { ...signalTraces.active.anchor };
+			if (!controller.armed) controller.arm();
+			const P = trace.points, cum = trace.cum;
+			let s = Math.max(0, from), last = performance.now(), overS = 0;
+			const at = (d) => {
+				let i = 0;
+				while (i < cum.length - 2 && cum[i + 1] < d) i++;
+				const seg = cum[i + 1] - cum[i], u = seg > 0 ? Math.min(1, Math.max(0, (d - cum[i]) / seg)) : 0;
+				return [0, 1, 2].map((k) => P[3 * i + k] + (P[3 * i + 3 + k] - P[3 * i + k]) * u);
+			};
+			const tick = (now) => {
+				const dt = Math.min(0.1, (now - last) / 1000);
+				last = now;
+				if (gen !== flyTraceGen) { resolve({ id, stopped: true, trace: window.__signals.trace() }); return; }
+				if (signalTraces.trace !== trace) {
+					resolve({ id, uplinked: signalCapture.isResolved(id), trace: window.__signals.trace() });
+					return;
+				}
+				s = Math.min(trace.length, s + speed * dt);
+				if (s >= trace.length && (overS += dt) > 3) { resolve({ id, uplinked: false, stuck: window.__signals.trace() }); return; }
+				const [x, y, z] = at(s);
+				const [tx, ty, tz] = look === 'path' ? at(Math.min(trace.length, s + 4)) : [anchor.x, anchor.y - 10, anchor.z];
+				const heading = bearingTo(tx - x, tz - z);
+				const pitch = Math.atan2(ty - y, Math.hypot(tx - x, tz - z));
+				window.__signals.pose(x, y, z, heading, pitch);
+				requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+		}),
+		stopFly: () => { flyTraceGen++; },
 	};
 }
 
@@ -2336,20 +2425,22 @@ function updateSignals(dt, frozen) {
 	_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
 	const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
 	const flying = signalsLive();
-	const out = signalCapture.update({
-		// Disarmed, nothing is transmitting: the same gate as the manual photo.
-		dt: frozen || !flying || !controller.armed ? 0 : dt,
-		cam,
-		fpv: viewMode === 'fpv',
-		// Stop the line 6 m short of the anchor: the anchor sits on the
-		// building's own surface, which would otherwise always "block" it.
-		los: (t) => {
-			const dx = t.pos.x - cam.x, dy = t.pos.y - cam.y, dz = t.pos.z - cam.z;
-			const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - 6) / d) : 0;
-			return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
-		},
-	});
+	// Disarmed, nothing is transmitting: the same gate as the manual photo.
+	const liveDt = frozen || !flying || !controller.armed ? 0 : dt;
+	// Stop the line 6 m short of the anchor: the anchor sits on the
+	// building's own surface, which would otherwise always "block" it.
+	const los = (t) => {
+		const dx = t.pos.x - cam.x, dy = t.pos.y - cam.y, dz = t.pos.z - cam.z;
+		const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - 6) / d) : 0;
+		return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
+	};
+	// The trace BEFORE the capture: a trace flown to its end this frame is
+	// uplinked by this frame's capture update.
+	if (flying) updateTrace(frozen ? 0 : dt, liveDt);
+	else if (signalTraces.id) signalTraces.reset();
+	const out = signalCapture.update({ dt: liveDt, cam, fpv: viewMode === 'fpv', los });
 	if (out.uplinked) onSignalUplinked(out.uplinked);
+	if (flying) scoreTracePhoto(out, liveDt, los);
 	// Warm the place info while the operator holds the landmark, so the card
 	// rarely waits for it after UPLINKED: once per id per flight, and only once
 	// the hold is real (a glance across a skyline is not a request).
@@ -2365,6 +2456,66 @@ function updateSignals(dt, frozen) {
 	else signalCallout.render(null);
 }
 
+// The one trace in the world: generation, follower, and what they tell the
+// capture (progress, the end of the trace, the fallback to the hold).
+function updateTrace(dt, followDt) {
+	const tr = signalTraces.update({ dt, followDt, pos: physics.position, signals: flightSignals, isOpen: traceOpen });
+	if (tr.failed) {
+		// Back on the hold capture for the rest of the flight.
+		const t = signalTargets.find((x) => x.id === tr.failed);
+		if (t) t.trace = false;
+		signalCapture.setTraceProgress(tr.failed, 0, null);
+		if (import.meta.env?.DEV) console.debug('[signals] trace failed, hold capture', tr.failed);
+	}
+	if (tr.dropped) {
+		signalCapture.setTraceProgress(tr.dropped, 0, null);
+		if (traceBest?.id === tr.dropped) traceBest = null;
+	}
+	if (tr.done) {
+		traceDone = { id: tr.done, shape: tr.doneShape, holdS: Math.round(tr.doneS * 10) / 10 };
+		signalCapture.resolveByTrace(tr.done);
+	}
+	const f = signalTraces.follower?.out;
+	if (f) {
+		signalCapture.setTraceProgress(signalTraces.id, f.progress01, f.state);
+		// A reset (10 s off the thread) starts the photo search over.
+		if (f.state === 'waiting' && traceBest?.id === signalTraces.id) traceBest = null;
+		// The composer's target, in device pixels (the scene is drawn into it).
+		const res = lens._u.uResolution.value;
+		traceLine.setResolution(res.x, res.y);
+	}
+}
+
+// Spec rule 7: while on the thread, at most 1 / TRACE_PHOTO_S, the view of the
+// landmark is scored (centre of the frame, line of sight); one better than the
+// best so far is captured right after this frame's render (pendingTracePhoto).
+function scoreTracePhoto(out, dt, los) {
+	const f = signalTraces.follower?.out;
+	if (!f || f.state !== 'on' || !(dt > 0) || viewMode !== 'fpv') return;
+	tracePhotoAt += dt;
+	if (tracePhotoAt < TRACE_PHOTO_S) return;
+	tracePhotoAt = 0;
+	const id = signalTraces.id;
+	const row = out.rows.find((r) => r.id === id);
+	const t = signalTargets.find((x) => x.id === id);
+	if (!row || !t?.pos) return;
+	const score = photoScore({ angleDeg: row.angleDeg, los: los(t) });
+	if (score !== null && score > (traceBest?.id === id ? traceBest.score : -1)) pendingTracePhoto = { id, score };
+}
+
+// Called in the post-render window: the trace line is hidden for the redraw
+// lens.capture() makes (or asks for), so the photo never shows it.
+function takeTracePhoto({ id, score }) {
+	traceLine.setVisible(false);
+	let cap;
+	try {
+		cap = lens.capture({ redraw: true }).catch(() => null);
+	} finally {
+		traceLine.setVisible(true);
+	}
+	traceBest = { id, score, cap };
+}
+
 function renderSignalCallout(out) {
 	// The callout follows the focus; without one, the signal just uplinked for
 	// UPLINKED_SHOW_S, else the nearest open signal, else an encrypted one in
@@ -2374,7 +2525,10 @@ function renderSignalCallout(out) {
 	// The box's size, read once: offsetWidth forces a layout.
 	const box = { w: signalCallout.box.offsetWidth || 230, h: signalCallout.box.offsetHeight || 110 };
 	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
-	const pick = rows.find((r) => r.id === out.focus)
+	// The trace being flown holds the callout (its % is the gauge).
+	const flown = signalTraces.follower?.out.state === 'on' || signalTraces.follower?.out.state === 'off' ? signalTraces.id : null;
+	const pick = (flown && rows.find((r) => r.id === flown))
+		?? rows.find((r) => r.id === out.focus)
 		?? rows.find((r) => r.id === recent)
 		?? rows.find((r) => r.state !== 'resolved' && r.state !== 'encrypted');
 	let view = pick ? calloutView(pick, now, box) : null;
@@ -2421,7 +2575,10 @@ function calloutView(row, now, box) {
 	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
 		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
 		{ boxW: box.w, boxH: box.h });
-	return { signal, row, placed, now };
+	// Its trace in the world: TRACE · SHAPE · n % (or ENTER THE GATE).
+	const f = signalTraces.id === row.id && row.state !== 'resolved' ? signalTraces.follower?.out : null;
+	const trace = f ? { shape: signalTraces.shape, pct: f.progress01 * 100, wait: f.state === 'waiting' } : null;
+	return { signal, row, placed, now, trace };
 }
 
 // The resolution is written at once (spec §3); the frame follows. It is taken
@@ -2436,12 +2593,17 @@ function onSignalUplinked(id) {
 	const dist = pos ? Math.hypot(pos.x - camera.position.x, pos.y - camera.position.y, pos.z - camera.position.z) : 0;
 	const live = session.current();
 	const op = operator.getOperator();
+	// Flown along its trace: the shape and the seconds on it, not the hold.
+	const tr = traceDone?.id === id ? traceDone : null;
+	if (tr) traceDone = null;
+	const holdS = tr ? tr.holdS : HOLD_S;
 	let step = null;
 	if (op) {
 		const next = withResolved(op.signals, id, {
 			at: Date.now(), name: s.name, lat: s.lat, lon: s.lon, tier: s.tier,
-			family: PROFILE?.family ?? null, holdS: HOLD_S, distM: Math.round(dist),
+			family: PROFILE?.family ?? null, holdS, distM: Math.round(dist),
 			sessionId: live?.id ?? null, photo: null,
+			...(tr ? { trace: tr.shape } : {}),
 		});
 		// A clearance step crossed by this uplink: its notice follows the card's
 		// first second (the frame loop), and the end screen reveals it.
@@ -2458,7 +2620,10 @@ function onSignalUplinked(id) {
 	// The frame is taken even without a live session: the card shows it. index
 	// and total are frozen now: SIGNAL n / the ones still open at this moment.
 	const total = flightSignals.filter((x) => !priorResolved.has(x.id)).length;
-	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen, crossed: step };
+	// The trace's best view is the frame; none seen, the frame of this moment.
+	const cap = traceBest?.id === id ? traceBest.cap : null;
+	if (traceBest?.id === id) traceBest = null;
+	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen, crossed: step, holdS, trace: tr?.shape ?? null, cap };
 	if (import.meta.env?.DEV) console.debug('[signals] uplinked', id, `${pendingUplink.index}/${total}`);
 }
 
@@ -2491,9 +2656,9 @@ function fillSlot(index, card, gen) {
 
 // Builds the card once its thumbnail and info are known (SignalCard refreshes
 // images only when the signal changes). A failed capture still shows the card.
-async function pushUplinkCard({ id, signal, distM, index, total, gen, crossed: step }, frameSrc) {
+async function pushUplinkCard({ id, signal, distM, index, total, gen, crossed: step, holdS, trace }, frameSrc) {
 	const info = await placeInfoFor(id);
-	fillSlot(index, { signal, info, frameSrc, distM, holdS: HOLD_S, index, total, family: PROFILE?.family ?? null, crossed: step ?? null }, gen);
+	fillSlot(index, { signal, info, frameSrc, distM, holdS, trace, index, total, family: PROFILE?.family ?? null, crossed: step ?? null }, gen);
 }
 
 function blobToDataUrl(blob) {
@@ -2539,7 +2704,9 @@ async function uplinkFrame(up) {
 	let frameSrc = null;
 	let pushed = false;
 	try {
-		cap = await lens.capture();
+		// A trace's best view, taken earlier; else this frame (its trace is
+		// already gone from the world: the frame that uplinked it hid it).
+		cap = await (up.cap ?? lens.capture());
 		if (cap) frameSrc = await thumbnailOf(cap.blob);
 	} catch (e) {
 		console.warn('[signals] uplink frame failed', e);
@@ -3339,6 +3506,11 @@ if (!frozen) {
 	if (pendingCapture) {
 		pendingCapture = false;
 		if (photoReady) capturePhoto();
+	}
+	if (pendingTracePhoto) {
+		const ph = pendingTracePhoto;
+		pendingTracePhoto = null;
+		if (photoReady) takeTracePhoto(ph);
 	}
 	if (pendingUplink) {
 		const up = pendingUplink;

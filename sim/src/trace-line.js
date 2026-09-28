@@ -92,6 +92,8 @@ function lineMaterial(color, opacity) {
 	});
 }
 
+const noop = () => {};
+
 export class TraceLine {
 	constructor(scene) {
 		this.scene = scene;
@@ -145,7 +147,14 @@ export class TraceLine {
 		this.flown = new Line2(flownGeom, this.flownMat);
 		this.rest = new Line2(restGeom, this.restMat);
 		this.gate = new Line2(gateGeom, this.gateMat);
-		for (const l of [this.flown, this.rest, this.gate]) this.group.add(l);
+		for (const l of [this.flown, this.rest, this.gate]) {
+			// LineSegments2.onBeforeRender writes the renderer's viewport (the
+			// canvas, CSS px) into `resolution` at every draw — wrong here: the
+			// scene is drawn into the lens composer's target (the sensor's
+			// pixels). setResolution() is the only writer.
+			l.onBeforeRender = noop;
+			this.group.add(l);
+		}
 
 		this._trace = trace;
 		this._segments = n - 1;
@@ -180,6 +189,7 @@ export class TraceLine {
 
 	// Pixel size of the target the scene is rendered into (the lens composer's
 	// drawing buffer); LineMaterial turns its width in px into clip space with it.
+	// Mandatory: the Line2 objects do not take the canvas size (see show()).
 	setResolution(w, h) {
 		if (w === this._resW && h === this._resH) return;
 		this._resW = w; this._resH = h;
