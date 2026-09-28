@@ -71,6 +71,7 @@ Rapier linear/angular damping is zero intentionally; drag is computed by quad.js
 Reset Rapier forces/torques every step (resetForces() / resetTorques()).
 UV V-axis is flipped in prep.mjs. Check docs/manual.md before diagnosing grey textures as bad source data.
 Do not read raw/prepped scene data with Read.
+The game depends at runtime on Overpass, Wikidata/Commons and Nominatim (signals, captures, place names). A failure must degrade, never block: the map, the scan and the flight keep working.
 Documentation
 
 Sources of truth:
