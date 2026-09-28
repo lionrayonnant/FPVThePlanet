@@ -114,8 +114,10 @@ export function createSignalSource({
 			if (cached) {
 				loaded.set(key, cached);
 				failedUntil.delete(key); // a stale cooldown from an earlier failure no longer applies
-				setState('idle');
-				emit();
+				// No emit here, not even through setState: `current` is still set,
+				// and a listener would see a cache hit as a tile in flight. The emit
+				// after `current` resets below reports both changes.
+				state = 'idle';
 			} else {
 				setState('loading');
 				const res = await fetchFn(ENDPOINT, {

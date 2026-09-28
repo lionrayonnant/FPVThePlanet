@@ -327,6 +327,18 @@ await t('progress() resets when a new request() batch starts', async () => {
 	assert.deepEqual(src.progress(), { done: 1, total: 1, current: null, retryAt: null });
 });
 
+await t('a cache hit is never reported as a tile in flight once it is loaded', async () => {
+	const cache = memoryCache();
+	await cache.set('z12/5/5', { v: MODEL_VERSION, at: Date.now(), signals: [{ id: 'osm:way/5', tile: 'z12/5/5' }] });
+	const src = createSignalSource({ fetch: () => { throw new Error('no fetch on a cache hit'); }, cache });
+	const seen = [];
+	src.subscribe(() => seen.push(src.progress()));
+	src.request(['z12/5/5']);
+	await src.idle();
+	assert.ok(!seen.some((p) => p.done === 1 && p.current !== null), 'loaded while still marked current');
+	assert.deepEqual(seen.at(-1), { done: 1, total: 1, current: null, retryAt: null });
+});
+
 await t('queued() lists the tiles still waiting, as a copy', async () => {
 	let gate = null;
 	const f = fakeFetch(async () => { await new Promise((r) => { gate = r; }); return okBody([]); });

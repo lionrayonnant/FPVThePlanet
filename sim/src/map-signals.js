@@ -3,7 +3,7 @@
 // decided without a browser lives in tools/signal-model.mjs; here there is a
 // canvas and a layer lifecycle. `L` is a parameter so the module stays
 // importable under Node.
-import { signalsInView, LABEL_ZOOM, declutter, tileBounds } from '../tools/signal-model.mjs';
+import { signalsInView, LABEL_ZOOM, declutter, placeLabels, tileBounds } from '../tools/signal-model.mjs';
 import { tierAllowed, MAX_CLEARANCE } from '../tools/signal-clearance-model.mjs';
 
 // Above the tracks (360): a signal is a place to go, it reads over where you
@@ -24,6 +24,7 @@ const RING = 5;       // uplinked ring radius, 2 px stroke
 const LOCKED_R = 2.5;
 const HALO = [0, 14, 18, 23];   // by tier
 const LABEL_DX = 11;
+const LABEL_H = 14;     // 11 px text + a little air
 // One light per cell of this size at most: a city seen from zoom 10 would
 // otherwise be a single blinding blob.
 const CELL_PX = 26;
@@ -268,8 +269,17 @@ export function createSignalsLayer(L, {
 				ctx.textBaseline = 'middle';
 				ctx.fillStyle = ink;
 				ctx.globalAlpha = 0.95;
-				// fillText, never innerHTML: OSM text is data (PR #81).
-				for (const { s, x, y } of pts) ctx.fillText(s.name, x + LABEL_DX, y);
+				// Best-ranked names first; one that would cover another name or
+				// another light is dropped. fillText, never innerHTML: OSM text is
+				// data (PR #81).
+				const widths = new Map();
+				const measure = (name) => {
+					if (!widths.has(name)) widths.set(name, ctx.measureText(name).width);
+					return widths.get(name);
+				};
+				for (const { s, x, y } of placeLabels(pts, measure, { dx: LABEL_DX, h: LABEL_H, core: CORE })) {
+					ctx.fillText(s.name, x + LABEL_DX, y);
+				}
 				ctx.globalAlpha = 1;
 			}
 		},

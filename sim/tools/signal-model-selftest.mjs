@@ -5,7 +5,7 @@ import {
 	TILE_Z, MIN_QUERY_ZOOM, MAX_TILES_PER_VIEW, MODEL_VERSION,
 	tileOf, tileKey, tileBounds, tilesForView, distanceM, tilesAround, overpassQuery,
 	parseHeightM, signalFromElement, PER_TILE_CAP, capPerTile, parseOverpass,
-	signalsInView, LABEL_ZOOM, declutter,
+	signalsInView, LABEL_ZOOM, declutter, placeLabels,
 } from './signal-model.mjs';
 
 let n = 0;
@@ -400,6 +400,28 @@ t('tilesAround: sees across the antimeridian', () => {
 		const near = nearestPointOf(b, p);
 		assert.ok(distanceM(p, near) <= 1500 + 1, k);
 	}
+});
+
+t('placeLabels: an overlapping pair keeps the higher rank', () => {
+	const pt = (id, rank, x, y) => ({ s: { id, rank, name: 'NAME' }, x, y });
+	const kept = placeLabels([pt('a', 1, 0, 0), pt('b', 5, 20, 4)], () => 60, { dx: 11, h: 14, core: 4 });
+	assert.deepEqual(kept.map((p) => p.s.id), ['b']);
+});
+
+t('placeLabels: a label over another point\'s core is skipped', () => {
+	const pt = (id, rank, x, y) => ({ s: { id, rank, name: 'NAME' }, x, y });
+	// b's label would run over a's core at (40, 0); a sits far enough not to label-collide.
+	const kept = placeLabels([pt('a', 1, 40, 0), pt('b', 5, 0, 0)], () => 60, { dx: 11, h: 14, core: 4 });
+	assert.ok(!kept.some((p) => p.s.id === 'b'));
+	assert.ok(kept.some((p) => p.s.id === 'a'));
+});
+
+t('placeLabels: non-overlapping labels are all kept, in rank order, deterministic', () => {
+	const pt = (id, rank, x, y) => ({ s: { id, rank, name: 'NAME' }, x, y });
+	const pts = [pt('a', 1, 0, 0), pt('b', 3, 0, 40), pt('c', 3, 0, 80)];
+	const kept = placeLabels(pts, () => 60).map((p) => p.s.id);
+	assert.deepEqual(kept, ['b', 'c', 'a']);
+	assert.deepEqual(placeLabels([...pts].reverse(), () => 60).map((p) => p.s.id), kept);
 });
 
 console.log(`signal-model: ${n} ok`);
