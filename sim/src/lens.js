@@ -409,6 +409,10 @@ const LensShader = {
 			#endif
 
 			vec3 sum = vec3(0.0);
+			// Trace mark (src/trace-line.js clears alpha on its pixels), averaged
+			// over the same taps as the colour so the mark smears, jitters and
+			// tears exactly like the line it marks. Rides the G tap: no extra fetch.
+			float markSum = 0.0;
 			for (int i = 0; i < TAPS; i++) {
 				#if TAPS > 1
 					float t = (float(i) + dither) / float(TAPS) - 0.5;
@@ -431,11 +435,14 @@ const LensShader = {
 				vec2 uvR = vec2((base.x * (1.0 - split)) / uAspect, base.y * (1.0 - split)) * 0.5 + 0.5 + off;
 				vec2 uvG = uvHere + off;
 				vec2 uvB = vec2((base.x * (1.0 + split)) / uAspect, base.y * (1.0 + split)) * 0.5 + 0.5 + off;
+				vec4 tg = texture2D(tDiffuse, WRAPX(uvG));
 				sum += vec3(texture2D(tDiffuse, WRAPX(uvR)).r,
-				            texture2D(tDiffuse, WRAPX(uvG)).g,
+				            tg.g,
 				            texture2D(tDiffuse, WRAPX(uvB)).b);
+				markSum += 1.0 - tg.a;
 			}
 			vec3 c = sum / float(TAPS);
+			float mark = markSum / float(TAPS);
 
 			// ---- veiling glare --------------------------------------------------
 			// Before the beads, because the fog is in the air and the water is on
@@ -691,7 +698,7 @@ const LensShader = {
 				// yellow read cream. The line marks itself by clearing the
 				// target's alpha (everything else leaves it at 1); marked pixels
 				// keep their own chroma. A failing link below still eats it.
-				float mark = 1.0 - texture2D(tDiffuse, uvHere).a;
+				// \`mark\` comes from the tap loop, read where \`c\` was read.
 				vec3 chromaHere = mix(ch - chLuma, c - dot(c, LUMA), mark);
 				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15 * (1.0 - mark))) + chromaHere, 0.0, 1.0);
 				// Lifted blacks and less contrast. An analog feed is never as deep

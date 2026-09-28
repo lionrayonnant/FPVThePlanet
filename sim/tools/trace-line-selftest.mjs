@@ -222,9 +222,13 @@ t('TraceLine: the line marks itself in the target\'s alpha for the lens', () => 
 	}
 	assert.equal(REST_OPACITY, 1, 'what is left is opaque: a full mark');
 	line.dispose();
-	// And the lens reads it where the analog chroma is averaged.
+	// And the lens reads it on the very taps that make `c` (the G tap, as a
+	// vec4, no extra fetch), so a smeared or torn line carries its mark along.
 	const lens = readFileSync(new URL('../src/lens.js', import.meta.url), 'utf8');
-	assert.match(lens, /float mark = 1\.0 - texture2D\(tDiffuse, uvHere\)\.a;/);
+	assert.match(lens, /vec4 tg = texture2D\(tDiffuse, WRAPX\(uvG\)\);/);
+	assert.match(lens, /markSum \+= 1\.0 - tg\.a;/);
+	assert.match(lens, /float mark = markSum \/ float\(TAPS\);/);
+	assert.doesNotMatch(lens, /texture2D\(tDiffuse, uvHere\)\.a/, 'no mark read off the colour taps');
 	assert.match(lens, /mix\(ch - chLuma, c - dot\(c, LUMA\), mark\)/);
 });
 
