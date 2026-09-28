@@ -11,8 +11,13 @@ import { ABOVE_M as ANCHOR_ABOVE_M, RING_M as ANCHOR_RING_M } from '../src/signa
 import { UNDER_MIN_CLEARANCE_M } from '../src/trace-probe.js';
 
 export const SPACING_M = 2;
-export const TOLERANCE_M = { 2: 5, 3: 3.5 };
-export const WINDOW_M = 15;
+// Wide on purpose: the thread is a line to follow, not a needle to thread
+// (5 m / 3.5 m, the first values, were too hard to hold in play).
+export const TOLERANCE_M = { 2: 12, 3: 9 };
+// Vertical gap between two turns of a spiral: a readability floor, not the
+// tolerance (the forward search window already stops a jump between turns).
+export const TURN_GAP_M = 8;
+export const WINDOW_M = 25;
 export const OFF_RESET_S = 10;
 export const FADE_S = 2;
 export const DONE_FRAC = 0.995;
@@ -246,7 +251,7 @@ function buildOrbit(ctx) {
 // 80 m), never widening with height and eased over 15 m of height at each
 // step. The angle advances as 1/R so the climb is constant and ≤ 30°; more
 // turns than the tier's minimum when the climb needs them. One turn never
-// rises less than 2 × tolerance + 1 m over the previous one (no overlay).
+// rises less than TURN_GAP_M over the previous one (no overlay).
 function spiralRadii(profile, anchor, y0, n, pad) {
 	const raw = new Float64Array(n);
 	for (let j = 0; j < n; j++) raw[j] = Math.min(SPIRAL_MAX_R_M, radiusAtHeight(profile, anchor, y0 + j) + pad);
@@ -267,7 +272,7 @@ function buildSpiral(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
 	const pad = RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
 	const lift = attempt * ALT_STEP_M;
-	const minRise = 2 * TOLERANCE_M[tier] + 1;
+	const minRise = TURN_GAP_M;
 	const maxRate = TAU / minRise; // radians per metre of height
 	const y0 = profile.ground + SPIRAL_FLOOR_M + lift;
 	let y1 = Math.max(landmarkTop(anchor) + SPIRAL_OVER_TOP_M + lift, y0 + SPIRAL_OVER_TOP_M);

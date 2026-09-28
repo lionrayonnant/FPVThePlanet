@@ -12,8 +12,10 @@ unchanged.
 | tier | trace | tolerance |
 |---|---|---|
 | I | none — hold in frame 5 s (today) | — |
-| II | short: half a turn (orbit / spiral), or the short form of the shape | 5 m |
-| III | full: 1.5 turns (orbit / spiral), or the full form of the shape | 3.5 m |
+| II | short: half a turn (orbit / spiral), or the short form of the shape | 12 m |
+| III | full: 1.5 turns (orbit / spiral), or the full form of the shape | 9 m |
+
+(First set at 5 m / 3.5 m; widened on 2026-09-28 after play: too hard to hold.)
 
 **Shape by kind** (`signal.kind`, from OSM tags; `heightM` from OSM/Wikidata):
 
@@ -47,7 +49,7 @@ the drone comes from **at generation time**.
    trace is hidden while `lens.capture()` renders a photo. Fog-free, no glow.
 4. **Following.** Enter through the gate (within tolerance of point 0). Progress
    advances along the polyline while the drone stays within tolerance and moves
-   forward; it can't skip ahead (a search window of 15 m past the current
+   forward; it can't skip ahead (a search window of 25 m past the current
    progress). The camera may look anywhere (question 2 → A).
 5. **Leaving the thread** (question 3 → C). Progress pauses. Back within 10 s:
    resume where you left. After 10 s off: the flown part cools (fades over 2 s)

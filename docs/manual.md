@@ -456,9 +456,9 @@ the top: its radius at each height is the landmark's radius there + 12 m
 the height needs them. The same place always gives the same trace (seeded by
 its Wikidata id), its entry turned towards the side the drone came from.
 
-Tolerance: 5 m (tier II), 3.5 m (tier III). Enter through the small square
+Tolerance: 12 m (tier II), 9 m (tier III). Enter through the small square
 gate at the start; progress then follows the drone along the line, never more
-than 15 m ahead. Off the line, progress pauses; after 10 s off, the flown part
+than 25 m ahead. Off the line, progress pauses; after 10 s off, the flown part
 fades (2 s) and progress resets to the gate. The camera may look anywhere. The
 line is a ~2 px hairline seen through the lens, depth-tested, no fog, no glow:
 yellow ahead, green flown; hidden in every photo. The callout reads

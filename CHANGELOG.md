@@ -130,9 +130,9 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   hauteur, 30° de montée au plus) ; un passage sous le tablier pour un pont ou
   une arche ; une plongée le long de la pente pour un sommet, un volcan, une
   cascade, une falaise ou un barrage ; un tour autour du lieu pour le reste.
-  Le niveau II fait la forme courte (tolérance 5 m ; un demi-tour, un seul
+  Le niveau II fait la forme courte (tolérance 12 m ; un demi-tour, un seul
   passage sous le pont, au moins 60 m de plongée), le niveau III la forme complète
-  (tolérance 3,5 m ; un tour et demi — l'orbite monte de 8 m par tour pour ne
+  (tolérance 9 m ; un tour et demi — l'orbite monte de 8 m par tour pour ne
   jamais se recouvrir —, sous le pont, par-dessus, puis de nouveau dessous,
   au moins 160 m de plongée ; une plongée s'allonge avec le dénivelé pour ne
   jamais dépasser 45° de pente). On entre par une petite porte carrée au début ; le fil

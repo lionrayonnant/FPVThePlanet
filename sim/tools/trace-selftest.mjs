@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
 	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg,
-	SPACING_M, TOLERANCE_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
+	SPACING_M, TOLERANCE_M, TURN_GAP_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
 let n = 0;
@@ -121,10 +121,10 @@ t('orbit: each attempt is 8 m wider and 6 m higher; the turn follows the seed', 
 	for (const id of ['wd:Q1', 'wd:Q2', 'wd:Q3', 'wd:Q4']) assert.equal(turnOf(id), turnDir(id), id);
 });
 
-t('orbit III never overlays itself: points more than 20 m apart along it stay 2 × tolerance apart', () => {
+t('orbit III never overlays itself: points more than 20 m apart along it stay TURN_GAP_M − 1 apart', () => {
 	for (const attempt of [0, 2]) {
 		const tr = buildTrace({ signal: sig('CATHEDRAL'), anchor: towerAnchor, profile: towerProfile, tier: 3, approach: { x: 500, z: 100 }, attempt });
-		const min = 2 * tr.tolerance;
+		const min = TURN_GAP_M - 1;
 		for (let i = 0; i < count(tr); i++) {
 			for (let j = i + 1; j < count(tr); j++) {
 				if (tr.cum[j] - tr.cum[i] <= 20) continue;
@@ -197,7 +197,7 @@ const spiralOk = (tr, a, p) => {
 	}
 };
 const noOverlay = (tr) => {
-	const min = 2 * tr.tolerance;
+	const min = TURN_GAP_M - 1;
 	for (let i = 0; i < count(tr); i++) {
 		for (let j = i + 1; j < count(tr); j++) {
 			if (tr.cum[j] - tr.cum[i] <= 20) continue;
@@ -507,6 +507,18 @@ t('follower: out.index is the segment the progress is on', () => {
 	assert.ok(f.out.index >= 10);
 	f.reset();
 	assert.equal(f.out.index, 0);
+});
+
+t('follower: a tolerance wider than the gap between spiral turns never jumps a turn', () => {
+	const tr = buildTrace({ signal: sig('TOWER', 100), anchor: towerAnchor, profile: towerProfile, tier: 2, approach: { x: 500, z: 100 }, attempt: 0 });
+	assert.ok(tr.tolerance > TURN_GAP_M, 'the premise: tolerance wider than the turn gap');
+	const f = new TraceFollower({ trace: tr });
+	f.update({ dt: 0.1, pos: pt(tr, 0) });
+	// Hover one turn gap above an early point: within tolerance of the turn
+	// above too, but the search window only looks WINDOW_M ahead.
+	const p = pt(tr, 3);
+	for (let k = 0; k < 50; k++) f.update({ dt: 0.1, pos: { x: p.x, y: p.y + TURN_GAP_M, z: p.z } });
+	assert.ok(f.out.progress01 * tr.length <= tr.cum[3] + WINDOW_M, `progress ${f.out.progress01 * tr.length} m`);
 });
 
 t('follower: reuses its output object, and the tolerance defaults to the trace', () => {
