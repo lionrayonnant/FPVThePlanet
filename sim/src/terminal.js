@@ -15,7 +15,8 @@ import { worldWeather, formatForecast, headline, severity as weatherSeverity, to
 import { previewBounds } from '../tools/map-preview-model.mjs';
 import { countUp } from './motion.js';
 import { mountHangar, progressNode, tiersNode } from './hangar.js';
-import { signalsSection, runCapture } from './signals-data.js';
+import { signalsSection, runCapture, rowOf } from './signals-data.js';
+import { MACHINE_NAMES } from '../tools/signal-card-model.mjs';
 import { buildSignals } from '../tools/signals-data-model.mjs';
 import { clearanceOf } from '../tools/signal-clearance-model.mjs';
 import { mountScreen, screenButton } from './screen.js';
@@ -720,6 +721,10 @@ function buildNotesScreen(root, operator) {
 
 // ---------- DATA ----------
 
+// A target family as the rest of the game names the machine (SIGNALS, the
+// hangar, the notices: TOOTHPICK, THE SWARM), the profile label otherwise.
+const familyName = (f) => (Object.hasOwn(MACHINE_NAMES, f.family) ? MACHINE_NAMES[f.family] : f.label);
+
 // Everything COLD, and no longer a shelf of logs (issue #26). ARCHIVE listed
 // what had been stored; DATA is one scrolling page where the operator reads
 // their own flying back — nine sections, graphs first, raw records last.
@@ -734,18 +739,21 @@ function buildNotesScreen(root, operator) {
 // Resolves { slug } (a REVISIT, which the root loop flies like a choice made in
 // FIELD), { live, place } (a capture's FLY THERE, a LIVE flight) or null.
 //
-export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
+export function dataScreen(root, { api = operatorApi, scenes = null, placeNames = null } = {}) {
 	const operator = api.getOperator();
 	const model = terminalModel({ operator, scenes });
 	const s = screen(root, 'terminal-data');
 	return new Promise((resolve) => {
 		let nav = null;
 		let alive = true;
+		// Stops SIGNALS asking for place names once DATA is gone.
+		const closing = new AbortController();
 		// A bare slug (lastSessionScreen) and a { slug } (SESSION LOG) say the
 		// same thing: one shape goes back up, the one the root loop knows how to
 		// fly.
 		const done = (value) => {
 			alive = false;
+			closing.abort();
 			hangar?.destroy();
 			window.removeEventListener('resize', onResize);
 			nav?.detach();
@@ -755,15 +763,29 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 
 		// One full-frame screen hides another: this one is hidden meanwhile and
 		// given back on return. Same gesture as the Home with the scanner.
-		// `opener`: the control to hand the cursor back to (a SIGNALS row), when
-		// it is still on the page; otherwise the first control, as before.
+		// `opener`: the control to hand the cursor back to (a SIGNALS row), or a
+		// function that finds it once the screen above has closed; used when it
+		// is still on the page, otherwise the first control, as before. A screen
+		// that fails to open or throws gives DATA back rather than leave it
+		// hidden under nothing.
 		const behind = async (fn, opener = null) => {
 			s.el.hidden = true;
-			const r = await fn();
-			if (r !== undefined && r !== null) return done(r);
-			s.el.hidden = false;
-			if (opener?.isConnected) opener.focus();
-			else nav?.focusAt(0);
+			let r = null;
+			try {
+				r = await fn();
+			} catch (e) {
+				console.warn('[data] the screen over DATA failed', e);
+				r = null;
+			} finally {
+				if (r === undefined || r === null) {
+					s.el.hidden = false;
+					let target = null;
+					try { target = typeof opener === 'function' ? opener() : opener; } catch { target = null; }
+					if (target?.isConnected) target.focus();
+					else nav?.focusAt(0);
+				}
+			}
+			if (r !== undefined && r !== null) done(r);
 		};
 
 		// --- state ---------------------------------------------------------
@@ -863,10 +885,16 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 		signalsBox.appendChild(pre('LOADING…', 'terminal-foot'));
 		// An uplinked row opens its capture over DATA. FLY THERE's
 		// { live, place } goes up through done() unchanged (a LIVE flight in
-		// main.js's dataLoop); BACK gives DATA back, the cursor on that row.
-		const openCapture = (entries, index) => {
-			const opener = signalsBox.querySelectorAll('.signals-row')[index] ?? null;
-			behind(() => runCapture(root, { api, entries, index }), opener);
+		// main.js's dataLoop); BACK gives DATA back, the cursor on the row of the
+		// capture last shown (PREVIOUS / NEXT walk away from the one opened).
+		const openCapture = (entries, index, known) => {
+			let last = index;
+			behind(async () => {
+				const r = await runCapture(root, { api, entries, index, known });
+				if (r && Number.isInteger(r.back)) { last = r.back; return null; }
+				return r;
+			}, () => rowOf(signalsBox, entries[last]?.id) ?? rowOf(signalsBox, entries[index]?.id))
+				.catch(() => {});
 		};
 		const swapSignals = (box) => {
 			if (!alive) return;
@@ -875,7 +903,7 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 			if (placeholder.parentNode) placeholder.replaceWith(box);
 		};
 		// A failure leaves no section rather than a LOADING… for ever.
-		signalsSection(api, { onOpen: openCapture })
+		signalsSection(api, { onOpen: openCapture, placeNames, signal: closing.signal })
 			.then(swapSignals, () => swapSignals(document.createTextNode('')));
 
 		// --- the nine sections ----------------------------------------------
@@ -954,12 +982,12 @@ export function dataScreen(root, { api = operatorApi, scenes = null } = {}) {
 				: 'NO TARGET MET YET');
 			if (data.families.total) {
 				graph(fam, 110, (c) => bars(c, {
-					items: data.families.families.map((f) => ({ label: f.label, value: f.meanS, selected: f.family === openFamily })),
+					items: data.families.families.map((f) => ({ label: familyName(f), value: f.meanS, selected: f.family === openFamily })),
 					height: 110, format: (v) => `${Math.round(v / 60)}m`,
 				}));
 				const row = linkRow();
 				for (const f of data.families.families) {
-					link(row, `${f.label} ${f.count}`, () => {
+					link(row, `${familyName(f)} ${f.count}`, () => {
 						openFamily = openFamily === f.family ? null : f.family;
 						render();
 					});

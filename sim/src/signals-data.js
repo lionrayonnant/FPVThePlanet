@@ -13,6 +13,9 @@ import { sharedSignalSource } from './signal-source.js';
 import { sharedPlaceInfo } from './place-info.js';
 import { safeImageUrl } from '../tools/wikidata-model.mjs';
 import { clearanceOf } from '../tools/signal-clearance-model.mjs';
+import { fromStored, withPlace } from '../tools/signal-store-model.mjs';
+import { placeKey } from '../tools/place-name-model.mjs';
+import { sharedPlaceNames } from './place-name.js';
 import { fit } from '../tools/session-log-model.mjs';
 import {
 	ELSEWHERE, DATA_CREDIT, buildSignals, listRows, detailRows, creditOf,
@@ -35,19 +38,34 @@ async function knownSignals() {
 	try { return await sharedSignalSource().cachedSignals(); } catch { return []; }
 }
 
-// The SIGNALS section, as a DATA `.data-section`. `onOpen(entries, index)` is
-// called when an uplinked row is chosen: `entries` are the selected place's
-// uplinked entries (newest first), `index` the chosen one — hand both to
-// runCapture(). Resolves once the cached signals have been read.
-export async function signalsSection(api, { onOpen = () => {} } = {}) {
-	const store = api.getOperator()?.signals ?? null;
-	const data = buildSignals({ store, known: await knownSignals() });
-	const clearance = clearanceOf(store);
+// The `[+]` row of one uplinked entry in a SIGNALS section, or null.
+export function rowOf(box, id) {
+	if (!id || typeof box?.querySelectorAll !== 'function') return null;
+	return [...box.querySelectorAll('.signals-row')].find((b) => b.dataset.id === id) ?? null;
+}
+
+// The SIGNALS section, as a DATA `.data-section`. `onOpen(entries, index,
+// known)` is called when an uplinked row is chosen: `entries` are the selected
+// place's uplinked entries (newest first), `index` the chosen one, `known` the
+// cached signals already read — hand all three to runCapture(). Resolves once
+// the cached signals have been read.
+//
+// Entries uplinked while their place name could not be fetched sit under
+// ELSEWHERE: while the section is up (until `signal` aborts) their names are
+// asked again, one z10 tile at a time (src/place-name.js: 1 req/s, memoised
+// per tile), patched into the store like main.js's onSignalUplinked does,
+// and the section redrawn in place, selection and cursor kept.
+export async function signalsSection(api, { onOpen = () => {}, placeNames = null, signal = null } = {}) {
+	const known = await knownSignals();
+	const storeOf = () => api.getOperator()?.signals ?? null;
+	let data = buildSignals({ store: storeOf(), known });
+	const clearance = clearanceOf(storeOf());
 
 	const box = el('div', 'data-section signals-section');
 	box.appendChild(el('pre', '', 'SIGNALS'));
-	box.appendChild(el('pre', 'terminal-foot',
-		`${data.uplinked} UPLINKED · ${data.knownCount} KNOWN · ${data.places.length} PLACES`));
+	const footText = () => `${data.uplinked} UPLINKED · ${data.knownCount} KNOWN · ${data.places.length} PLACES`;
+	const foot = el('pre', 'terminal-foot', footText());
+	box.appendChild(foot);
 
 	if (!data.places.length) {
 		box.appendChild(el('pre', 'terminal-empty', 'NOTHING UPLINKED YET'));
@@ -55,7 +73,9 @@ export async function signalsSection(api, { onOpen = () => {} } = {}) {
 		return box;
 	}
 
-	let selected = data.places.find((p) => p.name === lastPlace) ?? data.places[0];
+	// By name: a redraw rebuilds the place objects.
+	let selectedName = (data.places.find((p) => p.name === lastPlace) ?? data.places[0]).name;
+	const selected = () => data.places.find((p) => p.name === selectedName) ?? data.places[0];
 	const places = el('div', 'terminal-nav signals-places');
 	const list = el('div', 'signals-list');
 	box.appendChild(places);
@@ -63,32 +83,36 @@ export async function signalsSection(api, { onOpen = () => {} } = {}) {
 
 	const drawPlaces = () => {
 		places.replaceChildren();
+		const cur = selected();
 		for (const p of data.places) {
 			if (places.children.length) places.appendChild(document.createTextNode(' · '));
 			const b = screenButton(`${p.name} ${p.uplinked.length}/${p.total}`, () => {
-				if (selected === p) return;
-				selected = p;
+				if (selected() === p) return;
+				selectedName = p.name;
 				lastPlace = p.name;
 				drawPlaces();
 				drawList();
 				places.querySelector('.on')?.focus();
 			}, 'terminal-link');
-			if (p === selected) b.classList.add('on');
+			b.dataset.place = p.name;
+			if (p === cur) b.classList.add('on');
 			places.appendChild(b);
 		}
 	};
 
 	const drawList = () => {
 		list.replaceChildren();
-		const rows = listRows(selected, clearance);
+		const cur = selected();
+		const rows = listRows(cur, clearance);
 		for (const r of rows) {
 			if (r.kind === 'uplinked') {
 				const b = el('button', 'terminal-row signals-row');
 				b.type = 'button';
+				b.dataset.id = r.id;
 				b.appendChild(el('span', 'signals-mark-up', '[+]'));
 				b.appendChild(document.createTextNode(` ${fit(r.text, NAME_W)}  ${r.right}`));
-				const i = selected.uplinked.findIndex((e) => e.id === r.id);
-				b.onclick = () => onOpen(selected.uplinked, i);
+				const i = cur.uplinked.findIndex((e) => e.id === r.id);
+				b.onclick = () => onOpen(cur.uplinked, i, known);
 				list.appendChild(b);
 			} else if (r.kind === 'more') {
 				list.appendChild(el('pre', 'signals-line signals-more', `    ${r.text}`));
@@ -102,21 +126,66 @@ export async function signalsSection(api, { onOpen = () => {} } = {}) {
 		}
 	};
 
+	// A name landed: the section alone is rebuilt, the cursor put back on the
+	// same row or place when it was in here.
+	const redraw = () => {
+		const active = document.activeElement;
+		const had = active && box.contains(active)
+			? { id: active.dataset?.id ?? null, place: active.dataset?.place ?? null } : null;
+		data = buildSignals({ store: storeOf(), known });
+		foot.textContent = footText();
+		drawPlaces();
+		drawList();
+		if (!had) return;
+		const back = (had.id && rowOf(list, had.id))
+			|| (had.place && [...places.querySelectorAll('button')].find((b) => b.dataset.place === had.place))
+			|| places.querySelector('.on');
+		back?.focus();
+	};
+
+	const fillPlaces = async () => {
+		const names = placeNames ?? sharedPlaceNames();
+		const unnamed = Object.entries(fromStored(storeOf()).resolved).filter(([, e]) => e.place === null);
+		const tried = new Set();
+		for (const [, e] of unnamed) {
+			if (signal?.aborted) return;
+			const key = placeKey(e.lat, e.lon);
+			if (key === null || tried.has(key)) continue;
+			tried.add(key);
+			const name = await names.nameOf(e.lat, e.lon);
+			if (signal?.aborted) return;
+			if (!name) continue;
+			const op = api.getOperator();
+			if (!op) return;
+			// The name is the tile's: every unnamed entry in it takes it.
+			let next = op.signals;
+			for (const [id, x] of unnamed) if (placeKey(x.lat, x.lon) === key) next = withPlace(next, id, name);
+			api.patch('signals', next);
+			redraw();
+		}
+	};
+
 	drawPlaces();
 	drawList();
+	fillPlaces().catch((e) => console.warn('[signals] place names', e));
 	return box;
 }
 
 // One capture, opened (mockup dossier-v3.html, "ONE CAPTURE, OPENED"). Its
 // own full-frame screen; PREVIOUS / NEXT walk `entries`. Resolves
-// { live: [lat, lon], place } for FLY THERE, null for BACK / Escape.
-export function runCapture(root, { api, entries, index = 0 }) {
+// { live: [lat, lon], place } for FLY THERE, { back: index } for BACK /
+// Escape (`index`: the entry last shown), null when there is nothing to show
+// or the view failed to draw — never rejects, never stays up broken.
+// `known`: the cached signals the SIGNALS section already read; read again
+// only when absent.
+export function runCapture(root, { api, entries, index = 0, known = null }) {
+	if (!Array.isArray(entries) || !entries.length) return Promise.resolve(null);
 	const s = mountScreen(root, { cls: 'terminal terminal-capture', boxCls: 'terminal-box' });
-	let i = Math.max(0, Math.min(entries.length - 1, index));
+	let i = Math.max(0, Math.min(entries.length - 1, Number.isInteger(index) ? index : 0));
 	let shotUrl = null;
 	let token = 0;
 	let nav = null;
-	const signalsP = knownSignals();
+	const signalsP = Array.isArray(known) ? Promise.resolve(known) : knownSignals();
 
 	const revoke = () => {
 		if (shotUrl) URL.revokeObjectURL(shotUrl);
@@ -207,17 +276,17 @@ export function runCapture(root, { api, entries, index = 0 }) {
 			acts.appendChild(screenButton('FLY THERE',
 				() => done({ live: [entry.lat, entry.lon], place: entry.place ?? null }), 'terminal-cta'));
 			if (entries.length > 1) {
-				const prev = screenButton('PREVIOUS', () => { i--; render('PREVIOUS'); }, 'terminal-cta');
+				const prev = screenButton('PREVIOUS', () => { i--; show('PREVIOUS'); }, 'terminal-cta');
 				prev.disabled = i === 0;
-				const next = screenButton('NEXT', () => { i++; render('NEXT'); }, 'terminal-cta');
+				const next = screenButton('NEXT', () => { i++; show('NEXT'); }, 'terminal-cta');
 				next.disabled = i === entries.length - 1;
 				acts.append(prev, next);
 			}
-			acts.appendChild(screenButton('BACK', () => done(null), 'terminal-cta'));
+			acts.appendChild(screenButton('BACK', () => done({ back: i }), 'terminal-cta'));
 			box.appendChild(acts);
 			box.appendChild(el('pre', 'terminal-keys', '[ESC] BACK'));
 
-			if (!nav) nav = menuNav(s.el, { back: () => done(null) });
+			if (!nav) nav = menuNav(s.el, { back: () => done({ back: i }) });
 			const target = [...acts.querySelectorAll('button')]
 				.find((b) => !b.disabled && focusLabel && b.textContent === `[ ${focusLabel} ]`);
 			(target ?? acts.querySelector('button')).focus();
@@ -232,6 +301,7 @@ export function runCapture(root, { api, entries, index = 0 }) {
 				]);
 				if (mine !== token) return;
 				const signal = signals.find((x) => x.id === entry.id) ?? null;
+				const rows = detailRows(entry, signal, info);
 				if (info?.description) foot.textContent = info.description.toUpperCase();
 				const refUrl = safeImageUrl(info?.photo?.url);
 				if (refUrl) {
@@ -243,10 +313,19 @@ export function runCapture(root, { api, entries, index = 0 }) {
 					refSlot.replaceChildren(img);
 				}
 				drawCredit(info);
-				drawFacts(detailRows(entry, signal, info));
-			})();
+				drawFacts(rows);
+			})().catch((e) => console.warn('[signals] capture facts', e));
 		};
 
-		render();
+		// A capture that cannot be drawn closes rather than strand DATA hidden
+		// behind a half-built screen.
+		const show = (focusLabel = null) => {
+			try { render(focusLabel); } catch (e) {
+				console.warn('[signals] capture view failed', e);
+				done(null);
+			}
+		};
+
+		show();
 	});
 }

@@ -32,15 +32,18 @@ export function createPlaceNames({ fetch: fetchFn, cache = memoryCache(), now = 
 		try { await cache.set(key, { v: PLACE_VERSION, at: now(), name }); } catch { /* see fromCache */ }
 	}
 
+	// Resolves { name, failed }: a genuine "no name here" answer is kept (cache
+	// and memo), a failed request is not — the next nameOf() asks again.
 	async function run(key, job) {
 		let name = null;
+		let failed = false;
 		try {
 			const res = await fetchFn(reverseUrl(job.lat, job.lon));
 			if (!res.ok) throw new Error(String(res.status));
 			name = placeNameOf(await res.json());
 			await toCache(key, name);
-		} catch { /* unavailable: "no name" is passed on as-is, never a rejection */ }
-		job.resolve(name);
+		} catch { failed = true; /* unavailable: passed on as null, never a rejection */ }
+		job.resolve({ name, failed });
 	}
 
 	function pump() {
@@ -62,7 +65,12 @@ export function createPlaceNames({ fetch: fetchFn, cache = memoryCache(), now = 
 			if (running) return running;
 			const p = fromCache(key).then((hit) => {
 				if (hit) return hit.name;
-				return new Promise((resolve) => { queue.push({ key, job: { lat, lon, resolve } }); pump(); });
+				return new Promise((resolve) => { queue.push({ key, job: { lat, lon, resolve } }); pump(); })
+					.then(({ name, failed }) => {
+						// Offline or rate-limited now is not "unnamed" for the page's life.
+						if (failed && memo.get(key) === p) memo.delete(key);
+						return name;
+					});
 			});
 			memo.set(key, p);
 			return p;

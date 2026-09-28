@@ -118,6 +118,36 @@ await t('nameOf: never rejects — a fetch failure resolves null', async () => {
 	assert.equal(await client2.nameOf(49.2536, 4.0340), null);
 });
 
+await t('nameOf: a failed lookup is not memoised — the next call asks again', async () => {
+	let fail = true;
+	const calls = [];
+	const fetchFn = async (url) => {
+		calls.push(url);
+		if (fail) throw new Error('offline');
+		return okBody({ city: 'Reims' });
+	};
+	const cache = memoryCache();
+	const client = createPlaceNames({ fetch: fetchFn, cache, schedule: setImmediate });
+	assert.equal(await client.nameOf(49.2536, 4.0340), null);
+	assert.equal(await cache.get(placeKey(49.2536, 4.0340)), null, 'nothing cached either');
+	fail = false;
+	assert.equal(await client.nameOf(49.2536, 4.0340), 'REIMS', 'retried, and named');
+	assert.equal(calls.length, 2);
+	assert.equal(await client.nameOf(49.26, 4.05), 'REIMS', 'the success is memoised');
+	assert.equal(calls.length, 2);
+});
+
+await t('nameOf: a genuine "no name" answer IS memoised and cached', async () => {
+	const calls = [];
+	const fetchFn = async (url) => { calls.push(url); return okBody({}); };
+	const cache = memoryCache();
+	const client = createPlaceNames({ fetch: fetchFn, cache, schedule: setImmediate });
+	assert.equal(await client.nameOf(49.2536, 4.0340), null);
+	assert.equal(await client.nameOf(49.2536, 4.0340), null);
+	assert.equal(calls.length, 1, 'asked once');
+	assert.equal((await cache.get(placeKey(49.2536, 4.0340))).name, null);
+});
+
 await t('nameOf: invalid coordinates resolve null without a fetch', async () => {
 	const fetchFn = async () => { throw new Error('must not be called'); };
 	const client = createPlaceNames({ fetch: fetchFn, cache: memoryCache(), schedule: setImmediate });

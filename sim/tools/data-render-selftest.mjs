@@ -242,7 +242,7 @@ await ta('data: SIGNALS lists the places and the selected place\'s uplinked rows
 	await closeAll(p, 1);
 });
 
-await ta('data: an uplinked row opens its capture; BACK returns with the cursor on that row', async () => {
+await ta('data: an uplinked row opens its capture; BACK returns with the cursor on the row last viewed', async () => {
 	reset();
 	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
 	await signalsReady();
@@ -261,8 +261,165 @@ await ta('data: an uplinked row opens its capture; BACK returns with the cursor 
 	await tick(); await tick();
 	assert.ok(!data.hidden, 'DATA is back');
 	assert.equal(dom.root.querySelectorAll('.terminal-capture').length, 0, 'the capture is gone');
-	assert.equal(dom.document.activeElement, row, 'the cursor is on the row that was opened');
+	assert.equal(dom.document.activeElement, signalsBox().querySelectorAll('.signals-row')[0],
+		'the cursor is on PANTHEON, the capture last shown — not EIFFEL TOWER, the one opened');
+	// Opened and closed without walking: the cursor goes back to that same row.
+	row.click();
+	await tick();
+	dom.key('Escape');
+	await tick(); await tick();
+	assert.equal(dom.document.activeElement, row, 'Escape, too, hands the cursor to the row shown');
 	await closeAll(p, 1);
+});
+
+// The capture view must never strand DATA hidden: whatever fails on the way
+// up, DATA comes back, visible, the cursor on the row.
+const backOnRow = async (row, what) => {
+	const data = dom.root.querySelector('.terminal-data');
+	await waitFor(() => !data.hidden, `DATA back after ${what}`);
+	assert.equal(dom.root.querySelectorAll('.terminal-capture').length, 0, `no capture left after ${what}`);
+	assert.equal(dom.document.activeElement, row, `the cursor on the row after ${what}`);
+};
+const quietly = async (fn) => {
+	const warn = console.warn;
+	console.warn = () => {};
+	try { await fn(); } finally { console.warn = warn; }
+};
+
+await ta('data: a session photo that fails to load leaves the capture usable, and BACK gives DATA back', async () => {
+	reset();
+	const op = operator({ signals: { resolved: { 'wd:Q1': uplink({ name: 'PANTHEON', sessionId: 'paristest-0001', photo: 0 }) } } });
+	const p = dataScreen(dom.root, { api: { ...api(op), fetchPhoto: async () => { throw new Error('offline'); } }, scenes: [] });
+	await signalsReady();
+	const row = signalsBox().querySelectorAll('.signals-row')[0];
+	row.click();
+	await tick(); await tick();
+	assert.ok(dom.root.querySelector('.terminal-data').hidden);
+	assert.match(topBox().textContent, /NO FRAME/);
+	topBtn('BACK').click();
+	await backOnRow(row, 'a rejected photo');
+	await closeAll(p, 1);
+});
+
+await ta('data: a capture view that throws while drawing closes, and DATA comes back', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await signalsReady();
+	const row = signalsBox().querySelectorAll('.signals-row')[0];
+	// The capture's first <pre> (its title) throws: render() fails half-built.
+	const create = dom.document.createElement;
+	dom.document.createElement = (tag) => {
+		if (tag === 'pre') { dom.document.createElement = create; throw new Error('render'); }
+		return create(tag);
+	};
+	await quietly(async () => {
+		try { row.click(); } finally { dom.document.createElement = create; }
+		await backOnRow(row, 'a render that throws');
+	});
+	await closeAll(p, 1);
+});
+
+await ta('data: a capture view that cannot even mount gives DATA back', async () => {
+	reset();
+	const p = dataScreen(dom.root, { api: api(withSignals()), scenes: [] });
+	await signalsReady();
+	const row = signalsBox().querySelectorAll('.signals-row')[0];
+	const create = dom.document.createElement;
+	dom.document.createElement = () => { dom.document.createElement = create; throw new Error('mount'); };
+	await quietly(async () => {
+		try { row.click(); } finally { dom.document.createElement = create; }
+		await backOnRow(row, 'a mount that throws');
+	});
+	await closeAll(p, 1);
+});
+
+await ta('runCapture: nothing to show, or an entry it cannot draw, resolves null and leaves no screen', async () => {
+	reset();
+	const { runCapture } = await import('../src/signals-data.js');
+	assert.equal(await runCapture(dom.root, { api: api(operator()), entries: [] }), null);
+	assert.equal(await runCapture(dom.root, { api: api(operator()), entries: null }), null);
+	assert.equal(dom.root.children.length, 0, 'nothing mounted for nothing');
+	await quietly(async () => {
+		// A raw entry with no holdS: detailRows() throws on it.
+		const r = await runCapture(dom.root, { api: api(operator()), entries: [{ id: 'wd:Q9', name: 'X', at: DAY(27), lat: 1, lon: 1 }], known: [] });
+		assert.equal(r, null);
+	});
+	assert.equal(dom.root.querySelectorAll('.terminal-capture').length, 0, 'the half-built screen is removed');
+});
+
+await ta('data: a SIGNALS section that fails to load leaves no LOADING…, and the rest in order', async () => {
+	reset();
+	// The first read is DATA's own; the section's (the second) throws.
+	let reads = 0;
+	const op = withSignals();
+	const failing = { ...api(op), getOperator: () => { if (++reads > 1) throw new Error('boom'); return op; } };
+	const p = dataScreen(dom.root, { api: failing, scenes: [] });
+	await waitFor(() => !dom.root.textContent.includes('LOADING…'), 'the placeholder to leave');
+	const titles = dom.root.querySelector('.data-page').querySelectorAll('.data-section').map((b) => b.children[0].textContent);
+	assert.deepEqual(titles, SECTIONS.filter((x) => x !== 'SIGNALS'));
+	await closeAll(p, 1);
+});
+
+// Entries uplinked while Nominatim was out of reach sit under ELSEWHERE; DATA
+// asks again while it is up. `patchable`: an api whose patch() writes through,
+// like src/operator.js's.
+const patchable = (op, calls = []) => ({
+	...api(op), patch: (k, v) => { calls.push(k); op[k] = v; },
+});
+const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
+
+await ta('data: SIGNALS names what sat ELSEWHERE, patches the store, and keeps the cursor', async () => {
+	reset();
+	const op = operator({ signals: { resolved: {
+		'wd:Q1': uplink({ name: 'PANTHEON', at: DAY(27) }),
+		'wd:Q4': uplink({ name: 'CATHEDRAL', place: null, lat: 49.2536, lon: 4.0340, at: DAY(25) }),
+		'wd:Q5': uplink({ name: 'BASILICA', place: null, lat: 49.2540, lon: 4.0350, at: DAY(24) }),
+	} } });
+	const asked = [];
+	const answer = deferred();
+	const placeNames = { nameOf: (lat, lon) => { asked.push([lat, lon]); return answer.promise; } };
+	const calls = [];
+	const p = dataScreen(dom.root, { api: patchable(op, calls), scenes: [], placeNames });
+	await signalsReady();
+	const names = () => signalsBox().querySelector('.signals-places').querySelectorAll('button').map((b) => b.textContent);
+	assert.deepEqual(names(), ['ELSEWHERE 2/2', 'PARIS 1/1']);
+	assert.ok(signalsBox().querySelector('.signals-places').querySelector('.on').textContent.startsWith('PARIS'), 'PARIS, the place last chosen');
+	signalsBox().querySelectorAll('.signals-row')[0].focus();
+	await tick();
+	assert.equal(asked.length, 1, 'one request for the two entries of one z10 tile');
+	answer.resolve('REIMS');
+	await waitFor(() => names().includes('REIMS 2/2'), 'the named place');
+	assert.deepEqual(calls, ['signals'], 'one patch for the tile');
+	assert.equal(op.signals.resolved['wd:Q4'].place, 'REIMS');
+	assert.equal(op.signals.resolved['wd:Q5'].place, 'REIMS');
+	assert.ok(!names().some((x) => x.startsWith('ELSEWHERE')), 'nothing left ELSEWHERE');
+	assert.ok(signalsBox().querySelector('.signals-places').querySelector('.on').textContent.startsWith('PARIS'), 'the selection kept');
+	assert.equal(dom.document.activeElement.dataset.id, 'wd:Q1', 'the cursor kept on its row');
+	assert.ok(dom.document.activeElement.isConnected);
+	assert.match(signalsBox().children[1].textContent, /2 PLACES$/, 'the foot line follows');
+	await closeAll(p, 1);
+});
+
+await ta('data: SIGNALS stops asking for place names once DATA is closed', async () => {
+	reset();
+	const op = operator({ signals: { resolved: {
+		'wd:Q4': uplink({ name: 'CATHEDRAL', place: null, lat: 49.2536, lon: 4.0340, at: DAY(25) }),
+		'wd:Q6': uplink({ name: 'KREMLIN', place: null, lat: 55.7520, lon: 37.6175, at: DAY(24) }),
+	} } });
+	const asked = [];
+	const answer = deferred();
+	const placeNames = { nameOf: (lat, lon) => { asked.push([lat, lon]); return answer.promise; } };
+	const calls = [];
+	const p = dataScreen(dom.root, { api: patchable(op, calls), scenes: [], placeNames });
+	await signalsReady();
+	await tick();
+	assert.equal(asked.length, 1, 'one tile at a time');
+	dom.key('Escape');
+	await p;
+	answer.resolve('REIMS');
+	for (let i = 0; i < 5; i++) await tick();
+	assert.equal(asked.length, 1, 'the second tile is never asked');
+	assert.deepEqual(calls, [], 'and a late answer patches nothing');
 });
 
 await ta('data: FLY THERE hands { live, place } up unchanged', async () => {
@@ -307,6 +464,7 @@ await ta('data: FAMILIES absorbed the TARGET LOG — a family opens onto its tar
 	assert.doesNotMatch(fam().textContent, /TARGET 001/, 'closed, the family lists nothing');
 	const open = fam().querySelectorAll('button')[0];
 	assert.ok(open, 'the family met is a link');
+	assert.equal(open.textContent, 'HEAVY 5" 1');
 	open.click();
 	await tick();
 	assert.match(fam().textContent, /TARGET 001/, 'open, it lists the target met');
@@ -315,6 +473,17 @@ await ta('data: FAMILIES absorbed the TARGET LOG — a family opens onto its tar
 	fam().querySelectorAll('button')[0].click();
 	await tick();
 	assert.doesNotMatch(fam().textContent, /TARGET 001/);
+	await closeAll(p, 1);
+});
+
+await ta('data: FAMILIES names the machine as SIGNALS, the hangar and the notices do', async () => {
+	// PROFILES.label says MICRO where every other screen says TOOTHPICK.
+	reset();
+	const p = dataScreen(dom.root, { api: api(operator({ sessions: [session({ target: { family: 'toothpick', rssiDbm: -56, mode: 'ANALOG' } })] })), scenes: [] });
+	await tick();
+	const fam = dom.root.querySelectorAll('.data-section').find((b) => b.children[0].textContent === 'FAMILIES');
+	assert.equal(fam.querySelectorAll('button')[0].textContent, 'TOOTHPICK 1');
+	assert.doesNotMatch(fam.textContent, /MICRO/);
 	await closeAll(p, 1);
 });
 
