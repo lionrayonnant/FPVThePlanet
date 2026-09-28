@@ -106,37 +106,34 @@ const GLARE_R = 0.06;     // sampling radius, fraction of the picture height
 const GLARE_MIX = 0.35;   // how much veil at the thickest fog
 const GLARE_SKY = 0.45;   // fraction of the veil that is plain sky rather than picture
 
-// Le soleil (#23). L'imagerie est non éclairée et le restera : le soleil
-// n'existe ici que comme événement optique dans le barillet — un disque, un
-// halo, un voile — et comme gain d'exposition. Rien de tout cela ne touche à la
-// géométrie.
+// The sun (#23). The imagery is unlit and stays so: the sun exists here only
+// as an optical event in the barrel — a disc, a halo, a veil — and as an
+// exposure gain. None of it touches geometry.
 //
-// Rayon, étalement et force sont choisis à l'œil, exactement comme K1/K2/CA et
-// GLARE_R : il n'y a pas d'optique à mesurer ici. Ce qui n'est PAS à l'œil,
-// c'est qu'ils sont tous multipliés par uSunAmount, qui descend de la
-// transmittance atmosphérique et de la couverture nuageuse — le voile ne peut
-// donc jamais contredire le régime météo affiché au joueur avant le vol.
+// Radius, spread and strength are chosen by eye, like K1/K2/CA and GLARE_R:
+// there is no optic to measure. What is NOT by eye is that all of them are
+// multiplied by uSunAmount, which comes from atmospheric transmittance and
+// cloud cover — so the veil can never contradict the weather shown to the
+// player before the flight.
 //
-// Révisé 2026-09-11 (#94), et la raison mérite d'être écrite parce qu'elle n'est
-// pas « c'était trop fort ». Le halo et le voile sont ajoutés APRÈS le gain
-// d'exposition — obligatoirement, sinon la caméra s'auto-atténuerait son propre
-// soleil — donc l'AGC ne peut pas les reprendre. Il ne peut qu'assombrir TOUT
-// LE RESTE en essayant. Les deux effets travaillaient donc l'un contre l'autre :
-// la lumière ajoutée près du soleil levait les noirs à 0,27 pendant que le gain
-// tombait à 0,60, et ce qui restait de contraste utile disparaissait exactement
-// là où le pilote regarde. Un premier passage (#11) avait rogné les deux sans
-// voir qu'ils se combattaient.
+// Revised 2026-09-11 (#94), and the reason is worth writing because it is not
+// "it was too strong". Halo and veil are added AFTER the exposure gain —
+// necessarily, or the camera would dim its own sun — so the AGC cannot take
+// them back. It can only darken EVERYTHING ELSE trying. The two effects were
+// fighting: the light added near the sun lifted blacks to 0.27 while the gain
+// fell to 0.60, and what was left of useful contrast vanished exactly where
+// the pilot looks. A first pass (#11) had trimmed both without seeing they
+// fought each other.
 //
-// Seul le terme additif peut trancher, puisqu'il est celui que rien ne rattrape.
-// Il est donc coupé franchement, et le posemètre desserré en face (SUN_METER_WEIGHT
-// dans sun.js) : moins de lumière parasite à compenser, donc moins besoin de
-// fermer. Le soleil reste un événement optique — un disque net, un reste de
-// halo — mais il ne fait plus mur.
-const SUN_DISC = 0.020;    // rayon du disque, en unités de l'espace carré
-const SUN_HALO = 0.32;     // rayon du lobe autour du disque
-const SUN_HALO_GAIN = 0.12; // ce que le halo ajoute au plus fort
-const SUN_DISC_GAIN = 0.8; // ce que le disque lui-même ajoute
-const SUN_VEIL = 0.03;     // remontée des noirs quand le soleil est dans le champ
+// Only the additive term can settle it, since nothing catches it. So it is cut
+// hard, and the meter loosened to match (SUN_METER_WEIGHT in sun.js): less
+// stray light to compensate, so less need to stop down. The sun stays an
+// optical event — a sharp disc, a trace of halo — but no longer a wall.
+const SUN_DISC = 0.020;    // disc radius, in square-space units
+const SUN_HALO = 0.32;     // radius of the lobe around the disc
+const SUN_HALO_GAIN = 0.12; // what the halo adds at its peak
+const SUN_DISC_GAIN = 0.8; // what the disc itself adds
+const SUN_VEIL = 0.03;     // black lift when the sun is in frame
 
 // LINK_MODE is a define and not a uniform so that the mode you are not using
 // costs exactly nothing — same reasoning as TAPS, and the same recompile-only-
@@ -171,26 +168,26 @@ const LensShader = {
 		// The sky the scene is actually using: what a bead diffuses, and what
 		// the fog veil is made of. One colour for both, because it is one sky.
 		uSky: { value: new THREE.Color(0x9fb8cc) },
-		// Le capteur de la cible : x grain, y noirs levés, z saturation,
-		// w ringing (halo de sur-accentuation).
+		// The target's sensor: x grain, y lifted blacks, z saturation,
+		// w ringing (oversharpening halo).
 		uSensor: { value: new THREE.Vector4(0, 0, 1, 0) },
-		// x écrasement des hautes lumières, y teinte, z quantité de teinte.
+		// x highlight clipping, y tint hue, z tint amount.
 		uSensor2: { value: new THREE.Vector3(0, 0, 0) },
-		// Arbitre entre les deux façons de mourir d'un décodeur composite :
-		// 0 tout au gris, 1 tout au cross-color. N'existe que sous LINK_MODE == 1.
+		// Picks between the two ways a composite decoder dies: 0 all to grey,
+		// 1 all to cross-color. Only exists under LINK_MODE == 1.
 		uCrossColor: { value: 0 },
-		// L'OSD de la cible : un canvas 2D peint par DroneOsd, échantillonné aux
-		// UV déjà distordues par le barillet. null quand aucun OSD n'est actif.
+		// The target's OSD: a 2D canvas painted by DroneOsd, sampled at the
+		// barrel-distorted UVs. null when no OSD is active.
 		uOsd: { value: null },
-		// Le soleil : sa position dans l'espace carré de la passe (xy), s'il est
-		// devant la caméra (z = 1) ou derrière (z = 0), sa couleur, sa force
-		// (transmittance × nuages × occlusion) et le gain d'exposition.
+		// The sun: its position in the pass's square space (xy), whether it is
+		// in front of the camera (z = 1) or behind (z = 0), its colour, its
+		// strength (transmittance × clouds × occlusion) and the exposure gain.
 		uSunPos: { value: new THREE.Vector3(0, 0, 0) },
 		uSunColor: { value: new THREE.Color(1, 1, 1) },
 		uSunAmount: { value: 0 },
-		// Multiplie l'image entière. Vaut exactement 1 quand la caméra est à son
-		// point de calibrage, et c'est ce qui rend le cas de référence identique
-		// au bit près à la passe telle qu'elle était avant ce ticket.
+		// Multiplies the whole image. Exactly 1 at the camera's calibration
+		// point, which keeps the reference case bit-identical to the pass as it
+		// stood before this ticket.
 		uExposure: { value: 1 },
 	},
 	vertexShader: /* glsl */`
@@ -213,7 +210,7 @@ const LensShader = {
 		// The scene's own sky. Shared by the beads and by the fog veil, and
 		// declared outside both guards because either one alone can want it.
 		uniform vec3 uSky;
-		// Le capteur de la cible, en amont du lien.
+		// The target's sensor, upstream of the link.
 		uniform vec4 uSensor;
 		uniform vec3 uSensor2;
 		uniform float uCrossColor;
@@ -251,9 +248,8 @@ const LensShader = {
 			uniform float uGlare;
 		#endif
 
-		// Utilisé par le lien (LINK_MODE != 0) et, depuis le bloc capteur
-		// ci-dessous, par le grain du capteur lui-même — donc inconditionnel
-		// désormais : le grain du capteur existe même quand le lien est absent.
+		// Used by the link (LINK_MODE != 0) and by the sensor grain below — so
+		// unconditional: sensor grain exists even with no link.
 		float hash12(vec2 p) {
 			vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 			p3 += dot(p3, p3.yzx + 33.33);
@@ -282,11 +278,11 @@ const LensShader = {
 		#define CHROMA_W 0.008
 
 		void main() {
-			// Le capteur de la cible n'a pas forcément le format de l'écran. Une
-			// caméra 4:3 sur un moniteur 16:9 laisse deux bandes noires sur les
-			// côtés : c'est laid, c'est vrai, et c'est le signal le plus immédiat
-			// de « cette caméra est une bouse ». Encadré et non recadré — recadrer
-			// rendrait le champ, et le champ est justement ce que la cible impose.
+			// The target's sensor need not match the screen's format. A 4:3
+			// camera on a 16:9 monitor leaves two black side bands: ugly, true,
+			// and the most immediate sign of "this camera is junk". Letterboxed,
+			// not cropped — cropping would change the field of view, and the
+			// field of view is exactly what the target imposes.
 			vec2 ndc = (vUv * 2.0 - 1.0) / uFrame;
 			if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) {
 				gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -549,55 +545,53 @@ const LensShader = {
 			#endif
 
 			#if SUN
-				// L'exposition d'abord : c'est le capteur, et tout ce qui suit se
-				// produit dans le verre en amont de lui — sauf qu'ici on peint le
-				// verre après coup, donc le disque et le halo sont ajoutés APRÈS
-				// le gain, sinon la caméra s'auto-atténuerait son propre soleil.
+				// Exposure first: it is the sensor, and everything below happens in
+				// the glass upstream of it — but here the glass is painted after the
+				// fact, so disc and halo are added AFTER the gain, or the camera
+				// would dim its own sun.
 				c *= uExposure;
 
 				if (uSunAmount > 0.0 && uSunPos.z > 0.5) {
-					// \`base\` est déjà l'espace carré, radialement symétrique — le
-					// même dans lequel les gouttes sont posées.
-					// Et surtout : \`base\` d'AVANT le barillet (uK1/uK2 n'ont pas encore
-					// joué à cette ligne). uSunPos est calculée à l'identique côté
-					// main.js, dans ce même espace non distordu — volontairement : la
-					// position écran du soleil ne doit pas bouger avec le curseur de
-					// barillet, seule l'image autour de lui doit se déformer.
+					// \`base\` is already the radially symmetric square space — the
+					// one the drops are placed in.
+					// And crucially: \`base\` from BEFORE the barrel (uK1/uK2 have not
+					// applied at this line). uSunPos is computed identically in
+					// main.js, in the same undistorted space — on purpose: the sun's
+					// screen position must not move with the barrel slider, only the
+					// image around it should warp.
 					float sd = length(base - uSunPos.xy);
-					// Voile : de la lumière qui n'est jamais venue du sujet, entrée
-					// de biais dans le barillet. Même argument que le voile de
-					// brouillard vingt lignes plus haut — une photo prise vers le
-					// soleil n'a pas de noir.
+					// Veil: light that never came from the subject, entering the
+					// barrel at an angle. Same argument as the fog veil above — a
+					// photo taken towards the sun has no black in it.
 					float veil = uSunAmount * SUN_VEIL
 						* (1.0 - smoothstep(0.0, 1.4, sd));
 					c += uSunColor * veil;
-					// Halo : le lobe autour de la source. En 1/(1+k·d²) plutôt
-					// qu'en gaussienne, parce qu'un halo d'objectif a des ailes
-					// longues et que c'est ce qu'on en voit.
+					// Halo: the lobe around the source. 1/(1+k·d²) rather than a
+					// gaussian, because a lens halo has long tails and those are
+					// what you see.
 					float halo = uSunAmount * SUN_HALO_GAIN
 						/ (1.0 + 60.0 * (sd / SUN_HALO) * (sd / SUN_HALO));
 					c += uSunColor * halo;
-					// Disque. Le bord est adouci sur son propre rayon : à 0,5° il
-					// ne fait que quelques pixels et un bord dur y crénellerait.
+					// Disc. The edge is softened over its own radius: at 0.5° it is
+					// only a few pixels wide and a hard edge would alias.
 					float disc = uSunAmount
 						* (1.0 - smoothstep(SUN_DISC * 0.6, SUN_DISC, sd));
 					c += uSunColor * disc * SUN_DISC_GAIN;
 				}
 			#endif
 
-			// ---- l'OSD de la cible ---------------------------------------------
-			// Échantillonné à uvHere, la coordonnée déjà distordue par le
-			// barillet : l'OSD subit donc l'optique gratuitement. Pas d'aberration
-			// chromatique dessus — c'est une incrustation monochrome, séparer les
-			// canaux n'aurait pas de sens.
+			// ---- the target's OSD ---------------------------------------------
+			// Sampled at uvHere, the barrel-distorted coordinate, so the OSD gets
+			// the optics for free. No chromatic aberration on it — it is a
+			// monochrome overlay, splitting channels would be meaningless.
 			//
-			// Après le soleil : le disque/halo sont un effet du verre, en amont du
-			// capteur ; l'OSD est incrusté par le flight controller de la cible, en
-			// aval du capteur — il se pose donc par-dessus. Ici et pas ailleurs :
-			// après le flou, parce que l'OSD est collé au capteur et ne smeare pas
-			// quand la caméra tourne ; après les gouttes, parce que l'eau est sur
-			// le verre en amont ; avant le vignettage, le capteur et la liaison,
-			// parce que c'est ce qui fait que perdre le lien coûte de l'information.
+			// After the sun: disc/halo are a glass effect, upstream of the sensor;
+			// the OSD is overlaid by the target's flight controller, downstream of
+			// the sensor — so it sits on top. Here and nowhere else: after the
+			// blur, because the OSD is locked to the sensor and does not smear when
+			// the camera turns; after the drops, because the water is on the glass
+			// upstream; before the vignette, the sensor and the link, because that
+			// is what makes losing the link cost information.
 			#if OSD
 			{
 				vec4 osd = texture2D(uOsd, uvHere);
@@ -608,16 +602,16 @@ const LensShader = {
 			c *= 1.0 - uVignette * pow(r, 2.5);
 
 			#if SENSOR
-			// ---- le capteur de la cible ---------------------------------------
-			// En amont de l'émetteur, parce que c'est l'ordre physique : ce que
-			// le capteur abîme, la liaison le transporte ensuite fidèlement.
-			// Une mauvaise caméra est déjà mauvaise sur un lien parfait.
+			// ---- the target's sensor ------------------------------------------
+			// Upstream of the transmitter, because that is the physical order:
+			// what the sensor spoils, the link then carries faithfully. A bad
+			// camera is already bad on a perfect link.
 			{
 				float clipK = uSensor2.x;
 				if (clipK > 0.0) {
-					// Les hautes lumières s'écrasent tôt. Un ciel qui part en blanc
-					// pur au lieu de garder ses nuages : le défaut le plus
-					// reconnaissable des petites caméras.
+					// Highlights clip early. A sky that blows out to pure white
+					// instead of keeping its clouds: the most recognisable flaw of
+					// small cameras.
 					float knee = mix(1.0, 0.55, clipK);
 					c = min(c, vec3(knee)) + (c - min(c, vec3(knee))) * (1.0 - clipK);
 					c /= max(knee + (1.0 - knee) * (1.0 - clipK), 1e-4);
@@ -625,30 +619,28 @@ const LensShader = {
 
 				float ring = uSensor.w;
 				if (ring > 0.0) {
-					// Halo de sur-accentuation : la caméra rehausse ses contours
-					// elle-même, et laisse un liseré clair d'un côté, sombre de
-					// l'autre. Horizontal seulement — c'est une accentuation de
-					// ligne, pas un filtre 2D.
+					// Oversharpening halo: the camera sharpens its own edges and
+					// leaves a light fringe on one side, dark on the other.
+					// Horizontal only — it is line sharpening, not a 2D filter.
 					vec2 px = vec2(1.0) / uResolution;
 					vec3 l = texture2D(tDiffuse, uvHere - vec2(px.x * 2.0, 0.0)).rgb;
 					vec3 rr = texture2D(tDiffuse, uvHere + vec2(px.x * 2.0, 0.0)).rgb;
 					c += (c - (l + rr) * 0.5) * ring * 1.6;
 				}
 
-				// Fadeur, puis dominante, puis noirs levés. Dans cet ordre : la
-				// dominante d'un capteur est dans sa matrice de couleur, donc
-				// avant le niveau de noir de son amplificateur.
+				// Desaturation, then tint, then lifted blacks. In that order: a
+				// sensor's cast lives in its colour matrix, so before its
+				// amplifier's black level.
 				float lum = dot(c, LUMA);
 				c = mix(vec3(lum), c, uSensor.z);
 
 				float amt = uSensor2.z;
 				if (amt > 0.0) {
-					// Teinte simple sans conversion HSV : deux caméras ne rendent
-					// pas le même vert, et une bascule vers une couleur suffit à
-					// le dire.
-					// Surtout pas nommée cast : c'est un mot réservé en GLSL ES,
-					// et le bloc capteur ne compilait pas du tout (constaté au
-					// premier vol avec un capteur non neutre, Task 9).
+					// Simple tint without HSV conversion: two cameras do not render
+					// the same green, and a shift towards one colour says so.
+					// Never name it cast: that is a reserved word in GLSL ES, and
+					// the sensor block did not compile at all (seen on the first
+					// flight with a non-neutral sensor, Task 9).
 					vec3 tint = 0.5 + 0.5 * cos(6.2831853 * (uSensor2.y + vec3(0.0, 0.33, 0.67)));
 					c = mix(c, c * tint * 2.0, amt);
 				}
@@ -657,9 +649,8 @@ const LensShader = {
 
 				float g = uSensor.x;
 				if (g > 0.0) {
-					// Bruit propre au capteur, présent même sur un lien parfait :
-					// c'est ce qui distingue une mauvaise caméra d'une bonne caméra
-					// mal reçue.
+					// The sensor's own noise, present even on a perfect link: what
+					// tells a bad camera from a good camera badly received.
 					float sn = hash12(gl_FragCoord.xy + uTime * 17.7);
 					c += (sn - 0.5) * g;
 				}
@@ -714,26 +705,25 @@ const LensShader = {
 				// eats. That slide to black and white is the signature of a dying
 				// analog link. It stops short of fully grey — a little colour
 				// survives right down to the breakup.
-				// Les deux façons de mourir d'un décodeur composite, et chaque
-				// caméra tombe quelque part entre les deux. uCrossColor à 0 :
-				// la sous-porteuse est mangée, l'image part en gris. À 1 : le
-				// décodeur s'accroche et confond le détail avec de la couleur.
+				// The two ways a composite decoder dies, and every camera falls
+				// somewhere between. uCrossColor at 0: the subcarrier is eaten,
+				// the picture goes grey. At 1: the decoder holds on and mistakes
+				// detail for colour.
 				float fadeK = smoothstep(0.85, 0.05, uLink);
 				c = mix(c, vec3(dot(c, LUMA)), 0.85 * fadeK * (1.0 - uCrossColor));
 
-				// Cross-color. Passe-haut horizontal de la luma à l'échelle de la
-				// sous-porteuse : le décodeur prend ce détail pour une phase de
-				// chrominance. La couleur sort donc de l'image et pas d'un
-				// générateur de bruit — sur un ciel uni il ne se passe
-				// strictement rien, et c'est exactement ce qu'il faut.
+				// Cross-color. Horizontal high-pass of luma at subcarrier scale:
+				// the decoder takes that detail for chroma phase. So the colour
+				// comes from the picture, not a noise generator — on a flat sky
+				// nothing at all happens, which is exactly right.
 				if (uCrossColor > 0.0) {
 					vec2 sub = vec2(1.0 / uResolution.x, 0.0) * 1.5;
 					float l0 = dot(texture2D(tDiffuse, WRAPX(uvHere - sub)).rgb, LUMA);
 					float l1 = dot(texture2D(tDiffuse, WRAPX(uvHere)).rgb, LUMA);
 					float l2 = dot(texture2D(tDiffuse, WRAPX(uvHere + sub)).rgb, LUMA);
 					float hp = l1 - (l0 + l2) * 0.5;
-					// La phase rampe le long de la ligne et dérive dans le temps :
-					// c'est ce qui fait ramper les couleurs au lieu de les figer.
+					// Phase ramps along the line and drifts over time: that is what
+					// makes the colours crawl instead of freezing.
 					float phase = gl_FragCoord.x * 0.7 + gl_FragCoord.y * 1.7 + uTime * 6.0;
 					vec3 carrier = cos(phase + vec3(0.0, 2.094, 4.189));
 					c += carrier * hp * 14.0 * uCrossColor * (0.15 + 0.85 * fadeK);
@@ -831,13 +821,13 @@ export class FpvLens {
 		this.pass.needsSwap = false;
 		this.composer.addPass(this.pass);
 
-		// La vue embarquée (#264) : une seconde passe, sa propre caméra à
-		// near = 0.005, sans effacer la couleur mais en effaçant la profondeur —
-		// rien ne peut s'interposer entre l'oeil et ses propres hélices.
+		// The onboard view (#264): a second pass, its own camera at
+		// near = 0.005, keeping colour but clearing depth — nothing can come
+		// between the eye and its own props.
 		//
-		// Elle est DANS le composer, avant la passe d'objectif, délibérément :
-		// la caméra voit ses hélices, PUIS l'image est transmise. Les poser
-		// au-dessus de l'objectif les rendrait plus nettes que le monde.
+		// It is IN the composer, before the lens pass, on purpose: the camera
+		// sees its props, THEN the picture is transmitted. Drawing them over
+		// the lens would make them sharper than the world.
 		this.onboardPass = null;
 		this.onboardScene = null;
 		this.onboardCamera = null;
@@ -865,10 +855,10 @@ export class FpvLens {
 		this._dropBucket = 0;
 		this._rain = { wetness: 0, dropMm: 0, drift: null, dt: 0 };
 		this._glare = 0;
-		// Éteint tant que setSensor() n'a jamais fait passer un réglage à une
-		// valeur non neutre — un capteur inactif ne doit rien coûter au GPU.
+		// Off until setSensor() has moved a setting off neutral — an inactive
+		// sensor must cost the GPU nothing.
 		this._sensorActive = 0;
-		// L'OSD n'existe pas tant que main.js (Task 9) n'en a pas fourni un.
+		// No OSD until main.js (Task 9) provides one.
 		this._osd = null;
 		this._sunOn = false;
 
@@ -924,34 +914,34 @@ export class FpvLens {
 		this._rain.dt = dt;
 	}
 
-	// Le capteur de la cible. Tout est à zéro par défaut, sauf la saturation :
-	// un uniform à zéro doit vouloir dire « rien à faire ».
+	// The target's sensor. Everything defaults to zero except saturation: a
+	// zero uniform must mean "nothing to do".
 	setSensor({ grain = 0, lift = 0, saturation = 1, ringing = 0,
 	            clip = 0, tintHue = 0, tintAmount = 0, crossColor = 0 } = {}) {
 		this._u.uSensor.value.set(grain, lift, saturation, ringing);
 		this._u.uSensor2.value.set(clip, tintHue, tintAmount);
-		// uCrossColor n'entre PAS dans le calcul de `active` ci-dessous : il ne
-		// pilote rien sous #if SENSOR, seulement le bloc LINK_MODE == 1 (déjà
-		// compilé ou non selon le mode de lien). Le faire recompiler le
-		// capteur serait un couplage faux et une recompilation pour rien.
+		// uCrossColor is NOT part of `active` below: it drives nothing under
+		// #if SENSOR, only the LINK_MODE == 1 block (compiled or not by link
+		// mode). Recompiling the sensor for it would be a false coupling and a
+		// wasted recompile.
 		this._u.uCrossColor.value = crossColor;
-		// Actif dès qu'un seul réglage s'écarte du neutre. La saturation neutre
-		// vaut 1 et non 0 : un test « tout à zéro » la prendrait à tort pour
-		// active, et une saturation à 0 (désaturation totale, un réglage
-		// légitime) à tort pour neutre — donc comparaison explicite à 1 ici.
+		// Active as soon as one setting leaves neutral. Neutral saturation is 1,
+		// not 0: an "all zero" test would wrongly flag it active, and saturation
+		// 0 (full desaturation, a legitimate setting) wrongly neutral — hence the
+		// explicit comparison to 1.
 		const active = (grain !== 0 || lift !== 0 || saturation !== 1 || ringing !== 0
 			|| clip !== 0 || tintHue !== 0 || tintAmount !== 0) ? 1 : 0;
-		// Comme uGlare : seule la traversée neutre <-> actif recompile, pas
-		// chaque appel — la Task 9 peut appeler setSensor() à chaque frame.
+		// Like uGlare: only the neutral <-> active crossing recompiles, not every
+		// call — Task 9 may call setSensor() every frame.
 		const crossed = active !== this._sensorActive;
 		this._sensorActive = active;
 		if (crossed) this._updateDefines();
 	}
 
-	// L'OSD est donné une fois, pas à chaque image : c'est lens qui sait quelle
-	// image est gelée, donc c'est lens qui a le droit d'appeler commit().
-	// setOsd(null) recompile le shader sans l'OSD — c'est le levier du A/B de
-	// mesure et le repli si le coût est mauvais.
+	// The OSD is given once, not every frame: lens knows which frame is frozen,
+	// so lens is the one allowed to call commit(). setOsd(null) recompiles the
+	// shader without the OSD — the A/B measurement lever and the fallback if
+	// the cost is bad.
 	setOsd(osd) {
 		this._osd = osd ?? null;
 		this._u.uOsd.value = osd ? osd.texture : null;
@@ -971,27 +961,26 @@ export class FpvLens {
 		if (crossed) this._updateDefines();
 	}
 
-	// Le soleil, en nombres déjà cuits par sun.js : le lens ne connaît ni
-	// l'astronomie ni l'atmosphère, exactement comme il ne connaît pas la météo
-	// derrière setGlare(). `x`/`y` sont dans l'espace carré de la passe, `front`
-	// dit si le soleil est devant la caméra, `amount` porte la transmittance,
-	// les nuages et l'occlusion, `exposure` est le gain de l'AGC.
+	// The sun, as numbers already baked by sun.js: the lens knows neither
+	// astronomy nor atmosphere, just as it knows nothing of the weather behind
+	// setGlare(). `x`/`y` are in the pass's square space, `front` says whether
+	// the sun is in front of the camera, `amount` carries transmittance, clouds
+	// and occlusion, `exposure` is the AGC gain.
 	//
-	// Le bloc est compilé hors du shader quand il serait rigoureusement un
-	// no-op — la même promesse que LINK_OFF et que GLARE à zéro, et la raison
-	// pour laquelle une scène par ciel clair et soleil haut rend exactement
-	// l'image qu'elle rendait avant ce ticket.
+	// The block is compiled out when it would be strictly a no-op — the same
+	// promise as LINK_OFF and GLARE at zero, and why a clear-sky, high-sun scene
+	// renders exactly the image it rendered before this ticket.
 	setSun({ x = 0, y = 0, front = false, color = null, amount = 0, exposure = 1 } = {}) {
 		const a = amount > 0 ? (amount > 1 ? 1 : amount) : 0;
-		// `front` compte : le shader ne dessine rien quand le soleil est derrière
-		// la caméra, donc le bloc serait compilé pour rien. Reste l'exposition,
-		// qui multiplie l'image entière et n'a pas d'orientation.
+		// `front` matters: the shader draws nothing when the sun is behind the
+		// camera, so the block would be compiled for nothing. Except exposure,
+		// which multiplies the whole image and has no direction.
 		const on = (a > 0 && !!front) || Math.abs(exposure - 1) > 1 / 512;
 		this._u.uSunPos.value.set(x, y, front ? 1 : 0);
 		if (color) this._u.uSunColor.value.copy(color);
 		this._u.uSunAmount.value = a;
 		this._u.uExposure.value = exposure;
-		// Seule la traversée recompile, pas chaque frame où le soleil bouge.
+		// Only the crossing recompiles, not every frame the sun moves.
 		if (on !== this._sunOn) {
 			this._sunOn = on;
 			this._updateDefines();
@@ -1062,10 +1051,9 @@ export class FpvLens {
 		this.pass.material.needsUpdate = true;
 	}
 
-	// La fiche caméra de la cible : son format et sa définition interne. Le
-	// rendu se fait vraiment plus bas et remonte — une mauvaise caméra est
-	// réellement moins définie, et coûte réellement moins cher à rendre,
-	// exactement comme la vraie.
+	// The target's camera sheet: its format and internal resolution. Rendering
+	// really happens lower and is upscaled — a bad camera really is less
+	// detailed, and really is cheaper to render, just like the real one.
 	setCamera({ aspect = 16 / 9, resScale = 1 } = {}) {
 		this._camAspect = aspect;
 		this._resScale = resScale;
@@ -1083,11 +1071,10 @@ export class FpvLens {
 		const height = this._viewH ?? 1;
 		const ratio = this.renderer.getPixelRatio();
 
-		// Tant qu'aucune cible n'a été piratée, il n'y a pas de capteur distant
-		// à raconter : l'image remplit la fenêtre exactement comme avant cette
-		// tâche, sans bandes. Les bandes ne sont légitimes qu'à partir du
-		// premier setCamera() — jamais par défaut, même pour un aspect qui
-		// vaudrait 16:9.
+		// Until a target has been hacked there is no remote sensor to portray:
+		// the picture fills the window exactly as before this task, no bands.
+		// Bands are only legitimate from the first setCamera() — never by
+		// default, even for an aspect that happens to be 16:9.
 		if (this._camAspect == null) {
 			this._u.uFrame.value.set(1, 1);
 			this.composer.setPixelRatio(ratio);
@@ -1099,29 +1086,29 @@ export class FpvLens {
 		const aspect = this._camAspect;
 		const resScale = this._resScale ?? 1;
 
-		// Le capteur tient dans la fenêtre sans la déborder : la dimension
-		// contrainte fixe l'autre. uFrame est ce rectangle en uv d'écran, et
-		// c'est lui qui produit les bandes.
+		// The sensor fits inside the window: the constrained dimension sets the
+		// other. uFrame is that rectangle in screen uv, and it produces the
+		// bands.
 		const viewAspect = width / height;
 		const fitW = viewAspect > aspect ? aspect / viewAspect : 1;
 		const fitH = viewAspect > aspect ? 1 : viewAspect / aspect;
 		this._u.uFrame.value.set(fitW, fitH);
 
-		// Taille réelle des cibles du composer : le capteur, à sa définition.
+		// Actual size of the composer's targets: the sensor, at its resolution.
 		const sensorH = Math.max(1, Math.round(height * fitH * resScale));
 		const sensorW = Math.max(1, Math.round(sensorH * aspect));
 		this.composer.setPixelRatio(ratio);
 		this.composer.setSize(sensorW, sensorH);
 		// gl_FragCoord counts device pixels, so this has to as well — otherwise the
-		// macroblock grid is the wrong size on a HiDPI display. C'est la
-		// définition du CAPTEUR : un macrobloc appartient à la vidéo, pas au
-		// moniteur, donc il grossit à l'écran quand la caméra est mauvaise.
+		// macroblock grid is the wrong size on a HiDPI display. It is the
+		// SENSOR's resolution: a macroblock belongs to the video, not the
+		// monitor, so it grows on screen when the camera is bad.
 		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
 	}
 
-	// Branche la scène embarquée (#264). `null` la débranche — c'est ce qui
-	// cache les hélices du joueur en vue CHASE. La passe naît à la première
-	// scène non nulle : un vol qui n'en monte pas n'en paie rien.
+	// Plugs in the onboard scene (#264). `null` unplugs it — that is what hides
+	// the player's props in CHASE view. The pass is created on the first
+	// non-null scene: a flight that never mounts one pays nothing.
 	setOnboard(scene, camera) {
 		this.onboardScene = scene ?? null;
 		this.onboardCamera = camera ?? this.onboardCamera;
@@ -1132,8 +1119,7 @@ export class FpvLens {
 			this.onboardPass.clear = false;
 			this.onboardPass.clearDepth = true;
 			this.onboardPass.needsSwap = false;
-			// Insérée juste avant la passe d'objectif, qui est toujours la
-			// dernière.
+			// Inserted just before the lens pass, which is always last.
 			this.composer.insertPass(this.onboardPass, this.composer.passes.length - 1);
 		}
 		this.onboardPass.scene = scene;
@@ -1148,10 +1134,10 @@ export class FpvLens {
 		this.renderer.info.reset();
 		if (!this.enabled) {
 			this.renderer.render(this.scene, camera);
-			// Objectif coupé (le rendu propre, à un clic) : le composer ne
-			// tourne pas, donc la passe embarquée non plus. On la refait à la
-			// main, sinon couper l'objectif ferait disparaître les hélices du
-			// joueur — ce que personne ne lit comme un réglage d'objectif.
+			// Lens off (the clean render, one click away): the composer does
+			// not run, so neither does the onboard pass. Redo it by hand, or
+			// turning the lens off would make the player's props vanish —
+			// which nobody reads as a lens setting.
 			if (this._onboardOn && this.onboardScene) {
 				this.renderer.autoClear = false;
 				this.renderer.clearDepth();
@@ -1164,8 +1150,8 @@ export class FpvLens {
 			return;
 		}
 
-		// Le format du capteur, pas celui de la fenêtre : c'est le capteur qui
-		// doit être radialement symétrique sous le barillet, pas le moniteur.
+		// The sensor's format, not the window's: the sensor is what must be
+		// radially symmetric under the barrel, not the monitor.
 		this._u.uAspect.value = this._camAspect ?? camera.aspect;
 		this._u.uTanHalf.value = Math.tan(camera.fov * Math.PI / 360);
 		// Wrapped, because a float32 uniform that has been counting seconds all
@@ -1181,8 +1167,8 @@ export class FpvLens {
 		// in that buffer yet.
 		const frozen = this._linkMode === LINK_DIGITAL && !!(link && link.frozen) && this._hasRendered;
 		this.renderPass.enabled = !frozen;
-		// Gelée avec la principale : sur une image perdue, des hélices qui
-		// tournent trahiraient que le monde bouge encore derrière l'image morte.
+		// Frozen with the main pass: on a lost frame, spinning props would
+		// betray that the world still moves behind the dead picture.
 		if (this.onboardPass) this.onboardPass.enabled = !frozen && this._onboardOn;
 		this.frozen = frozen;
 
@@ -1191,10 +1177,9 @@ export class FpvLens {
 		// not, and keeps crawling, which is why uTime above is not gated here.
 		this._updateDrops(frozen ? 0 : this._rain.dt);
 
-		// L'OSD a traversé la même liaison que l'image : sur une image perdue il
-		// gèle avec elle. Le laisser se rafraîchir afficherait des chiffres à
-		// jour par-dessus un monde figé — l'inverse exact de ce que le lien
-		// raconte.
+		// The OSD crossed the same link as the picture: on a lost frame it
+		// freezes with it. Letting it refresh would show live numbers over a
+		// frozen world — the exact opposite of what the link is saying.
 		if (this._osd && !frozen) this._osd.commit();
 
 		// Taken from the camera's own pose rather than from physics.angularVelocity
@@ -1218,21 +1203,20 @@ export class FpvLens {
 		this._hasRendered = true;
 	}
 
-	// PHASE 16 : une capture, à la résolution et au ratio du capteur cible, pas
-	// ceux de la fenêtre. `composer.setSize()` ne redimensionne que ses cibles
-	// internes (un render target explicite a été passé au constructeur), jamais
-	// le canvas — c'est ce qui garde la vue de vol pleine fenêtre pendant qu'un
-	// mauvais capteur dégrade quand même l'image qui s'y affiche. Pour une
-	// vraie sortie fichier, on redimensionne aussi le renderer, on redessine
-	// cette même frame (aucun uniform ne change, seule la taille de sortie
-	// change — ni `_time`, ni les gouttes, ni l'OSD ne sont ré-avancés), puis on
-	// remet tout en l'état. `updateStyle=false` garde la taille CSS du canvas
-	// intacte pendant le bref changement de résolution du tampon.
+	// PHASE 16: a capture at the target sensor's resolution and aspect, not the
+	// window's. `composer.setSize()` only resizes its internal targets (an
+	// explicit render target was passed to the constructor), never the canvas —
+	// which keeps the flight view full-window while a bad sensor still degrades
+	// the picture shown in it. For a real file output the renderer is resized
+	// too, this same frame is redrawn (only the output size and the frame
+	// rectangle change — `_time`, the drops and the OSD are not advanced), then
+	// everything is restored. `updateStyle=false` keeps the canvas's CSS size
+	// intact during the brief buffer resize.
 	async capture() {
 		const canvas = this.renderer.domElement;
 		if (this._camAspect == null) {
-			// Pas de cible piratée (chemin dev `?scene=`) : rien à raconter sur une
-			// caméra qui n'existe pas, la fenêtre est la seule résolution qui a un sens.
+			// No hacked target (dev path `?scene=`): no camera to portray, the
+			// window is the only meaningful resolution.
 			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 			return blob ? { blob, w: canvas.width, h: canvas.height } : null;
 		}
@@ -1240,8 +1224,8 @@ export class FpvLens {
 		const ratio = this.renderer.getPixelRatio();
 		const viewW = this._viewW ?? 1;
 		const viewH = this._viewH ?? 1;
-		// Même calcul que _applySize(), mais sans la contrainte « tient dans la
-		// fenêtre » : ici c'est la vraie sortie, pas un rectangle affiché dedans.
+		// Same maths as _applySize(), minus the "fits in the window" constraint:
+		// this is the real output, not a rectangle shown inside it.
 		const viewAspect = viewW / viewH;
 		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
 		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
@@ -1250,13 +1234,16 @@ export class FpvLens {
 		this.renderer.setSize(sensorW / ratio, sensorH / ratio, false);
 		this.composer.setSize(sensorW, sensorH);
 		this._u.uResolution.value.set(sensorW * ratio, sensorH * ratio);
+		// The file IS the sensor: no letterbox bands inside it (uFrame is the
+		// sensor's rectangle in the window; _applySize() puts it back below).
+		this._u.uFrame.value.set(1, 1);
 		this.composer.render(0);
 
 		const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 
-		// Restaure l'état d'affichage pour la frame suivante — _applySize() relit
-		// _viewW/_viewH, jamais touchés ci-dessus, donc revient exactement là où
-		// la prochaine frame l'aurait de toute façon remis.
+		// Restore display state for the next frame — _applySize() rereads
+		// _viewW/_viewH, untouched above, so it lands exactly where the next
+		// frame would have put it anyway.
 		this.renderer.setSize(viewW, viewH, false);
 		this._applySize();
 
