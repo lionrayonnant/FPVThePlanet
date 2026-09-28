@@ -136,9 +136,10 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   jamais se recouvrir —, sous le pont, par-dessus, puis de nouveau dessous,
   160 m de plongée). On entre par une petite porte carrée au début ; le fil
   est jaune devant, vert derrière. Le quitter met la progression en pause ;
-  au-delà de 10 s, la partie volée refroidit et il faut repasser la porte. La caméra regarde où elle veut. Pendant le vol, le jeu
-  garde la meilleure vue du lieu — la plus centrée, en ligne de vue — et c'est
-  elle qui part au réseau, sans le fil. Le cartouche lit
+  au-delà de 10 s, la partie volée refroidit et il faut repasser la porte.
+  La caméra regarde où elle veut. Pendant le vol, le jeu garde la meilleure
+  vue du lieu — la plus centrée, en ligne de vue — et c'est elle qui part au
+  réseau, sans le fil. Le cartouche lit
   `TRACE · SPIRAL · 42 %` (avant la porte, `TRACE · SPIRAL · ENTER THE GATE`),
   la fiche et `DATA` `TRACE SPIRAL · 38.2 s` au lieu de `HOLD 5.0 s`. Un fil
   n'existe que près d'un signal ouvert et disparaît une fois le lieu transmis ;
