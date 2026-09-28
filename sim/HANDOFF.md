@@ -4065,3 +4065,45 @@ briefing, end screen). Design: Bible §49; player docs: `docs/manual.md`,
 - The UPLINKED card drawn above an edge chevron (`d25f820`, stacking only).
 - Two steps crossed in one flight reveal only the last one (known, rare).
 - The server trusts the client's `clearance` (single-player ruling).
+
+### Lot 4 — the trace (2026-09-28)
+
+Tier II/III signals are captured by flying a thread laid around the place
+(spiral / under / dive / orbit by kind; tier III orbit is a helix rising 8 m
+per turn; the spiral wraps the whole structure, radius per height, ≤ 30°
+climb). Tier I keeps the hold. Design: Bible §49 *Le fil*; rules and shapes:
+`docs/manual.md`, *Signals and clearance*; spec and plan in
+`docs/superpowers/`. The scanner now scans from zoom 13.
+
+**Verified — without a browser:** selftests trace (model: shapes, follower,
+photo score), trace-probe, trace-line (incl. the resolution fix: three's
+`LineSegments2.onBeforeRender` wrote the canvas size, not the lens target),
+signal-traces (controller against a fake world: pick, retries, fallback, lift
+after a collider flush, stop/reset), trace-wiring (main.js greps, one
+`lens.capture(` behind `captureClean()`), signal-capture, signal-callout,
+signal-store, signal-card, signals-data, palette.
+
+**Verified by eye — Chromium through chrome-devtools MCP (dev operator,
+seeded to clearance 2, drone driven by `__signals.flyTrace`):**
+- Eiffel Tower (tier II, spiral): laid on the first attempt, `ENTER THE GATE`,
+  gate and line through the lens, `TRACE · SPIRAL · 68 %` with fields revealed,
+  → `UPLINKED`; stored `{ holdS: 19.5, trace: 'spiral' }`; card and DATA
+  `TRACE SPIRAL · 19.5 s`; the uplinked frame is the mid-trace best view, no
+  line in it. (Seen before the spiral was widened to wrap the whole tower.)
+- Pont Rouelle (tier III): no usable deck → orbit; flown then left: progress
+  held (`9 %`), and after > 12 s off back to the gate, all yellow.
+- Fallback: a forced build failure → no line, hold capture, `HOLD 5.0 s`.
+
+**NOT verified:**
+- The `under` shape live (Pont Rouelle gave no bridge axis) — no real bridge
+  flown.
+- A lift after a live collider flush (selftest only); no ray-count or
+  allocation profiling in the browser.
+- Occlusion: the line hidden behind buildings in-game (depth test seen only on
+  a scratch page).
+- The 2 s fade itself (only its outcome, the reset).
+- The whole-structure spiral, the 0.85 flown opacity, the STANDBY headline
+  and the capture restore order (no stretched frame after a photo) — landed
+  after the browser pass, not seen yet.
+- `?live=` without an operator has clearance 0: every tier II/III is
+  encrypted there, so no trace (unchanged rule).
