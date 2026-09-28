@@ -73,7 +73,7 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalTraces } from './signal-traces.js';
 import { TraceLine } from './trace-line.js';
-import { photoScore } from '../tools/trace-model.mjs';
+import { photoScore, shapeOf } from '../tools/trace-model.mjs';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -743,8 +743,10 @@ const signalTraces = new SignalTraces({
 });
 const traceOpen = (id) => !signalCapture.isResolved(id);
 // The best view of the landmark along the trace (spec rule 7): scored at most
-// TRACE_PHOTO_HZ, captured (trace hidden) only when it beats the best so far.
+// TRACE_PHOTO_HZ, captured (trace hidden) only when it beats the best so far
+// by TRACE_PHOTO_MARGIN.
 const TRACE_PHOTO_S = 0.5;
+const TRACE_PHOTO_MARGIN = 0.05;
 let traceBest = null;            // { id, score, cap: Promise<{blob,w,h}|null> }
 let pendingTracePhoto = null;    // { id, score }, taken right after lens.render()
 let tracePhotoAt = 0;            // seconds of trace flight since the last scoring
@@ -1984,7 +1986,7 @@ renderer.domElement.addEventListener('click', () => {
 // `preserveDrawingBuffer` is needed: it is called synchronously in the same
 // frame as the render, before anything else is drawn.
 async function capturePhoto() {
-	const cap = await lens.capture();
+	const cap = await captureClean();
 	if (!cap) return;
 
 	// At the bench the image goes straight to the operator's disk and NOWHERE
@@ -2332,8 +2334,8 @@ function computeNextSignal(p) {
 }
 
 // Dev-only console handle for the signals (#185); the pose setter is __sim.teleport().
-let flyTraceGen = 0;
 if (import.meta.env?.DEV) {
+	let flyTraceGen = 0;
 	window.__signals = {
 		list: () => flightSignals.map((s) => ({ id: s.id, name: s.name, tier: s.tier, lat: s.lat, lon: s.lon, pos: signalAnchors.pos(s.id) })),
 		out: () => signalCapture.out,
@@ -2437,7 +2439,12 @@ function updateSignals(dt, frozen) {
 	// The trace BEFORE the capture: a trace flown to its end this frame is
 	// uplinked by this frame's capture update.
 	if (flying) updateTrace(frozen ? 0 : dt, liveDt);
-	else if (signalTraces.id) signalTraces.reset();
+	else if (signalTraces.id) {
+		// Crash, link dead: the trace goes, the hold fallbacks stay (disarmSignals resets them).
+		const id = signalTraces.id;
+		signalTraces.stop();
+		signalCapture.setTraceProgress(id, 0, null);
+	}
 	const out = signalCapture.update({ dt: liveDt, cam, fpv: viewMode === 'fpv', los });
 	if (out.uplinked) onSignalUplinked(out.uplinked);
 	if (flying) scoreTracePhoto(out, liveDt, los);
@@ -2500,20 +2507,26 @@ function scoreTracePhoto(out, dt, los) {
 	const t = signalTargets.find((x) => x.id === id);
 	if (!row || !t?.pos) return;
 	const score = photoScore({ angleDeg: row.angleDeg, los: los(t) });
-	if (score !== null && score > (traceBest?.id === id ? traceBest.score : -1)) pendingTracePhoto = { id, score };
+	// Only a clearly better view: a score wobbling at the best retakes nothing.
+	if (score !== null && score > (traceBest?.id === id ? traceBest.score + TRACE_PHOTO_MARGIN : -1)) pendingTracePhoto = { id, score };
 }
 
-// Called in the post-render window: the trace line is hidden for the redraw
-// lens.capture() makes (or asks for), so the photo never shows it.
-function takeTracePhoto({ id, score }) {
+// The one way a photo is taken (the manual one, a trace's best view, the
+// uplink frame): the trace line is a guide on the display, never in a picture.
+// Called in the post-render window: the frame is redrawn without the line,
+// read, and the display repainted with it (lens.capture's `after`).
+function captureClean() {
 	traceLine.setVisible(false);
-	let cap;
 	try {
-		cap = lens.capture({ redraw: true }).catch(() => null);
-	} finally {
+		return lens.capture({ redraw: true, after: () => traceLine.setVisible(true) });
+	} catch (e) {
 		traceLine.setVisible(true);
+		return Promise.reject(e);
 	}
-	traceBest = { id, score, cap };
+}
+
+function takeTracePhoto({ id, score }) {
+	traceBest = { id, score, cap: captureClean().catch(() => null) };
 }
 
 function renderSignalCallout(out) {
@@ -2527,7 +2540,7 @@ function renderSignalCallout(out) {
 	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
 	// The trace being flown holds the callout (its % is the gauge).
 	const flown = signalTraces.follower?.out.state === 'on' || signalTraces.follower?.out.state === 'off' ? signalTraces.id : null;
-	const pick = (flown && rows.find((r) => r.id === flown))
+	const pick = (flown && rows.find((r) => r.id === flown && r.state !== 'hidden'))
 		?? rows.find((r) => r.id === out.focus)
 		?? rows.find((r) => r.id === recent)
 		?? rows.find((r) => r.state !== 'resolved' && r.state !== 'encrypted');
@@ -2575,9 +2588,16 @@ function calloutView(row, now, box) {
 	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
 		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
 		{ boxW: box.w, boxH: box.h });
-	// Its trace in the world: TRACE · SHAPE · n % (or ENTER THE GATE).
-	const f = signalTraces.id === row.id && row.state !== 'resolved' ? signalTraces.follower?.out : null;
-	const trace = f ? { shape: signalTraces.shape, pct: f.progress01 * 100, wait: f.state === 'waiting' } : null;
+	// Its trace in the world: TRACE · SHAPE · n % (or ENTER THE GATE). A trace
+	// target whose trace is not laid (another is flown, still being laid, or
+	// too far): TRACE · SHAPE · STANDBY — a hold would never fill it.
+	const open = row.state !== 'resolved' && row.state !== 'encrypted';
+	const active = signalTraces.id === row.id;
+	const f = active && open ? signalTraces.follower?.out : null;
+	let trace = f ? { shape: signalTraces.shape, pct: f.progress01 * 100, wait: f.state === 'waiting' } : null;
+	if (!trace && open && signalTargets.find((x) => x.id === row.id)?.trace) {
+		trace = { shape: active ? signalTraces.shape : shapeOf(signal), standby: true };
+	}
 	return { signal, row, placed, now, trace };
 }
 
@@ -2696,7 +2716,7 @@ async function thumbnailOf(blob, width = 480) {
 // Best-effort: the resolution is already written. The card goes out as soon
 // as its thumbnail is ready (or at once, frameless, if the capture failed);
 // the session upload runs on its own afterwards and never delays it.
-// lens.capture() must be CALLED in the post-render window (it redraws the
+// captureClean() must be CALLED in the post-render window (it redraws the
 // composer synchronously before reading the canvas).
 async function uplinkFrame(up) {
 	const before = session.photoCount();
@@ -2706,7 +2726,7 @@ async function uplinkFrame(up) {
 	try {
 		// A trace's best view, taken earlier; else this frame (its trace is
 		// already gone from the world: the frame that uplinked it hid it).
-		cap = await (up.cap ?? lens.capture());
+		cap = await (up.cap ?? captureClean());
 		if (cap) frameSrc = await thumbnailOf(cap.blob);
 	} catch (e) {
 		console.warn('[signals] uplink frame failed', e);

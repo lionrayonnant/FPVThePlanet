@@ -230,4 +230,50 @@ t('reset: the line is hidden and nothing is kept', () => {
 	assert.ok(ctx.line.hidden >= 1);
 });
 
+t('the active signal resolved or encrypted meanwhile: dropped, out.dropped', () => {
+	for (const make of [
+		(ctx) => { ctx.open = () => false; },
+		(ctx) => { ctx.signals[0].encrypted = true; },
+	]) {
+		const ctx = setup({ signals: [sig('wd:Q1')] });
+		settle(ctx, { x: 200, y: 30, z: 0 });
+		assert.ok(ctx.tr.trace);
+		make(ctx);
+		ctx.tr.update({ dt: 1 / 60, pos: { x: 200, y: 30, z: 0 }, signals: ctx.signals, isOpen: ctx.open });
+		assert.equal(ctx.tr.out.dropped, 'wd:Q1');
+		assert.equal(ctx.tr.id, null);
+		assert.equal(ctx.tr.failed.size, 0, 'dropped, not failed');
+		assert.ok(ctx.line.hidden >= 1);
+	}
+});
+
+t('stop (crash, link dead): the trace is dropped, the hold fallbacks are kept', () => {
+	const ctx = setup();
+	settle(ctx, { x: 200, y: 30, z: 0 });
+	ctx.tr.failed.add('wd:Q9');
+	ctx.tr.stop();
+	assert.equal(ctx.tr.id, null);
+	assert.ok(ctx.line.hidden >= 1);
+	assert.ok(ctx.tr.failed.has('wd:Q9'), 'still on the hold');
+	ctx.tr.reset();
+	assert.equal(ctx.tr.failed.size, 0);
+});
+
+t('a collider flush mid-validation restarts the validation', () => {
+	const ctx = setup();
+	const pos = { x: 200, y: 30, z: 0 };
+	for (let i = 0; i < 200 && ctx.tr.active?.phase !== 'validate'; i++) {
+		ctx.tr.update({ dt: 1 / 60, pos, signals: ctx.signals, isOpen: ctx.open });
+	}
+	assert.equal(ctx.tr.active.phase, 'validate');
+	ctx.tr.update({ dt: 1 / 60, pos, signals: ctx.signals, isOpen: ctx.open });
+	assert.equal(ctx.tr.active.phase, 'validate', 'more than one frame of validation');
+	assert.ok(ctx.tr.probe._vCursor > 0, 'validation under way');
+	ctx.tr.collidersChanged();
+	assert.equal(ctx.tr.probe._vCursor, 0, 'restarted');
+	assert.equal(ctx.tr.active.phase, 'validate');
+	settle(ctx, pos);
+	assert.ok(ctx.tr.trace, 'laid after the restart');
+});
+
 console.log(`signal-traces: ${n} ok`);

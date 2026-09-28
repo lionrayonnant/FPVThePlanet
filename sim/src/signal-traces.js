@@ -48,10 +48,16 @@ export class SignalTraces {
 	get trace() { return this.active?.phase === 'ready' ? this.active.trace : null; }
 	get follower() { return this.active?.phase === 'ready' ? this.active.follower : null; }
 
-	// Flight end, disarm, bench: nothing survives into the next flight.
+	// Disarm, bench: nothing survives into the next flight.
 	reset() {
-		this._drop();
+		this.stop();
 		this.failed.clear();
+	}
+
+	// Transmission stopped (crash, link dead): the active trace is dropped, but
+	// the signals that fell back to the hold stay there for this flight.
+	stop() {
+		this._drop();
 		this._pickS = 0;
 		const o = this.out;
 		o.done = null; o.doneShape = null; o.doneS = 0; o.failed = null; o.dropped = null;
@@ -60,7 +66,10 @@ export class SignalTraces {
 	// A live collider flush: the world under the trace has changed. The unflown
 	// part is checked again from the follower's segment on (rule 2).
 	collidersChanged() {
-		if (this.active?.phase !== 'ready') return;
+		const phase = this.active?.phase;
+		// Mid-validation: restart it, the rays already cast saw the old world.
+		if (phase === 'validate') { this.probe.resetValidation(); return; }
+		if (phase !== 'ready') return;
 		this.probe.resetValidation();
 		this.active.revalidate = true;
 	}

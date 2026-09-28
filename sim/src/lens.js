@@ -1216,14 +1216,24 @@ export class FpvLens {
 	// `redraw`: without a hacked target the canvas is read as it is — unless
 	// the caller changed the scene since the render (the signal trace hides
 	// its line for the photo), then this frame is redrawn first.
-	async capture({ redraw = false } = {}) {
+	// `after()`: called once the frame is read, to undo that change; the
+	// display is then repainted so the window never shows the photo's frame.
+	//
+	// `toBlob` copies the bitmap when it is CALLED: the display is restored
+	// (size, bands, the caller's scene) before the encode is awaited, so the
+	// frame on screen is never the stretched sensor one.
+	async capture({ redraw = false, after = null } = {}) {
 		const canvas = this.renderer.domElement;
+		const encode = () => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 		if (this._camAspect == null) {
 			// No hacked target (dev path `?scene=`): no camera to portray, the
 			// window is the only meaningful resolution.
 			if (redraw) this.composer.render(0);
-			const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-			return blob ? { blob, w: canvas.width, h: canvas.height } : null;
+			const pending = encode();
+			const w = canvas.width, h = canvas.height;
+			if (after) { after(); if (redraw) this.composer.render(0); }
+			const blob = await pending;
+			return blob ? { blob, w, h } : null;
 		}
 
 		const ratio = this.renderer.getPixelRatio();
@@ -1244,14 +1254,17 @@ export class FpvLens {
 		this._u.uFrame.value.set(1, 1);
 		this.composer.render(0);
 
-		const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+		const pending = encode();
 
-		// Restore display state for the next frame — _applySize() rereads
-		// _viewW/_viewH, untouched above, so it lands exactly where the next
-		// frame would have put it anyway.
+		// Restore display state at once — _applySize() rereads _viewW/_viewH,
+		// untouched above, so it lands exactly where the next frame would have
+		// put it anyway — then repaint it: the resize cleared the canvas.
 		this.renderer.setSize(viewW, viewH, false);
 		this._applySize();
+		after?.();
+		this.composer.render(0);
 
+		const blob = await pending;
 		return blob ? { blob, w: sensorW, h: sensorH } : null;
 	}
 }

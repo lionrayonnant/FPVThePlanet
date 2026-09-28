@@ -51,6 +51,8 @@ export class SignalCapture {
 		const ids = new Set(this._targets.map((t) => t.id));
 		for (const id of [...this._gauge.keys()]) if (!ids.has(id)) this._gauge.delete(id);
 		for (const id of [...this._trace.keys()]) if (!ids.has(id)) this._trace.delete(id);
+		// A queued trace uplink of a target no longer listed (new flight) never comes out.
+		this._traceUplinks = this._traceUplinks.filter((id) => ids.has(id));
 		for (const t of this._targets) if (t.resolved) this._resolved.add(t.id);
 		if (this._focus && !ids.has(this._focus)) this._focus = null;
 	}

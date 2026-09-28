@@ -93,6 +93,9 @@ t('headline: the trace, in its yellow — progress, or the gate', () => {
 	assert.deepEqual(headline('trace', { shape: 'under', pct: 100 }), { word: 'TRACE · UNDER · 100 %', tone: 'yellow' });
 	assert.deepEqual(headline('trace-wait', { shape: 'dive' }), { word: 'TRACE · DIVE · ENTER THE GATE', tone: 'yellow' });
 	assert.equal(headline('trace', { shape: 'orbit', pct: -3 }).word, 'TRACE · ORBIT · 0 %');
+	// A trace target without its trace in the world: never SIGNAL (no hold fills it).
+	assert.deepEqual(headline('trace', { shape: 'orbit', standby: true }), { word: 'TRACE · ORBIT · STANDBY', tone: 'dim' });
+	assert.deepEqual(headline('trace-wait', { shape: 'spiral', pct: 40, standby: true }), { word: 'TRACE · SPIRAL · STANDBY', tone: 'dim' });
 });
 
 t('revealCount follows the trace progress (the gauge is the progress)', () => {

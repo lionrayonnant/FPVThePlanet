@@ -73,10 +73,13 @@ export function scramble(text, seed) {
 
 // 'trace' / 'trace-wait': a tier II/III signal flown along its trace (lot 4),
 // in the trace's own yellow — `TRACE · SPIRAL · 42 %`, and before the gate
-// `TRACE · SPIRAL · ENTER THE GATE`.
-export function headline(state, { need, shape, pct } = {}) {
+// `TRACE · SPIRAL · ENTER THE GATE`. `standby`: a trace target with no trace
+// in the world yet (another one is flown, or it is too far to be laid) —
+// `TRACE · SPIRAL · STANDBY`, dim: no hold captures it, none is invited.
+export function headline(state, { need, shape, pct, standby } = {}) {
 	if (state === 'trace' || state === 'trace-wait') {
 		const kind = String(shape ?? 'orbit').toUpperCase();
+		if (standby) return { word: `TRACE · ${kind} · STANDBY`, tone: 'dim' };
 		const tail = state === 'trace-wait' ? 'ENTER THE GATE' : `${Math.max(0, Math.min(100, Math.floor(pct ?? 0)))} %`;
 		return { word: `TRACE · ${kind} · ${tail}`, tone: 'yellow' };
 	}

@@ -361,13 +361,14 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal .fo-signal-lead line { stroke: var(--dim); stroke-width: 1; }
 #fo-signal .fo-signal-lead rect { fill: none; stroke: var(--dim); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transform: rotate(45deg); }
 #fo-signal .fo-signal-box {
-	position: absolute; min-width: 230px; max-width: 320px;
+	position: absolute; min-width: 230px; max-width: 400px;
 	padding: var(--space-1) var(--space-2);
 	background: var(--scrim-soft); border: 1px solid var(--rule-strong);
 	font: var(--fs-data) / 1.5 var(--font-ui); letter-spacing: .06em; color: var(--ink);
 }
 #fo-signal .hd { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 500; letter-spacing: var(--track-ui); }
-/* A long headline (TRACE · SPIRAL · ENTER THE GATE) wraps; the distance never does. */
+/* The headline never wraps (TRACE · ORBIT · ENTER THE GATE fits in 400px); nor does the distance. */
+#fo-signal .hd > span:first-child { white-space: nowrap; }
 #fo-signal .hd .dist { color: var(--dim); flex: none; white-space: nowrap; }
 #fo-signal .gauge { display: flex; gap: var(--space-0); margin-block: var(--space-1); }
 #fo-signal .gauge i { flex: 1; height: 6px; background: var(--grey); }

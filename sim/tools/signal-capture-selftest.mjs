@@ -236,4 +236,14 @@ t('fallback: a target whose trace failed goes back to the hold from zero', () =>
 	assert.equal(run(sc, HOLD_S, args), 'a', 'held for HOLD_S: uplinked');
 });
 
+t('setTargets drops a queued trace uplink of a target no longer listed', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'tr', tier: 2, pos: { x: 0, y: 0, z: -100 }, trace: true }]);
+	sc.resolveByTrace('tr');
+	sc.setTargets([target('other', { x: 0, y: 0, z: -100 })]);
+	sc.update({ dt: 0.05, cam: camAt(), fpv: true, los: () => false });
+	assert.equal(sc.out.uplinked, null);
+	assert.equal(sc._traceUplinks.length, 0);
+});
+
 console.log(`signal-capture: ${n} ok`);
