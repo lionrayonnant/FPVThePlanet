@@ -4093,17 +4093,25 @@ seeded to clearance 2, drone driven by `__signals.flyTrace`):**
 - Pont Rouelle (tier III): no usable deck → orbit; flown then left: progress
   held (`9 %`), and after > 12 s off back to the gate, all yellow.
 - Fallback: a forced build failure → no line, hold capture, `HOLD 5.0 s`.
+- Final pass (after the fixes): Eiffel spiral 3.03 turns, radius 80 m at the
+  foot to 12 m at the spire, climb ≤ 30°, line hidden behind the top platform,
+  flown to `UPLINKED` in 61 s (`TRACE SPIRAL · 61.2 s`); no displayed-frame
+  change right after 12 captures (sampled); Puy de Dôme dive (tier III) above
+  the terrain; bridge orbits; 2 s fade then reset; hold fallback on Pont
+  Mirabeau; worst frame 23 ms while probing; no console error. The chevron
+  shows the trace headline, `TRACE · STANDBY` on one line, the card's capture
+  line doesn't wrap, the photo aims at the landmark's mid-height.
+- Faster route: `?live=<lat>,<lon>` with an init script
+  `import('/src/operator.js').then(m => m.ensureDevOperator())` loads the dev
+  operator before `armSignals()`; unhide `#fpvtp-osd` to see the OSD.
 
 **NOT verified:**
-- The `under` shape live (Pont Rouelle gave no bridge axis) — no real bridge
-  flown.
-- A lift after a live collider flush (selftest only); no ray-count or
-  allocation profiling in the browser.
-- Occlusion: the line hidden behind buildings in-game (depth test seen only on
-  a scratch page).
-- The 2 s fade itself (only its outcome, the reset).
-- The whole-structure spiral, the 0.85 flown opacity, the STANDBY headline
-  and the capture restore order (no stretched frame after a photo) — landed
-  after the browser pass, not seen yet.
+- The `under` shape live. Paris bridges read 6–9 m of gap in the mesh (the
+  minimum is now 6 m), but the deck axis is not found on wide decks, islands
+  and built banks (Pont Neuf, Grenelle, Rouelle, au Change): they get an orbit
+  or the hold. Bridge detection on real photogrammetry is open work.
+- A lift after a live collider flush (selftest only).
+- The line reads cream rather than yellow through the clean HD camera (yellow
+  through a low-res hacked one) — left for the author to judge.
 - `?live=` without an operator has clearance 0: every tier II/III is
   encrypted there, so no trace (unchanged rule).
