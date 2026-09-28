@@ -686,7 +686,14 @@ const LensShader = {
 				// Luma keeps nearly all of its detail — only chroma is starved of
 				// bandwidth. Softening luma much at all reads as a lens that is out
 				// of focus rather than as a transmission that is band-limited.
-				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15)) + (ch - chLuma), 0.0, 1.0);
+				// Except on the trace (src/trace-line.js): a 2 px line keeps its
+				// luma, but a chroma average this wide leaves it none, so the
+				// yellow read cream. The line marks itself by clearing the
+				// target's alpha (everything else leaves it at 1); marked pixels
+				// keep their own chroma. A failing link below still eats it.
+				float mark = 1.0 - texture2D(tDiffuse, uvHere).a;
+				vec3 chromaHere = mix(ch - chLuma, c - dot(c, LUMA), mark);
+				vec3 composite = clamp(vec3(mix(dot(c, LUMA), chLuma, 0.15 * (1.0 - mark))) + chromaHere, 0.0, 1.0);
 				// Lifted blacks and less contrast. An analog feed is never as deep
 				// as the picture that went into the transmitter.
 				composite = composite * 0.90 + 0.045;

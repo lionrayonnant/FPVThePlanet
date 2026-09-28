@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
-	TraceLine, flownSegments, flownOpacity, gateCorners,
-	FLOWN_OPACITY, REST_OPACITY, GATE_SIDE_M, LINE_WIDTH_PX,
+	TraceLine, flownSegments, flownOpacity, gateCorners, lineWidthAt,
+	FLOWN_OPACITY, REST_OPACITY, GATE_SIDE_M, LINE_WIDTH_PX, LINE_WIDTH_FAR_PX,
+	WIDTH_NEAR_M, WIDTH_FAR_M, MIN_TARGET_PX,
 } from '../src/trace-line.js';
 import { token } from '../src/palette.js';
 
@@ -168,10 +169,63 @@ t('TraceLine: setResolution reaches the three materials', () => {
 	// A draw must not put the canvas size back (LineSegments2.onBeforeRender
 	// writes the renderer's viewport, not the composer target's).
 	line.show(straight());
-	const renderer = { getViewport: (v) => v.set(0, 0, 1280, 800) };
+	const renderer = { getViewport: (v) => v.set(0, 0, 1280, 800), getSize: (v) => v.set(1280, 720) };
 	for (const l of [line.rest, line.flown, line.gate]) l.onBeforeRender(renderer);
 	for (const m of [line.restMat, line.flownMat, line.gateMat]) assert.equal(m.resolution.x, 1920);
 	line.dispose();
+});
+
+t('lineWidthAt: 2 px near, 3 px far, smooth and monotonic between', () => {
+	assert.equal(lineWidthAt(0), LINE_WIDTH_PX);
+	assert.equal(lineWidthAt(WIDTH_NEAR_M), LINE_WIDTH_PX);
+	assert.equal(lineWidthAt(WIDTH_FAR_M), LINE_WIDTH_FAR_PX);
+	assert.equal(lineWidthAt(5000), LINE_WIDTH_FAR_PX);
+	assert.ok(Math.abs(lineWidthAt((WIDTH_NEAR_M + WIDTH_FAR_M) / 2) - (LINE_WIDTH_PX + LINE_WIDTH_FAR_PX) / 2) < 1e-9);
+	let prev = 0;
+	for (let d = 0; d <= 400; d += 10) { const w = lineWidthAt(d); assert.ok(w >= prev); prev = w; }
+	assert.ok(LINE_WIDTH_FAR_PX <= 3, 'still a hairline far off');
+});
+
+t('TraceLine: the width is patched into the shader, per vertex, in screen px', () => {
+	const line = new TraceLine(new THREE.Scene());
+	for (const m of [line.restMat, line.flownMat, line.gateMat]) {
+		assert.doesNotMatch(m.vertexShader, /offset \*= linewidth;/, 'the stock width line is replaced');
+		assert.match(m.vertexShader, /smoothstep\( traceNearM, traceFarM, traceDepth \)/);
+		assert.ok(m.vertexShader.includes(`max( traceW * traceTargetPx, ${MIN_TARGET_PX.toFixed(2)} )`), 'a floor in target px');
+		assert.ok(MIN_TARGET_PX >= 1 && MIN_TARGET_PX <= 2);
+		assert.match(m.vertexShader, /^uniform float traceFarPx;/);
+		assert.equal(m.uniforms.traceFarPx.value, LINE_WIDTH_FAR_PX);
+		assert.equal(m.uniforms.traceNearM.value, WIDTH_NEAR_M);
+		assert.equal(m.uniforms.traceFarM.value, WIDTH_FAR_M);
+		assert.equal(m.uniforms.linewidth.value, LINE_WIDTH_PX);
+	}
+	assert.equal(line.restMat.uniforms.traceTargetPx, line.gateMat.uniforms.traceTargetPx, 'one shared uniform');
+	// Target px per screen px, from the canvas's CSS height at draw time.
+	line.show(straight());
+	line.setResolution(448, 280); // a hacked sensor, resScale 0.35 of 1280×800
+	line.rest.onBeforeRender({ getSize: (v) => v.set(1280, 800) });
+	assert.ok(Math.abs(line.restMat.uniforms.traceTargetPx.value - 0.35) < 1e-9);
+	line.setResolution(2560, 1600); // HiDPI: device px
+	line.flown.onBeforeRender({ getSize: (v) => v.set(1280, 800) });
+	assert.equal(line.gateMat.uniforms.traceTargetPx.value, 2);
+	line.dispose();
+});
+
+t('TraceLine: the line marks itself in the target\'s alpha for the lens', () => {
+	const line = new TraceLine(new THREE.Scene());
+	for (const m of [line.restMat, line.flownMat, line.gateMat]) {
+		assert.equal(m.blending, THREE.CustomBlending);
+		assert.equal(m.blendSrc, THREE.SrcAlphaFactor, 'colour: normal blending');
+		assert.equal(m.blendDst, THREE.OneMinusSrcAlphaFactor);
+		assert.equal(m.blendSrcAlpha, THREE.ZeroFactor, 'alpha: dst × (1 − opacity)');
+		assert.equal(m.blendDstAlpha, THREE.OneMinusSrcAlphaFactor);
+	}
+	assert.equal(REST_OPACITY, 1, 'what is left is opaque: a full mark');
+	line.dispose();
+	// And the lens reads it where the analog chroma is averaged.
+	const lens = readFileSync(new URL('../src/lens.js', import.meta.url), 'utf8');
+	assert.match(lens, /float mark = 1\.0 - texture2D\(tDiffuse, uvHere\)\.a;/);
+	assert.match(lens, /mix\(ch - chLuma, c - dot\(c, LUMA\), mark\)/);
 });
 
 t('trace-line.js uses no colour literal and no demo token', () => {

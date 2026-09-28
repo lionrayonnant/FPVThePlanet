@@ -4,6 +4,16 @@
 // building in front hides it; drawn into the scene, so it goes through the
 // lens like everything else. Fog-free, no glow.
 //
+// Readability through the lens:
+//   - width in screen (CSS) px, 2 px near → 3 px far (lineWidthAt(), the same
+//     curve in the vertex shader, per vertex on its view depth), never under
+//     MIN_TARGET_PX of the target: a hacked low-res sensor keeps a hairline
+//     instead of a tube, a HiDPI screen does not halve it;
+//   - the line clears the target's alpha by its own opacity (CustomBlending),
+//     and the lens's analog composite keeps the chroma of marked pixels. Without
+//     it the link's ~25 px chroma average left a 2 px line only its luma: the
+//     yellow read cream, the green grey (src/lens.js, LINK_MODE 1).
+//
 // Two Line2 objects rather than one with per-vertex colours: LineMaterial has
 // no per-vertex alpha, and the flown part must fade out (fade01) on its own.
 // Each part gets its own material (colour + opacity), and the split costs no
@@ -21,14 +31,40 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { token } from './palette.js';
 
-// CHOSEN (mockup look A): a hairline, the width of the scanner's rules.
+// CHOSEN (mockup look A): a hairline, the width of the scanner's rules, a
+// little wider far off (Pont Neuf / Opéra at 150-300 m read faint at 2 px).
+// Screen px; the depths are view depth in metres.
 export const LINE_WIDTH_PX = 2;
+export const LINE_WIDTH_FAR_PX = 3;
+export const WIDTH_NEAR_M = 80;
+export const WIDTH_FAR_M = 300;
+// Floor in target px: 1 px of a hacked 0.35 sensor stair-stepped and went
+// faint over trees; 1.5 still reads as a hairline (~4 screen px).
+export const MIN_TARGET_PX = 1.5;
 export const GATE_SIDE_M = 3;
-// The mockup's opacities: what is left reads clearly, what is flown steps back.
-export const REST_OPACITY = 0.9;
+// What is left is opaque; what is flown steps back.
+export const REST_OPACITY = 1;
 export const FLOWN_OPACITY = 0.85; // 0.5 read faint through the lens
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// The line's width in screen px at a view depth: GLSL smoothstep, mirrored in
+// WIDTH_GLSL below.
+export function lineWidthAt(depthM) {
+	const t = clamp01((depthM - WIDTH_NEAR_M) / (WIDTH_FAR_M - WIDTH_NEAR_M));
+	return LINE_WIDTH_PX + (LINE_WIDTH_FAR_PX - LINE_WIDTH_PX) * t * t * (3 - 2 * t);
+}
+
+// Replaces LineMaterial's `offset *= linewidth;` (screen-px branch). `start` /
+// `end` are the segment's view-space ends; traceTargetPx is target px per
+// screen px (a hacked sensor: < 1).
+const WIDTH_ANCHOR = 'offset *= linewidth;';
+const WIDTH_GLSL = `
+				float traceDepth = ( position.y < 0.5 ) ? - start.z : - end.z;
+				float traceW = linewidth + ( traceFarPx - linewidth )
+					* smoothstep( traceNearM, traceFarM, traceDepth );
+				offset *= max( traceW * traceTargetPx, ${MIN_TARGET_PX.toFixed(2)} );`;
+const WIDTH_UNIFORMS = 'uniform float traceFarPx;\nuniform float traceNearM;\nuniform float traceFarM;\nuniform float traceTargetPx;\n';
 
 // Number of fully flown segments: segment i (point i → i+1) is flown when
 // cum[i+1] ≤ progress·length. Binary search, no allocation.
@@ -76,8 +112,8 @@ export function gateCorners(points, side = GATE_SIDE_M, out = new Float32Array(1
 	return out;
 }
 
-function lineMaterial(color, opacity) {
-	return new LineMaterial({
+function lineMaterial(color, opacity, targetPx) {
+	const m = new LineMaterial({
 		color,
 		linewidth: LINE_WIDTH_PX,
 		worldUnits: false,
@@ -89,10 +125,26 @@ function lineMaterial(color, opacity) {
 		// The lens's composer target is MSAA already; blending + MSAA edges are
 		// enough for 2 px, alphaToCoverage would add nothing.
 		alphaToCoverage: false,
+		// Colour: normal blending. Alpha: dst × (1 − opacity) — the lens's mark.
+		blending: THREE.CustomBlending,
+		blendEquation: THREE.AddEquation,
+		blendSrc: THREE.SrcAlphaFactor,
+		blendDst: THREE.OneMinusSrcAlphaFactor,
+		blendSrcAlpha: THREE.ZeroFactor,
+		blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
 	});
+	if (!m.vertexShader.includes(WIDTH_ANCHOR)) throw new Error('trace-line: LineMaterial shader changed, width patch anchor not found');
+	m.vertexShader = WIDTH_UNIFORMS + m.vertexShader.replace(WIDTH_ANCHOR, WIDTH_GLSL);
+	Object.assign(m.uniforms, {
+		traceFarPx: { value: LINE_WIDTH_FAR_PX },
+		traceNearM: { value: WIDTH_NEAR_M },
+		traceFarM: { value: WIDTH_FAR_M },
+		traceTargetPx: targetPx, // shared by the three materials
+	});
+	return m;
 }
 
-const noop = () => {};
+const _size = new THREE.Vector2();
 
 export class TraceLine {
 	constructor(scene) {
@@ -102,9 +154,19 @@ export class TraceLine {
 		this._yellow = new THREE.Color(token('--yellow'));
 		this._green = new THREE.Color(token('--green'));
 
-		this.restMat = lineMaterial(this._yellow, REST_OPACITY);
-		this.flownMat = lineMaterial(this._green, FLOWN_OPACITY);
-		this.gateMat = lineMaterial(this._yellow, REST_OPACITY);
+		this._targetPx = { value: 1 };
+		this.restMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
+		this.flownMat = lineMaterial(this._green, FLOWN_OPACITY, this._targetPx);
+		this.gateMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
+		// LineSegments2.onBeforeRender writes the renderer's viewport (the
+		// canvas) into `resolution` at every draw — wrong here: the scene is
+		// drawn into the lens composer's target (the sensor's pixels), and
+		// setResolution() is the only writer. What the draw is used for instead:
+		// the target's px per screen px, from the canvas's CSS height.
+		this._beforeRender = (renderer) => {
+			renderer.getSize(_size);
+			this._targetPx.value = _size.y > 0 ? this._resH / _size.y : 1;
+		};
 
 		this.group = new THREE.Group();
 		this.group.name = 'trace-line';
@@ -148,11 +210,7 @@ export class TraceLine {
 		this.rest = new Line2(restGeom, this.restMat);
 		this.gate = new Line2(gateGeom, this.gateMat);
 		for (const l of [this.flown, this.rest, this.gate]) {
-			// LineSegments2.onBeforeRender writes the renderer's viewport (the
-			// canvas, CSS px) into `resolution` at every draw — wrong here: the
-			// scene is drawn into the lens composer's target (the sensor's
-			// pixels). setResolution() is the only writer.
-			l.onBeforeRender = noop;
+			l.onBeforeRender = this._beforeRender; // see the constructor
 			this.group.add(l);
 		}
 
