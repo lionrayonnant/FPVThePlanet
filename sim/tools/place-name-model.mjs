@@ -3,7 +3,7 @@
 // timers — src/place-name.js owns those, following src/signal-source.js's
 // pattern; checked in tools/place-name-selftest.mjs.
 
-// z10 (~150 km at the equator): a place name is stable across a tile this
+// z10 (~39 km at the equator): a place name is stable across a tile this
 // size, so every signal in an area shares one request and one cache entry.
 export const TILE_Z = 10;
 const NAME_MAX = 40;
