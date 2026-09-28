@@ -144,7 +144,11 @@ function lineMaterial(color, opacity, targetPx) {
 	return m;
 }
 
-const _size = new THREE.Vector2();
+// LineSegments2.onBeforeRender writes the renderer's viewport (the canvas)
+// into `resolution` at every draw — wrong here: the scene is drawn into the
+// lens composer's target (the sensor's pixels), and setResolution() is the
+// only writer.
+const keepResolution = () => {};
 
 export class TraceLine {
 	constructor(scene) {
@@ -158,16 +162,6 @@ export class TraceLine {
 		this.restMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
 		this.flownMat = lineMaterial(this._green, FLOWN_OPACITY, this._targetPx);
 		this.gateMat = lineMaterial(this._yellow, REST_OPACITY, this._targetPx);
-		// LineSegments2.onBeforeRender writes the renderer's viewport (the
-		// canvas) into `resolution` at every draw — wrong here: the scene is
-		// drawn into the lens composer's target (the sensor's pixels), and
-		// setResolution() is the only writer. What the draw is used for instead:
-		// the target's px per screen px, from the canvas's CSS height.
-		this._beforeRender = (renderer) => {
-			renderer.getSize(_size);
-			this._targetPx.value = _size.y > 0 ? this._resH / _size.y : 1;
-		};
-
 		this.group = new THREE.Group();
 		this.group.name = 'trace-line';
 		this.group.visible = false;
@@ -210,7 +204,7 @@ export class TraceLine {
 		this.rest = new Line2(restGeom, this.restMat);
 		this.gate = new Line2(gateGeom, this.gateMat);
 		for (const l of [this.flown, this.rest, this.gate]) {
-			l.onBeforeRender = this._beforeRender; // see the constructor
+			l.onBeforeRender = keepResolution;
 			this.group.add(l);
 		}
 
@@ -248,7 +242,10 @@ export class TraceLine {
 	// Pixel size of the target the scene is rendered into (the lens composer's
 	// drawing buffer); LineMaterial turns its width in px into clip space with it.
 	// Mandatory: the Line2 objects do not take the canvas size (see show()).
-	setResolution(w, h) {
+	// targetPx: target px per screen (CSS) px, the widths being screen px — the
+	// sensor's height over the height it is shown at (letterbox included).
+	setResolution(w, h, targetPx = 1) {
+		this._targetPx.value = targetPx > 0 && Number.isFinite(targetPx) ? targetPx : 1;
 		if (w === this._resW && h === this._resH) return;
 		this._resW = w; this._resH = h;
 		for (const m of [this.restMat, this.flownMat, this.gateMat]) m.resolution.set(w, h);

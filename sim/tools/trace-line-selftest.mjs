@@ -200,14 +200,22 @@ t('TraceLine: the width is patched into the shader, per vertex, in screen px', (
 		assert.equal(m.uniforms.linewidth.value, LINE_WIDTH_PX);
 	}
 	assert.equal(line.restMat.uniforms.traceTargetPx, line.gateMat.uniforms.traceTargetPx, 'one shared uniform');
-	// Target px per screen px, from the canvas's CSS height at draw time.
+	// Target px per screen px, passed by main.js with the resolution.
 	line.show(straight());
-	line.setResolution(448, 280); // a hacked sensor, resScale 0.35 of 1280×800
-	line.rest.onBeforeRender({ getSize: (v) => v.set(1280, 800) });
+	line.setResolution(448, 280, 0.35); // a hacked sensor, resScale 0.35 of 1280×800
 	assert.ok(Math.abs(line.restMat.uniforms.traceTargetPx.value - 0.35) < 1e-9);
-	line.setResolution(2560, 1600); // HiDPI: device px
-	line.flown.onBeforeRender({ getSize: (v) => v.set(1280, 800) });
+	line.setResolution(448, 280, 2); // same size, the ratio still follows
 	assert.equal(line.gateMat.uniforms.traceTargetPx.value, 2);
+	line.setResolution(448, 280, NaN);
+	assert.equal(line.gateMat.uniforms.traceTargetPx.value, 1, 'a bad ratio falls back to 1');
+	// The draw does not overwrite the resolution with the canvas's viewport.
+	line.rest.onBeforeRender({ getSize: (v) => v.set(1280, 800) });
+	assert.deepEqual([line.restMat.resolution.x, line.restMat.resolution.y], [448, 280]);
+	// main.js's ratio: the sensor's height over the height it is shown at —
+	// viewH·uFrame.y when the window letterboxes it, not viewH.
+	const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+	assert.match(main, /const shownH = \(lens\._viewH \?\? 1\) \* lens\._u\.uFrame\.value\.y;/);
+	assert.match(main, /traceLine\.setResolution\(res\.x, res\.y, shownH > 0 \? res\.y \/ shownH : 1\);/);
 	line.dispose();
 });
 

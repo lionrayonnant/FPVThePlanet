@@ -2500,9 +2500,11 @@ function updateTrace(dt, followDt) {
 		signalCapture.setTraceProgress(signalTraces.id, f.progress01, f.state);
 		// A reset (10 s off the thread) starts the photo search over.
 		if (f.state === 'waiting' && traceBest?.id === signalTraces.id) traceBest = null;
-		// The composer's target, in device pixels (the scene is drawn into it).
+		// The composer's target, in device pixels (the scene is drawn into it),
+		// and its px per CSS px: the sensor is shown viewH·uFrame.y tall (bands).
 		const res = lens._u.uResolution.value;
-		traceLine.setResolution(res.x, res.y);
+		const shownH = (lens._viewH ?? 1) * lens._u.uFrame.value.y;
+		traceLine.setResolution(res.x, res.y, shownH > 0 ? res.y / shownH : 1);
 	}
 }
 
