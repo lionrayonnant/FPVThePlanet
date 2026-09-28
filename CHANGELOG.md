@@ -131,11 +131,13 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   une arche ; une plongée le long de la pente pour un sommet, un volcan, une
   cascade, une falaise ou un barrage ; un tour autour du lieu pour le reste.
   Le niveau II fait la forme courte (tolérance 5 m ; un demi-tour, un seul
-  passage sous le pont, 60 m de plongée), le niveau III la forme complète
+  passage sous le pont, au moins 60 m de plongée), le niveau III la forme complète
   (tolérance 3,5 m ; un tour et demi — l'orbite monte de 8 m par tour pour ne
   jamais se recouvrir —, sous le pont, par-dessus, puis de nouveau dessous,
-  160 m de plongée). On entre par une petite porte carrée au début ; le fil
-  est jaune devant, vert derrière. Le quitter met la progression en pause ;
+  au moins 160 m de plongée ; une plongée s'allonge avec le dénivelé pour ne
+  jamais dépasser 45° de pente). On entre par une petite porte carrée au début ; le fil
+  est jaune devant, vert derrière, et garde sa couleur à travers la liaison
+  analogique. Le quitter met la progression en pause ;
   au-delà de 10 s, la partie volée refroidit et il faut repasser la porte.
   La caméra regarde où elle veut. Pendant le vol, le jeu garde la meilleure
   vue du lieu — la plus centrée, en ligne de vue — et c'est elle qui part au
@@ -146,7 +148,10 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   si le monde ne laisse pas la place de le poser, le lieu se garde dans le
   cadre, comme au niveau I. En LIVE, le fil se soulève au-dessus d'un
   obstacle que le monde révèle en s'affinant ; la partie volée ne bouge
-  jamais. Consigné dans la Bible, §49 « Le fil ». (#185)
+  jamais. Le tablier d'un pont est cherché dans le maillage lui-même (le
+  passage doit laisser 6 m et être ouvert) : à Paris, Mirabeau, le Pont Neuf
+  et le pont Rouelle se passent dessous ; un pont dont le maillage ferme les
+  côtés jusqu'à l'eau reçoit un tour. Consigné dans la Bible, §49 « Le fil ». (#185)
 
 ### Modifié
 
@@ -190,6 +195,12 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   seuil de vol ne bouge : `spec-acceptance` passe à l'identique.
 
 ### Corrigé
+
+- **Les drones d'ambiance coûtaient cher à ne pas apparaître.** Un drone qui
+  ne trouvait pas où naître en LIVE lançait ses 64 rayons de sol avant de
+  vérifier le plancher, sept à dix fois par seconde. La vérification s'arrête
+  désormais au premier point trop bas : environ dix fois moins de calcul, même
+  verdict. (#185)
 
 - **Prendre une photo déformait l'image affichée.** La capture rendait
   l'image à la taille du capteur et ne rétablissait l'affichage qu'une fois
