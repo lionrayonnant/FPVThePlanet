@@ -798,6 +798,8 @@ let takeoffPhase = null;
 const NEXT_SIGNAL_MS = 200;
 let nextSignal = null;           // { distM, relRad } | null
 let nextSignalAt = 0;
+// The state of the row the callout box shows this frame (null: box hidden).
+let calloutState = null;
 // The level that first opens a tier: what an encrypted target's callout asks for.
 const needFor = (tier) => { const i = LEVELS.findIndex((l) => l.tiers.includes(tier)); return i < 0 ? null : i; };
 
@@ -2277,11 +2279,13 @@ function paintTakeoffNotice() {
 
 // NEXT SIGNAL: the nearest open signal, horizontal distance and bearing
 // relative to the nose, on local ENU (the anchor when it exists, else the
-// signal's lat/lon brought into the scene). null while a callout or its edge
-// chevron is on screen, off the flight, or when nothing is left.
+// signal's lat/lon brought into the scene). null while a capturable callout or
+// the edge chevron is on screen (an encrypted callout leaves it up), off the
+// flight, or when nothing is left.
 function computeNextSignal(p) {
 	if (MODE.bench || flightEnd.phase !== FLYING) return null;
-	if (!signalCallout.el.hidden || !signalCallout.chev.hidden) return null;
+	if (!signalCallout.chev.hidden) return null;
+	if (!signalCallout.el.hidden && calloutState !== 'encrypted') return null;
 	let best = null;
 	for (const s of openFlightSignals()) {
 		const at = signalAnchors.pos(s.id) ?? localOfGeo(s.lat, s.lon);
@@ -2357,18 +2361,40 @@ function updateSignals(dt, frozen) {
 
 function renderSignalCallout(out) {
 	// The callout follows the focus; without one, the signal just uplinked for
-	// UPLINKED_SHOW_S, else the nearest open signal, else a resolved one close by.
+	// UPLINKED_SHOW_S, else the nearest open signal, else an encrypted one in
+	// the picture, else a resolved one close by.
 	const rows = out.rows.filter((r) => r.state !== 'hidden').sort((a, b) => a.dist - b.dist);
 	const now = performance.now() / 1000;
 	const recent = lastUplink && now < lastUplink.until ? lastUplink.id : null;
-	const row = rows.find((r) => r.id === out.focus)
+	const pick = rows.find((r) => r.id === out.focus)
 		?? rows.find((r) => r.id === recent)
-		?? rows.find((r) => r.state !== 'resolved')
-		?? rows.find((r) => r.state === 'resolved' && r.dist <= RESOLVED_CALLOUT_M);
-	if (!row) { signalCallout.render(null); return; }
+		?? rows.find((r) => r.state !== 'resolved' && r.state !== 'encrypted');
+	let view = pick ? calloutView(pick, now) : null;
+	// An encrypted target is shown only where it stands in the picture: it
+	// never steals the edge chevron nor hides NEXT SIGNAL from off-screen.
+	if (!pick) {
+		for (const r of rows) {
+			if (r.state !== 'encrypted') continue;
+			const v = calloutView(r, now);
+			if (v?.placed.onScreen) { view = v; break; }
+		}
+	}
+	if (!pick && !view) {
+		const r = rows.find((x) => x.state === 'resolved' && x.dist <= RESOLVED_CALLOUT_M);
+		if (r) view = calloutView(r, now);
+	}
+	// The edge chevron points at something to capture, never at a done or
+	// encrypted one.
+	if (view && !view.placed.onScreen && (view.row.state === 'resolved' || view.row.state === 'encrypted')) view = null;
+	calloutState = view && view.placed.onScreen ? view.row.state : null;
+	signalCallout.render(view);
+}
+
+// Where a row's callout goes on the picture: null when its signal or anchor is missing.
+function calloutView(row, now) {
 	const signal = flightSignals.find((s) => s.id === row.id);
 	const pos = signalAnchors.pos(row.id);
-	if (!signal || !pos) { signalCallout.render(null); return; }
+	if (!signal || !pos) return null;
 	// placeCamera() moved the camera this frame; its matrices follow only at render.
 	camera.updateMatrixWorld();
 	_sigNdc.set(pos.x, pos.y, pos.z).project(camera);
@@ -2387,9 +2413,7 @@ function renderSignalCallout(out) {
 	const placed = placeCallout({ ndcX: at.x, ndcY: at.y, behind },
 		{ w: fitW, h: fitH, x0: vp.left + (vp.width - fitW) / 2, y0: vp.top + (vp.height - fitH) / 2 },
 		{ boxW: signalCallout.box.offsetWidth || 230, boxH: signalCallout.box.offsetHeight || 110 });
-	// The edge chevron points at something to capture, never at a done one.
-	if (!placed.onScreen && row.state === 'resolved') { signalCallout.render(null); return; }
-	signalCallout.render({ signal, row, placed, now });
+	return { signal, row, placed, now };
 }
 
 // The resolution is written at once (spec §3); the frame follows. It is taken
