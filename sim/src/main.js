@@ -745,14 +745,20 @@ const signalTraces = new SignalTraces({
 	line: traceLine,
 });
 const traceOpen = (id) => !signalCapture.isResolved(id);
-// The best view of the landmark along the trace (spec rule 7): scored at most
-// TRACE_PHOTO_HZ, captured (trace hidden) only when it beats the best so far
-// by TRACE_PHOTO_MARGIN.
+// The best view of the landmark along the trace (spec rule 7): scored every
+// TRACE_PHOTO_S, taken (trace hidden) only when it beats the best so far by
+// TRACE_PHOTO_MARGIN, and at most once per TRACE_PHOTO_GAP_S: each photo
+// takes the line out of one displayed frame.
 const TRACE_PHOTO_S = 0.5;
 const TRACE_PHOTO_MARGIN = 0.05;
+const TRACE_PHOTO_GAP_S = 2;
 let traceBest = null;            // { id, score, cap: Promise<{blob,w,h}|null> }
 let pendingTracePhoto = null;    // { id, score }, taken right after lens.render()
 let tracePhotoAt = 0;            // seconds of trace flight since the last scoring
+let tracePhotoTakenAt = -Infinity; // performance.now() seconds of the last one
+// The trace line is out of this frame's render: it becomes a photo (lens.grab()
+// right after the render), and the line comes back once it is read.
+let lineOffForPhoto = false;
 // The trace just flown, read by onSignalUplinked(): { id, shape, holdS }.
 let traceDone = null;
 let flightSignals = [];          // Signal[] live in this flight
@@ -2286,6 +2292,7 @@ function disarmSignals() {
 	pendingTracePhoto = null;
 	traceDone = null;
 	tracePhotoAt = 0;
+	tracePhotoTakenAt = -Infinity;
 	// A frame never taken still frees its slot, or the cards after it would wait forever.
 	if (pendingUplink) fillSlot(pendingUplink.index, null, pendingUplink.gen);
 	pendingUplink = null;
@@ -2544,7 +2551,11 @@ function scoreTracePhoto(dt, cam) {
 	if (!aim) return;
 	const score = photoScore({ angleDeg: viewAngleDeg(cam, aim), los: aimInSight(cam, aim) });
 	// Only a clearly better view: a score wobbling at the best retakes nothing.
-	if (score !== null && score > (traceBest?.id === id ? traceBest.score + TRACE_PHOTO_MARGIN : -1)) pendingTracePhoto = { id, score };
+	if (score === null || score <= (traceBest?.id === id ? traceBest.score + TRACE_PHOTO_MARGIN : -1)) return;
+	if (traceBest?.id === id && performance.now() / 1000 - tracePhotoTakenAt < TRACE_PHOTO_GAP_S) return;
+	pendingTracePhoto = { id, score };
+	lineOffForPhoto = true;
+	traceLine.setVisible(false);
 }
 
 // The line of sight to a photo aim: the ray's first hit, judged by the model
@@ -2554,10 +2565,12 @@ function aimInSight(cam, aim) {
 	return photoInSight(cam, aim, o.hitM, signalTraces.anchor, signalTraces.profile);
 }
 
-// The one way a photo is taken (the manual one, a trace's best view, the
-// uplink frame): the trace line is a guide on the display, never in a picture.
-// Called in the post-render window: the frame is redrawn without the line,
-// read, and the display repainted with it (lens.capture's `after`).
+// The manual photo: the trace line is a guide on the display, never in a
+// picture. Called in the post-render window: the frame is redrawn without the
+// line, read, and the display repainted with it (lens.capture's `after`).
+// It stalls the frame (a synchronous canvas read); the photos taken in flight
+// — a trace's best view, the uplink frame — use lens.grab() instead, with the
+// line kept out of the frame's own render (lineOffForPhoto).
 function captureClean() {
 	traceLine.setVisible(false);
 	try {
@@ -2569,7 +2582,8 @@ function captureClean() {
 }
 
 function takeTracePhoto({ id, score }) {
-	traceBest = { id, score, cap: captureClean().catch(() => null) };
+	traceBest = { id, score, cap: lens.grab().catch(() => null) };
+	tracePhotoTakenAt = performance.now() / 1000;
 }
 
 function renderSignalCallout(out) {
@@ -2686,6 +2700,8 @@ function onSignalUplinked(id) {
 	// The trace's best view is the frame; none seen, the frame of this moment.
 	const cap = traceBest?.id === id ? traceBest.cap : null;
 	if (traceBest?.id === id) traceBest = null;
+	// None: this frame is the photo, without the line of a trace still laid.
+	if (!cap) { lineOffForPhoto = true; traceLine.setVisible(false); }
 	pendingUplink = { id, signal: s, distM: Math.round(dist), index: ++uplinkSeq, total, gen: flightGen, crossed: step, holdS, trace: tr?.shape ?? null, cap };
 	if (import.meta.env?.DEV) console.debug('[signals] uplinked', id, `${pendingUplink.index}/${total}`);
 }
@@ -2759,17 +2775,14 @@ async function thumbnailOf(blob, width = 480) {
 // Best-effort: the resolution is already written. The card goes out as soon
 // as its thumbnail is ready (or at once, frameless, if the capture failed);
 // the session upload runs on its own afterwards and never delays it.
-// captureClean() must be CALLED in the post-render window (it redraws the
-// composer synchronously before reading the canvas).
+// up.cap: the trace's best view, else this frame's lens.grab() (post-render).
 async function uplinkFrame(up) {
 	const before = session.photoCount();
 	let cap = null;
 	let frameSrc = null;
 	let pushed = false;
 	try {
-		// A trace's best view, taken earlier; else this frame (its trace is
-		// already gone from the world: the frame that uplinked it hid it).
-		cap = await (up.cap ?? captureClean());
+		cap = await up.cap;
 		if (cap) frameSrc = await thumbnailOf(cap.blob);
 	} catch (e) {
 		console.warn('[signals] uplink frame failed', e);
@@ -3566,10 +3579,8 @@ if (!frozen) {
 	// Consumed right after the render — it is that exact buffer, not a later
 	// frame's, that becomes the photograph.
 	const photoReady = controller.armed && !frozen && viewMode === 'fpv' && !flightEnd.out.linkDead;
-	if (pendingCapture) {
-		pendingCapture = false;
-		if (photoReady) capturePhoto();
-	}
+	// The grabs first: they read this frame as drawn, and the manual photo
+	// redraws it.
 	if (pendingTracePhoto) {
 		const ph = pendingTracePhoto;
 		pendingTracePhoto = null;
@@ -3578,7 +3589,17 @@ if (!frozen) {
 	if (pendingUplink) {
 		const up = pendingUplink;
 		pendingUplink = null;
+		// A trace's best view, taken earlier; else this frame.
+		up.cap ??= lens.grab().catch(() => null);
 		uplinkFrame(up);
+	}
+	if (lineOffForPhoto) {
+		lineOffForPhoto = false;
+		traceLine.setVisible(true);
+	}
+	if (pendingCapture) {
+		pendingCapture = false;
+		if (photoReady) capturePhoto();
 	}
 
 	const v = physics.velocity;

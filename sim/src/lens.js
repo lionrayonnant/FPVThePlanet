@@ -24,6 +24,9 @@ import { LensDrops, dropFootprint } from './rain.js';
 // link-related lands at the end of the chain, after the vignette — the RF snow
 // is not vignetted, because the vignette happened two boxes upstream of it.
 
+// grab(): a readback not done by then is given up (a lost context never signals).
+const GRAB_TIMEOUT_MS = 2000;
+
 // Slider (0..1) -> physical coefficients. The barrel pair is normalised at the
 // corner in the shader, so k1/k2 set how much the centre magnifies, not how much
 // field of view is lost.
@@ -1253,12 +1256,7 @@ export class FpvLens {
 		const ratio = this.renderer.getPixelRatio();
 		const viewW = this._viewW ?? 1;
 		const viewH = this._viewH ?? 1;
-		// Same maths as _applySize(), minus the "fits in the window" constraint:
-		// this is the real output, not a rectangle shown inside it.
-		const viewAspect = viewW / viewH;
-		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
-		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
-		const sensorW = Math.max(1, Math.round(sensorH * this._camAspect));
+		const { sensorW, sensorH } = this._sensorPx();
 
 		this.renderer.setSize(sensorW / ratio, sensorH / ratio, false);
 		this.composer.setSize(sensorW, sensorH);
@@ -1280,5 +1278,80 @@ export class FpvLens {
 
 		const blob = await pending;
 		return blob ? { blob, w: sensorW, h: sensorH } : null;
+	}
+
+	// The photo's size: the sensor at its resolution. Same maths as
+	// _applySize(), minus the "fits in the window" constraint: this is the real
+	// output, not a rectangle shown inside it.
+	_sensorPx() {
+		const viewW = this._viewW ?? 1;
+		const viewH = this._viewH ?? 1;
+		const viewAspect = viewW / viewH;
+		const fitH = viewAspect > this._camAspect ? 1 : viewAspect / this._camAspect;
+		const sensorH = Math.max(1, Math.round(viewH * fitH * (this._resScale ?? 1)));
+		return { sensorW: Math.max(1, Math.round(sensorH * this._camAspect)), sensorH };
+	}
+
+	// A photo of the frame just drawn, without stalling it: call it right
+	// after render(), in the same task (the drawing buffer is gone after). The
+	// picture's rectangle (bands excluded) is copied into a GPU buffer, read
+	// back once a fence says the copy is done, then scaled to the sensor and
+	// encoded off the main thread. capture() reads the canvas synchronously:
+	// the CPU waits for the GPU, 15–30 ms per photo in LIVE Paris (#185), a
+	// visible hitch — fine for the manual photo, not for photos taken in flight.
+	// Nothing is redrawn: what must stay out of the photo (the signal trace's
+	// line) is hidden by the caller BEFORE the render.
+	grab() {
+		const gl = this.renderer.getContext();
+		if (typeof WebGL2RenderingContext === 'undefined' || !(gl instanceof WebGL2RenderingContext)
+			|| typeof OffscreenCanvas !== 'function' || typeof createImageBitmap !== 'function') {
+			return this.capture();
+		}
+		const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+		const f = this._u.uFrame.value;
+		const w = Math.max(1, Math.min(W, Math.round(W * f.x)));
+		const h = Math.max(1, Math.min(H, Math.round(H * f.y)));
+		const x = Math.floor((W - w) / 2), y = Math.floor((H - h) / 2);
+		const out = this._camAspect == null ? { sensorW: w, sensorH: h } : this._sensorPx();
+
+		const buf = gl.createBuffer();
+		const prevRead = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf);
+		gl.bufferData(gl.PIXEL_PACK_BUFFER, w * h * 4, gl.STREAM_READ);
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+		gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevRead);
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+		const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+		gl.flush();
+
+		const done = () => { gl.deleteSync(sync); gl.deleteBuffer(buf); };
+		const pixels = new Promise((resolve, reject) => {
+			const t0 = performance.now();
+			const poll = () => {
+				const st = gl.clientWaitSync(sync, 0, 0);
+				if (st === gl.TIMEOUT_EXPIRED && performance.now() - t0 < GRAB_TIMEOUT_MS) { setTimeout(poll, 4); return; }
+				if (st !== gl.ALREADY_SIGNALED && st !== gl.CONDITION_SATISFIED) { done(); reject(new Error('grab: readback failed')); return; }
+				const px = new Uint8ClampedArray(w * h * 4);
+				gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf);
+				gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, px);
+				gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+				done();
+				resolve(px);
+			};
+			setTimeout(poll, 0);
+		});
+		return pixels.then(async (px) => {
+			// GL rows run bottom-up: flipped, and scaled to the sensor, off-thread.
+			const bmp = await createImageBitmap(new ImageData(px, w, h), {
+				imageOrientation: 'flipY', resizeWidth: out.sensorW, resizeHeight: out.sensorH, resizeQuality: 'high',
+			});
+			// A CPU-backed canvas: the encode needs no GPU readback of its own.
+			const oc = new OffscreenCanvas(out.sensorW, out.sensorH);
+			oc.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0);
+			bmp.close();
+			const blob = await oc.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+			return blob ? { blob, w: out.sensorW, h: out.sensorH } : null;
+		});
 	}
 }

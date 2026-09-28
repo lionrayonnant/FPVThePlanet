@@ -6,10 +6,13 @@
 //   2. updateSignals(): the trace before the capture (a trace flown to its end
 //      is uplinked by the same frame's capture), and the trace resolves through
 //      resolveByTrace(); off the flight the trace is dropped.
-//   3. Every photo goes through captureClean() (the line hidden, the frame
-//      redrawn, the line back via `after`): no bare lens.capture() elsewhere.
-//      The trace photo is taken in the post-render window, before the uplink
-//      frame, and only for a view better than the best by a margin.
+//   3. No photo shows the line. The photos taken in flight (a trace's best
+//      view, the uplink frame) use lens.grab() — no redraw, no stall — with the
+//      line kept out of that frame's own render and shown again right after
+//      the grabs; the manual photo goes through captureClean() (the line
+//      hidden, the frame redrawn, the line back via `after`), the only
+//      lens.capture(). A trace photo needs a view better than the best by a
+//      margin, at most one per TRACE_PHOTO_GAP_S (#185: freezes in flight).
 //   4. disarmSignals() resets the traces; a crash / link dead only stops them.
 //      The uplink entry carries `trace`. The callout never picks a hidden row.
 import { readFileSync } from 'node:fs';
@@ -80,17 +83,32 @@ console.log('\ntrace-wiring: the photo');
 	const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 	const bare = (code.match(/lens\.capture\(/g) ?? []).length;
 	check('no bare lens.capture() outside captureClean()', bare === 1, `${bare} call(s)`);
-	for (const fn of ['async function capturePhoto()', 'function takeTracePhoto({ id, score })', 'async function uplinkFrame(up)']) {
-		check(`${fn.replace(/^(async )?function /, '')} goes through captureClean()`, /captureClean\(\)/.test(bodyAfter(fn) ?? ''));
-	}
+	check('the manual photo goes through captureClean()', /captureClean\(\)/.test(bodyAfter('async function capturePhoto()') ?? ''));
+	check('the trace photo is a lens.grab(), not a redraw', /lens\.grab\(\)/.test(bodyAfter('function takeTracePhoto({ id, score })') ?? '')
+		&& !/captureClean\(\)/.test(bodyAfter('function takeTracePhoto({ id, score })') ?? ''));
+	check('the uplink frame is the best view or a lens.grab(), never a redraw',
+		!/captureClean\(\)/.test(bodyAfter('async function uplinkFrame(up)') ?? ''));
 	const score = bodyAfter('function scoreTracePhoto(') ?? '';
 	check('a trace photo needs a view better than the best by TRACE_PHOTO_MARGIN',
 		/traceBest\.score \+ TRACE_PHOTO_MARGIN/.test(score) && /const TRACE_PHOTO_MARGIN = 0\.05/.test(src));
+	check('and waits TRACE_PHOTO_GAP_S after the last one of that trace',
+		/tracePhotoTakenAt < TRACE_PHOTO_GAP_S/.test(score) && /const TRACE_PHOTO_GAP_S = 2/.test(src));
+	check('a trace photo due hides the line BEFORE the render (the frame is the photo)',
+		/pendingTracePhoto = \{ id, score \};\s*lineOffForPhoto = true;\s*traceLine\.setVisible\(false\);/.test(score));
+	const up = bodyAfter('function onSignalUplinked(') ?? '';
+	check('an uplink with no best view hides the line too',
+		/if \(!cap\) \{ lineOffForPhoto = true; traceLine\.setVisible\(false\); \}/.test(up));
 	const frame = bodyAfter('function frame()') ?? '';
 	const render = frame.indexOf('lens.render(');
 	const photo = frame.indexOf('takeTracePhoto(');
-	const uplink = frame.indexOf('uplinkFrame(');
-	check('taken right after lens.render(), before the uplink frame', render > 0 && photo > render && uplink > photo, `render@${render} photo@${photo} uplink@${uplink}`);
+	const uplink = frame.indexOf('up.cap ??= lens.grab()');
+	const back = frame.indexOf('traceLine.setVisible(true)');
+	const manual = frame.indexOf('capturePhoto()');
+	check('grabbed right after lens.render(): the trace photo, then the uplink frame',
+		render > 0 && photo > render && uplink > photo, `render@${render} photo@${photo} uplink@${uplink}`);
+	check('the line comes back after the grabs, before the manual photo redraws',
+		back > uplink && manual > back && /if \(lineOffForPhoto\) \{\s*lineOffForPhoto = false;\s*traceLine\.setVisible\(true\);/.test(frame),
+		`back@${back} manual@${manual}`);
 }
 
 console.log('\ntrace-wiring: flight end and the uplink entry');
