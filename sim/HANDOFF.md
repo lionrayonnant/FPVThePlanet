@@ -4113,6 +4113,8 @@ seeded to clearance 2, drone driven by `__signals.flyTrace`):**
 - A lift after a live collider flush (selftest only).
 - The line's colour was the analog link's chroma blur, now fixed: the line
   marks its pixels (target alpha) and the lens keeps their colour, the mark
-  read on the same taps as the colour. Judged by the author's eye only.
+  read on the same taps as the colour. Seen on the Eiffel spiral with the
+  link pinned at 0.30 and 0.18: the colour fades, jitters and tears with the
+  line, no ghost. The motion smear of a fast pass is not checked by eye.
 - `?live=` without an operator has clearance 0: every tier II/III is
   encrypted there, so no trace (unchanged rule).
