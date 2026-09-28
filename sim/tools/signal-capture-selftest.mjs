@@ -178,4 +178,62 @@ t('a resolved signal beyond SHOW_M is hidden; within it, resolved', () => {
 	assert.equal(row(sc, 'near').state, 'resolved');
 });
 
+t('a trace target never fills from the frame; its gauge is the trace progress', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'a', tier: 2, pos: { x: 0, y: 0, z: -100 }, trace: true }]);
+	const args = { cam: camAt(), fpv: true, los: () => true };
+	assert.equal(run(sc, HOLD_S * 3, args), null, 'held dead ahead, never uplinked');
+	assert.equal(row(sc, 'a').gauge, 0);
+	assert.equal(row(sc, 'a').state, 'near');
+	assert.equal(sc.out.focus, 'a', 'it still takes the focus');
+	sc.setTraceProgress('a', 0.42, 'on');
+	sc.update({ dt: 0.05, ...args });
+	assert.equal(row(sc, 'a').state, 'capturing');
+	assert.equal(row(sc, 'a').gauge, 0.42);
+	sc.setTraceProgress('a', 0.42, 'off');
+	run(sc, 2, { ...args, cam: camAt(0, 0, 0, 0, 0, 1) });
+	assert.equal(row(sc, 'a').state, 'held', 'off the thread, looking away: paused, not drained');
+	assert.equal(row(sc, 'a').gauge, 0.42);
+	sc.setTraceProgress('a', 0.42, 'waiting');
+	sc.update({ dt: 0, ...args });
+	assert.equal(row(sc, 'a').gauge, 0.42, 'dt = 0 keeps it');
+	sc.setTraceProgress('a', 0, 'waiting');
+	sc.update({ dt: 0.05, ...args });
+	assert.equal(row(sc, 'a').state, 'near', 'reset: back to the gate');
+});
+
+t('resolveByTrace: uplinked on the next update, once; after a hold of the same frame', () => {
+	const sc = new SignalCapture();
+	sc.setTargets([{ id: 'tr', tier: 2, pos: { x: 50, y: 0, z: -100 }, trace: true }, target('h', { x: 0, y: 0, z: -100 })]);
+	const args = { cam: camAt(), fpv: true, los: () => true };
+	assert.equal(run(sc, HOLD_S - 0.1, args), null);
+	sc.setTraceProgress('tr', 1, 'done');
+	sc.resolveByTrace('tr');
+	assert.ok(sc.isResolved('tr'));
+	sc.update({ dt: 0.15, ...args });
+	assert.equal(sc.out.uplinked, 'h', 'the hold of this frame first');
+	assert.equal(row(sc, 'tr').state, 'resolved');
+	sc.update({ dt: 0.05, ...args });
+	assert.equal(sc.out.uplinked, 'tr', 'then the trace');
+	sc.update({ dt: 0.05, ...args });
+	assert.equal(sc.out.uplinked, null, 'once');
+	sc.resolveByTrace('tr');
+	sc.update({ dt: 0.05, ...args });
+	assert.equal(sc.out.uplinked, null, 'never twice');
+});
+
+t('fallback: a target whose trace failed goes back to the hold from zero', () => {
+	const sc = new SignalCapture();
+	const tg = { id: 'a', tier: 3, pos: { x: 0, y: 0, z: -100 }, trace: true };
+	sc.setTargets([tg]);
+	const args = { cam: camAt(), fpv: true, los: () => true };
+	sc.setTraceProgress('a', 0.6, 'on');
+	sc.update({ dt: 0.05, ...args });
+	tg.trace = false;
+	sc.setTraceProgress('a', 0, null);
+	sc.update({ dt: 0.05, ...args });
+	assert.ok(row(sc, 'a').gauge < 0.05, `hold gauge from zero, got ${row(sc, 'a').gauge}`);
+	assert.equal(run(sc, HOLD_S, args), 'a', 'held for HOLD_S: uplinked');
+});
+
 console.log(`signal-capture: ${n} ok`);

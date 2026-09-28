@@ -367,7 +367,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	font: var(--fs-data) / 1.5 var(--font-ui); letter-spacing: .06em; color: var(--ink);
 }
 #fo-signal .hd { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 500; letter-spacing: var(--track-ui); }
-#fo-signal .hd .dist { color: var(--dim); }
+/* A long headline (TRACE · SPIRAL · ENTER THE GATE) wraps; the distance never does. */
+#fo-signal .hd .dist { color: var(--dim); flex: none; white-space: nowrap; }
 #fo-signal .gauge { display: flex; gap: var(--space-0); margin-block: var(--space-1); }
 #fo-signal .gauge i { flex: 1; height: 6px; background: var(--grey); }
 /* A long value (a scrambled name, a long landmark) wraps in its own column,
@@ -380,6 +381,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal[data-tone="orange"] .hd span:first-child { color: var(--orange); }
 #fo-signal[data-tone="orange"] .gauge i.on { background: var(--orange); }
 #fo-signal[data-tone="orange"] .fo-signal-lead line, #fo-signal[data-tone="orange"] .fo-signal-lead rect { stroke: var(--orange); }
+/* A trace in the world (lot 4): the callout takes the trace's yellow. */
+#fo-signal[data-tone="yellow"] .fo-signal-box { border-color: var(--yellow); }
+#fo-signal[data-tone="yellow"] .hd span:first-child { color: var(--yellow); }
+#fo-signal[data-tone="yellow"] .gauge i.on { background: var(--yellow); }
+#fo-signal[data-tone="yellow"] .fo-signal-lead line, #fo-signal[data-tone="yellow"] .fo-signal-lead rect { stroke: var(--yellow); }
 #fo-signal[data-tone="green"] .fo-signal-box { border-color: var(--green); }
 #fo-signal[data-tone="green"] .hd span:first-child { color: var(--green); }
 #fo-signal[data-tone="green"] .gauge i.on { background: var(--green); }
@@ -388,6 +394,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .fo-signal-chev .arrow { display: inline-block; transform-origin: center; }
 .fo-signal-chev[data-tone="orange"] { color: var(--orange); }
 .fo-signal-chev[data-tone="green"] { color: var(--green); }
+.fo-signal-chev[data-tone="yellow"] { color: var(--yellow); }
 
 /* The UPLINKED card (issue #185, mockup flight-da.html), in the terminal's
    grammar: a hairline frame, square corners, the OSD's scrim and nothing else

@@ -3,6 +3,7 @@
 // next one takes its place. No DOM — the DOM layer is src/signal-card.js.
 
 import { LEVELS } from './signal-clearance-model.mjs';
+import { TRACE_SHAPES } from './signal-store-model.mjs';
 
 // Seconds a card stays up before the next one (in flight) takes its place.
 export const CARD_S = 6;
@@ -36,6 +37,14 @@ export function cardRows(signal, info) {
 	if (status) rows.push(['STATUS', status]);
 
 	return rows.slice(0, MAX_ROWS);
+}
+
+// How the signal was captured, shared by the card and DATA: `HOLD 5.0 s`
+// for a hold in the frame, `TRACE SPIRAL · 38.2 s` for a trace flown (lot 4,
+// the seconds spent on it). The unknown shape of a corrupt entry reads as a hold.
+export function captureLine({ holdS, trace } = {}) {
+	const s = `${(Number.isFinite(holdS) ? holdS : 0).toFixed(1)} s`;
+	return TRACE_SHAPES.includes(trace) ? `TRACE ${trace.toUpperCase()} · ${s}` : `HOLD ${s}`;
 }
 
 // The card's credit line, in DATA's form (tools/signals-data-model.mjs

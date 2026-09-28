@@ -6,7 +6,7 @@ import { fromStored } from './signal-store-model.mjs';
 import { MAX_CLEARANCE, ROMAN, levelForTier } from './signal-clearance-model.mjs';
 import { scramble } from './signal-callout-model.mjs';
 import { distanceM } from './signal-model.mjs';
-import { cardRows, MACHINE_NAMES } from './signal-card-model.mjs';
+import { cardRows, captureLine, MACHINE_NAMES } from './signal-card-model.mjs';
 
 // Where an entry resolved before src/place-name.js answered (or never did) goes.
 export const ELSEWHERE = 'ELSEWHERE';
@@ -146,7 +146,9 @@ export function detailRows(entry, signal, info) {
 	const rows = [['UPLINKED', `${ddmm(d)}.${pad2(d.getFullYear() % 100)} / ${pad2(d.getHours())}:${pad2(d.getMinutes())}`]];
 	const machine = machineOf(entry.family);
 	if (machine) rows.push(['MACHINE', machine]);
-	rows.push(['HOLD', `${entry.holdS.toFixed(1)} s`]);
+	// `TRACE  SPIRAL · 38.2 s` for a trace flown, `HOLD  5.0 s` for a hold.
+	const how = captureLine(entry);
+	rows.push(how.startsWith('TRACE ') ? ['TRACE', how.slice(6)] : ['HOLD', how.slice(5)]);
 	rows.push(['RANGE', distText(entry.distM)]);
 	const session = sessionLabel(entry.sessionId);
 	if (session) rows.push(['SESSION', session]);

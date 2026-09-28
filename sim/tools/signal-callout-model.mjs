@@ -71,7 +71,15 @@ export function scramble(text, seed) {
 	return out;
 }
 
-export function headline(state, { need } = {}) {
+// 'trace' / 'trace-wait': a tier II/III signal flown along its trace (lot 4),
+// in the trace's own yellow — `TRACE · SPIRAL · 42 %`, and before the gate
+// `TRACE · SPIRAL · ENTER THE GATE`.
+export function headline(state, { need, shape, pct } = {}) {
+	if (state === 'trace' || state === 'trace-wait') {
+		const kind = String(shape ?? 'orbit').toUpperCase();
+		const tail = state === 'trace-wait' ? 'ENTER THE GATE' : `${Math.max(0, Math.min(100, Math.floor(pct ?? 0)))} %`;
+		return { word: `TRACE · ${kind} · ${tail}`, tone: 'yellow' };
+	}
 	if (state === 'capturing') return { word: 'CAPTURING', tone: 'orange' };
 	if (state === 'resolved') return { word: 'UPLINKED', tone: 'green' };
 	if (state === 'encrypted') return { word: `ENCRYPTED · CLEARANCE ${need}`, tone: 'dim' };

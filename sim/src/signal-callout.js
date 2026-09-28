@@ -42,8 +42,11 @@ export class SignalCallout {
 
 	render(view) {
 		if (!view) { this.el.hidden = true; this.chev.hidden = true; return; }
-		const { signal, row, placed, now } = view;
-		const { word, tone } = headline(row.state, { need: signal.need });
+		const { signal, row, placed, now, trace } = view;
+		// trace: { shape, pct, wait } while this signal's trace is in the world.
+		const { word, tone } = trace
+			? headline(trace.wait ? 'trace-wait' : 'trace', trace)
+			: headline(row.state, { need: signal.need });
 		if (!placed.onScreen) {
 			this.el.hidden = true;
 			this.chev.hidden = false;

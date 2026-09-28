@@ -16,6 +16,9 @@ const ID_RE = /^wd:Q\d{1,12}$/;
 // The place name (src/place-name.js), same 40-code-point cap as a token, but
 // free text: a Nominatim answer can carry any script.
 const PLACE_MAX = 40;
+// A signal captured by flying its trace (lot 4) records the shape; one held in
+// the frame has no `trace` key at all, so older entries read back unchanged.
+export const TRACE_SHAPES = ['orbit', 'spiral', 'under', 'dive'];
 
 const cleanText = (v, max) => (typeof v === 'string'
 	? Array.from(v.replace(/[\u0000-\u001f\u007f]/g, '')).slice(0, max).join('')
@@ -36,6 +39,7 @@ function entryOf(e) {
 		family: token(e.family), holdS, distM,
 		sessionId: token(e.sessionId), photo,
 		place: place(e.place),
+		...(TRACE_SHAPES.includes(e.trace) ? { trace: e.trace } : {}),
 	};
 }
 

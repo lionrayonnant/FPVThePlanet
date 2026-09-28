@@ -11,7 +11,7 @@
 // frame we captured ourselves (a `data:image/` URL) or a Commons URL already
 // checked by safeImageUrl.
 import { safeImageUrl } from '../tools/wikidata-model.mjs';
-import { cardRows, creditLine, recapTiles, MACHINE_NAMES } from '../tools/signal-card-model.mjs';
+import { cardRows, creditLine, recapTiles, captureLine, MACHINE_NAMES } from '../tools/signal-card-model.mjs';
 
 const el = (tag, cls, text) => {
 	const e = document.createElement(tag);
@@ -88,7 +88,7 @@ function fillCard(dom, view) {
 	dom.shot.hidden = !isFrame(frameSrc);
 	if (!dom.shot.hidden) dom.shot.src = frameSrc; else dom.shot.removeAttribute('src');
 	const machine = machineName(view.family);
-	dom.icptLine.textContent = `${machine ? `${machine} · ` : ''}HOLD ${view.holdS.toFixed(1)} s`;
+	dom.icptLine.textContent = `${machine ? `${machine} · ` : ''}${captureLine(view)}`;
 
 	dom.credit.textContent = creditLine(info);
 }

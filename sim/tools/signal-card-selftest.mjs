@@ -2,7 +2,7 @@
 // 2026-09-27-signals-lot2b). No DOM, no network.
 // Run: node tools/signal-card-selftest.mjs
 import assert from 'node:assert/strict';
-import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles, MACHINE_NAMES } from './signal-card-model.mjs';
+import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles, MACHINE_NAMES, captureLine } from './signal-card-model.mjs';
 import { creditOf, DATA_CREDIT } from './signals-data-model.mjs';
 
 let n = 0;
@@ -158,6 +158,14 @@ t('clearanceNotice: the machines and the tier each step opens', () => {
 	assert.equal(clearanceNotice(3), '[+] CLEARANCE 3 · THE SWARM');
 	assert.equal(clearanceNotice(0), null);
 	assert.equal(clearanceNotice(9), null);
+});
+
+t('captureLine: HOLD for a hold, TRACE <SHAPE> for a trace, one decimal', () => {
+	assert.equal(captureLine({ holdS: 5 }), 'HOLD 5.0 s');
+	assert.equal(captureLine({ holdS: 38.24, trace: 'spiral' }), 'TRACE SPIRAL · 38.2 s');
+	assert.equal(captureLine({ holdS: 12, trace: 'under' }), 'TRACE UNDER · 12.0 s');
+	assert.equal(captureLine({ holdS: 5, trace: 'loop' }), 'HOLD 5.0 s', 'an unknown shape reads as a hold');
+	assert.equal(captureLine({ holdS: 5, trace: null }), 'HOLD 5.0 s');
 });
 
 console.log(`\n${n} signal-card tests OK`);
