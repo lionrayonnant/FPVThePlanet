@@ -53,8 +53,8 @@ t('tilesForView: a small view over Paris is one or a few tiles, deduped', () => 
 });
 
 t('tilesForView: a wide view asks for the tiles nearest its centre, centre first, capped', () => {
-	// Île-de-France at zoom 13: dozens of z12 tiles in view. The scanner must
-	// still scan — the centre of the view, never the whole of it.
+	// A 2° × 3° box (Île-de-France): dozens of z12 tiles in view. The scanner
+	// must still scan — the centre of the view, never the whole of it.
 	const v = { s: 48.0, w: 1.0, n: 50.0, e: 4.0 };
 	const keys = tilesForView(v, 13);
 	assert.equal(keys.length, MAX_TILES_PER_VIEW);

@@ -82,7 +82,7 @@ const towerAnchor = { x: 500, y: 103, z: -200 };
 const towerH = (x, z) => (Math.hypot(x - 500, z + 200) < 2 ? 100 : 0);
 const towerProfile = profileOf(towerAnchor, towerH);
 
-t('orbit: level ring at anchor + 6 m, radius outline + 12 m, half a turn (II) / 1.5 turns (III)', () => {
+t('orbit: ring at anchor + 6 m, radius outline + 12 m; half a level turn (II), a 1.5-turn helix rising 8 m a turn (III)', () => {
 	const approach = { x: 500, z: 100 }; // due south
 	for (const tier of [2, 3]) {
 		const tr = buildTrace({ signal: sig('CATHEDRAL'), anchor: towerAnchor, profile: towerProfile, tier, approach });
@@ -91,12 +91,16 @@ t('orbit: level ring at anchor + 6 m, radius outline + 12 m, half a turn (II) / 
 		assert.equal(tr.tolerance, TOLERANCE_M[tier]);
 		spacingOk(tr);
 		const arc = tier === 2 ? Math.PI : 3 * Math.PI;
-		assert.ok(Math.abs(tr.length - arc * 12) < 1, `length ${tr.length}`);
+		const rise = tier === 2 ? 0 : 12;
+		assert.ok(Math.abs(tr.length - Math.hypot(arc * 12, rise)) < 1, `length ${tr.length}`);
 		for (let i = 0; i < count(tr); i++) {
 			const p = pt(tr, i);
-			assert.ok(Math.abs(p.y - 109) < 1e-3);
+			if (tier === 2) assert.ok(Math.abs(p.y - 109) < 1e-3);
+			else if (i > 0) assert.ok(p.y >= pt(tr, i - 1).y - 1e-4, 'monotonic climb');
 			assert.ok(Math.abs(hdist(p, towerAnchor) - 12) < 0.1);
 		}
+		assert.ok(Math.abs(pt(tr, 0).y - 109) < 1e-3);
+		assert.ok(Math.abs(pt(tr, count(tr) - 1).y - (109 + rise)) < 1e-3);
 		const e = pt(tr, 0);
 		assert.ok(Math.abs(e.x - 500) < 0.1 && Math.abs(e.z - (-188)) < 0.1, 'entry on the drone side');
 	}
@@ -117,12 +121,64 @@ t('orbit: each attempt is 8 m wider and 6 m higher; the turn follows the seed', 
 	for (const id of ['wd:Q1', 'wd:Q2', 'wd:Q3', 'wd:Q4']) assert.equal(turnOf(id), turnDir(id), id);
 });
 
+t('orbit III never overlays itself: points more than 20 m apart along it stay 2 × tolerance apart', () => {
+	for (const attempt of [0, 2]) {
+		const tr = buildTrace({ signal: sig('CATHEDRAL'), anchor: towerAnchor, profile: towerProfile, tier: 3, approach: { x: 500, z: 100 }, attempt });
+		const min = 2 * tr.tolerance;
+		for (let i = 0; i < count(tr); i++) {
+			for (let j = i + 1; j < count(tr); j++) {
+				if (tr.cum[j] - tr.cum[i] <= 20) continue;
+				assert.ok(dist(pt(tr, i), pt(tr, j)) > min, `points ${i} and ${j}: ${dist(pt(tr, i), pt(tr, j))} m`);
+			}
+		}
+	}
+});
+
 t('orbit: the outline is the widest ring within 8 m of the top', () => {
 	// A 40 m wide block (radius 20 m ring reaches the top), a low annex at 35 m.
 	const a = { x: 0, y: 63, z: 0 };
 	const p = profileOf(a, (x, z) => (Math.hypot(x, z) <= 21 ? 60 : Math.hypot(x, z) <= 36 ? 20 : 0));
 	const tr = buildTrace({ signal: sig('CASTLE'), anchor: a, profile: p, tier: 2, approach: { x: 0, z: 300 } });
 	assert.ok(Math.abs(hdist(pt(tr, 0), a) - 32) < 0.1, `radius ${hdist(pt(tr, 0), a)}`);
+});
+
+t('orbit: a hill in one sector does not widen it, and it clears the surface at its radius', () => {
+	// A castle 30 m high out to 21 m; east of it a taller block from 25 m to
+	// 40 m (40 m high), then a hill rising to 150 m at the edge of the grid.
+	const a = { x: 0, y: 33, z: 0 };
+	const h = (x, z) => {
+		const r = Math.hypot(x, z);
+		if (r <= 21) return 30;
+		if (x > 0 && Math.abs(z) < x * 0.6) return r <= 40 ? 40 : Math.max(0, (r - 45) * 4);
+		return 0;
+	};
+	const p = profileOf(a, h);
+	assert.ok(p.top > 100, 'the grid-wide top is the hill');
+	for (const tier of [2, 3]) {
+		const tr = buildTrace({ signal: sig('CASTLE'), anchor: a, profile: p, tier, approach: { x: 0, z: 300 } });
+		const R = hdist(pt(tr, 0), a);
+		assert.ok(Math.abs(R - 32) < 0.1, `radius ${R}: the castle's 20 m ring + 12 m`);
+		let minY = Infinity;
+		for (let i = 0; i < count(tr); i++) {
+			const q = pt(tr, i);
+			minY = Math.min(minY, q.y);
+			assert.ok(q.y >= surfaceAt(p, a, q.x, q.z) + 6 - 1e-3, `point ${i} at ${q.y} under the surface + 6 m`);
+		}
+		assert.ok(minY > a.y + 6, 'raised over the taller block at its radius');
+	}
+});
+
+t('orbit: a low landmark on flat ground keeps a tight ring', () => {
+	// A 5 m statue on a 3 m plinth: the ground rings are not the landmark.
+	const a = { x: 0, y: 8, z: 0 };
+	const p = profileOf(a, (x, z) => (Math.hypot(x, z) < 3 ? 5 : 0));
+	const tr = buildTrace({ signal: sig('ATTRACTION'), anchor: a, profile: p, tier: 2, approach: { x: 0, z: 300 } });
+	assert.ok(Math.abs(hdist(pt(tr, 0), a) - 12) < 0.1, `radius ${hdist(pt(tr, 0), a)}`);
+});
+
+t('a partial profile builds no trace', () => {
+	assert.ok(buildTrace({ signal: sig('TOWER'), anchor: towerAnchor, profile: towerProfile, tier: 2, approach: { x: 0, z: 0 } }));
+	assert.equal(buildTrace({ signal: sig('TOWER'), anchor: towerAnchor, profile: { ...towerProfile, partial: true }, tier: 2, approach: { x: 0, z: 0 } }), null);
 });
 
 t('spiral: rises from ground + 15 m to top + 10 m around the tower, entry facing the drone', () => {
@@ -224,6 +280,21 @@ t('dive: from top + 40 m on the drone side, down the steepest face, 10 m above t
 		const last = pt(tr, count(tr) - 1);
 		assert.ok(last.x > pt(tr, 0).x + (tier === 2 ? 3 : 30), 'went east, the steepest face');
 		assert.ok(last.y < pt(tr, 0).y - 40, 'descended');
+	}
+});
+
+t('dive: a higher ridge in the grid is not the summit', () => {
+	// The peak (300 m) plus a 360 m ridge 70 m west of it.
+	const h = (x, z) => Math.max(peakH(x, z), x < -60 ? 360 : 0);
+	const p = profileOf(peakAnchor, h);
+	assert.ok(p.top >= 360);
+	const tr = buildTrace({ signal: sig('PEAK'), anchor: peakAnchor, profile: p, tier: 2, approach: { x: 0, z: -400 } });
+	const e0 = pt(tr, 0);
+	assert.ok(Math.abs(e0.y - 340) < 1e-3, `start ${e0.y}: 40 m over the peak, not the ridge`);
+	assert.ok(hdist(e0, peakAnchor) < 12, 'starts over the peak');
+	for (let i = 0; i < count(tr); i++) {
+		const q = pt(tr, i);
+		assert.ok(q.y >= surfaceAt(p, peakAnchor, q.x, q.z) + 10 - 0.5, `point ${i} too low`);
 	}
 });
 
@@ -335,6 +406,26 @@ t('follower: done at 99.5 % and sticky; dt = 0 freezes', () => {
 	assert.equal(s.state, 'done');
 	assert.equal(s.progress01, 1);
 	assert.equal(f.update({ dt: 0.05, pos: { x: 500, y: 0, z: 0 } }).state, 'done');
+});
+
+t('follower: a NaN position neither opens the gate nor moves the progress', () => {
+	const f = new TraceFollower({ trace: line, tolerance: 5 });
+	assert.equal(f.update({ dt: 0.05, pos: { x: NaN, y: 10, z: 0 } }).state, 'waiting');
+	fly(f, 0, 20);
+	const before = { ...f.out };
+	for (const bad of [{ x: NaN, y: 10, z: 0 }, { x: 20, y: NaN, z: 0 }, { x: 20, y: 10, z: Infinity }]) {
+		assert.deepEqual({ ...f.update({ dt: 0.05, pos: bad }) }, before);
+	}
+});
+
+t('follower: out.index is the segment the progress is on', () => {
+	const f = new TraceFollower({ trace: line, tolerance: 5 });
+	assert.equal(f.out.index, 0);
+	fly(f, 0, 21);
+	assert.equal(f.out.index, Math.floor(f.out.flownM / 2));
+	assert.ok(f.out.index >= 10);
+	f.reset();
+	assert.equal(f.out.index, 0);
 });
 
 t('follower: reuses its output object, and the tolerance defaults to the trace', () => {

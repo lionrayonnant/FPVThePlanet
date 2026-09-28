@@ -30,6 +30,7 @@ export const PASS_SHIFTS_M = [0, 8, -8]; // trace-model's per-attempt shifts alo
 export const VALIDATE_CLEAR = -1;
 export const VALIDATE_PENDING = -2;
 export const LIFT_BLEND_M = 30;
+const MIN_BLEND_M = 1e-3;
 
 const TAU = 2 * Math.PI;
 const GRID_N = 1 + (RINGS_M.length - 1) * ANGLES; // ring 0 is a single point
@@ -233,10 +234,24 @@ export class TraceProbe {
 		return VALIDATE_PENDING;
 	}
 
-	lift(trace, fromIndex, dy) {
+	// A collider flush changed the world: the next validate() starts afresh
+	// from its fromIndex (the unflown part), whatever the cursor had passed.
+	resetValidation() { this._vTrace = null; this._vCursor = 0; }
+
+	// blockedIndex (optional): the blend ends there, so the blocked point gets
+	// the full dy even when fromIndex is less than 30 m before it.
+	lift(trace, fromIndex, dy, blockedIndex = null) {
 		if (this._vTrace === trace) this._vTrace = null;
-		liftTrace(trace, fromIndex, dy);
+		liftTrace(trace, fromIndex, dy, blockedIndex === null ? LIFT_BLEND_M : liftBlend(trace, fromIndex, blockedIndex));
 	}
+}
+
+// The blend length for a lift from fromIndex that must be complete at blockedIndex.
+export function liftBlend(trace, fromIndex, blockedIndex) {
+	const cum = trace.cum, last = cum.length - 1;
+	const from = Math.min(last, Math.max(0, fromIndex | 0));
+	const b = Math.min(last, Math.max(from, blockedIndex | 0));
+	return Math.max(MIN_BLEND_M, Math.min(LIFT_BLEND_M, cum[b] - cum[from]));
 }
 
 // Where to start a lift so its 30 m blend ends at the blocked segment, never
@@ -250,19 +265,21 @@ export function liftStart(trace, blockedIndex, minIndex = 0) {
 }
 
 // Raises points ≥ fromIndex by dy, blended in with a smoothstep over the
-// first 30 m (the point at fromIndex does not move), in place; cum and length
-// recomputed. The part before fromIndex is untouched.
-export function liftTrace(trace, fromIndex, dy) {
+// first blendM metres (30 by default; the point at fromIndex does not move),
+// in place; cum and length recomputed. The part before fromIndex is untouched.
+export function liftTrace(trace, fromIndex, dy, blendM = LIFT_BLEND_M) {
 	const P = trace.points, cum = trace.cum, n = cum.length;
 	const from = Math.max(0, fromIndex | 0);
 	if (from >= n || !Number.isFinite(dy) || dy === 0) return trace;
 	const s0 = cum[from];
+	const blend = Math.max(MIN_BLEND_M, Number.isFinite(blendM) ? blendM : LIFT_BLEND_M);
 	for (let i = from; i < n; i++) {
-		const t = Math.min(1, (cum[i] - s0) / LIFT_BLEND_M);
+		const t = Math.min(1, (cum[i] - s0) / blend);
 		P[3 * i + 1] += dy * t * t * (3 - 2 * t);
 	}
-	// cum[i] only depends on the points ≤ i: recompute from the first moved one.
-	for (let i = Math.max(1, from); i < n; i++) {
+	// cum[i] only depends on the points ≤ i, and the point at fromIndex does
+	// not move: recompute from the next one (cum[from] kept bit for bit).
+	for (let i = from + 1; i < n; i++) {
 		cum[i] = cum[i - 1] + Math.hypot(P[3 * i] - P[3 * i - 3], P[3 * i + 1] - P[3 * i - 2], P[3 * i + 2] - P[3 * i - 1]);
 	}
 	trace.length = cum[n - 1];

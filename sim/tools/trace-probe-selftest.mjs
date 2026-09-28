@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {
 	TraceProbe, RINGS_M, ANGLES, VALIDATE_CLEAR, VALIDATE_PENDING, LIFT_BLEND_M,
-	liftTrace, liftStart,
+	liftTrace, liftStart, liftBlend,
 } from '../src/trace-probe.js';
 import { buildTrace } from './trace-model.mjs';
 
@@ -232,9 +232,9 @@ t('validate: finds the first blocked segment, incrementally, within the budget',
 	assert.ok(trace && trace.shape === 'orbit');
 	const p = new TraceProbe({ ...w, raysPerFrame: 7 });
 	assert.equal(validateAll(p, trace), VALIDATE_CLEAR);
-	// A 3 m block on the path around point 30.
-	const P = trace.points, c = 3 * 30;
-	w.boxes.push(box(P[c] - 1.5, P[c] + 1.5, P[c + 2] - 1.5, P[c + 2] + 1.5, P[c + 1] - 1.5, P[c + 1] + 1.5));
+	// 3 m blocks on the path around points 30 and 70.
+	const P = trace.points;
+	for (const c of [3 * 30, 3 * 70]) w.boxes.push(box(P[c] - 1.5, P[c] + 1.5, P[c + 2] - 1.5, P[c + 2] + 1.5, P[c + 1] - 1.5, P[c + 1] + 1.5));
 	const expect = firstBlocked(w, trace);
 	assert.ok(expect >= 28 && expect <= 30, `brute ${expect}`);
 	let r = VALIDATE_PENDING, calls = 0;
@@ -246,10 +246,10 @@ t('validate: finds the first blocked segment, incrementally, within the budget',
 	}
 	assert.equal(r, expect);
 	assert.equal(calls, Math.ceil((expect + 1) / 7));
-	// From past the block: the next block (a 1.5-turn orbit passes the spot
-	// again). A definite answer ends the job, the next call starts afresh.
+	// From past the block: the next block. A definite answer ends the job,
+	// the next call starts afresh.
 	const again = firstBlocked(w, trace, expect + 3);
-	assert.ok(again > expect + 3);
+	assert.ok(again >= 68 && again <= 70, `again ${again}`);
 	assert.equal(validateAll(p, trace, expect + 3), again);
 	assert.equal(validateAll(p, trace, again + 3), firstBlocked(w, trace, again + 3));
 	assert.equal(validateAll(p, trace, 0), expect);
@@ -268,6 +268,26 @@ t('validate: the cursor jumps ahead with fromIndex, and restarts on a new trace'
 	assert.equal(validateAll(p, other, 0, 1000), VALIDATE_CLEAR);
 	assert.equal(w.calls.obs, segs, 'a new trace is validated from its start');
 	assert.ok(before > 0);
+});
+
+t('resetValidation: after a collider flush the cursor restarts from fromIndex', () => {
+	const w = building();
+	const trace = orbitOn(w);
+	const p = new TraceProbe({ ...w, raysPerFrame: 10 });
+	const q = new TraceProbe({ ...w, raysPerFrame: 10 });
+	for (const x of [p, q]) {
+		assert.equal(x.validate(trace, 0), VALIDATE_PENDING);
+		assert.equal(x.validate(trace, 0), VALIDATE_PENDING); // the cursor is at 20
+	}
+	// The flush refines a collider behind the cursor, ahead of the drone.
+	const P = trace.points, c = 3 * 8;
+	w.boxes.push(box(P[c] - 1.5, P[c] + 1.5, P[c + 2] - 1.5, P[c + 2] + 1.5, P[c + 1] - 1.5, P[c + 1] + 1.5));
+	const expect = firstBlocked(w, trace, 2);
+	assert.ok(expect >= 6 && expect <= 8, `brute ${expect}`);
+	// Without the reset the job carries on from 20 and misses it.
+	assert.equal(validateAll(q, trace, 2), VALIDATE_CLEAR, 'the case under test');
+	p.resetValidation();
+	assert.equal(validateAll(p, trace, 2), expect);
 });
 
 t('lift: the flown part is kept, a 30 m smoothstep blend, then + dy; cum and length recomputed', () => {
@@ -298,7 +318,7 @@ t('lift: the flown part is kept, a 30 m smoothstep blend, then + dy; cum and len
 	}
 	assert.equal(trace.length, trace.cum[m - 1]);
 	assert.ok(trace.length > cum0[m - 1], 'the climb adds length');
-	// The level orbit: the lifted part stays level (no slope beyond the blend).
+	// dy = 0 changes nothing.
 	liftTrace(trace, 0, 0);
 	assert.equal(trace.length, trace.cum[m - 1], 'dy = 0 is a no-op');
 });
@@ -311,6 +331,29 @@ t('liftStart: 30 m before the block, never into the flown part', () => {
 	assert.equal(liftStart(trace, 5, 0), 0);
 });
 
+t('lift with the blocked index: a block close to the drone still gets the full lift', () => {
+	const w = building();
+	const trace = orbitOn(w);
+	const P0 = Float32Array.from(trace.points);
+	const blocked = 25, min = 20; // the drone is 10 m before the block
+	const from = liftStart(trace, blocked, min);
+	assert.equal(from, min);
+	const blend = liftBlend(trace, from, blocked);
+	near(blend, trace.cum[blocked] - trace.cum[from], 1e-4, 'blend ends at the block');
+	const p = new TraceProbe({ ...w });
+	p.lift(trace, from, 8, blocked);
+	near(trace.points[3 * blocked + 1] - P0[3 * blocked + 1], 8, 1e-4, 'full dy at the block');
+	near(trace.points[3 * from + 1], P0[3 * from + 1], 0, 'the start does not move');
+	for (let i = blocked; i < trace.cum.length; i++) near(trace.points[3 * i + 1] - P0[3 * i + 1], 8, 1e-4, `point ${i}`);
+	// Without it, the 30 m default only clears part of it there.
+	const t2 = orbitOn(w), Q0 = Float32Array.from(t2.points);
+	p.lift(t2, from, 8);
+	assert.ok(t2.points[3 * blocked + 1] - Q0[3 * blocked + 1] < 6, 'the case under test');
+	// Far enough away, the blend is the 30 m default; at the block itself, a step.
+	assert.equal(liftBlend(trace, liftStart(trace, 60, 0), 60), LIFT_BLEND_M);
+	assert.ok(liftBlend(trace, 25, 25) > 0);
+});
+
 t('lift then validate: a blocked orbit clears once lifted over the block', () => {
 	const w = building();
 	const trace = orbitOn(w);
@@ -319,7 +362,7 @@ t('lift then validate: a blocked orbit clears once lifted over the block', () =>
 	const p = new TraceProbe({ ...w });
 	const hit = validateAll(p, trace, 10);
 	assert.ok(hit >= 45 && hit <= 50, `hit ${hit}`);
-	p.lift(trace, liftStart(trace, hit, 10), 8);
+	p.lift(trace, liftStart(trace, hit, 10), 8, hit);
 	assert.equal(validateAll(p, trace, 10), VALIDATE_CLEAR);
 });
 

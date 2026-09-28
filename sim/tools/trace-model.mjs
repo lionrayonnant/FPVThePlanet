@@ -7,6 +7,7 @@
 // index k of n sits at (anchor.x + r·cos θ, anchor.z + r·sin θ), θ = 2πk/n —
 // the same convention as src/signal-anchor.js. Heights are absolute Y; a
 // non-finite height reads as `profile.ground`.
+import { ABOVE_M as ANCHOR_ABOVE_M, RING_M as ANCHOR_RING_M } from '../src/signal-anchor.js';
 
 export const SPACING_M = 2;
 export const TOLERANCE_M = { 2: 5, 3: 3.5 };
@@ -18,12 +19,16 @@ export const PHOTO_CONE_DEG = 35;
 export const MAX_ATTEMPTS = 3;
 
 // Orbit / spiral.
-const OUTLINE_BAND_M = 8;     // a ring counts in the outline if it reaches top − 8 m
+const OUTLINE_BAND_M = 8;     // a ring is the landmark's if it reaches within 8 m of its top (and not 8 m over)
 const RADIUS_MARGIN_M = 12;
 const RADIUS_STEP_M = 8;      // per attempt
 const ORBIT_ABOVE_M = 6;      // above the anchor (the anchor already sits above the top)
+const ORBIT_OVER_SURF_M = 6;  // above the profile at the radius
 const ALT_STEP_M = 6;         // per attempt
 const ARC = { 2: Math.PI, 3: 3 * Math.PI };
+// Tier III orbit: a helix, so its 1.5 turns never overlay. 8 m per turn keeps
+// two passes over each other more than 2 × 3.5 m apart.
+const ORBIT_RISE_PER_TURN_M = 8;
 const SPIRAL_TURNS = { 2: 0.5, 3: 1.5 };
 const SPIRAL_FLOOR_M = 15;    // above the ground
 const SPIRAL_OVER_SURF_M = 6; // above the profile at the radius
@@ -119,10 +124,30 @@ function ringMax(profile, ring) {
 	return m === -Infinity ? profile.ground : m;
 }
 
-// The structure's radius: the widest ring that still reaches within 8 m of the top.
-function outlineRadius(profile) {
+// The landmark's own top: the anchor sits ABOVE_M over the highest hit near
+// its OSM point (src/signal-anchor.js). The grid-wide `top` may be a hillside
+// or a taller neighbour.
+function landmarkTop(anchor) { return anchor.y - ANCHOR_ABOVE_M; }
+
+// The landmark's radius: rings scanned outward while they reach its band —
+// [top − 8 m, top + 8 m], and above half its height over the ground (a low
+// landmark) — stopping at the first that does not (a separate hill or a
+// taller neighbour further out is not the landmark). Rings inside the
+// anchor's own probe ring never stop the scan (an OSM point in a courtyard).
+function outlineRadius(profile, anchor) {
+	const lt = landmarkTop(anchor);
+	const lo = Math.max(lt - OUTLINE_BAND_M, profile.ground + (lt - profile.ground) / 2);
+	const hi = lt + OUTLINE_BAND_M;
 	let r = 0;
-	for (const ring of profile.rings) if (ringMax(profile, ring) >= profile.top - OUTLINE_BAND_M && ring.r > r) r = ring.r;
+	for (const ring of profile.rings) {
+		let reaches = false;
+		for (const h0 of ring.heights) {
+			const h = Number.isFinite(h0) ? h0 : profile.ground;
+			if (h >= lo && h <= hi) { reaches = true; break; }
+		}
+		if (reaches) r = Math.max(r, ring.r);
+		else if (ring.r >= ANCHOR_RING_M) break;
+	}
 	return r;
 }
 
@@ -139,7 +164,8 @@ function maxAtRadius(profile, anchor, R) {
 }
 
 function validProfile(p) {
-	return p && Array.isArray(p.rings) && p.rings.length > 0 && Number.isFinite(p.ground) && Number.isFinite(p.top)
+	// A partial profile read unstreamed geometry as ground: no trace from it.
+	return p && !p.partial && Array.isArray(p.rings) && p.rings.length > 0 && Number.isFinite(p.ground) && Number.isFinite(p.top)
 		&& p.rings.every((ring) => Number.isFinite(ring.r) && ring.heights && ring.heights.length > 0);
 }
 
@@ -167,17 +193,19 @@ function buildRing({ anchor, R, theta0, dir, arc, y0, y1 }) {
 
 function buildOrbit(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
-	const R = outlineRadius(profile) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
-	const y = anchor.y + ORBIT_ABOVE_M + attempt * ALT_STEP_M;
-	return buildRing({ anchor, R, theta0, dir, arc: ARC[tier], y0: y, y1: y });
+	const R = outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
+	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxAtRadius(profile, anchor, R) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
+	// Tier II (half a turn) stays level; tier III climbs so its turns never overlay.
+	const rise = tier >= 3 ? ORBIT_RISE_PER_TURN_M * ARC[tier] / TAU : 0;
+	return buildRing({ anchor, R, theta0, dir, arc: ARC[tier], y0: y, y1: y + rise });
 }
 
 function buildSpiral(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
-	const R = outlineRadius(profile) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
+	const R = outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M;
 	const lift = attempt * ALT_STEP_M;
 	const y0 = Math.max(profile.ground + SPIRAL_FLOOR_M, maxAtRadius(profile, anchor, R) + SPIRAL_OVER_SURF_M) + lift;
-	const y1 = Math.max(profile.top + SPIRAL_OVER_TOP_M + lift, y0 + SPIRAL_OVER_TOP_M);
+	const y1 = Math.max(landmarkTop(anchor) + SPIRAL_OVER_TOP_M + lift, y0 + SPIRAL_OVER_TOP_M);
 	return buildRing({ anchor, R, theta0, dir, arc: SPIRAL_TURNS[tier] * TAU, y0, y1 });
 }
 
@@ -224,7 +252,7 @@ function buildUnder(ctx) {
 	return raw;
 }
 
-// Start 40 m above the top, 10 m from the summit towards the drone, then down
+// Start 40 m above the landmark's top, 10 m from its summit towards the drone, then down
 // the steepest face (the angle whose outer ring drops most), never closer than
 // 10 m to the probed surface, ending 10 m above the lowest probed point when
 // the path length (60 m / 160 m) allows it.
@@ -233,9 +261,11 @@ function buildDive(ctx) {
 	const rings = profile.rings;
 	const outer = rings[rings.length - 1];
 	const n = outer.heights.length;
-	// Summit: the highest grid point.
+	// Summit: the highest grid point inside the anchor's probe ring (a higher
+	// ridge further out is not this landmark).
 	let sx = anchor.x, sz = anchor.z, best = -Infinity;
 	for (const ring of rings) {
+		if (ring.r > ANCHOR_RING_M) continue;
 		const m = ring.heights.length;
 		for (let k = 0; k < m; k++) {
 			const h = ring.heights[k];
@@ -259,7 +289,7 @@ function buildDive(ctx) {
 	const Ex = anchor.x + outer.r * Math.cos(thE), Ez = anchor.z + outer.r * Math.sin(thE);
 	const H = Math.hypot(Ex - Sx, Ez - Sz);
 	const clr = DIVE_CLEAR_M + attempt * DIVE_CLEAR_STEP_M;
-	const yStart = profile.top + DIVE_ABOVE_TOP_M + attempt * ALT_STEP_M;
+	const yStart = Math.max(landmarkTop(anchor) + DIVE_ABOVE_TOP_M, surfaceAt(profile, anchor, Sx, Sz) + clr) + attempt * ALT_STEP_M;
 	const yEnd = profile.ground + clr;
 	const L = DIVE_LENGTH_M[tier];
 	const drop = yStart - yEnd;
@@ -347,7 +377,8 @@ export class TraceFollower {
 	constructor({ trace, tolerance }) {
 		this.trace = trace;
 		this.tolerance = Number.isFinite(tolerance) ? tolerance : trace.tolerance;
-		this.out = { state: 'waiting', progress01: 0, offS: 0, flownM: 0, fade01: 0, elapsedS: 0 };
+		// index: the segment the progress is on (its start point), for liftStart's minIndex.
+		this.out = { state: 'waiting', progress01: 0, offS: 0, flownM: 0, fade01: 0, elapsedS: 0, index: 0 };
 		this._s = 0;
 		this._seg = 0;
 		this._fading = false;
@@ -355,13 +386,14 @@ export class TraceFollower {
 
 	reset() {
 		const o = this.out;
-		o.state = 'waiting'; o.progress01 = 0; o.offS = 0; o.flownM = 0; o.fade01 = 0; o.elapsedS = 0;
+		o.state = 'waiting'; o.progress01 = 0; o.offS = 0; o.flownM = 0; o.fade01 = 0; o.elapsedS = 0; o.index = 0;
 		this._s = 0; this._seg = 0; this._fading = false;
 	}
 
 	update({ dt, pos }) {
 		const o = this.out;
 		if (!(dt > 0) || o.state === 'done' || !pos) return o;
+		if (!(Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z))) return o;
 		const { points: P, cum, length } = this.trace;
 		const tol = this.tolerance;
 		if (o.state === 'waiting') {
@@ -408,6 +440,7 @@ export class TraceFollower {
 			if (o.offS >= OFF_RESET_S) { this._fading = true; o.fade01 = Math.min(1, (o.offS - OFF_RESET_S) / FADE_S); }
 		}
 		o.flownM = this._s;
+		o.index = this._seg;
 		o.progress01 = length > 0 ? Math.min(1, this._s / length) : 0;
 		if (o.progress01 >= DONE_FRAC) { o.state = 'done'; o.progress01 = 1; o.flownM = length; o.offS = 0; }
 		return o;
