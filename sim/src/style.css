@@ -370,7 +370,11 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 #fo-signal .hd .dist { color: var(--dim); }
 #fo-signal .gauge { display: flex; gap: var(--space-0); margin-block: var(--space-1); }
 #fo-signal .gauge i { flex: 1; height: 6px; background: var(--grey); }
-#fo-signal .rows .k { display: inline-block; width: 7.5em; color: var(--faint); }
+/* A long value (a scrambled name, a long landmark) wraps in its own column,
+   never back under the key. */
+#fo-signal .rows > div { display: flex; }
+#fo-signal .rows .k { flex: none; width: 7.5em; color: var(--faint); }
+#fo-signal .rows .v { min-width: 0; overflow-wrap: anywhere; }
 #fo-signal .rows .v[data-clear="false"] { color: var(--faint); font-family: var(--font-ascii); }
 #fo-signal[data-tone="orange"] .fo-signal-box { border-color: var(--orange); }
 #fo-signal[data-tone="orange"] .hd span:first-child { color: var(--orange); }
