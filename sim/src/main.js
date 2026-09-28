@@ -46,7 +46,7 @@ import { resolveBenchAirframe } from '../tools/bench-airframe.mjs';
 import * as session from './session.js';
 import { runTargetScan } from './target-scan.js';
 import { generateTargetScan, swarmChanceFor } from '../tools/target-model.mjs';
-import { clearanceOf, familiesFor, swarmAllowed, tierAllowed, pointsOf, crossed, LEVELS } from '../tools/signal-clearance-model.mjs';
+import { clearanceOf, familiesFor, swarmAllowed, tierAllowed, pointsOf, crossed, levelForTier } from '../tools/signal-clearance-model.mjs';
 import { parseSwarmFlag, parseSceneFlag, devFamilies } from '../tools/dev-flags.mjs';
 import { runHack } from './hack.js';
 import { normalizeHackType } from '../tools/hack-model.mjs';
@@ -800,8 +800,6 @@ let nextSignal = null;           // { distM, relRad } | null
 let nextSignalAt = 0;
 // The state of the row the callout box shows this frame (null: box hidden).
 let calloutState = null;
-// The level that first opens a tier: what an encrypted target's callout asks for.
-const needFor = (tier) => { const i = LEVELS.findIndex((l) => l.tiers.includes(tier)); return i < 0 ? null : i; };
 
 // Assisted turtle mode (#105). Fed INSIDE the fixed-step loop, like the area
 // fence: its torque has to leave in the same step as the thrust, and its damping
@@ -2225,7 +2223,7 @@ function armSignals() {
 		// level that opens its tier (the callout's ENCRYPTED · CLEARANCE n). A
 		// copy: the shared source's objects stay untouched.
 		flightSignals = src.signals().filter((s) => distanceM(home, s) <= FLIGHT_RADIUS_M).map((s) => (
-			!done.has(s.id) && !tierAllowed(flightClearance, s.tier) ? { ...s, encrypted: true, need: needFor(s.tier) } : s));
+			!done.has(s.id) && !tierAllowed(flightClearance, s.tier) ? { ...s, encrypted: true, need: levelForTier(s.tier) } : s));
 		signalAnchors.set(flightSignals);
 		signalTargets = flightSignals.map((s) => ({ id: s.id, tier: s.tier, pos: null, resolved: done.has(s.id), encrypted: !!s.encrypted }));
 		signalCapture.setTargets(signalTargets);

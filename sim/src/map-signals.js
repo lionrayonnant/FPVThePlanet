@@ -95,8 +95,8 @@ export function createSignalsLayer(L, {
 		// ASCII noise; its hairline flickers. Drawing the tile images taints the
 		// canvas — fine, it is never read back. A z12 tile is 4096 px wide at
 		// zoom 16 and 131072 px at 21: the slices and the noise cover only its
-		// part on screen (`v`), the full rect `r` sets the hairline and the
-		// slice displacement.
+		// part on screen (`v`), which also scales the slice displacement; the full
+		// rect `r` only draws the hairline.
 		_drawGlitch(ctx, r, size) {
 			const map = this._map;
 			const x0 = Math.max(r.x, 0), y0 = Math.max(r.y, 0);
@@ -128,7 +128,7 @@ export function createSignalsLayer(L, {
 			let y = v.y;
 			for (let i = 0; i < GLITCH_SLICES && y < v.y + v.h; i++) {
 				const hh = i === GLITCH_SLICES - 1 ? v.y + v.h - y : Math.max(4, Math.random() * v.h / GLITCH_SLICES * 1.8);
-				const dx = Math.random() < 0.5 ? (Math.random() - 0.5) * r.w * GLITCH_SHIFT : 0;
+				const dx = Math.random() < 0.5 ? (Math.random() - 0.5) * v.w * GLITCH_SHIFT : 0;
 				ctx.save();
 				ctx.beginPath();
 				ctx.rect(v.x, y, v.w, hh);
