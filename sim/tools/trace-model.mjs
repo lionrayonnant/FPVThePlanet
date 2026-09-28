@@ -17,6 +17,7 @@ export const OFF_RESET_S = 10;
 export const FADE_S = 2;
 export const DONE_FRAC = 0.995;
 export const PHOTO_CONE_DEG = 35;
+export const PHOTO_HIT_SLACK_M = 6; // a line-of-sight hit this close to the landmark still sees it
 export const MAX_ATTEMPTS = 3;
 
 // Orbit / spiral.
@@ -552,15 +553,29 @@ export function photoScore({ angleDeg, los }) {
 
 // Where the photo aims: the landmark's mid-height over the anchor's point,
 // (profile ground + anchor.y) / 2 — the anchor sits on the top (the Eiffel
-// Tower's spire tip), so aiming there kept a photo of the tip alone. `r` is
-// the landmark's radius at that height: the line-of-sight test stops that far
-// (plus its margin) short of the point, which sits inside the landmark. No
-// usable profile: the anchor itself, r = 0.
+// Tower's spire tip), so aiming there kept a photo of the tip alone. No
+// usable profile: the anchor itself. The line of sight is photoInSight().
 export function photoAim(anchor, profile) {
 	if (!anchor || ![anchor.x, anchor.y, anchor.z].every(Number.isFinite)) return null;
-	if (!validProfile(profile) || !(profile.ground < anchor.y)) return { x: anchor.x, y: anchor.y, z: anchor.z, r: 0 };
-	const y = (profile.ground + anchor.y) / 2;
-	return { x: anchor.x, y, z: anchor.z, r: radiusAtHeight(profile, anchor, y) };
+	if (!validProfile(profile) || !(profile.ground < anchor.y)) return { x: anchor.x, y: anchor.y, z: anchor.z };
+	return { x: anchor.x, y: (profile.ground + anchor.y) / 2, z: anchor.z };
+}
+
+// The photo's line of sight, cam -> aim, given where the ray first hit
+// (hitM, metres from cam; Infinity when clear). The aim sits inside the
+// landmark, so a hit on the landmark itself is a view of it: within
+// PHOTO_HIT_SLACK_M of the aim, or no further from the anchor's vertical than
+// the landmark's radius at the hit's height (+ the slack). Anything else in
+// front of it — a neighbour, the ground — blocks the photo.
+export function photoInSight(cam, aim, hitM, anchor, profile) {
+	if (!(hitM < Infinity)) return true;
+	const dx = aim.x - cam.x, dy = aim.y - cam.y, dz = aim.z - cam.z;
+	const d = Math.hypot(dx, dy, dz);
+	if (!(d > 1e-6) || d - hitM <= PHOTO_HIT_SLACK_M) return true;
+	const k = hitM / d;
+	const hx = cam.x + dx * k, hy = cam.y + dy * k, hz = cam.z + dz * k;
+	if (!anchor || !validProfile(profile) || !(hy > profile.ground + PHOTO_HIT_SLACK_M)) return false;
+	return Math.hypot(hx - anchor.x, hz - anchor.z) <= radiusAtHeight(profile, anchor, hy) + PHOTO_HIT_SLACK_M;
 }
 
 // Angle (degrees) between the camera's forward {fx, fy, fz} and the direction to p.

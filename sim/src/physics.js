@@ -183,7 +183,7 @@ export class Physics {
 		this._windRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 		// rayUp()'s own: the trace probe casts it from the render loop.
 		this._upRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
-		this._obstruction = { blocked: false, span: 0 };
+		this._obstruction = { blocked: false, span: 0, hitM: Infinity };
 		// Vertical force budget (diagnostics). Null until beginForceBudget().
 		this._budget = null;
 	}
@@ -694,6 +694,7 @@ export class Physics {
 		const r = this._obstruction;
 		r.blocked = false;
 		r.span = 0;
+		r.hitM = Infinity; // metres from a to the first hit
 
 		const dx = bx - ax, dy = by - ay, dz = bz - az;
 		const distance = Math.hypot(dx, dy, dz);
@@ -710,6 +711,7 @@ export class Physics {
 		const out = this.world.castRay(ray, distance, true, undefined, undefined, this.collider);
 		if (!out) return r;
 		r.blocked = true;
+		r.hitM = out.timeOfImpact;
 
 		ray.origin.x = bx; ray.origin.y = by; ray.origin.z = bz;
 		ray.dir.x = -nx; ray.dir.y = -ny; ray.dir.z = -nz;

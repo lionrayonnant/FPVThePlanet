@@ -73,7 +73,7 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalTraces } from './signal-traces.js';
 import { TraceLine } from './trace-line.js';
-import { photoScore, photoAim, viewAngleDeg, shapeOf } from '../tools/trace-model.mjs';
+import { photoScore, photoAim, photoInSight, viewAngleDeg, shapeOf } from '../tools/trace-model.mjs';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -2371,9 +2371,9 @@ if (import.meta.env?.DEV) {
 		},
 		// Flies the drone along the active trace at `speed` m/s (poses, not
 		// physics): through the gate, to the end. The nose on the landmark
-		// (look 'anchor') or along the path ('path'). Resolves once the trace
-		// leaves the world, or on stopFly() (the drone then stays where it is,
-		// off the thread). Arms the machine: a disarmed one transmits nothing.
+		// (look 'anchor'), on the photo's aim ('aim') or along the path
+		// ('path'). Resolves once the trace leaves the world, or on stopFly()
+		// (the drone then stays where it is, off the thread). Arms the machine: a disarmed one transmits nothing.
 		flyTrace: (speed = 8, { look = 'anchor', from = 0 } = {}) => new Promise((resolve) => {
 			const gen = ++flyTraceGen;
 			const trace = signalTraces.trace;
@@ -2400,15 +2400,28 @@ if (import.meta.env?.DEV) {
 				s = Math.min(trace.length, s + speed * dt);
 				if (s >= trace.length && (overS += dt) > 3) { resolve({ id, uplinked: false, stuck: window.__signals.trace() }); return; }
 				const [x, y, z] = at(s);
-				const [tx, ty, tz] = look === 'path' ? at(Math.min(trace.length, s + 4)) : [anchor.x, anchor.y - 10, anchor.z];
+				const aim = look === 'aim' ? photoAim(anchor, signalTraces.profile) : null;
+				const [tx, ty, tz] = look === 'path' ? at(Math.min(trace.length, s + 4))
+					: aim ? [aim.x, aim.y, aim.z] : [anchor.x, anchor.y - 10, anchor.z];
 				const heading = bearingTo(tx - x, tz - z);
-				const pitch = Math.atan2(ty - y, Math.hypot(tx - x, tz - z));
+				// 'aim' points the camera, not the nose: minus the uptilt.
+				const pitch = Math.atan2(ty - y, Math.hypot(tx - x, tz - z)) - (aim ? cameraTilt * Math.PI / 180 : 0);
 				window.__signals.pose(x, y, z, heading, pitch);
 				requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);
 		}),
 		stopFly: () => { flyTraceGen++; },
+		// The trace photo's aim from the camera now: point, angle, line of sight, score.
+		photo: () => {
+			const aim = photoAim(signalTraces.anchor, signalTraces.profile);
+			if (!aim) return null;
+			_sigFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+			const cam = { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: _sigFwd.x, fy: _sigFwd.y, fz: _sigFwd.z };
+			const angleDeg = viewAngleDeg(cam, aim), los = aimInSight(cam, aim);
+			const hitM = physics.obstructionBetween(cam.x, cam.y, cam.z, aim.x, aim.y, aim.z).hitM;
+			return { aim, hitM, angleDeg, los, score: photoScore({ angleDeg, los }) };
+		},
 	};
 }
 
@@ -2511,12 +2524,11 @@ function scoreTracePhoto(dt, cam) {
 	if (score !== null && score > (traceBest?.id === id ? traceBest.score + TRACE_PHOTO_MARGIN : -1)) pendingTracePhoto = { id, score };
 }
 
-// The line of sight to a photo aim: stopped short by the landmark's radius at
-// that height plus the 6 m the anchor's test keeps (the point is inside it).
+// The line of sight to a photo aim: the ray's first hit, judged by the model
+// (a hit on the landmark itself still sees it).
 function aimInSight(cam, aim) {
-	const dx = aim.x - cam.x, dy = aim.y - cam.y, dz = aim.z - cam.z;
-	const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - aim.r - 6) / d) : 0;
-	return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
+	const o = physics.obstructionBetween(cam.x, cam.y, cam.z, aim.x, aim.y, aim.z);
+	return photoInSight(cam, aim, o.hitM, signalTraces.anchor, signalTraces.profile);
 }
 
 // The one way a photo is taken (the manual one, a trace's best view, the

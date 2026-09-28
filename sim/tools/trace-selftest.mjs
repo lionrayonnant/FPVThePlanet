@@ -4,7 +4,7 @@
 // Run: node tools/trace-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, viewAngleDeg,
+	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg,
 	SPACING_M, TOLERANCE_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
@@ -511,17 +511,32 @@ t('photoScore: 1 at the centre, 0 at the edge of the 35° cone, null outside or 
 	assert.equal(photoScore({ angleDeg: NaN, los: true }), null);
 });
 
-t('photoAim: the landmark at mid-height with its radius there; no profile, the anchor', () => {
-	// A 300 m block, 25 m in radius: the 20 m ring reaches mid-height, the 35 m one does not.
-	const a = { x: 0, y: 303, z: 0 };
-	const p = profileOf(a, (x, z) => (Math.hypot(x, z) <= 25 ? 300 : 0));
-	const aim = photoAim(a, p);
-	assert.equal(aim.x, 0); assert.equal(aim.z, 0);
-	assert.ok(Math.abs(aim.y - 151.5) < 1e-9, `mid-height ${aim.y}`);
-	assert.ok(aim.r > 20 && aim.r < 35, `radius at mid-height ${aim.r}`);
-	assert.deepEqual(photoAim(a, null), { ...a, r: 0 });
-	assert.deepEqual(photoAim(a, { ...p, partial: true }), { ...a, r: 0 });
-	assert.equal(photoAim(null, p), null);
+// A 300 m block, 25 m in radius, on flat ground at 0.
+const blockA = { x: 0, y: 303, z: 0 };
+const blockP = profileOf(blockA, (x, z) => (Math.hypot(x, z) <= 25 ? 300 : 0));
+
+t('photoAim: the landmark at mid-height; no profile, the anchor', () => {
+	const aim = photoAim(blockA, blockP);
+	assert.deepEqual(aim, { x: 0, y: 151.5, z: 0 });
+	assert.deepEqual(photoAim(blockA, null), blockA);
+	assert.deepEqual(photoAim(blockA, { ...blockP, partial: true }), blockA);
+	assert.equal(photoAim(null, blockP), null);
+});
+
+t('photoInSight: clear, or a hit on the landmark itself; a neighbour or the ground blocks', () => {
+	const aim = photoAim(blockA, blockP);
+	const cam = { x: 200, y: 151.5, z: 0 };
+	assert.equal(photoInSight(cam, aim, Infinity, blockA, blockP), true);
+	// The block's face, 25 m out from its axis: 175 m along the ray.
+	assert.equal(photoInSight(cam, aim, 175, blockA, blockP), true);
+	// Something 100 m out from the axis, in front of it.
+	assert.equal(photoInSight(cam, aim, 100, blockA, blockP), false);
+	// The ground in front: a camera low and far, the hit near the ground.
+	const low = { x: 400, y: 1, z: 0 };
+	assert.equal(photoInSight(low, aim, 30, blockA, blockP), false);
+	// No profile (the aim is the anchor): only a hit within the slack of it.
+	assert.equal(photoInSight(cam, blockA, Math.hypot(200, 151.5) - 5, blockA, null), true);
+	assert.equal(photoInSight(cam, blockA, 50, blockA, null), false);
 });
 
 t('viewAngleDeg: 0 dead ahead, 90 abeam, 180 behind', () => {
