@@ -4068,10 +4068,12 @@ briefing, end screen). Design: Bible §49; player docs: `docs/manual.md`,
 
 ### Lot 4 — the trace (2026-09-28)
 
-Tier II/III signals are captured by flying a thread laid around the place
-(spiral / under / dive / orbit by kind; tier III orbit is a helix rising 8 m
+Every signal, tier I included, is captured by flying a thread laid around
+the place (spiral / under / dive / orbit by kind; tier I is the lightest form —
+half a turn, 15 m tolerance, dive ≥ 40 m; tier III orbit is a helix rising 8 m
 per turn; the spiral wraps the whole structure, radius per height, ≤ 30°
-climb). Tier I keeps the hold. Design: Bible §49 *Le fil*; rules and shapes:
+climb). The hold is only the fallback when no thread can be laid. One trace at
+a time; a trace not entered yet yields only to a place 100 m nearer for 2 s. Design: Bible §49 *Le fil*; rules and shapes:
 `docs/manual.md`, *Signals and clearance*; spec and plan in
 `docs/superpowers/`. The scanner now scans from zoom 13.
 
@@ -4117,4 +4119,14 @@ seeded to clearance 2, drone driven by `__signals.flyTrace`):**
   link pinned at 0.30 and 0.18: the colour fades, jitters and tears with the
   line, no ghost. The motion smear of a fast pass is not checked by eye.
 - `?live=` without an operator has clearance 0: every tier II/III is
-  encrypted there, so no trace (unchanged rule).
+  encrypted there, so no trace for them (unchanged rule).
+
+**Tier I threads — verified by eye (Chromium, `?live=` Paris, operator
+HANGAR, clearance 3):** Notre-Dame (tier I) gets a level half-turn orbit
+(R 32 m, 100 m long); the gate is entered at 14 m and not at 16.5 m (15 m
+tolerance); flown with `flyTrace` to `UPLINKED`, stored `trace: 'orbit'`.
+Memorial of the Deportation flown to `UPLINKED`, card `TRACE ORBIT · 11.2 s`.
+A 67 s sweep across the Latin Quarter at 12 m/s (dozens of tier I places)
+changed the active trace 3 times, no bounce; no probe failure; frame p50
+10 ms, p99 20 ms, worst 30 ms. Small churches in dense blocks get the 50 m
+capped orbit (their neighbours reach the landmark's height band).

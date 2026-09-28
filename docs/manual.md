@@ -417,9 +417,9 @@ map, a filled yellow light is a signal to capture, a hollow green ring with a
 tick one already uplinked, a small dim dot one above your clearance.
 
 **In flight**, the signals within 3 km of take-off carry a callout anchored on
-the real building. Hold a tier I signal in the FPV frame (20° cone, 5 s; the
-gauge drains when it leaves the frame) — tier II and III are flown instead, see
-*The trace* below — and its OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
+the real building. Fly its thread (*The trace* below) — or, where no thread
+can be laid, hold it in the FPV frame (20° cone, 5 s; the gauge drains when it
+leaves the frame) — and its OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
 frame joins the session's photos, and a crash loses only what was not yet
 uplinked. When control is acquired a one-shot notice gives the scan's state
 (`[+] 49 SIGNALS IN RANGE`), and the OSD's `NEXT SIGNAL 1.2 km ↗` line points
@@ -428,19 +428,21 @@ facts from Wikidata / Wikimedia Commons, credited, with a link to the Commons
 file page.
 
 **The trace** (`tools/trace-model.mjs`, `src/trace-probe.js`,
-`src/signal-traces.js`, `src/trace-line.js`). A tier II or III signal is
-captured by flying a thread laid in the air around it. Within 300 m
-(horizontal) of the nearest open, non-encrypted tier II/III signal, the game
-probes the collision world around it (budgeted rays per frame), builds the
-shape over the probed profile, and validates every segment against the
-colliders; one trace at a time. The shape comes from the signal's kind:
+`src/signal-traces.js`, `src/trace-line.js`). Every signal, whatever its
+tier, is captured by flying a thread laid in the air around it. Within 300 m
+(horizontal) of the nearest open, non-encrypted signal, the game probes the
+collision world around it (budgeted rays per frame), builds the shape over the
+probed profile, and validates every segment against the colliders; one trace
+at a time. A laid trace not entered yet gives way to another signal only when
+that one stays 100 m nearer for 2 s, so a dense city does not bounce the
+thread between neighbours. The shape comes from the signal's kind:
 
-| Shape | Kinds | Tier II | Tier III |
-|---|---|---|---|
-| `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
-| `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
-| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | at least 60 m, from 40 m above the top down the steepest face; longer for a deep drop so the descent stays ≤ 45° (≤ 250 m) | at least 160 m, same rule |
-| `orbit` | everything else, and a bridge without a usable deck (< 6 m clearance) | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
+| Shape | Kinds | Tier I | Tier II | Tier III |
+|---|---|---|---|---|
+| `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
+| `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | same as tier I | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
+| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | at least 40 m, from 40 m above the top down the steepest face; longer for a deep drop so the descent stays ≤ 45° (≤ 250 m) | at least 60 m, same rule | at least 160 m, same rule |
+| `orbit` | everything else, and a bridge without a usable deck (< 6 m clearance) | half a turn, level | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
 
 A bridge's deck is found on a 5 m grid of down rays around the signal (a
 raised band over lower ground on both sides), then verified with rays: an
@@ -458,7 +460,7 @@ the top: its radius at each height is the landmark's radius there + 12 m
 the height needs them. The same place always gives the same trace (seeded by
 its Wikidata id), its entry turned towards the side the drone came from.
 
-Tolerance: 12 m (tier II), 9 m (tier III). Enter through the small square
+Tolerance: 15 m (tier I), 12 m (tier II), 9 m (tier III). Enter through the small square
 gate at the start; progress then follows the drone along the line, never more
 than 25 m ahead. Off the line, progress pauses; after 10 s off, the flown part
 fades (2 s) and progress resets to the gate. The camera may look anywhere. The

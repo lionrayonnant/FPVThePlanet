@@ -5,17 +5,19 @@ one; mockup `docs/superpowers/mockups/trace-look.html`, look **A — a hairline*
 
 ## What the player gets
 
-A tier II or III signal is no longer captured by holding it in the frame for
-5 s: it is captured by **flying a thread** laid in the air around it. Tier I is
-unchanged.
+A signal is no longer captured by holding it in the frame for 5 s: it is
+captured by **flying a thread** laid in the air around it. The hold remains
+only as the fallback when no thread can be laid.
 
 | tier | trace | tolerance |
 |---|---|---|
-| I | none — hold in frame 5 s (today) | — |
+| I | lightest: half a turn (orbit / spiral, the spiral still wraps the structure at ≤ 30°), a single pass under, a dive of at least 40 m | 15 m |
 | II | short: half a turn (orbit / spiral), or the short form of the shape | 12 m |
 | III | full: 1.5 turns (orbit / spiral), or the full form of the shape | 9 m |
 
-(First set at 5 m / 3.5 m; widened on 2026-09-28 after play: too hard to hold.)
+(First set at 5 m / 3.5 m; widened on 2026-09-28 after play: too hard to hold.
+Tier I first kept the hold; given a thread on 2026-09-28 after play: "c'est
+beaucoup plus fun que de juste regarder un point".)
 
 **Shape by kind** (`signal.kind`, from OSM tags; `heightM` from OSM/Wikidata):
 
@@ -33,12 +35,14 @@ the drone comes from **at generation time**.
 ## Rules
 
 1. **Generation.** When the drone is within 300 m (horizontal) of an open,
-   non-encrypted tier II/III signal, the game probes the collision world around
-   it (vertical rays on a polar grid, budgeted per frame), builds the shape
+   non-encrypted signal (any tier; the nearest one), the game probes the
+   collision world around it (vertical rays on a polar grid, budgeted per frame), builds the shape
    above/around the profile with a clearance margin, and validates every
    segment with `physics.obstructionBetween`. If a segment is blocked, retry
    wider/higher (3 attempts). If none works, **that signal falls back to the
-   hold-in-frame capture** — never blocks.
+   hold-in-frame capture** — never blocks. One trace at a time: a laid trace
+   not entered yet gives way to another signal only when that one stays
+   100 m nearer for 2 s (no bouncing between neighbours in a dense city).
 2. **Refinement.** In LIVE, colliders refine as the drone approaches. After each
    collider flush, the unflown part of an active trace is re-validated (budgeted).
    A blocked segment ahead lifts the remaining trace by the needed height,

@@ -1949,8 +1949,10 @@ nommément, avec un commentaire qui renvoie ici.
 
 *(ajouté le 2026-09-28, issue #185.)*
 
-Un signal de niveau I se garde dans le cadre. Un signal de niveau II ou III,
-non : un lieu qui compte demande un **vol**, pas un regard fixe.
+Un signal ne se garde pas dans le cadre : il se **vole**. Un regard fixe sur
+un point ne vaut pas un vol — c'est vrai de la chapelle de quartier comme de
+la tour Eiffel. Le niveau ne change que la taille du fil : un demi-tour large
+et tolérant au niveau I, la forme complète et serrée au niveau III.
 
 Autour de lui, le jeu pose **un fil** : le chemin du signal dans l'air. Il
 monte en spirale autour d'une tour, passe sous un pont, plonge le long d'une
@@ -1960,9 +1962,9 @@ retrouve où il l'a laissé — au-delà de dix secondes, le fil refroidit et il
 faut repasser la porte.
 
 C'est **le seul objet que le jeu pose dans le monde**. Il n'existe que près
-d'un signal ouvert de niveau II ou III, et disparaît une fois le lieu transmis.
-Quand le monde ne laisse pas la place de le poser, le signal se garde dans le
-cadre, comme au niveau I.
+d'un signal ouvert, un seul à la fois, et disparaît une fois le lieu transmis.
+Quand le monde ne laisse pas la place de le poser, et seulement alors, le
+signal se garde dans le cadre.
 
 **Ce que ce n'est pas.** Pas de chrono à battre. Pas de score. Pas de fantôme.
 Pas de flèche vers la porte, pas de trajectoire conseillée, pas de voix qui
