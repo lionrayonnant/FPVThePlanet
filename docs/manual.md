@@ -409,7 +409,7 @@ once, at their first FIELD flight after the update (`fpvtp.clearanceBriefed`).
 
 **Signals** are real landmarks: OpenStreetMap features that carry a Wikidata
 id (monuments, temples, towers, waterfalls, volcanoes…). The GLOBAL SCANNER
-asks Overpass for them one z12 tile at a time, from zoom 10, starting at the
+asks Overpass for them one z12 tile at a time, from zoom 13, starting at the
 centre of the view, one request at a time; each tile is kept 30 days in
 IndexedDB (`fpvtp-signals`). Only the tile being asked glitches while it is
 asked, and the progress is written as terminal lines in the map corner. On the
@@ -417,14 +417,60 @@ map, a filled yellow light is a signal to capture, a hollow green ring with a
 tick one already uplinked, a small dim dot one above your clearance.
 
 **In flight**, the signals within 3 km of take-off carry a callout anchored on
-the real building. Hold one in the FPV frame (20° cone, 5 s; the gauge drains when it leaves the frame) and its
-OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
+the real building. Hold a tier I signal in the FPV frame (20° cone, 5 s; the
+gauge drains when it leaves the frame) — tier II and III are flown instead, see
+*The trace* below — and its OpenStreetMap fields decrypt; at 100 % it is `UPLINKED` — immediately, the
 frame joins the session's photos, and a crash loses only what was not yet
 uplinked. When control is acquired a one-shot notice gives the scan's state
 (`[+] 49 SIGNALS IN RANGE`), and the OSD's `NEXT SIGNAL 1.2 km ↗` line points
 to the nearest one left. The UPLINKED card shows the place's real photo and
 facts from Wikidata / Wikimedia Commons, credited, with a link to the Commons
 file page.
+
+**The trace** (`tools/trace-model.mjs`, `src/trace-probe.js`,
+`src/signal-traces.js`, `src/trace-line.js`). A tier II or III signal is
+captured by flying a thread laid in the air around it. Within 300 m
+(horizontal) of the nearest open, non-encrypted tier II/III signal, the game
+probes the collision world around it (budgeted rays per frame), builds the
+shape over the probed profile, and validates every segment against the
+colliders; one trace at a time. The shape comes from the signal's kind:
+
+| Shape | Kinds | Tier II | Tier III |
+|---|---|---|---|
+| `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
+| `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
+| `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | 60 m, from 40 m above the top down the steepest face | 160 m |
+| `orbit` | everything else, and a bridge without a usable deck (< 8 m clearance) | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
+
+The spiral wraps the whole structure, from 15 m above the ground to 10 m above
+the top: its radius at each height is the landmark's radius there + 12 m
+(80 m at most), and it climbs at 30° at most — more turns than the minimum when
+the height needs them. The same place always gives the same trace (seeded by
+its Wikidata id), its entry turned towards the side the drone came from.
+
+Tolerance: 5 m (tier II), 3.5 m (tier III). Enter through the small square
+gate at the start; progress then follows the drone along the line, never more
+than 15 m ahead. Off the line, progress pauses; after 10 s off, the flown part
+fades (2 s) and progress resets to the gate. The camera may look anywhere. The
+line is a ~2 px hairline seen through the lens, depth-tested, no fog, no glow:
+yellow ahead, green flown; hidden in every photo. The callout reads
+`TRACE · SPIRAL · 42 %` (`ENTER THE GATE` before the gate, `STANDBY` while it
+is not laid yet); at 100 % it is `UPLINKED`. The stored entry carries
+`trace: '<shape>'` and `holdS`, the seconds spent on it; the card and `DATA`
+show `TRACE SPIRAL · 38.2 s` instead of `HOLD 5.0 s`.
+
+The photo: while on the trace, at most twice a second, a view with the landmark
+within 35° of the frame centre and in line of sight is scored (closer to centre
+is better); only a clearly better one replaces the kept frame. That frame is
+the intercepted photo; none seen, the uplink frame.
+
+In LIVE the colliders refine as the drone approaches: after each flush the
+unflown part is re-validated, and a blocked segment lifts the rest of the trace
+over the obstruction (blended; the flown part never moves). If no trace can be
+laid in 3 attempts, or it needs more than 8 lifts or a lift over 60 m, that
+signal falls back to the hold-in-frame capture — a signal is never blocked.
+A trace not entered yet is dropped past 450 m. DEV: `__signals.trace()`,
+`__signals.flyTrace(speed)`, `__signals.stopFly()`.
 
 **Clearance** is the operator's standing with the network: one point per tier
 of every signal uplinked (tier I = 1, II = 2, III = 3), never spent
