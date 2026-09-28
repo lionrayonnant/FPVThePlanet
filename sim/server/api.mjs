@@ -380,13 +380,16 @@ const opRoutes = [
 				// eligibility. The server is the authority — it recomputes both from
 				// `clearance` with the SAME pure functions the client used, rather
 				// than trusting a client-supplied family list. Missing or out of
-				// range: the full pool, for a client that predates clearance — but
-				// the swarm stays gated at 0 in that case, never inferred from a
-				// clearance the server could not validate.
+				// range means a client that predates clearance: BOTH stay exactly
+				// what they always were — the full pool, and `swarmChance` passed
+				// through unchanged — so a stale client keeps resolving precisely
+				// what it displayed. Only a VALID clearance below CLEARANCE 3 forces
+				// the swarm to 0; a valid clearance never widens the pool or the
+				// swarm chance beyond what the client already sent.
 				const rawClearance = b.clearance;
 				const validClearance = Number.isInteger(rawClearance) && rawClearance >= 0 && rawClearance <= MAX_CLEARANCE;
 				const families = validClearance ? familiesFor(rawClearance) : undefined;
-				const swarmChance = (validClearance && swarmAllowed(rawClearance)) ? swarmChanceIn : 0;
+				const swarmChance = validClearance ? (swarmAllowed(rawClearance) ? swarmChanceIn : 0) : swarmChanceIn;
 				const scan = generateTargetScan({ seed: String(b.targetSeed), count: b.targetCount, swarmChance, families });
 				if (!Number.isInteger(b.targetIndex) || b.targetIndex < 0 || b.targetIndex >= scan.candidates.length) {
 					return json(res, 400, { error: `targetIndex out of range: ${b.targetIndex}` });

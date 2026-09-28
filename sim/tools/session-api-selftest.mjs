@@ -149,6 +149,24 @@ try {
 			const r = await call('POST', `/__operator/${id}/sessions`, body);
 			check(`POST sessions : clearance ${bad} -> 201, full pool, no throw`, r.status === 201, `${r.status}`);
 		}
+
+		// Back-compat (fix round 1): missing/invalid clearance must ALSO leave
+		// swarmChance untouched — a stale client (pre-#185) that showed a swarm
+		// must still resolve one. Same body as the swarm witness above, minus
+		// `clearance`: the same swarm resolution as before this task existed.
+		for (const bad of [undefined, -1, 99, 1.5]) {
+			const body = {
+				area: 'kyiv', weatherSnapshot: null,
+				targetSeed: 'api-swarm-legacy', targetCount: 4, targetIndex: 0, swarmChance: 1,
+			};
+			if (bad !== undefined) body.clearance = bad;
+			const r = await call('POST', `/__operator/${id}/sessions`, body);
+			check(`POST sessions : clearance ${bad}, swarmChance 1 -> swarm still resolves (back-compat)`,
+				r.status === 201 && r.body.session.target.family === 'swarmNode'
+				&& r.body.session.target.scan.swarmAt === 0
+				&& r.body.session.target.scan.swarmChance === 1,
+				JSON.stringify(r.body.session?.target));
+		}
 	}
 
 	// --- captures et élision --------------------------------------------------
